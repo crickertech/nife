@@ -36,6 +36,8 @@ mod cap;
 mod console;
 mod cpu;
 mod drivers;
+#[cfg(feature = "fastpath_pad")]
+mod fastpath_pad;
 #[cfg(feature = "icount")]
 mod icount;
 mod interrupt_stack;
