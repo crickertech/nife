@@ -162,6 +162,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 101 | DECIDED | [Notification objects: async multiplexing without wait-any](101-notification-objects.md) |
 | 102 | DECIDED | [A Frame names a run of pages](102-frame-names-a-run.md) |
 | 104 | DECIDED | [The rich-text font is DejaVu Sans Mono, and the palette is Solarized](104-the-font-and-the-palette.md) |
+| 107 | DECIDED | [`missing_docs` moves to `workspace.lints.rust`, opt-out rather than opt-in](107-missing-docs-workspace-wide.md) |
 | 103 | SUPERSEDED BY 102 | [What a `Frame` names](103-what-a-frame-names.md) |
 | 105 | DECIDED | [`std::thread::spawn` stays declined, until a customer needs it](105-thread-spawn-decline-for-now.md) |
 | 106 | DECIDED | [Take the `terminal_sink_caretaker` narrowing: an unredirected tail stage's output goes to the screen, not the shell](106-tail-output-narrowing.md) |
