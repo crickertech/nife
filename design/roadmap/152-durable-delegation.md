@@ -48,7 +48,7 @@ instead of a hypothetical.
 
 Four pieces, discussed in order and each answered before moving to the next.
 
-### 1. The durable principal is the session itself, kept alive by its own live children
+### The durable principal is the session itself, kept alive by its own live children
 
 **No new kind of object.** The durable thing a scheduled job's authority is supervised by is the
 user's own login session, and what keeps it alive past a disconnect is exactly the rule
@@ -68,7 +68,7 @@ does not, which is more minimal (nothing outlives its own reason to exist) and m
 existing mechanism directly rather than needing a new opt-in flag and a new place to store it.
 [loginctl (systemd)](https://www.freedesktop.org/software/systemd/man/latest/loginctl.html).
 
-### 2. Reattachment on reconnect, via a scoped lookup, not enumeration
+### Reattachment on reconnect, via a scoped lookup, not enumeration
 
 When a user reconnects and a durable session already exists for them (kept alive by pending jobs),
 the new connection needs to find and attach to *that* session rather than minting a second one
@@ -84,7 +84,7 @@ durable-session capability (or nothing yet), where a successful authentication r
 entry or creates and records a fresh one. Additive to what 56 already does, not a new kind of ambient
 power: still "prove who you are, get back exactly your own thing," never a directory of everyone's.
 
-### 3. Decided: disabling a user's login credentials kills their durable session
+### Decided: disabling a user's login credentials kills their durable session
 
 **calef, 2026-08-22: yes.** Revoking credentials cascades to killing the durable session, which
 cascades to everything derived from it (§40's subtree-death rule), including every scheduled job the
@@ -92,7 +92,7 @@ session was supervising. One action, one consequence, using mechanism that alrea
 than inventing a second revocation path that has to be kept in sync with the first. Recorded as
 [DECISIONS §108](../decisions/108-credential-revocation-kills-durable-session.md).
 
-### 4. Boot-time bring-up is re-derivation, not restoration
+### Boot-time bring-up is re-derivation, not restoration
 
 **Capabilities do not survive a reboot; nothing in the kernel does.** So bring-up at boot cannot be
 "reload the session's old authority from disk," because there is no such operation. It has to be
