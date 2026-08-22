@@ -62,3 +62,7 @@ reason.
   have to grow before this ships. Nothing in this decision addresses it.
 - **This says nothing about a caretaker with no client**, because none exists yet. A caretaker
   built speculatively, or shared by two clients, would need a rule this decision does not have.
+  **A real case surfaced 2026-08-22 (milestone 152)**: a scheduled job registered by a user needs
+  authority that outlives the login session that requested it, which needs a supervisor more durable
+  than this decision's own client-shaped one. Not this decision's own gap to fix; recorded here
+  because a reader who lands on this rule needs to know it does not cover that case.
