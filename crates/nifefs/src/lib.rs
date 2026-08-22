@@ -223,8 +223,8 @@ pub struct Fs<'a> {
 
 impl<'a> Fs<'a> {
     /// Validate the whole directory up front: magic, entry count, and every entry's data bounds.
-    /// A returned `Fs` has nothing left to check; [`entry_at`](Self::entry_at) and every lookup
-    /// built on it trust this pass completely.
+    /// A returned `Fs` has nothing left to check; decoding an entry and every lookup built on it
+    /// trust this pass completely.
     pub fn parse(image: &'a [u8]) -> Result<Self, Error> {
         // The directory blocks must be present before any entry offset (up to HEADER_LEN +
         // MAX_FILES*ENTRY_LEN, which sits inside DIR_BLOCKS) is read; this guard is what makes
