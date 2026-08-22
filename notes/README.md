@@ -224,6 +224,14 @@ in the code or the conversation doesn't make sense, it belongs here.
   used to abort the process. Five std calls have now been found that **compile perfectly and kill
   the process**, the last of them `std::process::exit`, which is why the reading that found them is
   a check now (`cargo xtask std-aborts`, described in std.md).
+- [The `thread::spawn` fork](thread-spawn-fork.md): milestone 64's rank-3 gap, written up against
+  the six-questions framework ahead of a decision (pull request #394). Why a std thread needs one
+  shared, growable heap and nife gives every TCB a privately owned, consumed `AddressSpace`; the
+  two real shapes a fix could take (a kernel-level shared VSpace, seL4's own answer and this
+  kernel's stated lineage, versus sibling processes kept aliased by replicated frame mappings) and
+  why the second one's apparent "no syscall touched" cheapness collapses against what Rust's own
+  allocator needs from a live, growing heap; and why declining, for now, is the one option that
+  forecloses nothing later.
 - [Running a foreign language: the C seam](c-seam.md): milestone 36: memory-unsafe C, compiled by
   bare-metal clang, confined and restarted. Why C is the *best* demonstration of "a verified core that
   confines unverified workloads" rather than a dilution of it, and the seam's rules: a Rust `user_rt`
@@ -355,6 +363,19 @@ in the code or the conversation doesn't make sense, it belongs here.
   it, and a line whose bytes all come from the shell needs one stage that reads to the end. No
   interleaving schedule fixes that, and the two shapes that would (a pull-based source, a buffering
   component) are both design forks and are weighed there.
+- [The tail-stage output fork](tail-output-narrowing.md): milestone 40's last piece, worked through
+  CLAUDE.md's six-questions framework so the remaining decision is answerable in a sentence. Checks
+  the premise ("a tail stage's output has nowhere to go but the shell") against `grant_plan` rather
+  than trusting the roadmap's own framing; finds it true. Weighs the option the roadmap names
+  (`terminal_sink_caretaker` takes a tail stage's primary output, the same shape DECISIONS §67
+  already built for the default diagnostic destination) against the two the tree already refused (a
+  pull-based source, a buffering stage, both in pipes.md) and against doing nothing. Two findings
+  that were not in the tree before this note: the shell can reuse DECISIONS §26's already-built
+  fault endpoint as its completion signal instead of reading the child's bytes, which is cheaper
+  than it looks; and moving output off the shell's own read loop opens a narrower race than the one
+  notes/manual.md named, between a child's exit and its own trailing delivery through
+  `terminal_sink_caretaker`. DECISIONS §101 (notification objects) already ratified the *direction*
+  and left the specifics to this fork.
 - [`swish` the language](swish-language.md): milestone 67: quoting, sequencing, and the one design
   fork inside them. **Quoting was an authority gap rather than a convenience**: a file called `my
   notes.txt` could not be named, and a resource you cannot name is a resource you cannot grant. It

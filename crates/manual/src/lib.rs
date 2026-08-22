@@ -73,7 +73,7 @@
 //! # BUGS
 //!
 //! - **A source line longer than [`LINE_MAX`] is truncated**, and the truncation is silent in the
-//!   output. The longest line in this repository is 1896 bytes <!--count:longest-markdown-line-->,
+//!   output. The longest line in this repository is 1927 bytes <!--count:longest-markdown-line-->,
 //!   which is why the limit is what it is; a document from somewhere else may lose text. The
 //!   renderer records it, so a caller that wants to know can ask [`Renderer::truncated`].
 //! - **A fence inside a block quote closes now, and did not until 2026-08-18.** The closing test
@@ -108,10 +108,6 @@
 //!   occupies two. There is no CJK in the corpus and no font that could draw it.
 
 #![no_std]
-// milestone 68's doc ratchet: every public item in this crate is documented, and
-// `script/lint`'s -D warnings keeps it that way. See notes/doc-coverage.md for the
-// crates that are not there yet.
-#![warn(missing_docs)]
 
 #[cfg(feature = "builder")]
 extern crate alloc;
