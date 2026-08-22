@@ -64,9 +64,9 @@ page's last line and the next `$ ` can interleave under contention. A display gl
 confinement or correctness failure: no capability changes hands, no byte reaches the wrong reader.
 
 **This is carried as a documented `BUGS` entry, not a blocker, on the condition that its fix has a
-tracked home**: milestone 151 (`design/roadmap/151-notification-objects.md`), which builds the
-notification object §101 already specified. Once it lands, the shell binds a notification to its
-own TCB and `WAIT`s on "the caretaker's queue for this client has drained" instead of racing it.
+tracked home**: milestone 151, which builds the notification object §101 already specified. Once it
+lands, the shell binds a notification to its own TCB and `WAIT`s on "the caretaker's queue for this
+client has drained" instead of racing it.
 
 ## What this does not decide
 
