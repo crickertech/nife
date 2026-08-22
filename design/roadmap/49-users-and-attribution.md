@@ -7,6 +7,11 @@ root 47 defines. The fork to settle first is whether attribution is a property o
 invocation carrying a stamped origin) or of a channel (a server logging which endpoint a request
 arrived on); the block warns that the wrong answer quietly reintroduces ambient identity.
 
+**Now also a named prerequisite for milestone 152 (durable delegation)**, minted 2026-08-22: a
+scheduled job registered by a specific user (milestone 129's #387) needs a durable principal to be
+supervised by, and login-produces-capabilities is where that principal would first exist. 152 gates
+on this milestone rather than guessing at identity itself.
+
 **In brief.** Unix's uid does four different jobs at once. Three of them are already answered here,
 structurally and without anyone having declared it; the fourth has no mechanism whatsoever. This
 milestone writes down the first three, builds a login service that produces capabilities instead of

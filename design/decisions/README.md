@@ -166,6 +166,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 103 | SUPERSEDED BY 102 | [What a `Frame` names](103-what-a-frame-names.md) |
 | 105 | DECIDED | [`std::thread::spawn` stays declined, until a customer needs it](105-thread-spawn-decline-for-now.md) |
 | 106 | DECIDED | [Take the `terminal_sink_caretaker` narrowing: an unredirected tail stage's output goes to the screen, not the shell](106-tail-output-narrowing.md) |
+| 108 | DECIDED | [Disabling a user's login credentials kills their durable session](108-credential-revocation-kills-durable-session.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
 way milestone 76 moved four essays out of the roadmap: [the open design

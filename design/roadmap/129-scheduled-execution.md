@@ -120,6 +120,14 @@ timetable: the archive it holds carries 57 programs, 56 of them beyond its plan 
   cannot be asked of it) and reaching it here needs a capability per entry. Needs nobody, and it is
   smaller than it looks now that the sub-archive exists.
 - **A runtime registration protocol, and who holds the right to use it.** calef's, per above.
+  **Held pending milestones 49 and 152** (2026-08-22): calef wants a scheduled job's capabilities to
+  reflect the scheduling user's own authority, which means the registrar in #387's own Option 3
+  should be a user's session rather than a fixed system component. That collides with DECISIONS
+  §92 (a caretaker is supervised by the client it serves) for anything meant to outlive the session that
+  registered it, and there is no durable "user" principal yet to supervise a delegation that should.
+  Milestone 152 names the fork; it gates on 49 (users, login, and attribution), which does not exist
+  yet either. #387's `--mem` grant (already built) is unaffected; only the registration-protocol
+  question is blocked.
 - **Calendar syntax, wall-clock entries, persistence.** Each its own later decision, per the scope
   note below, and none of them started.
 
