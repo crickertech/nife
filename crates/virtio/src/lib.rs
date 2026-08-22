@@ -1097,7 +1097,12 @@ fn complete_blk(used_before: u16) {
 /// blocks at open, and moves up to `blk::TRANSFER_BLOCKS` of them per request since milestone 138
 /// step 4, both for the same reason: a device round trip costs far more than the transfer itself.
 fn blk_read(dma_phys: u64, block: u64, count: u64) {
-    let used_before = submit_blk(dma_phys, block * blk::SECTORS_PER_BLOCK, VIRTIO_BLK_T_IN, count);
+    let used_before = submit_blk(
+        dma_phys,
+        block * blk::SECTORS_PER_BLOCK,
+        VIRTIO_BLK_T_IN,
+        count,
+    );
     complete_blk(used_before);
 }
 
@@ -1105,7 +1110,12 @@ fn blk_read(dma_phys: u64, block: u64, count: u64) {
 /// this request) in a single virtio request. The one direction flag differs from the read; the
 /// addresses are identical.
 fn blk_write(dma_phys: u64, block: u64, count: u64) {
-    let used_before = submit_blk(dma_phys, block * blk::SECTORS_PER_BLOCK, VIRTIO_BLK_T_OUT, count);
+    let used_before = submit_blk(
+        dma_phys,
+        block * blk::SECTORS_PER_BLOCK,
+        VIRTIO_BLK_T_OUT,
+        count,
+    );
     complete_blk(used_before);
 }
 
