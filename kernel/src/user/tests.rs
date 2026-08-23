@@ -2260,7 +2260,7 @@ fn a_dead_user_thread_frees_its_whole_address_space() {
     // Pin the outlaws to THIS core (DECISIONS §28 made `spawn` scatter them). Frame accounting
     // must be exact to catch a leak (the milestone-6 bug this test guards), but a thread's frames
     // are freed by `finish_switch` on whatever core reaps it, *after* it leaves the thread table
-    // and outside SCHED. Scattered across cores, that free is asynchronous, so `used()` fluctuates
+    // and outside IPC_TABLES. Scattered across cores, that free is asynchronous, so `used()` fluctuates
     // and never reads exact. Kept on the test's own core, each outlaw's fault, reap, and frame
     // free happen synchronously under the test's own yields, so `used()` is exact again. This
     // tests the reaper, not placement, so pinning costs nothing.
@@ -2326,7 +2326,7 @@ fn a_dead_user_thread_frees_its_whole_address_space() {
     // Exact in the leak direction, but allow the asynchronous reap to settle. Pinning the outlaws
     // with `spawn_on` is a placement HINT, not a pin (DECISIONS §28): an idle core can steal one
     // before this core runs it, and then the frame free (finish_switch dropping the address space,
-    // after the thread leaves the table and outside SCHED) lands on that core a beat after the Tid
+    // after the thread leaves the table and outside IPC_TABLES) lands on that core a beat after the Tid
     // resolves to nothing. So wait for `used()` to come back to `before` rather than reading it
     // the instant the last outlaw is gone. Still a leak trap: a real leak (the milestone-6 bug)
     // never gives the frames back, so this wait times out and fails.

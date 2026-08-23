@@ -139,7 +139,7 @@ pub fn open_context(context: usize) {
 /// other ISA (see sync.rs). It is a **leaf**: nothing is acquired while it is held (the body is two
 /// MMIO accesses and no calls), and it is itself always taken holding nothing, from both sides. The
 /// handler holds nothing by §9's "handlers record and defer"; every [`enable`] caller has already
-/// released `SCHED` by the time it calls (`bind_irq` and `create_endpoint` take and drop it
+/// released `IPC_TABLES` by the time it calls (`bind_irq` and `create_endpoint` take and drop it
 /// first). So the strictly-decreasing rule has slack in both directions rather than being met
 /// exactly, which is the comfortable place to be.
 ///

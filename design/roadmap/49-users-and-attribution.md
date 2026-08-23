@@ -152,10 +152,46 @@ feature (`user/src/login.rs`'s own BUGS, more precisely worded per item).
 - **No terminal.** The roadmap's own text names three things a login hands back; `login` hands back
   two. A terminal in this system is a singleton hardware-backed resource wired once at interactive
   boot; minting a second one, or multiplexing the one that exists across logins, is unscoped follow-on.
-- **Not wired into the interactive boot.** `login` is spawned directly by the kernel's guest test
-  harness, the same way `credentialer` is, and is not reachable from `crates/system_initializer::boot`'s
-  real prompt. Replacing the shell's build-time endowment with a real login prompt is the largest
-  remaining piece of this milestone and the natural next lane.
+- **Not wired into the interactive boot, and the blocker is a missing device grant, not a wiring
+  exercise** (investigated 2026-08-23, milestone/49-login-boot-prompt, no code changed by that
+  lane; see `user/src/login.rs`'s own BUGS for the full chain). `login` is spawned directly by the
+  kernel's guest test harness, the same way `credentialer` is, and is not reachable from
+  `crates/system_initializer::boot`'s real prompt. The reason is not that nobody has called
+  `build_child` enough times: `credentialer` refuses to start without the entropy service (its
+  decoy record's salt comes from entropy at start-up and there is no predictable fallback,
+  DECISIONS §42), the entropy service needs a real virtio-rng device, and the interactive boot
+  neither attaches one in QEMU nor grants a capability for one in
+  `system_initializer::BootEndowment` (built by `kernel::user::spawn_init` on aarch64 and
+  `kernel::user::riscv_shell_boot` on riscv64). `NIFE_RNG`, like the GPU/keyboard/NVMe device
+  flags it sits beside, is set only inside `cargo xtask test`, never by `cargo xtask shell-check`
+  or any interactive/demo boot; that is an existing, deliberate choice about that boot's device
+  surface, not an omission this milestone introduced.
+
+  **The rest of the chain is already built and proven**: a real virtio-rng-backed entropy service,
+  `credentialer` provisioned with milestone 56's own family fixture (`chris`, `corinne`, …), and
+  `login` relaying to it all run correctly end to end today whenever a virtio-rng device is present
+  (`kernel::user::login_tests::wired`, reusing `kernel::user::credential_tests::provisioned`). So
+  the remaining gap is exactly one missing capability grant, not unfinished login or credential
+  logic.
+
+  **Why a lane should not just add the device.** Whether the interactive boot should carry a
+  virtio-rng device is a question about what that boot models, and milestone 55's actual target is
+  real Raspberry-Pi-class hardware, which has no virtio-rng and needs its own entropy source; adding
+  one in QEMU would answer the demonstrator's boot and not the target's. It also means a new
+  permanent capability in `BootEndowment` on a cspace `crates/system_initializer` already documents
+  as one slot from the wall at peak, so fitting it (and a way for a spawned client to reach `login`)
+  means restructuring which capabilities init holds simultaneously during the shell's own build, not
+  adding a field. Both are exactly the "who has already acted on this, and how reversible is it"
+  shape the *move fast on what can be undone* tenet reserves for calef: a kernel-to-init grant and a
+  claim about what hardware the interactive boot represents.
+
+  **Decided (calef, 2026-08-23, DECISIONS §120): the QEMU-only stopgap is declined for now**, for
+  want of a customer -- no interactive login needs to work before real hardware entropy is sorted.
+  Milestone 159, a real hardware entropy source: the JH7110's TRNG (minted alongside §120), tracks
+  the real answer, already named as the candidate in `notes/entropy.md` and milestone 56's own doc
+  but never given a home. Replacing the shell's build-time endowment with a real login prompt remains this milestone's
+  largest piece and stays blocked until either §120 is revisited with a real customer or milestone
+  159 lands.
 - **`login` does not consult `measured_boot::PROGRAM_MEASUREMENTS` before building a caretaker.**
   Milestone 104's discipline (init refuses to load a program whose bytes do not match the archive's
   measurement table) does not extend to this non-init loader. Fixing it well means deciding how a

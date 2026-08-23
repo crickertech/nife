@@ -557,6 +557,18 @@ path = "src/pgrep.rs"
 test = false
 bench = false
 
+# `pmap` (milestone 126, DECISIONS §114): `ps`'s split one object type over, listing an address
+# space's mappings through `abi::aspace::LIST` gated by `ENUMERATE` rather than `WRITE`. Proven
+# end to end against a real `Object::Aspace` in `kernel::user::pmap_tests`; not reachable from the
+# interactive shell today, because nothing in this tree delegates an address-space capability to a
+# program other than its own builder (see `crates/pmap`'s BUGS). The listing itself is
+# crates/pmap, host-tested. Portable for `ps`'s reason.
+[[bin]]
+name = "pmap"
+path = "src/pmap.rs"
+test = false
+bench = false
+
 [lints]
 workspace = true
 
@@ -599,6 +611,7 @@ compositor = { version = "0.1.0", path = "../crates/compositor" }
 coremark = { version = "0.1.0", path = "../crates/coremark" }
 nifefs = { version = "0.1.0", path = "../crates/nifefs" }
 pgrep = { version = "0.1.0", path = "../crates/pgrep" }
+pmap = { version = "0.1.0", path = "../crates/pmap" }
 ps = { version = "0.1.0", path = "../crates/ps" }
 elf = { version = "0.1.0", path = "../crates/elf" }
 entropy_proto = { version = "0.1.0", path = "../crates/entropy_proto" }

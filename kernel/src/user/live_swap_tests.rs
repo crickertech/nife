@@ -17,6 +17,7 @@ const RPT_REFUSED: u64 = 11;
 const RPT_SURVEY: u64 = 12;
 const RPT_UNCOLLECTABLE: u64 = 13;
 const RPT_WEDGED: u64 = 14;
+const RPT_DEPENDENTS: u64 = 15;
 const RPT_FAILED: u64 = 99;
 
 /// `component_plan::Refusal::Unprovided`'s wire code: the supervisor routes nothing to a role the
@@ -83,9 +84,10 @@ const SWAPPER_BUDGET_PAGES: u64 = 224;
 /// How many reports one run can make before the test gives up waiting for the operator's final
 /// verdict. Generous: the loop stops at `RPT_LOG`, and this is only the tripwire for a run that
 /// never gets there. Raised from 24 with milestone 23's manifest, which adds one `RPT_REFUSED` per
-/// run, and from 28 with the hung-component role, which adds three; a run that overflows this loses
-/// the operator's verdict and fails for the wrong reason.
-const MAX_REPORTS: usize = 40;
+/// run, from 28 with the hung-component role, which adds three, and from 40 with dependency-aware
+/// orchestration, which adds one `RPT_DEPENDENTS` on the direct and queued channels; a run that
+/// overflows this loses the operator's verdict and fails for the wrong reason.
+const MAX_REPORTS: usize = 42;
 
 /// **Spawn the operator the way the kernel spawns init**, and return the report endpoint every
 /// process in the run holds a WRITE view of.
@@ -179,8 +181,9 @@ fn run_swap(role: u64) -> ([[u64; 5]; MAX_REPORTS], usize) {
              four program images, 5-10 the endpoints and the witness page, 11-16 the incumbent \
              and the client, 20-27 the swap itself, 30-33 the attacker, 40-51 the queued rung, \
              60-63 the component manifests (60 means an unsatisfiable declaration was WIRED), \
-             70-87 the hung-component rung (81 means the incumbent did not announce its hang \
-             with a CALL, so nothing held a reply capability on it).",
+             64 the dependency graph query (more live instances than MAX_LIVE), 70-87 the \
+             hung-component rung (81 means the incumbent did not announce its hang with a CALL, \
+             so nothing held a reply capability on it).",
             msg[1],
         );
         assert_ne!(
@@ -301,6 +304,35 @@ fn a_component_the_operator_cannot_provide_for_was_refused_first(msgs: &[[u64; 5
     );
 }
 
+/// **The dependency graph a supervisor would compute agrees with what this channel actually ran**
+/// (milestone 23's dependency-aware-orchestration residual; `crates/component_plan`'s `dependents`).
+///
+/// `swapper` reports one `RPT_DEPENDENTS` per swap target it considers: `w1` = how many live
+/// instances `component_plan::dependents` returned, `w2` = the first one's id (0 if none). This is
+/// not a report about what the operator *did*; it is the graph's own verdict, computed from
+/// `Requirements::depends_on` before any orchestration step runs, so a mismatch here would mean the
+/// graph and the hand-written sequencing had drifted apart.
+fn the_dependency_graph_matches_what_this_channel_ran(
+    msgs: &[[u64; 5]],
+    want_len: u64,
+    want_id: u64,
+) {
+    let dep = of_kind(msgs, RPT_DEPENDENTS)
+        .next()
+        .expect("the operator never reported the dependency graph's verdict");
+    assert_eq!(
+        dep[1], want_len,
+        "the dependency graph named {} live instances that must be warned before this swap, \
+         wanted {want_len}",
+        dep[1],
+    );
+    assert_eq!(
+        dep[2], want_id,
+        "the dependency graph's first named instance was {}, wanted {want_id}",
+        dep[2],
+    );
+}
+
 /// **The flagship: a component is replaced under a client that is talking to it.**
 ///
 /// The four steps all happen, in an order the operator chose, and then two independent
@@ -315,6 +347,11 @@ fn a_client_keeps_talking_while_the_server_underneath_it_is_replaced() {
     // Before the four steps: every component in this run was wired from its own declaration, and one
     // that this channel cannot provide for was refused with nothing built.
     a_component_the_operator_cannot_provide_for_was_refused_first(msgs);
+
+    // Nothing on this channel needs warning before the console is swapped: `CLIENT` is a pure
+    // consumer (no `Serve` need), so §41's sender-queue argument already covers it and the graph's
+    // own answer is a real empty set, not an untested one.
+    the_dependency_graph_matches_what_this_channel_ran(msgs, 0, 0);
 
     // The four steps, each on machinery that existed before this milestone.
     for (step, what) in [
@@ -472,6 +509,12 @@ fn a_producer_never_blocks_on_an_absent_consumer_and_loses_nothing() {
     // The manifest mechanism's other side: on this channel the console component's declaration is
     // the one that cannot be satisfied, because no device is routed here.
     a_component_the_operator_cannot_provide_for_was_refused_first(msgs);
+
+    // **The one real edge in this milestone's residual.** `broker` declares `depends_on:
+    // &["backend"]`, so the graph names it (id 2) as the sole instance that must be warned before
+    // the backend is swapped, and it is what actually decides whether `BOP_DOWN`/`BOP_UP` get sent
+    // on this run rather than the operator's own hard-coded memory of what it built.
+    the_dependency_graph_matches_what_this_channel_ran(msgs, 1, 2);
 
     let producer = of_kind(msgs, RPT_CLIENT)
         .next()
