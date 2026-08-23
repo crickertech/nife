@@ -1,12 +1,33 @@
 # 156. `syscall_entry`'s measured size is every method combined; extract the rest and ratchet both ways
 
-**Status: NOT-STARTED.** Minted 2026-08-23, found while fixing milestone 126's `pmap` (`abi::aspace::LIST`
+**Status: BUILT.** 2026-08-23. Minted 2026-08-23, found while fixing milestone 126's `pmap` (`abi::aspace::LIST`
 tripped `script/fastpath-footprint`'s 5% bound, +6.7% on riscv64). Extracting `LIST` alone into an
 `#[inline(never)]` function fixed that one regression; measuring why turned up a bigger, pre-existing
 gap this milestone tracks. **Scope widened 2026-08-23** (calef, answering "do we have a mechanism to
 ratchet down our performance benchmark" with "add it to milestone 156's scope"): the gate itself has
 the same one-directional problem the extraction work is about to make concrete, and both belong in
 one milestone since the second is what makes the first's gains actually stick.
+
+## What was built
+
+Both parts landed. Part one: `Untyped::{MAP,RETYPE_OBJ,RETYPE,SPLIT,DESTROY}`, `Frame::{MAP,REVOKE}`,
+`Tcb::{CONFIGURE,CAP_INSERT}`, `Irq::{WAIT,ACK}`, `Virtio`'s four register methods, and
+`Endpoint::REAP` all moved into `#[inline(never)]` functions, the same shape as `LIST`'s own fix.
+`DeviceFrame::REVOKE` and `Tcb::START` were tried and reverted: the byte delta was negligible and not
+worth carrying the diff. `Endpoint::{SEND,RECV,CALL}` and `Reply::REPLY`, the genuine IPC round trip,
+stayed inlined on purpose. Part two: `script/fastpath-footprint`'s comparison now fails symmetrically
+on `abs(delta) > TOL` in either direction, requiring `--save` to acknowledge a shrink exactly as it
+already required one to justify growth.
+
+**A correction found during landing, not during the lane's own work**: the lane's final merge of
+`origin/main` (its own recorded commit) silently dropped `abi::aspace::LIST`'s match arm and its
+`aspace_list` function during conflict resolution, which made its own `--save` measurement
+(`syscall_entry` 1988 riscv64 / 3444 aarch64) look better than reality -- both numbers were measured
+on a build missing a real, shipped feature. Restoring `aspace_list` during a later merge brought the
+true, feature-complete numbers to 2210 / 3480: still a genuine 24% (riscv64) and 16.5% (aarch64)
+reduction from `main`'s actual pre-156 baseline (2914 / 4168), just not as large as the invalid
+figures the lost merge had produced. `bench/fastpath-{aarch64,riscv64}.txt` reflect the corrected,
+verified numbers.
 
 **Gate: NONE.** Nothing here needs a decision; it is mechanical extraction plus a small, symmetric
 change to an existing check, verified per step by re-measuring. `script/fastpath-footprint`'s own
