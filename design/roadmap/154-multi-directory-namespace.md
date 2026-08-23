@@ -1,6 +1,6 @@
 # 154. A process that holds two directory capabilities
 
-**Status: NOT-STARTED.** Minted 2026-08-23, proposed independently by two milestones that converge
+**Status: IN-PROGRESS.** Minted 2026-08-23, proposed independently by two milestones that converge
 on the same gap: milestone 47's `bind` ("It is blocked on a second grant") and milestone 64's
 `File::open` fork ("tier two, anything that traverses, needs a namespace to resolve *against*, and
 that is 47's unbuilt half"). Both name the identical missing primitive; this gives it one home
