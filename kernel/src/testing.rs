@@ -191,9 +191,19 @@ const FRAME_REPORT_MIN: usize = 16;
 /// shape `credential_service`'s 1656-frame credential store already is in this ledger. Measured
 /// aarch64 total: 15624 kept. notes/frames.md's held-frames list carries the itemised account.
 ///
+/// **Raised again, same day, same milestone, a cspace bug rather than a new feature.** `mint()` in
+/// `user/src/login.rs` used to leak one of `login`'s own sixteen cspace slots per successful login
+/// (the caretaker's construction region capability was never freed), which bounded the service to
+/// exactly eight logins ever regardless of `CONSTRUCTION_UT`'s size. The fix needed a regression
+/// test that actually crosses that old ceiling, so `login_tests.rs`'s `CONSTRUCTION_PAGES` grew from
+/// 640 to 1408 (nine real logins' worth instead of three) to cover it. Every one of those extra 768
+/// pages is permanent for the same reason the 640 above are: `user/src/login.rs`'s BUGS still names
+/// the caretaker's construction *memory* (as opposed to the cspace slot this lane fixed) as never
+/// reclaimed. 16200 + 768 = 16968.
+///
 /// Raising it is a decision, not a formality: read the `[that test kept N frames]` lines the run
 /// prints, find who grew, and be able to say why that growth is permanent.
-const SUITE_FRAME_BUDGET: usize = 16_200;
+const SUITE_FRAME_BUDGET: usize = 16_968;
 
 /// **The longest run of free frames the boot must still have at the end**, in frames.
 ///
