@@ -844,8 +844,9 @@ pub fn unmap_user_at(root: u64, va: u64) -> Option<u64> {
 
 /// Ask the user page tables rooted at `root` what `va` maps to. Like [`translate_user`], but for an
 /// arbitrary root rather than the installed one, so revocation (and its tests) can inspect another
-/// address space. Reads the tables in memory; touches no register.
-#[cfg_attr(not(test), allow(dead_code))] // the §13 revocation tests are the only callers
+/// address space, and (milestone 126, `pmap`, DECISIONS §114) so `abi::aspace::LIST` can turn a
+/// `va` `revoke::list_mapping` names into the permission bits a listing prints. Reads the tables
+/// in memory; touches no register.
 pub fn translate_at(root: u64, va: u64) -> Option<(u64, Flags)> {
     // SAFETY: `root` is an L0 table; the direct map makes `phys_to_ptr` valid.
     let mapper = unsafe { Mapper::<_, _, Aarch64>::new(root, Half::Low, || None, phys_to_ptr) };

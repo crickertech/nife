@@ -223,6 +223,55 @@ pub fn survey(slot: u64, cursor: u64) -> (i64, u64, u64) {
     (r0, w1, w2)
 }
 
+/// **Read one entry of what this address space has mapped** (milestone 126, `pmap`,
+/// `aspace::LIST`, DECISIONS §114). Returns `(next_cursor, va, kind)`: start at `cursor = 0`, feed
+/// each `next_cursor` back, and stop when [`abi::survey::DONE`] comes back. [`survey`]'s twin,
+/// same three-word-out-of-one-`invoke` shape, one object type over.
+///
+/// A negative first word is an [`abi::Error`], and the one that matters is `NotPermitted`: this
+/// capability does not carry `ENUMERATE`, so the holder may map into the space but not list it.
+/// **That is a refusal and not an empty listing**, and a caller must print it as one.
+#[cfg(target_arch = "aarch64")]
+pub fn list(slot: u64, cursor: u64) -> (i64, u64, u64) {
+    let (mut r0, mut w1, mut w2): (i64, u64, u64);
+    // SAFETY: `svc`. LIST returns three words in x0/x1/x2.
+    unsafe {
+        core::arch::asm!(
+            "svc #0",
+            in("x8") abi::SYS_INVOKE,
+            inlateout("x0") slot => r0,
+            in("x1") abi::aspace::LIST,
+            lateout("x1") w1,
+            inlateout("x2") cursor => w2,
+            in("x3") 0u64,
+            in("x4") 0u64,
+            options(nostack),
+        );
+    }
+    (r0, w1, w2)
+}
+
+/// `LIST` one entry (RISC-V). See the aarch64 twin; `ecall`, slot in `a0`, `LIST` in `a1`, the
+/// cursor in `a2`, the three returned words in `a0`/`a1`/`a2`.
+#[cfg(target_arch = "riscv64")]
+pub fn list(slot: u64, cursor: u64) -> (i64, u64, u64) {
+    let (mut r0, mut w1, mut w2): (i64, u64, u64);
+    // SAFETY: `ecall`. LIST returns three words in a0/a1/a2.
+    unsafe {
+        core::arch::asm!(
+            "ecall",
+            in("a7") abi::SYS_INVOKE,
+            inlateout("a0") slot => r0,
+            inlateout("a1") abi::aspace::LIST => w1,
+            inlateout("a2") cursor => w2,
+            in("a3") 0u64,
+            in("a4") 0u64,
+            options(nostack),
+        );
+    }
+    (r0, w1, w2)
+}
+
 /// `RECV` three words on the endpoint capability in `slot`. Blocks until a sender arrives; returns
 /// the three words the sender passed in `x0`, `x1`, `x2`.
 #[cfg(target_arch = "aarch64")]
