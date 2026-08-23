@@ -1,11 +1,11 @@
 # 118. CLAUDE.md has a budget, and the rules that get violated move up the ladder
 
-**Status: PARTIAL.** Minted 2026-08-05 by calef, who noticed the file had gotten huge and asked
+**Status: IN-PROGRESS.** Minted 2026-08-05 by calef, who noticed the file had gotten huge and asked
 what that costs. Two lanes have run: #309 took the audit, and a second (2026-08-18) verified it and
 produced an applicable cut. **The cut is proposed, not applied**, because a developer may not edit
-`AGENTS.md`; the integrator applies it. The split, the size gate and the violation ledger are
-untouched, so this stays open. **PARTIAL rather than IN-PROGRESS**: no lane is on it as this is
-written, and the three remaining pieces are startable independently of each other.
+`AGENTS.md`; the integrator applies it. A third lane (2026-08-22) built two of the three remaining
+pieces: see "The size gate and the ledger, 2026-08-22" below. The split is the one piece left, and it
+is untouched for the same reason the cut is only proposed: it requires editing `AGENTS.md`.
 
 **Gate: NONE.** That is now a recorded weakness rather than a description: the size measurement
 is `wc -lwc AGENTS.md` and nothing runs it, which is the milestone's own budget piece arguing for
