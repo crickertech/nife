@@ -4348,6 +4348,12 @@ fn initrd_riscv() -> bool {
             "credentialer",
             "--bin",
             "credentialer_test_client",
+            // The login service (milestone 49): authenticates against the credential service and
+            // mints a fresh directory capability and budget rather than mutating an identity.
+            "--bin",
+            "login",
+            "--bin",
+            "login_test_client",
             // The disk surveyor (milestone 57), portable like the rest, and its write-half twin.
             "--bin",
             "disk_surveyor",
@@ -4456,6 +4462,12 @@ fn initrd_riscv() -> bool {
         // claim.
         ("credentialer", "credentialer"),
         ("credentialer_test_client", "credentialer_test_client"),
+        // The login service (milestone 49): authenticates against the credential service and mints
+        // a fresh directory capability and budget rather than mutating an identity. Portable, so
+        // both archives carry both, and the claim (a capability set produced rather than an
+        // identity mutated) holds on either instruction set or it is not a claim.
+        ("login", "login"),
+        ("login_test_client", "login_test_client"),
         // The NTP client (milestone 51), with its test server and its clock-page probe as roles of
         // the same binary. Portable, so both archives carry it and both ISAs run the same tests.
         ("ntp", "ntp"),
@@ -4652,6 +4664,10 @@ fn mkinitrd() -> bool {
         // The credential service and its clients (milestone 56, the credential half).
         ("credentialer", "credentialer"),
         ("credentialer_test_client", "credentialer_test_client"),
+        // The login service (milestone 49): authenticates against the credential service and mints
+        // a fresh directory capability and budget rather than mutating an identity.
+        ("login", "login"),
+        ("login_test_client", "login_test_client"),
         ("ntp", "ntp"),
         // The outlaw (milestone 19's user-test port): the privilege-boundary programs
         // kernel::user::tests used to hand-assemble.
