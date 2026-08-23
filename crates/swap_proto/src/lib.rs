@@ -196,6 +196,15 @@ pub const RPT_REFUSED: u64 = 11;
 /// its own children it has. The report exists so the test can assert what the view **cannot** say.
 pub const RPT_SURVEY: u64 = 12;
 
+/// **The dependency graph's own verdict, before any orchestration acts on it** (milestone 23's
+/// dependency-aware-orchestration residual). `w1` = how many live instances
+/// `component_plan::dependents` returned, `w2` = the first one's id (0 if none).
+///
+/// Reported once per swap target this channel considers, so the test can check the graph a
+/// supervisor would compute against the sequencing the operator actually ran, rather than trusting
+/// that the two agree.
+pub const RPT_DEPENDENTS: u64 = 15;
+
 /// **Every member of the domain refused to be collected.** `w1` = how many the operator asked about,
 /// `w2` = how many answered [`abi::Error::StillAlive`].
 ///
@@ -456,6 +465,10 @@ pub const CONSOLE: Requirements = Requirements {
         },
     ],
     pages: INSTANCE_PAGES,
+    // Nothing this system runs is a synchronous client of a console instance: `CLIENT` calls
+    // through the stable endpoint, and DECISIONS §41's own sender-queue argument is what makes
+    // that need no explicit orchestration (see `Requirements::depends_on`'s doc comment).
+    depends_on: &[],
 };
 
 /// **The same programs behind a queue broker, with no device.** A different contract rather than a
@@ -471,6 +484,7 @@ pub const BACKEND: Requirements = Requirements {
         kind: PageKind::Shared,
     }],
     pages: INSTANCE_PAGES,
+    depends_on: &[],
 };
 
 /// **The client** (`chatty`, in all three of its roles). It *uses* the service and never serves it,
@@ -494,6 +508,12 @@ pub const CLIENT: Requirements = Requirements {
     ],
     maps: &[],
     pages: INSTANCE_PAGES,
+    // A pure consumer: no `Serve` need at all, so it never forwards anyone else's request through
+    // to `service`. §41 already proved a `CALL` to an absent server degrades for free (the
+    // endpoint's own sender queue), so `chatty` never needs telling before a swap, on either
+    // channel it is wired to. See `Requirements::depends_on`'s doc comment for why this is empty
+    // rather than naming whichever contract `service` happens to resolve to on a given wiring.
+    depends_on: &[],
 };
 
 /// **The queue broker**, the latency ladder's opt-in rung. It serves the endpoint producers hold and
@@ -521,6 +541,14 @@ pub const BROKER: Requirements = Requirements {
     ],
     maps: &[],
     pages: INSTANCE_PAGES,
+    // **The one real edge in this system.** `broker` serves `requests` and, to answer them, calls
+    // through to whatever holds `backend` (DECISIONS §41's pass-through). That call is a `CALL` on
+    // its own single serving thread, so unlike a pure consumer it cannot just let a swap of its
+    // backend block it: it would stop answering its own producers for the down window. That is
+    // exactly why `queued()`'s hand-written orchestration sends `BOP_DOWN` before swapping the
+    // backend and `BOP_UP` after, and it is the edge milestone 23's dependency graph exists to
+    // name so that sequencing can be derived rather than hand-coded per system.
+    depends_on: &["backend"],
 };
 
 /// Every declaration in this crate is well formed, checked at compile time on both architectures.
