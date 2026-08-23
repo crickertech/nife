@@ -142,11 +142,13 @@ Named here rather than only at the component, because a reader of the milestone 
 in the same place they meet the status line. Each item is also recorded where the reader meets the
 feature (`user/src/login.rs`'s own BUGS, more precisely worded per item).
 
-- **Every principal is attenuated to the same subtree**, `fs_proto::fixture::tree::SUB`, with the same
-  rights. Milestone 47's per-shell root already builds the isolation mechanism (a `fs_subtree_caretaker`
-  per grant); what is missing is the wiring from an authenticated *identity* to a *specific* subtree
-  name, which needs a lookup this milestone has not built (a table, a naming convention, or a directory
-  layout) and does not want to guess the shape of.
+- **Every principal is attenuated to the same subtree**, `fs_proto::fixture::tree::SUB`, with the
+  same rights. Milestone 47's per-shell root already builds the isolation mechanism (a
+  `fs_subtree_caretaker` per grant); the wiring from an authenticated *identity* to a *specific*
+  subtree name is **decided (DECISIONS §117, 2026-08-23)**: the identity string itself, used
+  directly, created at provisioning time rather than auto-vivified at login. Building it needs
+  milestone 155 (a provisioning tool) first, since provision-time creation has nothing to create
+  the subtree today.
 - **No terminal.** The roadmap's own text names three things a login hands back; `login` hands back
   two. A terminal in this system is a singleton hardware-backed resource wired once at interactive
   boot; minting a second one, or multiplexing the one that exists across logins, is unscoped follow-on.
