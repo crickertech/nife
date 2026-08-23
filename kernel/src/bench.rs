@@ -673,6 +673,14 @@ const APPDISP_TARGET_TOUCHES: u64 = 8_000_000;
 /// kernel's own IPC path; this bench asks what the same load costs an unrelated application).
 #[cfg(target_arch = "aarch64")]
 const APPDISP_IPC_PAIRS: usize = 8;
+/// Background IPC pairs for the second, higher-load condition: [`SCALE_MAX_PAIRS`] itself, 96
+/// threads, the same pair count E1's own sweep tops out at and "3x past the predicted knee" by
+/// that sweep's own doc comment. Milestone 134's register (`notes/register-of-measures.md`
+/// BUGS) named this the missing half of E4: the 8-pair condition sits inside E1's flat region, so
+/// a null result there is expected from E1's own curve rather than independent evidence, and a
+/// load nearer or past the knee is the stronger version of the experiment.
+#[cfg(target_arch = "aarch64")]
+const APPDISP_IPC_PAIRS_HIGH: usize = SCALE_MAX_PAIRS;
 
 /// Interior-mutable scratch the workload reads and writes. One `Racy<T>` per benchmark file:
 /// `sched.rs`'s corruption canary (`canary_gate::arm`) defines the same idiom for the same reason,
@@ -801,18 +809,27 @@ fn appdisp_best(words: usize, passes: u64, req: &[sched::EpId], reply: &[sched::
 ///
 /// The "application" is [`appdisp_workload`]: a tunable working set it reads and writes
 /// repeatedly, timed alone and then timed again with [`APPDISP_IPC_PAIRS`] background IPC pairs
-/// running concurrently on the same core. The throughput lost between the two conditions, swept
-/// over [`APPDISP_WORKINGSET_KIB`], is the number: how much an IPC-heavy kernel costs an unrelated
+/// running concurrently on the same core, and a third time with [`APPDISP_IPC_PAIRS_HIGH`], a load
+/// near/at E1's own knee. The throughput lost between conditions, swept over
+/// [`APPDISP_WORKINGSET_KIB`], is the number: how much an IPC-heavy kernel costs an unrelated
 /// application's cache, not how much it costs the kernel's own IPC path.
+///
+/// The high-load condition is the register's own follow-up (`notes/register-of-measures.md`
+/// BUGS, "a load nearer E1's knee... is the stronger version of this experiment and was not
+/// taken"): the original 8-pair run sits inside E1's flat region, where E1 itself found no cost on
+/// this machine, so a null result there was already expected rather than informative. 48 pairs
+/// puts the background load where E1 *did* find a knee (8-11% by 64-96 threads), which is where
+/// this experiment can actually distinguish "the kernel's own path got slower" from "the
+/// application's cache got evicted".
 #[cfg(target_arch = "aarch64")]
 fn app_displacement() {
     if !real_single_hart_or_skip("app_displacement") {
         return;
     }
 
-    let mut req = [0u64; APPDISP_IPC_PAIRS];
-    let mut reply = [0u64; APPDISP_IPC_PAIRS];
-    for i in 0..APPDISP_IPC_PAIRS {
+    let mut req = [0u64; APPDISP_IPC_PAIRS_HIGH];
+    let mut reply = [0u64; APPDISP_IPC_PAIRS_HIGH];
+    for i in 0..APPDISP_IPC_PAIRS_HIGH {
         req[i] = sched::create_endpoint();
         reply[i] = sched::create_endpoint();
     }
@@ -821,15 +838,31 @@ fn app_displacement() {
         let words = kib * 1024 / APPDISP_WORD_BYTES;
         let passes = (APPDISP_TARGET_TOUCHES / words as u64).max(1);
         let solo = appdisp_best(words, passes, &[], &[]);
-        let with_ipc = appdisp_best(words, passes, &req, &reply);
+        let with_ipc = appdisp_best(
+            words,
+            passes,
+            &req[..APPDISP_IPC_PAIRS],
+            &reply[..APPDISP_IPC_PAIRS],
+        );
+        let with_ipc_high = appdisp_best(words, passes, &req, &reply);
         println!("bench: appdisp_{kib}k_solo {solo} {passes}");
         println!("bench: appdisp_{kib}k_ipc {with_ipc} {passes}");
-        let lost_pct = if solo > 0 {
-            ((with_ipc as i64 - solo as i64) * 100) / solo as i64
-        } else {
-            0
+        println!("bench: appdisp_{kib}k_ipc96 {with_ipc_high} {passes}");
+        let lost_pct = |busy: u64| {
+            if solo > 0 {
+                ((busy as i64 - solo as i64) * 100) / solo as i64
+            } else {
+                0
+            }
         };
-        println!("bench-probe: appdisp_{kib}k_throughput_lost_pct {lost_pct}");
+        println!(
+            "bench-probe: appdisp_{kib}k_throughput_lost_pct {}",
+            lost_pct(with_ipc)
+        );
+        println!(
+            "bench-probe: appdisp_{kib}k_highload_throughput_lost_pct {}",
+            lost_pct(with_ipc_high)
+        );
     }
 }
 
