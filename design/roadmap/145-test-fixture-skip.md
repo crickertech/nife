@@ -87,6 +87,6 @@ never needed to be until a board existed to boot it on.
 
 - `kernel/src/main.rs`'s boot tour already has the "print and move on" pattern for a missing
   fixture; whatever this milestone builds should look like that, not invent a new vocabulary.
-- `crates/isa`'s device-tree readers (`CpuList`, `PlicContexts`) already model "the tree did not
+- `crates/machine_discovery`'s device-tree readers (`CpuList`, `PlicContexts`) already model "the tree did not
   say" as `None`/empty rather than an error, which is the same shape one level up: a fixture the
   boot did not provide is not a machine that is broken, either.

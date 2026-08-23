@@ -5,7 +5,7 @@ edition = "2024"
 license.workspace = true
 
 [dependencies]
-intrusive = { version = "0.1.0", path = "../intrusive" }
+intrusive_fifo = { version = "0.1.0", path = "../intrusive_fifo" }
 
 [lints]
 workspace = true

@@ -22,7 +22,7 @@
 //! this carve because **the kernel is its creator**; an init-created TCB's memory comes from
 //! init's untyped because init is. One principle, two payers, no third regime.
 
-use frames::FRAME_SIZE;
+use page_frames::FRAME_SIZE;
 
 use crate::sync::{IrqSafeMutex, rank};
 

@@ -569,7 +569,7 @@ real gaps (`frames::index_of`'s upper bound, `calendar::from_hm`'s sign guard an
 check, `cred`'s memory ceiling, `gpt::check_partitions`' one-block partition), and glob's entire
 first pass turned out to have written its tests where `cargo test` could not see them. **A verdict
 reached by reading is wrong about ten percent of the time; a verdict reached by running is not.**
-The crates that were not re-audited (`grant_plan`, `isa`, `measured_boot`, `ntp_proto`, `ipc`,
+The crates that were not re-audited (`grant_plan`, `machine_discovery`, `measured_boot`, `ntp_proto`, `ipc`,
 `intrusive`) had their kills verified the same way when they were written, but their *equivalence*
 claims rest on argument alone, and the weekly run is what will check them.
 
@@ -580,7 +580,7 @@ security-relevant survivor the run found anywhere was `fs_proto::xattr::store::w
 value limit stopped being enforced under a single `||` to `&&`, on a path that re-emits records
 whose lengths come off the blob rather than from a bounds-checked caller. It is closed. The
 next-most-serious were `paging`'s user-VA gate and `Mapper::root` (a constant there installs the
-wrong table in silicon), `isa`'s widest-wins fold (an rv32 hart booting an rv64 answer), and
+wrong table in silicon), `machine_discovery`'s widest-wins fold (an rv32 hart booting an rv64 answer), and
 `slots::get_mut` (a `None` the kernel `unwrap()`s on the switch path). All closed.
 
 

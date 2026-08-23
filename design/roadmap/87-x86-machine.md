@@ -3,30 +3,31 @@
 **Status: NOT-STARTED.** Raised 2026-08-03. The selection is made and recorded here; the milestone
 completes when the machine is on the desk and has printed a byte over serial.
 
-**Gate: HARDWARE.** As of 2026-08-18 it is the *second* kind the vocabulary now names: **the
-machine is here and the serial module is not** (calef). The OptiPlex arrived; the Dell C4PDJ and the RS-232 chain have not.
-That matters more than a partial delivery usually would, because this milestone's completion
-condition is *"has printed a byte over serial"* and the box has no other way to say anything during
-early bring-up. There is no console before the UART works, so nothing here can start.
+**Gate: HARDWARE.** **As of 2026-08-23, the hardware side is complete**: the OptiPlex arrived
+2026-08-15, and the Dell C4PDJ serial module and the dev-side RS-232 chain have now arrived and
+are installed (calef). What remains is the actual bring-up -- boot code and a UART driver that
+prints a byte over real serial, which is downstream of milestone 161's own boot/console work
+reaching a point worth trying on the box, not blocked on any further purchase.
 
-**What a lane could do meanwhile: nothing on this block, and something adjacent.** The x86_64 port
-is milestone 19's scope and is explicitly not gated on the purchase, because it starts under QEMU
-TCG the way riscv64 did. So the useful move while the post is in transit is 19 under emulation, not
-19 on this desk.
+**What a lane could do meanwhile: something adjacent, now potentially something on this box
+directly.** The x86_64 port is milestone 161's scope and was never gated on the purchase, because
+it starts under QEMU TCG the way riscv64 did. With the serial chain installed, once 161 has boot
+code that reaches a console prompt under QEMU, trying it on the real OptiPlex is this milestone's
+own remaining work.
 
-**Purchased 2026-08-15 (calef), the rest in transit**: the OptiPlex 7050 Micro
-(i5-7500T, 16GB, 256GB NVMe, with its AC adapter, $139), the Dell C4PDJ serial module with its
-cable ($18.88, the with-cable check the earlier draft flagged, answered by the listing's own
+**Purchased 2026-08-15 (calef), all arrived and installed as of 2026-08-23**: the OptiPlex 7050
+Micro (i5-7500T, 16GB, 256GB NVMe, with its AC adapter, $139), the Dell C4PDJ serial module with
+its cable ($18.88, the with-cable check the earlier draft flagged, answered by the listing's own
 title), and the dev-side RS-232 chain (FTDI USB adapter at 1.5 ft, $15.96, plus a StarTech NM9FF
 null-modem barrel, $7.98, chosen over a cable so the desk carries eighteen inches of serial, not
 three feet). About $182 all-in against the $194 estimate, twelve days after selection; the $129
-machine tier had aged out and nothing else moved. This milestone completes when the machine is on
-the desk and has printed a byte over serial; the x86_64 port itself is milestone 19's scope and is
-not gated on the purchase, because it starts under QEMU TCG the way riscv64 did. One bench note
-for arrival, recorded here because both kits share the desk: this port is real RS-232 and the
-boards' adapters are 3.3 V TTL, and the two chains must never swap; label them.
+machine tier had aged out and nothing else moved. This milestone completes when the machine has
+printed a byte over serial; the x86_64 port itself is milestone 161's scope and is not gated on
+the purchase, because it starts under QEMU TCG the way riscv64 did. One bench note for arrival,
+recorded here because both kits share the desk: this port is real RS-232 and the boards' adapters
+are 3.3 V TTL, and the two chains must never swap; label them.
 
-Milestone 19 names x86_64 as the third ISA, and the second ISA's lesson (milestone 16, the
+DECISIONS §19 names x86_64 as the third ISA target, and the second ISA's lesson (milestone 16, the
 VisionFive 2) is that the board should be chosen and ordered before the port needs it, from
 requirements the port derives rather than from specs. Bare-metal bring-up is a loop of hang,
 power-cycle, retry, so the machine must be dedicated and consequence-free; cordoba is disqualified
@@ -80,6 +81,7 @@ hosts the PXE/TFTP end.
 ## Scope note
 
 This milestone is the machine, the serial link proven, and nothing else; the port itself is
-milestone 19's remaining scope and is not gated on this purchase, because the port starts under
-QEMU TCG the way riscv64 did. Buying early is cheap insurance against the VisionFive 2 pattern
-(ordered 2026-07, arrives ~2026-08-21) of the board being the long pole.
+milestone 161's scope and is not gated on this purchase, because the port starts under
+QEMU TCG the way riscv64 did. Buying early was cheap insurance against the VisionFive 2 pattern
+(ordered 2026-07, arrived 2026-08-21) of the board being the long pole, and it paid off: the
+hardware side finished before the code side needed it.
