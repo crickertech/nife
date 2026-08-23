@@ -101,13 +101,14 @@
 //! assert_eq!(endpoint::SEND, 0);
 //! ```
 //!
-//! Name: unrecorded, and the near miss is worth knowing. notes/naming.md says "plus `abi`, which
-//! is the syscall boundary and predates the suffix", which explains why this crate is exempt from
-//! `*_proto` and says nothing about why it is called `abi`. "It got here first" is a history, not
-//! a reason, and counting it as one would let every old name in the tree explain itself. The word
-//! is the field's own for what this crate holds, so it would sit in the tenet's protected group
-//! (`elf`, `pci`, `dtb`, `gpt`, `ipc`, `paging`, `glob`, `asid`, `socket_proto`) if anyone had
-//! filed it there; nobody has. Introduced 2026-07-14 with milestone 7d's first three syscalls.
+//! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review). Considered and
+//! declined: `application_binary_interface`, spelled out fully to match this session's other
+//! renames -- rejected on the actual test (does the architect have to ask what this means, which
+//! sank `Tcb`/`Aspace`/`Untyped`), not on effort. "ABI" is closer to "CPU" than to "TCB" on that
+//! scale, and this is the tree's single most-imported crate, so the ergonomic cost of spelling it
+//! out would have been the highest of any rename this pass. Sits in the tenet's protected group
+//! (`elf`, `pci`, `dtb`, `gpt`, `ipc`, `paging`, `glob`, `asid`) for the same reason those do.
+//! Introduced 2026-07-14 with milestone 7d's first three syscalls.
 
 #![no_std]
 
