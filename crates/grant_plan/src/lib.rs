@@ -1959,21 +1959,45 @@ fn check_streams(m: Manifest, streams: Streams) -> Result<line::Diagnostics, Ref
 ///
 /// A line whose head is a builtin and which spawns nothing at all (`ls > out.txt`) is not a chain
 /// and is always `Ok`: there is no second process to deadlock against.
+///
+/// # DECISIONS §106's exception
+///
+/// A chain with no absorbing barrier used to be refused outright, because the tail's answer always
+/// came back to this shell over its own result endpoint and this shell was already busy feeding the
+/// head. That is no longer universally true: an unredirected tail (`Sink::Report`) whose program's
+/// output is a byte stream is delegated to `terminal_sink_caretaker` by default instead, so the
+/// shell never becomes this chain's reader at all. A tail the line redirected with `>`
+/// (`Sink::File`) still comes back through this shell (DECISIONS §55: the file behind a `>` is the
+/// shell itself), so that shape is still refused exactly as before.
 pub fn check_chain(shell_feeds_head: bool, plans: &[Option<Endowment>]) -> Result<(), Refusal> {
     if !shell_feeds_head {
         return Ok(());
     }
-    let mut spawned = false;
+    let mut tail: Option<Endowment> = None;
     for e in plans.iter().flatten() {
-        spawned = true;
         if !e.writes_while_reading {
             return Ok(());
         }
+        tail = Some(*e);
     }
-    if spawned {
-        return Err(Refusal::NoReaderButThisShell);
+    match tail {
+        // Nothing was spawned: the shell is the sole producer (a head builtin backed by a file) and
+        // there is no second process to deadlock against.
+        None => Ok(()),
+        // **The tail's own output goes to the terminal's sink adapter, not back to this shell.**
+        //
+        // This trusts that `writes_while_reading` never rides on anything but a byte-stream output,
+        // rather than re-checking `is_byte_stream` here off `e.prog.manifest()`: `e` may have been
+        // planned against an explicit manifest that differs from `e.prog`'s real one
+        // ([`plan_against_with`]'s whole reason to exist), so re-deriving from `e.prog` would answer
+        // a question about the wrong manifest. No shipped program declares
+        // `writes_while_reading: true` next to anything but `OutputSpec::Bytes` today, and a
+        // filter's whole shape (writing before it has read to the end) presupposes the streaming
+        // sink contract; a manifest that paired the two would be declaring a filter with no stream
+        // to filter into.
+        Some(e) if matches!(e.sink, Sink::Report) => Ok(()),
+        Some(_) => Err(Refusal::NoReaderButThisShell),
     }
-    Ok(())
 }
 
 /// **What one operand token designates**: the directory its leading path landed in, and the set of
@@ -3395,12 +3419,10 @@ mod tests {
         let counter = plan_as(Prog::Wc.manifest(), b"wc", src);
         let renderer_piped = plan_as(RENDERS_AS_IT_READS, b"wc", piped);
 
-        // `doc page.md`: this shell writes the file in and reads the render back. Nothing else is
-        // in the chain, so there is nobody either process could be waiting on but the other.
-        assert_eq!(
-            check_chain(true, &[Some(renderer)]),
-            Err(Refusal::NoReaderButThisShell),
-        );
+        // `doc page.md`: this shell writes the file in, and DECISIONS §106 gives the render
+        // somewhere to go that is not this shell (`terminal_sink_caretaker`), so there is no second
+        // reader for the shell to wait behind.
+        assert_eq!(check_chain(true, &[Some(renderer)]), Ok(()));
         // `doc page.md | wc`: the `wc` absorbs the whole stream, so the feed finishes first.
         assert_eq!(
             check_chain(true, &[Some(renderer_piped), Some(counter)]),
@@ -3414,6 +3436,25 @@ mod tests {
         // `ls > out.txt`: the shell is the producer and no stage was spawned at all, so there is no
         // second process for it to deadlock against.
         assert_eq!(check_chain(true, &[None, None]), Ok(()));
+        // `doc page.md > out.txt`: DECISIONS §106 only narrows the unredirected case
+        // (`Sink::Report`). A `>` still comes back through this shell (DECISIONS §55: the file
+        // behind a `>` is the shell itself), so this shape is refused exactly as it always was.
+        let to_file = Streams {
+            sink: line::Sink::File(
+                FileGrant {
+                    dir: nav::Cwd::root(),
+                    name: Name::new(b"out.txt").unwrap(),
+                    writable: true,
+                },
+                line::Mode::Truncate,
+            ),
+            ..src
+        };
+        let renderer_to_file = plan_as(RENDERS_AS_IT_READS, b"wc", to_file);
+        assert_eq!(
+            check_chain(true, &[Some(renderer_to_file)]),
+            Err(Refusal::NoReaderButThisShell),
+        );
     }
 
     /// The refusal names what a person can do about it, and it is about the **line**: the program

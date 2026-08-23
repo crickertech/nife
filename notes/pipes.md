@@ -708,15 +708,21 @@ $ doc page.md
   reader that is not this shell, as in '| wc'
 ```
 
+**Updated 2026-08-22 (DECISIONS §106): this transcript is no longer what `doc page.md` answers.**
+The refusal above is still exactly right for the analysis on this page (a shell that is both the
+chain's feeder and its reader has to refuse, or hang), but the analysis had an unstated assumption:
+that the tail's reader, if there is one, is always this shell. §106 gives an unredirected tail
+somewhere else to be read (`terminal_sink_caretaker`), so `doc page.md` renders now; only the
+redirected shape (`doc page.md > out.txt`) still meets this refusal, because a `>` still comes back
+through this shell (DECISIONS §55). See notes/manual.md's `BUGS` for the current transcript.
+
 It is the same kind of sentence as `InputRequired`'s, one level up: the manifest knows something
 about the program, so the prompt knows something about the line. And it is the same trade, because
 a shell that hangs is strictly worse than a shell that refuses: this kernel has no way to interrupt
 a process blocked in a rendezvous send, so the prompt is gone until the machine is rebooted.
 
-**Nothing in this tree declares `true` yet**, so the refusal is unreachable from the prompt on
-`main` today and the logic is proved by host tests that plan an explicit manifest, which is the same
-door `FileSpec::Required` has been kept alive through. Milestone 40's `doc` is the first declarer
-and needs one field set.
+**Nothing in this tree declared `true` until milestone 40's `doc`**, which needed one field set and
+is now the reachable proof; see the transcript below (`$ doc motd`, updated by the same decision).
 
 ### Verified against the viewer, on a branch that is not merged
 
@@ -738,20 +744,28 @@ $ doc motd > page.txt
   reader that is not this shell, as in '| wc'
 ```
 
+**Updated 2026-08-22: the third line's answer changed; the fourth's did not.** DECISIONS §106 gives
+`doc motd`'s output somewhere to go that is not this shell, so it renders now instead of refusing;
+`doc motd > page.txt` still refuses, because `>` still routes through this shell (DECISIONS §55).
+The transcript above is kept as the record of what milestone 40's own lane found before that
+decision; see notes/manual.md's `BUGS` for the current one.
+
 The second line is the whole claim, and the two numbers are the assertion rather than the fact that
 it ran: the same 70 bytes went in and 72 came out, because the renderer wrapped a paragraph and put
 a newline where the source had none. `0 0 0` is what that line answered before, and a viewer that
 rendered nothing would still say it. The first line is the control: `wc` is the barrier, so the
 same operand at the head of the same pipeline worked all along.
 
-The third and fourth are the wall, said out loud instead of hung on. A person who wants a page on
-the screen still cannot have one; what they get is a sentence naming what to type instead, which is
+**The third line was the wall, said out loud instead of hung on, and is now the fourth line's
+alone.** A person who wants a page on the screen no longer needs `| wc` in front of it to have one;
+what they get for the redirected shape is still a sentence naming what to type instead, which is
 worse than a pager and far better than a prompt that has to be rebooted.
 
-### The two ways out, and both are somebody's decision
+### The two ways out that were not taken, and the third that was
 
-Neither is taken here. Both are recorded because the refusal above is a wall and not an answer, and
-a person who wants `doc page.md` to render on the screen is asking a reasonable thing.
+Neither of the first two is taken here; they are recorded because the refusal above was a wall and
+not an answer, and a person who wants `doc page.md` to render on the screen is asking a reasonable
+thing. A third way, found later and not by this page, **is** taken: see below.
 
 **A pull-based source, which is the exact answer to the constraint.** The reason the shell needs two
 wait points is that it holds two channels to one child. Make it one: hand the stage a single
@@ -779,6 +793,18 @@ and it does not work for the reason ["The file behind a `>` is this
 shell"](#the-file-behind-a--is-this-shell-and-that-was-not-the-plan) already gives: `fs_proto` shares
 one page between the FS server and its clients, and this line has the shell reading the filesystem
 while the adapter writes it. Same race, same page, and no ordering fix.
+
+**The way that was taken: hand an unredirected tail's output to an adapter that already exists**
+(DECISIONS §106, 2026-08-22). Not an adapter at the file end, which the paragraph above rules out,
+but at the **screen** end: `terminal_sink_caretaker`, this milestone's own second-stream default
+(DECISIONS §67), given the tail's *primary* output too when the line named neither `>` nor `|` for
+it. This page did not find this option; the milestone 40 roadmap block did, later, and
+notes/tail-output-narrowing.md worked it through the six-questions way before calef took it. It
+costs neither of the two properties above (the pull-based source's separate-rights property, the
+buffering stage's extra rendezvous): the child's output slot stays exactly as opaque to it as a
+`>` or `|` destination always was, so nothing about what a program declares changes, and the shell
+that used to drain the tail's bytes now waits on DECISIONS §26's kernel exit-delivery instead. See
+notes/manual.md's `BUGS` for the mechanism and its one carried cost, the caretaker-hop display race.
 
 ## Buffering: measured, and the answer is to build nothing
 
@@ -1252,11 +1278,13 @@ reader would look. The symptom is always a data abort one word below the lowest 
 
 ## BUGS, named where the reader meets them
 
-- **The terminal's sink adapter has one consumer, and it is `2>`'s default destination.** Nothing
-  else puts it in a child's output slot yet, though nothing stops it: a shell that wanted a program
-  to print straight to the screen rather than through its own result endpoint could hand it over,
-  and would lose the ability to redirect that program at all. That trade is the interesting question
-  it raises and it is not answered here.
+- **The terminal's sink adapter has a second consumer now: an unredirected tail stage's primary
+  output** (DECISIONS §106, 2026-08-22). This entry used to ask the question and leave it open; the
+  decision answers it: the shell hands the terminal's sink over **only** when the line named
+  neither `>` nor `|` for that stage, decided from the plan before anything spawns, so a stage never
+  loses the ability to be redirected, it only loses the shell as a reader when nothing asked for one.
+  See notes/manual.md's `BUGS` for the worked case (`doc gate.txt`) and the cost that trade carries
+  (the caretaker-hop display race, tracked at milestone 151).
 - **`OP_PRINT` carries eight bytes, so a sixteen-byte sink message is two calls to the terminal.**
   That is the terminal contract's request shape rather than a choice (see notes/sink-protocol.md),
   and it doubles the round trips on a path that is a person reading text.
@@ -1299,19 +1327,24 @@ reader would look. The symptom is always a data abort one word below the lowest 
   nothing here has been benchmarked against a Unix pipeline", which stopped being true on 2026-08-03
   and was left standing for a day. It has been: the section above has the numbers, and the finding
   is that the sixteen-byte message rather than the lockstep is what costs.)*
-- **A line whose bytes all come from this shell needs a stage that reads to the end**, or it is
-  refused. One wait point per process, no select, and the section above has the whole of why. The
-  cost is real and it is the case a person meets first: a filter that renders as it reads cannot be
-  run on its own, only with something after it. `wc` is the only barrier in this tree.
-- **Nothing declares `writes_while_reading` yet**, so that refusal is unreachable from the prompt on
-  `main` and is proved only by host tests planning an explicit manifest. The declaration exists
-  ahead of its first declarer on purpose, because the alternative was a prompt that hangs the moment
-  one arrives; it is the one place in this milestone where a mechanism precedes its consumer, and it
-  should be read as a debt against milestone 40 rather than as a pattern.
-- **The refusal is named after a program and is a fact about the line.** `doc page.md` prints
-  `doc: writes while it reads...`, which reads as a complaint about `doc`. Nothing is wrong with
-  `doc`, and the same program is fine one character later. The name is there because it is the stage
-  a person would put the `| wc` after; the wording gap is the same shape as `<<`'s below.
+- **A line whose bytes all come from this shell needs a stage that reads to the end, unless its tail
+  is screen-narrowed** (DECISIONS §106 updated this, 2026-08-22). One wait point per process, no
+  select, and the section above has the whole of why; that has not changed. What changed is that a
+  filter which renders as it reads is no longer refused when it runs **on its own**: its output goes
+  to `terminal_sink_caretaker` rather than back to this shell, so there is no longer a second reader
+  for the shell to wait behind. `wc` remains the only stream-absorbing barrier in this tree, and a
+  filter piped into one (`doc page.md | wc`) still runs the same way it always did; what is new is
+  that the filter no longer needs one to run unredirected. A filter that is also **redirected**
+  (`doc page.md > out.txt`) is still refused: `>` still comes back through this shell (DECISIONS
+  §55), so that shape still needs a barrier or nothing to wait on.
+- **`doc` is `writes_while_reading`'s first declarer, reachable from the prompt** (DECISIONS §106).
+  This entry used to record the declaration as ahead of its first user, provable only by host tests;
+  `doc <page>` at a real prompt is that proof now. See notes/manual.md's `BUGS`.
+- **The refusal is named after a program and is a fact about the line, and it still fires for the
+  redirected shape.** `doc page.md > out.txt` prints `doc: writes while it reads...`, which reads as
+  a complaint about `doc`. Nothing is wrong with `doc`, and the same program renders straight to the
+  screen one operator earlier. The name is there because it is the stage a person would put the
+  `| wc` after; the wording gap is the same shape as `<<`'s below.
 - **`2>` works only on a program that declares a second stream, and one does** (`date`). That is
   DECISIONS §67's cost, stated where a person meets it: `wc gate.txt 2> err.txt` is refused, and the
   fix is `wc` declaring a second output rather than anything about the operator.

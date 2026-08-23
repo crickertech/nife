@@ -81,7 +81,9 @@ use grant_plan::{
 };
 use line_editor::proto;
 use swish::{Route, Say, Status, Untimed, sequence};
-use user_rt::{call, cap_delete, exit, invoke, monotonic_nanos, recv, send, yield_now};
+use user_rt::{
+    call, cap_delete, exit, invoke, monotonic_nanos, reap, recv, recv_fault, send, yield_now,
+};
 
 // Pages shared with the terminal (must match the wiring in init).
 //
@@ -1652,6 +1654,13 @@ fn spawn(e: Endowment) {
             source: false,
             diagnostics: false,
             dir: dir_words.is_some(),
+            // **Also always false here** (DECISIONS §106), and for the same shape of reason as
+            // `diagnostics`: a program only reaches this path (no file operand, no pipe, no
+            // redirection at all) when `plan` put nothing in its source slot, and every program
+            // that declares `writes_while_reading` also declares `InputSpec::Required`, which
+            // sends it down [`run`]'s other arm (`Source::File`) instead. So this bit would never
+            // have anything to narrow.
+            screen: false,
         },
     );
     send(SPAWN, w0, w1, w2);
@@ -1740,6 +1749,63 @@ fn diag_endpoint() -> Option<u64> {
     DIAG_EP.store(ep, core::sync::atomic::Ordering::Relaxed);
     Some(ep)
 }
+
+// ---- the screen-narrowed tail's completion signal (DECISIONS §106) ----
+
+/// **This shell's fault endpoint for a screen-narrowed tail stage**, [`DIAG_EP`]'s shape reused for
+/// a second purpose: minted once, kept for the session. At most one line is ever narrowed at a time
+/// (a plan has one tail), so one endpoint suffices and there is no `SPLIT`/`DESTROY` pair to pay per
+/// invocation.
+static SCREEN_EP: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU64::new(u64::MAX);
+
+/// The endpoint a screen-narrowed tail's exit is delivered to, minting it if this session has not
+/// needed one yet. `None` when the budget cannot back it, and the caller then falls back to the
+/// pre-§106 path: an unredirected `writes_while_reading` stage with nowhere for its completion
+/// signal to arrive is refused by `check_chain` exactly as it always was, rather than spawned with
+/// no way to know when it is done.
+fn screen_endpoint() -> Option<u64> {
+    let held = SCREEN_EP.load(core::sync::atomic::Ordering::Relaxed);
+    if held != u64::MAX {
+        return Some(held);
+    }
+    let ep = retype_endpoint(BUDGET)?;
+    SCREEN_EP.store(ep, core::sync::atomic::Ordering::Relaxed);
+    Some(ep)
+}
+
+/// **Wait for a screen-narrowed tail to finish, then free its region.**
+///
+/// The kernel's own exit-delivery (DECISIONS §26) is the completion signal: `recv_fault` blocks
+/// until the child is dead-until-reaped, which is stronger than "it painted its last line" (a dead
+/// thread cannot enqueue any further `SEND`, so the child itself cannot still be mid-write here).
+/// What can still be in flight is `terminal_sink_caretaker`'s own trailing `CALL` to `line_editor`,
+/// which is the caretaker-hop display race DECISIONS §106 carries as a known, accepted interim
+/// (tracked at milestone 151): the next `$ ` this shell prints can interleave with that call's
+/// output. A display glitch, not a correctness or confinement failure.
+///
+/// The retry loop mirrors `job_undertaker::collect`'s reason: a corpse can be refused once if its
+/// region still holds something schedulable, and yielding between attempts is what lets that settle
+/// without spinning the only core there is.
+fn await_screen(ep: u64) {
+    let (_event, tid, _pc, _addr, _rsvd) = recv_fault(ep);
+    for _ in 0..SCREEN_REAP_ATTEMPTS {
+        if reap(ep, tid) == 0 {
+            return;
+        }
+        yield_now();
+    }
+    // Not fatal to this shell the way a stuck reap is to `job_undertaker`: worst case this leaks
+    // one job's worth of init's pool, and the next `could not spawn (init is out of memory)` is the
+    // visible symptom, exactly as it would be for job_undertaker's own exhaustion.
+    failed();
+    print(b"  that page's process would not collect; init's job budget may be short one job\n");
+}
+
+/// `job_undertaker::MAX_ATTEMPTS`'s reasoning, held here rather than shared: this shell reaps at
+/// most one screen-narrowed corpse at a time and only ever the one it just watched for, where
+/// `job_undertaker` reaps every ordinary job on the machine, so the two have no data to share and a
+/// shared constant would imply a coupling that is not there.
+const SCREEN_REAP_ATTEMPTS: usize = 1024;
 
 /// **Drain every declaring stage's second stream into `dest`, then hand it back.**
 ///
@@ -2050,6 +2116,35 @@ fn run_pipeline(
         .filter(|p| p.is_some_and(|e| matches!(e.diagnostics, line::Diagnostics::File(..))))
         .count();
 
+    // **DECISIONS §106's narrowing rule, decided here before anything spawns.** An unredirected
+    // tail (no `>` at the end of the line: `sink.is_none()`, this function's own `sink` being the
+    // file this shell opened for one, not to be confused with `Endowment::sink`) whose program both
+    // writes and reads is screen-narrowed: `terminal_sink_caretaker` takes its primary output
+    // instead of this shell's own result endpoint. `check_chain` above already used the identical
+    // condition (the tail's `Sink` and its `writes_while_reading`) to let a chain with no absorbing
+    // barrier through, so this has to agree with it exactly.
+    //
+    // **`check_chain` cannot itself confirm the endpoint mints**, because it is host-testable, pure
+    // logic with no capability to retype anything, so this is the one place that can. A line
+    // `check_chain` allowed on the assumption of narrowing must not fall back to spawning the child
+    // unnarrowed on a failed mint: that would reintroduce the exact deadlock `check_chain` exists to
+    // refuse (the shell already mid-feed and the child's output routed back to `result_ep` with
+    // nobody there to read it), so a mint failure is a loud refusal here, not a silent fallback.
+    let tail_writes_while_reading = plans[n - 1].is_some_and(|e| e.writes_while_reading);
+    let needs_screen = sink.is_none() && tail_writes_while_reading;
+    let screen_ep = if needs_screen {
+        match screen_endpoint() {
+            Some(ep) => Some(ep),
+            None => {
+                failed();
+                print(b"  this shell's memory budget is exhausted; nothing left to grant\n");
+                return;
+            }
+        }
+    } else {
+        None
+    };
+
     // **A builtin with a file on its output spawns nothing at all.** `ls > out.txt` is one process:
     // the shell reads the directory and the shell writes the file. There is no pipe to mint, no
     // stage to start, and no capability to move, because both ends are already this shell's.
@@ -2107,7 +2202,11 @@ fn run_pipeline(
             line::Diagnostics::File(..) => diag_endpoint(),
             _ => None,
         };
-        if !spawn_stage(e, stage_sink, stage_source, stage_diag) {
+        // Only the tail stage is ever eligible (`screen_ep` is `None` unless the tail's own sink is
+        // unset), and `sink_for` never puts `Sink::Report` anywhere but the last stage, so this
+        // could equally read `i == n - 1` without the `Some` check; both say the same thing.
+        let stage_screen = screen_ep.filter(|_| i + 1 == n);
+        if !spawn_stage(e, stage_sink, stage_source, stage_diag, stage_screen) {
             release_pipeline(region, &pipes[..minted]);
             return;
         }
@@ -2137,15 +2236,20 @@ fn run_pipeline(
         f.stream_into(p);
     }
 
-    // And the tail's answer, which arrives on the shell's own result endpoint whether or not the
-    // line named a file: `>` is the shell putting those bytes somewhere else, not the child being
-    // handed something different. A pipeline is not a special case of printing.
+    // And the tail's answer. `>` is the shell putting those bytes somewhere else, not the child
+    // being handed something different, so a redirected tail is unchanged: it still arrives on the
+    // shell's own result endpoint. **A screen-narrowed tail's bytes never arrive here at all**
+    // (DECISIONS §106): they went straight to `terminal_sink_caretaker`, and what this shell waits
+    // for instead is the child's exit.
     match &mut sink {
         Some(f) => {
             drain_into(f);
             f.report();
         }
-        None => drain_text(),
+        None => match screen_ep {
+            Some(ep) => await_screen(ep),
+            None => drain_text(),
+        },
     }
     release_pipeline(region, &pipes[..minted]);
 }
@@ -2536,6 +2640,7 @@ fn spawn_stage(
     sink: Option<u64>,
     source: Option<u64>,
     diagnostics: Option<u64>,
+    screen: Option<u64>,
 ) -> bool {
     let mem_slot = if e.mem_pages > 0 {
         match untyped_split(e.mem_pages) {
@@ -2562,6 +2667,7 @@ fn spawn_stage(
         // that it is not delivered and `spawn` is where a directory grant is met. See this file's
         // `dir_grant` and notes/dir-capability.md's BUGS.
         dir: false,
+        screen: screen.is_some(),
     };
     let (w0, w1, w2) = spawnproto::request(e.prog.id(), e.arg, e.mem_pages, wiring);
     send(SPAWN, w0, w1, w2);
@@ -2576,6 +2682,14 @@ fn spawn_stage(
     if let Some(slot) = diagnostics {
         delegate(slot, abi::rights::WRITE | abi::rights::GRANT);
     }
+    if let Some(slot) = screen {
+        // READ (not WRITE): init installs this as the *child's* fault target, and what this shell
+        // needs back from its own copy is the right to `RECV`/`REAP` on it, exactly
+        // `job_undertaker`'s DEATHS. init narrows its own copy no further than that when it inserts
+        // the child's (`abi::rights::READ`, `supervision_proto::build_child_space`), so delegating
+        // less than READ here would leave init unable to hand the child anything at all.
+        delegate(slot, abi::rights::READ | abi::rights::GRANT);
+    }
     if let Some(slot) = mem_slot {
         delegate(slot, abi::rights::WRITE | abi::rights::GRANT);
         cap_delete(slot);
@@ -2583,8 +2697,9 @@ fn spawn_stage(
 
     // A stage whose output was substituted owes this shell no answer, so init acks instead. Without
     // it a failed spawn would be invisible and the pipeline would wait on a producer that does not
-    // exist.
-    if wiring.sink && recv(RESULT).0 != spawnproto::SPAWN_OK {
+    // exist. A screen-narrowed stage is the same shape: its completion signal is the fault endpoint
+    // above, not this one, so a build failure has to reach the shell here too (DECISIONS §106).
+    if (wiring.sink || wiring.screen) && recv(RESULT).0 != spawnproto::SPAWN_OK {
         failed();
         print(b"  could not spawn (init is out of memory)\n");
         return false;
@@ -2695,6 +2810,9 @@ fn spawn_interruptible(e: Endowment) {
             // *this shell's* untyped rather than init's pool, so there is no region a caretaker
             // could share with it (DECISIONS §92).
             dir: false,
+            // A supervised job's completion signal is already the shared job frame's `DONE` flag,
+            // not `result_ep`, so there is nothing here for DECISIONS §106's narrowing to replace.
+            screen: false,
         },
     );
     send(SPAWN, w0, w1, w2);

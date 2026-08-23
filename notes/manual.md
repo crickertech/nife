@@ -348,8 +348,16 @@ Those two lines together are the milestone: the first names pages and grants not
 grants exactly the one page a person named out of what the first said. `apropos` itself has no
 `caps` preview to print, because there is nothing to preview.
 
-Render a page at the prompt, and prove the viewer is an ordinary pipeline stage rather than
-something that reached for a file:
+Render a page at the prompt, with no pipe or redirection needed to make it run
+(DECISIONS §106, 2026-08-22). `gate.txt` is `script/shell-check`'s own fixture, two lines of
+`hello world` written earlier in that script; the renderer re-flows them to one paragraph:
+
+```text
+$ doc gate.txt
+  hello world hello world
+```
+
+And prove the viewer is an ordinary pipeline stage rather than something that reached for a file:
 
 ```text
 $ echo # The terminal contract | doc
@@ -362,36 +370,48 @@ doc: reads an input stream: name a file, redirect with '<', or pipe into it
 
 ## BUGS
 
-- **`doc <page>` on its own is refused, and the refusal names the fix.** It used to deadlock; that
-  was true when phase 1 shipped and stopped being true when milestone 50's chain check landed, and
-  this entry said it anyway until 2026-08-18. What happens now is
-  `grant_plan::check_chain` answering before anything is spawned:
+- **`doc <page>` on its own used to be refused; DECISIONS §106 (2026-08-22) closed it and it now
+  renders.** It deadlocked when phase 1 shipped, was a refusal that named the fix from milestone
+  50's chain check onward, and this entry described that refusal until this line. The mechanism
+  is exactly what it named as the fix: an unredirected tail stage's primary output now defaults to
+  `terminal_sink_caretaker`, the terminal's own sink adapter, the same one a declared second stream
+  already reached by default under DECISIONS §67. `grant_plan::check_chain` still refuses a
+  redirected shape that has nowhere for the shell to wait but itself (`doc <page> > out.txt`); it
+  is only the unredirected, screen-bound case this decision narrows:
 
   ```text
-  $ doc glob.md
-  refused
-    doc: writes while it reads, and this shell can only wait on one thing at a time: give it a
-    reader that is not this shell, as in '| wc'
+  $ doc gate.txt
+    hello world hello world
   ```
 
-  The constraint underneath is the kernel's rather than the shell's, and it is worth reading
-  before reaching for a scheduling fix. A process has **one wait point**: `SEND` blocks until a
-  receiver takes the message, `RECV` blocks until one arrives, and there is no select and no timed
-  wait. So a shell feeding a chain cannot also be receiving from it, and **no interleaving schedule
-  fixes it**: alternating one send with one receive deadlocks whenever the stage reads twice before
-  it writes, and the other way round deadlocks whenever it writes twice before it reads. The shell
-  cannot know which, because the whole point of the sink contract is that neither end knows anything
-  about the other.
-
-  So the fix is not "drain while writing", which this note used to prescribe. It is **somewhere for
-  the viewer's output to go that is not this shell**, and the tree already has that thing:
-  `terminal_sink_caretaker`, the terminal's own sink adapter, which is where a declared second
-  stream goes by default with no `2>` on the line. Handing it a tail stage's *output* slot is a
-  spawn-protocol decision rather than a shell change, and notes/pipes.md has been carrying it as an
-  open question since milestone 50: *"a shell that wanted a program to print straight to the screen
-  rather than through its own result endpoint could hand it over, and would lose the ability to
-  redirect that program at all."* That trade is the milestone's remaining fork. See
-  **Where this goes next**.
+  The constraint underneath is the kernel's rather than the shell's, and it is worth reading before
+  reaching for a scheduling fix. A process has **one wait point**: `SEND` blocks until a receiver
+  takes the message, `RECV` blocks until one arrives, and there is no select and no timed wait. So a
+  shell feeding a chain cannot also be receiving from it, and **no interleaving schedule fixes it**:
+  alternating one send with one receive deadlocks whenever the stage reads twice before it writes,
+  and the other way round deadlocks whenever it writes twice before it reads. The shell cannot know
+  which, because the whole point of the sink contract is that neither end knows anything about the
+  other. What changed is not the schedule; it is that the tail's reader is no longer the shell at
+  all, so the shell was never the thing the chain needed to wait behind.
+- **The caretaker-hop display race is a known, accepted interim, not a bug this decision missed.**
+  A page's last line and the shell's next `$ ` prompt can interleave under contention: kernel
+  exit-delivery (DECISIONS §26) tells the shell a child is dead-until-reaped, but
+  `terminal_sink_caretaker`'s own trailing `CALL` to `line_editor` is a second, independent call
+  with no ordering primitive against the shell's next prompt. This is the cost this section used to
+  flag before the decision was made ("a stage that outlives its command can paint a prompt nobody
+  typed"), named precisely now that the mechanism is built: a display glitch, not a confinement or
+  correctness failure, because no capability changes hands and no byte reaches the wrong reader.
+  Tracked at milestone 151 (notification objects), DECISIONS §101's kernel build, which lets the
+  shell `WAIT` on "the caretaker's queue for this client has drained" instead of racing it. See
+  notes/tail-output-narrowing.md.
+- **A screen-narrowed child is invisible to a concurrent `ps`/`pgrep` for its short life.** Its
+  DECISIONS §26 fault target is a fresh endpoint this shell minted, not init's `deaths` domain
+  channel, because the shell needs to `RECV` its own child's exit directly rather than race
+  `job_undertaker` for the same message. Its memory still returns to init's job pool when this
+  shell reaps it (§26: a corpse's region returns to its *builder*, not its supervisor), so nothing
+  leaks; it simply does not appear in a domain survey while it runs. Given `doc`'s render is a
+  handful of milliseconds, this is unlikely to matter in practice and is recorded here rather than
+  fixed because nothing asked for it.
 - **`doc <page> | wc` and `doc <page> > out.txt` deliver the file now.** Both
   answered `0 0 0` when phase 1 measured them, because a pipeline's head was wired off the `Line`,
   which carries no `<`, so the planned input operand was dropped and the stage counted an empty
@@ -471,37 +491,17 @@ doc: reads an input stream: name a file, redirect with '<', or pipe into it
 ## Where this goes next
 
 The guest-side `apropos` that used to head this list is built (phase 2, above), and it went to the
-builtin the entry predicted. What is left, in the order it pays off:
+builtin the entry predicted. The spawn-protocol decision that used to head this list is also built
+(DECISIONS §106, 2026-08-22): `doc <page>` renders at the prompt with no `| wc` in front of it, the
+caretaker-hop race it flagged before the decision was made is a named, accepted interim rather than
+a surprise, and both are recorded in this note's `BUGS` section now rather than here. What is left,
+in the order it pays off:
 
-1. **One spawn-protocol decision, and it is three of this list's old entries at once.** Two of them
-   have been closed by other lanes since this list was written (the file does reach a pipeline's
-   head, and the prompt does not truncate at 512 bytes), and what is left is not a shell change.
-   There is still no line a person can type that renders a page, because the shell would be both
-   the writer and the reader of it and has one wait point. The fix is **somewhere for a tail
-   stage's output to go that is not the shell**, and `terminal_sink_caretaker` is already that
-   thing for a declared second stream: init endows it from the manifest, the bytes reach the screen
-   without passing through the shell, and a child holding it is the *default* for `2>` today, so
-   the authority increment for a program that already declares diagnostics is zero.
-
-   The same bit turns colour on, which is the honest replacement for `isatty`, and the pager is the
-   same decision seen from the other side: what it takes to grant a child one line of *input*
-   without granting it the keyboard. notes/pipes.md has been holding the question open since
-   milestone 50 and states the cost plainly: *"a shell that wanted a program to print straight to
-   the screen rather than through its own result endpoint could hand it over, and would lose the
-   ability to redirect that program at all."* The obvious narrowing is that the shell hands it over
-   **only** on a line with no `>` and no `|`, which it can decide from the plan before it spawns
-   anything, so nothing loses its redirection. That narrowing is a proposal and not a decision:
-   what a spawned program holds at this prompt is calef's, and it is the syscall-adjacent kind of
-   choice the *move fast on what can be undone* tenet puts on the expensive side.
-
-   **And there is a cost that is not the one notes/pipes.md names**, which is the part worth
-   deciding rather than discovering. A child holding the terminal's sink can write to the screen
-   *after* its line has ended, so a stage that outlives its command can paint a prompt nobody
-   typed. Today that cannot happen through this path because only a declared second stream reaches
-   it and the shell drains the tail before printing again; a tail stage whose output goes straight
-   to the screen gives the shell nothing to wait on, so it would have to wait for the child to
-   exit instead. That is a second question inside the first one, and it is a security question
-   rather than a plumbing one.
+1. **Colour and the pager, which are the same decision's other two thirds.** DECISIONS §106 took
+   the narrowing for a tail stage's *primary* output; it did not extend the same bit to "tell this
+   stage it ends at a real screen" (colour, the honest replacement for `isatty`) or to granting one
+   line of *input* without granting the keyboard (the pager). Both still want the wiring bit this
+   entry originally scoped for all three; §106 built the narrowest slice that unblocks `doc <page>`.
 2. **The store as something a package installs**, rather than a table in `xtask`. `DOC_BUNDLES` is
    the shape milestone 40 asked for minus a package manager, and milestone 39 is where the manifest,
    the hash and the version it should hang off already live.

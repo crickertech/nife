@@ -1,10 +1,13 @@
 # 40. Documentation as a system service: searchable, rendered, and installed by packages
 
-**Status: PARTIAL.** Phases 1 and 2 are built; phase 3 is not started and is the only thing left
-that this block calls a phase. The status said NOT-STARTED until calef noticed the tree had moved
-past it (2026-08-16, the week's fifth §76-shaped misrecording), and **it did not move on 2026-08-18
-either**, which is the honest answer for a lane that fixed a renderer, corrected a record and built
-a front door without starting the phase that is missing.
+**Status: PARTIAL.** Phases 1 and 2 are built. Phase 3's caretaker-narrowing increment is built too
+(DECISIONS §106, 2026-08-22): `doc <page>` renders at the prompt with no `| wc` in front of it,
+which is the milestone's own headline demonstration. Phase 3's other half, the graphical viewer, is
+not started and still waits on the display ladder (milestone 29, milestone 33). The status said
+NOT-STARTED until calef noticed the tree had moved past it (2026-08-16, the week's fifth
+§76-shaped misrecording), and **it did not move on 2026-08-18 either**, which is the honest answer
+for a lane that fixed a renderer, corrected a record and built a front door without starting the
+phase that is missing.
 
 **Gate: NONE.** Its one stated prerequisite, milestone 31's phase 2 per-file grants, is built.
 
@@ -63,17 +66,18 @@ that names a repository path rather than a store location. Crate and program **m
 indexed as pages, which is what makes `crates/abi/src/lib.rs` findable at all: the document a reader
 wants about the ABI *is* that file's header, and no markdown page was ever going to fix it.
 
-**What remains, and it is now one fork rather than a list.** There is still **no line a person can
-type that renders a page at the prompt**, and the reason is not the shell's scheduling. A process
-has one wait point, so a shell that feeds a chain cannot also read from it, and no interleaving
-fixes that. What would fix it is somewhere for the viewer's output to go that is **not the shell**,
-and the tree already has that thing: `terminal_sink_caretaker`, the terminal's own sink adapter,
-where a declared second stream goes by default. Putting it in a tail stage's *output* slot is a
-spawn-protocol decision, it is the same decision the pager and the colour bit need, and
-notes/pipes.md has been holding it open since milestone 50: *"a shell that wanted a program to print
-straight to the screen rather than through its own result endpoint could hand it over, and would
-lose the ability to redirect that program at all."* Phase 3, the graphical viewer, waits on the
-display ladder as the block says below.
+**What remained, as of 2026-08-18, was one fork rather than a list.** There was still **no line a
+person could type that rendered a page at the prompt**, and the reason was not the shell's
+scheduling. A process has one wait point, so a shell that feeds a chain cannot also read from it,
+and no interleaving fixes that. What fixes it is somewhere for the viewer's output to go that is
+**not the shell**, and the tree already had that thing: `terminal_sink_caretaker`, the terminal's
+own sink adapter, where a declared second stream goes by default. Putting it in a tail stage's
+*output* slot was a spawn-protocol decision, the same decision the pager and the colour bit still
+want, and notes/pipes.md had been holding it open since milestone 50: *"a shell that wanted a
+program to print straight to the screen rather than through its own result endpoint could hand it
+over, and would lose the ability to redirect that program at all."* **DECISIONS §106 took that fork
+on 2026-08-22, and it is built**; see below. Phase 3's other half, the graphical viewer, still waits
+on the display ladder as the block says below.
 
 **2026-08-22: the fork is worked through, not just named.** DECISIONS §101 (notification objects),
 decided 2026-08-20, ratified the *direction*: the `terminal_sink_caretaker` narrowing is "the right
@@ -92,10 +96,32 @@ delivery through the caretaker.
 (`crates/grant_plan/src/spawnproto.rs`) found the fork's own write-up had overpriced it: the child's
 output slot is already opaque to the program ("the shell delegates an endpoint and init puts it
 where the result endpoint would have gone, so the child writes to a pipe or a file sink without
-knowing which"), so no program's manifest changes, only shell-and-init default-routing logic. **The
-status does not move yet**: this decision authorizes phase 3's caretaker-narrowing increment to a
-concrete spec (the narrowing rule, the §26 fault-endpoint reuse, the caretaker-hop race carried as a
-known interim per BUGS below); 40 stays PARTIAL until that increment is built.
+knowing which"), so no program's manifest changes, only shell-and-init default-routing logic.
+
+**Built, the same day.** An unredirected tail stage whose program declares
+`InputSpec::Required { writes_while_reading: true }` (`doc` is the only one today) is delegated to
+`terminal_sink_caretaker` by default; `grant_plan::check_chain` no longer refuses that shape, only
+the redirected one (`doc <page> > out.txt`, still DECISIONS §55's shell); and the shell's completion
+signal for a narrowed child is DECISIONS §26's kernel exit-delivery, on a fresh endpoint it mints and
+delegates, exactly the reuse notes/tail-output-narrowing.md found. Verified at the real prompt, both
+architectures (`script/shell-check`, `NIFE_SHOW_TRANSCRIPT=1`):
+
+```text
+$ doc gate.txt | wc
+  1 4 26
+$ doc gate.txt
+  hello world hello world
+```
+
+The first line is the control this milestone has carried since phase 1 (the barrier `wc` makes the
+render countable); the second is the line nobody could type before today, rendering with no `| wc`
+in front of it. The caretaker-hop display race notes/tail-output-narrowing.md named is carried as a
+documented, accepted interim rather than fixed here; see this block's `BUGS` and milestone 151.
+
+**The status still does not move to BUILT.** This closes phase 3's caretaker-narrowing increment,
+not phase 3 itself: the graphical viewer phase 3 also names waits on the display ladder (milestone
+29's font rendering, milestone 33's compositor) exactly as it did before this decision, and 40 stays
+PARTIAL until that lands too.
 
 **In brief.** Markdown authored, **rendered** for display rather than shown raw, searchable locally, and installed by the package that owns it. Reuse `pulldown-cmark` for parsing (CommonMark is a fiddly spec worth taking from someone else) and write the ANSI renderer against `line_editor`'s contract, because `termimad`/`mdcat` sit on `crossterm` and assume a POSIX terminal we do not have. Phase 1 is a terminal viewer and pager, phase 2 a host-built inverted index shipped as a per-package shard, phase 3 a graphical viewer riding the display ladder. Two constraints found while scoping: **`readdir` refuses and the §27 contract has no such verb**, so nothing can walk a tree for documents, and **font rendering is still milestone 29's remaining increment**, so the terminal comes first
 
@@ -173,8 +199,11 @@ That split is the reuse judgment, and it is the same one milestone 32 made about
   is the split this design already borrowed everywhere else. The merge is
   `manual::index::Ranked`, a fixed sixteen-result table with no allocator, so a shell with one
   stack page can hold it.
-- **Phase 3, the graphical viewer.** Rides the display ladder: needs 29's font rendering and sits as a
-  client of 33's compositor. Rung three of the ladder is where this becomes a real application.
+- **Phase 3, split in two.** The caretaker-narrowing increment is **BUILT** (DECISIONS §106,
+  2026-08-22): `doc <page>` renders straight at the prompt, with no `| wc` needed to give it a
+  reader that is not the shell. The graphical viewer, the phase's other half, still rides the
+  display ladder: needs 29's font rendering and sits as a client of 33's compositor. Rung three of
+  the ladder is where this becomes a real application.
 
 **Prior art worth reading:** `man` plus `apropos` plus `mandb` for the split between format, index and
 pager, which is the architecture this proposes minus the troff. Dash/Zeal *docsets* (a bundle with its
@@ -187,12 +216,21 @@ later. **Effort: 1 lane estimated per phase**, three phases, and they can land s
 
 ## BUGS
 
-- **The caretaker-hop display race is a known, accepted interim, not fixed by §106.** Once the
-  `terminal_sink_caretaker` narrowing ships, a page's last line and the shell's next `$ ` prompt can
+- **The caretaker-hop display race is a known, accepted interim, not fixed by §106.** With the
+  `terminal_sink_caretaker` narrowing built, a page's last line and the shell's next `$ ` prompt can
   interleave under contention: kernel exit-delivery (DECISIONS §26) tells the shell a child is dead,
   but the caretaker's own trailing `CALL` to `line_editor` is a second, independent call with no
   ordering primitive against the shell's next prompt. A display glitch, not a confinement or
-  correctness failure (no capability changes hands, no byte reaches the wrong reader). Tracked at
-  milestone 151 (notification objects), DECISIONS §101's kernel build, which lets the shell `WAIT`
-  on "the caretaker's queue for this client has drained" instead of racing it. See
-  notes/tail-output-narrowing.md for the full finding.
+  correctness failure (no capability changes hands, no byte reaches the wrong reader). Not observed
+  in either `script/shell-check` leg's transcript (`doc gate.txt`'s render is one short message, so
+  the window is narrow), but the argument for it is structural rather than about this one case; see
+  notes/tail-output-narrowing.md's own BUGS, which is honest that the race is named and not measured.
+  Tracked at milestone 151 (notification objects), DECISIONS §101's kernel build, which lets the
+  shell `WAIT` on "the caretaker's queue for this client has drained" instead of racing it.
+- **A screen-narrowed child does not appear in a concurrent `ps`/`pgrep`.** Its DECISIONS §26 fault
+  target is a fresh endpoint the shell mints for this purpose, not init's `deaths` domain channel
+  (the shell needs to `RECV` its own child's exit directly, not race `job_undertaker` for the same
+  message), and domain membership is exactly having `deaths` as that target. Its memory still
+  returns to init's job pool when the shell reaps it. Recorded rather than fixed: nothing asked for
+  a rendering `doc` invocation to be surveyable, and the alternative (giving the shell a second,
+  narrower view into `deaths` itself) is a bigger change than this increment needed.

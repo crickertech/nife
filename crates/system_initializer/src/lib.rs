@@ -943,8 +943,9 @@ fn spawn_service(
         let grant = wiring.dir.then(|| (recv(spawn_ep), recv(spawn_ep)));
 
         // Receive the delegated caps in protocol order: the interrupt pair first (job untyped, job
-        // frame), then the sink, then the source, then the diagnostics, then any --mem untyped. No
-        // promise, no receive, so both sides stay in lockstep.
+        // frame), then the sink, then the source, then the diagnostics, then the screen-narrowed
+        // tail's completion endpoint (DECISIONS §106), then any --mem untyped. No promise, no
+        // receive, so both sides stay in lockstep.
         let (job_ut, job_fr) = if interruptible {
             (opt_cap(recv_cap(spawn_ep).1), opt_cap(recv_cap(spawn_ep).1))
         } else {
@@ -961,6 +962,15 @@ fn spawn_service(
             None
         };
         let diagnostics = if wiring.diagnostics {
+            opt_cap(recv_cap(spawn_ep).1)
+        } else {
+            None
+        };
+        // **The narrowed tail's completion endpoint** (DECISIONS §106), in the same delegation
+        // order as everything else: a fresh capability the shell minted and kept a copy of, so
+        // init installs it as this child's fault target and the shell can `RECV` its exit instead
+        // of draining bytes it will no longer see.
+        let screen = if wiring.screen {
             opt_cap(recv_cap(spawn_ep).1)
         } else {
             None
@@ -1067,7 +1077,17 @@ fn spawn_service(
             // Slot 1 is the input source when there is one, and otherwise the `--mem` untyped, which
             // is safe only because no manifest declares both today. `grant_plan` is where that stops
             // being true, and the order here is the contract; see notes/pipes.md's BUGS.
-            let out = (sink.unwrap_or(result_ep), abi::rights::WRITE);
+            //
+            // **Except when the shell narrowed this tail to the screen** (DECISIONS §106): the same
+            // default-routing shape as the clock and the diagnostic stream below, applied to slot 0.
+            // The shell asked for this by delegating a `screen` completion endpoint rather than by
+            // declaring anything the child can read back, so the child's own slot 0 is exactly as
+            // opaque to it as a redirected one always was.
+            let default_screen = term_sink.filter(|_| screen.is_some());
+            let out = (
+                sink.or(default_screen).unwrap_or(result_ep),
+                abi::rights::WRITE,
+            );
             let mut caps = [out; 5];
             let mut n = 1usize;
             if let Some(dir_ep) = narrowed {
@@ -1178,7 +1198,17 @@ fn spawn_service(
                             caps: &caps[..n],
                             placed,
                             maps,
-                            fault: Some(deaths),
+                            // **A screen-narrowed child is supervised by the shell's own fresh
+                            // endpoint instead of `deaths`** (DECISIONS §106), so the shell can
+                            // `RECV` its exit directly rather than racing init's reaper for the
+                            // same message. Its memory still comes from `region` (unchanged, still
+                            // this job pool), and REAP still returns it to this pool regardless of
+                            // who holds the supervision endpoint (DECISIONS §26: the reclaimed
+                            // region returns to its *builder*, not its supervisor). The trade is
+                            // that this child is outside `deaths`'s domain for its short life, so
+                            // it will not appear in a concurrent `ps`/`pgrep`; see this function's
+                            // BUGS.
+                            fault: Some(screen.unwrap_or(deaths)),
                             stack_pages: CHILD_STACK_PAGES,
                             ..ChildEndowment::new()
                         },
@@ -1224,7 +1254,12 @@ fn spawn_service(
             // somewhere else, so the shell has nothing to read and no way to find out that the
             // spawn failed. One ack closes that hole. An unredirected child is unchanged: the
             // child's own message is the shell's single read, and a failure is the sentinel.
-            if wiring.sink {
+            //
+            // **A screen-narrowed child owes the same ack, for the same reason** (DECISIONS §106):
+            // its output is not going to `result_ep` either, and its completion signal is the fault
+            // endpoint above, not this one, so a build failure has to reach the shell here or not
+            // at all.
+            if wiring.sink || wiring.screen {
                 send(
                     result_ep,
                     if ok {
@@ -1251,7 +1286,7 @@ fn spawn_service(
         // mapped, the budget and the streams inserted), and the shell holds the originals it kept
         // (the job untyped for teardown, the pipe it minted). This keeps init's 16-slot cspace from
         // filling across a long session.
-        for s in [job_ut, job_fr, sink, source, diagnostics, budget]
+        for s in [job_ut, job_fr, sink, source, diagnostics, screen, budget]
             .into_iter()
             .flatten()
         {

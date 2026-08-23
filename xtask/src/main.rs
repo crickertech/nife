@@ -6615,12 +6615,17 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 55] = [
     // A viewer handed an empty stream would answer `0 0 0`, which is what this line answered when
     // the operand was being dropped, so the count is what separates rendering from silence.
     ("doc gate.txt | wc", &["1 4 26"]),
-    // **And the line a person actually wants is still refused, honestly.** `doc gate.txt` on its
-    // own would make this shell both the writer and the reader of one line, and it has one wait
-    // point; the refusal names the fix rather than hanging, which is the refusal Unix cannot
-    // produce. See `grant_plan::check_chain` and notes/manual.md: closing this needs a place for
-    // the viewer's output to go that is not the shell, and that is a spawn-protocol decision.
-    ("doc gate.txt", &["writes while it reads"]),
+    // **And the line a person actually wants now renders**, which is milestone 40's whole
+    // remaining phase (DECISIONS §106, 2026-08-22). `doc gate.txt` alone used to make this shell
+    // both the writer and the reader of one line, refused rather than hung, because it has one
+    // wait point; see `grant_plan::check_chain` and notes/manual.md for the refusal this replaced.
+    // Now the render defaults to `terminal_sink_caretaker` instead of this shell's own result
+    // endpoint, so there is no second reader for the shell to wait behind and the page appears at
+    // the prompt with no `| wc` in front of it. The text is the same paragraph `doc gate.txt | wc`
+    // counted three lines up, reflowed and indented by the renderer: `gate.txt`'s two source lines
+    // become the one line, four words, twenty-six bytes that count asserted, and this line checks
+    // the words themselves arrived rather than merely being countable.
+    ("doc gate.txt", &["hello world hello world"]),
     // **The negative control on the viewer itself**, and it is the whole milestone in one screen: a
     // documentation viewer is exactly the program a reader expects to go and fetch things, and this
     // one is handed a stream. `caps` prints what would be granted before anything is spawned, and
@@ -6866,13 +6871,14 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 55] = [
     // **Init's job budget is bounded and comes back** (milestone 22, the interactive increment).
     // Init now holds a pool with room for six live jobs instead of the kernel's whole construction
     // budget, and every job runs in a region of its own that `job_undertaker` returns when the job ends.
-    // **Fifteen spawns above plus these six are twenty-one jobs through a six-job pool**, so a boot
+    // **Sixteen spawns above plus these six are twenty-two jobs through a six-job pool**, so a boot
     // where nothing collected would answer "could not spawn (init is out of memory)" somewhere in
     // here rather than the arithmetic. (Eleven when milestone 22 wrote this line, `2>` added two
     // more spawning lines above, milestone 86's `time` added two more, milestone 67's quoting added
-    // three, milestone 40 phase 2's `wc doc/bundles` added one, and milestone 31 phase 3 added two:
-    // an `rm` that really runs, and the `wc` that counts what is left. The `rm` is the one worth
-    // noticing, because it is the first job whose region holds **two**
+    // three, milestone 40 phase 2's `wc doc/bundles` added one, milestone 31 phase 3 added two: an
+    // `rm` that really runs, and the `wc` that counts what is left, and DECISIONS §106 added one:
+    // `doc gate.txt` used to be refused at the prompt with nothing spawned and now actually runs.
+    // The `rm` is the one worth noticing, because it is the first job whose region holds **two**
     // processes, the program and the `fs_subtree_caretaker` carrying its grant, and it is therefore
     // the first thing in this script that would fail if `job_undertaker`'s retry did not collect
     // both; the count is a fact about the whole script, so it is taken at the merge and not from any
@@ -7153,7 +7159,8 @@ fn shell_check_leg(riscv: bool) -> bool {
              that one command, swept a \
              match too large to hand over in batches whose authority is exactly what each was \
              designated, named a file whose name has a space in it, searched an installed \
-             documentation store and got back pages a following line could then designate, ran \
+             documentation store and got back pages a following line could then designate, \
+             rendered one of those pages straight at the prompt with no `| wc` in front of it, ran \
              a && past a command that succeeded and not past one it refused, and ran \
              twenty-one jobs through init's six-job pool after init gave its construction \
              budget away"
