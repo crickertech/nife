@@ -62,7 +62,14 @@ fn tidy(slots: &[u64], regions: &[u64]) {
 /// `invoke(cap, MAP_INTO, va, frame_slot, mode)`, through the real dispatcher.
 fn map_into(aspace_slot: u64, va: u64, frame_slot: u64, mode: u64) -> Result<i64, Error> {
     let mut fr = TrapFrame::for_user_entry(0, 0, [0, 0, 0]);
-    invoke(&mut fr, aspace_slot, abi::aspace::MAP_INTO, va, frame_slot, mode)
+    invoke(
+        &mut fr,
+        aspace_slot,
+        abi::aspace::MAP_INTO,
+        va,
+        frame_slot,
+        mode,
+    )
 }
 
 /// `invoke(cap, LIST, cursor, _, _)`, through the real dispatcher, returning the three words a
@@ -125,20 +132,26 @@ fn a_viewer_sees_every_mapping_and_can_touch_none_of_it() {
     assert!(!l.refused());
     assert_eq!(l.rows().len(), 3, "{:?}", l.rows());
     assert!(
-        l.rows()
-            .contains(&pmap::Row { va: CODE_VA, kind: abi::aspace::MAP_CODE }),
+        l.rows().contains(&pmap::Row {
+            va: CODE_VA,
+            kind: abi::aspace::MAP_CODE
+        }),
         "{:?}",
         l.rows()
     );
     assert!(
-        l.rows()
-            .contains(&pmap::Row { va: RW_VA, kind: abi::aspace::MAP_RW }),
+        l.rows().contains(&pmap::Row {
+            va: RW_VA,
+            kind: abi::aspace::MAP_RW
+        }),
         "{:?}",
         l.rows()
     );
     assert!(
-        l.rows()
-            .contains(&pmap::Row { va: RO_VA, kind: abi::aspace::MAP_RO }),
+        l.rows().contains(&pmap::Row {
+            va: RO_VA,
+            kind: abi::aspace::MAP_RO
+        }),
         "{:?}",
         l.rows()
     );
@@ -154,7 +167,13 @@ fn a_viewer_sees_every_mapping_and_can_touch_none_of_it() {
 
     tidy(
         &[builder, viewer, code_frame, rw_frame, ro_frame, spare],
-        &[space_region, code_region, rw_region, ro_region, spare_region],
+        &[
+            space_region,
+            code_region,
+            rw_region,
+            ro_region,
+            spare_region,
+        ],
     );
 }
 
@@ -219,7 +238,10 @@ fn a_capability_outliving_its_space_reads_as_empty() {
     // than accidentally passing.
     let builder = hold_builder(name);
     let (f, frame_region) = frame(Rights::READ);
-    assert_eq!(map_into(builder, 0x0040_0000, f, abi::aspace::MAP_RO), Ok(0));
+    assert_eq!(
+        map_into(builder, 0x0040_0000, f, abi::aspace::MAP_RO),
+        Ok(0)
+    );
 
     // Simulate `Tcb::CONFIGURE` binding this space to a thread, without building one: the
     // registry entry goes away exactly as it would there. `take_user_aspace`'s removal from

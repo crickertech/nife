@@ -375,7 +375,11 @@ mod tests {
     fn a_buffer_too_small_for_the_space_says_so_and_prints_nothing() {
         let mut rows = [Row::default(); 2];
         let l = collect(&mut rows, &mut |cursor| {
-            (cursor as i64 + 1, 0x0040_0000 + cursor * 0x1000, abi::aspace::MAP_RW)
+            (
+                cursor as i64 + 1,
+                0x0040_0000 + cursor * 0x1000,
+                abi::aspace::MAP_RW,
+            )
         });
         assert_eq!(l.rows().len(), 2);
         assert!(!l.complete());
