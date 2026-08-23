@@ -108,7 +108,8 @@ pub(super) fn build_child_in(
         let cap = crate::cap::rendezvous_cap(fe, crate::cap::Rights::READ);
         sched::tcb_insert_cap(tid, cap, Some(FAULT_EP_SLOT)).expect("insert fault ep");
     }
-    sched::configure_tcb(tid, CODE_VA, STACK_VA + frames::FRAME_SIZE, aspace).expect("configure");
+    sched::configure_tcb(tid, CODE_VA, STACK_VA + page_frames::FRAME_SIZE, aspace)
+        .expect("configure");
     sched::start_tcb(tid, [0; 3]).expect("start");
     tid
 }

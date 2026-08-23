@@ -21,7 +21,7 @@ Measured 2026-08-17, against the block's 2026-08-02 numbers.
 
 **The deficit grew while work was being done, and both halves of that are worth seeing.** Three of
 the four crates the block named as the hard ones left (`dtb`, `nifefs`, `gpt`) got their examples in
-the following fortnight, and `isa`, `manual`, `swish` and `slots` gained theirs too. Meanwhile five
+the following fortnight, and `machine_discovery`, `manual`, `swish` and `slots` gained theirs too. Meanwhile five
 crates arrived with none: `ntlm` and `system_initializer` (2026-08-04), `nvme` (2026-08-15), and
 `mdns_proto` and `smb_proto` (2026-08-15). A count of what is missing is a moving target in a tree
 adding a crate every few days, which is the argument for a gate rather than a number in a block.
@@ -102,7 +102,7 @@ The worklist, largest first, so the next person can take one crate and turn its 
 
 | Crate | Items |
 |---|---|
-| `isa` | 54 |
+| `machine_discovery` | 54 |
 | `smb_proto` | 52 |
 | `mdns_proto` | 41 |
 | `pci` | 24 |

@@ -93,13 +93,6 @@ name = "calendar"
 version = "0.1.0"
 
 [[package]]
-name = "canary_gate"
-version = "0.1.0"
-dependencies = [
- "loom",
-]
-
-[[package]]
 name = "capability"
 version = "0.1.0"
 
@@ -258,15 +251,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5baebc0774151f905a1a2cc41989300b1e6fbb29aff0ceffa1064fdd3088d582"
 
 [[package]]
-name = "frames"
-version = "0.1.0"
-
-[[package]]
 name = "fs_proto"
 version = "0.1.0"
 dependencies = [
  "glob",
 ]
+
+[[package]]
+name = "generational_table"
+version = "0.1.0"
 
 [[package]]
 name = "generator"
@@ -342,21 +335,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "intrusive"
+name = "intrusive_fifo"
 version = "0.1.0"
 
 [[package]]
 name = "ipc"
 version = "0.1.0"
 dependencies = [
- "intrusive",
-]
-
-[[package]]
-name = "isa"
-version = "0.1.0"
-dependencies = [
- "dtb",
+ "intrusive_fifo",
 ]
 
 [[package]]
@@ -369,7 +355,6 @@ dependencies = [
  "bitfont",
  "block_roster",
  "calendar",
- "canary_gate",
  "capability",
  "clock_proto",
  "compositor",
@@ -381,33 +366,34 @@ dependencies = [
  "elf",
  "entropy_proto",
  "env_proto",
- "frames",
  "fs_proto",
+ "generational_table",
  "gfx_proto",
  "grant_plan",
- "intrusive",
+ "intrusive_fifo",
  "ipc",
- "isa",
  "line_editor",
  "login_proto",
+ "machine_discovery",
  "measured_boot",
+ "memory_corruption_canary_gate",
+ "memory_regions",
  "nifefs",
  "ntp_proto",
  "nvme",
+ "page_frames",
  "paging",
  "pci",
  "pgrep",
  "pmap",
  "ps",
- "regions",
  "sink_proto",
- "slots",
  "socket_proto",
  "spin",
- "steal_request",
+ "thread_wake_handshake",
  "tock-registers",
  "video_terminal",
- "wake_handshake",
+ "work_steal_slot",
 ]
 
 [[package]]
@@ -450,6 +436,13 @@ dependencies = [
  "scoped-tls",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "machine_discovery"
+version = "0.1.0"
+dependencies = [
+ "dtb",
 ]
 
 [[package]]
@@ -512,6 +505,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 
 [[package]]
+name = "memory_corruption_canary_gate"
+version = "0.1.0"
+dependencies = [
+ "loom",
+]
+
+[[package]]
+name = "memory_regions"
+version = "0.1.0"
+dependencies = [
+ "generational_table",
+ "loom",
+]
+
+[[package]]
 name = "nifefs"
 version = "0.1.0"
 
@@ -547,6 +555,10 @@ name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
+
+[[package]]
+name = "page_frames"
+version = "0.1.0"
 
 [[package]]
 name = "paging"
@@ -624,14 +636,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
-name = "regions"
-version = "0.1.0"
-dependencies = [
- "loom",
- "slots",
-]
-
-[[package]]
 name = "rustversion"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -664,10 +668,6 @@ version = "0.1.0"
 dependencies = [
  "abi",
 ]
-
-[[package]]
-name = "slots"
-version = "0.1.0"
 
 [[package]]
 name = "smallvec"
@@ -711,13 +711,6 @@ name = "stable_deref_trait"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
-
-[[package]]
-name = "steal_request"
-version = "0.1.0"
-dependencies = [
- "loom",
-]
 
 [[package]]
 name = "subtle"
@@ -818,6 +811,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ad99c4c6d32803332c548b1af0540b357b3f5fc0be8f6c6bfe8b2e6ae784070"
 dependencies = [
  "cfg-if",
+]
+
+[[package]]
+name = "thread_wake_handshake"
+version = "0.1.0"
+dependencies = [
+ "loom",
 ]
 
 [[package]]
@@ -982,13 +982,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wake_handshake"
-version = "0.1.0"
-dependencies = [
- "loom",
-]
-
-[[package]]
 name = "windows-link"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1010,6 +1003,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ae137229bcbd6cdf0f7b80a31df61766145077ddf49416a728b02cb3921ff3fc"
 dependencies = [
  "windows-link",
+]
+
+[[package]]
+name = "work_steal_slot"
+version = "0.1.0"
+dependencies = [
+ "loom",
 ]
 
 [[package]]

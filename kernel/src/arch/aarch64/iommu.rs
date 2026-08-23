@@ -131,7 +131,11 @@ fn zeroed_frame(what: &str) -> u64 {
         .addr();
     // SAFETY: a fresh frame, reachable through the direct map, owned by this module from here on.
     unsafe {
-        core::ptr::write_bytes(phys_to_virt(pa) as *mut u8, 0, frames::FRAME_SIZE as usize);
+        core::ptr::write_bytes(
+            phys_to_virt(pa) as *mut u8,
+            0,
+            page_frames::FRAME_SIZE as usize,
+        );
     }
     pa
 }

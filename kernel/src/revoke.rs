@@ -50,7 +50,7 @@ struct LogPage {
     entries: [LogEntry; LOG_ENTRIES],
 }
 
-const _: () = assert!(size_of::<LogPage>() == frames::FRAME_SIZE as usize);
+const _: () = assert!(size_of::<LogPage>() == page_frames::FRAME_SIZE as usize);
 
 /// A live address space, as revocation sees it: where its tables root, which region pays for its
 /// records, and its newest log page.
@@ -191,7 +191,7 @@ pub fn list_mapping(root: u64, cursor: u64) -> (u64, u64) {
         return (0, 0);
     };
 
-    const PAGE_MASK: u64 = !(frames::FRAME_SIZE - 1);
+    const PAGE_MASK: u64 = !(page_frames::FRAME_SIZE - 1);
     let (mut page_phys, mut index) = if cursor == 0 {
         (space.head, 0usize)
     } else {
@@ -374,7 +374,7 @@ mod tests {
             "B still maps the revoked page"
         );
 
-        crate::memory::free(frames::Frame::from_addr(shared));
+        crate::memory::free(page_frames::Frame::from_addr(shared));
     }
 
     /// **Destroying an untyped region unmaps its pages, THEN reclaims them.** A page from the
@@ -426,7 +426,7 @@ mod tests {
         // tried first and fit EXACTLY: 6 tables + 9 log pages = 15. Off by nothing.)
         let mut refused = false;
         for i in 0..4096u64 {
-            let va = 0x40_0000 + i * frames::FRAME_SIZE;
+            let va = 0x40_0000 + i * page_frames::FRAME_SIZE;
             if space
                 .map_physical(va, shared, Flags::user_rodata())
                 .is_err()
@@ -445,6 +445,6 @@ mod tests {
             crate::untyped::usage(0).map(|(_, p)| p).unwrap_or(0),
         );
 
-        crate::memory::free(frames::Frame::from_addr(shared));
+        crate::memory::free(page_frames::Frame::from_addr(shared));
     }
 }
