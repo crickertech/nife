@@ -49,6 +49,14 @@ in the code or the conversation doesn't make sense, it belongs here.
   author meant. Twenty-eight comments credited the `^C` work to a milestone about an aarch64 board
   and no gate could see it.
 
+- [The violation ledger](rule-violations.md): milestone 118. A rule stated in prose that gets
+  broken three times has demonstrated it needs a mechanism instead, and nothing before this counted
+  how many times a documented rule was actually violated. `script/rule-violations` totals a table of
+  self-reported incidents; its first run found the git-clobber rule already four strikes over, from
+  incidents `AGENTS.md` already records against itself. Deliberately not wired into `script/lint` or
+  CI: doing so would fail the shared gate over a decision that is not a lane's to make. Name
+  provisional.
+
 - [Naming things](naming.md): components, crates, scripts, branches, and which document goes
 - [Cobble, the mascot](mascot.md): the name, its claim, the held-not-embedded ruling, and the
   alternatives set aside. Drawn by Clay.
