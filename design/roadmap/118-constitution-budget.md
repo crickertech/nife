@@ -413,7 +413,7 @@ fires when the tree exceeds it and stays silent when the tree falls below. `scri
 `agents-md-lines` registry entry (the file's own `wc -l`-equivalent line count) and the claim lives
 here, since a developer lane may not edit `AGENTS.md` to carry its own marker:
 
-**`AGENTS.md` carries at most 942 lines** <!--count-at-most:agents-md-lines-->, written at the
+**`AGENTS.md` carries at most 947 lines** <!--count-at-most:agents-md-lines-->, written at the
 tree's exact value with **zero headroom**, deliberately: the point, per this section's own words
 above, is that every line added should replace one removed, or be a considered act that says why the
 growth was worth it. That is the same choice `unsafe-thread-safety-claims` made for a different
@@ -422,6 +422,12 @@ reason is this milestone's own diagnosis, that the file grows in whole deliberat
 by diffuse creep, so a lane adding one of those steps is exactly the lane that should also write the
 sentence justifying it. See notes/counted-claims.md for the mechanism and notes/rule-violations.md's
 neighbor for the same pattern applied to a different number.
+
+**Raised from 942 to 947, 2026-08-23**: milestone 160's naming-tenet extension (three lines
+recording that calef's crate/program/module naming authority now also covers public function
+names, plus a blank line and citation) is exactly the "considered act that says why the growth was
+worth it" this section asks for -- a durable rule change belongs in the file the rule lives in, not
+only in the milestone that decided it.
 
 **Targets the whole file, not "the core", because the core does not exist yet.** Once the split
 happens, this ceiling should move to whatever the core becomes and stop counting the linked
