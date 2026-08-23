@@ -83,10 +83,43 @@
 //! (the roadmap's "isolation between humans" row is already built as milestone 47's per-shell root;
 //! what is missing is only the wiring between the two, which is follow-on).
 //!
-//! **Not wired into the interactive boot.** This process is spawned directly by the kernel's guest
-//! test harness (`kernel/src/user/login_service.rs`), the same way `credentialer` is, and is not
-//! reachable from `crates/system_initializer::boot`'s real prompt. Replacing the shell's own
-//! build-time endowment with a real login prompt is the multi-lane remainder of this milestone.
+//! **Not wired into the interactive boot, and the blocker is a missing device grant, not a wiring
+//! exercise** (investigated 2026-08-23, milestone/49-login-boot-prompt). This process is spawned
+//! directly by the kernel's guest test harness (`kernel/src/user/login_service.rs`), the same way
+//! `credentialer` is, and is not reachable from `crates/system_initializer::boot`'s real prompt.
+//! The chain that is missing: `login` needs `credentialer`'s `VERIFY`; `credentialer` refuses to
+//! start without the entropy service (it draws its decoy record's salt from entropy at start-up
+//! and will not fall back to a predictable one, DECISIONS §42); the entropy service needs a
+//! `Virtio` capability onto a real virtio-rng device (`user/src/entropy.rs`'s slot 2); and neither
+//! `kernel::user::spawn_init` (aarch64) nor `kernel::user::riscv_shell_boot` (riscv64), the two
+//! sites that build a [`system_initializer::BootEndowment`] (`user/src/hello.rs`'s
+//! `init_boot`, `user/src/system_initializer.rs`), discovers or grants one. Nor does the interactive
+//! boot's own QEMU invocation attach a virtio-rng device at all: `NIFE_RNG` (like `NIFE_GPU`,
+//! `NIFE_KBD`, `NIFE_NVME`) is set only inside `cargo xtask test`, never by `cargo xtask shell-check`
+//! or any interactive/demo boot, which is a deliberate, existing pattern (a minimal device surface
+//! for the boot a person actually meets) and not an oversight this file's own code could fix.
+//!
+//! **What is already proven, so the remaining gap is precisely this and nothing more**: the whole
+//! chain (a real virtio-rng-backed entropy service, `credentialer` provisioned with milestone 56's
+//! own family fixture, and this program relaying to it) already runs and is tested end to end
+//! whenever a virtio-rng device is present (`kernel::user::login_tests::wired`, which reuses
+//! `kernel::user::credential_tests::provisioned`). No code in this program, `credentialer.rs`, or
+//! `entropy.rs` needs to change for interactive-boot reachability. What is missing is a capability
+//! the kernel does not yet construct, on a boot whose device set does not yet include the device
+//! that capability would name.
+//!
+//! **Why this is not this lane's decision to make.** Whether the interactive boot should carry a
+//! virtio-rng device at all is a question about what that boot models, not a plumbing gap: milestone
+//! 55's actual target is real Raspberry-Pi-class hardware (`design/roadmap/55-*`), which has no
+//! virtio-rng and would need a different entropy source entirely, so "attach one in QEMU" answers
+//! the demonstrator's boot and not the target's. It also touches `BootEndowment`, which is what the
+//! kernel promises an init at spawn, on a cspace this file's own comments already call "one slot
+//! from the wall" at peak (`crates/system_initializer::DIR_JOB_REGION_PAGES`'s neighboring comment).
+//! Getting either wrong costs a design decision to unwind, not a line of code, which is the "move
+//! fast on what can be undone" tenet's own test for when a fork is calef's rather than a lane's.
+//! Replacing the shell's own build-time endowment with a real login prompt remains the multi-lane
+//! remainder of this milestone, and its first lane is now this decision rather than a
+//! `build_child` exercise.
 //!
 //! **This process does not consult `measured_boot::PROGRAM_MEASUREMENTS` before building a
 //! caretaker.** `crates/system_initializer` refuses to load a program whose bytes do not match the
