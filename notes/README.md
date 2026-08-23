@@ -517,6 +517,13 @@ in the code or the conversation doesn't make sense, it belongs here.
   stated, the published vectors from RFC 1320, RFC 2202 and [MS-NLMP] §4.2.4 that pin them, the
   four-zero transcription error the machine caught, and an honest `BUGS` list starting with
   revocation being per holder rather than per secret.
+- [Login](login.md): milestone 49's login half (DECISIONS §109 is the attribution half). Authenticates
+  against the credential service unchanged and, on a match, **mints** a fresh directory capability (a
+  `fs_subtree_caretaker` built for that principal) and a fresh budget rather than narrowing anything
+  it already holds, so two logins are two distinguishable channels and not two views of one shared
+  endpoint. Why a `CALL` cannot deliver the capability set (a one-shot reply carries two words and
+  nothing else), what the audit trail proves about attribution and what it deliberately does not, and
+  an honest `BUGS` list starting with every principal sharing one subtree in this slice.
 - [The framebuffer contract](framebuffer-contract.md): milestone 29, the display ladder's first
   rung: the confined virtio-gpu driver, the client that draws, and the shared-surface contract
   between them, written down so milestone 33's compositor implements against a contract. Also the
