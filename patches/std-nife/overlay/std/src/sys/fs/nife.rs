@@ -1001,6 +1001,8 @@ impl File {
         unsupported()
     }
 
+    // No verb in `fs_proto` sets an mtime, the same gap `Metadata::modified` (read) has: a wire
+    // format addition (§64, rank 28), not a PAL trick. See notes/crates-io-on-nife.md.
     pub fn set_times(&self, _times: FileTimes) -> io::Result<()> {
         unsupported()
     }
