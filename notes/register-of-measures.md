@@ -101,7 +101,7 @@ row pretending to be one.
 | E1: IPC round trip against thread count | 2026-08-22 | `cargo xtask bench --real` (`ipc_scale_*` rows, aarch64 only) |
 | E2: thread census on the customer path | 2026-08-22 | `cargo xtask test`, the "E2 thread census" line in `a_host_process_connects_to_the_guest_and_is_answered` (both ISAs) |
 | E3: IPC fastpath footprint doubled, and the latency it costs | 2026-08-22 | `script/fastpath-footprint --features fastpath_pad` (both ISAs); `cargo xtask bench --real --extra-features fastpath_pad` against `cargo xtask bench --real` (aarch64 only) |
-| E4: application working-set displacement under IPC traffic | 2026-08-22 | `cargo xtask bench --real` (`appdisp_*` rows, aarch64 only) |
+| E4: application working-set displacement under IPC traffic, at typical (8-pair) and high (48-pair, E1's-knee) background load | 2026-08-23 | `cargo xtask bench --real` (`appdisp_*_ipc`/`appdisp_*_ipc96` rows, aarch64 only) |
 
 **E1 through E4, taken 2026-08-22 (milestone 134's Tier A lane).** All four ran on the dev Mac
 under HVF; none of the four needed silicon, which is what the block promised, but three of them
@@ -144,11 +144,23 @@ QEMU at all.
 - **E4.** With a 5-repeat minimum (the first unrepeated run swung 2 to 3x between nominally
   identical conditions, a real methodological finding in its own right: this workload's batches run
   long enough to catch host preemption the way `smp_throughput`'s shorter ones do not), throughput
-  lost to 8 concurrent IPC pairs (16 threads) is 0 to 3% across working sets from 4 to 128 KiB, over
-  two repeated runs. **No effect, on this machine**, and it is not in tension with E1: 16 threads of
-  background traffic sits inside E1's own flat region, below where E1 itself found any cost on this
-  hardware. A stronger follow-up would push the background thread count toward or past E1's knee
-  (32 to 96) rather than reading this as the last word on E4.
+  lost to 8 concurrent IPC pairs (16 threads) is 0 to 5% across working sets from 4 to 128 KiB, over
+  three repeated runs (widened from the first cut's "0 to 3%" by two more runs on the same shared,
+  noisy machine; see this section's own bug about that). **No effect worth calling one, on this
+  machine**, and it is not in tension with E1: 16 threads of background traffic sits inside E1's own
+  flat region, below where E1 itself found any cost on this hardware.
+
+  **The stronger follow-up this section originally deferred was taken 2026-08-23.** A second
+  background-load condition, `SCALE_MAX_PAIRS` (48 pairs, 96 threads, the same pair count E1's own
+  sweep tops out at), was added to `app_displacement` alongside the original 8-pair one. Over the
+  same three repeated runs: throughput lost at 96 threads reads 2 to 9%, higher than the low-load
+  figure at every one of the 5 working sets on every one of the 3 runs, no exception. That is a
+  small, reproducible, direction-consistent effect, not a knee: the two ranges (0-5% and 2-9%)
+  overlap, and E1's own equivalent point (94-96 threads) only shows an 8-11% cost, so a modest
+  displacement number at the same load is the mutually consistent reading rather than a stronger
+  independent finding. It wants the same small-cache board E1 and E3's latency half already want,
+  because on this machine the two conditions are separated by a few percentage points riding on top
+  of run-to-run noise of a similar size.
 
 **The filesystem row is the one on the customer path**, and it is the clearest case in the register
 for why `dated` is a finding rather than a filing. Milestone 55 is a Time Machine target the
@@ -294,10 +306,13 @@ what, in notes/benchmarks.md where the series lives, and leave this register hol
   count of "how many threads does X create" taken from inside the shared-boot suite should take the
   same delta rather than trust an absolute `thread_count()` reading.
 
-- **E4's background load (8 pairs, 16 threads) sits inside E1's own flat region.** A null result at
-  that load is expected given E1's curve, not independent evidence against displacement; a load
-  nearer E1's knee (32 to 96 threads) is the stronger version of this experiment and was not taken,
-  for time rather than for a reason.
+- **Closed 2026-08-23.** E4's original background load (8 pairs, 16 threads) sat inside E1's own flat
+  region, so a null result there was expected from E1's curve rather than independent evidence
+  against displacement. `app_displacement` now also runs 48 pairs (96 threads, E1's own top pair
+  count) as a second condition; see this file's E4 narrative above for the result, a small
+  reproducible cost consistent with rather than stronger than E1's own finding at the same load. Not
+  a knee, and the honest reading is that this machine's cache is still too large to see one; that
+  wants the small-cache board, not another thread-count sweep here.
 
 - **A `dated` row goes stale silently, which is the whole point and is also the limitation.** This
   register makes the staleness visible to a reader who opens the file; it makes it visible to
