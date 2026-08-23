@@ -5,17 +5,16 @@ authority utilities become on this system. **Scoped to the whole package by cale
 consistency with milestone 123's approach to popular packages: the corpus is chosen by an external
 ordering and taken in the units that ordering uses, which is packages rather than programs we like.
 
-**Gate: DECISION.** It was `NONE` while `ps` was the next thing to build, and `ps` and `pgrep` are
-now built. **Every remaining view program is blocked on something a lane cannot supply**, which the
-strata section names one by one: `pmap` on extending `ENUMERATE` to `Aspace`, which is calef's call
-and is the open decision this gate points at; `top` on per-thread CPU accounting that does not exist;
-`pwdx` and `w` on a process display name this system has no design for. The `sysctl` fork below is
-calef's too, and it decides whether "we implemented `procps`" is a true sentence.
+**Gate: NONE.** As of 2026-08-23, both forks this gate pointed at are decided: `pmap`'s
+`ENUMERATE`-on-address-space extension is **yes** (DECISIONS §114), and `sysctl` is **declined**
+(DECISIONS §115), each subsystem's own service carrying its own tuning instead. What remains is
+real unbuilt work rather than anything waiting on calef: `top` on per-thread CPU accounting that
+does not exist; `pwdx` and `w` on a process display name this system has no design for. A lane can
+take `pmap` now, per §114's own caveat about auditing existing address-space delegation sites
+first.
 
-**What a lane could still take without waiting**, and it is the honest exception to the token: `watch`
-needs nothing (`line_editor` and the compositor exist), and the real `dpkg -L procps` file list is
-owed before anyone counts programs again. Neither is the milestone's next increment, which is why the
-gate reads `DECISION` rather than `NONE`.
+**What a lane could still take**: `watch` needs nothing (`line_editor` and the compositor exist),
+and the real `dpkg -L procps` file list is owed before anyone counts programs again.
 
 ## Built: the first stratum, 2026-08-16
 
@@ -43,11 +42,13 @@ the ruling below. `capability::Rights::ENUMERATE` is the answer, the kernel-leve
 and `REAP` still take `READ`, and a viewer is granted `ENUMERATE` alone. notes/process-view.md
 carries the whole argument.
 
-**Only `Endpoint` consults the new right today, deliberately.** `Aspace` wants it when `pmap` is
-built (observe a mapping without being able to map) and `Untyped` wants it when `free` is built
-(ask what is committed without being able to `SPLIT` or `DESTROY`). Both are named here rather than
-pre-wired, because a right defined for hypothetical callers is the speculative abstraction this
-tree declines; the consumer that can say what it needs is the one that should extend it.
+**Only `Endpoint` consults the new right today.** The address-space object will when `pmap` is
+built (observe a mapping without being able to map; **decided, DECISIONS §114**) and the
+memory-region object (`Untyped`, renamed by DECISIONS §113) wants it when `free` is built (ask
+what is committed without being able to `SPLIT` or `DESTROY`, still undecided). Both are named
+here rather than pre-wired, because a right defined for hypothetical callers is the speculative
+abstraction this tree declines; the consumer that can say what it needs is the one that should
+extend it.
 
 ## Built: `pgrep`, 2026-08-17
 
@@ -77,13 +78,12 @@ deferred positional arity. Written up in notes/process-view.md, with the reason 
 reader meets the feature.
 
 **Still to build:** the rest of the view stratum (`top`, `pmap`, `pwdx`, `w`), the machine-wide
-statistics, `watch`, and the `sysctl` fork below. The signalling stratum is no longer on this list;
-see the ruling below. Each of the four remaining view programs is blocked on something real rather
-than on effort, and notes/process-view.md names what: `pmap` on extending `ENUMERATE` to `Aspace`,
-which is calef's open decision; `top` on per-thread CPU accounting that does not exist; `pwdx` and
-`w` on a process display name this system does not have. The package
-file list still wants a real `dpkg -L procps` before anyone counts programs; nothing built so far
-depended on it, and the next lane does.
+statistics, `watch`, and `sysctl`'s package-coverage gap. The signalling stratum is no longer on
+this list; see the ruling below. `pmap`'s fork is **decided (DECISIONS §114)**, so it is a lane's
+to take; `top` on per-thread CPU accounting that does not exist; `pwdx` and `w` on a process
+display name this system does not have. `sysctl` itself is **declined (DECISIONS §115)** rather
+than blocked on effort. The package file list still wants a real `dpkg -L procps` before anyone
+counts programs; nothing built so far depended on it, and the next lane does.
 
 ## Why this package, and why the package rather than the program
 
@@ -175,24 +175,23 @@ The negative control keeps milestone 108's shape: a viewer run against a domain 
 it could not look is the worst failure available to this tool, and `fs_proto` already chose `EPERM`
 over an empty listing for exactly that reason.
 
-## `sysctl` is a design fork, not a program to port
+## `sysctl` is declined (DECISIONS §115)
 
 It writes machine-global kernel tunables, and **it ships in the same package as `ps`**, which is a
 striking illustration of what Unix packaging bundles: `apt install procps` gets you process listing
 and the ability to retune the kernel.
 
 There is no ambient tunables namespace here to write to, and inventing one would import exactly the
-thing this system exists to avoid. The plausible shapes:
+thing this system exists to avoid. Two shapes were named: a capability-per-subsystem `sysctl`
+program holding a bag of them, honest but a different program wearing the same name; or no
+`sysctl` at all, each subsystem's tuning reached through that subsystem's own service, which
+breaks the package's coverage claim and says so.
 
-- **A capability per subsystem**, so `sysctl` becomes a program that holds a bag of them and can
-  change only what it was handed. Honest, and it means `sysctl` on this system is a different program
-  wearing the same name.
-- **No `sysctl` at all**, with each subsystem's tuning reached through that subsystem's own service.
-  Cleaner, and it breaks the package's coverage claim, which is worth saying out loud rather than
-  quietly dropping one binary from a list of seventeen.
-
-**This is calef's**, and it should be decided before the statistics stratum rather than after, because
-it decides whether "we implemented `procps`" is a true sentence.
+**Decided (calef, 2026-08-23): no `sysctl`.** Same ruling as `pkill`'s decline above, one layer
+over -- authority stays with whoever already holds a resource, never centralized into a generic
+tool -- and the same shape `notes/net.md` already built favorably (`announce 80` written to
+`/net/tcp/clone`, Plan 9's per-resource `ctl` file over a global panel). `procps` ships without
+`sysctl`; the coverage gap is recorded rather than glossed over, same as `pkill`'s absence.
 
 ## The other fork: where the process view comes from
 
@@ -219,6 +218,10 @@ is ordinary, and `line_editor` and the compositor already exist beneath it.
 
 ## BUGS
 
+- **`procps` ships without `sysctl` (DECISIONS §115), the same gap `pkill`'s absence already
+  states.** A reader who expects to retune the kernel through one program, the way `apt install
+  procps` provides on Linux, will not find one here. Each subsystem that grows a runtime tunable
+  carries its own control surface instead; there is no unifying admin tool by design.
 - **Estimating the package from the `ps` half gets it wrong twice.** `top` needs per-thread CPU
   accounting that does not exist at all: `QuotaToken` is dead code whose own comment says
   `spawn_with_quota` "has no caller of its own today". And `free`, `uptime` and `vmstat` want machine
