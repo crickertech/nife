@@ -269,10 +269,28 @@ $ triple 21
   shape nothing had used yet. **A test written to survive the next program added does not survive
   this one**, and it is in a crate the person adding the program has no reason to open. The
   stranger repaired it in its own disposable clone and the tree is unchanged: on `main` an
-  argument-plus-input program cannot be added without a host test going red. Whether that
-  combination is wanted at all is an open question this page cannot answer: `plan_against_with`
-  carries a comment ruling out file-plus-input on `ArgSpec` grounds and says nothing about
-  argument-plus-input, so a newcomer cannot tell headroom from a gap left on purpose.
+  argument-plus-input program cannot be added without `crates/swish`'s sweep going red, because
+  that sweep types a single-operand line and never supplies the input operand such a program would
+  also need.
+
+  **Corrected 2026-08-22, milestone 117's second handoffs lane, by testing the claim rather than
+  reading it: the combination is headroom, not a refusal.** `plan_against_with` did carry a
+  comment ruling out file-plus-input on positional-arity grounds and saying nothing about
+  argument-plus-input, which read as though the second case might be the same kind of closed door
+  as the first. It is not, and the two are not analogous: `FileSpec` and `InputSpec` both grant a
+  bare name, so a manifest declaring both would leave the parser with two indistinguishable
+  positions and nothing but order to sort them, which is the real thing `ArgSpec`'s widening is
+  for. `ArgSpec` and `InputSpec` do not share that problem, because `arg` is numeric-shaped and
+  claims a fixed earlier position before `input`'s bare-name fallback ever looks at what remains,
+  exactly the way `arg` and `file` already compose. A host test in `crates/grant_plan/src/lib.rs`
+  (`an_argument_and_an_input_stream_compose_by_the_same_fixed_order`) plans `nth 21 report.txt`
+  against a manifest declaring both and gets a clean grant back with no widening built. The comment
+  at `plan_against_with`'s input operand now says this in place, so the next reader meets the
+  distinction where the code is rather than only here. What is still genuinely undecided is
+  whether the combination is *wanted*: no shipped program needs it, and adding one that does will
+  still need `the_arg_line_follows_the_manifest_for_every_program` in `crates/swish/src/lib.rs`
+  taught to supply an input operand for a program whose manifest asks for one, since that sweep's
+  gap is what turns red today, not the planner.
 - **The program's name is written in seven places** and nothing joins them: the `[[bin]]` block in
   `user/Cargo.toml`, `mkinitrd()`'s table, `initrd_riscv()`'s `--bin` list, `initrd_riscv()`'s table,
   the seven-part `Prog` table in `grant_plan`, the exhaustive match in `swish`, and
