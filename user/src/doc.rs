@@ -63,9 +63,7 @@
 //! $ doc gate.txt | wc
 //!   1 4 26
 //! $ doc gate.txt
-//! refused
-//!   doc: writes while it reads, and this shell can only wait on one thing at a time: give it a
-//!   reader that is not this shell, as in '| wc'
+//!   hello world hello world
 //! $ doc
 //!   doc: reads an input stream: name a file, redirect with '<', or pipe into it
 //! ```
@@ -76,21 +74,17 @@
 //!
 //! # BUGS
 //!
-//! - **`doc <page>` on its own is refused at the prompt, and the refusal names the fix.** It used
-//!   to deadlock, and this entry said so for two weeks after it stopped being true. What happens
-//!   now is `grant_plan::check_chain` answering before anything is spawned: this program declares
-//!   that it writes while it reads, the shell would be both the writer and the reader of the line,
-//!   and a process has one wait point. `doc page.md | wc` runs, because `wc` absorbs the stream
-//!   before it answers, and the refusal says exactly that.
-//!
-//!   **No scheduling fix exists**, which is worth knowing before reaching for one: alternating a
-//!   send with a receive deadlocks whenever this program reads twice before it writes, and the
-//!   other way round deadlocks whenever it writes twice before it reads, and the shell cannot know
-//!   which, because the sink contract exists so that neither end knows anything about the other.
-//!   What would fix it is somewhere for these bytes to go that is not the shell, and
-//!   `terminal_sink_caretaker` is already that thing for a declared second stream. Putting it in a
-//!   tail stage's *output* slot is a spawn-protocol decision, and it is the same one the pager and
-//!   the colour bit below need. See notes/manual.md and notes/pipes.md.
+//! - **`doc <page>` on its own used to be refused at the prompt; DECISIONS §106 (2026-08-22)
+//!   closed it and it now renders.** This entry described the refusal, and before that a
+//!   deadlock, for weeks after each stopped being true, which is the exact failure this section
+//!   exists to avoid: name the limitation where the reader meets the feature, not somewhere they
+//!   have to already know to look. The mechanism is `terminal_sink_caretaker`, the same sink
+//!   adapter a declared second stream already reached by default under DECISIONS §67, now the
+//!   default primary-output target for an unredirected tail stage too. `doc <page> > out.txt`
+//!   (the redirected shape, with nowhere for the shell to wait but itself) is still refused, and
+//!   still names the fix ('| wc' or similar). See notes/manual.md's "Render a page at the prompt"
+//!   section and notes/pipes.md for the full mechanism and the fault-endpoint-reuse race it
+//!   accepts.
 //! - **`doc <page> | wc` and `doc <page> > out.txt` do deliver the named file.** They answered
 //!   `0 0 0` when this program shipped, because a pipeline's head was wired off the `Line`, which
 //!   carries no `<`; the planner's input operand is what the shell reads now. `script/shell-check`
