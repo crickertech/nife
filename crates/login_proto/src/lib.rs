@@ -17,11 +17,11 @@
 //! ```text
 //!   client --place(), send(REQUEST, w0, 0, 0)-------------------------> login
 //!   client <--------------------------- recv(RESULT) -> OK or DENIED-- login
-//!   client <---- RECV_CAP(RESULT) x 3, only after OK -----------------  login
+//!   client <---- RECV_CAP(RESULT) x 4, only after OK -----------------  login
 //! ```
 //!
-//! On [`OK`], login sends exactly three capabilities over the result endpoint, in this order, and a
-//! client that does not read all three leaves its own protocol out of step for the *next* login
+//! On [`OK`], login sends exactly four capabilities over the result endpoint, in this order, and a
+//! client that does not read all four leaves its own protocol out of step for the *next* login
 //! (there is no other client on this endpoint in the slice this contract ships with; see this
 //! service's BUGS):
 //!
@@ -32,7 +32,42 @@
 //!    sound for the reason `crates/system_initializer` gives (`fs_subtree_caretaker` and its client
 //!    share one frame because every request on both hops is a blocking `CALL`);
 //! 3. the **budget**: an `Untyped`, `WRITE | GRANT`, freshly split so the client's memory is
-//!    genuinely its own and it may in turn split, spend, or hand pieces of it on.
+//!    genuinely its own and it may in turn split, spend, or hand pieces of it on. `WRITE` is also
+//!    what `Untyped::DESTROY` needs, so this capability doubles as its own reclaim: a client that
+//!    calls `DESTROY` on it, alongside the fourth capability below, gives back everything a session
+//!    spent rather than only the caretaker's half;
+//! 4. the **logout ticket**: an `Untyped`, `WRITE` only, the exact region the directory capability's
+//!    caretaker was built from (`user/src/login.rs`'s `mint`, see that program's module docs,
+//!    "Reclaiming a session"). It has nothing left to `SPLIT` or `RETYPE` (its whole budget went
+//!    into building the caretaker), so its only remaining use is `invoke(cap, abi::untyped::DESTROY,
+//!    0, 0, 0)`, which reclaims the caretaker's TCB, address space and endpoint and returns the
+//!    pages to `login`'s own construction budget. **A client should retry `DESTROY` a bounded few
+//!    times on refusal rather than treat one attempt as final**: the caretaker can be transiently
+//!    mid-request to the file service when a logout arrives, which refuses the very first `DESTROY`
+//!    (the same shape `crates/system_initializer::reclaim` already retries for a directory grant's
+//!    own caretaker); it never refuses permanently, because the caretaker's own client-facing
+//!    endpoint is retyped from this same region, so its steady state (parked in `recv` between
+//!    requests) is always reclaimable, never the permanently-blocked case
+//!    `notes/hung-component.md` documents as unfixable. Logging out is optional: a client that never
+//!    calls `DESTROY` costs `login` exactly what it always cost (see that program's BUGS on
+//!    `CONSTRUCTION_UT` exhaustion), this ticket just makes not costing it possible.
+//!
+//! **A full logout destroys capability 3 before capability 4, and the order is load-bearing.**
+//! `mint()` splits the fourth capability's region from `login`'s own `CONSTRUCTION_UT` first and the
+//! third capability's budget second, so the budget sits above the region in `CONSTRUCTION_UT`'s
+//! watermark. `crates/regions`' own reclaim only returns a freed child's pages to a reusable state
+//! when it is the *top* of its parent's watermark (LIFO, the same rule §16's object revocation and
+//! `job_undertaker`'s pool already live under, and DECISIONS §92 already named for a caretaker's own
+//! region); destroying the region first, while the budget above it is still alive, still reclaims the
+//! caretaker's TCB, address space and endpoint (`DESTROY` still returns success), but leaves its
+//! pages a stranded hole that does not come back to `login`'s reusable capacity until
+//! `CONSTRUCTION_UT` itself is destroyed. Destroy the budget first, then the region, and both spans
+//! return cleanly. **This is a property of this specific pair, not a general promise**: it holds
+//! regardless of what any other client does, because nothing else is ever split from
+//! `CONSTRUCTION_UT` *between* one login's own two capabilities (`mint()` builds both, back to back,
+//! before either is delegated); it does not extend to reclaiming *two different logins'* memory out
+//! of the order they were minted in, which needs the same LIFO discipline this tree already accepts
+//! elsewhere.
 //!
 //! On [`DENIED`] or [`MALFORMED`], nothing follows: the client holds exactly what it held before it
 //! asked.

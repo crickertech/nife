@@ -220,15 +220,31 @@ feature (`user/src/login.rs`'s own BUGS, more precisely worded per item).
   measurement table) does not extend to this non-init loader. Fixing it well means deciding how a
   loader outside the boot chain joins that chain at all, which is a design question and not a one-line
   patch.
-- **A caretaker's construction memory is never reclaimed**; there is no logout. A real deployment
-  needs a teardown path, which is real work this slice does not build. (A narrower, related bug was
-  fixed in this same lane: `mint()` used to also leak one of `login`'s own sixteen cspace slots per
-  successful login, which is a fixed table and not a splittable budget, bounding the service to
-  exactly eight logins ever regardless of how generously `CONSTRUCTION_UT` was sized. `mint()` now
-  drops its own copy of the region capability once the caretaker has confirmed descent, the same
-  `cap_delete`-not-`DESTROY` pattern `root_supervisor` and `system_initializer::boot` already use.
-  That removes the cspace ceiling; the memory one above is unaffected and is the real, still-open
-  bound.)
+- **Resolved, 2026-08-23 (milestone/49-caretaker-teardown).** A caretaker's construction memory used
+  to be spent forever, with no logout that gave it back. `mint()` now delegates its own copy of the
+  caretaker's construction region to the authenticated client as a fourth capability, narrowed to
+  `WRITE` (a "logout ticket"), instead of dropping it once the caretaker confirms descent (the
+  narrower cspace-slot fix an earlier lane already landed for that same drop). The region has
+  nothing left to `SPLIT` or `RETYPE`, so its only remaining use is `Untyped::DESTROY`, and calling
+  it reclaims the caretaker's TCB, address space and endpoints, with the pages returning to
+  `CONSTRUCTION_UT` under §13 region ownership. The client's own budget (the third capability) needed
+  no new mechanism at all: it was always delegated with `WRITE`, which is what `DESTROY` needs, so a
+  full logout destroys both, **in a specific order**: `mint()` splits the region first and the budget
+  second from the same `CONSTRUCTION_UT`, and `crates/regions`' own LIFO reclaim (already accepted
+  elsewhere in this tree, DECISIONS §92) only returns a freed child's pages to reusable capacity when
+  it is freed at the top of its parent's watermark; a client that destroys them in the wrong order
+  still tears the caretaker down correctly but strands the region's pages. Caught empirically, not
+  reasoned about: an earlier version of this fix's own test destroyed them in the wrong order, every
+  assertion in it passed, and it silently starved a later, unrelated test in the same suite of real
+  login attempts. See `user/src/login.rs`'s own BUGS ("Resolved, 2026-08-23") for the full
+  design, including why this needed neither a new supervision endpoint nor overlap with milestone
+  152's durable-session scope: the two candidate shapes this milestone's earlier text named (a
+  principal's supervision endpoint reaching `login`, or a caretaker `DESTROY`ed by name) turned out
+  to collapse into the second, once checked against `notes/hung-component.md`'s own documented gap
+  for what `Untyped::DESTROY` can and cannot reclaim while a thread is still live. Proven by
+  `kernel::user::login_tests::caretaker_teardown_reclaims_a_full_session_worth_of_memory`: ten
+  logins against one shared, tightly-budgeted service instance, each fully logging back out before
+  the next begins, which could only pass if the memory genuinely came home every time.
 - **The audit endpoint proves establishment, not per-request attribution.** DECISIONS §109 describes
   both a server establishing a channel and (separately) a server logging which channel a later request
   arrived on. `login` is only the first half. No server in this tree today needs the second: every

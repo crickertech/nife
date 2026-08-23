@@ -34,6 +34,9 @@ pub const ROLE_CHRIS_CHECK: u64 = 5;
 /// A real, authenticated identity with no provisioned subtree (`login_tests.rs`'s `wired`
 /// deliberately never creates one for `graeme`).
 pub const ROLE_NO_SUBTREE: u64 = 6;
+/// Logs in, then tears the session down with the fourth delegated capability and proves the
+/// directory came down with it. See the same file's module docs.
+pub const ROLE_LOGOUT: u64 = 7;
 
 /// The report words `login_test_client` sends; must match the same file.
 pub const RPT_OK: u64 = login_proto::OK;
@@ -46,12 +49,16 @@ pub const F_DIR_WORKS: u64 = 1 << 0;
 pub const F_BUDGET_WORKS: u64 = 1 << 1;
 pub const F_NOT_SHARED_SUBTREE: u64 = 1 << 2;
 pub const F_MARKER_WRITTEN: u64 = 1 << 3;
+pub const F_TEARDOWN_OK: u64 = 1 << 4;
+pub const F_DEAD_AFTER_TEARDOWN: u64 = 1 << 5;
+pub const F_BUDGET_TEARDOWN_OK: u64 = 1 << 6;
+pub const F_BUDGET_DEAD_AFTER_TEARDOWN: u64 = 1 << 7;
 
 /// A running login service and the endpoints that reach it.
 pub struct Wiring {
     /// A client's login request, `WRITE`.
     pub request: RendezvousId,
-    /// The verdict and, on success, three delegated capabilities, `READ`.
+    /// The verdict and, on success, four delegated capabilities, `READ`.
     pub result: RendezvousId,
     /// One [`login_proto::ATTRIBUTED`] message per successful login, `READ`.
     pub audit: RendezvousId,

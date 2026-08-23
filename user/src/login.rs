@@ -4,11 +4,12 @@
 //! Unix login authenticates and then mutates a global identity field, which is uid's whole trick
 //! and the thing this system refuses to have. This process authenticates a presented identity
 //! against the credential service milestone 56 already built, and on success hands back **a
-//! capability set** instead: a fresh directory, a fresh budget, and (see this program's BUGS) not
-//! yet a terminal. It is the powerbox pattern with the human at one end, answering the question
-//! milestone 49's own doc named and left open: who gets which capabilities at startup, which used
-//! to be a fact baked into `crates/system_initializer` at build time and is, for the one login path
-//! this program serves, a fact decided here at run time instead.
+//! capability set** instead: a fresh directory, a fresh budget, a **logout ticket** (see "Reclaiming
+//! a session" below), and (see this program's BUGS) not yet a terminal. It is the powerbox pattern
+//! with the human at one end, answering the question milestone 49's own doc named and left open: who
+//! gets which capabilities at startup, which used to be a fact baked into
+//! `crates/system_initializer` at build time and is, for the one login path this program serves, a
+//! fact decided here at run time instead.
 //!
 //! # What "produces capabilities" means, concretely
 //!
@@ -37,11 +38,94 @@
 //! picks*) is milestone 47's already-built mechanism (`fs_subtree_caretaker`'s whole reason to
 //! exist); this program only decides the name.
 //!
+//! # Reclaiming a session, resolved 2026-08-23
+//!
+//! This program's BUGS used to name two candidate shapes for giving back a caretaker's construction
+//! memory and pick neither: a principal's supervision endpoint reaching this process, or a caretaker
+//! `Untyped::DESTROY`ed by name. Investigating both against this tree's own precedent found a third,
+//! smaller than either, and it is what [`mint`] now builds.
+//!
+//! **The fourth delegated capability is [`mint`]'s own `region`, undropped.** A successful login
+//! used to end with this process calling `cap_delete` on its own copy of the caretaker's
+//! construction region the moment the caretaker confirmed descent (see the cspace-ceiling fix this
+//! BUGS section used to describe below `mint`'s own comment). That capability is not discarded
+//! anymore: it is delegated to the authenticated client, narrowed to `WRITE` (the one right
+//! `Untyped::DESTROY` needs, per `abi::untyped::DESTROY`'s own doc), the same "delegate, then drop
+//! our own copy" pattern already used for the directory and the budget. The client now holds its own
+//! **logout ticket**: an `Untyped` capability with nothing left to `SPLIT` or `RETYPE` (the region's
+//! whole budget was spent building the caretaker), whose only remaining use is `DESTROY`. Calling it
+//! reclaims the caretaker's TCB, address space, and endpoints, and the pages come home to
+//! [`CONSTRUCTION_UT`] under §13 region ownership (the region's builder, not its destroyer), exactly
+//! the outcome the BUGS section asked for and none of the two originally-named options were small
+//! enough to build outright.
+//!
+//! **Why this needed no session and no new supervision plumbing.** The candidate this process never
+//! supervises its caretaker at all (`mint` calls `cap_delete` on the caretaker's own TCB the instant
+//! it starts, and sets no fault endpoint), which milestone 152's own doc names as the gap DECISIONS
+//! §92 left open ("this says nothing about a caretaker with no client, because none exists yet").
+//! Building a supervision endpoint that reaches back into this process to ask for a specific
+//! principal's teardown is exactly the durable-session machinery 152 is scoped to design in general;
+//! this slice does not need it, because the caretaker's own construction region is the only thing
+//! that ever needs tearing down, and its builder (this process, transiently, for the width of one
+//! `mint` call) can hand the means to do that directly to the one party who should hold it, the
+//! client, without keeping anything itself.
+//!
+//! **Why `Untyped::DESTROY` actually works here, checked against §32's own documented gap rather
+//! than assumed.** A supervisor's `Endpoint::REAP` only collects an *already-dead* thread (§32:
+//! "it authorizes collecting a corpse, not killing"); killing a *live* one needs `Untyped::DESTROY`'s
+//! stronger right, and that refuses permanently against a thread `Blocked` on an endpoint outside the
+//! region being destroyed (notes/hung-component.md's case (c), the open, unsolved half of the hung-
+//! component taxonomy). The caretaker built by [`mint`] is never in that shape: its own client-facing
+//! endpoint (`narrow_ep`, the fourth capability's sibling) is retyped directly from `region`, so the
+//! caretaker's steady state (parked in `recv_cap` between requests) is case (b), "blocked on an
+//! endpoint whose region the supervisor can destroy", which `notes/hung-component.md` already
+//! documents as working, with collateral: destroying `region` drains `narrow_ep`'s wait queue,
+//! aborts the caretaker's blocked receive, and the armed kill lands at the caretaker's next
+//! scheduling. The one narrow exception is the instant the caretaker is mid-`forward` to the file
+//! service (a `CALL` on `FS_EP`, which `region` does not own): a `DESTROY` attempted in that exact
+//! window is refused, transiently, the same shape `crates/system_initializer::reclaim` already
+//! retries for a directory grant's own caretaker. A client is expected to retry a bounded few times
+//! on `NotPermitted`, the same idiom, rather than treat one refusal as final; see
+//! `user/src/login_test_client.rs`'s own teardown role for a worked example.
+//!
+//! **This is why `mint`'s failed-descent path no longer leaks either.** The same `region` this
+//! function used to abandon on a refused descent (the caretaker had already `exit()`ed, so nothing
+//! was running in it) is now reclaimed right there, with the same bounded retry, before this
+//! function returns `None`. That removes the one case this program's own BUGS used to note as
+//! unaffected by the cspace fix.
+//!
+//! **A full logout needs no fifth capability, because the third one already carried enough right.**
+//! [`CLIENT_BUDGET_PAGES`] is delegated with `WRITE | GRANT` (every principal's own spending money),
+//! and `WRITE` is the one right `Untyped::DESTROY` needs. Nothing before this fix had a reason to
+//! call it, so this program's BUGS never named it, but any client holding `budget` could always
+//! reclaim it the same way the logout ticket reclaims `region`. `user/src/login_test_client.rs`'s
+//! `ROLE_LOGOUT` does both, so a full logout gives back everything a session spent:
+//! [`CARETAKER_REGION_PAGES`] through the fourth capability and [`CLIENT_BUDGET_PAGES`] through the
+//! third, both returning to [`CONSTRUCTION_UT`].
+//!
+//! **The order the two are destroyed in is load-bearing, and getting it wrong does not fail loudly.**
+//! `mint` splits `region` first and `budget` second, both off [`CONSTRUCTION_UT`], so `budget` sits
+//! at the top of its watermark. `crates/regions`' own LIFO reclaim (the same rule §16's object
+//! revocation and `job_undertaker`'s pool already live under, and the one DECISIONS §92 already named
+//! for a caretaker's own region) only returns a freed child's pages to reusable capacity when it is
+//! the current top; destroying `region` while `budget` is still alive still tears down the caretaker
+//! correctly (`DESTROY` returns success either way) but strands `region`'s pages until
+//! `CONSTRUCTION_UT` itself goes away. **This was found, not merely reasoned about**: the first
+//! version of this fix's own test destroyed them in the wrong order, every one of its own assertions
+//! passed, and it silently starved a later, unrelated test in the same suite of real login attempts
+//! by leaving thirteen logins' worth of stranded pages behind (see
+//! `kernel::user::login_tests::caretaker_teardown_reclaims_a_full_session_worth_of_memory`'s own doc
+//! comment). The fix is ordering, not a capability change: destroy `budget` (the third capability)
+//! before `region` (the fourth). See `crates/login_proto`'s own module docs for the client-facing
+//! version of this note, including why it holds regardless of what other clients do (nothing else is
+//! ever split from `CONSTRUCTION_UT` between one login's two capabilities) but does not generalize to
+//! reclaiming two different logins' memory out of the order they were minted in.
+//!
 //! # Capability contract
 //!
 //! - slot [`REQUEST`]: `RECV`. A client sends one [`login_proto::LOGIN`] request here, identity and
 //!   secret staged at [`LOGIN_VA`] the way [`login_proto::place`] writes them.
-//! - slot [`RESULT`]: `WRITE | GRANT`. The verdict, and on [`login_proto::OK`] three delegated
+//! - slot [`RESULT`]: `WRITE | GRANT`. The verdict, and on [`login_proto::OK`] four delegated
 //!   capabilities, in the order `login_proto`'s module docs give.
 //! - slot [`VERIFY`]: `WRITE` on the credential service's verify endpoint (milestone 56). This
 //!   process never provisions it and never could: the provision endpoint is deleted at both ends
@@ -163,26 +247,48 @@
 //! well means deciding how a non-init loader joins that chain at all, which is a design question and
 //! not a one-line patch.
 //!
-//! **A caretaker's construction memory is never reclaimed.** Every successful login spends
-//! [`CARETAKER_REGION_PAGES`] and [`CLIENT_BUDGET_PAGES`] out of [`CONSTRUCTION_UT`] for the rest of
-//! this process's life; there is no logout that gives the *memory* back. A real deployment needs a
-//! teardown path (a principal's supervision endpoint reaching this process, or a caretaker that can
-//! be `Untyped::DESTROY`ed by name, which needs the region kept rather than dropped, so it is a
-//! design choice about who ends up holding it and not a smaller version of the fix below), which is
-//! real work this slice does not build. [`CONSTRUCTION_UT`] is sized by whoever spawns this
-//! process, and running out answers every further login with [`login_proto::DENIED`] rather than a
-//! distinguishable error, folded into that code for `login_proto`'s own stated reason (a caller must
-//! not learn "the service is out of resources" by comparing outcomes across two attempts with the
-//! same identity).
+//! **Resolved, 2026-08-23.** A caretaker's construction memory used to never come back: every
+//! successful login spent [`CARETAKER_REGION_PAGES`] and [`CLIENT_BUDGET_PAGES`] out of
+//! [`CONSTRUCTION_UT`] for the rest of this process's life, with no logout that gave the memory
+//! back. `mint` now returns its own copy of the caretaker's construction region as a fourth
+//! delegated capability (narrowed to `WRITE`, the one right `Untyped::DESTROY` needs) instead of
+//! dropping it, and the authenticated client holds it as its own logout ticket: an `Untyped` with
+//! nothing left to `SPLIT` or `RETYPE` (the region's whole budget already went into building the
+//! caretaker), whose only remaining use is `DESTROY`. Calling it reclaims the caretaker's TCB,
+//! address space and endpoints, and the pages come home to [`CONSTRUCTION_UT`] under §13 region
+//! ownership (the region's builder, not its destroyer). See this program's module docs, "Reclaiming
+//! a session", for the two candidate shapes this replaces (a supervision endpoint reaching this
+//! process, or a caretaker `DESTROY`ed by name) and why the second, refined this way, needed neither
+//! a new supervision mechanism nor overlap with milestone 152's durable-session scope.
 //!
-//! This used to also leak a **cspace slot** per login, a tighter and separate ceiling from the
-//! memory one: this process's own capability table has sixteen slots (`kernel::cap::CSPACE_SLOTS`)
-//! and eight are spent at rest, so keeping `region`'s capability past a successful mint left room
-//! for exactly eight logins ever, after which the cspace itself (not `CONSTRUCTION_UT`) answered
-//! every further attempt with `DENIED`. `mint` now drops its own copy of `region` once the
-//! caretaker has confirmed descent (a `cap_delete`, not a `Untyped::DESTROY`: the caretaker's
-//! address space, TCB and endpoints are untouched), which removes that ceiling; the memory ceiling
-//! above is unaffected and still the real, documented bound.
+//! **The client's own budget is the other half, and needed no new capability at all**: it was
+//! always delegated with `WRITE | GRANT`, and `WRITE` is what `DESTROY` needs, so a client that
+//! wants to give back everything a session spent (both [`CARETAKER_REGION_PAGES`] and
+//! [`CLIENT_BUDGET_PAGES`]) calls `DESTROY` on both the fourth capability and the third, **in that
+//! order** (budget, then region): the module docs, "Reclaiming a session", explain why the order is
+//! load-bearing rather than a preference (a `crates/regions` LIFO rule, the same one DECISIONS §92
+//! already names) and record that this was caught empirically, not merely reasoned about.
+//!
+//! [`CONSTRUCTION_UT`] is still sized by whoever spawns this process, and running out (a client that
+//! never logs out) still answers every further login with [`login_proto::DENIED`] rather than a
+//! distinguishable error, for `login_proto`'s own stated reason (a caller must not learn "the
+//! service is out of resources" by comparing outcomes across two attempts with the same identity);
+//! a deployment that wants that not to happen relies on clients actually calling `DESTROY`, which
+//! this program cannot compel and does not police (see "one client at a time" above: policing would
+//! need to know when a client is genuinely done, which is exactly the session concept this fix
+//! avoided building).
+//!
+//! **The cspace ceiling this shares history with is unaffected and stays fixed.** This process's own
+//! capability table has sixteen slots (`kernel::cap::CSPACE_SLOTS`) and eight are spent at rest;
+//! `mint` used to leak one of the remaining eight per successful login by keeping `region`'s
+//! capability past a confirmed descent, which left room for exactly eight logins ever before the
+//! cspace itself (not `CONSTRUCTION_UT`) answered every further attempt with `DENIED`. That was
+//! fixed separately, by dropping `mint`'s own copy of `region` once the caretaker confirmed descent
+//! (a `cap_delete`, not a `DESTROY`). This slice's fix keeps that shape: `region` is delegated and
+//! then this process's own copy is deleted, the same "delegate, then drop our own copy" pattern
+//! already used for the directory and the budget, so a live login costs this process's cspace
+//! nothing beyond the width of one `mint` call, regardless of how many clients are logged in at
+//! once. See `kernel::user::login_tests::the_login_service_serves_past_the_old_cspace_ceiling`.
 //!
 //! **The audit endpoint proves establishment, not per-request attribution.** [`login_proto::ATTRIBUTED`]
 //! records which identity established which channel at the moment this process minted it. It does
@@ -202,13 +308,14 @@
 #![no_main]
 
 use supervision_proto::{
-    ChildEndowment, build_child, retype_obj_from as retype_obj, tcb_start, untyped_split,
+    ChildEndowment, build_child, retype_obj_from as retype_obj, tcb_start, untyped_destroy,
+    untyped_split,
 };
-use user_rt::{call, cap_delete, invoke, recv, send};
+use user_rt::{call, cap_delete, invoke, recv, send, yield_now};
 
 /// A client's login request, `RECV` (milestone 49).
 const REQUEST: u64 = 0;
-/// The verdict and, on success, three delegated capabilities, `WRITE | GRANT`.
+/// The verdict and, on success, four delegated capabilities, `WRITE | GRANT`.
 const RESULT: u64 = 1;
 /// The credential service's verify endpoint (milestone 56), `WRITE`.
 const VERIFY: u64 = 2;
@@ -329,13 +436,20 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
         }
 
         match mint(own_ut, &care_elf, &identity_buf[..identity_len]) {
-            Some((dir_ep, budget)) => {
+            Some((dir_ep, budget, region)) => {
                 send(RESULT, login_proto::OK, 0, 0);
                 delegate(dir_ep, abi::rights::WRITE);
                 delegate(FS_FRAME, abi::rights::READ | abi::rights::WRITE);
                 delegate(budget, abi::rights::WRITE | abi::rights::GRANT);
+                // The logout ticket: `WRITE` is the one right `Untyped::DESTROY` needs (this
+                // program's own module docs, "Reclaiming a session"). Not `GRANT`: a client that
+                // could delegate its own logout ticket onward could hand another principal the
+                // means to end this one's session, which is authority narrower to withhold than to
+                // grant back.
+                delegate(region, abi::rights::WRITE);
                 cap_delete(dir_ep);
                 cap_delete(budget);
+                cap_delete(region);
                 send(AUDIT, login_proto::ATTRIBUTED, seq, hint);
                 seq += 1;
             }
@@ -352,16 +466,17 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
 
 /// **Mint one principal's capability set**: a fresh `fs_subtree_caretaker` attenuated to
 /// `identity`'s own home subtree (DECISIONS §117: the identity string, used directly, with no
-/// separate lookup table) and a fresh budget, both held with full rights so [`delegate`] can narrow
-/// them on the way out. `None` on any failure, which this process's caller answers with
-/// [`login_proto::DENIED`] (see this program's BUGS on why that is the honest fold rather than a
-/// missing distinction, and on the two failures this now folds in alongside "the construction
-/// budget is spent": an identity too long for the grant mechanism, and an authenticated identity
-/// with no provisioned subtree).
+/// separate lookup table), a fresh budget, and the construction region itself (the caretaker's own
+/// logout ticket; see this program's module docs, "Reclaiming a session"), all three held with full
+/// rights so [`delegate`] can narrow them on the way out. `None` on any failure, which this
+/// process's caller answers with [`login_proto::DENIED`] (see this program's BUGS on why that is the
+/// honest fold rather than a missing distinction, and on the two failures this now folds in
+/// alongside "the construction budget is spent": an identity too long for the grant mechanism, and
+/// an authenticated identity with no provisioned subtree).
 ///
 /// `identity` must already name a subtree `identity_provisioner` created; this process never
 /// creates one (DECISIONS §117: provision-time creation, not auto-vivified at login).
-fn mint(own_ut: u64, care: &elf::Elf, identity: &[u8]) -> Option<(u64, u64)> {
+fn mint(own_ut: u64, care: &elf::Elf, identity: &[u8]) -> Option<(u64, u64, u64)> {
     // **The grant name travels in two `START` argument words, not a frame** (`filesystem_proto::grant`'s own
     // doc), so it is capped at `grant::MAX_NAME` (16 bytes): smaller than `login_proto::MAX_IDENTITY`
     // (64), the bound `identity` already satisfies by construction (`login_proto::read` checked it).
@@ -426,28 +541,48 @@ fn mint(own_ut: u64, care: &elf::Elf, identity: &[u8]) -> Option<(u64, u64)> {
     cap_delete(ready);
     if verdict != filesystem_proto::fixture::READY {
         cap_delete(narrow_ep);
+        // **`region` used to be abandoned here.** The caretaker's `OPENDIR` was refused, so it has
+        // already called `exit()` (`fs_subtree_caretaker.rs`'s own descent handshake): nothing is
+        // running in `region` anymore, and `narrow_ep` (retyped from it) was just deleted above, so
+        // this is case (a) or a plain corpse, never case (c) (`notes/hung-component.md`'s
+        // taxonomy; see this program's module docs, "Reclaiming a session", for why that
+        // distinction is what makes `DESTROY` usable at all rather than merely desired). Reclaiming
+        // it here, rather than leaving it for a client that will never receive this `region` (a
+        // failed mint hands back nothing), is what keeps this failure path from being a second,
+        // silent leak alongside the one this function's caller already answers with `DENIED`.
+        reclaim(region);
         return None;
     }
 
-    // **Drop our own copy of `region` now.** The caretaker is up and holds its own narrowed
-    // copies of everything it needs (`FS_EP`, its half of `narrow_ep`, the frame); this process
-    // has no further use for the region it built it from. This is `cap_delete`, a local cspace
-    // slot free, not `Untyped::DESTROY`: the caretaker's address space, TCB and endpoint are
-    // untouched, exactly the pattern `root_supervisor` and `system_initializer::boot` use to drop
-    // a builder's own authority once a child holds its own copies.
-    //
-    // Skipping this used to leak one of this process's own sixteen cspace slots per successful
-    // login (`region` was never freed on the success path), which is a tighter and previously
-    // undocumented ceiling than the memory bound this program's BUGS names:
-    // `CSPACE_SLOTS` (16) minus this process's eight slots at rest (`REQUEST`..`AUDIT` plus
-    // `own_ut`) left room for exactly eight successful logins ever, after which the ninth
-    // correctly-authenticated one was silently answered `DENIED`, indistinguishable from a wrong
-    // password. See `kernel::user::login_tests::the_login_service_serves_past_the_old_cspace_ceiling`.
-    cap_delete(region);
-
+    // **`region` is not dropped here anymore.** It is returned to the caller, which delegates it to
+    // the authenticated client as the fourth capability (the caretaker's own logout ticket; see
+    // this program's module docs, "Reclaiming a session") and only then deletes its own copy, the
+    // same "delegate, then drop our own copy" pattern already used for the directory and the
+    // budget below. Dropping it here, the way an earlier version of this function did, was what
+    // made the caretaker's construction memory permanently unreclaimable: nobody downstream ever
+    // held a capability that could `DESTROY` it.
     let budget = untyped_split(CONSTRUCTION_UT, CLIENT_BUDGET_PAGES).ok()?;
-    Some((narrow_ep, budget))
+    Some((narrow_ep, budget, region))
 }
+
+/// **Reclaim a construction region, retrying while something in it can still run.**
+/// `crates/system_initializer::reclaim`'s own idiom, reused rather than re-derived: a `DESTROY` of a
+/// region holding a live thread is refused with §16's kill armed, and one preemption later the retry
+/// succeeds. Bounded for the same reason that one is: the only resident this ever waits on is a
+/// caretaker that has already exited or is parked on its own endpoint (never on a foreign one; see
+/// this program's module docs), so one preemption is enough, and a caller stuck here past a few
+/// dozen attempts has a different problem than this loop can fix.
+fn reclaim(region: u64) {
+    for _ in 0..RECLAIM_ATTEMPTS {
+        if untyped_destroy(region) {
+            return;
+        }
+        yield_now();
+    }
+}
+
+/// How many times [`reclaim`] retries, matching `crates/system_initializer::RECLAIM_ATTEMPTS`.
+const RECLAIM_ATTEMPTS: usize = 64;
 
 /// Delegate our own copy of `slot`, narrowed to `rights`, over [`RESULT`]. `GRANT` must already be
 /// on our own copy for the kernel to allow this at all (`abi::rendezvous::SEND_CAP`'s contract);
