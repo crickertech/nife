@@ -7,7 +7,7 @@
 //! contract is notes/compositor.md; the processes are `user/src/compositor.rs` (the compositor) and
 //! `user/src/window.rs` (a client).
 //!
-//! The split is the one `gfx_proto` makes for the framebuffer and `line_editor::proto` for the
+//! The split is the one `graphics_proto` makes for the framebuffer and `line_editor::proto` for the
 //! terminal: one definition, shared by the compositor, its clients, the kernel-side test, and the
 //! host-side scanout check, so none of them can drift from the others about what the screen should
 //! look like.
@@ -146,14 +146,14 @@
 // The screen.
 // ================================================================================================
 
-/// The screen's width. **The screen is rung one's surface**, so this is `gfx_proto`'s geometry rather
+/// The screen's width. **The screen is rung one's surface**, so this is `graphics_proto`'s geometry rather
 /// than a second declaration of it: the compositor composites into the very frames `painter` used to
 /// paint, and flushes them through the same `FLUSH(rect)` the display driver already honours.
-pub const SCREEN_W: u32 = gfx_proto::WIDTH;
+pub const SCREEN_W: u32 = graphics_proto::WIDTH;
 /// The screen's height. See [`SCREEN_W`].
-pub const SCREEN_H: u32 = gfx_proto::HEIGHT;
+pub const SCREEN_H: u32 = graphics_proto::HEIGHT;
 /// Pixels in the screen.
-pub const SCREEN_PIXELS: usize = gfx_proto::PIXELS;
+pub const SCREEN_PIXELS: usize = graphics_proto::PIXELS;
 
 /// The most windows a scene may hold. Fixed because the compositor has no allocator and builds its
 /// window table as an array; four is what [`SCENE`] needs and what the kernel wires.
@@ -275,7 +275,7 @@ impl Rect {
         (self.w as u64) * (self.h as u64)
     }
 
-    /// This rectangle as unsigned screen coordinates, for [`gfx_proto::rect`]. `None` if it is empty
+    /// This rectangle as unsigned screen coordinates, for [`graphics_proto::rect`]. `None` if it is empty
     /// or not wholly on the screen, because the display driver **refuses** an out-of-surface flush
     /// rather than clamping it (rung one's rule), so handing it one is a bug we should not paper over.
     pub const fn as_flush_rect(&self) -> Option<(u32, u32, u32, u32)> {
@@ -400,7 +400,7 @@ pub const MAX_SURFACE_BYTES: u32 = {
 pub const SMALL_DAMAGE: Rect = Rect::new(4, 5, 9, 7);
 
 /// **What window `id` paints at its own `(x, y)`.** A per-coordinate, per-window function, for the
-/// reason `gfx_proto::pixel` is one: a fill proves nothing. A blank surface, a surface painted by the
+/// reason `graphics_proto::pixel` is one: a fill proves nothing. A blank surface, a surface painted by the
 /// wrong client, a surface blitted at the wrong offset, and a transposed surface all have to be
 /// visibly wrong, and they are, because no two windows agree on any pixel and no window is constant.
 ///
@@ -477,7 +477,7 @@ pub fn expected_screen_pixel_with(
 /// The digest of the whole composed screen, using rung one's position-sensitive checksum so the
 /// guest-side witnesses and the kernel speak one language about "is the screen right".
 pub fn expected_screen_checksum(n: usize) -> u64 {
-    gfx_proto::checksum(|i| {
+    graphics_proto::checksum(|i| {
         let x = (i % SCREEN_W as usize) as u32;
         let y = (i / SCREEN_W as usize) as u32;
         expected_screen_pixel(n, x, y)
@@ -562,10 +562,10 @@ pub fn composite(screen: &mut [u32], sources: &[&[u32]], n: usize, damage: Rect)
 /// The IPC the compositor serves, and the shared-memory layouts that carry everything the IPC
 /// deliberately does not.
 ///
-/// Request words are packed the way `gfx_proto` and `line_editor::proto` pack theirs (opcode in bits
+/// Request words are packed the way `graphics_proto` and `line_editor::proto` pack theirs (opcode in bits
 /// 63:56), and the helpers are re-exported rather than redefined so all three contracts read alike.
 pub mod proto {
-    pub use gfx_proto::{op, operand, req};
+    pub use graphics_proto::{op, operand, req};
 
     /// `CALL(req(HELLO, 0), 0)` -> `(0, 0)`. "I have started." Carries nothing, and its reply
     /// carries nothing: the client's geometry is in its own control page, which the compositor has
@@ -593,7 +593,7 @@ pub mod proto {
     // as a limit and the served-copy path as what would fix it.
 
     /// The reply to a word whose opcode the compositor does not implement. Negative-is-an-error, the
-    /// convention `filesystem_proto` set and `gfx_proto` follows.
+    /// convention `filesystem_proto` set and `graphics_proto` follows.
     pub const EBADOP: i64 = -22;
 
     /// **A client's control page**: the per-client channel that carries everything the shared
@@ -979,7 +979,7 @@ mod tests {
         }
     }
 
-    /// A window's pattern is not a fill, is not symmetric, and is nobody else's. The `gfx_proto`
+    /// A window's pattern is not a fill, is not symmetric, and is nobody else's. The `graphics_proto`
     /// pattern tests' properties, per window.
     #[test]
     fn a_window_pattern_cannot_be_produced_by_accident() {
@@ -1036,7 +1036,7 @@ mod tests {
             }
         }
         assert_eq!(
-            gfx_proto::checksum(|i| screen[i]),
+            graphics_proto::checksum(|i| screen[i]),
             expected_screen_checksum(SCENE.len()),
             "the digest the guest reports and the picture the host checks must agree",
         );
@@ -1106,7 +1106,7 @@ mod tests {
             }
         }
         assert_eq!(
-            gfx_proto::checksum(|i| screen[i]),
+            graphics_proto::checksum(|i| screen[i]),
             expected_screen_checksum(0),
             "the empty screen must be the n=0 expected picture",
         );
@@ -1176,8 +1176,11 @@ mod tests {
         );
         // And what the driver is handed round-trips through its own packing.
         let (x, y, w, h) = Rect::new(9, 8, 7, 6).as_flush_rect().unwrap();
-        assert_eq!(gfx_proto::unrect(gfx_proto::rect(x, y, w, h)), (9, 8, 7, 6));
-        assert!(gfx_proto::rect_in_surface(x, y, w, h));
+        assert_eq!(
+            graphics_proto::unrect(graphics_proto::rect(x, y, w, h)),
+            (9, 8, 7, 6)
+        );
+        assert!(graphics_proto::rect_in_surface(x, y, w, h));
     }
 
     /// The control page and the window list fit in one frame each, with no field overlapping another.

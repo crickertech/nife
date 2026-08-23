@@ -3,7 +3,7 @@
 //! One definition of the three things the parties to wall-clock time have to agree on, so the
 //! clock service, its readers, the std PAL and the kernel-side tests cannot drift: the layout of
 //! the **shared clock page**, the small **propose protocol**, and the **policy** the service
-//! applies to a proposal. The same split `filesystem_proto` makes for the filesystem and `gfx_proto` for
+//! applies to a proposal. The same split `filesystem_proto` makes for the filesystem and `graphics_proto` for
 //! the framebuffer.
 //!
 //! # Three authorities, three different objects

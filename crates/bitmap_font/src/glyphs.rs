@@ -5,7 +5,7 @@
 //!
 //! **They are ours.** This is an original drawing in the style of the Kaypro II's character
 //! generator, not that ROM and not any other font's table. It was drawn glyph by glyph in
-//! `crates/bitfont/kaypro-style-7x8.art`, which is the authoring source and the thing to edit;
+//! `crates/bitmap_font/kaypro-style-7x8.art`, which is the authoring source and the thing to edit;
 //! the rows below are that file, transcribed. `the_art_file_and_this_table_agree` (in this
 //! file) parses the
 //! `.art` back and fails if the two ever drift, so the picture a reviewer reads and the bits a
@@ -182,7 +182,7 @@ mod tests {
     /// `kaypro-style-7x8.art` is what a person edits and reviews, because hexadecimal is not a
     /// medium anyone can see a letter in; the table above is what compiles. Two representations of
     /// one thing is a drift bug waiting to happen, so the `.art` is parsed here and compared. A
-    /// glyph fixed in one and not the other fails at `cargo test -p bitfont` rather than on a
+    /// glyph fixed in one and not the other fails at `cargo test -p bitmap_font` rather than on a
     /// screen.
     #[test]
     fn the_art_file_and_this_table_agree() {

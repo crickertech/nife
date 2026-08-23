@@ -48,7 +48,7 @@ against one.
 | the sink | `user/src/sink.rs` | a redirected program | `crates/sink_proto` |
 | the serial terminal | `user/src/line_editor.rs` | the shell | `crates/line_editor` |
 | the console | `user/src/console.rs` | its client | `kernel/src/user/console_service.rs` |
-| the display | `user/src/display.rs` | painter, terminal, compositor | `crates/gfx_proto` |
+| the display | `user/src/display.rs` | painter, terminal, compositor | `crates/graphics_proto` |
 | the compositor | `user/src/compositor.rs` | window clients, the input source | `crates/compositor` |
 | the display terminal | `user/src/display_terminal.rs` | an application | `crates/video_terminal` |
 | credentials | `user/src/credentialer.rs` | provisioner, verifier | `crates/cred_proto` |
@@ -103,7 +103,7 @@ Worth stating before the findings, because it is the reason there are so few.
 never in the page.** The kernel copies a message's words into its own state at `SEND` time and hands
 them to the receiver in registers, so by the time a server sees them they are in memory only that
 server can write. `fs_proto::fs::req` packs opcode, handle and a 40-bit length into one word;
-`gfx_proto` packs a whole rectangle into four 14-bit fields of one word; `cred_proto` packs two
+`graphics_proto` packs a whole rectangle into four 14-bit fields of one word; `cred_proto` packs two
 lengths into one word. There is **no contract in this tree whose length field lives in the shared
 page**, which removes the entire classic form of the bug (read a length from the page, bound-check
 it, read it again to size the copy) by construction rather than by care.

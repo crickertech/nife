@@ -90,9 +90,9 @@ of those 404, crate by crate, re-measuring the same way after every batch: **235
 `#![warn(missing_docs)]` beside each crate's `#![no_std]`. Under `script/lint`'s `-D warnings` that is
 a hard gate, so those crates cannot regress:
 
-`abi`, `asid`, `bitfont`, `block_roster`, `c_seam`, `calendar`, `canary_gate`, `capability`,
+`abi`, `asid`, `bitmap_font`, `block_roster`, `c_seam`, `calendar`, `canary_gate`, `capability`,
 `clock_proto`, `component_plan`, `coremark`, `cpu_set`, `cred`, `cred_proto`, `dma_validator`, `dtb`,
-`elf`, `entropy_proto`, `frames`, `fs_proto`, `gfx_proto`, `glob`, `intrusive`, `ipc`, `line_editor`,
+`elf`, `entropy_proto`, `frames`, `fs_proto`, `graphics_proto`, `glob`, `intrusive`, `ipc`, `line_editor`,
 `manual`, `mdns_config`, `measured_boot`, `nifefs`, `ntlm`, `ntp_proto`, `nvme`, `paging`, `pgrep`,
 `ps`, `regions`, `sink_proto`, `slots`, `socket_proto`, `steal_request`, `supervision_proto`,
 `swap_proto`, `swish`, `system_initializer`, `timetable`, `user_heap`, `user_rt`, `video_terminal`,

@@ -1,6 +1,6 @@
 ; A hand-drawn 8x8 candidate for the terminal font (lane bench/font-options, 2026-08-19).
 ; Original work: no third party, no licence, no obligation. Rendered by
-;   cargo run -p bitfont --example specimen -- --font bench/font-options/hand-drawn-8x8.art
+;   cargo run -p bitmap_font --example specimen -- --font bench/font-options/hand-drawn-8x8.art
 ;
 ; Metrics: bodies six columns wide with one-pixel strokes (seven for M W m w), advance 8.
 ; Caps rows 0-6, x-height rows 2-6, baseline row 6. Descender bowls are raised to rows 2-5 so the

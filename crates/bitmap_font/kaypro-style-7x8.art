@@ -7,9 +7,9 @@
 ; five ROM bits, and a zero). Rows 0-6 are the body, row 7 the descender. Caps and digits fill
 ; rows 0-6, x-height letters rows 2-6, and the baseline is row 6 for every glyph that has one.
 ;
-; This file is the authoring source and `crates/bitfont/src/glyphs.rs` is generated from it;
+; This file is the authoring source and `crates/bitmap_font/src/glyphs.rs` is generated from it;
 ; a test in that file parses this back and fails if the two ever disagree. Render it with
-;   cargo run -p bitfont --example specimen -- --font crates/bitfont/kaypro-style-7x8.art
+;   cargo run -p bitmap_font --example specimen -- --font crates/bitmap_font/kaypro-style-7x8.art
 
 @ 20   ' '
 .......

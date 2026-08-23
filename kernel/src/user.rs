@@ -1678,7 +1678,7 @@ fn term_print(out: u64, ep: crate::sched::RendezvousId, text: &[u8]) {
 /// `Spawn` literal, and know nothing about what they do. It never sees a virtio-gpu command, a
 /// pixel, or a rectangle. What is new is the **size** of the DMA region, and that is the whole
 /// memory story: a framebuffer does not fit in the single page the disk and NIC drivers get, so the
-/// region is `1 + gfx_proto::SURFACE_FRAMES` **contiguous** frames, page 0 for the rings and the
+/// region is `1 + graphics_proto::SURFACE_FRAMES` **contiguous** frames, page 0 for the rings and the
 /// control buffers and the rest for the surface. Registering the whole run as the driver's DMA region
 /// is what keeps the framebuffer inside the grant: the shadow-ring validator bounds every descriptor
 /// to it, and `iommu::confine` maps exactly it, so the device can reach the pixels and nothing else.

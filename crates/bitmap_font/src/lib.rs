@@ -25,7 +25,7 @@
 //! half the alphabet is symmetric enough to look fine. `F` is not.
 //!
 //! ```
-//! use bitfont::{GLYPH_H, GLYPH_W, ink};
+//! use bitmap_font::{GLYPH_H, GLYPH_W, ink};
 //!
 //! let art: Vec<String> = (0..GLYPH_H)
 //!     .map(|y| (0..GLYPH_W).map(|x| if ink(b'F', x, y) { '#' } else { '.' }).collect())
@@ -55,7 +55,7 @@
 //! is actually displaying.
 //!
 //! ```
-//! use bitfont::{GLYPH_H, GLYPH_W, cell_pixel};
+//! use bitmap_font::{GLYPH_H, GLYPH_W, cell_pixel};
 //!
 //! const WHITE: u32 = 0x00ff_ffff;
 //! const BLACK: u32 = 0x0000_0000;
@@ -78,7 +78,7 @@
 //! a byte with no glyph draws a visible box rather than nothing:
 //!
 //! ```
-//! use bitfont::{ink, glyph, MISSING};
+//! use bitmap_font::{ink, glyph, MISSING};
 //!
 //! assert!(!ink(b'F', 7, 0)); // past the cell
 //! assert!(!ink(b'F', 0, 99));
@@ -95,10 +95,12 @@
 //! (see [`glyph`] for what a byte outside it draws), and no font loading: this font is compiled in.
 //! The honest limits are listed in notes/glyphs.md.
 //!
-//! Name: unrecorded. One of the five run-together names milestone 63 reviewed on 2026-08-01
-//! (`capsh`, `lineedit`, `uheap`, `nifefs`, `bitfont`) when it deleted the rule that had
-//! produced them. Three moved, `nifefs` stayed with a reason recorded, and this one stayed with
-//! none.
+//! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review). Renamed from
+//! `bitfont`: spell out the contraction fully, consistent with this session's other renames,
+//! even though `bitfont` was already transparent. `bitfont` itself was one of the five
+//! run-together names milestone 63 reviewed on 2026-08-01 (`capsh`, `lineedit`, `uheap`,
+//! `nifefs`, `bitfont`) when it deleted the rule that had produced them; three moved, `nifefs`
+//! stayed with a reason recorded, and this one stayed unrecorded until now.
 
 #![no_std]
 

@@ -48,7 +48,7 @@
 
 use compositor::proto::{ctl, ring, wlist};
 use compositor::{Rect, SCENE};
-use gfx_proto as gfx;
+use graphics_proto as gfx;
 use user_rt::{call, invoke, recv_cap, send};
 
 /// Capability slots, by convention with `kernel/src/user/compositor_service.rs`.

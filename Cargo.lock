@@ -53,7 +53,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 
 [[package]]
-name = "bitfont"
+name = "bitmap_font"
 version = "0.1.0"
 
 [[package]]
@@ -137,7 +137,7 @@ dependencies = [
 name = "compositor"
 version = "0.1.0"
 dependencies = [
- "gfx_proto",
+ "graphics_proto",
 ]
 
 [[package]]
@@ -294,10 +294,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gfx_proto"
-version = "0.1.0"
-
-[[package]]
 name = "glob"
 version = "0.1.0"
 
@@ -312,6 +308,10 @@ dependencies = [
  "filesystem_proto",
  "glob",
 ]
+
+[[package]]
+name = "graphics_proto"
+version = "0.1.0"
 
 [[package]]
 name = "hash32"
@@ -359,7 +359,7 @@ dependencies = [
  "aarch64-cpu",
  "abi",
  "asid",
- "bitfont",
+ "bitmap_font",
  "block_roster",
  "byte_sink_proto",
  "calendar",
@@ -376,8 +376,8 @@ dependencies = [
  "environment_proto",
  "filesystem_proto",
  "generational_table",
- "gfx_proto",
  "grant_plan",
+ "graphics_proto",
  "intrusive_fifo",
  "ipc",
  "line_editor",
@@ -899,7 +899,7 @@ name = "user"
 version = "0.1.0"
 dependencies = [
  "abi",
- "bitfont",
+ "bitmap_font",
  "block_roster",
  "byte_sink_proto",
  "c_seam",
@@ -913,9 +913,9 @@ dependencies = [
  "elf",
  "entropy_proto",
  "filesystem_proto",
- "gfx_proto",
  "gpt",
  "grant_plan",
+ "graphics_proto",
  "line_editor",
  "login_proto",
  "manual",
@@ -967,7 +967,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 name = "video_terminal"
 version = "0.1.0"
 dependencies = [
- "bitfont",
+ "bitmap_font",
  "line_editor",
 ]
 
@@ -1019,8 +1019,8 @@ dependencies = [
  "compositor",
  "credential_proto",
  "filesystem_proto",
- "gfx_proto",
  "gpt",
+ "graphics_proto",
  "manual",
  "mdns_config",
  "measured_boot",

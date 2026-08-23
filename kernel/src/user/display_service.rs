@@ -23,7 +23,7 @@ use crate::cap::{Rights, frame_cap, irq_cap, rendezvous_cap, untyped_cap, virtio
 use crate::sched::RendezvousId;
 
 /// The DMA region, in frames: one for the rings and control buffers, then the surface.
-const DMA_FRAMES: u64 = 1 + gfx_proto::SURFACE_FRAMES as u64;
+const DMA_FRAMES: u64 = 1 + graphics_proto::SURFACE_FRAMES as u64;
 
 /// The driver binary's escape-attempt role; must match user/src/display.rs `ROLE_BACKING_ESCAPE`.
 const ROLE_BACKING_ESCAPE: u64 = 1;
@@ -57,7 +57,7 @@ const _: () = assert!(
 const CLIENT_SLOT_REPORT: u64 = 0;
 const CLIENT_SLOT_DISPLAY: u64 = 1;
 const CLIENT_SLOT_BUDGET: u64 = 2;
-/// The first of `gfx_proto::SURFACE_FRAMES` consecutive slots holding the scanout.
+/// The first of `graphics_proto::SURFACE_FRAMES` consecutive slots holding the scanout.
 const CLIENT_SLOT_SURFACE: u64 = 3;
 
 // The display terminal's cspace. Must match user/src/display_terminal.rs.
@@ -65,10 +65,10 @@ const TERM_SLOT_REPORT: u64 = 0;
 const TERM_SLOT_DISPLAY: u64 = 1;
 const TERM_SLOT_TERM: u64 = 2;
 const TERM_SLOT_BUDGET: u64 = 3;
-/// The first of `gfx_proto::SURFACE_FRAMES` consecutive slots holding the scanout, then one more
+/// The first of `graphics_proto::SURFACE_FRAMES` consecutive slots holding the scanout, then one more
 /// for the page an application writes text into.
 const TERM_SLOT_SURFACE: u64 = 4;
-const TERM_SLOT_OUT: u64 = TERM_SLOT_SURFACE + gfx_proto::SURFACE_FRAMES as u64;
+const TERM_SLOT_OUT: u64 = TERM_SLOT_SURFACE + graphics_proto::SURFACE_FRAMES as u64;
 
 /// Grant `count` frames of the contiguous run at `base` into consecutive slots from `first`,
 /// read/write. The counterpart of the `MAP` loop each of these programs runs at startup.
@@ -114,7 +114,7 @@ pub fn start(
         grant_run(
             CLIENT_SLOT_SURFACE,
             surface,
-            gfx_proto::SURFACE_FRAMES as u64,
+            graphics_proto::SURFACE_FRAMES as u64,
             "the painting client",
         );
         run(
@@ -292,14 +292,15 @@ pub fn start_terminal(
     // frame (see `user/src/display_terminal.rs`) and that `Vt::pixel` answers for, which is what
     // keeps the picture a total function of the state.
     const _: () = assert!(
-        gfx_proto::WIDTH >= bitfont::GLYPH_W && gfx_proto::HEIGHT >= bitfont::GLYPH_H,
+        graphics_proto::WIDTH >= bitmap_font::GLYPH_W
+            && graphics_proto::HEIGHT >= bitmap_font::GLYPH_H,
         "the scanout is too small for one character cell",
     );
     // And the script's geometry is the scanout's, checked here rather than trusted, because the
     // script is what three independent parties predict the picture from.
     const _: () = assert!(
-        gfx_proto::WIDTH / bitfont::GLYPH_W == video_terminal::script::COLS
-            && gfx_proto::HEIGHT / bitfont::GLYPH_H == video_terminal::script::ROWS,
+        graphics_proto::WIDTH / bitmap_font::GLYPH_W == video_terminal::script::COLS
+            && graphics_proto::HEIGHT / bitmap_font::GLYPH_H == video_terminal::script::ROWS,
         "video_terminal::script's geometry and the scanout's have drifted apart",
     );
 
@@ -331,7 +332,7 @@ pub fn start_terminal(
         grant_run(
             TERM_SLOT_SURFACE,
             surface,
-            gfx_proto::SURFACE_FRAMES as u64,
+            graphics_proto::SURFACE_FRAMES as u64,
             "the display terminal",
         );
         // The page an application writes text into.
@@ -392,7 +393,7 @@ impl TerminalWiring {
     /// A scanout pixel, read by the **kernel** through the direct map: a witness that belongs to
     /// no process in userspace.
     pub fn screen_pixel(&self, x: u32, y: u32) -> u32 {
-        let at = mmu::phys_to_virt(self.surface) + (y * gfx_proto::WIDTH + x) as u64 * 4;
+        let at = mmu::phys_to_virt(self.surface) + (y * graphics_proto::WIDTH + x) as u64 * 4;
         // SAFETY: inside the scanout frames this kernel allocated.
         unsafe { core::ptr::read_volatile(at as *const u32) }
     }
@@ -400,16 +401,16 @@ impl TerminalWiring {
     /// **The scanout holds exactly the picture `expect` describes.** Compared pixel for pixel
     /// rather than by digest, so a failure names a coordinate.
     pub fn assert_screen_is(&self, expect: &video_terminal::Vt, what: &str) {
-        for y in 0..gfx_proto::HEIGHT {
-            for x in 0..gfx_proto::WIDTH {
+        for y in 0..graphics_proto::HEIGHT {
+            for x in 0..graphics_proto::WIDTH {
                 let (got, want) = (self.screen_pixel(x, y), expect.pixel(x, y));
                 assert_eq!(
                     got,
                     want,
                     "{what}: the framebuffer is wrong at ({x},{y}) [cell ({},{})]: {got:#010x}, \
                      expected {want:#010x}",
-                    x / bitfont::GLYPH_W,
-                    y / bitfont::GLYPH_H,
+                    x / bitmap_font::GLYPH_W,
+                    y / bitmap_font::GLYPH_H,
                 );
             }
         }

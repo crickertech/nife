@@ -25,7 +25,7 @@ screen without being able to reach each other?**
 scanout frames exactly as `painter` did, and `display` cannot tell the difference; three of the four
 kernel tests replace `display` with the kernel itself and the compositor does not notice that either.
 That was the promise the framebuffer contract made when it said routing was by endpoint, and it cost
-nothing to keep: `display` and `gfx_proto` needed no change for this milestone beyond one new
+nothing to keep: `display` and `graphics_proto` needed no change for this milestone beyond one new
 kernel-side wiring entry point (`display_service::start_driver`, the driver with no client).
 
 What each party holds:

@@ -10,7 +10,7 @@
 //! Run it on what ships:
 //!
 //! ```text
-//! cargo run -p bitfont --example specimen
+//! cargo run -p bitmap_font --example specimen
 //! ```
 //!
 //! Or on a candidate, in any of the four formats a bitmap font arrives in. GNU Unifont `.hex`
@@ -20,10 +20,10 @@
 //! which is the format a font arrived in before it was a file:
 //!
 //! ```text
-//! cargo run -p bitfont --example specimen -- --font unscii-8.hex --name unscii-8
-//! cargo run -p bitfont --example specimen -- --font ter-u16n.bdf --name terminus-16
-//! cargo run -p bitfont --example specimen -- --font bench/font-options/hand-drawn-8x8.art
-//! cargo run -p bitfont --example specimen -- --font 81-146a.bin --name kaypro-ii
+//! cargo run -p bitmap_font --example specimen -- --font unscii-8.hex --name unscii-8
+//! cargo run -p bitmap_font --example specimen -- --font ter-u16n.bdf --name terminus-16
+//! cargo run -p bitmap_font --example specimen -- --font bench/font-options/hand-drawn-8x8.art
+//! cargo run -p bitmap_font --example specimen -- --font 81-146a.bin --name kaypro-ii
 //! ```
 //!
 //! **Give `--font` more than once and the fonts are drawn interleaved**, sample line by sample
@@ -32,7 +32,7 @@
 //! `--metrics` prints the table row for `notes/glyphs.md` instead of asserting the numbers.
 //!
 //! ```text
-//! cargo run -p bitfont --example specimen -- --metrics \
+//! cargo run -p bitmap_font --example specimen -- --metrics \
 //!     --font 81-146a.bin --name kaypro-ii --font gohufont-14.bdf --name gohufont-14
 //! ```
 //!
@@ -78,9 +78,9 @@ impl Font {
     fn shipped() -> Self {
         Font {
             name: "kaypro-style (shipped)".into(),
-            height: bitfont::GLYPH_H as usize,
-            advance: bitfont::GLYPH_W as usize,
-            glyphs: (0..128u8).map(|b| bitfont::glyph(b).to_vec()).collect(),
+            height: bitmap_font::GLYPH_H as usize,
+            advance: bitmap_font::GLYPH_W as usize,
+            glyphs: (0..128u8).map(|b| bitmap_font::glyph(b).to_vec()).collect(),
         }
     }
 
@@ -596,7 +596,7 @@ fn summary(font: &Font) -> String {
     )
 }
 
-/// The scanout the grid is measured against, which is `gfx_proto::WIDTH` and `HEIGHT` on the
+/// The scanout the grid is measured against, which is `graphics_proto::WIDTH` and `HEIGHT` on the
 /// display ladder today. Written here rather than depended on, because this example is a bench
 /// tool and a dependency on the protocol crate would make it part of the shipping graph.
 const SCANOUT_W: usize = 128;

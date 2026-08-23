@@ -18,7 +18,7 @@ license.workspace = true
 workspace = true
 
 [dependencies]
-bitfont = { version = "0.1.0", path = "../bitfont" }
+bitmap_font = { version = "0.1.0", path = "../bitmap_font" }
 
 [dev-dependencies]
 # The interoperability test, and the reason it is a dev-dependency rather than a design coupling:
