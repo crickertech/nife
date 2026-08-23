@@ -8,7 +8,7 @@
 //! (DECISIONS §28.3).
 //!
 //! Everything else in that path is under a lock. The migration inbox is an `IrqSafeMutex`; the run
-//! queue is single-owner with interrupts masked; the thread table is under `SCHED`. **This slot is
+//! queue is single-owner with interrupts masked; the thread table is under `IPC_TABLES`. **This slot is
 //! the exception**, and that is why it is lifted here: it is a hand-rolled compare-exchange plus a
 //! swap, the kind of protocol that is correct on a total-store-order machine and wrong on a weakly
 //! ordered one, and this project runs on two weakly ordered ISAs (CLAUDE.md rule 4).

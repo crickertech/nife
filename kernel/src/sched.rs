@@ -48,7 +48,7 @@ static PREEMPTIONS: AtomicU64 = AtomicU64::new(0);
 /// The thread running on **this core** right now.
 ///
 /// Per-CPU as of §11 step 3b (`cpu::PerCpu::current`); it used to be one field on the global
-/// `Scheduler`. Reading it is a plain atomic load and needs no lock: it is this core's own slot.
+/// `IpcTables`. Reading it is a plain atomic load and needs no lock: it is this core's own slot.
 fn current_tid() -> Tid {
     cpu::current().current.load(Ordering::Relaxed)
 }
@@ -92,7 +92,7 @@ pub(crate) const MAX_THREADS: usize = 128;
 /// 19c.3 will let a user process retype a TCB from *its own* untyped by the same mechanism, the
 /// page merely coming from a different budget; kernel threads keep drawing from `kmem`.
 /// A TCB pointer that may cross cores. The pointer itself moving between cores is harmless: the
-/// `Thread` it names is touched only under `SCHED` (which serializes all table access) and, for
+/// `Thread` it names is touched only under `IPC_TABLES` (which serializes all table access) and, for
 /// its queue link, under the intrusive discipline at [`tcb_ptr`]. This is the same soundness the
 /// old static `TcbPool`'s `unsafe impl Sync` rested on, now attached to the pointer the table
 /// stores rather than a separate array.
@@ -116,13 +116,13 @@ impl Threads {
     fn get(&self, tid: Tid) -> Option<&Thread> {
         let p = self.table.get(tid)?.0;
         // SAFETY: a pointer we stored at insert, into a live kmem page not yet recycled (remove
-        // kills the name before recycling); SCHED serializes access.
+        // kills the name before recycling); IPC_TABLES serializes access.
         Some(unsafe { &*p })
     }
 
     fn get_mut(&mut self, tid: Tid) -> Option<&mut Thread> {
         let p = self.table.get(tid)?.0;
-        // SAFETY: as `get`, and `&mut self` carries SCHED's exclusivity.
+        // SAFETY: as `get`, and `&mut self` carries IPC_TABLES's exclusivity.
         Some(unsafe { &mut *p })
     }
 
@@ -233,7 +233,7 @@ impl Threads {
     /// distinct page pointer, so the `&mut`s are disjoint.
     fn iter_mut(&mut self) -> impl Iterator<Item = &mut Thread> + '_ {
         // SAFETY: each stored pointer is a distinct live page (one page per thread), and
-        // `&mut self` carries SCHED's exclusivity across the whole sweep.
+        // `&mut self` carries IPC_TABLES's exclusivity across the whole sweep.
         self.table.values().map(|&TcbPtr(p)| unsafe { &mut *p })
     }
 
@@ -242,14 +242,14 @@ impl Threads {
     /// `slots::Table::iter_from` for why a position would not do.
     fn iter_from(&self, from: usize) -> impl Iterator<Item = (usize, &Thread)> + '_ {
         // SAFETY: as `iter_mut`, and shared rather than exclusive: each stored pointer is a
-        // distinct live page, and `&self` carries SCHED for the walk.
+        // distinct live page, and `&self` carries IPC_TABLES for the walk.
         self.table
             .iter_from(from)
             .map(|(slot, _, &TcbPtr(p))| (slot, unsafe { &*p }))
     }
 }
 
-struct Scheduler {
+struct IpcTables {
     /// The thread table: generational names over page-resident TCBs. See [`Threads`];
     /// design/kernel-objects-from-untyped.md D2 records the path, notes/tcb.md the storage.
     threads: Threads,
@@ -319,7 +319,7 @@ const KERNEL_EP_CHUNK_PAGES: u64 = 32;
 /// rather than an arbitrary carve size. Derived rather than written down so the two cannot drift.
 const MAX_KERNEL_EP_CHUNKS: usize = MAX_ENDPOINTS.div_ceil(KERNEL_EP_CHUNK_PAGES as usize);
 
-/// The endpoint behind a name, or `None` if the name no longer resolves. Caller holds `SCHED`.
+/// The endpoint behind a name, or `None` if the name no longer resolves. Caller holds `IPC_TABLES`.
 ///
 /// This used to panic on a miss, because endpoints could not be destroyed (their regions stayed
 /// pinned), so a miss was kernel corruption. Object revocation made destruction real: a stale
@@ -327,18 +327,18 @@ const MAX_KERNEL_EP_CHUNKS: usize = MAX_ENDPOINTS.div_ceil(KERNEL_EP_CHUNK_PAGES
 /// input, so this returns `None` and the callers turn that into a clean error rather than a panic.
 ///
 /// The `'static` is the page's pinned-ness made into a lifetime: while the name resolves the page is
-/// pinned and direct-mapped, and `SCHED` serializes every access to what it holds.
-fn endpoint_of(sched: &Scheduler, ep: EpId) -> Option<&'static mut Endpoint> {
+/// pinned and direct-mapped, and `IPC_TABLES` serializes every access to what it holds.
+fn endpoint_of(sched: &IpcTables, ep: EpId) -> Option<&'static mut Endpoint> {
     let phys = *sched.endpoints.get(ep)?;
     // SAFETY: retyped exclusively for this endpoint, its region pinned while the name resolves,
-    // direct-mapped, and serialized by SCHED, which every caller holds.
+    // direct-mapped, and serialized by IPC_TABLES, which every caller holds.
     Some(unsafe { &mut *(crate::arch::mmu::phys_to_virt(phys) as *mut Endpoint) })
 }
 
 /// Mark the current thread's blocking IPC as aborted (a stale endpoint, or one revoked while it
 /// blocked): the syscall layer reads-and-clears this after the primitive returns and hands back an
-/// error. A helper because several IPC paths set it. Caller holds `SCHED`.
-fn set_ipc_aborted(sched: &mut Scheduler, tid: Tid) {
+/// error. A helper because several IPC paths set it. Caller holds `IPC_TABLES`.
+fn set_ipc_aborted(sched: &mut IpcTables, tid: Tid) {
     if let Some(t) = sched.threads.get_mut(tid) {
         t.handshake.abort();
     }
@@ -350,7 +350,7 @@ fn set_ipc_aborted(sched: &mut Scheduler, tid: Tid) {
 /// placeholder result. Kernel-side IPC callers never set it (their endpoints are never revoked), so
 /// they need not check it.
 pub fn take_ipc_aborted() -> bool {
-    let mut guard = SCHED.lock();
+    let mut guard = IPC_TABLES.lock();
     let Some(sched) = guard.as_mut() else {
         return false;
     };
@@ -371,7 +371,7 @@ pub fn take_ipc_aborted() -> bool {
 /// `Thread` into a static pool slot, and the queues have been intrusive since A.2, so a queue
 /// operation is a couple of pointer writes, from the timer IRQ or anywhere else. §9's
 /// no-allocation-in-IRQ rule holds by construction.
-static SCHED: IrqSafeMutex<Option<Scheduler>> = IrqSafeMutex::new(rank::SCHED, None);
+static IPC_TABLES: IrqSafeMutex<Option<IpcTables>> = IrqSafeMutex::new(rank::IPC_TABLES, None);
 
 /// **Per-cpu ring of the last few scheduler events** (first-silicon diagnostics, 2026-08-14; the
 /// module name is provisional). A boot-7 bench dump on the VisionFive 2 showed an end state no
@@ -382,12 +382,12 @@ static SCHED: IrqSafeMutex<Option<Scheduler>> = IrqSafeMutex::new(rank::SCHED, N
 ///
 /// Cost and honesty:
 ///
-/// - One relaxed `fetch_add` and one relaxed store per event, on paths that already hold `SCHED`
+/// - One relaxed `fetch_add` and one relaxed store per event, on paths that already hold `IPC_TABLES`
 ///   or run in IRQ context with interrupts masked, so each ring has exactly one writer (its own
 ///   core) and no entry can tear (one `u64`).
 /// - **Compiled out of `--features bench` builds**, so the benchmark numbers the tripwire watches
 ///   are not measuring the instrument. The board tour build carries no features and keeps it.
-/// - A dump reads other cores' rings racily (drain/steal events are recorded outside `SCHED`);
+/// - A dump reads other cores' rings racily (drain/steal events are recorded outside `IPC_TABLES`);
 ///   an entry is atomic, so the worst case is an event missing from the tail, never a torn one.
 ///
 /// The bench build gets a no-op twin of the same two-function surface (below), so the call sites
@@ -446,7 +446,7 @@ mod trace {
     static RINGS: [Ring; crate::cpu::MAX_CPUS] = [EMPTY_RING; crate::cpu::MAX_CPUS];
 
     /// Record an event on the calling core's ring. Every call site runs with interrupts masked
-    /// (under `SCHED` or in IRQ context), so the owning core cannot interleave with itself.
+    /// (under `IPC_TABLES` or in IRQ context), so the owning core cannot interleave with itself.
     #[inline]
     pub fn record(kind: Event, tid: u64, aux: u8) {
         let ring = &RINGS[crate::cpu::id()];
@@ -545,7 +545,7 @@ pub fn boot_stage() -> u32 {
     BOOT_STAGE.load(Ordering::Relaxed)
 }
 
-/// **A corruption tripwire over the scheduler's registries** (first-silicon diagnostics,
+/// **A corruption tripwire over `IpcTables`'s registries** (first-silicon diagnostics,
 /// 2026-08-15; module name provisional). Armed around the initrd demo on the board tour, it
 /// re-reads the watched ranges on the timer tick and prints every byte that changed since the
 /// last look: address, tick, before and after. A legal change (a spawn writing a fresh `TcbPtr`, a
@@ -565,7 +565,7 @@ pub fn boot_stage() -> u32 {
 ///   the demo window on the board tour.
 /// - Compiled out of `--features bench` builds exactly as the event rings are, so the tripwire
 ///   benchmarks never measure the instrument.
-/// - The watched memory is concurrently mutated under SCHED while the check reads it lock-free;
+/// - The watched memory is concurrently mutated under `IPC_TABLES` while the check reads it lock-free;
 ///   a torn read of an in-flight legal write can print as a divergence. That is a false alarm
 ///   only in the sense that the mutation was legal; the printed delta says so itself.
 /// - The instrument's own state (the watch table, the shadow) is serialized by
@@ -639,7 +639,7 @@ mod canary {
             assert!(off + len <= SHADOW_BYTES, "canary shadow too small");
             for i in 0..len {
                 // SAFETY: caller promises base..base+len readable; volatile because another
-                // core may be mid-write under SCHED (a torn snapshot only costs a printed delta).
+                // core may be mid-write under IPC_TABLES (a torn snapshot only costs a printed delta).
                 shadow[off + i] = unsafe { core::ptr::read_volatile((base + i) as *const u8) };
             }
             watches[n] = Watch {
@@ -709,7 +709,7 @@ mod canary {
         for w in watches.iter().take(*count) {
             for i in 0..w.len {
                 // SAFETY: the armed range is 'static kernel memory (arm's contract); volatile
-                // because SCHED-holding writers mutate it concurrently and honestly.
+                // because IPC_TABLES-holding writers mutate it concurrently and honestly.
                 let now = unsafe { core::ptr::read_volatile((w.base + i) as *const u8) };
                 let was = shadow[w.shadow_off + i];
                 if now != was {
@@ -742,13 +742,13 @@ mod canary {
     }
 }
 
-/// Arm the [`canary`] over the thread table and the endpoint registry, snapshotting under `SCHED`
+/// Arm the [`canary`] over the thread table and the endpoint registry, snapshotting under `IPC_TABLES`
 /// so the baseline is a consistent cut. The riscv initrd demo arms before parking in its recv and
 /// disarms when the recv returns; see notes/visionfive2.md (fifth stop) for what boot 11 does
 /// with the output.
 #[cfg_attr(target_arch = "aarch64", allow(dead_code))] // the riscv tour is the caller today
 pub fn canary_arm_registries() {
-    let mut guard = SCHED.lock();
+    let mut guard = IPC_TABLES.lock();
     let Some(sched) = guard.as_mut() else {
         return;
     };
@@ -776,7 +776,7 @@ pub fn canary_disarm() {
 /// that in**, which is why the boot thread needs no special case: a thread's context is written
 /// by the act of leaving it.
 pub fn init() {
-    let mut sched = SCHED.lock();
+    let mut sched = IPC_TABLES.lock();
 
     let mut threads = Threads::new();
     // The table names the boot thread at insert. The first name a fresh table mints is 0 by
@@ -790,7 +790,7 @@ pub fn init() {
         })
         .expect("a fresh table refused its first insert");
 
-    *sched = Some(Scheduler {
+    *sched = Some(IpcTables {
         threads,
         endpoints: slots::Table::new(),
         kernel_ep_region: None,
@@ -810,7 +810,7 @@ pub fn init() {
     // only when nothing else is runnable, so it never steals a turn from real work.
     let idle = Thread::spawn(|| run_idle()).expect("could not create the idle thread");
 
-    let mut sched = SCHED.lock();
+    let mut sched = IPC_TABLES.lock();
     let s = sched.as_mut().unwrap();
     let idle_id = s
         .threads
@@ -838,7 +838,7 @@ pub fn adopt_secondary_idle() {
     let idle = Thread::adopt_current();
 
     let id = {
-        let mut guard = SCHED.lock();
+        let mut guard = IPC_TABLES.lock();
         let sched = guard
             .as_mut()
             .expect("adopt_secondary_idle before sched::init");
@@ -879,7 +879,7 @@ pub fn drain_inbox() {
     while let Some(thread) = inbox.pop_front() {
         // SAFETY: the sender pushed a live Ready thread; popping it here is the only removal
         // path, so it is on no other queue. Nothing is dereferenced: the handoff is pure
-        // pointer movement, which is why this needs no scheduler lock.
+        // pointer movement, which is why this needs no `IPC_TABLES`.
         cpu::current().with_runq(|q| unsafe { q.push_back(thread) });
         moved += 1;
     }
@@ -897,12 +897,12 @@ pub fn drain_inbox() {
 }
 
 /// The raw TCB pointer of a live thread, for queueing (milestone 14 phase A.2). Caller holds
-/// `SCHED`.
+/// `IPC_TABLES`.
 ///
 /// The pointer's validity while queued is the queue discipline, stated once here: a thread on a
 /// run queue or inbox is `Ready`, a thread on an endpoint wait queue is `Blocked` (A.3), the
 /// reaper frees only `Finished` threads, and a thread is never two of those at once. The `Box` in
-/// the table pins the address (see `Scheduler::threads`), so a pointer taken here is good until
+/// the table pins the address (see `IpcTables::threads`), so a pointer taken here is good until
 /// the thread is popped, however many queue hops (inbox to run queue) it makes in between.
 /// The queue-able pointer to a live thread.
 ///
@@ -913,7 +913,7 @@ pub fn drain_inbox() {
 /// alerts were pointing at (milestone 45). What the type still cannot express is that the pointee
 /// outlives its time on the queue; that is the caller's rule 2, and no type available here can carry
 /// it for an intrusive structure.
-fn tcb_ptr(sched: &mut Scheduler, tid: Tid) -> core::ptr::NonNull<Thread> {
+fn tcb_ptr(sched: &mut IpcTables, tid: Tid) -> core::ptr::NonNull<Thread> {
     core::ptr::NonNull::from(
         sched
             .threads
@@ -922,11 +922,11 @@ fn tcb_ptr(sched: &mut Scheduler, tid: Tid) -> core::ptr::NonNull<Thread> {
     )
 }
 
-/// Put an already-created thread onto core `target`'s run queue. Caller holds `SCHED`.
+/// Put an already-created thread onto core `target`'s run queue. Caller holds `IPC_TABLES`.
 ///
-/// Local: straight onto our own queue (SCHED masks interrupts, which `with_runq` needs). Remote:
-/// into the target's inbox, and the SGI (sent after SCHED is released, by the caller) makes it
-/// drain. The inbox push under SCHED is rank-safe (INBOX < SCHED), and the inbox's own lock supplies
+/// Local: straight onto our own queue (`IPC_TABLES` masks interrupts, which `with_runq` needs). Remote:
+/// into the target's inbox, and the SGI (sent after `IPC_TABLES` is released, by the caller) makes it
+/// drain. The inbox push under `IPC_TABLES` is rank-safe (INBOX < `IPC_TABLES`), and the inbox's own lock supplies
 /// the release/acquire that orders our thread-table insert before the target's drain (§11).
 fn place_on(target: usize, thread: core::ptr::NonNull<Thread>) {
     // A REMOTE parked cpu's inbox is drained by nothing, so placing there is a thread nothing
@@ -977,7 +977,7 @@ pub fn spawn_on<F: FnOnce() + Send + 'static>(target: usize, f: F) -> Option<Tid
     let remote = target != cpu::id();
 
     let id = {
-        let mut guard = SCHED.lock();
+        let mut guard = IPC_TABLES.lock();
         let sched = guard.as_mut()?;
         // **The Thread is built on its own TCB page, not carried there** (milestone 124). The old
         // shape called `Thread::spawn(f)` for a value and moved it through this closure, and every
@@ -991,7 +991,7 @@ pub fn spawn_on<F: FnOnce() + Send + 'static>(target: usize, f: F) -> Option<Tid
         })?;
         place_on(target, tcb_ptr(sched, id));
         id
-    }; // SCHED released here, before the SGI, so the target's schedule() can take it
+    }; // IPC_TABLES released here, before the SGI, so the target's schedule() can take it
 
     if remote {
         // Poke the target: its handler drains the inbox we just pushed to and reschedules.
@@ -1161,7 +1161,7 @@ pub fn spawn_with_quota<F: FnOnce() + Send + 'static>(
     };
     thread.quota = Some(QuotaToken::new(budget)); // returned to `budget` when the thread is reaped
 
-    let mut guard = SCHED.lock();
+    let mut guard = IPC_TABLES.lock();
     let Some(sched) = guard.as_mut() else {
         return None; // no scheduler: `thread` drops here and its QuotaToken returns the slot
     };
@@ -1172,7 +1172,7 @@ pub fn spawn_with_quota<F: FnOnce() + Send + 'static>(
         thread
     })?;
     let ptr = tcb_ptr(sched, id);
-    // SAFETY: freshly inserted, Ready, on no queue; this core's queue, SCHED held, IRQs masked.
+    // SAFETY: freshly inserted, Ready, on no queue; this core's queue, IPC_TABLES held, IRQs masked.
     cpu::current().with_runq(|q| unsafe { q.push_back(ptr) });
     Some(id)
 }
@@ -1212,7 +1212,7 @@ pub fn fault(pc: u64, addr: u64) -> ! {
 /// only mark state and `schedule()`, exactly as `exit` always has.
 fn depart(event: u64, pc: u64, addr: u64) -> ! {
     {
-        let mut guard = SCHED.lock();
+        let mut guard = IPC_TABLES.lock();
         let sched = guard.as_mut().expect("depart before sched::init");
         let current = current_tid();
 
@@ -1244,7 +1244,7 @@ fn depart(event: u64, pc: u64, addr: u64) -> ! {
     unreachable!("a departed thread was scheduled again");
 }
 
-/// Deliver a corpse's five-word death message to its supervision endpoint. Caller holds `SCHED`
+/// Deliver a corpse's five-word death message to its supervision endpoint. Caller holds `IPC_TABLES`
 /// and has already marked the corpse `Dead` with `msg` in its mailbox.
 ///
 /// This is the ordinary synchronous-send rendezvous (`Endpoint::send`), reused: if a supervisor is
@@ -1255,7 +1255,7 @@ fn depart(event: u64, pc: u64, addr: u64) -> ! {
 /// `ipc_recv` recognises a `Dead` sender and leaves it dead after taking its message, the same way
 /// it leaves a `CALL` caller blocked. If the endpoint itself is gone (the supervisor was torn down
 /// first), the message is simply dropped, like an interrupt with no live endpoint.
-fn deliver_death(sched: &mut Scheduler, corpse: Tid, ep: EpId, msg: [u64; 5]) {
+fn deliver_death(sched: &mut IpcTables, corpse: Tid, ep: EpId, msg: [u64; 5]) {
     let me = tcb_ptr(sched, corpse);
     let Some(endpoint) = endpoint_of(sched, ep) else {
         return;
@@ -1333,11 +1333,11 @@ pub fn schedule() {
     // A labeled block, so every exit path leaves through the SAME point: the guard drops at the
     // block's end and interrupts are restored ONCE, AFTER it. The earlier version called
     // `interrupts::restore(was_enabled)` and `return` from *inside* this block, which re-enabled
-    // interrupts while still holding the scheduler lock: a one-instruction window in which a
+    // interrupts while still holding `IPC_TABLES`: a one-instruction window in which a
     // timer could fire, re-enter `schedule()`, and try to take a lock we already held. It was
     // intermittent and it was real; see the lock-rank violation it produced.
     let switch = 'decide: {
-        let mut guard = SCHED.lock();
+        let mut guard = IPC_TABLES.lock();
         let Some(sched) = guard.as_mut() else {
             break 'decide None;
         };
@@ -1470,7 +1470,7 @@ pub fn schedule() {
         //
         // SAFETY: `next_root` is `reserved_root()`, or the composed value of the `AddressSpace`
         // owned by thread `next`, which the block above popped off this core's run queue and marked
-        // `Running` with `on_cpu` set before releasing `SCHED`. No other core can pick it up in that
+        // `Running` with `on_cpu` set before releasing `IPC_TABLES`. No other core can pick it up in that
         // state and nothing reaps a thread that is on a CPU, so the root is still live here even
         // though the lock is not held. The lock is released on purpose (rule 1, above), which is
         // exactly why this obligation cannot be a borrow and has to be a sentence.
@@ -1510,7 +1510,7 @@ pub(crate) fn finish_switch() {
     if prev == cpu::NO_TID {
         return;
     }
-    let mut guard = SCHED.lock();
+    let mut guard = IPC_TABLES.lock();
     let Some(sched) = guard.as_mut() else {
         return;
     };
@@ -1526,9 +1526,9 @@ pub(crate) fn finish_switch() {
         SwitchOutVerdict::Reap => {
             // Hoist the address space out BEFORE the in-place drop, to be torn down after the lock
             // is released: its teardown is untyped::destroy (milestone 14 phase B.4), whose §13
-            // revocation sweep takes SCHED itself to delete stray Frame capabilities. Dropping it
+            // revocation sweep takes IPC_TABLES itself to delete stray Frame capabilities. Dropping it
             // here would deadlock on our own lock. The rest of the Thread (stack, quota) still
-            // drops under SCHED, exactly as before.
+            // drops under IPC_TABLES, exactly as before.
             let space = t.space.take();
             sched.threads.remove(prev);
             drop(guard);
@@ -1582,16 +1582,16 @@ pub fn irq_route(intid: u32) -> Option<EpId> {
 /// **An interrupt is not a rendezvous**: it must not wait for a receiver, and it must not be
 /// lost if the receiver is briefly busy.
 ///
-/// Safe to call from IRQ context: it takes the scheduler lock, which the interrupted code
+/// Safe to call from IRQ context: it takes `IPC_TABLES`, which the interrupted code
 /// cannot have been holding, because `IrqSafeMutex` masks interrupts for exactly as long as it
 /// is held. See DECISIONS §9.
 pub fn irq_notify(ep: EpId) {
     // A device-IRQ wake is LOAD-AWARE (DECISIONS §28.2), unlike a rendezvous wake, which stays
     // local. If the woken driver lands on a *remote* core, `wake_load_aware` returns that core so we
-    // can poke it after SCHED is released (the `place_on` discipline: push under the lock, SGI
+    // can poke it after IPC_TABLES is released (the `place_on` discipline: push under the lock, SGI
     // after). The SGI send from IRQ context is a plain controller write, safe here.
     let remote = {
-        let mut guard = SCHED.lock();
+        let mut guard = IPC_TABLES.lock();
         let sched = guard.as_mut().expect("no scheduler");
 
         // `signal` wakes a waiting receiver or counts the signal; it never blocks or joins a queue. A
@@ -1634,7 +1634,7 @@ enum EpFail {
 /// endpoint at its start, a fresh generational name in the registry. The shared engine of the
 /// `RETYPE_OBJ` syscall and the kernel's own [`create_endpoint`].
 fn try_create_endpoint_from(region: u64) -> Result<EpId, EpFail> {
-    let mut guard = SCHED.lock();
+    let mut guard = IPC_TABLES.lock();
     let sched = guard.as_mut().ok_or(EpFail::RegistryFull)?;
 
     // Checked BEFORE the retype, which is a fix and not just tidiness: this used to retype a page and
@@ -1645,7 +1645,7 @@ fn try_create_endpoint_from(region: u64) -> Result<EpId, EpFail> {
         return Err(EpFail::RegistryFull);
     }
 
-    // Rank: UNTYPED (58) under SCHED (60) is a legal descent; the pin rides in the same lock
+    // Rank: UNTYPED (58) under IPC_TABLES (60) is a legal descent; the pin rides in the same lock
     // hold as the carve, so no destroy can race the page away (see retype_object_page).
     let phys = crate::untyped::retype_object_page(region).ok_or(EpFail::RegionFull)?;
 
@@ -1680,7 +1680,7 @@ pub fn create_endpoint() -> EpId {
     loop {
         // Take, or lazily carve, the current chunk.
         let region = {
-            let mut guard = SCHED.lock();
+            let mut guard = IPC_TABLES.lock();
             let sched = guard.as_mut().expect("no scheduler");
             match sched.kernel_ep_region {
                 Some(r) => r,
@@ -1706,7 +1706,7 @@ pub fn create_endpoint() -> EpId {
             // what "forgotten deliberately" means in the field's doc comment: the pages stay pinned
             // and the endpoints already in them stay live.
             Err(EpFail::RegionFull) => {
-                let mut guard = SCHED.lock();
+                let mut guard = IPC_TABLES.lock();
                 let sched = guard.as_mut().expect("no scheduler");
                 // Only clear the handle we just failed on. Another core may already have replaced it.
                 if sched.kernel_ep_region == Some(region) {
@@ -1753,9 +1753,9 @@ fn pick_wake_target() -> usize {
 /// rendezvous partner on the waker's own core (message in registers, cache warm), an interrupt
 /// carries no such locality, and pinning the driver to the IRQ core re-concentrates the pipeline
 /// (the `std_net` lesson). So place it on [`pick_wake_target`]'s choice. Returns `Some(target)` when
-/// that is a *remote* core, so the caller sends the reschedule SGI after releasing SCHED; `None`
+/// that is a *remote* core, so the caller sends the reschedule SGI after releasing `IPC_TABLES`; `None`
 /// when it stayed local or the wake was parked. Caller holds the lock.
-fn wake_load_aware(sched: &mut Scheduler, tid: Tid) -> Option<usize> {
+fn wake_load_aware(sched: &mut IpcTables, tid: Tid) -> Option<usize> {
     let t = sched.threads.get_mut(tid)?;
     // The whole decision (not-blocked, the boot-8 undelivered-wake gate, the switch-out deferral)
     // is `wake_handshake::Handshake::try_wake`, the extracted protocol loom searches on the host
@@ -1783,13 +1783,13 @@ fn wake_load_aware(sched: &mut Scheduler, tid: Tid) -> Option<usize> {
             trace::record(trace::Event::Wake, tid, 0);
             let target = pick_wake_target();
             if target == cpu::id() {
-                // SAFETY: just Blocked -> Ready, on no queue; SCHED masks interrupts, which
+                // SAFETY: just Blocked -> Ready, on no queue; IPC_TABLES masks interrupts, which
                 // with_runq needs.
                 cpu::current().with_runq(|q| unsafe { q.push_back(ptr) });
                 None
             } else {
                 // Into the target's inbox (place_on keeps the inbox-len mirror under the inbox
-                // lock). The SGI that drains it goes out after SCHED drops, in irq_notify.
+                // lock). The SGI that drains it goes out after IPC_TABLES drops, in irq_notify.
                 place_on(target, ptr);
                 Some(target)
             }
@@ -1808,7 +1808,7 @@ fn wake_load_aware(sched: &mut Scheduler, tid: Tid) -> Option<usize> {
 /// **the wake-before-switch-out deferral** (a thread still on its CPU has a stale saved context,
 /// so the wake parks in `wake_pending` and its own core's `finish_switch` completes it once the
 /// context is provably saved; found by a 2-in-10 flake, notes/intrusive-queues.md).
-fn wake(sched: &mut Scheduler, tid: Tid) {
+fn wake(sched: &mut IpcTables, tid: Tid) {
     if let Some(t) = sched.threads.get_mut(tid) {
         match t.handshake.try_wake() {
             WakeVerdict::NotBlocked => {}
@@ -1830,7 +1830,7 @@ fn wake(sched: &mut Scheduler, tid: Tid) {
                 trace::record(trace::Event::Wake, tid, 0);
                 // Onto this core's queue: a rendezvous wake stays local on purpose (§28.2), the
                 // message is in registers and the cache is warm. Every caller (ipc_*, irq_notify)
-                // holds SCHED, so interrupts are masked.
+                // holds IPC_TABLES, so interrupts are masked.
                 // SAFETY: just transitioned Blocked -> Ready, so it was on no queue and now joins
                 // one.
                 cpu::current().with_runq(|q| unsafe { q.push_back(ptr) });
@@ -1866,7 +1866,7 @@ pub fn ipc_send(ep: EpId, msg: [u64; 3]) {
     crate::fastpath_pad::maybe_pad();
     let msg = wide(msg);
     let block = {
-        let mut guard = SCHED.lock();
+        let mut guard = IPC_TABLES.lock();
         let sched = guard.as_mut().expect("no scheduler");
         let current = current_tid();
 
@@ -1913,7 +1913,7 @@ pub fn ipc_send(ep: EpId, msg: [u64; 3]) {
 /// [`ipc_send`].
 pub fn ipc_recv(ep: EpId) -> [u64; 5] {
     let immediate = {
-        let mut guard = SCHED.lock();
+        let mut guard = IPC_TABLES.lock();
         let sched = guard.as_mut().expect("no scheduler");
         let current = current_tid();
 
@@ -1977,7 +1977,7 @@ pub fn ipc_recv(ep: EpId) -> [u64; 5] {
         Some(msg) => msg,
         None => {
             schedule(); // blocks; a sender fills our mailbox and wakes us
-            let guard = SCHED.lock();
+            let guard = IPC_TABLES.lock();
             let sched = guard.as_ref().expect("no scheduler");
             let t = sched.threads.get(current_tid()).unwrap();
             // The boot-8 gate makes an undelivered resume unreachable; this is its tripwire,
@@ -2010,7 +2010,7 @@ const NO_CAP: u64 = u64::MAX;
 /// capability (it holds `GRANT`) and that the rights only narrow.
 pub fn ipc_send_cap(ep: EpId, data: u64, cap: crate::cap::Cap) {
     let block = {
-        let mut guard = SCHED.lock();
+        let mut guard = IPC_TABLES.lock();
         let sched = guard.as_mut().expect("no scheduler");
         let current = current_tid();
 
@@ -2057,7 +2057,7 @@ pub fn ipc_send_cap(ep: EpId, data: u64, cap: crate::cap::Cap) {
 /// may arrive first, exactly as with the plain path.
 pub fn ipc_recv_cap(ep: EpId) -> [u64; 3] {
     let immediate = {
-        let mut guard = SCHED.lock();
+        let mut guard = IPC_TABLES.lock();
         let sched = guard.as_mut().expect("no scheduler");
         let current = current_tid();
 
@@ -2114,7 +2114,7 @@ pub fn ipc_recv_cap(ep: EpId) -> [u64; 3] {
         Some(msg) => msg,
         None => {
             schedule(); // a capability-carrying sender fills our mailbox and wakes us
-            let guard = SCHED.lock();
+            let guard = IPC_TABLES.lock();
             let sched = guard.as_ref().expect("no scheduler");
             let t = sched.threads.get(current_tid()).unwrap();
             debug_assert!(
@@ -2138,7 +2138,7 @@ pub fn ipc_recv_cap(ep: EpId) -> [u64; 3] {
 /// no-timeout limitation as a reply that never comes, and self-inflicted by the server.
 pub fn ipc_call(ep: EpId, msg: [u64; 2]) -> [u64; 3] {
     {
-        let mut guard = SCHED.lock();
+        let mut guard = IPC_TABLES.lock();
         let sched = guard.as_mut().expect("no scheduler");
         let current = current_tid();
         let reply = crate::cap::reply_cap(current);
@@ -2181,7 +2181,7 @@ pub fn ipc_call(ep: EpId, msg: [u64; 2]) -> [u64; 3] {
 
     schedule(); // returns once ipc_reply has filled our mailbox and woken us
 
-    let guard = SCHED.lock();
+    let guard = IPC_TABLES.lock();
     let sched = guard.as_ref().expect("no scheduler");
     let t = sched.threads.get(current_tid()).unwrap();
     debug_assert!(
@@ -2197,7 +2197,7 @@ pub fn ipc_call(ep: EpId, msg: [u64; 2]) -> [u64; 3] {
 /// The caller is blocked awaiting exactly this. If it is already gone (it cannot be, while blocked,
 /// but be defensive), the reply is simply dropped.
 pub fn ipc_reply(caller: Tid, msg: [u64; 2]) {
-    let mut guard = SCHED.lock();
+    let mut guard = IPC_TABLES.lock();
     let sched = guard.as_mut().expect("no scheduler");
     if let Some(t) = sched.threads.get_mut(caller) {
         // **Only a caller that awaits a reply is touched** (boot 8's observe-and-strand guard).
@@ -2221,7 +2221,7 @@ pub fn ipc_reply(caller: Tid, msg: [u64; 2]) {
 /// revocation: once a frame is being revoked, no holder may keep a capability that could re-map it.
 /// The caller's own cap is deleted too, which is intended: a revoke destroys all access to the page.
 pub fn delete_frame_caps(phys: u64) {
-    let mut guard = SCHED.lock();
+    let mut guard = IPC_TABLES.lock();
     let Some(sched) = guard.as_mut() else {
         return;
     };
@@ -2240,7 +2240,7 @@ pub fn delete_frame_caps(phys: u64) {
 /// between reclaiming a page and taking a device back to hand on; [`crate::revoke::
 /// revoke_device_from_others`] has the reasoning.
 pub fn delete_device_frame_caps_from_others(phys: u64) {
-    let mut guard = SCHED.lock();
+    let mut guard = IPC_TABLES.lock();
     let Some(sched) = guard.as_mut() else {
         return;
     };
@@ -2261,7 +2261,7 @@ pub fn delete_device_frame_caps_from_others(phys: u64) {
 /// Remove a capability from the **current thread's** table. Used to consume a one-shot Reply
 /// capability the instant it is invoked (§12), which is what makes a second reply impossible.
 pub fn delete_current_cap(slot: u64) -> Result<(), crate::cap::Error> {
-    let mut guard = SCHED.lock();
+    let mut guard = IPC_TABLES.lock();
     let sched = guard.as_mut().ok_or(crate::cap::Error::NoSuchSlot)?;
     let current = current_tid();
     sched
@@ -2278,7 +2278,7 @@ pub fn delete_current_cap(slot: u64) -> Result<(), crate::cap::Error> {
 /// indexes an array that lives in kernel memory and that userspace has never seen. An empty slot
 /// is `NoSuchSlot`, which is not "permission denied": **there is nothing there.**
 pub fn current_cap(slot: u64) -> Result<crate::cap::Cap, crate::cap::Error> {
-    let guard = SCHED.lock();
+    let guard = IPC_TABLES.lock();
     let sched = guard.as_ref().ok_or(crate::cap::Error::NoSuchSlot)?;
     sched
         .threads
@@ -2290,7 +2290,7 @@ pub fn current_cap(slot: u64) -> Result<crate::cap::Cap, crate::cap::Error> {
 
 /// Hand the current thread a capability. **The only way authority ever enters a process.**
 pub fn grant(cap: crate::cap::Cap) -> Result<u64, crate::cap::Error> {
-    let mut guard = SCHED.lock();
+    let mut guard = IPC_TABLES.lock();
     let sched = guard.as_mut().ok_or(crate::cap::Error::NoFreeSlot)?;
     let current = current_tid();
     sched
@@ -2311,7 +2311,7 @@ pub fn grant(cap: crate::cap::Cap) -> Result<u64, crate::cap::Error> {
 /// network). This is the same explicit-target move `Tcb::CAP_INSERT` already offers a userspace
 /// loader, available to the kernel's own service wiring.
 pub fn grant_at(slot: u64, cap: crate::cap::Cap) -> Result<u64, crate::cap::Error> {
-    let mut guard = SCHED.lock();
+    let mut guard = IPC_TABLES.lock();
     let sched = guard.as_mut().ok_or(crate::cap::Error::NoFreeSlot)?;
     let current = current_tid();
     sched
@@ -2328,7 +2328,7 @@ pub fn grant_at(slot: u64, cap: crate::cap::Cap) -> Result<u64, crate::cap::Erro
 /// budget or the table is full.
 pub fn create_tcb(region: u64) -> Option<Tid> {
     let page = crate::untyped::retype_object_page(region)?;
-    let mut guard = SCHED.lock();
+    let mut guard = IPC_TABLES.lock();
     let sched = guard.as_mut()?;
     let name = sched.threads.insert_from_page(page, |tid| {
         let mut t = Thread::embryo();
@@ -2359,8 +2359,8 @@ pub fn create_tcb(region: u64) -> Option<Tid> {
 /// can actually land on it. The long comment at the sweep says why, and notes/frames.md carries the
 /// boot it fixed.
 ///
-/// Takes `SCHED`, so it must run **outside** any teardown `Drop`: this is the caller-driven half of
-/// revocation, and `untyped::destroy` is the `SCHED`-free half (which is why the reaper's
+/// Takes `IPC_TABLES`, so it must run **outside** any teardown `Drop`: this is the caller-driven half of
+/// revocation, and `untyped::destroy` is the `IPC_TABLES`-free half (which is why the reaper's
 /// `Drop` -> `destroy` path cannot deadlock against it). See `untyped::unpin`.
 /// What the refuse phase of [`reap_region_objects`] decides about one resident thread.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2394,7 +2394,7 @@ fn region_reap_verdict(state: State, on_cpu: bool) -> RegionReap {
 }
 
 fn reap_region_objects(base: u64, end: u64) -> Result<(), ()> {
-    let mut guard = SCHED.lock();
+    let mut guard = IPC_TABLES.lock();
     let Some(sched) = guard.as_mut() else {
         return Err(());
     };
@@ -2482,7 +2482,7 @@ fn reap_region_objects(base: u64, end: u64) -> Result<(), ()> {
     // path was not, because it reasoned from `state`, and `Dead` genuinely does mean "never runs
     // again". **Never runs again is not the same as off its stack**, and the gap between them is a
     // real window: `depart` marks a supervised thread `Dead`, delivers its death message (waking
-    // the supervisor, possibly on another core), releases `SCHED`, and only *then* calls
+    // the supervisor, possibly on another core), releases `IPC_TABLES`, and only *then* calls
     // `schedule()`. A supervisor that reaps inside those few hundred instructions unmapped the
     // stack under the corpse, whose next store then walked the exception vector down to this
     // slot's base. Four CI runs over five days, always the same test, always the same slot, and
@@ -2503,8 +2503,8 @@ fn reap_region_objects(base: u64, end: u64) -> Result<(), ()> {
     // **The pin is not what makes dropping a resident's address space safe, and saying it was cost
     // us a double free.** This comment used to argue that the region stays pinned through the reap,
     // so a bound space dropping here is refused by `untyped::destroy`. That is true for a drop that
-    // happens *inside* this function, under `SCHED`. It is false for the one that matters: the
-    // reaper (`finish_switch`) hoists a dead thread's space out, releases `SCHED`, and drops it
+    // happens *inside* this function, under `IPC_TABLES`. It is false for the one that matters: the
+    // reaper (`finish_switch`) hoists a dead thread's space out, releases `IPC_TABLES`, and drops it
     // afterwards, by which time `reclaim_region` may already have unpinned. What makes it safe is
     // that a space built from a region it does not own never frees that region at all
     // (`user::Backing`), which is a property of the space rather than of the timing.
@@ -2571,8 +2571,8 @@ fn reap_region_objects(base: u64, end: u64) -> Result<(), ()> {
 /// every capability to the now-dead objects stale on next use, so there is no capability tree to
 /// walk and no copies to hunt (contrast seL4's CDT; DECISIONS records the choice).
 ///
-/// Must run outside any `Drop`, because the reap takes `SCHED` (see `reap_region_objects`); the
-/// `unpin` + `destroy` that follow are `SCHED`-free.
+/// Must run outside any `Drop`, because the reap takes `IPC_TABLES` (see `reap_region_objects`); the
+/// `unpin` + `destroy` that follow are `IPC_TABLES`-free.
 ///
 /// # BUGS
 ///
@@ -2591,7 +2591,7 @@ pub fn reclaim_region(region: u64) -> Result<(), ()> {
         return Err(());
     }
     let (base, size) = crate::untyped::region_bounds(region).ok_or(())?;
-    // Threads first (SCHED), then any unbound address spaces (the aspace registry lock). Two
+    // Threads first (IPC_TABLES), then any unbound address spaces (the aspace registry lock). Two
     // separate lock domains, sequenced, never nested: neither is held across the other. Bound
     // spaces need no step here, they died with their thread in the reap above.
     reap_region_objects(base, base + size)?;
@@ -2616,11 +2616,11 @@ pub fn reclaim_region(region: u64) -> Result<(), ()> {
 /// the builder, not the reaper: a supervisor frees a child's memory without ever being able to spend
 /// it, because it never holds a capability to it.
 ///
-/// Takes and releases `SCHED` before the reclaim, which takes it again: `reap_region_objects` must
+/// Takes and releases `IPC_TABLES` before the reclaim, which takes it again: `reap_region_objects` must
 /// run with the lock and cannot be called under it.
 pub fn reap_supervised(ep: EpId, tid: Tid) -> Result<(), abi::Error> {
     let region = {
-        let guard = SCHED.lock();
+        let guard = IPC_TABLES.lock();
         let sched = guard.as_ref().ok_or(abi::Error::NotSupervised)?;
         // A stale or recycled tid resolves to `None` here (generational names, `crates/slots`), so
         // it presents exactly as an unsupervised thread and cannot alias a fresh one.
@@ -2655,13 +2655,13 @@ pub fn reap_supervised(ep: EpId, tid: Tid) -> Result<(), abi::Error> {
 /// endpoint with `READ` is the whole of the claim (the rights check is the syscall layer's).
 ///
 /// **One entry per call, and the lock is given back between them.** A survey of a domain with a
-/// hundred children would otherwise hold `SCHED` for a hundred children's worth of work at a
+/// hundred children would otherwise hold `IPC_TABLES` for a hundred children's worth of work at a
 /// userspace program's discretion, which is a scheduler-latency hole a program could open on
 /// purpose. The cost is that the survey is a sequence of snapshots rather than one; see the `BUGS`
 /// section of notes/process-view.md, which states exactly what that does and does not promise.
 pub fn survey_supervised(ep: EpId, cursor: u64) -> Result<(u64, u64, u64), abi::Error> {
-    let guard = SCHED.lock();
-    // Before the scheduler exists there is no domain to report, which is "nothing here", not a
+    let guard = IPC_TABLES.lock();
+    // Before IPC_TABLES exists there is no domain to report, which is "nothing here", not a
     // refusal: the caller's authority was never in question.
     let Some(sched) = guard.as_ref() else {
         return Ok((abi::survey::DONE, 0, 0));
@@ -2704,12 +2704,12 @@ pub fn configure_tcb(
     user_sp: u64,
     aspace_name: u64,
 ) -> Result<(), abi::Error> {
-    // Take the space out of the registry FIRST (outside SCHED: it takes the aspace lock, ranked
-    // above SCHED). If the TCB then turns out not to be a configurable embryo, put nothing back
-    // is wrong, so check the embryo state first, under SCHED, and only take the space once the
+    // Take the space out of the registry FIRST (outside IPC_TABLES: it takes the aspace lock, ranked
+    // above IPC_TABLES). If the TCB then turns out not to be a configurable embryo, put nothing back
+    // is wrong, so check the embryo state first, under IPC_TABLES, and only take the space once the
     // bind will succeed.
     {
-        let guard = SCHED.lock();
+        let guard = IPC_TABLES.lock();
         let sched = guard.as_ref().ok_or(abi::Error::NoSuchSlot)?;
         let t = sched.threads.get(tid).ok_or(abi::Error::NoSuchSlot)?;
         if t.handshake.state != State::Embryo {
@@ -2718,7 +2718,7 @@ pub fn configure_tcb(
     }
     let space = crate::user::take_user_aspace(aspace_name).ok_or(abi::Error::NoSuchSlot)?;
 
-    let mut guard = SCHED.lock();
+    let mut guard = IPC_TABLES.lock();
     let sched = guard.as_mut().ok_or(abi::Error::NoSuchSlot)?;
     let Some(t) = sched.threads.get_mut(tid) else {
         // The TCB vanished between the checks (it cannot, without a teardown path, but be
@@ -2750,7 +2750,7 @@ pub fn tcb_insert_cap(
     cap: crate::cap::Cap,
     target: Option<u64>,
 ) -> Result<u64, abi::Error> {
-    let mut guard = SCHED.lock();
+    let mut guard = IPC_TABLES.lock();
     let sched = guard.as_mut().ok_or(abi::Error::NoSuchSlot)?;
     let t = sched.threads.get_mut(tid).ok_or(abi::Error::NoSuchSlot)?;
     if t.handshake.state != State::Embryo {
@@ -2770,7 +2770,7 @@ pub fn tcb_insert_cap(
 /// half-built thread must never run. On success the thread gets its kernel stack and entry
 /// context and joins this core's run queue.
 pub fn start_tcb(tid: Tid, args: [u64; 3]) -> Result<(), abi::Error> {
-    let mut guard = SCHED.lock();
+    let mut guard = IPC_TABLES.lock();
     let sched = guard.as_mut().ok_or(abi::Error::NoSuchSlot)?;
     let t = sched.threads.get_mut(tid).ok_or(abi::Error::NoSuchSlot)?;
 
@@ -2803,7 +2803,7 @@ pub fn start_tcb(tid: Tid, args: [u64; 3]) -> Result<(), abi::Error> {
     // user thread lands on the lighter of two sampled cores rather than always the starter's, so a
     // process that spawns a pipeline does not pile it all onto one core. `place_on` enqueues locally
     // or hands the thread to the target's inbox; the SGI that makes a remote target pick it up goes
-    // out after SCHED is released.
+    // out after IPC_TABLES is released.
     let target = pick_spawn_target();
     let ptr = tcb_ptr(sched, tid);
     place_on(target, ptr);
@@ -2822,7 +2822,7 @@ pub fn adopt_address_space(space: crate::user::AddressSpace) {
     let ttbr = space.ttbr0();
 
     {
-        let mut guard = SCHED.lock();
+        let mut guard = IPC_TABLES.lock();
         let sched = guard.as_mut().expect("no scheduler");
         let current = current_tid();
         sched
@@ -2846,7 +2846,7 @@ pub fn adopt_address_space(space: crate::user::AddressSpace) {
 /// vector table's `SAVE_CONTEXT` will rebuild it at when the user traps in, because `eret`
 /// leaves `SP_EL1` pointing just past it and the hardware does not consult our intentions.
 pub fn current_kernel_stack_top() -> Option<u64> {
-    let guard = SCHED.lock();
+    let guard = IPC_TABLES.lock();
     let sched = guard.as_ref()?;
     sched
         .threads
@@ -2869,7 +2869,7 @@ pub fn current() -> Tid {
 /// user address here; a zero means nothing wrote a frame where the trap path will look for one.
 #[cfg_attr(not(test), allow(dead_code))]
 pub fn user_pc_of(tid: Tid) -> Option<u64> {
-    let guard = SCHED.lock();
+    let guard = IPC_TABLES.lock();
     let sched = guard.as_ref()?;
     let t = sched.threads.get(tid)?;
     t.stack
@@ -2883,7 +2883,7 @@ pub fn user_pc_of(tid: Tid) -> Option<u64> {
 /// the name does not resolve or the thread is not a corpse.
 #[cfg_attr(not(test), allow(dead_code))]
 pub fn corpse_fault_msg(tid: Tid) -> Option<[u64; 5]> {
-    let guard = SCHED.lock();
+    let guard = IPC_TABLES.lock();
     let sched = guard.as_ref()?;
     let t = sched.threads.get(tid)?;
     (t.handshake.state == State::Dead)
@@ -2903,7 +2903,7 @@ pub fn corpse_fault_msg(tid: Tid) -> Option<[u64; 5]> {
 /// reused: `false` here means gone, not "gone or replaced".
 #[cfg_attr(not(test), allow(dead_code))]
 pub fn thread_present(tid: Tid) -> bool {
-    SCHED
+    IPC_TABLES
         .lock()
         .as_ref()
         .is_some_and(|s| s.threads.get(tid).is_some())
@@ -2934,7 +2934,7 @@ pub fn thread_present(tid: Tid) -> bool {
 /// needs it actually gone waits for [`thread_present`] to go false rather than assuming.
 #[cfg_attr(not(test), allow(dead_code))]
 pub fn kill_thread(tid: Tid) -> bool {
-    let mut guard = SCHED.lock();
+    let mut guard = IPC_TABLES.lock();
     let Some(sched) = guard.as_mut() else {
         return false;
     };
@@ -2948,7 +2948,7 @@ pub fn kill_thread(tid: Tid) -> bool {
 }
 
 pub fn thread_count() -> usize {
-    SCHED.lock().as_ref().map_or(0, |s| s.threads.len())
+    IPC_TABLES.lock().as_ref().map_or(0, |s| s.threads.len())
 }
 
 /// **Count the runnable threads that are not the caller and not an idle thread** (test support).
@@ -2961,7 +2961,7 @@ pub fn thread_count() -> usize {
 /// made the RedoxFS mount overrun the hang watchdog.
 #[cfg_attr(not(test), allow(dead_code))]
 pub fn runnable_non_idle_count(&exclude: &Tid) -> usize {
-    let mut guard = SCHED.lock();
+    let mut guard = IPC_TABLES.lock();
     let Some(sched) = guard.as_mut() else {
         return 0;
     };
@@ -2986,7 +2986,7 @@ pub fn runnable_non_idle_count(&exclude: &Tid) -> usize {
 
 /// Print every thread's scheduler state, for diagnosing a hang. A lost IPC wakeup leaves a thread
 /// `Blocked` forever with nothing to wake it; this shows which thread, and the `on_cpu`/`wake_pending`
-/// flags that would reveal a botched wake-before-switch-out handoff. Takes SCHED, which is free when
+/// flags that would reveal a botched wake-before-switch-out handoff. Takes `IPC_TABLES`, which is free when
 /// the hang is a blocked thread (not a lock deadlock). Used by the test watchdog.
 /// Feed every live thread's stack into the high-water accounting (milestone 84). Long-lived
 /// service threads (the FS server, the shape of the incident that motivated the measurement) are
@@ -2995,14 +2995,14 @@ pub fn runnable_non_idle_count(&exclude: &Tid) -> usize {
 /// deepening is at worst under-reported by this run (see `stack::high_water`).
 #[cfg(test)]
 pub fn scan_live_thread_stacks() {
-    let mut guard = SCHED.lock();
+    let mut guard = IPC_TABLES.lock();
     let Some(sched) = guard.as_mut() else {
         return;
     };
     for t in sched.threads.iter_mut() {
         if let Some(s) = t.stack.as_ref() {
             // SAFETY: a `KernelStack` this thread still owns, so its pages are mapped until its
-            // `Drop` runs, and `KernelStack::new` painted the whole span. `SCHED` is held, so the
+            // `Drop` runs, and `KernelStack::new` painted the whole span. `IPC_TABLES` is held, so the
             // thread cannot be reaped out from under the scan.
             let used = unsafe { crate::stack::high_water(s.bottom(), s.top()) };
             crate::stack::note_thread_stack_use(used);
@@ -3012,7 +3012,7 @@ pub fn scan_live_thread_stacks() {
 
 #[cfg_attr(not(test), allow(dead_code))]
 pub fn dump_threads() {
-    let mut guard = SCHED.lock();
+    let mut guard = IPC_TABLES.lock();
     let Some(sched) = guard.as_mut() else {
         crate::println!("  dump_threads: no scheduler");
         return;
@@ -3020,14 +3020,14 @@ pub fn dump_threads() {
     // What this dump can and cannot honestly claim (first-silicon audit, 2026-08-14):
     //
     //   - `state`/`on_cpu`/`wake_pending`/`wait`, and the endpoint counts, are a CONSISTENT
-    //     snapshot: every writer holds SCHED, which this dump holds.
+    //     snapshot: every writer holds IPC_TABLES, which this dump holds.
     //   - `pc` is the trap frame at the thread's stack top, which trap entry writes WITHOUT
-    //     SCHED. For an off-cpu thread it is trustworthy (the frame write happened-before the
+    //     IPC_TABLES. For an off-cpu thread it is trustworthy (the frame write happened-before the
     //     state write on that core, and our lock acquire synchronises with its release). For a
     //     thread on a cpu it is a racing read of live state, printed with a `*`.
     //   - the per-core lines read other cores' atomics relaxed. `current` is written under
-    //     SCHED, so it is quiescent while we hold the lock, except for a core mid-switch
-    //     (between its SCHED release and its finish_switch): such a core's `current` names the
+    //     IPC_TABLES, so it is quiescent while we hold the lock, except for a core mid-switch
+    //     (between its IPC_TABLES release and its finish_switch): such a core's `current` names the
     //     incoming thread while the outgoing one still runs for a few more instructions.
     //   - `ticks` is that core's timer-interrupt count. A core whose ticks FREEZE across dumps
     //     is not taking traps at all: wedged with interrupts masked, or stuck inside an SBI call
@@ -3065,7 +3065,7 @@ pub fn dump_threads() {
             if t.handshake.on_cpu { "*" } else { "" },
             root,
         );
-        // The wait reason, written by the same SCHED-held statement that wrote `Blocked`. A
+        // The wait reason, written by the same IPC_TABLES-held statement that wrote `Blocked`. A
         // `Blocked` thread with `wait=-` here is the smoking gun for a state byte written outside
         // the block paths (corruption, or a block applied to the wrong TCB): every legal block
         // records what it waits on. See notes/visionfive2.md, fourth bench stop.
@@ -3077,7 +3077,7 @@ pub fn dump_threads() {
     // Endpoint topology: which endpoint each blocked thread is queued on, so a deadlock shows as a
     // sender with no receiver. Diagnostic only.
     for (name, &phys) in sched.endpoints.iter() {
-        // SAFETY: a live endpoint page, direct-mapped, under SCHED.
+        // SAFETY: a live endpoint page, direct-mapped, under IPC_TABLES.
         let ep = unsafe { &*(crate::arch::mmu::phys_to_virt(phys) as *const Endpoint) };
         let (ns, nr, np) = ep.debug_counts();
         if ns != 0 || nr != 0 || np != 0 {
@@ -3130,7 +3130,7 @@ pub fn dump_threads() {
 /// nothing happened" instead of hanging when the code is right.
 #[cfg(test)]
 pub fn endpoint_waiting_senders(ep: EpId) -> usize {
-    let mut guard = SCHED.lock();
+    let mut guard = IPC_TABLES.lock();
     let Some(sched) = guard.as_mut() else {
         return 0;
     };
@@ -3149,7 +3149,7 @@ pub fn endpoint_waiting_senders(ep: EpId) -> usize {
 /// the wait has to be on the queue itself, which is what this reads.
 #[cfg(test)]
 pub fn endpoint_waiting_receivers(ep: EpId) -> usize {
-    let mut guard = SCHED.lock();
+    let mut guard = IPC_TABLES.lock();
     let Some(sched) = guard.as_mut() else {
         return 0;
     };
@@ -3161,7 +3161,7 @@ pub fn endpoint_waiting_receivers(ep: EpId) -> usize {
 
 /// **Test support: a wake with nothing delivered** (the boot-8 injector, 2026-08-14).
 ///
-/// Issues a bare `wake()` against `tid` under `SCHED`, through the same function every scheduler
+/// Issues a bare `wake()` against `tid` under `IPC_TABLES`, through the same function every scheduler
 /// wake site funnels into, with no message written, no signal counted, and no abort flagged: the
 /// transition the VisionFive 2's boot-8 event ring recorded against the boot thread (`wake:0x0`
 /// on a boot where no sender to its endpoint existed). This is deliberately not a hand-rolled
@@ -3169,7 +3169,7 @@ pub fn endpoint_waiting_receivers(ep: EpId) -> usize {
 /// wake is what this injects.
 #[cfg(test)]
 pub fn wake_without_delivery(tid: Tid) {
-    let mut guard = SCHED.lock();
+    let mut guard = IPC_TABLES.lock();
     if let Some(sched) = guard.as_mut() {
         wake(sched, tid);
     }
@@ -3212,7 +3212,7 @@ pub fn preempt_if_needed() {
 }
 
 pub fn is_running() -> bool {
-    SCHED.lock().is_some()
+    IPC_TABLES.lock().is_some()
 }
 
 #[cfg(test)]
@@ -4886,7 +4886,7 @@ mod tests {
         }
 
         // Every one still resolves, including the earliest, which is in a chunk we have since retired.
-        let mut guard = super::SCHED.lock();
+        let mut guard = super::IPC_TABLES.lock();
         let sched = guard.as_mut().expect("no scheduler");
         for (i, &ep) in names.iter().enumerate() {
             assert!(

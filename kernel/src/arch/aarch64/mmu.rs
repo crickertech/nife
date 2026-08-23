@@ -908,7 +908,7 @@ pub fn reserved_root() -> u64 {
 /// of the obligation is *liveness*, and a `Copy` newtype over a `u64` launders exactly that. An
 /// `AddressSpace` can be dropped and its frames recycled while a copy of its composed value lives
 /// on. A borrow would express it, and the scheduler cannot hold one: `sched::switch` reads the root
-/// out from under the `SCHED` lock *on purpose*, so that the lock is released before the context
+/// out from under the `IPC_TABLES` lock *on purpose*, so that the lock is released before the context
 /// switch, and a lifetime tied to the `AddressSpace` cannot survive that drop. So the obligation
 /// stays a sentence, and `unsafe fn` is what puts it in front of a caller.
 pub unsafe fn switch_user_root(ttbr: u64) {
@@ -927,7 +927,7 @@ pub unsafe fn switch_user_root(ttbr: u64) {
 /// allocate an intermediate table on the way down). On one core the callers never raced; on SMP two
 /// cores spawning threads both map into these tables at once, which would corrupt them. This lock
 /// makes `map_page`/`unmap_page` mutually exclusive. See `sync::rank::KERNEL_MMU` for its place in the
-/// order (below the scheduler, above the allocators it calls).
+/// order (below `IPC_TABLES`, above the allocators it calls).
 static KERNEL_MMU: crate::sync::IrqSafeMutex<()> =
     crate::sync::IrqSafeMutex::new(crate::sync::rank::KERNEL_MMU, ());
 

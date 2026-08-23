@@ -171,12 +171,12 @@ pub fn region_bounds(region: u64) -> Option<(u64, u64)> {
 }
 
 /// Clear a region's object pin, **after** its objects have been torn down. Object revocation
-/// (`sched::reclaim_region`): reap the objects with the scheduler lock, unpin, then [`destroy`].
+/// (`sched::reclaim_region`): reap the objects with `IPC_TABLES`, unpin, then [`destroy`].
 ///
 /// This is deliberately separate from [`destroy`], and the split is not cosmetic. Tearing down a TCB
-/// needs `SCHED`; [`destroy`] must never take `SCHED`, because it is reachable from
-/// `AddressSpace::Drop`, which already runs under the reaper's `SCHED` (see [`destroy`]'s note). So
-/// the `SCHED`-taking reap is one call, and the `SCHED`-free `unpin` + `destroy` are the next.
+/// needs `IPC_TABLES`; [`destroy`] must never take `IPC_TABLES`, because it is reachable from
+/// `AddressSpace::Drop`, which already runs under the reaper's `IPC_TABLES` (see [`destroy`]'s note). So
+/// the `IPC_TABLES`-taking reap is one call, and the `IPC_TABLES`-free `unpin` + `destroy` are the next.
 pub fn unpin(region: u64) {
     REGIONS.lock().unpin(region);
 }
@@ -198,7 +198,7 @@ pub fn unpin(region: u64) {
 /// mapped page in the region (revoke.rs, §13): each is unmapped from every address space that held
 /// it and every `Frame` capability to it is deleted. So "no live mapping survives" replaces
 /// "spend-only, never reused", and returning the pages to the allocator is safe. `REGIONS` is
-/// released before the revoke so revocation can take the scheduler lock (a higher rank) without
+/// released before the revoke so revocation can take `IPC_TABLES` (a higher rank) without
 /// inverting the order.
 ///
 /// # The claim, and why it is one call
@@ -215,7 +215,7 @@ pub fn unpin(region: u64) {
 pub fn destroy(region: u64) {
     // The guard is a temporary of this `let` statement, so `REGIONS` is released at the semicolon,
     // **before** the revoke below. That order is load-bearing rather than incidental: revocation
-    // takes the scheduler lock, a higher rank, and holding `REGIONS` across it would invert the
+    // takes `IPC_TABLES`, a higher rank, and holding `REGIONS` across it would invert the
     // order and trip the rank checker. The pre-#316 code said the same thing with an explicit
     // `drop`; the claim says it with a shorter borrow.
     let Some(claim) = REGIONS.lock().claim_for_destroy(region) else {
