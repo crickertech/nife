@@ -9,9 +9,50 @@ ordering and taken in the units that ordering uses, which is packages rather tha
 `ENUMERATE`-on-address-space extension is **yes** (DECISIONS §114), and `sysctl` is **declined**
 (DECISIONS §115), each subsystem's own service carrying its own tuning instead. What remains is
 real unbuilt work rather than anything waiting on calef: `top` on per-thread CPU accounting that
-does not exist; `pwdx` and `w` on a process display name this system has no design for. A lane can
-take `pmap` now, per §114's own caveat about auditing existing address-space delegation sites
-first.
+does not exist; `pwdx` and `w` on a process display name this system has no design for.
+
+## Built: `pmap`, 2026-08-23
+
+`pmap` works on both ISAs, over `abi::aspace::LIST`: **a new method on the address-space object,
+no new syscall number**, `Endpoint::SURVEY`'s shape one object type over (DECISIONS §114). Gated
+by `Rights::ENUMERATE`, pointedly not `WRITE`, which is what `MAP_INTO` takes; a capability holding
+`ENUMERATE` alone lists every mapping and is refused `MAP_INTO`, proved in both directions by
+`kernel::user::pmap_tests`. The listing reads the space's own revocation log (`kernel/src/revoke.rs`,
+already maintained for reclamation) rather than walking page tables for a member list, and turns
+each `va` into a permission (`abi::aspace::MAP_RO`/`MAP_RW`/`MAP_CODE`, reused rather than a second
+vocabulary invented) via `arch::mmu::translate_at`, present on both architectures already and
+previously reachable only from revocation's own tests.
+
+**The delegation audit §114 required, done rather than deferred.** Every site that mints an
+`Object::Aspace` capability was checked (`user/src/builder.rs`, `crates/supervision_proto`,
+`user/src/hello.rs`, `user/src/os_primitives_benchmarker.rs`, plus `kernel/src/bench.rs`'s
+benchmark harness): **none delegates one to a program other than its own builder.** Every path is
+retype -> map -> `Tcb::CONFIGURE` (which consumes the capability), all inside one thread. So there
+was nothing to narrow: the audit's answer is that the caveat's feared case (a delegated holder
+gaining ENUMERATE nobody assessed for it) does not exist in the shipped tree today, and the finding
+is recorded rather than assumed.
+
+**What building it actually found, and it is a larger gap than the fork's wording suggested.**
+`Tcb::CONFIGURE` does not just consume the caller's `Object::Aspace` capability, it removes the
+space's entry from the registry `abi::aspace::LIST` reads (`take_user_aspace`). So the instant a
+space is bound to a thread and starts running, **every capability that ever named it, including
+ones already sitting in a third party's cspace, reads as an empty listing rather than a live one.**
+Combined with the delegation audit's finding that nothing delegates an `Object::Aspace` capability
+at all, the practical result is that **there is no address space anywhere in this system today that
+a second program can be handed a live view of.** `pmap`'s kernel mechanism and program are real and
+proven end to end (`kernel::user::pmap_tests`, the same discipline `ps`'s `survey_tests` uses), but
+unlike `ps` there is no `Manifest` field and no `system_initializer` wiring to reach it from the
+shell, because there is nothing alive to wire: the shell's own address space was already consumed
+by init's `CONFIGURE` call before the shell ever typed a command. This is a real, load-bearing
+finding rather than an oversight in this lane's build; it is not this lane's decision to make, and
+it is recorded here and in `crates/pmap`'s and notes/process-view.md's `BUGS` for whoever takes it
+next. The shape a fix would need -- a builder handing a narrowed, still-registered view to a third
+party *before* `CONFIGURE` consumes its own copy -- is a spawn-protocol change, not a `pmap` change.
+
+**Still to build:** `top` (per-thread CPU accounting that does not exist), `pwdx` and `w` (a
+process display name this system does not have), the machine-wide statistics, `watch`, and the
+package-membership confirmation. `sysctl` is declined (DECISIONS §115) rather than blocked on
+effort.
 
 **What a lane could still take**: `watch` needs nothing (`line_editor` and the compositor exist),
 and the real `dpkg -L procps` file list is owed before anyone counts programs again.
@@ -77,10 +118,11 @@ pattern cannot be typed at this prompt, and the shipped `pgrep` names every memb
 deferred positional arity. Written up in notes/process-view.md, with the reason recorded where a
 reader meets the feature.
 
-**Still to build:** the rest of the view stratum (`top`, `pmap`, `pwdx`, `w`), the machine-wide
-statistics, `watch`, and `sysctl`'s package-coverage gap. The signalling stratum is no longer on
-this list; see the ruling below. `pmap`'s fork is **decided (DECISIONS §114)**, so it is a lane's
-to take; `top` on per-thread CPU accounting that does not exist; `pwdx` and `w` on a process
+**Still to build:** the rest of the view stratum (`top`, `pwdx`, `w`), the machine-wide statistics,
+`watch`, and `sysctl`'s package-coverage gap. The signalling stratum is no longer on this list; see
+the ruling below. `pmap` is **built, 2026-08-23** (DECISIONS §114; see above), though not reachable
+from the interactive shell -- a real finding that build turned up, not a caveat this block is
+glossing over; `top` on per-thread CPU accounting that does not exist; `pwdx` and `w` on a process
 display name this system does not have. `sysctl` itself is **declined (DECISIONS §115)** rather
 than blocked on effort. The package file list still wants a real `dpkg -L procps` before anyone
 counts programs; nothing built so far depended on it, and the next lane does.
@@ -218,6 +260,27 @@ is ordinary, and `line_editor` and the compositor already exist beneath it.
 
 ## BUGS
 
+- **`pmap` cannot be run from the interactive prompt against any real process, and this is a gap
+  in the address-space object's lifecycle rather than in `pmap`.** Every `Object::Aspace`
+  capability in this tree is minted and consumed within the thread that builds it
+  (`RETYPE_OBJ(ASPACE)` -> `MAP_INTO`* -> `Tcb::CONFIGURE`, which removes the space from the
+  registry the instant it binds to a thread), and the 2026-08-23 delegation audit DECISIONS §114
+  required found that nothing shipped here delegates one to a different program. So there is no
+  address space anywhere in the system, held by anyone other than its own builder, that a second
+  program could be handed a live view of; `ps`'s `Manifest::domain` has no analogue because there
+  is nothing alive to wire it to. The kernel method (`abi::aspace::LIST`, `Rights::ENUMERATE`) and
+  the program are real and proven end to end against a genuine `Object::Aspace`
+  (`kernel::user::pmap_tests`, `ps`'s `survey_tests` discipline exactly). Fixing this is a
+  spawn-protocol question -- a builder handing a narrowed, still-registered view to a third party
+  before `CONFIGURE` consumes its own copy -- not a `pmap` change, and it is named here for whoever
+  takes it next rather than decided by the lane that found it.
+- **`pmap` shows one row per mapped page with no VA-range coalescing or size column**, because
+  `abi::aspace::LIST` reads the space's revocation log, which records one entry per page and
+  nothing about adjacency. Upstream `pmap` coalesces contiguous same-permission pages into ranges;
+  doing that here would need an ordering guarantee the log does not make.
+- **`pmap` cannot tell a device mapping from ordinary read/write memory.** `kind` comes from
+  `paging::Flags`, which carries no "this is device memory" bit as far as the syscall handler can
+  see; a `DeviceFrame` mapping reads as `rw-`, indistinguishable from a heap page.
 - **`procps` ships without `sysctl` (DECISIONS §115), the same gap `pkill`'s absence already
   states.** A reader who expects to retune the kernel through one program, the way `apt install
   procps` provides on Linux, will not find one here. Each subsystem that grows a runtime tunable
