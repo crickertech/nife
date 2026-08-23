@@ -9,7 +9,7 @@
 //! # The exchange
 //!
 //! Not a `CALL`: a one-shot reply capability carries two words and nothing else (`abi::reply`), and
-//! a successful login has to hand back capabilities, which only `abi::endpoint::SEND_CAP` can do.
+//! a successful login has to hand back capabilities, which only `abi::rendezvous::SEND_CAP` can do.
 //! So this is two persistent endpoints and a fixed message order, the same shape
 //! `grant_plan::spawnproto` already uses for exactly this reason (a shell's spawn request that may
 //! carry a delegated budget):

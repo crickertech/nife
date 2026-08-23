@@ -1,8 +1,8 @@
 use core::sync::atomic::{AtomicUsize, Ordering};
 
 use super::*;
-use crate::cap::{Rights, endpoint_cap, frame_cap, untyped_cap};
-use crate::sched::EpId;
+use crate::cap::{Rights, frame_cap, rendezvous_cap, untyped_cap};
+use crate::sched::RendezvousId;
 
 /// The `swish` binary's pipeline role (`user/src/swish.rs`).
 const ROLE_PIPELINE: u64 = 3;
@@ -34,8 +34,8 @@ const SHELL_EXTRA_STACK: usize = 11;
 
 /// What the kernel holds of a scripted shell.
 pub struct Wiring {
-    /// The terminal endpoint the shell `CALL`s. The test serves it.
-    pub term: EpId,
+    /// The terminal rendezvous the shell `CALL`s. The test serves it.
+    pub term: RendezvousId,
     /// Where the shell's printed bytes land, so the test can read them out.
     pub out_phys: u64,
 }
@@ -94,9 +94,9 @@ const SH_CLOCK_VA: u64 = 0x0000_0000_00d0_0000;
 /// `date > report.txt` that is refused and one that writes a file is whether slot 4 is
 /// occupied. Neither behaviour is a branch in the program; both are facts about a cspace.
 ///
-/// `dir` is `(the narrowed directory endpoint, the physical frame it shares with the FS server)`,
+/// `dir` is `(the narrowed directory rendezvous, the physical frame it shares with the FS server)`,
 /// which is what `fs_service::narrow_dir` hands back.
-pub fn start_redirecting(dir: (EpId, u64), rights: u64) -> Option<Wiring> {
+pub fn start_redirecting(dir: (RendezvousId, u64), rights: u64) -> Option<Wiring> {
     start_with(ROLE_REDIRECT, rights, Some(dir), None)
 }
 
@@ -107,14 +107,19 @@ const ROLE_REDIRECT: u64 = 4;
 /// `FILE_VA_CLIENT`, and `user/src/swish.rs`'s `FS_VA`).
 const FS_VA: u64 = 0x0000_0000_0060_0000;
 
-fn start_with(role: u64, arg: u64, dir: Option<(EpId, u64)>, clock: Option<u64>) -> Option<Wiring> {
+fn start_with(
+    role: u64,
+    arg: u64,
+    dir: Option<(RendezvousId, u64)>,
+    clock: Option<u64>,
+) -> Option<Wiring> {
     let Some(image) = program("swish") else {
         crate::println!("start_with: no swish in the archive");
         return None;
     };
-    let term = crate::sched::create_endpoint();
-    let spawn_ep = crate::sched::create_endpoint();
-    let result = crate::sched::create_endpoint();
+    let term = crate::sched::create_rendezvous();
+    let spawn_ep = crate::sched::create_rendezvous();
+    let result = crate::sched::create_rendezvous();
     let Some(budget) = crate::untyped::create(SH_BUDGET_PAGES) else {
         crate::println!("start_with: untyped::create({SH_BUDGET_PAGES}) refused");
         return None;
@@ -204,13 +209,13 @@ fn start_with(role: u64, arg: u64, dir: Option<(EpId, u64)>, clock: Option<u64>)
         // Filled in the order the shell's own constants name, because a `Spawn` fills a cspace from
         // zero: slot 0 the terminal, 1 the spawn channel, 2 the result channel, 3 the budget, then
         // whichever of the directory and the clock this wiring has.
-        let mut grants = [endpoint_cap(term, Rights::WRITE); 6];
-        grants[1] = endpoint_cap(spawn_ep, Rights::WRITE);
-        grants[2] = endpoint_cap(result, Rights::READ);
+        let mut grants = [rendezvous_cap(term, Rights::WRITE); 6];
+        grants[1] = rendezvous_cap(spawn_ep, Rights::WRITE);
+        grants[2] = rendezvous_cap(result, Rights::READ);
         grants[3] = untyped_cap(budget);
         let mut g = 4;
         if let Some((dir_ep, _)) = dir {
-            grants[g] = endpoint_cap(dir_ep, Rights::WRITE);
+            grants[g] = rendezvous_cap(dir_ep, Rights::WRITE);
             g += 1;
         }
         // **The slot the clock landed in, handed over in `arg2`**, which is the same thing both
@@ -342,17 +347,17 @@ pub fn counts(said: &[u8]) -> (u64, u64, u64) {
 /// **init, as the shell sees it**: the spawn protocol, including milestone 50's two delegated
 /// capabilities.
 ///
-/// The whole of what the operators added is here, and it is small: receive an endpoint, and put
-/// it where the result endpoint would have gone. Nothing decides what is behind it, because
+/// The whole of what the operators added is here, and it is small: receive an rendezvous, and put
+/// it where the result rendezvous would have gone. Nothing decides what is behind it, because
 /// nothing here can find out.
 ///
 /// **What this fallback does not implement**: a directory grant (`Wiring::dir`, milestone 31 phase
-/// 3) and a screen-narrowed tail's completion endpoint (`Wiring::screen`, DECISIONS §106). Both
+/// 3) and a screen-narrowed tail's completion rendezvous (`Wiring::screen`, DECISIONS §106). Both
 /// need a capability this stub has nothing behind (a file service to attenuate, a fault target to
 /// install), so neither bit is drained off the wire here, and a line that set one would desync the
 /// two sides' shared count of delegated capabilities. No guest test routes either shape through
 /// this path today; both are exercised only against the real init, by `script/shell-check`.
-fn init_service(spawn_ep: EpId, result: EpId) -> ! {
+fn init_service(spawn_ep: RendezvousId, result: RendezvousId) -> ! {
     loop {
         let m = crate::sched::ipc_recv(spawn_ep);
         let (w0, w1, w2) = (m[0], m[1], m[2]);
@@ -363,12 +368,12 @@ fn init_service(spawn_ep: EpId, result: EpId) -> ! {
         // In the protocol's order. A capability received but never expected, or expected and
         // never sent, deadlocks both sides, which is why the order is the contract.
         let sink = if wiring.sink {
-            take_endpoint(spawn_ep)
+            take_rendezvous(spawn_ep)
         } else {
             None
         };
         let source = if wiring.source {
-            take_endpoint(spawn_ep)
+            take_rendezvous(spawn_ep)
         } else {
             None
         };
@@ -381,11 +386,11 @@ fn init_service(spawn_ep: EpId, result: EpId) -> ! {
         //
         // Receiving the capability is what keeps the two sides in lockstep, and closing the stream
         // is what stops the shell waiting for an end-of-stream from a program that was never handed
-        // the endpoint. The close goes on **its own thread**, and that is not tidiness: the shell
+        // the rendezvous. The close goes on **its own thread**, and that is not tidiness: the shell
         // drains diagnostics only after every stage of the line is spawned, so a blocking send here
         // would still be waiting when the shell sent the next stage's request, and both would stop.
         if wiring.diagnostics
-            && let Some(ep) = take_endpoint(spawn_ep)
+            && let Some(ep) = take_rendezvous(spawn_ep)
         {
             crate::sched::spawn(move || {
                 crate::sched::ipc_send(ep, [sink_proto::eof(), 0, 0]);
@@ -402,7 +407,7 @@ fn init_service(spawn_ep: EpId, result: EpId) -> ! {
         let image = prog.and_then(|p| program(p.name()));
         let started = match image {
             Some(image) => {
-                // Slot 0 is the output: the result endpoint, or the sink the shell delegated.
+                // Slot 0 is the output: the result rendezvous, or the sink the shell delegated.
                 // Slot 1 is the input source when there is one. That is the whole difference.
                 let out = sink.unwrap_or(result);
                 // **The argument goes in `arg1`, not `arg0`**, which is where both real inits put
@@ -419,8 +424,8 @@ fn init_service(spawn_ep: EpId, result: EpId) -> ! {
                             arg1: arg,
                             arg2: 0,
                             grants: &[
-                                endpoint_cap(out, Rights::WRITE),
-                                endpoint_cap(src, Rights::READ),
+                                rendezvous_cap(out, Rights::WRITE),
+                                rendezvous_cap(src, Rights::READ),
                             ],
                             maps: &[],
                         },
@@ -431,7 +436,7 @@ fn init_service(spawn_ep: EpId, result: EpId) -> ! {
                             arg0: 0,
                             arg1: arg,
                             arg2: 0,
-                            grants: &[endpoint_cap(out, Rights::WRITE)],
+                            grants: &[rendezvous_cap(out, Rights::WRITE)],
                             maps: &[],
                         },
                     ),
@@ -462,16 +467,16 @@ fn init_service(spawn_ep: EpId, result: EpId) -> ! {
     }
 }
 
-/// Take one delegated capability and read the endpoint out of it. The slot is dropped straight
-/// away: what init needs is the *name* of the endpoint, and holding the capability afterwards
+/// Take one delegated capability and read the rendezvous out of it. The slot is dropped straight
+/// away: what init needs is the *name* of the rendezvous, and holding the capability afterwards
 /// would fill a cspace over a long session for nothing.
-fn take_endpoint(ep: EpId) -> Option<EpId> {
+fn take_rendezvous(ep: RendezvousId) -> Option<RendezvousId> {
     let m = crate::sched::ipc_recv_cap(ep);
     let slot = m[1];
     let cap = crate::sched::current_cap(slot).ok()?;
     let _ = crate::sched::delete_current_cap(slot);
     match cap.object {
-        crate::cap::Object::Endpoint(id) => Some(id),
+        crate::cap::Object::Rendezvous(id) => Some(id),
         _ => None,
     }
 }

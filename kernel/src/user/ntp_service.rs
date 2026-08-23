@@ -1,6 +1,6 @@
 use super::*;
-use crate::cap::{Rights, endpoint_cap, untyped_cap};
-use crate::sched::EpId;
+use crate::cap::{Rights, rendezvous_cap, untyped_cap};
+use crate::sched::RendezvousId;
 
 /// The roles of the `ntp` binary. Must match user/src/ntp.rs.
 pub const ROLE_CLIENT: u64 = 0;
@@ -55,10 +55,10 @@ const STACK_PAGES: u64 = 3;
 /// it reports the first request it saw on.
 pub struct Server {
     /// The socket contract's endpoint. The server holds `READ`; a client is given `WRITE`.
-    pub stack: EpId,
+    pub stack: RendezvousId,
     /// **Drain this before waiting on the client.** The server reports once, with a blocking
     /// `send`, and the client's `RECV` is queued behind it.
-    pub report: EpId,
+    pub report: RendezvousId,
 }
 
 /// Extra stack for a spawned role, allocated and zeroed. Returned by value so the spawn closure
@@ -88,8 +88,8 @@ fn stack_pages() -> [Mapping; STACK_PAGES as usize] {
 /// clock capability of its own, which keeps every test's expectation an exact number rather
 /// than a window.
 pub fn start_server(image: &'static [u8], variant: u64, claimed_nanos: u64) -> Server {
-    let stack = crate::sched::create_endpoint();
-    let report = crate::sched::create_endpoint();
+    let stack = crate::sched::create_rendezvous();
+    let report = crate::sched::create_rendezvous();
     let budget = crate::untyped::create(BUDGET_PAGES).expect("no untyped for the ntp server");
     let maps = stack_pages();
 
@@ -101,9 +101,9 @@ pub fn start_server(image: &'static [u8], variant: u64, claimed_nanos: u64) -> S
                 arg1: variant,
                 arg2: claimed_nanos,
                 grants: &[
-                    endpoint_cap(report, Rights::WRITE), // slot 0: the one report
-                    endpoint_cap(stack, Rights::READ),   // slot 1: serve the socket contract
-                    untyped_cap(budget),                 // slot 2: map the client's frame
+                    rendezvous_cap(report, Rights::WRITE), // slot 0: the one report
+                    rendezvous_cap(stack, Rights::READ),   // slot 1: serve the socket contract
+                    untyped_cap(budget),                   // slot 2: map the client's frame
                 ],
                 maps: &maps,
             },
@@ -126,11 +126,11 @@ fn spawn_role(
     role: u64,
     a1: u64,
     a2: u64,
-    stack: EpId,
-    propose: EpId,
-    entropy: Option<EpId>,
-) -> EpId {
-    let report = crate::sched::create_endpoint();
+    stack: RendezvousId,
+    propose: RendezvousId,
+    entropy: Option<RendezvousId>,
+) -> RendezvousId {
+    let report = crate::sched::create_rendezvous();
     let budget = crate::untyped::create(BUDGET_PAGES).expect("no untyped for the ntp client");
     let maps = stack_pages();
     // Slot 4 is granted or it is not; there is no third state and no flag inside it. An
@@ -147,11 +147,11 @@ fn spawn_role(
                 arg1: a1,
                 arg2: a2,
                 grants: &[
-                    endpoint_cap(report, Rights::WRITE),  // slot 0: the verdict
-                    endpoint_cap(stack, Rights::WRITE),   // slot 1: the network
-                    untyped_cap(budget),                  // slot 2: the shared frame
-                    endpoint_cap(propose, Rights::WRITE), // slot 3: ask, never tell
-                    endpoint_cap(entropy, Rights::WRITE), // slot 4: the nonce
+                    rendezvous_cap(report, Rights::WRITE),  // slot 0: the verdict
+                    rendezvous_cap(stack, Rights::WRITE),   // slot 1: the network
+                    untyped_cap(budget),                    // slot 2: the shared frame
+                    rendezvous_cap(propose, Rights::WRITE), // slot 3: ask, never tell
+                    rendezvous_cap(entropy, Rights::WRITE), // slot 4: the nonce
                 ][..n_grants],
                 maps: &maps,
             },
@@ -166,12 +166,12 @@ fn spawn_role(
 /// `port`). Returns its report endpoint.
 pub fn start_client(
     image: &'static [u8],
-    stack: EpId,
-    propose: EpId,
-    entropy: Option<EpId>,
+    stack: RendezvousId,
+    propose: RendezvousId,
+    entropy: Option<RendezvousId>,
     ip: u32,
     port: u16,
-) -> EpId {
+) -> RendezvousId {
     spawn_role(
         image,
         ROLE_CLIENT,
@@ -186,10 +186,10 @@ pub fn start_client(
 /// Spawn the clock-page probe: the client's endowment, pointed at `va`.
 pub fn start_probe(
     image: &'static [u8],
-    stack: EpId,
-    propose: EpId,
-    entropy: Option<EpId>,
+    stack: RendezvousId,
+    propose: RendezvousId,
+    entropy: Option<RendezvousId>,
     va: u64,
-) -> EpId {
+) -> RendezvousId {
     spawn_role(image, ROLE_PROBE_CLOCK, va, 0, stack, propose, entropy)
 }

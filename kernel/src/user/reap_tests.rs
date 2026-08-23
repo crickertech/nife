@@ -15,9 +15,9 @@ const BUILDER_BUDGET_PAGES: u64 = 80;
 /// stack page, and its TCB. Sixteen is what `build_child` has always carved.
 const INSTANCE_PAGES: u64 = 16;
 
-/// Pages for the test's own endpoints, one per endpoint (`RETYPE_OBJ`'s one-object-per-page
+/// Pages for the test's own rendezvous points, one per rendezvous (`RETYPE_OBJ`'s one-object-per-page
 /// rule). Two is the most any one test here needs; four is slack.
-const ENDPOINT_PAGES: u64 = 4;
+const RENDEZVOUS_PAGES: u64 = 4;
 
 /// The slot half of a generational name (`crates/slots` packs generation in the high 32 bits,
 /// slot in the low 32). The recycled-tid test needs it to assert it is genuinely replaying a
@@ -25,40 +25,40 @@ const ENDPOINT_PAGES: u64 = 4;
 /// running.
 const SLOT_MASK: u64 = 0xffff_ffff;
 
-/// One test's world: a budget the *builder* owns, and a small region the test's endpoints are
-/// retyped from. The endpoints come out of a reclaimable region rather than `create_endpoint`'s
+/// One test's world: a budget the *builder* owns, and a small region the test's rendezvous points are
+/// retyped from. The rendezvous points come out of a reclaimable region rather than `create_rendezvous`'s
 /// shared kernel one so that `tidy` can give them back; six tests each leaking a couple of
-/// endpoints exhausted the kernel's endpoint budget for every test that ran afterwards, which is
+/// rendezvous points exhausted the kernel's rendezvous budget for every test that ran afterwards, which is
 /// the sort of failure a test should not be able to inflict on its neighbours.
 fn arena() -> (u64, u64) {
     let budget = crate::untyped::create(BUILDER_BUDGET_PAGES).expect("no builder budget");
-    let endpoints = crate::untyped::create(ENDPOINT_PAGES).expect("no endpoint region");
-    (budget, endpoints)
+    let rendezvous_region = crate::untyped::create(RENDEZVOUS_PAGES).expect("no rendezvous region");
+    (budget, rendezvous_region)
 }
 
-/// An endpoint out of the test's own region (one page each).
-fn endpoint(region: u64) -> sched::EpId {
-    sched::create_endpoint_from(region).expect("no endpoint")
+/// An rendezvous out of the test's own region (one page each).
+fn rendezvous(region: u64) -> sched::RendezvousId {
+    sched::create_rendezvous_from(region).expect("no rendezvous")
 }
 
-/// Hold a supervision endpoint the way a supervisor holds one: `READ` alone, the right to
+/// Hold a supervision rendezvous the way a supervisor holds one: `READ` alone, the right to
 /// receive deaths here. No `WRITE` (it is not a sender on its own children's death channel) and
 /// no `GRANT`.
-fn hold_endpoint(ep: sched::EpId) -> u64 {
-    sched::grant(crate::cap::endpoint_cap(ep, Rights::READ)).expect("grant the endpoint")
+fn hold_rendezvous(ep: sched::RendezvousId) -> u64 {
+    sched::grant(crate::cap::rendezvous_cap(ep, Rights::READ)).expect("grant the rendezvous")
 }
 
 /// `invoke(cap, REAP, tid, _, _)`, through the real dispatcher.
 fn reap(slot: u64, tid: u64) -> Result<i64, Error> {
     let mut frame = TrapFrame::for_user_entry(0, 0, [0, 0, 0]);
-    invoke(&mut frame, slot, abi::endpoint::REAP, tid, 0, 0)
+    invoke(&mut frame, slot, abi::rendezvous::REAP, tid, 0, 0)
 }
 
 /// **`reap`, retried while the corpse is still standing on its own kernel stack.**
 ///
 /// The refusal these tests race is transient and one context switch wide, and every test here is
 /// built to lose it. `depart` publishes a supervised thread `Dead` and parks it on its supervision
-/// endpoint *before* it reaches `switch_to`, so the instant a test sees the death message or the
+/// rendezvous *before* it reaches `switch_to`, so the instant a test sees the death message or the
 /// parked sender, the corpse is still executing. `reap_region_objects` refuses to unmap a stack a
 /// core is standing on, and answers `NotPermitted`.
 ///
@@ -84,7 +84,7 @@ fn reap_when_settled(slot: u64, tid: u64) -> Result<i64, Error> {
 /// a real supervisor would have read out of its registers.
 fn recv_death(slot: u64) -> [u64; 5] {
     let mut frame = TrapFrame::for_user_entry(0, 0, [0, 0, 0]);
-    let w0 = invoke(&mut frame, slot, abi::endpoint::RECV, 0, 0, 0).expect("RECV refused");
+    let w0 = invoke(&mut frame, slot, abi::rendezvous::RECV, 0, 0, 0).expect("RECV refused");
     [
         w0 as u64,
         frame.arg(1),
@@ -109,10 +109,10 @@ fn occupied_slots() -> usize {
 /// an address space) are driven through the real dispatcher and must answer `NoSuchSlot`: there
 /// is nothing there, which is what no-ambient-authority feels like, and it is a different fact
 /// from `NotPermitted` (something there, restricted). For every occupied slot, the capability
-/// must be an `Endpoint`, which cannot build by dispatch: the endpoint arm of `invoke` offers
+/// must be an `Rendezvous`, which cannot build by dispatch: the rendezvous arm of `invoke` offers
 /// send, receive, delegate, call, and reap, and no constructor at all. Untyped methods are *not*
 /// invoked on those slots, because method numbers are per-object-type and `RETYPE_OBJ`'s number
-/// is `SEND_CAP`'s on an endpoint.
+/// is `SEND_CAP`'s on an rendezvous.
 fn assert_can_only_supervise(expected: &[u64]) {
     let mut frame = TrapFrame::for_user_entry(0, 0, [0, 0, 0]);
     for slot in 0..abi::CSPACE_SLOTS {
@@ -134,8 +134,8 @@ fn assert_can_only_supervise(expected: &[u64]) {
                      confinement claim is only about a cspace it fully accounts for",
                 );
                 assert!(
-                    matches!(cap.object, Object::Endpoint(_)),
-                    "the supervisor holds a non-endpoint capability in slot {slot}",
+                    matches!(cap.object, Object::Rendezvous(_)),
+                    "the supervisor holds a non-rendezvous capability in slot {slot}",
                 );
             }
         }
@@ -143,32 +143,33 @@ fn assert_can_only_supervise(expected: &[u64]) {
 }
 
 /// Give everything back: the supervisor's capability slots, then the builder's budget (which
-/// reclaims any instance region still under it), then the endpoint region. In that order,
-/// because reclaiming the endpoints first would revoke the channels the corpses are still
+/// reclaims any instance region still under it), then the rendezvous region. In that order,
+/// because reclaiming the rendezvous points first would revoke the channels the corpses are still
 /// attached to.
-fn tidy(budget: u64, endpoints: u64, slots: &[u64]) {
+fn tidy(budget: u64, rendezvous_region: u64, slots: &[u64]) {
     for &s in slots {
         let _ = sched::delete_current_cap(s);
     }
     sched::reclaim_region(budget).expect("the builder's own budget did not come back");
-    sched::reclaim_region(endpoints).expect("the test's endpoint region did not come back");
+    sched::reclaim_region(rendezvous_region)
+        .expect("the test's rendezvous region did not come back");
 }
 
 /// **The headline: a supervisor that cannot build anything collects its dead child.**
 ///
-/// Its entire authority is one supervision endpoint with `READ`. It holds no untyped, no frame,
+/// Its entire authority is one supervision rendezvous with `READ`. It holds no untyped, no frame,
 /// no TCB, and no address space, and the audit proves that from the inside, on the two
-/// primitives that build a process. Then it reaps, through the endpoint, naming the tid the
+/// primitives that build a process. Then it reaps, through the rendezvous, naming the tid the
 /// kernel stamped on the death message it just received. Before §32 this required `WRITE` on the
 /// child's region, which is the same right that builds an arbitrary process out of it.
 #[test_case]
-fn a_supervisor_holding_only_its_endpoint_reaps_its_dead_child() {
-    let (budget, endpoints) = arena();
-    let fault_ep = endpoint(endpoints);
+fn a_supervisor_holding_only_its_rendezvous_reaps_its_dead_child() {
+    let (budget, rendezvous_region) = arena();
+    let fault_ep = rendezvous(rendezvous_region);
     let instance = crate::untyped::split(budget, INSTANCE_PAGES).expect("no instance region");
     let child = build_child_in(instance, FAULT_STUB, None, Some(fault_ep));
 
-    let cap = hold_endpoint(fault_ep);
+    let cap = hold_rendezvous(fault_ep);
     assert_can_only_supervise(&[cap]);
 
     let msg = recv_death(cap);
@@ -178,7 +179,7 @@ fn a_supervisor_holding_only_its_endpoint_reaps_its_dead_child() {
     assert_eq!(
         reap_when_settled(cap, msg[1]),
         Ok(0),
-        "a supervisor holding only its supervision endpoint could not collect its own corpse",
+        "a supervisor holding only its supervision rendezvous could not collect its own corpse",
     );
     assert_eq!(
         sched::corpse_fault_msg(child),
@@ -190,7 +191,7 @@ fn a_supervisor_holding_only_its_endpoint_reaps_its_dead_child() {
     assert_can_only_supervise(&[cap]);
     assert_eq!(reap(cap, child), Err(Error::NotSupervised));
 
-    tidy(budget, endpoints, &[cap]);
+    tidy(budget, rendezvous_region, &[cap]);
 }
 
 /// **The reclaimed region returns to the builder, not to the reaper** (§32's first consequence,
@@ -199,13 +200,13 @@ fn a_supervisor_holding_only_its_endpoint_reaps_its_dead_child() {
 /// The builder splits an instance region off its own budget, which bumps its watermark; the
 /// supervisor reaps; the watermark comes back down (§16's LIFO return-of-pages) and the builder
 /// can spend those pages again. The supervisor, meanwhile, occupies exactly the slots it did
-/// before and still holds nothing but an endpoint. A reap that had quietly credited the reaper
+/// before and still holds nothing but an rendezvous. A reap that had quietly credited the reaper
 /// would fail the first pair of assertions; one that had merely freed the corpse without
 /// returning the memory would fail the second.
 #[test_case]
 fn the_reaped_region_returns_to_the_builder_not_the_reaper() {
-    let (budget, endpoints) = arena();
-    let fault_ep = endpoint(endpoints);
+    let (budget, rendezvous_region) = arena();
+    let fault_ep = rendezvous(rendezvous_region);
     let (spent_before, _) = crate::untyped::usage(budget).expect("the budget exists");
 
     let instance = crate::untyped::split(budget, INSTANCE_PAGES).expect("no instance region");
@@ -216,7 +217,7 @@ fn the_reaped_region_returns_to_the_builder_not_the_reaper() {
     );
     let child = build_child_in(instance, FAULT_STUB, None, Some(fault_ep));
 
-    let cap = hold_endpoint(fault_ep);
+    let cap = hold_rendezvous(fault_ep);
     let msg = recv_death(cap);
     assert_eq!(msg[1], child);
     let slots_before = occupied_slots();
@@ -245,7 +246,7 @@ fn the_reaped_region_returns_to_the_builder_not_the_reaper() {
     );
     assert_can_only_supervise(&[cap]);
 
-    tidy(budget, endpoints, &[cap]);
+    tidy(budget, rendezvous_region, &[cap]);
 }
 
 /// **A live child is refused, with an error of its own.** Collecting a corpse is not killing.
@@ -253,17 +254,17 @@ fn the_reaped_region_returns_to_the_builder_not_the_reaper() {
 /// moment of the attempt, and the refusal is `StillAlive` rather than a generic `NotPermitted`:
 /// a restart policy needs "wait, or escalate to the owner's `DESTROY`" to be distinguishable
 /// from "there is no such child of mine". Then the child is let go, dies, and the *same* tid
-/// through the *same* endpoint succeeds, which is what proves the refusal was about liveness and
+/// through the *same* rendezvous succeeds, which is what proves the refusal was about liveness and
 /// not about authority.
 #[test_case]
 fn reap_refuses_a_live_child_with_a_distinct_error() {
-    let (budget, endpoints) = arena();
-    let report = endpoint(endpoints);
-    let fault_ep = endpoint(endpoints);
+    let (budget, rendezvous_region) = arena();
+    let report = rendezvous(rendezvous_region);
+    let fault_ep = rendezvous(rendezvous_region);
     let instance = crate::untyped::split(budget, INSTANCE_PAGES).expect("no instance region");
     let child = build_child_in(instance, REPORT_STUB, Some(report), Some(fault_ep));
 
-    let cap = hold_endpoint(fault_ep);
+    let cap = hold_rendezvous(fault_ep);
     assert_eq!(
         reap(cap, child),
         Err(Error::StillAlive),
@@ -271,7 +272,7 @@ fn reap_refuses_a_live_child_with_a_distinct_error() {
          corpse, never killing",
     );
 
-    // Let it finish. It SENDs, we receive, it exits, and its death arrives on the endpoint.
+    // Let it finish. It SENDs, we receive, it exits, and its death arrives on the rendezvous.
     assert_eq!(
         sched::ipc_recv(report)[0],
         REPORT_WORD,
@@ -283,37 +284,37 @@ fn reap_refuses_a_live_child_with_a_distinct_error() {
     assert_eq!(
         reap(cap, child),
         Ok(0),
-        "the same tid through the same endpoint failed once dead: the earlier refusal was not \
+        "the same tid through the same rendezvous failed once dead: the earlier refusal was not \
          about liveness after all",
     );
 
-    tidy(budget, endpoints, &[cap]);
+    tidy(budget, rendezvous_region, &[cap]);
 }
 
-/// **Another supervisor's child is refused, even to a holder of both endpoints.**
+/// **Another supervisor's child is refused, even to a holder of both rendezvous points.**
 ///
-/// The sharpest form of §32's authorization rule: one process holds two supervision endpoints,
-/// and learns a tid legitimately, through the endpoint that supervises it. Naming that tid on
-/// the *other* endpoint is refused, because authorization is the `(tid, endpoint)` relationship
+/// The sharpest form of §32's authorization rule: one process holds two supervision rendezvous points,
+/// and learns a tid legitimately, through the rendezvous that supervises it. Naming that tid on
+/// the *other* rendezvous is refused, because authorization is the `(tid, rendezvous)` relationship
 /// and not "am I a supervisor". So a tid is a name inside a relationship, never a global handle,
 /// which is what lets §26's kernel-stamped tid be reused for this with no new bookkeeping.
 #[test_case]
 fn reap_refuses_another_supervisors_child() {
-    let (budget, endpoints) = arena();
-    let mine = endpoint(endpoints);
-    let theirs = endpoint(endpoints);
+    let (budget, rendezvous_region) = arena();
+    let mine = rendezvous(rendezvous_region);
+    let theirs = rendezvous(rendezvous_region);
     let instance = crate::untyped::split(budget, INSTANCE_PAGES).expect("no instance region");
     let child = build_child_in(instance, FAULT_STUB, None, Some(theirs));
 
-    let cap_mine = hold_endpoint(mine);
-    let cap_theirs = hold_endpoint(theirs);
+    let cap_mine = hold_rendezvous(mine);
+    let cap_theirs = hold_rendezvous(theirs);
 
     let msg = recv_death(cap_theirs);
-    assert_eq!(msg[1], child, "the death arrived on the wrong endpoint");
+    assert_eq!(msg[1], child, "the death arrived on the wrong rendezvous");
     assert_eq!(
         reap(cap_mine, child),
         Err(Error::NotSupervised),
-        "a corpse was collected through an endpoint that does not supervise it",
+        "a corpse was collected through an rendezvous that does not supervise it",
     );
     assert!(
         sched::corpse_fault_msg(child).is_some(),
@@ -323,10 +324,10 @@ fn reap_refuses_another_supervisors_child() {
     assert_eq!(
         reap(cap_theirs, child),
         Ok(0),
-        "the supervising endpoint could not collect its own corpse",
+        "the supervising rendezvous could not collect its own corpse",
     );
 
-    tidy(budget, endpoints, &[cap_mine, cap_theirs]);
+    tidy(budget, rendezvous_region, &[cap_mine, cap_theirs]);
 }
 
 /// **A recycled tid is refused, not resolved to the thread now in that slot.**
@@ -340,10 +341,10 @@ fn reap_refuses_another_supervisors_child() {
 /// nothing.
 #[test_case]
 fn reap_refuses_a_recycled_tid_rather_than_the_wrong_thread() {
-    let (budget, endpoints) = arena();
-    let fault_ep = endpoint(endpoints);
-    let report = endpoint(endpoints);
-    let cap = hold_endpoint(fault_ep);
+    let (budget, rendezvous_region) = arena();
+    let fault_ep = rendezvous(rendezvous_region);
+    let report = rendezvous(rendezvous_region);
+    let cap = hold_rendezvous(fault_ep);
 
     let first_region = crate::untyped::split(budget, INSTANCE_PAGES).expect("no first region");
     let first = build_child_in(first_region, FAULT_STUB, None, Some(fault_ep));
@@ -382,57 +383,57 @@ fn reap_refuses_a_recycled_tid_rather_than_the_wrong_thread() {
     assert_eq!(msg[1], second);
     assert_eq!(reap_when_settled(cap, second), Ok(0));
 
-    tidy(budget, endpoints, &[cap]);
+    tidy(budget, rendezvous_region, &[cap]);
 }
 
-/// **Reaping a corpse whose death message was never collected leaves the endpoint clean.**
+/// **Reaping a corpse whose death message was never collected leaves the rendezvous clean.**
 ///
-/// A supervised thread that dies with nobody in `RECV` parks on its supervision endpoint's
+/// A supervised thread that dies with nobody in `RECV` parks on its supervision rendezvous's
 /// sender queue holding the message (§26 implementation note 2). Nothing requires a supervisor
 /// to collect that message before reaping: it can be told the tid by its builder, or simply
 /// choose not to read. So the reap has to unlink the corpse from that queue before freeing its
 /// TCB, or the supervisor's next `RECV` follows a pointer into a recycled page.
 ///
 /// This was reachable before §32 too, through `Untyped::DESTROY`; every existing caller happened
-/// to receive first, so it never fired. `endpoint::REAP` makes it easy to reach, which is how it
+/// to receive first, so it never fired. `rendezvous::REAP` makes it easy to reach, which is how it
 /// was found. `crates/ipc`'s `remove_sender` is the fix, and the second half of this test (a
-/// fresh child's death arriving normally on the same endpoint) is what proves the queue is
+/// fresh child's death arriving normally on the same rendezvous) is what proves the queue is
 /// genuinely intact rather than merely counted right.
 #[test_case]
-fn reaping_an_uncollected_corpse_leaves_no_ghost_on_the_endpoint() {
-    let (budget, endpoints) = arena();
-    let fault_ep = endpoint(endpoints);
+fn reaping_an_uncollected_corpse_leaves_no_ghost_on_the_rendezvous() {
+    let (budget, rendezvous_region) = arena();
+    let fault_ep = rendezvous(rendezvous_region);
     let instance = crate::untyped::split(budget, INSTANCE_PAGES).expect("no instance region");
     let child = build_child_in(instance, FAULT_STUB, None, Some(fault_ep));
-    let cap = hold_endpoint(fault_ep);
+    let cap = hold_rendezvous(fault_ep);
 
     // Nobody is receiving, so the corpse must park. Wait for it **on the clock**: 4000 yields was
     // the wait, and a yield count is not a duration. On the physical core under HVF (milestone 81)
     // this core spends 4000 yields in microseconds while the child's core has not run it yet, and
     // the assertion fails with "the corpse never parked" about a corpse that was on its way.
     assert!(
-        super::tests::wait_for(|| sched::endpoint_waiting_senders(fault_ep) == 1),
-        "the corpse never parked on its supervision endpoint",
+        super::tests::wait_for(|| sched::rendezvous_waiting_senders(fault_ep) == 1),
+        "the corpse never parked on its supervision rendezvous",
     );
 
     assert_eq!(reap_when_settled(cap, child), Ok(0), "the reap failed");
     assert_eq!(
-        sched::endpoint_waiting_senders(fault_ep),
+        sched::rendezvous_waiting_senders(fault_ep),
         0,
-        "a freed TCB is still linked into the supervision endpoint's sender queue: the next \
+        "a freed TCB is still linked into the supervision rendezvous's sender queue: the next \
          RECV would follow a dangling pointer into a recycled page",
     );
 
-    // The endpoint still works, which is the real assertion: a stale head or tail would show up
+    // The rendezvous still works, which is the real assertion: a stale head or tail would show up
     // here and not in the count above.
     let next_region = crate::untyped::split(budget, INSTANCE_PAGES).expect("no second region");
     let next = build_child_in(next_region, FAULT_STUB, None, Some(fault_ep));
     let msg = recv_death(cap);
     assert_eq!(
         msg[1], next,
-        "the endpoint delivered something other than the new child's death",
+        "the rendezvous delivered something other than the new child's death",
     );
     assert_eq!(reap_when_settled(cap, next), Ok(0));
 
-    tidy(budget, endpoints, &[cap]);
+    tidy(budget, rendezvous_region, &[cap]);
 }

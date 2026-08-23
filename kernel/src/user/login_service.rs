@@ -1,6 +1,6 @@
 use super::*;
-use crate::cap::{Rights, endpoint_cap, frame_cap, untyped_root_cap};
-use crate::sched::{self, EpId};
+use crate::cap::{Rights, frame_cap, rendezvous_cap, untyped_root_cap};
+use crate::sched::{self, RendezvousId};
 
 /// Where the service maps the current client's request. Must match `user/src/login.rs`.
 const LOGIN_VA: u64 = 0x0000_0000_00e2_0000;
@@ -50,11 +50,11 @@ pub const F_MARKER_WRITTEN: u64 = 1 << 3;
 /// A running login service and the endpoints that reach it.
 pub struct Wiring {
     /// A client's login request, `WRITE`.
-    pub request: EpId,
+    pub request: RendezvousId,
     /// The verdict and, on success, three delegated capabilities, `READ`.
-    pub result: EpId,
+    pub result: RendezvousId,
     /// One [`login_proto::ATTRIBUTED`] message per successful login, `READ`.
-    pub audit: EpId,
+    pub audit: RendezvousId,
 }
 
 /// **Wire and spawn the login service.** It parses the initrd for `fs_subtree_caretaker`'s own
@@ -75,9 +75,9 @@ pub struct Wiring {
 /// regardless of how many other instances exist or when they were wired.
 pub fn start(
     image: &'static [u8],
-    verify: EpId,
+    verify: RendezvousId,
     verify_frame: u64,
-    fs_ep: EpId,
+    fs_ep: RendezvousId,
     fs_frame: u64,
     construction_pages: u64,
 ) -> Wiring {
@@ -148,9 +148,9 @@ pub fn start(
 
     let aspace = readopt_user_aspace(space).expect("register the login aspace");
 
-    let request = sched::create_endpoint();
-    let result = sched::create_endpoint();
-    let audit = sched::create_endpoint();
+    let request = sched::create_rendezvous();
+    let result = sched::create_rendezvous();
+    let audit = sched::create_rendezvous();
     let construction = crate::untyped::create(construction_pages)
         .expect("no construction budget for the login service");
 
@@ -161,15 +161,15 @@ pub fn start(
     // CONSTRUCTION_UT, AUDIT. Each `assert_eq!` is that file's own doc read from the other side, the
     // same discipline `authority_tests::spawn_tree` uses for `root_supervisor`.
     let grants: [(&str, crate::cap::Cap); 7] = [
-        ("request", endpoint_cap(request, Rights::READ)),
+        ("request", rendezvous_cap(request, Rights::READ)),
         (
             "result",
-            endpoint_cap(result, Rights::WRITE.union(Rights::GRANT)),
+            rendezvous_cap(result, Rights::WRITE.union(Rights::GRANT)),
         ),
-        ("verify", endpoint_cap(verify, Rights::WRITE)),
+        ("verify", rendezvous_cap(verify, Rights::WRITE)),
         (
             "fs_ep",
-            endpoint_cap(fs_ep, Rights::WRITE.union(Rights::GRANT)),
+            rendezvous_cap(fs_ep, Rights::WRITE.union(Rights::GRANT)),
         ),
         (
             "fs_frame",
@@ -184,7 +184,7 @@ pub fn start(
             ),
         ),
         ("construction", untyped_root_cap(construction)),
-        ("audit", endpoint_cap(audit, Rights::WRITE)),
+        ("audit", rendezvous_cap(audit, Rights::WRITE)),
     ];
     for (i, (name, cap)) in grants.into_iter().enumerate() {
         let slot =
@@ -204,7 +204,7 @@ pub fn start(
 
 /// **Spawn a `login_test_client` role** against `w`, and return its report.
 pub fn client(image: &'static [u8], w: &Wiring, role: u64) -> [u64; 5] {
-    let report = sched::create_endpoint();
+    let report = sched::create_rendezvous();
     let phys = LOGIN_FRAME.load(core::sync::atomic::Ordering::Acquire);
     assert_ne!(phys, 0, "the login service was not wired before a client");
     let maps = [Mapping {
@@ -213,7 +213,7 @@ pub fn client(image: &'static [u8], w: &Wiring, role: u64) -> [u64; 5] {
         flags: Flags::user_data(),
     }];
     // Copied out of `w` rather than captured by reference: the spawned closure must be `'static`,
-    // and an `EpId` is a plain integer with nothing left to borrow once it is in hand.
+    // and an `RendezvousId` is a plain integer with nothing left to borrow once it is in hand.
     let (request, result) = (w.request, w.result);
     sched::spawn(move || {
         run(
@@ -223,9 +223,9 @@ pub fn client(image: &'static [u8], w: &Wiring, role: u64) -> [u64; 5] {
                 arg1: 0,
                 arg2: 0,
                 grants: &[
-                    endpoint_cap(request, Rights::WRITE),
-                    endpoint_cap(result, Rights::READ),
-                    endpoint_cap(report, Rights::WRITE),
+                    rendezvous_cap(request, Rights::WRITE),
+                    rendezvous_cap(result, Rights::READ),
+                    rendezvous_cap(report, Rights::WRITE),
                 ],
                 maps: &maps,
             },

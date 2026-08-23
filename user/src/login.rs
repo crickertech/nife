@@ -370,8 +370,8 @@ fn mint(own_ut: u64, care: &elf::Elf, identity: &[u8]) -> Option<(u64, u64)> {
     }
 
     let region = untyped_split(CONSTRUCTION_UT, CARETAKER_REGION_PAGES).ok()?;
-    let narrow_ep = retype_obj(region, abi::objtype::ENDPOINT).ok()?;
-    let ready = retype_obj(region, abi::objtype::ENDPOINT).ok()?;
+    let narrow_ep = retype_obj(region, abi::objtype::RENDEZVOUS).ok()?;
+    let ready = retype_obj(region, abi::objtype::RENDEZVOUS).ok()?;
 
     let (lo, hi) = fs_proto::grant::pack_name(identity);
     let spec = fs_proto::grant::spec(identity.len(), fs_proto::dir::ALL);
@@ -445,12 +445,12 @@ fn mint(own_ut: u64, care: &elf::Elf, identity: &[u8]) -> Option<(u64, u64)> {
 }
 
 /// Delegate our own copy of `slot`, narrowed to `rights`, over [`RESULT`]. `GRANT` must already be
-/// on our own copy for the kernel to allow this at all (`abi::endpoint::SEND_CAP`'s contract);
+/// on our own copy for the kernel to allow this at all (`abi::rendezvous::SEND_CAP`'s contract);
 /// every capability this process delegates was retyped or split by this process, so it always is.
 fn delegate(slot: u64, rights: u64) {
     // SAFETY: `svc`/`ecall`; the kernel checks WRITE on RESULT and GRANT on the delegated capability.
     unsafe {
-        invoke(RESULT, abi::endpoint::SEND_CAP, slot, rights, 0);
+        invoke(RESULT, abi::rendezvous::SEND_CAP, slot, rights, 0);
     }
 }
 

@@ -193,7 +193,7 @@ pub extern "C" fn _start(role: u64, neighbour_va: u64, _arg2: u64) -> ! {
     // --- The refusal that needs no attack: ask for something we hold no capability for. ---
     if role & ROLE_PROBE_INPUT != 0 {
         // SAFETY: `svc`/`ecall`. The slot is empty, so the kernel refuses; nothing happens.
-        let r = unsafe { invoke(INPUT, abi::endpoint::RECV, 0, 0, 0) };
+        let r = unsafe { invoke(INPUT, abi::rendezvous::RECV, 0, 0, 0) };
         send(REPORT, status::WIN_REFUSED, r as u64, WHAT_INPUT);
     }
 

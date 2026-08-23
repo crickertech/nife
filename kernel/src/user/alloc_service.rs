@@ -1,6 +1,6 @@
 use super::*;
-use crate::cap::{Rights, endpoint_cap, untyped_cap};
-use crate::sched::EpId;
+use crate::cap::{Rights, rendezvous_cap, untyped_cap};
+use crate::sched::RendezvousId;
 
 /// The demo caps its own heap at 64 pages; the budget must also cover the program's page
 /// tables and the heap's, so 96 pages is comfortable without being unbounded.
@@ -12,9 +12,9 @@ pub const BUDGET_PAGES: u64 = 96;
 /// 0x4ffff8, one word below the mapped page.
 const EXTRA_STACK_PAGES: u64 = 3;
 
-pub fn start(image: &'static [u8]) -> EpId {
+pub fn start(image: &'static [u8]) -> RendezvousId {
     let budget = crate::untyped::create(BUDGET_PAGES).expect("no untyped for allocator_exerciser");
-    let report = crate::sched::create_endpoint();
+    let report = crate::sched::create_rendezvous();
 
     let mut stack = [Mapping {
         va: 0,
@@ -41,8 +41,8 @@ pub fn start(image: &'static [u8]) -> EpId {
                 arg1: 0,
                 arg2: 0,
                 grants: &[
-                    untyped_cap(budget),                 // slot 0: the heap's budget
-                    endpoint_cap(report, Rights::WRITE), // slot 1: report the verdict
+                    untyped_cap(budget),                   // slot 0: the heap's budget
+                    rendezvous_cap(report, Rights::WRITE), // slot 1: report the verdict
                 ],
                 maps: &stack,
             },

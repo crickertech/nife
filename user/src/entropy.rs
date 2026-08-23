@@ -60,7 +60,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use abi::{endpoint, irq, virtio};
+use abi::{irq, rendezvous, virtio};
 use entropy_proto as proto;
 use user_rt::{exit, invoke, recv_cap, reply, send};
 
@@ -395,7 +395,7 @@ pub extern "C" fn _start(_arg0: u64, dma_phys: u64, _arg2: u64) -> ! {
 fn serve(mut pool: Pool) -> ! {
     loop {
         let (w0, cap, _) = recv_cap(REQ);
-        if cap == endpoint::NO_CAP {
+        if cap == rendezvous::NO_CAP {
             // A plain SEND on a CALL-only contract. Nobody is waiting for an answer, so there is
             // nothing to do and nothing to report; drop it rather than replying into a slot we do
             // not hold. (The clock service answers the same way for the same reason.)

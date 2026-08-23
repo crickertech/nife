@@ -1,8 +1,8 @@
 use compositor::SCENE;
 
 use super::*;
-use crate::cap::{Rights, endpoint_cap};
-use crate::sched::EpId;
+use crate::cap::{Rights, rendezvous_cap};
+use crate::sched::RendezvousId;
 
 // The compositor's address space. Must match user/src/compositor.rs.
 const SCREEN_VA: u64 = 0x0000_0000_0080_0000;
@@ -40,9 +40,9 @@ const SCREEN_FRAMES: u64 = gfx_proto::SURFACE_FRAMES as u64;
 pub struct Wiring {
     /// Where clients (and the input source) ring. The kernel holds WRITE so a test can play the
     /// input driver.
-    pub doorbell: EpId,
+    pub doorbell: RendezvousId,
     /// The compositor's report endpoint.
-    pub report: EpId,
+    pub report: RendezvousId,
     /// The screen's frames.
     pub screen: u64,
     /// The window-list page the compositor publishes.
@@ -54,9 +54,9 @@ pub struct Wiring {
     /// Each client's report endpoint. One per client, so the kernel knows who is speaking: the
     /// kernel is the spawner and may hold per-client channels, which is exactly the identity the
     /// compositor deliberately does not have.
-    pub client_report: [EpId; compositor::MAX_WINDOWS],
+    pub client_report: [RendezvousId; compositor::MAX_WINDOWS],
     /// Each focusable client's input endpoint (the compositor holds WRITE, the client READ).
-    pub input: [EpId; compositor::MAX_WINDOWS],
+    pub input: [RendezvousId; compositor::MAX_WINDOWS],
     pub n: usize,
     pub focusable: usize,
     image: &'static [u8],
@@ -74,7 +74,7 @@ pub struct Wiring {
 /// Returns once the compositor is spawned; the caller should wait for `status::COMP_UP` on
 /// [`Wiring::report`] before spawning clients, which is also the reason a client's first act is a
 /// content-free `HELLO`: either order works.
-pub fn start(n: usize, focusable: usize, display: EpId, screen: u64) -> Wiring {
+pub fn start(n: usize, focusable: usize, display: RendezvousId, screen: u64) -> Wiring {
     assert!(n <= SCENE.len() && n <= compositor::MAX_WINDOWS && focusable <= n);
     let image = program("compositor").expect("no compositor program in the initrd archive");
     let client_image = program("window").expect("no window program in the initrd archive");
@@ -83,8 +83,8 @@ pub fn start(n: usize, focusable: usize, display: EpId, screen: u64) -> Wiring {
 
     let wlist = zeroed_frame();
     let ring = zeroed_frame();
-    let doorbell = crate::sched::create_endpoint();
-    let report = crate::sched::create_endpoint();
+    let doorbell = crate::sched::create_rendezvous();
+    let report = crate::sched::create_rendezvous();
 
     // **One contiguous run for every client's frames.** Not a convenience: it is what makes the
     // neighbour attack real, because it puts a client's neighbour's pixels in the frame physically
@@ -116,10 +116,10 @@ pub fn start(n: usize, focusable: usize, display: EpId, screen: u64) -> Wiring {
     for i in 0..n {
         client[i] = at;
         at += per_client[i] * FRAME_SIZE;
-        client_report[i] = crate::sched::create_endpoint();
+        client_report[i] = crate::sched::create_rendezvous();
     }
     for ep in input.iter_mut().take(focusable) {
-        *ep = crate::sched::create_endpoint();
+        *ep = crate::sched::create_rendezvous();
     }
 
     // The compositor's world: the screen, the list it publishes, the ring it reads, and every
@@ -161,11 +161,11 @@ pub fn start(n: usize, focusable: usize, display: EpId, screen: u64) -> Wiring {
         }
     }
 
-    let mut grants = [endpoint_cap(report, Rights::WRITE); MAX_COMP_GRANTS];
-    grants[1] = endpoint_cap(display, Rights::WRITE);
-    grants[2] = endpoint_cap(doorbell, Rights::READ);
+    let mut grants = [rendezvous_cap(report, Rights::WRITE); MAX_COMP_GRANTS];
+    grants[1] = rendezvous_cap(display, Rights::WRITE);
+    grants[2] = rendezvous_cap(doorbell, Rights::READ);
     for i in 0..focusable {
-        grants[3 + i] = endpoint_cap(input[i], Rights::WRITE);
+        grants[3 + i] = rendezvous_cap(input[i], Rights::WRITE);
     }
     let ngrants = 3 + focusable;
 
@@ -246,10 +246,10 @@ impl Wiring {
             m += 1;
         }
 
-        let mut grants = [endpoint_cap(self.client_report[i], Rights::WRITE); 3];
-        grants[1] = endpoint_cap(self.doorbell, Rights::WRITE);
+        let mut grants = [rendezvous_cap(self.client_report[i], Rights::WRITE); 3];
+        grants[1] = rendezvous_cap(self.doorbell, Rights::WRITE);
         let ngrants = if i < self.focusable {
-            grants[2] = endpoint_cap(self.input[i], Rights::READ);
+            grants[2] = rendezvous_cap(self.input[i], Rights::READ);
             3
         } else {
             // **Two grants, and the emptiness of slot 2 is load-bearing**: this client cannot
@@ -439,9 +439,9 @@ impl Wiring {
         }
 
         let grants = [
-            endpoint_cap(self.client_report[i], Rights::WRITE),
-            endpoint_cap(self.doorbell, Rights::WRITE),
-            endpoint_cap(self.input[i], Rights::READ),
+            rendezvous_cap(self.client_report[i], Rights::WRITE),
+            rendezvous_cap(self.doorbell, Rights::WRITE),
+            rendezvous_cap(self.input[i], Rights::READ),
         ];
         let image = self.term_image;
         crate::sched::spawn(move || {
@@ -475,7 +475,7 @@ const T_CTL_VA: u64 = 0x0000_0000_0069_0000;
 /// an application's bytes out of, and the endpoint it serves.
 pub struct TermClient {
     pub out: u64,
-    pub ep: crate::sched::EpId,
+    pub ep: crate::sched::RendezvousId,
 }
 
 impl TermClient {

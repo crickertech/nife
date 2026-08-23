@@ -19,8 +19,8 @@
 //! the only page the kernel still places is the one `load` gives every process.
 
 use super::*;
-use crate::cap::{Rights, endpoint_cap, frame_cap, irq_cap, untyped_cap, virtio_cap};
-use crate::sched::EpId;
+use crate::cap::{Rights, frame_cap, irq_cap, rendezvous_cap, untyped_cap, virtio_cap};
+use crate::sched::RendezvousId;
 
 /// The DMA region, in frames: one for the rings and control buffers, then the surface.
 const DMA_FRAMES: u64 = 1 + gfx_proto::SURFACE_FRAMES as u64;
@@ -89,20 +89,26 @@ fn grant_run(first: u64, base: u64, count: u64, what: &str) {
 /// no client serves nobody, a client with no driver blocks on its first CALL), and the endpoint
 /// and the shared frames that join them are created here, in the one place that is allowed to
 /// know both halves.
-pub fn start(driver_image: &'static [u8], client_image: &'static [u8]) -> Option<(EpId, EpId)> {
+pub fn start(
+    driver_image: &'static [u8],
+    client_image: &'static [u8],
+) -> Option<(RendezvousId, RendezvousId)> {
     let (driver_report, display_ep, surface) = wire_driver(driver_image, 0, 0)?;
 
     // --- the client: an endpoint and the pixels. Nothing else, which is the point. ---
-    let client_report = crate::sched::create_endpoint();
+    let client_report = crate::sched::create_rendezvous();
     let budget = crate::untyped::create(MAP_BUDGET_PAGES).expect("no map budget for the client");
     crate::sched::spawn(move || {
         crate::sched::grant_at(
             CLIENT_SLOT_REPORT,
-            endpoint_cap(client_report, Rights::WRITE),
+            rendezvous_cap(client_report, Rights::WRITE),
         )
         .expect("client slot 0 was occupied");
-        crate::sched::grant_at(CLIENT_SLOT_DISPLAY, endpoint_cap(display_ep, Rights::WRITE))
-            .expect("client slot 1 was occupied");
+        crate::sched::grant_at(
+            CLIENT_SLOT_DISPLAY,
+            rendezvous_cap(display_ep, Rights::WRITE),
+        )
+        .expect("client slot 1 was occupied");
         crate::sched::grant_at(CLIENT_SLOT_BUDGET, untyped_cap(budget))
             .expect("client slot 2 was occupied");
         grant_run(
@@ -141,7 +147,7 @@ pub fn start(driver_image: &'static [u8], client_image: &'static [u8]) -> Option
 /// wrong (the shadow page is allocated right after it, and that frame IS in the domain). The frame
 /// is deliberately never freed: it is an escape target, and handing it back to the allocator while
 /// a device has been told to read it is the use-after-free-by-hardware notes/dma.md warns about.
-pub fn start_backing_escape(driver_image: &'static [u8]) -> Option<(EpId, u64)> {
+pub fn start_backing_escape(driver_image: &'static [u8]) -> Option<(RendezvousId, u64)> {
     let victim = crate::memory::alloc()
         .expect("no victim frame for the backing-escape test")
         .addr();
@@ -152,7 +158,11 @@ pub fn start_backing_escape(driver_image: &'static [u8]) -> Option<(EpId, u64)> 
 /// The shared half of both spawns: find the GPU, build the DMA region, route the interrupt,
 /// register the confined transport, and spawn `driver_image` at `role` with `arg2`. Returns
 /// `(report endpoint, display endpoint, the surface's physical base)`.
-fn wire_driver(driver_image: &'static [u8], role: u64, arg2: u64) -> Option<(EpId, EpId, u64)> {
+fn wire_driver(
+    driver_image: &'static [u8],
+    role: u64,
+    arg2: u64,
+) -> Option<(RendezvousId, RendezvousId, u64)> {
     let d = crate::pci::find_gpu_device()?;
 
     // The DMA region: contiguous, because the surface must be one run of physical frames for the
@@ -175,7 +185,7 @@ fn wire_driver(driver_image: &'static [u8], role: u64, arg2: u64) -> Option<(EpI
 
     // The device's interrupt, routed to an endpoint so the driver's WAIT receives it as a
     // message (milestone 9a).
-    let irq_ep = crate::sched::create_endpoint();
+    let irq_ep = crate::sched::create_rendezvous();
     crate::sched::bind_irq(d.intid, irq_ep);
     crate::arch::irq::enable(d.intid);
 
@@ -188,8 +198,8 @@ fn wire_driver(driver_image: &'static [u8], role: u64, arg2: u64) -> Option<(EpI
         Some(d.rid), // the PCIe requester id the IOMMU keys its tables on
     );
 
-    let display_ep = crate::sched::create_endpoint(); // client WRITE (CALL) -> driver READ
-    let driver_report = crate::sched::create_endpoint();
+    let display_ep = crate::sched::create_rendezvous(); // client WRITE (CALL) -> driver READ
+    let driver_report = crate::sched::create_rendezvous();
 
     // --- the driver: the confined transport, the interrupt, the whole DMA region, and the
     // display endpoint's serving half. The region is DMA_FRAMES separate `Frame` capabilities, one
@@ -199,7 +209,7 @@ fn wire_driver(driver_image: &'static [u8], role: u64, arg2: u64) -> Option<(EpI
     crate::sched::spawn(move || {
         crate::sched::grant_at(
             DRIVER_SLOT_REPORT,
-            endpoint_cap(driver_report, Rights::WRITE),
+            rendezvous_cap(driver_report, Rights::WRITE),
         )
         .expect("driver slot 0 was occupied");
         // The completion IRQ.
@@ -209,8 +219,11 @@ fn wire_driver(driver_image: &'static [u8], role: u64, arg2: u64) -> Option<(EpI
         crate::sched::grant_at(DRIVER_SLOT_VIRTIO, virtio_cap(vid))
             .expect("driver slot 2 was occupied");
         // Serve clients.
-        crate::sched::grant_at(DRIVER_SLOT_DISPLAY, endpoint_cap(display_ep, Rights::READ))
-            .expect("driver slot 3 was occupied");
+        crate::sched::grant_at(
+            DRIVER_SLOT_DISPLAY,
+            rendezvous_cap(display_ep, Rights::READ),
+        )
+        .expect("driver slot 3 was occupied");
         crate::sched::grant_at(DRIVER_SLOT_BUDGET, untyped_cap(budget))
             .expect("driver slot 4 was occupied");
         grant_run(DRIVER_SLOT_DMA, dma, DMA_FRAMES, "the display driver");
@@ -237,19 +250,19 @@ fn wire_driver(driver_image: &'static [u8], role: u64, arg2: u64) -> Option<(EpI
 /// contract promised it would, so what it needs from rung one is a display endpoint to CALL and the
 /// frames the device scans out. Nothing about the driver changes, which is the claim
 /// notes/framebuffer-contract.md made when it said routing was by endpoint.
-pub fn start_driver(driver_image: &'static [u8]) -> Option<(EpId, EpId, u64)> {
+pub fn start_driver(driver_image: &'static [u8]) -> Option<(RendezvousId, RendezvousId, u64)> {
     wire_driver(driver_image, 0, 0)
 }
 
 /// What the kernel keeps after wiring a display terminal onto the scanout.
 pub struct TerminalWiring {
     /// The display driver's status endpoint.
-    pub driver_report: EpId,
+    pub driver_report: RendezvousId,
     /// The terminal's status endpoint.
-    pub term_report: EpId,
+    pub term_report: RendezvousId,
     /// The endpoint the terminal serves. The kernel holds WRITE, so it can play **both** classes
     /// of sender: an application (`OP_WRITE`) and an input source (`OP_BYTES`).
-    pub term: EpId,
+    pub term: RendezvousId,
     /// The application's output page, so the kernel can put the bytes of an `OP_WRITE` there.
     pub out: u64,
     /// The scanout frames, so the kernel can read the picture back through the direct map and
@@ -300,18 +313,18 @@ pub fn start_terminal(
         core::ptr::write_bytes(mmu::phys_to_virt(out) as *mut u8, 0, FRAME_SIZE as usize);
     };
 
-    let term_report = crate::sched::create_endpoint();
-    let term = crate::sched::create_endpoint();
+    let term_report = crate::sched::create_rendezvous();
+    let term = crate::sched::create_rendezvous();
     let budget = crate::untyped::create(MAP_BUDGET_PAGES).expect("no map budget for the terminal");
 
     crate::sched::spawn(move || {
-        crate::sched::grant_at(TERM_SLOT_REPORT, endpoint_cap(term_report, Rights::WRITE))
+        crate::sched::grant_at(TERM_SLOT_REPORT, rendezvous_cap(term_report, Rights::WRITE))
             .expect("terminal slot 0 was occupied");
         // CALL the driver.
-        crate::sched::grant_at(TERM_SLOT_DISPLAY, endpoint_cap(display_ep, Rights::WRITE))
+        crate::sched::grant_at(TERM_SLOT_DISPLAY, rendezvous_cap(display_ep, Rights::WRITE))
             .expect("terminal slot 1 was occupied");
         // Serve the terminal.
-        crate::sched::grant_at(TERM_SLOT_TERM, endpoint_cap(term, Rights::READ))
+        crate::sched::grant_at(TERM_SLOT_TERM, rendezvous_cap(term, Rights::READ))
             .expect("terminal slot 2 was occupied");
         crate::sched::grant_at(TERM_SLOT_BUDGET, untyped_cap(budget))
             .expect("terminal slot 3 was occupied");

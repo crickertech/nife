@@ -19,7 +19,7 @@ const ROOT_BUDGET_PAGES: u64 = 1024;
 ///
 /// Deliberately the same endowment `spawn_init` gives (`INITRD_VA`, an untyped in slot 0, a report
 /// endpoint in slot 1) so what is being tested is `root_supervisor`'s *choices*, not a privileged shortcut.
-fn spawn_tree() -> sched::EpId {
+fn spawn_tree() -> sched::RendezvousId {
     let (initrd_start, initrd_len) = memory::initrd_region().expect("no initrd region");
     let initrd_pages = initrd_len.div_ceil(FRAME_SIZE);
     let bytes =
@@ -55,7 +55,7 @@ fn spawn_tree() -> sched::EpId {
     }
     let aspace = readopt_user_aspace(space).expect("register the root_supervisor aspace");
 
-    let report = sched::create_endpoint();
+    let report = sched::create_rendezvous();
     let budget = crate::untyped::create(ROOT_BUDGET_PAGES).expect("no budget for root_supervisor");
     let tcb_region = crate::untyped::create(2).expect("no tcb region");
     let tid = sched::create_tcb(tcb_region).expect("no tcb");
@@ -64,7 +64,7 @@ fn spawn_tree() -> sched::EpId {
     assert_eq!(s0, 0, "root_supervisor's budget must land in slot 0");
     let s1 = sched::tcb_insert_cap(
         tid,
-        crate::cap::endpoint_cap(
+        crate::cap::rendezvous_cap(
             report,
             crate::cap::Rights::WRITE.union(crate::cap::Rights::GRANT),
         ),
@@ -122,7 +122,7 @@ fn run_tree() -> [[u64; 5]; EXPECTED_REPORTS] {
         sched::yield_now();
     }
     assert_eq!(
-        sched::endpoint_waiting_senders(report),
+        sched::rendezvous_waiting_senders(report),
         0,
         "the tree made more than {EXPECTED_REPORTS} reports: something acted after the \
          sub-server finished",

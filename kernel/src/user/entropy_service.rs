@@ -1,6 +1,6 @@
 use super::*;
-use crate::cap::{Rights, endpoint_cap, irq_cap, virtio_cap};
-use crate::sched::EpId;
+use crate::cap::{Rights, irq_cap, rendezvous_cap, virtio_cap};
+use crate::sched::RendezvousId;
 
 /// Where the service maps its DMA page. Must match user/src/entropy.rs.
 const DMA_VA: u64 = 0x0000_0000_0090_0000;
@@ -22,10 +22,10 @@ pub enum Bus {
 pub struct Wiring {
     /// The service's readiness endpoint, and **only on the call that did the wiring**: the
     /// report is sent once and whoever asked first has taken it.
-    pub ready: Option<EpId>,
+    pub ready: Option<RendezvousId>,
     /// The request endpoint. **This is the capability a client is given**, with WRITE; the
     /// service holds READ. Nothing about it names the device.
-    pub request: EpId,
+    pub request: RendezvousId,
     /// Which bus this instance took its device from, so a failure names it.
     pub bus: Bus,
     /// True when the device sat behind an IOMMU, which on this machine means the PCIe wiring.
@@ -118,15 +118,15 @@ fn start(image: &'static [u8], bus: Bus) -> Option<Wiring> {
         );
     }
 
-    let irq_ep = crate::sched::create_endpoint();
+    let irq_ep = crate::sched::create_rendezvous();
     crate::sched::bind_irq(intid, irq_ep);
     crate::arch::irq::enable(intid);
 
     let confined_by_iommu = rid.is_some() && crate::iommu::active();
     let vid = crate::virtio::register(transport, dma, DMA_FRAMES * FRAME_SIZE, rid);
 
-    let ready = crate::sched::create_endpoint();
-    let request = crate::sched::create_endpoint();
+    let ready = crate::sched::create_rendezvous();
+    let request = crate::sched::create_rendezvous();
 
     let maps = [Mapping {
         va: DMA_VA,
@@ -141,10 +141,10 @@ fn start(image: &'static [u8], bus: Bus) -> Option<Wiring> {
                 arg1: dma, // the DMA region's PHYSICAL base: descriptors speak physical
                 arg2: 0,
                 grants: &[
-                    endpoint_cap(request, Rights::READ), // slot 0: RECV client requests
-                    irq_cap(intid),                      // slot 1: the completion interrupt
-                    virtio_cap(vid),                     // slot 2: the confined transport
-                    endpoint_cap(ready, Rights::WRITE),  // slot 3: signal readiness once
+                    rendezvous_cap(request, Rights::READ), // slot 0: RECV client requests
+                    irq_cap(intid),                        // slot 1: the completion interrupt
+                    virtio_cap(vid),                       // slot 2: the confined transport
+                    rendezvous_cap(ready, Rights::WRITE),  // slot 3: signal readiness once
                 ],
                 maps: &maps,
             },
