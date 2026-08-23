@@ -209,6 +209,38 @@ in the sections above, most of them months before this pass began. The one seque
 (riscv64 before aarch64, because the hardware already exists) is offered as a recommendation rather
 than a question, per AGENTS.md's own rule that a reversible fork gets a recommendation, not a lane.
 
+### One finding this pass missed, found by a later lane the same day: `ReplaceIfExists`
+
+**2026-08-22, a second scoping pass.** This block's BUGS-adjacent record in notes/smb.md read as an
+open, software-buildable item: `ReplaceIfExists = 0` is ignored on rename, and the note said "the
+fix is a `NOREPLACE` question in `fs_proto`". Checking it against §42
+(design/decisions/42-truthful-filesystem.md) found that §42 already decided **not** to offer
+`renameat2`'s `NOREPLACE`, on the stated ground that emulating it with link-then-unlink is racy and
+backend-specific. Read literally, notes/smb.md's own suggestion contradicted a decided
+architecture rule, which is worth recording as its own small finding: **a note can go stale exactly
+the way a roadmap block can**, and this one did.
+
+**The premise behind §42's refusal, checked against this backend rather than assumed**: it does not
+hold here. `fs_server::rename` (fs_server/src/lib.rs) already resolves the destination inside the
+same `fs.tx` that performs the move, and its own doc comment gives the reason no lock is needed:
+"the serve loop runs one request to completion before it receives the next, so inside this server
+there is no concurrent observer at all." §42's racy case is a POSIX host filesystem reached through
+separate `link` and `unlink` syscalls with another writer free to run between them; this server is
+neither. A `replace: bool` read at that existing check point is a few lines, not a redesign, and
+the wire has room already: `fs::rename_dst`'s second word packs a 16-bit handle and a 40-bit length
+into 64 bits, leaving bits 63:56 unclaimed for a flag, so the change costs no growth in an
+already-shipped word.
+
+**Not built, on purpose.** This is a wire-format change on `fs_proto::fs::RENAME`, a verb every SMB
+client, the std PAL and `fs_server` already agree on, and it revisits a section calef decided. Per
+AGENTS.md's own rule ("anything two programs agree on" is the expensive, deliberate-first
+category), that is his call, not a lane's, however cheap the change measures. notes/smb.md's BUGS
+entry carries the corrected writeup with the citations above. **What is blocked on the decision**:
+whether §42 should be narrowed to say the `NOREPLACE` refusal was about backend portability rather
+than about this backend specifically, and whether `fs_proto::fs::RENAME` should grow the flag. What
+is not blocked: nothing else in this milestone depends on the answer, so this is a small, isolated
+item rather than something holding up Steps A through C.
+
 ## The reference implementation is known, and calef supplied its exact configuration
 
 **calef's router is a GL.iNet GL-BE9300 (Flint 3) running OpenWrt, serving three family Time Machine

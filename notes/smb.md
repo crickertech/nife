@@ -521,11 +521,25 @@ wiring rather than `smb-serve`, and the account would be the published fixture i
 - **`ReplaceIfExists = 0` is ignored: a rename always replaces.** `FileRenameInformation`'s first
   byte says whether the client will accept clobbering the destination, and this server does not
   read it, because `fs_proto::fs::RENAME` replaces an existing name of the same kind and offers no
-  way to say no (its own doc refuses `renameat2`'s `NOREPLACE` on §42 grounds: emulating it with
-  link-then-unlink is racy and it is not portable). So a client that asked for a rename to fail on
-  a collision gets a silent overwrite. That is the wrong direction to fail in and it is the one
-  thing in this area worth fixing next; the fix is a `NOREPLACE` question in `fs_proto`, not
-  something this layer can answer.
+  way to say no. So a client that asked for a rename to fail on a collision gets a silent
+  overwrite, which is the wrong direction to fail in.
+
+  **Corrected 2026-08-22: not a fix this layer can answer, and not simply "add `NOREPLACE` to
+  `fs_proto`" either.** §42 (design/decisions/42-truthful-filesystem.md) already decided not to
+  offer `renameat2`'s `NOREPLACE`, and its stated reason is that emulating it with link-then-unlink
+  is racy and backend-specific. That reason does not describe this backend. `fs_server::rename`
+  (fs_server/src/lib.rs) already looks up the destination inside the same `fs.tx` that performs
+  the move, and its own doc comment states why that check needs no lock: "the serve loop runs one
+  request to completion before it receives the next, so inside this server there is no concurrent
+  observer at all." A `replace: bool` read there costs one branch before `tx.rename_node`, in a
+  server that already resolves the destination on every call to decide `EISDIR`/`ENOTDIR`. The wire
+  side is free too: `fs::rename_dst`'s second word packs a 16-bit handle and a 40-bit length into a
+  64-bit word (`fs_proto::fs::rename_dst`), leaving bits 63:56 unclaimed, so a `NOREPLACE` bit costs
+  no wire growth. §42's racy-emulation concern is real for a POSIX host filesystem reached over
+  `link`/`unlink`; it is not a description of a from-scratch, single-request-at-a-time server
+  transacting against its own B-tree. This is a wire-format change on a verb two programs already
+  agree on (`fs_proto::fs::RENAME`), so it needs a decision that amends or narrows §42, which is
+  calef's call and not a lane's; see design/roadmap/55-time-machine.md for the writeup.
 
 - **The demo boot still admits guests, so the thing a person actually runs is still open to
   everyone who can reach the port.** `--features smb_serve` wires `SHARE_FS_READ_WRITE`, not
