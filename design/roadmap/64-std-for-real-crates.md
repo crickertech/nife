@@ -16,8 +16,9 @@ carried a version of it too:
   the process. Fixed here.
 - **`TcpListener` is a binding, not a decision.** Rank 21 was a contract gap when it was written and
   stopped being one at milestone 107; `sys/net/connection/nife.rs`'s own doc comment has said so
-  since, in the words *"small and mechanical"*. It is the largest piece of ordinary work left in
-  this milestone and nothing about it needs calef.
+  since, in the words *"small and mechanical"*. It was the largest piece of ordinary work left in
+  this milestone and needed no decision from calef; it is bound now (below, "The fourth pass:
+  `TcpListener`", PR #341, 2026-08-18).
 
 The block's own sequencing still holds: run the measurement phase first and independently, pick the
 probe crates, build them, and let the failures name the work. The `File::open` resolution question is
@@ -90,19 +91,24 @@ two programs agree on) and is recorded in notes/std.md rather than guessed at he
 `std::os::unix` fallthrough, wants a **uid** and a **file mtime set** that this system does not have
 in the form the crates ask for, and answering would be a Unix fiction over a capability refusal.
 Rank 3, `thread::spawn`, is this block's own scheduling question, **now decided (§105): declined for
-now**, for want of a customer (see BUGS), and has **no build failures behind it**. Rank 19, `Metadata::modified`, is one field in `FSTAT`'s reply away and
-that makes it a wire-format change. **Rank 21, `TcpListener`, is the exception to this whole
-paragraph and is the next lane's work**: it was a contract gap when the list was written and stopped
-being one at milestone 107, so what is left is a PAL binding (`bind` -> `OP_LISTEN` on a socket id
-this PAL allocates, `accept` -> `OP_ACCEPT` into a second id with a frame attached) plus a listen
-grant on the stack the program is spawned with. `sys/net/connection/nife.rs` calls it *"small and
-mechanical"* in its own doc comment and notes/net.md's "The inbound half" says what it takes. It is
-also on the customer path: milestone 55 wants Samba-shaped code, and nothing that serves a share
-accepts no connections. Everything else that resolves a path waits on the `File::open`
-fork below, and the third pass drew the line at exactly that edge: **fix the ones that abort, leave
-the ones that refuse.** `current_dir`, `current_exe`, `chdir` and `home_dir` can each say no in their
-own signature and still do; `temp_dir` and `split_paths` could not, so they were answered from §27's
-existing decision (`.` is the granted directory, `one_name`'s own words) rather than from a new one.
+now**, for want of a customer (see BUGS), and has **no build failures behind it**. Rank 19,
+`Metadata::modified`, is one field in `FSTAT`'s reply away and that makes it a wire-format change; it
+wants a `DECISIONS` section and calef, same as rank 2. **Rank 28, `File::set_times`, is the same
+shape as rank 19** and was never triaged by name in an earlier pass: setting an mtime needs a verb
+the FS server does not have any more than reading one does, so it is a second wire-format row behind
+the same decision rather than a second decision. **Rank 21, `TcpListener`, is closed** (below, "The
+fourth pass: `TcpListener`"): it was a contract gap when the list was written and stopped being one
+at milestone 107, and what was left was a PAL binding (`bind` -> `OP_LISTEN` on a socket id this PAL
+allocates, `accept` -> `OP_ACCEPT` into a second id with a frame attached) plus a listen grant on the
+stack the program is spawned with, which this milestone's fourth pass bound. `sys/net/connection/nife.rs`
+called it *"small and mechanical"* in its own doc comment and notes/net.md's "The inbound half" said
+what it took. It was also on the customer path: milestone 55 wants Samba-shaped code, and nothing
+that serves a share accepts no connections. Everything else that resolves a path waits on the
+`File::open` fork, now milestone 154's tier two, and the third pass drew the line at exactly that
+edge: **fix the ones that abort, leave the ones that refuse.** `current_dir`, `current_exe`, `chdir`
+and `home_dir` can each say no in their own signature and still do; `temp_dir` and `split_paths`
+could not, so they were answered from §27's existing decision (`.` is the granted directory,
+`one_name`'s own words) rather than from a new one.
 
 The sting the measurement found is the one worth carrying forward: **a green build is not evidence.**
 `tempfile` compiles, links, and returns "operation not supported" at run time. Raised 2026-08-01,
@@ -252,6 +258,18 @@ and "a server runs".
   every `env::var` a crate reads is `None`. `chrono`'s `TZ` and `clap`'s colour detection both take
   that path, which is fine and is not the same as working.
 
+- **A fifth check of the ranked list (2026-08-22) found no genuinely buildable row.** After §105
+  closed rank 3 and PR #341 closed rank 21, every remaining row is either already closed, already
+  declined with a recorded reason (ranks 7, 10, 14, 15, 20, 23, 29, 30), a documented contract
+  property rather than a gap (`set_nonblocking`, read/write timeouts and `lookup_host` all say so in
+  `sys/net/connection/nife.rs`'s own doc comment), part of the `File::open` fork now held by
+  milestone 154, or a wire-format change wanting a `DECISIONS` section (rank 2, rank 19, and now
+  rank 28, `File::set_times`, named alongside rank 19 for the first time here). This pass's only
+  change was correcting the two stale mentions of rank 21 as still open and naming rank 28. Do not
+  read that as the list being exhausted the way the third pass wrongly said it was: a `panic!` or a
+  trap instruction hiding behind a green build would look exactly like this too, and only reading
+  the PAL's neighbouring functions (the third and fourth passes' method) or building a new gate would
+  find one.
 - **The sweep is a gate now** (`cargo xtask std-aborts`, fourth pass), and it is honest about its
   boundary. It covers `library/std/src/sys/**` only, because `sys` is the platform layer and a panic
   above it (`path.rs`, `thread/scoped.rs`) is a caller's bug that behaves identically on Linux; a

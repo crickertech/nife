@@ -406,7 +406,7 @@ least one call site.
 | 25 | `fs::rename` | `Unsupported` | 2 | 2 | **verb exists** (`RENAME`); undercounted, see BUGS |
 | 26 | `fs::copy` | **CLOSED** 2026-08-17 | 2 | 2 | needs no verb: an open, a read/write loop, two closes |
 | 27 | `fs::canonicalize` | `Unsupported` | 2 | 1 | |
-| 28 | `File::set_times` | `Unsupported` | 2 | 1 | |
+| 28 | `File::set_times` | `Unsupported` | 2 | 1 | same shape as rank 19: no verb sets an mtime, wire-format, wants a decision |
 | 29 | `File::try_clone` | `Unsupported` | 2 | 1 | a handle is one session's token (§27) |
 | 30 | `File::lock`/`try_lock` | `Unsupported` | 2 | 1 | `gix-tempfile` |
 | 31 | read/write timeouts | `Unsupported` | 1 | 1 | |
@@ -459,6 +459,11 @@ not change when it arrives.
   §43 gave us a clock to read it against, so the only missing piece is a **field in `FSTAT`'s
   reply**, which makes it a wire-format change, the expensive and irreversible kind, and not a
   lane's to make. It wants a `DECISIONS` section and calef.
+- **Rank 28, `File::set_times`, is the same shape as rank 19 and was never named as a decision by an
+  earlier pass** (found on milestone 64's next lane, 2026-08-22, while checking the list for anything
+  still genuinely buildable). Setting an mtime needs a verb no less than reading one does; there is
+  no `SET_TIME` (or equivalent) in `fs_proto`'s verb table today. It is a second wire-format row
+  behind the same open decision, not a second question.
 - **Ranks 16, 18 and 27** (`env::temp_dir`, `env::current_dir`, `fs::canonicalize`) and everything
   else that needs to resolve a path against something. These are the `File::open` resolution fork,
   which the roadmap block reserves to be answered jointly with milestone 47's namespace half rather
