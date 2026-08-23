@@ -7,6 +7,14 @@ use crate::sched::EpId;
 const CLOCK_PAGE_STD: u64 = 0x1200_0000;
 const CLOCK_SLOT: u64 = 5;
 
+/// Where the loader maps the inert-configuration page for a std program (milestone 47's
+/// environment-variable fork, DECISIONS §111). Must match the std PAL's `rt::CONFIG_PAGE`, and
+/// the slot must match its `rt::CONFIG_SLOT`. Clear of the clock page above and of the FS
+/// contract's shared page (`fs_service::FS_CLIENT_PAGE_VA`, `0x0060_0000`, which this spawn does
+/// not use).
+const CONFIG_PAGE_STD: u64 = 0x1300_0000;
+const CONFIG_SLOT: u64 = 7;
+
 /// The entropy service's request endpoint (milestone 56). Must match the std PAL's
 /// `rt::ENTROPY_SLOT`. **An endpoint, and no mapping**: unlike the clock, whose read authority
 /// IS a page, randomness is obtained by asking, so the whole grant is one endpoint that names
@@ -75,18 +83,54 @@ pub fn start_on(
     let clock = clock_service::start(clock_image);
     let _ = crate::sched::ipc_recv(clock.report);
 
-    // The clock page read-only, then the deep stack std needs.
+    // **The inert-configuration page** (milestone 47's environment-variable fork, DECISIONS
+    // §111). Unlike the clock, nothing here runs a service: the page is assembled once, into a
+    // frame nothing else can see, and only mapped read-only afterward, so there is no seqlock
+    // and no readiness handshake to wait on (see `env_proto`'s own docs for why). The values are
+    // the conservative universal defaults ("no clock service configured this program's locale
+    // or terminal, so tell it the least assuming thing"), the same posture `date` takes when no
+    // clock service is running: an honest baseline rather than a guess. There is no shell here
+    // yet to hold a *different* default and pass it explicitly (the "inheritance with
+    // visibility" shape the roadmap names); that arrives with whatever program first declares it
+    // wants this page through `grant_plan::Manifest`, which none does today.
+    let config_bytes = env_proto::PageBuilder::new()
+        .tz("UTC")
+        .expect("UTC is not a recognized env_proto::domain::KNOWN_TZ member")
+        .lang("C")
+        .expect("C is not a recognized env_proto::domain::KNOWN_LANG member")
+        .term("dumb")
+        .expect("dumb is not a recognized env_proto::domain::KNOWN_TERM member")
+        .build();
+    let config_phys = crate::memory::alloc()
+        .expect("no frame for the std program's config page")
+        .addr();
+    // SAFETY: fresh frame via the direct map; write the assembled page and zero the remainder of
+    // the frame past `PAGE_BYTES`, so nothing left behind by a previous occupant of this physical
+    // page is visible through the reserved tail (`ConfigPage` only ever reads the first
+    // `PAGE_BYTES`, but a frame's contents are otherwise unspecified until written).
+    unsafe {
+        let dst = mmu::phys_to_virt(config_phys) as *mut u8;
+        core::ptr::write_bytes(dst, 0, FRAME_SIZE as usize);
+        core::ptr::copy_nonoverlapping(config_bytes.as_ptr(), dst, config_bytes.len());
+    }
+
+    // The clock page and the config page read-only, then the deep stack std needs.
     let mut maps = [Mapping {
         va: 0,
         phys: 0,
         flags: Flags::user_data(),
-    }; 1 + EXTRA_STACK_PAGES as usize];
+    }; 2 + EXTRA_STACK_PAGES as usize];
     maps[0] = Mapping {
         va: CLOCK_PAGE_STD,
         phys: clock.page_phys,
         flags: Flags::user_rodata(), // a READER, and the mapping is what says so
     };
-    for (k, m) in maps[1..].iter_mut().enumerate() {
+    maps[1] = Mapping {
+        va: CONFIG_PAGE_STD,
+        phys: config_phys,
+        flags: Flags::user_rodata(), // same shape as the clock page: a READER, never a writer
+    };
+    for (k, m) in maps[2..].iter_mut().enumerate() {
         let phys = crate::memory::alloc()
             .expect("no frame for std_exerciser stack")
             .addr();
@@ -99,12 +143,14 @@ pub fn start_on(
     }
 
     crate::sched::spawn(move || {
-        // The clock and entropy capabilities go in at their named slots BEFORE `run` grants in
-        // order, so `run`'s two grants land at 0 and 1 and slots 2 to 4 stay empty. The clock
-        // is `READ` only: the whole point is that a reader cannot write the offset. See
-        // `grant_at`.
+        // The clock, config and entropy capabilities go in at their named slots BEFORE `run`
+        // grants in order, so `run`'s two grants land at 0 and 1 and slots 2 to 4 stay empty.
+        // The clock and config pages are `READ` only: the whole point of each is that a reader
+        // cannot write it. See `grant_at`.
         crate::sched::grant_at(CLOCK_SLOT, frame_cap(clock.page_phys, Rights::READ))
             .expect("the std clock slot was already occupied");
+        crate::sched::grant_at(CONFIG_SLOT, frame_cap(config_phys, Rights::READ))
+            .expect("the std config slot was already occupied");
         crate::sched::grant_at(ENTROPY_SLOT, endpoint_cap(entropy.request, Rights::WRITE))
             .expect("the std entropy slot was already occupied");
         run(
