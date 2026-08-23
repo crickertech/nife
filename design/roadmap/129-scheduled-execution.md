@@ -9,9 +9,10 @@ on the roadmap runs anything on a schedule.
 the temptation was there. Every ingredient existed as predicted: §43's clock authority and
 `clock_proto`, the spawn machinery and program manifests (milestone 31's grant expressions), and
 supervision (§40) for what happens when a scheduled child dies. No new syscall surface was needed.
-The remaining pieces that need nobody are the `--mem` grant and the per-entry image (the archive
-endowment was narrowed to the plan on 2026-08-18); only a **runtime** registration protocol is
-calef's, and a gate reading `DECISION` would say the milestone is blocked when most of it is not.
+The `--mem` grant needs nobody (the archive endowment was narrowed to the plan on 2026-08-18); the
+per-entry image turned out to need a design fork rather than a lane's capability wiring, checked
+2026-08-23 below; the **runtime** registration protocol is calef's. A gate reading `DECISION` would
+say the milestone is blocked when most of it is not.
 
 What the build did find is that the *absence* of a syscall shapes the whole program: see "The
 finding" below.
@@ -114,11 +115,18 @@ timetable: the archive it holds carries 57 programs, 56 of them beyond its plan 
   once, since the refusal identifies one. Serialising them is the small answer.
   `crates/timetable` supports the planning and refusal already, and its host tests cover both. Needs
   nobody.
-- **One image per entry rather than one archive per timetable.** The narrowing above is to the plan's
-  *union*, so a document admitting three programs leaves each instance's loader able to name the
-  other two's images. `user/src/spawner.rs` has the narrow shape (one image, and "build me program X"
-  cannot be asked of it) and reaching it here needs a capability per entry. Needs nobody, and it is
-  smaller than it looks now that the sub-archive exists.
+- **One image per entry rather than one archive per timetable, and this needs more than a capability
+  per entry.** Checked by a 2026-08-23 lane rather than built, because the framing above turned out
+  optimistic. The residual risk isn't the plan's union being reachable from a spawned *child's*
+  loader; it's that `timetable` itself has to keep every entry's image mapped and readable for the
+  whole life of its interval, so a compromise of `timetable` reaches the union regardless of how the
+  bytes are filed. Splitting one combined archive into N per-entry archives doesn't shrink that: they
+  would all still sit in `timetable`'s own address space simultaneously. Actually narrowing this
+  means moving the "which image to build" decision out of `timetable`'s own code, into a
+  `user/src/spawner.rs`-shaped helper endowed with exactly one image, replicated per entry, talking
+  to `timetable` over its own request/reply endpoint. That is new spawn-time machinery this tree does
+  not have (nothing today spawns N sub-builders sized to a document computed at registration), and it
+  is a design fork rather than a lane's increment. Not scoped as its own milestone yet.
 - **A runtime registration protocol, and who holds the right to use it.** calef's, per above.
   **Held pending milestones 49 and 152** (2026-08-22): calef wants a scheduled job's capabilities to
   reflect the scheduling user's own authority, which means the registrar in #387's own Option 3
