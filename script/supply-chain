@@ -25,7 +25,7 @@
 #     we actually build. Checking it standalone would evaluate its default features (`fuse`, which
 #     wants macFUSE) and report on code nothing here ever compiles.
 #   - **std_exerciser** (milestone 27's std demo) has exactly one dependency, an in-tree path dep on
-#     crates/fs_proto, which the main workspace already covers. There is no third-party graph to check.
+#     crates/filesystem_proto, which the main workspace already covers. There is no third-party graph to check.
 #
 # See notes/scripts.md.
 #

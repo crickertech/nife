@@ -50,7 +50,7 @@ const ROLE_SINK_CONSUMER: u64 = 8;
 const SINK_PIPE_OUT: u64 = 0; // the producer SENDs sink messages here
 const SINK_PIPE_IN: u64 = 1; // the consumer RECVs them here (slot 0 is REPORT)
 
-/// Messages in the sink-throughput loop, each carrying [`sink_proto::INLINE_MAX`] bytes. 5 000 is
+/// Messages in the sink-throughput loop, each carrying [`byte_sink_proto::INLINE_MAX`] bytes. 5 000 is
 /// the same order as [`IPC_ITERS`] so the two are comparable under TCG, and it is 80 000 bytes, which
 /// is past the 64 KiB a Unix pipe buffers: a producer that could run ahead would have had to stop at
 /// least once, which is what makes the comparison about back pressure rather than about buffer size.
@@ -132,12 +132,12 @@ pub extern "C" fn _start(role: u64, _x1: u64, _x2: u64) -> ! {
 /// many before it starts timing, so the first rendezvous and the consumer's own spawn land outside
 /// the window.
 fn sink_producer() -> ! {
-    let payload = [b'x'; sink_proto::INLINE_MAX];
+    let payload = [b'x'; byte_sink_proto::INLINE_MAX];
     for _ in 0..(SINK_MSGS + 64) {
-        let (w0, w1, w2, _) = sink_proto::pack(&payload);
+        let (w0, w1, w2, _) = byte_sink_proto::pack(&payload);
         send(SINK_PIPE_OUT, w0, w1, w2);
     }
-    send(SINK_PIPE_OUT, sink_proto::eof(), 0, 0);
+    send(SINK_PIPE_OUT, byte_sink_proto::eof(), 0, 0);
     exit();
 }
 
@@ -157,7 +157,12 @@ fn sink_consumer() -> ! {
         recv(SINK_PIPE_IN);
     }
     let ticks = now().wrapping_sub(start);
-    send(REPORT, ticks, SINK_MSGS * sink_proto::INLINE_MAX as u64, 0);
+    send(
+        REPORT,
+        ticks,
+        SINK_MSGS * byte_sink_proto::INLINE_MAX as u64,
+        0,
+    );
     exit();
 }
 

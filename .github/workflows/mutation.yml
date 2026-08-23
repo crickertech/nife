@@ -15,7 +15,7 @@ name: mutation testing
 #
 # Weekly rather than per-push for cost, sharded four ways for wall clock: the full run is ~6,000
 # mutants, each one a build plus a test run. Shards split the mutant list, not the crates, so the
-# four jobs finish together instead of one carrying fs_proto alone.
+# four jobs finish together instead of one carrying filesystem_proto alone.
 
 on:
   schedule:

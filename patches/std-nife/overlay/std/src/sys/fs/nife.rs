@@ -1,5 +1,5 @@
 //! `std::fs` for nife (milestone 27 phase two): `File` bound to the FS-service contract
-//! (DECISIONS §27, notes/fs-server.md, `crates/fs_proto`).
+//! (DECISIONS §27, notes/fs-server.md, `crates/filesystem_proto`).
 //!
 //! # The interesting part: there is no global namespace
 //!
@@ -239,7 +239,7 @@ impl Page {
 // --- Errors, mapped by meaning ---------------------------------------------------------------
 
 /// One request on the FS service. Returns the reply's first word as a count/handle, or an
-/// `io::Error`. The wire convention is `fs_proto`'s: non-negative is a result, negative is a
+/// `io::Error`. The wire convention is `filesystem_proto`'s: non-negative is a result, negative is a
 /// negated errno ([`fsproto::reply_errno`]).
 fn request(w0: u64, w1: u64) -> io::Result<u64> {
     let (r0, _) = rt::call(FS, w0, w1);
@@ -436,7 +436,7 @@ fn descend(p: &mut Page, parent: &At, name: &str, want: u64) -> io::Result<At> {
 ///
 /// **The rights story, because it looks like a widening and is not.** Every hop asks for
 /// `DESCEND | needs`, where `needs` is what the *final* verb requires on the directory it lands in
-/// (`fs_proto::verb::TABLE` is the list, and `OPEN`'s "READ or WRITE" is the one row a caller has
+/// (`filesystem_proto::verb::TABLE` is the list, and `OPEN`'s "READ or WRITE" is the one row a caller has
 /// to resolve from its own `OpenOptions`). Carrying `needs` down the whole chain rather than only
 /// asking for it at the end costs nothing that was ever available: a child's rights are its
 /// parent's intersected with the request, so a right an ancestor lacks is a right no descendant of
@@ -485,7 +485,7 @@ fn dir_at(p: &mut Page, path: &Path, want: u64) -> io::Result<At> {
 
 /// The [`dir`] rights an `OPEN` needs on the directory holding the name.
 ///
-/// `fs_proto::verb::TABLE` records `OPEN` as the contract's one "any of" row (`READ` *or* `WRITE`
+/// `filesystem_proto::verb::TABLE` records `OPEN` as the contract's one "any of" row (`READ` *or* `WRITE`
 /// will do), so this is the one place a caller has to say which, and it says it from the options it
 /// was handed. Asking for both when the caller only reads would refuse a read through a read-only
 /// grant, which is the over-asking trap one level down from the one [`descend`] describes.
@@ -587,7 +587,7 @@ pub struct FileAttr {
 ///
 /// The cost is stated rather than hidden: a huge directory is a `Vec` of every name in it, and the
 /// snapshot is from `read_dir` time, so an entry removed before the caller reaches it opens as
-/// `NotFound`. That is the ordinary readdir caveat (`fs_proto::fs::READDIR` records the same one
+/// `NotFound`. That is the ordinary readdir caveat (`filesystem_proto::fs::READDIR` records the same one
 /// for its cursor) rather than something this choice introduced.
 pub struct ReadDir {
     /// The path the caller passed, so `DirEntry::path()` can rebuild what they would expect.
@@ -890,7 +890,7 @@ impl File {
     }
 
     /// **`File::set_len`** (milestone 64, rank 8). The contract's `TRUNCATE` is POSIX `ftruncate` in
-    /// both directions already (`fs_proto::fs::TRUNCATE` says so and the server implements it), and
+    /// both directions already (`filesystem_proto::fs::TRUNCATE` says so and the server implements it), and
     /// the size rides in the second word. This was refused here for the same reason the five verbs
     /// in milestone 64's first pass were: the binding was never written, not the verb missing.
     ///
@@ -1001,7 +1001,7 @@ impl File {
         unsupported()
     }
 
-    // No verb in `fs_proto` sets an mtime, the same gap `Metadata::modified` (read) has: a wire
+    // No verb in `filesystem_proto` sets an mtime, the same gap `Metadata::modified` (read) has: a wire
     // format addition (§64, rank 28), not a PAL trick. See notes/crates-io-on-nife.md.
     pub fn set_times(&self, _times: FileTimes) -> io::Result<()> {
         unsupported()
@@ -1346,7 +1346,7 @@ pub fn readdir(p: &Path) -> io::Result<ReadDir> {
 }
 
 /// **Remove a name** (`UNLINK`, milestone 64). Not revocation: a handle already open on the file
-/// keeps reading, exactly as POSIX promises, and `fs_proto::fs::UNLINK` records why the contract
+/// keeps reading, exactly as POSIX promises, and `filesystem_proto::fs::UNLINK` records why the contract
 /// draws that line. A directory is refused (`IsADirectory`); [`rmdir`] is its verb.
 pub fn unlink(p: &Path) -> io::Result<()> {
     if !reachable() {
@@ -1376,7 +1376,7 @@ pub fn rmdir(p: &Path) -> io::Result<()> {
 
 /// **Move a name** (`RENAME`, milestone 64), and the reason this one matters out of proportion to
 /// how often crates name it: write-a-temp-then-rename is how every careful program replaces a file,
-/// and `fs_proto::fs::RENAME` is both concurrency-atomic and crash-atomic, which is what that idiom
+/// and `filesystem_proto::fs::RENAME` is both concurrency-atomic and crash-atomic, which is what that idiom
 /// actually needs.
 ///
 /// The two names travel in the shared page back to back, source first, because one request word

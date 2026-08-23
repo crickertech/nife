@@ -241,7 +241,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "fs_proto"
+name = "filesystem_proto"
 version = "0.1.0"
 
 [[package]]
@@ -249,7 +249,7 @@ name = "fs_server"
 version = "0.1.0"
 dependencies = [
  "entropy_proto",
- "fs_proto",
+ "filesystem_proto",
  "gpt",
  "redox_syscall",
  "redoxfs",
@@ -518,7 +518,7 @@ dependencies = [
 name = "redoxfs_host"
 version = "0.1.0"
 dependencies = [
- "fs_proto",
+ "filesystem_proto",
  "fs_server",
  "gpt",
  "libc",

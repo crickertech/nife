@@ -13,7 +13,7 @@
 //!
 //! # What it holds, and that is the whole list
 //!
-//! - slot 0: the output endpoint (WRITE). Where the plan and the summary go, as `sink_proto` bytes.
+//! - slot 0: the output endpoint (WRITE). Where the plan and the summary go, as `byte_sink_proto` bytes.
 //! - slot 1: an untyped budget (WRITE). What every instance is made of, and what pays for the
 //!   loader's own scratch mappings.
 //! - slot 2: the child report endpoint (WRITE|GRANT), handed to each instance as its slot 0.
@@ -134,7 +134,7 @@ use user_rt::{cap_delete, exit, monotonic_nanos, reap, recv_fault, send, yield_n
 /// The document. Compiled in; see `BUGS`.
 const CONFIG: &str = include_str!("../timetable.conf");
 
-/// The output endpoint: the plan, and the summary. `sink_proto` bytes.
+/// The output endpoint: the plan, and the summary. `byte_sink_proto` bytes.
 const OUT: u64 = 0;
 /// The budget every instance is made of, and what pays this loader's scratch mappings.
 const BUDGET: u64 = 1;
@@ -381,11 +381,11 @@ fn collect(exits: &mut u64, faults: &mut u64) {
     user_rt::trap()
 }
 
-/// Write bytes down the output endpoint, `sink_proto`-framed.
+/// Write bytes down the output endpoint, `byte_sink_proto`-framed.
 fn say(bytes: &[u8]) {
     let mut rest = bytes;
     while !rest.is_empty() {
-        let (w0, w1, w2, n) = sink_proto::pack(rest);
+        let (w0, w1, w2, n) = byte_sink_proto::pack(rest);
         send(OUT, w0, w1, w2);
         rest = &rest[n..];
     }
@@ -413,11 +413,11 @@ fn say_num(v: u64) {
 
 /// End the stream, report the verdict, and stop.
 ///
-/// The `sink_proto` end-of-stream comes first so a reader draining text sees a stream that ended
+/// The `byte_sink_proto` end-of-stream comes first so a reader draining text sees a stream that ended
 /// rather than one that stopped, and the verdict word after it so a spawn site reading one word
 /// still learns how this went.
 fn done(code: u64) -> ! {
-    send(OUT, sink_proto::eof(), 0, 0);
+    send(OUT, byte_sink_proto::eof(), 0, 0);
     send(OUT, code, 0, 0);
     exit();
 }

@@ -141,7 +141,7 @@ pub const fn status_for(e: Error) -> u32 {
 /// something this share cannot hold.
 ///
 /// A traversal answers `STATUS_OBJECT_PATH_NOT_FOUND` rather than `ACCESS_DENIED`, deliberately and
-/// for `fs_proto`'s reason: a refusal implies a policy that could have said yes, and there is no
+/// for `filesystem_proto`'s reason: a refusal implies a policy that could have said yes, and there is no
 /// policy here. Outside the share there is no such path, which is the same sentence
 /// `fs_file_caretaker` says about a name it does not carry.
 pub const fn status_for_path(e: PathError) -> u32 {
@@ -990,7 +990,7 @@ impl Connection {
         let handle = self.handles[slot].unwrap();
         let result: Result<(), u32> = match class {
             // FileBasicInformation: four FILETIMEs and the attributes. Accepted and discarded;
-            // this server holds no clock capability and fs_proto's FSTAT carries no times, so
+            // this server holds no clock capability and filesystem_proto's FSTAT carries no times, so
             // there is nothing to write them to (crate BUGS). Refusing would break every copy,
             // which ends with one of these.
             CLASS_BASIC => Ok(()),
@@ -1051,7 +1051,7 @@ impl Connection {
     ///
     /// **The destination is a full share-relative path**, so this is how a client moves a file
     /// between directories as well as how it renames one in place. The refusal a directory meets
-    /// when it is moved rather than renamed is the backing's (`fs_proto::fs::RENAME` draws that
+    /// when it is moved rather than renamed is the backing's (`filesystem_proto::fs::RENAME` draws that
     /// boundary and says why), reported here rather than hidden.
     fn rename(&mut self, share: &impl Share, slot: usize, data: &[u8]) -> Result<(), u32> {
         if data.len() < 20 {
@@ -1076,7 +1076,7 @@ impl Connection {
         }
         // A directory cannot be moved inside itself. Checked here, on paths, because this is the
         // one layer that has both of them as paths at once: the backing sees two handles and the
-        // filesystem below it has no path to take a prefix of. `fs_proto::fs::RENAME` records the
+        // filesystem below it has no path to take a prefix of. `filesystem_proto::fs::RENAME` records the
         // same refusal from the other side.
         let mut from = [0u8; MAX_PATH];
         let from_len = handle.path_len as usize;
@@ -1317,7 +1317,7 @@ impl Connection {
                 18 + wide
             }
             // FILESYSTEM / FileFsSizeInformation. The backing's real numbers when it can ask
-            // (milestone 54's `fs_proto::fs::STATFS`), nominal when it cannot; zero free on a
+            // (milestone 54's `filesystem_proto::fs::STATFS`), nominal when it cannot; zero free on a
             // read-only share either way. See `volume_units`.
             (2, 3) => {
                 let (unit, total, free) = volume_units(share, writable);
@@ -1519,7 +1519,7 @@ const VOLUME_UNIT: u64 = 4096;
 /// **`(unit, total, free)` for the volume classes**, in the backing's own allocation unit.
 ///
 /// The real numbers when [`Share::statfs`] can answer, which is what milestone 54's
-/// `fs_proto::fs::STATFS` made possible and what macOS needs to size a Time Machine sparsebundle.
+/// `filesystem_proto::fs::STATFS` made possible and what macOS needs to size a Time Machine sparsebundle.
 /// A backing with no volume (the fixture is baked into a binary) falls back to
 /// [`crate::share::NOMINAL_VOLUME_BYTES`], and the crate BUGS say so where a reader meets it.
 ///
@@ -2242,7 +2242,7 @@ mod tests {
     }
 
     /// **The volume classes report the backing's real numbers when it has them**, which is the
-    /// whole point of `fs_proto::fs::STATFS` reaching this far: macOS sizes a Time Machine
+    /// whole point of `filesystem_proto::fs::STATFS` reaching this far: macOS sizes a Time Machine
     /// sparsebundle against these fields, and a constant is what it was sizing against before.
     #[test]
     fn the_volume_classes_report_what_the_backing_says_rather_than_a_constant() {
@@ -2725,7 +2725,7 @@ mod tests {
     /// swallowed it would tell a backup its data was safe on exactly the run where it was not.
     ///
     /// `STATUS_UNEXPECTED_IO_ERROR` because `Error::Io` is what a device with no
-    /// `VIRTIO_BLK_F_FLUSH` becomes on its way up (`fs_proto::blk::FLUSH` answers `EOPNOTSUPP`, and
+    /// `VIRTIO_BLK_F_FLUSH` becomes on its way up (`filesystem_proto::blk::FLUSH` answers `EOPNOTSUPP`, and
     /// the fs-backed share has no narrower word for it).
     #[test]
     fn a_backing_that_cannot_sync_makes_flush_fail_rather_than_lying() {
@@ -2976,7 +2976,7 @@ mod tests {
 
     impl Authenticator for Credential {
         /// **The presented names are not read**, and that is the real service's shape rather than a
-        /// simplification. `cred_proto::verify::NTLM_PROOF` names a *resource*, and the key stored
+        /// simplification. `credential_proto::verify::NTLM_PROOF` names a *resource*, and the key stored
         /// under it was derived at provisioning time over the account that owns it, so the account
         /// is bound cryptographically: a client that claims a different name derives under a
         /// different key and its proof does not match. Nothing compares any names, ever, which is

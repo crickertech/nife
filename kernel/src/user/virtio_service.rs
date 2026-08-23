@@ -353,17 +353,17 @@ pub fn start_net_stack(
 /// Where the SMB adapter expects the **base** of the channel it shares with the FS server
 /// (`user/src/smb_server.rs`'s `FS_VA`). MUST match that program's source, like every VA here.
 ///
-/// It is `fs_proto::fs::TRANSFER_MAX` bytes wide rather than one page (milestone 55, on milestone
+/// It is `filesystem_proto::fs::TRANSFER_MAX` bytes wide rather than one page (milestone 55, on milestone
 /// 138 step 3's contract), and every page of it is mapped here: the adapter turns one SMB `READ`
-/// or `WRITE` into one `fs_proto` request of up to that size, so it is a client that uses the whole
-/// channel and `fs_proto::fs::TRANSFER_PAGES`' foot gun says a client may not ask for more than it
+/// or `WRITE` into one `filesystem_proto` request of up to that size, so it is a client that uses the whole
+/// channel and `filesystem_proto::fs::TRANSFER_PAGES`' foot gun says a client may not ask for more than it
 /// mapped. [`CRED_VA_SMB`] is 1 MiB above, so the region has room to grow by a factor of sixteen
 /// before the two meet.
 const FS_VA_SMB: u64 = 0x0000_0000_00B0_0000;
 
 /// How many pages [`FS_VA_SMB`] spans, straight from the contract so this wiring cannot disagree
 /// with the program that speaks it.
-const FS_PAGES_SMB: usize = fs_proto::fs::TRANSFER_PAGES;
+const FS_PAGES_SMB: usize = filesystem_proto::fs::TRANSFER_PAGES;
 
 /// **What the SMB adapter's `arg2` means**, mirroring `user/src/smb_server.rs`'s `SHARE_*`
 /// constants, which MUST agree with these the way [`FS_VA_SMB`] must agree with its `FS_VA`.
@@ -469,9 +469,9 @@ fn spawn_stack_client(
     let mut n_maps = NET_CLIENT_STACK_PAGES as usize;
     if let Some((_, file_shared, _)) = fs {
         // **The whole channel, because this client asks for the whole of it.** The adapter's share
-        // turns one SMB read or write into one `fs_proto` request of up to `fs::TRANSFER_MAX`
+        // turns one SMB read or write into one `filesystem_proto` request of up to `fs::TRANSFER_MAX`
         // bytes, and nothing on the wire checks that a client asked for no more than it mapped
-        // (`fs_proto::fs::TRANSFER_PAGES`' marked foot gun): mapping one page here would show up as
+        // (`filesystem_proto::fs::TRANSFER_PAGES`' marked foot gun): mapping one page here would show up as
         // the FS server faulting this process on its own second page, after the work was done. It
         // costs fifteen extra page-table entries against the same frames, not fifteen extra frames.
         n_maps += super::fs_service::map_channel(

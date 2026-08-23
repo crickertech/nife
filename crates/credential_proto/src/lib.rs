@@ -2,7 +2,7 @@
 //!
 //! One definition of the two request shapes a credential service serves, so the service, the
 //! program that provisions it, the client that authenticates against it, and the kernel-side tests
-//! share one definition and cannot drift. The same split `fs_proto` makes for the filesystem,
+//! share one definition and cannot drift. The same split `filesystem_proto` makes for the filesystem,
 //! `clock_proto` for the wall clock, and `entropy_proto` for randomness.
 //!
 //! # Two endpoints, two phases, and that is the whole security argument
@@ -91,7 +91,7 @@
 //! server side of this contract are the same two functions read in opposite directions:
 //!
 //! ```
-//! use cred_proto::{PAGE, place, read, verify, wipe};
+//! use credential_proto::{PAGE, place, read, verify, wipe};
 //!
 //! // Client: put the identity and the presented secret in the page both parties map.
 //! let mut page = [0u8; PAGE];
@@ -118,7 +118,7 @@
 //! the worst bug this crate could permit, so the contract refuses to let it be written:
 //!
 //! ```
-//! use cred_proto::{MALFORMED, MATCH, MISMATCH, OK, authenticated, code};
+//! use credential_proto::{MALFORMED, MATCH, MISMATCH, OK, authenticated, code};
 //!
 //! assert!(authenticated(MATCH));
 //!
@@ -139,23 +139,17 @@
 //! oracle: ask about a thousand names and learn which three exist. `cred::Store` also spends the
 //! same work on both, so the timing does not distinguish them either; see notes/credentials.md.
 //!
-//! Name: unrecorded, and it is one of two `*_proto` crates that are. The suffix is settled and
-//! checked (milestone 46, 2026-07-30), so its seven siblings are `recorded`: the rule plus the
-//! service the stem names produces the whole name. It does not here. `cred` is an **abbreviation**,
-//! the first of the three failure modes the naming tenet lists, and the tree contradicts itself
-//! about this one: milestone 63 expanded `credcli` to `credentialer_test_client` and argued
-//! `credentialer` in full, on the ground that the service never hands you a credential, then left
-//! two crates spelled `cred` without saying why. Whatever settles this settles `crates/cred` with
-//! it. Introduced 2026-07-31 with milestone 56.
+//! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review). Renamed from
+//! `cred_proto`: spell out the contraction fully.
 
 #![cfg_attr(not(test), no_std)]
 
-/// The shared-page size, in bytes. One host page, the same unit `fs_proto` moves, and far more
+/// The shared-page size, in bytes. One host page, the same unit `filesystem_proto` moves, and far more
 /// than the [`MAX_IDENTITY`] + [`MAX_SECRET`] a request can fill.
 pub const PAGE: usize = 4096;
 
 /// Where a request packs its opcode: bits 63:56 of the first `CALL` word, the same position
-/// `fs_proto`, `entropy_proto` and `line_editor::proto` use, so the contracts read alike.
+/// `filesystem_proto`, `entropy_proto` and `line_editor::proto` use, so the contracts read alike.
 pub const OP_SHIFT: u32 = 56;
 
 /// The longest identity, in bytes. An identity here is **an opaque byte string and nothing more**:
@@ -577,7 +571,7 @@ pub const fn authenticated(r0: u64) -> bool {
     matches!(code(r0), Some(MATCH))
 }
 
-/// **The one login the gates share**, in `fs_proto::fixture`'s shape and for its reason: several
+/// **The one login the gates share**, in `filesystem_proto::fixture`'s shape and for its reason: several
 /// programs have to agree on an account down to the byte, and a second copy of it somewhere would
 /// drift silently into a wrong answer that looks like a bug in the code under test.
 ///

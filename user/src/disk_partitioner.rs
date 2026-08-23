@@ -3,7 +3,7 @@
 //! The destructive half of the pair, and the one whose endowment is the point. It holds exactly
 //! two things:
 //!
-//! - a **block-service endpoint** for **one** disk (`fs_proto::blk`), which is the authority to
+//! - a **block-service endpoint** for **one** disk (`filesystem_proto::blk`), which is the authority to
 //!   destroy that disk and no other; and
 //! - an **entropy endpoint** (`entropy_proto`), which is the authority to obtain random bytes and
 //!   nothing else: it cannot reach the virtio-rng device, program its queue, or see the page the
@@ -34,7 +34,7 @@
 //!
 //! # What it writes
 //!
-//! The layout is `fs_proto::fixture::blank`, three partitions on a 64 MiB disk in the 2048-block
+//! The layout is `filesystem_proto::fixture::blank`, three partitions on a 64 MiB disk in the 2048-block
 //! alignment every real tool uses. Placement is this program's decision and not the crate's:
 //! `Gpt::create` validates a layout and refuses to move one, because alignment is policy and a
 //! format library that quietly relocated a partition would be doing policy behind its caller's
@@ -62,7 +62,7 @@
 //! # BUGS
 //!
 //! - **The logical block size is assumed to be 512**, the same assumption and the same reason as
-//!   `disk_surveyor`: nothing in `fs_proto::blk` carries the device's, and every disk this project
+//!   `disk_surveyor`: nothing in `filesystem_proto::blk` carries the device's, and every disk this project
 //!   has met reports 512. Writing a table with the wrong unit produces a table no other OS can
 //!   read, which is worse than a wrong answer on the read side. The fix is a field on the wire.
 //! - **It writes one hard-coded layout.** There is no `mkpart` command line, no partition sizing,
@@ -94,8 +94,8 @@
 #![no_main]
 
 use entropy_proto as entropy;
-use fs_proto::fixture::blank;
-use fs_proto::{blk, req};
+use filesystem_proto::fixture::blank;
+use filesystem_proto::{blk, req};
 use gpt::entry::Entry;
 use gpt::guid::{Guid, types};
 use gpt::{ENTRY_ARRAY_BYTES, Gpt};

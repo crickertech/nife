@@ -17,7 +17,7 @@
 //! [`Renderer::feed`] takes whatever bytes arrived and writes whatever output they completed. It
 //! never holds a document, never builds a tree, and never allocates. That shape is not an
 //! optimisation, it is what the program's capabilities already are: `doc` receives its input as
-//! [`sink_proto`](../sink_proto/index.html) messages of sixteen bytes each and writes its output
+//! [`byte_sink_proto`](../byte_sink_proto/index.html) messages of sixteen bytes each and writes its output
 //! the same way, so a renderer that needed the whole document would need somewhere to put it, and
 //! somewhere to put it is a memory grant the program can otherwise do without.
 //!
@@ -127,6 +127,6 @@ pub use render::{Attr, LINE_MAX, MAX_DEPTH, Renderer, Style, TABLE_COLS, TABLE_R
 /// **An implementation may be called with an empty slice** and must tolerate it.
 pub trait Sink {
     /// Take these bytes. There is no partial acceptance and no error: a sink that cannot take them
-    /// drops them, which is the same choice `sink_proto` makes for a destination that has gone.
+    /// drops them, which is the same choice `byte_sink_proto` makes for a destination that has gone.
     fn put(&mut self, bytes: &[u8]);
 }

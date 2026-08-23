@@ -41,7 +41,7 @@ use std::fs::File;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use fs_proto::xattr;
+use filesystem_proto::xattr;
 use gpt::{Gpt, Guid};
 use redoxfs::{BLOCK_SIZE, Disk, DiskFile, FileSystem, Node, Transaction, TreeData, TreePtr};
 use syscall::error::{EIO, Error};
@@ -220,7 +220,7 @@ pub struct LsEntry {
 }
 
 /// One extended attribute, as recovery sees it: the name and value as bytes, plus the type code
-/// [`fs_proto::xattr`] carries and no host filesystem can hold.
+/// [`filesystem_proto::xattr`] carries and no host filesystem can hold.
 pub struct Attr {
     pub name: Vec<u8>,
     pub kind: u32,
@@ -672,9 +672,9 @@ fn read_all<D: Disk>(tx: &mut Transaction<D>, node: &TreeData<Node>) -> Result<V
 // --- The attribute store, from the recovery side (milestone 57) --------------------------------
 //
 // A nife image carries `.nife-attrs` in its root: one file per node that has extended
-// attributes, named for that node's `TreePtr` id in hex, holding the records `fs_proto::xattr::store`
+// attributes, named for that node's `TreePtr` id in hex, holding the records `filesystem_proto::xattr::store`
 // defines. The FS server writes it; nothing else does. This tool reads it, and the reading is why
-// `fs_proto` is a dependency rather than a comment describing the layout (CLAUDE.md rule 7).
+// `filesystem_proto` is a dependency rather than a comment describing the layout (CLAUDE.md rule 7).
 //
 // **Nothing here is allowed to fail an extraction.** A recovery that abandoned a hundred thousand
 // files because one attribute blob was damaged would be worse than useless, so every function below

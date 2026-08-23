@@ -3,7 +3,7 @@ use super::*;
 /// Reassemble a std program's stdout off its endpoint until the writer says the stream is over,
 /// and compare byte for byte.
 ///
-/// The framing is the sink contract's (`crates/sink_proto`, milestone 50), which for bytes is
+/// The framing is the sink contract's (`crates/byte_sink_proto`, milestone 50), which for bytes is
 /// bit-for-bit the framing the PAL used before that contract existed: `w0` is the count, `w1`
 /// and `w2` are the bytes, little-endian. `SEND` blocks until a receiver takes it, so the
 /// program is somewhere between its last `println!` and `SYS_EXIT` when the bytes land.
@@ -35,17 +35,17 @@ pub(super) fn drain_sink(ep: crate::sched::RendezvousId, out: &mut [u8], what: &
     let mut len = 0usize;
     loop {
         let words = crate::sched::ipc_recv(ep);
-        let mut chunk = [0u8; sink_proto::INLINE_MAX];
-        match sink_proto::unpack(words[0], words[1], words[2], &mut chunk) {
-            sink_proto::Msg::Bytes(n) => {
+        let mut chunk = [0u8; byte_sink_proto::INLINE_MAX];
+        match byte_sink_proto::unpack(words[0], words[1], words[2], &mut chunk) {
+            byte_sink_proto::Msg::Bytes(n) => {
                 for &b in &chunk[..n] {
                     assert!(len < out.len(), "{what}: wrote more than the buffer holds");
                     out[len] = b;
                     len += 1;
                 }
             }
-            sink_proto::Msg::Eof => return len,
-            sink_proto::Msg::Malformed => {
+            byte_sink_proto::Msg::Eof => return len,
+            byte_sink_proto::Msg::Malformed => {
                 panic!(
                     "{what}: a sink message the contract does not define: {:#x}",
                     words[0]
@@ -87,7 +87,7 @@ pub(super) fn assert_a_kill_mid_transaction_recovers(
     fs_server_image: &'static [u8],
     client_image: &'static [u8],
 ) {
-    use fs_proto::fixture::{READY, SUCCESS, crash};
+    use filesystem_proto::fixture::{READY, SUCCESS, crash};
     let Some(run) = fs_service::start_crash(blk_image, fs_server_image, client_image) else {
         crate::println!("    (no crash disk attached; skipping)");
         return;
@@ -145,7 +145,7 @@ pub(super) fn assert_a_kill_mid_transaction_recovers(
 /// same thing and the useful part is naming *which* claim broke rather than printing a number
 /// the reader has to decode. Each missing bit is one sentence about the layer.
 pub(super) fn assert_attrs(attrs: u64) {
-    use fs_proto::fixture::attrs as a;
+    use filesystem_proto::fixture::attrs as a;
     if attrs == a::EXPECTED {
         return;
     }
@@ -212,7 +212,7 @@ pub(super) fn assert_fs_service_ready(
 /// It runs after both verdicts, because the adapter has to have finished serving before there is
 /// anything settled to read.
 pub(super) fn assert_smb_write_landed(had_fs: bool) {
-    use fs_proto::fixture::smb_wrote;
+    use filesystem_proto::fixture::smb_wrote;
     if !had_fs {
         crate::println!("    (no RedoxFS disk attached; nothing to verify the SMB write against)");
         return;
@@ -227,7 +227,7 @@ pub(super) fn assert_smb_write_landed(had_fs: bool) {
     let words = crate::sched::ipc_recv(report);
     assert_eq!(
         words[0],
-        fs_proto::fixture::SUCCESS,
+        filesystem_proto::fixture::SUCCESS,
         "the SMB write verifier did not report",
     );
     assert_eq!(
@@ -255,7 +255,7 @@ pub(super) fn assert_smb_write_landed(had_fs: bool) {
 /// **The `VOLUME_FULL_SYNC` claim, checked rather than asserted** (milestone 55).
 ///
 /// The SMB server tells macOS the share honours a full sync, which is the single bit that makes it
-/// willing to hold a backup. Until this milestone that claim outran the stack: every `fs_proto`
+/// willing to hold a backup. Until this milestone that claim outran the stack: every `filesystem_proto`
 /// write committed to the RedoxFS header ring before the reply, so SMB2's `FLUSH` had nothing left
 /// to do *above* the block device, and below it the block server issued no `VIRTIO_BLK_T_FLUSH` at
 /// all. The last acknowledged write was durable on the device's word rather than on ours.
@@ -270,28 +270,28 @@ pub(super) fn assert_smb_write_landed(had_fs: bool) {
 /// **The control was run, which is what makes the rest of this count.** With `FsShare::sync`
 /// reverted to the old behaviour (a bare `Ok(())` that asks the FS server nothing), and everything else
 /// unchanged including the host prober's `FLUSH` and its success, this test fails with
-/// [`fs_proto::fixture::durability::NEVER_FLUSHED`]. So the witness is watching the flush rather
+/// [`filesystem_proto::fixture::durability::NEVER_FLUSHED`]. So the witness is watching the flush rather
 /// than the mount, and a regression to a polite success cannot pass it.
 ///
-/// [`fs_proto::fixture::durability::NO_DEVICE_FLUSH`] is not a failure of this tree and does not
+/// [`filesystem_proto::fixture::durability::NO_DEVICE_FLUSH`] is not a failure of this tree and does not
 /// pretend to be: it means the device offers no `VIRTIO_BLK_F_FLUSH`, so nothing here could back
 /// the claim on this machine. It still fails the suite, because a boot that cannot demonstrate
 /// durability must not pass a test named for it; what it must not do is send the reader looking for
 /// a bug in the flush path.
 fn assert_smb_flush_reached_the_device(verdict: u64) {
-    use fs_proto::fixture::durability;
+    use filesystem_proto::fixture::durability;
     if verdict == durability::DURABLE {
         return;
     }
     match verdict {
         durability::NEVER_FLUSHED => crate::println!(
-            "    nothing had flushed the device before the witness ran, so the host's SMB2 FLUSH              did not reach fs_proto::fs::SYNC"
+            "    nothing had flushed the device before the witness ran, so the host's SMB2 FLUSH              did not reach filesystem_proto::fs::SYNC"
         ),
         durability::NO_DEVICE_FLUSH => crate::println!(
             "    the device offers no VIRTIO_BLK_F_FLUSH, so this machine cannot back              VOLUME_FULL_SYNC at all. Not a bug in the flush path"
         ),
         durability::REFUSED => crate::println!(
-            "    fs_proto::fs::SYNC was refused for a reason other than an unsupported device;              the verb is wired wrong"
+            "    filesystem_proto::fs::SYNC was refused for a reason other than an unsupported device;              the verb is wired wrong"
         ),
         durability::NOT_ADVANCING => crate::println!(
             "    two syncs returned the same flush count, so the second one never reached the              device: the server is answering a constant"
@@ -321,7 +321,7 @@ fn assert_smb_flush_reached_the_device(verdict: u64) {
 /// exchange it belongs to, and this adapter never asks for it, so finding it would mean the service
 /// published it into a page that then outlived the session.
 ///
-/// The values are [MS-NLMP] §4.2.4's, for `cred_proto::fixture`'s account, and they are the same
+/// The values are [MS-NLMP] §4.2.4's, for `credential_proto::fixture`'s account, and they are the same
 /// literals the milestone-65 test carries. Duplicated rather than shared because they are what a
 /// published specification prints: a constant naming them would let one edit move both, and the
 /// point of a pinned vector is that it cannot be edited into agreement with the code.
@@ -388,14 +388,14 @@ pub(super) fn std_fs_expected(buf: &mut [u8; 768]) -> usize {
     // The lengths spelled out below are the motd's; if the fixture changes, fail here rather
     // than in a byte comparison nobody can read.
     assert_eq!(
-        fs_proto::fixture::MOTD.len(),
+        filesystem_proto::fixture::MOTD.len(),
         70,
         "the motd fixture changed; the expected transcript's lengths must change with it",
     );
     let mut n = 0;
     for part in [
         b"std fs on nife\n".as_slice(),
-        fs_proto::fixture::MOTD,
+        filesystem_proto::fixture::MOTD,
         b"read_to_string 70\nmetadata len 70\n".as_slice(),
         // Milestone 122 changed the third of these. `sub/motd` used to be refused for being
         // nested, which is no longer a category; what replaces it is `sub/../other/secret`, a real
@@ -483,7 +483,7 @@ pub(super) const EXPECTED: &[u8] = b"hello from std on nife\n\
 /// The `config seeded` line is milestone 47's environment-variable fork (DECISIONS §111): this
 /// process is granted an inert-configuration page unconditionally
 /// (`std_service::start_on`/`CONFIG_SLOT`/`CONFIG_PAGE_STD`), assembled once from
-/// `env_proto::PageBuilder` before the program exists, and `pal::nife::init` reads `TZ`, `LANG`
+/// `environment_proto::PageBuilder` before the program exists, and `pal::nife::init` reads `TZ`, `LANG`
 /// and `TERM` off it into `std::env`'s table before `main` runs. The line proves the whole path:
 /// the kernel assembled and validated the page, mapped it read-only, the std PAL's probe found
 /// the granted capability, and the values it read back are the exact ones the kernel wrote. The

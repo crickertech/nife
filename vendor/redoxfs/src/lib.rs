@@ -14,7 +14,7 @@ pub const ALLOC_GC_THRESHOLD: u64 = 1024;
 pub const BLOCK_SIZE: u64 = 4096;
 // nife pin divergence (milestone 138): **the level a new file is created at**, lowered from
 // upstream's 5 to 1, so a record is 4 KiB << 1 = 8 KiB rather than 128 KiB. Every file request in
-// this system carries at most one 4 KiB page (`fs_proto::PAGE`), so a 128 KiB record fetched 32
+// this system carries at most one 4 KiB page (`filesystem_proto::PAGE`), so a 128 KiB record fetched 32
 // blocks to serve one of them and rewrote all 32 to change one. Measured on milestone 38's harness:
 // a 4 KiB read goes from 1,458 us to 284 us. Level 1 rather than 0 because RedoxFS compresses a
 // record only when it is larger than one block, so level 0 gives up lz4 for 8.7% more read speed

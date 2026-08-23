@@ -8,7 +8,7 @@
 //!
 //! It is a **caretaker** in Mark Miller's sense: it holds the wider capability, exports a narrower
 //! one, and is the only path between them. It opens the granted name once at startup, then serves
-//! the same [`fs_proto::fs`] protocol its own client speaks, with a namespace of exactly one name
+//! the same [`filesystem_proto::fs`] protocol its own client speaks, with a namespace of exactly one name
 //! and a direction it cannot widen.
 //!
 //! # Why this is a separate process and not a check inside the FS server
@@ -37,7 +37,7 @@
 //!   cannot interleave. A second page would buy nothing but a copy.
 //!
 //! The granted name and direction arrive in the three `START` argument words
-//! ([`fs_proto::grant`]), so a per-file grant costs no extra frame and the caretaker needs nothing
+//! ([`filesystem_proto::grant`]), so a per-file grant costs no extra frame and the caretaker needs nothing
 //! mapped before it runs.
 //!
 //! Name: ratified 2026-08-01 (calef, milestone 61), replacing `fwarden`. Refused `fwarden` and the
@@ -53,7 +53,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use fs_proto::{fs, grant, op, reply_err, reply_errno};
+use filesystem_proto::{fs, grant, op, reply_err, reply_errno};
 use user_rt::{call, invoke, recv_cap, send};
 
 /// The FS-service endpoint: the directory capability this process attenuates.
@@ -65,13 +65,13 @@ const REPORT: u64 = 2;
 
 /// `EBADF`: a handle this capability never minted, or a verb this contract does not carry. One
 /// number and one refusal site, so a forged handle and a forged opcode are refused alike.
-const EBADF: i32 = fs_proto::verb::file_grant::EBADF;
+const EBADF: i32 = filesystem_proto::verb::file_grant::EBADF;
 
 /// The one page, shared with the FS server above and the client below. See the module note on why
 /// one frame is enough.
 const PAGE_VA: u64 = 0x0000_0000_0060_0000;
 /// Its size, the contract's transfer unit.
-const PAGE: usize = fs_proto::PAGE;
+const PAGE: usize = filesystem_proto::PAGE;
 
 /// Copy `bytes` into the shared page.
 fn put(bytes: &[u8]) {
@@ -112,15 +112,15 @@ fn reply(slot: u64, r0: i64) {
 ///
 /// # It is table-driven, and the table is where the policy is written down (milestone 61)
 ///
-/// Every verb's answer comes from [`fs_proto::verb::file_grant::POLICY`], one row per opcode, in a
+/// Every verb's answer comes from [`filesystem_proto::verb::file_grant::POLICY`], one row per opcode, in a
 /// host-testable crate. It used to be a hand-written `match` here, which is how the
 /// extended-attribute gap happened: milestone 57 added four verbs to the contract, this program was
-/// not taught them, and nothing failed. A verb with no row is now a **compile error** in `fs_proto`,
+/// not taught them, and nothing failed. A verb with no row is now a **compile error** in `filesystem_proto`,
 /// so the failure mode is inverted.
 ///
 /// Two things the table deliberately does not flatten:
 ///
-/// - **The direction check is derived, not listed.** [`fs_proto::verb::Verb::mutates`] answers "does this verb
+/// - **The direction check is derived, not listed.** [`filesystem_proto::verb::Verb::mutates`] answers "does this verb
 ///   change the file", so a read-only grant refuses `WRITE`, `TRUNCATE`, `SETXATTR` and
 ///   `REMOVEXATTR` with [`grant::EROFS`] by one rule rather than four arms, and a mutating verb
 ///   added to the contract is refused from the day its row exists.
@@ -128,8 +128,8 @@ fn reply(slot: u64, r0: i64) {
 ///   capability is not a directory and the request does not *mean* anything here, which is a
 ///   different statement from `EACCES`'s "you were denied" (there is no policy to have said yes).
 fn serve(handle: u64, name: &[u8], writable: bool) -> ! {
-    use fs_proto::verb::file_grant::Policy;
-    use fs_proto::verb::{self};
+    use filesystem_proto::verb::file_grant::Policy;
+    use filesystem_proto::verb::{self};
 
     loop {
         let (w0, reply_slot, w1) = recv_cap(CLIENT);
@@ -180,7 +180,7 @@ fn serve(handle: u64, name: &[u8], writable: bool) -> ! {
             // **Extended attributes ride this path since milestone 61.** They used to answer
             // `EOPNOTSUPP` from an arm of their own, which was honest about a capability that did
             // not carry them and was still a capability the confined program should have had: an
-            // attribute is part of what a file *is* (`fs_proto::xattr`), so a capability that may
+            // attribute is part of what a file *is* (`filesystem_proto::xattr`), so a capability that may
             // read the file may read what is attached to it, and one that may not write it may not
             // change them. The second half is `mutates()` below, not a separate list.
             Policy::Forward if asked != grant::HANDLE => reply_err(EBADF),
@@ -216,7 +216,7 @@ pub extern "C" fn _start(name_lo: u64, name_hi: u64, spec: u64) -> ! {
         panic!();
     }
 
-    send(REPORT, fs_proto::fixture::READY, 0, 0);
+    send(REPORT, filesystem_proto::fixture::READY, 0, 0);
     serve(r0, name, grant::writable(spec));
 }
 

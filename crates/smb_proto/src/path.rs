@@ -21,7 +21,7 @@
 //!
 //! - **`..` is [`PathError::Traversal`]**, refused rather than resolved. Resolving it would mean
 //!   this crate deciding what is above the share root, and the whole capability argument is that
-//!   there is no above: `fs_proto`'s `OPENDIR` answers `EINVAL` for a name that is not a single
+//!   there is no above: `filesystem_proto`'s `OPENDIR` answers `EINVAL` for a name that is not a single
 //!   component for the same reason. Refusing is also the only answer that stays correct if a
 //!   component is a symlink one day.
 //! - **`.` is [`PathError::Traversal`] too.** It is harmless to resolve and it is not harmless to

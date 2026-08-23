@@ -1,6 +1,6 @@
-use fs_proto::dir;
-use fs_proto::fixture::{VERDICT, globscape as gb, rm as rr, tree};
-use sink_proto::eof;
+use byte_sink_proto::eof;
+use filesystem_proto::dir;
+use filesystem_proto::fixture::{VERDICT, globscape as gb, rm as rr, tree};
 
 use super::*;
 use crate::sched;
@@ -12,7 +12,7 @@ const ROLE_GLOB: u64 = 2;
 /// [`rm_program_tests`] bounds it and for the same reason.
 const MAX_MESSAGES: usize = 64;
 
-/// The set `gl-*.txt` matches in the fixture, which `fs_proto`'s host test pins against the
+/// The set `gl-*.txt` matches in the fixture, which `filesystem_proto`'s host test pins against the
 /// matcher. Stated literally here because building a grant is the one thing the kernel can do
 /// without an enumeration, and proved to *be* the expansion over there.
 const MATCHED: [(&[u8], bool); 2] = [
@@ -58,7 +58,7 @@ fn shell_expanded() -> Option<u64> {
             role: ROLE_GLOB,
             // The shell is told what its capability carries, for notes/shell-navigation.md's
             // reason: nothing on this wire reports what a handle holds.
-            arg: fs_proto::grant::spec(0, dir::ENUMERATE | dir::DESCEND | dir::READ),
+            arg: filesystem_proto::grant::spec(0, dir::ENUMERATE | dir::DESCEND | dir::READ),
             arg2: 0,
             // **Four, and the number is a measurement**, as the navigating role's two were.
             // Two overflowed by 256 bytes, presenting as a data abort on the shell's own `sp`
@@ -99,10 +99,10 @@ fn assert_shell_agreed(v: u64) {
 
 /// Run `rm` once behind a `fs_nameset_caretaker` holding [`MATCHED`] inside `globset`.
 ///
-/// `name` empty means [`fs_proto::grant::WHOLE_NAMESPACE`]: the operand is the set, and `rm`
+/// `name` empty means [`filesystem_proto::grant::WHOLE_NAMESPACE`]: the operand is the set, and `rm`
 /// learns it by enumerating the capability it was handed.
 fn run_rm(name: &str, flags: u64) -> (u64, u64) {
-    let (lo, hi) = fs_proto::grant::pack_name(name.as_bytes());
+    let (lo, hi) = filesystem_proto::grant::pack_name(name.as_bytes());
     let report = fs_service::start_granted_set(
         dir_capability_tests::blk_server_image(),
         program("fs_server").expect("no fs_server program in the initrd archive"),
@@ -116,7 +116,7 @@ fn run_rm(name: &str, flags: u64) -> (u64, u64) {
             // not read them, write them, create beside them or walk under them. Listing the set
             // is not on this ladder at all, because the caretaker answers that from the grant.
             rights: dir::REMOVE,
-            role: fs_proto::grant::spec(name.len(), flags),
+            role: filesystem_proto::grant::spec(name.len(), flags),
             arg: lo,
             arg2: hi,
             stack_pages: 6,

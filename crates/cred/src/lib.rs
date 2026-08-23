@@ -4,7 +4,7 @@
 //! The pure logic behind the credential service: how a secret becomes a record, how a presented
 //! secret is checked against one, and how a record is encoded. No syscalls, no allocation, no
 //! `alloc`, so it compiles for the host and for both bare-metal targets from one source and its
-//! tests run in milliseconds. The wire contract is `cred_proto`; the service is
+//! tests run in milliseconds. The wire contract is `credential_proto`; the service is
 //! `user/src/credentialer.rs`.
 //!
 //! # Examples
@@ -125,7 +125,7 @@
 pub use argon2::Block;
 use argon2::{Algorithm, Argon2, Params, Version};
 /// The server challenge's width and the width of every NTLM key and output, re-exported so the
-/// service can assert `cred_proto`'s copies of them against these at compile time without
+/// service can assert `credential_proto`'s copies of them against these at compile time without
 /// depending on `ntlm` itself. Rule 7's problem in miniature: the wire contract and the store must
 /// agree about a number, and "deliberately written twice with nothing checking" is how a component
 /// ends up scribbling on the wrong bytes.
@@ -138,20 +138,20 @@ pub const SALT_LEN: usize = 16;
 /// Tag length, in bytes. 32 is RFC 9106's recommendation and Argon2's default.
 pub const TAG_LEN: usize = 32;
 
-/// The longest identity a record can hold. Matches `cred_proto::MAX_IDENTITY`; the two constants
-/// are checked against each other by a test in `cred_proto`'s consumer, the service.
+/// The longest identity a record can hold. Matches `credential_proto::MAX_IDENTITY`; the two constants
+/// are checked against each other by a test in `credential_proto`'s consumer, the service.
 pub const MAX_IDENTITY: usize = 64;
 
-/// The longest secret [`Record::derive`] will accept. Matches `cred_proto::MAX_SECRET`.
+/// The longest secret [`Record::derive`] will accept. Matches `credential_proto::MAX_SECRET`.
 pub const MAX_SECRET: usize = 256;
 
 /// The longest account name or domain an NTLM secret can be bound to, in bytes. Matches
-/// `cred_proto::MAX_NAME`. Windows caps `sAMAccountName` at 20 characters and a short domain
+/// `credential_proto::MAX_NAME`. Windows caps `sAMAccountName` at 20 characters and a short domain
 /// name at 15, so 64 is generous for both and short enough to keep the record a fixed size.
 pub const MAX_NAME: usize = 64;
 
 /// The longest client blob [`Store::ntlm_proof`] will MAC, in bytes. Matches
-/// `cred_proto::MAX_BLOB`. The blob is the client's `temp` structure ([MS-NLMP] §3.3.2): version
+/// `credential_proto::MAX_BLOB`. The blob is the client's `temp` structure ([MS-NLMP] §3.3.2): version
 /// bytes, a timestamp, a client challenge, and the target info it echoed back. A real one is a
 /// couple of hundred bytes; 2 KiB is room for a server that advertises a lot of AV pairs, and a
 /// bound at all is what keeps the shared page's layout fixed.
@@ -167,7 +167,7 @@ const MAX_P_COST: u32 = (1 << 24) - 1;
 /// **What went wrong with the question**, as distinct from the answer to it. Every variant here is
 /// a caller bug: a length out of range, a cost the KDF will not accept, a scratch buffer too
 /// small. None of them is an authentication outcome, and the service maps all of them to
-/// `cred_proto::MALFORMED` rather than to a verdict.
+/// `credential_proto::MALFORMED` rather than to a verdict.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Error {
     /// The identity is empty or longer than [`MAX_IDENTITY`].
@@ -189,7 +189,7 @@ pub enum Error {
 }
 
 /// **The answer**, and it has exactly two values on purpose. A miss and a wrong secret are the
-/// same [`Verdict::Mismatch`]; see `cred_proto`'s module docs for why.
+/// same [`Verdict::Mismatch`]; see `credential_proto`'s module docs for why.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Verdict {
     /// The presented secret hashed to the stored value.
@@ -366,7 +366,7 @@ impl Record {
     /// **Turn a password into a record that can answer an NTLM challenge as well as a login.**
     ///
     /// Derives both halves from the one password: the Argon2id tag, so
-    /// [`cred_proto::verify::VERIFY`] works for this identity too, and `NTOWFv2`, bound to `user`
+    /// [`credential_proto::verify::VERIFY`] works for this identity too, and `NTOWFv2`, bound to `user`
     /// and `domain` here rather than at request time. Binding them at provisioning is the point:
     /// a caller of [`Store::ntlm_proof`] chooses neither, so it cannot ask the service to compute
     /// under a key for an account it named itself.
@@ -379,7 +379,7 @@ impl Record {
     /// is bounded here is by scope rather than by strength: a secret is per resource, so a
     /// cracked one authenticates to one share.
     ///
-    /// [`cred_proto::verify::VERIFY`]: https://docs.rs/cred_proto
+    /// [`credential_proto::verify::VERIFY`]: https://docs.rs/credential_proto
     pub fn derive_ntlm(
         identity: &[u8],
         password: &[u8],
@@ -499,7 +499,7 @@ impl Record {
     }
 
     /// An unwritten slot: an identity of length zero, which [`Store::verify`] can never be asked
-    /// about because both this crate and `cred_proto` refuse an empty identity.
+    /// about because both this crate and `credential_proto` refuse an empty identity.
     const fn empty() -> Self {
         Record {
             id_len: 0,
@@ -541,7 +541,7 @@ impl core::fmt::Debug for Record {
 ///
 /// The absence of a getter is the API expressing what the process boundary enforces. The
 /// credential service holds one of these in its own address space and serves
-/// `cred_proto::verify::VERIFY` over an endpoint; a client cannot read a record because there is
+/// `credential_proto::verify::VERIFY` over an endpoint; a client cannot read a record because there is
 /// no message that returns one, no page that carries one, and no method here that produces one.
 pub struct Store<const N: usize> {
     records: [Record; N],

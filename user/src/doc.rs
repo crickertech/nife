@@ -143,13 +143,13 @@ pub extern "C" fn _start(_a0: u64, _a1: u64, _a2: u64) -> ! {
     let mut out = Out::default();
     loop {
         let (w0, w1, w2) = recv(SOURCE);
-        let mut buf = [0u8; sink_proto::INLINE_MAX];
-        let n = match sink_proto::unpack(w0, w1, w2, &mut buf) {
-            sink_proto::Msg::Bytes(n) => n,
+        let mut buf = [0u8; byte_sink_proto::INLINE_MAX];
+        let n = match byte_sink_proto::unpack(w0, w1, w2, &mut buf) {
+            byte_sink_proto::Msg::Bytes(n) => n,
             // A malformed message ends the document rather than being skipped, for the reason `wc`
             // gives: a page that is silently missing a paragraph is indistinguishable from a page
             // that never had one.
-            sink_proto::Msg::Eof | sink_proto::Msg::Malformed => break,
+            byte_sink_proto::Msg::Eof | byte_sink_proto::Msg::Malformed => break,
         };
         renderer.feed(&buf[..n], &mut out);
         if out.gone {
@@ -163,12 +163,12 @@ pub extern "C" fn _start(_a0: u64, _a1: u64, _a2: u64) -> ! {
 
 /// The output side of the sink contract, as a [`Sink`] the renderer can write into.
 ///
-/// It buffers to [`sink_proto::INLINE_MAX`] and sends a message whenever it is full, because the
+/// It buffers to [`byte_sink_proto::INLINE_MAX`] and sends a message whenever it is full, because the
 /// renderer emits in runs as short as one escape sequence and a message per run would be one IPC
 /// round trip per attribute change.
 #[derive(Default)]
 struct Out {
-    buf: [u8; sink_proto::INLINE_MAX],
+    buf: [u8; byte_sink_proto::INLINE_MAX],
     used: usize,
     /// The sink has been destroyed and there is nowhere left to write. Unix's `SIGPIPE`, arriving
     /// as a return code (notes/pipes.md).
@@ -181,11 +181,11 @@ impl Out {
             self.used = 0;
             return;
         }
-        let (w0, w1, w2, _) = sink_proto::pack(&self.buf[..self.used]);
+        let (w0, w1, w2, _) = byte_sink_proto::pack(&self.buf[..self.used]);
         self.used = 0;
         if !matches!(
-            sink_proto::classify(send(SINK, w0, w1, w2)),
-            sink_proto::Sent::Ok
+            byte_sink_proto::classify(send(SINK, w0, w1, w2)),
+            byte_sink_proto::Sent::Ok
         ) {
             self.gone = true;
         }
@@ -194,7 +194,7 @@ impl Out {
     fn end(&mut self) {
         self.flush();
         if !self.gone {
-            send(SINK, sink_proto::eof(), 0, 0);
+            send(SINK, byte_sink_proto::eof(), 0, 0);
         }
     }
 }
@@ -202,7 +202,7 @@ impl Out {
 impl Sink for Out {
     fn put(&mut self, bytes: &[u8]) {
         for &b in bytes {
-            if self.used == sink_proto::INLINE_MAX {
+            if self.used == byte_sink_proto::INLINE_MAX {
                 self.flush();
             }
             if self.gone {

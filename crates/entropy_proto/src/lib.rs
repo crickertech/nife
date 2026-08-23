@@ -2,7 +2,7 @@
 //!
 //! One definition of the request and the reply that carry random bytes out of the entropy service,
 //! so the service, its clients, the std PAL and the kernel-side tests cannot drift. The same split
-//! `fs_proto` makes for the filesystem and `clock_proto` for the wall clock.
+//! `filesystem_proto` makes for the filesystem and `clock_proto` for the wall clock.
 //!
 //! # The shape, and why it is this small
 //!
@@ -100,7 +100,7 @@
 pub const MAX_BYTES: u64 = 8;
 
 /// Where a request packs its opcode: bits 63:56 of the first `CALL` word, the same position
-/// `fs_proto` and `line_editor::proto` use, so the contracts read alike.
+/// `filesystem_proto` and `line_editor::proto` use, so the contracts read alike.
 pub const OP_SHIFT: u32 = 56;
 
 /// **Give me `n` random bytes.** The only operation. `n` is clamped to [`MAX_BYTES`] by [`want`],
@@ -145,7 +145,7 @@ pub const NO_ENTROPY: u64 = 0;
 /// while every failure the *kernel* can return from a `CALL` is one of its small negatives
 /// (`abi::Error`, -1 to -8), which read as enormous `u64`s. So a caller holding no entropy
 /// capability sees `None` and can say "this platform cannot do that" without a separate probe.
-/// `fs_proto` could not manage this (its errno space collides with the kernel's, a wart
+/// `filesystem_proto` could not manage this (its errno space collides with the kernel's, a wart
 /// notes/std.md records), and a contract this new has no excuse to inherit the collision.
 pub const fn delivered(r0: u64) -> Option<usize> {
     if r0 <= MAX_BYTES {

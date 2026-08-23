@@ -98,7 +98,7 @@ const OUT_FRAME: u64 = SURFACE_FRAME + gfx::SURFACE_FRAMES as u64;
 /// in [`MODE_WINDOW`] the compositor's wiring maps it here.
 const SURFACE_VA: u64 = 0x0000_0000_0060_0000;
 /// The page an application writes the bytes of an `OP_WRITE` into. The terminal contract's
-/// "control by message, bulk by shared page" split (DECISIONS §10), the same one `fs_proto` makes.
+/// "control by message, bulk by shared page" split (DECISIONS §10), the same one `filesystem_proto` makes.
 const OUT_VA: u64 = 0x0000_0000_0068_0000;
 /// The compositor's per-client control page. [`MODE_WINDOW`] only.
 const CTL_VA: u64 = 0x0000_0000_0069_0000;

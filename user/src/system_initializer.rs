@@ -40,7 +40,7 @@ use system_initializer::BootEndowment;
 /// **What `kernel::user::riscv_shell_boot` grants, in order.** The kernel inserts these into this
 /// process's cspace before it starts, and the numbers below are that call's `assert_eq!`s read from
 /// the other side. Slots 4 and 5 hold nothing when this boot attached no RedoxFS disk, which is what
-/// `a2` (the endpoint's `fs_proto::dir` rights, 0 for no disk) says.
+/// `a2` (the endpoint's `filesystem_proto::dir` rights, 0 for no disk) says.
 ///
 /// The clock is granted ahead of the filesystem pair on purpose, so its slot is the same on every
 /// boot whether or not a disk was attached.

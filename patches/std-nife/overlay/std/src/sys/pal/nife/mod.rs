@@ -24,7 +24,7 @@ pub(crate) mod abi;
 // The net PAL (`sys/net`) is a client of it.
 pub(crate) mod netproto;
 // The FS-service wire format (opcodes, request packing, the errno convention), generated verbatim
-// from `crates/fs_proto/src/lib.rs` by the same xtask step. The fs PAL (`sys/fs`) is a client of
+// from `crates/filesystem_proto/src/lib.rs` by the same xtask step. The fs PAL (`sys/fs`) is a client of
 // it. `blk`/`fixture` in there belong to the other two parties, hence the allow.
 #[allow(dead_code)]
 pub(crate) mod fsproto;
@@ -40,14 +40,14 @@ pub(crate) mod clockproto;
 #[allow(dead_code)]
 pub(crate) mod entropyproto;
 // The byte-sink contract (milestone 50, notes/sink-protocol.md): the one framing every "write
-// these bytes there" destination speaks, generated verbatim from `crates/sink_proto/src/lib.rs` by
+// these bytes there" destination speaks, generated verbatim from `crates/byte_sink_proto/src/lib.rs` by
 // the same xtask step. `sys/stdio` is a *writer* of it, so the receiving half (`unpack`, `Msg`)
 // belongs to the sinks; hence the allow.
 #[allow(dead_code)]
 pub(crate) mod sinkproto;
 // The inert-configuration contract (milestone 47's environment-variable fork, DECISIONS §111):
 // the config page's layout and the closed, validated domains TZ/LANG/TERM are checked against,
-// generated verbatim from `crates/env_proto/src/lib.rs` by the same xtask step. `sys/env` is a
+// generated verbatim from `crates/environment_proto/src/lib.rs` by the same xtask step. `sys/env` is a
 // *reader* of the page; `PageBuilder` and the domain tables belong to whoever assembles one
 // (init, or today's kernel test harness standing in for it), hence the allow.
 #[allow(dead_code)]

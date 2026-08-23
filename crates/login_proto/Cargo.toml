@@ -8,4 +8,4 @@ license.workspace = true
 workspace = true
 
 [dependencies]
-cred_proto = { version = "0.1.0", path = "../cred_proto" }
+credential_proto = { version = "0.1.0", path = "../credential_proto" }

@@ -87,7 +87,7 @@ fn underscores_are_never_emphasis() {
     // `__rust_alloc` as an opened strong span; here it is text, and that is a deliberate narrowing
     // recorded in the renderer's BUGS.
     let out = render(
-        "the __rust_alloc symbol and fs_proto\n",
+        "the __rust_alloc symbol and filesystem_proto\n",
         Style {
             width: 80,
             color: true,

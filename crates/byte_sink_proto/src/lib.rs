@@ -1,7 +1,7 @@
 //! **The byte-sink contract** (milestone 50): one framing for *write these bytes there*.
 //!
 //! Before this crate there were four of them. std's `println!` SENT three registers on the
-//! endpoint in slot 1; `line_editor` CALLed with an opcode and a shared page; `fs_proto` CALLed with
+//! endpoint in slot 1; `line_editor` CALLed with an opcode and a shared page; `filesystem_proto` CALLed with
 //! a handle, an offset and a shared page; the console server took a length on one endpoint and
 //! acknowledged on another. Four shapes for one verb, which is exactly as many as it takes to make
 //! a program's output destination something the program has to *know about*. This is the one
@@ -53,7 +53,7 @@
 //! an example that writes more than that is the honest one:
 //!
 //! ```
-//! use sink_proto::{INLINE_MAX, Msg, eof, pack, unpack};
+//! use byte_sink_proto::{INLINE_MAX, Msg, eof, pack, unpack};
 //!
 //! let line = b"the quick brown fox\n"; // 20 bytes, so two messages and an EOF
 //! let mut messages = 0;
@@ -96,7 +96,7 @@
 //! buffer:
 //!
 //! ```
-//! use sink_proto::{INLINE_MAX, Msg, OP_BYTES, len, op, pack, req, unpack};
+//! use byte_sink_proto::{INLINE_MAX, Msg, OP_BYTES, len, op, pack, req, unpack};
 //!
 //! let (w0, ..) = pack(b"hi");
 //! assert_eq!(w0, 2); // the whole word, not just its low bits
@@ -117,7 +117,7 @@
 //! this sink is over, not why. That is the right trade for a byte stream, whose only available
 //! response to any of the three is to stop, and it is the trade Unix makes too (a writer gets
 //! `EPIPE`, never the reader's reason). A sink whose failures a client must distinguish is not a
-//! sink; it is a service, and it should be a `CALL` protocol like `fs_proto`.
+//! sink; it is a service, and it should be a `CALL` protocol like `filesystem_proto`.
 //!
 //! **Types.** This carries bytes. A method implies an object with a type, and typed pipelines are a
 //! separate and larger fork (design/roadmap/50-pipes-and-redirection.md records it as one); nothing in
@@ -128,16 +128,12 @@
 //! semantics does, and it is this crate's opcode list that makes the claim true rather than
 //! policy.
 //!
-//! Name: recorded (milestone 46, and notes/naming.md's crate section). The wire contract was
-//! spelled four ways (`fs_proto`, `gfx_proto`, `netproto`, `line_editor::proto`) for one concept;
-//! `*_proto` won on 2026-07-30 under DECISIONS §39, and `script/lint` has checked it since. That
-//! rule plus the service the stem names produces this name, which is the whole of what `recorded`
-//! claims: calef ruled on the rule, and never on this crate.
-//! The stem is the contract's own word (DECISIONS §51), which that section uses and never defends.
+//! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review). Renamed from
+//! `sink_proto`: matches the crate's own opening line ("the byte-sink contract").
 
 #![no_std]
 
-/// The opcode's position in the first word: bits 63:56, the same place `fs_proto` and
+/// The opcode's position in the first word: bits 63:56, the same place `filesystem_proto` and
 /// `line_editor::proto` put theirs. One spelling for "the wire contract" across the tree.
 pub const OP_SHIFT: u32 = 56;
 
@@ -281,7 +277,7 @@ pub const fn classify(ret: i64) -> Sent {
 /// **Shared fixtures for the sink tests**: the bytes an indifferent writer writes, the file a file
 /// sink writes them into, and the sentinels its report carries. One definition, so the component
 /// and the kernel-side test cannot disagree about what "the same bytes" means. Same split
-/// `fs_proto::fixture` makes for the filesystem contract.
+/// `filesystem_proto::fixture` makes for the filesystem contract.
 pub mod fixture {
     use super::Sent;
 
@@ -297,7 +293,7 @@ pub mod fixture {
 
     /// A sink reports this once its destination is open and before it takes a byte, so a hang in
     /// opening the file is distinguishable from a hang in the serve path. Same discipline as
-    /// `fs_proto::fixture::READY`.
+    /// `filesystem_proto::fixture::READY`.
     pub const READY: u64 = 0x5142_0000_0000_0001;
 
     /// A sink reports this after end-of-stream, with the byte total in the second word.
