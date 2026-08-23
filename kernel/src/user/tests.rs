@@ -905,8 +905,8 @@ fn a_user_client_moves_data_through_shared_memory() {
     static mut BUF: [u8; 128] = [0; 128];
 
     let image = init_image();
-    let request = sched::create_endpoint();
-    let reply = sched::create_endpoint();
+    let request = sched::create_rendezvous();
+    let reply = sched::create_rendezvous();
 
     // The shared page, owned by the test (not by either address space), so `map_physical`
     // will not free it. Deliberately leaked: the client spins forever, so there is no safe
@@ -947,8 +947,8 @@ fn a_user_client_moves_data_through_shared_memory() {
                 arg1: 0,
                 arg2: 0,
                 grants: &[
-                    crate::cap::endpoint_cap(request, crate::cap::Rights::WRITE),
-                    crate::cap::endpoint_cap(reply, crate::cap::Rights::READ),
+                    crate::cap::rendezvous_cap(request, crate::cap::Rights::WRITE),
+                    crate::cap::rendezvous_cap(reply, crate::cap::Rights::READ),
                 ],
                 maps: &[Mapping {
                     va: SHARED_VA,
@@ -1085,7 +1085,7 @@ fn a_userspace_driver_reads_a_file_from_a_virtio_disk() {
 /// `read_to_string`, stats it, and gets refused when it tries to name anything outside that
 /// directory. The bytes it prints are the file's own, so the assertion covers the whole path:
 /// disk, DMA-confined block server, FS server running an engine we did not write, the file
-/// contract, std's PAL, and the stdout endpoint.
+/// contract, std's PAL, and the stdout rendezvous.
 ///
 /// What it proves that the hand-written client's test does not: `std::fs::File::open` has no
 /// global namespace to resolve against, and the mapping to a granted directory holds from inside
@@ -1117,7 +1117,7 @@ fn std_fs_reads_a_file_through_a_granted_directory_capability() {
 /// userspace-reuse story). Three confined processes: a block server drives the RedoxFS disk over
 /// DMA, an FS server mounts it over blk IPC and serves files from its own heap, and a client
 /// opens `motd` through a granted directory capability, reads it, writes a pattern to `scratch`
-/// and reads it back, then reports. The client names nothing but its directory endpoint, so a
+/// and reads it back, then reports. The client names nothing but its directory rendezvous, so a
 /// success here is the whole capability contract holding: designation is authorization, the
 /// handle is a server-minted token, and a real CoW filesystem we did not write runs confined.
 // RISC-V twin: `riscv_virtio_tests::the_fs_server_serves_redoxfs_over_a_capability_contract`. Gated here rather than run twice: that
@@ -1163,7 +1163,7 @@ fn the_fs_server_serves_redoxfs_over_a_capability_contract() {
 ///
 /// `run wc report.txt` must hand over one file, not the directory it lives in. This wires
 /// exactly that: an `fs_file_caretaker` holding the directory capability, a confined program
-/// holding only the caretaker's endpoint, and a grant of `motd`, read-only. The program is the
+/// holding only the caretaker's rendezvous, and a grant of `motd`, read-only. The program is the
 /// attacker role of `fs_test_client`, and it spends its life trying to make that sentence false.
 ///
 /// **What makes it a witness and not a formality.** Every attempt is against something that
@@ -1486,7 +1486,7 @@ fn the_net_server_acquires_a_dhcp_lease_over_smoltcp_pci() {
 }
 
 /// **The socket contract, UDP end to end** (milestone 30, piece 3 phase B; DECISIONS §25). A
-/// client process holds a `Stack` endpoint and its own untyped, mints a shared frame, delegates
+/// client process holds a `Stack` rendezvous and its own untyped, mints a shared frame, delegates
 /// it, opens a UDP socket by id, sends a datagram, and reads the reply back through the same
 /// frame. No ambient network: the client acts only through the capability it was granted, and the
 /// bytes cross in the shared frame, never in a message. Proves the whole path, client to `net_stack` to
@@ -1675,7 +1675,7 @@ fn a_reopened_socket_id_connects_again_over_tcp() {
 ///
 /// Here a **host process** opens a TCP connection to a port QEMU forwards into the guest
 /// (`hostfwd`, the mirror of the `guestfwd` the outbound gate uses), sends a payload, and reads
-/// back an answer the guest *composed*. The guest holds only a `Stack` endpoint and a shared frame,
+/// back an answer the guest *composed*. The guest holds only a `Stack` rendezvous and a shared frame,
 /// listens on the one port its spawn granted, accepts, reads, answers, and does the whole thing
 /// again on the same listener, which is what proves the listener re-arms rather than serving one
 /// connection and going deaf. The host side is xtask's inbound prober, running beside the suite the
@@ -1702,7 +1702,7 @@ fn a_reopened_socket_id_connects_again_over_tcp() {
 /// is exclusive; and since this spawn's word carries both grants, the composed packing is what
 /// the machine exercises); a datagram addressed to 224.0.0.251, not to the guest, is accepted
 /// because the stack joined the group (without smoltcp's `multicast` feature it dies in the IPv4
-/// input path, unseen by UDP); and the querier's source endpoint rides back on RECV, which RFC
+/// input path, unseen by UDP); and the querier's source rendezvous rides back on RECV, which RFC
 /// 6762 §6.7's semantics turn on. Slirp cannot carry multicast, so the host side is xtask's
 /// multicast prober on the frame-level hub the runner wires beside slirp: it takes the guest's
 /// own multicast send off the wire (which is what proves SENDTO to a group reaches it), injects
@@ -1785,7 +1785,7 @@ fn a_host_process_connects_to_the_guest_and_is_answered() {
     let had_fs = fs.is_some();
     // **The credential service, milestone 65's, sealed** (milestone 54's identity item). The same
     // wiring the credential tests use, latched once per boot, so this is the *real* service holding
-    // the *real* key: the adapter below gets its verify endpoint and nothing else, and xtask's
+    // the *real* key: the adapter below gets its verify rendezvous and nothing else, and xtask's
     // prober computes a proof on the host over the password nobody in the guest has. Wired only
     // when there is a filesystem to authenticate access to, because the authenticated share mode is
     // an fs-backed mode.
@@ -1817,7 +1817,7 @@ fn a_host_process_connects_to_the_guest_and_is_answered() {
     // spawned by this point (the FS service's block server and FS server, if `had_fs`; `net_stack`;
     // the echo client; the SMB adapter; the mDNS responder; the credential service, if `cred` is
     // `Some`), and none of them spawns another kernel thread per connection or per request (each is
-    // a single-threaded event loop over its own endpoint), so this count is already the peak: it
+    // a single-threaded event loop over its own rendezvous), so this count is already the peak: it
     // does not grow further as the host prober's connections arrive. See notes/benchmarks.md and
     // this milestone's register entry for what this settles. Reported as a delta against
     // `e2_baseline_threads` (see this function's top), not as the absolute reading: the absolute
@@ -1901,7 +1901,7 @@ const STD_LISTEN_EXPECTED: &[u8] =
 /// sees a capability or a socket id; it writes to a socket and reads from it. This closes the
 /// `net honestly unsupported` gap from phase one: std's networking runs on the native ABI,
 /// reaching the same path the hand-written client does through std's blocking API. Its stdout
-/// is reassembled off the endpoint and compared byte for byte, the `std_exerciser` discipline.
+/// is reassembled off the rendezvous and compared byte for byte, the `std_exerciser` discipline.
 // RISC-V twin: `riscv_virtio_tests::std_net_runs_over_the_socket_contract`. Gated here rather than run twice: that
 // module drives the same property through the dedicated `blk`/`net_stack` binaries, and a
 // second copy through hello's roles would double the suite's slowest tests to prove
@@ -1966,11 +1966,11 @@ fn a_std_program_serves_a_granted_listening_port() {
 /// **The shell's `run` mechanism: spawn a process, get its answer.** Milestone 10's core.
 ///
 /// A worker process is started at EL0 with an argument, computes `n*n`, reports the result on
-/// an endpoint it was handed, and exits. The whole lifecycle a shell drives when you type
+/// an rendezvous it was handed, and exits. The whole lifecycle a shell drives when you type
 /// `run n`, minus the interactive loop, which is exercised by the piped demo instead.
 #[test_case]
 fn a_spawned_worker_process_computes_and_reports() {
-    let result = sched::create_endpoint();
+    let result = sched::create_rendezvous();
     let faults = USER_FAULTS.load(Ordering::Relaxed);
 
     sched::spawn(move || {
@@ -1980,7 +1980,10 @@ fn a_spawned_worker_process_computes_and_reports() {
                 arg0: 0, // no role selector; the input is in x1
                 arg1: 9, // the worker computes 9*9
                 arg2: 0,
-                grants: &[crate::cap::endpoint_cap(result, crate::cap::Rights::WRITE)],
+                grants: &[crate::cap::rendezvous_cap(
+                    result,
+                    crate::cap::Rights::WRITE,
+                )],
                 maps: &[],
             },
         )
@@ -2438,10 +2441,10 @@ fn userspace_init_delegates_an_interrupt_to_a_child() {
     const IRQ_WORD: u64 = 0x1590;
     const INIT_IRQ_ROLE: u64 = 25;
 
-    let report = crate::sched::create_endpoint();
+    let report = crate::sched::create_rendezvous();
     let init = spawn_init(initrd().expect("no initrd"), INIT_IRQ_ROLE, report);
 
-    // Raise the test interrupt. The endpoint counts it if the child is not waiting yet (it is
+    // Raise the test interrupt. The rendezvous counts it if the child is not waiting yet (it is
     // still being built), and the child's WAIT drains that pending signal, so there is no race.
     crate::drivers::gic::send_sgi(INIT_TEST_SGI, crate::cpu::id());
 
@@ -2467,7 +2470,7 @@ fn userspace_init_brings_up_the_console_server() {
     const MSG_LEN: u64 = 66;
     const INIT_CONSOLE_ROLE: u64 = 24;
 
-    let report = crate::sched::create_endpoint();
+    let report = crate::sched::create_rendezvous();
     let init = spawn_init(initrd().expect("no initrd"), INIT_CONSOLE_ROLE, report);
 
     let acked = crate::sched::ipc_recv(report)[0];
@@ -2500,7 +2503,7 @@ fn userspace_init_builds_a_driver_that_reads_real_hardware() {
     const PL011_PRIMECELL_ID: u64 = 0xB105_F00D;
     const INIT_DEV_ROLE: u64 = 23;
 
-    let report = crate::sched::create_endpoint();
+    let report = crate::sched::create_rendezvous();
     let init = spawn_init(initrd().expect("no initrd"), INIT_DEV_ROLE, report);
 
     let id = crate::sched::ipc_recv(report)[0];
@@ -2513,7 +2516,7 @@ fn userspace_init_builds_a_driver_that_reads_real_hardware() {
 
 /// **Milestone 19d: userspace init parses a real ELF and builds a running process from it.**
 /// The kernel loads exactly one program, init (a role of the same binary), and hands it the
-/// initrd mapped read-only plus a building budget and a report endpoint. init parses that
+/// initrd mapped read-only plus a building budget and a report rendezvous. init parses that
 /// ELF *in userspace* (the `elf` crate, no longer in the kernel's trusted core) and loads it
 /// as a child through the granular verbs: retype an address space, copy each segment into
 /// retyped frames and map them, retype and endow a TCB, configure, start. The child runs code
@@ -2524,7 +2527,7 @@ fn userspace_init_parses_an_elf_and_builds_a_running_child() {
     const CHILD_WORD: u64 = 0xC0FFEE;
     const INIT_ROLE: u64 = 20;
 
-    let report = crate::sched::create_endpoint();
+    let report = crate::sched::create_rendezvous();
     let init = spawn_init(initrd().expect("no initrd"), INIT_ROLE, report);
 
     let word = crate::sched::ipc_recv(report)[0];
@@ -2546,7 +2549,7 @@ fn init_builds_a_worker_and_passes_it_an_argument() {
     const INIT_WORKER_ROLE: u64 = 28;
     const WORKER_INPUT: u64 = 7;
 
-    let report = crate::sched::create_endpoint();
+    let report = crate::sched::create_rendezvous();
     let init = spawn_init(initrd().expect("no initrd"), INIT_WORKER_ROLE, report);
 
     let answer = crate::sched::ipc_recv(report)[0];
@@ -2569,7 +2572,7 @@ fn init_builds_a_worker_and_passes_it_an_argument() {
 fn init_runs_the_coremark_workload_and_it_checks_out() {
     const INIT_COREMARK_ROLE: u64 = 29;
 
-    let report = crate::sched::create_endpoint();
+    let report = crate::sched::create_rendezvous();
     let init = spawn_init(initrd().expect("no initrd"), INIT_COREMARK_ROLE, report);
 
     let [crc, ticks, freq, _, _] = crate::sched::ipc_recv(report);
@@ -2592,7 +2595,7 @@ fn init_runs_the_coremark_workload_and_it_checks_out() {
 /// **Milestone 19c.3, the whole point: one process builds and starts another, and it runs.**
 /// The kernel drives the four verbs the way init eventually will: retype an address space and
 /// a TCB, map a code page (containing a hand-assembled EL0 stub) and a stack into the space,
-/// insert a report endpoint into the child's cspace, configure the TCB (entry, stack, space),
+/// insert a report rendezvous into the child's cspace, configure the TCB (entry, stack, space),
 /// and START it. The child, code no wiring wrote and a thread no `spawn` created, drops to
 /// EL0, invokes the capability it was granted to SEND a word home, and exits. Receiving that
 /// word proves every verb: the retype, the maps, the cap insert, the configure, the start,
@@ -2601,7 +2604,7 @@ fn init_runs_the_coremark_workload_and_it_checks_out() {
 fn a_process_can_build_start_and_run_a_child_thread() {
     const CODE_VA: u64 = 0x40_0000;
     const STACK_VA: u64 = 0x50_0000;
-    // The child's program: SEND(slot 0, endpoint::SEND, REPORT_WORD) then EXIT, nine
+    // The child's program: SEND(slot 0, rendezvous::SEND, REPORT_WORD) then EXIT, nine
     // instructions, with the child's first granted cap in slot 0. This file used to carry three
     // separate aarch64 copies of it; `supervision_tests` already keeps one pair (aarch64 and
     // RISC-V) for its own children, so all three now share that pair. Same shape, one definition,
@@ -2629,9 +2632,9 @@ fn a_process_can_build_start_and_run_a_child_thread() {
     let stack_phys = crate::untyped::retype_page(frames_region).expect("no stack frame");
     user_aspace_map(aspace, STACK_VA, stack_phys, Flags::user_data()).expect("map stack");
 
-    // The child's one authority: WRITE on a report endpoint, so it can SEND but not receive.
-    let report = crate::sched::create_endpoint();
-    let report_cap = crate::cap::endpoint_cap(
+    // The child's one authority: WRITE on a report rendezvous, so it can SEND but not receive.
+    let report = crate::sched::create_rendezvous();
+    let report_cap = crate::cap::rendezvous_cap(
         report,
         crate::cap::Rights::WRITE.union(crate::cap::Rights::GRANT),
     );
@@ -2700,14 +2703,14 @@ fn a_process_can_build_start_and_run_a_child_thread() {
 fn reclaim_frees_a_started_then_exited_childs_regions() {
     const CODE_VA: u64 = 0x40_0000;
     const STACK_VA: u64 = 0x50_0000;
-    // SEND(slot 0, endpoint::SEND, REPORT_WORD) then EXIT, the shared stub (see the test above).
+    // SEND(slot 0, rendezvous::SEND, REPORT_WORD) then EXIT, the shared stub (see the test above).
     let code = super::supervision_tests::REPORT_STUB;
     let expect_word = super::supervision_tests::REPORT_WORD;
 
-    // The report endpoint is created before the baseline: it lives in the kernel's own pinned
-    // endpoint region (never reclaimed here; endpoint revocation is a later piece), so it must
+    // The report rendezvous is created before the baseline: it lives in the kernel's own pinned
+    // rendezvous region (never reclaimed here; rendezvous revocation is a later piece), so it must
     // not count against the frame accounting.
-    let report = crate::sched::create_endpoint();
+    let report = crate::sched::create_rendezvous();
     let frames_before = crate::memory::free_frames();
 
     // The child's whole address space in one region: root, tables, code, and stack.
@@ -2728,7 +2731,7 @@ fn reclaim_frees_a_started_then_exited_childs_regions() {
     let stack_phys = crate::untyped::retype_page(as_region).expect("no stack frame");
     user_aspace_map(aspace, STACK_VA, stack_phys, Flags::user_data()).expect("map stack");
 
-    let report_cap = crate::cap::endpoint_cap(
+    let report_cap = crate::cap::rendezvous_cap(
         report,
         crate::cap::Rights::WRITE.union(crate::cap::Rights::GRANT),
     );
@@ -2793,7 +2796,7 @@ fn spawn_to_reap_repeats_without_leaking() {
     let code = super::supervision_tests::REPORT_STUB;
     let expect_word = super::supervision_tests::REPORT_WORD;
 
-    let report = crate::sched::create_endpoint();
+    let report = crate::sched::create_rendezvous();
     let baseline = crate::memory::free_frames();
 
     for round in 0..6 {
@@ -2812,7 +2815,7 @@ fn spawn_to_reap_repeats_without_leaking() {
         let stack_phys = crate::untyped::retype_page(as_region).expect("stack frame");
         user_aspace_map(aspace, STACK_VA, stack_phys, Flags::user_data()).expect("map stack");
 
-        let report_cap = crate::cap::endpoint_cap(
+        let report_cap = crate::cap::rendezvous_cap(
             report,
             crate::cap::Rights::WRITE.union(crate::cap::Rights::GRANT),
         );
@@ -2861,20 +2864,20 @@ fn a_process_can_build_an_address_space_from_el0() {
     );
 }
 
-/// **Milestone 19a, end to end: an endpoint minted by a process out of its own memory
-/// carries IPC between processes.** The maker retypes a page of its untyped into an endpoint
+/// **Milestone 19a, end to end: an rendezvous minted by a process out of its own memory
+/// carries IPC between processes.** The maker retypes a page of its untyped into an rendezvous
 /// (`RETYPE_OBJ`), delegates a READ view to a peer it has never met, and sends a word into
 /// it; the peer listens on the received capability and reports what arrived. No kernel
-/// wiring created the endpoint: budget, mint, delegation, and rendezvous are all the
+/// wiring created the rendezvous: budget, mint, delegation, and rendezvous are all the
 /// processes' own acts. The word arriving is the whole granular-construction story of 19a
 /// working at EL0.
 #[test_case]
-fn a_process_can_mint_an_endpoint_and_ipc_flows_over_it() {
+fn a_process_can_mint_an_rendezvous_and_ipc_flows_over_it() {
     let report = retype_ep_service::wire(init_image());
     let word = sched::ipc_recv(report)[0];
     assert_eq!(
         word, 0x77,
-        "the word never crossed the process-minted endpoint",
+        "the word never crossed the process-minted rendezvous",
     );
 }
 
@@ -2918,7 +2921,7 @@ fn a_capability_can_be_delegated_over_ipc_and_grant_gates_re_delegation() {
 /// one-shot.** The client `CALL`s across the boundary; the server `RECV_CAP`s the request plus a
 /// kernel-minted reply capability naming the caller, answers through it (the round trip through
 /// the real syscall path), then tries to answer a second time and reports that the kernel
-/// refused. This is what a pre-wired reply endpoint cannot guarantee.
+/// refused. This is what a pre-wired reply rendezvous cannot guarantee.
 #[test_case]
 fn a_process_calls_a_server_and_the_reply_is_one_shot() {
     let (call_report, oneshot_report) = call_service::wire(init_image());

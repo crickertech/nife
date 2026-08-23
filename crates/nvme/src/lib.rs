@@ -86,11 +86,11 @@
 //! assert_eq!(prp_pair(0x4000_0000, 3 * 4096, 4096), None);
 //! ```
 //!
-//! Name: unrecorded. Introduced 2026-08-15 with milestone 53's NVMe block driver. Provisional
-//! (this lane's proposal, awaiting ratification): the specification's own name for the device
-//! family, the same claim `pci` and `virtio` make, and `crates/virtio` is precedent for naming the
-//! driver-logic crate after the family it drives. The kernel's `nvme` module is this crate's
-//! volatile half, the crate/module name-sharing convention AGENTS.md records for `compositor`.
+//! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review), the same exemption
+//! DECISIONS §113 already gives the kernel's `Nvme` type: the specification's own name for the
+//! device family, the same claim `pci` and `virtio` make. Introduced 2026-08-15 with milestone
+//! 53's NVMe block driver. The kernel's `nvme` module is this crate's volatile half, the
+//! crate/module name-sharing convention AGENTS.md records for `compositor`.
 
 /// Register offsets in BAR0 (NVMe 1.4 §3.1). All are 4-byte registers or 8-byte registers the
 /// kernel accesses as two 4-byte halves (the spec permits either for the 64-bit ones).

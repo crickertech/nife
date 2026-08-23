@@ -83,16 +83,18 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
 
     // The channels. The spawner serves `req` and answers on `rep`; `childfault` is where the
     // sub-server's deaths go (sub_server_supervisor receives them); `rootfault` is where OUR children's deaths go.
-    let Ok(req) = supervision_proto::retype_obj_from(ROOT_UT, abi::objtype::ENDPOINT) else {
+    let Ok(req) = supervision_proto::retype_obj_from(ROOT_UT, abi::objtype::RENDEZVOUS) else {
         bail(5)
     };
-    let Ok(rep) = supervision_proto::retype_obj_from(ROOT_UT, abi::objtype::ENDPOINT) else {
+    let Ok(rep) = supervision_proto::retype_obj_from(ROOT_UT, abi::objtype::RENDEZVOUS) else {
         bail(6)
     };
-    let Ok(childfault) = supervision_proto::retype_obj_from(ROOT_UT, abi::objtype::ENDPOINT) else {
+    let Ok(childfault) = supervision_proto::retype_obj_from(ROOT_UT, abi::objtype::RENDEZVOUS)
+    else {
         bail(7)
     };
-    let Ok(rootfault) = supervision_proto::retype_obj_from(ROOT_UT, abi::objtype::ENDPOINT) else {
+    let Ok(rootfault) = supervision_proto::retype_obj_from(ROOT_UT, abi::objtype::RENDEZVOUS)
+    else {
         bail(8)
     };
     let Ok(sp_ut) = supervision_proto::untyped_split(ROOT_UT, SPAWNER_BUDGET_PAGES) else {

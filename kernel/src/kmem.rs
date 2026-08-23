@@ -47,7 +47,7 @@ struct Pool {
     free_len: usize,
 }
 
-/// Rank note: taken alone or under `IPC_TABLES` (`create_endpoint` holds `IPC_TABLES`, then this, then the
+/// Rank note: taken alone or under `IPC_TABLES` (`create_rendezvous` holds `IPC_TABLES`, then this, then the
 /// region lock: 60 -> 59 -> 58, a legal descent). Shares 59 with INBOX and MAPPINGS, with which
 /// it is never nested: inboxes are scheduling traffic, the mapping registry is user-space
 /// bookkeeping, and this is the kernel shopping for its own pages.

@@ -209,7 +209,7 @@ pub fn unpin(region: u64) {
 /// caller ever reaches the free loop below for a given region. This used to be two hold of the
 /// region lock with a gap between them, and the gap was a real double free rather than an
 /// untidiness: two callers with a name for one region (an owner's `Untyped::DESTROY` and a
-/// supervisor's `endpoint::REAP`, both landing in `sched::reclaim_region`) could each pass the
+/// supervisor's `rendezvous::REAP`, both landing in `sched::reclaim_region`) could each pass the
 /// refusal check, each release the lock, and each run the free loop over the same pages. It
 /// surfaced once in 45 loaded runs on riscv64 (notes/object-revocation.md). The fix landed as pull
 /// request #316; milestone 135 moved it into the crate so `script/interleaving-check` searches every

@@ -192,7 +192,7 @@ pub const RPT_REFUSED: u64 = 11;
 /// residual). `w1` = how many members the survey reported, `w2` = their states, packed by
 /// [`survey_counts`].
 ///
-/// The operator reads this out of `abi::endpoint::SURVEY` (milestone 126), which is the only view of
+/// The operator reads this out of `abi::rendezvous::SURVEY` (milestone 126), which is the only view of
 /// its own children it has. The report exists so the test can assert what the view **cannot** say.
 pub const RPT_SURVEY: u64 = 12;
 
@@ -208,7 +208,7 @@ pub const RPT_DEPENDENTS: u64 = 15;
 /// **Every member of the domain refused to be collected.** `w1` = how many the operator asked about,
 /// `w2` = how many answered [`abi::Error::StillAlive`].
 ///
-/// `Endpoint::REAP` (DECISIONS §32) is the supervisor's whole vocabulary over its domain, and it
+/// `Rendezvous::REAP` (DECISIONS §32) is the supervisor's whole vocabulary over its domain, and it
 /// refuses a thread that is not dead, on purpose: collecting a corpse is not killing. A hung
 /// component is not a corpse, so the vocabulary is empty. The operator asks about **every** member
 /// rather than about the one it suspects, because a survey returns a tid and nothing that says which
@@ -696,7 +696,7 @@ pub fn serve(version: u64, xform: fn(u64) -> u64, log_base: u64, device: bool, w
     let mut served = 0u64;
     loop {
         let (op, slot, arg) = user_rt::recv_cap(SVC);
-        if slot == abi::endpoint::NO_CAP {
+        if slot == abi::rendezvous::NO_CAP {
             continue; // a plain SEND slipped in; the contract says CALL, and there is nobody to answer
         }
         match op {
@@ -823,5 +823,5 @@ pub fn fail() -> ! {
 /// here is what happens to one that is not.
 pub fn try_recv_cap(slot: u64) -> i64 {
     // SAFETY: a plain syscall. If it succeeds we have stolen a request, which is the failure.
-    unsafe { invoke(slot, abi::endpoint::RECV_CAP, 0, 0, 0) }
+    unsafe { invoke(slot, abi::rendezvous::RECV_CAP, 0, 0, 0) }
 }

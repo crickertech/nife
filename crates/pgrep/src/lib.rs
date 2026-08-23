@@ -10,7 +10,7 @@
 //!
 //! The domain is walked by [`ps::collect`], which is the loop `user/src/ps.rs` runs, and this crate
 //! takes the finished [`ps::Survey`]. That is deliberate rather than tidy: a second cursor walk
-//! would be a second implementation of `abi::endpoint::SURVEY`'s resume protocol, and the one thing
+//! would be a second implementation of `abi::rendezvous::SURVEY`'s resume protocol, and the one thing
 //! worse than one walk that can be wrong is two that can disagree.
 //!
 //! # The demonstration is asymmetric on purpose, and the missing half is the claim
@@ -136,11 +136,11 @@
 //!   can subtract two of them (notes/process-view.md's `BUGS`, and a proposed milestone). This
 //!   filter reads `ps::Survey`, which never held a cursor, so there is nothing here to widen.
 //!
-//! Name: recorded (milestone 126, and CLAUDE.md's naming tenet). `pgrep` is upstream's, in the group
-//! of standard terms the tenet says are already right and must not be respelled; sharing it with
-//! `user/src/pgrep.rs` is the crate-and-program pair the same tenet describes, as `ps` and
-//! `crates/ps` already are. That rule plus the standard term produces this name, so nothing here is a
-//! naming decision calef has not already made. `Selector` is a type inside a crate rather than a
+//! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review, confirming milestone
+//! 126's own reasoning). `pgrep` is upstream's, in the group of standard terms the tenet says are
+//! already right and must not be respelled; sharing it with `user/src/pgrep.rs` is the
+//! crate-and-program pair the same tenet describes, as `ps` and `crates/ps` already are.
+//! `Selector` is a type inside a crate rather than a
 //! crate, a program or a shared module, so it is outside the tenet's scope; it is **provisional** all
 //! the same, and a lane that finds a better word for it should take it.
 
@@ -625,7 +625,7 @@ mod tests {
     }
 
     /// A tid is a generational name and can be ten digits; it goes out whole and with no padding,
-    /// because it is the name `abi::endpoint::REAP` accepts and the next program in a pipeline
+    /// because it is the name `abi::rendezvous::REAP` accepts and the next program in a pipeline
     /// should not have to strip spaces off it.
     #[test]
     fn a_wide_tid_is_printed_whole_and_unpadded() {

@@ -128,11 +128,12 @@
 //!                                       └── Reject: the response is not an answer to our question
 //! ```
 //!
-//! Name: recorded (milestone 46, and notes/naming.md's crate section). The wire contract was
-//! spelled four ways (`fs_proto`, `gfx_proto`, `netproto`, `line_editor::proto`) for one concept;
-//! `*_proto` won on 2026-07-30 under DECISIONS §39, and `script/lint` has checked it since. That
-//! rule plus the service the stem names produces this name, which is the whole of what `recorded`
-//! claims: calef ruled on the rule, and never on this crate.
+//! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review, confirming
+//! milestone 46's own reasoning). The wire contract was spelled four ways (`filesystem_proto`,
+//! `graphics_proto`, `netproto`, `line_editor::proto`) for one concept; `*_proto` won on
+//! 2026-07-30 under DECISIONS §39, and `script/lint` has checked it since. Unlike its siblings,
+//! the `ntp` stem itself is not this tree's word to spell out: NTP is RFC 5905's own name for the
+//! protocol, the same external-standard exemption `elf`/`pci`/`dtb`/`gpt` already carry.
 //! The stem is RFC 5905's own name for the protocol, so there was nothing to choose.
 
 #![no_std]

@@ -29,7 +29,7 @@ pub(super) const FAULT_STUB: &[u32] = &[
 #[cfg(target_arch = "aarch64")]
 pub(super) const REPORT_STUB: &[u32] = &[
     0xD280_0000,                                       // movz x0, #0            (slot 0)
-    0xD280_0001,                                       // movz x1, #0            (endpoint::SEND)
+    0xD280_0001,                                       // movz x1, #0            (rendezvous::SEND)
     0xD280_0000 | ((REPORT_WORD as u32) << 5) | 2,     // movz x2, #REPORT_WORD
     0xD280_0003,                                       // movz x3, #0
     0xD280_0004,                                       // movz x4, #0
@@ -41,7 +41,7 @@ pub(super) const REPORT_STUB: &[u32] = &[
 #[cfg(target_arch = "riscv64")]
 pub(super) const REPORT_STUB: &[u32] = &[
     0x0000_0513,                                    // li a0, 0            (slot 0)
-    0x0000_0593,                                    // li a1, 0            (endpoint::SEND)
+    0x0000_0593,                                    // li a1, 0            (rendezvous::SEND)
     0x0000_0613 | ((REPORT_WORD as u32) << 20),     // li a2, REPORT_WORD
     0x0000_0693,                                    // li a3, 0
     0x0000_0713,                                    // li a4, 0
@@ -57,8 +57,8 @@ pub(super) const REPORT_STUB: &[u32] = &[
 /// supervision endpoint. Returns `(child_tid, region)`.
 fn build_child(
     stub: &[u32],
-    report: Option<sched::EpId>,
-    fault_ep: Option<sched::EpId>,
+    report: Option<sched::RendezvousId>,
+    fault_ep: Option<sched::RendezvousId>,
 ) -> (u64, u64) {
     let region = crate::untyped::create(16).expect("no region for the child");
     (build_child_in(region, stub, report, fault_ep), region)
@@ -70,8 +70,8 @@ fn build_child(
 pub(super) fn build_child_in(
     region: u64,
     stub: &[u32],
-    report: Option<sched::EpId>,
-    fault_ep: Option<sched::EpId>,
+    report: Option<sched::RendezvousId>,
+    fault_ep: Option<sched::RendezvousId>,
 ) -> u64 {
     let aspace = user_aspace_create(region).expect("no aspace");
 
@@ -91,7 +91,7 @@ pub(super) fn build_child_in(
 
     let tid = sched::create_tcb(region).expect("no tcb");
     if let Some(rep) = report {
-        let cap = crate::cap::endpoint_cap(
+        let cap = crate::cap::rendezvous_cap(
             rep,
             crate::cap::Rights::WRITE.union(crate::cap::Rights::GRANT),
         );
@@ -105,7 +105,7 @@ pub(super) fn build_child_in(
         // The spawn-slot convention: the supervision endpoint goes in the reserved fault slot.
         // Rights do not matter here (the kernel reads only the endpoint name and consumes the
         // slot at START, so the child cannot forge fault messages on it); READ is the minimum.
-        let cap = crate::cap::endpoint_cap(fe, crate::cap::Rights::READ);
+        let cap = crate::cap::rendezvous_cap(fe, crate::cap::Rights::READ);
         sched::tcb_insert_cap(tid, cap, Some(FAULT_EP_SLOT)).expect("insert fault ep");
     }
     sched::configure_tcb(tid, CODE_VA, STACK_VA + page_frames::FRAME_SIZE, aspace)
@@ -120,7 +120,7 @@ pub(super) fn build_child_in(
 /// fault-time state (dead until reaped), reap it with revocation, and respawn a child that runs.
 #[test_case]
 fn a_faulting_child_reports_to_its_supervisor_and_is_reaped_then_respawned() {
-    let fault_ep = sched::create_endpoint();
+    let fault_ep = sched::create_rendezvous();
     let (child, region) = build_child(FAULT_STUB, None, Some(fault_ep));
 
     // The child faults on its first load. Its death arrives here, kernel-stamped.
@@ -167,7 +167,7 @@ fn a_faulting_child_reports_to_its_supervisor_and_is_reaped_then_respawned() {
     );
 
     // Respawn: a fresh child, in a fresh region, runs to completion where the crashed one died.
-    let report = sched::create_endpoint();
+    let report = sched::create_rendezvous();
     let (_c2, region2) = build_child(REPORT_STUB, Some(report), None);
     assert_eq!(
         sched::ipc_recv(report)[0],
@@ -189,8 +189,8 @@ fn a_faulting_child_reports_to_its_supervisor_and_is_reaped_then_respawned() {
 /// "crashed."
 #[test_case]
 fn a_clean_exit_reports_the_exit_event_not_a_fault() {
-    let report = sched::create_endpoint();
-    let fault_ep = sched::create_endpoint();
+    let report = sched::create_rendezvous();
+    let fault_ep = sched::create_rendezvous();
     let (child, region) = build_child(REPORT_STUB, Some(report), Some(fault_ep));
 
     // It runs (the SEND proves it reached EL0), then exits cleanly.

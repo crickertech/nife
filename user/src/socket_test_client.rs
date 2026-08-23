@@ -47,7 +47,7 @@
 //! and `socket_client`, which belongs to the real clients milestone 54 will need. This file is a
 //! single-consumer `#[path]` module rather than a `[[bin]]`.
 
-use abi::{endpoint, frame as fr, rights, untyped as ut};
+use abi::{frame as fr, rendezvous, rights, untyped as ut};
 use socket_proto::*;
 use user_rt::{call, exit, invoke, send};
 
@@ -193,7 +193,7 @@ fn attach_frame(sid: u64) {
     if unsafe {
         invoke(
             STACK,
-            endpoint::SEND_CAP,
+            rendezvous::SEND_CAP,
             frame,
             rights::READ | rights::WRITE,
             req(OP_ATTACH_FRAME, sid),

@@ -239,7 +239,7 @@ fn server(dma_phys: u64, grant_word: u64) -> ! {
         let op = req_op(w0);
         let sid = req_sid(w0) as usize;
         if sid >= MAX_SOCKETS {
-            if cap_slot != abi::endpoint::NO_CAP {
+            if cap_slot != abi::rendezvous::NO_CAP {
                 reply(cap_slot, REP_ERR, 0);
             }
             continue;
@@ -379,7 +379,7 @@ fn server(dma_phys: u64, grant_word: u64) -> ! {
             }
 
             _ => {
-                if cap_slot != abi::endpoint::NO_CAP {
+                if cap_slot != abi::rendezvous::NO_CAP {
                     reply(cap_slot, REP_ERR, 0);
                 }
             }

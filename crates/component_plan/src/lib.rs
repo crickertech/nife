@@ -24,11 +24,11 @@
 //!   authorization: a person names a file and the naming is the grant. A component is started by a
 //!   supervisor with nothing typed, so every field about placing a typed token (`arg`, `flags`,
 //!   `file`, `dir`) has no meaning here, and there is no prompt at which to refuse.
-//! - **The vocabularies do not overlap.** Nothing in `grant_plan::Manifest` can name an endpoint, a
+//! - **The vocabularies do not overlap.** Nothing in `grant_plan::Manifest` can name an rendezvous, a
 //!   device, or a shared page; nothing here can name an argument or a short option.
 //! - **A component *serves*, and a program only consumes.** [`Direction`] is the axis this crate
-//!   adds, and it is the axis §41's central refusal test turns on: `Serve` is `READ` on an endpoint
-//!   and `Use` is `WRITE`, so a client of the stable endpoint cannot become its server. `grant_plan`
+//!   adds, and it is the axis §41's central refusal test turns on: `Serve` is `READ` on an rendezvous
+//!   and `Use` is `WRITE`, so a client of the stable rendezvous cannot become its server. `grant_plan`
 //!   has no field that could carry that, and no program it spawns would ever set one.
 //! - **The keys are different, and this is the one that decides drop-in.** `grant_plan::Manifest` is
 //!   reachable only through `Prog`, a closed enum with a static table compiled into the shell, so
@@ -48,9 +48,9 @@
 //! manifest cannot widen a component's authority; it can only fail to be satisfiable.
 //!
 //! The corollary is the property that makes a component substitutable at all: **the name is the
-//! component's and the object is the supervisor's.** `chatty`'s manifest asks to *use* an endpoint it
-//! calls `service`; on the direct channel the operator routes that to the shared service endpoint,
-//! and on the queued channel it routes the same name to the broker's front endpoint. One
+//! component's and the object is the supervisor's.** `chatty`'s manifest asks to *use* an rendezvous it
+//! calls `service`; on the direct channel the operator routes that to the shared service rendezvous,
+//! and on the queued channel it routes the same name to the broker's front rendezvous. One
 //! declaration, two wirings, and the component cannot tell which it got.
 //!
 //! # Structure is a compile error; provisioning is a runtime refusal
@@ -145,7 +145,7 @@
 //! not a hint. Eight and four are roughly double what any manifest in this tree asks for.
 //!
 //! **Nothing checks that a supervisor's routed object is the *kind* the role wants.** A supervisor
-//! that routes a frame where the component declared an endpoint gets a plan, and the kernel refuses
+//! that routes a frame where the component declared an rendezvous gets a plan, and the kernel refuses
 //! the `CAP_INSERT` or the component's first `RECV` instead. The declaration carries the direction
 //! and the address, which is what a supervisor can get wrong silently; the object type is what the
 //! kernel already checks loudly.
@@ -171,31 +171,31 @@ pub const MAX_CAPS: usize = 8;
 /// against the two that the widest manifest here asks for.
 pub const MAX_MAPS: usize = 4;
 
-/// **Which way an endpoint points**, which is the axis this crate adds over a program's manifest and
+/// **Which way an rendezvous points**, which is the axis this crate adds over a program's manifest and
 /// the reason a component's declaration is a different object from a program's.
 ///
 /// It is a required field with no default, and that is deliberate in `writes_while_reading`'s shape
-/// (AGENTS.md's rung one): a component **cannot declare an endpoint without saying whether it
+/// (AGENTS.md's rung one): a component **cannot declare an rendezvous without saying whether it
 /// answers on it**. The rights fall out of the answer, so the supervisor never spells `READ` or
 /// `WRITE` and cannot spell one wrong.
 ///
 /// The stakes are §41's central refusal. `SEND` and `RECV` are gated by different rights on the same
-/// object, so the same endpoint handed out two ways is a one-way pipe in whichever direction each
+/// object, so the same rendezvous handed out two ways is a one-way pipe in whichever direction each
 /// holder was trusted with. A typo that gave a client `READ` would let it park in `RECV_CAP` and take
 /// its own server's requests, and the test that catches that
-/// (`a_client_of_the_stable_endpoint_cannot_become_its_server`) would fail for a reason no reader
+/// (`a_client_of_the_stable_rendezvous_cannot_become_its_server`) would fail for a reason no reader
 /// could see from the operator's source. There is now nothing to typo.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Direction {
-    /// **The component answers here.** Requests arrive on this endpoint and it replies: `READ`.
+    /// **The component answers here.** Requests arrive on this rendezvous and it replies: `READ`.
     Serve,
     /// **The component asks here, and only asks.** It sends and never receives: `WRITE`.
     Use,
 }
 
 impl Direction {
-    /// The rights a child is endowed with for an endpoint it declared this way. The only place in
-    /// the tree a component's endpoint rights are decided.
+    /// The rights a child is endowed with for an rendezvous it declared this way. The only place in
+    /// the tree a component's rendezvous rights are decided.
     pub const fn rights(self) -> u64 {
         match self {
             Direction::Serve => abi::rights::READ,
@@ -209,7 +209,7 @@ impl Direction {
 ///
 /// The `role` is the component's own word for what it needs the object *for*, never the
 /// supervisor's word for the object. That is what lets one declaration be wired two ways: `chatty`
-/// asks to use `service`, and whether that is the shared endpoint or a queue broker's front endpoint
+/// asks to use `service`, and whether that is the shared rendezvous or a queue broker's front rendezvous
 /// is the supervisor's business and invisible to the component.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct CapNeed {
@@ -297,14 +297,14 @@ pub struct Requirements {
     /// dependency-aware orchestration residual). Named by contract, not by role: a role name is
     /// resolved to an object by the supervisor's [`Provisions`] and that resolution can vary by
     /// wiring (`CLIENT`'s `service` role is a console on the direct channel and a broker's front
-    /// endpoint on the queued one), so a role cannot say which contract will answer it. A contract
+    /// rendezvous on the queued one), so a role cannot say which contract will answer it. A contract
     /// name can, and does not change across wirings.
     ///
     /// **Populated only for a component that itself serves others**, and empty otherwise, because
     /// that is the whole of what this field is for: deciding who [`dependents`] must warn before a
     /// swap. A pure consumer (no `Direction::Serve` need at all, like `CLIENT`) never needs warning.
     /// It calls through a `CALL`, and DECISIONS §41 already proved that call degrades for free: a
-    /// `CALL` that finds nobody receiving parks on the endpoint's own sender queue, and the next
+    /// `CALL` that finds nobody receiving parks on the rendezvous's own sender queue, and the next
     /// server to `RECV_CAP` drains it. Nothing has to tell a pure consumer anything, so nothing here
     /// claims one needs telling. A component that *serves* others while itself calling through to a
     /// swappable dependency is different: `broker` blocks its one serving thread on a `CALL` to its
@@ -1232,7 +1232,7 @@ mod proofs {
     /// The security property this crate exists to make unrepresentable. For every declaration of two
     /// needs and **every pair of slot numbers a supervisor could route**, the rights word at slot `i`
     /// is exactly `caps[i].direction.rights()`. So nothing a supervisor does can turn a `Use` into a
-    /// `READ` and let a client park itself in `RECV_CAP` on the endpoint it is a client of (§41), and
+    /// `READ` and let a client park itself in `RECV_CAP` on the rendezvous it is a client of (§41), and
     /// nothing ever carries `GRANT`: a component that could pass its own authority on is not
     /// confined, and no declaration can ask for one.
     /// **The unwind bound is a termination proof, not a convenience.** Ten, against loops whose real

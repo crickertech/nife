@@ -67,10 +67,10 @@ fn set_current_tid(tid: Tid) {
 /// leaves a caller blocked).
 ///
 /// Intrusive as of milestone 14 phase A.3: a wait-queue entry is the TCB itself, threaded through
-/// the same link the run queues use, so blocking on an endpoint cannot allocate and "a thread waits
-/// on one endpoint at a time" is physical (one link). The safety contract for the pointers is the
+/// the same link the run queues use, so blocking on an rendezvous cannot allocate and "a thread waits
+/// on one rendezvous at a time" is physical (one link). The safety contract for the pointers is the
 /// queue discipline at [`tcb_ptr`].
-type Endpoint = ipc::Endpoint<Thread>;
+type Rendezvous = ipc::Rendezvous<Thread>;
 
 /// The most threads that can be alive at once, whole machine (milestone 14 phase A). A documented
 /// limit of the image rather than a heap that can be exhausted: spawn past it fails cleanly, the
@@ -238,7 +238,7 @@ impl Threads {
     }
 
     /// Every live TCB from slot `from` onward, with its slot index, for a **resumable** sweep
-    /// (`endpoint::SURVEY`, milestone 126). The slot is the caller's cursor; see
+    /// (`rendezvous::SURVEY`, milestone 126). The slot is the caller's cursor; see
     /// `generational_table::Table::iter_from` for why a position would not do.
     fn iter_from(&self, from: usize) -> impl Iterator<Item = (usize, &Thread)> + '_ {
         // SAFETY: as `iter_mut`, and shared rather than exclusive: each stored pointer is a
@@ -258,20 +258,20 @@ struct IpcTables {
     /// single "running thread" are exactly what every core would otherwise contend on and
     /// overwrite. What stays is genuinely whole-machine: the thread table and the endpoints.
     ///
-    /// Every IPC endpoint. Indexed by the `usize` inside an `Object::Endpoint` capability, which
+    /// Every IPC rendezvous. Indexed by the `usize` inside an `Object::Rendezvous` capability, which
     /// only the kernel mints, so the index is always in range.
-    /// **The endpoint registry** (milestone 19a; design/init-and-granular-spawn.md). An endpoint
+    /// **The rendezvous registry** (milestone 19a; design/init-and-granular-spawn.md). An rendezvous
     /// is page-resident now: it lives at the start of a page retyped from some untyped region
-    /// (a process's own, via `RETYPE_OBJ`, or the kernel's, via [`create_endpoint`]), and that
+    /// (a process's own, via `RETYPE_OBJ`, or the kernel's, via [`create_rendezvous`]), and that
     /// region is pinned so the page can never be freed under a blocked thread. The registry
     /// entry is the page's physical address; the generational name (`crates/slots`, the same
-    /// machinery as Tids) is what an `Object::Endpoint` capability carries, so the day endpoints
+    /// machinery as Tids) is what an `Object::Rendezvous` capability carries, so the day endpoints
     /// can die, stale names will already fail safely.
-    endpoints: generational_table::Table<u64, MAX_ENDPOINTS>,
+    rendezvous_table: generational_table::Table<u64, MAX_RENDEZVOUS>,
     /// The kernel's **current** object chunk: where the kernel's endpoints (boot services, tests)
-    /// are retyped from, so every endpoint lives uniformly in a pinned page regardless of who paid.
-    /// Carved lazily on the first [`create_endpoint`] and **replaced when it fills**, which is what
-    /// makes the kernel's endpoint supply grow instead of being a compile-time guess.
+    /// are retyped from, so every rendezvous lives uniformly in a pinned page regardless of who paid.
+    /// Carved lazily on the first [`create_rendezvous`] and **replaced when it fills**, which is what
+    /// makes the kernel's rendezvous supply grow instead of being a compile-time guess.
     ///
     /// A filled chunk's handle is deliberately forgotten. Its pages stay pinned and its endpoints
     /// stay live, and nothing ever hands a kernel chunk back: kernel endpoints are destroyed only by
@@ -284,29 +284,29 @@ struct IpcTables {
 
 /// The most endpoints that can exist **at once**: the registry's bound.
 ///
-/// This used to say it capped creations over the kernel's lifetime, on the grounds that endpoint
+/// This used to say it capped creations over the kernel's lifetime, on the grounds that rendezvous
 /// teardown did not exist. That went stale when object revocation made destruction real: tearing
-/// down a region removes every endpoint whose page lives in it and `generational_table::Table::remove` frees the
+/// down a region removes every rendezvous whose page lives in it and `generational_table::Table::remove` frees the
 /// slot for reuse, so this is a concurrent bound now. Corrected rather than left, because a stale
 /// bound is the kind of comment that gets believed during a capacity argument.
-const MAX_ENDPOINTS: usize = 512;
+const MAX_RENDEZVOUS: usize = 512;
 
-/// An endpoint's name: a generational `slots` name over the endpoint registry (19a). What an
-/// `Object::Endpoint` capability carries. `u64` like a Tid, and stale-safe the same way.
-pub type EpId = u64;
+/// An rendezvous's name: a generational `slots` name over the rendezvous registry (19a). What an
+/// `Object::Rendezvous` capability carries. `u64` like a Tid, and stale-safe the same way.
+pub type RendezvousId = u64;
 
-/// The pages in one of the kernel's endpoint chunks. **Not a ceiling.** When a chunk fills,
-/// [`create_endpoint`] carves another, so this is a batch size and nothing else.
+/// The pages in one of the kernel's rendezvous chunks. **Not a ceiling.** When a chunk fills,
+/// [`create_rendezvous`] carves another, so this is a batch size and nothing else.
 ///
 /// It used to be a ceiling, and it was the wrong shape of number, because it grew with the SUITE
 /// rather than with the system: 64 lasted until the 27+28 merge, 96 until supervision and `std::net`
 /// merged the same day, 128 until milestone 33's compositor tests, which wire 26 endpoints across
-/// four scenes (a display, a doorbell, a report per client, an input endpoint per focusable client)
+/// four scenes (a display, a doorbell, a report per client, an input rendezvous per focusable client)
 /// and wanted 160. Every parallel branch fit on its own, and the union
 /// of their test boots is what crossed the line, which is a cost no branch can see before it merges.
 /// So the failure mode was a merge-time panic telling whoever merged to raise a constant, over and
 /// over, for a reason none of them caused. Growing on demand retires that whole class of papercut:
-/// there is no number to raise, and the only remaining limit is [`MAX_ENDPOINTS`], which is a real
+/// there is no number to raise, and the only remaining limit is [`MAX_RENDEZVOUS`], which is a real
 /// bound with a real meaning.
 ///
 /// 32 pages (128 KiB) is deliberately modest. A normal boot carves exactly one chunk and the rest of
@@ -314,28 +314,28 @@ pub type EpId = u64;
 const KERNEL_EP_CHUNK_PAGES: u64 = 32;
 
 /// How many chunks the kernel will carve before refusing. Derived so the **page supply can never be
-/// the binding limit before the registry is**: enough chunks to host [`MAX_ENDPOINTS`] endpoints, one
+/// the binding limit before the registry is**: enough chunks to host [`MAX_RENDEZVOUS`] endpoints, one
 /// page each. That is what makes exhaustion always report the honest reason (the registry is full)
 /// rather than an arbitrary carve size. Derived rather than written down so the two cannot drift.
-const MAX_KERNEL_EP_CHUNKS: usize = MAX_ENDPOINTS.div_ceil(KERNEL_EP_CHUNK_PAGES as usize);
+const MAX_KERNEL_EP_CHUNKS: usize = MAX_RENDEZVOUS.div_ceil(KERNEL_EP_CHUNK_PAGES as usize);
 
-/// The endpoint behind a name, or `None` if the name no longer resolves. Caller holds `IPC_TABLES`.
+/// The rendezvous behind a name, or `None` if the name no longer resolves. Caller holds `IPC_TABLES`.
 ///
 /// This used to panic on a miss, because endpoints could not be destroyed (their regions stayed
 /// pinned), so a miss was kernel corruption. Object revocation made destruction real: a stale
-/// `Endpoint` capability (its endpoint reclaimed out from under a holder) is now ordinary user
+/// `Rendezvous` capability (its rendezvous reclaimed out from under a holder) is now ordinary user
 /// input, so this returns `None` and the callers turn that into a clean error rather than a panic.
 ///
 /// The `'static` is the page's pinned-ness made into a lifetime: while the name resolves the page is
 /// pinned and direct-mapped, and `IPC_TABLES` serializes every access to what it holds.
-fn endpoint_of(sched: &IpcTables, ep: EpId) -> Option<&'static mut Endpoint> {
-    let phys = *sched.endpoints.get(ep)?;
-    // SAFETY: retyped exclusively for this endpoint, its region pinned while the name resolves,
+fn rendezvous_of(sched: &IpcTables, ep: RendezvousId) -> Option<&'static mut Rendezvous> {
+    let phys = *sched.rendezvous_table.get(ep)?;
+    // SAFETY: retyped exclusively for this rendezvous, its region pinned while the name resolves,
     // direct-mapped, and serialized by IPC_TABLES, which every caller holds.
-    Some(unsafe { &mut *(crate::arch::mmu::phys_to_virt(phys) as *mut Endpoint) })
+    Some(unsafe { &mut *(crate::arch::mmu::phys_to_virt(phys) as *mut Rendezvous) })
 }
 
-/// Mark the current thread's blocking IPC as aborted (a stale endpoint, or one revoked while it
+/// Mark the current thread's blocking IPC as aborted (a stale rendezvous, or one revoked while it
 /// blocked): the syscall layer reads-and-clears this after the primitive returns and hands back an
 /// error. A helper because several IPC paths set it. Caller holds `IPC_TABLES`.
 fn set_ipc_aborted(sched: &mut IpcTables, tid: Tid) {
@@ -345,7 +345,7 @@ fn set_ipc_aborted(sched: &mut IpcTables, tid: Tid) {
 }
 
 /// **Read and clear the current thread's IPC-aborted flag** (object revocation). The syscall layer
-/// calls this right after an endpoint IPC primitive returns: `true` means the endpoint was stale, or
+/// calls this right after an rendezvous IPC primitive returns: `true` means the rendezvous was stale, or
 /// revoked while the thread blocked on it, so the caller gets an error instead of the primitive's
 /// placeholder result. Kernel-side IPC callers never set it (their endpoints are never revoked), so
 /// they need not check it.
@@ -406,7 +406,7 @@ mod trace {
     pub enum Event {
         /// `schedule()` picked `tid` and marked it Running on this core.
         SwitchTo = 1,
-        /// The thread running here marked itself Blocked (aux = low byte of the endpoint name).
+        /// The thread running here marked itself Blocked (aux = low byte of the rendezvous name).
         BlockSelf = 2,
         /// This core moved `tid` Blocked -> Ready onto a run queue (rendezvous, reply, or abort).
         Wake = 3,
@@ -553,7 +553,7 @@ pub fn boot_stage() -> u32 {
 /// prints as bytes nothing in the choreography explains. The instrument does not judge, it shows,
 /// because boots 7 through 9 proved the judging is the part that goes wrong.
 ///
-/// What it watches: the thread table and the endpoint registry (the `slots` arrays and their
+/// What it watches: the thread table and the rendezvous registry (the `slots` arrays and their
 /// generations), which are quiescent between spawns and creates. The per-cpu blocks are
 /// deliberately NOT watched: `ticks`, `runnable`, `current` and the queues churn on every
 /// scheduler entry by design, so a checksum there measures the scheduler working, not corruption.
@@ -742,7 +742,7 @@ mod canary {
     }
 }
 
-/// Arm the [`canary`] over the thread table and the endpoint registry, snapshotting under `IPC_TABLES`
+/// Arm the [`canary`] over the thread table and the rendezvous registry, snapshotting under `IPC_TABLES`
 /// so the baseline is a consistent cut. The riscv initrd demo arms before parking in its recv and
 /// disarms when the recv returns; see notes/visionfive2.md (fifth stop) for what boot 11 does
 /// with the output.
@@ -757,8 +757,8 @@ pub fn canary_arm_registries() {
         size_of_val(&sched.threads.table),
     );
     let endpoints = (
-        core::ptr::from_ref(&sched.endpoints) as usize,
-        size_of_val(&sched.endpoints),
+        core::ptr::from_ref(&sched.rendezvous_table) as usize,
+        size_of_val(&sched.rendezvous_table),
     );
     canary::arm(&[threads, endpoints]);
 }
@@ -792,7 +792,7 @@ pub fn init() {
 
     *sched = Some(IpcTables {
         threads,
-        endpoints: generational_table::Table::new(),
+        rendezvous_table: generational_table::Table::new(),
         kernel_ep_region: None,
         kernel_ep_chunks: 0,
     });
@@ -860,7 +860,7 @@ pub fn adopt_secondary_idle() {
 
 /// The reschedule / migration SGI. When one core hands another a thread (via its inbox), it fires
 /// this at the target; the target's handler drains its inbox and reschedules. INTID 0, distinct
-/// from the endpoint-bound test SGIs (1 and 2). SMP step 3c.
+/// from the rendezvous-bound test SGIs (1 and 2). SMP step 3c.
 ///
 /// aarch64 only in practice: RISC-V's twin path (`arch/riscv64/exceptions.rs`) recognises the IPI
 /// from the SBI software-interrupt cause rather than from an interrupt id, so it needs no constant.
@@ -900,7 +900,7 @@ pub fn drain_inbox() {
 /// `IPC_TABLES`.
 ///
 /// The pointer's validity while queued is the queue discipline, stated once here: a thread on a
-/// run queue or inbox is `Ready`, a thread on an endpoint wait queue is `Blocked` (A.3), the
+/// run queue or inbox is `Ready`, a thread on an rendezvous wait queue is `Blocked` (A.3), the
 /// reaper frees only `Finished` threads, and a thread is never two of those at once. The `Box` in
 /// the table pins the address (see `IpcTables::threads`), so a pointer taken here is good until
 /// the thread is popped, however many queue hops (inbox to run queue) it makes in between.
@@ -1197,14 +1197,14 @@ pub fn fault(pc: u64, addr: u64) -> ! {
 
 /// **A thread's last act: report its death, then leave the CPU forever** (milestone 22, §26).
 ///
-/// Two outcomes, decided by whether the thread was spawned with a supervision endpoint (its
+/// Two outcomes, decided by whether the thread was spawned with a supervision rendezvous (its
 /// `fault_ep`, set at `START` from the reserved fault slot):
 ///
 ///   - **Unsupervised** (`fault_ep == None`): today's behaviour exactly. Mark `Finished` and
 ///     `schedule()` away; the next thread's `finish_switch` reaps it once it is off this stack.
 ///   - **Supervised**: build the five-word §26 message, retain it on the corpse for postmortem,
-///     deliver it to the supervision endpoint (waking a waiting supervisor, or parking the corpse
-///     on the endpoint so the message is not lost if none is waiting), and mark the thread `Dead`.
+///     deliver it to the supervision rendezvous (waking a waiting supervisor, or parking the corpse
+///     on the rendezvous so the message is not lost if none is waiting), and mark the thread `Dead`.
 ///     A `Dead` corpse is never reaped by `finish_switch`; it persists, registers and address
 ///     space intact, until the supervisor reaps it with §16 revocation.
 ///
@@ -1244,26 +1244,26 @@ fn depart(event: u64, pc: u64, addr: u64) -> ! {
     unreachable!("a departed thread was scheduled again");
 }
 
-/// Deliver a corpse's five-word death message to its supervision endpoint. Caller holds `IPC_TABLES`
+/// Deliver a corpse's five-word death message to its supervision rendezvous. Caller holds `IPC_TABLES`
 /// and has already marked the corpse `Dead` with `msg` in its mailbox.
 ///
-/// This is the ordinary synchronous-send rendezvous (`Endpoint::send`), reused: if a supervisor is
-/// blocked in `RECV`, hand it the message and wake it; if none is, the corpse joins the endpoint's
+/// This is the ordinary synchronous-send rendezvous (`Rendezvous::send`), reused: if a supervisor is
+/// blocked in `RECV`, hand it the message and wake it; if none is, the corpse joins the rendezvous's
 /// sender queue with the message in its mailbox, so the notification waits there rather than being
 /// lost (the same guarantee an ordinary blocked sender gets, and the reason a data-carrying death
 /// uses the sender queue rather than the data-less IRQ signal count). The corpse is never woken:
 /// `ipc_recv` recognises a `Dead` sender and leaves it dead after taking its message, the same way
-/// it leaves a `CALL` caller blocked. If the endpoint itself is gone (the supervisor was torn down
-/// first), the message is simply dropped, like an interrupt with no live endpoint.
-fn deliver_death(sched: &mut IpcTables, corpse: Tid, ep: EpId, msg: [u64; 5]) {
+/// it leaves a `CALL` caller blocked. If the rendezvous itself is gone (the supervisor was torn down
+/// first), the message is simply dropped, like an interrupt with no live rendezvous.
+fn deliver_death(sched: &mut IpcTables, corpse: Tid, ep: RendezvousId, msg: [u64; 5]) {
     let me = tcb_ptr(sched, corpse);
-    let Some(endpoint) = endpoint_of(sched, ep) else {
+    let Some(rendezvous) = rendezvous_of(sched, ep) else {
         return;
     };
     // SAFETY: `me` is the corpse, live in the table (Dead, not yet reaped) and on no queue; if it
     // joins the sender queue below it stays put, since nothing wakes or reaps a Dead thread until
     // the supervisor drains it and revokes. Same pointer discipline as ipc_send.
-    match unsafe { endpoint.send(me) } {
+    match unsafe { rendezvous.send(me) } {
         ipc::Send::Rendezvous(receiver) => {
             // SAFETY: wait-queue entries are live Blocked threads; the id revalidates it.
             let receiver = unsafe { (*receiver.as_ptr()).id };
@@ -1545,8 +1545,8 @@ pub(crate) fn finish_switch() {
     }
 }
 
-/// intid -> endpoint id + 1 (0 means "not routed"). A hardware interrupt, delivered as a
-/// message to whoever holds the matching endpoint.
+/// intid -> rendezvous id + 1 (0 means "not routed"). A hardware interrupt, delivered as a
+/// message to whoever holds the matching rendezvous.
 ///
 /// **A plain atomic array, read lock-free from the interrupt handler.** The handler runs in a
 /// context where taking a lock to *find out where to send the message* would be one more thing
@@ -1555,17 +1555,17 @@ pub(crate) fn finish_switch() {
 const MAX_INTID: usize = 256;
 static IRQ_ROUTES: [AtomicU64; MAX_INTID] = [const { AtomicU64::new(0) }; MAX_INTID];
 
-/// Route a hardware interrupt to an endpoint. From now on, when `intid` fires, whoever is
+/// Route a hardware interrupt to an rendezvous. From now on, when `intid` fires, whoever is
 /// blocked on `ep` wakes; if nobody is, the signal is remembered so it is not lost.
-pub fn bind_irq(intid: u32, ep: EpId) {
+pub fn bind_irq(intid: u32, ep: RendezvousId) {
     assert!((intid as usize) < MAX_INTID, "intid {intid} out of range");
     // +1 so 0 keeps meaning "not routed". A name can never be u64::MAX (the registry mints
     // (generation << 32) | slot with slot < 256), so the increment cannot wrap.
     IRQ_ROUTES[intid as usize].store(ep + 1, Ordering::Release);
 }
 
-/// The endpoint an interrupt is routed to, if any. Read from the IRQ handler; lock-free.
-pub fn irq_route(intid: u32) -> Option<EpId> {
+/// The rendezvous an interrupt is routed to, if any. Read from the IRQ handler; lock-free.
+pub fn irq_route(intid: u32) -> Option<RendezvousId> {
     if (intid as usize) >= MAX_INTID {
         return None;
     }
@@ -1577,7 +1577,7 @@ pub fn irq_route(intid: u32) -> Option<EpId> {
 
 /// **Deliver an interrupt as a message.** Called from the IRQ handler.
 ///
-/// If a thread is blocked waiting on the endpoint, wake it. If not, count the signal so the
+/// If a thread is blocked waiting on the rendezvous, wake it. If not, count the signal so the
 /// next `RECV` returns immediately rather than blocking on an interrupt that already happened.
 /// **An interrupt is not a rendezvous**: it must not wait for a receiver, and it must not be
 /// lost if the receiver is briefly busy.
@@ -1585,7 +1585,7 @@ pub fn irq_route(intid: u32) -> Option<EpId> {
 /// Safe to call from IRQ context: it takes `IPC_TABLES`, which the interrupted code
 /// cannot have been holding, because `IrqSafeMutex` masks interrupts for exactly as long as it
 /// is held. See DECISIONS §9.
-pub fn irq_notify(ep: EpId) {
+pub fn irq_notify(ep: RendezvousId) {
     // A device-IRQ wake is LOAD-AWARE (DECISIONS §28.2), unlike a rendezvous wake, which stays
     // local. If the woken driver lands on a *remote* core, `wake_load_aware` returns that core so we
     // can poke it after IPC_TABLES is released (the `place_on` discipline: push under the lock, SGI
@@ -1595,12 +1595,12 @@ pub fn irq_notify(ep: EpId) {
         let sched = guard.as_mut().expect("no scheduler");
 
         // `signal` wakes a waiting receiver or counts the signal; it never blocks or joins a queue. A
-        // stale name (the endpoint an interrupt was bound to has been revoked) is simply dropped: an
-        // interrupt with no live endpoint has nowhere to go, which is not an error.
-        let Some(endpoint) = endpoint_of(sched, ep) else {
+        // stale name (the rendezvous an interrupt was bound to has been revoked) is simply dropped: an
+        // interrupt with no live rendezvous has nowhere to go, which is not an error.
+        let Some(rendezvous) = rendezvous_of(sched, ep) else {
             return;
         };
-        if let Some(waiter) = endpoint.signal() {
+        if let Some(waiter) = rendezvous.signal() {
             // SAFETY: only live Blocked threads sit on wait queues; reading the id revalidates it
             // through the table for everything after.
             let waiter = unsafe { (*waiter.as_ptr()).id };
@@ -1618,65 +1618,65 @@ pub fn irq_notify(ep: EpId) {
     }
 }
 
-/// Why creating an endpoint failed. The two causes need telling apart because they call for opposite
+/// Why creating an rendezvous failed. The two causes need telling apart because they call for opposite
 /// responses: a full region means carve more memory and retry, a full registry means give up.
 ///
 /// They used to be one `None`, which is also why the registry-full case leaked a page: the caller
 /// could not know the page it had just spent was about to be thrown away.
-enum EpFail {
+enum RendezvousFailure {
     /// The region has no page left to retype. Nothing was spent.
     RegionFull,
-    /// The registry is at [`MAX_ENDPOINTS`]. Checked *before* spending a page, so nothing was spent.
+    /// The registry is at [`MAX_RENDEZVOUS`]. Checked *before* spending a page, so nothing was spent.
     RegistryFull,
 }
 
-/// Create an endpoint **in `region`'s memory** (milestone 19a): one page retyped and pinned, the
-/// endpoint at its start, a fresh generational name in the registry. The shared engine of the
-/// `RETYPE_OBJ` syscall and the kernel's own [`create_endpoint`].
-fn try_create_endpoint_from(region: u64) -> Result<EpId, EpFail> {
+/// Create an rendezvous **in `region`'s memory** (milestone 19a): one page retyped and pinned, the
+/// rendezvous at its start, a fresh generational name in the registry. The shared engine of the
+/// `RETYPE_OBJ` syscall and the kernel's own [`create_rendezvous`].
+fn try_create_rendezvous_from(region: u64) -> Result<RendezvousId, RendezvousFailure> {
     let mut guard = IPC_TABLES.lock();
-    let sched = guard.as_mut().ok_or(EpFail::RegistryFull)?;
+    let sched = guard.as_mut().ok_or(RendezvousFailure::RegistryFull)?;
 
     // Checked BEFORE the retype, which is a fix and not just tidiness: this used to retype a page and
     // then discover the registry was full, spending the page for nothing. The old comment called that
     // "a process-local loss on its own budget", which is true and is still a leak a caller cannot see
     // or recover. Asking first costs a compare.
-    if sched.endpoints.len() >= MAX_ENDPOINTS {
-        return Err(EpFail::RegistryFull);
+    if sched.rendezvous_table.len() >= MAX_RENDEZVOUS {
+        return Err(RendezvousFailure::RegistryFull);
     }
 
     // Rank: UNTYPED (58) under IPC_TABLES (60) is a legal descent; the pin rides in the same lock
     // hold as the carve, so no destroy can race the page away (see retype_object_page).
-    let phys = crate::untyped::retype_object_page(region).ok_or(EpFail::RegionFull)?;
+    let phys = crate::untyped::retype_object_page(region).ok_or(RendezvousFailure::RegionFull)?;
 
-    // The page arrives zeroed, and an all-zero Endpoint happens to be valid; write it explicitly
+    // The page arrives zeroed, and an all-zero Rendezvous happens to be valid; write it explicitly
     // anyway, because "happens to be" is the kind of truth that stops being one silently.
     // SAFETY: fresh page, exclusively ours, direct-mapped.
-    unsafe { (crate::arch::mmu::phys_to_virt(phys) as *mut Endpoint).write(Endpoint::new()) };
+    unsafe { (crate::arch::mmu::phys_to_virt(phys) as *mut Rendezvous).write(Rendezvous::new()) };
 
     // Cannot fail: capacity was checked above under this same lock hold.
     sched
-        .endpoints
+        .rendezvous_table
         .insert_with(|_| phys)
-        .ok_or(EpFail::RegistryFull)
+        .ok_or(RendezvousFailure::RegistryFull)
 }
 
-/// Create an endpoint in `region`'s memory. `None` when the region is out of budget or the registry
+/// Create an rendezvous in `region`'s memory. `None` when the region is out of budget or the registry
 /// is full. The `RETYPE_OBJ` syscall's engine; userspace gets one flat failure because a process
 /// cannot act on the difference (it holds one region and cannot enlarge the kernel's registry).
-pub fn create_endpoint_from(region: u64) -> Option<EpId> {
-    try_create_endpoint_from(region).ok()
+pub fn create_rendezvous_from(region: u64) -> Option<RendezvousId> {
+    try_create_rendezvous_from(region).ok()
 }
 
-/// Create an IPC endpoint on the kernel's own budget. Returns the name that goes inside an
-/// `Object::Endpoint`. Chunks are carved lazily and **grown on demand**, so this does not depend on
+/// Create an IPC rendezvous on the kernel's own budget. Returns the name that goes inside an
+/// `Object::Rendezvous`. Chunks are carved lazily and **grown on demand**, so this does not depend on
 /// anyone having guessed the suite's eventual size.
 ///
-/// Panics only on a genuinely unrecoverable condition: the registry at [`MAX_ENDPOINTS`], the chunk
+/// Panics only on a genuinely unrecoverable condition: the registry at [`MAX_RENDEZVOUS`], the chunk
 /// bound reached (which cannot happen before the registry fills, by construction), or no memory left
 /// to carve from. Every caller is the kernel or a test wiring a service, so there is no user to
 /// return an error to.
-pub fn create_endpoint() -> EpId {
+pub fn create_rendezvous() -> RendezvousId {
     loop {
         // Take, or lazily carve, the current chunk.
         let region = {
@@ -1687,11 +1687,11 @@ pub fn create_endpoint() -> EpId {
                 None => {
                     assert!(
                         sched.kernel_ep_chunks < MAX_KERNEL_EP_CHUNKS,
-                        "the kernel carved all {MAX_KERNEL_EP_CHUNKS} endpoint chunks; \
-                         with {MAX_ENDPOINTS} registry slots this should be unreachable",
+                        "the kernel carved all {MAX_KERNEL_EP_CHUNKS} rendezvous chunks; \
+                         with {MAX_RENDEZVOUS} registry slots this should be unreachable",
                     );
                     let r = crate::untyped::create(KERNEL_EP_CHUNK_PAGES)
-                        .expect("no memory for a kernel endpoint chunk");
+                        .expect("no memory for a kernel rendezvous chunk");
                     sched.kernel_ep_chunks += 1;
                     sched.kernel_ep_region = Some(r);
                     r
@@ -1699,13 +1699,13 @@ pub fn create_endpoint() -> EpId {
             }
         };
 
-        match try_create_endpoint_from(region) {
+        match try_create_rendezvous_from(region) {
             Ok(ep) => return ep,
             // The chunk is spent. Drop it and let the next pass carve a fresh one; the loop runs at
             // most twice per call, because a fresh chunk always has a page. Clearing the handle is
             // what "forgotten deliberately" means in the field's doc comment: the pages stay pinned
             // and the endpoints already in them stay live.
-            Err(EpFail::RegionFull) => {
+            Err(RendezvousFailure::RegionFull) => {
                 let mut guard = IPC_TABLES.lock();
                 let sched = guard.as_mut().expect("no scheduler");
                 // Only clear the handle we just failed on. Another core may already have replaced it.
@@ -1713,8 +1713,10 @@ pub fn create_endpoint() -> EpId {
                     sched.kernel_ep_region = None;
                 }
             }
-            Err(EpFail::RegistryFull) => {
-                panic!("out of endpoints: {MAX_ENDPOINTS} live at once, raise MAX_ENDPOINTS")
+            Err(RendezvousFailure::RegistryFull) => {
+                panic!(
+                    "out of rendezvous points: {MAX_RENDEZVOUS} live at once, raise MAX_RENDEZVOUS"
+                )
             }
         }
     }
@@ -1803,7 +1805,7 @@ fn wake_load_aware(sched: &mut IpcTables, tid: Tid) -> Option<usize> {
 /// interleavings on the host (notes/interleaving.md); this function is the kernel-side half, the
 /// queue push and the trace ring. The two rules the verdicts carry, kept here in one breath
 /// because this is where a reader meets them: **the undelivered-wake gate** (boot 8: a wake whose
-/// critical section delivered nothing has not dequeued the thread from its endpoint and has
+/// critical section delivered nothing has not dequeued the thread from its rendezvous and has
 /// nothing for its recv to return, so it is refused and recorded as `refuse:tid` on the ring), and
 /// **the wake-before-switch-out deferral** (a thread still on its CPU has a stale saved context,
 /// so the wake parks in `wake_pending` and its own core's `finish_switch` completes it once the
@@ -1847,19 +1849,19 @@ fn wide(m: [u64; 3]) -> [u64; 5] {
     [m[0], m[1], m[2], 0, 0]
 }
 
-/// **Send three words to an endpoint, blocking until a receiver takes them.**
+/// **Send three words to an rendezvous, blocking until a receiver takes them.**
 ///
 /// The synchronous rendezvous, sender's half:
 ///
 /// - **A receiver is already waiting.** Drop the message straight into its mailbox, wake it, and
 ///   carry on. Nobody blocked; the rendezvous was instantaneous.
-/// - **Nobody is waiting.** Park the message in our own mailbox, join the endpoint's sender
+/// - **Nobody is waiting.** Park the message in our own mailbox, join the rendezvous's sender
 ///   queue, mark ourselves `Blocked`, and `schedule()` away. A future receiver will reach into
 ///   our mailbox, wake us, and we return from `schedule()` as if no time had passed.
 ///
 /// Callable by a kernel thread directly (this function) or by a user thread through the `SEND`
-/// method on an endpoint capability (see syscall.rs). Same code underneath.
-pub fn ipc_send(ep: EpId, msg: [u64; 3]) {
+/// method on an rendezvous capability (see syscall.rs). Same code underneath.
+pub fn ipc_send(ep: RendezvousId, msg: [u64; 3]) {
     // E3's footprint-perturbation experiment (milestone 134): reachable but never taken; see
     // `crate::fastpath_pad` for what this is and why it costs nothing when the feature is off.
     #[cfg(feature = "fastpath_pad")]
@@ -1871,16 +1873,16 @@ pub fn ipc_send(ep: EpId, msg: [u64; 3]) {
         let current = current_tid();
 
         let me = tcb_ptr(sched, current);
-        // A stale endpoint (its region was revoked): mark this send aborted and do not block. The
+        // A stale rendezvous (its region was revoked): mark this send aborted and do not block. The
         // kernel-side `ipc_send` wrapper never hits this (its endpoints are never revoked); the
         // syscall layer reads the flag and returns an error.
-        let Some(endpoint) = endpoint_of(sched, ep) else {
+        let Some(rendezvous) = rendezvous_of(sched, ep) else {
             set_ipc_aborted(sched, current);
             return;
         };
         // SAFETY: `me` is the running thread (live, on no queue), and if queued it stays live:
-        // a thread queued on an endpoint is Blocked, which the reaper never touches. See tcb_ptr.
-        match unsafe { endpoint.send(me) } {
+        // a thread queued on an rendezvous is Blocked, which the reaper never touches. See tcb_ptr.
+        match unsafe { rendezvous.send(me) } {
             ipc::Send::Rendezvous(receiver) => {
                 // SAFETY: wait-queue entries are live Blocked threads; the id revalidates it.
                 let receiver = unsafe { (*receiver.as_ptr()).id };
@@ -1909,24 +1911,24 @@ pub fn ipc_send(ep: EpId, msg: [u64; 3]) {
     }
 }
 
-/// **Receive three words from an endpoint, blocking until one arrives.** The mirror of
+/// **Receive three words from an rendezvous, blocking until one arrives.** The mirror of
 /// [`ipc_send`].
-pub fn ipc_recv(ep: EpId) -> [u64; 5] {
+pub fn ipc_recv(ep: RendezvousId) -> [u64; 5] {
     let immediate = {
         let mut guard = IPC_TABLES.lock();
         let sched = guard.as_mut().expect("no scheduler");
         let current = current_tid();
 
         let me = tcb_ptr(sched, current);
-        // A stale endpoint (revoked): mark aborted and return a placeholder; the syscall layer sees
+        // A stale rendezvous (revoked): mark aborted and return a placeholder; the syscall layer sees
         // the flag and errors. (A thread revoked *while blocked* below is handled the same way: the
         // reaper sets the flag and wakes it, and it returns its stale mailbox for the layer to drop.)
-        let Some(endpoint) = endpoint_of(sched, ep) else {
+        let Some(rendezvous) = rendezvous_of(sched, ep) else {
             set_ipc_aborted(sched, current);
             return [0, 0, 0, 0, 0];
         };
         // SAFETY: as in ipc_send: the running thread, and Blocked-while-queued keeps it live.
-        match unsafe { endpoint.recv(me) } {
+        match unsafe { rendezvous.recv(me) } {
             // An interrupt already fired while we were not waiting. Take it and do not block.
             ipc::Recv::Signal => Some([1, 0, 0, 0, 0]),
             ipc::Recv::FromSender(sender) => {
@@ -1940,7 +1942,7 @@ pub fn ipc_recv(ep: EpId) -> [u64; 5] {
                 // plain RECV here leaves the caller hung, the same no-timeout limitation as a reply
                 // that never comes.
                 //
-                // A **dead sender** is a fault/exit corpse parked on its supervision endpoint
+                // A **dead sender** is a fault/exit corpse parked on its supervision rendezvous
                 // (DECISIONS §26): deliver its five-word message but never wake it, exactly as for a
                 // caller, because it is dead-until-reaped and must not run again. `recv` already
                 // popped it off the sender queue, so it is now a free-standing corpse the supervisor
@@ -1992,10 +1994,10 @@ pub fn ipc_recv(ep: EpId) -> [u64; 5] {
 }
 
 /// The x1 value a `RECV_CAP` returns when no capability accompanied the message. Mirrors
-/// `abi::endpoint::NO_CAP`; kept here too so the scheduler names it without reaching into the ABI.
+/// `abi::rendezvous::NO_CAP`; kept here too so the scheduler names it without reaching into the ABI.
 const NO_CAP: u64 = u64::MAX;
 
-/// **Delegate a capability plus one data word to an endpoint.** The sender's half of a
+/// **Delegate a capability plus one data word to an rendezvous.** The sender's half of a
 /// capability-carrying rendezvous, mirroring [`ipc_send`]. The one thing it adds: at the moment
 /// sender and receiver meet, `cap` moves out of the sender and into the receiver's cspace.
 ///
@@ -2008,19 +2010,19 @@ const NO_CAP: u64 = u64::MAX;
 /// If the receiver's cspace is full the capability is dropped and the receiver sees `NO_CAP`; the
 /// data word still arrives. The syscall layer has already checked the sender may delegate this
 /// capability (it holds `GRANT`) and that the rights only narrow.
-pub fn ipc_send_cap(ep: EpId, data: u64, cap: crate::cap::Cap) {
+pub fn ipc_send_cap(ep: RendezvousId, data: u64, cap: crate::cap::Cap) {
     let block = {
         let mut guard = IPC_TABLES.lock();
         let sched = guard.as_mut().expect("no scheduler");
         let current = current_tid();
 
         let me = tcb_ptr(sched, current);
-        let Some(endpoint) = endpoint_of(sched, ep) else {
+        let Some(rendezvous) = rendezvous_of(sched, ep) else {
             set_ipc_aborted(sched, current);
-            return; // stale endpoint: aborted, syscall layer errors
+            return; // stale rendezvous: aborted, syscall layer errors
         };
         // SAFETY: as in ipc_send.
-        match unsafe { endpoint.send(me) } {
+        match unsafe { rendezvous.send(me) } {
             ipc::Send::Rendezvous(receiver) => {
                 // SAFETY: wait-queue entries are live Blocked threads; the id revalidates it.
                 let receiver = unsafe { (*receiver.as_ptr()).id };
@@ -2055,19 +2057,19 @@ pub fn ipc_send_cap(ep: EpId, data: u64, cap: crate::cap::Cap) {
 ///
 /// A capability-carrying send and this share the ordinary sender/receiver queues, so either side
 /// may arrive first, exactly as with the plain path.
-pub fn ipc_recv_cap(ep: EpId) -> [u64; 3] {
+pub fn ipc_recv_cap(ep: RendezvousId) -> [u64; 3] {
     let immediate = {
         let mut guard = IPC_TABLES.lock();
         let sched = guard.as_mut().expect("no scheduler");
         let current = current_tid();
 
         let me = tcb_ptr(sched, current);
-        let Some(endpoint) = endpoint_of(sched, ep) else {
+        let Some(rendezvous) = rendezvous_of(sched, ep) else {
             set_ipc_aborted(sched, current);
-            return [0, 0, 0]; // stale endpoint: aborted, syscall layer errors
+            return [0, 0, 0]; // stale rendezvous: aborted, syscall layer errors
         };
         // SAFETY: as in ipc_send.
-        match unsafe { endpoint.recv(me) } {
+        match unsafe { rendezvous.recv(me) } {
             // An interrupt signal is not a delegation; it carries no capability.
             ipc::Recv::Signal => Some([1, NO_CAP, 0]),
             ipc::Recv::FromSender(sender) => {
@@ -2136,7 +2138,7 @@ pub fn ipc_recv_cap(ep: EpId) -> [u64; 3] {
 /// If the server's cspace is full the reply cap is dropped (the server sees `NO_CAP`, exactly as a
 /// delegated cap would be) and, having no way to answer, the caller blocks until torn down: the same
 /// no-timeout limitation as a reply that never comes, and self-inflicted by the server.
-pub fn ipc_call(ep: EpId, msg: [u64; 2]) -> [u64; 3] {
+pub fn ipc_call(ep: RendezvousId, msg: [u64; 2]) -> [u64; 3] {
     {
         let mut guard = IPC_TABLES.lock();
         let sched = guard.as_mut().expect("no scheduler");
@@ -2146,12 +2148,12 @@ pub fn ipc_call(ep: EpId, msg: [u64; 2]) -> [u64; 3] {
         // `send` decides the rendezvous exactly as a plain SEND: a waiting server, or block. The
         // difference is the caller *always* blocks awaiting the reply, whether or not it met a server.
         let me = tcb_ptr(sched, current);
-        let Some(endpoint) = endpoint_of(sched, ep) else {
+        let Some(rendezvous) = rendezvous_of(sched, ep) else {
             set_ipc_aborted(sched, current);
-            return [0, 0, 0]; // stale endpoint: aborted, syscall layer errors
+            return [0, 0, 0]; // stale rendezvous: aborted, syscall layer errors
         };
         // SAFETY: as in ipc_send; a caller queued here is Blocked until its Reply arrives.
-        match unsafe { endpoint.send(me) } {
+        match unsafe { rendezvous.send(me) } {
             ipc::Send::Rendezvous(receiver) => {
                 // SAFETY: wait-queue entries are live Blocked threads; the id revalidates it.
                 let receiver = unsafe { (*receiver.as_ptr()).id };
@@ -2202,10 +2204,10 @@ pub fn ipc_reply(caller: Tid, msg: [u64; 2]) {
     if let Some(t) = sched.threads.get_mut(caller) {
         // **Only a caller that awaits a reply is touched** (boot 8's observe-and-strand guard).
         // A Reply names a tid, not a wait state, and this is the one wake site addressed by tid
-        // rather than through an endpoint's wait queue. Delivered to a thread parked as an
+        // rather than through an rendezvous's wait queue. Delivered to a thread parked as an
         // ordinary receiver (a stale reply whose CALL was aborted long ago, its caller re-parked
         // elsewhere), it would clobber that thread's mailbox and wake it messageless while its
-        // TCB is still linked on the endpoint's wait queue, a double-enqueue on the one intrusive
+        // TCB is still linked on the rendezvous's wait queue, a double-enqueue on the one intrusive
         // link. Anything not Reply-parked gets nothing, exactly as a reply to a dead caller.
         if !matches!(t.handshake.wait_on, Some((_, WaitRole::Reply))) {
             return;
@@ -2333,7 +2335,7 @@ pub fn create_tcb(region: u64) -> Option<Tid> {
     let name = sched.threads.insert_from_page(page, |tid| {
         let mut t = Thread::embryo();
         t.id = tid;
-        // Remember which region paid for this TCB. It is the region an endpoint reap reclaims
+        // Remember which region paid for this TCB. It is the region an rendezvous reap reclaims
         // (DECISIONS §32), and here is the only point where the answer is known rather than
         // inferred: the caller named it, and nothing afterwards can tell us as reliably.
         t.tcb_region = Some(region);
@@ -2402,7 +2404,7 @@ fn reap_region_objects(base: u64, end: u64) -> Result<(), ()> {
     // translated back. That is the whole test for "this object lives in the region".
     let page_of = |t: &Thread| crate::arch::mmu::virt_to_phys(t as *const Thread as u64);
 
-    // --- Endpoint phase: the region's endpoints go FIRST, refusal or not. ---
+    // --- Rendezvous phase: the region's endpoints go FIRST, refusal or not. ---
     //
     // **This ordering is what lets `DESTROY` reclaim a region full of blocked servers**, and until
     // 2026-08-16 it could not. The sweep used to sit after the refusal below, so a region holding a
@@ -2413,11 +2415,11 @@ fn reap_region_objects(base: u64, end: u64) -> Result<(), ()> {
     // console server out of init's budget and that server blocks in its serve loop, so init's
     // 2048-frame region was unreclaimable by construction. See notes/frames.md.
     //
-    // Sweeping first fixes it because **the wake is already here**: removing an endpoint drains its
+    // Sweeping first fixes it because **the wake is already here**: removing an rendezvous drains its
     // wait queues, marks each waiter's IPC aborted and wakes it, which is precisely the transition a
     // blocked resident needs to become schedulable and so to spend the kill the refusal arms one
     // paragraph below. A server whose endpoints came out of the region being destroyed dies; one
-    // blocked on somebody else's endpoint still does not, and `reclaim_region`'s caller is told so by
+    // blocked on somebody else's rendezvous still does not, and `reclaim_region`'s caller is told so by
     // the refusal rather than by a hang (see `user::holding::Holding`'s BUGS).
     //
     // **A refused reclaim was already destructive** and says so in `reclaim_region`'s BUGS: it arms
@@ -2426,7 +2428,7 @@ fn reap_region_objects(base: u64, end: u64) -> Result<(), ()> {
     // must not do is *surprise* anyone, which is why it is written here rather than assumed.
     //
     // **Rescan for one at a time rather than listing them all first.** The obvious shape is to walk
-    // the table into a `[u64; MAX_ENDPOINTS]` and then walk that, because `remove` mutates the table
+    // the table into a `[u64; MAX_RENDEZVOUS]` and then walk that, because `remove` mutates the table
     // and you cannot remove while iterating it. That array is **4096 bytes of a 24 KiB kernel thread
     // stack** (`thread::STACK_PAGES`), and this function is already the deepest frame in the kernel;
     // measured with `-Z emit-stack-sizes` it was 6816 bytes, of which 6144 was three such scratch
@@ -2438,18 +2440,18 @@ fn reap_region_objects(base: u64, end: u64) -> Result<(), ()> {
     // a real teardown removes a handful. Stack is the scarce resource, not these comparisons.
     loop {
         let doomed = sched
-            .endpoints
+            .rendezvous_table
             .iter()
             .find(|&(_, &phys)| base <= phys && phys < end)
             .map(|(name, _)| name);
         let Some(name) = doomed else { break };
 
-        // Drain the endpoint's waiters. `endpoint_of` returns a `'static` reference, so it does not
+        // Drain the rendezvous's waiters. `rendezvous_of` returns a `'static` reference, so it does not
         // hold the `sched` borrow across the wakes below.
         let mut waiters = [0u64; MAX_THREADS];
         let mut nw = 0;
-        if let Some(endpoint) = endpoint_of(sched, name) {
-            endpoint.drain_waiters(|w| {
+        if let Some(rendezvous) = rendezvous_of(sched, name) {
+            rendezvous.drain_waiters(|w| {
                 // SAFETY: wait-queue entries are live Blocked threads; the id revalidates it.
                 waiters[nw] = unsafe { (*w.as_ptr()).id };
                 nw += 1;
@@ -2459,7 +2461,7 @@ fn reap_region_objects(base: u64, end: u64) -> Result<(), ()> {
             set_ipc_aborted(sched, tid);
             wake(sched, tid); // the link is free (drained), so wake queues it onto a run queue
         }
-        sched.endpoints.remove(name);
+        sched.rendezvous_table.remove(name);
     }
 
     // --- Refuse phase: no thread in the region may still be able to run. ---
@@ -2473,7 +2475,7 @@ fn reap_region_objects(base: u64, end: u64) -> Result<(), ()> {
     // (each core reaps its own on the timer). The region's owner retries `DESTROY` (the shell's
     // escalation loop already does), and once the runaway has torn down this pass finds it gone and
     // reclaims. A thread that only ever blocks, never scheduled to hit that preemption, is the
-    // cooperative tier's job (send it its interrupt endpoint), not this one.
+    // cooperative tier's job (send it its interrupt rendezvous), not this one.
     let mut live = false;
     // **And a second refusal, which is not about being alive at all**: a thread whose
     // `handshake.on_cpu` is still set. That flag means "a core is standing on this thread's kernel
@@ -2538,13 +2540,13 @@ fn reap_region_objects(base: u64, end: u64) -> Result<(), ()> {
         }
     }
     for &tid in &doomed[..n] {
-        // **Unlink a corpse from its supervision endpoint first.** A supervised thread that died
-        // with nobody in `RECV` is parked on that endpoint's *sender* queue holding its death
-        // message (DECISIONS §26 implementation note 2), and that endpoint is the supervisor's, so
-        // it is not in this region and the endpoint sweep above did not touch it. Freeing the TCB
+        // **Unlink a corpse from its supervision rendezvous first.** A supervised thread that died
+        // with nobody in `RECV` is parked on that rendezvous's *sender* queue holding its death
+        // message (DECISIONS §26 implementation note 2), and that rendezvous is the supervisor's, so
+        // it is not in this region and the rendezvous sweep above did not touch it. Freeing the TCB
         // while it is still linked there would leave a dangling pointer that the supervisor's next
         // `RECV` would follow into a recycled page. §16's `DESTROY` could already reach this (reap
-        // before receiving); §32's endpoint reap makes it easy to reach, because a supervisor can be
+        // before receiving); §32's rendezvous reap makes it easy to reach, because a supervisor can be
         // told a tid by its builder and never collect the message at all.
         let parked = sched
             .threads
@@ -2553,10 +2555,10 @@ fn reap_region_objects(base: u64, end: u64) -> Result<(), ()> {
             .and_then(|t| t.fault_ep);
         if let Some(ep) = parked {
             let ptr = tcb_ptr(sched, tid);
-            if let Some(endpoint) = endpoint_of(sched, ep) {
+            if let Some(rendezvous) = rendezvous_of(sched, ep) {
                 // SAFETY: `ptr` is compared by pointer, never dereferenced; the other queued
                 // senders are re-pushed and are all still live (blocked threads or corpses).
-                unsafe { endpoint.remove_sender(ptr) };
+                unsafe { rendezvous.remove_sender(ptr) };
             }
         }
         sched.threads.remove(tid);
@@ -2601,13 +2603,13 @@ pub fn reclaim_region(region: u64) -> Result<(), ()> {
     Ok(())
 }
 
-/// **Collect a corpse a supervision endpoint supervises** (DECISIONS §32, `endpoint::REAP`).
+/// **Collect a corpse a supervision rendezvous supervises** (DECISIONS §32, `rendezvous::REAP`).
 ///
 /// The one thing a supervisor could not previously do without holding the authority to *build* a
-/// process. `ep` is the endpoint the supervisor invoked; `tid` is the id the kernel stamped on the
+/// process. `ep` is the rendezvous the supervisor invoked; `tid` is the id the kernel stamped on the
 /// death message. Authorization is the relationship the kernel already tracks (`Thread::fault_ep`,
 /// §26 implementation note 1) rather than a new registry: the named thread's recorded supervision
-/// endpoint must *be* the invoked one, which is why the tid needs no badge and no handle. The
+/// rendezvous must *be* the invoked one, which is why the tid needs no badge and no handle. The
 /// decision itself is `capability::reap_decision`, proved for every input in that crate.
 ///
 /// Then the reclaim is §16's, unchanged: `reclaim_region` on the region the TCB was retyped from,
@@ -2618,7 +2620,7 @@ pub fn reclaim_region(region: u64) -> Result<(), ()> {
 ///
 /// Takes and releases `IPC_TABLES` before the reclaim, which takes it again: `reap_region_objects` must
 /// run with the lock and cannot be called under it.
-pub fn reap_supervised(ep: EpId, tid: Tid) -> Result<(), abi::Error> {
+pub fn reap_supervised(ep: RendezvousId, tid: Tid) -> Result<(), abi::Error> {
     let region = {
         let guard = IPC_TABLES.lock();
         let sched = guard.as_ref().ok_or(abi::Error::NotSupervised)?;
@@ -2643,23 +2645,23 @@ pub fn reap_supervised(ep: EpId, tid: Tid) -> Result<(), abi::Error> {
     reclaim_region(region).map_err(|_| abi::Error::NotPermitted)
 }
 
-/// **Read one entry of the domain a supervision endpoint supervises** (milestone 126,
-/// `endpoint::SURVEY`). Returns `(next_cursor, tid, state)`; a `next_cursor` of
+/// **Read one entry of the domain a supervision rendezvous supervises** (milestone 126,
+/// `rendezvous::SURVEY`). Returns `(next_cursor, tid, state)`; a `next_cursor` of
 /// `abi::survey::DONE` means the walk is finished and the other two words are 0.
 ///
 /// **The domain is the supervision subtree the kernel already maintains**, so there is no registry
 /// to keep in step with reality and no way for the view to disagree with it. Membership is
 /// `capability::survey_includes`, which is the same relationship `reap_supervised` authorizes with
 /// and is proved in that crate; a thread appears here exactly when its `Thread::fault_ep` *is* the
-/// invoked endpoint. Nothing about the caller's own identity is consulted, because holding the
-/// endpoint with `READ` is the whole of the claim (the rights check is the syscall layer's).
+/// invoked rendezvous. Nothing about the caller's own identity is consulted, because holding the
+/// rendezvous with `READ` is the whole of the claim (the rights check is the syscall layer's).
 ///
 /// **One entry per call, and the lock is given back between them.** A survey of a domain with a
 /// hundred children would otherwise hold `IPC_TABLES` for a hundred children's worth of work at a
 /// userspace program's discretion, which is a scheduler-latency hole a program could open on
 /// purpose. The cost is that the survey is a sequence of snapshots rather than one; see the `BUGS`
 /// section of notes/process-view.md, which states exactly what that does and does not promise.
-pub fn survey_supervised(ep: EpId, cursor: u64) -> Result<(u64, u64, u64), abi::Error> {
+pub fn survey_supervised(ep: RendezvousId, cursor: u64) -> Result<(u64, u64, u64), abi::Error> {
     let guard = IPC_TABLES.lock();
     // Before IPC_TABLES exists there is no domain to report, which is "nothing here", not a
     // refusal: the caller's authority was never in question.
@@ -2743,7 +2745,7 @@ pub fn configure_tcb(
 ///
 /// `target` is `None` for first-free placement (the original behaviour) or `Some(slot)` to place
 /// the capability in a specific free slot, which a supervisor uses to put a child's supervision
-/// endpoint in the reserved fault slot (milestone 22). A targeted insert into an occupied or
+/// rendezvous in the reserved fault slot (milestone 22). A targeted insert into an occupied or
 /// out-of-range slot is `OutOfMemory`, so the reservation cannot be quietly overwritten.
 pub fn tcb_insert_cap(
     tid: Tid,
@@ -2784,11 +2786,11 @@ pub fn start_tcb(tid: Tid, args: [u64; 3]) -> Result<(), abi::Error> {
     }
 
     // **The spawn-slot convention** (milestone 22, DECISIONS §26). If the reserved fault slot holds
-    // an Endpoint capability, this thread is supervised: record the endpoint as its fault target
+    // a Rendezvous capability, this thread is supervised: record it as the fault target
     // and consume the slot, so the child cannot forge fault messages on it (the kernel stays the
     // only sender on this path, §26.5). Supervision is fixed here, at spawn, and never changes.
     if let Ok(fault_cap) = t.cspace.get(abi::fault::FAULT_EP_SLOT)
-        && let crate::cap::Object::Endpoint(ep) = fault_cap.object
+        && let crate::cap::Object::Rendezvous(ep) = fault_cap.object
     {
         t.fault_ep = Some(ep);
         let _ = t.cspace.delete(abi::fault::FAULT_EP_SLOT);
@@ -2954,7 +2956,7 @@ pub fn thread_count() -> usize {
 /// **Count the runnable threads that are not the caller and not an idle thread** (test support).
 ///
 /// A leaked one-shot driver that spins forever instead of exiting is `Ready`/`Running` for the rest
-/// of the boot; a thread doing legitimate work is `Blocked` on an endpoint when the system is
+/// of the boot; a thread doing legitimate work is `Blocked` on an rendezvous when the system is
 /// quiescent. So, from a quiesced probe (yield until pending exits are reaped), this count is the
 /// number of leaked spinners: the idle threads (one per core) and the probe itself are the only
 /// runnable threads a clean system has. The regression proxy for the test-thread starvation that
@@ -3019,7 +3021,7 @@ pub fn dump_threads() {
     };
     // What this dump can and cannot honestly claim (first-silicon audit, 2026-08-14):
     //
-    //   - `state`/`on_cpu`/`wake_pending`/`wait`, and the endpoint counts, are a CONSISTENT
+    //   - `state`/`on_cpu`/`wake_pending`/`wait`, and the rendezvous counts, are a CONSISTENT
     //     snapshot: every writer holds IPC_TABLES, which this dump holds.
     //   - `pc` is the trap frame at the thread's stack top, which trap entry writes WITHOUT
     //     IPC_TABLES. For an off-cpu thread it is trustworthy (the frame write happened-before the
@@ -3074,11 +3076,11 @@ pub fn dump_threads() {
             None => crate::println!(" wait=-"),
         }
     }
-    // Endpoint topology: which endpoint each blocked thread is queued on, so a deadlock shows as a
+    // Rendezvous topology: which rendezvous each blocked thread is queued on, so a deadlock shows as a
     // sender with no receiver. Diagnostic only.
-    for (name, &phys) in sched.endpoints.iter() {
-        // SAFETY: a live endpoint page, direct-mapped, under IPC_TABLES.
-        let ep = unsafe { &*(crate::arch::mmu::phys_to_virt(phys) as *const Endpoint) };
+    for (name, &phys) in sched.rendezvous_table.iter() {
+        // SAFETY: a live rendezvous page, direct-mapped, under IPC_TABLES.
+        let ep = unsafe { &*(crate::arch::mmu::phys_to_virt(phys) as *const Rendezvous) };
         let (ns, nr, np) = ep.debug_counts();
         if ns != 0 || nr != 0 || np != 0 {
             crate::println!("  ep={name:#06x} senders={ns} receivers={nr} pending={np}");
@@ -3123,24 +3125,24 @@ pub fn dump_threads() {
     crate::println!("--- end thread dump ---");
 }
 
-/// **How many senders are parked on an endpoint.** Test support (milestone 22 phase B.2).
+/// **How many senders are parked on an rendezvous.** Test support (milestone 22 phase B.2).
 ///
 /// A negative assertion ("the supervisor sent nothing more") cannot be made with `RECV`, which would
-/// block forever on a quiet endpoint. This is the non-blocking look that lets a test say "and then
+/// block forever on a quiet rendezvous. This is the non-blocking look that lets a test say "and then
 /// nothing happened" instead of hanging when the code is right.
 #[cfg(test)]
-pub fn endpoint_waiting_senders(ep: EpId) -> usize {
+pub fn rendezvous_waiting_senders(ep: RendezvousId) -> usize {
     let mut guard = IPC_TABLES.lock();
     let Some(sched) = guard.as_mut() else {
         return 0;
     };
-    match endpoint_of(sched, ep) {
+    match rendezvous_of(sched, ep) {
         Some(e) => e.debug_counts().0,
         None => 0,
     }
 }
 
-/// **How many receivers are parked on an endpoint.** The twin of [`endpoint_waiting_senders`], and
+/// **How many receivers are parked on an rendezvous.** The twin of [`rendezvous_waiting_senders`], and
 /// test support for the same reason (milestone 81).
 ///
 /// A test that wants to act *on* a blocked waiter needs to know the waiter is blocked, and "I
@@ -3148,12 +3150,12 @@ pub fn endpoint_waiting_senders(ep: EpId) -> usize {
 /// another core, and on the physical core under HVF a yield on this one returns in nanoseconds. So
 /// the wait has to be on the queue itself, which is what this reads.
 #[cfg(test)]
-pub fn endpoint_waiting_receivers(ep: EpId) -> usize {
+pub fn rendezvous_waiting_receivers(ep: RendezvousId) -> usize {
     let mut guard = IPC_TABLES.lock();
     let Some(sched) = guard.as_mut() else {
         return 0;
     };
-    match endpoint_of(sched, ep) {
+    match rendezvous_of(sched, ep) {
         Some(e) => e.debug_counts().1,
         None => 0,
     }
@@ -3164,7 +3166,7 @@ pub fn endpoint_waiting_receivers(ep: EpId) -> usize {
 /// Issues a bare `wake()` against `tid` under `IPC_TABLES`, through the same function every scheduler
 /// wake site funnels into, with no message written, no signal counted, and no abort flagged: the
 /// transition the VisionFive 2's boot-8 event ring recorded against the boot thread (`wake:0x0`
-/// on a boot where no sender to its endpoint existed). This is deliberately not a hand-rolled
+/// on a boot where no sender to its rendezvous existed). This is deliberately not a hand-rolled
 /// state poke: it exercises the real wake path, so whatever `wake()` does about an undelivered
 /// wake is what this injects.
 #[cfg(test)]
@@ -3343,7 +3345,7 @@ mod tests {
     }
     /// **The same source, deliberately.** RISC-V has exactly one line these tests can assert by
     /// hand, so unlike aarch64's two SGIs the two tests share it. They do not collide: each rebinds
-    /// the route to its own endpoint before raising, and each quiets the line before it returns.
+    /// the route to its own rendezvous before raising, and each quiets the line before it returns.
     #[cfg(target_arch = "riscv64")]
     fn pending_irq() -> u32 {
         crate::user::uart_irq_and_source().0
@@ -3579,42 +3581,43 @@ mod tests {
         );
     }
 
-    /// **Object revocation reclaims a region holding an idle endpoint.** An endpoint nobody is
+    /// **Object revocation reclaims a region holding an idle rendezvous.** An rendezvous nobody is
     /// blocked on is torn down with its region: removed from the registry (its name goes stale, so
-    /// every Endpoint capability to it fails), and its page returned. Frames back to baseline.
+    /// every Rendezvous capability to it fails), and its page returned. Frames back to baseline.
     #[test_case]
-    fn reclaim_frees_a_regions_idle_endpoint() {
+    fn reclaim_frees_a_regions_idle_rendezvous() {
         let frames_before = crate::memory::free_frames();
         let region = crate::untyped::create(2).expect("region");
-        let _ep = crate::sched::create_endpoint_from(region).expect("endpoint from region");
+        let _ep = crate::sched::create_rendezvous_from(region).expect("rendezvous from region");
         assert!(
             crate::memory::free_frames() < frames_before,
-            "creating the endpoint should have spent frames"
+            "creating the rendezvous should have spent frames"
         );
-        crate::sched::reclaim_region(region).expect("reclaim a region with only an idle endpoint");
+        crate::sched::reclaim_region(region)
+            .expect("reclaim a region with only an idle rendezvous");
         assert_eq!(
             crate::memory::free_frames(),
             frames_before,
-            "the idle endpoint's region must return to baseline",
+            "the idle rendezvous's region must return to baseline",
         );
     }
 
-    /// **A thread blocked on an endpoint wakes with an error when the endpoint is revoked.** Rather
+    /// **A thread blocked on an rendezvous wakes with an error when the rendezvous is revoked.** Rather
     /// than refuse the reclaim (the old safe subset) or strand the waiter, revocation drains the
-    /// endpoint's wait queue, marks each waiter aborted, and wakes it: the reclaim *succeeds*, and the
-    /// woken thread's blocking IPC reports the endpoint is gone (`take_ipc_aborted`) instead of
+    /// rendezvous's wait queue, marks each waiter aborted, and wakes it: the reclaim *succeeds*, and the
+    /// woken thread's blocking IPC reports the rendezvous is gone (`take_ipc_aborted`) instead of
     /// returning a message it never received. This is the richer semantic, folded into the IPC core.
     #[test_case]
-    fn a_blocked_waiter_wakes_with_an_error_when_its_endpoint_is_revoked() {
+    fn a_blocked_waiter_wakes_with_an_error_when_its_rendezvous_is_revoked() {
         static ABORTED: AtomicBool = AtomicBool::new(false);
         static WOKE: AtomicBool = AtomicBool::new(false);
         ABORTED.store(false, Ordering::SeqCst);
         WOKE.store(false, Ordering::SeqCst);
 
         let region = crate::untyped::create(2).expect("region");
-        let ep = crate::sched::create_endpoint_from(region).expect("endpoint from region");
+        let ep = crate::sched::create_rendezvous_from(region).expect("rendezvous from region");
 
-        // A thread that blocks receiving on the endpoint, then records whether it was aborted.
+        // A thread that blocks receiving on the rendezvous, then records whether it was aborted.
         crate::sched::spawn(move || {
             let _ = crate::sched::ipc_recv(ep);
             ABORTED.store(crate::sched::take_ipc_aborted(), Ordering::SeqCst);
@@ -3622,7 +3625,7 @@ mod tests {
         })
         .expect("spawn a waiter");
 
-        // **The waiter must be queued on the endpoint before the reclaim**, or there is nothing to
+        // **The waiter must be queued on the rendezvous before the reclaim**, or there is nothing to
         // wake and the test passes on a fiction. This used to be one `yield_now()`, on the premise
         // (written when the machine was single core, stale since DECISIONS §28 scattered placement)
         // that yielding hands this core to the waiter. It does not: the waiter is on another core,
@@ -3635,11 +3638,11 @@ mod tests {
         // woke"). Same defect the milestone-78 family had, found by a *faster* machine rather than
         // a loaded one: a yield count is not a duration in either direction.
         assert!(
-            wait_for(|| crate::sched::endpoint_waiting_receivers(ep) == 1),
-            "the waiter never blocked on the endpoint, so the reclaim had nothing to wake",
+            wait_for(|| crate::sched::rendezvous_waiting_receivers(ep) == 1),
+            "the waiter never blocked on the rendezvous, so the reclaim had nothing to wake",
         );
 
-        // Reclaiming the endpoint's region now succeeds: the waiter is woken with an error, not left
+        // Reclaiming the rendezvous's region now succeeds: the waiter is woken with an error, not left
         // to strand the reclaim.
         crate::sched::reclaim_region(region)
             .expect("reclaim wakes the blocked waiter rather than refusing");
@@ -3658,11 +3661,11 @@ mod tests {
 
     /// **A wake with nothing delivered must not complete a parked receiver's `RECV`** (boot 8,
     /// VisionFive 2, 2026-08-14). The bench dump's shape: the boot thread, parked in `ipc_recv`
-    /// on the report endpoint, took a `wake:0x0` on a boot where no sender to that endpoint
+    /// on the report rendezvous, took a `wake:0x0` on a boot where no sender to that rendezvous
     /// existed, and its recv neither completed with a message nor re-parked. The recv tail reads
     /// the mailbox unconditionally after `schedule()` returns, so an undelivered wake completes
     /// the recv with whatever the mailbox happened to hold, and the receiver's TCB is still
-    /// linked on the endpoint's wait queue (the waker that owns the unlink never ran), which is
+    /// linked on the rendezvous's wait queue (the waker that owns the unlink never ran), which is
     /// the intrusive one-link invariant broken in kernel memory.
     ///
     /// The claim: a `Blocked` IPC thread may only become `Ready` by the hand that completed its
@@ -3714,7 +3717,7 @@ mod tests {
         GOT.store(u64::MAX, Ordering::SeqCst);
         DONE.store(false, Ordering::SeqCst);
 
-        let ep = crate::sched::create_endpoint();
+        let ep = crate::sched::create_rendezvous();
         let tid = crate::sched::spawn(move || {
             let m = crate::sched::ipc_recv(ep);
             GOT.store(m[0], Ordering::SeqCst);
@@ -3722,10 +3725,10 @@ mod tests {
         })
         .expect("spawn receiver");
 
-        // Queued on the endpoint, not "probably scheduled by now" (the milestone-81 lesson).
+        // Queued on the rendezvous, not "probably scheduled by now" (the milestone-81 lesson).
         assert!(
-            wait_for(|| crate::sched::endpoint_waiting_receivers(ep) == 1),
-            "the receiver never parked on the endpoint"
+            wait_for(|| crate::sched::rendezvous_waiting_receivers(ep) == 1),
+            "the receiver never parked on the rendezvous"
         );
 
         // The injection: the real wake path, nothing delivered.
@@ -3743,9 +3746,9 @@ mod tests {
             crate::sched::yield_now();
         }
         assert_eq!(
-            crate::sched::endpoint_waiting_receivers(ep),
+            crate::sched::rendezvous_waiting_receivers(ep),
             1,
-            "the undelivered wake took the receiver off the endpoint"
+            "the undelivered wake took the receiver off the rendezvous"
         );
 
         // And the rendezvous still works: a real sender completes the same recv with its message.
@@ -3763,10 +3766,10 @@ mod tests {
 
     /// **A reply only wakes a caller that awaits one** (boot 8's observe-and-strand guard). A
     /// `Reply` capability names a tid, not a wait state. `ipc_reply` used to deliver to any
-    /// `Blocked` thread with that tid: invoked against a thread parked as an ordinary endpoint
+    /// `Blocked` thread with that tid: invoked against a thread parked as an ordinary rendezvous
     /// receiver (a stale reply whose CALL was long since aborted, with the caller re-parked
     /// elsewhere), it clobbered the mailbox and woke the thread messageless while its TCB was
-    /// still linked on the endpoint's wait queue. Same strand as the test above, reached through
+    /// still linked on the rendezvous's wait queue. Same strand as the test above, reached through
     /// the one wake site addressed by tid rather than by rendezvous.
     #[test_case]
     fn a_reply_to_a_thread_parked_as_a_receiver_is_dropped() {
@@ -3775,7 +3778,7 @@ mod tests {
         GOT.store(u64::MAX, Ordering::SeqCst);
         DONE.store(false, Ordering::SeqCst);
 
-        let ep = crate::sched::create_endpoint();
+        let ep = crate::sched::create_rendezvous();
         let tid = crate::sched::spawn(move || {
             let m = crate::sched::ipc_recv(ep);
             GOT.store(m[0], Ordering::SeqCst);
@@ -3784,8 +3787,8 @@ mod tests {
         .expect("spawn receiver");
 
         assert!(
-            wait_for(|| crate::sched::endpoint_waiting_receivers(ep) == 1),
-            "the receiver never parked on the endpoint"
+            wait_for(|| crate::sched::rendezvous_waiting_receivers(ep) == 1),
+            "the receiver never parked on the rendezvous"
         );
 
         // A reply aimed at a thread that is not awaiting a reply: dropped, like a reply to a
@@ -4336,14 +4339,14 @@ mod tests {
         );
     }
 
-    /// **The rendezvous, receiver-first.** A thread blocks on an empty endpoint, and stays
+    /// **The rendezvous, receiver-first.** A thread blocks on an empty rendezvous, and stays
     /// blocked, and a *later* sender is what frees it: carrying the message.
     #[test_case]
     fn a_receiver_blocks_until_a_sender_arrives() {
         static GOT: AtomicU64 = AtomicU64::new(0);
         static RECEIVED: AtomicBool = AtomicBool::new(false);
 
-        let ep = super::create_endpoint();
+        let ep = super::create_rendezvous();
 
         super::spawn(move || {
             let msg = super::ipc_recv(ep); // nobody is sending yet: this BLOCKS
@@ -4358,7 +4361,7 @@ mod tests {
         }
         assert!(
             !RECEIVED.load(Ordering::SeqCst),
-            "a receiver returned from an endpoint nobody had sent to",
+            "a receiver returned from an rendezvous nobody had sent to",
         );
 
         // Now send. This should hand the receiver its message and wake it.
@@ -4376,13 +4379,13 @@ mod tests {
         );
     }
 
-    /// **The rendezvous, sender-first.** The other order: a sender blocks on an endpoint with no
+    /// **The rendezvous, sender-first.** The other order: a sender blocks on an rendezvous with no
     /// receiver, and a later receiver collects the parked message and wakes it.
     #[test_case]
     fn a_sender_blocks_until_a_receiver_arrives() {
         static SENT_RETURNED: AtomicBool = AtomicBool::new(false);
 
-        let ep = super::create_endpoint();
+        let ep = super::create_rendezvous();
 
         super::spawn(move || {
             super::ipc_send(ep, [0x1234, 0x5678, 0x9abc]); // nobody receiving yet: BLOCKS
@@ -4419,7 +4422,7 @@ mod tests {
 
     /// **A request and a reply, over two endpoints.** The shape milestone 8's console server
     /// will have: a client sends a request and blocks for the answer; a server loops on the
-    /// request endpoint, does the work, and replies on the reply endpoint.
+    /// request rendezvous, does the work, and replies on the reply rendezvous.
     ///
     /// All three message words survive the round trip, which is what proves the receiver's
     /// `x1`/`x2` handling and the mailbox are correct end to end.
@@ -4428,8 +4431,8 @@ mod tests {
         static ANSWER: AtomicU64 = AtomicU64::new(0);
         static DONE: AtomicBool = AtomicBool::new(false);
 
-        let req = super::create_endpoint();
-        let rep = super::create_endpoint();
+        let req = super::create_rendezvous();
+        let rep = super::create_rendezvous();
 
         // The server: receive n on `req`, send n + 1 back on `rep`.
         super::spawn(move || {
@@ -4520,20 +4523,20 @@ mod tests {
         );
     }
 
-    /// **Milestone 19a: an endpoint retyped from a region carries IPC, and pins its region.**
-    /// The kernel-level half of the granular-construction story: `create_endpoint_from` carves a
-    /// page, the endpoint lives in it, rendezvous works over it exactly as over a kernel-wired
-    /// endpoint, and `untyped::destroy` refuses the now-pinned region, because freeing the page
-    /// under a live endpoint would dangle every queued thread. The refusal is measured, not
+    /// **Milestone 19a: an rendezvous retyped from a region carries IPC, and pins its region.**
+    /// The kernel-level half of the granular-construction story: `create_rendezvous_from` carves a
+    /// page, the rendezvous lives in it, rendezvous works over it exactly as over a kernel-wired
+    /// rendezvous, and `untyped::destroy` refuses the now-pinned region, because freeing the page
+    /// under a live rendezvous would dangle every queued thread. The refusal is measured, not
     /// assumed: the allocator's free count must not move.
     #[test_case]
-    fn a_retyped_endpoint_carries_ipc_and_pins_its_region() {
+    fn a_retyped_rendezvous_carries_ipc_and_pins_its_region() {
         use core::sync::atomic::{AtomicU64, Ordering};
         static GOT: AtomicU64 = AtomicU64::new(0);
 
         let region = crate::untyped::create(2).expect("no region");
-        let ep = super::create_endpoint_from(region).expect("no endpoint from region");
-        let kernel_ep = super::create_endpoint();
+        let ep = super::create_rendezvous_from(region).expect("no rendezvous from region");
+        let kernel_ep = super::create_rendezvous();
         assert_ne!(ep, kernel_ep, "registry names collide");
 
         super::spawn(move || {
@@ -4545,7 +4548,7 @@ mod tests {
         assert_eq!(
             GOT.load(Ordering::SeqCst),
             0x2A,
-            "no rendezvous over the retyped endpoint"
+            "no rendezvous over the retyped rendezvous"
         );
 
         let free_before = crate::memory::stats().unwrap().free();
@@ -4553,22 +4556,22 @@ mod tests {
         assert_eq!(
             crate::memory::stats().unwrap().free(),
             free_before,
-            "destroy reclaimed a pinned region hosting a live endpoint",
+            "destroy reclaimed a pinned region hosting a live rendezvous",
         );
     }
 
-    /// **Milestone 12: a call gets a reply, over one endpoint, via a one-shot Reply cap.**
+    /// **Milestone 12: a call gets a reply, over one rendezvous, via a one-shot Reply cap.**
     ///
     /// The client `CALL`s and blocks; the server `RECV_CAP`s (receiving the request word plus a
     /// kernel-minted `Reply` cap naming the caller), answers through that cap, and consumes it. One
-    /// endpoint, not the two the pre-`Call` pattern needs, and the server was never wired to this
+    /// rendezvous, not the two the pre-`Call` pattern needs, and the server was never wired to this
     /// client.
     #[test_case]
     fn a_call_gets_a_reply() {
         static ANSWER: AtomicU64 = AtomicU64::new(0);
         static DONE: AtomicBool = AtomicBool::new(false);
 
-        let ep = super::create_endpoint();
+        let ep = super::create_rendezvous();
 
         super::spawn(move || {
             let m = super::ipc_recv_cap(ep); // [n, reply_slot, second_word]
@@ -4598,7 +4601,7 @@ mod tests {
     /// **Milestone 12: a reply reaches the caller that called, not another.**
     ///
     /// Two clients call and block at once; the server answers each through *its* Reply cap. Client A
-    /// (sent 100) must get 111 and client B (sent 200) must get 211. A shared reply endpoint cannot
+    /// (sent 100) must get 111 and client B (sent 200) must get 211. A shared reply rendezvous cannot
     /// guarantee this: whichever client's `RECV` runs grabs the reply. The Reply cap, naming the
     /// specific blocked caller, makes misrouting unrepresentable.
     #[test_case]
@@ -4606,7 +4609,7 @@ mod tests {
         static GOT_A: AtomicU64 = AtomicU64::new(0);
         static GOT_B: AtomicU64 = AtomicU64::new(0);
 
-        let ep = super::create_endpoint();
+        let ep = super::create_rendezvous();
 
         // The server: field two calls, reply each caller its own word + 11, via its own cap.
         super::spawn(move || {
@@ -4658,7 +4661,7 @@ mod tests {
         static PROGRESS: AtomicU64 = AtomicU64::new(0);
         static STOP: AtomicBool = AtomicBool::new(false);
 
-        let ep = super::create_endpoint();
+        let ep = super::create_rendezvous();
 
         PROGRESS.store(0, Ordering::SeqCst);
         STOP.store(false, Ordering::SeqCst);
@@ -4688,7 +4691,7 @@ mod tests {
             "a worker made no progress while another thread was blocked on IPC",
         );
 
-        // Free the blocked receiver so it does not sit in the endpoint queue forever, and wait for
+        // Free the blocked receiver so it does not sit in the rendezvous queue forever, and wait for
         // BOTH threads to actually be gone. Twenty yields used to be the wait, which is the same
         // "count is not a duration" defect one level down: this test's teardown landing late is
         // precisely the neighbouring state that made other tests' frame and thread accounting fail
@@ -4704,7 +4707,7 @@ mod tests {
 
     /// **An interrupt becomes a message.** DECISIONS §10 and notes/interrupts.md, executed.
     ///
-    /// A thread blocks waiting on an interrupt it can only name through an endpoint. We raise the
+    /// A thread blocks waiting on an interrupt it can only name through an rendezvous. We raise the
     /// interrupt from software, the kernel's handler turns it into a notification, and the blocked
     /// thread wakes. This is the exact path a userspace driver takes when a real device interrupts.
     ///
@@ -4712,7 +4715,7 @@ mod tests {
     /// [`raise_test_irq`]: aarch64 sends itself a GIC SGI, which needs no device at all; RISC-V has
     /// no SGI, so it makes the console UART assert its own line into the PLIC with one register
     /// write. The kernel path under test is the same on both (the handler routes the interrupt to an
-    /// endpoint and signals it), and RISC-V's leg additionally covers the PLIC claim/mask/complete
+    /// rendezvous and signals it), and RISC-V's leg additionally covers the PLIC claim/mask/complete
     /// handshake that an SGI on aarch64 does not reach. What RISC-V gives up is aarch64's "minus the
     /// device" property. The alternative there was the SBI's IPI, which arrives as a *software*
     /// interrupt down a different arm of the trap dispatcher and would not have touched
@@ -4721,7 +4724,7 @@ mod tests {
     fn an_interrupt_becomes_a_message() {
         static WOKE: AtomicBool = AtomicBool::new(false);
 
-        let ep = super::create_endpoint();
+        let ep = super::create_rendezvous();
         super::bind_irq(delivery_irq(), ep);
         arm_test_irq(delivery_irq());
 
@@ -4754,7 +4757,7 @@ mod tests {
     /// **A spawn quota caps how many children a spawner can have alive, and replenishes on death.**
     ///
     /// This is the resource-exhaustion bound from the security audit: a process cannot make the
-    /// kernel spawn without limit. Two threads block on an endpoint nobody drains, holding their
+    /// kernel spawn without limit. Two threads block on an rendezvous nobody drains, holding their
     /// slots; a budget of two is then exhausted and a third spawn is refused. Waking one lets it
     /// exit and be reaped, which returns its slot, and a spawn succeeds again.
     #[test_case]
@@ -4762,7 +4765,7 @@ mod tests {
         use core::sync::atomic::AtomicU32;
         static BUDGET: AtomicU32 = AtomicU32::new(2);
 
-        let ep = super::create_endpoint();
+        let ep = super::create_rendezvous();
 
         // Two children that block forever (nobody sends), each holding a quota slot.
         assert!(
@@ -4828,7 +4831,7 @@ mod tests {
     fn an_interrupt_that_arrives_before_the_wait_is_not_lost() {
         use crate::arch::exceptions::ROUTED_IRQS;
 
-        let ep = super::create_endpoint();
+        let ep = super::create_rendezvous();
         super::bind_irq(pending_irq(), ep);
         arm_test_irq(pending_irq());
 
@@ -4859,7 +4862,7 @@ mod tests {
         );
     }
 
-    /// The kernel's endpoint supply grows past one chunk, and a retired chunk's endpoints keep working.
+    /// The kernel's rendezvous supply grows past one chunk, and a retired chunk's endpoints keep working.
     ///
     /// This exists because `KERNEL_EP_PAGES` used to be a ceiling that grew with the *test suite*
     /// rather than the system, so every few merges someone hit a panic telling them to raise a
@@ -4868,14 +4871,14 @@ mod tests {
     ///
     /// Creating `KERNEL_EP_CHUNK_PAGES + 1` endpoints crosses a chunk boundary wherever in the current
     /// chunk we happen to start, so the carve-a-new-chunk path is exercised rather than assumed. The
-    /// second assertion is the one that matters more: an endpoint minted *before* the transition must
+    /// second assertion is the one that matters more: an rendezvous minted *before* the transition must
     /// still resolve afterwards, which is what proves that forgetting a filled chunk's handle
     /// (deliberate, see the field's doc comment) does not orphan the endpoints living in it.
     #[test_case]
-    fn the_kernels_endpoint_supply_grows_past_one_chunk() {
+    fn the_kernels_rendezvous_supply_grows_past_one_chunk() {
         let mut names = [0u64; super::KERNEL_EP_CHUNK_PAGES as usize + 1];
         for slot in names.iter_mut() {
-            *slot = super::create_endpoint();
+            *slot = super::create_rendezvous();
         }
 
         // Distinct names: a chunk transition that handed back the same page twice would show here.
@@ -4890,8 +4893,8 @@ mod tests {
         let sched = guard.as_mut().expect("no scheduler");
         for (i, &ep) in names.iter().enumerate() {
             assert!(
-                super::endpoint_of(sched, ep).is_some(),
-                "endpoint {i} stopped resolving after the supply grew",
+                super::rendezvous_of(sched, ep).is_some(),
+                "rendezvous {i} stopped resolving after the supply grew",
             );
         }
     }

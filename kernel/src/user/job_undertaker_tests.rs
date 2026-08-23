@@ -29,13 +29,13 @@ const YIELDS: u32 = 4000;
 /// `invoke(cap, REAP, tid, _, _)` through the real dispatcher, for the tidy-up in the control.
 fn reap(slot: u64, tid: u64) -> Result<i64, Error> {
     let mut frame = TrapFrame::for_user_entry(0, 0, [0, 0, 0]);
-    invoke(&mut frame, slot, abi::endpoint::REAP, tid, 0, 0)
+    invoke(&mut frame, slot, abi::rendezvous::REAP, tid, 0, 0)
 }
 
 /// Receive one five-word death message through the ABI.
 fn recv_death(slot: u64) -> [u64; 5] {
     let mut frame = TrapFrame::for_user_entry(0, 0, [0, 0, 0]);
-    let w0 = invoke(&mut frame, slot, abi::endpoint::RECV, 0, 0, 0).expect("RECV refused");
+    let w0 = invoke(&mut frame, slot, abi::rendezvous::RECV, 0, 0, 0).expect("RECV refused");
     [
         w0 as u64,
         frame.arg(1),
@@ -66,14 +66,14 @@ fn pool_came_back(pool: u64) -> bool {
 ///
 /// Deliberately the real program out of the initrd rather than a stub, because what is under test is
 /// a *program's* behaviour, and a stub would be this test's opinion of it.
-fn spawn_job_undertaker(deaths: sched::EpId) -> u64 {
+fn spawn_job_undertaker(deaths: sched::RendezvousId) -> u64 {
     let bytes = program("job_undertaker").expect("no job_undertaker program in the initrd archive");
     let (space, entry) = load(bytes).expect("job_undertaker is not loadable");
     let aspace = readopt_user_aspace(space).expect("register the job_undertaker aspace");
 
     let tcb_region = crate::untyped::create(2).expect("no tcb region for job_undertaker");
     let tid = sched::create_tcb(tcb_region).expect("no tcb for job_undertaker");
-    let slot = sched::tcb_insert_cap(tid, crate::cap::endpoint_cap(deaths, Rights::READ), None)
+    let slot = sched::tcb_insert_cap(tid, crate::cap::rendezvous_cap(deaths, Rights::READ), None)
         .expect("insert the supervision endpoint");
     assert_eq!(
         slot, 0,
@@ -97,8 +97,8 @@ fn spawn_job_undertaker(deaths: sched::EpId) -> u64 {
 #[test_case]
 fn without_a_collector_a_bounded_job_pool_runs_out() {
     let pool = crate::untyped::create(POOL_PAGES).expect("no job pool");
-    let deaths = sched::create_endpoint();
-    let report = sched::create_endpoint();
+    let deaths = sched::create_rendezvous();
+    let report = sched::create_rendezvous();
 
     let mut corpses = [0u64; ROOM as usize];
     for (i, slot) in corpses.iter_mut().enumerate() {
@@ -124,7 +124,7 @@ fn without_a_collector_a_bounded_job_pool_runs_out() {
     );
 
     // Tidy: collect the three corpses the way the collector would, then give the pool back.
-    let cap = sched::grant(crate::cap::endpoint_cap(deaths, Rights::READ)).expect("hold deaths");
+    let cap = sched::grant(crate::cap::rendezvous_cap(deaths, Rights::READ)).expect("hold deaths");
     for _ in 0..ROOM {
         let msg = recv_death(cap);
         assert_eq!(msg[0], EVENT_EXIT, "the report stub exits cleanly");
@@ -149,8 +149,8 @@ fn without_a_collector_a_bounded_job_pool_runs_out() {
 #[test_case]
 fn job_undertaker_returns_every_finished_job_to_the_pool() {
     let pool = crate::untyped::create(POOL_PAGES).expect("no job pool");
-    let deaths = sched::create_endpoint();
-    let report = sched::create_endpoint();
+    let deaths = sched::create_rendezvous();
+    let report = sched::create_rendezvous();
     spawn_job_undertaker(deaths);
 
     for i in 0..JOBS {

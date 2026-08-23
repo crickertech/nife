@@ -19,7 +19,7 @@
 //! - slot 2: the child report endpoint (WRITE|GRANT), handed to each instance as its slot 0.
 //! - slot 3: the supervision endpoint (READ|GRANT), placed in each instance's reserved fault slot
 //!   so every scheduled child is born supervised (DECISIONS §26), and invoked with
-//!   `Endpoint::REAP` to collect the corpses (§32).
+//!   `Rendezvous::REAP` to collect the corpses (§32).
 //! - `a0`: how many fires to perform before summarising and exiting. `0` means forever.
 //! - `a1`: the length of the archive the spawn site mapped read-only at [`INITRD_VA`]. **Not the
 //!   initrd**: it holds exactly the programs this document will ever build, because the plan is
@@ -81,7 +81,7 @@
 //! - **A hung scheduled child stops the whole timetable.** When the budget cannot back another
 //!   instance the loop blocks on the supervision endpoint, and a livelocked child never sends a
 //!   death message, so nothing arrives and nothing else fires. That is §32's watchdog case verbatim
-//!   (`Endpoint::REAP` collects corpses and refuses to kill, deliberately) and it is not this
+//!   (`Rendezvous::REAP` collects corpses and refuses to kill, deliberately) and it is not this
 //!   program's to fix: it waits for milestone 23. What it costs here is worth stating, because it is
 //!   worse than it is for a shell: at a prompt the person who typed the command is sitting there and
 //!   can press `^C`, and behind a schedule there is nobody.

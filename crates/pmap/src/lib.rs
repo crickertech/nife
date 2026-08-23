@@ -20,7 +20,7 @@
 //!
 //! `abi::aspace::MAP_INTO` needs `WRITE`: the authority to shape a space. `abi::aspace::LIST` needs
 //! `ENUMERATE`: the authority to look. A capability holding `ENUMERATE` alone can list every mapping
-//! and change none of them, exactly the split `Endpoint::SURVEY` drew between naming a domain's
+//! and change none of them, exactly the split `Rendezvous::SURVEY` drew between naming a domain's
 //! members and reaping one (DECISIONS §114, `notes/process-view.md`).
 //!
 //! # Three answers, and telling them apart is the deliverable
@@ -84,16 +84,16 @@
 //!   anywhere in this system survives long enough, held by anyone other than its own builder, for a
 //!   second program to be handed a view of it. The kernel method and this program are real and
 //!   proven end to end against a real `Object::Aspace` (`kernel::user::pmap_tests`), the same way
-//!   `ps`'s kernel tests prove `Endpoint::SURVEY` without going through the shell. What is missing is
+//!   `ps`'s kernel tests prove `Rendezvous::SURVEY` without going through the shell. What is missing is
 //!   a design for a builder to hand a narrowed, still-live view to a third party before it consumes
 //!   its own capability at `CONFIGURE` -- a real gap this milestone found rather than one it created,
 //!   named here for whoever picks it up next rather than decided by this lane. See
 //!   notes/process-view.md.
 //!
-//! Name: recorded (milestone 126, and notes/naming.md). `pmap` is the name every reader already
-//! knows from outside this project. Sharing it with `user/src/pmap.rs` is the crate-and-program pair
-//! the naming tenet describes: `ps`, `coremark`, `line_editor` and `compositor` all keep one name
-//! across the two. calef ruled on the rules; this crate's name follows from them.
+//! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review, confirming milestone
+//! 126's own reasoning). `pmap` is the name every reader already knows from outside this project.
+//! Sharing it with `user/src/pmap.rs` is the crate-and-program pair the naming tenet describes:
+//! `ps`, `coremark`, `line_editor` and `compositor` all keep one name across the two.
 
 #![cfg_attr(not(test), no_std)]
 

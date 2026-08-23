@@ -662,7 +662,11 @@ pub const INIT_BOOT_ROLE: u64 = 27;
 // The aarch64 test module is the only caller: 19d.2 shipped, and the shape that actually became
 // the boot path is `init_boot` below. RISC-V boots the same system through `riscv_shell_boot`.
 #[cfg_attr(not(test), allow(dead_code))]
-pub fn spawn_init(image: &'static [u8], role: u64, report: crate::sched::EpId) -> holding::Holding {
+pub fn spawn_init(
+    image: &'static [u8],
+    role: u64,
+    report: crate::sched::RendezvousId,
+) -> holding::Holding {
     let (initrd_start, initrd_len) = memory::initrd_region().expect("no initrd to hand init");
     let initrd_pages = initrd_len.div_ceil(FRAME_SIZE);
 
@@ -670,7 +674,7 @@ pub fn spawn_init(image: &'static [u8], role: u64, report: crate::sched::EpId) -
     // this returns, and an interrupt that fires before it is routed is dropped ("unexpected
     // interrupt"), not queued. Setting up the route here means the fire is counted on the routed
     // endpoint even though the init-built child is not yet waiting; the child's WAIT drains it.
-    crate::sched::bind_irq(INIT_TEST_SGI, crate::sched::create_endpoint());
+    crate::sched::bind_irq(INIT_TEST_SGI, crate::sched::create_rendezvous());
     crate::arch::irq::enable(INIT_TEST_SGI);
     // And the UART receive interrupt (19d.2c): the input driver init builds waits on it. Route and
     // enable it here, so init can delegate the Irq cap to that driver. The number is the machine's
@@ -682,7 +686,7 @@ pub fn spawn_init(image: &'static [u8], role: u64, report: crate::sched::EpId) -
     let (uart_rx_intid, uart_irq_source) = uart_irq_and_source();
     crate::println!("  uart irq  : {uart_rx_intid} ({uart_irq_source})");
     if uart_rx_intid != INIT_TEST_SGI {
-        crate::sched::bind_irq(uart_rx_intid, crate::sched::create_endpoint());
+        crate::sched::bind_irq(uart_rx_intid, crate::sched::create_rendezvous());
         crate::arch::irq::enable(uart_rx_intid);
     }
 
@@ -793,7 +797,7 @@ pub fn spawn_init(image: &'static [u8], role: u64, report: crate::sched::EpId) -
         // The delegable root budget: init narrows and hands budgets to the children it builds, so
         // the root carries GRANT (milestone 31). Rights only narrow downward from here.
         crate::sched::grant(crate::cap::untyped_root_cap(build_region)).expect("grant untyped");
-        crate::sched::grant(crate::cap::endpoint_cap(
+        crate::sched::grant(crate::cap::rendezvous_cap(
             report,
             crate::cap::Rights::WRITE.union(crate::cap::Rights::GRANT),
         ))
@@ -838,7 +842,7 @@ pub fn spawn_init(image: &'static [u8], role: u64, report: crate::sched::EpId) -
         // rights the endpoint holds, which is also how init is told there is one at all.
         let fs_rights = match fs {
             Some((file_ep, file_shared)) => {
-                crate::sched::grant(crate::cap::endpoint_cap(
+                crate::sched::grant(crate::cap::rendezvous_cap(
                     file_ep,
                     crate::cap::Rights::WRITE.union(crate::cap::Rights::GRANT),
                 ))
@@ -872,7 +876,7 @@ pub fn spawn_init(image: &'static [u8], role: u64, report: crate::sched::EpId) -
 // shell`, and `--features initboot`), since milestone 28 retired the kernel-wired `shell_service`.
 #[cfg(not(any(test, feature = "bench")))]
 pub fn boot_via_init(image: &'static [u8]) {
-    let report = crate::sched::create_endpoint();
+    let report = crate::sched::create_rendezvous();
     // The holding is dropped on purpose: on this path init **is** the system, and there is nobody
     // to hand its memory back to.
     let _ = spawn_init(image, INIT_BOOT_ROLE, report);
@@ -1168,8 +1172,8 @@ pub fn riscv_worker_demo(worker: &[u8], n: u64) -> Result<u64, LoadError> {
     let aspace_name = readopt_user_aspace(space).expect("register the loaded aspace");
 
     // The worker's one authority: WRITE on a report endpoint, which it will hold as slot 0.
-    let result = crate::sched::create_endpoint();
-    let result_cap = crate::cap::endpoint_cap(result, crate::cap::Rights::WRITE);
+    let result = crate::sched::create_rendezvous();
+    let result_cap = crate::cap::rendezvous_cap(result, crate::cap::Rights::WRITE);
 
     // Build the thread from parts: a TCB, the cap in slot 0, configure at the ELF's entry, start.
     let tcb_region = crate::untyped::create(2).expect("no tcb region");
@@ -1250,7 +1254,7 @@ pub fn riscv_initrd_demo(archive: &'static [u8]) -> Result<u64, LoadError> {
     // Register the space, then build init's TCB with its two capabilities: budget (slot 0), report
     // endpoint WRITE|GRANT (slot 1, so init may delegate a narrowed view to the child it builds).
     let aspace_name = readopt_user_aspace(space).expect("register init aspace");
-    let report = crate::sched::create_endpoint();
+    let report = crate::sched::create_rendezvous();
     let build_region = crate::untyped::create(2048).expect("no building budget for init");
 
     let tcb_region = crate::untyped::create(2).expect("no tcb region");
@@ -1262,7 +1266,7 @@ pub fn riscv_initrd_demo(archive: &'static [u8]) -> Result<u64, LoadError> {
     assert_eq!(s0, 0, "init's budget must land in slot 0");
     let s1 = crate::sched::tcb_insert_cap(
         tid,
-        crate::cap::endpoint_cap(
+        crate::cap::rendezvous_cap(
             report,
             crate::cap::Rights::WRITE.union(crate::cap::Rights::GRANT),
         ),
@@ -1336,7 +1340,7 @@ pub fn riscv_initrd_demo(archive: &'static [u8]) -> Result<u64, LoadError> {
 pub fn riscv_uart_driver_demo(
     archive: &'static [u8],
     uart_irq: u32,
-) -> Result<crate::sched::EpId, LoadError> {
+) -> Result<crate::sched::RendezvousId, LoadError> {
     const DRIVER_UART_VA: u64 = 0x0070_0000; // must match user/src/driver.rs UART_VA
     const UART_PHYS: u64 = 0x1000_0000; // the NS16550 on QEMU virt
 
@@ -1372,9 +1376,9 @@ pub fn riscv_uart_driver_demo(
 
     // Route the UART interrupt to an endpoint; the Irq cap's WAIT blocks on it. The report endpoint
     // is where the driver SENDs each byte, and where the caller's receiver waits.
-    let irq_ep = crate::sched::create_endpoint();
+    let irq_ep = crate::sched::create_rendezvous();
     crate::sched::bind_irq(uart_irq, irq_ep);
-    let report = crate::sched::create_endpoint();
+    let report = crate::sched::create_rendezvous();
 
     let tcb_region = crate::untyped::create(2).expect("no tcb region");
     let tid = crate::sched::create_tcb(tcb_region).expect("no tcb");
@@ -1388,7 +1392,7 @@ pub fn riscv_uart_driver_demo(
     assert_eq!(s0, 0, "the Irq cap must land in slot 0");
     let s1 = crate::sched::tcb_insert_cap(
         tid,
-        crate::cap::endpoint_cap(report, crate::cap::Rights::WRITE),
+        crate::cap::rendezvous_cap(report, crate::cap::Rights::WRITE),
         None,
     )
     .expect("insert report");
@@ -1469,7 +1473,7 @@ pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), Loa
     let aspace_name = readopt_user_aspace(space).expect("register system_initializer aspace");
 
     // Route the UART receive interrupt to an endpoint; the input driver's Irq cap will WAIT on it.
-    let irq_ep = crate::sched::create_endpoint();
+    let irq_ep = crate::sched::create_rendezvous();
     crate::sched::bind_irq(uart_irq, irq_ep);
     let build_region =
         crate::untyped::create(2048).expect("no building budget for system_initializer");
@@ -1518,7 +1522,7 @@ pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), Loa
         Some((file_ep, file_shared)) => {
             let s4 = crate::sched::tcb_insert_cap(
                 tid,
-                crate::cap::endpoint_cap(file_ep, Rights::WRITE.union(Rights::GRANT)),
+                crate::cap::rendezvous_cap(file_ep, Rights::WRITE.union(Rights::GRANT)),
                 None,
             )
             .expect("insert the file service");
@@ -1631,7 +1635,7 @@ mod disk_tests;
 /// the reply arrives, which the contract says means the bytes are on the console's side, so a test
 /// needs no polling and no sleep between writes.
 #[cfg_attr(not(test), allow(dead_code))] // the milestone-29 tests are the callers
-fn term_print(out: u64, ep: crate::sched::EpId, text: &[u8]) {
+fn term_print(out: u64, ep: crate::sched::RendezvousId, text: &[u8]) {
     assert!(
         text.len() <= FRAME_SIZE as usize,
         "an OP_WRITE past its output page",
@@ -2156,7 +2160,7 @@ mod authority_tests;
 /// it can do instead is keep a **bounded** one and make it renewable, which is what these two tests
 /// are about. Every job the prompt spawns is built in a region split off that pool and born
 /// supervised, and `job_undertaker` (one endpoint capability, no memory at all) collects the corpse
-/// through `Endpoint::REAP`, which returns the region to **init's** pool under §13 region ownership.
+/// through `Rendezvous::REAP`, which returns the region to **init's** pool under §13 region ownership.
 ///
 /// The pair is a control and a claim, in that order: three jobs exhaust the pool when nothing
 /// collects, and twelve go through the same pool when `job_undertaker` does. Neither is a timing
@@ -2281,7 +2285,7 @@ mod measured_boot_tests;
 mod supervision_tests;
 
 /// **A supervisor may collect a corpse without being able to build one** (DECISIONS §32,
-/// `endpoint::REAP`). Cross-ISA, because the authorization check is architecture-neutral: it reads
+/// `rendezvous::REAP`). Cross-ISA, because the authorization check is architecture-neutral: it reads
 /// two fields of a TCB and compares two generational names, so a divergence here would mean
 /// something is wrong under `arch/`, not in this feature.
 ///
@@ -2300,7 +2304,7 @@ mod supervision_tests;
 mod reap_tests;
 
 /// **A process listing is a capability, not a fact about the machine** (milestone 126,
-/// `endpoint::SURVEY`, notes/process-view.md). Cross-ISA for the same reason `reap_tests` is: the
+/// `rendezvous::SURVEY`, notes/process-view.md). Cross-ISA for the same reason `reap_tests` is: the
 /// scope decision reads one field of a TCB and compares two generational names, so a divergence
 /// here would mean something is wrong under `arch/` rather than in this feature.
 ///

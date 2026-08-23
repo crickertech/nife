@@ -1,6 +1,6 @@
 use super::*;
-use crate::cap::{Rights, endpoint_cap, irq_cap, virtio_cap};
-use crate::sched::EpId;
+use crate::cap::{Rights, irq_cap, rendezvous_cap, virtio_cap};
+use crate::sched::RendezvousId;
 
 /// Where the driver maps its DMA page and the input ring. Must match user/src/kbd.rs.
 const DMA_VA: u64 = 0x0000_0000_0090_0000;
@@ -13,9 +13,9 @@ const DMA_FRAMES: u64 = 1;
 
 pub struct Wiring {
     /// The driver's status endpoint.
-    pub report: EpId,
+    pub report: RendezvousId,
     /// The doorbell the driver rings. The kernel holds READ here, playing the compositor.
-    pub doorbell: EpId,
+    pub doorbell: RendezvousId,
     /// The input ring's frame, so the kernel can read what was typed.
     pub ring: u64,
     head: u32,
@@ -49,7 +49,7 @@ pub fn start(image: &'static [u8]) -> Option<Wiring> {
         core::ptr::write_bytes(mmu::phys_to_virt(ring) as *mut u8, 0, FRAME_SIZE as usize);
     };
 
-    let irq_ep = crate::sched::create_endpoint();
+    let irq_ep = crate::sched::create_rendezvous();
     crate::sched::bind_irq(d.intid, irq_ep);
     crate::arch::irq::enable(d.intid);
 
@@ -60,8 +60,8 @@ pub fn start(image: &'static [u8]) -> Option<Wiring> {
         Some(d.rid),
     );
 
-    let report = crate::sched::create_endpoint();
-    let doorbell = crate::sched::create_endpoint();
+    let report = crate::sched::create_rendezvous();
+    let doorbell = crate::sched::create_rendezvous();
 
     let maps = [
         Mapping {
@@ -83,10 +83,10 @@ pub fn start(image: &'static [u8]) -> Option<Wiring> {
                 arg1: dma, // the DMA region's PHYSICAL base: descriptors speak physical
                 arg2: 0,
                 grants: &[
-                    endpoint_cap(report, Rights::WRITE),   // slot 0: status
-                    irq_cap(d.intid),                      // slot 1: the event interrupt
-                    virtio_cap(vid),                       // slot 2: the confined transport
-                    endpoint_cap(doorbell, Rights::WRITE), // slot 3: ring the compositor
+                    rendezvous_cap(report, Rights::WRITE),   // slot 0: status
+                    irq_cap(d.intid),                        // slot 1: the event interrupt
+                    virtio_cap(vid),                         // slot 2: the confined transport
+                    rendezvous_cap(doorbell, Rights::WRITE), // slot 3: ring the compositor
                 ],
                 maps: &maps,
             },

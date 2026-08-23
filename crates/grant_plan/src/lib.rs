@@ -775,7 +775,7 @@ pub struct Manifest {
     /// tell **init** which children to endow, and tell a person reading `caps ps` that the authority
     /// exists and how wide it is.
     ///
-    /// It lands in [`DOMAIN_SLOT`] carrying `READ`, which is what `abi::endpoint::SURVEY` takes. A
+    /// It lands in [`DOMAIN_SLOT`] carrying `READ`, which is what `abi::rendezvous::SURVEY` takes. A
     /// program that does not declare it holds nothing there, and the kernel refuses its survey
     /// loudly instead of answering with an empty list: **that difference is the whole feature**, and
     /// `ps` prints the two apart.
