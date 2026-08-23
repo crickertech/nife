@@ -183,10 +183,15 @@ feature (`user/src/login.rs`'s own BUGS, more precisely worded per item).
   means restructuring which capabilities init holds simultaneously during the shell's own build, not
   adding a field. Both are exactly the "who has already acted on this, and how reversible is it"
   shape the *move fast on what can be undone* tenet reserves for calef: a kernel-to-init grant and a
-  claim about what hardware the interactive boot represents. Replacing the shell's build-time
-  endowment with a real login prompt is still the largest remaining piece of this milestone; its
-  first lane is now that decision rather than a `build_child` exercise, and the roadmap's earlier
-  framing of it as mainly a wiring task undersold the real blocker.
+  claim about what hardware the interactive boot represents.
+
+  **Decided (calef, 2026-08-23, DECISIONS §120): the QEMU-only stopgap is declined for now**, for
+  want of a customer -- no interactive login needs to work before real hardware entropy is sorted.
+  Milestone 159, a real hardware entropy source: the JH7110's TRNG (minted alongside §120), tracks
+  the real answer, already named as the candidate in `notes/entropy.md` and milestone 56's own doc
+  but never given a home. Replacing the shell's build-time endowment with a real login prompt remains this milestone's
+  largest piece and stays blocked until either §120 is revisited with a real customer or milestone
+  159 lands.
 - **`login` does not consult `measured_boot::PROGRAM_MEASUREMENTS` before building a caretaker.**
   Milestone 104's discipline (init refuses to load a program whose bytes do not match the archive's
   measurement table) does not extend to this non-init loader. Fixing it well means deciding how a
