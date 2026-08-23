@@ -16,7 +16,7 @@ use super::*;
 ///
 /// Shared by every std test on both ISAs (the arch-gated test modules reach it here), so all of
 /// them assert the same way and a drift in one is a diff in one place.
-pub(super) fn assert_std_transcript(report: crate::sched::EpId, want: &[u8], what: &str) {
+pub(super) fn assert_std_transcript(report: crate::sched::RendezvousId, want: &[u8], what: &str) {
     let mut got = [0u8; 768];
     let len = drain_sink(report, &mut got, what);
     assert_eq!(
@@ -31,7 +31,7 @@ pub(super) fn assert_std_transcript(report: crate::sched::EpId, want: &[u8], wha
 /// The one decoder for every sink in the suite, on purpose. The indifference test's whole claim
 /// is that two destinations produce the same bytes, and it would be a much weaker claim if each
 /// arm were decoded by its own code.
-pub(super) fn drain_sink(ep: crate::sched::EpId, out: &mut [u8], what: &str) -> usize {
+pub(super) fn drain_sink(ep: crate::sched::RendezvousId, out: &mut [u8], what: &str) -> usize {
     let mut len = 0usize;
     loop {
         let words = crate::sched::ipc_recv(ep);
@@ -184,7 +184,9 @@ pub(super) fn assert_attrs(attrs: u64) {
     );
 }
 
-pub(super) fn assert_fs_service_ready(readiness: Option<(crate::sched::EpId, crate::sched::EpId)>) {
+pub(super) fn assert_fs_service_ready(
+    readiness: Option<(crate::sched::RendezvousId, crate::sched::RendezvousId)>,
+) {
     // One copy, in `fs_service`, because draining these is **sequencing** and not only an
     // assertion: each server is parked inside its own blocking announcement until somebody
     // receives it, so nothing it serves can be answered first. The caretakers depend on that.

@@ -1,6 +1,6 @@
 use super::*;
-use crate::cap::{Rights, endpoint_cap, frame_cap, untyped_cap};
-use crate::sched::EpId;
+use crate::cap::{Rights, frame_cap, rendezvous_cap, untyped_cap};
+use crate::sched::RendezvousId;
 
 /// Where the loader maps the clock page for a std program. Must match the std PAL's
 /// `rt::CLOCK_PAGE`, and the slot must match its `rt::CLOCK_SLOT`.
@@ -40,8 +40,8 @@ pub fn start(
     image: &'static [u8],
     clock_image: &'static [u8],
     entropy_image: &'static [u8],
-) -> (EpId, crate::thread::Tid) {
-    let report = crate::sched::create_endpoint();
+) -> (RendezvousId, crate::thread::Tid) {
+    let report = crate::sched::create_rendezvous();
     let tid = start_on(image, clock_image, entropy_image, report);
     (report, tid)
 }
@@ -57,7 +57,7 @@ pub fn start_on(
     image: &'static [u8],
     clock_image: &'static [u8],
     entropy_image: &'static [u8],
-    report: EpId,
+    report: RendezvousId,
 ) -> crate::thread::Tid {
     let budget = crate::untyped::create(BUDGET_PAGES).expect("no untyped for std_exerciser");
 
@@ -151,7 +151,7 @@ pub fn start_on(
             .expect("the std clock slot was already occupied");
         crate::sched::grant_at(CONFIG_SLOT, frame_cap(config_phys, Rights::READ))
             .expect("the std config slot was already occupied");
-        crate::sched::grant_at(ENTROPY_SLOT, endpoint_cap(entropy.request, Rights::WRITE))
+        crate::sched::grant_at(ENTROPY_SLOT, rendezvous_cap(entropy.request, Rights::WRITE))
             .expect("the std entropy slot was already occupied");
         run(
             image,
@@ -160,8 +160,8 @@ pub fn start_on(
                 arg1: 0,
                 arg2: 0,
                 grants: &[
-                    untyped_cap(budget),                 // slot 0: the heap's budget
-                    endpoint_cap(report, Rights::WRITE), // slot 1: stdout/stderr
+                    untyped_cap(budget),                   // slot 0: the heap's budget
+                    rendezvous_cap(report, Rights::WRITE), // slot 1: stdout/stderr
                 ],
                 maps: &maps,
             },

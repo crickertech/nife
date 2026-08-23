@@ -10,7 +10,7 @@
 //!
 //! # The shape, and why it is this one
 //!
-//! **A sink is an `Endpoint` capability with `WRITE`, and nothing else.** Not an endpoint plus a
+//! **A sink is an `Rendezvous` capability with `WRITE`, and nothing else.** Not an endpoint plus a
 //! shared page, not an endpoint plus an acknowledgement channel. That restriction is the whole
 //! design, because milestone 50's finding is that redirection is *putting a different capability in
 //! a slot*: the moment a sink needs a page mapped at an agreed address, substituting one for
@@ -259,7 +259,7 @@ pub enum Sent {
 /// Classify a `SEND`'s return value.
 ///
 /// Every refusal other than [`GONE`] is [`Sent::NoSink`], and that is deliberate rather than lazy.
-/// An empty slot, a slot holding a `Frame` instead of an `Endpoint`, and an endpoint held without
+/// An empty slot, a slot holding a `Frame` instead of an `Rendezvous`, and an endpoint held without
 /// `WRITE` are all the same fact from the writer's side: *this program was not given a working
 /// output destination*, which is a wiring error its parent made and which the program has no
 /// channel to report on, its only channel being the broken one. The conservative reading keeps it

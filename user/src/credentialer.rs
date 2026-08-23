@@ -234,7 +234,7 @@ pub extern "C" fn _start(_a0: u64, _a1: u64, _a2: u64) -> ! {
 fn provision(store: &mut Store<CAPACITY>, scratch: &mut [Block]) {
     loop {
         let (w0, cap, w1) = recv_cap(PROV);
-        if cap == abi::endpoint::NO_CAP {
+        if cap == abi::rendezvous::NO_CAP {
             // A plain SEND on a CALL-only contract: nobody is waiting for an answer, so there is
             // nothing to reply into. Drop it rather than replying into a slot we do not hold.
             continue;
@@ -307,7 +307,7 @@ fn put(store: &mut Store<CAPACITY>, scratch: &mut [Block], w0: u64, w1: u64) -> 
 fn serve(store: &Store<CAPACITY>, scratch: &mut [Block]) -> ! {
     loop {
         let (w0, cap, _) = recv_cap(VERIFY);
-        if cap == abi::endpoint::NO_CAP {
+        if cap == abi::rendezvous::NO_CAP {
             continue;
         }
         let (verdict, key) = match proto::op(w0) {

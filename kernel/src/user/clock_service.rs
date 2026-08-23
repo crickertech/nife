@@ -1,6 +1,6 @@
 use super::*;
-use crate::cap::{Rights, endpoint_cap};
-use crate::sched::EpId;
+use crate::cap::{Rights, rendezvous_cap};
+use crate::sched::RendezvousId;
 
 /// Where the service expects its two mappings. Must match user/src/clock.rs.
 ///
@@ -13,9 +13,9 @@ const RTC_VA: u64 = 0x00d0_0000;
 /// What the clock service was wired with, so a test (or a real init) can play its clients.
 pub struct Wiring {
     /// The service's startup report.
-    pub report: EpId,
+    pub report: RendezvousId,
     /// The propose endpoint. A holder of `WRITE` here may ask; it may not tell.
-    pub propose: EpId,
+    pub propose: RendezvousId,
     /// The clock page's **physical** frame, so a reader can be given a read-only mapping of it
     /// (and so the kernel's own tests can read it through the direct map).
     pub page_phys: u64,
@@ -39,8 +39,8 @@ pub fn start(image: &'static [u8]) -> Wiring {
         );
     };
 
-    let report = crate::sched::create_endpoint();
-    let propose = crate::sched::create_endpoint();
+    let report = crate::sched::create_rendezvous();
+    let propose = crate::sched::create_rendezvous();
 
     let rtc = crate::memory::rtc_region();
     let kind = rtc.map_or(clock_proto::rtc::NONE, |(_, _, k)| k);
@@ -77,8 +77,8 @@ pub fn start(image: &'static [u8]) -> Wiring {
                 arg1: 0,
                 arg2: 0,
                 grants: &[
-                    endpoint_cap(propose, Rights::READ), // slot 0: serve proposals
-                    endpoint_cap(report, Rights::WRITE), // slot 1: the startup verdict
+                    rendezvous_cap(propose, Rights::READ), // slot 0: serve proposals
+                    rendezvous_cap(report, Rights::WRITE), // slot 1: the startup verdict
                 ],
                 maps: &maps[..n_maps],
             },

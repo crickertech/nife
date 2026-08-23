@@ -152,7 +152,7 @@ pub unsafe fn invoke(cap: u64, method: u64, a0: u64, a1: u64, a2: u64) -> i64 {
 
 /// SEND three words on the endpoint in `slot`. Blocks until a receiver takes them.
 pub fn send(slot: u64, w0: u64, w1: u64, w2: u64) -> i64 {
-    unsafe { invoke(slot, abi::endpoint::SEND, w0, w1, w2) }
+    unsafe { invoke(slot, abi::rendezvous::SEND, w0, w1, w2) }
 }
 
 /// `CALL` the endpoint in `slot`: send two words and block until the server replies through the
@@ -171,7 +171,7 @@ pub fn call(slot: u64, w0: u64, w1: u64) -> (u64, u64) {
             "svc #0",
             in("x8") abi::SYS_INVOKE,
             inlateout("x0") slot => r0,
-            in("x1") abi::endpoint::CALL,
+            in("x1") abi::rendezvous::CALL,
             lateout("x1") r1,
             in("x2") w0,
             in("x3") w1,
@@ -192,7 +192,7 @@ pub fn call(slot: u64, w0: u64, w1: u64) -> (u64, u64) {
             "ecall",
             in("a7") abi::SYS_INVOKE,
             inlateout("a0") slot => r0,
-            inlateout("a1") abi::endpoint::CALL => r1,
+            inlateout("a1") abi::rendezvous::CALL => r1,
             in("a2") w0,
             in("a3") w1,
             in("a4") 0u64,

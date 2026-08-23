@@ -84,7 +84,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use abi::{endpoint, frame as fr, rights, untyped as ut};
+use abi::{frame as fr, rendezvous, rights, untyped as ut};
 use mdns_config::Config;
 use mdns_proto::{GROUP_V4, PORT, QuerySource, Service, announcement, respond};
 use socket_proto::{
@@ -181,7 +181,7 @@ fn attach_frame() {
     if unsafe {
         invoke(
             STACK,
-            endpoint::SEND_CAP,
+            rendezvous::SEND_CAP,
             frame,
             rights::READ | rights::WRITE,
             req(OP_ATTACH_FRAME, SID),

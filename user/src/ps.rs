@@ -1,6 +1,6 @@
 //! **`ps`: who else is running, and who is allowed to ask** (milestone 126, notes/process-view.md).
 //!
-//! The whole program is: walk one supervision domain with `abi::endpoint::SURVEY`, then say what it
+//! The whole program is: walk one supervision domain with `abi::rendezvous::SURVEY`, then say what it
 //! found on one stream and what went wrong on the other. The listing itself is `crates/ps`, which
 //! runs on the host in milliseconds; what lives here is the syscall and the two sinks.
 //!
@@ -65,7 +65,7 @@
 //!
 //! - **Holding the domain with `READ` was more authority than looking needs. Fixed 2026-08-17**, and
 //!   the entry is kept because the shape recurs. `READ` on a supervision endpoint is also what `RECV`
-//!   and `abi::endpoint::REAP` take, so a `ps` endowed a view could have taken a death message out
+//!   and `abi::rendezvous::REAP` take, so a `ps` endowed a view could have taken a death message out
 //!   from under the real supervisor or collected a corpse, and this binary's own source was the whole
 //!   argument that it did not. `abi::rights::ENUMERATE` is the right it holds now, and the lane that
 //!   deferred the fix was waiting on a decision the signalling stratum never needed: calef's ruling

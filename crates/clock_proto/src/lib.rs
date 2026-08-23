@@ -31,7 +31,7 @@
 //!   only thing it can do is ask, and [`policy::decide`] is what answers.
 //!
 //! The rights ladder is therefore the kernel's own: no capability, a `Frame` with `READ`, a
-//! `Frame` with `WRITE`, an `Endpoint` with `WRITE`. Nothing new in the syscall surface, and the
+//! `Frame` with `WRITE`, an `Rendezvous` with `WRITE`. Nothing new in the syscall surface, and the
 //! authority a process holds is visible to `caps`.
 //!
 //! # Wall clock is counter plus offset

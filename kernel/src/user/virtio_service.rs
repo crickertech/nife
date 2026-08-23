@@ -1,6 +1,6 @@
 use super::*;
-use crate::cap::{Rights, endpoint_cap, irq_cap, virtio_cap};
-use crate::sched::EpId;
+use crate::cap::{Rights, irq_cap, rendezvous_cap, virtio_cap};
+use crate::sched::RendezvousId;
 use crate::user::holding::Holding;
 
 /// Where the driver expects its DMA page. Must match user/src/virtio.rs. The device registers
@@ -27,7 +27,7 @@ fn wire(
     intid: u32,
     role: u64,
     rid: Option<u32>,
-) -> EpId {
+) -> RendezvousId {
     // A DMA page: physical memory the device can reach, mapped into the driver, whose
     // physical address the driver must know (a process sees only virtual addresses). We hand
     // that physical address over in `arg1`.
@@ -42,12 +42,12 @@ fn wire(
 
     // Route the device's interrupt to an endpoint and enable it, so the driver's `WAIT` on
     // its Irq capability will receive it. See milestone 9a.
-    let irq_ep = crate::sched::create_endpoint();
+    let irq_ep = crate::sched::create_rendezvous();
     crate::sched::bind_irq(intid, irq_ep);
     crate::arch::irq::enable(intid);
 
     // Where the driver reports the bytes it read.
-    let report = crate::sched::create_endpoint();
+    let report = crate::sched::create_rendezvous();
 
     // Register the device's transport with the kernel: the kernel owns the registers and the
     // DMA-critical operations, and confines the device to this DMA region. The driver gets a
@@ -62,9 +62,9 @@ fn wire(
                 arg1: dma, // the DMA region's PHYSICAL address (still needed to build requests)
                 arg2: 0,
                 grants: &[
-                    endpoint_cap(report, Rights::WRITE), // slot 0: SEND the result
-                    irq_cap(intid),                      // slot 1: WAIT / ACK the interrupt
-                    virtio_cap(vid),                     // slot 2: drive the device, confined
+                    rendezvous_cap(report, Rights::WRITE), // slot 0: SEND the result
+                    irq_cap(intid),                        // slot 1: WAIT / ACK the interrupt
+                    virtio_cap(vid),                       // slot 2: drive the device, confined
                 ],
                 maps: &[Mapping {
                     va: DMA_VA,
@@ -81,7 +81,7 @@ fn wire(
 
 /// Start the driver against the virtio-mmio disk. Returns the endpoint it will report its
 /// result on, or `None` if there is no disk attached to enumerate.
-pub fn start(image: &'static [u8]) -> Option<EpId> {
+pub fn start(image: &'static [u8]) -> Option<RendezvousId> {
     start_role(image, ROLE_VIRTIO_BLK)
 }
 
@@ -89,26 +89,26 @@ pub fn start(image: &'static [u8]) -> Option<EpId> {
 /// enumeration and bring-up by kernel/src/pci.rs, INTx through the interrupt controller, the
 /// identical confinement, now backed by the IOMMU when the machine has one (§20). The driver
 /// cannot tell which bus it is on, and that is the point.
-pub fn start_pci(image: &'static [u8]) -> Option<EpId> {
+pub fn start_pci(image: &'static [u8]) -> Option<RendezvousId> {
     start_role_pci(image, ROLE_VIRTIO_BLK)
 }
 
 /// Start the write-path driver (milestone 32 phase 1) against the mmio disk: it writes a
 /// pattern to the scratch block, reads it back, re-checks the filesystem around it, and
 /// reports the read-back bytes.
-pub fn start_writer(image: &'static [u8]) -> Option<EpId> {
+pub fn start_writer(image: &'static [u8]) -> Option<RendezvousId> {
     start_role(image, ROLE_VIRTIO_BLK_WRITE)
 }
 
 /// The same writer over the PCIe transport.
-pub fn start_writer_pci(image: &'static [u8]) -> Option<EpId> {
+pub fn start_writer_pci(image: &'static [u8]) -> Option<RendezvousId> {
     start_role_pci(image, ROLE_VIRTIO_BLK_WRITE)
 }
 
 /// Start the abandoning writer (the kill-mid-write case): it submits a validated write and
 /// dies on purpose before collecting the completion. Reports 1 after the submit, so the test
 /// knows the request genuinely left before the death.
-pub fn start_write_abandoner(image: &'static [u8]) -> Option<EpId> {
+pub fn start_write_abandoner(image: &'static [u8]) -> Option<RendezvousId> {
     start_role(image, ROLE_VIRTIO_BLK_WRITE_ABANDON)
 }
 
@@ -116,7 +116,7 @@ pub fn start_write_abandoner(image: &'static [u8]) -> Option<EpId> {
 /// over QEMU user-mode networking and reports the offered address. `None` if no NIC is attached.
 /// The same `wire` machinery as the disk: the DMA confinement now polices two queues, and the
 /// driver drives receive and transmit through the one `Virtio` capability.
-pub fn start_net(image: &'static [u8]) -> Option<EpId> {
+pub fn start_net(image: &'static [u8]) -> Option<RendezvousId> {
     let dev = crate::virtio::find_net_device()?;
     Some(wire(
         image,
@@ -132,7 +132,7 @@ pub fn start_net(image: &'static [u8]) -> Option<EpId> {
 /// The same net driver over the PCIe transport, behind the IOMMU (milestone 30, §20): the NIC
 /// is confined in hardware to its DMA region and shadow page, `iommu_platform=on`, exactly the
 /// disk's pattern. The driver cannot tell which bus it is on.
-pub fn start_net_pci(image: &'static [u8]) -> Option<EpId> {
+pub fn start_net_pci(image: &'static [u8]) -> Option<RendezvousId> {
     let d = crate::pci::find_net_device()?;
     Some(wire(
         image,
@@ -168,7 +168,7 @@ const NET_SERVER_STACK_PAGES: u64 = 8;
 /// interrupt, a DMA page, and a report endpoint; unlike it, the server also gets an **untyped
 /// budget** (slot 3) for the heap smoltcp allocates against, and extra stack pages. Returns the
 /// endpoint the server reports its acquired address on, or `None` if no NIC is attached.
-pub fn start_net_server(image: &'static [u8]) -> Option<(EpId, Holding)> {
+pub fn start_net_server(image: &'static [u8]) -> Option<(RendezvousId, Holding)> {
     let dev = crate::virtio::find_net_device()?;
     let (report, _stack, holding) = wire_net_server(
         image,
@@ -183,7 +183,7 @@ pub fn start_net_server(image: &'static [u8]) -> Option<(EpId, Holding)> {
 }
 
 /// The net server over the PCIe transport, behind the IOMMU (§20).
-pub fn start_net_server_pci(image: &'static [u8]) -> Option<(EpId, Holding)> {
+pub fn start_net_server_pci(image: &'static [u8]) -> Option<(RendezvousId, Holding)> {
     let d = crate::pci::find_net_device()?;
     let (report, _stack, holding) = wire_net_server(
         image,
@@ -206,7 +206,7 @@ fn wire_net_server(
     intid: u32,
     rid: Option<u32>,
     listen_grant: u64,
-) -> (EpId, EpId, Holding) {
+) -> (RendezvousId, RendezvousId, Holding) {
     use crate::cap::untyped_cap;
 
     let dma = crate::memory::alloc()
@@ -223,15 +223,15 @@ fn wire_net_server(
     // armed kill is spent by `schedule()`, which a `Blocked` thread never reaches. What wakes it is
     // reclaiming the region its endpoints live in: the reap drains their wait queues and aborts the
     // waiter, and the doomed server is then schedulable enough to die. From the kernel's own
-    // endpoint chunks (`create_endpoint`) there is no such handle, and there was no way to end this
+    // endpoint chunks (`create_rendezvous`) there is no such handle, and there was no way to end this
     // process short of rebooting. Four pages for three endpoints, one page each and one spare.
     let ep_region = crate::untyped::create(4).expect("no endpoint region for net_stack");
-    let irq_ep = crate::sched::create_endpoint_from(ep_region).expect("no irq endpoint");
+    let irq_ep = crate::sched::create_rendezvous_from(ep_region).expect("no irq endpoint");
     crate::sched::bind_irq(intid, irq_ep);
     crate::arch::irq::enable(intid);
 
-    let report = crate::sched::create_endpoint_from(ep_region).expect("no report endpoint");
-    let stack = crate::sched::create_endpoint_from(ep_region).expect("no stack endpoint");
+    let report = crate::sched::create_rendezvous_from(ep_region).expect("no report endpoint");
+    let stack = crate::sched::create_rendezvous_from(ep_region).expect("no stack endpoint");
     let vid = crate::virtio::register(transport, dma, FRAME_SIZE, rid);
     let budget = crate::untyped::create(NET_SERVER_BUDGET_PAGES).expect("no untyped for net_stack");
     // The extra stack pages, in a region of their own so they can be handed back **after** the
@@ -271,11 +271,11 @@ fn wire_net_server(
                 arg1: dma,
                 arg2: listen_grant, // which ports this stack's clients may listen on, if any
                 grants: &[
-                    endpoint_cap(report, Rights::WRITE), // slot 0: report the acquired address
-                    irq_cap(intid),                      // slot 1: WAIT / ACK the interrupt
-                    virtio_cap(vid),                     // slot 2: the confined transport
-                    untyped_cap(budget),                 // slot 3: the heap's budget
-                    endpoint_cap(stack, Rights::READ),   // slot 4: serve clients' requests
+                    rendezvous_cap(report, Rights::WRITE), // slot 0: report the acquired address
+                    irq_cap(intid),                        // slot 1: WAIT / ACK the interrupt
+                    virtio_cap(vid),                       // slot 2: the confined transport
+                    untyped_cap(budget),                   // slot 3: the heap's budget
+                    rendezvous_cap(stack, Rights::READ),   // slot 4: serve clients' requests
                 ],
                 maps: &maps,
             },
@@ -322,7 +322,7 @@ pub fn start_net_stack(
     cli_arg: u64,
     pci: bool,
     listen_grant: u64,
-) -> Option<(EpId, Holding)> {
+) -> Option<(RendezvousId, Holding)> {
     let (transport, intid, rid) = if pci {
         let d = crate::pci::find_net_device()?;
         (crate::virtio::Transport::pci(&d), d.intid, Some(d.rid))
@@ -428,11 +428,11 @@ fn spawn_stack_client(
     image: &'static [u8],
     arg0: u64,
     arg1: u64,
-    stack: EpId,
-    fs: Option<(EpId, u64, u64)>,
-    cred: Option<(EpId, u64)>,
+    stack: RendezvousId,
+    fs: Option<(RendezvousId, u64, u64)>,
+    cred: Option<(RendezvousId, u64)>,
     held: &mut Holding,
-) -> EpId {
+) -> RendezvousId {
     use crate::cap::untyped_cap;
 
     // The client's report endpoint and its stack pages share one region with the budget's
@@ -441,7 +441,7 @@ fn spawn_stack_client(
     // wedges is exactly the case worth being able to end.
     let cli_eps = crate::untyped::create(2).expect("no endpoint region for the net client");
     let cli_report =
-        crate::sched::create_endpoint_from(cli_eps).expect("no client report endpoint");
+        crate::sched::create_rendezvous_from(cli_eps).expect("no client report endpoint");
     let cli_budget =
         crate::untyped::create(NET_CLIENT_BUDGET_PAGES).expect("no untyped for the net client");
     let cli_stack_region =
@@ -492,26 +492,26 @@ fn spawn_stack_client(
 
     let tid = crate::sched::spawn(move || {
         let mut grants = [
-            endpoint_cap(cli_report, Rights::WRITE), // slot 0: report the verdict
+            rendezvous_cap(cli_report, Rights::WRITE), // slot 0: report the verdict
             // slot 1: the stack endpoint, WRITE to send requests and to delegate the
             // shared frame onto it (the frame it mints already carries GRANT).
-            endpoint_cap(stack, Rights::WRITE),
+            rendezvous_cap(stack, Rights::WRITE),
             untyped_cap(cli_budget), // slot 2: mint and map the shared frame
             // slots 3 and 4 (sliced away below unless `fs` and `cred`): the directory capability
             // and the credential service's verify endpoint. The array needs the elements either
             // way; these placeholders are never granted.
-            endpoint_cap(cli_report, Rights::WRITE),
-            endpoint_cap(cli_report, Rights::WRITE),
+            rendezvous_cap(cli_report, Rights::WRITE),
+            rendezvous_cap(cli_report, Rights::WRITE),
         ];
         let mut n_grants = 3;
         if let Some((file_ep, _, _)) = fs {
-            grants[3] = endpoint_cap(file_ep, Rights::WRITE);
+            grants[3] = rendezvous_cap(file_ep, Rights::WRITE);
             n_grants = 4;
             // Only reachable with `fs`, and that is the pairing rather than an oversight: an
             // authenticated share is an fs-backed share, and a credential endpoint handed to a
             // fixture-serving adapter would grant an authority nothing could use.
             if let Some((cred_ep, _)) = cred {
-                grants[4] = endpoint_cap(cred_ep, Rights::WRITE);
+                grants[4] = rendezvous_cap(cred_ep, Rights::WRITE);
                 n_grants = 5;
             }
         }
@@ -589,10 +589,10 @@ pub fn start_net_stack_with_smb(
     smb_port: u16,
     smb_rounds: u64,
     mdns_queries: u64,
-    fs: Option<(EpId, u64, u64)>,
-    cred: Option<(EpId, u64)>,
+    fs: Option<(RendezvousId, u64, u64)>,
+    cred: Option<(RendezvousId, u64)>,
     udp_bind_grant: u64,
-) -> Option<(EpId, EpId, EpId, Holding)> {
+) -> Option<(RendezvousId, RendezvousId, RendezvousId, Holding)> {
     let dev = crate::virtio::find_net_device()?;
     let transport = crate::virtio::Transport::Mmio {
         mmio_phys: dev.mmio_phys,
@@ -654,8 +654,8 @@ pub fn start_smb_serve(
     net_stack_image: &'static [u8],
     smb_image: &'static [u8],
     mdns_image: &'static [u8],
-    fs: Option<(EpId, u64, u64)>,
-) -> Option<(u64, EpId, EpId)> {
+    fs: Option<(RendezvousId, u64, u64)>,
+) -> Option<(u64, RendezvousId, RendezvousId)> {
     let dev = crate::virtio::find_net_device()?;
     let transport = crate::virtio::Transport::Mmio {
         mmio_phys: dev.mmio_phys,
@@ -703,7 +703,7 @@ pub fn start_net_std(
     net_stack_image: &'static [u8],
     std_image: &'static [u8],
     listen_grant: u64,
-) -> Option<(EpId, Holding)> {
+) -> Option<(RendezvousId, Holding)> {
     use crate::cap::untyped_cap;
 
     let dev = crate::virtio::find_net_device()?;
@@ -714,7 +714,7 @@ pub fn start_net_std(
         wire_net_server(net_stack_image, transport, dev.intid, None, listen_grant);
 
     let std_eps = crate::untyped::create(2).expect("no endpoint region for the std net client");
-    let report = crate::sched::create_endpoint_from(std_eps).expect("no std net report endpoint");
+    let report = crate::sched::create_rendezvous_from(std_eps).expect("no std net report endpoint");
     let heap = crate::untyped::create(STD_NET_HEAP_PAGES).expect("no untyped for the std net heap");
     let frames =
         crate::untyped::create(NET_CLIENT_BUDGET_PAGES).expect("no untyped for the std net frames");
@@ -743,10 +743,10 @@ pub fn start_net_std(
                 arg1: 0,
                 arg2: 0,
                 grants: &[
-                    untyped_cap(heap),                   // slot 0: the heap's budget
-                    endpoint_cap(report, Rights::WRITE), // slot 1: stdout/stderr
-                    endpoint_cap(stack, Rights::WRITE),  // slot 2: the Stack endpoint
-                    untyped_cap(frames),                 // slot 3: mint per-socket shared frames
+                    untyped_cap(heap),                     // slot 0: the heap's budget
+                    rendezvous_cap(report, Rights::WRITE), // slot 1: stdout/stderr
+                    rendezvous_cap(stack, Rights::WRITE),  // slot 2: the Stack endpoint
+                    untyped_cap(frames),                   // slot 3: mint per-socket shared frames
                 ],
                 maps: &stackmaps,
             },
@@ -767,7 +767,7 @@ pub fn start_net_std(
 }
 
 /// [`wire`] against the enumerated mmio disk, at `role`.
-fn start_role(image: &'static [u8], role: u64) -> Option<EpId> {
+fn start_role(image: &'static [u8], role: u64) -> Option<RendezvousId> {
     let dev = crate::virtio::find_block_device()?;
     Some(wire(
         image,
@@ -781,7 +781,7 @@ fn start_role(image: &'static [u8], role: u64) -> Option<EpId> {
 }
 
 /// [`wire`] against the enumerated PCIe disk, at `role`.
-fn start_role_pci(image: &'static [u8], role: u64) -> Option<EpId> {
+fn start_role_pci(image: &'static [u8], role: u64) -> Option<RendezvousId> {
     let d = crate::pci::find_block_device()?;
     Some(wire(
         image,
@@ -797,7 +797,7 @@ const ROLE_VIRTIO_ATTACK: u64 = 8;
 /// Spawn a MALICIOUS driver that tries to DMA over kernel memory, for the security test. It
 /// holds a real `Virtio` capability and its own DMA region, and points a descriptor at the
 /// kernel image. Returns the endpoint on which it reports whether the kernel refused it.
-pub fn start_attacker(image: &'static [u8]) -> Option<EpId> {
+pub fn start_attacker(image: &'static [u8]) -> Option<RendezvousId> {
     let dev = crate::virtio::find_block_device()?;
     let dma = crate::memory::alloc().expect("no DMA frame").addr();
     // SAFETY: fresh frame via the direct map.
@@ -812,7 +812,7 @@ pub fn start_attacker(image: &'static [u8]) -> Option<EpId> {
         FRAME_SIZE,
         None,
     );
-    let report = crate::sched::create_endpoint();
+    let report = crate::sched::create_rendezvous();
 
     crate::sched::spawn(move || {
         run(
@@ -822,7 +822,7 @@ pub fn start_attacker(image: &'static [u8]) -> Option<EpId> {
                 arg1: dma,
                 arg2: 0,
                 grants: &[
-                    endpoint_cap(report, Rights::WRITE),
+                    rendezvous_cap(report, Rights::WRITE),
                     irq_cap(dev.intid), // slot 1 (unused by the attacker; keeps virtio at slot 2)
                     virtio_cap(vid),    // slot 2
                 ],
@@ -846,7 +846,7 @@ const ROLE_VIRTIO_ATTACK_INDIRECT: u64 = 13;
 /// device at the kernel image. Same wiring as [`start_attacker`], different role. The kernel
 /// strips the feature and refuses the flag, so the attacker reports `1` (refused). Returns the
 /// report endpoint.
-pub fn start_attacker_indirect(image: &'static [u8]) -> Option<EpId> {
+pub fn start_attacker_indirect(image: &'static [u8]) -> Option<RendezvousId> {
     let dev = crate::virtio::find_block_device()?;
     let dma = crate::memory::alloc().expect("no DMA frame").addr();
     // SAFETY: fresh frame via the direct map.
@@ -861,7 +861,7 @@ pub fn start_attacker_indirect(image: &'static [u8]) -> Option<EpId> {
         FRAME_SIZE,
         None,
     );
-    let report = crate::sched::create_endpoint();
+    let report = crate::sched::create_rendezvous();
 
     crate::sched::spawn(move || {
         run(
@@ -871,7 +871,7 @@ pub fn start_attacker_indirect(image: &'static [u8]) -> Option<EpId> {
                 arg1: dma,
                 arg2: 0,
                 grants: &[
-                    endpoint_cap(report, Rights::WRITE),
+                    rendezvous_cap(report, Rights::WRITE),
                     irq_cap(dev.intid), // slot 1 (unused; keeps virtio at slot 2)
                     virtio_cap(vid),    // slot 2
                 ],

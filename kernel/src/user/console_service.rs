@@ -1,6 +1,6 @@
 use super::*;
-use crate::cap::{Rights, endpoint_cap};
-use crate::sched::EpId;
+use crate::cap::{Rights, rendezvous_cap};
+use crate::sched::RendezvousId;
 
 /// The PL011's physical address on QEMU `virt`. The kernel maps it for its own debug output;
 /// here we hand a *second* mapping of the same registers to the userspace server. On real
@@ -15,8 +15,8 @@ const ROLE_CLIENT: u64 = 2;
 /// What a client needs to talk to the console server: two endpoints and the shared page.
 #[derive(Clone, Copy)]
 pub struct Console {
-    pub request: EpId,
-    pub reply: EpId,
+    pub request: RendezvousId,
+    pub reply: RendezvousId,
     pub shared_phys: u64,
 }
 
@@ -30,8 +30,8 @@ pub fn start() -> Console {
     // The console server is its own binary now (19f.3), loaded from the archive by name rather
     // than entered as a role of hello.
     let image = program("console").expect("no console program in the initrd");
-    let request = crate::sched::create_endpoint();
-    let reply = crate::sched::create_endpoint();
+    let request = crate::sched::create_rendezvous();
+    let reply = crate::sched::create_rendezvous();
     let shared_phys = crate::memory::alloc()
         .expect("no frame for the shared console buffer")
         .addr();
@@ -54,8 +54,8 @@ pub fn start() -> Console {
                 arg1: 0,
                 arg2: 0,
                 grants: &[
-                    endpoint_cap(request, Rights::READ), // slot 0: RECV requests
-                    endpoint_cap(reply, Rights::WRITE),  // slot 1: SEND acks
+                    rendezvous_cap(request, Rights::READ), // slot 0: RECV requests
+                    rendezvous_cap(reply, Rights::WRITE),  // slot 1: SEND acks
                 ],
                 maps: &[
                     Mapping {
@@ -92,8 +92,8 @@ pub fn spawn_client(image: &'static [u8], console: Console) {
                 arg1: 0,
                 arg2: 0,
                 grants: &[
-                    endpoint_cap(console.request, Rights::WRITE), // slot 0: SEND
-                    endpoint_cap(console.reply, Rights::READ),    // slot 1: RECV ack
+                    rendezvous_cap(console.request, Rights::WRITE), // slot 0: SEND
+                    rendezvous_cap(console.reply, Rights::READ),    // slot 1: RECV ack
                 ],
                 maps: &[Mapping {
                     va: SHARED_VA,

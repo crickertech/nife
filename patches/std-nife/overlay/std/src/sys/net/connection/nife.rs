@@ -289,7 +289,7 @@ fn ensure_attached(id: u64) -> io::Result<()> {
     if unsafe {
         rt::invoke(
             STACK,
-            abi::endpoint::SEND_CAP,
+            abi::rendezvous::SEND_CAP,
             frame,
             abi::rights::READ | abi::rights::WRITE,
             req(OP_ATTACH_FRAME, id),

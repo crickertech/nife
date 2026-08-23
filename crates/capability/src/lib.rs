@@ -85,14 +85,14 @@ impl Rights {
     /// so it is a right of its own rather than a corner of `READ`. The name is deliberately the
     /// word the filesystem already uses, because a reader who has met one has met both.
     ///
-    /// **Why it had to exist.** `endpoint::SURVEY` first shipped needing `READ`, and `READ` on a
-    /// supervision endpoint is also what `RECV` and `REAP` take. A viewer granted `READ` could
+    /// **Why it had to exist.** `rendezvous::SURVEY` first shipped needing `READ`, and `READ` on a
+    /// supervision rendezvous is also what `RECV` and `REAP` take. A viewer granted `READ` could
     /// therefore reap a child, which is acting on a member of a domain rather than naming one.
     /// calef ruled on 2026-08-17 that **a domain names its members and never acts on them**, and
     /// one bit for three operations cannot express that. With this right the wrong operation is
     /// not refused to a viewer, it is unnameable by one.
     ///
-    /// **Deliberately not pre-wired to other objects.** Only `Endpoint` consults it today. `Aspace`
+    /// **Deliberately not pre-wired to other objects.** Only `Rendezvous` consults it today. `Aspace`
     /// wants it when `pmap` is built (observe a mapping without being able to map) and `Untyped`
     /// wants it when `free` is built (ask what is committed without being able to `SPLIT` or
     /// `DESTROY`), and both are named in milestone 126's strata rather than built ahead of a
@@ -170,25 +170,25 @@ impl<O> Cap<O> {
     }
 }
 
-/// **May this supervision endpoint collect this thread's corpse?** (DECISIONS §32.)
+/// **May this supervision rendezvous collect this thread's corpse?** (DECISIONS §32.)
 ///
-/// The whole authorization decision of `endpoint::REAP`, as pure logic, so it is proved for every
+/// The whole authorization decision of `rendezvous::REAP`, as pure logic, so it is proved for every
 /// input rather than tested on the cases we thought of. The kernel calls exactly this
 /// (`sched::reap_supervised`) and then does the reclaim; nothing here mints, widens, or returns a
 /// capability, which is why a supervisor gains no memory authority by reaping.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Reap {
-    /// Authorized: this endpoint supervises that thread, and the thread is a corpse.
+    /// Authorized: this rendezvous supervises that thread, and the thread is a corpse.
     Permitted,
     /// The thread is supervised here but still running. Collecting a corpse is not killing.
     StillAlive,
-    /// No thread by that name is supervised by *this* endpoint: it never existed, it is
+    /// No thread by that name is supervised by *this* rendezvous: it never existed, it is
     /// unsupervised, it belongs to another supervisor, or its name is stale.
     NotSupervised,
 }
 
-/// The decision, from the three facts the kernel has: the thread's recorded supervision endpoint
-/// (`None` if the thread does not resolve at all, or resolves and is unsupervised), the endpoint
+/// The decision, from the three facts the kernel has: the thread's recorded supervision rendezvous
+/// (`None` if the thread does not resolve at all, or resolves and is unsupervised), the rendezvous
 /// actually being invoked, and whether the thread is dead.
 ///
 /// **Ordering matters and is deliberate.** The supervision check comes first, so a supervisor
@@ -208,8 +208,8 @@ pub const fn reap_decision(fault_ep: Option<u64>, invoked_ep: u64, dead: bool) -
     }
 }
 
-/// **Is this thread inside the domain that endpoint supervises?** (milestone 126,
-/// `endpoint::SURVEY`.)
+/// **Is this thread inside the domain that rendezvous supervises?** (milestone 126,
+/// `rendezvous::SURVEY`.)
 ///
 /// The whole scoping decision of a process view, as pure logic, so it is proved for every input
 /// rather than tested on the cases we thought of. The kernel walks its thread table and reports an
@@ -217,7 +217,7 @@ pub const fn reap_decision(fault_ep: Option<u64>, invoked_ep: u64, dead: bool) -
 ///
 /// **It is deliberately the same predicate [`reap_decision`] authorizes with**, and that is the
 /// point rather than a saving: the set of threads a supervisor may *see* is the set whose deaths
-/// arrive on its endpoint, so a domain cannot drift out of agreement with the relationship the
+/// arrive on its rendezvous, so a domain cannot drift out of agreement with the relationship the
 /// kernel already maintains. Two predicates would have been two things to keep in step.
 ///
 /// Liveness is not an input. A corpse is still in the domain, which is what makes `ps` able to show
@@ -312,7 +312,7 @@ impl<O: Copy, const N: usize> CSpace<O, N> {
     /// Put a capability in a **specific free slot**, refusing an occupied or out-of-range one.
     ///
     /// The targeted counterpart of [`insert`](Self::insert). A supervisor uses it to place a
-    /// child's supervision endpoint in the reserved fault slot (abi's `FAULT_EP_SLOT`) rather than
+    /// child's supervision rendezvous in the reserved fault slot (abi's `FAULT_EP_SLOT`) rather than
     /// wherever first-free would fall, and refusing an occupied slot keeps that reservation honest:
     /// two things must never share the slot the kernel reads at `START`.
     pub fn insert_at(&mut self, slot: u64, cap: Cap<O>) -> Result<u64, Error> {
@@ -532,8 +532,8 @@ mod verification {
     }
 
     /// **A reap is authorized by the supervision relationship, and by nothing else** (DECISIONS
-    /// §32). For every pair of endpoint names and every liveness, `Permitted` implies the thread's
-    /// recorded fault endpoint *is* the endpoint being invoked and the thread is dead. There is no
+    /// §32). For every pair of rendezvous names and every liveness, `Permitted` implies the thread's
+    /// recorded fault rendezvous *is* the rendezvous being invoked and the thread is dead. There is no
     /// input where an unsupervised thread, another supervisor's child, or a stale name (all
     /// `fault_ep` values that do not equal `invoked_ep`, including `None`) is reapable.
     ///
@@ -542,14 +542,18 @@ mod verification {
     /// `Cap` and returns no `Cap`, so there is no channel through which authority could flow to the
     /// reaper. The proof pins the *gate*; the type pins the absence of a grant.
     #[kani::proof]
-    fn reap_is_permitted_only_to_the_supervising_endpoint() {
+    fn reap_is_permitted_only_to_the_supervising_rendezvous() {
         let invoked: u64 = kani::any();
         let fault_ep: Option<u64> = if kani::any() { Some(kani::any()) } else { None };
         let dead: bool = kani::any();
 
         match reap_decision(fault_ep, invoked, dead) {
             Reap::Permitted => {
-                assert_eq!(fault_ep, Some(invoked), "reaped through the wrong endpoint");
+                assert_eq!(
+                    fault_ep,
+                    Some(invoked),
+                    "reaped through the wrong rendezvous"
+                );
                 assert!(dead, "reaped a live thread");
             }
             // A live child is refused as such only when it really is ours; otherwise the answer
@@ -563,7 +567,7 @@ mod verification {
     }
 
     /// **The refusal for a thread you do not supervise does not depend on the thread.** For any two
-    /// liveness values, a tid whose fault endpoint is not the invoked one answers identically, so a
+    /// liveness values, a tid whose fault rendezvous is not the invoked one answers identically, so a
     /// supervisor cannot use `REAP` to learn whether some other supervisor's child (or a recycled
     /// tid) is alive. The two facts §32 wants distinguishable are distinguishable only *inside* the
     /// relationship.
@@ -580,9 +584,9 @@ mod verification {
         assert_eq!(reap_decision(fault_ep, invoked, true), Reap::NotSupervised);
     }
 
-    /// **A survey shows a thread only to the endpoint that supervises it** (milestone 126). The
+    /// **A survey shows a thread only to the rendezvous that supervises it** (milestone 126). The
     /// scoping half of the same claim the two harnesses above make about the reap: for every pair
-    /// of endpoint names, inclusion implies the recorded fault endpoint *is* the invoked one, so
+    /// of rendezvous names, inclusion implies the recorded fault rendezvous *is* the invoked one, so
     /// there is no input where an unsupervised thread, another supervisor's child, or a stale name
     /// appears in somebody else's `ps`.
     ///
@@ -772,9 +776,9 @@ mod tests {
     /// The four cases of §32's reap gate, spelled out as the readable companion to the symbolic
     /// proofs: my corpse, my live child, another supervisor's child, an unsupervised thread (which
     /// is also what a stale tid looks like, because a name that does not resolve carries no
-    /// endpoint).
+    /// rendezvous).
     #[test]
-    fn reap_authorizes_only_a_corpse_this_endpoint_supervises() {
+    fn reap_authorizes_only_a_corpse_this_rendezvous_supervises() {
         assert_eq!(reap_decision(Some(7), 7, true), Reap::Permitted);
         assert_eq!(reap_decision(Some(7), 7, false), Reap::StillAlive);
         assert_eq!(reap_decision(Some(9), 7, true), Reap::NotSupervised);

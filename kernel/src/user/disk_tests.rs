@@ -133,7 +133,7 @@ fn the_disk_surveyor_reads_a_table_gptfdisk_wrote() {
 /// naming a device to a destructive tool is a matter of typing the right path; the warning in
 /// calef's own router instructions ("confirm the target device path before proceeding") exists
 /// because nothing enforces it. Here the enumeration is a read-only mapping and the disk is an
-/// endpoint somebody else was handed.
+/// rendezvous somebody else was handed.
 #[test_case]
 fn the_roster_is_a_listing_and_not_a_lever() {
     let faults = USER_FAULTS.load(Ordering::Relaxed);
@@ -239,14 +239,14 @@ const M_NO_DISK: u64 = 0x_4E_4F_44_53_4B;
 const R_FOUND: u64 = 0x_46_4F_55_4E_44;
 const R_NO_FS: u64 = 0x_4E_4F_46_53_00;
 
-/// The entropy service's request endpoint, wiring the service if this is the first test to ask.
+/// The entropy service's request rendezvous, wiring the service if this is the first test to ask.
 ///
 /// The mmio transport, because both `virt` machines offer it with nothing in the way and this test
 /// is not about the bus; `entropy_tests` runs the same service over both.
 ///
 /// Returns `None` if the mmio virtio-rng device is not attached (milestone 145: correct on a bare
 /// board boot with no `NIFE_RNG`-equivalent).
-fn entropy_endpoint() -> Option<crate::sched::EpId> {
+fn entropy_rendezvous() -> Option<crate::sched::RendezvousId> {
     let image = program("entropy").expect("no entropy program in the initrd archive");
     let w = entropy_service::ensure(image, entropy_service::Bus::Mmio)?;
     if let Some(report) = w.wait_for_ready() {
@@ -284,10 +284,10 @@ fn entropy_endpoint() -> Option<crate::sched::EpId> {
 /// an identifier that must be globally unique, and neither `crates/gpt` nor a `no_std` RedoxFS has
 /// any randomness: the crate refuses to invent a GUID (notes/gpt.md) and the engine's `Header::new`
 /// is std-gated because it calls `getrandom` (vendor/README.md divergence 4). So "no entropy
-/// endpoint" is not a policy this code enforces. It is something the programs genuinely cannot do,
+/// rendezvous" is not a policy this code enforces. It is something the programs genuinely cannot do,
 /// and what is under test is that they say so rather than making a value up.
 #[test_case]
-fn the_write_half_needs_a_disk_and_an_entropy_endpoint_and_holds_nothing_else() {
+fn the_write_half_needs_a_disk_and_an_entropy_rendezvous_and_holds_nothing_else() {
     let Some(disk) = disk_service::blank_disk(fs_service::blk_server_image()) else {
         // No fifth mmio block device: this boot did not build the blank image. A fact about the
         // machine, not a failure (milestone 145: reported as skipped rather than a silent "ok").
@@ -298,20 +298,20 @@ fn the_write_half_needs_a_disk_and_an_entropy_endpoint_and_holds_nothing_else() 
         let [word, ..] = crate::sched::ipc_recv(ready);
         assert_eq!(word, filesystem_proto::fixture::READY);
     }
-    let Some(entropy) = entropy_endpoint() else {
+    let Some(entropy) = entropy_rendezvous() else {
         crate::testing::skip!("no virtio-rng device on the mmio bus (NIFE_RNG not set?)");
     };
     let maker = program("mkfs").expect("no mkfs program in the initrd archive");
     use filesystem_proto::fixture::blank;
 
-    // 1. The partitioner, with the disk and NO entropy endpoint. It must refuse, and it must refuse
+    // 1. The partitioner, with the disk and NO entropy rendezvous. It must refuse, and it must refuse
     //    before writing anything, which is why the program draws all four ids first and lays out
     //    the table second.
     let report = disk_service::start_partitioner(partitioner_image(), &disk, ROLE_PARTITION, None);
     let [verdict, ..] = crate::sched::ipc_recv(report);
     assert_eq!(
         verdict, P_NO_ENTROPY,
-        "a partitioner with no entropy endpoint reported {verdict:#x}; it must refuse rather than \
+        "a partitioner with no entropy rendezvous reported {verdict:#x}; it must refuse rather than \
          invent a GUID, because an identifier that is not random is not unique",
     );
 
@@ -365,7 +365,7 @@ fn the_write_half_needs_a_disk_and_an_entropy_endpoint_and_holds_nothing_else() 
     let [verdict, ..] = crate::sched::ipc_recv(report);
     assert_eq!(
         verdict, M_NO_ENTROPY,
-        "mkfs with no entropy endpoint reported {verdict:#x}; it must refuse",
+        "mkfs with no entropy rendezvous reported {verdict:#x}; it must refuse",
     );
 
     // 5. And with entropy and no disk: nothing to read a table off, nothing to write to.
@@ -373,7 +373,7 @@ fn the_write_half_needs_a_disk_and_an_entropy_endpoint_and_holds_nothing_else() 
     let [verdict, ..] = crate::sched::ipc_recv(report);
     assert_eq!(
         verdict, M_NO_DISK,
-        "mkfs with no block endpoint reported {verdict:#x}; there is nothing it can write to",
+        "mkfs with no block rendezvous reported {verdict:#x}; there is nothing it can write to",
     );
 
     // 6. Neither refusal created anything. A partition that has been *described* is not a partition

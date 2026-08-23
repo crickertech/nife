@@ -289,7 +289,7 @@ const CHILD_STACK_VA: u64 = 0x50_0000;
 const SPAWN_SCRATCH_VA: u64 = 0x0100_0000; // where we map the shared code frame to write the stub
 const SPAWN_PAGE: u64 = 4096;
 
-/// The child's whole program, hand-assembled: `SEND(slot 0, endpoint::SEND, 1)` then `SYS_EXIT`.
+/// The child's whole program, hand-assembled: `SEND(slot 0, rendezvous::SEND, 1)` then `SYS_EXIT`.
 /// Its slot 0 is the `CHILD_DONE` endpoint the spawner inserts. Nine instructions: `SEND` the done
 /// word (1) on the slot-0 endpoint, then `EXIT`. Every child runs this identical code, which is why
 /// the spawner writes it into one shared frame and aliases that frame into each child. Hand-assembled
@@ -313,15 +313,15 @@ const CHILD_STUB: [u32; 9] = [
 /// Each `li aN, imm` is `addi aN, x0, imm` = `(imm << 20) | (reg << 7) | 0x13`; `ecall` is 0x73.
 #[cfg(target_arch = "riscv64")]
 const CHILD_STUB: [u32; 9] = [
-    0x0000_0513,                                        // li a0, 0            (slot 0)
-    0x0000_0593 | ((abi::endpoint::SEND as u32) << 20), // li a1, SEND         (method)
-    0x0010_0613,                                        // li a2, 1            (the done word)
-    0x0000_0693,                                        // li a3, 0
-    0x0000_0713,                                        // li a4, 0
-    0x0000_0893 | ((abi::SYS_INVOKE as u32) << 20),     // li a7, SYS_INVOKE
-    0x0000_0073,                                        // ecall               (SEND)
-    0x0000_0893 | ((abi::SYS_EXIT as u32) << 20),       // li a7, SYS_EXIT
-    0x0000_0073,                                        // ecall               (EXIT)
+    0x0000_0513,                                          // li a0, 0            (slot 0)
+    0x0000_0593 | ((abi::rendezvous::SEND as u32) << 20), // li a1, SEND         (method)
+    0x0010_0613,                                          // li a2, 1            (the done word)
+    0x0000_0693,                                          // li a3, 0
+    0x0000_0713,                                          // li a4, 0
+    0x0000_0893 | ((abi::SYS_INVOKE as u32) << 20),       // li a7, SYS_INVOKE
+    0x0000_0073,                                          // ecall               (SEND)
+    0x0000_0893 | ((abi::SYS_EXIT as u32) << 20),         // li a7, SYS_EXIT
+    0x0000_0073,                                          // ecall               (EXIT)
 ];
 
 /// **Spawn latency, measured from EL0 (the primitive suite).** lmbench's `lat_proc`: the cost to

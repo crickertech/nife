@@ -103,7 +103,7 @@
 //!
 //! The job budget is **renewable**, which is what makes bounding it cheap. Every job is built in its
 //! own region split off [`JOBS_BUDGET_PAGES`] and is born supervised: `job_undertaker`, a process
-//! holding one endpoint capability and nothing else, collects each corpse through `Endpoint::REAP`
+//! holding one endpoint capability and nothing else, collects each corpse through `Rendezvous::REAP`
 //! (DECISIONS §32) and the region's pages come back here (§13: a reclaimed region returns to its
 //! owner, which is whoever split it). Before that, a spawned job's memory was spent for the life of
 //! the boot.
@@ -457,9 +457,9 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
     // delegate narrowed views. `term_ep` is the terminal contract's one endpoint: the discipline
     // serves it; the input driver and the shell only hold WRITE on it, and neither can tell what
     // is on the other side (notes/terminal-contract.md).
-    let request = must(retype_obj(ut, abi::objtype::ENDPOINT));
-    let reply = must(retype_obj(ut, abi::objtype::ENDPOINT));
-    let term_ep = must(retype_obj(ut, abi::objtype::ENDPOINT));
+    let request = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
+    let reply = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
+    let term_ep = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
     let con_shared = must(retype_frame(ut)); // line_editor -> console text
     let term_out = must(retype_frame(ut)); // shell -> line_editor text and prompts
     let term_in = must(retype_frame(ut)); // line_editor -> shell completed lines
@@ -593,13 +593,13 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
     // **The spawn channel is retyped here, not with the rest**, and the reason is the same sixteen
     // slots: holding two more endpoints through the three builds above is what pushed this cspace
     // over. They are the shell's and the service's, so this is also where they belong.
-    let spawn_ep = must(retype_obj(ut, abi::objtype::ENDPOINT));
-    let result_ep = must(retype_obj(ut, abi::objtype::ENDPOINT));
+    let spawn_ep = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
+    let result_ep = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
     // **The supervision endpoint every job is born holding** (milestone 22, the interactive
     // increment; DECISIONS §26's spawn-slot convention). We keep it for its `GRANT`, which is all we
     // need it for: to place a `READ` view of it in each job's reserved fault slot. We never receive
     // on it. `job_undertaker` does, and collecting is the only thing that endpoint authorizes.
-    let deaths = must(retype_obj(ut, abi::objtype::ENDPOINT));
+    let deaths = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
 
     // 4. The shell: prints and reads lines through the terminal, holds the spawn channel, and holds
     // its own untyped budget (slot 3) so `run --mem N` grants from memory that is genuinely the
@@ -706,7 +706,7 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
     // adapter built after it would have to come out of [`INIT_OWN_PAGES`], the scratch budget sized
     // for page tables and nothing else. Spending a whole program out of that pool would be invisible
     // here and would surface as some later child failing to map a scratch page.
-    let term_sink = must(retype_obj(ut, abi::objtype::ENDPOINT));
+    let term_sink = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
     if let Some(elf) = sink_elf.as_ref() {
         let adapter = must(build_child(
             ut,
@@ -844,7 +844,7 @@ fn archive_name(p: Prog) -> Option<&'static str> {
 
 /// Turn a `recv_cap` slot into `Some(slot)`, or `None` if the message carried no capability.
 fn opt_cap(slot: u64) -> Option<u64> {
-    if slot == abi::endpoint::NO_CAP {
+    if slot == abi::rendezvous::NO_CAP {
         None
     } else {
         Some(slot)
@@ -1143,7 +1143,7 @@ fn spawn_service(
             // the confinement claim and is checked by `kernel::user::survey_tests`.
             //
             // **The right is `ENUMERATE`, and it used to be `READ`** (fixed 2026-08-17). `READ` on a
-            // supervision endpoint is also what `RECV` and `abi::endpoint::REAP` take, so the old
+            // supervision endpoint is also what `RECV` and `abi::rendezvous::REAP` take, so the old
             // grant would have let a viewer take a death message out from under `job_undertaker` or
             // collect a corpse, and only the viewer's own source code said it did not. A domain names
             // its members and does not act on them (calef, 2026-08-17); `capability::Rights::ENUMERATE`
@@ -1337,8 +1337,8 @@ fn build_caretaker(
     fs: Fs,
     care_words: (u64, u64, u64),
 ) -> Option<u64> {
-    let narrow_ep = retype_obj(region, abi::objtype::ENDPOINT).ok()?;
-    let ready = retype_obj(region, abi::objtype::ENDPOINT).ok()?;
+    let narrow_ep = retype_obj(region, abi::objtype::RENDEZVOUS).ok()?;
+    let ready = retype_obj(region, abi::objtype::RENDEZVOUS).ok()?;
     // Its whole authority, and reading these three lines is reading it: the file service to
     // attenuate, the endpoint it will serve, and one place to say it is ready. No untyped, no clock,
     // no terminal, and nothing that could name another process.

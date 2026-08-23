@@ -203,7 +203,7 @@ pub enum SwitchOutVerdict {
 
 /// One thread's block/wake handshake: the fields `sched.rs` used to carry loose on `Thread`,
 /// plus the transitions that were inlined at its call sites. Generic over `W`, the "what am I
-/// waiting on" payload (the kernel uses `(EpId, WaitRole)`; the tests use small scalars), because
+/// waiting on" payload (the kernel uses `(RendezvousId, WaitRole)`; the tests use small scalars), because
 /// the handshake only ever asks whether it is present.
 ///
 /// Every method is written to be called **under `IPC_TABLES`**. The struct itself has no interior

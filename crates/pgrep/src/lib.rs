@@ -10,7 +10,7 @@
 //!
 //! The domain is walked by [`ps::collect`], which is the loop `user/src/ps.rs` runs, and this crate
 //! takes the finished [`ps::Survey`]. That is deliberate rather than tidy: a second cursor walk
-//! would be a second implementation of `abi::endpoint::SURVEY`'s resume protocol, and the one thing
+//! would be a second implementation of `abi::rendezvous::SURVEY`'s resume protocol, and the one thing
 //! worse than one walk that can be wrong is two that can disagree.
 //!
 //! # The demonstration is asymmetric on purpose, and the missing half is the claim
@@ -625,7 +625,7 @@ mod tests {
     }
 
     /// A tid is a generational name and can be ten digits; it goes out whole and with no padding,
-    /// because it is the name `abi::endpoint::REAP` accepts and the next program in a pipeline
+    /// because it is the name `abi::rendezvous::REAP` accepts and the next program in a pipeline
     /// should not have to strip spaces off it.
     #[test]
     fn a_wide_tid_is_printed_whole_and_unpadded() {

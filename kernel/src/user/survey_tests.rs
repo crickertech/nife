@@ -14,9 +14,9 @@ const BUILDER_BUDGET_PAGES: u64 = 80;
 /// space (root and tables), its code page, its stack page, and its TCB.
 const INSTANCE_PAGES: u64 = 16;
 
-/// Pages for the test's own endpoints, one per endpoint (`RETYPE_OBJ`'s one-object-per-page rule).
+/// Pages for the test's own rendezvous points, one per rendezvous (`RETYPE_OBJ`'s one-object-per-page rule).
 /// Three is the most any test here needs; four is slack.
-const ENDPOINT_PAGES: u64 = 4;
+const RENDEZVOUS_PAGES: u64 = 4;
 
 /// **`ps`'s row buffer must hold the kernel's whole thread table**, checked by the compiler rather
 /// than by a test, which is the strongest rung available for a fact that is two constants in two
@@ -30,47 +30,47 @@ const _: () = assert!(
      system can express would be silently truncated",
 );
 
-/// One test's world: a budget the builder owns, and a small region the endpoints come out of, so
-/// `tidy` can give both back rather than spending the kernel's shared endpoint budget on every run.
+/// One test's world: a budget the builder owns, and a small region the rendezvous points come out of, so
+/// `tidy` can give both back rather than spending the kernel's shared rendezvous budget on every run.
 fn arena() -> (u64, u64) {
     let budget = crate::untyped::create(BUILDER_BUDGET_PAGES).expect("no builder budget");
-    let endpoints = crate::untyped::create(ENDPOINT_PAGES).expect("no endpoint region");
-    (budget, endpoints)
+    let rendezvous_region = crate::untyped::create(RENDEZVOUS_PAGES).expect("no rendezvous region");
+    (budget, rendezvous_region)
 }
 
-fn endpoint(region: u64) -> sched::EpId {
-    sched::create_endpoint_from(region).expect("no endpoint")
+fn rendezvous(region: u64) -> sched::RendezvousId {
+    sched::create_rendezvous_from(region).expect("no rendezvous")
 }
 
 /// Hold a domain **the way a viewer holds one**: `ENUMERATE` and nothing else, which is exactly
 /// what `ps` is granted. It is not that a viewer is refused `RECV` and `REAP`; it cannot name them,
 /// because those take `READ` and this capability does not carry it.
-fn hold_view(ep: sched::EpId) -> u64 {
-    sched::grant(crate::cap::endpoint_cap(ep, Rights::ENUMERATE)).expect("grant the endpoint")
+fn hold_view(ep: sched::RendezvousId) -> u64 {
+    sched::grant(crate::cap::rendezvous_cap(ep, Rights::ENUMERATE)).expect("grant the rendezvous")
 }
 
 /// Hold a domain **the way its supervisor holds it**: `READ` to receive and reap, `ENUMERATE` to
 /// look. The two rights are separable and this is the holder that has both, which is what makes
 /// [`hold_view`]'s narrowness a choice rather than the only thing available.
-fn hold_supervisor(ep: sched::EpId) -> u64 {
-    sched::grant(crate::cap::endpoint_cap(
+fn hold_supervisor(ep: sched::RendezvousId) -> u64 {
+    sched::grant(crate::cap::rendezvous_cap(
         ep,
         Rights::READ.union(Rights::ENUMERATE),
     ))
-    .expect("grant the endpoint")
+    .expect("grant the rendezvous")
 }
 
-/// Hold the same endpoint **send-only**: a peer that may report to this supervisor and is not the
+/// Hold the same rendezvous **send-only**: a peer that may report to this supervisor and is not the
 /// supervisor. The negative control's whole setup is this one line.
-fn hold_write(ep: sched::EpId) -> u64 {
-    sched::grant(crate::cap::endpoint_cap(ep, Rights::WRITE)).expect("grant the endpoint")
+fn hold_write(ep: sched::RendezvousId) -> u64 {
+    sched::grant(crate::cap::rendezvous_cap(ep, Rights::WRITE)).expect("grant the rendezvous")
 }
 
 /// `invoke(cap, SURVEY, cursor, _, _)`, through the real dispatcher, returning the three words a
 /// userspace caller would read out of its registers.
 fn survey(slot: u64, cursor: u64) -> (i64, u64, u64) {
     let mut frame = TrapFrame::for_user_entry(0, 0, [0, 0, 0]);
-    match invoke(&mut frame, slot, abi::endpoint::SURVEY, cursor, 0, 0) {
+    match invoke(&mut frame, slot, abi::rendezvous::SURVEY, cursor, 0, 0) {
         Ok(next) => (next, frame.arg(1), frame.arg(2)),
         Err(e) => (e as i64, 0, 0),
     }
@@ -99,23 +99,23 @@ fn walk(slot: u64, rows: &mut [ps::Row; TEST_ROWS]) -> ps::Survey<'_> {
 /// `invoke(cap, REAP, tid, _, _)`, through the real dispatcher.
 fn reap(slot: u64, tid: u64) -> Result<i64, Error> {
     let mut frame = TrapFrame::for_user_entry(0, 0, [0, 0, 0]);
-    invoke(&mut frame, slot, abi::endpoint::REAP, tid, 0, 0)
+    invoke(&mut frame, slot, abi::rendezvous::REAP, tid, 0, 0)
 }
 
 /// **Let every parked child finish.** Each `REPORT_STUB` member is blocked in a send on the shared
-/// parking endpoint, so taking `n` messages off it releases `n` of them to exit.
+/// parking rendezvous, so taking `n` messages off it releases `n` of them to exit.
 ///
 /// Deliberately not per-child: an `ipc_recv` takes whichever sender is queued, so a test with
-/// members in two domains must drain the whole endpoint before it collects any of them. Draining
+/// members in two domains must drain the whole rendezvous before it collects any of them. Draining
 /// only its own domain's count releases somebody else's child and leaves one of its own blocked
 /// forever, which is the bug this comment exists to stop the next reader reintroducing.
-fn drain(parking: sched::EpId, n: usize) {
+fn drain(parking: sched::RendezvousId, n: usize) {
     for _ in 0..n {
         sched::ipc_recv(parking);
     }
 }
 
-/// **Collect every member of a domain through the endpoint that showed it.**
+/// **Collect every member of a domain through the rendezvous that showed it.**
 ///
 /// A test that keeps children alive in order to survey them has to end them deliberately: a region
 /// holding a live thread refuses to be reclaimed, and the refusal is destructive on the way past
@@ -123,14 +123,14 @@ fn drain(parking: sched::EpId, n: usize) {
 /// state it did not ask for.
 ///
 /// It doubles as an assertion worth having on its own: **every tid a survey reported is a tid the
-/// same endpoint can reap**, which is `capability::survey_includes`'s scope property observed from
+/// same rendezvous can reap**, which is `capability::survey_includes`'s scope property observed from
 /// the control side rather than the view side. The wait is the clock's, not a yield count, because
 /// how long a released child takes to reach its exit is a property of the host (notes/hvf-leg.md).
 fn collect_all(cap: u64, tids: &[u64]) {
     for &tid in tids {
         assert!(
             super::tests::wait_for(|| reap(cap, tid) == Ok(0)),
-            "a member the survey reported could not be collected through the endpoint that \
+            "a member the survey reported could not be collected through the rendezvous that \
              showed it",
         );
     }
@@ -142,41 +142,47 @@ fn tids<'a>(s: &'a ps::Survey<'_>) -> impl Iterator<Item = u64> + 'a {
 }
 
 /// Give everything back: the viewer's slots, then the builder's budget (which reclaims any instance
-/// region still under it), then the endpoint region. Reclaiming the endpoints first would revoke
+/// region still under it), then the rendezvous region. Reclaiming the rendezvous points first would revoke
 /// the channels the corpses are still attached to.
-fn tidy(budget: u64, endpoints: u64, slots: &[u64]) {
+fn tidy(budget: u64, rendezvous_region: u64, slots: &[u64]) {
     for &s in slots {
         let _ = sched::delete_current_cap(s);
     }
     sched::reclaim_region(budget).expect("the builder's own budget did not come back");
-    sched::reclaim_region(endpoints).expect("the test's endpoint region did not come back");
+    sched::reclaim_region(rendezvous_region)
+        .expect("the test's rendezvous region did not come back");
 }
 
 /// Build a child into its own region carved from `budget`, so one reclaim frees the instance.
-fn child_in(budget: u64, stub: &[u32], report: Option<sched::EpId>, fault_ep: sched::EpId) -> u64 {
+fn child_in(
+    budget: u64,
+    stub: &[u32],
+    report: Option<sched::RendezvousId>,
+    fault_ep: sched::RendezvousId,
+) -> u64 {
     let region = crate::untyped::split(budget, INSTANCE_PAGES).expect("no instance region");
     build_child_in(region, stub, report, Some(fault_ep))
 }
 
-/// **The headline: a domain is exactly the endpoint's own children, and nothing else on the
+/// **The headline: a domain is exactly the rendezvous's own children, and nothing else on the
 /// machine.**
 ///
-/// Two children under one supervision endpoint, one under another, and the whole rest of the
+/// Two children under one supervision rendezvous, one under another, and the whole rest of the
 /// system (this thread, the idle threads, every kernel thread and every other test's leftovers)
-/// unsupervised. The survey of the first endpoint reports its two and stops.
+/// unsupervised. The survey of the first rendezvous reports its two and stops.
 ///
 /// This is the confinement claim, and it is the one Linux's `/proc` cannot make: there, a listing
 /// is a fact about the machine and every process gets it for free. Here it is a fact about a
-/// capability, so the answer changes with which endpoint you hold and there is nothing to hold that
+/// capability, so the answer changes with which rendezvous you hold and there is nothing to hold that
 /// would widen it.
 #[test_case]
-fn a_domain_is_exactly_the_children_of_the_endpoint_that_was_granted() {
-    let (budget, endpoints) = arena();
-    let mine = endpoint(endpoints);
-    let theirs = endpoint(endpoints);
-    // A parking endpoint nobody ever receives on, so a REPORT_STUB child blocks in its send and
+fn a_domain_is_exactly_the_children_of_the_rendezvous_that_was_granted() {
+    let (budget, rendezvous_region) = arena();
+    let mine = rendezvous(rendezvous_region);
+    let theirs = rendezvous(rendezvous_region);
+    // A parking rendezvous nobody ever receives on, so a REPORT_STUB child blocks in its send and
     // stays a live member of the domain for the length of the test instead of exiting under us.
-    let parking = endpoint(endpoints);
+    let parking = rendezvous(rendezvous_region);
 
     let a = child_in(budget, REPORT_STUB, Some(parking), mine);
     let b = child_in(budget, REPORT_STUB, Some(parking), mine);
@@ -184,7 +190,7 @@ fn a_domain_is_exactly_the_children_of_the_endpoint_that_was_granted() {
 
     // Both of mine have to have reached their send before the states below mean anything.
     assert!(
-        super::tests::wait_for(|| sched::endpoint_waiting_senders(parking) == 3),
+        super::tests::wait_for(|| sched::rendezvous_waiting_senders(parking) == 3),
         "the three children never reached their sends",
     );
 
@@ -217,7 +223,7 @@ fn a_domain_is_exactly_the_children_of_the_endpoint_that_was_granted() {
         "the surveying thread listed itself despite being supervised by nobody",
     );
 
-    // The other endpoint answers about its own child and only its own, from the same kernel walk.
+    // The other rendezvous answers about its own child and only its own, from the same kernel walk.
     let other = hold_view(theirs);
     let mut buf = [ps::Row::default(); TEST_ROWS];
     let seen = walk(other, &mut buf);
@@ -229,14 +235,18 @@ fn a_domain_is_exactly_the_children_of_the_endpoint_that_was_granted() {
     );
 
     drain(parking, 3);
-    // Cleanup goes through a *separate* supervisor capability on the same endpoints. The viewer
+    // Cleanup goes through a *separate* supervisor capability on the same rendezvous points. The viewer
     // caps above cannot reap, which is the point: every walk in this test was made by a holder
     // that could not have collected what it saw.
     let sup_mine = hold_supervisor(mine);
     let sup_theirs = hold_supervisor(theirs);
     collect_all(sup_mine, &[a, b]);
     collect_all(sup_theirs, &[stranger]);
-    tidy(budget, endpoints, &[cap, other, sup_mine, sup_theirs]);
+    tidy(
+        budget,
+        rendezvous_region,
+        &[cap, other, sup_mine, sup_theirs],
+    );
 }
 
 /// **The negative control, and it is the point of the whole method** (milestone 126, the block's
@@ -256,16 +266,16 @@ fn a_domain_is_exactly_the_children_of_the_endpoint_that_was_granted() {
 /// empty listing for the same reason.
 #[test_case]
 fn a_viewer_without_the_domain_is_refused_rather_than_shown_an_empty_list() {
-    let (budget, endpoints) = arena();
-    let ep = endpoint(endpoints);
-    let parking = endpoint(endpoints);
+    let (budget, rendezvous_region) = arena();
+    let ep = rendezvous(rendezvous_region);
+    let parking = rendezvous(rendezvous_region);
     let child = child_in(budget, REPORT_STUB, Some(parking), ep);
     assert!(
-        super::tests::wait_for(|| sched::endpoint_waiting_senders(parking) == 1),
+        super::tests::wait_for(|| sched::rendezvous_waiting_senders(parking) == 1),
         "the child never reached its send",
     );
 
-    // Send-only: the endpoint is real, the child is real, and the answer is a refusal.
+    // Send-only: the rendezvous is real, the child is real, and the answer is a refusal.
     let peer = hold_write(ep);
     assert_eq!(
         survey(peer, 0),
@@ -291,7 +301,7 @@ fn a_viewer_without_the_domain_is_refused_rather_than_shown_an_empty_list() {
 
     // A domain that really is empty is an *answer*. This is the assertion that makes the two above
     // mean something: without it, "refused" and "nothing here" could be the same code path.
-    let vacant = endpoint(endpoints);
+    let vacant = rendezvous(rendezvous_region);
     let held = hold_view(vacant);
     assert_eq!(
         survey(held, 0),
@@ -332,7 +342,7 @@ fn a_viewer_without_the_domain_is_refused_rather_than_shown_an_empty_list() {
         Err(Error::NotPermitted),
         "a viewer reaped a member of the domain it was only supposed to be able to name",
     );
-    let receiver = sched::grant(crate::cap::endpoint_cap(ep, Rights::READ)).expect("grant");
+    let receiver = sched::grant(crate::cap::rendezvous_cap(ep, Rights::READ)).expect("grant");
     assert_eq!(
         survey(receiver, 0),
         (Error::NotPermitted as i64, 0, 0),
@@ -341,31 +351,35 @@ fn a_viewer_without_the_domain_is_refused_rather_than_shown_an_empty_list() {
 
     drain(parking, 1);
     collect_all(sup, &[child]);
-    tidy(budget, endpoints, &[peer, held, sup, viewer, receiver]);
+    tidy(
+        budget,
+        rendezvous_region,
+        &[peer, held, sup, viewer, receiver],
+    );
 }
 
 /// **A corpse is still in the domain, and it says so.**
 ///
 /// The state a supervisor most needs to see and the one Unix cannot show without a parent that
 /// happened to call `wait`: the child faulted, its death message is waiting, and it persists until
-/// `endpoint::REAP` collects it (DECISIONS §26). A survey that dropped corpses would hide exactly
+/// `rendezvous::REAP` collects it (DECISIONS §26). A survey that dropped corpses would hide exactly
 /// the thing a monitor is watching for.
 ///
-/// Then the reap, through the same endpoint, and the row is gone. The two halves are checked in one
+/// Then the reap, through the same rendezvous, and the row is gone. The two halves are checked in one
 /// test on purpose: the domain the viewer reports and the domain the supervisor may collect from
 /// are one set, which is `capability::survey_includes`'s proved property observed on a real kernel.
 #[test_case]
 fn a_dead_child_is_still_in_the_domain_until_it_is_reaped() {
-    let (budget, endpoints) = arena();
-    let ep = endpoint(endpoints);
+    let (budget, rendezvous_region) = arena();
+    let ep = rendezvous(rendezvous_region);
     let child = child_in(budget, FAULT_STUB, None, ep);
 
     let cap = hold_supervisor(ep);
-    // The corpse parks on its supervision endpoint's sender queue with its death message when
+    // The corpse parks on its supervision rendezvous's sender queue with its death message when
     // nobody is in RECV, which is how a survey can see it before anyone has collected the news.
     assert!(
-        super::tests::wait_for(|| sched::endpoint_waiting_senders(ep) == 1),
-        "the child never died onto its supervision endpoint",
+        super::tests::wait_for(|| sched::rendezvous_waiting_senders(ep) == 1),
+        "the child never died onto its supervision rendezvous",
     );
 
     let mut buf = [ps::Row::default(); TEST_ROWS];
@@ -378,14 +392,14 @@ fn a_dead_child_is_still_in_the_domain_until_it_is_reaped() {
         "a corpse was reported as something other than dead",
     );
 
-    // Collect it through the endpoint the survey named it on, then the domain is empty and says so
+    // Collect it through the rendezvous the survey named it on, then the domain is empty and says so
     // rather than refusing.
     let mut frame = TrapFrame::for_user_entry(0, 0, [0, 0, 0]);
-    invoke(&mut frame, cap, abi::endpoint::RECV, 0, 0, 0).expect("RECV refused");
+    invoke(&mut frame, cap, abi::rendezvous::RECV, 0, 0, 0).expect("RECV refused");
     assert_eq!(
-        invoke(&mut frame, cap, abi::endpoint::REAP, child, 0, 0),
+        invoke(&mut frame, cap, abi::rendezvous::REAP, child, 0, 0),
         Ok(0),
-        "the tid a survey reported was not one the same endpoint could reap",
+        "the tid a survey reported was not one the same rendezvous could reap",
     );
     let mut buf = [ps::Row::default(); TEST_ROWS];
     let seen = walk(cap, &mut buf);
@@ -396,7 +410,7 @@ fn a_dead_child_is_still_in_the_domain_until_it_is_reaped() {
         "a reaped corpse is still being listed"
     );
 
-    tidy(budget, endpoints, &[cap]);
+    tidy(budget, rendezvous_region, &[cap]);
 }
 
 /// **The cursor resumes, and it never repeats or skips a member.**
@@ -410,14 +424,14 @@ fn a_dead_child_is_still_in_the_domain_until_it_is_reaped() {
 /// number written in two crates.
 #[test_case]
 fn a_resumed_walk_reports_every_member_exactly_once() {
-    let (budget, endpoints) = arena();
-    let ep = endpoint(endpoints);
-    let parking = endpoint(endpoints);
+    let (budget, rendezvous_region) = arena();
+    let ep = rendezvous(rendezvous_region);
+    let parking = rendezvous(rendezvous_region);
     let a = child_in(budget, REPORT_STUB, Some(parking), ep);
     let b = child_in(budget, REPORT_STUB, Some(parking), ep);
     let c = child_in(budget, REPORT_STUB, Some(parking), ep);
     assert!(
-        super::tests::wait_for(|| sched::endpoint_waiting_senders(parking) == 3),
+        super::tests::wait_for(|| sched::rendezvous_waiting_senders(parking) == 3),
         "the three children never reached their sends",
     );
 
@@ -447,7 +461,7 @@ fn a_resumed_walk_reports_every_member_exactly_once() {
     drain(parking, 3);
     let sup = hold_supervisor(ep);
     collect_all(sup, &[a, b, c]);
-    tidy(budget, endpoints, &[cap, sup]);
+    tidy(budget, rendezvous_region, &[cap, sup]);
 }
 
 /// **The cursor and the tid are machine-wide slot indices, so a viewer can count threads it cannot
@@ -457,7 +471,7 @@ fn a_resumed_walk_reports_every_member_exactly_once() {
 /// This does not contradict the confinement claim above, and the difference is exactly what makes
 /// it worth a test of its own. A viewer still cannot **name** a thread outside its domain: no
 /// stranger's tid is ever reported, `REAP` still refuses one, and
-/// `a_domain_is_exactly_the_children_of_the_endpoint_that_was_granted` proves both. What leaks is
+/// `a_domain_is_exactly_the_children_of_the_rendezvous_that_was_granted` proves both. What leaks is
 /// arithmetic on the numbers the survey hands back about the viewer's **own** members:
 ///
 /// - `next_cursor` is `slots::Table` slot + 1, and that table is the whole machine's;
@@ -470,10 +484,10 @@ fn a_resumed_walk_reports_every_member_exactly_once() {
 /// of notes/process-view.md for the disposition and why the fix is a milestone rather than a patch.
 #[test_case]
 fn the_survey_cursor_counts_threads_the_viewer_cannot_name() {
-    let (budget, endpoints) = arena();
-    let mine = endpoint(endpoints);
-    let theirs = endpoint(endpoints);
-    let parking = endpoint(endpoints);
+    let (budget, rendezvous_region) = arena();
+    let mine = rendezvous(rendezvous_region);
+    let theirs = rendezvous(rendezvous_region);
+    let parking = rendezvous(rendezvous_region);
 
     // Creation order is the whole experiment: one of mine, then a stranger the viewer will never be
     // shown, then a second of mine. `slots::Table::insert_with` takes the lowest free slot, so the
@@ -483,7 +497,7 @@ fn the_survey_cursor_counts_threads_the_viewer_cannot_name() {
     let stranger = child_in(budget, REPORT_STUB, Some(parking), theirs);
     let b = child_in(budget, REPORT_STUB, Some(parking), mine);
     assert!(
-        super::tests::wait_for(|| sched::endpoint_waiting_senders(parking) == 3),
+        super::tests::wait_for(|| sched::rendezvous_waiting_senders(parking) == 3),
         "the three children never reached their sends",
     );
 
@@ -549,7 +563,7 @@ fn the_survey_cursor_counts_threads_the_viewer_cannot_name() {
     let sup_theirs = hold_supervisor(theirs);
     collect_all(sup_mine, &[a, b]);
     collect_all(sup_theirs, &[stranger]);
-    tidy(budget, endpoints, &[cap, sup_mine, sup_theirs]);
+    tidy(budget, rendezvous_region, &[cap, sup_mine, sup_theirs]);
 }
 
 /// **`pgrep`: the filter over the same domain, and the fourth answer it adds** (milestone 126).
@@ -559,7 +573,7 @@ fn the_survey_cursor_counts_threads_the_viewer_cannot_name() {
 /// command line to a program, so a shell-spawned `pgrep` always takes the default and names every
 /// member (`crates/pgrep`'s `BUGS`). Here a selector can be handed over directly.
 ///
-/// Four answers, all distinct, all over one endpoint the kernel really built:
+/// Four answers, all distinct, all over one rendezvous the kernel really built:
 ///
 /// - **members matched**: `pgrep dead` names the corpse and neither live child;
 /// - **nothing matched**: `pgrep ready` over a domain of three says so, and it is *not* the empty
@@ -574,9 +588,9 @@ fn the_survey_cursor_counts_threads_the_viewer_cannot_name() {
 /// `pkill` here. A domain names its members and does not act on them (calef, 2026-08-17).
 #[test_case]
 fn a_filter_names_members_and_tells_its_four_answers_apart() {
-    let (budget, endpoints) = arena();
-    let ep = endpoint(endpoints);
-    let parking = endpoint(endpoints);
+    let (budget, rendezvous_region) = arena();
+    let ep = rendezvous(rendezvous_region);
+    let parking = rendezvous(rendezvous_region);
 
     // Two live members blocked in a send, and one corpse. Three states in one domain is what makes a
     // selector's verdict mean anything: a filter over a uniform domain cannot be wrong.
@@ -584,12 +598,12 @@ fn a_filter_names_members_and_tells_its_four_answers_apart() {
     let live_b = child_in(budget, REPORT_STUB, Some(parking), ep);
     let corpse = child_in(budget, FAULT_STUB, None, ep);
     assert!(
-        super::tests::wait_for(|| sched::endpoint_waiting_senders(parking) == 2),
+        super::tests::wait_for(|| sched::rendezvous_waiting_senders(parking) == 2),
         "the two live children never reached their sends",
     );
     assert!(
-        super::tests::wait_for(|| sched::endpoint_waiting_senders(ep) == 1),
-        "the third child never died onto its supervision endpoint",
+        super::tests::wait_for(|| sched::rendezvous_waiting_senders(ep) == 1),
+        "the third child never died onto its supervision rendezvous",
     );
 
     let viewer = hold_view(ep);
@@ -635,8 +649,8 @@ fn a_filter_names_members_and_tells_its_four_answers_apart() {
         "nothing matched and something was printed anyway",
     );
 
-    // The empty domain, from a second endpoint nobody's child is under.
-    let vacant = hold_view(endpoint(endpoints));
+    // The empty domain, from a second rendezvous nobody's child is under.
+    let vacant = hold_view(rendezvous(rendezvous_region));
     let mut vbuf = [ps::Row::default(); TEST_ROWS];
     let vacant_walk = walk(vacant, &mut vbuf);
     let empty = pgrep::select(&vacant_walk, pgrep::Selector::EVERY);
@@ -690,9 +704,10 @@ fn a_filter_names_members_and_tells_its_four_answers_apart() {
     drain(parking, 2);
     let sup = hold_supervisor(ep);
     let mut frame = TrapFrame::for_user_entry(0, 0, [0, 0, 0]);
-    invoke(&mut frame, sup, abi::endpoint::RECV, 0, 0, 0).expect("the death message never arrived");
+    invoke(&mut frame, sup, abi::rendezvous::RECV, 0, 0, 0)
+        .expect("the death message never arrived");
     collect_all(sup, &[corpse, live_a, live_b]);
-    tidy(budget, endpoints, &[viewer, vacant, peer, sup]);
+    tidy(budget, rendezvous_region, &[viewer, vacant, peer, sup]);
 }
 
 /// Render a writer's bytes into `buf` and return how many landed. The kernel has no heap, so the

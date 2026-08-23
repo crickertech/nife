@@ -1,6 +1,6 @@
 use super::*;
-use crate::cap::{Rights, endpoint_cap, frame_cap};
-use crate::sched::EpId;
+use crate::cap::{Rights, frame_cap, rendezvous_cap};
+use crate::sched::RendezvousId;
 
 /// Where `date` expects the clock page, read-only. Must match user/src/date.rs's `CLOCK_VA`.
 const CLOCK_VA: u64 = 0x00c0_0000;
@@ -17,9 +17,9 @@ const PROVENANCE: u64 = 1;
 /// and maps it **read-only**, which is the read rung of §43's ladder and is what makes a
 /// `date -s` unbuildable rather than merely absent. `None` grants no clock at all, which is the
 /// other unknown-clock cause and a different message.
-fn spawn_date(page: Option<u64>, fmt: u64, offset_minutes: i64, provenance: u64) -> EpId {
+fn spawn_date(page: Option<u64>, fmt: u64, offset_minutes: i64, provenance: u64) -> RendezvousId {
     let image = program("date").expect("no date program in the initrd archive");
-    let out = crate::sched::create_endpoint();
+    let out = crate::sched::create_rendezvous();
     crate::sched::spawn(move || match page {
         Some(phys) => run(
             image,
@@ -28,8 +28,8 @@ fn spawn_date(page: Option<u64>, fmt: u64, offset_minutes: i64, provenance: u64)
                 arg1: offset_minutes as u64,
                 arg2: provenance,
                 grants: &[
-                    endpoint_cap(out, Rights::WRITE), // slot 0: stdout
-                    frame_cap(phys, Rights::READ),    // slot 1: a READER, and nothing more
+                    rendezvous_cap(out, Rights::WRITE), // slot 0: stdout
+                    frame_cap(phys, Rights::READ),      // slot 1: a READER, and nothing more
                 ],
                 maps: &[Mapping {
                     va: CLOCK_VA,
@@ -44,7 +44,7 @@ fn spawn_date(page: Option<u64>, fmt: u64, offset_minutes: i64, provenance: u64)
                 arg0: fmt,
                 arg1: offset_minutes as u64,
                 arg2: provenance,
-                grants: &[endpoint_cap(out, Rights::WRITE)],
+                grants: &[rendezvous_cap(out, Rights::WRITE)],
                 maps: &[],
             },
         ),
@@ -64,14 +64,14 @@ fn spawn_date(page: Option<u64>, fmt: u64, offset_minutes: i64, provenance: u64)
 /// No clock, deliberately. `date` at the interactive prompt has one and prints the time, so the only
 /// honest way to reach the sentence §67 was taken for is a `date` that was granted no clock, which
 /// is one of the two real unknown-clock causes rather than a fault injected for the test.
-fn spawn_date_with_diagnostics() -> (EpId, EpId) {
+fn spawn_date_with_diagnostics() -> (RendezvousId, RendezvousId) {
     let image = program("date").expect("no date program in the initrd archive");
-    let out = crate::sched::create_endpoint();
-    let diag = crate::sched::create_endpoint();
+    let out = crate::sched::create_rendezvous();
+    let diag = crate::sched::create_rendezvous();
     crate::sched::spawn(move || {
         crate::sched::grant_at(
             grant_plan::DIAGNOSTICS_SLOT,
-            endpoint_cap(diag, Rights::WRITE),
+            rendezvous_cap(diag, Rights::WRITE),
         )
         .expect("date's declared diagnostic slot was already occupied");
         run(
@@ -80,7 +80,7 @@ fn spawn_date_with_diagnostics() -> (EpId, EpId) {
                 arg0: FMT_HUMAN,
                 arg1: 0,
                 arg2: 0,
-                grants: &[endpoint_cap(out, Rights::WRITE)],
+                grants: &[rendezvous_cap(out, Rights::WRITE)],
                 maps: &[],
             },
         )
@@ -95,7 +95,7 @@ fn spawn_date_with_diagnostics() -> (EpId, EpId) {
 /// little-endian), deliberately, so there is one convention for "a program printed something"
 /// rather than two. `SEND` blocks until a receiver takes it, so stopping at the newline
 /// consumes exactly the messages that line was made of and leaves any following line queued.
-fn line(out: EpId, buf: &mut [u8; 128]) -> usize {
+fn line(out: RendezvousId, buf: &mut [u8; 128]) -> usize {
     let mut len = 0usize;
     loop {
         let words = crate::sched::ipc_recv(out);

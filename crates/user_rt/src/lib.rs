@@ -155,7 +155,7 @@ pub unsafe fn invoke(cap: u64, method: u64, a0: u64, a1: u64, a2: u64) -> i64 {
 /// `SEND` three words on the endpoint capability in `slot`. Blocks until a receiver takes them.
 pub fn send(slot: u64, w0: u64, w1: u64, w2: u64) -> i64 {
     // SAFETY: `svc` traps to EL1, which validates the capability named by `slot`.
-    unsafe { invoke(slot, abi::endpoint::SEND, w0, w1, w2) }
+    unsafe { invoke(slot, abi::rendezvous::SEND, w0, w1, w2) }
 }
 
 /// **Collect the corpse of a child this supervision endpoint supervises** (DECISIONS §32).
@@ -169,11 +169,11 @@ pub fn send(slot: u64, w0: u64, w1: u64, w2: u64) -> i64 {
 /// a process that cannot build one. The reclaimed pages go back to the builder's budget.
 pub fn reap(slot: u64, tid: u64) -> i64 {
     // SAFETY: `svc`/`ecall`; the kernel validates the capability and the supervision relationship.
-    unsafe { invoke(slot, abi::endpoint::REAP, tid, 0, 0) }
+    unsafe { invoke(slot, abi::rendezvous::REAP, tid, 0, 0) }
 }
 
 /// **Read one entry of the domain this supervision endpoint supervises** (milestone 126,
-/// `endpoint::SURVEY`). Returns `(next_cursor, tid, state)`: start at `cursor = 0`, feed each
+/// `rendezvous::SURVEY`). Returns `(next_cursor, tid, state)`: start at `cursor = 0`, feed each
 /// `next_cursor` back, and stop when [`abi::survey::DONE`] comes back.
 ///
 /// A negative first word is an [`abi::Error`], and the one that matters is `NotPermitted`: this
@@ -191,7 +191,7 @@ pub fn survey(slot: u64, cursor: u64) -> (i64, u64, u64) {
             "svc #0",
             in("x8") abi::SYS_INVOKE,
             inlateout("x0") slot => r0,
-            in("x1") abi::endpoint::SURVEY,
+            in("x1") abi::rendezvous::SURVEY,
             lateout("x1") w1,
             inlateout("x2") cursor => w2,
             in("x3") 0u64,
@@ -213,7 +213,7 @@ pub fn survey(slot: u64, cursor: u64) -> (i64, u64, u64) {
             "ecall",
             in("a7") abi::SYS_INVOKE,
             inlateout("a0") slot => r0,
-            inlateout("a1") abi::endpoint::SURVEY => w1,
+            inlateout("a1") abi::rendezvous::SURVEY => w1,
             inlateout("a2") cursor => w2,
             in("a3") 0u64,
             in("a4") 0u64,
@@ -283,7 +283,7 @@ pub fn recv(slot: u64) -> (u64, u64, u64) {
             "svc #0",
             in("x8") abi::SYS_INVOKE,
             inlateout("x0") slot => w0,
-            in("x1") abi::endpoint::RECV,
+            in("x1") abi::rendezvous::RECV,
             lateout("x1") w1,
             lateout("x2") w2,
             in("x3") 0u64,
@@ -305,7 +305,7 @@ pub fn recv(slot: u64) -> (u64, u64, u64) {
             "ecall",
             in("a7") abi::SYS_INVOKE,
             inlateout("a0") slot => w0,
-            inlateout("a1") abi::endpoint::RECV => w1,
+            inlateout("a1") abi::rendezvous::RECV => w1,
             lateout("a2") w2,
             in("a3") 0u64,
             in("a4") 0u64,
@@ -335,7 +335,7 @@ pub fn recv_fault(slot: u64) -> (u64, u64, u64, u64, u64) {
             "svc #0",
             in("x8") abi::SYS_INVOKE,
             inlateout("x0") slot => w0,
-            in("x1") abi::endpoint::RECV,
+            in("x1") abi::rendezvous::RECV,
             lateout("x1") w1,
             lateout("x2") w2,
             in("x3") 0u64,
@@ -358,7 +358,7 @@ pub fn recv_fault(slot: u64) -> (u64, u64, u64, u64, u64) {
             "ecall",
             in("a7") abi::SYS_INVOKE,
             inlateout("a0") slot => w0,
-            inlateout("a1") abi::endpoint::RECV => w1,
+            inlateout("a1") abi::rendezvous::RECV => w1,
             lateout("a2") w2,
             inlateout("a3") 0u64 => w3,
             inlateout("a4") 0u64 => w4,
@@ -370,7 +370,7 @@ pub fn recv_fault(slot: u64) -> (u64, u64, u64, u64, u64) {
 
 /// `RECV_CAP` on the endpoint capability in `slot`: receive a message that may carry a
 /// capability. Blocks until one arrives; returns `(w0, cap_slot, w1)`, where `cap_slot` is where
-/// the incoming capability landed in this thread's cspace, or [`abi::endpoint::NO_CAP`] if the
+/// the incoming capability landed in this thread's cspace, or [`abi::rendezvous::NO_CAP`] if the
 /// message carried none. This is how a server receives a [`call`]: the delivered capability is
 /// the one-shot Reply naming the caller (milestone 12, DECISIONS §12).
 #[cfg(target_arch = "aarch64")]
@@ -382,7 +382,7 @@ pub fn recv_cap(slot: u64) -> (u64, u64, u64) {
             "svc #0",
             in("x8") abi::SYS_INVOKE,
             inlateout("x0") slot => w0,
-            in("x1") abi::endpoint::RECV_CAP,
+            in("x1") abi::rendezvous::RECV_CAP,
             lateout("x1") w1,
             lateout("x2") w2,
             in("x3") 0u64,
@@ -403,7 +403,7 @@ pub fn recv_cap(slot: u64) -> (u64, u64, u64) {
             "ecall",
             in("a7") abi::SYS_INVOKE,
             inlateout("a0") slot => w0,
-            inlateout("a1") abi::endpoint::RECV_CAP => w1,
+            inlateout("a1") abi::rendezvous::RECV_CAP => w1,
             lateout("a2") w2,
             in("a3") 0u64,
             in("a4") 0u64,
@@ -425,7 +425,7 @@ pub fn call(slot: u64, w0: u64, w1: u64) -> (u64, u64) {
             "svc #0",
             in("x8") abi::SYS_INVOKE,
             inlateout("x0") slot => r0,
-            in("x1") abi::endpoint::CALL,
+            in("x1") abi::rendezvous::CALL,
             lateout("x1") r1,
             in("x2") w0,
             in("x3") w1,
@@ -446,7 +446,7 @@ pub fn call(slot: u64, w0: u64, w1: u64) -> (u64, u64) {
             "ecall",
             in("a7") abi::SYS_INVOKE,
             inlateout("a0") slot => r0,
-            inlateout("a1") abi::endpoint::CALL => r1,
+            inlateout("a1") abi::rendezvous::CALL => r1,
             in("a2") w0,
             in("a3") w1,
             in("a4") 0u64,

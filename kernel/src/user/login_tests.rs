@@ -47,7 +47,7 @@ const EEXIST: i32 = 17;
 /// subtree of their own at all: `login.rs` no longer creates one (DECISIONS §117: provision-time
 /// creation, never auto-vivified at login), so something upstream of it must, exactly as a real
 /// deployment's `identity_provisioner` would before anyone logs in.
-fn ensure_home_subtree(fs_ep: sched::EpId, fs_frame: u64, name: &[u8]) {
+fn ensure_home_subtree(fs_ep: sched::RendezvousId, fs_frame: u64, name: &[u8]) {
     // SAFETY: `fs_frame` is the file service's own shared page, already wired and idle (no client
     // exists yet at the point `wired` calls this, before the login service or any test client is
     // spawned), so writing into it directly and then calling through `fs_ep` is the same shape

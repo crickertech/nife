@@ -116,8 +116,8 @@ fn yield_switch() {
 /// recv-then-send; the client times send-then-recv. One iteration is two rendezvous, two
 /// mailbox copies, two wakes, two switches.
 fn ipc_rtt() {
-    let request = sched::create_endpoint();
-    let reply = sched::create_endpoint();
+    let request = sched::create_rendezvous();
+    let reply = sched::create_rendezvous();
 
     sched::spawn(move || {
         loop {
@@ -159,10 +159,10 @@ fn ipc_rtt() {
 /// timer-driven, neither deterministic under `-icount`. So this kernel-side topology bench is how the
 /// server tax gets a gated regression number; see notes/benchmarks.md.
 fn relay_rtt() {
-    let cl_req = sched::create_endpoint(); // client -> relay
-    let cl_reply = sched::create_endpoint(); // relay -> client
-    let bk_req = sched::create_endpoint(); // relay -> backend
-    let bk_reply = sched::create_endpoint(); // backend -> relay
+    let cl_req = sched::create_rendezvous(); // client -> relay
+    let cl_reply = sched::create_rendezvous(); // relay -> client
+    let bk_req = sched::create_rendezvous(); // relay -> backend
+    let bk_reply = sched::create_rendezvous(); // backend -> relay
 
     // The backend: the leaf service. Recv a request, send a reply, until the sentinel.
     sched::spawn(move || {
@@ -208,7 +208,7 @@ fn relay_rtt() {
 /// **Call/Reply round trip** (milestone 12): the one-endpoint shape real services use. One
 /// iteration mints a one-shot Reply capability, rendezvouses, replies through it, consumes it.
 fn call_reply() {
-    let ep = sched::create_endpoint();
+    let ep = sched::create_rendezvous();
 
     sched::spawn(move || {
         loop {
@@ -261,8 +261,8 @@ fn call_reply() {
 /// what the broker actually speaks: the broker serves its front endpoint with `RECV_CAP`, holds the
 /// client's one-shot Reply capability while it CALLs the backend, and answers through it.
 fn broker_rtt() {
-    let front = sched::create_endpoint(); // client -> broker
-    let back = sched::create_endpoint(); // broker -> backend
+    let front = sched::create_rendezvous(); // client -> broker
+    let back = sched::create_rendezvous(); // broker -> backend
 
     // The backend: the leaf service, answering through the Reply capability exactly as the direct
     // server in `call_reply` does.
@@ -443,7 +443,7 @@ const MAP_EL0_OVERHEAD: u64 = 32;
 
 /// Spawn the `os_primitives_benchmarker` EL0 program in a given role, granting it `report` (slot 0) to answer on.
 /// `false` if there is no `os_primitives_benchmarker` in the initrd (the bench boot then skips that line).
-fn spawn_os_primitives_benchmarker(role: u64, report: sched::EpId) -> bool {
+fn spawn_os_primitives_benchmarker(role: u64, report: sched::RendezvousId) -> bool {
     let Some(image) = crate::user::program("os_primitives_benchmarker") else {
         return false;
     };
@@ -454,7 +454,10 @@ fn spawn_os_primitives_benchmarker(role: u64, report: sched::EpId) -> bool {
                 arg0: role,
                 arg1: 0,
                 arg2: 0,
-                grants: &[crate::cap::endpoint_cap(report, crate::cap::Rights::WRITE)],
+                grants: &[crate::cap::rendezvous_cap(
+                    report,
+                    crate::cap::Rights::WRITE,
+                )],
                 maps: &[],
             },
         )
@@ -469,7 +472,7 @@ fn spawn_os_primitives_benchmarker(role: u64, report: sched::EpId) -> bool {
 /// it in the same format. The gap between this and a hypothetical kernel-side null syscall is roughly
 /// the EL0<->EL1 boundary cost, which is the whole point of measuring here. See `user/src/os_primitives_benchmarker.rs`.
 fn null_syscall_el0() {
-    let report = sched::create_endpoint();
+    let report = sched::create_rendezvous();
     if !spawn_os_primitives_benchmarker(EL_NULL_SYSCALL, report) {
         println!("bench: null_syscall skipped (no os_primitives_benchmarker in the initrd)");
         return;
@@ -484,7 +487,7 @@ fn null_syscall_el0() {
 /// an address-space change. With the boot thread blocked here on the report and only those two ready,
 /// the alternation is clean. See `user/src/os_primitives_benchmarker.rs`.
 fn ctx_switch_el0() {
-    let report = sched::create_endpoint();
+    let report = sched::create_rendezvous();
     // The peer first, so the timer always has something to switch to. It shares the report endpoint
     // (it never sends on it); the spawn shape stays uniform.
     if !spawn_os_primitives_benchmarker(EL_YIELDER, report) {
@@ -507,10 +510,10 @@ fn ipc_rtt_el0() {
         println!("bench: ipc_rtt skipped (no os_primitives_benchmarker in the initrd)");
         return;
     };
-    let request = sched::create_endpoint();
-    let reply = sched::create_endpoint();
-    let report = sched::create_endpoint();
-    use crate::cap::{Rights, endpoint_cap};
+    let request = sched::create_rendezvous();
+    let reply = sched::create_rendezvous();
+    let report = sched::create_rendezvous();
+    use crate::cap::{Rights, rendezvous_cap};
 
     sched::spawn(move || {
         crate::user::run(
@@ -520,8 +523,8 @@ fn ipc_rtt_el0() {
                 arg1: 0,
                 arg2: 0,
                 grants: &[
-                    endpoint_cap(request, Rights::READ), // slot 0: RECV requests
-                    endpoint_cap(reply, Rights::WRITE),  // slot 1: SEND replies
+                    rendezvous_cap(request, Rights::READ), // slot 0: RECV requests
+                    rendezvous_cap(reply, Rights::WRITE),  // slot 1: SEND replies
                 ],
                 maps: &[],
             },
@@ -537,9 +540,9 @@ fn ipc_rtt_el0() {
                 arg1: 0,
                 arg2: 0,
                 grants: &[
-                    endpoint_cap(report, Rights::WRITE),  // slot 0: report the result
-                    endpoint_cap(request, Rights::WRITE), // slot 1: SEND requests
-                    endpoint_cap(reply, Rights::READ),    // slot 2: RECV replies
+                    rendezvous_cap(report, Rights::WRITE), // slot 0: report the result
+                    rendezvous_cap(request, Rights::WRITE), // slot 1: SEND requests
+                    rendezvous_cap(reply, Rights::READ),   // slot 2: RECV replies
                 ],
                 maps: &[],
             },
@@ -638,10 +641,10 @@ fn ipc_thread_scaling() {
     let mut req = [0u64; SCALE_MAX_PAIRS];
     let mut reply = [0u64; SCALE_MAX_PAIRS];
     for i in 0..SCALE_MAX_PAIRS {
-        req[i] = sched::create_endpoint();
-        reply[i] = sched::create_endpoint();
+        req[i] = sched::create_rendezvous();
+        reply[i] = sched::create_rendezvous();
     }
-    let done = sched::create_endpoint();
+    let done = sched::create_rendezvous();
 
     for &pairs in SCALE_PAIRS {
         let ticks = tp_best(&req[..pairs], &reply[..pairs], done, pairs);
@@ -707,7 +710,7 @@ static APPDISP_STOP: AtomicBool = AtomicBool::new(false);
 /// sentinel idiom as [`ipc_rtt`], parameterized on a stop flag instead of an iteration count
 /// because this pair must outlive an unknown number of the workload's passes.
 #[cfg(target_arch = "aarch64")]
-fn appdisp_background_pair(rq: sched::EpId, rp: sched::EpId) {
+fn appdisp_background_pair(rq: sched::RendezvousId, rp: sched::RendezvousId) {
     sched::spawn(move || {
         loop {
             let m = sched::ipc_recv(rq);
@@ -764,7 +767,12 @@ fn appdisp_workload(words: usize, passes: u64) -> u64 {
 /// Returns the workload's own ticks, which is the number E4 cares about: what the APPLICATION's
 /// throughput did, not what the kernel's did.
 #[cfg(target_arch = "aarch64")]
-fn appdisp_batch(words: usize, passes: u64, req: &[sched::EpId], reply: &[sched::EpId]) -> u64 {
+fn appdisp_batch(
+    words: usize,
+    passes: u64,
+    req: &[sched::RendezvousId],
+    reply: &[sched::RendezvousId],
+) -> u64 {
     APPDISP_STOP.store(false, Ordering::SeqCst);
     let base = sched::thread_count();
     for i in 0..req.len() {
@@ -794,7 +802,12 @@ const APPDISP_REPEAT: usize = 5;
 
 /// Minimum ticks over [`APPDISP_REPEAT`] batches: the least host-contended sample.
 #[cfg(target_arch = "aarch64")]
-fn appdisp_best(words: usize, passes: u64, req: &[sched::EpId], reply: &[sched::EpId]) -> u64 {
+fn appdisp_best(
+    words: usize,
+    passes: u64,
+    req: &[sched::RendezvousId],
+    reply: &[sched::RendezvousId],
+) -> u64 {
     let mut best = u64::MAX;
     for _ in 0..APPDISP_REPEAT {
         best = best.min(appdisp_batch(words, passes, req, reply));
@@ -830,8 +843,8 @@ fn app_displacement() {
     let mut req = [0u64; APPDISP_IPC_PAIRS_HIGH];
     let mut reply = [0u64; APPDISP_IPC_PAIRS_HIGH];
     for i in 0..APPDISP_IPC_PAIRS_HIGH {
-        req[i] = sched::create_endpoint();
-        reply[i] = sched::create_endpoint();
+        req[i] = sched::create_rendezvous();
+        reply[i] = sched::create_rendezvous();
     }
 
     for &kib in APPDISP_WORKINGSET_KIB {
@@ -884,9 +897,9 @@ fn sink_throughput() {
         println!("bench: sink_throughput skipped (no os_primitives_benchmarker in the initrd)");
         return;
     };
-    let pipe = sched::create_endpoint();
-    let report = sched::create_endpoint();
-    use crate::cap::{Rights, endpoint_cap};
+    let pipe = sched::create_rendezvous();
+    let report = sched::create_rendezvous();
+    use crate::cap::{Rights, rendezvous_cap};
 
     // The producer first, so the consumer's first `RECV` meets a waiting sender rather than the
     // other way round. Either order works (a rendezvous blocks whichever side arrives first) and
@@ -900,7 +913,7 @@ fn sink_throughput() {
                 arg2: 0,
                 // **`WRITE` and nothing else**, which is exactly what the shell delegates to the
                 // left of a `|`. It cannot read back up its own output.
-                grants: &[endpoint_cap(pipe, Rights::WRITE)],
+                grants: &[rendezvous_cap(pipe, Rights::WRITE)],
                 maps: &[],
             },
         )
@@ -915,8 +928,8 @@ fn sink_throughput() {
                 arg1: 0,
                 arg2: 0,
                 grants: &[
-                    endpoint_cap(report, Rights::WRITE), // slot 0: report the result
-                    endpoint_cap(pipe, Rights::READ),    // slot 1: the pipe's read end
+                    rendezvous_cap(report, Rights::WRITE), // slot 0: report the result
+                    rendezvous_cap(pipe, Rights::READ),    // slot 1: the pipe's read end
                 ],
                 maps: &[],
             },
@@ -963,8 +976,8 @@ fn map_el0() {
         return;
     };
 
-    let report = sched::create_endpoint();
-    use crate::cap::{Rights, aspace_cap, endpoint_cap, frame_cap};
+    let report = sched::create_rendezvous();
+    use crate::cap::{Rights, aspace_cap, frame_cap, rendezvous_cap};
     sched::spawn(move || {
         crate::user::run(
             image,
@@ -973,9 +986,9 @@ fn map_el0() {
                 arg1: 0,
                 arg2: 0,
                 grants: &[
-                    endpoint_cap(report, Rights::WRITE), // slot 0: report the result
-                    aspace_cap(name, Rights::WRITE),     // slot 1: the space we map into
-                    frame_cap(phys, Rights::READ),       // slot 2: the frame we alias-map
+                    rendezvous_cap(report, Rights::WRITE), // slot 0: report the result
+                    aspace_cap(name, Rights::WRITE),       // slot 1: the space we map into
+                    frame_cap(phys, Rights::READ),         // slot 2: the frame we alias-map
                 ],
                 maps: &[],
             },
@@ -1002,9 +1015,9 @@ fn spawn_el0() {
         println!("bench: spawn_el0 skipped (no budget)");
         return;
     };
-    let report = sched::create_endpoint();
-    let child_done = sched::create_endpoint();
-    use crate::cap::{Rights, endpoint_cap, untyped_cap};
+    let report = sched::create_rendezvous();
+    let child_done = sched::create_rendezvous();
+    use crate::cap::{Rights, rendezvous_cap, untyped_cap};
     sched::spawn(move || {
         crate::user::run(
             image,
@@ -1013,9 +1026,9 @@ fn spawn_el0() {
                 arg1: 0,
                 arg2: 0,
                 grants: &[
-                    endpoint_cap(report, Rights::WRITE), // slot 0: report the result home
-                    untyped_cap(region),                 // slot 1: the spawner's whole budget
-                    endpoint_cap(
+                    rendezvous_cap(report, Rights::WRITE), // slot 0: report the result home
+                    untyped_cap(region),                   // slot 1: the spawner's whole budget
+                    rendezvous_cap(
                         child_done,
                         Rights::READ.union(Rights::WRITE).union(Rights::GRANT),
                     ), // slot 2: children signal done; spawner recvs and delegates WRITE
@@ -1245,7 +1258,12 @@ static TP_GO: AtomicBool = AtomicBool::new(false);
 /// first, then released together by `TP_GO` after `now()` is read, so N-pipeline batches are not
 /// charged N times the spawn cost that a 1-pipeline batch pays only once. `done` collects one signal
 /// per pipeline so the main thread can **block** (not busy-yield) through the timed window.
-fn tp_batch(req: &[sched::EpId], reply: &[sched::EpId], done: sched::EpId, pipes: usize) -> u64 {
+fn tp_batch(
+    req: &[sched::RendezvousId],
+    reply: &[sched::RendezvousId],
+    done: sched::RendezvousId,
+    pipes: usize,
+) -> u64 {
     TP_GO.store(false, Ordering::SeqCst);
     let base = sched::thread_count();
 
@@ -1294,7 +1312,12 @@ fn tp_batch(req: &[sched::EpId], reply: &[sched::EpId], done: sched::EpId, pipes
 }
 
 /// Minimum ticks over `TP_REPEAT` batches of `pipes` pipelines: the least host-contended sample.
-fn tp_best(req: &[sched::EpId], reply: &[sched::EpId], done: sched::EpId, pipes: usize) -> u64 {
+fn tp_best(
+    req: &[sched::RendezvousId],
+    reply: &[sched::RendezvousId],
+    done: sched::RendezvousId,
+    pipes: usize,
+) -> u64 {
     let mut best = u64::MAX;
     for _ in 0..TP_REPEAT {
         best = best.min(tp_batch(req, reply, done, pipes));
@@ -1329,7 +1352,7 @@ fn busy(iters: u64) -> u64 {
 /// one; §28 placement should spread them so the aggregate finishes in about `ceil(N/cores)` worker-
 /// times, i.e. aggregate throughput approaches `cores` times a single worker's. No rendezvous during
 /// the grind, so no cross-core wakes: the clean placement measurement. Main blocks on `done`.
-fn tc_batch(done: sched::EpId, workers: usize) -> u64 {
+fn tc_batch(done: sched::RendezvousId, workers: usize) -> u64 {
     TP_GO.store(false, Ordering::SeqCst);
     let base = sched::thread_count();
     for _ in 0..workers {
@@ -1356,7 +1379,7 @@ fn tc_batch(done: sched::EpId, workers: usize) -> u64 {
 }
 
 /// Minimum ticks over `TP_REPEAT` compute batches: the least host-contended sample.
-fn tc_best(done: sched::EpId, workers: usize) -> u64 {
+fn tc_best(done: sched::RendezvousId, workers: usize) -> u64 {
     let mut best = u64::MAX;
     for _ in 0..TP_REPEAT {
         best = best.min(tc_batch(done, workers));
@@ -1384,15 +1407,15 @@ fn smp_throughput() {
         return; // single hart (the icount instrument): there is no placement win to show.
     }
 
-    // Endpoint pairs, created once and reused across batches so a repeated run does not leak the
+    // Rendezvous pairs, created once and reused across batches so a repeated run does not leak the
     // endpoint table down. One request and one reply endpoint per pipeline, plus a shared done EP.
     let mut req = [0u64; TP_PIPES];
     let mut reply = [0u64; TP_PIPES];
     for i in 0..TP_PIPES {
-        req[i] = sched::create_endpoint();
-        reply[i] = sched::create_endpoint();
+        req[i] = sched::create_rendezvous();
+        reply[i] = sched::create_rendezvous();
     }
-    let done = sched::create_endpoint();
+    let done = sched::create_rendezvous();
 
     // Compute: the clean placement win. Warm once, then measure solo and the full machine.
     let _ = tc_batch(done, 1);

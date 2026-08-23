@@ -92,13 +92,13 @@
 //! The surface itself is three numbers, and everything else is a method on a capability:
 //!
 //! ```
-//! use abi::{SYS_EXIT, SYS_INVOKE, SYS_YIELD, endpoint};
+//! use abi::{SYS_EXIT, SYS_INVOKE, SYS_YIELD, rendezvous};
 //!
 //! assert_eq!([SYS_EXIT, SYS_YIELD, SYS_INVOKE], [0, 1, 2]);
 //!
-//! // Sending on an endpoint is a method number, not a syscall number. Adding an operation to the
+//! // Sending on a rendezvous is a method number, not a syscall number. Adding an operation to the
 //! // system is a new method here; adding a *syscall* is a design fork (DECISIONS §10, §16).
-//! assert_eq!(endpoint::SEND, 0);
+//! assert_eq!(rendezvous::SEND, 0);
 //! ```
 //!
 //! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review). Considered and
@@ -142,7 +142,7 @@ pub const CSPACE_SLOTS: u64 = 16;
 /// Methods on a `Console` capability. **Historical: no longer wired up.**
 ///
 /// Milestone 8 removed the kernel-served `Console` object (the console became a userspace server
-/// reached by an `Endpoint`). This constant is kept so the ABI's history is legible, but nothing
+/// reached by a `Rendezvous`). This constant is kept so the ABI's history is legible, but nothing
 /// in the kernel dispatches it any more.
 pub mod console {
     /// `invoke(cap, WRITE, ptr, len, _)` -> bytes written.
@@ -152,14 +152,14 @@ pub mod console {
     pub const WRITE: u64 = 0;
 }
 
-/// Methods on an `Endpoint` capability. **This is IPC.**
+/// Methods on a `Rendezvous` capability. **This is IPC.**
 ///
-/// An endpoint is a rendezvous point, and the two methods are the two sides of it. Which one you
-/// may call is a matter of *rights*, not of the endpoint: a capability with `WRITE` can `SEND`,
-/// one with `READ` can `RECV`. So the same object, handed out with different rights, is a
-/// one-way pipe in whichever direction each holder was trusted with. Neither side can do the
-/// other's job, and neither had to be told which end it is.
-pub mod endpoint {
+/// A rendezvous names a synchronous meeting point, and the two methods are the two sides of it.
+/// Which one you may call is a matter of *rights*, not of the rendezvous: a capability with
+/// `WRITE` can `SEND`, one with `READ` can `RECV`. So the same object, handed out with different
+/// rights, is a one-way pipe in whichever direction each holder was trusted with. Neither side
+/// can do the other's job, and neither had to be told which end it is.
+pub mod rendezvous {
     /// `invoke(cap, SEND, w0, w1, w2)` -> 0. **Blocks until a receiver takes the message.**
     ///
     /// The three words travel in registers and never touch memory. That is the whole of the
@@ -267,7 +267,7 @@ pub mod endpoint {
     pub const NO_CAP: u64 = u64::MAX;
 }
 
-/// What [`endpoint::SURVEY`] reports about a thread in the domain: the cursor sentinel, and the
+/// What [`rendezvous::SURVEY`] reports about a thread in the domain: the cursor sentinel, and the
 /// run states a supervised thread can be found in.
 ///
 /// **Only four states can appear, and the two absentees say something.** `Embryo` cannot, because a
@@ -289,7 +289,7 @@ pub mod survey {
     /// Blocked in an IPC rendezvous that has not happened.
     pub const BLOCKED: u64 = 3;
     /// A corpse (DECISIONS §26): it faulted or exited, its supervisor was told, and it persists
-    /// until [`endpoint::REAP`](super::endpoint::REAP) collects it. **This is the state `ps` exists to
+    /// until [`rendezvous::REAP`](super::rendezvous::REAP) collects it. **This is the state `ps` exists to
     /// make visible**, and
     /// it is the one Unix cannot show you without a parent that happens to have called `wait`.
     pub const DEAD: u64 = 4;
@@ -297,8 +297,8 @@ pub mod survey {
 
 /// Methods on a `Reply` capability. **A one-shot answer to a specific caller.**
 ///
-/// The kernel mints one on [`endpoint::CALL`] and hands it to the server through
-/// [`endpoint::RECV_CAP`]. It names the exact blocked caller, carries `WRITE` and no `GRANT` (so it
+/// The kernel mints one on [`rendezvous::CALL`] and hands it to the server through
+/// [`rendezvous::RECV_CAP`]. It names the exact blocked caller, carries `WRITE` and no `GRANT` (so it
 /// cannot be passed on), and is consumed the instant it is used, so a server cannot reply twice,
 /// reply to the wrong caller, or hoard it. Those are kernel guarantees, not server discipline.
 pub mod reply {
@@ -309,8 +309,8 @@ pub mod reply {
 
 /// Object types for [`untyped::RETYPE_OBJ`]: what a page of untyped becomes.
 pub mod objtype {
-    /// An IPC endpoint, page-resident, owned by the caller's budget (milestone 19a).
-    pub const ENDPOINT: u64 = 1;
+    /// An IPC rendezvous, page-resident, owned by the caller's budget (milestone 19a).
+    pub const RENDEZVOUS: u64 = 1;
 
     /// An address space (milestone 19b): the retyped page **is the L0 root table**, and the
     /// untyped it came from becomes the space's backing region, paying for every intermediate
@@ -380,7 +380,7 @@ pub mod aspace {
 
     /// `invoke(cap, LIST, cursor, 0, 0) -> (next_cursor, va, kind)` (milestone 126, `pmap`,
     /// DECISIONS §114). List what this address space has mapped, one entry per call, without the
-    /// ability to change any of it. `Endpoint::SURVEY`'s shape one object type over: same cursor
+    /// ability to change any of it. `Rendezvous::SURVEY`'s shape one object type over: same cursor
     /// protocol, same reason for one entry per call (the space's own mapping log is held only
     /// long enough to read one row, never for the whole walk), same right.
     ///
@@ -398,7 +398,7 @@ pub mod aspace {
     /// **Needs [`rights::ENUMERATE`](super::rights::ENUMERATE), and pointedly not `WRITE`.**
     /// `WRITE` on an address-space capability is what `MAP_INTO` takes; a viewer holding
     /// `ENUMERATE` alone can list every mapping and change none of them, the same split
-    /// `Endpoint::SURVEY` drew between looking and acting. See `capability::Rights::ENUMERATE`
+    /// `Rendezvous::SURVEY` drew between looking and acting. See `capability::Rights::ENUMERATE`
     /// and DECISIONS §114's delegation-audit caveat: every address-space capability minted since
     /// 2026-08-17 already carries the bit (the `Rights::ALL`-on-creation invariant), so this
     /// method's existence is what turns that bit from inert to live.
@@ -406,7 +406,7 @@ pub mod aspace {
 }
 
 /// The rights bits, matching `capability::Rights`, so userspace can name the rights to narrow a
-/// delegated capability to (the `rights` argument to [`endpoint::SEND_CAP`]) without depending on
+/// delegated capability to (the `rights` argument to [`rendezvous::SEND_CAP`]) without depending on
 /// the kernel's `capability` crate.
 ///
 /// **Four bits <!--count:rights-bits-->, and rights only ever narrow.** `capability::Rights::ALL`
@@ -443,7 +443,7 @@ pub mod fault {
     /// **The spawn-slot convention.** A supervised child is spawned with its supervision endpoint
     /// in this reserved cspace slot (via [`crate::tcb::CAP_INSERT`] with an explicit target slot, or a
     /// [`Spawn`](../user/struct.Spawn.html) grant). At `START` the kernel reads this slot: if it
-    /// holds an `Endpoint` capability the thread is supervised, and the kernel records the endpoint
+    /// holds a `Rendezvous` capability the thread is supervised, and the kernel records the endpoint
     /// as the thread's fault target and clears the slot (so the child cannot forge fault messages
     /// on it, keeping §26's "the kernel is the only sender" property). An empty slot means the
     /// thread is unsupervised and gets today's behaviour: it dies and is reaped immediately.
@@ -530,7 +530,7 @@ pub mod untyped {
     /// family; packing is a later placement optimization).
     ///
     /// `objtype` names what to make (see [`objtype`](super::objtype)); 19a implements
-    /// `ENDPOINT`. A region that has produced a kernel object is **pinned**: [`DESTROY`] reclaims
+    /// `RENDEZVOUS`. A region that has produced a kernel object is **pinned**: [`DESTROY`] reclaims
     /// it (object revocation) once the objects are torn down. `BadMethod` for an unknown objtype;
     /// `OutOfMemory` when the untyped is exhausted, the object registry is full, or the cspace is.
     pub const RETYPE_OBJ: u64 = 2;
@@ -612,7 +612,7 @@ pub enum Error {
     /// outside the driver's DMA region and the device was not allowed to touch it.
     DeviceRefused = -8,
 
-    /// **The thread is still running.** [`endpoint::REAP`] collects a corpse, and this one is not
+    /// **The thread is still running.** [`rendezvous::REAP`] collects a corpse, and this one is not
     /// one yet. Distinct from `NotPermitted` on purpose (DECISIONS §32): "you may not kill" and "no
     /// such child" are different facts, and a restart policy branches on them differently (wait, or
     /// escalate to the owner's `Untyped::DESTROY`, versus give up on that tid).
