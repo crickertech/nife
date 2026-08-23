@@ -1273,3 +1273,109 @@ pub fn start_std(
 
     Some((readiness, report))
 }
+
+/// **Two directory grants to one process** (milestone 154,
+/// design/roadmap/154-multi-directory-namespace.md). The endowment question milestone 47's
+/// `bind` and milestone 64's `File::open` fork both independently found unbuilt: nothing before
+/// this granted a *second* directory capability to one process. `start_granted_dir` starts one
+/// caretaker and hands one endpoint; this starts two, for one confined program:
+///
+/// ```text
+///   FS server ──file IPC──► fs_subtree_caretaker A ──narrowed file IPC──►
+///            (the image root)      (subtree A, one rights set)          the confined program
+///                       └────────► fs_subtree_caretaker B ──narrowed file IPC──►  (slot 0: A
+///                                  (subtree B, one rights set)                     slot 1: B
+///                                                                                   slot 2: report)
+/// ```
+///
+/// **The spawn-protocol position that says which directory is which is the cspace slot**: the
+/// confined program's slot 0 is always [`TwoDirGrant::a`], slot 1 always [`TwoDirGrant::b`].
+/// That is the whole of what this milestone decides about the wire, deliberately: a shell-to-init
+/// encoding for a *second* `DIR_BIT` grant (extending `grant_plan::spawnproto`'s `GRANT_WORDS`
+/// precedent the way a real interactive `bind` eventually will) is a design fork this milestone's
+/// own roadmap block leaves to whoever wires this into the shell.
+///
+/// Both caretakers share the one FS server this boot has: [`narrow_dir`]'s idempotent `ensure`
+/// pays for wiring it once and the second call reuses what the first built. Both narrowed
+/// endpoints end up mapping the **same** shared file-channel frame at [`FILE_VA_CLIENT`], and
+/// that is safe for the reason [`narrow_dir`]'s own doc gives one level narrower: the confined
+/// program is one thread of control with at most one `CALL` in flight, so it is never mid-request
+/// on both caretakers at once, whichever it happens to be talking to at a given moment owns the
+/// page exclusively for the length of that call.
+#[cfg_attr(not(test), allow(dead_code))]
+pub struct TwoDirGrant {
+    /// The first grant: the directory (one component under the image root) and the
+    /// [`fs_proto::dir`] rights, delivered at the confined program's cspace slot 0.
+    pub a: (&'static str, u64),
+    /// The second grant, at slot 1.
+    pub b: (&'static str, u64),
+    /// The confined program's `arg0` (its role) and `arg1`.
+    pub role: u64,
+    pub arg: u64,
+    /// Stack pages beyond the one `run` maps, for a confined program that needs them.
+    pub stack_pages: usize,
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn start_granted_two_dirs(
+    blk_image: &'static [u8],
+    fs_server_image: &'static [u8],
+    caretaker_image: &'static [u8],
+    client_image: &'static [u8],
+    grant: TwoDirGrant,
+) -> Option<EpId> {
+    let TwoDirGrant {
+        a,
+        b,
+        role,
+        arg,
+        stack_pages,
+    } = grant;
+    assert!(
+        stack_pages <= CLIENT_EXTRA_STACK,
+        "a two-directory client asked for more stack than this wiring maps",
+    );
+
+    // Both caretakers, fully up (their own readiness drained inside `narrow_dir`) before the
+    // confined program exists, for [`wait_for_caretaker`]'s reason: a client that already existed
+    // could clobber the shared page while a caretaker was still staging its own startup name in
+    // it.
+    let (narrow_a, file_shared) =
+        narrow_dir(blk_image, fs_server_image, caretaker_image, a.0, a.1)?;
+    let (narrow_b, file_shared_b) =
+        narrow_dir(blk_image, fs_server_image, caretaker_image, b.0, b.1)?;
+    debug_assert_eq!(
+        file_shared, file_shared_b,
+        "one boot has one FS server, so both caretakers must share its one file channel",
+    );
+
+    let report = crate::sched::create_endpoint();
+    crate::sched::spawn(move || {
+        let mut maps = [Mapping {
+            va: 0,
+            phys: 0,
+            flags: Flags::user_data(),
+        }; FILE_PAGES + CLIENT_EXTRA_STACK];
+        let n = map_channel(&mut maps, FILE_VA_CLIENT, file_shared, FILE_PAGES);
+        for (k, m) in maps[n..n + stack_pages].iter_mut().enumerate() {
+            m.va = USER_STACK_VA - (k as u64 + 1) * FRAME_SIZE;
+            m.phys = frame();
+        }
+        run(
+            client_image,
+            Spawn {
+                arg0: role,
+                arg1: arg,
+                arg2: 0,
+                grants: &[
+                    endpoint_cap(narrow_a, Rights::WRITE), // slot 0: CALL grant A's caretaker
+                    endpoint_cap(narrow_b, Rights::WRITE), // slot 1: CALL grant B's caretaker
+                    endpoint_cap(report, Rights::WRITE),   // slot 2: report to the kernel
+                ],
+                maps: &maps[..n + stack_pages],
+            },
+        )
+    })
+    .expect("could not spawn the two-directory client");
+    Some(report)
+}

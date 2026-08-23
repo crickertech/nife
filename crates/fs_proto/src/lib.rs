@@ -2936,6 +2936,42 @@ pub mod fixture {
         pub const REACHED_AN_UNMATCHED_NAME: u64 = 1 << 16;
     }
 
+    /// **What the two-directory witness reports** (milestone 154,
+    /// design/roadmap/154-multi-directory-namespace.md): one process, two `fs_subtree_caretaker`s,
+    /// two cspace slots, and the negative control that only a union of two grants can state.
+    ///
+    /// A bitmap for [`dirscape`]'s reason: the test asserts an *exact* set, so a witness that
+    /// reached nothing and one that reached everything both fail. The witness is told nothing
+    /// about its two grants beyond which cspace slot each landed in (slot 0 is always the first,
+    /// slot 1 the second, per `kernel/src/user/fs_service.rs`'s `start_granted_two_dirs` doc); it
+    /// tries to name a file in each subtree, tries to cross from one to the other both by request
+    /// and by `grant_plan::nav::TwoRoots`'s own client-side resolution, and reports what it found.
+    pub mod twodir {
+        /// It opened the file inside the **first** grant, through the first grant's own endpoint.
+        /// The control for that half: without it, every refusal below is equally consistent with a
+        /// caretaker that reaches nothing.
+        pub const OPENED_A: u64 = 1 << 0;
+        /// It opened the file inside the **second** grant, through the second grant's own endpoint.
+        /// The control for the other half, for the same reason.
+        pub const OPENED_B: u64 = 1 << 1;
+        /// **It opened the second grant's file through the first grant's endpoint.** Never allowed:
+        /// this is the structural finding notes/dir-capability.md records (the endpoint is the
+        /// boundary), witnessed here with two live caretakers rather than inferred from one.
+        pub const REACHED_B_VIA_A: u64 = 1 << 2;
+        /// **It opened the first grant's file through the second grant's endpoint.** Never allowed,
+        /// the same claim from the other side.
+        pub const REACHED_A_VIA_B: u64 = 1 << 3;
+        /// **`grant_plan::nav::TwoRoots::resolve` did not refuse a path that ascends out of one
+        /// grant and into the other** (the roadmap block's own example, `/a/../b`). Never allowed:
+        /// this is the negative control that only a union of two grants can state, proven as pure
+        /// client-side logic before any request reaches a caretaker.
+        pub const DOT_DOT_CROSSED_MOUNTS: u64 = 1 << 4;
+        /// **The thing the witness should be able to do failed**, so nothing above was proven. A
+        /// grant that reaches nothing is trivially unescapable, the same caveat every other
+        /// witness in this module carries.
+        pub const GRANTED_ACCESS_FAILED: u64 = 1 << 5;
+    }
+
     /// **What a navigating shell reports** (milestone 47's commands: `cd`, `pwd`, `ls`, `mkdir`,
     /// `rm`).
     ///

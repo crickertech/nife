@@ -22,13 +22,20 @@
 //! nameable only by the principal that established it, which is the channel-shaped attribution
 //! DECISIONS §109 decided on.
 //!
-//! # What this slice does and does not scope (see BUGS for the rest)
+//! # Which subtree a principal gets (see BUGS for the rest)
 //!
-//! Every successful login is attenuated to the **same** subtree ([`SUBTREE_NAME`]) with the same
-//! rights: this program does not decide *which* subtree a principal may see, only *that* it gets
-//! one of its own. Per-principal subtree scoping is milestone 47's already-built mechanism
-//! (`fs_subtree_caretaker`'s whole reason to exist); wiring identity to a specific subtree name is
-//! named as follow-on rather than guessed at here.
+//! **Each identity is attenuated to its own subtree, named by the identity string itself, used
+//! directly** (DECISIONS §117, 2026-08-23: no separate lookup table). `chris` and `corinne` land in
+//! two different, independently-scoped subtrees; neither can name the other's, and neither is the
+//! old shared fixture subtree earlier slices of this program used for everyone. The subtree must
+//! already exist: this program never creates one (`identity_provisioner`, milestone 155, does that
+//! at provisioning time, deliberately not auto-vivified here; see that decision's own reasoning for
+//! why provision-time creation was chosen over creating it on a principal's first login). An
+//! authenticated identity with no provisioned subtree is refused, folded into the same
+//! [`login_proto::DENIED`] a wrong password gets (see this program's BUGS on why). Per-principal
+//! subtree *scoping* (which subtree a grant may name at all, as opposed to *which one this program
+//! picks*) is milestone 47's already-built mechanism (`fs_subtree_caretaker`'s whole reason to
+//! exist); this program only decides the name.
 //!
 //! # Capability contract
 //!
@@ -77,11 +84,38 @@
 //! across logins, is real work this slice does not attempt and does not want to guess the shape of.
 //! It is unscoped follow-on, not an oversight.
 //!
-//! **Every successful login is attenuated to the same subtree, with the same rights.** See the
-//! module docs above. Per-principal scoping needs a way to look an identity up against a subtree
-//! name, which this program has no store for and milestone 49's own doc does not ask it to build
-//! (the roadmap's "isolation between humans" row is already built as milestone 47's per-shell root;
-//! what is missing is only the wiring between the two, which is follow-on).
+//! **Resolved, 2026-08-23 (DECISIONS §117).** Every successful login used to be attenuated to the
+//! same fixed subtree, with the same rights, for every identity. It is now attenuated to a subtree
+//! named by the identity string itself; see the module docs above for what that does and does not
+//! cover, and the two bounds this brought with it, named honestly rather than left implicit:
+//!
+//! - **An identity longer than [`fs_proto::grant::MAX_NAME`] (16 bytes) cannot get a per-identity
+//!   subtree in this slice at all**, even though [`login_proto::MAX_IDENTITY`] (64 bytes) would
+//!   otherwise accept it. The grant name travels in two `START` argument words to the caretaker,
+//!   not a frame (`fs_proto::grant`'s own doc explains why: a per-file or per-subtree grant this way
+//!   costs no extra page and no extra mapping), and that encoding is the 16-byte one, not
+//!   `login_proto`'s wider one. `mint` refuses (folded into [`login_proto::DENIED`], next bullet)
+//!   rather than silently truncating the name `fs_proto::grant::pack_name` would otherwise produce,
+//!   which would attenuate the caretaker to a *different* subtree than the one
+//!   `identity_provisioner` created (a name collision hazard, not merely a usability one: two
+//!   identities that agree on their first 16 bytes would silently share a subtree). Lifting this
+//!   bound to `login_proto`'s own 64 means giving the caretaker a frame for its grant instead of two
+//!   argument words, which is a change to `fs_proto::grant`'s contract and every caretaker built
+//!   against it, not a one-line fix here.
+//! - **An authenticated identity with no provisioned subtree is refused, indistinguishably from a
+//!   wrong password.** `mint`'s caretaker construction reaches the same `OPENDIR`-against-a-missing-
+//!   name refusal an unprovisioned identity's descent gets, and this program's existing fold (below,
+//!   "an otherwise-authenticated principal") already answers it with [`login_proto::DENIED`] rather
+//!   than a distinguishable code. **This is a considered answer, not the accident of reusing the
+//!   fold**: the same reasoning [`login_proto::DENIED`]'s own doc gives for a wrong password applies
+//!   just as much here (a caller must not be able to tell "your identity has no home" from "your
+//!   password is wrong" by comparing outcomes across attempts, which would let a caller probe which
+//!   identities are provisioned without ever presenting a right password for one). The honest cost is
+//!   that an operator who forgot to run `identity_provisioner` for a real identity sees the same
+//!   denial a typo would produce; the audit trail (see below) does not help here either, since it
+//!   only records a *successful* login. Distinguishing the two would need a new, deliberately-weaker
+//!   channel than the login result itself (an operator-facing log the login result is not), which is
+//!   real work this slice does not build.
 //!
 //! **Not wired into the interactive boot, and the blocker is a missing device grant, not a wiring
 //! exercise** (investigated 2026-08-23, milestone/49-login-boot-prompt). This process is spawned
@@ -200,10 +234,6 @@ const INITRD_VA: u64 = 0x2000_0000;
 /// uses, since the caretaker itself hardcodes it and this process copies its ELF, not its address).
 const CARETAKER_FS_VA: u64 = 0x0000_0000_0060_0000;
 
-/// **The one subtree every successful login is attenuated to, in this slice.** See this program's
-/// module docs and BUGS: per-principal scoping is real follow-on work and not guessed at here.
-const SUBTREE_NAME: &str = fs_proto::fixture::tree::SUB;
-
 /// This process's own scratch mappings for `build_child` (its page tables, never a child's).
 /// Small: one caretaker at a time is ever mid-construction, so this never needs to hold more than
 /// one build's worth of intermediate page tables. Sized generously against `INIT_OWN_PAGES` (128
@@ -263,6 +293,15 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
         };
         // Computed before the page is wiped: `identity` borrows LOGIN_VA and must not be read after.
         let hint = login_proto::identity_hint(identity);
+        // **Copy the identity out before it is gone.** `identity` borrows LOGIN_VA, and the page is
+        // wiped a few lines below (`wipe_login_page`, right after the credential relay); `mint`
+        // needs the identity's own bytes to name the subtree to attenuate to (DECISIONS §117), which
+        // happens after that wipe, on success. An owned, fixed-size copy (bounded by
+        // `login_proto::MAX_IDENTITY`, which `login_proto::read` has already checked `identity` fits
+        // within) is the only way to carry it that far without reading freed/zeroed memory.
+        let mut identity_buf = [0u8; login_proto::MAX_IDENTITY];
+        let identity_len = identity.len();
+        identity_buf[..identity_len].copy_from_slice(identity);
 
         // SAFETY: the wiring mapped one page read/write at CRED_VA before this process ran, shared
         // with the credential service and with nothing else.
@@ -284,7 +323,7 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
             continue;
         }
 
-        match mint(own_ut, &care_elf) {
+        match mint(own_ut, &care_elf, &identity_buf[..identity_len]) {
             Some((dir_ep, budget)) => {
                 send(RESULT, login_proto::OK, 0, 0);
                 delegate(dir_ep, abi::rights::WRITE);
@@ -306,17 +345,36 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
     }
 }
 
-/// **Mint one principal's capability set**: a fresh `fs_subtree_caretaker` and a fresh budget, both
-/// held with full rights so [`delegate`] can narrow them on the way out. `None` on any failure,
-/// which this process's caller answers with [`login_proto::DENIED`] (see this program's BUGS on why
-/// that is the honest fold rather than a missing distinction).
-fn mint(own_ut: u64, care: &elf::Elf) -> Option<(u64, u64)> {
+/// **Mint one principal's capability set**: a fresh `fs_subtree_caretaker` attenuated to
+/// `identity`'s own home subtree (DECISIONS §117: the identity string, used directly, with no
+/// separate lookup table) and a fresh budget, both held with full rights so [`delegate`] can narrow
+/// them on the way out. `None` on any failure, which this process's caller answers with
+/// [`login_proto::DENIED`] (see this program's BUGS on why that is the honest fold rather than a
+/// missing distinction, and on the two failures this now folds in alongside "the construction
+/// budget is spent": an identity too long for the grant mechanism, and an authenticated identity
+/// with no provisioned subtree).
+///
+/// `identity` must already name a subtree `identity_provisioner` created; this process never
+/// creates one (DECISIONS §117: provision-time creation, not auto-vivified at login).
+fn mint(own_ut: u64, care: &elf::Elf, identity: &[u8]) -> Option<(u64, u64)> {
+    // **The grant name travels in two `START` argument words, not a frame** (`fs_proto::grant`'s own
+    // doc), so it is capped at `grant::MAX_NAME` (16 bytes): smaller than `login_proto::MAX_IDENTITY`
+    // (64), the bound `identity` already satisfies by construction (`login_proto::read` checked it).
+    // `pack_name` does not itself refuse an oversized name; it silently stops copying at the 16th
+    // byte, which would otherwise mint a caretaker attenuated to a *different, truncated* name than
+    // the one `identity_provisioner` created. Refusing here, before anything is built, is what keeps
+    // that silent truncation from ever happening. See this program's BUGS: identities over 16 bytes
+    // cannot get a per-identity subtree in this slice at all.
+    if !fs_proto::grant::fits(identity) {
+        return None;
+    }
+
     let region = untyped_split(CONSTRUCTION_UT, CARETAKER_REGION_PAGES).ok()?;
     let narrow_ep = retype_obj(region, abi::objtype::ENDPOINT).ok()?;
     let ready = retype_obj(region, abi::objtype::ENDPOINT).ok()?;
 
-    let (lo, hi) = fs_proto::grant::pack_name(SUBTREE_NAME.as_bytes());
-    let spec = fs_proto::grant::spec(SUBTREE_NAME.len(), fs_proto::dir::ALL);
+    let (lo, hi) = fs_proto::grant::pack_name(identity);
+    let spec = fs_proto::grant::spec(identity.len(), fs_proto::dir::ALL);
 
     // Its whole authority: the file service to attenuate, the endpoint it will serve, one place to
     // say it is ready, and the frame it shares with the file service. No untyped of its own, no
@@ -350,6 +408,15 @@ fn mint(own_ut: u64, care: &elf::Elf) -> Option<(u64, u64)> {
     }
     // The one bounded wait: the caretaker's descent against the file service, exactly the
     // handshake `crates/system_initializer::build_caretaker` performs.
+    //
+    // **This is also where "the credential is real but nobody ever provisioned this identity's
+    // subtree" is answered**, and deliberately with no special case: `identity_provisioner` didn't
+    // run, or its `MKDIR` never reached this file service's disk, so the caretaker's `OPENDIR`
+    // against `identity` comes back `ENOENT` and it reports [`fs_proto::fixture::DESCENT_REFUSED`]
+    // here instead of `READY`, which this function already turns into `None` and this program's
+    // caller already folds into `login_proto::DENIED`, indistinguishable from a wrong password. See
+    // this program's BUGS for why that fold is the considered answer for this case too, not merely
+    // an accident of reusing the same code path.
     let (verdict, _, _) = recv(ready);
     cap_delete(ready);
     if verdict != fs_proto::fixture::READY {

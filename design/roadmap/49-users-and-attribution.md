@@ -1,15 +1,21 @@
 # 49. Users, login, and attribution: what identity is for once it stops being authority
 
-**Status: PARTIAL.** A login service exists, proven end to end (see "What is built" below), and it
-authenticates exactly one login path against the credential service milestone 56 already built. It
-is not wired into the interactive boot, it attenuates every principal to the same subtree rather than
-a per-identity one, and it hands back two of the three capabilities the milestone's own text names
-(a directory and a budget; not a terminal). See BUGS for the full remainder and where each piece is
-headed.
+**Status: PARTIAL, unchanged by this update.** A login service exists, proven end to end (see "What
+is built" below), and it authenticates exactly one login path against the credential service
+milestone 56 already built. It is not wired into the interactive boot, and it hands back two of the
+three capabilities the milestone's own text names (a directory and a budget; not a terminal). See
+BUGS for the full remainder and where each piece is headed.
 
 **Gate: NONE.** Milestone 47 landed 2026-08-22. The attribution fork is decided (DECISIONS §109):
 channel, not capability. What remained was a real component to build (login); a first slice of it now
 exists.
+
+**Per-identity subtree scoping, this update's own piece, is resolved.** `login` used to attenuate
+every principal to the same fixed subtree; it now attenuates each identity to a subtree named by
+the identity string itself (DECISIONS §117), created beforehand at provisioning time by milestone
+155's `identity_provisioner`. What remains open (interactive boot wiring, the terminal) is exactly
+what it was before; this update does not move the status line, and says so per this file's own
+convention for a piece that lands without changing it.
 
 **A named prerequisite for milestone 152 (durable delegation)**, minted 2026-08-22: a scheduled job
 registered by a specific user (milestone 129's #387) needs a durable principal to be supervised by,
@@ -104,9 +110,25 @@ survives past what used to be a hard, silent ceiling of eight logins ever (a lea
 login; see BUGS), by taking the shared instance's login count to nine and checking each one's
 directory and budget work.
 
-See `user/src/login.rs`'s own BUGS for the itemised remainder (per-principal subtree scoping, the
-terminal, boot integration, measured-boot consultation, and reclamation), summarised in this
-milestone's BUGS below.
+**Per-identity subtree scoping (DECISIONS §117), landed in this update.** `login` now attenuates
+each authenticated identity to a subtree named by the identity string itself, used directly with no
+lookup table, matching exactly what milestone 155's `identity_provisioner` creates at provisioning
+time. Proven by `login_scopes_each_identity_to_its_own_provisioned_subtree`: `chris` and `corinne`
+each write a self-naming marker into the directory `login` delegated and confirm the old, shared
+fixture subtree's own file is absent from it (proof, not assertion, that neither landed there);
+`chris` then logs in a second, independent time and reads back `chris`'s own marker, not `corinne`'s,
+which is the isolation property stated positively. A companion test,
+`login_denies_an_authenticated_identity_with_no_provisioned_subtree`, checks the considered fold for
+a real credential with no provisioned subtree: refused, indistinguishably from a wrong password (see
+`user/src/login.rs`'s own BUGS for the reasoning). A third bound surfaced by this work and now
+recorded rather than left implicit: an identity longer than sixteen bytes cannot get a per-identity
+subtree in this slice at all, because the grant name travels in two argument words to the caretaker
+(`fs_proto::grant::MAX_NAME`), narrower than `login_proto::MAX_IDENTITY`'s sixty-four; `login`
+refuses rather than silently truncating.
+
+See `user/src/login.rs`'s own BUGS for the itemised remainder (the terminal, boot integration,
+measured-boot consultation, reclamation, and the two bounds above), summarised in this milestone's
+BUGS below.
 
 ## Attribution is the actual work, and the one place Unix does something we do not
 
@@ -142,13 +164,14 @@ Named here rather than only at the component, because a reader of the milestone 
 in the same place they meet the status line. Each item is also recorded where the reader meets the
 feature (`user/src/login.rs`'s own BUGS, more precisely worded per item).
 
-- **Every principal is attenuated to the same subtree**, `fs_proto::fixture::tree::SUB`, with the
-  same rights. Milestone 47's per-shell root already builds the isolation mechanism (a
-  `fs_subtree_caretaker` per grant); the wiring from an authenticated *identity* to a *specific*
-  subtree name is **decided (DECISIONS §117, 2026-08-23)**: the identity string itself, used
-  directly, created at provisioning time rather than auto-vivified at login. Building it needs
-  milestone 155 (a provisioning tool) first, since provision-time creation has nothing to create
-  the subtree today.
+- **Resolved.** Every principal used to be attenuated to the same subtree,
+  `fs_proto::fixture::tree::SUB`, with the same rights. `login` now attenuates each identity to a
+  subtree named by the identity string itself, used directly (DECISIONS §117, 2026-08-23), created
+  at provisioning time by milestone 155's `identity_provisioner` rather than auto-vivified at login.
+  Two bounds this brought with it, named rather than left implicit: an identity longer than sixteen
+  bytes (`fs_proto::grant::MAX_NAME`) cannot get a per-identity subtree in this slice at all, and an
+  authenticated identity with no provisioned subtree is refused indistinguishably from a wrong
+  password (a considered fold, not an oversight; see `user/src/login.rs`'s own BUGS for both).
 - **No terminal.** The roadmap's own text names three things a login hands back; `login` hands back
   two. A terminal in this system is a singleton hardware-backed resource wired once at interactive
   boot; minting a second one, or multiplexing the one that exists across logins, is unscoped follow-on.

@@ -29,6 +29,7 @@
 #![no_main]
 
 use fs_proto::{dir, fixture, fs, grant, xattr};
+use grant_plan::nav::{TwoRoots, Which};
 use user_rt::{call, exit, now, send};
 
 /// The file-service endpoint: the client's whole authority to the filesystem. Naming a file over it
@@ -205,6 +206,13 @@ const ROLE_SMB_VERIFY: u64 = 8;
 /// [`ROLE_BENCH`], on the service that role already wired. The number lives in `fs_proto` because
 /// the kernel passes it and this program matches on it, which is rule 7's case exactly.
 const ROLE_THROUGHPUT: u64 = fixture::throughput::ROLE;
+/// Milestone 154: the confined program that holds **two** directory capabilities at once, one at
+/// cspace slot 0 and one at slot 1 (`kernel/src/user/fs_service.rs`'s `start_granted_two_dirs`
+/// convention). It
+/// proves the roadmap block's own deliverable: `/a/x` and `/b/y` both resolve to the grant their
+/// label names, `/a/../b` is refused before it ever reaches a caretaker, and neither caretaker's
+/// tree is reachable through the other's endpoint.
+const ROLE_TWO_DIR: u64 = 10;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(role: u64, a1: u64, _a2: u64) -> ! {
@@ -218,6 +226,7 @@ pub extern "C" fn _start(role: u64, a1: u64, _a2: u64) -> ! {
         ROLE_SMB_SEED => smb_seed(),
         ROLE_SMB_VERIFY => smb_verify(),
         ROLE_THROUGHPUT => throughput(),
+        ROLE_TWO_DIR => two_dir(),
         ROLE_PROOF => proof(),
         _ => proof(),
     }
@@ -904,6 +913,97 @@ fn dir_attacker(run: u64) -> ! {
 
     send(REPORT, fixture::VERDICT, v, 0);
     exit();
+}
+
+/// **The two-directory witness** (milestone 154,
+/// design/roadmap/154-multi-directory-namespace.md).
+///
+/// It holds two `fs_subtree_caretaker`s at once, one at cspace slot 0 and one at slot 1
+/// (`kernel/src/user/fs_service.rs`'s `start_granted_two_dirs` convention, which the kernel test wiring this role
+/// follows). It is told nothing about either grant beyond that ordering; the kernel test wires
+/// slot 0 to the fixture's `sub` (labeled `a`) and slot 1 to `other` (labeled `b`), and this
+/// program only ever learns that through the labels it was compiled to use.
+///
+/// It proves the roadmap block's own deliverable, in its own words:
+/// - `/a/inner` and `/b/secret` (the milestone's `/a/x` and `/b/y`) both resolve, through
+///   [`grant_plan::nav::TwoRoots`]'s pure resolution and then a real `OPEN` on the caretaker the
+///   resolution named.
+/// - `/a/../b` is refused **before any request is sent**: `TwoRoots::resolve` returns an error,
+///   the same way a single grant's `..` at its own root already does, so the witness never even
+///   asks slot 1's caretaker for anything.
+/// - **Neither caretaker's tree is reachable through the other's endpoint**, checked directly by
+///   asking slot 0 for the name that only exists in grant B's subtree, and slot 1 for the name
+///   that only exists in grant A's, which is the structural finding notes/dir-capability.md
+///   already argues (the endpoint is the boundary), witnessed here with two live caretakers
+///   rather than inferred from one.
+fn two_dir() -> ! {
+    use fixture::tree;
+    use fs_proto::fixture::twodir as t;
+
+    /// Grant A's endpoint: `fs_service::start_granted_two_dirs`' slot 0.
+    const FILE_A: u64 = 0;
+    /// Grant B's endpoint: slot 1.
+    const FILE_B: u64 = 1;
+    /// Where this role reports, one slot past the two directory endpoints.
+    const REPORT_SLOT: u64 = 2;
+
+    let mut v = 0u64;
+    // The labels are this witness's own choice, independent of what the grants are named on
+    // disk (`sub`, `other`): a namespace label is assigned by whoever composes the namespace,
+    // not by the directory it points at, and using different words for the two makes that plain.
+    let ns = TwoRoots::new(b"a", b"b");
+
+    // `/a/inner`: resolves to grant A, one component deep, and opens through slot 0.
+    match ns.resolve(b"/a/inner") {
+        Ok((Which::A, cwd)) if cwd.depth() == 1 => {
+            if dir_open_on(FILE_A, fs::ROOT, cwd.component(0)) >= 0 {
+                v |= t::OPENED_A;
+            } else {
+                v |= t::GRANTED_ACCESS_FAILED;
+            }
+        }
+        _ => v |= t::GRANTED_ACCESS_FAILED,
+    }
+
+    // `/b/secret`: the same claim, through the second grant and slot 1.
+    match ns.resolve(b"/b/secret") {
+        Ok((Which::B, cwd)) if cwd.depth() == 1 => {
+            if dir_open_on(FILE_B, fs::ROOT, cwd.component(0)) >= 0 {
+                v |= t::OPENED_B;
+            } else {
+                v |= t::GRANTED_ACCESS_FAILED;
+            }
+        }
+        _ => v |= t::GRANTED_ACCESS_FAILED,
+    }
+
+    // The negative control: a path that ascends out of grant A and into grant B. Resolution
+    // itself must refuse it, so nothing below sends a request over it at all.
+    if ns.resolve(b"/a/../b").is_ok() {
+        v |= t::DOT_DOT_CROSSED_MOUNTS;
+    }
+
+    // And from the wire's own side, independent of `TwoRoots` entirely: grant A's caretaker
+    // holds nothing that names grant B's tree, and the reverse. `secret` is real, on the image,
+    // and one directory entry away from the caretaker one hop up; a capability to `sub` reaching
+    // it would be an escape whether or not any namespace logic tried to stop it.
+    if dir_open_on(FILE_A, fs::ROOT, tree::SECRET.as_bytes()) >= 0 {
+        v |= t::REACHED_B_VIA_A;
+    }
+    if dir_open_on(FILE_B, fs::ROOT, tree::INNER.as_bytes()) >= 0 {
+        v |= t::REACHED_A_VIA_B;
+    }
+
+    send(REPORT_SLOT, fixture::VERDICT, v, 0);
+    exit();
+}
+
+/// `OPEN` a name under a directory handle, over a chosen endpoint slot: [`two_dir`]'s own
+/// helper, because every other role in this file talks to exactly one caretaker at slot
+/// [`FILE`] and this is the one role that holds two.
+fn dir_open_on(ep: u64, parent: u64, name: &[u8]) -> i64 {
+    put_page(name);
+    call(ep, fs::req(fs::OPEN, parent, name.len() as u64), 0).0 as i64
 }
 
 /// **The attribute witness behind a name-set grant** (milestone 61, the third caretaker).
