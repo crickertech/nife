@@ -29,10 +29,6 @@ reduction from `main`'s actual pre-156 baseline (2914 / 4168), just not as large
 figures the lost merge had produced. `bench/fastpath-{aarch64,riscv64}.txt` reflect the corrected,
 verified numbers.
 
-**Gate: NONE.** Nothing here needs a decision; it is mechanical extraction plus a small, symmetric
-change to an existing check, verified per step by re-measuring. `script/fastpath-footprint`'s own
-`--save` flag is the only irreversible act in this milestone, and it is the last step, not the first.
-
 ## The second finding: the gate only ratchets in one direction
 
 Checked directly, `script/fastpath-footprint`'s own comparison:
