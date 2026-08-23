@@ -44,6 +44,11 @@ grant_plan = { version = "0.1.0", path = "../crates/grant_plan" }
 # `compatible` and names the binding with these constants, and its clock tests read the shared page
 # through the same seqlock the service publishes with, so no party has its own copy of the layout.
 clock_proto = { version = "0.1.0", path = "../crates/clock_proto" }
+# The inert-configuration contract (milestone 47's environment-variable fork, DECISIONS §111). The
+# kernel-side std program wiring assembles the page (`PageBuilder`) and maps it read-only into a
+# std program the same way it does the clock page, so no party has its own copy of the layout or
+# the validated domains.
+env_proto = { version = "0.1.0", path = "../crates/env_proto" }
 # The block-device roster (milestone 57). The kernel writes the page and the surveyor reads it, and
 # the kernel's own tests read it back through this crate rather than by trusting the count the
 # program sent home, so no party has its own copy of the layout.
