@@ -34,7 +34,7 @@ is real work, worth spending only once something actually needs the feature.
 
 ## Prior art and precedent, both pointing the same way
 
-Plan 9 doesn't lean on hard links for "give this content another name" — namespace composition
+Plan 9 doesn't lean on hard links for "give this content another name": namespace composition
 (`bind`) covers it, and this tree already took Plan 9's answer once for the adjacent question (§50).
 This tree's own instinct elsewhere is consistent: §16 keeps region ownership a tree, with a
 DAG-shaped revocation layer explicitly deferred as "purely additive... if ever wanted," not built
