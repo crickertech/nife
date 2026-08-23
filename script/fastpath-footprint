@@ -241,6 +241,18 @@ for line in open(base_path):
 # static. icount drifts across builds because the compiler remakes inlining decisions for unrelated
 # reasons (notes/benchmarks.md records that measurement); a symbol size moves when the code moves.
 # A looser bound here would let real creep through.
+#
+# **Symmetric on purpose** (milestone 156). A one-sided `delta > TOL` only ever catches growth, so
+# a real improvement (an extraction, a smaller data structure) can land and sit unclaimed as slack
+# in the baseline forever, and a stale-loose baseline silently widens the tripwire's real tolerance:
+# if the code shrinks 20% and nobody re-saves, a later regression of +15% against the *current* code
+# is actually +15% against a number 20% too generous, and the gate still says "within bound." A
+# shrink needs no justification for *why* (unlike growth, which must say what caused it), only an
+# explicit `--save` that locks in the tighter number, so the baseline never drifts stale by more
+# than one tolerance band in either direction. Measured run-to-run variance on an un-padded build is
+# 0% (three back-to-back runs with no code change produced byte-identical symbol sizes, since a
+# release build has no incremental-compilation or codegen-unit nondeterminism to speak of), so TOL
+# is not narrower than anything the data supports in either direction.
 TOL = 0.05
 bad = False
 for key, got in (("ipc_fastpath", closure_total), ("syscall_entry", entry_total)):
@@ -254,6 +266,12 @@ for key, got in (("ipc_fastpath", closure_total), ("syscall_entry", entry_total)
         print(f"fastpath-footprint: {arch}: {key} grew {delta*100:.1f}% ({ref} -> {got}), over the {TOL*100:.0f}% bound.",
               file=sys.stderr)
         print("  Shrink it, or re-record with --save in the commit that causes the growth and say why.",
+              file=sys.stderr)
+        bad = True
+    elif delta < -TOL:
+        print(f"fastpath-footprint: {arch}: {key} shrank {-delta*100:.1f}% ({ref} -> {got}), over the {TOL*100:.0f}% bound.",
+              file=sys.stderr)
+        print("  The baseline is stale: re-record with --save to lock in the tighter bound (no justification needed for shrinking, just an explicit acknowledgment).",
               file=sys.stderr)
         bad = True
     elif abs(delta) > 0.001:
