@@ -469,6 +469,26 @@ path = "src/credentialer_test_client.rs"
 test = false
 bench = false
 
+# The login service (milestone 49, provisional name): authenticates a presented identity against
+# the credential service and, on success, mints a fresh directory capability (a
+# `fs_subtree_caretaker` built for that principal) and a fresh budget rather than mutating anything
+# ambient. `mkinitrd` packs it as "login" for both ISAs.
+[[bin]]
+name = "login"
+path = "src/login.rs"
+test = false
+bench = false
+
+# The login service's test client (milestone 49, provisional name): presents an identity and a
+# secret, and on `login_proto::OK` receives the caretaker's endpoint, the file service's shared
+# frame, and a budget, then uses all three to prove they work rather than merely that they arrived.
+# `mkinitrd` packs it as "login_test_client" for both ISAs.
+[[bin]]
+name = "login_test_client"
+path = "src/login_test_client.rs"
+test = false
+bench = false
+
 # The NTP client (milestone 51): holds a network capability and the right to PROPOSE a time, and
 # deliberately not the right to set one. One binary, three roles (the client, the test server that
 # answers it, and the probe that proves the clock page is unreachable). `mkinitrd` packs it as "ntp"
@@ -564,6 +584,7 @@ grant_plan = { version = "0.1.0", path = "../crates/grant_plan" }
 clock_proto = { version = "0.1.0", path = "../crates/clock_proto" }
 cred = { version = "0.1.0", path = "../crates/cred" }
 cred_proto = { version = "0.1.0", path = "../crates/cred_proto" }
+login_proto = { version = "0.1.0", path = "../crates/login_proto" }
 compositor = { version = "0.1.0", path = "../crates/compositor" }
 coremark = { version = "0.1.0", path = "../crates/coremark" }
 nifefs = { version = "0.1.0", path = "../crates/nifefs" }

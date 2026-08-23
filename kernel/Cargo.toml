@@ -59,6 +59,10 @@ cpu_set = { version = "0.1.0", path = "../crates/cpu_set" }
 # service and its provisioner, and its tests read the reply codes the userspace clients report, so
 # no party has its own copy of what a verdict means.
 cred_proto = { version = "0.1.0", path = "../crates/cred_proto" }
+# The login contract (milestone 49). The kernel wires the login service and `login_test_client`'s
+# roles, and the tests read the same reply and attribution codes the service sends, so no party has
+# its own copy of what a verdict or an attribution record means.
+login_proto = { version = "0.1.0", path = "../crates/login_proto" }
 coremark = { version = "0.1.0", path = "../crates/coremark" }
 nifefs = { version = "0.1.0", path = "../crates/nifefs" }
 dma_validator = { version = "0.1.0", path = "../crates/dma_validator" }

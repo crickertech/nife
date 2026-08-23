@@ -1885,6 +1885,30 @@ pub mod credential_service;
 #[cfg(test)]
 mod credential_tests;
 
+/// **The login service: authentication produces capabilities, not a mutated identity** (milestone
+/// 49, DECISIONS §109). The kernel spawns it exactly as it spawns `credentialer`: the archive
+/// mapped read-only, a construction budget, and the endpoints it needs, so what is under test is
+/// `user/src/login.rs`'s own choices rather than a privileged shortcut.
+///
+/// Not arch-gated, for `credential_service`'s own reason: `nifefs`, `elf`, and
+/// `supervision_proto::build_child` are portable, and a login service that mints capabilities on
+/// one instruction set and not another is not the claim this milestone makes.
+#[cfg_attr(not(test), allow(dead_code))] // the milestone-49 login tests are its callers
+pub mod login_service;
+
+/// **A login produces a directory and a budget, not a changed identity** (milestone 49).
+///
+/// What these prove that nothing else would: that a correct identity and secret yield capabilities
+/// which actually work (a real `READDIR` through a freshly built `fs_subtree_caretaker`, a real
+/// page retyped from a freshly split budget), that a wrong secret is refused and nothing follows
+/// the refusal, and that two different identities' channels are independently working and
+/// correctly attributed in the service's own audit trail (DECISIONS §109's property, made
+/// checkable). See `user/src/login.rs`'s BUGS for what this slice does not attempt: a terminal,
+/// per-principal subtree scoping, and wiring into the interactive boot are all named there as
+/// follow-on rather than guessed at here.
+#[cfg(test)]
+mod login_tests;
+
 /// **The NTP client, and the test server that answers it** (milestone 51; DECISIONS §43, §44).
 ///
 /// The kernel's part is the wiring, and the wiring *is* the argument. An NTP client here gets five

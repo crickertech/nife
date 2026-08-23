@@ -182,9 +182,18 @@ const FRAME_REPORT_MIN: usize = 16;
 /// ever stops holding the honest fix is a per-architecture pair here rather than a looser single
 /// ceiling.
 ///
+/// **Raised again, 2026-08-22, milestone 49's login service.** `login`'s test suite wires one
+/// instance of the service (a memoized `DONE` flag, `credential_service`'s and `fs_service`'s own
+/// shape) with a 640-frame construction budget: `crate::untyped::create` reserves that whole amount
+/// the moment the service is spawned, whether or not every page is later split into an object, which
+/// is this ledger's own documented property (a reservation costs what it reserves). It never gives
+/// the budget back, on purpose: the service keeps serving logins for the life of the boot, the same
+/// shape `credential_service`'s 1656-frame credential store already is in this ledger. Measured
+/// aarch64 total: 15624 kept. notes/frames.md's held-frames list carries the itemised account.
+///
 /// Raising it is a decision, not a formality: read the `[that test kept N frames]` lines the run
 /// prints, find who grew, and be able to say why that growth is permanent.
-const SUITE_FRAME_BUDGET: usize = 15_000;
+const SUITE_FRAME_BUDGET: usize = 16_200;
 
 /// **The longest run of free frames the boot must still have at the end**, in frames.
 ///

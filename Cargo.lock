@@ -384,6 +384,7 @@ dependencies = [
  "ipc",
  "isa",
  "line_editor",
+ "login_proto",
  "measured_boot",
  "nifefs",
  "ntp_proto",
@@ -424,6 +425,13 @@ name = "log"
 version = "0.4.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ceec5bc11778974d1bcb055b18002eba7f4b3518b6a0081b3af5f21666da9ad"
+
+[[package]]
+name = "login_proto"
+version = "0.1.0"
+dependencies = [
+ "cred_proto",
+]
 
 [[package]]
 name = "loom"
@@ -895,6 +903,7 @@ dependencies = [
  "gpt",
  "grant_plan",
  "line_editor",
+ "login_proto",
  "manual",
  "mdns_config",
  "mdns_proto",
