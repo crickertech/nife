@@ -534,7 +534,10 @@ fn focus_routes_a_keystroke_to_one_terminals_grid_and_not_its_neighbours() {
         let (cols, rows) = ((dims & 0xffff_ffff) as u32, (dims >> 32) as u32);
         assert_eq!(
             (cols, rows),
-            (SCENE[i].w / bitmap_font::GLYPH_W, SCENE[i].h / bitmap_font::GLYPH_H),
+            (
+                SCENE[i].w / bitmap_font::GLYPH_W,
+                SCENE[i].h / bitmap_font::GLYPH_H
+            ),
             "terminal {i} sized itself to a grid its window cannot hold",
         );
         terms[i] = video_terminal::script::window(i, cols, rows);

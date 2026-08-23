@@ -279,7 +279,8 @@ pub fn start_terminal(
     // frame (see `user/src/display_terminal.rs`) and that `Vt::pixel` answers for, which is what
     // keeps the picture a total function of the state.
     const _: () = assert!(
-        graphics_proto::WIDTH >= bitmap_font::GLYPH_W && graphics_proto::HEIGHT >= bitmap_font::GLYPH_H,
+        graphics_proto::WIDTH >= bitmap_font::GLYPH_W
+            && graphics_proto::HEIGHT >= bitmap_font::GLYPH_H,
         "the scanout is too small for one character cell",
     );
     // And the script's geometry is the scanout's, checked here rather than trusted, because the

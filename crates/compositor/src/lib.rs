@@ -1176,7 +1176,10 @@ mod tests {
         );
         // And what the driver is handed round-trips through its own packing.
         let (x, y, w, h) = Rect::new(9, 8, 7, 6).as_flush_rect().unwrap();
-        assert_eq!(graphics_proto::unrect(graphics_proto::rect(x, y, w, h)), (9, 8, 7, 6));
+        assert_eq!(
+            graphics_proto::unrect(graphics_proto::rect(x, y, w, h)),
+            (9, 8, 7, 6)
+        );
         assert!(graphics_proto::rect_in_surface(x, y, w, h));
     }
 

@@ -8433,8 +8433,11 @@ pub const GET: u64 = 1;
 
         // Shifted one row: a stride bug.
         assert!(
-            scanout_holds_the_pattern(&ppm(|x, y| pattern_rgb(x, (y + 1) % graphics_proto::HEIGHT)))
-                .is_err(),
+            scanout_holds_the_pattern(&ppm(|x, y| pattern_rgb(
+                x,
+                (y + 1) % graphics_proto::HEIGHT
+            )))
+            .is_err(),
             "a scanout shifted by one row was accepted",
         );
 

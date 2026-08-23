@@ -1318,7 +1318,11 @@ mod tests {
         let (fg, bg) = Attr::DEFAULT.colours();
         // Under the cursor, a blank cell shows the *background* colour as its ink field.
         assert_eq!(t.pixel(0, 0), fg, "the block cursor should invert its cell");
-        assert_eq!(t.pixel(bitmap_font::GLYPH_W, 0), bg, "and only its own cell");
+        assert_eq!(
+            t.pixel(bitmap_font::GLYPH_W, 0),
+            bg,
+            "and only its own cell"
+        );
 
         t.take_damage();
         t.feed(b"\x1b[1;3H");
