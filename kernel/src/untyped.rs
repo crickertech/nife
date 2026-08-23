@@ -33,6 +33,17 @@
 //! frame allocator, the direct map, the revoke, and the lock. The division is not tidiness. The
 //! double free at `crates/frames/src/lib.rs:315` was a *protocol* bug, and a protocol that lives in
 //! a `no_std` kernel module is reachable by neither of this project's two verification tools.
+//!
+//! # BUGS
+//!
+//! **`Error::OutOfMemory` collapses three unrelated causes into one code** (milestone 153). `SPLIT`
+//! returns it when the caller's own untyped budget is exhausted, when the caller's cspace is full,
+//! or when [`MAX_REGIONS`] itself is exhausted; `RETYPE_OBJ` collapses a different pair the same
+//! way (see each method's own doc comment in `crates/abi`). The first two are facts about the
+//! caller; the third is a fact about every other live region on the machine, which the caller had
+//! no part in causing and cannot fix locally. A caller, or a person debugging one, cannot currently
+//! tell which is true. Not fixed here: whether the right answer is new `Error` variants, a separate
+//! diagnostic query, or leaving it collapsed is an open fork, not an oversight to patch quietly.
 
 use frames::{FRAME_SIZE, Frame};
 use regions::RegionTable;
