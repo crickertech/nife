@@ -434,11 +434,12 @@ fn a_keystroke_from_a_virtio_keyboard_becomes_a_terminal_byte() {
     // the clock: if the host's `sendkey` never reaches the device, this fails with a sentence
     // rather than hanging until the harness's ceiling.
     let deadline = crate::arch::timer::now() + 10 * crate::arch::timer::frequency();
-    while crate::arch::timer::now() < deadline && sched::endpoint_waiting_senders(w.doorbell) == 0 {
+    while crate::arch::timer::now() < deadline && sched::rendezvous_waiting_senders(w.doorbell) == 0
+    {
         sched::yield_now();
     }
     assert!(
-        sched::endpoint_waiting_senders(w.doorbell) > 0,
+        sched::rendezvous_waiting_senders(w.doorbell) > 0,
         "the keyboard driver came up but never typed anything in ten seconds: the host's \
          `sendkey {}` is not reaching the device (is the monitor socket attached? see \
          cargo xtask's scanout check, which owns that connection)",

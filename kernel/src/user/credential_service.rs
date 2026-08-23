@@ -1,6 +1,6 @@
 use super::*;
-use crate::cap::{Rights, endpoint_cap, untyped_cap};
-use crate::sched::EpId;
+use crate::cap::{Rights, rendezvous_cap, untyped_cap};
+use crate::sched::RendezvousId;
 
 /// Where the service maps the provisioner's page. Must match user/src/credentialer.rs.
 const PROV_VA: u64 = 0x0000_0000_00e0_0000;
@@ -51,13 +51,13 @@ pub const RPT_READY: u64 = 0x_c2ed_0000_0000_0001;
 pub struct Wiring {
     /// The service's readiness endpoint. It reports **after** the seal, so receiving on this is
     /// also how a caller knows provisioning is over.
-    pub ready: EpId,
+    pub ready: RendezvousId,
     /// The verify endpoint. This is what a client is given, with WRITE.
-    pub verify: EpId,
+    pub verify: RendezvousId,
     /// The provision endpoint. Held here only so the provisioner can be spawned against it;
     /// after the seal, the service has deleted its receive end and a `CALL` here would block
     /// forever, which is why nothing sends on it afterwards.
-    pub provision: EpId,
+    pub provision: RendezvousId,
     /// The physical frame behind the verify page, **for this instance specifically**. Captured at
     /// [`start`] time and carried on the `Wiring` itself, rather than through a shared global keyed
     /// on "the credential service": milestone 155 wired a second, independently wired store (a
@@ -77,10 +77,10 @@ pub struct Wiring {
 /// `entropy` is the entropy service's request endpoint (DECISIONS §44). It is not optional: a
 /// credential service that cannot draw a salt refuses to start, and passing it a dead endpoint
 /// is how that path gets tested.
-pub fn start(image: &'static [u8], entropy: EpId) -> Wiring {
-    let provision = crate::sched::create_endpoint();
-    let verify = crate::sched::create_endpoint();
-    let ready = crate::sched::create_endpoint();
+pub fn start(image: &'static [u8], entropy: RendezvousId) -> Wiring {
+    let provision = crate::sched::create_rendezvous();
+    let verify = crate::sched::create_rendezvous();
+    let ready = crate::sched::create_rendezvous();
     let budget =
         crate::untyped::create(CRED_BUDGET_PAGES).expect("no untyped for the credential store");
 
@@ -128,11 +128,11 @@ pub fn start(image: &'static [u8], entropy: EpId) -> Wiring {
                 arg1: 0, // no physical address: this process touches no device
                 arg2: 0,
                 grants: &[
-                    endpoint_cap(provision, Rights::READ), // slot 0: write the store, until SEAL
-                    endpoint_cap(verify, Rights::READ),    // slot 1: answer questions, forever
-                    endpoint_cap(entropy, Rights::WRITE),  // slot 2: salts, naming no device
-                    untyped_cap(budget),                   // slot 3: the memory-hard scratch
-                    endpoint_cap(ready, Rights::WRITE),    // slot 4: one message, after the seal
+                    rendezvous_cap(provision, Rights::READ), // slot 0: write the store, until SEAL
+                    rendezvous_cap(verify, Rights::READ),    // slot 1: answer questions, forever
+                    rendezvous_cap(entropy, Rights::WRITE),  // slot 2: salts, naming no device
+                    untyped_cap(budget),                     // slot 3: the memory-hard scratch
+                    rendezvous_cap(ready, Rights::WRITE),    // slot 4: one message, after the seal
                 ],
                 maps: &maps,
             },
@@ -178,8 +178,14 @@ pub fn client(image: &'static [u8], w: &Wiring, role: u64) -> [u64; 5] {
 /// from a shared global: milestone 155 wired a second, independent credential service instance in
 /// the same boot, so nothing here can assume there is only one to ask about. A caller with its own
 /// `Wiring` in hand always knows which frame is correct.
-fn spawn_cli(image: &'static [u8], role: u64, endpoint: EpId, va: u64, phys: u64) -> [u64; 5] {
-    let report = crate::sched::create_endpoint();
+fn spawn_cli(
+    image: &'static [u8],
+    role: u64,
+    endpoint: RendezvousId,
+    va: u64,
+    phys: u64,
+) -> [u64; 5] {
+    let report = crate::sched::create_rendezvous();
     let maps = [Mapping {
         va,
         phys,
@@ -193,8 +199,8 @@ fn spawn_cli(image: &'static [u8], role: u64, endpoint: EpId, va: u64, phys: u64
                 arg1: 0,
                 arg2: 0,
                 grants: &[
-                    endpoint_cap(endpoint, Rights::WRITE), // slot 0: the service
-                    endpoint_cap(report, Rights::WRITE),   // slot 1: say what happened
+                    rendezvous_cap(endpoint, Rights::WRITE), // slot 0: the service
+                    rendezvous_cap(report, Rights::WRITE),   // slot 1: say what happened
                 ],
                 maps: &maps,
             },

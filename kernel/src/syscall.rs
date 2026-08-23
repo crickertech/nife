@@ -111,10 +111,10 @@ pub(crate) fn invoke(
     let cap = sched::current_cap(slot).map_err(|_| Error::NoSuchSlot)?;
 
     match cap.object {
-        Object::Endpoint(ep) => match method {
+        Object::Rendezvous(ep) => match method {
             // SEND takes WRITE, RECV takes READ. The *same* endpoint, handed out with different
             // rights, is a one-way pipe in whichever direction each holder was trusted with.
-            abi::endpoint::SEND => {
+            abi::rendezvous::SEND => {
                 if !cap.rights.allows(Rights::WRITE) {
                     return Err(Error::NotPermitted);
                 }
@@ -136,7 +136,7 @@ pub(crate) fn invoke(
                 }
                 Ok(0)
             }
-            abi::endpoint::RECV => {
+            abi::rendezvous::RECV => {
                 if !cap.rights.allows(Rights::READ) {
                     return Err(Error::NotPermitted);
                 }
@@ -159,7 +159,7 @@ pub(crate) fn invoke(
             // it to, `a2` one data word. Two rights are in play and they are different questions:
             // WRITE on *this* endpoint (may I send here?) and GRANT on the *delegated* capability
             // (was I trusted to pass it on?). Without GRANT you may use a thing and not lend it.
-            abi::endpoint::SEND_CAP => {
+            abi::rendezvous::SEND_CAP => {
                 if !cap.rights.allows(Rights::WRITE) {
                     return Err(Error::NotPermitted);
                 }
@@ -184,7 +184,7 @@ pub(crate) fn invoke(
                 }
                 Ok(0)
             }
-            abi::endpoint::RECV_CAP => {
+            abi::rendezvous::RECV_CAP => {
                 if !cap.rights.allows(Rights::READ) {
                     return Err(Error::NotPermitted);
                 }
@@ -202,7 +202,7 @@ pub(crate) fn invoke(
             // Call: send two words and block until replied. The kernel mints a one-shot Reply cap
             // naming us into the server (delivered by its RECV_CAP); we return here only when the
             // server invokes it. See §12 and notes/ipc-naming.md. Sending needs WRITE, like SEND.
-            abi::endpoint::CALL => {
+            abi::rendezvous::CALL => {
                 if !cap.rights.allows(Rights::WRITE) {
                     return Err(Error::NotPermitted);
                 }
@@ -224,11 +224,11 @@ pub(crate) fn invoke(
             // report to this supervisor) deliberately does not. `a0` is the tid the kernel stamped on
             // the death message, and it is authorized *relative to this endpoint* (sched's
             // reap_supervised), so it is a name inside a relationship rather than a global handle.
-            abi::endpoint::REAP => {
+            abi::rendezvous::REAP => {
                 if !cap.rights.allows(Rights::READ) {
                     return Err(Error::NotPermitted);
                 }
-                endpoint_reap(ep, a0)
+                rendezvous_reap(ep, a0)
             }
 
             // **Read one entry of the domain this endpoint supervises** (milestone 126). The view
@@ -243,7 +243,7 @@ pub(crate) fn invoke(
             //
             // `a0` is the cursor: 0 to start, then whatever the last call returned, until a
             // `survey::DONE` comes back. x1 carries the tid and x2 the state code.
-            abi::endpoint::SURVEY => {
+            abi::rendezvous::SURVEY => {
                 // `ENUMERATE`, not `READ`, and the distinction is the method's whole safety
                 // argument: `READ` here also unlocks `RECV` and `REAP`, so a viewer granted it
                 // could reap a child. A domain names its members and does not act on them, and one
@@ -351,7 +351,7 @@ pub(crate) fn invoke(
                 }
             }
             // List what this address space has mapped, one entry per call, without the ability
-            // to change any of it (milestone 126's `pmap`, DECISIONS §114): `Endpoint::SURVEY`'s
+            // to change any of it (milestone 126's `pmap`, DECISIONS §114): `Rendezvous::SURVEY`'s
             // shape one object type over, and pointedly `ENUMERATE` rather than `WRITE`, which is
             // what `MAP_INTO` above takes. See `abi::aspace::LIST` for the wire contract and
             // DECISIONS §114 for why this method's mere existence is the thing that makes
@@ -480,7 +480,7 @@ pub(crate) fn invoke(
 
         Object::Irq(intid) => match method {
             // Body extracted (milestone 156). `WAIT` does block on the same `sched::ipc_recv`
-            // the `Endpoint` fastpath uses, but the caller here is a driver waiting on a device
+            // the `Rendezvous` fastpath uses, but the caller here is a driver waiting on a device
             // interrupt, not the IPC round trip this gate bounds, so it moves out of `invoke`'s
             // own bytes with the rest. See `untyped_map`'s doc comment for the full reasoning.
             abi::irq::WAIT => {
@@ -547,8 +547,8 @@ fn untyped_map(region: u64, va: u64) -> Result<i64, Error> {
 #[inline(never)]
 fn untyped_retype_obj(region: u64, kind: u64) -> Result<i64, Error> {
     match kind {
-        abi::objtype::ENDPOINT => {
-            let ep = sched::create_endpoint_from(region).ok_or(Error::OutOfMemory)?;
+        abi::objtype::RENDEZVOUS => {
+            let ep = sched::create_rendezvous_from(region).ok_or(Error::OutOfMemory)?;
             // `Rights::ALL`, not a list. The comment above has always said the creator gets full
             // rights on its own object; spelling the set out meant "full" silently stopped being
             // full the day `ENUMERATE` was added, and the symptom was three steps away: init
@@ -556,7 +556,7 @@ fn untyped_retype_obj(region: u64, kind: u64) -> Result<i64, Error> {
             // the widen, and the spawn surfaced as `OutOfMemory` at a prompt. A rights set that
             // must be updated by hand whenever a right is added is rung four; `ALL` is the
             // invariant.
-            let slot = sched::grant(crate::cap::endpoint_cap(ep, Rights::ALL))
+            let slot = sched::grant(crate::cap::rendezvous_cap(ep, Rights::ALL))
                 .map_err(|_| Error::OutOfMemory)?;
             Ok(slot as i64)
         }
@@ -565,7 +565,7 @@ fn untyped_retype_obj(region: u64, kind: u64) -> Result<i64, Error> {
         // design/init-and-granular-spawn.md).
         abi::objtype::ASPACE => {
             let name = crate::user::user_aspace_create(region).ok_or(Error::OutOfMemory)?;
-            // `Rights::ALL` for the ENDPOINT arm's reason: "full rights on its own object" is the
+            // `Rights::ALL` for the RENDEZVOUS arm's reason: "full rights on its own object" is the
             // invariant, and a hand-listed set stops being full the next time a right is added.
             // `Aspace` does not consult `ENUMERATE` today and is expected to when `pmap` is
             // built; holding a right nothing checks confers nothing, and not holding it is what
@@ -793,13 +793,13 @@ fn virtio_invoke(id: usize, method: u64, a0: u64, a1: u64) -> Result<i64, Error>
     }
 }
 
-/// `Endpoint::REAP`: collect a corpse this endpoint supervises (DECISIONS §32), the control half
-/// `endpoint::SURVEY` is the view half of. Administrative, not the IPC round trip: rare enough
-/// (one call per child death, not per message) that it moves out of `invoke`'s own bytes with the
-/// rest of this arm's non-fastpath methods. `#[inline(never)]` for the reason `untyped_map`
-/// gives.
+/// `Rendezvous::REAP`: collect a corpse this rendezvous supervises (DECISIONS §32), the control
+/// half `rendezvous::SURVEY` is the view half of. Administrative, not the IPC round trip: rare
+/// enough (one call per child death, not per message) that it moves out of `invoke`'s own bytes
+/// with the rest of this arm's non-fastpath methods. `#[inline(never)]` for the reason
+/// `untyped_map` gives.
 #[inline(never)]
-fn endpoint_reap(ep: crate::sched::EpId, tid: u64) -> Result<i64, Error> {
+fn rendezvous_reap(ep: crate::sched::RendezvousId, tid: u64) -> Result<i64, Error> {
     sched::reap_supervised(ep, tid)?;
     Ok(0)
 }

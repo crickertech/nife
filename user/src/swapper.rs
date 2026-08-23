@@ -33,7 +33,7 @@
 //!   3 REVOKED  Frame::REVOKE the device capability: gone from every holder but us.
 //!   4 STARTED  map the registers into the replacement, CONFIGURE, START. The down window ends.
 //!   5 REAPED   the incumbent is told to touch the device it no longer has; it faults, its death
-//!              arrives on the supervision endpoint, and Endpoint::REAP collects the corpse.
+//!              arrives on the supervision endpoint, and Rendezvous::REAP collects the corpse.
 //! ```
 //!
 //! **The roadmap put "start the new server" first and the revoke second, and building it that way
@@ -100,10 +100,10 @@ pub extern "C" fn _start(role: u64, initrd_len: u64, _a2: u64) -> ! {
     };
 
     let w = Wiring {
-        svc: obj(abi::objtype::ENDPOINT, 5),
-        faultep: obj(abi::objtype::ENDPOINT, 6),
-        note: obj(abi::objtype::ENDPOINT, 7),
-        poke: obj(abi::objtype::ENDPOINT, 8),
+        svc: obj(abi::objtype::RENDEZVOUS, 5),
+        faultep: obj(abi::objtype::RENDEZVOUS, 6),
+        note: obj(abi::objtype::RENDEZVOUS, 7),
+        poke: obj(abi::objtype::RENDEZVOUS, 8),
         logframe: frame(9),
     };
     // SAFETY: plain syscall; the kernel validates the frame, the va and the budget.
@@ -381,7 +381,7 @@ fn queued(fs: &nifefs::Fs, w: &Wiring) -> ! {
 
     // `svc` is the *back* endpoint here: what the broker forwards to and what a backend receives
     // on. `front` is what the producer holds, and it is the stable name on this channel.
-    let front = obj(abi::objtype::ENDPOINT, 41);
+    let front = obj(abi::objtype::RENDEZVOUS, 41);
     let base = swap_proto::BROKER_LOG_BASE;
 
     // **Three routing tables, and the interesting thing about them is `service`.** The producer's
@@ -552,7 +552,7 @@ fn queued(fs: &nifefs::Fs, w: &Wiring) -> ! {
 //
 // Every failure the rest of this program handles is a death. The incumbent quiesces because it was
 // asked to, or it faults on a device it no longer has, and either way the kernel sends a
-// five-word message to the supervision endpoint, `Endpoint::REAP` collects the corpse, and the
+// five-word message to the supervision endpoint, `Rendezvous::REAP` collects the corpse, and the
 // region comes home. A component that simply stops answering produces none of that: it holds its
 // endpoint, holds its device, sits `Blocked`, and is indistinguishable from a healthy server waiting
 // for work, because that is what a healthy server waiting for work is.
@@ -645,7 +645,7 @@ fn hung(fs: &nifefs::Fs, w: &Wiring) -> ! {
     // ------------------------------------------------------------------------------------------
 
     let (kind, release, served) = user_rt::recv_cap(w.note);
-    if kind != swap_proto::NOTE_WEDGED || release == abi::endpoint::NO_CAP {
+    if kind != swap_proto::NOTE_WEDGED || release == abi::rendezvous::NO_CAP {
         bail(81)
     }
     send(REPORT, swap_proto::RPT_WEDGED, swap_proto::V1, served);
@@ -653,11 +653,11 @@ fn hung(fs: &nifefs::Fs, w: &Wiring) -> ! {
     // ------------------------------------------------------------------------------------------
     // **What the supervisor can see.** Two reports, and both of them are negative results.
     //
-    // The domain, through `abi::endpoint::SURVEY` (milestone 126), which is the only view of its own
+    // The domain, through `abi::rendezvous::SURVEY` (milestone 126), which is the only view of its own
     // children this operator has: every member `BLOCKED`, none `DEAD`. That is also what a healthy
     // idle system looks like from here, and no amount of looking again changes it.
     //
-    // Then `Endpoint::REAP` on every member, which is the supervisor's entire vocabulary over its
+    // Then `Rendezvous::REAP` on every member, which is the supervisor's entire vocabulary over its
     // domain since DECISIONS §32: refused, every one, `StillAlive`. Asking about all of them rather
     // than about the one suspect is both easier (a survey returns tids and nothing that says which
     // is which) and the stronger claim.
@@ -746,7 +746,7 @@ fn hung(fs: &nifefs::Fs, w: &Wiring) -> ! {
 }
 
 /// **Walk the supervision domain and count what state its members are in** (milestone 126's
-/// `abi::endpoint::SURVEY`). Returns `(members, states)`, the second packed by
+/// `abi::rendezvous::SURVEY`). Returns `(members, states)`, the second packed by
 /// `swap_proto::survey_counts`.
 ///
 /// A refusal is reported as `(u64::MAX, error)` rather than as an empty domain, for the reason
@@ -792,7 +792,7 @@ fn survey_domain(faultep: u64) -> (u64, u64) {
 /// `(asked, refused_still_alive)`.
 ///
 /// This is not a reap loop that happens to fail. It is the assertion that a supervisor's whole
-/// vocabulary over a live domain is empty: `Endpoint::REAP` (DECISIONS §32) authorizes *collecting a
+/// vocabulary over a live domain is empty: `Rendezvous::REAP` (DECISIONS §32) authorizes *collecting a
 /// corpse* and refuses a thread that is still alive, deliberately, because killing is the stronger
 /// act and lives elsewhere. Against a hung component, "collect the corpse" is the only verb a
 /// supervisor has and there is no corpse.

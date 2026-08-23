@@ -9,7 +9,7 @@
 //!
 //! **Its entire authority is one endpoint capability with `READ`.** No untyped, no frame, no TCB, no
 //! address space, and nothing it could report on. It cannot build a process, allocate a page, or
-//! reach any child's memory; `Endpoint::REAP` (DECISIONS §32) is authorized by the supervision
+//! reach any child's memory; `Rendezvous::REAP` (DECISIONS §32) is authorized by the supervision
 //! relationship the kernel already records, not by holding the region. The pages therefore go back to
 //! **init's** job budget, because init split the region and §13 says a region belongs to whoever owns
 //! it. This process can free a job's memory and can never spend it.

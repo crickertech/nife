@@ -97,7 +97,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use abi::{endpoint, frame as fr, rights, untyped as ut};
+use abi::{frame as fr, rendezvous, rights, untyped as ut};
 use clock_proto::propose;
 use ntp_proto::{Packet, Query, Reject, Short, Timestamp, leap, mode};
 // The socket contract, verbatim from the file `net_stack` compiles, so the client and the test
@@ -413,7 +413,7 @@ fn attach_frame() {
     if unsafe {
         invoke(
             STACK,
-            endpoint::SEND_CAP,
+            rendezvous::SEND_CAP,
             frame,
             rights::READ | rights::WRITE,
             req(OP_ATTACH_FRAME, SID),
@@ -543,7 +543,7 @@ fn server(variant: u64, claimed_nanos: u64) -> ! {
                 reply(cap, REP_OK, 0);
             }
             _ => {
-                if cap != endpoint::NO_CAP {
+                if cap != rendezvous::NO_CAP {
                     reply(cap, REP_ERR, 0);
                 }
             }

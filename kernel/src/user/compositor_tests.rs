@@ -38,7 +38,7 @@ static FLUSH_COUNT: AtomicUsize = AtomicUsize::new(0);
 /// It exists to make the damage rectangle visible. A real driver honours the rectangle and says
 /// nothing about it; here the flush *is* the observation, so a compositor that quietly repainted the
 /// screen every frame would fail a test rather than merely be slow.
-fn kernel_display() -> (sched::EpId, u64) {
+fn kernel_display() -> (sched::RendezvousId, u64) {
     let frames = graphics_proto::SURFACE_FRAMES as u64;
     let screen = crate::memory::alloc_contiguous(frames as usize)
         .expect("no contiguous screen frames for the compositor")
@@ -54,7 +54,7 @@ fn kernel_display() -> (sched::EpId, u64) {
     LAST_FLUSH.store(u64::MAX, Ordering::SeqCst);
     FLUSH_COUNT.store(0, Ordering::SeqCst);
 
-    let ep = sched::create_endpoint();
+    let ep = sched::create_rendezvous();
     sched::spawn(move || {
         loop {
             let m = sched::ipc_recv_cap(ep);
@@ -99,7 +99,7 @@ fn wait_for_compositor(w: &Wiring) {
 }
 
 /// Take a `CALL` a client parked on its report endpoint: `(the caller, the reply slot, its word)`.
-fn take_call(ep: sched::EpId, want: u64) -> (u64, u64, u64) {
+fn take_call(ep: sched::RendezvousId, want: u64) -> (u64, u64, u64) {
     let m = sched::ipc_recv_cap(ep);
     assert_eq!(
         m[0], want,
@@ -267,7 +267,7 @@ fn a_client_holds_no_capability_for_its_neighbours_pixels_or_the_screen() {
         "something faulted, but not at the neighbour's address",
     );
     assert_eq!(
-        sched::endpoint_waiting_senders(w.client_report[ATTACKER]),
+        sched::rendezvous_waiting_senders(w.client_report[ATTACKER]),
         0,
         "the attacker reported past its probe: the write did not fault, so it read back what it \
          wrote into a neighbour's surface (WIN_ESCAPED)",
@@ -305,7 +305,7 @@ fn a_client_holds_no_capability_for_its_neighbours_pixels_or_the_screen() {
         "something faulted, but not at the composed screen's address",
     );
     assert_eq!(
-        sched::endpoint_waiting_senders(w.client_report[PEEPER]),
+        sched::rendezvous_waiting_senders(w.client_report[PEEPER]),
         0,
         "a client read a pixel of the screen it holds no mapping of (WIN_ESCAPED)",
     );
@@ -429,7 +429,7 @@ fn a_one_window_redraw_costs_one_rectangle_and_not_the_screen() {
 ///    window-list page the compositor publishes rather than by asking it.
 ///
 /// The negative half is the interesting half: after focus moves, the unfocused client must not
-/// receive the next keystroke, and `endpoint_waiting_senders` is how a test says "and then nothing
+/// receive the next keystroke, and `rendezvous_waiting_senders` is how a test says "and then nothing
 /// happened" without blocking forever on a quiet endpoint.
 #[test_case]
 fn input_reaches_only_the_focused_client_and_focus_is_the_compositors_call() {
@@ -474,7 +474,7 @@ fn input_reaches_only_the_focused_client_and_focus_is_the_compositors_call() {
     );
     assert_eq!(byte, b'b' as u64);
     assert_eq!(
-        sched::endpoint_waiting_senders(w.client_report[0]),
+        sched::rendezvous_waiting_senders(w.client_report[0]),
         0,
         "the unfocused client received a keystroke that was not routed to it",
     );
@@ -707,7 +707,7 @@ fn three_clients_compose_into_one_scanout_and_the_host_sees_it() {
         "a client wrote to the screen through a read-only mapping at {va:#x} and was NOT stopped",
     );
     assert_eq!(
-        sched::endpoint_waiting_senders(w.client_report[2]),
+        sched::rendezvous_waiting_senders(w.client_report[2]),
         0,
         "the capture client survived writing to the screen (WIN_ESCAPED)",
     );

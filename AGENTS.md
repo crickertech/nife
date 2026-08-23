@@ -697,6 +697,11 @@ the dates convention) at his request.
 (2026-08-01). This is the same rule as `DECISIONS.md` section numbers, one level up: it is global to
 the tree, so it is decided by the person who can see the whole tree.
 
+**Extended to public function and method names** (2026-08-23, milestone 160), after a crate-naming
+pass across everything the kernel depends on raised the natural next question. A function name is
+more reversible than a crate's (typically fewer call sites, all inside one crate), so the same
+"recommend on reversible forks" latitude applies more freely here than it does one level up.
+
 **Shared modules are in scope for a reason.** `user/src/` used to hold 48 `[[bin]]` programs and a
 handful of modules compiled into them with `#[path = "..."] mod ...`, with **nothing in the naming
 distinguishing them**, so a reader who tried to run `cseam` was misled by the directory. Rule 7

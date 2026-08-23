@@ -656,7 +656,7 @@ impl<T: Fn()> Testable for T {
 #[cfg(all(test, feature = "watchdog_probe"))]
 #[test_case]
 fn a_livelock_that_keeps_doing_ipc_trips_the_per_test_ceiling() {
-    let ep = crate::sched::create_endpoint();
+    let ep = crate::sched::create_rendezvous();
 
     // A partner that answers forever. Both sides rendezvous every pass, so every pass is a wake, and
     // a wake is "progress" as far as the heartbeat is concerned.

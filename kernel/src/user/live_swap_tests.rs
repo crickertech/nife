@@ -89,14 +89,14 @@ const SWAPPER_BUDGET_PAGES: u64 = 224;
 /// overflows this loses the operator's verdict and fails for the wrong reason.
 const MAX_REPORTS: usize = 42;
 
-/// **Spawn the operator the way the kernel spawns init**, and return the report endpoint every
+/// **Spawn the operator the way the kernel spawns init**, and return the report rendezvous every
 /// process in the run holds a WRITE view of.
 ///
 /// Deliberately the same endowment `spawn_init` gives (the archive read-only at `INITRD_VA`, an
-/// untyped in slot 0, a report endpoint in slot 1), **plus** the one thing this milestone is
+/// untyped in slot 0, a report rendezvous in slot 1), **plus** the one thing this milestone is
 /// about: a device capability in slot 2, `WRITE|GRANT`, exactly as init gets one at boot. So
 /// what is under test is the operator's choices, not a privileged shortcut.
-fn spawn_swapper(role: u64) -> (sched::EpId, u64, u64) {
+fn spawn_swapper(role: u64) -> (sched::RendezvousId, u64, u64) {
     let (initrd_start, initrd_len) = memory::initrd_region().expect("no initrd region");
     let initrd_pages = initrd_len.div_ceil(FRAME_SIZE);
     let bytes = program("swapper").expect("no swapper program in the initrd archive");
@@ -131,7 +131,7 @@ fn spawn_swapper(role: u64) -> (sched::EpId, u64, u64) {
     }
     let aspace = readopt_user_aspace(space).expect("register the swapper aspace");
 
-    let report = sched::create_endpoint();
+    let report = sched::create_rendezvous();
     let budget = crate::untyped::create(SWAPPER_BUDGET_PAGES).expect("no budget for swapper");
     let tcb_region = crate::untyped::create(2).expect("no tcb region");
     let tid = sched::create_tcb(tcb_region).expect("no tcb");
@@ -140,14 +140,14 @@ fn spawn_swapper(role: u64) -> (sched::EpId, u64, u64) {
     assert_eq!(s0, 0, "swapper's budget must land in slot 0");
     let s1 = sched::tcb_insert_cap(
         tid,
-        crate::cap::endpoint_cap(
+        crate::cap::rendezvous_cap(
             report,
             crate::cap::Rights::WRITE.union(crate::cap::Rights::GRANT),
         ),
         None,
     )
     .expect("insert report");
-    assert_eq!(s1, 1, "swapper's report endpoint must land in slot 1");
+    assert_eq!(s1, 1, "swapper's report rendezvous must land in slot 1");
     let s2 = sched::tcb_insert_cap(
         tid,
         crate::cap::device_frame_cap(
@@ -210,7 +210,7 @@ fn run_swap(role: u64) -> ([[u64; 5]; MAX_REPORTS], usize) {
         sched::yield_now();
     }
     assert_eq!(
-        sched::endpoint_waiting_senders(report),
+        sched::rendezvous_waiting_senders(report),
         0,
         "the swap system had more to say after the operator's final verdict",
     );
@@ -218,7 +218,7 @@ fn run_swap(role: u64) -> ([[u64; 5]; MAX_REPORTS], usize) {
     // **The system reclaims itself**, and this is an assertion rather than housekeeping.
     //
     // The operator supervises every child it starts and collects every corpse through its
-    // supervision endpoint (DECISIONS §32), which returns each instance's region to its budget.
+    // supervision rendezvous (DECISIONS §32), which returns each instance's region to its budget.
     // So a reclaim of the budget can only *succeed* if all five of those splits are gone: §16
     // refuses a region whose children are still carved out of it. Success is the statement that
     // nothing leaked; the frame delta is the statement that the whole run came back.
@@ -464,17 +464,17 @@ fn a_client_keeps_talking_while_the_server_underneath_it_is_replaced() {
     );
 }
 
-/// **The attacker holds a real capability to the stable endpoint and still cannot be the
+/// **The attacker holds a real capability to the stable rendezvous and still cannot be the
 /// server.**
 ///
-/// The milestone rests on endpoint-only naming, and the obvious worry about it is that a name
+/// The milestone rests on rendezvous-only naming, and the obvious worry about it is that a name
 /// with no peer in it is a name anybody can answer to. It is not: `SEND` and `RECV` are gated by
-/// different rights on the same object, so the same endpoint handed out two ways is a one-way
+/// different rights on the same object, so the same rendezvous handed out two ways is a one-way
 /// pipe in whichever direction each holder was trusted with. The attacker is endowed with
 /// *exactly* what the honest client holds, so the refusal is about rights and not about
 /// wiring.
 #[test_case]
-fn a_client_of_the_stable_endpoint_cannot_become_its_server() {
+fn a_client_of_the_stable_rendezvous_cannot_become_its_server() {
     let (msgs, n) = run_swap(ROLE_DIRECT);
     let attack = of_kind(&msgs[..n], RPT_ATTACK)
         .next()
@@ -482,7 +482,7 @@ fn a_client_of_the_stable_endpoint_cannot_become_its_server() {
     assert_eq!(
         attack[1],
         (-(abi::Error::NotPermitted as i64)) as u64,
-        "a client of the stable endpoint received on it (or was refused for the wrong reason): \
+        "a client of the stable rendezvous received on it (or was refused for the wrong reason): \
          error {}, wanted NotPermitted. If this succeeded, any holder of a request capability \
          could impersonate the component.",
         attack[1] as i64,
@@ -492,7 +492,7 @@ fn a_client_of_the_stable_endpoint_cannot_become_its_server() {
 /// **The opt-in rung: a producer keeps producing while no backend exists at all.**
 ///
 /// The direct rung's down window costs the caller a block: its request is safe (it parks on the
-/// endpoint's sender queue and the next server drains it) but it is stopped until then. For a
+/// rendezvous's sender queue and the next server drains it) but it is stopped until then. For a
 /// channel that cannot afford that, `broker` takes custody. The price is one extra hop on
 /// every request in the steady state, which is why it is chosen per channel and never by
 /// default; `broker_rtt` in bench/baseline-aarch64.txt is that price.
@@ -581,7 +581,7 @@ fn survey_awake(w: u64) -> u64 {
 /// can be restored anyway** (milestone 23's third residual; notes/hung-component.md).
 ///
 /// Every failure this system handles elsewhere is a *death*: the kernel witnesses a fault or an exit,
-/// stamps a five-word message onto the supervision endpoint (DECISIONS §26), `Endpoint::REAP`
+/// stamps a five-word message onto the supervision rendezvous (DECISIONS §26), `Rendezvous::REAP`
 /// collects the corpse (§32), and the region comes home. A component that merely stops answering
 /// produces none of it, and this test is the machine saying so rather than a paragraph claiming it.
 ///
@@ -591,19 +591,19 @@ fn survey_awake(w: u64) -> u64 {
 ///    and that is byte for byte what a healthy idle system reads as: `abi::survey::BLOCKED` is the
 ///    state of a server parked in `RECV_CAP`, which is every healthy server between requests. The
 ///    view milestone 126 built is the widest one a supervisor has and it cannot tell the difference.
-/// 2. **The supervisor's whole vocabulary over its domain is refused.** `Endpoint::REAP` is asked
+/// 2. **The supervisor's whole vocabulary over its domain is refused.** `Rendezvous::REAP` is asked
 ///    about every member and answers `StillAlive` every time, on purpose: §32 authorizes collecting a
 ///    corpse and not killing. Against a hung component there is no corpse, so there is nothing to
 ///    say.
 /// 3. **The service is restored with no authority the operator did not already hold**, which
 ///    contradicts §32's sentence that a supervisor restarting a hung child "still needs the stronger
 ///    right". The device comes back by `Frame::REVOKE` take-back, which asks the holder for nothing;
-///    the replacement parks on the stable endpoint and drains what queued behind the silence; the
+///    the replacement parks on the stable rendezvous and drains what queued behind the silence; the
 ///    client's stream closes over the hang. §32 is right about *reclaiming the hung component's
 ///    memory* and wrong about restarting its service, and those are different acts.
 /// 4. **Restoring the service does not recover the caller that was mid-`CALL`.** That caller is
 ///    parked awaiting a reply, and a caller awaiting a reply is woken by `sched::ipc_reply` and by
-///    nothing else in the kernel: `abi::Error::Gone` reaches a caller whose *endpoint* died and never
+///    nothing else in the kernel: `abi::Error::Gone` reaches a caller whose *rendezvous* died and never
 ///    one whose *server is alive and silent*. The one-shot `Reply` capability naming it is `WRITE`
 ///    without `GRANT`, inside the hung component's cspace, so the operator cannot answer on its
 ///    behalf, forge one, or revoke its way to it. In this run the wedge is deliberate and lets go
@@ -643,14 +643,14 @@ fn a_component_that_stops_answering_without_dying_is_invisible_to_its_supervisor
     assert_ne!(
         survey[1],
         u64::MAX,
-        "the operator was refused its own domain (error {}): it retyped this endpoint out of its \
+        "the operator was refused its own domain (error {}): it retyped this rendezvous out of its \
          own budget, so it holds ENUMERATE and this is a bug in the survey rather than a finding",
         survey[2],
     );
     assert_eq!(
         survey[1], 2,
         "the domain should hold exactly the incumbent and the client ({} reported). The \
-         replacement is built but never started, and a thread's supervision endpoint is recorded \
+         replacement is built but never started, and a thread's supervision rendezvous is recorded \
          at START, so an embryo is not yet a member.",
         survey[1],
     );
@@ -675,7 +675,7 @@ fn a_component_that_stops_answering_without_dying_is_invisible_to_its_supervisor
 
     // No death message had arrived by then either, which is the other half of "nothing noticed":
     // the operator reports every death it collects, and the first of those must come after the
-    // survey. A supervisor blocked in RECV on its supervision endpoint would simply never wake.
+    // survey. A supervisor blocked in RECV on its supervision rendezvous would simply never wake.
     let at_survey = msgs.iter().position(|m| m[0] == RPT_SURVEY).unwrap();
     let first_death = msgs
         .iter()
@@ -701,7 +701,7 @@ fn a_component_that_stops_answering_without_dying_is_invisible_to_its_supervisor
     );
     assert_eq!(
         uncollectable[2], uncollectable[1],
-        "{} of {} members refused collection with StillAlive. Every one must: Endpoint::REAP \
+        "{} of {} members refused collection with StillAlive. Every one must: Rendezvous::REAP \
          authorizes collecting a corpse and refuses a live thread (DECISIONS §32), so a supervisor \
          facing a hang holds a verb with nothing to apply it to. A member that was collectable \
          here would mean something had died.",
@@ -718,7 +718,10 @@ fn a_component_that_stops_answering_without_dying_is_invisible_to_its_supervisor
             STEP_REVOKED,
             "take the device back from the live, wedged holder",
         ),
-        (STEP_STARTED, "start the replacement on the stable endpoint"),
+        (
+            STEP_STARTED,
+            "start the replacement on the stable rendezvous",
+        ),
         (STEP_REAPED, "collect the incumbent once it finally died"),
     ] {
         assert!(

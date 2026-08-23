@@ -43,9 +43,9 @@
 //!
 //! It holds, by convention (init granted them in this order):
 //!
-//! - slot 0: the terminal endpoint (CALL: `OP_WRITE` / `OP_READLINE`).
-//! - slot 1: a spawn endpoint (direct init to start a program; `grant_plan::spawnproto`).
-//! - slot 2: a result endpoint (receive a spawned program's answer).
+//! - slot 0: the terminal rendezvous (CALL: `OP_WRITE` / `OP_READLINE`).
+//! - slot 1: a spawn rendezvous (direct init to start a program; `grant_plan::spawnproto`).
+//! - slot 2: a result rendezvous (receive a spawned program's answer).
 //! - slot 3: an untyped budget, the memory it grants with `--mem`.
 //!
 //! and two pages shared with the terminal: `OUT_VA` (we write text and prompts) and `LINE_VA`
@@ -179,7 +179,7 @@ struct Nav {
     /// Where we are, as a value.
     cwd: Cwd,
     /// `handles[i]` is the directory capability for level `i + 1`; level 0 is [`fs::ROOT`], the
-    /// capability the endpoint itself designates.
+    /// capability the rendezvous itself designates.
     handles: [u64; nav::MAX_DEPTH],
     /// The sweep in progress, when the line is under `xargs` (milestone 109). Zeroed outside one.
     batching: Batching,
@@ -345,7 +345,7 @@ impl Nav {
     ///
     /// `from_root` is carried separately because a lead is a bare step sequence and cannot say
     /// where it started. **A walk from the root starts at [`fs::ROOT`]**, the capability the
-    /// endpoint itself designates, which is the only root this process has and the reason an
+    /// rendezvous itself designates, which is the only root this process has and the reason an
     /// absolute path can reach nothing a `cd` could not.
     fn walk_from(&mut self, from_root: bool, steps: &[Step<'_>]) -> Result<Walk, Say> {
         let mut w = if from_root {
@@ -891,7 +891,7 @@ fn read_line(prompt: &[u8], out: &mut [u8]) -> (usize, u64) {
 /// `(0, fs_rights, clock_slot)`, and it is also what any unrecognized role falls through to: this
 /// program's failure mode should be a prompt.
 /// **The navigating witness** (milestone 47): no terminal, a directory capability at slot 0, and a
-/// report endpoint at slot 1. It runs the same builtins this file's prompt runs and reports a
+/// report rendezvous at slot 1. It runs the same builtins this file's prompt runs and reports a
 /// bitmap; see [`navigate`].
 const ROLE_NAVIGATE: u64 = 1;
 /// **The globbing witness** (milestone 47's globbing lane): the same wiring as [`ROLE_NAVIGATE`],
@@ -975,7 +975,7 @@ fn piping() -> ! {
 }
 
 /// The last thing [`piping`] prints, so a reader knows the transcript is complete rather than
-/// having to guess from a quiet endpoint. Must match `kernel::user::pipeline_tests`.
+/// having to guess from a quiet rendezvous. Must match `kernel::user::pipeline_tests`.
 const PIPELINE_DONE: &[u8] = b"== pipelines done\n";
 
 /// **A scripted shell that holds a filesystem as well as a spawn channel** (milestone 50).
@@ -1255,7 +1255,7 @@ fn dispatch(nav: &mut Nav, cmd: &[u8]) {
 /// run" a property of this code rather than a claim about it.
 ///
 /// **The clock is this shell's, and the command is told nothing.** `time wc report.txt` times a
-/// program whose whole endowment is one endpoint and no clock at all, which is the Unix behaviour and
+/// program whose whole endowment is one rendezvous and no clock at all, which is the Unix behaviour and
 /// the capability-model answer at the same time: a duration is observable to anyone who can watch a
 /// thing start and stop, so measuring it needs the observer's authority and not the subject's.
 /// Delegating a clock to the child instead would change what the child can do, and that is a
@@ -1607,7 +1607,7 @@ fn spawn(e: Endowment) {
         return;
     }
     // **The directory grant, which init delivers** (milestone 31 phase 3). This shell's file-service
-    // endpoint carries no GRANT, so it holds nothing it could hand a caretaker; what it can do is
+    // rendezvous carries no GRANT, so it holds nothing it could hand a caretaker; what it can do is
     // say what the grant *is*, and init, which holds the service, builds a `fs_subtree_caretaker`
     // for it. [`dir_grant`] is where the shape of the grant meets the shape of what can be
     // delivered, and it returns the words rather than sending them so a refusal happens here, with
@@ -1691,12 +1691,12 @@ fn spawn(e: Endowment) {
     outcome(e, answer);
 }
 
-/// **Drain a byte stream off the result endpoint and print it**, which is what the shell does when
+/// **Drain a byte stream off the result rendezvous and print it**, which is what the shell does when
 /// a program's output slot is the shell's own (`Sink::Report`, the default).
 ///
 /// This used to stop at the first newline, because the framing was a convention rather than a
 /// contract and there was nothing else to stop at. Milestone 50 gave it an end: it drains until
-/// `OP_EOF`, so a program that prints two lines prints two lines, and the endpoint is left clean for
+/// `OP_EOF`, so a program that prints two lines prints two lines, and the rendezvous is left clean for
 /// the next command instead of holding a message the next `recv` would mistake for an answer.
 ///
 /// That change is not optional. Before it, a `date` that announced end of stream would leave that
@@ -1727,48 +1727,48 @@ fn drain_text() {
 
 // ---- the declared second stream, and where its bytes go (`2>`, DECISIONS §67) ----
 
-/// **This shell's diagnostic endpoint**, minted once and kept for the session. `u64::MAX` until
+/// **This shell's diagnostic rendezvous**, minted once and kept for the session. `u64::MAX` until
 /// something needs it, because most sessions never spawn a program that declares a second stream.
 ///
 /// It is retyped straight out of [`BUDGET`] rather than out of a per-line region, and that is a
 /// decision rather than a shortcut: a pipeline's region is destroyed to turn a dead reader into
 /// `Gone`, and a stream this shell always drains to `OP_EOF` has no dead reader to signal. One
-/// endpoint for the session costs one page and saves a SPLIT and a DESTROY per `date`.
+/// rendezvous for the session costs one page and saves a SPLIT and a DESTROY per `date`.
 static DIAG_EP: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU64::new(u64::MAX);
 
-/// The endpoint a declaring child's second stream arrives on, minting it if this session has not
+/// The rendezvous a declaring child's second stream arrives on, minting it if this session has not
 /// needed one yet. `None` when the budget cannot back it, and the caller then spawns without one:
 /// a program whose diagnostic slot is empty says what it has to say in-band, which is what every
 /// program did before §67.
-fn diag_endpoint() -> Option<u64> {
+fn diag_rendezvous() -> Option<u64> {
     let held = DIAG_EP.load(core::sync::atomic::Ordering::Relaxed);
     if held != u64::MAX {
         return Some(held);
     }
-    let ep = retype_endpoint(BUDGET)?;
+    let ep = retype_rendezvous(BUDGET)?;
     DIAG_EP.store(ep, core::sync::atomic::Ordering::Relaxed);
     Some(ep)
 }
 
 // ---- the screen-narrowed tail's completion signal (DECISIONS §106) ----
 
-/// **This shell's fault endpoint for a screen-narrowed tail stage**, [`DIAG_EP`]'s shape reused for
+/// **This shell's fault rendezvous for a screen-narrowed tail stage**, [`DIAG_EP`]'s shape reused for
 /// a second purpose: minted once, kept for the session. At most one line is ever narrowed at a time
-/// (a plan has one tail), so one endpoint suffices and there is no `SPLIT`/`DESTROY` pair to pay per
+/// (a plan has one tail), so one rendezvous suffices and there is no `SPLIT`/`DESTROY` pair to pay per
 /// invocation.
 static SCREEN_EP: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU64::new(u64::MAX);
 
-/// The endpoint a screen-narrowed tail's exit is delivered to, minting it if this session has not
+/// The rendezvous a screen-narrowed tail's exit is delivered to, minting it if this session has not
 /// needed one yet. `None` when the budget cannot back it, and the caller then falls back to the
 /// pre-§106 path: an unredirected `writes_while_reading` stage with nowhere for its completion
 /// signal to arrive is refused by `check_chain` exactly as it always was, rather than spawned with
 /// no way to know when it is done.
-fn screen_endpoint() -> Option<u64> {
+fn screen_rendezvous() -> Option<u64> {
     let held = SCREEN_EP.load(core::sync::atomic::Ordering::Relaxed);
     if held != u64::MAX {
         return Some(held);
     }
-    let ep = retype_endpoint(BUDGET)?;
+    let ep = retype_rendezvous(BUDGET)?;
     SCREEN_EP.store(ep, core::sync::atomic::Ordering::Relaxed);
     Some(ep)
 }
@@ -1812,18 +1812,18 @@ const SCREEN_REAP_ATTEMPTS: usize = 1024;
 /// It runs **before** the output is drained, and the order is forced rather than chosen. In
 /// `date | wc` the shell is not the reader of `date`'s output (`wc` is), so a shell that drained the
 /// output first would be waiting on `wc`, which is waiting on `date`, which is blocked in a
-/// rendezvous `SEND` on this endpoint. Diagnostics first is the only order in which nobody waits on
+/// rendezvous `SEND` on this rendezvous. Diagnostics first is the only order in which nobody waits on
 /// somebody who is waiting on them.
 ///
 /// What that costs is a rule the declaring program has to keep, and it is in notes/pipes.md's BUGS:
 /// **say everything you have to say before you produce anything.** `date` does, because its
 /// complaints are all reasons it has no answer.
 ///
-/// `writers` is how many stages were handed the endpoint, and the drain ends when that many have
+/// `writers` is how many stages were handed the rendezvous, and the drain ends when that many have
 /// announced end of stream. Each declaring stage sends exactly one `OP_EOF`, so the count is the
 /// termination condition and no stage's silence can be mistaken for the line being over.
 fn drain_diagnostics(dest: &mut dyn ByteOut, writers: usize) {
-    let Some(ep) = diag_endpoint() else { return };
+    let Some(ep) = diag_rendezvous() else { return };
     let mut done = 0usize;
     for _ in 0..MAX_OUTPUT_CHUNKS {
         if done == writers {
@@ -1834,7 +1834,7 @@ fn drain_diagnostics(dest: &mut dyn ByteOut, writers: usize) {
         match sink_proto::unpack(w0, w1, w2, &mut buf) {
             sink_proto::Msg::Bytes(n) => dest.push(&buf[..n]),
             sink_proto::Msg::Eof => done += 1,
-            // init's failure sentinel arrives here too, as an `OP_EOF` it sends on this endpoint so
+            // init's failure sentinel arrives here too, as an `OP_EOF` it sends on this rendezvous so
             // this drain can end; anything else is a program that cannot spell the contract.
             sink_proto::Msg::Malformed => done += 1,
         }
@@ -1913,7 +1913,7 @@ fn untyped_split(pages: u64) -> Option<u64> {
 /// objects retyped out of it (one page each), and the region exists so the shell can **destroy** it
 /// when the pipeline is over.
 ///
-/// That is not tidiness. Deleting every capability naming an endpoint does not destroy the endpoint,
+/// That is not tidiness. Deleting every capability naming an rendezvous does not destroy the rendezvous,
 /// because the object lives in a page of this region; only reclaiming the region does. So a producer
 /// still blocked in a `SEND` after its reader has gone would stay blocked forever, and `yes | head`
 /// would hang instead of ending. Destroying the region is what turns that into `abi::Error::Gone`.
@@ -1941,7 +1941,7 @@ fn pipeline(nav: &mut Nav, l: Line<'_>) {
         },
         None => None,
     };
-    // `2>` names one destination for the **line**, because this shell mints one diagnostic endpoint
+    // `2>` names one destination for the **line**, because this shell mints one diagnostic rendezvous
     // and hands it to every stage that declares a second stream. See notes/pipes.md.
     let diag_file = match l.diagnostics {
         Some(t) => match grant_plan::redirect_target(t, holdings(nav), true) {
@@ -2032,7 +2032,7 @@ fn pipeline(nav: &mut Nav, l: Line<'_>) {
 /// process that can back both ends without a second session.
 ///
 /// What the child holds is unchanged by that, which is why it costs the milestone nothing: a
-/// redirected program holds an endpoint with `WRITE` and no way to ask what is behind it.
+/// redirected program holds an rendezvous with `WRITE` and no way to ask what is behind it.
 #[allow(clippy::too_many_arguments)] // one parameter per operator, and there are four of them now
 fn run_pipeline(
     nav: &mut Nav,
@@ -2048,7 +2048,7 @@ fn run_pipeline(
     // **This shell can be at one end of a chain, never both** (`grant_plan::check_chain`,
     // notes/pipes.md). It is the producer whenever the bytes going into the head come from here: a
     // `<`, an input operand, or a producing builtin. It is always the consumer, because the tail's
-    // sink is this shell's result endpoint or a file this shell backs. With one wait point per
+    // sink is this shell's result rendezvous or a file this shell backs. With one wait point per
     // process and no select, that only works if some stage reads to the end before it writes.
     //
     // **Before the files are opened**, which is the whole reason this is the first thing in the
@@ -2104,7 +2104,7 @@ fn run_pipeline(
         },
         None => None,
     };
-    // How many stages were handed the diagnostic endpoint, which is what [`drain_diagnostics`]
+    // How many stages were handed the diagnostic rendezvous, which is what [`drain_diagnostics`]
     // counts end-of-stream messages against. It comes from the manifests rather than from the line:
     // a declared stream exists whether or not a `2>` named a destination for it.
     // Only the stages whose second stream this shell is backing, which is the ones a `2>` named a
@@ -2120,11 +2120,11 @@ fn run_pipeline(
     // tail (no `>` at the end of the line: `sink.is_none()`, this function's own `sink` being the
     // file this shell opened for one, not to be confused with `Endowment::sink`) whose program both
     // writes and reads is screen-narrowed: `terminal_sink_caretaker` takes its primary output
-    // instead of this shell's own result endpoint. `check_chain` above already used the identical
+    // instead of this shell's own result rendezvous. `check_chain` above already used the identical
     // condition (the tail's `Sink` and its `writes_while_reading`) to let a chain with no absorbing
     // barrier through, so this has to agree with it exactly.
     //
-    // **`check_chain` cannot itself confirm the endpoint mints**, because it is host-testable, pure
+    // **`check_chain` cannot itself confirm the rendezvous mints**, because it is host-testable, pure
     // logic with no capability to retype anything, so this is the one place that can. A line
     // `check_chain` allowed on the assumption of narrowing must not fall back to spawning the child
     // unnarrowed on a failed mint: that would reintroduce the exact deadlock `check_chain` exists to
@@ -2133,7 +2133,7 @@ fn run_pipeline(
     let tail_writes_while_reading = plans[n - 1].is_some_and(|e| e.writes_while_reading);
     let needs_screen = sink.is_none() && tail_writes_while_reading;
     let screen_ep = if needs_screen {
-        match screen_endpoint() {
+        match screen_rendezvous() {
             Some(ep) => Some(ep),
             None => {
                 failed();
@@ -2157,7 +2157,7 @@ fn run_pipeline(
     }
 
     // One region for the whole pipeline, so a line costs one SPLIT and one DESTROY however many
-    // stages it has. Each joint's endpoint is a page retyped out of it.
+    // stages it has. Each joint's rendezvous is a page retyped out of it.
     let Some(region) = untyped_split(PIPE_REGION_PAGES) else {
         failed();
         failed();
@@ -2166,7 +2166,7 @@ fn run_pipeline(
     };
     let mut pipes = [0u64; line::MAX_STAGES];
     let mut minted = 0usize;
-    // A `<` needs one more endpoint than a bare pipeline does: the head stage reads a pipe like any
+    // A `<` needs one more rendezvous than a bare pipeline does: the head stage reads a pipe like any
     // other stage, and the shell is what writes into it. That is the input side of "the same
     // contract, read from the other end" made concrete: nothing about the head stage knows.
     let mut want = n - 1;
@@ -2174,7 +2174,7 @@ fn run_pipeline(
         want += 1;
     }
     while minted < want {
-        match retype_endpoint(region) {
+        match retype_rendezvous(region) {
             Some(ep) => {
                 pipes[minted] = ep;
                 minted += 1;
@@ -2199,7 +2199,7 @@ fn run_pipeline(
         let stage_sink = if i + 1 < n { Some(pipes[i]) } else { None };
         let stage_source = if i > 0 { Some(pipes[i - 1]) } else { feed_pipe };
         let stage_diag = match e.diagnostics {
-            line::Diagnostics::File(..) => diag_endpoint(),
+            line::Diagnostics::File(..) => diag_rendezvous(),
             _ => None,
         };
         // Only the tail stage is ever eligible (`screen_ep` is `None` unless the tail's own sink is
@@ -2214,7 +2214,7 @@ fn run_pipeline(
 
     // **Diagnostics before anything else**, because in `date | wc` this shell is not the reader of
     // `date`'s output and draining the output first would wait on `wc`, which waits on `date`, which
-    // is blocked in a rendezvous send on the diagnostic endpoint. See [`drain_diagnostics`].
+    // is blocked in a rendezvous send on the diagnostic rendezvous. See [`drain_diagnostics`].
     if let Some(f) = &mut diag_sink {
         if declarers > 0 {
             drain_diagnostics(f, declarers);
@@ -2238,7 +2238,7 @@ fn run_pipeline(
 
     // And the tail's answer. `>` is the shell putting those bytes somewhere else, not the child
     // being handed something different, so a redirected tail is unchanged: it still arrives on the
-    // shell's own result endpoint. **A screen-narrowed tail's bytes never arrive here at all**
+    // shell's own result rendezvous. **A screen-narrowed tail's bytes never arrive here at all**
     // (DECISIONS §106): they went straight to `terminal_sink_caretaker`, and what this shell waits
     // for instead is the child's exit.
     match &mut sink {
@@ -2256,7 +2256,7 @@ fn run_pipeline(
 
 /// **Somewhere this shell puts bytes it produced itself.**
 ///
-/// Two implementations, and the whole of what `>` cost: an endpoint (the next stage of a pipeline)
+/// Two implementations, and the whole of what `>` cost: an rendezvous (the next stage of a pipeline)
 /// and a file. A builtin cannot tell them apart, exactly as a spawned program cannot tell what is in
 /// its output slot, and for the same reason: it is handed a place to push bytes and nothing else.
 trait ByteOut {
@@ -2308,7 +2308,7 @@ fn feed(nav: &mut Nav, stage: &[u8], w: &mut dyn ByteOut) {
     }
 }
 
-/// A byte-at-a-time writer onto a sink endpoint, buffering into the contract's sixteen-byte
+/// A byte-at-a-time writer onto a sink rendezvous, buffering into the contract's sixteen-byte
 /// messages. The seam between a callback that hands over arbitrary slices and a wire that carries
 /// two words at a time; `user/src/sink.rs`'s verify role is the same loop from the other side.
 struct SinkWriter {
@@ -2566,7 +2566,7 @@ struct FileIn {
 
 impl FileIn {
     /// **Stream the file over the sink contract**, which is the whole of `<`: the head stage holds
-    /// the read end of an endpoint and receives `OP_BYTES` until `OP_EOF`, exactly as it would from
+    /// the read end of an rendezvous and receives `OP_BYTES` until `OP_EOF`, exactly as it would from
     /// a program on the left of a `|`. Nothing about the file reaches it.
     fn stream_into(&mut self, pipe: u64) {
         let mut w = SinkWriter::new(pipe);
@@ -2597,7 +2597,7 @@ impl FileIn {
     }
 }
 
-/// **Drain a byte stream off the result endpoint into a file**, which is what `>` is.
+/// **Drain a byte stream off the result rendezvous into a file**, which is what `>` is.
 ///
 /// [`drain_text`] with a different destination, and deliberately not a parameterised version of it:
 /// the printing one puts a two-space prefix on the answer and this one must put nothing at all in
@@ -2631,8 +2631,8 @@ fn drain_into(f: &mut FileOut) {
 /// **Direct init to build one stage**, delegating whatever the operators put in its slots.
 ///
 /// The two delegations are the entire difference between a piped stage and an ordinary spawn, and
-/// they are why `>` and `|` are one mechanism: init receives an endpoint and puts it where the
-/// result endpoint would have gone. Nothing here knows or can find out what is on the other end.
+/// they are why `>` and `|` are one mechanism: init receives an rendezvous and puts it where the
+/// result rendezvous would have gone. Nothing here knows or can find out what is on the other end.
 ///
 /// Returns whether the stage started; a failure has already been printed.
 fn spawn_stage(
@@ -2697,7 +2697,7 @@ fn spawn_stage(
 
     // A stage whose output was substituted owes this shell no answer, so init acks instead. Without
     // it a failed spawn would be invisible and the pipeline would wait on a producer that does not
-    // exist. A screen-narrowed stage is the same shape: its completion signal is the fault endpoint
+    // exist. A screen-narrowed stage is the same shape: its completion signal is the fault rendezvous
     // above, not this one, so a build failure has to reach the shell here too (DECISIONS §106).
     if (wiring.sink || wiring.screen) && recv(RESULT).0 != spawnproto::SPAWN_OK {
         failed();
@@ -2709,7 +2709,7 @@ fn spawn_stage(
 
 /// Give the pipeline's memory back.
 ///
-/// **The `DESTROY` is what makes a dead reader visible to a live writer.** An endpoint is an object
+/// **The `DESTROY` is what makes a dead reader visible to a live writer.** An rendezvous is an object
 /// in a page of this region, so deleting the capabilities that name it leaves it alive; reclaiming
 /// the region is what turns a producer's next `SEND` into `abi::Error::Gone`. A pipeline that ended
 /// with a stage still writing (the `yes | head` shape) ends here.
@@ -2723,16 +2723,16 @@ fn release_pipeline(region: u64, pipes: &[u64]) {
     cap_delete(region);
 }
 
-/// RETYPE one page of `region` into an `Endpoint` we hold with full rights, which is what lets us
+/// RETYPE one page of `region` into an `Rendezvous` we hold with full rights, which is what lets us
 /// delegate a narrowed view of it to each end of a pipe.
-fn retype_endpoint(region: u64) -> Option<u64> {
+fn retype_rendezvous(region: u64) -> Option<u64> {
     // SAFETY: `svc`/`ecall`; the kernel checks WRITE on the untyped and returns a negative error
     // when the region cannot back another page.
     let r = unsafe {
         invoke(
             region,
             abi::untyped::RETYPE_OBJ,
-            abi::objtype::ENDPOINT,
+            abi::objtype::RENDEZVOUS,
             0,
             0,
         )
@@ -2803,7 +2803,7 @@ fn spawn_interruptible(e: Endowment) {
             sink: false,
             source: false,
             // A supervised job reports through the shared frame, not through a stream, and neither
-            // demonstrator declares a second one. `OutputSpec::Silent` and a diagnostic endpoint
+            // demonstrator declares a second one. `OutputSpec::Silent` and a diagnostic rendezvous
             // would be a contradiction the manifest can already refuse.
             diagnostics: false,
             // Neither demonstrator declares a directory either, and a supervised job is built out of
@@ -2943,7 +2943,7 @@ fn map_frame(slot: u64, va: u64) -> bool {
     unsafe { invoke(slot, abi::frame::MAP, va, 1, BUDGET) == 0 }
 }
 
-/// Delegate the capability in `slot` to init over the spawn endpoint, narrowed to WRITE|GRANT (init
+/// Delegate the capability in `slot` to init over the spawn rendezvous, narrowed to WRITE|GRANT (init
 /// builds from an untyped or maps a frame, and narrows further from there). We keep our own copy.
 fn send_cap(slot: u64) {
     delegate(slot, abi::rights::WRITE | abi::rights::GRANT);
@@ -2957,11 +2957,11 @@ fn send_cap(slot: u64) {
 /// input**. A pipeline that granted both directions would be a two-way channel nobody asked for, and
 /// the narrowing is what stops it rather than a convention the programs are trusted to keep.
 fn delegate(slot: u64, rights: u64) {
-    // SAFETY: `svc`/`ecall`; the kernel checks WRITE on the endpoint and GRANT on the delegated cap.
+    // SAFETY: `svc`/`ecall`; the kernel checks WRITE on the rendezvous and GRANT on the delegated cap.
     unsafe {
         invoke(
             SPAWN,
-            abi::endpoint::SEND_CAP,
+            abi::rendezvous::SEND_CAP,
             slot,
             rights,
             spawnproto::CAP_TAG,

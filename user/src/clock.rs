@@ -94,7 +94,7 @@ pub extern "C" fn _start(rtc_kind: u64, _a1: u64, _a2: u64) -> ! {
 fn serve(page: ClockPage) -> ! {
     loop {
         let (w0, cap, w1) = recv_cap(PROPOSE_EP);
-        if cap == abi::endpoint::NO_CAP {
+        if cap == abi::rendezvous::NO_CAP {
             // A plain SEND on a CALL-only contract. Nobody is waiting for an answer, so there is
             // nothing to do and nothing to report; drop it rather than replying into a slot we do
             // not hold.

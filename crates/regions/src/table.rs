@@ -9,7 +9,7 @@
 //!
 //! `untyped::destroy` used to check the region under the `REGIONS` lock, **release** it, revoke
 //! every mapping, free every page, and remove the table slot last. Two callers holding a name for
-//! one region (an owner's `Untyped::DESTROY` and a supervisor's `endpoint::REAP`, both landing in
+//! one region (an owner's `Untyped::DESTROY` and a supervisor's `rendezvous::REAP`, both landing in
 //! `sched::reclaim_region`) could each pass the refusal check inside that gap and each run the free
 //! loop over the same pages. It surfaced once in 45 loaded runs on riscv64 as
 //! `double free of frame 0x82a3e000`, and it needed two cores.
@@ -585,7 +585,7 @@ mod interleavings {
     /// **The property the whole reclamation path rests on: two callers, one winner.**
     ///
     /// The kernel reaches `destroy` for one region by two routes that can run concurrently on two
-    /// cores, an owner's `Untyped::DESTROY` and a supervisor's `endpoint::REAP`. Each thread here
+    /// cores, an owner's `Untyped::DESTROY` and a supervisor's `rendezvous::REAP`. Each thread here
     /// takes the lock, claims, and (if it won) runs the free loop, counting the run. Loom fails the
     /// model on any execution where the count reaches two.
     ///

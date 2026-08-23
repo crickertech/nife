@@ -9,7 +9,7 @@
 //! # The exchange
 //!
 //! Not a `CALL`: a one-shot reply capability carries two words and nothing else (`abi::reply`), and
-//! a successful login has to hand back capabilities, which only `abi::endpoint::SEND_CAP` can do.
+//! a successful login has to hand back capabilities, which only `abi::rendezvous::SEND_CAP` can do.
 //! So this is two persistent endpoints and a fixed message order, the same shape
 //! `grant_plan::spawnproto` already uses for exactly this reason (a shell's spawn request that may
 //! carry a delegated budget):
@@ -46,9 +46,9 @@
 //! the same layout and risking the two drifting the way `credentialer.rs`'s own compile-time
 //! assertions exist to catch for `cred`/`cred_proto`.
 //!
-//! Name: unrecorded. Provisional, minted 2026-08-22 for milestone 49 and not yet put to calef.
-//! `login_proto` follows the tree's existing `<subject>_proto` pattern (`cred_proto`, `clock_proto`,
-//! `entropy_proto`), which is the reasoning a ratification would test.
+//! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review). Minted 2026-08-22
+//! for milestone 49, following the tree's existing `<subject>_proto` pattern (`credential_proto`,
+//! `clock_proto`, `entropy_proto`).
 
 pub use cred_proto::{MAX_IDENTITY, MAX_SECRET, PAGE, op, place, read, wipe};
 

@@ -186,7 +186,7 @@ fn usurp() -> ! {
         RPT,
         swap_proto::RPT_ATTACK,
         (-r) as u64,
-        abi::endpoint::RECV_CAP,
+        abi::rendezvous::RECV_CAP,
     );
     // Also say so on the operator's channel, so the operator knows the attack has been made and the
     // run is not simply missing a report.
