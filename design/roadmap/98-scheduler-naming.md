@@ -1,12 +1,36 @@
 # 98. The scheduler that stopped scheduling: name what `SCHED` actually guards
 
-**Status: NOT-STARTED.** Raised 2026-08-04 by calef as an abbreviation question (`sched` or
-`scheduler`?), and rewritten the same hour when the question "what does `sched` schedule?" turned up
-a better answer: **increasingly, nothing.**
+**Status: BUILT (2026-08-23), both ISAs.** Raised 2026-08-04 by calef as an abbreviation question
+(`sched` or `scheduler`?), and rewritten the same hour when the question "what does `sched`
+schedule?" turned up a better answer: **increasingly, nothing.**
 
-**Gate: NONE.** The naming question is **decided (DECISIONS §118, 2026-08-23)**: `Scheduler`
-becomes `IpcTables`, `SCHED` becomes `IPC_TABLES`. The module keeps `sched`, which really does
-schedule. What remains is the mechanical rename itself, per this file's own Scope note below.
+**What landed**, and everything below this paragraph is the argument that produced it, kept as
+written: `struct Scheduler` and `static SCHED` became `struct IpcTables` and `static IPC_TABLES`
+throughout `kernel/src/sched.rs`, `kernel/src/sync.rs`'s `rank::IPC_TABLES` constant (still rank 60,
+still between `ASPACES` and `INBOX`/`MAPPINGS`/`KMEM`, only the name moved), and every doc comment
+across `kernel/src/` and `crates/` that named the lock by identifier (`thread.rs`, `cpu.rs`,
+`interrupt_stack.rs`, `untyped.rs`, `kmem.rs`, `user.rs`, `drivers/plic.rs`,
+`arch/aarch64/mmu.rs`, `user/tests.rs`, `user/force_kill_tests.rs`, `user/survey_tests.rs`,
+`crates/abi`, `crates/steal_request`, `crates/wake_handshake`). A handful of comments that said "the
+scheduler" to mean this specific lock, not the `sched` module, were reworded to name it directly
+(`sync.rs`'s rank commentary, `untyped.rs`'s reap/revoke notes, and similar), per this file's own
+instruction to check that every call site still reads correctly under the new name.
+`notes/sched-lock-inventory.md` followed last, renamed to `notes/ipc-tables-lock-inventory.md` with
+its content brought current and a provenance line pointing back at the old name for a reader who
+remembers it. Verified as a pure rename per milestone 69's proof obligation: every changed `.rs`
+line, reverted mechanically (`IPC_TABLES`→`SCHED`, `IpcTables`→`Scheduler`), reproduces the
+pre-rename files byte for byte; the deliberate prose edits are the only lines that don't round-trip,
+and each is accounted for above. `script/fastpath-footprint` measured **0% delta** on both aarch64
+and riscv64, confirming the renamed symbols compile to identical code. Full gate suite green on both
+ISAs.
+
+Left alone, and worth recording as a scope call rather than an oversight: this entry and §118 were
+the only `design/` files touched. Other `design/roadmap/*.md` and `design/decisions/*.md` entries
+that cite `SCHED` as a historical fact about the tree at the time they were written were not
+rewritten, matching this milestone's own measured scope and the rule that a developer lane does not
+edit `design/` beyond its own entry. Likewise, `notes/*.md` files other than
+`notes/sched-lock-inventory.md` that mention `SCHED`/`Scheduler` in passing (there are more than a
+dozen) were left as written; only that one note was in this milestone's named scope.
 
 **The finding, in the struct's own words.** `Scheduler`'s comment says it outright: "Neither the run
 queue nor `current` live here any more: both moved to per-CPU storage (`cpu::PerCpu`, §11 steps 3a

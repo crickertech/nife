@@ -96,7 +96,7 @@ pub struct AddressSpace {
 /// `sched::reclaim_region` unpins) so the borrower's `destroy` is refused. That reasoning holds
 /// only while the pin is still set, and `reclaim_region` clears it **before** the reaper's
 /// deferred drop can land: `sched::finish_switch` hoists a dead thread's space out from under
-/// `SCHED`, releases the lock, and only then drops it. Two `untyped::destroy` calls for one
+/// `IPC_TABLES`, releases the lock, and only then drops it. Two `untyped::destroy` calls for one
 /// region then overlap, both pass the refusal check, and both free every page of the run. That is
 /// the intermittent `double free of frame 0x82a3e000` in
 /// `force_kill_tests::destroy_reclaims_a_region_whose_resident_is_blocked_in_recv`
@@ -349,7 +349,7 @@ pub fn take_user_aspace(name: u64) -> Option<AddressSpace> {
 ///
 /// Bound spaces are **not** here: `CONFIGURE` moved them out of this registry into a TCB, so they
 /// die with the thread (`Thread`'s drop), not through this sweep. Takes only the aspace-registry
-/// lock, no `SCHED`, so `sched::reclaim_region` runs it as a step separate from the thread reap.
+/// lock, no `IPC_TABLES`, so `sched::reclaim_region` runs it as a step separate from the thread reap.
 pub fn reap_aspaces_in_region(base: u64, end: u64) {
     // Find-then-remove one at a time, never dropping an `AddressSpace` while holding the registry
     // lock: its `Drop` takes the revocation, region, and ASID locks, and must not do so under ours.
@@ -1643,7 +1643,7 @@ fn term_print(out: u64, ep: crate::sched::EpId, text: &[u8]) {
     // The bytes must be visible to the terminal before the request that names them.
     //
     // PAIR: no acquire fence, and none is needed. The terminal is blocked in `recv_cap` and the
-    // `ipc_call` below is what wakes it, so the kernel's release of the `SCHED` lock and the
+    // `ipc_call` below is what wakes it, so the kernel's release of the `IPC_TABLES` lock and the
     // terminal's acquire of it are the pair (`spin::Mutex` locks `Acquire` and unlocks `Release`).
     // Redundant, kept: it is one `dmb` on a path that prints a line, and the contract does not
     // forbid a terminal that polls its page instead of blocking. See notes/memory-ordering.md.

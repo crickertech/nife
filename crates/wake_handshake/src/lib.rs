@@ -5,12 +5,12 @@
 //!
 //! # What this is, and what it is not
 //!
-//! Every field here is written **under the scheduler's `SCHED` lock**. That is worth saying in the
+//! Every field here is written **under `IPC_TABLES`**. That is worth saying in the
 //! first breath, because it is the opposite of what "extract the atomic protocol" usually means:
 //! there are no hand-rolled atomics in this protocol and no orderings to tune. The concurrency is
-//! in the *gaps between critical sections*. A thread that marks itself `Blocked` releases `SCHED`
+//! in the *gaps between critical sections*. A thread that marks itself `Blocked` releases `IPC_TABLES`
 //! and keeps running until its core's `switch_to` saves its context; a waker on another core can
-//! take `SCHED` inside that window. Three real races have come out of that window, and each one is
+//! take `IPC_TABLES` inside that window. Three real races have come out of that window, and each one is
 //! a rule in this type:
 //!
 //! - **Wake-before-switch-out** (found by a 2-in-10 flake; notes/intrusive-queues.md). A waker that
@@ -61,7 +61,7 @@
 //! - **The out-of-protocol state writes.** Spawn making a thread `Ready`, `depart` marking
 //!   `Finished`/`Dead`, `START` promoting an `Embryo`, the killed-thread conversion, and
 //!   `schedule()`'s keep-current heal all write [`state`](Handshake::state) directly. They are
-//!   `SCHED`-held single-thread transitions with no cross-core window, and folding them in here
+//!   `IPC_TABLES`-held single-thread transitions with no cross-core window, and folding them in here
 //!   would grow the model without growing the checked surface.
 //! - **The self-switch refusal and the reply-role check** (boot 8's companions). Both read queue or
 //!   capability state this type cannot see (`schedule()`'s popped tid, `ipc_reply`'s
@@ -74,7 +74,7 @@
 //! ```
 //! use wake_handshake::{Handshake, RunState, SwitchOutVerdict, WakeVerdict};
 //!
-//! // The receiver, running, parks itself in ipc_recv (under SCHED):
+//! // The receiver, running, parks itself in ipc_recv (under IPC_TABLES):
 //! let mut hs: Handshake<(u64, char)> = Handshake::on_cpu_now();
 //! hs.park((0, 'r')); // Blocked, waiting on endpoint 0 as a receiver, nothing delivered yet
 //!
@@ -113,8 +113,8 @@
 //!   an abort therefore parks with the gate already half-open. Every current kernel-side caller
 //!   either collects the flag or never has it set; nothing enforces that for the next one.
 //! - **The loom model checks this protocol under the kernel's locking discipline, not the
-//!   discipline itself.** `SCHED` is modelled as a mutex and the run queue as a slot under it; that
-//!   the kernel really does take `SCHED` at every one of these sites, really does keep run queues
+//!   discipline itself.** `IPC_TABLES` is modelled as a mutex and the run queue as a slot under it; that
+//!   the kernel really does take `IPC_TABLES` at every one of these sites, really does keep run queues
 //!   single-owner, and really does run `finish_switch` before the next scheduler entry is
 //!   established by reading `sched.rs`, not by the model. See notes/interleaving.md for what the
 //!   model covers and what it cannot reach.
@@ -161,7 +161,7 @@ pub enum RunState {
 }
 
 /// **What a wake attempt decided.** The caller (the kernel's `wake` / `wake_load_aware`, holding
-/// `SCHED`) acts on the verdict: only [`Queue`](WakeVerdict::Queue) comes with an obligation.
+/// `IPC_TABLES`) acts on the verdict: only [`Queue`](WakeVerdict::Queue) comes with an obligation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WakeVerdict {
     /// The thread is not `Blocked`; the wake is a no-op. (A second waker lost the race, or the
@@ -206,7 +206,7 @@ pub enum SwitchOutVerdict {
 /// waiting on" payload (the kernel uses `(EpId, WaitRole)`; the tests use small scalars), because
 /// the handshake only ever asks whether it is present.
 ///
-/// Every method is written to be called **under `SCHED`**. The struct itself has no interior
+/// Every method is written to be called **under `IPC_TABLES`**. The struct itself has no interior
 /// mutability and no atomics; see the module documentation for why that is the honest shape.
 #[derive(Debug)]
 pub struct Handshake<W> {
@@ -216,7 +216,7 @@ pub struct Handshake<W> {
 
     /// **Still standing on a CPU.** Set by [`switch_in`](Self::switch_in); cleared by that core's
     /// *successor* in [`finish_switch`](Self::finish_switch), after the switch away has saved this
-    /// thread's context. In the window between "released `SCHED`" and "actually off its stack",
+    /// thread's context. In the window between "released `IPC_TABLES`" and "actually off its stack",
     /// this is what tells a waker the saved context is still stale.
     pub on_cpu: bool,
 
@@ -232,7 +232,7 @@ pub struct Handshake<W> {
     pub wait_on: Option<W>,
 
     /// **The pending rendezvous was completed by the counterparty** (boot 8): a message staged, a
-    /// signal counted, a reply filled. Set by [`serve`](Self::serve) in the same `SCHED` critical
+    /// signal counted, a reply filled. Set by [`serve`](Self::serve) in the same `IPC_TABLES` critical
     /// section that delivered, before the wake; cleared by [`park`](Self::park). One half of the
     /// undelivered-wake gate.
     pub ipc_served: bool,
@@ -291,7 +291,7 @@ impl<W> Handshake<W> {
     /// only a counterparty that delivers (or an abort) may complete this wait.
     ///
     /// The caller has already linked the thread on the endpoint's wait queue (or, for a `CALL`
-    /// caller, deliberately on none) and stays under `SCHED` until both are recorded, so a
+    /// caller, deliberately on none) and stays under `IPC_TABLES` until both are recorded, so a
     /// timer-driven `schedule()` in the gap sees a consistent pair.
     pub fn park(&mut self, wait: W) {
         debug_assert!(
@@ -303,7 +303,7 @@ impl<W> Handshake<W> {
         self.ipc_served = false; // parked: only a delivering counterparty may wake us
     }
 
-    /// **Record a delivery** in the same `SCHED` critical section that staged it (a mailbox
+    /// **Record a delivery** in the same `IPC_TABLES` critical section that staged it (a mailbox
     /// written, a signal counted, a reply filled, a death message collected). This is what lets
     /// the very next [`try_wake`](Self::try_wake) through the gate; a wake whose critical section
     /// did not call this is exactly the wake the gate exists to refuse. No such wake has been
@@ -565,14 +565,14 @@ mod tests {
 mod interleavings {
     //! The block/wake handshake's critical sections, interleaved every way loom can order them.
     //!
-    //! Run with `script/interleaving-check`. What the model is and is not: `SCHED` is a
+    //! Run with `script/interleaving-check`. What the model is and is not: `IPC_TABLES` is a
     //! `loom::sync::Mutex`, the run queue and the migration inbox are booleans under it, the
     //! thread's saved context is a `loom::cell::UnsafeCell` written **outside** the lock (exactly
     //! where `switch_to` writes the real one), and each loom thread is a core executing its
     //! critical sections in the kernel's program order. Loom then explores every interleaving of
     //! those sections, and the `UnsafeCell` turns "the resumer sees a saved context" from an
     //! argument into a checked ordering fact. What it cannot check is that the kernel keeps the
-    //! discipline the model encodes (every site under `SCHED`, queues single-owner); that is
+    //! discipline the model encodes (every site under `IPC_TABLES`, queues single-owner); that is
     //! established by reading `sched.rs`. See notes/interleaving.md.
     //!
     //! **Bounds, honestly.** Every harness here is run to exhaustion: no
@@ -613,7 +613,7 @@ mod interleavings {
     /// holding a flag so that conservation ("woken exactly once") is an assertion, not a hope.
     struct Machine {
         sched: Mutex<Core>,
-        /// The thread's saved context: written by its core's `switch_to` after `SCHED` is
+        /// The thread's saved context: written by its core's `switch_to` after `IPC_TABLES` is
         /// released, read by whichever core switches it back in. The loom `UnsafeCell` is the
         /// instrument: any two accesses not ordered by the model's own edges fail the run.
         ctx: UnsafeCell<u32>,
@@ -642,7 +642,7 @@ mod interleavings {
     /// **A waker races the receiver's switch-out, and the resumer always sees a saved context.**
     ///
     /// The wake-before-switch-out race (notes/intrusive-queues.md), as the kernel runs it: the
-    /// receiver parks under `SCHED`, releases, saves its context (the write outside the lock),
+    /// receiver parks under `IPC_TABLES`, releases, saves its context (the write outside the lock),
     /// and its successor's `finish_switch` clears `on_cpu`; a sender on another core delivers and
     /// wakes somewhere in between. Whichever side ends up queueing the thread, the switch-in that
     /// follows must read the context the victim wrote, and exactly one side may queue.
@@ -656,7 +656,7 @@ mod interleavings {
         loom::model(|| {
             let m = Machine::new();
 
-            // The receiver parks itself (under SCHED), sequenced before both cores below, exactly
+            // The receiver parks itself (under IPC_TABLES), sequenced before both cores below, exactly
             // as the endpoint queue linking sequences the real waker behind the real park.
             m.sched.lock().unwrap().hs.park(3);
 

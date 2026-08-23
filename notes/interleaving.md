@@ -298,7 +298,7 @@ reasons rather than being a disappointment.
 It converts three comments into checked facts (the herd collapsing to one claim, the release/acquire
 pairing, the accepted staleness of the load reading). It leaves a **regression test** on a protocol
 that is about to matter more: milestone 17's scheduler partitioning is explicitly sequenced behind
-this one, and [sched-lock-inventory.md](sched-lock-inventory.md) says any design that replaces the
+this one, and [ipc-tables-lock-inventory.md](ipc-tables-lock-inventory.md) says any design that replaces the
 `SCHED` lock with messages wants its protocol born loom-checked. And the negative result itself is
 informative: the steal slot is simple *because* the design pushed everything else behind a lock, so
 "loom found nothing here" is evidence for DECISIONS §9's discipline rather than evidence against

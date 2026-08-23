@@ -401,7 +401,7 @@ fn a_dead_child_is_still_in_the_domain_until_it_is_reaped() {
 
 /// **The cursor resumes, and it never repeats or skips a member.**
 ///
-/// The walk gives `SCHED` back between entries, so the cursor is the only thing carrying the
+/// The walk gives `IPC_TABLES` back between entries, so the cursor is the only thing carrying the
 /// position across calls (`slots::Table::iter_from`). A cursor that resolved to a *position* rather
 /// than a slot would double-report or drop a member the moment anything changed, so what is checked
 /// is the invariant that makes the shape safe: distinct tids, every one of them a real member.

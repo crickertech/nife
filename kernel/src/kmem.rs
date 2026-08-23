@@ -1,7 +1,7 @@
 //! **The kernel's own object budget** (milestone 19c.1; design/init-and-granular-spawn.md).
 //!
 //! One untyped region, carved once at first use, that every kernel-owned object draws from:
-//! kernel endpoints (moved here from the scheduler's private region), kernel thread stacks
+//! kernel endpoints (moved here from `IpcTables`'s private region), kernel thread stacks
 //! (which used to draw open-endedly from the frame allocator), and, with 19c.2, the kernel's
 //! own TCB pages. This is the milestone 14 thesis extended to its last uncovered corner: after
 //! this carve, **the kernel cannot spend beyond it, structurally**. The frame allocator's count
@@ -47,7 +47,7 @@ struct Pool {
     free_len: usize,
 }
 
-/// Rank note: taken alone or under SCHED (`create_endpoint` holds SCHED, then this, then the
+/// Rank note: taken alone or under `IPC_TABLES` (`create_endpoint` holds `IPC_TABLES`, then this, then the
 /// region lock: 60 -> 59 -> 58, a legal descent). Shares 59 with INBOX and MAPPINGS, with which
 /// it is never nested: inboxes are scheduling traffic, the mapping registry is user-space
 /// bookkeeping, and this is the kernel shopping for its own pages.
