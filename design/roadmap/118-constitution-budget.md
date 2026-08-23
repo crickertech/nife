@@ -1,6 +1,6 @@
 # 118. CLAUDE.md has a budget, and the rules that get violated move up the ladder
 
-**Status: IN-PROGRESS**, on `milestone/118-size-gate-and-ledger`. Minted 2026-08-05 by calef, who
+**Status: PARTIAL.** Minted 2026-08-05 by calef, who
 noticed the file had gotten huge and asked what that costs. Two lanes have run: #309 took the audit,
 and a second (2026-08-18) verified it and produced an applicable cut. **The cut is proposed, not
 applied**, because a developer may not edit `AGENTS.md`; the integrator applies it. A third lane
