@@ -90,10 +90,10 @@
 //!   named here for whoever picks it up next rather than decided by this lane. See
 //!   notes/process-view.md.
 //!
-//! Name: recorded (milestone 126, and notes/naming.md). `pmap` is the name every reader already
-//! knows from outside this project. Sharing it with `user/src/pmap.rs` is the crate-and-program pair
-//! the naming tenet describes: `ps`, `coremark`, `line_editor` and `compositor` all keep one name
-//! across the two. calef ruled on the rules; this crate's name follows from them.
+//! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review, confirming milestone
+//! 126's own reasoning). `pmap` is the name every reader already knows from outside this project.
+//! Sharing it with `user/src/pmap.rs` is the crate-and-program pair the naming tenet describes:
+//! `ps`, `coremark`, `line_editor` and `compositor` all keep one name across the two.
 
 #![cfg_attr(not(test), no_std)]
 

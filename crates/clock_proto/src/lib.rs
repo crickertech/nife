@@ -107,11 +107,10 @@
 //! horizon this project has, and picking `u64` keeps the wire words, the page words and the
 //! arithmetic identical.
 //!
-//! Name: recorded (milestone 46, and notes/naming.md's crate section). The wire contract was
-//! spelled four ways (`fs_proto`, `gfx_proto`, `netproto`, `line_editor::proto`) for one concept;
-//! `*_proto` won on 2026-07-30 under DECISIONS §39, and `script/lint` has checked it since. That
-//! rule plus the service the stem names produces this name, which is the whole of what `recorded`
-//! claims: calef ruled on the rule, and never on this crate.
+//! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review, confirming
+//! milestone 46's own reasoning). The wire contract was spelled four ways (`filesystem_proto`,
+//! `graphics_proto`, `netproto`, `line_editor::proto`) for one concept; `*_proto` won on
+//! 2026-07-30 under DECISIONS §39, and `script/lint` has checked it since.
 //! The stem is the service's own word (`clock`, DECISIONS §43), which is itself unrecorded.
 
 #![cfg_attr(not(test), no_std)]

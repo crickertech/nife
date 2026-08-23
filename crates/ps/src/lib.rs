@@ -110,13 +110,11 @@
 //! - **The state is a snapshot per row, not per table.** See the `BUGS` section of
 //!   notes/process-view.md: a row read early in the walk may be stale by the time the table prints.
 //!
-//! Name: recorded (milestone 126, and notes/naming.md's crate section). `ps` is the name every
-//! reader already knows from outside this project, which the naming tenet calls the best name
-//! available and not one to spend a rename on. Sharing it with `user/src/ps.rs` is the crate-and-
-//! program pair the same tenet describes: splitting them would hide the relationship, so `coremark`,
-//! `line_editor` and `compositor` all keep one name across the two. That rule plus the program's
-//! name produces this crate name, which is the whole of what `recorded` claims: calef ruled on the
-//! rules, and never on this crate.
+//! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review). `ps` is the name
+//! every reader already knows from outside this project, which the naming tenet calls the best
+//! name available and not one to spend a rename on. Sharing it with `user/src/ps.rs` is the
+//! crate-and-program pair the same tenet describes: splitting them would hide the relationship, so
+//! `coremark`, `line_editor` and `compositor` all keep one name across the two.
 
 #![cfg_attr(not(test), no_std)]
 
