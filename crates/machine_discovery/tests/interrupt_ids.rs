@@ -12,7 +12,7 @@
 //! node itself (QEMU riscv64), once on the root (QEMU aarch64), and on `/soc` per the mainline
 //! dtsi (the JH7110 upstream model; the vendor fixture spells it per-node).
 
-use isa::interrupt_id;
+use machine_discovery::interrupt_id;
 
 const QEMU_RISCV_VIRT: &[u8] = include_bytes!("fixtures/qemu-riscv64-virt-smp4.dtb");
 const JH7110: &[u8] = include_bytes!("fixtures/jh7110.dtb");

@@ -6,8 +6,8 @@
 //! the roster must still know the hart exists and may not be started. The same fixture's PLIC
 //! context layout is tested in `riscv64_plic_contexts.rs`.
 
-use isa::cpu_list::CpuList;
-use isa::riscv64::*;
+use machine_discovery::cpu_list::CpuList;
+use machine_discovery::riscv64::*;
 
 const JH7110: &[u8] = include_bytes!("fixtures/jh7110.dtb");
 

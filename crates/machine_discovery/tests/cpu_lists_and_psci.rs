@@ -14,12 +14,12 @@
 //!   non-contiguous hardware id, a disabled core, a spin-table core, more cores than the kernel's
 //!   ceiling, and PSCI 0.1 with its own published function id.
 //!
-//! The parsing they exercise is [`isa::cpu_list`] and [`isa::aarch64::Psci`]; what happens on the
+//! The parsing they exercise is [`machine_discovery::cpu_list`] and [`machine_discovery::aarch64::Psci`]; what happens on the
 //! machine (the refusals, the boot line, the bring-up itself) is in the kernel's own tests, which
 //! need an emulator. This is the split DECISIONS.md §7 asks for.
 
-use isa::aarch64::{Conduit, PSCI_CPU_ON_64, Psci};
-use isa::cpu_list::{CpuList, EnableMethod, MAX_CPU_NODES};
+use machine_discovery::aarch64::{Conduit, PSCI_CPU_ON_64, Psci};
+use machine_discovery::cpu_list::{CpuList, EnableMethod, MAX_CPU_NODES};
 
 /// The machine `script/test` boots on aarch64, at the `-smp 4` the runner passes.
 const QEMU_VIRT_SMP4: &[u8] = include_bytes!("../../dtb/tests/fixtures/qemu-aarch64-virt-smp4.dtb");

@@ -344,7 +344,7 @@ impl Psci {
     ///
     /// ```no_run
     /// # fn f(dt: &dtb::Dtb<'_>) -> Result<(), dtb::Error> {
-    /// use isa::aarch64::{Conduit, PSCI_CPU_ON_64, Psci};
+    /// use machine_discovery::aarch64::{Conduit, PSCI_CPU_ON_64, Psci};
     /// let psci = Psci::from_device_tree(dt)?.expect("QEMU virt has a /psci node");
     /// assert_eq!(psci.conduit, Some(Conduit::Hvc));
     /// assert_eq!(psci.cpu_on, Some(PSCI_CPU_ON_64));

@@ -59,9 +59,11 @@
 //! - **The device tree can lie**, or firmware can describe a machine it is not. Tier 2 exists for
 //!   that, and on RISC-V it currently covers exactly one fact (the ASID width).
 //!
-//! Name: unrecorded. Introduced 2026-08-03, one record per architecture for what the machine
-//! actually is. A standard acronym (instruction set architecture), but not one the tenet's
-//! protected list names, and nothing records the choice.
+//! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review). Renamed from
+//! `isa`: collided with the ISA bus and only partially described the crate's scope. Matches
+//! verified prior art (Linux ARM's `machine_desc`/`DT_MACHINE_START`, FreeBSD's `hw.machine`), both
+//! of which use "machine" for this same device-tree-plus-probe scope. Introduced 2026-08-03,
+//! one record per architecture for what the machine actually is.
 
 #![no_std]
 // milestone 68's ratchet is workspace-wide (§107); this crate opts out until its 54-item

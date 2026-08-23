@@ -52,7 +52,7 @@ static TIMEBASE_HZ: AtomicU64 = AtomicU64::new(0);
 /// which has no device-tree pointer and needs none: the counter is machine-wide, so the boot hart's
 /// read serves them all. That is also the limitation worth naming, since the RISC-V binding permits
 /// a per-hart `timebase-frequency` and a machine whose harts genuinely differ would be misread here.
-/// `crates/isa`'s `cpu_list` reads `/cpus` first and falls back to the first hart's own property.
+/// `crates/machine_discovery`'s `cpu_list` reads `/cpus` first and falls back to the first hart's own property.
 ///
 /// # Panics
 ///
@@ -65,7 +65,7 @@ pub fn init_frequency(dtb_ptr: usize) {
     // `Dtb::from_ptr` re-checks the magic, and this runs on the same map `memory::init` uses.
     let dt = unsafe { dtb::Dtb::from_ptr(super::mmu::phys_to_virt(dtb_ptr as u64) as *const u8) }
         .expect("device tree is unreadable");
-    let list = isa::cpu_list::CpuList::from_device_tree(&dt).expect("cannot read /cpus");
+    let list = machine_discovery::cpu_list::CpuList::from_device_tree(&dt).expect("cannot read /cpus");
     let hz = list
         .timebase_hz
         .expect("the device tree states no /cpus/timebase-frequency, and RISC-V has no CNTFRQ_EL0");
@@ -432,7 +432,7 @@ mod tests {
         let dt =
             unsafe { dtb::Dtb::from_ptr(crate::arch::mmu::phys_to_virt(ptr as u64) as *const u8) }
                 .expect("device tree is unreadable");
-        let stated = isa::cpu_list::CpuList::from_device_tree(&dt)
+        let stated = machine_discovery::cpu_list::CpuList::from_device_tree(&dt)
             .expect("cannot read /cpus")
             .timebase_hz
             .expect("QEMU virt states /cpus/timebase-frequency");

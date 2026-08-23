@@ -1,6 +1,6 @@
 //! **Ask the RISC-V machine what it is, once, at boot.**
 //!
-//! Milestone 60. The decoding is all in [`isa::riscv64`], which is host-testable; what can only
+//! Milestone 60. The decoding is all in [`machine_discovery::riscv64`], which is host-testable; what can only
 //! happen on the machine is here: reading the device tree firmware handed us, asking that firmware
 //! what it implements over SBI, and refusing to continue if the answer is a machine this kernel
 //! cannot run on.
@@ -23,7 +23,7 @@
 
 use core::arch::asm;
 
-use isa::riscv64::{EID_BASE, Isa, SBI_TABLE, Sbi, SbiExtensions};
+use machine_discovery::riscv64::{EID_BASE, Isa, SBI_TABLE, Sbi, SbiExtensions};
 
 use crate::sync::{IrqSafeMutex, rank};
 use crate::{print, println};
@@ -66,7 +66,7 @@ pub fn init(dtb_ptr: usize) {
                 cpu.base.name()
             );
         }
-        for row in &isa::riscv64::TABLE {
+        for row in &machine_discovery::riscv64::TABLE {
             if missing.extensions.contains(row.bit) {
                 println!("  extension   : {} is absent ({})", row.name, row.why);
             }
@@ -108,9 +108,9 @@ pub fn print_summary() {
     let cpu = get();
 
     print!("  isa         : {}", cpu.base.name());
-    for row in &isa::riscv64::TABLE {
+    for row in &machine_discovery::riscv64::TABLE {
         // `i` is skipped: the base already said it, and "rv64i i m a c" reads like a stutter.
-        if cpu.common.contains(row.bit) && row.bit != isa::riscv64::I {
+        if cpu.common.contains(row.bit) && row.bit != machine_discovery::riscv64::I {
             print!(" {}", row.name);
         }
     }
@@ -130,7 +130,7 @@ pub fn print_summary() {
         // only line that would tell you the machine is not uniform, and on a JH7110 it is the
         // difference between "no FPU" and "no FPU on one core".
         print!("; harts differ (");
-        for row in &isa::riscv64::TABLE {
+        for row in &machine_discovery::riscv64::TABLE {
             if cpu.any.contains(row.bit) && !cpu.common.contains(row.bit) {
                 print!("{} ", row.name);
             }
@@ -229,7 +229,7 @@ fn sbi_call(eid: usize, fid: usize, arg0: usize) -> usize {
 mod tests {
     //! What the machine said, checked on the machine.
     //!
-    //! The parsing is proved on the host (`crates/isa/tests`), so these are the assertions that
+    //! The parsing is proved on the host (`crates/machine_discovery/tests`), so these are the assertions that
     //! need a real boot: that discovery ran at all, that the two sources agree with what the kernel
     //! independently knows, and that the measurement did not come back as a plausible zero.
 
@@ -265,7 +265,7 @@ mod tests {
             cpu.described,
             cpu.harts
         );
-        assert_eq!(cpu.base, isa::riscv64::Base::Rv64);
+        assert_eq!(cpu.base, machine_discovery::riscv64::Base::Rv64);
         assert!(!cpu.missing_requirements().any());
     }
 
@@ -298,7 +298,7 @@ mod tests {
     fn the_declared_mmu_is_wide_enough() {
         let mmu = get().mmu;
         assert!(
-            mmu >= isa::riscv64::MmuType::Sv39,
+            mmu >= machine_discovery::riscv64::MmuType::Sv39,
             "we are running Sv39 on it"
         );
     }
@@ -344,6 +344,6 @@ mod tests {
         );
         assert!(sbi.spec_major >= 1, "and speaks at least SBI 1.0");
         assert_eq!(sbi.impl_name(), Some("OpenSBI"), "which is what QEMU ships");
-        assert!(sbi.extensions.contains(isa::riscv64::SBI_REQUIRED));
+        assert!(sbi.extensions.contains(machine_discovery::riscv64::SBI_REQUIRED));
     }
 }

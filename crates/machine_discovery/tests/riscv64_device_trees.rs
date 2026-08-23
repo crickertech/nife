@@ -13,7 +13,7 @@
 //!   other trees happen to declare their narrowest hart first and would forgive a loop that never
 //!   replaces an answer it already holds.
 
-use isa::riscv64::*;
+use machine_discovery::riscv64::*;
 
 /// The device tree of the machine the RISC-V suite boots on, shared with the `dtb` crate's own
 /// fixtures rather than copied, so a regenerated tree cannot leave the two crates testing

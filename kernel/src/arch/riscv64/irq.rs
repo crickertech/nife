@@ -14,9 +14,9 @@ use core::sync::atomic::{AtomicU16, AtomicUsize, Ordering};
 /// disabled S7 (hart 0) contributes only an M context, so there hart h's S context is `2h`, one
 /// off from the formula on every hart, and a kernel using the formula programs its neighbour's
 /// context: enables, claims and completes all land one context over, and every external interrupt
-/// sits pending forever. See `isa::plic` and notes/visionfive2.md.
-static S_CTX: [AtomicUsize; isa::plic::MAX_CONTEXT_HARTS] =
-    [const { AtomicUsize::new(CTX_UNKNOWN) }; isa::plic::MAX_CONTEXT_HARTS];
+/// sits pending forever. See `machine_discovery::plic` and notes/visionfive2.md.
+static S_CTX: [AtomicUsize; machine_discovery::plic::MAX_CONTEXT_HARTS] =
+    [const { AtomicUsize::new(CTX_UNKNOWN) }; machine_discovery::plic::MAX_CONTEXT_HARTS];
 const CTX_UNKNOWN: usize = usize::MAX;
 
 /// **Record the PLIC context layout out of the device tree.** Called once on the boot hart, before
@@ -34,7 +34,7 @@ pub fn init_contexts(dtb_ptr: usize) {
     else {
         return;
     };
-    let Ok(ctx) = isa::plic::PlicContexts::from_device_tree(&dt) else {
+    let Ok(ctx) = machine_discovery::plic::PlicContexts::from_device_tree(&dt) else {
         return;
     };
     let mut differs = false;
@@ -180,7 +180,7 @@ mod tests {
     /// `2*hart + 1`, but the VisionFive 2's real U-Boot control DTB does not (bench, 2026-08-21:
     /// hart h's S context there is `2h`, because the disabled S7 contributes only a machine
     /// context). Both machines are witnessed on the host
-    /// (`crates/isa/tests/riscv64_plic_contexts.rs`), which is where the formula-specific
+    /// (`crates/machine_discovery/tests/riscv64_plic_contexts.rs`), which is where the formula-specific
     /// assertion belongs; this test only checks that the live table matches a fresh parse of the
     /// live tree, on whichever machine is actually running it.
     #[test_case]
@@ -190,7 +190,7 @@ mod tests {
         let dt =
             unsafe { dtb::Dtb::from_ptr(crate::arch::mmu::phys_to_virt(ptr as u64) as *const u8) }
                 .expect("device tree is unreadable");
-        let ctx = isa::plic::PlicContexts::from_device_tree(&dt).expect("the PLIC wiring parses");
+        let ctx = machine_discovery::plic::PlicContexts::from_device_tree(&dt).expect("the PLIC wiring parses");
 
         // The online set, so the loop's claim ("every online hart") is the loop's shape.
         for hart in crate::smp::online_cpus() {

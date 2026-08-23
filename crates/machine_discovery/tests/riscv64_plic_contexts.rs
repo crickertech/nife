@@ -6,7 +6,7 @@
 //! answer is read, and the QEMU dumps prove the parsed answer equals what the formula assumed on
 //! the machine every merge actually boots, at both hart counts the suite uses.
 
-use isa::plic::PlicContexts;
+use machine_discovery::plic::PlicContexts;
 
 const JH7110: &[u8] = include_bytes!("fixtures/jh7110.dtb");
 /// The board's ACTUAL U-Boot control DTB PLIC node (bench, 2026-08-21), trimmed. Its

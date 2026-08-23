@@ -6,7 +6,8 @@ measurement. Nothing read `riscv,isa-extensions`, nothing read `mmu-type`, and o
 emulator, which is configured to be whatever you ask for. It stops being fine on a board.
 
 The shape is one record per architecture, populated once at boot, printed at boot, in
-[`crates/isa`](../crates/isa) with the kernel halves in `kernel/src/arch/*/isa.rs`.
+[`crates/machine_discovery`](../crates/machine_discovery) with the kernel halves in
+`kernel/src/arch/*/isa.rs`.
 
 ## What the boot says now
 
@@ -130,7 +131,7 @@ than the first, and the record carries two sets:
 `mmu-type` is taken the same way: the narrowest any hart declares, because Sv57 on one core is no
 use to a thread the scheduler might place on the Sv39 one.
 
-The test fixture for this (`crates/isa/tests/fixtures/mixed-cpus.dts`) is **hand-written and says so
+The test fixture for this (`crates/machine_discovery/tests/fixtures/mixed-cpus.dts`) is **hand-written and says so
 in its own header**. It is modelled on the shape of a heterogeneous RISC-V SoC; the values are
 invented. When the board arrives, dump its real tree and add it beside this one.
 
@@ -158,17 +159,26 @@ abstraction built on one board is the wrong abstraction built early. Two guards,
 The record is `Copy` with public fields and exactly **one verb**, `missing_requirements`, which is
 the only thing a call site is meant to branch on. Everything else exists for the boot print.
 
-And there is **no trait**, no `Cpu` abstraction, nothing shared between `isa::riscv64` and
-`isa::aarch64` but the module tree. Two records that share no code is the honest shape when two
-architectures answer the same question by unrelated mechanisms. The second real board is what should
-tell us what the abstraction is, if there is one.
+And there is **no trait**, no `Cpu` abstraction, nothing shared between `machine_discovery::riscv64`
+and `machine_discovery::aarch64` but the module tree. Two records that share no code is the honest
+shape when two architectures answer the same question by unrelated mechanisms. The second real board
+is what should tell us what the abstraction is, if there is one.
 
 ## Naming
 
-The crate is `isa`, settled by calef on 2026-08-03. It is an abbreviation, and it is in the group
-`DECISIONS.md` §39 protects rather than the group it rejects: a standard term of art a reader
-already knows from outside this project, like `elf`, `dtb` and `pci`. Renaming it would cost a
-reader the recognition the tenet exists to buy.
+The crate was `isa`, settled by calef on 2026-08-03 as an abbreviation in the group `DECISIONS.md`
+§39 protects: a standard term of art a reader already knows from outside this project, like `elf`,
+`dtb` and `pci`.
+
+That protection turned out not to fit: `isa` collides with the well-known ISA bus (a 1980s PC
+expansion standard) and only partially described the crate's scope, which is a boot-time "what
+machine is this?" record built from device-tree claims, targeted measurements, and ID-register
+reads, not just instruction-set-extension discovery. calef renamed it to `machine_discovery` on
+2026-08-23 during a naming review of every crate the kernel directly depends on. Verified prior art
+settled the new name: Linux ARM's `setup_machine_fdt()`/`struct machine_desc`/`DT_MACHINE_START` and
+FreeBSD's `hw.machine` both use "machine" for this same device-tree-plus-probe scope, which is why
+`machine_discovery` won over `hardware_discovery` (too generic, collides with `pci`'s and `dtb`'s own
+territory) and `identcpu` (FreeBSD's actual name, but narrower: register-only, no device-tree layer).
 
 ## Four lookup tables, and why none of them is a `match`
 
@@ -235,7 +245,7 @@ warning and too loose for a plan.
 ### What is read, and what is still assumed
 
 Read: `/psci`'s `method` and `cpu_on`, and every `cpu@` node's `reg`, `status` and `enable-method`.
-The decoding is in `crates/isa` (`cpu_list` for the roster, `aarch64::Psci` for the conduit), so it
+The decoding is in `crates/machine_discovery` (`cpu_list` for the roster, `aarch64::Psci` for the conduit), so it
 is host-testable; the kernel halves are the reads and the refusals, exactly the split milestone 60
 set up.
 
