@@ -457,6 +457,7 @@ pub(super) const EXPECTED: &[u8] = b"hello from std on nife\n\
     instant monotonic ok\n\
     wall clock ok\n\
     entropy ok\n\
+    config seeded\n\
     env ok\n\
     paths ok\n\
     exiting through process::exit\n";
@@ -472,12 +473,24 @@ pub(super) const EXPECTED: &[u8] = b"hello from std on nife\n\
 /// same sanity window the clock service applies. Before that milestone the same call returned
 /// 1970 plus uptime and would have passed any test that only checked it did not crash.
 ///
+/// The `config seeded` line is milestone 47's environment-variable fork (DECISIONS §111): this
+/// process is granted an inert-configuration page unconditionally
+/// (`std_service::start_on`/`CONFIG_SLOT`/`CONFIG_PAGE_STD`), assembled once from
+/// `env_proto::PageBuilder` before the program exists, and `pal::nife::init` reads `TZ`, `LANG`
+/// and `TERM` off it into `std::env`'s table before `main` runs. The line proves the whole path:
+/// the kernel assembled and validated the page, mapped it read-only, the std PAL's probe found
+/// the granted capability, and the values it read back are the exact ones the kernel wrote. The
+/// `env ok` line just below depends on it: `vars().count()` is asserted at 3 rather than 0
+/// precisely because this line's three keys are already there.
+///
 /// The `env ok` line is milestone 64's, and it is a third correction of the same shape, found by a
 /// different method. `std::env::vars()` used to **abort the process**: nife had no `sys::env`
 /// backend, so it fell through to the unsupported one whose `env()` is a `panic!`. Nothing in a
 /// build failure list showed it, because it compiled. The line asserts three things at once: that
-/// the call returns, that the listing is empty (nothing endows a nife process with variables), and
-/// that `set_var` takes, since that is what `set_var` means on every other platform.
+/// the call returns, that the listing holds exactly what this process's grants seeded and nothing
+/// more (three keys from the config page above, not zero: milestone 47 gave the count a nonzero
+/// honest answer where it used to be an always-empty one), and that `set_var` takes, since that
+/// is what `set_var` means on every other platform.
 ///
 /// The `paths ok` line is the same finding a third time, and it is why this test grew rather than
 /// a new one appearing. `std::env::temp_dir()`, `std::env::split_paths()` and `std::process::id()`
