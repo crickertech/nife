@@ -377,6 +377,84 @@ impl Cwd {
     }
 }
 
+/// **Two directory capabilities, composed under two labels** (milestone 154,
+/// design/roadmap/154-multi-directory-namespace.md). Provisional name and shape, named in the
+/// milestone's own report rather than ratified.
+///
+/// This is deliberately **not** `bind`'s ordered union. Milestone 47's four open questions
+/// (shadowing, enumeration, whether `$PATH` survives as a string) are still open, and this
+/// composes exactly the two labeled roots a process holds and nothing more: it is the smallest
+/// structure that answers the milestone's own question, "does `/a/x` reach grant A and `/b/y`
+/// reach grant B, with neither able to name the other's parent."
+///
+/// Each label selects one grant's root by an exact match on an absolute path's **first**
+/// component; nothing after the first component can re-select a grant, so a name that happens to
+/// collide with the other label is just an ordinary [`Step::Down`] inside whichever grant was
+/// already selected. Everything past the label resolves exactly the way a single [`Cwd`] always
+/// has: `..` stops at that grant's own root, never at some third, unheld "namespace root" above
+/// both labels. That is what makes `/a/../b` refused rather than a walk to a place nobody
+/// granted: the first component commits to grant A, and `..` from A's own root has nothing to
+/// pop, by the same mechanism [`Cwd::ascend`] already uses for a single grant. No new refusal, no
+/// new check: [`Cwd::apply`] already had this property, and composing two of them does not need
+/// it to have a second one.
+pub struct TwoRoots<'a> {
+    label_a: &'a [u8],
+    label_b: &'a [u8],
+}
+
+/// Which of a [`TwoRoots`]' two grants an absolute path resolved into.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Which {
+    /// The first grant, [`TwoRoots::new`]'s `label_a`.
+    A,
+    /// The second grant, [`TwoRoots::new`]'s `label_b`.
+    B,
+}
+
+impl<'a> TwoRoots<'a> {
+    /// Compose two labeled roots. The labels need not be distinct at this layer (a caller that
+    /// built two identical labels gets `A` back for both, which is a wiring bug for the caller to
+    /// have caught before this point, not a runtime refusal a request has to pay for).
+    pub const fn new(label_a: &'a [u8], label_b: &'a [u8]) -> Self {
+        TwoRoots { label_a, label_b }
+    }
+
+    /// Resolve one absolute token against this namespace: which grant it names, and where inside
+    /// that grant's own root it lands, or [`Refused`] with the same reasons a single [`Cwd`]
+    /// refuses.
+    ///
+    /// A token with no leading `/` has no root to pick a grant from, and there is no default
+    /// grant here the way a single-root [`Cwd`] has a "where I am standing": a two-grant holder
+    /// has two roots and no reason to prefer either, which is exactly the shadowing question
+    /// milestone 47 leaves open rather than one this composition answers. It is refused the same
+    /// as `.` alone: [`Refused::NotAName`].
+    ///
+    /// A token whose first component names neither label is refused the same way: there is
+    /// nothing here for it to mean. That covers `/` alone (no first component at all) and a
+    /// leading `..` (nothing to pop before a grant is even chosen), because both leave `resolve`
+    /// with no label to have selected.
+    pub fn resolve(&self, token: &[u8]) -> Result<(Which, Cwd), Refused> {
+        let p = path(token)?;
+        if !p.from_root() {
+            return Err(Refused::NotAName);
+        }
+        let (label, rest) = match p.steps().split_first() {
+            Some((Step::Down(name), rest)) => (*name, rest),
+            _ => return Err(Refused::NotAName),
+        };
+        let which = if label == self.label_a {
+            Which::A
+        } else if label == self.label_b {
+            Which::B
+        } else {
+            return Err(Refused::NotAName);
+        };
+        let mut cwd = Cwd::root();
+        cwd.apply(rest)?;
+        Ok((which, cwd))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -656,5 +734,66 @@ mod tests {
         assert_eq!(&small[..n], b"/abc/");
         let mut none = [0u8; 0];
         assert_eq!(cwd.render(&mut none), 0);
+    }
+
+    /// **`/a/x` and `/b/y` both resolve, to the grant their own label names.** This is milestone
+    /// 154's deliverable in its own words, checked as pure logic before any capability exists.
+    #[test]
+    fn each_label_reaches_its_own_grant_and_only_its_own_grant() {
+        let ns = TwoRoots::new(b"a", b"b");
+
+        let (which, cwd) = ns.resolve(b"/a/x").unwrap();
+        assert_eq!(which, Which::A);
+        assert_eq!(cwd.depth(), 1);
+        assert_eq!(cwd.component(0), b"x");
+
+        let (which, cwd) = ns.resolve(b"/b/y").unwrap();
+        assert_eq!(which, Which::B);
+        assert_eq!(cwd.depth(), 1);
+        assert_eq!(cwd.component(0), b"y");
+    }
+
+    /// **`/a/../b` is refused**, the roadmap block's own negative control: "proving neither
+    /// subtree can name the other's parent." It is refused for the same reason `..` at a single
+    /// grant's root is refused, `Refused::AtYourRoot`, because selecting `a` leaves nothing above
+    /// `a`'s own root to pop, and `b` is never reached to be a question.
+    #[test]
+    fn dot_dot_cannot_cross_from_one_grant_into_the_other() {
+        let ns = TwoRoots::new(b"a", b"b");
+        assert_eq!(ns.resolve(b"/a/../b"), Err(Refused::AtYourRoot));
+        // Symmetric, and however many `..`s a token carries, the whole token is refused rather
+        // than moving partway: `Cwd::apply`'s own all-or-nothing rule, composed rather than
+        // reimplemented.
+        assert_eq!(ns.resolve(b"/b/../../a"), Err(Refused::AtYourRoot));
+    }
+
+    /// A relative token has no root to pick a grant from, and there is no default grant to fall
+    /// back on: a two-root holder is not "standing" in either one.
+    #[test]
+    fn a_relative_token_has_no_grant_to_resolve_against() {
+        let ns = TwoRoots::new(b"a", b"b");
+        assert_eq!(ns.resolve(b"x"), Err(Refused::NotAName));
+    }
+
+    /// A token whose first component names neither label is refused the same way, and so is the
+    /// bare root: nothing in a two-grant namespace answers "what is at the top of both".
+    #[test]
+    fn an_unknown_label_and_the_bare_root_are_both_refused() {
+        let ns = TwoRoots::new(b"a", b"b");
+        assert_eq!(ns.resolve(b"/c/x"), Err(Refused::NotAName));
+        assert_eq!(ns.resolve(b"/"), Err(Refused::NotAName));
+        assert_eq!(ns.resolve(b"/.."), Err(Refused::NotAName));
+    }
+
+    /// `..` composes inside a grant exactly as it does for a single [`Cwd`], because it is the
+    /// same [`Cwd::apply`] running underneath: this is not a second implementation to keep in
+    /// step with the first.
+    #[test]
+    fn dot_dot_composes_inside_one_grant_the_same_as_a_single_root_does() {
+        let ns = TwoRoots::new(b"a", b"b");
+        let (which, cwd) = ns.resolve(b"/a/x/../y").unwrap();
+        assert_eq!(which, Which::A);
+        assert_eq!(cwd.depth(), 1);
+        assert_eq!(cwd.component(0), b"y");
     }
 }

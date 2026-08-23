@@ -2321,6 +2321,19 @@ mod timetable_tests;
 #[cfg(test)]
 mod dir_capability_tests;
 
+/// **One process, two directory capabilities** (milestone 154,
+/// design/roadmap/154-multi-directory-namespace.md).
+///
+/// One module for both ISAs, for [`dir_capability_tests`]'s reason: nothing here is
+/// architecture-specific, so the parity gate (DECISIONS §19) is met by literally the same test
+/// running twice. It wires the same three portable programs [`dir_capability_tests`] does, twice
+/// (a second `fs_subtree_caretaker`, a second cspace slot) for one confined program, and proves
+/// the deliverable both milestone 47's `bind` and milestone 64's `File::open` fork were blocked
+/// on: `/a/x` and `/b/y` both resolve, `/a/../b` is refused, and neither caretaker can see the
+/// other's tree.
+#[cfg(test)]
+mod multi_dir_namespace_tests;
+
 /// **The navigation builtins, and the property that two shells cannot name each other's files**
 /// (milestone 47's commands; notes/shell-navigation.md).
 ///
