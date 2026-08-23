@@ -4366,6 +4366,11 @@ fn initrd_riscv() -> bool {
             "login",
             "--bin",
             "login_test_client",
+            // The provisioning tool (milestone 155): PUTs an identity and its secret into the
+            // credential store and MKDIRs its home subtree as one act. Portable, so both archives
+            // carry it and the same test suite runs against either ISA.
+            "--bin",
+            "identity_provisioner",
             // The disk surveyor (milestone 57), portable like the rest, and its write-half twin.
             "--bin",
             "disk_surveyor",
@@ -4480,6 +4485,10 @@ fn initrd_riscv() -> bool {
         // identity mutated) holds on either instruction set or it is not a claim.
         ("login", "login"),
         ("login_test_client", "login_test_client"),
+        // The provisioning tool (milestone 155): a `useradd`-equivalent that PUTs an identity and
+        // secret into the credential store and MKDIRs its home subtree as one act. Portable, so
+        // both archives carry it and the same guest tests run against either ISA.
+        ("identity_provisioner", "identity_provisioner"),
         // The NTP client (milestone 51), with its test server and its clock-page probe as roles of
         // the same binary. Portable, so both archives carry it and both ISAs run the same tests.
         ("ntp", "ntp"),
@@ -4680,6 +4689,9 @@ fn mkinitrd() -> bool {
         // a fresh directory capability and budget rather than mutating an identity.
         ("login", "login"),
         ("login_test_client", "login_test_client"),
+        // The provisioning tool (milestone 155): a `useradd`-equivalent that PUTs an identity and
+        // secret into the credential store and MKDIRs its home subtree as one act.
+        ("identity_provisioner", "identity_provisioner"),
         ("ntp", "ntp"),
         // The outlaw (milestone 19's user-test port): the privilege-boundary programs
         // kernel::user::tests used to hand-assemble.
