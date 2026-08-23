@@ -258,7 +258,7 @@ pub mod endpoint {
     /// **It is a snapshot per call, not per survey.** The domain may change between calls: a child
     /// that dies is simply absent from a later one, and one born into an already-passed slot is
     /// missed until the next survey. That is `readdir`'s bargain, taken knowingly, because holding
-    /// `SCHED` across a whole survey would put a userspace program in charge of how long the
+    /// `IPC_TABLES` across a whole survey would put a userspace program in charge of how long the
     /// scheduler is locked.
     pub const SURVEY: u64 = 6;
 

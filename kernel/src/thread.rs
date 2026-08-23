@@ -43,14 +43,14 @@ pub type Tid = u64;
 ///
 ///   - deepest standing path the suite reaches on a thread stack: ~11.7 KiB
 ///     (the high-water report, notes/stack-high-water.md)
-///   - residue of blocking from that depth (`ipc_recv` 656 + `SCHED.lock` 256 + `schedule` 448
+///   - residue of blocking from that depth (`ipc_recv` 656 + `IPC_TABLES.lock` 256 + `schedule` 448
 ///     + the switch): ~1.4 KiB, resident for as long as the thread stays blocked
 ///   - one preemption landing at the deepest point (trap frame 272 + dispatch + GIC/PLIC claim
-///     + `canary::check` + `schedule` + a contended `SCHED.lock` spin): ~2.3 KiB
+///     + `canary::check` + `schedule` + a contended `IPC_TABLES.lock` spin): ~2.3 KiB
 ///
 /// Total ~15.5 KiB against a 16 KiB stack, and the CI evidence is the sum coming out past 16 KiB:
 /// the guard page caught an exception-entry push at `sp` = bottom - 4096, mid-cascade, with the
-/// interrupted context spinning in `SCHED.lock` (the symbolized fault sites are in
+/// interrupted context spinning in `IPC_TABLES.lock` (the symbolized fault sites are in
 /// notes/stack-high-water.md). The overflow is load-correlated because a loaded host multiplies
 /// timer preemptions per guest instruction, so one eventually lands on the deepest frame of the
 /// deepest thread. Six pages leave ~8 KiB above the measured worst case; the cost is at most
@@ -85,7 +85,7 @@ pub fn stack_area_span() -> (u64, u64) {
     (STACK_AREA, NEXT_STACK_VA.load(Ordering::Relaxed))
 }
 
-/// The `id` a constructor writes before the scheduler's table has named the thread. Deliberately
+/// The `id` a constructor writes before the thread table has named the thread. Deliberately
 /// `u64::MAX` (= `cpu::NO_TID`), which the generational table can never mint, so a thread that
 /// somehow escaped naming resolves to nothing instead of to slot 0. Every insert path overwrites
 /// it via `Table::insert_with` (milestone 14 phase A; design/kernel-objects-from-untyped.md).
@@ -331,7 +331,7 @@ pub struct Thread {
     /// `ipc_served`/`ipc_aborted` protocol that used to be five loose fields here. Lifted into
     /// `crates/wake_handshake` so loom can search its interleavings on the host, and embedded so
     /// the kernel **calls** the checked transitions rather than mirroring them (the regions-crate
-    /// precedent). Every access is under `SCHED`, exactly as before; the crate's header carries
+    /// precedent). Every access is under `IPC_TABLES`, exactly as before; the crate's header carries
     /// the protocol's rules, its races and its BUGS.
     pub handshake: wake_handshake::Handshake<Wait>,
 
@@ -476,7 +476,7 @@ unsafe impl intrusive::Node for Thread {
     }
 }
 
-// SAFETY: a Thread is only ever touched under the scheduler's lock.
+// SAFETY: a Thread is only ever touched under IPC_TABLES.
 unsafe impl Send for Thread {}
 
 impl Thread {

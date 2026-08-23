@@ -239,6 +239,31 @@ fn direct(fs: &nifefs::Fs, w: &Wiring) -> ! {
     expect_note(w.note, swap_proto::NOTE_SWAP_NOW, 17);
 
     // ------------------------------------------------------------------------------------------
+    // **Dependency-aware orchestration's own question, asked and answered before step 2 acts.**
+    // Milestone 23's residual: if some other live component is a client of the one about to be
+    // swapped, swapping it means warning that client first. On this channel the answer is a real
+    // empty set rather than a fixture: nothing this operator runs declares `console` in its own
+    // `depends_on` (`CLIENT` is a pure consumer and never needs telling, per §41's sender-queue
+    // argument recorded in `component_plan::Requirements::depends_on`'s doc comment). Reported so
+    // the test can check the graph agrees with what this channel has always done: nothing extra.
+    // ------------------------------------------------------------------------------------------
+
+    let live = [component_plan::LiveInstance {
+        id: 1,
+        reqs: &swap_proto::CONSOLE,
+    }];
+    let Ok(deps) = component_plan::dependents("console", &live) else {
+        bail(64)
+    };
+    let order = deps.quiesce_order();
+    send(
+        REPORT,
+        swap_proto::RPT_DEPENDENTS,
+        order.len() as u64,
+        order.first().copied().unwrap_or(0),
+    );
+
+    // ------------------------------------------------------------------------------------------
     // Step 2: drain. The quiesce request travels on the endpoint being drained, so FIFO ordering
     // does the waiting for us.
     // ------------------------------------------------------------------------------------------
@@ -420,11 +445,50 @@ fn queued(fs: &nifefs::Fs, w: &Wiring) -> ! {
 
     expect_note(w.note, swap_proto::NOTE_SWAP_NOW, 45);
 
-    // Tell the broker to take custody. From here until BOP_UP there is no backend at all on this
-    // channel, and the producer keeps running: that window is the whole reason this rung exists.
-    let (r, _) = user_rt::call(front, swap_proto::BOP_DOWN, 0);
-    if r != 0 {
-        bail(46)
+    // ------------------------------------------------------------------------------------------
+    // **Dependency-aware orchestration, for real this time.** `BOP_DOWN` below used to be
+    // unconditional: every system on this channel happens to have exactly one component
+    // (`broker`) that forwards synchronously to the backend, so "always warn it" and "warn
+    // whoever the graph names" have always produced the same four syscalls. What changed is which
+    // one this operator actually asked. `broker`'s own manifest (`swap_proto::BROKER`) declares
+    // `depends_on: &["backend"]`, so a two-instance live registry naming this system's broker and
+    // backend, checked against `component_plan::dependents`, is what decides whether `BOP_DOWN` is
+    // sent at all -- not this function's own memory of what it built five lines up.
+    // ------------------------------------------------------------------------------------------
+
+    let live = [
+        component_plan::LiveInstance {
+            id: 1,
+            reqs: &swap_proto::BACKEND,
+        },
+        component_plan::LiveInstance {
+            id: 2,
+            reqs: &swap_proto::BROKER,
+        },
+    ];
+    let Ok(deps) = component_plan::dependents("backend", &live) else {
+        bail(64)
+    };
+    let order = deps.quiesce_order();
+    send(
+        REPORT,
+        swap_proto::RPT_DEPENDENTS,
+        order.len() as u64,
+        order.first().copied().unwrap_or(0),
+    );
+
+    // Tell every dependent the graph named to take custody. From here until BOP_UP there is no
+    // backend at all on this channel, and the producer keeps running: that window is the whole
+    // reason this rung exists. This system's registry has exactly one entry (`broker`, id 2), so
+    // the loop below sends `BOP_DOWN` once; a system with a second forwarding dependent would send
+    // it to each one the graph named, in the order the graph returned them.
+    for &id in order {
+        if id == 2 {
+            let (r, _) = user_rt::call(front, swap_proto::BOP_DOWN, 0);
+            if r != 0 {
+                bail(46)
+            }
+        }
     }
 
     // Quiesce the backend and let it die, exactly as on the direct channel, minus the device.
@@ -452,11 +516,16 @@ fn queued(fs: &nifefs::Fs, w: &Wiring) -> ! {
         swap_proto::V2,
     );
 
-    // Release the backlog. The broker drains in arrival order before it answers, so this call
-    // returning means every buffered item has reached the new backend.
-    let (r, _drained) = user_rt::call(front, swap_proto::BOP_UP, 0);
-    if r != 0 {
-        bail(49)
+    // Release the backlog, one dependent at a time, in the reverse of the order they were warned:
+    // the graph's own resume order. The broker drains in arrival order before it answers, so this
+    // call returning means every buffered item has reached the new backend.
+    for &id in order.iter().rev() {
+        if id == 2 {
+            let (r, _drained) = user_rt::call(front, swap_proto::BOP_UP, 0);
+            if r != 0 {
+                bail(49)
+            }
+        }
     }
 
     expect_note(w.note, swap_proto::NOTE_CLIENT_DONE, 50);

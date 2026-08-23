@@ -81,6 +81,7 @@
 //!     ],
 //!     maps: &[MapNeed { role: "witness", va: 0x0300_0000, kind: PageKind::Shared }],
 //!     pages: 32,
+//!     depends_on: &[],
 //! };
 //!
 //! // Malformed declarations do not compile. This one is well formed, so the assertion holds.
@@ -112,6 +113,7 @@
 //! #     caps: &[CapNeed { role: "service", direction: Direction::Serve }],
 //! #     maps: &[],
 //! #     pages: 32,
+//! #     depends_on: &[],
 //! # };
 //! let refused = component_plan::plan(&TALKER, &Provisions { held: &[("report", 1)] });
 //! assert_eq!(refused, Err(Refusal::Unprovided { role: "service" }));
@@ -291,6 +293,30 @@ pub struct Requirements {
     /// the crate's second `BUGS` entry and the strongest argument for eventually shipping a manifest
     /// with the binary that satisfies it.
     pub pages: u64,
+    /// **Which contracts this component cannot silently tolerate the absence of** (milestone 23's
+    /// dependency-aware orchestration residual). Named by contract, not by role: a role name is
+    /// resolved to an object by the supervisor's [`Provisions`] and that resolution can vary by
+    /// wiring (`CLIENT`'s `service` role is a console on the direct channel and a broker's front
+    /// endpoint on the queued one), so a role cannot say which contract will answer it. A contract
+    /// name can, and does not change across wirings.
+    ///
+    /// **Populated only for a component that itself serves others**, and empty otherwise, because
+    /// that is the whole of what this field is for: deciding who [`dependents`] must warn before a
+    /// swap. A pure consumer (no `Direction::Serve` need at all, like `CLIENT`) never needs warning.
+    /// It calls through a `CALL`, and DECISIONS §41 already proved that call degrades for free: a
+    /// `CALL` that finds nobody receiving parks on the endpoint's own sender queue, and the next
+    /// server to `RECV_CAP` drains it. Nothing has to tell a pure consumer anything, so nothing here
+    /// claims one needs telling. A component that *serves* others while itself calling through to a
+    /// swappable dependency is different: `broker` blocks its one serving thread on a `CALL` to its
+    /// backend, so if the backend is what is being swapped, `broker` cannot go on answering its own
+    /// producers unless it is told first (`BOP_DOWN`) to stop calling through and start buffering.
+    /// That is the edge this field exists to name.
+    ///
+    /// **Direct dependents only.** A dependent that has its own decoupling mechanism (a queue, a
+    /// cache) is not assumed to propagate the warning to *its* dependents, because whether it needs
+    /// to is a property of that mechanism and not something this crate can infer from two contract
+    /// names. See [`dependents`]'s docs and this crate's `BUGS` for what that leaves unbuilt.
+    pub depends_on: &'static [&'static str],
 }
 
 impl Requirements {
@@ -572,6 +598,7 @@ pub fn plan(reqs: &Requirements, provisions: &Provisions<'_>) -> Result<Plan, Re
 ///     caps: &[CapNeed { role: "service", direction: Direction::Serve }],
 ///     maps: &[],
 ///     pages: 32,
+///     depends_on: &[],
 /// };
 /// // There is no `control` role, so this constant cannot be evaluated.
 /// const CONTROL: u64 = component_plan::slot_of(&R, "control");
@@ -604,6 +631,149 @@ const fn str_eq(a: &str, b: &str) -> bool {
     true
 }
 
+// ===================================================================================================
+// Dependency-aware orchestration (milestone 23's third residual, roadmap's own words: "if component
+// B is a client of component A, swapping A means quiesce B, swap, resume").
+//
+// This is the other half of [`Requirements::depends_on`]'s doc comment, made into a decision rather
+// than a fact a supervisor would otherwise have to work out by hand. It answers exactly one
+// question: **given the components a supervisor is currently running, which of them must be told
+// before a named contract is swapped?** It does not run the swap, does not touch a capability, and
+// does not decide *how* a dependent is told (that is a per-contract protocol, `broker`'s
+// `BOP_DOWN`/`BOP_UP` today); it only says *who*.
+//
+// **Direct dependents only, and that is a scope decision recorded rather than an oversight.** A
+// dependent that itself absorbs its own dependency's downtime (a queue, in `broker`'s case) is not
+// assumed to need telling about *its* dependents in turn, because whether it does is a property of
+// that dependent's own mechanism and this crate has no way to know it from two contract names. See
+// this crate's `BUGS` for what a transitive version would need and why it is not built.
+// ===================================================================================================
+
+/// **How many running components one orchestration query may consider.** The same shape as
+/// [`MAX_CAPS`]: a [`Dependents`] is a value on the stack in a `no_std` program with no allocator, so
+/// this is a real bound rather than a hint. Eight, matched to [`MAX_CAPS`] because a supervisor
+/// managing more live components than it could ever endow one of with capabilities is not a shape
+/// this tree has.
+pub const MAX_LIVE: usize = 8;
+
+/// **One component a supervisor is currently running**, as far as dependency-aware orchestration
+/// needs to know about it: an id the caller chose (a tid, or any label stable for the query) and the
+/// contract it is an instance of.
+///
+/// Not a general process-registry type. It exists to be the input to [`dependents`] and carries
+/// nothing that function does not read.
+#[derive(Clone, Copy)]
+pub struct LiveInstance<'a> {
+    /// The caller's own name for this running instance. Opaque to this crate; returned unchanged in
+    /// [`Dependents::quiesce_order`].
+    pub id: u64,
+    /// Which contract this instance implements, and so whose [`Requirements::depends_on`] is
+    /// consulted.
+    pub reqs: &'a Requirements,
+}
+
+/// Why a [`dependents`] query was refused.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum OrchestrationRefusal {
+    /// More live instances were named than [`MAX_LIVE`] can hold.
+    TooManyLive {
+        /// How many were asked about.
+        asked: usize,
+    },
+}
+
+/// **The live instances that must be told before a swap, in the order they were found.**
+///
+/// Not a general ordering claim: nothing here says quiescing one takes longer than another, or that
+/// they must be told serially. It is a filter over [`dependents`]'s input, and its shape exists so a
+/// supervisor holds the answer as a value rather than re-deriving it.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Dependents {
+    ids: [u64; MAX_LIVE],
+    n: usize,
+}
+
+impl Dependents {
+    /// The ids to quiesce, in the order [`dependents`] found them (the order `live` was given in).
+    /// Empty is a real, common answer: it is what a target with no server-shaped clients returns,
+    /// which is every target in this tree's own direct channel.
+    pub fn quiesce_order(&self) -> &[u64] {
+        &self.ids[..self.n]
+    }
+}
+
+/// **Which of the running components in `live` must be quiesced before `target_contract` is
+/// swapped**, because they declared it in their own [`Requirements::depends_on`].
+///
+/// An instance of `target_contract` itself is never returned, even if a declaration were malformed
+/// enough to list its own contract: a component cannot be its own dependent, and this rules the
+/// question out rather than trusting every caller to have avoided asking it.
+///
+/// # EXAMPLES
+///
+/// ```
+/// use component_plan::{dependents, CapNeed, Direction, LiveInstance, Requirements};
+///
+/// const BACKEND: Requirements = Requirements {
+///     contract: "backend",
+///     caps: &[CapNeed { role: "service", direction: Direction::Serve }],
+///     maps: &[],
+///     pages: 32,
+///     depends_on: &[],
+/// };
+/// const BROKER: Requirements = Requirements {
+///     contract: "broker",
+///     caps: &[
+///         CapNeed { role: "requests", direction: Direction::Serve },
+///         CapNeed { role: "backend", direction: Direction::Use },
+///     ],
+///     maps: &[],
+///     pages: 32,
+///     depends_on: &["backend"],
+/// };
+///
+/// let live = [
+///     LiveInstance { id: 1, reqs: &BACKEND },
+///     LiveInstance { id: 2, reqs: &BROKER },
+/// ];
+///
+/// // Swapping the backend means telling the broker first: it forwards to it synchronously.
+/// let d = dependents("backend", &live).unwrap();
+/// assert_eq!(d.quiesce_order(), &[2]);
+///
+/// // Swapping the broker itself has no dependents in this registry: nothing here declares
+/// // "broker" in its own `depends_on`.
+/// let d = dependents("broker", &live).unwrap();
+/// assert!(d.quiesce_order().is_empty());
+/// ```
+pub fn dependents(
+    target_contract: &str,
+    live: &[LiveInstance],
+) -> Result<Dependents, OrchestrationRefusal> {
+    if live.len() > MAX_LIVE {
+        return Err(OrchestrationRefusal::TooManyLive { asked: live.len() });
+    }
+    let mut out = Dependents {
+        ids: [0; MAX_LIVE],
+        n: 0,
+    };
+    for inst in live {
+        if str_eq(inst.reqs.contract, target_contract) {
+            continue; // an instance of the target is not its own dependent
+        }
+        let mut i = 0;
+        while i < inst.reqs.depends_on.len() {
+            if str_eq(inst.reqs.depends_on[i], target_contract) {
+                out.ids[out.n] = inst.id;
+                out.n += 1;
+                break;
+            }
+            i += 1;
+        }
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -632,6 +802,7 @@ mod tests {
         caps: &[SERVICE, REPORT],
         maps: &[WITNESS, UART],
         pages: 32,
+        depends_on: &[],
     };
 
     fn everything() -> Provisions<'static> {
@@ -716,6 +887,7 @@ mod tests {
             caps: &[SERVICE],
             maps: &[UART, WITNESS],
             pages: 32,
+            depends_on: &[],
         };
         let p = plan(&DEVICE_FIRST, &everything()).unwrap();
         assert_eq!(p.devices(), &[(0x0310_0000, 2, abi::aspace::MAP_RO)]);
@@ -731,6 +903,7 @@ mod tests {
             caps: &[SERVICE],
             maps: &[WITNESS],
             pages: 32,
+            depends_on: &[],
         };
         let p = plan(&PLAIN, &everything()).unwrap();
         assert!(p.devices().is_empty());
@@ -744,6 +917,7 @@ mod tests {
             caps: &[SERVICE, SERVICE],
             maps: &[],
             pages: 32,
+            depends_on: &[],
         };
         assert_eq!(
             TWICE.problem(),
@@ -766,6 +940,7 @@ mod tests {
                 },
             ],
             pages: 32,
+            depends_on: &[],
         };
         assert_eq!(
             COLLIDE.problem(),
@@ -780,6 +955,7 @@ mod tests {
             caps: &[],
             maps: &[],
             pages: 0,
+            depends_on: &[],
         };
         assert_eq!(FREE.problem(), Some(Refusal::NoPages));
     }
@@ -808,6 +984,157 @@ mod tests {
     #[test]
     fn the_well_formed_declaration_is_the_common_case() {
         assert_eq!(CONSOLE.problem(), None);
+    }
+
+    // ===========================================================================================
+    // Dependency-aware orchestration.
+    // ===========================================================================================
+
+    const BACKEND: Requirements = Requirements {
+        contract: "backend",
+        caps: &[SERVICE],
+        maps: &[],
+        pages: 32,
+        depends_on: &[],
+    };
+    const BROKER: Requirements = Requirements {
+        contract: "broker",
+        caps: &[
+            CapNeed {
+                role: "requests",
+                direction: Direction::Serve,
+            },
+            CapNeed {
+                role: "backend",
+                direction: Direction::Use,
+            },
+        ],
+        maps: &[],
+        pages: 32,
+        depends_on: &["backend"],
+    };
+    const CLIENT: Requirements = Requirements {
+        contract: "client",
+        caps: &[REPORT],
+        maps: &[],
+        pages: 32,
+        depends_on: &[],
+    };
+
+    /// The one case this residual exists for, in its smallest true form: a component that forwards
+    /// synchronously to another must be told before that other is swapped.
+    #[test]
+    fn a_component_that_calls_through_to_a_swap_target_is_a_dependent() {
+        let live = [
+            LiveInstance {
+                id: 1,
+                reqs: &BACKEND,
+            },
+            LiveInstance {
+                id: 2,
+                reqs: &BROKER,
+            },
+        ];
+        let d = dependents("backend", &live).unwrap();
+        assert_eq!(d.quiesce_order(), &[2]);
+    }
+
+    /// A pure consumer never appears, because it has nothing declared in `depends_on`: §41 already
+    /// proved a `CALL` to an absent server degrades for free (the kernel's own sender queue), so a
+    /// component with no `Serve` need of its own never needs telling.
+    #[test]
+    fn a_pure_consumer_is_never_a_dependent() {
+        let live = [
+            LiveInstance {
+                id: 1,
+                reqs: &BACKEND,
+            },
+            LiveInstance {
+                id: 3,
+                reqs: &CLIENT,
+            },
+        ];
+        let d = dependents("backend", &live).unwrap();
+        assert!(
+            d.quiesce_order().is_empty(),
+            "CLIENT declares no depends_on, so it must never be returned",
+        );
+    }
+
+    /// Swapping a contract that nothing depends on is the common case in this tree's own direct
+    /// channel, and it must be a real empty answer rather than a refusal.
+    #[test]
+    fn a_target_with_no_dependents_returns_an_empty_order() {
+        let live = [LiveInstance {
+            id: 1,
+            reqs: &BACKEND,
+        }];
+        let d = dependents("backend", &live).unwrap();
+        assert!(d.quiesce_order().is_empty());
+    }
+
+    /// An instance of the target contract is never its own dependent, even if asked about directly:
+    /// a component cannot need warning about its own absence.
+    #[test]
+    fn an_instance_of_the_target_itself_is_excluded() {
+        let live = [
+            LiveInstance {
+                id: 1,
+                reqs: &BACKEND,
+            },
+            LiveInstance {
+                id: 2,
+                reqs: &BROKER,
+            },
+        ];
+        let d = dependents("broker", &live).unwrap();
+        assert!(
+            d.quiesce_order().is_empty(),
+            "nothing in this registry declares broker as a dependency, and the broker instance \
+             itself must not be returned even though it exists",
+        );
+    }
+
+    /// More live instances than `MAX_LIVE` is refused rather than silently truncated: a supervisor
+    /// that got a short answer back would quiesce fewer components than it needed to.
+    #[test]
+    fn too_many_live_instances_is_refused() {
+        let entries: [LiveInstance; MAX_LIVE + 1] = [LiveInstance {
+            id: 0,
+            reqs: &BACKEND,
+        }; MAX_LIVE + 1];
+        assert_eq!(
+            dependents("backend", &entries),
+            Err(OrchestrationRefusal::TooManyLive {
+                asked: MAX_LIVE + 1
+            })
+        );
+    }
+
+    /// Order is preserved from the caller's own `live` slice, not sorted or otherwise rearranged:
+    /// [`dependents`] is a filter, and a supervisor that wants a particular quiesce order gets it by
+    /// choosing the order it lists its live instances in.
+    #[test]
+    fn the_order_returned_is_the_order_given() {
+        const OTHER_BROKER: Requirements = Requirements {
+            contract: "other_broker",
+            caps: &[],
+            maps: &[],
+            pages: 32,
+            depends_on: &["backend"],
+        };
+        let live = [
+            LiveInstance {
+                id: 20,
+                reqs: &OTHER_BROKER,
+            },
+            LiveInstance {
+                id: 10,
+                reqs: &BROKER,
+            },
+        ];
+        let d = dependents("backend", &live).unwrap();
+        assert_eq!(d.quiesce_order(), &[20, 10]);
     }
 }
 
@@ -862,24 +1189,28 @@ mod proofs {
             caps: &[SERVE_A, SERVE_B],
             maps: &[],
             pages: 1,
+            depends_on: &[],
         },
         Requirements {
             contract: "c",
             caps: &[SERVE_A, USE_B],
             maps: &[],
             pages: 1,
+            depends_on: &[],
         },
         Requirements {
             contract: "c",
             caps: &[USE_A, SERVE_B],
             maps: &[],
             pages: 1,
+            depends_on: &[],
         },
         Requirements {
             contract: "c",
             caps: &[USE_A, USE_B],
             maps: &[],
             pages: 1,
+            depends_on: &[],
         },
     ];
 
@@ -986,24 +1317,28 @@ mod proofs {
             caps: &[],
             maps: &[SHARED_P, SHARED_Q],
             pages: 1,
+            depends_on: &[],
         },
         Requirements {
             contract: "c",
             caps: &[],
             maps: &[DEVICE_P, SHARED_Q],
             pages: 1,
+            depends_on: &[],
         },
         Requirements {
             contract: "c",
             caps: &[],
             maps: &[SHARED_P, DEVICE_Q],
             pages: 1,
+            depends_on: &[],
         },
         Requirements {
             contract: "c",
             caps: &[],
             maps: &[DEVICE_P, DEVICE_Q],
             pages: 1,
+            depends_on: &[],
         },
     ];
 
@@ -1042,5 +1377,116 @@ mod proofs {
                 assert!(m.2 == PageKind::Shared.mode());
             }
         }
+    }
+
+    // ===========================================================================================
+    // Dependency-aware orchestration.
+    // ===========================================================================================
+
+    const TARGET_SELF: Requirements = Requirements {
+        contract: "a",
+        caps: &[],
+        maps: &[],
+        pages: 1,
+        depends_on: &[],
+    };
+    const OTHER_NODEP: Requirements = Requirements {
+        contract: "other",
+        caps: &[],
+        maps: &[],
+        pages: 1,
+        depends_on: &[],
+    };
+    const OTHER_DEP: Requirements = Requirements {
+        contract: "other",
+        caps: &[],
+        maps: &[],
+        pages: 1,
+        depends_on: &["a"],
+    };
+
+    /// Every arrangement a two-instance registry can be in, with respect to one target contract
+    /// `"a"`: an instance of the target itself, an unrelated instance that does not depend on it,
+    /// and an unrelated instance that does. Three, so "for every registry of this width" is exact.
+    const REG_SHAPES: [Requirements; 3] = [TARGET_SELF, OTHER_NODEP, OTHER_DEP];
+
+    fn declares(depends_on: &[&str], name: &str) -> bool {
+        let mut i = 0;
+        while i < depends_on.len() {
+            if str_eq(depends_on[i], name) {
+                return true;
+            }
+            i += 1;
+        }
+        false
+    }
+
+    /// **`dependents` returns exactly the non-target instances that declared the target, in the
+    /// order they were given, and nothing else.**
+    ///
+    /// This is the property the whole mechanism rests on: a supervisor that trusted this function to
+    /// find every component with a synchronous dependency on the one it is about to swap must not be
+    /// told fewer than exist (a component left unwarned mid-swap) or more (a component quiesced for
+    /// no reason). Proved over every arrangement two live instances can be in, at every id a
+    /// supervisor could have chosen for them.
+    #[kani::proof]
+    #[kani::unwind(10)]
+    fn dependents_finds_exactly_the_non_target_instances_that_declared_it() {
+        let ids: [u64; 2] = [any_slot(), any_slot()];
+        for r0 in &REG_SHAPES {
+            for r1 in &REG_SHAPES {
+                let live = [
+                    LiveInstance {
+                        id: ids[0],
+                        reqs: r0,
+                    },
+                    LiveInstance {
+                        id: ids[1],
+                        reqs: r1,
+                    },
+                ];
+                let d = dependents("a", &live).expect("two instances is under MAX_LIVE");
+                let expect0 = !str_eq(r0.contract, "a") && declares(r0.depends_on, "a");
+                let expect1 = !str_eq(r1.contract, "a") && declares(r1.depends_on, "a");
+                let out = d.quiesce_order();
+
+                let mut want_len = 0;
+                if expect0 {
+                    want_len += 1;
+                }
+                if expect1 {
+                    want_len += 1;
+                }
+                assert!(out.len() == want_len);
+
+                // Order is the order `live` was given in: index 0's id, if present, precedes
+                // index 1's.
+                let mut idx = 0;
+                if expect0 {
+                    assert!(out[idx] == ids[0]);
+                    idx += 1;
+                }
+                if expect1 {
+                    assert!(out[idx] == ids[1]);
+                }
+            }
+        }
+    }
+
+    /// **A registry past `MAX_LIVE` is refused rather than silently truncated**, for every length
+    /// one past the bound could conceivably be constructed at (the proof only needs one, since the
+    /// check is a single `>` against a fixed constant, but the point of proving it at all is that a
+    /// truncated answer here is the dangerous failure: a supervisor that got fewer dependents back
+    /// than exist would swap out from under an unwarned client).
+    #[kani::proof]
+    fn too_many_live_instances_never_silently_truncates() {
+        let entries: [LiveInstance; MAX_LIVE + 1] = [LiveInstance {
+            id: 0,
+            reqs: &OTHER_DEP,
+        }; MAX_LIVE + 1];
+        assert!(matches!(
+            dependents("a", &entries),
+            Err(OrchestrationRefusal::TooManyLive { asked }) if asked == MAX_LIVE + 1
+        ));
     }
 }

@@ -1,21 +1,25 @@
-# The SCHED lock: what it protects, and how hot each thing is
+# The `IPC_TABLES` lock: what it protects, and how hot each thing is
 
 *The inventory milestone 17 asks for before anyone partitions anything. Method: every
-`SCHED.lock()` site in `kernel/src/sched.rs` (41 functions as of 2026-08-03), classified by call
+`IPC_TABLES.lock()` site in `kernel/src/sched.rs` (41 functions as of 2026-08-03), classified by call
 path. The classification is by reading, not by measurement; the measurement is exactly what
-milestone 88's scaling curve exists to add.*
+milestone 88's scaling curve exists to add. Filed under the lock's name at the time
+(`SCHED`); milestone 98 renamed the type and the static to `IpcTables`/`IPC_TABLES`
+(DECISIONS §118), on this note's own finding below that the hot set is IPC rather than
+scheduling. This note follows the code, so its own text now says `IPC_TABLES`; this
+paragraph is the historical pointer for a reader who remembers the old name.*
 
 The scheduler's per-CPU migration (DECISIONS §28) already moved run queues, `current`, and
-held-rank out of shared state. What still lives under the one `SCHED` lock is the **thread table**
-(and with it every thread's CSpace) and the **endpoint array**. Milestone 17's question is whether
-that remainder ever costs enough to justify partitioning it; this note is the denominator for that
-question.
+held-rank out of shared state. What still lives under the one `IPC_TABLES` lock is the **thread
+table** (and with it every thread's CSpace) and the **endpoint array**. Milestone 17's question is
+whether that remainder ever costs enough to justify partitioning it; this note is the denominator
+for that question.
 
 ## By temperature
 
 | Class | Functions | Why it matters |
 |---|---|---|
-| **Hot: every IPC, every core** | `ipc_send`, `ipc_recv`, `ipc_call`, `ipc_reply`, `ipc_send_cap`, `ipc_recv_cap`, `irq_notify` | The `call_reply` fast path this project benchmarks and wins on takes `SCHED` at least once per operation. At 4 harts the hold times are short enough not to show; whether that survives 64 harts is THE milestone 17 question |
+| **Hot: every IPC, every core** | `ipc_send`, `ipc_recv`, `ipc_call`, `ipc_reply`, `ipc_send_cap`, `ipc_recv_cap`, `irq_notify` | The `call_reply` fast path this project benchmarks and wins on takes `IPC_TABLES` at least once per operation. At 4 harts the hold times are short enough not to show; whether that survives 64 harts is THE milestone 17 question |
 | **Hot: every reschedule** | `schedule` (twice), `depart` | Runs on the core's own queue, but takes the global lock to touch the thread table |
 | **Warm: per capability operation** | `grant`, `grant_at`, `current_cap`, `delete_current_cap`, `take_ipc_aborted` | CSpaces live inside thread-table entries, so a purely thread-local capability lookup pays for the global lock. If partitioning ever happens, this is the piece that partitions for free (a CSpace has exactly one owner) |
 | **Cold: lifecycle** | `create_tcb`, `configure_tcb`, `start_tcb`, `tcb_insert_cap`, `spawn_on`, `spawn_with_quota`, `kill_thread`, `reap_supervised`, `reap_region_objects`, `create_endpoint`, `try_create_endpoint_from`, `adopt_address_space`, `adopt_secondary_idle`, `init` | Dozens per boot, not thousands per second. No plausible contention at any scale this project names |
@@ -51,7 +55,7 @@ purpose.
 ## BUGS
 
 - The temperature classification is by reading call paths, not by counting acquisitions. A
-  test-build acquisition counter on `SCHED` would turn this table into numbers for one evening of
+  test-build acquisition counter on `IPC_TABLES` would turn this table into numbers for one evening of
   work; it was not built here because the interesting contention only exists on hardware this
   project cannot rent until milestone 88's boot path lands.
 - `kernel/src/sched.rs` line numbers drift; the inventory is by function name on purpose. Re-grep

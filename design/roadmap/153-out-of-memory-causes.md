@@ -4,9 +4,14 @@
 own doc comment already admits it (`crates/abi/src/lib.rs`), but nothing downstream lets a caller,
 or a person debugging one, tell the three apart.
 
-**Gate: DECISION.** Distinguishing the causes touches the syscall ABI's `Error` enum, which
-`crates/abi` and every caller share; whether the fix is new `Error` variants, a separate diagnostic
-query, or something else is a fork worth deciding rather than guessing at.
+**Gate: NONE.** **Declined for now (DECISIONS §119, 2026-08-23), for want of a customer**: no caller
+is confused by this today, and it was found by pricing milestone 152's future cost rather than by
+an actual bug. Same shape as `std::thread::spawn` (§105), hard links (§110), and state handoff
+(§116). §119 also records non-binding guidance for whoever eventually has a real customer: new
+cause-specific `Error` variants, matching `crates/timetable`'s own `Unbacked`/`Refusal` precedent
+and POSIX's `EMFILE`/`ENFILE` split, are the better-supported shape over a diagnostic query or
+leaving it collapsed forever -- not a commitment, re-check it against what that customer's actual
+failures look like.
 
 ## The gap, checked at the source rather than assumed
 
@@ -47,21 +52,16 @@ Not found by auditing error codes. Found while pricing milestone 49's attributio
 is the real number that matters for "how many durable sessions can this system support," and tracing
 what a caller actually sees when it happens found the three-way collapse.
 
-## What has to be decided
+## What was decided
 
-Not answered here, on purpose: this touches the syscall ABI's `Error` enum, shared by every caller,
-which is the same category the *move fast on what can be undone* tenet puts on the expensive side.
-
-- **New, more specific `Error` variants** (e.g. splitting `OutOfMemory` into a per-cause set) is the
-  most direct fix, but it is an ABI change every existing caller's match arms would need to account
-  for, and it grows the syscall surface's vocabulary permanently.
-- **A separate diagnostic-only query** (a way to ask "why did my last call fail" without changing
-  what the failing call itself returns) keeps the hot-path return value exactly as narrow as today,
-  at the cost of a second syscall a caller has to know to make.
-- **Leave it collapsed, and document the ambiguity where a reader meets it** (this milestone's own
-  `BUGS` entry in `kernel/src/untyped.rs` is that, today) is the cheapest option and may be the
-  right one until `MAX_REGIONS` pressure is a measured, real problem rather than a traced
-  possibility.
+**Declined for now (DECISIONS §119, 2026-08-23), for want of a customer.** Three shapes were on the
+table: new cause-specific `Error` variants (the most direct fix, but a permanent ABI-surface
+addition), a separate diagnostic-only query (keeps the hot-path return narrow, costs a second
+syscall a caller must know to make), or leaving it collapsed and documented where a reader meets it
+(the `BUGS` entry in `kernel/src/untyped.rs`, unchanged by this decision). §119 records non-binding
+guidance for whichever of these gets picked up later, favoring the first shape on two precedents
+(`crates/timetable`'s own `Unbacked`/`Refusal` split, and POSIX's `EMFILE`/`ENFILE`), without
+committing to it now.
 
 ## What it unblocks
 

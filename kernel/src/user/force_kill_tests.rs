@@ -215,9 +215,9 @@ fn destroy_reclaims_a_region_whose_resident_is_blocked_in_recv() {
 /// nobody, because it stages the window by hand instead of racing for it.
 ///
 /// The window, in the order the machine takes it. `sched::reclaim_region` reaps the region's
-/// threads under `SCHED`, then unpins, then destroys. The reaper (`sched::finish_switch`) takes a
-/// dead thread's address space out of the table under `SCHED`, **releases the lock**, and only then
-/// drops it, because `AddressSpace::drop` runs a revocation sweep that takes `SCHED` itself. So the
+/// threads under `IPC_TABLES`, then unpins, then destroys. The reaper (`sched::finish_switch`) takes a
+/// dead thread's address space out of the table under `IPC_TABLES`, **releases the lock**, and only then
+/// drops it, because `AddressSpace::drop` runs a revocation sweep that takes `IPC_TABLES` itself. So the
 /// unpin and the drop are unordered, and the old code's safety argument (the pin refuses the
 /// borrower's `destroy`) is exactly the thing the unpin has already withdrawn.
 ///
