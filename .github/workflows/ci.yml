@@ -48,6 +48,19 @@ concurrency:
 # Each job's real work is a script from script/ (the "Scripts to Rule Them All" set), so CI runs
 # exactly what a developer runs locally. See notes/scripts.md.
 #
+# **Every job skips while the pull request is a draft** (2026-08-23), checked with
+# `github.event_name != 'pull_request' || github.event.pull_request.draft == false`. §90's
+# claim-commit convention opens a lane with an empty commit specifically so the claim is visible
+# before any code exists, and until this guard nothing distinguished that commit from a finished
+# one: the full ~40-minute suite, both Kani prove shards included, ran against a diff that could not
+# possibly differ from what `main` already passed. The condition is written the way it is, not as
+# `== true` negated, so it fails safe: `merge_group` and `workflow_dispatch` events have no
+# `pull_request` field at all, and the first clause admits them without ever evaluating the second.
+# A push to `main` is a `push` event for the same reason. Marking a pull request "ready for review"
+# is what raises `pull_request` with `draft: false`, so CI first runs in full exactly when a lane
+# says the work is actually done, the same point every lane already runs `script/lint`/`script/test`
+# locally before doing.
+#
 # Every job runs on ubuntu-24.04-arm (a free aarch64 runner for public repos), not the x86_64
 # ubuntu-latest default, and that is deliberate. nife targets aarch64; the host-logic crates
 # (paging, elf, frames, slab, the intrusive queue) run on the host in tests and on aarch64 on real
@@ -60,6 +73,7 @@ jobs:
   test:
     name: build + test (host + QEMU)
     runs-on: ubuntu-24.04-arm
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     # A hung kernel means QEMU never exits and the runner would block until the 6-hour default.
     # Fail loudly instead. Local runs finish in well under a minute once built.
     timeout-minutes: 30
@@ -92,6 +106,7 @@ jobs:
   cpu-matrix:
     name: cpu matrix (riscv64 across QEMU CPU models)
     runs-on: ubuntu-24.04-arm
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     # Five QEMU boots plus a std-farm build. Generous because a hung guest must fail loudly rather
     # than sit on the runner's 6-hour default, the same reason the test job has one.
     timeout-minutes: 45
@@ -171,6 +186,7 @@ jobs:
   fmt:
     name: rustfmt
     runs-on: ubuntu-24.04-arm
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v7
       - name: Install rustfmt (pinned nightly)
@@ -180,6 +196,7 @@ jobs:
   clippy:
     name: clippy
     runs-on: ubuntu-24.04-arm
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v7
       - name: Install clippy and the bare-metal target
@@ -214,6 +231,7 @@ jobs:
   fastpath-footprint:
     name: fastpath footprint (the IPC path must stay L1i-sized)
     runs-on: ubuntu-24.04-arm
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v7
       # Both bare-metal targets, because this gates both (§19 parity: a fastpath that fits on one
@@ -231,6 +249,7 @@ jobs:
   stack-frame-check:
     name: stack frames (no frame over a third of a thread stack)
     runs-on: ubuntu-24.04-arm
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v7
       # Both bare-metal targets, because this gates both (§19 parity: a frame that fits on one ISA
@@ -261,6 +280,7 @@ jobs:
   bench:
     name: bench (icount regression tripwire)
     runs-on: ubuntu-24.04-arm
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
@@ -342,6 +362,7 @@ jobs:
   supply-chain:
     name: supply chain (advisories, licences, vendored integrity)
     runs-on: ubuntu-24.04-arm
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     # No permissions block of its own: the workflow-level `contents: read` above already gives every
     # job the least privilege that works, and this job wants exactly that (read the source, read the
     # advisory database, fetch a tarball from crates.io). Adding a redundant per-job copy would make
@@ -373,6 +394,7 @@ jobs:
   fuzz:
     name: fuzz (parsers, 60s per target)
     runs-on: ubuntu-24.04-arm
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     # Build, then four one-minute runs. Generous against a cold `-Zbuild-std`, which compiles the
     # standard library with the sanitizer on the first run of the day.
     timeout-minutes: 30
@@ -445,6 +467,7 @@ jobs:
   coverage:
     name: coverage (host crates)
     runs-on: ubuntu-24.04-arm
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v7
         with:

@@ -35,7 +35,7 @@
 //! | anything else | itself |
 //!
 //! Everything is **bytes**, not characters. A name on this system is a byte string
-//! (`fs_proto::grant::MAX_NAME` is sixteen of them), and a matcher that decoded UTF-8 would have to
+//! (`filesystem_proto::grant::MAX_NAME` is sixteen of them), and a matcher that decoded UTF-8 would have to
 //! decide what to do with a name that is not valid UTF-8, which is a question the filesystem does
 //! not ask. `?` therefore matches one *byte*, so it matches half of a two-byte UTF-8 character. That
 //! is the same behaviour as `fnmatch(3)` in the C locale and as every shell running under it.
@@ -79,7 +79,7 @@
 //!   enumeration and granting. Putting `**` in a string matcher hides an authority question inside
 //!   a pure function, which is the exact mistake this OS exists to not make.
 //!
-//! So this crate matches **one name**, a single path component, the thing `fs_proto` actually
+//! So this crate matches **one name**, a single path component, the thing `filesystem_proto` actually
 //! carries. When path syntax is settled, recursive descent lands as a traversal layer *above* this
 //! crate, walking directory capabilities and calling [`matches()`] per component. That layer is where
 //! `**` belongs, because that is where the authority to descend is.

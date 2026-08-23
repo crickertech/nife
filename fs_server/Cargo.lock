@@ -245,7 +245,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "fs_proto"
+name = "filesystem_proto"
 version = "0.1.0"
 
 [[package]]
@@ -254,7 +254,7 @@ version = "0.1.0"
 dependencies = [
  "abi",
  "entropy_proto",
- "fs_proto",
+ "filesystem_proto",
  "gpt",
  "redox_syscall",
  "redoxfs",

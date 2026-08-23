@@ -515,7 +515,7 @@ pub enum OutputSpec {
     /// One or more raw `u64` answers on the result endpoint, read by the shell and rendered by it.
     /// Older than the sink contract and still right for an integer; not redirectable.
     Words,
-    /// The sink contract (`crates/sink_proto`): self-framing byte messages ending in `OP_EOF`. The
+    /// The sink contract (`crates/byte_sink_proto`): self-framing byte messages ending in `OP_EOF`. The
     /// only output that `>` and `|` can substitute, because it is the only one whose meaning does
     /// not depend on who is reading it.
     Bytes,
@@ -689,7 +689,7 @@ pub enum FileSpec {
 ///
 /// # Why the rights are not a mask here
 ///
-/// The fields say what the program will *do*, not what the wire calls it. `fs_proto::dir`'s
+/// The fields say what the program will *do*, not what the wire calls it. `filesystem_proto::dir`'s
 /// six-rung ladder is the filesystem contract's vocabulary, and translating into it belongs to the
 /// shell, which holds both contracts; keeping it out of `grant_plan` is [`MAX_FILE_NAME`]'s rule, that a
 /// command line can be checked without linking the filesystem.
@@ -841,13 +841,13 @@ pub enum Command<'a> {
     /// to hold the power to read everything it lists.
     Ls(&'a [u8]),
     /// `mkdir <path>`: make a directory and, in the same verb, obtain a capability to it
-    /// (`fs_proto::fs::MKDIR` is descend-with-creation). Needs `CREATE` **and** `DESCEND`.
+    /// (`filesystem_proto::fs::MKDIR` is descend-with-creation). Needs `CREATE` **and** `DESCEND`.
     Mkdir(&'a [u8]),
     /// `touch <path>`: create an empty file if the name is not there; a no-op if it already is.
     /// **A builtin, in [`Mkdir`](Command::Mkdir)'s category rather than [`Prog::Rm`]'s**: it takes
     /// no more than the directory this shell already holds (`CREATE`, the same right `mkdir`
     /// needs), so there is nothing to attenuate and nothing gained by confining it to a program.
-    /// `mkdir` is the model: `fs_proto::fs::CREATE` already mints a name, and this is the same
+    /// `mkdir` is the model: `filesystem_proto::fs::CREATE` already mints a name, and this is the same
     /// call with the handle it returns closed rather than kept. See notes/touch.md for what this
     /// does **not** do: it does not update a modification time, `-t` included, because whether
     /// "set to now" is the write right or a separate authority is design/roadmap
@@ -1011,7 +1011,7 @@ pub struct Endowment {
 
 /// One resolved per-file grant: the directory it was resolved against, the name the command
 /// designated, and the direction the program's manifest declared. Those three are the whole
-/// authority; `fs_proto::grant` packs the name and the direction into the file caretaker's start
+/// authority; `filesystem_proto::grant` packs the name and the direction into the file caretaker's start
 /// arguments, and the directory is which capability the caretaker is handed to narrow.
 ///
 /// # The cwd stops at the process boundary, and this value is where that is true
@@ -1141,7 +1141,7 @@ pub enum Refusal {
     /// whose printed preview and actual transfer could disagree.
     NoSuchOption,
     /// The named file is not something this shell can express: empty, a component longer than the
-    /// two argument words a grant's name rides in (`fs_proto::grant::MAX_NAME`), deeper than the
+    /// two argument words a grant's name rides in (`filesystem_proto::grant::MAX_NAME`), deeper than the
     /// shell tracks, or a path that designates a directory rather than a file.
     FileNotNameable,
     /// The program takes no memory grant, but `--mem` was given.
@@ -2094,7 +2094,7 @@ fn unplaceable(tok: &[u8], m: Manifest) -> Refusal {
     }
 }
 
-/// The longest file name a per-file grant can carry. Duplicated from `fs_proto::grant::MAX_NAME`
+/// The longest file name a per-file grant can carry. Duplicated from `filesystem_proto::grant::MAX_NAME`
 /// rather than imported, because `grant_plan` is the shell's parser and must not depend on the filesystem
 /// contract to check a command line; the pair is pinned by a test in each crate so a change to one
 /// without the other fails on the host in milliseconds.
@@ -3549,10 +3549,10 @@ mod tests {
 
     #[test]
     fn a_grant_name_limit_matches_the_filesystem_contract() {
-        // `grant_plan` deliberately does not depend on `fs_proto` (the shell's parser must not need the
+        // `grant_plan` deliberately does not depend on `filesystem_proto` (the shell's parser must not need the
         // filesystem contract to check a command line), so the constant is duplicated. That is only
         // safe if a change to one without the other fails here, on the host, in milliseconds.
-        assert_eq!(MAX_FILE_NAME, fs_proto::grant::MAX_NAME);
+        assert_eq!(MAX_FILE_NAME, filesystem_proto::grant::MAX_NAME);
         assert!(file_name_fits(b"sixteen-bytes!!!"));
         assert!(!file_name_fits(b"seventeen-bytes!!"));
         assert!(!file_name_fits(b""));
@@ -4118,12 +4118,12 @@ mod tests {
     /// pinned here rather than shared.
     #[test]
     fn the_set_bound_matches_the_contract_that_carries_the_set() {
-        assert_eq!(MAX_NAMES, fs_proto::nameset::MAX_NAMES);
-        assert_eq!(expand::MAX_NAME, fs_proto::grant::MAX_NAME);
+        assert_eq!(MAX_NAMES, filesystem_proto::nameset::MAX_NAMES);
+        assert_eq!(expand::MAX_NAME, filesystem_proto::grant::MAX_NAME);
         // And the widest set this crate can plan must fit the buffer that contract sizes for it.
         let widest: [(&[u8], bool); MAX_NAMES] = [(b"sixteen-bytes!!!", false); MAX_NAMES];
-        let mut buf = [0u8; fs_proto::nameset::BYTES];
-        assert!(fs_proto::nameset::encode(&widest, &mut buf).is_some());
+        let mut buf = [0u8; filesystem_proto::nameset::BYTES];
+        assert!(filesystem_proto::nameset::encode(&widest, &mut buf).is_some());
     }
 
     /// **Every id init can index resolves, and round trips through both names.**

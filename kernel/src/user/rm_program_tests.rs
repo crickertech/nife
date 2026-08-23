@@ -1,5 +1,5 @@
-use fs_proto::dir;
-use fs_proto::fixture::{rm as rr, tree};
+use filesystem_proto::dir;
+use filesystem_proto::fixture::{rm as rr, tree};
 use grant_plan::rmopt;
 
 use super::*;
@@ -11,7 +11,7 @@ const MAX_MESSAGES: usize = 64;
 
 /// What one run of the program reported.
 struct Outcome {
-    /// Its exit status: 0, or the errno of the first failure (`fs_proto::fixture::rm`).
+    /// Its exit status: 0, or the errno of the first failure (`filesystem_proto::fixture::rm`).
     status: u64,
     /// How many names it removed.
     removed: u64,
@@ -27,10 +27,10 @@ struct Outcome {
 /// `None` when no RedoxFS disk is attached (nothing to test; do not fail).
 fn run_rm(rights: u64, name: &str, flags: u64) -> Option<Outcome> {
     assert!(
-        fs_proto::grant::fits(name.as_bytes()),
+        filesystem_proto::grant::fits(name.as_bytes()),
         "the operand rides in two argument words",
     );
-    let (lo, hi) = fs_proto::grant::pack_name(name.as_bytes());
+    let (lo, hi) = filesystem_proto::grant::pack_name(name.as_bytes());
     let report = fs_service::start_granted_dir(
         dir_capability_tests::blk_server_image(),
         program("fs_server").expect("no fs_server program in the initrd archive"),
@@ -43,7 +43,7 @@ fn run_rm(rights: u64, name: &str, flags: u64) -> Option<Outcome> {
             // `rm` is started with a **grant's** three words rather than a role and a number:
             // the spec (the operand's length, and the options where a caretaker's rights ride),
             // then the two words of name.
-            role: fs_proto::grant::spec(name.len(), flags),
+            role: filesystem_proto::grant::spec(name.len(), flags),
             arg: lo,
             arg2: hi,
             // Measured the way `spawn_fs_client` asks for: the recursion is real stack, each
@@ -59,10 +59,10 @@ fn run_rm(rights: u64, name: &str, flags: u64) -> Option<Outcome> {
     for (printed, _) in (0..MAX_MESSAGES).enumerate() {
         let [w0, w1, w2, _, _] = sched::ipc_recv(report);
         // **The stream's end carries the verdict** (2026-08-17): `rm` declares the sink contract
-        // and now speaks it, so the last message is `sink_proto::eof()` with the status and the
+        // and now speaks it, so the last message is `byte_sink_proto::eof()` with the status and the
         // count in the two words that contract leaves free. It cannot collide with a text frame,
         // whose first word is a byte count of at most sixteen.
-        if w0 == sink_proto::eof() {
+        if w0 == byte_sink_proto::eof() {
             return Some(Outcome {
                 status: w1,
                 removed: w2,

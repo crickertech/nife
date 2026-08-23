@@ -28,7 +28,7 @@ pub const CHALLENGE: u32 = 2;
 pub const AUTHENTICATE: u32 = 3;
 
 /// The width of an NTLMv2 `NTProofStr`, in bytes ([MS-NLMP] §2.2.2.8). Sixteen, because it is an
-/// HMAC-MD5; the same number as `ntlm::KEY_LEN` and `cred_proto::KEY_LEN`, spelled here so this
+/// HMAC-MD5; the same number as `ntlm::KEY_LEN` and `credential_proto::KEY_LEN`, spelled here so this
 /// crate needs neither of them.
 pub const PROOF_LEN: usize = 16;
 

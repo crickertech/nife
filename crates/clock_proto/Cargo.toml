@@ -8,7 +8,7 @@ license.workspace = true
 # clock page that IS the read authority, the small propose protocol the clock service serves, and
 # the policy it applies to a proposal. Pure logic, host-tested, no_std, dependency-free, so the
 # service, its readers, the std PAL and the kernel-side tests share ONE definition and cannot drift.
-# The same split `fs_proto` makes for the filesystem contract and `graphics_proto` for the framebuffer.
+# The same split `filesystem_proto` makes for the filesystem contract and `graphics_proto` for the framebuffer.
 
 [lints]
 workspace = true

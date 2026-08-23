@@ -2,7 +2,7 @@
 //! §111). One definition of the read-only page that carries `TZ`, `LANG` and `TERM` into a
 //! process, so whoever assembles it (init, or a kernel test harness standing in for init today)
 //! and whoever reads it (the `std` PAL, and eventually a `no_std` program through `user_rt`)
-//! cannot drift. The same split `clock_proto` makes for the wall clock and `fs_proto` makes for
+//! cannot drift. The same split `clock_proto` makes for the wall clock and `filesystem_proto` makes for
 //! the filesystem.
 //!
 //! # Why a page, and why validated
@@ -47,7 +47,7 @@
 //! reaches the page at all:
 //!
 //! ```
-//! use env_proto::{ConfigPage, PageBuilder, Refused};
+//! use environment_proto::{ConfigPage, PageBuilder, Refused};
 //!
 //! let page = PageBuilder::new()
 //!     .tz("America/Los_Angeles").unwrap()
@@ -73,7 +73,7 @@
 //! "no configuration" rather than as empty strings:
 //!
 //! ```
-//! use env_proto::{ConfigPage, PageBuilder};
+//! use environment_proto::{ConfigPage, PageBuilder};
 //!
 //! let page = PageBuilder::new().tz("UTC").unwrap().build(); // LANG and TERM left undeclared
 //! // SAFETY: as above.
@@ -82,7 +82,7 @@
 //! assert_eq!(read.lang(), None);
 //! assert_eq!(read.term(), None);
 //!
-//! let zeroed = [0u8; env_proto::PAGE_BYTES];
+//! let zeroed = [0u8; environment_proto::PAGE_BYTES];
 //! // SAFETY: as above.
 //! let nothing = unsafe { ConfigPage::new(zeroed.as_ptr() as u64) };
 //! assert_eq!(nothing.tz(), None);
@@ -112,13 +112,8 @@
 //!   shell-facing program that wants a declared key, and the `caps` preview extension §111 also
 //!   asks for, wait on a real customer the way `clock` waited on `date`.
 //!
-//! Name: unrecorded. Provisional, minted 2026-08-23 by this lane and not yet put to calef. Chosen
-//! for consistency with the tree's own `*_proto` convention for a wire-contract crate a service
-//! and its readers share (`clock_proto`, `fs_proto`, `graphics_proto`, `entropy_proto`): this crate is
-//! exactly that shape, one page's layout and the validated domains a value must belong to before
-//! it goes on it, shared by whoever assembles a page and whoever reads one. `env` is the stem
-//! Unix's own vocabulary already uses for this concept (`/usr/bin/env`, `environ`), and no other
-//! crate in this tree has claimed it.
+//! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review). Renamed from
+//! `env_proto`: spell out the contraction fully.
 
 #![cfg_attr(not(test), no_std)]
 

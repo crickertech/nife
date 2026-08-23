@@ -1,5 +1,5 @@
-use fs_proto::dir;
-use fs_proto::fixture::dirscape as esc;
+use filesystem_proto::dir;
+use filesystem_proto::fixture::dirscape as esc;
 
 use super::*;
 use crate::sched;
@@ -24,7 +24,7 @@ fn attack_a_subtree(rights: u64, run: u64) -> Option<u64> {
             .expect("no fs_subtree_caretaker program in the initrd archive"),
         program("fs_test_client").expect("no fs_test_client program in the initrd archive"),
         fs_service::DirGrant {
-            name: fs_proto::fixture::tree::SUB,
+            name: filesystem_proto::fixture::tree::SUB,
             rights,
             role: 5, // ROLE_DIR_ATTACKER
             arg: run,
@@ -40,7 +40,7 @@ fn attack_a_subtree(rights: u64, run: u64) -> Option<u64> {
     let [tag, verdict, ..] = sched::ipc_recv(report);
     assert_eq!(
         tag,
-        fs_proto::fixture::VERDICT,
+        filesystem_proto::fixture::VERDICT,
         "the attacker's report is not a verdict word",
     );
     Some(verdict)
@@ -210,9 +210,9 @@ fn a_name_set_capability_reads_its_attributes_and_still_names_only_its_set() {
             .expect("no fs_nameset_caretaker program in the initrd archive"),
         program("fs_test_client").expect("no fs_test_client program in the initrd archive"),
         fs_service::SetGrant {
-            dir: fs_proto::fixture::tree::SUB,
+            dir: filesystem_proto::fixture::tree::SUB,
             // Exactly one name, and `deeper` deliberately left out of it.
-            names: &[(fs_proto::fixture::tree::INNER.as_bytes(), false)],
+            names: &[(filesystem_proto::fixture::tree::INNER.as_bytes(), false)],
             rights: dir::READ | dir::WRITE | dir::DESCEND,
             role: 6, // ROLE_SET_ATTRS
             arg: 0,
@@ -226,7 +226,7 @@ fn a_name_set_capability_reads_its_attributes_and_still_names_only_its_set() {
     let [tag, v, ..] = sched::ipc_recv(report);
     assert_eq!(
         tag,
-        fs_proto::fixture::VERDICT,
+        filesystem_proto::fixture::VERDICT,
         "the name-set witness's report is not a verdict word",
     );
     assert_verdict(

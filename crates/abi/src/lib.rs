@@ -64,7 +64,7 @@
 //! assert_eq!(Error::from_ret(-4), Some(Error::BadPointer));
 //!
 //! // A number that is not one of the kernel's errors is not decoded as one. That is what lets a
-//! // wire contract layered on top (`entropy_proto`, `cred_proto`) tell "no capability" from "no".
+//! // wire contract layered on top (`entropy_proto`, `credential_proto`) tell "no capability" from "no".
 //! assert_eq!(Error::from_ret(-99), None);
 //! ```
 //!
@@ -169,7 +169,7 @@ pub mod rendezvous {
     /// Two refusals a sender must tell apart, and the ABI does (milestone 50): [`crate::Error::NoSuchSlot`]
     /// means the slot is empty, and [`crate::Error::Gone`] means the endpoint this capability names has
     /// been destroyed, including while this thread was blocked inside the send. See
-    /// `crates/sink_proto`.
+    /// `crates/byte_sink_proto`.
     pub const SEND: u64 = 0;
 
     /// `invoke(cap, RECV, _, _, _)` -> w0, with w1 in x1 and w2 in x2. **Blocks until a message
@@ -247,7 +247,7 @@ pub mod rendezvous {
     /// A holder without it (a send-only peer that reports to this supervisor, or a supervisor's own
     /// `READ` handle that was never widened) is refused with [`crate::Error::NotPermitted`],
     /// **loudly**. It is not shown an empty domain, because a monitor that reports nothing when it
-    /// could not look is the worst failure this tool has available; `fs_proto` chose `EPERM` over an
+    /// could not look is the worst failure this tool has available; `filesystem_proto` chose `EPERM` over an
     /// empty listing for the same reason.
     ///
     /// **The cursor is a resume point, not an index into a result.** Start at 0. Each entry returns
@@ -428,7 +428,7 @@ pub mod rights {
     pub const GRANT: u64 = 1 << 2;
 
     /// **Learn what exists, without acting on it** (milestone 126). The kernel-level twin of
-    /// `fs_proto`'s directory `ENUMERATE`; `capability::Rights::ENUMERATE` carries the full
+    /// `filesystem_proto`'s directory `ENUMERATE`; `capability::Rights::ENUMERATE` carries the full
     /// argument and the list of objects expected to grow it.
     pub const ENUMERATE: u64 = 1 << 3;
 }
@@ -635,7 +635,7 @@ pub enum Error {
     /// directions: a program never granted a stdout keeps running and prints into the void, which
     /// is what every OS does to a process whose stdout is closed, while a program whose reader has
     /// exited must **end**. Both used to arrive as `NoSuchSlot`, so the only available behaviour
-    /// was the wrong one for a pipeline. See `crates/sink_proto` and notes/sink-protocol.md.
+    /// was the wrong one for a pipeline. See `crates/byte_sink_proto` and notes/sink-protocol.md.
     ///
     /// It carries no probing risk, which is why it can be told apart here when
     /// [`Error::NotSupervised`] deliberately cannot: the capability is one the caller already

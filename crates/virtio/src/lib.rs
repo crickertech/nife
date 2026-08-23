@@ -24,7 +24,7 @@
 //! (it depends on `user_rt`'s EL0 `asm!`, an exclusion `script/lint` derives and checks), and a
 //! function that never returns has no assertion to make. So the example is `no_run`: type-checked
 //! against the real signatures, executed by the QEMU boot and by nothing else. The parts of this
-//! subsystem that *are* checkable are in `dma_validator` and `fs_proto`, which is where their
+//! subsystem that *are* checkable are in `dma_validator` and `filesystem_proto`, which is where their
 //! examples live.
 //!
 //! What a driver's `_start` looks like, and it is the shortest interesting program in the tree,
@@ -56,7 +56,7 @@
 //! anyone had filed it there; nobody has. Introduced 2026-07-14 with milestone 9's block driver.
 
 use abi::irq;
-use fs_proto::blk;
+use filesystem_proto::blk;
 use user_rt::{exit, invoke, send};
 
 // The kernel maps the DMA page at this fixed VA (must match kernel/src/user/virtio_service.rs).
@@ -1005,15 +1005,15 @@ const CONFIG: u64 = 0x100;
 /// page, the control (opcode, block index, result) rides in the message, the §10 split.
 pub fn run_blk_server(dma_phys: u64) -> ! {
     // Ask for VIRTIO_BLK_F_FLUSH, and remember whether we got it. Everything about
-    // `fs_proto::blk::FLUSH` hangs off this one bool: with it, a sync is a device round trip; without
+    // `filesystem_proto::blk::FLUSH` hangs off this one bool: with it, a sync is a device round trip; without
     // it, a sync is a loud refusal. There is no third behaviour, and in particular there is no
     // "answer yes and do nothing", which is the state this server was in before milestone 55.
     let can_flush = init_with_features(0, true);
     // The device is up: signal readiness, so a hang here (bring-up) is distinct from a hang in the
     // first read completion. SEND rendezvous, so this also paces the test past bring-up.
-    send(BLK_READY, fs_proto::fixture::READY, 0, 0);
+    send(BLK_READY, filesystem_proto::fixture::READY, 0, 0);
     // How many device flushes have completed. Answered back on every successful `blk::FLUSH`, so a
-    // client can tell a real round trip from a constant yes: see `fs_proto::blk::FLUSH`.
+    // client can tell a real round trip from a constant yes: see `filesystem_proto::blk::FLUSH`.
     let mut flushes: i64 = 0;
     loop {
         // RECV_CAP: (first word, the Reply cap's slot, second word = the starting block index).
@@ -1024,7 +1024,7 @@ pub fn run_blk_server(dma_phys: u64) -> ! {
         // stay inside the region it shares just because the packing allows a larger number to be
         // spelled at all.
         let count = blk::req_blocks(w0).min(blk::TRANSFER_BLOCKS) as u64;
-        let r0: i64 = match fs_proto::op(w0) {
+        let r0: i64 = match filesystem_proto::op(w0) {
             blk::READ => {
                 blk_read(dma_phys, block, count);
                 0
@@ -1036,7 +1036,7 @@ pub fn run_blk_server(dma_phys: u64) -> ! {
             blk::SIZE => disk_size_bytes(),
             // The one verb that can refuse for a reason outside this program. A device that never
             // offered the feature gets EOPNOTSUPP rather than a zero, because a zero here is a lie
-            // about somebody's data; see `fs_proto::blk::FLUSH`.
+            // about somebody's data; see `filesystem_proto::blk::FLUSH`.
             blk::FLUSH => {
                 if !can_flush {
                     -95 // EOPNOTSUPP: this device has no flush, and pretending otherwise is the bug

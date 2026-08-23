@@ -131,7 +131,7 @@
 //!   nothing you would mind the local network changing.**
 //! - **Free space is nominal only when the backing has no volume to ask.** A backing that can
 //!   answer [`share::Share::statfs`] is reported verbatim (the fs-backed share does, through
-//!   `fs_proto::fs::STATFS`); [`share::FixtureShare`] is files baked into a binary and has no
+//!   `filesystem_proto::fs::STATFS`); [`share::FixtureShare`] is files baked into a binary and has no
 //!   volume, so it falls back to [`share::NOMINAL_VOLUME_BYTES`]. The number is a **forecast**
 //!   either way: a write past the real end of the image still fails with [`STATUS_DISK_FULL`] at
 //!   the write, because free space is not a reservation.
@@ -146,7 +146,7 @@
 //!   [`STATUS_NOT_SUPPORTED`]. The destination is a share-relative path, which is what every client
 //!   sends.
 //! - **Timestamps are accepted and discarded.** `SET_INFO`'s `FileBasicInformation` succeeds and
-//!   changes nothing, because this server holds no clock capability and `fs_proto`'s `FSTAT`
+//!   changes nothing, because this server holds no clock capability and `filesystem_proto`'s `FSTAT`
 //!   carries no times. A client that sets a modification time and reads it back gets the epoch.
 //! - **`FileAllocationInformation` is a no-op**, deliberately: preallocation is a hint, and
 //!   turning it into a truncate would zero-extend a file a client was about to write into.
@@ -157,7 +157,7 @@
 //!   all ASCII and treats anything else as not found. Same shape as `ntlm`'s uppercasing bug: a
 //!   wrong answer rather than a crash, named here where the reader meets it.
 //! - **`ReplaceIfExists = 0` is ignored on a rename**, so a rename always replaces a destination of
-//!   the same kind. `fs_proto::fs::RENAME` offers no way to refuse a collision (its own doc gives
+//!   the same kind. `filesystem_proto::fs::RENAME` offers no way to refuse a collision (its own doc gives
 //!   §42's reason for declining `renameat2`'s `NOREPLACE`), so a client that asked for the rename
 //!   to fail gets a silent overwrite. The wrong direction to fail in, and the fix is in the
 //!   filesystem contract rather than here.
@@ -169,7 +169,7 @@
 //!   a per-connection state machine, not a multiplexer. macOS opens one connection per mount.
 //!
 //! Name: unrecorded. Provisional, minted by milestone 54's lane on 2026-08-15, following the
-//! `fs_proto`/`socket_proto`/`graphics_proto` pattern (a protocol contract crate takes the protocol's
+//! `filesystem_proto`/`socket_proto`/`graphics_proto` pattern (a protocol contract crate takes the protocol's
 //! standard name plus the `_proto` suffix). `smb` is a term of art in the family the naming tenet
 //! says are already right (`elf`, `pci`, `ntlm`).
 

@@ -45,7 +45,7 @@
 //!   characters share a posting list and a query for either finds both. Nothing in this corpus
 //!   collides; a longer identifier set would.
 //! - **Terms are ASCII-folded and split on anything that is not a letter or a digit**, so
-//!   `fs_proto` indexes as `fs` and `proto` and a search for `fs_proto` finds pages that mention
+//!   `filesystem_proto` indexes as `fs` and `proto` and a search for `filesystem_proto` finds pages that mention
 //!   either. That is the same behaviour as `apropos` and it is wrong in the same way.
 //! - **There is no phrase search**, because it wants a position list and this index deliberately
 //!   stores none. Ranking (below) only ever needed a page's *length*, which is a single `u32` per
@@ -197,7 +197,7 @@ impl Header {
 ///
 /// The reader asks for a page by number and gets it or does not; it never seeks, never reads a byte
 /// range, and never holds two pages at once. That is the whole interface, and it is this small so
-/// that the guest implementation is a single `fs_proto` `READ` and the host implementation is a
+/// that the guest implementation is a single `filesystem_proto` `READ` and the host implementation is a
 /// slice.
 pub trait Pages {
     /// Fill `out` with page `index` of the file. `false` means the read failed or ran off the end.
@@ -300,7 +300,7 @@ pub fn normalize(word: &[u8], out: &mut [u8; TERM_MAX]) -> usize {
 /// they agreed while testing only a word with no underscore in it.
 ///
 /// **Only the underscore joins.** This repository writes `snake_case` identifiers in running prose
-/// constantly (`fs_proto`, `grant_plan`, `terminal_sink_caretaker`), so they are the names a reader
+/// constantly (`filesystem_proto`, `grant_plan`, `terminal_sink_caretaker`), so they are the names a reader
 /// most wants to search for, and the underscore is unambiguous here in a way the hyphen is not:
 /// joining across `-` would manufacture a term out of every hyphenated phrase in the corpus. The
 /// renderer narrowed emphasis for the same reason and records it in its own `BUGS`.

@@ -43,9 +43,9 @@
 //! service's answer is different and, for a credential store, better: writing the store is not an
 //! *operation* at all, it is a **phase**, and the phase ends.
 //!
-//! 1. **Provision.** RECV on the provision endpoint. Each [`cred_proto::provision::PUT`] and
-//!    [`cred_proto::provision::PUT_NTLM`] derives a record with a salt drawn from the entropy
-//!    service. [`cred_proto::provision::SEAL`] ends it.
+//! 1. **Provision.** RECV on the provision endpoint. Each [`credential_proto::provision::PUT`] and
+//!    [`credential_proto::provision::PUT_NTLM`] derives a record with a salt drawn from the entropy
+//!    service. [`credential_proto::provision::SEAL`] ends it.
 //! 2. **Delete.** The service `cap_delete`s its receive end of the provision endpoint, and the
 //!    provisioner deletes its send end. Nothing in the system can name it any more.
 //! 3. **Serve.** RECV on the verify endpoint, forever. Two opcodes, one per kind of secret. Yes
@@ -60,7 +60,7 @@
 //! # It never invents a salt
 //!
 //! Every salt comes from the entropy service (DECISIONS §44), and a provisioning request that
-//! cannot get one is answered [`cred_proto::NO_ENTROPY`] rather than being served with something
+//! cannot get one is answered [`credential_proto::NO_ENTROPY`] rather than being served with something
 //! weaker. A predictable salt is a store one rainbow table covers, so falling back would be
 //! exactly the silent degradation DECISIONS §42 forbids, in the one place it would be hardest to
 //! notice: everything would keep working.
@@ -88,7 +88,7 @@
 //!
 //! **One verify page means one client at a time.** The page is per service, not per channel, so
 //! two clients sharing the endpoint would also share the frame each writes its presented secret
-//! into. Nothing here detects that. `fs_proto`'s answer (one page per channel) is the shape to
+//! into. Nothing here detects that. `filesystem_proto`'s answer (one page per channel) is the shape to
 //! copy when a second client exists; today the intended client is the single SMB adapter.
 //!
 //! **Nothing survives a reboot.** The store is memory only. Secrets at rest are unsolved and this
@@ -121,7 +121,7 @@
 //! credential service into a **secrets service**: it now holds an `NTOWFv2` beside the
 //! Argon2id tag and answers `NTLM_PROOF`, so the argument above ("this service will never
 //! give you a credential") still holds while the noun no longer describes the scope. A
-//! rename is owed, and it is calef's, not a lane's; `cred`, `cred_proto` and
+//! rename is owed, and it is calef's, not a lane's; `cred`, `credential_proto` and
 //! `credentialer_test_client` are in the same boat. Recorded here rather than acted on.
 
 #![no_std]
@@ -137,7 +137,7 @@ use alloc::vec;
 use alloc::vec::Vec;
 
 use cred::{Block, Cost, Store, Verdict};
-use cred_proto as proto;
+use credential_proto as proto;
 use user_rt::{call, cap_delete, exit, recv_cap, reply, send};
 
 /// The provision endpoint (slot 0): RECV, and only until the seal.
@@ -331,7 +331,7 @@ fn serve(store: &Store<CAPACITY>, scratch: &mut [Block]) -> ! {
     }
 }
 
-/// One `VERIFY`. The reply is a verdict and nothing else; see `cred_proto`'s module docs on why
+/// One `VERIFY`. The reply is a verdict and nothing else; see `credential_proto`'s module docs on why
 /// the reply channel has no room for data.
 fn answer(store: &Store<CAPACITY>, scratch: &mut [Block], w0: u64) -> u64 {
     // SAFETY: the wiring mapped one page read/write at VERIFY_VA before this program ran.

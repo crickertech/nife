@@ -35,7 +35,7 @@ const EEXIST: i32 = 17;
 
 /// **Ensure `name` exists as a subtree under `fs_ep`'s root, tolerating `EEXIST`** exactly as
 /// `identity_provisioner.rs`'s own `mkdir_home` does: the same opcode
-/// ([`fs_proto::fs::MKDIR`]), the same rights ([`fs_proto::dir::ALL`]), and the identity string
+/// ([`filesystem_proto::fs::MKDIR`]), the same rights ([`filesystem_proto::dir::ALL`]), and the identity string
 /// itself as the name (DECISIONS §117). Issued directly from this test rather than through a
 /// spawned `identity_provisioner`, because this suite's fs root is the tree-wide shared fixture
 /// (`fs_service`'s own memoized `ensure`, one FS server for the whole kernel test binary): another
@@ -53,17 +53,24 @@ fn ensure_home_subtree(fs_ep: sched::RendezvousId, fs_frame: u64, name: &[u8]) {
     // spawned), so writing into it directly and then calling through `fs_ep` is the same shape
     // `identity_provisioner_service.rs`'s own `provision` uses for its request pages.
     let page = unsafe {
-        core::slice::from_raw_parts_mut(mmu::phys_to_virt(fs_frame) as *mut u8, fs_proto::PAGE)
+        core::slice::from_raw_parts_mut(
+            mmu::phys_to_virt(fs_frame) as *mut u8,
+            filesystem_proto::PAGE,
+        )
     };
     page[..name.len()].copy_from_slice(name);
     let r = sched::ipc_call(
         fs_ep,
         [
-            fs_proto::fs::req(fs_proto::fs::MKDIR, fs_proto::fs::ROOT, name.len() as u64),
-            fs_proto::dir::ALL,
+            filesystem_proto::fs::req(
+                filesystem_proto::fs::MKDIR,
+                filesystem_proto::fs::ROOT,
+                name.len() as u64,
+            ),
+            filesystem_proto::dir::ALL,
         ],
     );
-    match fs_proto::reply_errno(r[0] as i64) {
+    match filesystem_proto::reply_errno(r[0] as i64) {
         Some(errno) => assert_eq!(
             errno,
             EEXIST,
@@ -75,7 +82,13 @@ fn ensure_home_subtree(fs_ep: sched::RendezvousId, fs_frame: u64, name: &[u8]) {
         // further use for it, and a leaked handle-table slot in the FS server is not a correctness
         // bug a caller of this helper could observe).
         None => {
-            let _ = sched::ipc_call(fs_ep, [fs_proto::fs::req(fs_proto::fs::CLOSE, r[0], 0), 0]);
+            let _ = sched::ipc_call(
+                fs_ep,
+                [
+                    filesystem_proto::fs::req(filesystem_proto::fs::CLOSE, r[0], 0),
+                    0,
+                ],
+            );
         }
     }
 }
@@ -347,7 +360,7 @@ fn the_login_service_serves_past_the_old_cspace_ceiling() {
 /// `chris` and `corinne` each log in and, through the directory capability `login` delegated,
 /// `CREATE` a marker file naming themselves ([`ls::ROLE_CHRIS_MARK`],
 /// [`ls::ROLE_CORINNE_MARK`]); both also confirm
-/// [`fs_proto::fixture::tree::INNER`] is absent, which is this suite's own proof (not merely a
+/// [`filesystem_proto::fixture::tree::INNER`] is absent, which is this suite's own proof (not merely a
 /// stated intent) that neither landed in the old shared subtree every identity used to be
 /// attenuated to before this milestone. `chris` then logs in a **second, independent** time
 /// ([`ls::ROLE_CHRIS_CHECK`]) and reads the marker back: it must read `chris`'s own,
@@ -356,9 +369,9 @@ fn the_login_service_serves_past_the_old_cspace_ceiling() {
 /// later write would have overwritten `chris`'s marker in the one subtree they would have shared,
 /// and this final read would come back `corinne`'s instead).
 ///
-/// `wired`'s own `ensure_home_subtree` issues the identical `fs_proto::fs::MKDIR` request
+/// `wired`'s own `ensure_home_subtree` issues the identical `filesystem_proto::fs::MKDIR` request
 /// `identity_provisioner.rs`'s own `mkdir_home` does (same opcode, same
-/// [`fs_proto::dir::ALL`] rights, the identity string as the name); that milestone's own suite
+/// [`filesystem_proto::dir::ALL`] rights, the identity string as the name); that milestone's own suite
 /// (`identity_provisioning_tests.rs`, `provisioning_creates_a_working_credential_and_a_real_subtree`)
 /// already proves the *tool* produces a real, descendable subtree end to end, so this test's job is
 /// the other half: that `login`, given one, finds and attenuates to the *right* one.
@@ -381,7 +394,7 @@ fn login_scopes_each_identity_to_its_own_provisioned_subtree() {
         r_chris[1] & ls::F_NOT_SHARED_SUBTREE,
         ls::F_NOT_SHARED_SUBTREE,
         "chris's granted directory carries the old shared fixture's own file \
-         (fs_proto::fixture::tree::INNER), so it is not a subtree of chris's own",
+         (filesystem_proto::fixture::tree::INNER), so it is not a subtree of chris's own",
     );
     let a_chris = sched::ipc_recv(w.audit);
     assert_eq!(
@@ -401,7 +414,7 @@ fn login_scopes_each_identity_to_its_own_provisioned_subtree() {
         r_corinne[1] & ls::F_NOT_SHARED_SUBTREE,
         ls::F_NOT_SHARED_SUBTREE,
         "corinne's granted directory carries the old shared fixture's own file \
-         (fs_proto::fixture::tree::INNER), so it is not a subtree of corinne's own",
+         (filesystem_proto::fixture::tree::INNER), so it is not a subtree of corinne's own",
     );
     let a_corinne = sched::ipc_recv(w.audit);
     assert_eq!(

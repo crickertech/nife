@@ -593,7 +593,7 @@ pub mod proto {
     // as a limit and the served-copy path as what would fix it.
 
     /// The reply to a word whose opcode the compositor does not implement. Negative-is-an-error, the
-    /// convention `fs_proto` set and `graphics_proto` follows.
+    /// convention `filesystem_proto` set and `graphics_proto` follows.
     pub const EBADOP: i64 = -22;
 
     /// **A client's control page**: the per-client channel that carries everything the shared

@@ -67,7 +67,7 @@
 //!   which is the same honest-absence shape every other slot here uses: `env::var("TZ")`
 //!   answers `Err` because nobody granted this program a timezone, not because the lookup
 //!   failed. Unlike the clock page, this one has exactly one writer and it finishes before the
-//!   page has a second reader, so there is no seqlock to it (see `env_proto`'s own docs).
+//!   page has a second reader, so there is no seqlock to it (see `environment_proto`'s own docs).
 //!
 //! Programs that never allocate, print, open a socket, or open a file never touch the slots they
 //! do not use.
@@ -89,7 +89,7 @@ pub const CONFIG_SLOT: u64 = 7;
 pub const CLOCK_PAGE: u64 = 0x1200_0000;
 
 /// Where the loader maps the inert-configuration page a std program reads `TZ`/`LANG`/`TERM`
-/// out of: one frame, **read-only**, `env_proto`'s layout, assembled once before this program
+/// out of: one frame, **read-only**, `environment_proto`'s layout, assembled once before this program
 /// existed. Clear of the program image, its stack, the net PAL's per-socket frames, the FS page,
 /// the clock page above, and the heap. The kernel-side wiring maps the same physical frame it
 /// assembled the page into; see `std_service` in `kernel/src/user.rs`.

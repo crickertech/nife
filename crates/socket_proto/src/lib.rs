@@ -281,7 +281,7 @@ pub const DATA_MAX: usize = 4096 - OFF_PAYLOAD as usize;
 /// **The inbound gate's shared facts**, in one place because four programs have to agree on them
 /// and three of them are separate binaries: `socket_test_client` (the hand-written client),
 /// `std_exerciser` (the `std::net` client, in its own workspace), and the kernel test that decides
-/// which ports each stack is granted. The same discipline as `fs_proto::fixture`, and rule 7's
+/// which ports each stack is granted. The same discipline as `filesystem_proto::fixture`, and rule 7's
 /// reason verbatim: a port number two binaries agree on is a crate, never a literal repeated per
 /// call site.
 ///

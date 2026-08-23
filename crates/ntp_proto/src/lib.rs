@@ -6,7 +6,7 @@
 //! over `net_stack`. Keeping the protocol here means the parser, the fixed-point conversion and the
 //! response checks are host-tested in milliseconds and machine-checked by Kani, rather than being
 //! debugged inside a QEMU boot against a live server (DECISIONS §14's rule about what compiles for
-//! the host, and the same split `fs_proto` and `graphics_proto` make for their contracts).
+//! the host, and the same split `filesystem_proto` and `graphics_proto` make for their contracts).
 //!
 //! # Scope: unauthenticated NTPv4, deliberately and only
 //!

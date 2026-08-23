@@ -20,7 +20,7 @@ nifefs = { version = "0.1.0", path = "../crates/nifefs" }
 # "what pages exist" cannot be discovered at runtime and has to be computed at image time. Only the
 # writer is behind the `builder` feature; the reader that runs confined allocates nothing.
 manual = { version = "0.1.0", path = "../crates/manual", features = ["builder"] }
-fs_proto = { version = "0.1.0", path = "../crates/fs_proto" }
+filesystem_proto = { version = "0.1.0", path = "../crates/filesystem_proto" }
 # The partition table (milestone 57's write half): the post-run check reads the table the GUEST
 # wrote, from outside the guest, with the same parser the guest used and the same one whose host
 # tests run against tables `sgdisk` and macOS `diskutil` wrote. It also slices the data partition out
@@ -41,7 +41,7 @@ smb_proto = { version = "0.1.0", path = "../crates/smb_proto" }
 ntlm = { version = "0.1.0", path = "../crates/ntlm" }
 # The credential contract (milestone 65), for its `fixture` module only: the account the guest's
 # store is provisioned with, so this prober and the provisioning role agree on it down to the byte.
-cred_proto = { version = "0.1.0", path = "../crates/cred_proto" }
+credential_proto = { version = "0.1.0", path = "../crates/credential_proto" }
 # The mDNS responder's configuration document (milestone 55). The gate's expectations are DERIVED
 # from the same file the guest ships, so editing what this machine advertises moves the assertion
 # with it and the two cannot drift. The wire-format side is deliberately NOT shared: the prober

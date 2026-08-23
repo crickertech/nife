@@ -1,5 +1,5 @@
 [package]
-name = "sink_proto"
+name = "byte_sink_proto"
 version = "0.1.0"
 edition = "2024"
 license.workspace = true
@@ -8,7 +8,7 @@ license.workspace = true
 # "write these bytes there" destination speaks, so a terminal, a file and a pipe become
 # substitutable in one capability slot. Pure logic, host-tested, no_std, dependency-free, so
 # the writers (std's `println!`, a `no_std` program), the sinks, and the kernel-side tests
-# share ONE definition and cannot drift. Same split `fs_proto` makes for the filesystem
+# share ONE definition and cannot drift. Same split `filesystem_proto` makes for the filesystem
 # contract and `clock_proto` for the wall clock.
 
 [lints]

@@ -32,10 +32,10 @@ redoxfs = { path = "../../vendor/redoxfs", default-features = false, features = 
 # The attribute store's on-disk format, from the crate that defines it (milestone 57). The FS server
 # writes these blobs and this tool reads them, so what the two must agree on is a crate rather than a
 # second copy of the record layout in a comment (CLAUDE.md rule 7). A change to the record header is
-# then a compile error here instead of a recovery that quietly reads garbage. `fs_proto` is `no_std`
+# then a compile error here instead of a recovery that quietly reads garbage. `filesystem_proto` is `no_std`
 # with no dependencies of its own, so it costs this build nothing; `fs_server` already takes the same
 # path dependency across the same workspace boundary, which is what shows cargo permits it.
-fs_proto = { version = "0.1.0", path = "../../crates/fs_proto" }
+filesystem_proto = { version = "0.1.0", path = "../../crates/filesystem_proto" }
 
 # The partition table, from the crate that already parses it (milestone 110). A real disk has a GPT
 # where an image file has a filesystem, so finding the filesystem means reading the table first, and
@@ -43,7 +43,7 @@ fs_proto = { version = "0.1.0", path = "../../crates/fs_proto" }
 # the host reads the partition by the same rules the board wrote it by, rather than by a second
 # implementation that could disagree about which bytes are the partition. `no_std` with no
 # dependencies of its own, so it costs this build nothing, and it crosses the workspace boundary the
-# same way `fs_proto` already does.
+# same way `filesystem_proto` already does.
 gpt = { version = "0.1.0", path = "../../crates/gpt" }
 
 # The same redox_syscall (lib name `syscall`) the engine uses, so an error out of `find_node` can be

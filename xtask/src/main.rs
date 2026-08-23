@@ -284,7 +284,7 @@ fn std_inputs_stamp() -> u64 {
         root.join("crates/socket_proto/src/lib.rs"),
         // Likewise the FS-service contract: `std::fs` is a client of it (milestone 27 phase two),
         // and its wire constants are generated verbatim into the PAL.
-        root.join("crates/fs_proto/src/lib.rs"),
+        root.join("crates/filesystem_proto/src/lib.rs"),
         // The wall-clock and entropy contracts, for the same reason: `sys/time` reads the clock
         // page's layout out of one and `sys/random` packs its requests with the other, so a change
         // to either must rebuild the farm or the PAL silently drifts from the service.
@@ -294,7 +294,7 @@ fn std_inputs_stamp() -> u64 {
         // §111): `sys/env` reads the page's layout and `PageBuilder`'s validated domains out of
         // this crate, generated verbatim into the PAL, so a change to either must rebuild the
         // farm or the PAL silently drifts from what assembles the page.
-        root.join("crates/env_proto/src/lib.rs"),
+        root.join("crates/environment_proto/src/lib.rs"),
         root.join("targets/aarch64-unknown-nife.json"),
         root.join("targets/riscv64-unknown-nife.json"),
     ];
@@ -568,7 +568,7 @@ fn std_generate_modules() -> bool {
         // The FS-service wire protocol (DECISIONS §27), so `std::fs`'s PAL cannot drift from the
         // server it opens files through. Same discipline as the three above.
         (
-            root.join("crates/fs_proto/src/lib.rs"),
+            root.join("crates/filesystem_proto/src/lib.rs"),
             farm_std_src().join("sys/pal/nife/fsproto.rs"),
         ),
         // The wall-clock contract (DECISIONS §43), so the time PAL reads the clock page with the
@@ -590,7 +590,7 @@ fn std_generate_modules() -> bool {
         // §111), so `sys/env`'s seeding reads the config page with the same layout and the same
         // validated domains whoever assembles a page uses. Same discipline as the six above.
         (
-            root.join("crates/env_proto/src/lib.rs"),
+            root.join("crates/environment_proto/src/lib.rs"),
             farm_std_src().join("sys/pal/nife/envproto.rs"),
         ),
         // The byte-sink contract (milestone 50), so `println!`'s framing and the classification of
@@ -598,7 +598,7 @@ fn std_generate_modules() -> bool {
         // Same discipline as the six above, and the one that would hurt most to get wrong: a drift
         // in `GONE` would be a program that keeps printing into a pipe whose reader has exited.
         (
-            root.join("crates/sink_proto/src/lib.rs"),
+            root.join("crates/byte_sink_proto/src/lib.rs"),
             farm_std_src().join("sys/pal/nife/sinkproto.rs"),
         ),
     ];
@@ -3216,7 +3216,7 @@ const SMB_ROUNDS: usize = 2;
 ///
 /// The mirror of [`InboundProber`], one protocol up: instead of echo bytes, each round is a full
 /// negotiate, guest session setup, tree connect, open of the file the guest's boot seeded
-/// through its FS server, a read whose bytes are asserted against `fs_proto::fixture::SMB_SEED`
+/// through its FS server, a read whose bytes are asserted against `filesystem_proto::fixture::SMB_SEED`
 /// (the same constant the seeding client wrote, so there is no second copy of the expected
 /// contents), close, **the write leg** ([`smb_write_leg`]), and logoff. That first CREATE also
 /// carries the **`AAPL` create context** and its answer is checked ([`smb_apple_leg`]), because
@@ -3425,7 +3425,7 @@ fn smb_recv(
 ///    looks like; it separates "the guest refuses what it cannot verify" from "the guest refuses
 ///    everything".
 /// 3. **The real thing.** A proof this process computes on the host with `ntlm`, over the challenge
-///    the *guest* chose, under a key derived from `cred_proto::fixture`'s password. It must succeed
+///    the *guest* chose, under a key derived from `credential_proto::fixture`'s password. It must succeed
 ///    and the session must **not** come back flagged guest.
 ///
 /// **What the arrangement proves that a unit test could not.** The password exists only here, on the
@@ -3484,9 +3484,9 @@ fn smb_authenticate_leg(
     // The key a holder of the password derives. [MS-NLMP] 3.3.2, and the account is the one the
     // guest's store was provisioned with; `ntlm`'s tests pin every value against the specification.
     let key = ntlm::ntowfv2(
-        cred_proto::fixture::SMB_PASSWORD,
-        cred_proto::fixture::SMB_USER,
-        cred_proto::fixture::SMB_DOMAIN,
+        credential_proto::fixture::SMB_PASSWORD,
+        credential_proto::fixture::SMB_USER,
+        credential_proto::fixture::SMB_DOMAIN,
     )
     .map_err(|e| format!("the fixture account does not derive a key: {e:?}"))?;
     let good = ntlm::proof(&key, challenge, &blob);
@@ -3499,8 +3499,8 @@ fn smb_authenticate_leg(
         &client::session_setup_authenticate_ntlmv2(
             92,
             sid,
-            cred_proto::fixture::SMB_USER,
-            cred_proto::fixture::SMB_DOMAIN,
+            credential_proto::fixture::SMB_USER,
+            credential_proto::fixture::SMB_DOMAIN,
             &bad,
             &blob,
         ),
@@ -3521,8 +3521,8 @@ fn smb_authenticate_leg(
         &client::session_setup_authenticate_ntlmv2(
             3,
             sid,
-            cred_proto::fixture::SMB_USER,
-            cred_proto::fixture::SMB_DOMAIN,
+            credential_proto::fixture::SMB_USER,
+            credential_proto::fixture::SMB_DOMAIN,
             &good,
             &blob,
         ),
@@ -3535,7 +3535,7 @@ fn smb_authenticate_leg(
              hold the key for {:?} (is the credentialer wired and provisioned before the SMB \
              spawn?), or the challenge did not survive the two refusals above",
             status(&resp),
-            String::from_utf8_lossy(cred_proto::fixture::SMB_RESOURCE),
+            String::from_utf8_lossy(credential_proto::fixture::SMB_RESOURCE),
         ));
     }
     // SessionFlags, at the start of the SESSION_SETUP response body. Bit 0 is IS_GUEST, and it is
@@ -3601,10 +3601,10 @@ fn smb_session(
 
     // The file the guest's boot seeded through its FS server (fs_test_client's seed role):
     // asserting these bytes is what proves the served share is the real filesystem, not the
-    // adapter's baked-in fixture. One constant on both sides (fs_proto::fixture), no second copy.
+    // adapter's baked-in fixture. One constant on both sides (filesystem_proto::fixture), no second copy.
     let (name, expected) = (
-        fs_proto::fixture::SMB_SEED_NAME.as_bytes(),
-        fs_proto::fixture::SMB_SEED,
+        filesystem_proto::fixture::SMB_SEED_NAME.as_bytes(),
+        filesystem_proto::fixture::SMB_SEED,
     );
     // **The Apple leg** (milestone 55), and it rides this create rather than one of its own
     // because that is where a Mac puts it: macOS attaches the AAPL context to the *first* CREATE
@@ -3733,7 +3733,7 @@ fn smb_apple_leg(resp: &[u8], bitmap: u64) -> Result<(), String> {
 }
 
 /// **How many bytes the throughput leg moves in each direction.** 1 MiB, the same figure
-/// `fs_proto::fixture::throughput::TOTAL` holds for the in-guest benchmark, so a MiB/s from this
+/// `filesystem_proto::fixture::throughput::TOTAL` holds for the in-guest benchmark, so a MiB/s from this
 /// leg and a MiB/s from that phase are measuring the same amount of work through two different
 /// depths of the stack. Bounded by the fixture image (16 MiB) and by RedoxFS being copy-on-write,
 /// exactly as that constant's doc explains.
@@ -3745,7 +3745,7 @@ const SMB_THROUGHPUT_BYTES: usize = 1024 * 1024;
 /// # Why this is measured here and nowhere else
 ///
 /// Milestone 138 step 3 grew the file contract's transfer from 4 KiB to 64 KiB and measured 8.02x
-/// on a sequential write. **That number was measured against `fs_proto`**, by a client that speaks
+/// on a sequential write. **That number was measured against `filesystem_proto`**, by a client that speaks
 /// the contract directly. The thing a customer runs does not: it is a Mac, and everything it asks
 /// for arrives through TCP, the socket contract, a reassembly buffer and an SMB2 state machine
 /// before any of it reaches an `fs::WRITE`. So the only honest way to say whether the speedup
@@ -3939,8 +3939,8 @@ fn smb_write_leg(
     use smb_proto::{H_STATUS, client, r32};
     let status = |resp: &[u8]| r32(resp, H_STATUS);
 
-    let name = fs_proto::fixture::SMB_WROTE_NAME.as_bytes();
-    let want = fs_proto::fixture::SMB_WROTE;
+    let name = filesystem_proto::fixture::SMB_WROTE_NAME.as_bytes();
+    let want = filesystem_proto::fixture::SMB_WROTE;
     // A tail past the payload, so the truncate below has something to remove. Without it a
     // successful truncate and a truncate that did nothing look identical.
     let tail = b"...and this tail must not survive the truncate...";
@@ -3994,20 +3994,20 @@ fn smb_write_leg(
 
     // **FLUSH** (milestone 55's durability half), where a backup client puts it: after the write
     // and before it believes the write. Until this milestone the guest answered it with a polite
-    // yes; now it is a `fs_proto::fs::SYNC` and a `VIRTIO_BLK_T_FLUSH` the device completes, and
+    // yes; now it is a `filesystem_proto::fs::SYNC` and a `VIRTIO_BLK_T_FLUSH` the device completes, and
     // this is the only leg that drives that chain from outside the guest.
     //
     // **A success here is necessary and nowhere near sufficient**, which is why the real assertion
     // is somewhere else. This side cannot see whether anything reached the device; all it can say
     // is that the server did not refuse. The in-guest witness
-    // (`fs_proto::fixture::durability`, read by the kernel's `assert_smb_write_landed`) is what
+    // (`filesystem_proto::fixture::durability`, read by the kernel's `assert_smb_write_landed`) is what
     // says the flush actually happened, and it says so by finding the block server's flush count
     // already advanced before it ran. That count can only have been moved by this command.
     smb_send(s, &client::flush(msg_id, sid, tid, &fid))?;
     let resp = smb_recv(s, stop)?;
     if status(&resp) != smb_proto::STATUS_SUCCESS {
         return Err(format!(
-            "FLUSH after writing: status {:#x}. UNEXPECTED_IO_ERROR here is the durability chain              refusing rather than lying, which is the correct failure: it means either the device              offers no VIRTIO_BLK_F_FLUSH or it rejected the flush. See fs_proto::fs::SYNC",
+            "FLUSH after writing: status {:#x}. UNEXPECTED_IO_ERROR here is the durability chain              refusing rather than lying, which is the correct failure: it means either the device              offers no VIRTIO_BLK_F_FLUSH or it rejected the flush. See filesystem_proto::fs::SYNC",
             status(&resp)
         ));
     }
@@ -4070,9 +4070,9 @@ fn smb_subdirectory_leg(
     use smb_proto::{H_STATUS, client, r32};
     let status = |resp: &[u8]| r32(resp, H_STATUS);
 
-    let dir = fs_proto::fixture::SMB_DIR_NAME.as_bytes();
-    let leaf = fs_proto::fixture::SMB_NESTED_NAME.as_bytes();
-    let body = fs_proto::fixture::SMB_NESTED;
+    let dir = filesystem_proto::fixture::SMB_DIR_NAME.as_bytes();
+    let leaf = filesystem_proto::fixture::SMB_NESTED_NAME.as_bytes();
+    let body = filesystem_proto::fixture::SMB_NESTED;
     // The path a client actually sends: the components joined by SMB's own separator. One string,
     // built from the two constants the guest checks separately, so the two sides cannot drift.
     let mut nested = dir.to_vec();
@@ -4189,7 +4189,7 @@ fn smb_subdirectory_leg(
     if total == nominal && free == nominal {
         return Err(String::from(
             "the volume is still the nominal constant (total == free == the fallback), so \
-             fs_proto's STATFS is not reaching the wire. Time Machine sizes a sparsebundle \
+             filesystem_proto's STATFS is not reaching the wire. Time Machine sizes a sparsebundle \
              against these fields; see notes/smb.md.",
         ));
     }
@@ -5165,11 +5165,11 @@ fn mkredoxfs() -> bool {
         return true;
     }
     // Stage the fixture contents in temp files (the host tool's `put` takes a host file), then load
-    // them. The contents live in fs_proto::fixture, shared with the client and the fixture's readers.
+    // them. The contents live in filesystem_proto::fixture, shared with the client and the fixture's readers.
     let motd = workspace_root().join("target/redoxfs-motd.tmp");
     let scratch = workspace_root().join("target/redoxfs-scratch.tmp");
-    if std::fs::write(&motd, fs_proto::fixture::MOTD).is_err()
-        || std::fs::write(&scratch, fs_proto::fixture::SCRATCH_INIT).is_err()
+    if std::fs::write(&motd, filesystem_proto::fixture::MOTD).is_err()
+        || std::fs::write(&scratch, filesystem_proto::fixture::SCRATCH_INIT).is_err()
     {
         eprintln!("mkredoxfs: cannot stage the fixture files");
         return false;
@@ -5180,8 +5180,13 @@ fn mkredoxfs() -> bool {
         return false;
     };
     redoxfs_host(&["mkfs", &img, "16"])
-        && redoxfs_host(&["put", &img, fs_proto::fixture::MOTD_NAME, &motd])
-        && redoxfs_host(&["put", &img, fs_proto::fixture::SCRATCH_NAME, &scratch])
+        && redoxfs_host(&["put", &img, filesystem_proto::fixture::MOTD_NAME, &motd])
+        && redoxfs_host(&[
+            "put",
+            &img,
+            filesystem_proto::fixture::SCRATCH_NAME,
+            &scratch,
+        ])
         && doc_store().is_some()
         && redoxfs_host(&["import", &img, &tree])
 }
@@ -5198,7 +5203,7 @@ fn mkredoxfs() -> bool {
 /// fixture would end up in the image and fail the post-run `ls /` check for a reason that has
 /// nothing to do with the run.
 fn stage_subtree() -> Option<String> {
-    use fs_proto::fixture::tree;
+    use filesystem_proto::fixture::tree;
     let root = workspace_root().join("target/redoxfs-tree");
     let _ = std::fs::remove_dir_all(&root);
     let sub = root.join(tree::SUB);
@@ -5275,13 +5280,18 @@ fn crash_disk_path() -> String {
 fn mkredoxfs_crash() -> bool {
     let img = crash_disk_path();
     let initial = workspace_root().join("target/redoxfs-crash-initial.tmp");
-    if std::fs::write(&initial, fs_proto::fixture::crash::INITIAL).is_err() {
+    if std::fs::write(&initial, filesystem_proto::fixture::crash::INITIAL).is_err() {
         eprintln!("mkredoxfs_crash: cannot stage the fixture file");
         return false;
     }
     let initial = initial.display().to_string();
     redoxfs_host(&["mkfs", &img, "16"])
-        && redoxfs_host(&["put", &img, fs_proto::fixture::crash::NAME, &initial])
+        && redoxfs_host(&[
+            "put",
+            &img,
+            filesystem_proto::fixture::crash::NAME,
+            &initial,
+        ])
 }
 
 /// Where the GPT-partitioned test image is written. The runners derive exactly this name from
@@ -5381,7 +5391,7 @@ fn mknvmedisk() -> bool {
 /// not apply here for the same reason it does not apply to the crash image.
 fn mkblankdisk() -> bool {
     let path = blank_disk_path();
-    let bytes = std::vec![0u8; (fs_proto::fixture::blank::DISK_BLOCKS * fs_proto::fixture::blank::LBA) as usize];
+    let bytes = std::vec![0u8; (filesystem_proto::fixture::blank::DISK_BLOCKS * filesystem_proto::fixture::blank::LBA) as usize];
     if let Err(e) = std::fs::write(&path, &bytes) {
         eprintln!("mkblankdisk: could not write {path}: {e}");
         return false;
@@ -5405,7 +5415,7 @@ fn mkblankdisk() -> bool {
 /// same reason the guest's `mkfs` finds it that way: the type is what the partition is, and the slot
 /// is a fact about this table's current order.
 fn blank_check_after_run() -> bool {
-    use fs_proto::fixture::blank;
+    use filesystem_proto::fixture::blank;
 
     let path = blank_disk_path();
     let Ok(img) = std::fs::read(&path) else {
@@ -5525,11 +5535,11 @@ fn redoxfs_crash_check_after_run() -> bool {
             "--",
             "cat",
             &crash_disk_path(),
-            fs_proto::fixture::crash::NAME,
+            filesystem_proto::fixture::crash::NAME,
         ],
     );
-    let want_a = fs_proto::fixture::crash::A;
-    let want_b = fs_proto::fixture::crash::B;
+    let want_a = filesystem_proto::fixture::crash::A;
+    let want_b = filesystem_proto::fixture::crash::B;
     match out.as_deref() {
         Some(s) if s.as_bytes() == want_a => {
             eprintln!(
@@ -5565,12 +5575,13 @@ fn redoxfs_crash_check_after_run() -> bool {
 /// with a different process and the pinned engine. It is also what closes the write blocker
 /// notes/fs-server.md used to record, so it belongs in the gate, not in a comment.
 fn redoxfs_check_after_run() -> bool {
-    redoxfs_reads_back(fs_proto::fixture::MOTD_NAME, fs_proto::fixture::MOTD)
-        && redoxfs_reads_back(
-            fs_proto::fixture::SCRATCH_NAME,
-            fs_proto::fixture::WRITE_PATTERN,
-        )
-        && redoxfs_subtree_was_confined()
+    redoxfs_reads_back(
+        filesystem_proto::fixture::MOTD_NAME,
+        filesystem_proto::fixture::MOTD,
+    ) && redoxfs_reads_back(
+        filesystem_proto::fixture::SCRATCH_NAME,
+        filesystem_proto::fixture::WRITE_PATTERN,
+    ) && redoxfs_subtree_was_confined()
         && redoxfs_glob_grant_took_exactly_the_match()
 }
 
@@ -5591,7 +5602,7 @@ fn redoxfs_check_after_run() -> bool {
 /// 3. **The unmatched directory still holds its file.** A `rm` that had walked into it would have
 ///    emptied it, and a set capability carrying no `-r` cannot even look inside one it *did* match.
 fn redoxfs_glob_grant_took_exactly_the_match() -> bool {
-    use fs_proto::fixture::tree;
+    use filesystem_proto::fixture::tree;
     let img = redoxfs_disk_path();
     let Some(globset) = redoxfs_ls(&img, tree::GLOBSET) else {
         eprintln!("milestone-47 glob check: `{}` did not list", tree::GLOBSET);
@@ -5683,7 +5694,7 @@ fn redoxfs_glob_grant_took_exactly_the_match() -> bool {
 /// that a leaked name whose spelling matches neither fixture prefix would slip past claim 2, so the
 /// attacker's names are the thing this check is precise about.
 fn redoxfs_subtree_was_confined() -> bool {
-    use fs_proto::fixture::tree;
+    use filesystem_proto::fixture::tree;
     let img = redoxfs_disk_path();
 
     let (Some(root), Some(sub)) = (redoxfs_ls(&img, "/"), redoxfs_ls(&img, tree::SUB)) else {
@@ -5764,7 +5775,7 @@ fn redoxfs_subtree_was_confined() -> bool {
 /// shell that holds the handle to read it back with; this file has no run index to reconstruct the
 /// exact name a body-reading check through `redoxfs_reads_back` would need.
 fn shell_navigation_landed(root: &[String], home: &[String]) -> bool {
-    use fs_proto::fixture::tree;
+    use filesystem_proto::fixture::tree;
     let count = |dir: &[String], prefix: &str| dir.iter().filter(|n| n.starts_with(prefix)).count();
 
     if count(home, tree::NAV_KEPT) == 0 || count(home, tree::NAV_DIR) == 0 {
@@ -6032,7 +6043,7 @@ fn test() -> bool {
         //
         // This was a hand-maintained list of twenty `-p` flags, and it drifted exactly the way a
         // hand-maintained list does. It was written because `paging`, `heap` and `slab` were silently not
-        // run for four milestones; by milestone 51 it had five crates missing again, and `fs_proto`,
+        // run for four milestones; by milestone 51 it had five crates missing again, and `filesystem_proto`,
         // `compositor`, `video_terminal`, `bitmap_font` and `grant_plan` carried **82 host tests that this gate never ran**. All
         // 82 passed when finally run, which is the point: nobody noticed because nothing failed, and a
         // gate that quietly covers less than it claims is the failure mode script/fmt's `--check` bug

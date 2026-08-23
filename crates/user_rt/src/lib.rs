@@ -37,7 +37,7 @@
 //! is derived and checked by `script/lint`). So the examples below are `no_run`: they are type-checked
 //! against the real signatures on an aarch64 host and are **not executed anywhere**. The things that
 //! *can* be checked are the wire contracts layered over them, which is where those crates put their
-//! examples (`sink_proto`, `fs_proto`, `entropy_proto`).
+//! examples (`byte_sink_proto`, `filesystem_proto`, `entropy_proto`).
 //!
 //! A program's whole life, in the four calls that make up this crate. Note what is absent: there is
 //! no `open`, no path, and no way to name anything that was not handed over.
