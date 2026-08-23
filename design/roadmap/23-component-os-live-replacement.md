@@ -2,10 +2,14 @@
 
 **Status: PARTIAL.**
 
-**Gate: DECISION.** For one of the two residuals that remain. State handoff needs a serialise-old /
-absorb-new protocol, which is a wire format and so calef's. Dependency-aware orchestration needs no
-decision but does need a manifest extension first: a component declares what it *needs*, not that
-another component *supplies* it, so there is no dependency graph to orchestrate against yet.
+**Gate: NONE.** As of 2026-08-23, state handoff is **declined for now, for want of a customer**
+(DECISIONS §116): no component with meaningful live state exists or is being built, same shape as
+`std::thread::spawn` and hard links. §116 also checked the framing and records a transport shape
+(opaque blob over a shared page, capabilities via `GRANT`) as guidance for whoever eventually has a
+real component to swap, without committing to it. Dependency-aware orchestration needs no decision
+and never did, only a manifest extension: a component declares what it *needs*, not that another
+component *supplies* it, so there is no dependency graph to orchestrate against yet. That is real
+unbuilt work rather than anything waiting on calef.
 
 The other two residuals are done. **The component manifest is built** (2026-08-17,
 `crates/component_plan`, notes/component-manifest.md), which is the piece milestone 39's packaging
@@ -76,8 +80,8 @@ finding is that the stronger right is not merely large but **insufficient**, sin
 blocked thread never reaches `schedule()` to spend the kill a `DESTROY` arms). No watchdog program was
 built, deliberately: both its halves are behind those decisions.
 
-**What remains, and it is the part the block itself calls the real engineering:** state handoff
-(the component here is near-stateless, which is what makes kill-and-replace sufficient) and
+**What remains:** state handoff, declined for now (DECISIONS §116, want of a customer; the
+component here is near-stateless, which is what makes kill-and-replace sufficient), and
 dependency-aware orchestration (which will need the manifest to carry a dependency graph, and it
 does not yet: a component declares what it needs, not that another component supplies it). The
 hung-component work sharpens both: a hung component cannot be asked to serialise its state, so a
@@ -150,11 +154,18 @@ ring variant is io_uring, DPDK, and virtio.
   before anything is built when it cannot. seL4 CapDL / Fuchsia territory as this block predicted, and
   Fuchsia's `use`/`offer` split turned out to be the load-bearing half. Still compiled in rather than
   shipped beside a binary: notes/component-manifest.md.
-- **State handoff (the crux).** The console is easy because it is near-stateless. A filesystem
-  server (open handles, caches, in-flight writes) or a network stack (live connections) cannot be
-  kill-and-restarted without losing state; live-swapping them needs a serialise-old / absorb-new
-  protocol over a supervisor-brokered channel. Prior art: Erlang/OTP `code_change`, VM live
-  migration, CRIU checkpoint/restore. This is where the real engineering is.
+- **State handoff, declined for now (DECISIONS §116, 2026-08-23).** The console is easy because it
+  is near-stateless. A filesystem server (open handles, caches, in-flight writes) or a network
+  stack (live connections) cannot be kill-and-restarted without losing state, and live-swapping
+  them would need moving that state from outgoing to incoming instance over a supervisor-brokered
+  channel -- but no such component exists or is being built, so this is deferred rather than
+  designed. §116 found the roadmap's own "serialise-old / absorb-new protocol" framing did not fit
+  (every component's state is a different shape; there is no one wire format to specify) and
+  records a transport shape as non-binding guidance for whoever eventually has a real component to
+  swap: an opaque blob over a shared page for state, `GRANT` for capabilities. Prior art checked
+  rather than cited uncritically: Erlang/OTP `code_change` is the closest match (opaque term in,
+  opaque term out, generic mechanism); VM live migration and CRIU are memory-page-level and assume
+  identical old/new layout, which does not hold across a version swap here.
 - **Dependency-aware orchestration.** If B is a client of A, swapping A means quiesce B, swap,
   resume; the supervisor (22) needs the dependency graph and a quiescence protocol. And a fallback
   for when a node will not quiesce, per notes/hung-component.md.
