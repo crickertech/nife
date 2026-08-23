@@ -327,11 +327,16 @@ pub(super) fn assert_smb_held_no_key(had_fs: bool) {
     if !had_fs {
         return; // no filesystem means no authenticated share and no credential service wired
     }
+    // `provisioned()` is memoized (`credential_tests`'s own doc): by the time `had_fs` is true, the
+    // real wiring already happened, possibly in a much earlier call, so this is a cheap re-read of
+    // cached values, not a second wiring. Needed for the frame itself, which
+    // `credential_service::peek` now takes directly rather than looking up through a global that a
+    // second, independently wired instance (milestone 155) could have since overwritten.
+    let Some((w, _, _)) = super::credential_tests::provisioned() else {
+        return; // consistent with `had_fs`'s own early return: nothing was wired to check
+    };
     let mut page = [0u8; 4096];
-    crate::user::credential_service::peek(
-        crate::user::credential_service::verify_page_va(),
-        &mut page,
-    );
+    crate::user::credential_service::peek(w.verify_frame, &mut page);
     for (what, bytes) in [
         // NTOWFv2, §4.2.4.1.1: the stored key, which must never leave the credential service.
         (
