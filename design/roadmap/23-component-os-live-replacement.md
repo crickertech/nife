@@ -2,7 +2,7 @@
 
 **Status: PARTIAL.**
 
-**Gate: NONE**, as of 2026-08-23. State handoff is **declined for now, for want of a customer**
+**Gate: NONE.** As of 2026-08-23, state handoff is **declined for now, for want of a customer**
 (DECISIONS §116): no component with meaningful live state exists or is being built, same shape as
 `std::thread::spawn` and hard links. §116 also checked the framing and records a transport shape
 (opaque blob over a shared page, capabilities via `GRANT`) as guidance for whoever eventually has a
