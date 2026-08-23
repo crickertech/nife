@@ -42,8 +42,10 @@
 //! way (see each method's own doc comment in `crates/abi`). The first two are facts about the
 //! caller; the third is a fact about every other live region on the machine, which the caller had
 //! no part in causing and cannot fix locally. A caller, or a person debugging one, cannot currently
-//! tell which is true. Not fixed here: whether the right answer is new `Error` variants, a separate
-//! diagnostic query, or leaving it collapsed is an open fork, not an oversight to patch quietly.
+//! tell which is true. **Declined for now (DECISIONS §119), for want of a customer**: no caller is
+//! confused by this today, and §119 records non-binding guidance (new cause-specific `Error`
+//! variants, the shape `crates/timetable`'s own `Unbacked`/`Refusal` split and POSIX's
+//! `EMFILE`/`ENFILE` both already use) for whoever eventually has one.
 
 use frames::{FRAME_SIZE, Frame};
 use regions::RegionTable;
