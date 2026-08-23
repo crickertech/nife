@@ -447,10 +447,12 @@ it, and the `pgrep` section above is where that is recorded.
 Each of the four remaining view programs is blocked on something real rather than on effort, which is
 worth writing down so nobody estimates from `ps`:
 
-- **`pmap`** needs `ENUMERATE` extended to `Aspace`, and that is an open decision rather than a
-  morning's work. A security audit found that every capability minted since 2026-08-17 already
-  carries the bit, so the day an `Aspace` arm reads it the operation becomes retroactively available
-  to holders nobody assessed. It is calef's call.
+- **`pmap`** needs `ENUMERATE` extended to the address-space object, **decided (DECISIONS §114,
+  2026-08-23): yes**, mirroring `Endpoint`/`Rendezvous`'s `SURVEY`. One condition attached: every
+  capability minted since 2026-08-17 already carries the bit, so the day the new method reads it,
+  the operation becomes retroactively available to delegated holders nobody assessed for it.
+  Whoever builds `pmap` audits existing delegation sites first, the same narrowing already applied
+  once for `Endpoint`'s `READ`/`ENUMERATE` split above.
 - **`top`** needs per-thread CPU accounting that does not exist at all: `QuotaToken` is dead code
   whose own comment says `spawn_with_quota` has no caller of its own today.
 - **`pwdx` and `w`** need a process display name, and this system has `arg0` in `Spawn` and no

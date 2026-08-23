@@ -1,16 +1,21 @@
 # 118. CLAUDE.md has a budget, and the rules that get violated move up the ladder
 
-**Status: PARTIAL.** Minted 2026-08-05 by calef, who noticed the file had gotten huge and asked
-what that costs. Two lanes have run: #309 took the audit, and a second (2026-08-18) verified it and
-produced an applicable cut. **The cut is proposed, not applied**, because a developer may not edit
-`AGENTS.md`; the integrator applies it. The split, the size gate and the violation ledger are
-untouched, so this stays open. **PARTIAL rather than IN-PROGRESS**: no lane is on it as this is
-written, and the three remaining pieces are startable independently of each other.
+**Status: PARTIAL.** Minted 2026-08-05 by calef, who
+noticed the file had gotten huge and asked what that costs. Two lanes have run: #309 took the audit,
+and a second (2026-08-18) verified it and produced an applicable cut. **The cut is proposed, not
+applied**, because a developer may not edit `AGENTS.md`; the integrator applies it. A third lane
+(2026-08-22) built two of the three remaining pieces: see "The size gate and the ledger,
+2026-08-22" below. The split is the one piece left, and it is untouched for the same reason the cut
+is only proposed: it requires editing `AGENTS.md`.
 
-**Gate: NONE.** That is now a recorded weakness rather than a description: the size measurement
-is `wc -lwc AGENTS.md` and nothing runs it, which is the milestone's own budget piece arguing for
-itself: this block has carried three different sizes in thirteen days, each one hand-entered by
-whoever last looked. A size gate would make the number self-maintaining.
+**Gate: NONE.** Nothing stops the split from starting; it only needs an `AGENTS.md` edit no
+developer lane can make, which is calef's or the integrator's to pick up.
+
+**The size measurement is no longer hand-entered.** Until 2026-08-22 it was `wc -lwc AGENTS.md`,
+run by nobody, which was the milestone's own budget argument for itself: this block carried three
+different sizes in thirteen days, each hand-entered by whoever last looked. `script/lint` now
+derives it (`agents-md-lines` in the counted-claims registry) and this file's own claim below is
+checked against the tree on every build; see "The size gate and the ledger, 2026-08-22".
 
 ## What it costs, measured 2026-08-05
 
@@ -393,6 +398,72 @@ move up the ladder or be deleted as unenforceable.
 The evidence for that ledger already exists in lane reports, honestly self-declared: *"I killed one of
 dev-97's QEMU processes by mistake"*, *"I clobbered my own working tree"*. Those reports are the
 input; nothing currently reads them.
+
+## The size gate and the ledger, 2026-08-22
+
+A third lane built both, and neither could be a mechanical extension of the earlier work: the split
+that would produce a "core" has not happened, and the eight-rule cut and the four budget rules the
+audit named are unrelated to what a size gate or a ledger need.
+
+### The size gate
+
+`script/lint`'s existing `count-at-most` relation (built for milestone 134's unsafe-density ceiling)
+is exactly the mechanism this section already asked for without naming it: a claimed number that
+fires when the tree exceeds it and stays silent when the tree falls below. `script/lint` gained an
+`agents-md-lines` registry entry (the file's own `wc -l`-equivalent line count) and the claim lives
+here, since a developer lane may not edit `AGENTS.md` to carry its own marker:
+
+**`AGENTS.md` carries at most 942 lines** <!--count-at-most:agents-md-lines-->, written at the
+tree's exact value with **zero headroom**, deliberately: the point, per this section's own words
+above, is that every line added should replace one removed, or be a considered act that says why the
+growth was worth it. That is the same choice `unsafe-thread-safety-claims` made for a different
+reason (a population small and consequential enough that every addition deserves the stop); here the
+reason is this milestone's own diagnosis, that the file grows in whole deliberate steps rather than
+by diffuse creep, so a lane adding one of those steps is exactly the lane that should also write the
+sentence justifying it. See notes/counted-claims.md for the mechanism and notes/rule-violations.md's
+neighbor for the same pattern applied to a different number.
+
+**Targets the whole file, not "the core", because the core does not exist yet.** Once the split
+happens, this ceiling should move to whatever the core becomes and stop counting the linked
+documents; that is a known adjustment for whoever does the split, not a defect today.
+
+**Raising it is the correct response to a deliberate addition, and the mechanism for doing so is
+unchanged from every other ceiling in the registry**: raise the number in the same commit that grows
+the file, and say beside it why the growth was worth it. Since a developer lane cannot make that edit
+either, raising the ceiling is the integrator's or calef's act, exactly like applying the proposed cut
+already is.
+
+### The violation ledger
+
+`notes/rule-violations.md` and `script/rule-violations` (both provisional names). One row per
+incident, an `instances` count per row (a source that reports an aggregate without naming individual
+incidents gets one row with that count, honestly, rather than invented distinct rows), and a status
+that keeps a row from re-triggering once a rule has already been addressed. `--check` fails when an
+`open` rule reaches three strikes.
+
+**Seeded from the incidents this milestone and `AGENTS.md` already recorded against themselves**, not
+invented for the occasion: the squash-against-`origin/main` scar (`AGENTS.md`, "Commits"), the
+`pkill`/mid-test-emulator incident and the reset-`--hard`/`checkout`/`stash` clobbers this section's
+own "What it costs, measured 2026-08-05" already quotes. **The git-clobber rule is already at four
+open strikes**, one past the threshold, which is exactly the finding this ledger exists to surface:
+`AGENTS.md` carries substantial prose about it and no mechanism, and deciding what mechanism (a
+wrapper, an alias, a pre-command check, or accepting the risk and marking the rule `resolved` as
+unenforceable) replaces the prose is calef's or the integrator's call, not this lane's. See
+notes/rule-violations.md, including its own honest limits (self-reporting only, exact-text matching,
+not wired into any mandatory gate).
+
+**Deliberately not wired into `script/lint` or CI.** The git-clobber rule's threshold was already
+crossed by history this lane did not create; wiring `--check` into the mandatory suite today would
+fail every lane's pull request over a decision that is not a lane's to make, which is the same
+restraint DECISIONS §61 already states for an ordinary lint. Whether and when to wire it in is left as
+an open question in the note rather than answered here.
+
+### What is left
+
+**The split is now the only untouched piece.** It requires editing `AGENTS.md` and so is not
+startable by a developer lane at all; it waits on calef or the integrator, the same as the proposed
+cut from 2026-08-18 and the ceiling-raise mechanism above. Everything else this milestone named as
+remaining (the size gate, the ledger) is now built and gated.
 
 ## Scope note
 

@@ -1,7 +1,8 @@
 # 134. The register of measures: every number this kernel owes itself
 
 **Status: PARTIAL.** The register exists and holds the tier A and tier B measures below.
-**Tier A (E1 through E4) ran 2026-08-22**; tier B remains gated on milestone 74's counters and
+**Tier A (E1 through E4) ran 2026-08-22, and E4's own follow-up (a background load near E1's knee)
+ran 2026-08-23**; tier B remains gated on milestone 74's counters and
 milestone 127's silicon (see "What is built, and what is not" below for both). What landed
 2026-08-18 is the register itself
 (notes/register-of-measures.md), with the test for what belongs in it and the three states a measure
@@ -223,6 +224,18 @@ shared, noisy machine rather than the quiet single-tenant conditions earlier ste
 as one deliverable. They are not the same size, and separating them is what let the register land in
 a day: the register is a document plus a gate, and E1 through E4 are four benchmark harnesses. A
 future lane should take E2 alone, then E1, rather than reading this block as one piece of work.
+
+**Built 2026-08-23: E4's own follow-up, closed.** E4's original 8-pair background load sits inside
+E1's flat region, so the 0-3% it found was expected from E1's own curve rather than independent
+evidence against displacement (`notes/register-of-measures.md`'s own BUGS said so). `app_displacement`
+now also runs a second condition at `SCALE_MAX_PAIRS` (48 pairs, 96 threads), the same pair count E1's
+own sweep tops out at. Over three repeated runs, on the same dev Mac under HVF: the low-load condition
+still reads 0-5% and the high-load condition reads 2-9%, consistently higher than the low-load figure
+at every working set on every run, though the two ranges overlap and neither is a clean step function.
+It is a small, reproducible effect in the predicted direction rather than a decisive one, consistent
+with E1's own finding that this machine's larger L1d mutes the knee it would show on the 32 KB SiFive
+U74 target, and it wants the same small-cache board re-run E1 and E3 already want before either range
+is treated as more than a first data point. Detail and raw numbers in `notes/register-of-measures.md`.
 
 ## Scope note
 

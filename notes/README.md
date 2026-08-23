@@ -49,6 +49,14 @@ in the code or the conversation doesn't make sense, it belongs here.
   author meant. Twenty-eight comments credited the `^C` work to a milestone about an aarch64 board
   and no gate could see it.
 
+- [The violation ledger](rule-violations.md): milestone 118. A rule stated in prose that gets
+  broken three times has demonstrated it needs a mechanism instead, and nothing before this counted
+  how many times a documented rule was actually violated. `script/rule-violations` totals a table of
+  self-reported incidents; its first run found the git-clobber rule already four strikes over, from
+  incidents `AGENTS.md` already records against itself. Deliberately not wired into `script/lint` or
+  CI: doing so would fail the shared gate over a decision that is not a lane's to make. Name
+  provisional.
+
 - [Naming things](naming.md): components, crates, scripts, branches, and which document goes
 - [Cobble, the mascot](mascot.md): the name, its claim, the held-not-embedded ruling, and the
   alternatives set aside. Drawn by Clay.
@@ -881,6 +889,18 @@ in the code or the conversation doesn't make sense, it belongs here.
   existing name's timestamp, and `-t`'s sharper ability to lie about history) is not built, because
   `fs_proto` carries no verb for it and whether "set to now" is the write right already held or a
   separate authority is an open question the roadmap block names rather than answers.
+
+- [The inert-configuration page](env-config.md): milestone 47's environment-variable fork
+  (DECISIONS §111). `TZ`/`LANG`/`TERM` are the "genuinely just data" third of what Unix puts in
+  one environment map; the other two thirds are namespace (waits on `bind`) and secrets (already
+  answered, an endpoint, §41). A read-only page, the clock page's rights-ladder shape, with each
+  declared key validated against a closed domain before it is ever written, so a value that does
+  not parse as a real timezone/locale/terminal type is refused at assembly time rather than
+  carried through disguised as configuration. No seqlock, unlike the clock: the page has exactly
+  one writer and it finishes before the page has a second reader. Built end to end for a std
+  program (`env_proto`, kernel wiring, the `std` PAL's `sys/env::seed`), proven by `std_exerciser`
+  on both ISAs; no shell-facing program declares wanting it yet, the same position `clock` was in
+  before `date` existed.
 
 - [Navigating with no global namespace](shell-navigation.md): milestone 47's commands: `cd`, `pwd`,
   `ls`, `mkdir`, `rm` as **builtins** (which retires the worry that a listing *program* would hold the

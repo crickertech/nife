@@ -57,6 +57,18 @@
 //!   the function has no error channel and the alternative is a lie. `HashMap`'s seed is the one
 //!   caller std itself treats as best-effort, and it keeps working either way; see `sys/random`.
 //!
+//! And one more, granted only to a std program that is given **inert configuration** (milestone
+//! 47's environment-variable fork, DECISIONS §111; `sys/env` binds it):
+//!
+//! - **slot 7**: a `Frame` capability naming the inert-configuration page, with `READ`. The
+//!   loader maps that same page **read-only** at [`CONFIG_PAGE`], and `sys/env`'s `seed`
+//!   populates `std::env`'s `TZ`, `LANG` and `TERM` from it once, at process startup, before
+//!   `main` runs (`pal::nife::init`). A program left this slot empty is seeded with nothing,
+//!   which is the same honest-absence shape every other slot here uses: `env::var("TZ")`
+//!   answers `Err` because nobody granted this program a timezone, not because the lookup
+//!   failed. Unlike the clock page, this one has exactly one writer and it finishes before the
+//!   page has a second reader, so there is no seqlock to it (see `env_proto`'s own docs).
+//!
 //! Programs that never allocate, print, open a socket, or open a file never touch the slots they
 //! do not use.
 
@@ -67,6 +79,7 @@ pub const NET_UNTYPED_SLOT: u64 = 3;
 pub const FS_DIR_SLOT: u64 = 4;
 pub const CLOCK_SLOT: u64 = 5;
 pub const ENTROPY_SLOT: u64 = 6;
+pub const CONFIG_SLOT: u64 = 7;
 
 /// Where the loader maps the clock page a std program reads wall-clock time out of: one frame,
 /// **read-only**, carrying the offset the clock service publishes (`clock_proto`'s layout). Clear
@@ -74,6 +87,13 @@ pub const ENTROPY_SLOT: u64 = 6;
 /// upward), the FS page (0x1100_0000), and the heap (0x4000_0000). The kernel-side wiring maps the
 /// same physical frame the clock service holds read/write; see `clock_service` in kernel/src/user.rs.
 pub const CLOCK_PAGE: u64 = 0x1200_0000;
+
+/// Where the loader maps the inert-configuration page a std program reads `TZ`/`LANG`/`TERM`
+/// out of: one frame, **read-only**, `env_proto`'s layout, assembled once before this program
+/// existed. Clear of the program image, its stack, the net PAL's per-socket frames, the FS page,
+/// the clock page above, and the heap. The kernel-side wiring maps the same physical frame it
+/// assembled the page into; see `std_service` in `kernel/src/user.rs`.
+pub const CONFIG_PAGE: u64 = 0x1300_0000;
 
 /// Where the loader maps the page a std program shares with its FS server: 4096 bytes, one file
 /// block, carrying a name out on `OPEN` and file bytes both ways on `READ`/`WRITE`. Clear of the

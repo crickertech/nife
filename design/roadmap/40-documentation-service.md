@@ -1,13 +1,16 @@
 # 40. Documentation as a system service: searchable, rendered, and installed by packages
 
-**Status: PARTIAL.** Phases 1 and 2 are built. Phase 3's caretaker-narrowing increment is built too
-(DECISIONS §106, 2026-08-22): `doc <page>` renders at the prompt with no `| wc` in front of it,
-which is the milestone's own headline demonstration. Phase 3's other half, the graphical viewer, is
-not started and still waits on the display ladder (milestone 29, milestone 33). The status said
-NOT-STARTED until calef noticed the tree had moved past it (2026-08-16, the week's fifth
-§76-shaped misrecording), and **it did not move on 2026-08-18 either**, which is the honest answer
-for a lane that fixed a renderer, corrected a record and built a front door without starting the
-phase that is missing.
+**Status: PARTIAL.** Phases 1 and 2 are built, and phase 2's own known gap (ranking by raw
+occurrence count rather than document length) closed 2026-08-22, same day as the item below. Phase
+3's caretaker-narrowing increment is built too (DECISIONS §106, 2026-08-22): `doc <page>` renders
+at the prompt with no `| wc` in front of it, which is the milestone's own headline demonstration.
+Phase 3's other half, the graphical viewer, is not started and still waits on the display ladder
+(milestone 29, milestone 33; milestone 29's font increment is itself BLOCKED on notes/frames.md's
+`Frame`-sizing fork). The status said NOT-STARTED until calef noticed the tree had moved past it
+(2026-08-16, the week's fifth §76-shaped misrecording), and **it did not move on 2026-08-18
+either**, which is the honest answer for a lane that fixed a renderer, corrected a record and built
+a front door without starting the phase that is missing. It does not move to BUILT now either: a
+ranking refinement inside an already-built phase is not a phase closing.
 
 **Gate: NONE.** Its one stated prerequisite, milestone 31's phase 2 per-file grants, is built.
 
@@ -118,6 +121,19 @@ render countable); the second is the line nobody could type before today, render
 in front of it. The caretaker-hop display race notes/tail-output-narrowing.md named is carried as a
 documented, accepted interim rather than fixed here; see this block's `BUGS` and milestone 151.
 
+**2026-08-22, later the same day: ranking divides by length.** `crates/manual/src/index.rs`'s own
+`BUGS` had named this since phase 2 landed: "ranking is occurrence count and nothing else, so a
+long page that mentions a word in passing can outrank a short page about it," priced at "one
+division" needing "the page's length, which the layout does not store." That price was accurate.
+A page record grew a `tokens` field (four of the six bytes `PAGE_REC` already held spare, no
+format growth), `index::VERSION` moved to 2, and `manual::index::Ranked::offer` now ranks by
+`count / tokens` (fixed-point, one division) rather than raw `count`. `Found::count` still reports
+the raw occurrence count in the printed answer; only the merge order changed, and it is pure crate
+logic with no spawn-protocol or syscall-surface change, unlike the two items above it. See
+notes/manual.md's `BUGS` and "Where this goes next" for detail and `crates/manual`'s own new test,
+`ranking_divides_by_page_length`. This does not move phase 2 status; phase 2 was already BUILT and
+this is a quality improvement inside it, named as future work at the time and now closed.
+
 **The status still does not move to BUILT.** This closes phase 3's caretaker-narrowing increment,
 not phase 3 itself: the graphical viewer phase 3 also names waits on the display ladder (milestone
 29's font rendering, milestone 33's compositor) exactly as it did before this decision, and 40 stays
@@ -198,7 +214,9 @@ That split is the reuse judgment, and it is the same one milestone 32 made about
   program and a builtin sharing its first word would make the parse ambiguous, and `man`/`apropos`
   is the split this design already borrowed everywhere else. The merge is
   `manual::index::Ranked`, a fixed sixteen-result table with no allocator, so a shell with one
-  stack page can hold it.
+  stack page can hold it. **Ranking by document length, not just raw occurrence count, closed
+  2026-08-22**: `manual::index::Page::tokens` and the `score` function above `Ranked::offer`, see
+  this page's status block.
 - **Phase 3, split in two.** The caretaker-narrowing increment is **BUILT** (DECISIONS §106,
   2026-08-22): `doc <page>` renders straight at the prompt, with no `| wc` needed to give it a
   reader that is not the shell. The graphical viewer, the phase's other half, still rides the

@@ -45,6 +45,13 @@ pub(crate) mod entropyproto;
 // belongs to the sinks; hence the allow.
 #[allow(dead_code)]
 pub(crate) mod sinkproto;
+// The inert-configuration contract (milestone 47's environment-variable fork, DECISIONS §111):
+// the config page's layout and the closed, validated domains TZ/LANG/TERM are checked against,
+// generated verbatim from `crates/env_proto/src/lib.rs` by the same xtask step. `sys/env` is a
+// *reader* of the page; `PageBuilder` and the domain tables belong to whoever assembles one
+// (init, or today's kernel test harness standing in for it), hence the allow.
+#[allow(dead_code)]
+pub(crate) mod envproto;
 pub(crate) mod rt;
 
 use crate::io;
@@ -71,8 +78,13 @@ pub extern "C" fn _start(_a0: u64, _a1: u64, _a2: u64) -> ! {
 
 // SAFETY: must be called only once during runtime initialization.
 pub unsafe fn init(_argc: isize, _argv: *const *const u8, _sigpipe: u8) {
-    // Nothing to do: the heap wires itself lazily to the untyped in slot 0 on first allocation,
-    // and there is no signal machinery, no env, no TLS to set up.
+    // The heap wires itself lazily to the untyped in slot 0 on first allocation, and there is no
+    // signal machinery and no TLS to set up. **The environment is seeded here, once, before
+    // `main` runs** (milestone 47's environment-variable fork, DECISIONS §111): a program
+    // granted an inert-configuration page gets `TZ`/`LANG`/`TERM` in its `std::env` table from
+    // the first line of `main` onward, and a program granted none is seeded with nothing, which
+    // is the honest-absence answer this platform gives everywhere else.
+    crate::sys::env::seed();
 }
 
 // SAFETY: must be called only once during runtime cleanup.

@@ -945,6 +945,20 @@ def _unsafe_census():
     return _census
 
 
+def _agents_md_lines():
+    """Line count of AGENTS.md, milestone 118's own budget number.
+
+    `len(text.splitlines())` rather than `text.split('\n')`, which is what makes this agree with
+    `wc -l`: a file ending in a newline splits into one trailing empty string that `split` counts
+    and `splitlines` does not. AGENTS.md always ends in a newline (every text file in this tree
+    does), so the two would silently disagree by exactly one otherwise, and a budget gate that is
+    off by one on every measurement is the kind of bug nobody notices because it never changes.
+
+    `CLAUDE.md` is a symlink to this file (2026-08-14), so it is not read separately.
+    """
+    return len(pathlib.Path('AGENTS.md').read_text(errors='replace').splitlines())
+
+
 REGISTRY = {
     'longest-markdown-line': (
         "how long the repository's longest markdown line is, in bytes, which is what "
@@ -993,6 +1007,10 @@ REGISTRY = {
         'how many `unsafe impl Send`/`Sync` claims the tree makes, each one a hand-written '
         'assertion that the compiler is wrong about a type',
         lambda: _unsafe_census()['thread_safety'],
+    ),
+    'agents-md-lines': (
+        "how many lines AGENTS.md carries, which is milestone 118's own size budget",
+        _agents_md_lines,
     ),
 }
 

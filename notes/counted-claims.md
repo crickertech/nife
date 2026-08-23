@@ -65,6 +65,7 @@ answers, in the prose's own words**, and a derivation.
 | `rights-bits` | how many named single-bit rights a capability can carry | `pub const NAME: Rights = Rights(1 << N)` in `crates/capability` |
 | `loom-harnesses` | how many loom harnesses the tree carries, which is what `script/interleaving-check` runs | `loom::model(` calls in `crates/**/*.rs` |
 | `loom-crates` | how many crates carry at least one loom harness | distinct crate directories among those files |
+| `agents-md-lines` | how many lines `AGENTS.md` carries, which is milestone 118's own size budget | `wc -l`-equivalent line count of `AGENTS.md` |
 
 The last four arrived with the 2026-08-17 documentation sweep, whose lens was the ABI. `syscalls`
 exists because the ABI crate's own front page, the kernel's syscall module, an `Error` variant's
@@ -250,6 +251,18 @@ ceiling would have fired on almost every lane, which is the signature of a check
 a density ceiling holds a trend that is already going the right way and stays silent for a lane
 adding a driver at the tree's own rate. Choosing the relation is half the work and choosing the
 quantity is the other half.
+
+**A third ceiling, `agents-md-lines` (milestone 118, 2026-08-22), and it is written at the tree's
+exact value for the same reason `unsafe-thread-safety-claims` is: every line added to `AGENTS.md`
+deserves the stop.** Milestone 118 measured that file's growth as stepwise rather than diffuse (two
+commits were 61% of thirteen days of growth, each a whole new tenet section) and wanted exactly what
+"the point is it converts 'should I add this rule?' into 'what does this replace?'" describes: not
+headroom to absorb ordinary drift, but a stop on every single addition, forcing a deliberate,
+recorded raise. **The marker cannot live in `AGENTS.md` itself**: a developer lane may not edit that
+file (AGENTS.md's own naming section), so it lives in `design/roadmap/118-constitution-budget.md`
+instead, which is where the budget question was raised and is exactly the kind of indirection the
+floor's BUGS entry already names ("a reader who wants the number has to go to" the other file). The
+gate still runs against the real file; only the claim about it moved.
 
 **Deliberately not built: an auto-fix.** A `--fix` that rewrote marked numbers was considered and
 refused. This gate's failure message offers two responses, and they are not equally likely to be

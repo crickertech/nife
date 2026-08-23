@@ -96,15 +96,26 @@
 //! well means deciding how a non-init loader joins that chain at all, which is a design question and
 //! not a one-line patch.
 //!
-//! **A caretaker's construction region is never reclaimed.** Every successful login spends
+//! **A caretaker's construction memory is never reclaimed.** Every successful login spends
 //! [`CARETAKER_REGION_PAGES`] and [`CLIENT_BUDGET_PAGES`] out of [`CONSTRUCTION_UT`] for the rest of
-//! this process's life; there is no logout that gives it back. A real deployment needs a teardown
-//! path (a principal's supervision endpoint reaching this process, or a caretaker that can be
-//! `DESTROY`ed by name), which is real work this slice does not build. [`CONSTRUCTION_UT`] is sized
-//! by whoever spawns this process, and running out answers every further login with
-//! [`login_proto::DENIED`] rather than a distinguishable error, folded into that code for
-//! `login_proto`'s own stated reason (a caller must not learn "the service is out of resources" by
-//! comparing outcomes across two attempts with the same identity).
+//! this process's life; there is no logout that gives the *memory* back. A real deployment needs a
+//! teardown path (a principal's supervision endpoint reaching this process, or a caretaker that can
+//! be `Untyped::DESTROY`ed by name, which needs the region kept rather than dropped, so it is a
+//! design choice about who ends up holding it and not a smaller version of the fix below), which is
+//! real work this slice does not build. [`CONSTRUCTION_UT`] is sized by whoever spawns this
+//! process, and running out answers every further login with [`login_proto::DENIED`] rather than a
+//! distinguishable error, folded into that code for `login_proto`'s own stated reason (a caller must
+//! not learn "the service is out of resources" by comparing outcomes across two attempts with the
+//! same identity).
+//!
+//! This used to also leak a **cspace slot** per login, a tighter and separate ceiling from the
+//! memory one: this process's own capability table has sixteen slots (`kernel::cap::CSPACE_SLOTS`)
+//! and eight are spent at rest, so keeping `region`'s capability past a successful mint left room
+//! for exactly eight logins ever, after which the cspace itself (not `CONSTRUCTION_UT`) answered
+//! every further attempt with `DENIED`. `mint` now drops its own copy of `region` once the
+//! caretaker has confirmed descent (a `cap_delete`, not a `Untyped::DESTROY`: the caretaker's
+//! address space, TCB and endpoints are untouched), which removes that ceiling; the memory ceiling
+//! above is unaffected and still the real, documented bound.
 //!
 //! **The audit endpoint proves establishment, not per-request attribution.** [`login_proto::ATTRIBUTED`]
 //! records which identity established which channel at the moment this process minted it. It does
@@ -312,6 +323,22 @@ fn mint(own_ut: u64, care: &elf::Elf) -> Option<(u64, u64)> {
         cap_delete(narrow_ep);
         return None;
     }
+
+    // **Drop our own copy of `region` now.** The caretaker is up and holds its own narrowed
+    // copies of everything it needs (`FS_EP`, its half of `narrow_ep`, the frame); this process
+    // has no further use for the region it built it from. This is `cap_delete`, a local cspace
+    // slot free, not `Untyped::DESTROY`: the caretaker's address space, TCB and endpoint are
+    // untouched, exactly the pattern `root_supervisor` and `system_initializer::boot` use to drop
+    // a builder's own authority once a child holds its own copies.
+    //
+    // Skipping this used to leak one of this process's own sixteen cspace slots per successful
+    // login (`region` was never freed on the success path), which is a tighter and previously
+    // undocumented ceiling than the memory bound this program's BUGS names:
+    // `CSPACE_SLOTS` (16) minus this process's eight slots at rest (`REQUEST`..`AUDIT` plus
+    // `own_ut`) left room for exactly eight successful logins ever, after which the ninth
+    // correctly-authenticated one was silently answered `DENIED`, indistinguishable from a wrong
+    // password. See `kernel::user::login_tests::the_login_service_serves_past_the_old_cspace_ceiling`.
+    cap_delete(region);
 
     let budget = untyped_split(CONSTRUCTION_UT, CLIENT_BUDGET_PAGES).ok()?;
     Some((narrow_ep, budget))
