@@ -176,6 +176,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 115 | DECIDED | [No `sysctl`: each subsystem's tuning goes through its own service, not a bolted-on aggregator](115-no-sysctl.md) |
 | 116 | DECIDED | [Live component state handoff is declined, for want of a customer](116-state-handoff-declined.md) |
 | 117 | DECIDED | [A principal's subtree is named by its identity string, created at provisioning time](117-subtree-name-is-identity.md) |
+| 118 | DECIDED | [`Scheduler`/`SCHED` rename to `IpcTables`/`IPC_TABLES`](118-ipc-tables-name.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
 way milestone 76 moved four essays out of the roadmap: [the open design

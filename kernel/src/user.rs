@@ -318,9 +318,16 @@ pub fn user_aspace_map(name: u64, va: u64, phys: u64, flags: Flags) -> Result<()
     Ok(())
 }
 
-/// The root table of a user-built space, so tests can ask the walker what the space really
-/// maps. Test support only: nothing in the kernel navigates a user-built space by root.
-#[cfg(test)]
+/// The root table of a user-built space, named generationally like the registry it reads.
+///
+/// Built for tests (so a walker can ask what a space really maps) and now also
+/// `abi::aspace::LIST`'s way in (milestone 126's `pmap`, DECISIONS §114): the syscall handler
+/// resolves the capability's `name` to a root here before consulting `revoke::list_mapping` and
+/// `arch::mmu::translate_at`. `None` once the name is gone from the registry, which is
+/// `Tcb::CONFIGURE`'s doing the moment a space is bound to a thread (`take_user_aspace` removes
+/// the entry): a `LIST` against a capability that outlived its space's registry membership reads
+/// as "nothing to report," the same as an empty space, because the capability itself was never
+/// refused and the kernel has nothing left to say about where it used to point.
 pub fn user_aspace_root(name: u64) -> Option<u64> {
     USER_SPACES.lock().get(name).map(|s| s.root())
 }
@@ -2293,6 +2300,18 @@ mod reap_tests;
 /// `pgrep` collapses all three into printing nothing.
 #[cfg(test)]
 mod survey_tests;
+
+/// **`pmap`'s split, one object type over `survey_tests`** (milestone 126, `aspace::LIST`,
+/// DECISIONS §114). Cross-ISA for `survey_tests`'s reason: the method reads `Flags` through
+/// `arch::mmu::translate_at`, so a divergence here means something is wrong under `arch/`.
+///
+/// Every listing goes through the real syscall dispatcher, driven by `pmap::collect`, the loop
+/// `user/src/pmap.rs` really runs, `survey_tests`'s discipline verbatim. The negative control is
+/// the one that matters: a capability holding `ENUMERATE` alone can list every mapping and is
+/// refused `MAP_INTO`, and a capability holding `WRITE` alone can map and is refused `LIST`, so
+/// the split is proved in both directions rather than asserted in prose.
+#[cfg(test)]
+mod pmap_tests;
 
 /// **Scheduled execution, where every entry is a grant** (milestone 129, notes/scheduled-execution.md).
 ///

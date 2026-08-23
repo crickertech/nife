@@ -4,9 +4,9 @@
 `scheduler`?), and rewritten the same hour when the question "what does `sched` schedule?" turned up
 a better answer: **increasingly, nothing.**
 
-**Gate: DECISION.** The naming question is explicitly calef's: the type and the static hold a
-thread table and an endpoint registry, and the block rejects `ObjectRegistry` and `Objects` without
-picking a replacement. The module keeps `sched`, which really does schedule.
+**Gate: NONE.** The naming question is **decided (DECISIONS §118, 2026-08-23)**: `Scheduler`
+becomes `IpcTables`, `SCHED` becomes `IPC_TABLES`. The module keeps `sched`, which really does
+schedule. What remains is the mechanical rename itself, per this file's own Scope note below.
 
 **The finding, in the struct's own words.** `Scheduler`'s comment says it outright: "Neither the run
 queue nor `current` live here any more: both moved to per-CPU storage (`cpu::PerCpu`, §11 steps 3a
@@ -35,11 +35,14 @@ have touched **915 `sched::` call sites across 70 files**. This one touches **88
 inside `kernel/src/sched.rs`, 12 `Scheduler` mentions, and one `rank::SCHED`**, because the module
 path does not change. Roughly a hundred sites in one file, not nine hundred across seventy.
 
-**The naming question that remains is calef's**, and it is a real one because the thing is a pair
-rather than one concept: a thread table and an endpoint registry, held together only by both being
-whole-machine and both being under one lock. `ObjectRegistry` claims more generality than it has
-(there are two kinds, not any kind); `Objects` is vague in the way §39 warns about; something
-naming the pair is honest but long. Propose with what it holds, and wait.
+**The naming question was calef's**, and it was a real one because the thing is a pair rather than
+one concept: a thread table and an endpoint registry, held together only by both being whole-machine
+and both being under one lock. `ObjectRegistry` claimed more generality than the type has (there are
+two kinds, not any kind); `Objects` was vague in the way §39 warns about; `IpcState`, considered
+next, had the same weakness one level down (says *that* IPC-relevant data lives here, not *what*).
+**Decided (DECISIONS §118): `IpcTables`.** It names the pair honestly, matches this tree's own
+`notes/sched-lock-inventory.md` finding ("the hot set is IPC"), and Mach uses the identical term
+("IPC table") for a task's port namespace, though per-task rather than whole-machine as here.
 
 ## Scope note
 
