@@ -21,6 +21,11 @@
 //!   compares what it reads against what each role wrote, which is the whole property under test:
 //!   two different identities land in two different, isolated subtrees, and the same identity's two
 //!   sessions land in the *same* one.
+//! - [`ROLE_LOGOUT`] logs in as `chris`, proves the directory works exactly like [`ROLE_CHRIS`] does,
+//!   then calls `Untyped::DESTROY` on the fourth delegated capability (`login_proto`'s own logout
+//!   ticket) and proves the *directory* came down with it: a further `READDIR` through it must fail.
+//!   This is milestone 49's caretaker-teardown fix, proven end to end rather than merely by the
+//!   syscall's own return code.
 //!
 //! A role that succeeds does not stop at the verdict. It **uses** what it received: a directory
 //! read through the caretaker's endpoint, the file service's shared frame mapped and used for that
@@ -31,7 +36,7 @@
 //!
 //! - slot 0: the login service's request endpoint, `WRITE`.
 //! - slot 1: the login service's result endpoint, `READ` (both the verdict and, on success, the
-//!   three delegated capabilities arrive here).
+//!   four delegated capabilities arrive here).
 //! - slot 2: a report endpoint, `WRITE`.
 //! - mapped [`PAGE_VA`]: the page shared with the login service, where this program stages its
 //!   identity and secret.
@@ -47,7 +52,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use user_rt::{call, exit, invoke, map_frame, recv, recv_cap, send};
+use user_rt::{call, exit, invoke, map_frame, recv, recv_cap, send, yield_now};
 
 /// The login service's request endpoint (slot 0), `WRITE`.
 const SERVICE: u64 = 0;
@@ -82,6 +87,11 @@ pub const ROLE_CHRIS_CHECK: u64 = 5;
 /// does not. Must be refused exactly like [`ROLE_WRONG_SECRET`] (DECISIONS §117's "no distinguishable
 /// signal" answer; see `login.rs`'s own BUGS).
 pub const ROLE_NO_SUBTREE: u64 = 6;
+/// Log in as `chris`, prove the directory and budget work exactly like [`ROLE_CHRIS`], then use the
+/// fourth delegated capability (the logout ticket; `login_proto`'s own module docs) to tear the
+/// session down and confirm it actually came down: a further `READDIR` through the now-`DESTROY`ed
+/// directory capability must fail. See the module docs.
+pub const ROLE_LOGOUT: u64 = 7;
 
 /// The one-shot marker file every `*_MARK`/`*_CHECK` role reads or writes, inside the identity's own
 /// granted subtree. Chosen to collide with nothing else this tree's fixtures use.
@@ -96,7 +106,7 @@ const MARKER_NAME: &str = "whoami";
 /// subtree.
 fn credentials(role: u64) -> (&'static [u8], &'static [u8]) {
     match role {
-        ROLE_CHRIS | ROLE_CHRIS_MARK | ROLE_CHRIS_CHECK => {
+        ROLE_CHRIS | ROLE_CHRIS_MARK | ROLE_CHRIS_CHECK | ROLE_LOGOUT => {
             (b"chris", b"correct horse battery staple")
         }
         ROLE_CORINNE | ROLE_CORINNE_MARK => (b"corinne", b"a different secret entirely"),
@@ -127,6 +137,23 @@ pub const F_NOT_SHARED_SUBTREE: u64 = 1 << 2;
 /// [`ROLE_CHRIS_MARK`]/[`ROLE_CORINNE_MARK`]; its absence there means the isolation proof below did
 /// not get to run at all, which the kernel test must treat as its own failure rather than silence.
 pub const F_MARKER_WRITTEN: u64 = 1 << 3;
+/// **Set when the fourth capability's `Untyped::DESTROY` returned success.** Set only by
+/// [`ROLE_LOGOUT`]; retried a bounded few times on refusal (`login_proto`'s own module docs, on the
+/// fourth capability, name the transient window this covers).
+pub const F_TEARDOWN_OK: u64 = 1 << 4;
+/// **Set when a `READDIR` through the directory capability failed *after* teardown.** Set only by
+/// [`ROLE_LOGOUT`]; this is the proof that the capability, not merely the syscall, came down: a
+/// `DESTROY` that returned success but left the directory answering requests would pass every check
+/// up to this one and fail only this one.
+pub const F_DEAD_AFTER_TEARDOWN: u64 = 1 << 5;
+/// **Set when `Untyped::DESTROY` on the *budget* (the third delegated capability) also returned
+/// success.** Set only by [`ROLE_LOGOUT`], and proves the other half of `login.rs`'s BUGS: a full
+/// logout needs no capability beyond what every role already receives, because `budget` was always
+/// delegated with `WRITE`, the one right `DESTROY` needs. See the module docs.
+pub const F_BUDGET_TEARDOWN_OK: u64 = 1 << 6;
+/// **Set when a further `RETYPE` on the budget failed *after* its own teardown.** The budget's half
+/// of [`F_DEAD_AFTER_TEARDOWN`].
+pub const F_BUDGET_DEAD_AFTER_TEARDOWN: u64 = 1 << 7;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
@@ -148,18 +175,52 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
         done(verdict, 0, 0);
     }
 
-    // Three capabilities, in login_proto's fixed order.
+    // Four capabilities, in login_proto's fixed order.
     let (_, dir_ep, _) = recv_cap(RESULT);
     let (_, fs_frame, _) = recv_cap(RESULT);
     let (_, budget, _) = recv_cap(RESULT);
+    let (_, region, _) = recv_cap(RESULT);
 
     let mut flags = 0u64;
     let mut hint = 0u64;
 
-    // Prove the directory capability works: map the delegated frame, then read the granted
-    // subtree's listing through the delegated caretaker endpoint. A capability that merely arrived
-    // would pass every check up to this line and fail only this one.
-    if map_frame(fs_frame, FS_VA, true, budget) {
+    // Prove the directory capability works: map the delegated frame (which needs `budget` alive, to
+    // supply page-table pages for the mapping: `user_rt::map_frame`'s own contract), then read the
+    // granted subtree's listing through the delegated caretaker endpoint. A capability that merely
+    // arrived would pass every check up to this line and fail only this one.
+    let mapped = map_frame(fs_frame, FS_VA, true, budget);
+
+    // Prove the budget works: retype one page from it. `RETYPE`'s reply is the new frame's slot
+    // (>= 0) or a negative error. Done here, right after the one use of `budget` that needs it
+    // alive (`map_frame` above), and before anything below tears it down.
+    // SAFETY: `svc`/`ecall`; the kernel validates the capability and the method.
+    if unsafe { invoke(budget, abi::untyped::RETYPE, 0, 0, 0) } >= 0 {
+        flags |= F_BUDGET_WORKS;
+    }
+
+    // **`ROLE_LOGOUT` destroys `budget` before `region`, and the order is load-bearing, not a
+    // style choice.** `mint()` splits both from `login`'s own `CONSTRUCTION_UT`, `region` first and
+    // `budget` second (`user/src/login.rs`), so `budget` sits at the top of `CONSTRUCTION_UT`'s
+    // watermark and `region` sits below it. `crates/regions`' own `return_to_parent` only un-bumps
+    // a parent's watermark for a child freed at the *top* of it (LIFO, the same rule §16's object
+    // revocation and `job_undertaker`'s pool already live under); a child freed out of order leaves
+    // its pages a stranded hole that does not come back until the parent itself is destroyed. Get
+    // this backwards (as an earlier version of this file did) and `Untyped::DESTROY` still succeeds
+    // on both calls, so every flag below still sets, but `CONSTRUCTION_UT`'s reusable capacity never
+    // recovers: `kernel::user::login_tests::caretaker_teardown_reclaims_a_full_session_worth_of_memory`
+    // starved a *later*, unrelated test in this suite of real login attempts before this ordering was
+    // fixed, which is exactly the anti-oracle failure `login_proto::DENIED`'s own fold exists to
+    // prevent (a real password silently answered as though it were wrong). See `login_proto`'s own
+    // module docs on the fourth capability for the client-facing version of this note.
+    if role == ROLE_LOGOUT && destroy_with_retry(budget) {
+        flags |= F_BUDGET_TEARDOWN_OK;
+        // SAFETY: as above.
+        if unsafe { invoke(budget, abi::untyped::RETYPE, 0, 0, 0) } < 0 {
+            flags |= F_BUDGET_DEAD_AFTER_TEARDOWN;
+        }
+    }
+
+    if mapped {
         let (r0, _) = call(
             dir_ep,
             fs_proto::fs::req(fs_proto::fs::READDIR, fs_proto::fs::ROOT, 0),
@@ -197,16 +258,13 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
                         hint = h;
                     }
                 }
+                // `budget` is already gone by construction (above); `region` is now the top of
+                // `CONSTRUCTION_UT`'s watermark, so this `DESTROY` un-bumps it too, and this
+                // login's whole 128-page contribution comes home.
+                ROLE_LOGOUT => flags |= teardown_directory(dir_ep, region),
                 _ => {}
             }
         }
-    }
-
-    // Prove the budget works: retype one page from it. `RETYPE`'s reply is the new frame's slot
-    // (>= 0) or a negative error.
-    // SAFETY: `svc`/`ecall`; the kernel validates the capability and the method.
-    if unsafe { invoke(budget, abi::untyped::RETYPE, 0, 0, 0) } >= 0 {
-        flags |= F_BUDGET_WORKS;
     }
 
     done(RPT_OK, flags, hint);
@@ -291,6 +349,45 @@ fn read_marker(dir: u64) -> Option<u64> {
     Some(login_proto::identity_hint(
         &buf[..(n as usize).min(buf.len())],
     ))
+}
+
+/// **The fourth capability, `login_proto`'s own logout ticket: `Untyped::DESTROY` reclaims the
+/// caretaker `dir` names.** Sets [`F_TEARDOWN_OK`] on success and, only then, re-checks `dir` with a
+/// `READDIR`: [`F_DEAD_AFTER_TEARDOWN`] if it now fails, which is the proof that the capability, not
+/// merely the syscall, came down.
+fn teardown_directory(dir: u64, region: u64) -> u64 {
+    let Some(mut flags) = destroy_with_retry(region).then_some(F_TEARDOWN_OK) else {
+        return 0;
+    };
+    let (r0, _) = call(
+        dir,
+        fs_proto::fs::req(fs_proto::fs::READDIR, fs_proto::fs::ROOT, 0),
+        0,
+    );
+    if (r0 as i64) < 0 {
+        flags |= F_DEAD_AFTER_TEARDOWN;
+    }
+    flags
+}
+
+/// **`Untyped::DESTROY` on `ut`, retried a bounded few times.** Used on both the fourth delegated
+/// capability (the caretaker's construction region) and the third (the client's own budget, already
+/// held with `WRITE` by every role): `login_proto`'s own module docs, on the fourth capability, name
+/// the one transient refusal the *caretaker's* region can give (mid-`forward` to the file service,
+/// blocked on an endpoint the region does not own, at the exact instant `DESTROY` is attempted; that
+/// window closes on its own, so a short bounded retry, `crates/system_initializer::reclaim`'s own
+/// idiom, is enough). The budget has no such window: nothing else is ever running in it, so its own
+/// `DESTROY` is expected to succeed on the first attempt, and this loop costs it nothing to share.
+fn destroy_with_retry(ut: u64) -> bool {
+    const ATTEMPTS: usize = 64;
+    for _ in 0..ATTEMPTS {
+        // SAFETY: `svc`/`ecall`; the kernel checks WRITE on `ut`.
+        if unsafe { invoke(ut, abi::untyped::DESTROY, 0, 0, 0) } == 0 {
+            return true;
+        }
+        yield_now();
+    }
+    false
 }
 
 fn done(tag: u64, w1: u64, w2: u64) -> ! {

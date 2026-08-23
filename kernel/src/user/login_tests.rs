@@ -5,28 +5,33 @@ use crate::sched;
 
 /// The login service's construction budget (`user/src/login.rs`'s `CONSTRUCTION_UT`), sized for
 /// this suite's exact needs rather than guessed generously: `crate::untyped::create` reserves this
-/// many frames from the boot's free pool the moment `ls::start` runs, and nothing here ever gives
-/// them back (see `user/src/login.rs`'s BUGS), so this number is a direct, permanent charge against
-/// `kernel::testing::SUITE_FRAME_BUDGET`. The first version of this constant (2048) blew that budget
-/// by itself; this is the account the ledger's own message asks for.
+/// many frames from the boot's free pool the moment `ls::start` runs, and this number is a direct,
+/// permanent charge against `kernel::testing::SUITE_FRAME_BUDGET` **for the logins this suite never
+/// tears down**. The first version of this constant (2048) blew that budget by itself; this is the
+/// account the ledger's own message asks for.
 ///
-/// 128 for `login`'s own scratch (`OWN_UT_PAGES`), plus 128 per successful login (that program's
-/// `CARETAKER_REGION_PAGES` 64 + `CLIENT_BUDGET_PAGES` 64) for the twelve this suite performs in
-/// total: one in the headline test, two in the two-identity test, six in
+/// 128 for `login`'s own scratch (`OWN_UT_PAGES`), plus 128 per successful login that this suite
+/// leaves logged in (that program's `CARETAKER_REGION_PAGES` 64 + `CLIENT_BUDGET_PAGES` 64) for the
+/// twelve it performs in total: one in the headline test, two in the two-identity test, six in
 /// `the_login_service_serves_past_the_old_cspace_ceiling`, and three in
 /// `login_scopes_each_identity_to_its_own_provisioned_subtree` (DECISIONS §117's per-identity
 /// scoping: `chris`'s mark, `corinne`'s mark, and `chris`'s second, independent session). 128 +
-/// 12*128 = 1664. One more login in this suite is *meant* to fail to mint
-/// (`login_denies_an_authenticated_identity_with_no_provisioned_subtree`: `graeme` has a real
-/// credential and no home subtree) and still permanently spends `mint`'s `CARETAKER_REGION_PAGES`
-/// (64, not the full 128: `CLIENT_BUDGET_PAGES` is never split on this failing path) before the
-/// descent refuses it (`user/src/login.rs`'s own BUGS: `region` is not reclaimed on this path
-/// either): 1664 + 64 = 1728. 1856 leaves the same 128-page headroom the smaller number did, for
-/// `build_child`'s own bookkeeping, without costing the ledger a number nobody can explain. Every
-/// one of the twelve successful logins' pages is permanent (see `user/src/login.rs`'s BUGS: the
-/// caretaker's construction *memory* is still never reclaimed, only the cspace slot is now), so
-/// raising this past 640 raised `kernel::testing::SUITE_FRAME_BUDGET` too; that comment carries the
-/// account.
+/// 12*128 = 1664. `login_denies_an_authenticated_identity_with_no_provisioned_subtree`'s own login
+/// (`graeme`, a real credential and no home subtree) used to add a permanent 64-page charge on top
+/// (`mint`'s descent-refused path leaked `region` before this milestone's fix); it does not anymore,
+/// `mint` reclaims it before returning, so it costs this ledger nothing.
+///
+/// **`caretaker_teardown_reclaims_a_full_session_worth_of_memory` below adds no permanent charge at
+/// all**, which is the property that test exists to demonstrate: every login it performs logs back
+/// out before the next one starts, so its own peak transient need (one login's 128 pages, on top of
+/// the 1664 permanent above) is smaller than the headroom already here, and it proves reclaim works
+/// by needing far more than that headroom would allow if it did not. 1856 - 1664 = 192, still more
+/// than the 128 that test (or `mint`'s own scratch bookkeeping) ever needs live at once, so this
+/// number is unchanged by this milestone's fix rather than lowered to the new, tighter 1664 + 128 =
+/// 1792 minimum: the margin costs nothing further against `SUITE_FRAME_BUDGET` and a lane six months
+/// from now adding one more permanent login to this suite should not have to touch this constant to
+/// do it. Raising this past 640 raised `kernel::testing::SUITE_FRAME_BUDGET` too; that comment
+/// carries the account.
 const CONSTRUCTION_PAGES: u64 = 1856;
 
 /// `EEXIST`, matching `identity_provisioner.rs`'s own local constant: `fs_proto` does not re-export
@@ -464,4 +469,75 @@ fn login_denies_an_authenticated_identity_with_no_provisioned_subtree() {
         ls::RPT_DENIED,
         "graeme's real credential, with no provisioned subtree, was not refused",
     );
+}
+
+/// **Nothing else would have caught this**: the caretaker-teardown fix (this milestone; see
+/// `user/src/login.rs`'s own BUGS, "Resolved"), proven by needing more memory than could possibly
+/// fit if a session's pages did not actually come back. `wired()`'s shared instance holds
+/// `CONSTRUCTION_PAGES` (1856) in total, and 1664 of that is already permanently spent by the tests
+/// above (this file's own accounting comment on that constant); the 192 pages left would not survive
+/// a *second* leaked session at the old 128-pages-per-login rate, let alone the ten this test
+/// performs (2560 pages, thirteen times the headroom). Every one of the ten logs fully back out
+/// (both delegated `Untyped`s destroyed, `login_test_client.rs`'s `ROLE_LOGOUT`) before the next
+/// begins, so this test could only pass by the memory genuinely coming home each time.
+///
+/// Each iteration asserts the whole chain, not merely that the final `DESTROY` returned success: a
+/// real `READDIR` and a real `RETYPE` before teardown (the same proof every other successful-login
+/// test in this file asks for), both `DESTROY` calls succeeding, and both capabilities answering
+/// nothing afterward (`login_test_client.rs`'s own re-check, not merely the syscalls' return codes).
+#[test_case]
+fn caretaker_teardown_reclaims_a_full_session_worth_of_memory() {
+    let Some(w) = wired() else {
+        crate::testing::skip!("no virtio-rng device or no RedoxFS disk attached");
+    };
+    let cli =
+        program("login_test_client").expect("no login_test_client program in the initrd archive");
+
+    const ATTEMPTS: usize = 10;
+    for i in 0..ATTEMPTS {
+        let r = ls::client(cli, &w, ls::ROLE_LOGOUT);
+        assert_eq!(
+            r[0],
+            ls::RPT_OK,
+            "login {i} of {ATTEMPTS} (the teardown role) was not authenticated",
+        );
+        assert_eq!(
+            r[1] & ls::F_DIR_WORKS,
+            ls::F_DIR_WORKS,
+            "login {i}'s directory capability did not work before teardown",
+        );
+        assert_eq!(
+            r[1] & ls::F_BUDGET_WORKS,
+            ls::F_BUDGET_WORKS,
+            "login {i}'s budget did not work before teardown",
+        );
+        assert_eq!(
+            r[1] & ls::F_TEARDOWN_OK,
+            ls::F_TEARDOWN_OK,
+            "login {i}'s logout ticket did not destroy the caretaker's construction region",
+        );
+        assert_eq!(
+            r[1] & ls::F_DEAD_AFTER_TEARDOWN,
+            ls::F_DEAD_AFTER_TEARDOWN,
+            "login {i}'s directory capability still answered a READDIR after its region was destroyed",
+        );
+        assert_eq!(
+            r[1] & ls::F_BUDGET_TEARDOWN_OK,
+            ls::F_BUDGET_TEARDOWN_OK,
+            "login {i}'s own budget did not destroy",
+        );
+        assert_eq!(
+            r[1] & ls::F_BUDGET_DEAD_AFTER_TEARDOWN,
+            ls::F_BUDGET_DEAD_AFTER_TEARDOWN,
+            "login {i}'s budget still answered a RETYPE after its own destroy",
+        );
+        // Drain the attribution record, the same as every other successful-login test in this file
+        // (the headline test's own note: `send(AUDIT, ...)` is a blocking rendezvous).
+        let a = sched::ipc_recv(w.audit);
+        assert_eq!(
+            a[0],
+            login_proto::ATTRIBUTED,
+            "no attribution record followed login {i}",
+        );
+    }
 }
