@@ -53,7 +53,7 @@ pub const MAX_NAME: usize = crate::MAX_FILE_NAME;
 /// a set travels by value through the expander, the [`Expansion`], `designate`'s return and the
 /// [`crate::Endowment`], four frames a debug build does not collapse, and the shell ran off the
 /// bottom of its stack planning one grant. Eight names of sixteen bytes is 152 bytes a copy. It
-/// matches `fs_proto::nameset::MAX_NAMES`, pinned by a host test.
+/// matches `filesystem_proto::nameset::MAX_NAMES`, pinned by a host test.
 ///
 /// The number matters less than the failure's shape: exceeding it is [`Refusal::TooManyNames`], a
 /// refusal **at the prompt with nothing spawned**, never a truncation. A glob that quietly granted a
@@ -105,11 +105,11 @@ impl Name {
 ///
 /// This is the type that makes the milestone's finding true in the code rather than only in the
 /// prose. `fs_file_caretaker` serves "a namespace of exactly one name"; globbing generalizes it to
-/// a set, and a literal operand is simply the set of one. Same caretaker shape, same `fs_proto`
+/// a set, and a literal operand is simply the set of one. Same caretaker shape, same `filesystem_proto`
 /// protocol above and below, wider namespace, nothing new in the kernel.
 ///
 /// Each name carries what the directory said it was, because the caretaker answers `READDIR` from
-/// the set itself (`fs_proto::nameset`), and because a listing is a rendering of authority.
+/// the set itself (`filesystem_proto::nameset`), and because a listing is a rendering of authority.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct NameSet {
     names: [Name; MAX_NAMES],

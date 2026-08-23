@@ -3,14 +3,14 @@
 # sizes (milestone 55).
 #
 # WHY THIS EXISTS, and it is the whole reason it is a second script rather than a flag on its
-# sibling. bench/transfer-size-sweep.sh measures milestone 138 step 3 against `fs_proto`, by a
+# sibling. bench/transfer-size-sweep.sh measures milestone 138 step 3 against `filesystem_proto`, by a
 # client that speaks the file contract directly, and it found 8.02x on a sequential write. Nothing
 # a customer runs speaks that contract. A Mac's bytes arrive through TCP, the socket contract, a
 # reassembly buffer and an SMB2 state machine, and only then become an `fs::WRITE`. So a speedup on
 # the contract is a claim about the contract until somebody measures the path a backup takes, and
 # this is that measurement.
 #
-# WHAT IT DOES. `fs_proto::fs::TRANSFER_PAGES` is how many contiguous pages a client and the FS
+# WHAT IT DOES. `filesystem_proto::fs::TRANSFER_PAGES` is how many contiguous pages a client and the FS
 # server share, and setting it to 1 reproduces the contract exactly as it stood before step 3 (the
 # SMB adapter derives its own chunk size from it, which is the change milestone 55 made). This
 # script therefore EDITS THAT CONSTANT IN PLACE, builds, runs the aarch64 kernel suite with the
@@ -20,7 +20,7 @@
 #
 # The leg lives in xtask's SMB prober (`smb_throughput_leg`): a host process, over a real forwarded
 # TCP connection, writing 1 MiB and reading it back in `smb_proto::MAX_TRANSACT`-sized messages.
-# 1 MiB is `fs_proto::fixture::throughput::TOTAL`, so a row here and a row from the in-guest
+# 1 MiB is `filesystem_proto::fixture::throughput::TOTAL`, so a row here and a row from the in-guest
 # benchmark are the same work seen through two different depths of the stack.
 #
 # USAGE
@@ -51,7 +51,7 @@ set -eu
 
 cd "$(dirname "$0")/.."
 
-LIB=crates/fs_proto/src/lib.rs
+LIB=crates/filesystem_proto/src/lib.rs
 SAVED=$(mktemp -t smb-throughput)
 
 restore() {

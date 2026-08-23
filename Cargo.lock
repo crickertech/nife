@@ -79,6 +79,13 @@ name = "block_roster"
 version = "0.1.0"
 
 [[package]]
+name = "byte_sink_proto"
+version = "0.1.0"
+dependencies = [
+ "abi",
+]
+
+[[package]]
 name = "byteorder"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -167,7 +174,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "cred_proto"
+name = "credential_proto"
 version = "0.1.0"
 
 [[package]]
@@ -248,8 +255,15 @@ name = "entropy_proto"
 version = "0.1.0"
 
 [[package]]
-name = "env_proto"
+name = "environment_proto"
 version = "0.1.0"
+
+[[package]]
+name = "filesystem_proto"
+version = "0.1.0"
+dependencies = [
+ "glob",
+]
 
 [[package]]
 name = "find-msvc-tools"
@@ -260,13 +274,6 @@ checksum = "5baebc0774151f905a1a2cc41989300b1e6fbb29aff0ceffa1064fdd3088d582"
 [[package]]
 name = "frames"
 version = "0.1.0"
-
-[[package]]
-name = "fs_proto"
-version = "0.1.0"
-dependencies = [
- "glob",
-]
 
 [[package]]
 name = "generator"
@@ -309,7 +316,7 @@ version = "0.1.0"
 name = "grant_plan"
 version = "0.1.0"
 dependencies = [
- "fs_proto",
+ "filesystem_proto",
  "glob",
 ]
 
@@ -368,6 +375,7 @@ dependencies = [
  "asid",
  "bitfont",
  "block_roster",
+ "byte_sink_proto",
  "calendar",
  "canary_gate",
  "capability",
@@ -375,14 +383,14 @@ dependencies = [
  "compositor",
  "coremark",
  "cpu_set",
- "cred_proto",
+ "credential_proto",
  "dma_validator",
  "dtb",
  "elf",
  "entropy_proto",
- "env_proto",
+ "environment_proto",
+ "filesystem_proto",
  "frames",
- "fs_proto",
  "gfx_proto",
  "grant_plan",
  "intrusive",
@@ -400,7 +408,6 @@ dependencies = [
  "pmap",
  "ps",
  "regions",
- "sink_proto",
  "slots",
  "socket_proto",
  "spin",
@@ -436,7 +443,7 @@ checksum = "0ceec5bc11778974d1bcb055b18002eba7f4b3518b6a0081b3af5f21666da9ad"
 name = "login_proto"
 version = "0.1.0"
 dependencies = [
- "cred_proto",
+ "credential_proto",
 ]
 
 [[package]]
@@ -659,13 +666,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 
 [[package]]
-name = "sink_proto"
-version = "0.1.0"
-dependencies = [
- "abi",
-]
-
-[[package]]
 name = "slots"
 version = "0.1.0"
 
@@ -747,7 +747,7 @@ dependencies = [
 name = "swish"
 version = "0.1.0"
 dependencies = [
- "fs_proto",
+ "filesystem_proto",
  "glob",
  "grant_plan",
  "manual",
@@ -780,13 +780,13 @@ name = "system_initializer"
 version = "0.1.0"
 dependencies = [
  "abi",
+ "byte_sink_proto",
  "elf",
- "fs_proto",
+ "filesystem_proto",
  "grant_plan",
  "line_editor",
  "measured_boot",
  "nifefs",
- "sink_proto",
  "supervision_proto",
  "user_rt",
 ]
@@ -901,6 +901,7 @@ dependencies = [
  "abi",
  "bitfont",
  "block_roster",
+ "byte_sink_proto",
  "c_seam",
  "calendar",
  "clock_proto",
@@ -908,10 +909,10 @@ dependencies = [
  "compositor",
  "coremark",
  "cred",
- "cred_proto",
+ "credential_proto",
  "elf",
  "entropy_proto",
- "fs_proto",
+ "filesystem_proto",
  "gfx_proto",
  "gpt",
  "grant_plan",
@@ -925,7 +926,6 @@ dependencies = [
  "pgrep",
  "pmap",
  "ps",
- "sink_proto",
  "smb_proto",
  "smoltcp",
  "socket_proto",
@@ -976,7 +976,7 @@ name = "virtio"
 version = "0.1.0"
 dependencies = [
  "abi",
- "fs_proto",
+ "filesystem_proto",
  "nifefs",
  "user_rt",
 ]
@@ -1017,8 +1017,8 @@ name = "xtask"
 version = "0.1.0"
 dependencies = [
  "compositor",
- "cred_proto",
- "fs_proto",
+ "credential_proto",
+ "filesystem_proto",
  "gfx_proto",
  "gpt",
  "manual",

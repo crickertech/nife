@@ -45,7 +45,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use cred_proto as proto;
+use credential_proto as proto;
 use user_rt::{call, exit, send};
 
 /// The credential service's endpoint (slot 0). Verify or provision, depending on the role, and
@@ -100,10 +100,10 @@ type Share = (&'static [u8], &'static [u8], &'static [u8], &'static [u8]);
 /// The **first** uses [MS-NLMP] §4.2.1's account (`Domain\User`, password `Password`) on purpose:
 /// that is the account Microsoft publishes every intermediate value for, so the kernel test can
 /// assert against printed numbers rather than against something this tree computed. It moved into
-/// `cred_proto::fixture` when milestone 54's SMB adapter and xtask's prober became its other two
+/// `credential_proto::fixture` when milestone 54's SMB adapter and xtask's prober became its other two
 /// readers; this role is still the only thing that *stores* it.
 const SHARES: [Share; 3] = [
-    // Through `cred_proto::fixture` rather than spelled here, since milestone 54's identity item:
+    // Through `credential_proto::fixture` rather than spelled here, since milestone 54's identity item:
     // the SMB adapter authenticates against this resource and xtask's prober computes a proof over
     // this password, so three programs must agree on it down to the byte. The values did not change.
     (
@@ -301,7 +301,7 @@ fn attacker() -> ! {
     // and that is the model working rather than a hole in it: `provision::PUT` and `verify::VERIFY`
     // are both opcode 1, because the *endpoint* gives a number its meaning and a client cannot
     // choose which serve loop reads it. So this is a verify of an identity nobody provisioned, and
-    // the honest answer is no. See `cred_proto`'s "an opcode is not an authority".
+    // the honest answer is no. See `credential_proto`'s "an opcode is not an authority".
     codes.push(request(
         PAGE_VA,
         IMPOSTOR,

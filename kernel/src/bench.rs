@@ -1124,7 +1124,7 @@ fn fs_read() {
 /// `fs_read`, every phase here is device- and interrupt-driven, so it self-skips off the
 /// `--real --smp` boot and could not be deterministic if it did not.
 ///
-/// **One transfer is 4096 bytes and cannot be more**, because a `fs_proto` request carries its
+/// **One transfer is 4096 bytes and cannot be more**, because a `filesystem_proto` request carries its
 /// payload through the one page the client shares with the server. So these figures are a request
 /// rate in disguise, and any comparison against a system whose client may pass a 64 KiB buffer is
 /// comparing two different things. notes/benchmarks.md states that next to the numbers rather than
@@ -1149,7 +1149,7 @@ fn fs_throughput() {
         blk_image,
         fs_server,
         fs_test_client,
-        fs_proto::fixture::throughput::ROLE,
+        filesystem_proto::fixture::throughput::ROLE,
     ) else {
         return; // no RedoxFS disk on this run
     };
@@ -1158,9 +1158,9 @@ fn fs_throughput() {
         let _ = sched::ipc_recv(ready);
     }
     let hz = crate::arch::timer::frequency();
-    for _ in 0..fs_proto::fixture::throughput::PHASES {
+    for _ in 0..filesystem_proto::fixture::throughput::PHASES {
         let [ticks, transfers, phase, ..] = sched::ipc_recv(report);
-        let Some(name) = fs_proto::fixture::throughput::name(phase) else {
+        let Some(name) = filesystem_proto::fixture::throughput::name(phase) else {
             println!("bench-probe: fs_throughput unknown phase {phase}");
             continue;
         };
@@ -1171,7 +1171,7 @@ fn fs_throughput() {
         // without which the interesting figures here (1.52 and 2.59) both print as "2". Ticks of
         // zero would mean the counter did not advance across a whole phase, which is a broken run
         // rather than a fast one, so it reports zero instead of dividing.
-        let bytes = transfers * fs_proto::fixture::throughput::UNIT as u64;
+        let bytes = transfers * filesystem_proto::fixture::throughput::UNIT as u64;
         let hundredths = bytes
             .checked_mul(hz)
             .and_then(|v| v.checked_mul(100))

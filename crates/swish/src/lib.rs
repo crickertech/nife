@@ -87,7 +87,7 @@
 
 pub mod sequence;
 
-use fs_proto::dir;
+use filesystem_proto::dir;
 use grant_plan::expand::{Expansion, NameSet};
 use grant_plan::line::{self, Line};
 use grant_plan::nav::{self, Cwd, Refused};
@@ -103,7 +103,7 @@ pub enum Say {
     Nothing,
     /// The name could not be navigated, and nothing was sent.
     Refused(Refused),
-    /// The filesystem refused, with this errno. Rendered by `fs_proto::dir::explain`, which keeps
+    /// The filesystem refused, with this errno. Rendered by `filesystem_proto::dir::explain`, which keeps
     /// the sentence next to the decision that chose the number.
     Failed(i32),
     /// This shell holds no directory capability, so there is nothing to name.
@@ -724,7 +724,7 @@ pub fn write_timing(nanos: u64, out: &mut dyn FnMut(&[u8])) {
 }
 
 /// Write what a builtin had to say. Every line is a statement about a name or a capability, never
-/// about a policy: `fs_proto::dir::explain` keeps the filesystem's half next to the decision that
+/// about a policy: `filesystem_proto::dir::explain` keeps the filesystem's half next to the decision that
 /// chose the errno, so this function does not get to invent a friendlier word for a refusal.
 pub fn write_say(s: Say, out: &mut dyn FnMut(&[u8])) {
     match s {
@@ -1643,10 +1643,10 @@ mod tests {
     #[test]
     fn a_filesystem_refusal_keeps_the_filesystems_own_words() {
         // The shell does not get to invent a friendlier sentence for an errno. This pins that the
-        // rendering goes through `fs_proto`, which is where the number was chosen.
+        // rendering goes through `filesystem_proto`, which is where the number was chosen.
         assert_eq!(
             shown(|o| write_say(Say::Failed(-2), o)).trim(),
-            fs_proto::dir::explain(-2)
+            filesystem_proto::dir::explain(-2)
         );
     }
 

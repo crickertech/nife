@@ -48,7 +48,7 @@
 //! length and an errno out of the same register without a mode to get wrong:
 //!
 //! ```
-//! use fs_proto::{reply_err, reply_errno};
+//! use filesystem_proto::{reply_err, reply_errno};
 //!
 //! // A READ that moved 4096 bytes, and a READ at end of file. Both are results.
 //! assert_eq!(reply_errno(4096), None);
@@ -64,7 +64,7 @@
 //! all: the page is for the bytes.
 //!
 //! ```
-//! use fs_proto::{fs, op};
+//! use filesystem_proto::{fs, op};
 //!
 //! // `read(handle 3, 1024)`.
 //! let w0 = fs::req(fs::READ, 3, 1024);
@@ -82,7 +82,7 @@
 //! 3: sixteen pages in one round trip instead of sixteen round trips, and no new opcode to learn.
 //!
 //! ```
-//! use fs_proto::{PAGE, fs};
+//! use filesystem_proto::{PAGE, fs};
 //!
 //! // The largest read this contract permits, in one request.
 //! let w0 = fs::req(fs::READ, 3, fs::TRANSFER_MAX as u64);
@@ -100,7 +100,7 @@
 //! calls can produce a child carrying more than its parent.
 //!
 //! ```
-//! use fs_proto::dir::{self, Rights};
+//! use filesystem_proto::dir::{self, Rights};
 //!
 //! // What a shell holds over the user's home directory.
 //! let home = Rights::root(dir::ALL);
@@ -121,7 +121,7 @@
 //! per-file grant costs no extra mapping and the caretaker needs nothing mapped before it runs.
 //!
 //! ```
-//! use fs_proto::grant;
+//! use filesystem_proto::grant;
 //!
 //! assert!(grant::fits(b"report.txt"));
 //! let (lo, hi) = grant::pack_name(b"report.txt");
@@ -140,12 +140,8 @@
 //! assert!(!grant::fits(b"a-name-longer-than-sixteen-bytes"));
 //! ```
 //!
-//! Name: recorded (milestone 46, and notes/naming.md's crate section). The wire contract was
-//! spelled four ways (`fs_proto`, `gfx_proto`, `netproto`, `line_editor::proto`) for one concept;
-//! `*_proto` won on 2026-07-30 under DECISIONS §39, and `script/lint` has checked it since. That
-//! rule plus the service the stem names produces this name, which is the whole of what `recorded`
-//! claims: calef ruled on the rule, and never on this crate.
-//! `fs` is this tree's own word for the service, from `fs_server` through `fs_test_client`.
+//! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review). Renamed from
+//! `fs_proto`: spell out the contraction fully.
 
 #![no_std]
 
@@ -2309,7 +2305,7 @@ pub mod fixture {
     /// inbound boot creates it through the FS server (`fs_test_client`'s seed role) *before* the
     /// SMB adapter serves, and xtask's SMB prober then opens it by this name over the wire and
     /// asserts these exact bytes came back, which is what proves the served bytes crossed
-    /// RedoxFS -> `fs_proto` -> the `Share` seam -> SMB2 -> TCP rather than a fixture baked into
+    /// RedoxFS -> `filesystem_proto` -> the `Share` seam -> SMB2 -> TCP rather than a fixture baked into
     /// the server binary. One constant, three readers (the seeding client, the kernel test, the
     /// host prober), zero second copies of the expected contents.
     ///
@@ -2318,7 +2314,7 @@ pub mod fixture {
     pub const SMB_SEED_NAME: &str = "smb_seed.txt";
     /// Its exact contents. What the seed role writes and the SMB prober must read back.
     pub const SMB_SEED: &[u8] =
-        b"these bytes crossed RedoxFS, fs_proto, and SMB2 on their way to you\n";
+        b"these bytes crossed RedoxFS, filesystem_proto, and SMB2 on their way to you\n";
 
     /// **The file the SMB gate writes, in the other direction** (milestone 54's write path). The
     /// host's SMB prober creates it over the wire, writes [`SMB_WROTE`] plus a tail, shortens it
@@ -2332,7 +2328,7 @@ pub mod fixture {
     pub const SMB_WROTE_NAME: &str = "smb_wrote.txt";
     /// Its exact contents after the prober has written and shortened it.
     pub const SMB_WROTE: &[u8] =
-        b"these bytes crossed SMB2, fs_proto, and RedoxFS on their way in\n";
+        b"these bytes crossed SMB2, filesystem_proto, and RedoxFS on their way in\n";
 
     /// **The directory the SMB gate makes** (milestone 54's subdirectory half). The host's prober
     /// creates it over the wire with `FILE_DIRECTORY_FILE`, puts [`SMB_NESTED`] inside it, and the
@@ -2402,7 +2398,7 @@ pub mod fixture {
         /// this process's own sync moved the count again. The only passing verdict.
         pub const DURABLE: u64 = 1;
         /// The count was zero when the witness first asked, so **no flush ever reached the
-        /// device** before it ran. The SMB `FLUSH` command is not reaching `fs_proto::fs::SYNC`,
+        /// device** before it ran. The SMB `FLUSH` command is not reaching `filesystem_proto::fs::SYNC`,
         /// which is precisely the state milestone 55 shipped `VOLUME_FULL_SYNC` in.
         pub const NEVER_FLUSHED: u64 = 2;
         /// [`crate::fs::SYNC`] answered `EOPNOTSUPP`: this device offers no
@@ -2435,7 +2431,7 @@ pub mod fixture {
     /// results (`kernel/src/bench.rs`). Two programs agree on these, so they are a crate and not a
     /// constant written twice (CLAUDE.md rule 7).
     pub mod throughput {
-        /// **The transfer unit: the whole file channel, which is the most a single `fs_proto`
+        /// **The transfer unit: the whole file channel, which is the most a single `filesystem_proto`
         /// request can carry.** Still not a tuning choice *here*: it is
         /// [`super::super::fs::TRANSFER_MAX`], so this phase always measures the protocol's own
         /// ceiling and the tuning lives at the one constant that sets that ceiling.
@@ -3100,7 +3096,7 @@ pub mod fixture {
     /// (milestone 47's `rm -r`, `user/src/rm.rs`).
     ///
     /// **Where these two words travel** (corrected 2026-08-17). `rm` declares the sink contract
-    /// (`grant_plan::OutputSpec::Bytes`), so its report is framed text and then `sink_proto`'s
+    /// (`grant_plan::OutputSpec::Bytes`), so its report is framed text and then `byte_sink_proto`'s
     /// `OP_EOF`; the status and the removal count ride in the two words that end-of-stream message
     /// leaves free. They used to ride on [`VERDICT`], a word the sink contract has no meaning for,
     /// which no reader but a guest test could have decoded.
@@ -4177,7 +4173,7 @@ mod tests {
     /// rests on: a receiver reads "the first message is the verdict" as "this run printed nothing".
     ///
     /// **`rm` no longer rides this word** (2026-08-17). It declares the sink contract, so it ends its
-    /// stream with `sink_proto::eof()` and its status and count ride in the two words that message
+    /// stream with `byte_sink_proto::eof()` and its status and count ride in the two words that message
     /// leaves free; the same property is pinned over there by `eof_is_not_a_byte_count`. What is
     /// checked here is the word the attackers and the shell witnesses still use.
     #[test]

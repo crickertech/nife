@@ -184,7 +184,7 @@ fn provisioning_creates_a_working_credential_and_a_real_subtree() {
     assert_eq!(honest[0], cs::RPT_DONE, "the honest client did not report");
     assert_eq!(
         cs::nth(honest[1], 0),
-        cred_proto::MATCH,
+        credential_proto::MATCH,
         "the identity this tool PUT did not verify with the secret it was given",
     );
 
@@ -198,7 +198,7 @@ fn provisioning_creates_a_working_credential_and_a_real_subtree() {
         fs_server_image(),
         caretaker,
         IDENTITY_STR,
-        fs_proto::dir::ALL,
+        filesystem_proto::dir::ALL,
     )
     .expect("the subtree identity_provisioner created did not open");
 }
@@ -218,7 +218,7 @@ fn a_duplicate_identity_is_refused_without_disturbing_the_original() {
     };
     assert_eq!(
         w.duplicate,
-        [ips::RPT_CRED_FAILED, cred_proto::MALFORMED],
+        [ips::RPT_CRED_FAILED, credential_proto::MALFORMED],
         "a genuine duplicate PUT was not refused the way cred::Store::put's own rule says it must \
          be (a duplicate identity answers MALFORMED, the same code a malformed request gets, \
          because neither is an authentication outcome)",
@@ -230,7 +230,7 @@ fn a_duplicate_identity_is_refused_without_disturbing_the_original() {
     assert_eq!(honest[0], cs::RPT_DONE, "the honest client did not report");
     assert_eq!(
         cs::nth(honest[1], 0),
-        cred_proto::MATCH,
+        credential_proto::MATCH,
         "the refused second PUT disturbed the identity the first, successful PUT already stored",
     );
 }

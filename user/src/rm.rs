@@ -9,7 +9,7 @@
 //!
 //! # The recursion is in here, and that is the design
 //!
-//! `fs_proto` has no verb that removes a subtree. [`fs::UNLINK`] refuses a directory and
+//! `filesystem_proto` has no verb that removes a subtree. [`fs::UNLINK`] refuses a directory and
 //! [`fs::RMDIR`] refuses a non-empty one, so **no single call on that contract can take a tree
 //! away**. What this program does is the loop Unix does: enumerate, unlink the files, recurse into
 //! the directories, remove them from the bottom up. Every step is one request the FS server runs to
@@ -27,7 +27,7 @@
 //!   holds the operand: the shell resolves any leading path at the prompt and grants **the
 //!   directory the name is in**, because taking a name away is an operation on a directory.
 //! - **slot 1**: a report endpoint, `WRITE`. Diagnostics and `-v` lines as framed text, then one
-//!   [`sink_proto::eof`] carrying the verdict; see [`fs_proto::fixture::rm`] and [`verdict`].
+//!   [`byte_sink_proto::eof`] carrying the verdict; see [`filesystem_proto::fixture::rm`] and [`verdict`].
 //! - **[`PAGE_VA`]**: the page shared with the FS server, where a name goes out and a listing comes
 //!   back.
 //!
@@ -39,7 +39,7 @@
 //! exception is recorded there rather than left for a reader to infer from two call sites.
 //!
 //! The name and the options ride in the three `START` argument words, packed by
-//! [`fs_proto::grant`] exactly as a per-file grant's name is, so this program costs no extra frame
+//! [`filesystem_proto::grant`] exactly as a per-file grant's name is, so this program costs no extra frame
 //! and holds nothing that names an init, a terminal, or the filesystem above its grant.
 //!
 //! Name: unrecorded. Introduced 2026-07-31. The Unix command's own name, which the tenet's guard
@@ -53,7 +53,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use fs_proto::{dir, dirent, fixture, fs, grant};
+use filesystem_proto::{dir, dirent, fixture, fs, grant};
 use user_rt::{call, exit, send};
 
 /// The granted directory capability: this program's whole authority.
@@ -86,7 +86,8 @@ const LISTING: usize = 128;
 /// the widest set a grant carries, each name at its longest, as directory entries. It is one frame
 /// at the top of the stack and is never held across the recursion, which is why it can be larger
 /// than [`LISTING`] on a program with four stack pages.
-const SET_LISTING: usize = dirent::record_len(grant::MAX_NAME) * fs_proto::nameset::MAX_NAMES;
+const SET_LISTING: usize =
+    dirent::record_len(grant::MAX_NAME) * filesystem_proto::nameset::MAX_NAMES;
 
 /// The most rounds one directory takes before the walk gives up on it. A ceiling rather than a limit
 /// on directories: **each round removes everything it saw and starts again at cursor 0**, because a
@@ -97,8 +98,8 @@ const MAX_ROUNDS: usize = 64;
 
 /// Copy `bytes` into the shared page.
 fn put_page(bytes: &[u8]) {
-    for (i, &b) in bytes.iter().take(fs_proto::PAGE).enumerate() {
-        // SAFETY: PAGE_VA is a mapped, writable page of fs_proto::PAGE bytes.
+    for (i, &b) in bytes.iter().take(filesystem_proto::PAGE).enumerate() {
+        // SAFETY: PAGE_VA is a mapped, writable page of filesystem_proto::PAGE bytes.
         unsafe { core::ptr::write_volatile((PAGE_VA + i as u64) as *mut u8, b) };
     }
 }
@@ -342,14 +343,14 @@ fn text(bytes: &[u8]) {
     }
 }
 
-/// **The last message, and it closes the stream** ([`sink_proto::eof`]) rather than inventing a
+/// **The last message, and it closes the stream** ([`byte_sink_proto::eof`]) rather than inventing a
 /// terminator of its own.
 ///
 /// This program's manifest declares [`grant_plan::OutputSpec::Bytes`], which is the sink contract:
 /// self-framing byte messages ending in `OP_EOF`. [`text`] always produced them, and the verdict
-/// used to be `fs_proto::fixture::VERDICT`, a word that contract has no meaning for. Under the guest
+/// used to be `filesystem_proto::fixture::VERDICT`, a word that contract has no meaning for. Under the guest
 /// wiring the reader was a test that knew to look for it; at the real prompt the reader is the shell,
-/// which reads the same three words through `sink_proto::unpack` and would have called it malformed.
+/// which reads the same three words through `byte_sink_proto::unpack` and would have called it malformed.
 /// So `rm -rv logs | wc` had never been expressible, and the declaration and the program disagreed
 /// with nothing to notice. Found while wiring milestone 31 phase 3, 2026-08-17.
 ///
@@ -357,7 +358,7 @@ fn text(bytes: &[u8]) {
 /// the two the contract leaves free. Every reader that wants them takes them off the message that
 /// ends the stream, which is also the only message that can carry a status without racing the text.
 fn verdict(status: u64, count: u64) {
-    send(REPORT, sink_proto::eof(), status, count);
+    send(REPORT, byte_sink_proto::eof(), status, count);
 }
 
 #[unsafe(no_mangle)]

@@ -1208,7 +1208,7 @@ mod tests {
     ///
     /// The block server asks for feature bit 9 and treats the answer as the truth about whether the
     /// device can be flushed at all. If a future filter cleared it here, the block server would see
-    /// a device with no flush, `fs_proto::fs::SYNC` would start answering `EOPNOTSUPP`, and the SMB
+    /// a device with no flush, `filesystem_proto::fs::SYNC` would start answering `EOPNOTSUPP`, and the SMB
     /// server would stop being able to back the `VOLUME_FULL_SYNC` bit it advertises to macOS. That
     /// chain is long enough that the failure would surface as "Time Machine stopped working" rather
     /// than as anything pointing here, so the bit gets its own assertion next to the two that *are*

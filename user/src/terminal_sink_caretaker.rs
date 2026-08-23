@@ -10,7 +10,7 @@
 //! capability.
 //!
 //! ```text
-//!   a declaring child ──sink_proto SEND──► terminal_sink_caretaker ──OP_PRINT CALL──► line_editor ──► console
+//!   a declaring child ──byte_sink_proto SEND──► terminal_sink_caretaker ──OP_PRINT CALL──► line_editor ──► console
 //! ```
 //!
 //! # Why this is a process and not a line in the line editor
@@ -30,7 +30,7 @@
 //!
 //! `OP_WRITE` reads from **the client's output page**, and there is exactly one of those: init maps
 //! a single frame into the terminal read-only and into the shell read/write. A second page-based
-//! client would need a second frame and a page index in the request, which is `fs_proto`'s
+//! client would need a second frame and a page index in the request, which is `filesystem_proto`'s
 //! one-page-two-clients problem (DECISIONS §55) arriving in a second contract. `OP_PRINT` carries
 //! the bytes in the request's own words, so this process needs **no page at all**: it unpacks a sink
 //! message and calls, and that is the entire program.
@@ -78,15 +78,17 @@ const TERM: u64 = 1;
 pub extern "C" fn _start(_x0: u64, _x1: u64, _x2: u64) -> ! {
     loop {
         let (w0, w1, w2) = recv(SINK);
-        let mut buf = [0u8; sink_proto::INLINE_MAX];
-        match sink_proto::unpack(w0, w1, w2, &mut buf) {
-            sink_proto::Msg::Bytes(n) => print(&buf[..n]),
+        let mut buf = [0u8; byte_sink_proto::INLINE_MAX];
+        match byte_sink_proto::unpack(w0, w1, w2, &mut buf) {
+            byte_sink_proto::Msg::Bytes(n) => print(&buf[..n]),
             // A writer finished. One endpoint serves every client in turn, so this says nothing
             // about the terminal and there is nothing to do but take the next message.
-            sink_proto::Msg::Eof => {}
+            byte_sink_proto::Msg::Eof => {}
             // Not a message this contract can read. Saying so is better than silence, because the
             // alternative is a client that thinks it printed.
-            sink_proto::Msg::Malformed => print(b"terminal_sink_caretaker: unreadable message\n"),
+            byte_sink_proto::Msg::Malformed => {
+                print(b"terminal_sink_caretaker: unreadable message\n");
+            }
         }
     }
 }

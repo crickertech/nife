@@ -17,8 +17,8 @@ grant_plan = { version = "0.1.0", path = "../grant_plan" }
 # The filesystem contract, for exactly one word: the readiness sentinel a `fs_subtree_caretaker`
 # answers a directory grant's descent with (milestone 31 phase 3). An in-tree protocol crate rather
 # than a constant copied here, which is rule 7: what two binaries agree on is a crate. It brings
-# nothing with it (fs_proto has no non-dev dependencies of its own).
-fs_proto = { version = "0.1.0", path = "../fs_proto" }
+# nothing with it (filesystem_proto has no non-dev dependencies of its own).
+filesystem_proto = { version = "0.1.0", path = "../filesystem_proto" }
 # The terminal contract's framing, for the one sentence init prints (`proto::OP_WRITE`).
 line_editor = { version = "0.1.0", path = "../line_editor" }
 # The hash and the manifest format the kernel measures init with (milestone 104). This crate is the
@@ -26,7 +26,7 @@ line_editor = { version = "0.1.0", path = "../line_editor" }
 measured_boot = { version = "0.1.0", path = "../measured_boot" }
 # The sink contract, for the end-of-stream init sends on a child's behalf when the child was never
 # built and therefore cannot end its own second stream.
-sink_proto = { version = "0.1.0", path = "../sink_proto" }
+byte_sink_proto = { version = "0.1.0", path = "../byte_sink_proto" }
 # The userspace ELF loader, and the fault slot that makes a child born supervised. One loader in the
 # tree since milestone 96; this crate is one of its two callers.
 supervision_proto = { version = "0.1.0", path = "../supervision_proto" }

@@ -1279,7 +1279,7 @@ if git -C "$(dirname "$0")/.." grep -Iilnw daemon -- \
 fi
 
 # 3. One spelling for contract crates. The tree had four spellings of "the wire contract" when this
-#    was written (`fs_proto`, `gfx_proto`, `netproto`, `line_editor::proto`); `*_proto` wins for CRATES
+#    was written (`filesystem_proto`, `gfx_proto`, `netproto`, `line_editor::proto`); `*_proto` wins for CRATES
 #    because it is what both of them already were, and a second habit is how the first one rots.
 for dir in "$(dirname "$0")"/../crates/*proto; do
     name="$(basename "$dir")"

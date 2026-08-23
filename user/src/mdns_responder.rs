@@ -52,7 +52,7 @@
 //! - **The configuration is compiled in, not read from a file.** `mdns_config`'s document is
 //!   `include_str!`d here, so changing what this machine advertises means a rebuild. The reason is
 //!   that reading a file needs a file capability wired through the spawn and a fixture the QEMU
-//!   gate cannot seed today, and the fix is a `FileSpec` grant plus an `fs_proto` open-and-read at
+//!   gate cannot seed today, and the fix is a `FileSpec` grant plus an `filesystem_proto` open-and-read at
 //!   startup. Nothing about the format or the parser changes when that lands.
 //! - **One announcement, not the RFC's two to eight.** RFC 6762 §8.3 asks for repeats at doubling
 //!   intervals, so a Mac that missed the first datagram waits until its next browse rather than

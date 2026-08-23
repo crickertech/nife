@@ -194,7 +194,7 @@ pub const CNS_CONTROLLER: u32 = 0x01;
 
 /// One 64-byte submission queue entry, as the sixteen dwords the driver writes. `#[repr(C)]` so
 /// the kernel can copy it into the ring as-is; the wire format is little-endian dwords and both
-/// target ISAs are little-endian (the same layout argument `fs_proto` records).
+/// target ISAs are little-endian (the same layout argument `filesystem_proto` records).
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Command(pub [u32; 16]);

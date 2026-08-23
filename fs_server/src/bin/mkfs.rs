@@ -2,7 +2,7 @@
 //!
 //! The program that creates a filesystem, and the whole of its authority is two capabilities:
 //!
-//! - a **block-service endpoint** for **one** disk (`fs_proto::blk`), which is the power to destroy
+//! - a **block-service endpoint** for **one** disk (`filesystem_proto::blk`), which is the power to destroy
 //!   that disk and nothing else; and
 //! - an **entropy endpoint** (`entropy_proto`), which is the power to obtain random bytes and
 //!   nothing else. It cannot reach the virtio-rng device, program its queue, or see the DMA page.
@@ -78,8 +78,8 @@
 extern crate alloc;
 
 use entropy_proto as entropy;
-use fs_proto::fixture::blank;
-use fs_proto::{blk, req};
+use filesystem_proto::fixture::blank;
+use filesystem_proto::{blk, req};
 use fs_server::Server;
 use gpt::Gpt;
 use gpt::guid::types;
@@ -212,7 +212,7 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
         }
     };
     let made = server
-        .create_file_at(fs_proto::fs::ROOT as u32, blank::MADE_NAME)
+        .create_file_at(filesystem_proto::fs::ROOT as u32, blank::MADE_NAME)
         .and_then(|h| server.write(h, 0, blank::MADE_BODY).map(|n| (h, n)));
     match made {
         Ok((h, n)) if n == blank::MADE_BODY.len() => {
@@ -270,7 +270,7 @@ fn check(first_block: u64, blocks: u64) -> ! {
     };
     let mut buf = [0u8; 128];
     let read = server
-        .open_file_at(fs_proto::fs::ROOT as u32, blank::MADE_NAME)
+        .open_file_at(filesystem_proto::fs::ROOT as u32, blank::MADE_NAME)
         .and_then(|h| server.read(h, 0, &mut buf[..blank::MADE_BODY.len()]));
     match read {
         Ok(n) if n == blank::MADE_BODY.len() && buf[..n] == *blank::MADE_BODY => {

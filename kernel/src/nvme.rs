@@ -17,7 +17,7 @@
 //! every queue address; NVMe has no such capability, and inventing one is new syscall surface,
 //! which is a design fork (§10, §16) this milestone does not take. Until it is decided, the driver
 //! serves the same block interface the FS server's block servers speak, one 4096-byte filesystem
-//! block per transfer ([`fs_proto::blk`]'s unit), from kernel context.
+//! block per transfer ([`filesystem_proto::blk`]'s unit), from kernel context.
 //!
 //! Name: unrecorded. Introduced 2026-08-15 with milestone 53's NVMe block driver, as the volatile
 //! half of the `nvme` crate, the crate/module pairing `pci` and `virtio` already use. Provisional,
@@ -29,7 +29,7 @@ use crate::arch::mmu;
 
 /// One transfer unit: a filesystem block, the same unit the blk-IPC protocol moves, so a future
 /// NVMe-backed block server serves the FS server without a translation layer.
-pub const BLOCK_SIZE: usize = fs_proto::blk::BLOCK_SIZE;
+pub const BLOCK_SIZE: usize = filesystem_proto::blk::BLOCK_SIZE;
 
 /// The DMA region's layout, in page offsets. Six pages, one purpose each, allocated contiguously
 /// by [`bring_up`] and confined as one region: the two admin rings, the two I/O rings, the

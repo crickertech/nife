@@ -291,8 +291,8 @@ fn a_declared_second_stream_carries_the_complaint_and_the_output_stays_empty() {
     let m = crate::sched::ipc_recv(diag);
     assert!(
         matches!(
-            sink_proto::unpack(m[0], m[1], m[2], &mut [0u8; sink_proto::INLINE_MAX]),
-            sink_proto::Msg::Eof
+            byte_sink_proto::unpack(m[0], m[1], m[2], &mut [0u8; byte_sink_proto::INLINE_MAX]),
+            byte_sink_proto::Msg::Eof
         ),
         "the second stream did not end: {m:?}",
     );
@@ -302,8 +302,8 @@ fn a_declared_second_stream_carries_the_complaint_and_the_output_stays_empty() {
     let m = crate::sched::ipc_recv(out);
     assert!(
         matches!(
-            sink_proto::unpack(m[0], m[1], m[2], &mut [0u8; sink_proto::INLINE_MAX]),
-            sink_proto::Msg::Eof
+            byte_sink_proto::unpack(m[0], m[1], m[2], &mut [0u8; byte_sink_proto::INLINE_MAX]),
+            byte_sink_proto::Msg::Eof
         ),
         "a clockless date wrote {m:?} to its OUTPUT; that is the byte that used to land in the file",
     );

@@ -21,7 +21,7 @@
 //! handle*, so the attenuation lives in the handle the server minted and not in any branch here.
 //!
 //! What this process actually does is **translate a namespace**. The client numbers handles in its
-//! own space starting at [`fs_proto::fs::ROOT`], which is the granted directory; this maps each one
+//! own space starting at [`filesystem_proto::fs::ROOT`], which is the granted directory; this maps each one
 //! to the FS server's number and forwards. A client that guesses a handle is guessing in a table
 //! with a handful of inhabitants, none of which it chose, and a handle this process never minted is
 //! `EBADF` from one check.
@@ -34,7 +34,7 @@
 //!   `fs_file_caretaker`'s tests are witnesses and not assertions, and why this one's are too.
 //! - **A rights-carrying handle alone would not confine it.** The FS server's handle table is per
 //!   server, not per client, so a program holding the FS-service endpoint could always name
-//!   [`fs_proto::fs::ROOT`] and be back at the image root. The handle is the authority; the endpoint
+//!   [`filesystem_proto::fs::ROOT`] and be back at the image root. The handle is the authority; the endpoint
 //!   is the boundary. That is the whole argument for this process existing.
 //!
 //! # Capability contract (`kernel/src/user/fs_service.rs`, `start_granted_dir`)
@@ -42,8 +42,8 @@
 //! - **slot 0**: the FS-service endpoint, `WRITE`. The directory capability being attenuated.
 //! - **slot 1**: the narrowed endpoint, `READ`. The confined program `CALL`s here; this endpoint IS
 //!   the subtree capability.
-//! - **slot 2**: a report endpoint, `WRITE`. Readiness ([`fs_proto::fixture::READY`]) once the
-//!   descent has succeeded, or [`fs_proto::fixture::DESCENT_REFUSED`] with the errno if it did not,
+//! - **slot 2**: a report endpoint, `WRITE`. Readiness ([`filesystem_proto::fixture::READY`]) once the
+//!   descent has succeeded, or [`filesystem_proto::fixture::DESCENT_REFUSED`] with the errno if it did not,
 //!   after which this process exits without serving.
 //! - **[`PAGE_VA`]**: the page shared with the FS server *and* with the client, one frame for all
 //!   three, sound for the reason `fs_file_caretaker`'s note gives: every request on both hops is a
@@ -51,7 +51,7 @@
 //!   is using the page.
 //!
 //! The granted name and the requested rights arrive in the three `START` argument words
-//! ([`fs_proto::grant`], whose spec word carries a rights mask of any width), so a subtree grant
+//! ([`filesystem_proto::grant`], whose spec word carries a rights mask of any width), so a subtree grant
 //! costs no extra frame.
 //!
 //! Name: ratified 2026-08-01 (calef, milestone 61), replacing `dwarden`, which is the name that
@@ -68,7 +68,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use fs_proto::{fs, grant, op, reply_err, reply_errno, verb};
+use filesystem_proto::{fs, grant, op, reply_err, reply_errno, verb};
 use user_rt::{call, exit, invoke, recv_cap, send};
 
 /// The FS-service endpoint: the directory capability this process attenuates.
@@ -81,7 +81,7 @@ const REPORT: u64 = 2;
 /// The one page, shared with the FS server above and the client below.
 const PAGE_VA: u64 = 0x0000_0000_0060_0000;
 /// Its size, the contract's transfer unit.
-const PAGE: usize = fs_proto::PAGE;
+const PAGE: usize = filesystem_proto::PAGE;
 
 /// How many handles a confined program may hold open at once through this caretaker, including the
 /// granted directory itself at index 0.
@@ -122,7 +122,7 @@ fn reply(slot: u64, r0: i64) {
 
 /// The client's handle namespace: `table[i]` is the FS server's handle for the client's handle `i`,
 /// or `None` for a slot the client does not hold. Slot 0 is the granted directory and is never
-/// freed, which is what makes [`fs_proto::fs::ROOT`] mean "the root of *your* namespace" on this
+/// freed, which is what makes [`filesystem_proto::fs::ROOT`] mean "the root of *your* namespace" on this
 /// endpoint exactly as it does on the FS server's.
 struct Table([Option<u64>; SLOTS]);
 
@@ -152,7 +152,7 @@ impl Table {
 ///
 /// # Milestone 61: the shape comes from the contract, and there is still no check
 ///
-/// The `match` over opcodes is gone, replaced by [`fs_proto::verb`], which says for each verb
+/// The `match` over opcodes is gone, replaced by [`filesystem_proto::verb`], which says for each verb
 /// whether the request's length field counts anything and whether its second word means something.
 /// **That is dispatch, not attenuation, and the distinction is the whole reason this program can be
 /// trusted.** A name filter or a rights test here would be a branch that could be wrong; a table
@@ -271,14 +271,14 @@ pub extern "C" fn _start(name_lo: u64, name_hi: u64, spec: u64) -> ! {
     if let Some(errno) = reply_errno(r0 as i64) {
         send(
             REPORT,
-            fs_proto::fixture::DESCENT_REFUSED,
+            filesystem_proto::fixture::DESCENT_REFUSED,
             errno as i64 as u64,
             0,
         );
         exit();
     }
 
-    send(REPORT, fs_proto::fixture::READY, 0, 0);
+    send(REPORT, filesystem_proto::fixture::READY, 0, 0);
     serve(r0);
 }
 

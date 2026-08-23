@@ -39,7 +39,7 @@
 //! any, and pushes whatever keys it carries into [`ENV`] before the program's own code has had a
 //! chance to touch it. A program granted no such page is seeded with nothing, so
 //! `env::var("TZ")` still answers `Err` for a program nobody handed a timezone to, the same
-//! honest-absence shape [`env()`] already has for the general case. See `env_proto` for why this
+//! honest-absence shape [`env()`] already has for the general case. See `environment_proto` for why this
 //! needs no seqlock (one writer, and it finishes before the page has a second reader) and for the
 //! closed domains `TZ`/`LANG`/`TERM` are validated against before they are ever assembled onto
 //! the page.
@@ -185,7 +185,7 @@ pub fn seed() {
     }
     // SAFETY: the loader maps the config page read-only at `rt::CONFIG_PAGE` alongside the
     // capability the probe just found in `rt::CONFIG_SLOT`, and nothing unmaps or writes it
-    // (the page has exactly one writer, and it is not this process; see `env_proto`'s docs).
+    // (the page has exactly one writer, and it is not this process; see `environment_proto`'s docs).
     let page = unsafe { ConfigPage::new(rt::CONFIG_PAGE) };
     let mut guard = ENV.lock().unwrap_or_else(|e| e.into_inner());
     for (key, value) in [("TZ", page.tz()), ("LANG", page.lang()), ("TERM", page.term())] {

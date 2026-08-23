@@ -252,7 +252,7 @@ fn a_domain_is_exactly_the_children_of_the_endpoint_that_was_granted() {
 ///   refusal, because its authority was never in question.
 ///
 /// A monitor that reported nothing because it could not look would read exactly like a quiet
-/// machine, which is the worst failure this tool has available. `fs_proto` chose `EPERM` over an
+/// machine, which is the worst failure this tool has available. `filesystem_proto` chose `EPERM` over an
 /// empty listing for the same reason.
 #[test_case]
 fn a_viewer_without_the_domain_is_refused_rather_than_shown_an_empty_list() {

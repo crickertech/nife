@@ -20,7 +20,7 @@
 //! no `user.` prefix; `E2BIG` means the value is over that filesystem's ceiling. A recovery tool
 //! that printed "failed" for all three would be telling somebody at 2am to guess.
 //!
-//! *Names are bytes.* The store holds bytes ([`fs_proto::xattr::valid_name`] refuses only NUL and
+//! *Names are bytes.* The store holds bytes ([`filesystem_proto::xattr::valid_name`] refuses only NUL and
 //! over-length), and both platform calls take a NUL-terminated C string, so the only conversion
 //! needed is the terminator. Nothing here invents a namespace prefix: a tool that silently rewrote
 //! `foo` to `user.foo` to satisfy Linux would hand back a file whose metadata does not say what the
@@ -57,7 +57,7 @@ fn c_args(path: &Path, name: &[u8]) -> io::Result<(CString, CString)> {
 /// Set one extended attribute on `path` itself, not following a symlink.
 ///
 /// **The type code cannot come along.** No host filesystem has a per-attribute type word, so
-/// [`fs_proto::xattr`]'s `kind` is dropped here and the caller reports it (notes/host-recovery.md).
+/// [`filesystem_proto::xattr`]'s `kind` is dropped here and the caller reports it (notes/host-recovery.md).
 /// The bytes are what a reader needs; the codes remain readable in the extracted `.nife-attrs`
 /// blobs, which is why those are still copied out.
 #[cfg(target_os = "macos")]

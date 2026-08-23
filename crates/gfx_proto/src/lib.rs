@@ -4,7 +4,7 @@
 //! (`user/src/display.rs`, which owns the virtio-gpu device), the client that draws
 //! (`user/src/painter.rs`, which owns no device at all), and the kernel-side test that checks the
 //! result. The prose contract is notes/framebuffer-contract.md; this crate is its machine-readable
-//! half, the same split `fs_proto` makes for the filesystem and `line_editor::proto` for the terminal.
+//! half, the same split `filesystem_proto` makes for the filesystem and `line_editor::proto` for the terminal.
 //!
 //! # The shape
 //!
@@ -230,7 +230,7 @@ pub const NO_MISMATCH: u64 = PIXELS as u64;
 // ================================================================================================
 
 /// Where a request packs its opcode: bits 63:56 of the first `CALL` word, the same position
-/// `fs_proto` and `line_editor::proto` use, so all three contracts read alike.
+/// `filesystem_proto` and `line_editor::proto` use, so all three contracts read alike.
 pub const OP_SHIFT: u32 = 56;
 
 /// Build a request's first word from an opcode and a 56-bit operand.
@@ -293,7 +293,7 @@ pub const fn rect_in_surface(x: u32, y: u32, w: u32, h: u32) -> bool {
 }
 
 /// The errno a refused request replies with (`-EINVAL`), the same negative-is-an-error convention
-/// `fs_proto` sets.
+/// `filesystem_proto` sets.
 pub const EINVAL: i64 = -22;
 
 // ================================================================================================

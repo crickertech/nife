@@ -80,7 +80,7 @@ impl Rights {
 
     /// The right to **learn what exists**, as distinct from acting on it (milestone 126).
     ///
-    /// This is the kernel-level twin of `fs_proto`'s directory `ENUMERATE`, and it is the same
+    /// This is the kernel-level twin of `filesystem_proto`'s directory `ENUMERATE`, and it is the same
     /// argument one layer down: listing is a larger power than reading something you were handed,
     /// so it is a right of its own rather than a corner of `READ`. The name is deliberately the
     /// word the filesystem already uses, because a reader who has met one has met both.

@@ -9,7 +9,7 @@
 //! multicast DNS: `_smb._tcp` (the file service), `_adisk._tcp` (the Time Machine flags, which are
 //! what populate the list), and `_device-info._tcp` (the model string, which picks the icon). This
 //! crate is the bytes and the decisions over them, with no socket, no timer and no policy: the same
-//! split `ntp_proto` and `fs_proto` make for their contracts, so the parser, the name compression
+//! split `ntp_proto` and `filesystem_proto` make for their contracts, so the parser, the name compression
 //! handling and the response logic are host-tested in milliseconds and Kani-checked, rather than
 //! debugged inside a QEMU boot against a live Mac. The responder program that joins `224.0.0.251`
 //! and carries these bytes needs network-stack surface the tree does not have yet; notes/mdns.md

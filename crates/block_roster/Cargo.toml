@@ -12,7 +12,7 @@ license.workspace = true
 # NOT a `*_proto`, and the name is deliberate. The ten wire contracts in this directory describe
 # messages two programs exchange; this describes bytes at an address, written once by the kernel and
 # thereafter only read. There is no request, no reply, no server, and nothing to authorize at read
-# time. A reader scanning `crates/` meets it beside `fs_proto` and should not expect a protocol.
+# time. A reader scanning `crates/` meets it beside `filesystem_proto` and should not expect a protocol.
 
 [lints]
 workspace = true

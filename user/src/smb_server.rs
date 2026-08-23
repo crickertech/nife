@@ -10,9 +10,9 @@
 //! The share has two backings behind the one `Share` seam, chosen by `arg2`, which also says
 //! which **direction** the share is served in (the write path made that a separate question):
 //!
-//! - **The fs_proto-backed share** ([`FsShare`]), the milestone's real one: this program holds a
+//! - **The filesystem_proto-backed share** ([`FsShare`]), the milestone's real one: this program holds a
 //!   directory capability into the FS server (the endpoint IS the capability, DECISIONS §27) and
-//!   answers every `Share` question with `fs_proto` verbs, so a client of the mount is reading
+//!   answers every `Share` question with `filesystem_proto` verbs, so a client of the mount is reading
 //!   and writing RedoxFS bytes. This is what both the test boot and the serve boot wire when a
 //!   RedoxFS disk is attached, both of them read-write.
 //! - **The fixture** (`smb_proto::share::FIXTURE`), files baked into this binary: the no-disk
@@ -50,7 +50,7 @@
 //! - arg0: connections to serve before reporting OK; 0 means serve forever (the demo boot)
 //! - arg1: the TCP port to listen on (445 in the demo boot; the test grants a neighbour of the
 //!   echo gate's port instead, see the kernel test)
-//! - arg2: which share, in which direction, and to whom. 0 is the fixture, 1 the fs_proto-backed
+//! - arg2: which share, in which direction, and to whom. 0 is the fixture, 1 the filesystem_proto-backed
 //!   share read-only, 2 read-write to guests, 3 read-write to a proven identity
 //!   ([`SHARE_FIXTURE`] and its three neighbours). The write path split this from a flag because a
 //!   **read-only view of the real filesystem** is a thing a boot should be able to wire and a
@@ -66,7 +66,7 @@
 //! # BUGS
 //!
 //! - **A listing still costs a walk.** `QUERY_DIRECTORY` re-walks `READDIR` from cursor 0 for
-//!   each entry and pays an OPEN + FSTAT + CLOSE to learn its size, because `fs_proto`'s dirent
+//!   each entry and pays an OPEN + FSTAT + CLOSE to learn its size, because `filesystem_proto`'s dirent
 //!   records carry name and kind only. Reads and writes no longer pay it: the write path made
 //!   the `Share` id the FS server's own handle, and milestone 55 made the transfer the whole file
 //!   channel, so a 64 KiB read or write is **one** `fs::READ` or `fs::WRITE` and nothing else.
@@ -82,7 +82,7 @@
 //!   other client of the same FS server, and this program cannot see them. Reads and writes are
 //!   unaffected: they go through the handle CREATE minted.
 //! - **A directory cannot be moved into another directory**, only renamed in place, because
-//!   `fs_proto::fs::RENAME` refuses it (its doc argues the boundary). It arrives at the client as
+//!   `filesystem_proto::fs::RENAME` refuses it (its doc argues the boundary). It arrives at the client as
 //!   an unexpected-IO status rather than as something more useful, which is a gap worth naming: an
 //!   `EINVAL` from that verb means two different things and this share cannot tell which.
 //! - **Upper-case FS names are unreachable.** The wire folds names to lower-case ASCII before
@@ -128,7 +128,7 @@
 #![no_main]
 
 use abi::{endpoint, frame as fr, rights, untyped as ut};
-use fs_proto::{dir, dirent, fs, xattr};
+use filesystem_proto::{dir, dirent, fs, xattr};
 use smb_proto::authenticator::{Attempt, Authenticator, NoIdentity, Verdict};
 use smb_proto::path::Path;
 use smb_proto::server::Connection;
@@ -161,7 +161,7 @@ const CRED: u64 = 4;
 /// uses all of it: [`FsShare::read`] and [`FsShare::write`] ask for up to the whole channel in one
 /// request, which is the only reason an SMB client's 64 KiB transfer is one trip through the FS
 /// server rather than sixteen. A client may not ask for more than it mapped and nothing checks that
-/// it did not (`fs_proto::fs::TRANSFER_PAGES`' marked foot gun), so the two sides agreeing is a
+/// it did not (`filesystem_proto::fs::TRANSFER_PAGES`' marked foot gun), so the two sides agreeing is a
 /// property of those two files reading the same constant, not of anything at runtime.
 ///
 /// Everything else this program puts here (a name, a `READDIR` page, a `statfs` record, a rename's
@@ -234,13 +234,13 @@ fn r8(va: u64) -> u8 {
 }
 
 // ============================================================================================
-// The fs_proto-backed share: milestone 54's second act. Everything below and nothing above
+// The filesystem_proto-backed share: milestone 54's second act. Everything below and nothing above
 // touches the FS endpoint; the protocol machine sees only the `Share` trait.
 // ============================================================================================
 
 /// One READDIR reply's records, copied out of the shared page before parsing. In `.bss` (the
 /// six-page stack cannot hold a page-sized buffer), single-threaded like [`RX`].
-static mut DIR: [u8; fs_proto::PAGE] = [0; fs_proto::PAGE];
+static mut DIR: [u8; filesystem_proto::PAGE] = [0; filesystem_proto::PAGE];
 
 /// The name of the entry the last listing walk resolved; what an [`Entry`]'s `name` borrows.
 /// **Valid only until the next `Share` call**: the next walk overwrites it. That is sound for
@@ -270,7 +270,7 @@ fn fs_readdir(dir: u64, cursor: u64) -> &'static [u8] {
     if (r0 as i64) <= 0 {
         return &[];
     }
-    let n = (r0 as usize).min(fs_proto::PAGE);
+    let n = (r0 as usize).min(filesystem_proto::PAGE);
     let p = &raw mut DIR;
     // SAFETY: one thread per address space (DECISIONS §33), and the previous reply's slice is
     // dead before this borrow: every caller consumes one page before asking for the next.
@@ -286,7 +286,7 @@ fn fs_readdir(dir: u64, cursor: u64) -> &'static [u8] {
 /// the other half of the same chain). An errno this share has no word for is [`Error::Io`] rather
 /// than silence, which is the whole point of the trait having an error channel at all.
 fn fs_error(r0: u64) -> Error {
-    match fs_proto::reply_errno(r0 as i64) {
+    match filesystem_proto::reply_errno(r0 as i64) {
         Some(2) => Error::NotFound,                // ENOENT
         Some(17) => Error::Exists,                 // EEXIST
         Some(dir::EISDIR) => Error::IsDirectory,   // 21
@@ -335,7 +335,7 @@ fn fs_name(len: usize) -> &'static [u8] {
     unsafe { &(&*p)[..len] }
 }
 
-/// **The share backed by the FS server**: every question answered with `fs_proto` verbs over
+/// **The share backed by the FS server**: every question answered with `filesystem_proto` verbs over
 /// the directory capability in slot [`FS`], so what the mount reads and writes is RedoxFS.
 ///
 /// **The [`FileId`] is the FS server's own handle**, which is the write path's contribution and
@@ -382,7 +382,7 @@ impl Descent {
 
 impl FsShare {
     /// **The rights this share asks for when it descends.** Exactly what it will use and no more:
-    /// `fs_proto::fs::OPENDIR` refuses with `EPERM` when the intersection with the parent's rights
+    /// `filesystem_proto::fs::OPENDIR` refuses with `EPERM` when the intersection with the parent's rights
     /// is smaller than the request, so asking for `dir::ALL` on a read-only share would fail on a
     /// capability that was correctly narrowed.
     ///
@@ -409,7 +409,7 @@ impl FsShare {
             owned: false,
         };
         for comp in path.components() {
-            if comp.len() > fs_proto::PAGE {
+            if comp.len() > filesystem_proto::PAGE {
                 at.close();
                 return Err(Error::NameTooLong);
             }
@@ -438,14 +438,14 @@ impl FsShare {
     }
 
     /// Walk to the **parent** of `path` and hand back the parent's handle with the leaf name. The
-    /// shape every name-taking verb needs: `fs_proto` resolves a single component under a handle,
+    /// shape every name-taking verb needs: `filesystem_proto` resolves a single component under a handle,
     /// never a path.
     fn parent_of<'p>(&self, path: Path<'p>) -> Result<(Descent, &'p [u8]), Error> {
         if path.is_root() {
             return Err(Error::IsDirectory);
         }
         let name = path.name();
-        if name.len() > fs_proto::PAGE {
+        if name.len() > filesystem_proto::PAGE {
             return Err(Error::NameTooLong);
         }
         Ok((self.descend(path.parent())?, name))
@@ -517,7 +517,7 @@ impl Share for FsShare {
         let size = if is_dir {
             0
         } else {
-            // OPEN + FSTAT + CLOSE per entry: the listing records carry no size (fs_proto's
+            // OPEN + FSTAT + CLOSE per entry: the listing records carry no size (filesystem_proto's
             // dirent is name and kind only). This is the one path that still pays per entry,
             // because a listing is a walk by nature.
             fs_put(fs_name(len));
@@ -537,7 +537,7 @@ impl Share for FsShare {
         })
     }
 
-    /// **What the image reports** (`fs_proto::fs::STATFS`, milestone 54). Asked on the bound
+    /// **What the image reports** (`filesystem_proto::fs::STATFS`, milestone 54). Asked on the bound
     /// directory, which every wiring of this program holds; the verb needs no right, so a share
     /// over a narrowed capability answers this as well as one over the root.
     ///
@@ -548,12 +548,12 @@ impl Share for FsShare {
         if (r0 as i64) < 0 {
             return None;
         }
-        let n = (r0 as usize).min(fs_proto::PAGE);
-        let mut rec = [0u8; fs_proto::statfs::LEN];
+        let n = (r0 as usize).min(filesystem_proto::PAGE);
+        let mut rec = [0u8; filesystem_proto::statfs::LEN];
         for (i, b) in rec.iter_mut().enumerate().take(n) {
             *b = r8(FS_VA + i as u64);
         }
-        let (block_size, total_blocks, free_blocks) = fs_proto::statfs::decode(&rec[..n])?;
+        let (block_size, total_blocks, free_blocks) = filesystem_proto::statfs::decode(&rec[..n])?;
         Some(Volume {
             block_size,
             total_blocks,
@@ -561,7 +561,7 @@ impl Share for FsShare {
         })
     }
 
-    /// **Make the image durable** (`fs_proto::fs::SYNC`, milestone 55). Asked on the bound
+    /// **Make the image durable** (`filesystem_proto::fs::SYNC`, milestone 55). Asked on the bound
     /// directory for [`FsShare::statfs`]'s reason: the answer is about the storage behind this
     /// capability rather than about any node in it, and `fs::ROOT` is the handle every wiring of
     /// this program holds.
@@ -576,7 +576,7 @@ impl Share for FsShare {
     /// The count `fs::SYNC` answers with is discarded here, because SMB's FLUSH response has
     /// nowhere to carry it and no client would read it. It is not wasted: it is what the gate's
     /// in-guest witness reads to prove each sync was a fresh device round trip rather than a
-    /// constant (`fs_proto::fixture::durability`).
+    /// constant (`filesystem_proto::fixture::durability`).
     fn sync(&self) -> Result<(), Error> {
         let (r0, _) = call(FS, fs::req(fs::SYNC, fs::ROOT, 0), 0);
         if (r0 as i64) < 0 {
@@ -643,7 +643,7 @@ impl Share for FsShare {
     /// is the whole of what milestone 55 takes from that milestone.
     ///
     /// This is the client-chosen length, which is what entitles it to the whole channel:
-    /// `fs_proto`'s serve loop clamps `READ` and `WRITE` to `fs::TRANSFER_MAX` and everything whose
+    /// `filesystem_proto`'s serve loop clamps `READ` and `WRITE` to `fs::TRANSFER_MAX` and everything whose
     /// length the **server** picks to one page, and this share sits on the correct side of that
     /// split by only ever growing these two.
     fn write(&self, file: FileId, offset: u64, data: &[u8]) -> Result<usize, Error> {
@@ -687,14 +687,14 @@ impl Share for FsShare {
     /// **The only verb that names two directories**, so it is the only one that holds two descents
     /// at once and the only one whose second word is a packed pair rather than a scalar.
     ///
-    /// `fs_proto::fs::RENAME` refuses moving a *directory* into another directory with `EINVAL`
+    /// `filesystem_proto::fs::RENAME` refuses moving a *directory* into another directory with `EINVAL`
     /// (its own doc argues the boundary: the cycle guard is an ancestry walk in a server whose
     /// stack is measured at three quarters used). That arrives here as [`Error::Io`] and reaches
     /// the client as an unexpected-IO status, which is honest and unhelpful; the case a client
     /// actually performs, renaming within one directory, works.
     fn rename(&self, from: Path<'_>, to: Path<'_>) -> Result<(), Error> {
         let (src_name, dst_name) = (from.name(), to.name());
-        if src_name.len() + dst_name.len() > fs_proto::PAGE {
+        if src_name.len() + dst_name.len() > filesystem_proto::PAGE {
             return Err(Error::NameTooLong);
         }
         let src = self.descend(from.parent())?;
@@ -705,7 +705,7 @@ impl Share for FsShare {
                 return Err(e);
             }
         };
-        // Source first, destination back to back: fs_proto::fs::RENAME's page layout.
+        // Source first, destination back to back: filesystem_proto::fs::RENAME's page layout.
         fs_put(src_name);
         for (i, &b) in dst_name.iter().enumerate() {
             w8(FS_VA + (src_name.len() + i) as u64, b);
@@ -747,7 +747,7 @@ impl Share for FsShare {
 /// arrived at from the other direction.
 ///
 /// **What this process can do, exhaustively.** Ask whether a proof matches the key stored under one
-/// resource. It cannot read that key (`cred_proto` has no message that returns one), cannot write it
+/// resource. It cannot read that key (`credential_proto` has no message that returns one), cannot write it
 /// (the provision endpoint was deleted at both ends before this process existed), and cannot ask
 /// about any other resource (the name is [`Self::resource`], not a wire field). Compromising it
 /// yields an oracle that answers questions its own clients were already asking, and revoking the
@@ -755,9 +755,9 @@ impl Share for FsShare {
 /// leaks every hash: crackable offline, reusable wherever the password was reused.
 ///
 /// **The session key is not asked for, not read, and not left lying about.**
-/// `cred_proto::verify::NTLM_PROOF` publishes [MS-NLMP] §4.2.4.1.2's `SessionBaseKey` in the shared
+/// `credential_proto::verify::NTLM_PROOF` publishes [MS-NLMP] §4.2.4.1.2's `SessionBaseKey` in the shared
 /// page on a match, because a server that *signs* needs it. This one does not sign, so it never calls
-/// `cred_proto::session_key` and wipes the page itself the moment the reply lands (the service's own
+/// `credential_proto::session_key` and wipes the page itself the moment the reply lands (the service's own
 /// wipe covers a *refusal*, not a match). That is asserted from outside by the kernel test that looks
 /// at the frame afterwards, which is the check this process could not make about itself.
 ///
@@ -771,7 +771,7 @@ impl CredentialAuthenticator {
     /// # BUGS
     ///
     /// **This names a test fixture, and a deployment must not.** It is
-    /// `cred_proto::fixture::SMB_RESOURCE`, which is [MS-NLMP] §4.2.1's published account, because
+    /// `credential_proto::fixture::SMB_RESOURCE`, which is [MS-NLMP] §4.2.1's published account, because
     /// the only boot that wires [`SHARE_FS_AUTHENTICATED`] today is the gate and the store it talks
     /// to is provisioned by a test program. A real share's resource is somebody's and arrives
     /// through a provisioning path that does not exist yet.
@@ -780,10 +780,10 @@ impl CredentialAuthenticator {
     /// names its resource is this program choosing which record to ask about, which is one authority
     /// more than it needs; the endpoint should *be* the credential for one resource, so the name is
     /// implied and unforgeable. That is DECISIONS §27's argument ("the endpoint IS the capability")
-    /// applied to `cred_proto`, and it is a change to a contract two programs agree on, so it is
+    /// applied to `credential_proto`, and it is a change to a contract two programs agree on, so it is
     /// calef's rather than this lane's. Until then this constant is the exception, and it says so.
     const fn resource() -> &'static [u8] {
-        cred_proto::fixture::SMB_RESOURCE
+        credential_proto::fixture::SMB_RESOURCE
     }
 }
 
@@ -791,16 +791,21 @@ impl Authenticator for CredentialAuthenticator {
     fn authenticate(&self, a: &Attempt<'_>) -> Verdict {
         // The blob is the client's and is bounded by the contract, not by hope: a longer one cannot
         // be laid out, and `place_ntlm_proof` says so rather than truncating into a wrong answer.
-        if a.blob.len() > cred_proto::MAX_BLOB {
+        if a.blob.len() > credential_proto::MAX_BLOB {
             return Verdict::Refused;
         }
         // SAFETY: the wiring mapped one page read/write at CRED_VA before this program ran, shared
         // with the credential service and with nothing else. One thread per address space
         // (DECISIONS §33), so there is no second borrow.
-        let page = unsafe { core::slice::from_raw_parts_mut(CRED_VA as *mut u8, cred_proto::PAGE) };
-        let Some(w0) =
-            cred_proto::place_ntlm_proof(page, Self::resource(), a.challenge, a.blob, a.proof)
-        else {
+        let page =
+            unsafe { core::slice::from_raw_parts_mut(CRED_VA as *mut u8, credential_proto::PAGE) };
+        let Some(w0) = credential_proto::place_ntlm_proof(
+            page,
+            Self::resource(),
+            a.challenge,
+            a.blob,
+            a.proof,
+        ) else {
             // A request the contract will not build is a refusal, not a guess. Nothing was sent.
             return Verdict::Refused;
         };
@@ -811,16 +816,16 @@ impl Authenticator for CredentialAuthenticator {
         // not let it sit in a frame two processes map for the rest of the connection. The verdict
         // rides in `r0`, a register, so nothing here needs the page at all.
         //
-        // `cred_proto::wipe`'s own doc asks a client that keeps running to do this. The gate found
+        // `credential_proto::wipe`'s own doc asks a client that keeps running to do this. The gate found
         // out the hard way: the first version of this function skipped it, and the kernel's look at
         // the frame afterwards found a live session key at `SESSION_KEY_OFF` (`0xbb`, not
         // §4.2.4's `0x8d..`, because the challenge is this connection's rather than the published
         // one). Left in the record because the failure was the assertion doing its job: a key that
         // outlives the exchange it belongs to is exactly what milestone 65's frame check is for.
-        cred_proto::wipe(page);
+        credential_proto::wipe(page);
         // `authenticated` collapses every failure mode to false, which is the safe direction and is
         // in the contract precisely so no caller has to remember which codes were the good ones.
-        if cred_proto::authenticated(r0) {
+        if credential_proto::authenticated(r0) {
             Verdict::Authenticated
         } else {
             Verdict::Refused

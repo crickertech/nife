@@ -3,7 +3,7 @@
 //! One definition of the three things the parties to wall-clock time have to agree on, so the
 //! clock service, its readers, the std PAL and the kernel-side tests cannot drift: the layout of
 //! the **shared clock page**, the small **propose protocol**, and the **policy** the service
-//! applies to a proposal. The same split `fs_proto` makes for the filesystem and `gfx_proto` for
+//! applies to a proposal. The same split `filesystem_proto` makes for the filesystem and `gfx_proto` for
 //! the framebuffer.
 //!
 //! # Three authorities, three different objects
@@ -409,7 +409,7 @@ impl ClockPage {
 /// network time client: a compromised one can lie inside [`policy`]'s bounds and can do nothing
 /// else at all.
 pub mod propose {
-    /// Where the opcode sits in the first `CALL` word: bits 63:56, the same position `fs_proto`
+    /// Where the opcode sits in the first `CALL` word: bits 63:56, the same position `filesystem_proto`
     /// and `line_editor::proto` use, so the contracts read alike.
     pub const OP_SHIFT: u32 = 56;
 

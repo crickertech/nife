@@ -847,7 +847,7 @@ pub fn spawn_init(image: &'static [u8], role: u64, report: crate::sched::EpId) -
                     crate::cap::Rights::WRITE.union(crate::cap::Rights::GRANT),
                 ))
                 .expect("grant the shared file page");
-                fs_proto::dir::ALL
+                filesystem_proto::dir::ALL
             }
             None => 0,
         };
@@ -1529,7 +1529,7 @@ pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), Loa
             )
             .expect("insert the shared file page");
             assert_eq!(s5, 5);
-            fs_proto::dir::ALL
+            filesystem_proto::dir::ALL
         }
         None => 0,
     };
@@ -1864,7 +1864,7 @@ mod entropy_tests;
 ///
 /// The kernel never sees a secret, holds no store, and computes no hash. It creates two endpoints,
 /// two frames, and a budget, and hands each process a different subset. Everything after the spawn
-/// is userspace agreeing with userspace over `cred_proto`.
+/// is userspace agreeing with userspace over `credential_proto`.
 ///
 /// **Two frames and not one**, which is the detail worth stating: the provisioner writes plaintext
 /// secrets into its page, so a client sharing that frame would read them. The two pages are
