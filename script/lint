@@ -847,7 +847,7 @@ def _security_audits():
 #     which is a linkage declaration and not a block anybody reasons about (zero in the tree today,
 #     subtracted anyway so the day one lands it does not read as unsafe code);
 #   - a thread-safety claim is an `unsafe impl` of Send or Sync SPECIFICALLY, which is a different
-#     animal from an `unsafe impl` of an unsafe trait (`GlobalAlloc`, `intrusive::Node`): the trait
+#     animal from an `unsafe impl` of an unsafe trait (`GlobalAlloc`, `intrusive_fifo::Node`): the trait
 #     is unsafe there because its own contract is, while `unsafe impl Send for T` is a hand-written
 #     assertion that the compiler is wrong about T, and it is the most consequential unsafe in this
 #     tree. The `[^{;]*?` tail keeps it inside one item header so a body cannot donate a match;
@@ -1800,7 +1800,8 @@ SMBKEY
 # The region claim protocol has ONE decision path (milestone 136).
 #
 # Milestone 135 lifted the untyped region table out of `kernel/src/untyped.rs` into
-# `crates/regions` so that `script/interleaving-check` searches the thing the kernel runs rather
+# `crates/memory_regions` (renamed from `crates/regions` 2026-08-23) so that
+# `script/interleaving-check` searches the thing the kernel runs rather
 # than a paraphrase of it. That is worth exactly as much as the claim "the kernel calls the
 # modelled code" stays true, and when 135 landed **nothing checked it**: a later lane could hand
 # the decision back to the kernel and every gate in this tree would stay green.
@@ -1810,7 +1811,7 @@ SMBKEY
 # callers inside that gap each ran the free loop over the same pages, and it surfaced as
 # `double free of frame 0x82a3e000` in one of 45 loaded riscv64 runs.
 #
-# **What actually stops the kernel writing that again is that `crates/regions` does not export the
+# **What actually stops the kernel writing that again is that `crates/memory_regions` does not export the
 # pieces.** `Region` and its fields are private, so from outside the crate there is no way to learn
 # that a region is reclaimable and still leave its name resolving. The loom harness that
 # reconstructs the pre-#316 shape (`the_pre_fix_protocol_double_frees_and_this_model_finds_it`) has
@@ -1839,7 +1840,7 @@ python3 - <<'REGIONCLAIM'
 import re
 import sys
 
-TABLE = "crates/regions/src/table.rs"
+TABLE = "crates/memory_regions/src/table.rs"
 KERNEL = "kernel/src/untyped.rs"
 
 # (owner, name, receiver). Owner is the `impl` a method sits in, `-` for a free item; receiver is
@@ -1882,7 +1883,7 @@ PINNED = {
 # check pinned only the SET of freeing functions, and it passed a rebuilt double free: `destroy`
 # was already a recorded site, so replacing its body with `has_children` + `bounds` + a free loop
 # and no slot removal changed nothing it looked at. That reconstruction needed no edit to
-# `crates/regions` at all, which is also why the surface pin above could not have saved it. Both
+# `crates/memory_regions` at all, which is also why the surface pin above could not have saved it. Both
 # halves were needed and neither is sufficient.
 FREE_SITES = {
     "create": (

@@ -98,7 +98,7 @@
 //!   even though this process holds a budget.
 //!
 //!   The sketch said to split the grant out of the instance's own region "so a single `DESTROY`
-//!   still reclaims both". **The kernel refuses exactly that**: `regions::destroy_outcome` returns
+//!   still reclaims both". **The kernel refuses exactly that**: `memory_regions::destroy_outcome` returns
 //!   `Refused` for any region with a live child, Kani proves it, and `sched::reap_supervised` hands
 //!   that refusal straight back, so a corpse whose region carries a split grant can never be
 //!   collected until the grant is destroyed first.

@@ -226,13 +226,13 @@ set -- -j "${VERIFY_JOBS:-4}" --output-format=terse
 CRATES="$(cat <<'TABLE'
 capability	8	the capability model
 paging	9	the address arithmetic, and the IOMMU domain's page set
-regions	1	the untyped-region accounting, no double-free
+memory_regions	1	the untyped-region accounting, no double-free
 elf	1	the loader's front half, panic-free on hostile input
-frames	4	the physical frame allocator
+page_frames	4	the physical frame allocator
 dtb	3	the device-tree parser's leaf readers
 ipc	4	the rendezvous state machine
-slots	4	the generational thread table
-intrusive	9	the scheduler's queue structure
+generational_table	4	the generational thread table
+intrusive_fifo	9	the scheduler's queue structure
 asid	4	the TLB tag allocator
 nifefs	2	the initrd parser the kernel runs on boot input
 pci	6	config-space decode on hostile-device input

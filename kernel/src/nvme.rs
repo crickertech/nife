@@ -125,7 +125,8 @@ impl Nvme {
             cid: 0,
         };
         let cap = Cap(c.reg64(regs::CAP));
-        if cap.max_queue_entries() < ENTRIES as u32 || cap.min_page_size() > frames::FRAME_SIZE {
+        if cap.max_queue_entries() < ENTRIES as u32 || cap.min_page_size() > page_frames::FRAME_SIZE
+        {
             return Err(Error::UnsupportedController);
         }
         c.dstrd = cap.doorbell_stride();
@@ -141,14 +142,20 @@ impl Nvme {
         // page-aligned ring bases. The rings are zeroed pages, which is what makes the phase
         // discipline sound: the controller's first lap writes phase 1 into memory that reads 0.
         c.wr32(regs::AQA, (ENTRIES as u32 - 1) << 16 | (ENTRIES as u32 - 1));
-        c.wr64(regs::ASQ, dma_phys + ADMIN_SQ_PAGE * frames::FRAME_SIZE);
-        c.wr64(regs::ACQ, dma_phys + ADMIN_CQ_PAGE * frames::FRAME_SIZE);
+        c.wr64(
+            regs::ASQ,
+            dma_phys + ADMIN_SQ_PAGE * page_frames::FRAME_SIZE,
+        );
+        c.wr64(
+            regs::ACQ,
+            dma_phys + ADMIN_CQ_PAGE * page_frames::FRAME_SIZE,
+        );
         c.wr32(regs::CC, nvme::cc_enabled());
         c.wait_rdy(true)?;
 
         // IDENTIFY the namespace: its block count and LBA format are the two facts the block
         // arithmetic below stands on, and refusing an exotic format here beats corrupting it later.
-        let prp = dma_phys + IDENTIFY_PAGE * frames::FRAME_SIZE;
+        let prp = dma_phys + IDENTIFY_PAGE * page_frames::FRAME_SIZE;
         let cmd = Command::identify(c.next_cid(), nvme::CNS_NAMESPACE, NSID, prp);
         c.transact(0, cmd)?;
         // SAFETY: the identify page is ours (inside the region bring_up allocated), and the
@@ -156,8 +163,8 @@ impl Nvme {
         // guarantee); the barrier in `transact` ordered those writes before this read.
         let data = unsafe {
             core::slice::from_raw_parts(
-                (dma_va + IDENTIFY_PAGE * frames::FRAME_SIZE) as *const u8,
-                frames::FRAME_SIZE as usize,
+                (dma_va + IDENTIFY_PAGE * page_frames::FRAME_SIZE) as *const u8,
+                page_frames::FRAME_SIZE as usize,
             )
         };
         c.ns = nvme::parse_identify_namespace(data).ok_or(Error::UnsupportedNamespace)?;
@@ -167,10 +174,10 @@ impl Nvme {
 
         // The I/O pair, by admin command, completion queue first: the submission queue names its
         // completion queue, so creating them in the other order is an Invalid Queue Identifier.
-        let cq_prp = dma_phys + IO_CQ_PAGE * frames::FRAME_SIZE;
+        let cq_prp = dma_phys + IO_CQ_PAGE * page_frames::FRAME_SIZE;
         let cmd = Command::create_io_cq(c.next_cid(), IO_QID, ENTRIES, cq_prp);
         c.transact(0, cmd)?;
-        let sq_prp = dma_phys + IO_SQ_PAGE * frames::FRAME_SIZE;
+        let sq_prp = dma_phys + IO_SQ_PAGE * page_frames::FRAME_SIZE;
         let cmd = Command::create_io_sq(c.next_cid(), IO_QID, ENTRIES, IO_QID, sq_prp);
         c.transact(0, cmd)?;
         Ok(c)
@@ -197,7 +204,9 @@ impl Nvme {
         // SAFETY: the data page is inside the region bring_up allocated for exactly this, no
         // transfer is in flight (`transfer` completes each command before returning, and takes
         // `&mut self` like this does), and BLOCK_SIZE is one frame.
-        unsafe { &mut *((self.dma_va + DATA_PAGE * frames::FRAME_SIZE) as *mut [u8; BLOCK_SIZE]) }
+        unsafe {
+            &mut *((self.dma_va + DATA_PAGE * page_frames::FRAME_SIZE) as *mut [u8; BLOCK_SIZE])
+        }
     }
 
     /// One whole-block transfer, both directions: the LBA arithmetic from the identified
@@ -210,8 +219,8 @@ impl Nvme {
             .blocks_per(BLOCK_SIZE as u64)
             .expect("identify admitted a format 4096 is not a multiple of");
         let slba = block * per as u64;
-        let data = self.dma_phys + DATA_PAGE * frames::FRAME_SIZE;
-        let (prp1, prp2) = nvme::prp_pair(data, BLOCK_SIZE as u64, frames::FRAME_SIZE)
+        let data = self.dma_phys + DATA_PAGE * page_frames::FRAME_SIZE;
+        let (prp1, prp2) = nvme::prp_pair(data, BLOCK_SIZE as u64, page_frames::FRAME_SIZE)
             .expect("one page-aligned block is always PRP-expressible");
         let cid = self.next_cid();
         let cmd = if write {
@@ -241,8 +250,8 @@ impl Nvme {
         // SAFETY: slot < ENTRIES and ENTRIES 64-byte entries fit one frame, so the write stays
         // inside the submission ring's page of our own DMA region.
         unsafe {
-            let dst =
-                (self.dma_va + sq_page * frames::FRAME_SIZE + slot as u64 * 64) as *mut [u32; 16];
+            let dst = (self.dma_va + sq_page * page_frames::FRAME_SIZE + slot as u64 * 64)
+                as *mut [u32; 16];
             core::ptr::write_volatile(dst, cmd.0);
         }
         // Publish the command before the doorbell: the controller is another observer, and the
@@ -268,7 +277,7 @@ impl Nvme {
             self.io_cq.head()
         };
         let cqe =
-            (self.dma_va + cq_page * frames::FRAME_SIZE + head as u64 * 16) as *const [u32; 4];
+            (self.dma_va + cq_page * page_frames::FRAME_SIZE + head as u64 * 16) as *const [u32; 4];
         let mut done: Option<Completion> = None;
         for _ in 0..SPIN_BOUND {
             // SAFETY: head < ENTRIES and ENTRIES 16-byte entries fit one frame; reads of our own
@@ -390,7 +399,7 @@ pub fn bring_up() -> Option<Nvme> {
         core::ptr::write_bytes(
             mmu::phys_to_virt(dma) as *mut u8,
             0,
-            (DMA_PAGES * frames::FRAME_SIZE) as usize,
+            (DMA_PAGES * page_frames::FRAME_SIZE) as usize,
         );
     }
     if crate::iommu::active() {
@@ -398,7 +407,7 @@ pub fn bring_up() -> Option<Nvme> {
             dev.rid,
             &[paging::domain::DmaRegion {
                 base: dma,
-                size: DMA_PAGES * frames::FRAME_SIZE,
+                size: DMA_PAGES * page_frames::FRAME_SIZE,
             }],
         );
     }

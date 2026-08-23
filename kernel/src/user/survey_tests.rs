@@ -416,7 +416,7 @@ fn a_dead_child_is_still_in_the_domain_until_it_is_reaped() {
 /// **The cursor resumes, and it never repeats or skips a member.**
 ///
 /// The walk gives `IPC_TABLES` back between entries, so the cursor is the only thing carrying the
-/// position across calls (`slots::Table::iter_from`). A cursor that resolved to a *position* rather
+/// position across calls (`generational_table::Table::iter_from`). A cursor that resolved to a *position* rather
 /// than a slot would double-report or drop a member the moment anything changed, so what is checked
 /// is the invariant that makes the shape safe: distinct tids, every one of them a real member.
 ///
@@ -474,7 +474,7 @@ fn a_resumed_walk_reports_every_member_exactly_once() {
 /// `a_domain_is_exactly_the_children_of_the_rendezvous_that_was_granted` proves both. What leaks is
 /// arithmetic on the numbers the survey hands back about the viewer's **own** members:
 ///
-/// - `next_cursor` is `slots::Table` slot + 1, and that table is the whole machine's;
+/// - `next_cursor` is `generational_table::Table` slot + 1, and that table is the whole machine's;
 /// - `tid` is the generational name over the same slot, so its low half **is** that index and its
 ///   high half is the number of times that slot has been recycled machine-wide.
 ///
@@ -490,7 +490,7 @@ fn the_survey_cursor_counts_threads_the_viewer_cannot_name() {
     let parking = rendezvous(rendezvous_region);
 
     // Creation order is the whole experiment: one of mine, then a stranger the viewer will never be
-    // shown, then a second of mine. `slots::Table::insert_with` takes the lowest free slot, so the
+    // shown, then a second of mine. `generational_table::Table::insert_with` takes the lowest free slot, so the
     // three land in strictly increasing slots in this order and the stranger's is between the two
     // the viewer can see.
     let a = child_in(budget, REPORT_STUB, Some(parking), mine);
@@ -522,7 +522,7 @@ fn the_survey_cursor_counts_threads_the_viewer_cannot_name() {
     );
 
     // **The tid carries the machine-wide slot index**, which is an ABI fact rather than a
-    // scheduling accident: `slots::Table` packs a name as `(generation << 32) | slot` and the
+    // scheduling accident: `generational_table::Table` packs a name as `(generation << 32) | slot` and the
     // cursor is that same slot plus one. Asserting the identity is what makes the leak a
     // measurement instead of an inference from reading the allocator.
     assert_eq!(

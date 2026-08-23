@@ -8,7 +8,7 @@ ratchet now, the same shape §38 already uses for dead code, tracked in notes/do
 
 `missing_docs = "warn"` is in `[workspace.lints.rust]`; every crate with `[lints]
 workspace = true` (all 57) is checked by default, and the 7 crates with a real remaining worklist
-(`isa`, `smb_proto`, `mdns_proto`, `pci`, `gpt`, `grant_plan`, `compositor`) carry an explicit
+(`machine_discovery`, `smb_proto`, `mdns_proto`, `pci`, `gpt`, `grant_plan`, `compositor`) carry an explicit
 `#![allow(missing_docs)]` citing §107 and their own count. A crate added tomorrow is gated from the
 day it is written, closing the gap this block's BUGS section used to name.
 
@@ -60,7 +60,7 @@ work.
 
 **The count was 31 when someone finally measured it, not 28**, and it had moved in both directions,
 which is the interesting part. Three of the four crates this block named as the hard ones left
-(`dtb`, `nifefs`, `gpt`) got their examples in the fortnight after it was written, and `isa`,
+(`dtb`, `nifefs`, `gpt`) got their examples in the fortnight after it was written, and `machine_discovery`,
 `manual`, `swish` and `slots` gained theirs too. Meanwhile five crates arrived carrying none: `ntlm`
 and `system_initializer`, then `nvme`, `mdns_proto` and `smb_proto`. **A count of what is missing is a
 moving target in a tree that adds a crate every few days**, and writing it into a block converts it
@@ -102,7 +102,7 @@ looked entirely plausible. Measure it as one workspace-wide invocation into a cl
 and after every batch: the honest count had drifted to 404 across 31 crates in the five days since,
 and the lane closed 169 of those, crate by crate, writing real doc comments (not filler) for every
 item and turning on `#![warn(missing_docs)]` on each crate it brought to zero. **235 items remain,
-across 7 crates**: `isa` (54), `smb_proto` (52), `mdns_proto` (41), `pci` (24), `gpt` (23),
+across 7 crates**: `machine_discovery` (54), `smb_proto` (52), `mdns_proto` (41), `pci` (24), `gpt` (23),
 `grant_plan` (22), `compositor` (19). 50 of the 57 crates under `crates/` now carry the opt-in, up
 from 23. See notes/doc-coverage.md for the full crate list and the per-crate worklist table.
 

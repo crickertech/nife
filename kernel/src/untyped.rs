@@ -47,8 +47,8 @@
 //! variants, the shape `crates/timetable`'s own `Unbacked`/`Refusal` split and POSIX's
 //! `EMFILE`/`ENFILE` both already use) for whoever eventually has one.
 
-use frames::{FRAME_SIZE, Frame};
-use regions::RegionTable;
+use memory_regions::RegionTable;
+use page_frames::{FRAME_SIZE, Frame};
 
 use crate::memory;
 use crate::sync::{IrqSafeMutex, rank};

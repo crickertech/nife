@@ -33,7 +33,7 @@ rule that an exception must say so where a reader meets it: this decision, cited
 
 **Move `missing_docs = "warn"` into `[workspace.lints.rust]`.** Every crate with `[lints]
 workspace = true` (all 57) now warns by default. The 7 crates with a real remaining worklist
-(`isa` 54, `smb_proto` 52, `mdns_proto` 41, `pci` 24, `gpt` 23, `grant_plan` 22, `compositor` 19,
+(`machine_discovery` 54, `smb_proto` 52, `mdns_proto` 41, `pci` 24, `gpt` 23, `grant_plan` 22, `compositor` 19,
 per `notes/doc-coverage.md`) carry an explicit `#![allow(missing_docs)]`, citing this decision and
 their own item count, so the opt-out is visible at the crate rather than implied by its absence from
 a list. The 50 per-crate `#![warn(missing_docs)]` opt-ins are removed as redundant; the workspace

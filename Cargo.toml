@@ -9,7 +9,7 @@ members = [
     "crates/bitfont",
     "crates/block_roster",
     "crates/calendar",
-    "crates/canary_gate",
+    "crates/memory_corruption_canary_gate",
     "crates/capability",
     "crates/component_plan",
     "crates/compositor",
@@ -25,19 +25,19 @@ members = [
     "crates/dtb",
     "crates/elf",
     "crates/entropy_proto",
-    "crates/frames",
+    "crates/page_frames",
     "crates/filesystem_proto",
     "crates/gfx_proto",
     "crates/glob",
     "crates/gpt",
     "crates/ipc",
-    "crates/isa",
+    "crates/machine_discovery",
     "crates/paging",
     "crates/pci",
     "crates/pgrep",
     "crates/pmap",
     "crates/ps",
-    "crates/regions",
+    "crates/memory_regions",
     "crates/c_seam",
     "crates/supervision_proto",
     "crates/system_initializer",
@@ -46,7 +46,7 @@ members = [
     "crates/socket_proto",
     "crates/byte_sink_proto",
     "crates/virtio",
-    "crates/intrusive",
+    "crates/intrusive_fifo",
     "crates/line_editor",
     "crates/manual",
     "crates/measured_boot",
@@ -55,11 +55,11 @@ members = [
     "crates/ntlm",
     "crates/ntp_proto",
     "crates/nvme",
-    "crates/slots",
-    "crates/steal_request",
+    "crates/generational_table",
+    "crates/work_steal_slot",
     "crates/user_heap",
     "crates/user_rt",
-    "crates/wake_handshake",
+    "crates/thread_wake_handshake",
     "crates/coremark",
     "crates/video_terminal",
     "crates/swish",
@@ -106,7 +106,7 @@ license = "MIT OR Apache-2.0"
 #
 # `cfg(loom)` is the same shape, one tool along (milestone 80): it is set by
 # `script/interleaving-check` and by nothing else, so without this line every `#[cfg(loom)]` in
-# `crates/steal_request` is an "unexpected cfg" warning in the ordinary lint pass. Listing it here
+# `crates/work_steal_slot` is an "unexpected cfg" warning in the ordinary lint pass. Listing it here
 # rather than in that crate is the point of milestone 68's one-table rule.
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)', 'cfg(loom)'] }
 # The lint that composes with `undocumented_unsafe_blocks` below (milestone 82). An `unsafe fn`
@@ -135,7 +135,7 @@ unsafe_op_in_unsafe_fn = "warn"
 # Workspace-wide as of DECISIONS §107 (2026-08-22), a deliberate, recorded exception to §61's own
 # rule against adding a lint before every existing violation is fixed: the worklist had shrunk from
 # 32 crates to 7 by the time this landed, so the cost is 7 `#[allow(missing_docs)]` lines, not an
-# open-ended commitment. Those 7 (`isa`, `smb_proto`, `mdns_proto`, `pci`, `gpt`, `grant_plan`,
+# open-ended commitment. Those 7 (`machine_discovery`, `smb_proto`, `mdns_proto`, `pci`, `gpt`, `grant_plan`,
 # `compositor`) carry the allow explicitly, citing their own item count; see notes/doc-coverage.md
 # for the tracked worklist.
 missing_docs = "warn"
