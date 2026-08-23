@@ -320,6 +320,16 @@ and the difference is accounted rather than shrugged at:
   nothing further; only the initial reservation does. See notes/login.md and `user/src/login.rs`'s
   own BUGS on why nothing gives it back: the service serves logins for the life of the boot and this
   slice builds no teardown path.
+- **A second credential service instance, ~1659 (2026-08-23, milestone 155).** The provisioning
+  suite (`kernel/src/user/identity_provisioning_tests.rs`) needs a store *before* anyone has sealed
+  it, which the tree's one shared fixture (`credential_tests::provisioned()`) cannot offer: that
+  instance is sealed by the time it returns. So this suite wires its own, same shape as the shared
+  one and just as permanent for the same reason (`credential_service::start`'s own 1552-frame
+  reservation: `CRED_BUDGET_PAGES` 1536 plus `CRED_STACK_PAGES` 16), plus the small cost of the two
+  `identity_provisioner` invocations this suite runs against it and one `fs_subtree_caretaker` its
+  headline test builds to prove the created subtree is real. This suite's own tests report their
+  charge directly (`[that test kept N frames]`), which is where the 1659 comes from rather than a
+  re-derivation here.
 
 ### BUGS in the ledger itself
 

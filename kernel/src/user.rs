@@ -1909,6 +1909,27 @@ pub mod login_service;
 #[cfg(test)]
 mod login_tests;
 
+/// **A provisioning tool: create an identity and its home subtree together** (milestone 155,
+/// DECISIONS §117). Spawned once per identity, against a credential service's still-open provision
+/// endpoint and a directory capability wide enough to hold the new subtree, exactly as
+/// `credentialer_test_client`'s provisioner role is spawned, except this is the first real caller
+/// rather than a test harness.
+#[cfg_attr(not(test), allow(dead_code))] // the milestone-155 provisioning tests are its callers
+pub mod identity_provisioner_service;
+
+/// **A principal never exists with a credential and no home, or a home and no credential, for
+/// longer than one tool invocation** (milestone 155).
+///
+/// What these prove that nothing else would: that a fresh identity gets both a working credential
+/// (a real `VERIFY` against what was just `PUT`) and a real subtree (a real `MKDIR` that a
+/// subsequent `OPENDIR` can descend into), that a duplicate identity's credential half is refused
+/// without disturbing an existing subtree, and that re-running the tool against a subtree that
+/// already exists (`EEXIST`) is recovery rather than a second failure. See
+/// `user/src/identity_provisioner.rs`'s own module docs for the ordering argument these tests hold
+/// it to.
+#[cfg(test)]
+mod identity_provisioning_tests;
+
 /// **The NTP client, and the test server that answers it** (milestone 51; DECISIONS §43, §44).
 ///
 /// The kernel's part is the wiring, and the wiring *is* the argument. An NTP client here gets five
