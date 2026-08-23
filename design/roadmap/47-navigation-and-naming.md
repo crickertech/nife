@@ -408,12 +408,16 @@ is no wall clock to interpret it against anyway": true when written, and false s
 landed the clock (§43, RTC drivers on both ISAs, `date`). Same shape as §43's own untestability note,
 which milestone 47's `date` work disproved: **a scope note outlives the condition that justified it.**
 
-**The authority question, which should be decided rather than defaulted into.** `touch` does two
-different things to a timestamp: set it to *now*, and `touch -t` set it to *whatever you say*. The
-second is the ability to **lie about history**, which matters for anything reasoning from mtime,
-backups included, and milestone 55 is a Time Machine target. That is §43's asymmetry again (reading
-harmless, setting an authority), one level down: is "set to now" the same right as "set to an
-arbitrary value", and does the file's write right already cover both? Neither answer is obvious.
+**The authority question is decided** (calef, 2026-08-23, DECISIONS §112): **no, they are not the
+same right.** `touch` does two different things to a timestamp: set it to *now*, and `touch -t` set
+it to *whatever you say*. The second is the ability to **lie about history**, which matters for
+anything reasoning from mtime, backups included. That is §43's asymmetry again (reading harmless,
+setting an authority), one level down, and two independent precedents converge on the same split:
+POSIX's own `utime()` requires only write permission to set the current time but ownership to set an
+arbitrary one, and §43 itself already separates reading the clock (broadly grantable) from setting it
+(a distinct, more tightly held authority). **Plain `WRITE` covers "now"; a new, separate right, not
+folded into `WRITE`, covers "arbitrary"**, the same separable-rights-ladder pattern this milestone
+already uses for `enumerate`/`open`/`create`/`remove`.
 
 ## Globbing, which decides how every multi-file operation grants
 
