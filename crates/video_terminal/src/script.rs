@@ -7,10 +7,10 @@
 //! actually displaying. Neither reads the other's answer, and the terminal component that draws
 //! holds none of this: it renders whatever arrives.
 //!
-//! This is the same move `gfx_proto::pixel` makes for rung one's test pattern and `compositor::SCENE`
+//! This is the same move `graphics_proto::pixel` makes for rung one's test pattern and `compositor::SCENE`
 //! for rung two's scene: the test's content lives in the contract crate, not in the test.
 
-/// The columns of a terminal that owns the whole scanout: `gfx_proto::WIDTH / bitfont::GLYPH_W`.
+/// The columns of a terminal that owns the whole scanout: `graphics_proto::WIDTH / bitmap_font::GLYPH_W`.
 ///
 /// Spelled as a literal here rather than computed, because this crate deliberately does not depend
 /// on the framebuffer contract (a VT engine that knew about a scanout would be the wrong shape).

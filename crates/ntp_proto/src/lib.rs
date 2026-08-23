@@ -6,7 +6,7 @@
 //! over `net_stack`. Keeping the protocol here means the parser, the fixed-point conversion and the
 //! response checks are host-tested in milliseconds and machine-checked by Kani, rather than being
 //! debugged inside a QEMU boot against a live server (DECISIONS §14's rule about what compiles for
-//! the host, and the same split `fs_proto` and `gfx_proto` make for their contracts).
+//! the host, and the same split `fs_proto` and `graphics_proto` make for their contracts).
 //!
 //! # Scope: unauthenticated NTPv4, deliberately and only
 //!
@@ -129,7 +129,7 @@
 //! ```
 //!
 //! Name: recorded (milestone 46, and notes/naming.md's crate section). The wire contract was
-//! spelled four ways (`fs_proto`, `gfx_proto`, `netproto`, `line_editor::proto`) for one concept;
+//! spelled four ways (`fs_proto`, `graphics_proto`, `netproto`, `line_editor::proto`) for one concept;
 //! `*_proto` won on 2026-07-30 under DECISIONS §39, and `script/lint` has checked it since. That
 //! rule plus the service the stem names produces this name, which is the whole of what `recorded`
 //! claims: calef ruled on the rule, and never on this crate.

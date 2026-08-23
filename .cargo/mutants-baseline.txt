@@ -4,7 +4,7 @@
 # derived as total-minus-the-rest because the run was resumed twice (see the note).
 abi 27 1 0 1
 asid 21 2 0 2
-bitfont 11 0 0 2
+bitmap_font 11 0 0 2
 block_roster 53 1 0 4
 c_seam 21 1 0 3
 calendar 369 7 3 16
@@ -21,7 +21,7 @@ elf 98 0 0 4
 entropy_proto 21 2 0 0
 frames 93 3 1 12
 fs_proto 489 37 9 31
-gfx_proto 120 6 0 6
+graphics_proto 120 6 0 6
 glob 110 14 6 5
 gpt 423 5 1 36
 grant_plan 367 26 20 76

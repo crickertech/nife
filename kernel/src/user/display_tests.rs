@@ -1,4 +1,4 @@
-use gfx_proto as gfx;
+use graphics_proto as gfx;
 
 use super::*;
 use crate::sched;
@@ -7,9 +7,9 @@ use crate::sched;
 ///
 /// # What this proves, precisely
 ///
-/// The pattern is a per-coordinate function ([`gfx_proto::pixel`]), not a fill, and the digest is
+/// The pattern is a per-coordinate function ([`graphics_proto::pixel`]), not a fill, and the digest is
 /// position sensitive, so a blank, stale, shifted, transposed, or truncated surface cannot pass
-/// (`crates/gfx_proto`'s host tests assert exactly those properties of the pattern itself). Two
+/// (`crates/graphics_proto`'s host tests assert exactly those properties of the pattern itself). Two
 /// independent witnesses report it, from two different address spaces: the **client** digests the
 /// surface after the flush through its own mapping, and the **driver** digests it through a
 /// different mapping after the device reported the transfer complete. The kernel compares both
@@ -31,7 +31,7 @@ use crate::sched;
 ///
 /// The scanout is proven **from the host instead**, because only the host can see it:
 /// `cargo xtask`'s scanout check drives QEMU's monitor beside this suite, dumps the scanout with
-/// `screendump` (which works headlessly), and compares the PPM against `gfx_proto::pixel` pixel
+/// `screendump` (which works headlessly), and compares the PPM against `graphics_proto::pixel` pixel
 /// for pixel, on both ISAs. Together the two halves cover the whole path. See
 /// notes/framebuffer-contract.md, "Proving the scanout, from the host".
 #[test_case]

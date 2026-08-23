@@ -1376,10 +1376,10 @@ fn gpu_text_path(arch: &str) -> PathBuf {
 
 /// Does this PPM hold the pattern rung one's client painted (milestone 29)?
 ///
-/// Compares against `gfx_proto::pixel`, the same definition the client painted from and the kernel
+/// Compares against `graphics_proto::pixel`, the same definition the client painted from and the kernel
 /// test digested against, so the host cannot disagree with the guest about what the pattern is.
 fn scanout_holds_the_pattern(ppm: &[u8]) -> Result<(), String> {
-    scanout_matches(ppm, gfx_proto::pixel)
+    scanout_matches(ppm, graphics_proto::pixel)
 }
 
 /// Does this PPM hold the screen rung two's compositor composed (milestone 33)?
@@ -1437,11 +1437,11 @@ fn scanout_matches(ppm: &[u8], want_pixel: impl Fn(u32, u32) -> u32) -> Result<(
     if maxval != "255" {
         return Err(format!("maxval {maxval}, expected 255"));
     }
-    if (w, h) != (gfx_proto::WIDTH, gfx_proto::HEIGHT) {
+    if (w, h) != (graphics_proto::WIDTH, graphics_proto::HEIGHT) {
         return Err(format!(
             "scanout is {w}x{h}, the surface is {}x{}",
-            gfx_proto::WIDTH,
-            gfx_proto::HEIGHT
+            graphics_proto::WIDTH,
+            graphics_proto::HEIGHT
         ));
     }
     // The pixel data starts after the fourth whitespace-terminated field. Find it by walking the
@@ -1697,7 +1697,7 @@ fn parse_load_average(uptime_output: &str) -> Option<f64> {
 /// 1. rung two's **composed screen** (milestone 33): three clients' surfaces, composited by `compositor`.
 ///    The compositor test holds it up for a few seconds precisely so this poll cannot miss it;
 /// 2. the display terminal's **text** (milestone 29's remaining increment): real glyphs from the
-///    `bitfont` table, laid out by the `video_terminal` engine. Held up the same way, for the same reason;
+///    `bitmap_font` table, laid out by the `video_terminal` engine. Held up the same way, for the same reason;
 /// 3. rung one's **test pattern** (milestone 29), which then stays on the scanout until QEMU exits.
 ///
 /// All three must be seen or the run fails, and the order is part of the check: this looks for each
@@ -1909,9 +1909,9 @@ impl ScanoutReferee {
         match matched {
             Some(path) => eprintln!(
                 "scanout check ({arch}): the {}x{} pattern reached the DEVICE's scanout, verified pixel \
-             for pixel against gfx_proto::pixel ({path})",
-                gfx_proto::WIDTH,
-                gfx_proto::HEIGHT,
+             for pixel against graphics_proto::pixel ({path})",
+                graphics_proto::WIDTH,
+                graphics_proto::HEIGHT,
             ),
             None => {
                 eprintln!();
@@ -6033,7 +6033,7 @@ fn test() -> bool {
         // This was a hand-maintained list of twenty `-p` flags, and it drifted exactly the way a
         // hand-maintained list does. It was written because `paging`, `heap` and `slab` were silently not
         // run for four milestones; by milestone 51 it had five crates missing again, and `fs_proto`,
-        // `compositor`, `video_terminal`, `bitfont` and `grant_plan` carried **82 host tests that this gate never ran**. All
+        // `compositor`, `video_terminal`, `bitmap_font` and `grant_plan` carried **82 host tests that this gate never ran**. All
         // 82 passed when finally run, which is the point: nobody noticed because nothing failed, and a
         // gate that quietly covers less than it claims is the failure mode script/fmt's `--check` bug
         // already cost this project a day over.
@@ -8383,7 +8383,7 @@ pub const GET: u64 = 1;
     /// Build a P6 PPM of the surface's geometry from a per-pixel function, the way QEMU's
     /// `screendump` writes one.
     fn ppm(pixel: impl Fn(u32, u32) -> (u8, u8, u8)) -> Vec<u8> {
-        let (w, h) = (gfx_proto::WIDTH, gfx_proto::HEIGHT);
+        let (w, h) = (graphics_proto::WIDTH, graphics_proto::HEIGHT);
         let mut v = format!("P6\n{w} {h}\n255\n").into_bytes();
         for y in 0..h {
             for x in 0..w {
@@ -8395,7 +8395,7 @@ pub const GET: u64 = 1;
     }
 
     fn pattern_rgb(x: u32, y: u32) -> (u8, u8, u8) {
-        let w = gfx_proto::pixel(x, y);
+        let w = graphics_proto::pixel(x, y);
         (
             ((w >> 16) & 0xff) as u8,
             ((w >> 8) & 0xff) as u8,
@@ -8433,7 +8433,7 @@ pub const GET: u64 = 1;
 
         // Shifted one row: a stride bug.
         assert!(
-            scanout_holds_the_pattern(&ppm(|x, y| pattern_rgb(x, (y + 1) % gfx_proto::HEIGHT)))
+            scanout_holds_the_pattern(&ppm(|x, y| pattern_rgb(x, (y + 1) % graphics_proto::HEIGHT)))
                 .is_err(),
             "a scanout shifted by one row was accepted",
         );

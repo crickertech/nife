@@ -598,7 +598,7 @@ socket_proto = { version = "0.1.0", path = "../crates/socket_proto" }
 smb_proto = { version = "0.1.0", path = "../crates/smb_proto" }
 mdns_proto = { version = "0.1.0", path = "../crates/mdns_proto" }
 mdns_config = { version = "0.1.0", path = "../crates/mdns_config" }
-bitfont = { version = "0.1.0", path = "../crates/bitfont" }
+bitmap_font = { version = "0.1.0", path = "../crates/bitmap_font" }
 block_roster = { version = "0.1.0", path = "../crates/block_roster" }
 gpt = { version = "0.1.0", path = "../crates/gpt" }
 calendar = { version = "0.1.0", path = "../crates/calendar" }
@@ -616,7 +616,7 @@ ps = { version = "0.1.0", path = "../crates/ps" }
 elf = { version = "0.1.0", path = "../crates/elf" }
 entropy_proto = { version = "0.1.0", path = "../crates/entropy_proto" }
 fs_proto = { version = "0.1.0", path = "../crates/fs_proto" }
-gfx_proto = { version = "0.1.0", path = "../crates/gfx_proto" }
+graphics_proto = { version = "0.1.0", path = "../crates/graphics_proto" }
 line_editor = { version = "0.1.0", path = "../crates/line_editor" }
 ntp_proto = { version = "0.1.0", path = "../crates/ntp_proto" }
 manual = { version = "0.1.0", path = "../crates/manual" }

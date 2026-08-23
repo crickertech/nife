@@ -169,7 +169,7 @@
 //!   a per-connection state machine, not a multiplexer. macOS opens one connection per mount.
 //!
 //! Name: unrecorded. Provisional, minted by milestone 54's lane on 2026-08-15, following the
-//! `fs_proto`/`socket_proto`/`gfx_proto` pattern (a protocol contract crate takes the protocol's
+//! `fs_proto`/`socket_proto`/`graphics_proto` pattern (a protocol contract crate takes the protocol's
 //! standard name plus the `_proto` suffix). `smb` is a term of art in the family the naming tenet
 //! says are already right (`elf`, `pci`, `ntlm`).
 

@@ -28,7 +28,7 @@ pub const ROLE_SMALL_DAMAGE: u64 = 1 << 6;
 
 /// The screen's frames, in the scanout's own geometry. The same run of frames rung one's driver
 /// scans out, because the screen *is* rung one's surface.
-const SCREEN_FRAMES: u64 = gfx_proto::SURFACE_FRAMES as u64;
+const SCREEN_FRAMES: u64 = graphics_proto::SURFACE_FRAMES as u64;
 
 /// What the kernel keeps after wiring a scene: the endpoints it can ring or listen on, and the
 /// physical addresses it needs to be an independent witness of what the processes did.
@@ -398,7 +398,7 @@ impl Wiring {
         // multiple of 7, so each leaves a strip on the right that its terminal paints as
         // background on the first frame rather than leaving as whatever the frame held.
         assert!(
-            SCENE[i].w >= bitfont::GLYPH_W && SCENE[i].h >= bitfont::GLYPH_H,
+            SCENE[i].w >= bitmap_font::GLYPH_W && SCENE[i].h >= bitmap_font::GLYPH_H,
             "window {i} is too small for one character cell",
         );
 

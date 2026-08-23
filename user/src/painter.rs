@@ -18,7 +18,7 @@
 //!
 //! # What it proves
 //!
-//! It paints [`gfx_proto::pixel`], a per-coordinate function rather than a fill, then flushes, then
+//! It paints [`graphics_proto::pixel`], a per-coordinate function rather than a fill, then flushes, then
 //! **reads the whole surface back and digests it**. The digest and the index of the first wrong pixel
 //! go to the report endpoint, where the kernel test compares them against a value it computed itself
 //! from the contract. So a pass means the pattern this process wrote is the pattern that was in the
@@ -35,7 +35,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use gfx_proto as gfx;
+use graphics_proto as gfx;
 use user_rt::{call, exit, send};
 
 /// Capability slots, by convention with `kernel/src/user/display_service.rs`.
@@ -100,7 +100,7 @@ pub extern "C" fn _start(_arg0: u64, _arg1: u64, _arg2: u64) -> ! {
 
     // Paint. Every pixel is a function of its coordinates, so no accident produces this buffer:
     // zeroed memory, a fill, a loop that never advanced, and a transposed or shifted write all fail
-    // the digest below (crates/gfx_proto asserts exactly those properties on the host).
+    // the digest below (crates/graphics_proto asserts exactly those properties on the host).
     for y in 0..h {
         for x in 0..w {
             px_write((y * w + x) as usize, gfx::pixel(x, y));

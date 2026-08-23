@@ -107,7 +107,7 @@
 //!
 //! # What deliberately is NOT here
 //!
-//! No scrollback (a live grid only), no UTF-8 (the grid holds bytes; see [`bitfont::glyph`]), no
+//! No scrollback (a live grid only), no UTF-8 (the grid holds bytes; see [`bitmap_font::glyph`]), no
 //! alternate screen, no origin mode, no scrolling regions, no tab stops other than every eight
 //! columns, no mouse, and no reporting sequences at all: this engine never writes to its input,
 //! which is what "sans-IO" means here and what keeps it a *value*. The honest limits are listed in
@@ -330,10 +330,10 @@ impl CellRect {
     /// rectangle wants.
     pub const fn to_pixels(self) -> (u32, u32, u32, u32) {
         (
-            self.col * bitfont::GLYPH_W,
-            self.row * bitfont::GLYPH_H,
-            self.cols * bitfont::GLYPH_W,
-            self.rows * bitfont::GLYPH_H,
+            self.col * bitmap_font::GLYPH_W,
+            self.row * bitmap_font::GLYPH_H,
+            self.cols * bitmap_font::GLYPH_W,
+            self.rows * bitmap_font::GLYPH_H,
         )
     }
 }
@@ -455,12 +455,12 @@ impl Vt {
 
     /// The grid's width in pixels.
     pub const fn width(&self) -> u32 {
-        self.cols * bitfont::GLYPH_W
+        self.cols * bitmap_font::GLYPH_W
     }
 
     /// The grid's height in pixels.
     pub const fn height(&self) -> u32 {
-        self.rows * bitfont::GLYPH_H
+        self.rows * bitmap_font::GLYPH_H
     }
 
     /// Where the cursor is, as `(col, row)`.
@@ -494,17 +494,17 @@ impl Vt {
     /// that predicts the screen predicts the cursor too, and a cursor left in the wrong place is a
     /// failure rather than a cosmetic difference nobody notices.
     pub fn pixel(&self, x: u32, y: u32) -> u32 {
-        let (col, row) = (x / bitfont::GLYPH_W, y / bitfont::GLYPH_H);
+        let (col, row) = (x / bitmap_font::GLYPH_W, y / bitmap_font::GLYPH_H);
         let cell = self.cell(col, row);
         let mut attr = cell.attr;
         if self.cursor_visible && col == self.col && row == self.row && col < self.cols {
             attr = Attr::new(attr.fg(), attr.bg(), !attr.reverse());
         }
         let (fg, bg) = attr.colours();
-        bitfont::cell_pixel(
+        bitmap_font::cell_pixel(
             cell.byte,
-            x % bitfont::GLYPH_W,
-            y % bitfont::GLYPH_H,
+            x % bitmap_font::GLYPH_W,
+            y % bitmap_font::GLYPH_H,
             fg,
             bg,
         )
@@ -1318,7 +1318,7 @@ mod tests {
         let (fg, bg) = Attr::DEFAULT.colours();
         // Under the cursor, a blank cell shows the *background* colour as its ink field.
         assert_eq!(t.pixel(0, 0), fg, "the block cursor should invert its cell");
-        assert_eq!(t.pixel(bitfont::GLYPH_W, 0), bg, "and only its own cell");
+        assert_eq!(t.pixel(bitmap_font::GLYPH_W, 0), bg, "and only its own cell");
 
         t.take_damage();
         t.feed(b"\x1b[1;3H");
@@ -1330,7 +1330,7 @@ mod tests {
 
         t.set_cursor_visible(false);
         assert_eq!(
-            t.pixel(2 * bitfont::GLYPH_W, 0),
+            t.pixel(2 * bitmap_font::GLYPH_W, 0),
             bg,
             "hidden means not drawn"
         );

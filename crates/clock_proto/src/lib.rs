@@ -3,7 +3,7 @@
 //! One definition of the three things the parties to wall-clock time have to agree on, so the
 //! clock service, its readers, the std PAL and the kernel-side tests cannot drift: the layout of
 //! the **shared clock page**, the small **propose protocol**, and the **policy** the service
-//! applies to a proposal. The same split `fs_proto` makes for the filesystem and `gfx_proto` for
+//! applies to a proposal. The same split `fs_proto` makes for the filesystem and `graphics_proto` for
 //! the framebuffer.
 //!
 //! # Three authorities, three different objects
@@ -108,7 +108,7 @@
 //! arithmetic identical.
 //!
 //! Name: recorded (milestone 46, and notes/naming.md's crate section). The wire contract was
-//! spelled four ways (`fs_proto`, `gfx_proto`, `netproto`, `line_editor::proto`) for one concept;
+//! spelled four ways (`fs_proto`, `graphics_proto`, `netproto`, `line_editor::proto`) for one concept;
 //! `*_proto` won on 2026-07-30 under DECISIONS §39, and `script/lint` has checked it since. That
 //! rule plus the service the stem names produces this name, which is the whole of what `recorded`
 //! claims: calef ruled on the rule, and never on this crate.

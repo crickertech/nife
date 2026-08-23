@@ -39,7 +39,7 @@ static FLUSH_COUNT: AtomicUsize = AtomicUsize::new(0);
 /// nothing about it; here the flush *is* the observation, so a compositor that quietly repainted the
 /// screen every frame would fail a test rather than merely be slow.
 fn kernel_display() -> (sched::EpId, u64) {
-    let frames = gfx_proto::SURFACE_FRAMES as u64;
+    let frames = graphics_proto::SURFACE_FRAMES as u64;
     let screen = crate::memory::alloc_contiguous(frames as usize)
         .expect("no contiguous screen frames for the compositor")
         .addr();
@@ -65,17 +65,17 @@ fn kernel_display() -> (sched::EpId, u64) {
             else {
                 panic!("the display stand-in was sent something that was not a CALL");
             };
-            let (r0, r1) = match gfx_proto::op(w0) {
-                gfx_proto::display::FLUSH => {
-                    LAST_FLUSH.store(gfx_proto::operand(w0), Ordering::SeqCst);
+            let (r0, r1) = match graphics_proto::op(w0) {
+                graphics_proto::display::FLUSH => {
+                    LAST_FLUSH.store(graphics_proto::operand(w0), Ordering::SeqCst);
                     FLUSH_COUNT.fetch_add(1, Ordering::SeqCst);
                     (0, 0)
                 }
-                gfx_proto::display::INFO => (
+                graphics_proto::display::INFO => (
                     0,
-                    gfx_proto::WIDTH as u64 | ((gfx_proto::HEIGHT as u64) << 32),
+                    graphics_proto::WIDTH as u64 | ((graphics_proto::HEIGHT as u64) << 32),
                 ),
-                _ => (gfx_proto::EINVAL as u64, 0),
+                _ => (graphics_proto::EINVAL as u64, 0),
             };
             sched::ipc_reply(caller, [r0, r1]);
             sched::delete_current_cap(slot).expect("consume the one-shot reply");
@@ -342,7 +342,7 @@ fn a_one_window_redraw_costs_one_rectangle_and_not_the_screen() {
     );
     assert_eq!(
         LAST_FLUSH.load(Ordering::SeqCst),
-        gfx_proto::rect(0, 0, compositor::SCREEN_W, compositor::SCREEN_H),
+        graphics_proto::rect(0, 0, compositor::SCREEN_W, compositor::SCREEN_H),
         "the startup flush should be the whole screen",
     );
     assert_screen_is(&w, 0);
@@ -385,7 +385,7 @@ fn a_one_window_redraw_costs_one_rectangle_and_not_the_screen() {
         flushes + 1,
         "one commit must be one flush",
     );
-    let flushed = gfx_proto::unrect(LAST_FLUSH.load(Ordering::SeqCst));
+    let flushed = graphics_proto::unrect(LAST_FLUSH.load(Ordering::SeqCst));
     assert_eq!(
         flushed,
         (want.x as u32, want.y as u32, want.w, want.h),
@@ -504,7 +504,7 @@ fn input_reaches_only_the_focused_client_and_focus_is_the_compositors_call() {
 ///
 /// `compositor` cannot tell a display terminal from the `window` client that paints a coordinate
 /// pattern: same grants, same control page, same doorbell, same `COMMIT`. Neither `compositor` nor
-/// `gfx_proto` needed a line changed to carry text. That is the seam claim made twice in one
+/// `graphics_proto` needed a line changed to carry text. That is the seam claim made twice in one
 /// milestone, once at each rung.
 ///
 /// Uses the kernel's display stand-in rather than the GPU, deliberately: this test is about
@@ -534,7 +534,7 @@ fn focus_routes_a_keystroke_to_one_terminals_grid_and_not_its_neighbours() {
         let (cols, rows) = ((dims & 0xffff_ffff) as u32, (dims >> 32) as u32);
         assert_eq!(
             (cols, rows),
-            (SCENE[i].w / bitfont::GLYPH_W, SCENE[i].h / bitfont::GLYPH_H),
+            (SCENE[i].w / bitmap_font::GLYPH_W, SCENE[i].h / bitmap_font::GLYPH_H),
             "terminal {i} sized itself to a grid its window cannot hold",
         );
         terms[i] = video_terminal::script::window(i, cols, rows);
@@ -635,12 +635,12 @@ fn three_clients_compose_into_one_scanout_and_the_host_sees_it() {
     let [tag, geometry, ..] = sched::ipc_recv(driver_report);
     assert_eq!(
         tag,
-        gfx_proto::status::UP,
+        graphics_proto::status::UP,
         "the display driver did not come up (it reported {tag:#x})",
     );
     assert_eq!(
         geometry,
-        gfx_proto::WIDTH as u64 | ((gfx_proto::HEIGHT as u64) << 32),
+        graphics_proto::WIDTH as u64 | ((graphics_proto::HEIGHT as u64) << 32),
     );
 
     let w = compositor_service::start(3, 0, display, screen);
@@ -652,10 +652,10 @@ fn three_clients_compose_into_one_scanout_and_the_host_sees_it() {
     let [tag, driver_digest, pixels, ..] = sched::ipc_recv(driver_report);
     assert_eq!(
         tag,
-        gfx_proto::status::FLUSHED,
+        graphics_proto::status::FLUSHED,
         "the driver served no flush"
     );
-    assert_eq!(pixels, gfx_proto::PIXELS as u64);
+    assert_eq!(pixels, graphics_proto::PIXELS as u64);
     assert_eq!(
         driver_digest,
         compositor::expected_screen_checksum(0),

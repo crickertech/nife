@@ -5,7 +5,7 @@ read. Rung one put pixels on a screen ([framebuffer-contract.md](framebuffer-con
 two multiplexed the screen among mutually distrusting clients ([compositor.md](compositor.md)).
 Neither could show a letter.
 
-The code halves are `crates/bitfont` (the font), `crates/video_terminal` (the grid engine, the keymap, and the
+The code halves are `crates/bitmap_font` (the font), `crates/video_terminal` (the grid engine, the keymap, and the
 test script), `user/src/display_terminal.rs` (the terminal component), and `user/src/kbd.rs` (the keyboard
 driver). This is the prose half.
 
@@ -25,10 +25,10 @@ Everything above the surface is text; everything below it is rung one's contract
 
 ## The font: ours, drawn in the Kaypro II's style
 
-`crates/bitfont` is a 7x8 monochrome bitmap font and a pure function from `(byte, x, y)` to a
+`crates/bitmap_font` is a 7x8 monochrome bitmap font and a pure function from `(byte, x, y)` to a
 colour.
 
-**It is an original drawing**, made for this tree in `crates/bitfont/kaypro-style-7x8.art`. Nobody
+**It is an original drawing**, made for this tree in `crates/bitmap_font/kaypro-style-7x8.art`. Nobody
 holds a licence over it and no obligation travels with it. It replaced `font8x8` (public domain, by
 Daniel Hepper, from Marcel Sondaar's `font8x8.h`, from IBM's public-domain VGA fonts) on 2026-08-20,
 after a poll calef ran was won by the Kaypro II's character generator.
@@ -45,7 +45,7 @@ repository, was not traced, and is not needed**: it was used the way a person us
 which is by looking at the shapes and drawing your own.
 
 A reader who wants to check that claim can: the `.art` file is the drawing, every glyph is a picture
-of `#` and `.`, and `crates/bitfont/src/glyphs.rs` is that file transcribed with a test
+of `#` and `.`, and `crates/bitmap_font/src/glyphs.rs` is that file transcribed with a test
 (`the_art_file_and_this_table_agree`) that parses it back and fails if the two ever drift.
 
 **Why the licence question is worth this much care**: a bitmap font is compiled into the kernel
@@ -127,11 +127,11 @@ host-side scanout check agree about a letter. Spend the same property on the cho
 font stops being an argument:
 
 ```text
-cargo run -p bitfont --example specimen                          # what ships
-cargo run -p bitfont --example specimen -- --dots                 # one character per pixel
-cargo run -p bitfont --example specimen -- --font ter-u16n.bdf --name terminus-16
-cargo run -p bitfont --example specimen -- --font bench/font-options/hand-drawn-8x8.art
-cargo run -p bitfont --example specimen -- --font crates/bitfont/kaypro-style-7x8.art
+cargo run -p bitmap_font --example specimen                          # what ships
+cargo run -p bitmap_font --example specimen -- --dots                 # one character per pixel
+cargo run -p bitmap_font --example specimen -- --font ter-u16n.bdf --name terminus-16
+cargo run -p bitmap_font --example specimen -- --font bench/font-options/hand-drawn-8x8.art
+cargo run -p bitmap_font --example specimen -- --font crates/bitmap_font/kaypro-style-7x8.art
 ```
 
 It reads the three formats a bitmap font actually arrives in: `.hex` (GNU Unifont), `.bdf` (Adobe,
@@ -182,7 +182,7 @@ are "0. You just DO WHAT THE FUCK YOU WANT TO."
   not to the source tree. The font's source and its `LICENSE` in `vendor/`, registered in
   `vendor/README.md` the way the RedoxFS pin is. The identifier in `deny.toml`'s shared licence
   policy, with the honest caveat that `script/supply-chain` checks the **cargo graph**, so a font
-  transcribed into `crates/bitfont/src/glyphs.rs` is on the register rather than on the gate. And a
+  transcribed into `crates/bitmap_font/src/glyphs.rs` is on the register rather than on the gate. And a
   page in milestone 40's documentation store, so a machine running nife carries the text it owes.
 
 **What is still excluded.** The Linux console's `lib/fonts/font_8x16.c` is the familiar IBM VGA
@@ -229,7 +229,7 @@ to be free to move.** The scanout is 128x64, so an
 Four rows of text is not a terminal. Two candidates dodge that entirely by being narrower rather
 than shorter: Terminus 6x12 gives 21x5, and Spleen 5x8 gives **25x8**, which is more columns than
 today at the same number of rows. A narrower cell costs nothing but `GLYPH_W`, which is a constant
-in `crates/bitfont` that three parties read.
+in `crates/bitmap_font` that three parties read.
 
 **Growing the scanout is blocked, and it is blocked on the capability model rather than on memory**
 (measured 2026-08-19, when a lane tried to build the chosen font onto a terminal-sized surface). A
@@ -312,7 +312,7 @@ file you fetch yourself. That is MAME's own posture, which is to ship the hash a
 ```text
 curl -O https://raw.githubusercontent.com/ivanizag/kaypro-disassembly/master/chars/81-146a.bin
 shasum -a 1 81-146a.bin   # 5cb880083b94bd8220aac1f87d537db7cfeb9013
-cargo run -p bitfont --example specimen -- --metrics \
+cargo run -p bitmap_font --example specimen -- --metrics \
     --font 81-146a.bin --name kaypro-ii --font gohufont-14.bdf --name gohufont-14
 ```
 
@@ -534,7 +534,7 @@ This is the part that took the most care, because text is where "it looked right
 and least sufficient.
 
 **The picture is a value three parties compute without talking to each other.** The script is
-`video_terminal::script`, a constant in the contract crate, the same move `gfx_proto::pixel` and `compositor::SCENE`
+`video_terminal::script`, a constant in the contract crate, the same move `graphics_proto::pixel` and `compositor::SCENE`
 make:
 
 1. **The terminal** runs the engine over the bytes it was sent and paints what it says;
@@ -604,7 +604,7 @@ Stated plainly, because a demonstrator's caveats are part of the deliverable.
   model. Recorded, not half-built.
 - **No UTF-8.** The grid holds bytes and the font covers basic latin, so a decoder above it would
   have nothing to draw for most of what it decoded. When there is a font with the coverage to justify
-  one, the decoder goes in the VT engine and `bitfont::glyph`'s signature becomes `char`.
+  one, the decoder goes in the VT engine and `bitmap_font::glyph`'s signature becomes `char`.
 - **No line editing in the display terminal.** It renders a stream and echoes keystrokes; it does not
   serve `OP_READLINE`. A client that wants edited lines puts `line_editor` in front of it and prints the
   discipline's echo through `OP_WRITE`, which needs no new protocol at all, because `line_editor`'s echo
@@ -648,7 +648,7 @@ Stated plainly, because a demonstrator's caveats are part of the deliverable.
   Spleen 5x8 and Terminus 6x12 are narrower than eight pixels, and drawing them on an eight-pixel
   pitch makes them look loose in a way that is the tool's fault rather than the font's. The tool
   takes the advance from the font's own bounding box. What it does **not** do is prove that
-  `crates/bitfont` would work at that width: `GLYPH_W` is a constant three parties read, and moving
+  `crates/bitmap_font` would work at that width: `GLYPH_W` is a constant three parties read, and moving
   it is a change to the crate rather than to a table.
 - **The 8x16 authoring option is priced but not drawn.** There is a hand-drawn 8x8 to look at and no
   hand-drawn 8x16, so the "author our own at twice the height" row in the survey is an estimate
@@ -701,8 +701,8 @@ property this increment was asked to keep and did.
 
 | piece | file |
 |---|---|
-| the font as pictures, which is what to edit | `crates/bitfont/kaypro-style-7x8.art` |
-| the font and its provenance | `crates/bitfont/src/lib.rs`, `crates/bitfont/src/glyphs.rs` |
+| the font as pictures, which is what to edit | `crates/bitmap_font/kaypro-style-7x8.art` |
+| the font and its provenance | `crates/bitmap_font/src/lib.rs`, `crates/bitmap_font/src/glyphs.rs` |
 | the VT engine | `crates/video_terminal/src/lib.rs` |
 | the keymap | `crates/video_terminal/src/keymap.rs` |
 | the test script, shared by three witnesses | `crates/video_terminal/src/script.rs` |

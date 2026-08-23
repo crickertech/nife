@@ -51,7 +51,7 @@ the counts here are measurements of two different moments, and both are labelled
 crate           caught  missed  timeout  unviable   total   killed%
 abi                 27       1        0         1      29    96.4
 asid                21       2        0         2      25    91.3
-bitfont             11       0        0         2      13   100.0
+bitmap_font             11       0        0         2      13   100.0
 block_roster        53       1        0         4      58    98.1
 c_seam              21       1        0         3      25    95.5
 calendar           369       7        3        16     395    98.2
@@ -68,7 +68,7 @@ elf                 98       0        0         4     102   100.0
 entropy_proto       21       2        0         0      23    91.3
 frames              93       3        1        12     109    96.9
 fs_proto           489      37        9        31     566    93.1
-gfx_proto          120       6        0         6     132    95.2
+graphics_proto          120       6        0         6     132    95.2
 glob               110      14        6         5     135    89.2
 gpt                423       5        1        36     465    98.8
 grant_plan         367      26       20        76     489    93.7
@@ -94,7 +94,7 @@ TOTAL             4654     391       96       410    5551    92.4
 one is a detected hang (below). It is over viable mutants, so `unviable` is excluded from the
 denominator: an unviable mutant does not compile, which says nothing about the tests.
 
-**Five crates scored 100%**: `nifefs`, `dma_validator`, `elf`, `regions` and `bitfont`. The first
+**Five crates scored 100%**: `nifefs`, `dma_validator`, `elf`, `regions` and `bitmap_font`. The first
 two are the trust-boundary parsers, and they got there the hard way, by having every one of their
 24 first-pass survivors turn out to be a real gap that a test then closed. That is the number to
 compare a crate against next week.
@@ -270,7 +270,7 @@ input that also trips check A.
   constant 1 passed every round trip). Equivalent: `|` vs `^` over disjoint masked operands, and
   `want`'s `>` at `n == MAX_BYTES`, where both branches return the same 8.
 
-- **gfx_proto** (22): the test pattern's channel math had no pinned pixel, so a wrong buffer
+- **graphics_proto** (22): the test pattern's channel math had no pinned pixel, so a wrong buffer
   could only be wrong the same way on both sides; five hand-computed pixels, a one-bit-change
   digest test (an FNV whose xor became or collides exactly where it matters), and the errno's
   minus sign. Equivalent (7): OR-vs-XOR in `req` and the `rect` packing, where every field is
@@ -546,7 +546,7 @@ loop rather than an undetected bug.
 | clock_proto | 9 | 0 | 2 | 7 | 0 |
 | user_heap | 8 | 3 | 0 | 5 | 0 |
 | gpt | 6 | 1 | 4 | 1 | 0 |
-| gfx_proto | 6 | 0 | 6 | 0 | 0 |
+| graphics_proto | 6 | 0 | 6 | 0 | 0 |
 | slots | 5 | 4 | 1 | 0 | 0 |
 | ipc | 5 | 4 | 1 | 0 | 0 |
 | frames | 4 | 1 | 2 | 1 | 0 |

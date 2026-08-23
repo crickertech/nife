@@ -114,7 +114,7 @@
 //!
 //! Name: unrecorded. Provisional, minted 2026-08-23 by this lane and not yet put to calef. Chosen
 //! for consistency with the tree's own `*_proto` convention for a wire-contract crate a service
-//! and its readers share (`clock_proto`, `fs_proto`, `gfx_proto`, `entropy_proto`): this crate is
+//! and its readers share (`clock_proto`, `fs_proto`, `graphics_proto`, `entropy_proto`): this crate is
 //! exactly that shape, one page's layout and the validated domains a value must belong to before
 //! it goes on it, shared by whoever assembles a page and whoever reads one. `env` is the stem
 //! Unix's own vocabulary already uses for this concept (`/usr/bin/env`, `environ`), and no other

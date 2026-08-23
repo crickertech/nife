@@ -67,7 +67,7 @@
 #![no_main]
 
 use compositor::proto::ctl;
-use gfx_proto as gfx;
+use graphics_proto as gfx;
 use line_editor::proto;
 use user_rt::{call, invoke, recv_cap, send};
 use video_terminal::status::{MODE_DISPLAY, MODE_WINDOW};
@@ -348,10 +348,10 @@ pub extern "C" fn _start(mode: u64, _arg1: u64, _arg2: u64) -> ! {
     // case now has a two-pixel strip on the right that no cell covers. `present` paints it once
     // with the background the engine says is there, which is why a partial cell is a defined
     // picture rather than a strip of whatever the frames held at boot.
-    if w < bitfont::GLYPH_W || h < bitfont::GLYPH_H {
+    if w < bitmap_font::GLYPH_W || h < bitmap_font::GLYPH_H {
         die(E_GEOMETRY);
     }
-    let (cols, rows) = (w / bitfont::GLYPH_W, h / bitfont::GLYPH_H);
+    let (cols, rows) = (w / bitmap_font::GLYPH_W, h / bitmap_font::GLYPH_H);
     if cols as usize > video_terminal::MAX_COLS || rows as usize > video_terminal::MAX_ROWS {
         die(E_GEOMETRY);
     }

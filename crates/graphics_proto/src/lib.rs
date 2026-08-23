@@ -41,7 +41,7 @@
 //! checksum over a fill, or a "is it all blue?" check, cannot see at all:
 //!
 //! ```
-//! use gfx_proto::{PIXELS, checksum, expected_checksum, first_mismatch, pixel_at};
+//! use graphics_proto::{PIXELS, checksum, expected_checksum, first_mismatch, pixel_at};
 //!
 //! // A client that painted the surface correctly.
 //! let good: [u32; PIXELS] = core::array::from_fn(pixel_at);
@@ -62,7 +62,7 @@
 //! absorb a client's coordinate bug.
 //!
 //! ```
-//! use gfx_proto::{HEIGHT, WIDTH, rect, rect_in_surface, unrect};
+//! use graphics_proto::{HEIGHT, WIDTH, rect, rect_in_surface, unrect};
 //!
 //! let w = rect(4, 8, 16, 32);
 //! assert_eq!(unrect(w), (4, 8, 16, 32));
@@ -78,15 +78,13 @@
 //! they got there; the terminal on top is a later increment and slots in as another client of this
 //! same contract (see notes/framebuffer-contract.md, "The seams left open").
 //!
-//! Name: unrecorded, and it is one of two `*_proto` crates that are. The suffix is settled and
-//! checked (milestone 46, 2026-07-30), so its seven siblings are `recorded`: the rule plus the
-//! service the stem names produces the whole name. It does not here. `gfx` is an **abbreviation**,
-//! which is the first of the three failure modes the naming tenet lists for crate names, and the
-//! rule that picks `<graphics>_proto` does not pick which word goes in front of the underscore.
-//! Nothing weighs `gfx` against `graphics`, and the sibling case is instructive: milestone 63
-//! expanded `credcli` and spelled the service `credentialer` in full while leaving `cred`. So the
-//! research is still owed here, not just the ruling. Introduced 2026-07-29 with virtio-gpu
-//! enumeration.
+//! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review). Renamed from
+//! `gfx_proto`: spell out the `gfx` abbreviation fully, matching the pattern from
+//! `cred_proto` -> `credential_proto` and `env_proto` -> `environment_proto` in a parallel lane.
+//! `gfx_proto` was one of two `*_proto` crates whose name was unrecorded (introduced 2026-07-29
+//! with virtio-gpu enumeration); `gfx` was an abbreviation, which is the first of the three
+//! failure modes the naming tenet lists for crate names, and `graphics` is the word its seven
+//! siblings' rule was already missing a decision on.
 
 #![no_std]
 

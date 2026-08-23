@@ -24,10 +24,10 @@ asid = { version = "0.1.0", path = "../crates/asid" }
 # anything; it *predicts*. Its display-terminal tests run the same engine over the same script the
 # terminal was sent and compare the framebuffer pixel for pixel, so no process grades its own
 # homework and the picture is a value rather than a screenshot somebody eyeballed once.
-bitfont = { version = "0.1.0", path = "../crates/bitfont" }
+bitmap_font = { version = "0.1.0", path = "../crates/bitmap_font" }
 # The calendar (milestone 51). The kernel does no date arithmetic of its own; its `date` tests
 # *parse back* what the command printed and compare the instant it names against the wall clock the
-# kernel computes straight from the clock page. Same discipline as bitfont/vt above: the test
+# kernel computes straight from the clock page. Same discipline as bitmap_font/vt above: the test
 # predicts from the shared definition rather than keeping a second copy of it.
 calendar = { version = "0.1.0", path = "../crates/calendar" }
 # The corruption canary's arm/check/disarm serialization (2026-08-15), lifted out of `sched.rs`
@@ -38,7 +38,7 @@ capability = { version = "0.1.0", path = "../crates/capability" }
 # The shell's grant-expression logic (milestone 47's `rm -r`). The kernel plans nothing; its `rm`
 # test **starts the program the way the shell would**, so the option bits it packs come from the
 # manifest the prompt checks against rather than from a second copy of an ordering. Same rule as
-# `line_editor`, `bitfont` and `calendar` below: no party has its own copy of a shared definition.
+# `line_editor`, `bitmap_font` and `calendar` below: no party has its own copy of a shared definition.
 grant_plan = { version = "0.1.0", path = "../crates/grant_plan" }
 # The wall-clock contract (milestone 51, DECISIONS §43). The kernel discovers the RTC by
 # `compatible` and names the binding with these constants, and its clock tests read the shared page
@@ -72,7 +72,7 @@ coremark = { version = "0.1.0", path = "../crates/coremark" }
 nifefs = { version = "0.1.0", path = "../crates/nifefs" }
 dma_validator = { version = "0.1.0", path = "../crates/dma_validator" }
 fs_proto = { version = "0.1.0", path = "../crates/fs_proto" }
-gfx_proto = { version = "0.1.0", path = "../crates/gfx_proto" }
+graphics_proto = { version = "0.1.0", path = "../crates/graphics_proto" }
 # The entropy contract (milestone 56, DECISIONS §44). The kernel wires the entropy service and its
 # tests are its clients, speaking the same request/reply the std PAL does, so no party has its own
 # copy of the wire format.

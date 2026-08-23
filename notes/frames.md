@@ -422,7 +422,7 @@ and the difference is accounted rather than shrugged at:
   second L3, still inside the eight-page budget.
 
   **One more arithmetic trap in the chosen size.** 800 x 600 x 4 is 1,920,000 bytes, which is
-  **468.75 pages**, so the surface does not fill whole frames and `gfx_proto`'s build-time assertion
+  **468.75 pages**, so the surface does not fill whole frames and `graphics_proto`'s build-time assertion
   that it must (`SURFACE_BYTES.is_multiple_of(4096)`) fails. With an 800-pixel width the height must
   be a multiple of 32 for the surface to be a whole number of frames; 608 is the nearest, giving 475
   frames exactly and a 100x43 grid. The alternative is to grant `div_ceil` frames and let the last

@@ -154,12 +154,12 @@ is a known gap rather than a decision.
 - **Kernel logic**, host-tested and Kani-reachable: `capability`, `paging`, `frames`, `regions`,
   `slots`, `asid`, `intrusive`, `ipc`, `dma_validator`, `measured_boot`, `user_heap`.
 - **Wire contracts**, spelled `*_proto` and checked for it by `script/lint`: `fs_proto`,
-  `socket_proto`, `sink_proto`, `cred_proto`, `clock_proto`, `entropy_proto`, `gfx_proto`,
+  `socket_proto`, `sink_proto`, `cred_proto`, `clock_proto`, `entropy_proto`, `graphics_proto`,
   `ntp_proto`, `supervision_proto`, `swap_proto`. Plus `abi`, which is the syscall boundary and
   predates the suffix.
 - **Format and hardware parsers**: `elf`, `dtb`, `pci`, `gpt`, `nifefs`.
 - **Userspace libraries**: `user_rt`, `grant_plan`, `virtio`, `video_terminal`, `line_editor`,
-  `bitfont`, `glob`, `calendar`, `cred`, `compositor`, `coremark`, `c_seam`.
+  `bitmap_font`, `glob`, `calendar`, `cred`, `compositor`, `coremark`, `c_seam`.
 
 **`compositor` and `line_editor` are the two that look like contracts and are not**, and an earlier
 version of this section listed them as such. Both are *logic* crates that happen to contain a
@@ -173,8 +173,8 @@ What the names actually do, over the 39 directories under `crates/`:
 - **One word where one word will do**, which is 21 of the 39: `abi`, `capability`, `compositor`,
   `elf`, `frames`, `ipc`, `paging`, `regions`, `slots`, `virtio`.
 - **Underscore when the two halves are separate concepts** and the name reads as a qualifier applied
-  to a thing, which is the other 18: `fs_proto` is the proto *for* fs, `gfx_proto` the proto *for*
-  gfx, `dma_validator` the validation *of* DMA, `user_rt` the runtime *for* userspace, `user_heap`
+  to a thing, which is the other 18: `fs_proto` is the proto *for* fs, `graphics_proto` the proto *for*
+  graphics, `dma_validator` the validation *of* DMA, `user_rt` the runtime *for* userspace, `user_heap`
   the heap *for* userspace, `measured_boot` the measurement *of* boot.
 
 **Milestone 63 deleted the third bullet, which used to read "run together when the result is one
@@ -182,13 +182,15 @@ word".** It was a real observation (`capsh`, `lineedit`, `uheap`, `crickerfs`, `
 the rule that produced every abbreviation a reader had to decode. **Two of the five survive it, not
 one**, and this sentence said otherwise until milestone 115 checked the history: `crickerfs` (now `nifefs`, milestone 120) stayed
 with a reason, because `procfs` is the shape of a filesystem name outside this project and nobody
-writes `proc_fs`, and **`bitfont` stayed with none**, having never been renamed at all. Three moved,
+writes `proc_fs`, and **`bitfont` stayed with none**, having never been renamed at all, until the
+kernel-dependency crate naming review ratified it as `bitmap_font` on 2026-08-23. Three moved,
 to `grant_plan`, `line_editor` and `user_heap`. The boundary that
 remains, between one word and two, is judgement, and the guard rail is that a **standard term keeps
 its standard spelling** (see above).
 
 The one place it became a real inconsistency is worth fixing and is checked: **the wire contract was
-spelled four ways** (`fs_proto`, `gfx_proto`, `netproto`, `line_editor::proto`) for one concept.
+spelled four ways** (`fs_proto`, `gfx_proto`, `netproto`, `line_editor::proto`) for one concept,
+`gfx_proto` at the time; it is `graphics_proto` since the same 2026-08-23 review.
 `*_proto` wins for crates, because it is what the actual crates already were, and `socket_proto` has
 since graduated from a module inside `net_stack` into a crate under that name.
 
@@ -347,12 +349,14 @@ outliers are `intrusive` (its own header grounds the term in Linux's `list_head`
 queues), `script/fmt` (the name was itself the fix, and the header cites §39 for it), and
 `script/supply-chain` (the naming tenet cites this name and says not to respell it).
 
-**Two `*_proto` crates are not recorded, and the split is the criterion working.** `gfx_proto` and
-`cred_proto` have abbreviated stems, which is the first of the three failure modes the tenet lists
+**Two `*_proto` crates were not recorded, and the split was the criterion working.** `gfx_proto` and
+`cred_proto` had abbreviated stems, which is the first of the three failure modes the tenet lists
 for crate names, and the rule that yields `<service>_proto` does not pick which word goes in front
-of the underscore. `cred` is the sharper case: milestone 63 expanded `credcli` and argued
-`credentialer` in full, then left two crates spelled `cred` without saying why. `user_rt` fails the
-same way twice over, since the only thing establishing `user_` as a prefix is `user_rt` itself.
+of the underscore. `gfx_proto` was ratified 2026-08-23 (a kernel-dependency crate naming review) as
+`graphics_proto`, spelling the abbreviation out in full. `cred` is the sharper case: milestone 63
+expanded `credcli` and argued `credentialer` in full, then left two crates spelled `cred` without
+saying why. `user_rt` fails the same way twice over, since the only thing establishing `user_` as a
+prefix is `user_rt` itself.
 
 ### EXAMPLES
 
@@ -419,9 +423,11 @@ about one entry is that it is read in the wrong minute.
 Then one name at a time, with what the history does and does not say about it:
 
 ```
-$ script/names bitfont
-crate bitfont  (crates/bitfont/src/lib.rs)
-  unrecorded. One of the five run-together names milestone 63 reviewed on 2026-08-01 ...
+$ script/names bitmap_font
+crate bitmap_font  (crates/bitmap_font/src/lib.rs)
+  ratified 2026-08-23 (calef, a kernel-dependency crate naming review). Renamed from `bitfont`:
+  spell out the contraction fully, consistent with this session's other renames, even though
+  `bitfont` was already transparent.
 ```
 
 The narrower slice, for the names where the research is still owed:

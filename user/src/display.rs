@@ -23,7 +23,7 @@
 //! # The thing that draws is not the thing that talks to the hardware
 //!
 //! This process never draws a pixel. It owns the device and the transport, and it serves a
-//! contract ([`gfx_proto`], notes/framebuffer-contract.md) to a client that owns the pixels and no
+//! contract ([`graphics_proto`], notes/framebuffer-contract.md) to a client that owns the pixels and no
 //! device at all. That split is the whole point of the increment: rung two's compositor takes the
 //! client's place unchanged, and the security story is that a hostile client can draw nonsense and
 //! nothing more.
@@ -53,7 +53,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use gfx_proto as gfx;
+use graphics_proto as gfx;
 use user_rt::{exit, invoke, recv_cap, send};
 
 /// Capability slots, by convention with `kernel/src/user/display_service.rs`.
