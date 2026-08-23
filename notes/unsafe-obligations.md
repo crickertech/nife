@@ -462,7 +462,7 @@ is written at a threshold the tree crossed **the day before this was written** r
 slack: every sample before 2026-08-18 would have failed it, 2026-08-16 included at 111.7. That is
 what makes it a ratchet instead of decoration.
 
-**At most 18 `unsafe impl Send`/`Sync` claims** <!--count-at-most:unsafe-thread-safety-claims-->,
+**At most 20 `unsafe impl Send`/`Sync` claims** <!--count-at-most:unsafe-thread-safety-claims-->,
 and this one has no headroom at all. Each is a hand-written assertion that the compiler is wrong
 about a type, which is the most consequential unsafe in the tree: a wrong one is a data race that
 no test reliably reproduces. The population moved twice in three weeks, so a zero-slack ceiling
@@ -474,6 +474,17 @@ Raised from 17 to 18 by milestone 134's Tier A lane (2026-08-22): `kernel/src/be
 corruption-canary idiom, one `unsafe impl<T> Sync for Racy<T> {}` guarded by the same argument
 that one already carries, a scratch buffer one thread at a time touches, serialized by the caller
 rather than by a lock. Same shape, same reasoning, a different file.
+
+Raised from 18 to 20 by milestone 47's environment-variable fork (2026-08-23, DECISIONS §111):
+`crates/env_proto::ConfigPage`'s `unsafe impl Send`/`Sync`, the exact pair `clock_proto::ClockPage`
+already carries and for the same argument, restated for a type with a plainer contract. The config
+page is shared across address spaces by construction (that is the whole point of a page-shaped
+endowment), and every access goes through the same immutable byte reads regardless of which
+process is doing the reading, so there is no non-atomic mutable aliasing for either trait to
+protect against. `ClockPage` needs the same two impls despite carrying a seqlock precisely because
+its *writer* uses atomics too; `ConfigPage` needs them for the simpler reason that it has no writer
+at all once it is mapped (see `env_proto`'s own docs on why it needs no seqlock), which makes the
+claim, if anything, easier to justify than its precedent's.
 
 **No target for `kernel/src/arch/`**, which is 139 blocks and rising. Driving that number down means
 either writing assembly wrong or moving it out of `arch/`, and DECISIONS rule 1 says arch code
