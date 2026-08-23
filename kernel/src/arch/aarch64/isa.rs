@@ -5,7 +5,7 @@
 //! in this path, no firmware to believe, and nothing to parse. `MIDR_EL1` names the part and the
 //! `ID_AA64*` space describes what it can do, architected and mandatory and readable at EL1.
 //!
-//! The decoding is in [`isa::aarch64`], host-tested against words real parts report. What can only
+//! The decoding is in [`machine_discovery::aarch64`], host-tested against words real parts report. What can only
 //! happen on the machine is here: the reads, the record, and the refusal.
 //!
 //! # One of these was already being read, and that is the point
@@ -18,7 +18,7 @@
 use core::sync::atomic::{AtomicU8, AtomicU32, Ordering};
 
 use aarch64_cpu::registers::{ID_AA64MMFR0_EL1, ID_AA64MMFR2_EL1, MIDR_EL1};
-use isa::aarch64::{Conduit, Isa, Psci};
+use machine_discovery::aarch64::{Conduit, Isa, Psci};
 use tock_registers::interfaces::Readable;
 
 use crate::sync::{IrqSafeMutex, rank};
@@ -192,7 +192,7 @@ pub fn print_summary() {
 mod tests {
     //! What the part said, checked on the part.
     //!
-    //! The decoding is proved on the host (`crates/isa/tests`). These are the assertions that need
+    //! The decoding is proved on the host (`crates/machine_discovery/tests`). These are the assertions that need
     //! a real boot: that the record was populated, and that what the CPU says about itself agrees
     //! with what the kernel independently configured on the strength of it.
 
@@ -227,7 +227,7 @@ mod tests {
 
         assert_eq!(conduit, Conduit::Hvc, "the method /psci states on virt");
         assert_eq!(cpu_on, 0xC400_0003, "the id smp.rs used to hold as a const");
-        assert_eq!(cpu_on, isa::aarch64::PSCI_CPU_ON_64);
+        assert_eq!(cpu_on, machine_discovery::aarch64::PSCI_CPU_ON_64);
     }
 
     /// **The ASID width the part reports is enough for the allocator built on it.**

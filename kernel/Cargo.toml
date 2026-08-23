@@ -90,7 +90,7 @@ ipc = { version = "0.1.0", path = "../crates/ipc" }
 # decoding of what it finds lives in the crate, host-tested against a real device tree and against
 # words a real part reports, because a parser proved only inside a booting kernel is a parser proved
 # by nothing that runs in milliseconds.
-isa = { version = "0.1.0", path = "../crates/isa" }
+machine_discovery = { version = "0.1.0", path = "../crates/machine_discovery" }
 # The terminal contract's IPC framing (DECISIONS §21): the kernel's display-terminal tests play both
 # an application (OP_WRITE) and an input driver (OP_BYTES), so they speak the same protocol the
 # serial terminal's clients and drivers do rather than a second one invented for a test.

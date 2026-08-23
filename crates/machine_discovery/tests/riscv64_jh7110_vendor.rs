@@ -12,9 +12,9 @@
 //! speak for the machine) through different lies: mainline's S7 is excluded by `status`, the
 //! vendor's by its ISA string. A regression in either gate fails exactly one file.
 
-use isa::cpu_list::CpuList;
-use isa::plic::PlicContexts;
-use isa::riscv64::*;
+use machine_discovery::cpu_list::CpuList;
+use machine_discovery::plic::PlicContexts;
+use machine_discovery::riscv64::*;
 
 const VENDOR: &[u8] = include_bytes!("fixtures/jh7110-vendor.dtb");
 

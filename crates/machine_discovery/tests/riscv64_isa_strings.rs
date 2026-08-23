@@ -4,7 +4,7 @@
 //! small grammar with one genuine trap in it, and the trap is on the board this milestone exists
 //! for: `rv64gc` and `rv64imafdc_zicsr_zifencei` name the same machine.
 
-use isa::riscv64::*;
+use machine_discovery::riscv64::*;
 
 #[test]
 fn extension_lists_are_nul_separated() {

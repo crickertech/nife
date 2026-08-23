@@ -124,13 +124,14 @@ pub fn init(dtb_ptr: usize) {
     }
 
     // The console UART's interrupt line, decoded per the tree's own `#interrupt-cells` rather
-    // than assumed (crates/isa/src/interrupt_id.rs). It was a constant, and the constant was the
+    // than assumed (crates/machine_discovery/src/interrupt_id.rs). It was a constant, and the constant was the
     // last QEMU number on the interrupt path: the tour's driver demo armed PLIC source 10 on the
     // JH7110, whose UART0 interrupts on line 32, and boot 13 (2026-08-15) proved it on silicon
     // when a key press at the finished tour's prompt reached nothing (notes/visionfive2.md,
     // BUGS). A tree that does not say leaves this None, and the callers fall back to the QEMU
     // `virt` constant and print which source won.
-    if let Ok(Some(irq)) = isa::interrupt_id::of_node(&dtb, crate::console::UART_NODE) {
+    if let Ok(Some(irq)) = machine_discovery::interrupt_id::of_node(&dtb, crate::console::UART_NODE)
+    {
         *UART_IRQ.lock() = Some(irq);
     }
 
@@ -421,7 +422,7 @@ pub fn rtc_region() -> Option<(u64, u64, u64)> {
 /// The console UART's interrupt line, as the device tree states it: PLIC source 10 on QEMU's
 /// riscv64 `virt`, 32 on the JH7110, GIC INTID 33 on QEMU's aarch64 `virt`. `None` before `init`
 /// and on a tree that does not say (no `interrupts`, no resolvable parent, or an entry shape the
-/// decoder refuses; see `isa::interrupt_id`). The callers own the fallback (`user::UART_RX_INTID`,
+/// decoder refuses; see `machine_discovery::interrupt_id`). The callers own the fallback (`user::UART_RX_INTID`,
 /// the QEMU constant) and print which source won, so a bench transcript is diagnosable.
 pub fn uart_irq() -> Option<u32> {
     *UART_IRQ.lock()

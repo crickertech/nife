@@ -26,7 +26,7 @@ const UART_PHYS: u64 = 0x1000_0000; // NS16550
 /// The console UART's node name in the device tree, pinned beside `UART_PHYS` and carrying its
 /// address in the unit suffix. Same hardcode-with-a-witness stance as the address itself: on
 /// riscv, both QEMU `virt` and the JH7110 spell UART0 exactly this way, and the fixture test
-/// (`crates/isa/tests/riscv64_jh7110.rs`) is the witness; on aarch64 it is QEMU `virt`'s PL011
+/// (`crates/machine_discovery/tests/riscv64_jh7110.rs`) is the witness; on aarch64 it is QEMU `virt`'s PL011
 /// node, witnessed by `crates/dtb/tests/qemu_aarch64_virt.rs`. Two readers: this file's
 /// `configure_from_dtb` (riscv, the register shape) and `memory::init` (both, the interrupt
 /// line), which is why it is `pub(crate)` rather than local to either.

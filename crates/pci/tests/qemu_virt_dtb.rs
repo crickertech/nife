@@ -46,7 +46,7 @@ fn discovery_finds_the_riscv_windows_the_constants_named() {
     );
 }
 
-const JH7110: &[u8] = include_bytes!("../../isa/tests/fixtures/jh7110.dtb");
+const JH7110: &[u8] = include_bytes!("../../machine_discovery/tests/fixtures/jh7110.dtb");
 
 /// **The JH7110 describes no generic-ECAM bridge, and discovery must say so.** Its PCIe
 /// controller is a PLDA core (`starfive,jh7110-pcie`), a different device this kernel does not

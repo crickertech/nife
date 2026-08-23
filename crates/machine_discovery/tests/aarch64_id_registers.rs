@@ -5,7 +5,7 @@
 //! them rather than copied from a manual. That is the same discipline the device-tree fixtures
 //! follow, one layer down.
 
-use isa::aarch64::*;
+use machine_discovery::aarch64::*;
 
 /// `MIDR_EL1`, `ID_AA64MMFR0_EL1` and `ID_AA64MMFR2_EL1` as QEMU's `cortex-a72` reports them at
 /// EL1. This is the CPU model the aarch64 suite runs on, so a change to how these decode is a

@@ -353,13 +353,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "isa"
-version = "0.1.0"
-dependencies = [
- "dtb",
-]
-
-[[package]]
 name = "kernel"
 version = "0.1.0"
 dependencies = [
@@ -387,9 +380,9 @@ dependencies = [
  "grant_plan",
  "intrusive",
  "ipc",
- "isa",
  "line_editor",
  "login_proto",
+ "machine_discovery",
  "measured_boot",
  "nifefs",
  "ntp_proto",
@@ -450,6 +443,13 @@ dependencies = [
  "scoped-tls",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "machine_discovery"
+version = "0.1.0"
+dependencies = [
+ "dtb",
 ]
 
 [[package]]

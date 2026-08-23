@@ -21,7 +21,7 @@
 
 use core::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 
-use isa::cpu_list::CpuList;
+use machine_discovery::cpu_list::CpuList;
 
 use crate::cpu::{self, MAX_CPUS};
 use crate::{arch, print, println};
@@ -217,7 +217,7 @@ pub fn read_cpu_list(dtb_ptr: usize) {
     // hart 4 fell off the end, parked with nothing to report (bench, 2026-08-14). Seated by id,
     // the S7 occupies only slot 0, its own, and hart 4 sits at slot 4.
     //
-    // The startability predicate is `isa::cpu_list::Cpu::startable`, host-tested against both
+    // The startability predicate is `machine_discovery::cpu_list::Cpu::startable`, host-tested against both
     // JH7110 fixtures (the mainline tree's `status` lie and the vendor tree's ISA-string truth);
     // see it for why `Unstated` passes and why supervisor mode is required.
     let mut startable = 0;
@@ -337,7 +337,7 @@ unsafe extern "C" {
 ///   [`nth_online`] (or mask with [`online_harts_mask`], as the RISC-V RFENCE calls do), so a
 ///   machine whose online set is {1,2,3,4}, the VisionFive 2 with all four U74s seated, is
 ///   handled (notes/visionfive2.md).
-/// - **The conduit half is proved by parsing and not by calling.** `crates/isa`'s host tests read a
+/// - **The conduit half is proved by parsing and not by calling.** `crates/machine_discovery`'s host tests read a
 ///   real QEMU dump that states `smc`, so the decode is exercised; no machine here boots that
 ///   configuration, so the `smc` instruction path has never executed. See `arch::psci_cpu_on`.
 pub fn bring_up_secondaries() {
