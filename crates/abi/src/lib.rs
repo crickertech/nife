@@ -357,7 +357,8 @@ pub mod tcb {
 
 /// Methods on an `Aspace` capability (milestone 19b): **another process's memory, under
 /// construction.** Created by [`untyped::RETYPE_OBJ`] with [`objtype::ASPACE`]; nothing can run
-/// in it until TCBs arrive (19c), so today it is a structure you build and revocation can reach.
+/// in it until TCBs arrive (19c), so today it is a structure you build, revocation can reach, and
+/// (milestone 126, `pmap`) `ENUMERATE` can look at without touching.
 pub mod aspace {
     /// `invoke(cap, MAP_INTO, va, frame_slot, writable)` -> 0. Map the frame in `frame_slot`
     /// into THIS address space at `va`, read-only or read/write. Needs `WRITE` on the aspace
@@ -375,6 +376,32 @@ pub mod aspace {
     pub const MAP_RW: u64 = 1;
     /// Map executable code: RX, never writable (W^X).
     pub const MAP_CODE: u64 = 2;
+
+    /// `invoke(cap, LIST, cursor, 0, 0) -> (next_cursor, va, kind)` (milestone 126, `pmap`,
+    /// DECISIONS §114). List what this address space has mapped, one entry per call, without the
+    /// ability to change any of it. `Endpoint::SURVEY`'s shape one object type over: same cursor
+    /// protocol, same reason for one entry per call (the space's own mapping log is held only
+    /// long enough to read one row, never for the whole walk), same right.
+    ///
+    /// - `next_cursor` returns in x0 (a0 on RISC-V), `va` in x1, `kind` in x2.
+    /// - Start with `cursor = 0`. Feed each `next_cursor` back. `abi::survey::DONE` (zero) means
+    ///   finished; the constant is reused rather than a second one minted, because "no more
+    ///   entries" means the same thing on both objects.
+    /// - A negative first word is an [`crate::Error`].
+    /// - `kind` is one of [`MAP_RO`], [`MAP_RW`], [`MAP_CODE`] above: the same three words
+    ///   `MAP_INTO`'s third argument takes, reused rather than a second vocabulary invented for
+    ///   what is, read back, the same fact about the same page. A `DeviceFrame` mapping (always
+    ///   read/write, never executable) reads as `MAP_RW`; the listing does not distinguish device
+    ///   memory from ordinary data, which is recorded where a reader meets `pmap`.
+    ///
+    /// **Needs [`rights::ENUMERATE`](super::rights::ENUMERATE), and pointedly not `WRITE`.**
+    /// `WRITE` on an address-space capability is what `MAP_INTO` takes; a viewer holding
+    /// `ENUMERATE` alone can list every mapping and change none of them, the same split
+    /// `Endpoint::SURVEY` drew between looking and acting. See `capability::Rights::ENUMERATE`
+    /// and DECISIONS §114's delegation-audit caveat: every address-space capability minted since
+    /// 2026-08-17 already carries the bit (the `Rights::ALL`-on-creation invariant), so this
+    /// method's existence is what turns that bit from inert to live.
+    pub const LIST: u64 = 1;
 }
 
 /// The rights bits, matching `capability::Rights`, so userspace can name the rights to narrow a
