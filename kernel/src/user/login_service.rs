@@ -27,6 +27,13 @@ const LOGIN_STACK_PAGES: u64 = 16;
 pub const ROLE_CHRIS: u64 = 0;
 pub const ROLE_CORINNE: u64 = 1;
 pub const ROLE_WRONG_SECRET: u64 = 2;
+/// DECISIONS §117's per-identity subtree proof; see the same file's module docs.
+pub const ROLE_CHRIS_MARK: u64 = 3;
+pub const ROLE_CORINNE_MARK: u64 = 4;
+pub const ROLE_CHRIS_CHECK: u64 = 5;
+/// A real, authenticated identity with no provisioned subtree (`login_tests.rs`'s `wired`
+/// deliberately never creates one for `graeme`).
+pub const ROLE_NO_SUBTREE: u64 = 6;
 
 /// The report words `login_test_client` sends; must match the same file.
 pub const RPT_OK: u64 = login_proto::OK;
@@ -37,6 +44,8 @@ pub const RPT_MALFORMED: u64 = login_proto::MALFORMED;
 /// Bits of a successful report's second word; must match the same file.
 pub const F_DIR_WORKS: u64 = 1 << 0;
 pub const F_BUDGET_WORKS: u64 = 1 << 1;
+pub const F_NOT_SHARED_SUBTREE: u64 = 1 << 2;
+pub const F_MARKER_WRITTEN: u64 = 1 << 3;
 
 /// A running login service and the endpoints that reach it.
 pub struct Wiring {
