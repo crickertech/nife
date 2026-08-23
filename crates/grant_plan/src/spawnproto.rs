@@ -23,8 +23,10 @@
 //!    mixing the two orders would put a `RECV` where a `RECV_CAP` belongs.
 //! 3. **Delegation.** The capabilities the request announced, in a fixed order: the supervised
 //!    job's pair (untyped, frame), then the **sink** (milestone 50), then the **source**, then the
-//!    **diagnostic endpoint** (DECISIONS §67), then the `--mem` untyped. Order rather than tags, because both sides read the same [`Wiring`] out of
-//!    the same word and a promise nobody receives would deadlock both.
+//!    **diagnostic endpoint** (DECISIONS §67), then the **screen-narrowed tail's completion
+//!    endpoint** (DECISIONS §106), then the `--mem` untyped. Order rather than tags, because both
+//!    sides read the same [`Wiring`] out of the same word and a promise nobody receives would
+//!    deadlock both.
 //!
 //!    If `mem_pages > 0`, the shell `SEND_CAP`s exactly one capability there: an
 //!    untyped it split from *its own* budget, sized to `mem_pages`. This is the grant made real,
@@ -62,6 +64,21 @@ const SOURCE_BIT: u64 = 1 << 34;
 /// the slot is the program's declaration and not the shell's choice. What the wire says is only
 /// "expect one more capability", which is what keeps the two sides in lockstep.
 const DIAG_BIT: u64 = 1 << 35;
+
+/// **A capability for a narrowed tail stage's completion signal follows** (DECISIONS §106). Set
+/// when the shell decided this stage both writes and reads, and the line named neither `>` nor `|`
+/// for its output (`Wiring::sink` is false and the plan says [`crate::line::Sink::Report`]): the
+/// shell cannot be both this stage's feeder and its reader, so its primary output defaults to
+/// `terminal_sink_caretaker` instead of the shell's own result endpoint, the same adapter a
+/// declared second stream already reaches by default under DECISIONS §67.
+///
+/// What follows is not a sink capability (init already knows to build that default from its own
+/// `term_sink`, unprompted, the same way it builds a diagnostic default). It is a **fresh
+/// endpoint the shell minted and kept a copy of**, delegated so init can install it as this child's
+/// DECISIONS §26 fault target in place of its own domain channel. The kernel then delivers the
+/// child's exit there instead of to init's reaper, and the shell `RECV`s it as its completion
+/// signal instead of draining the child's bytes, which it no longer sees.
+const SCREEN_BIT: u64 = 1 << 37;
 
 /// **A directory grant follows, and init is to build a caretaker for it** (milestone 31 phase 3).
 ///
@@ -113,6 +130,11 @@ pub struct Wiring {
     /// `fs_subtree_caretaker` for it before it builds the child. The only entry here that announces
     /// data instead of a capability; see `DIR_BIT`.
     pub dir: bool,
+    /// **This stage's primary output defaults to `terminal_sink_caretaker`, and a fresh completion
+    /// endpoint follows** (DECISIONS §106). See `SCREEN_BIT`. Mutually exclusive with `sink` in
+    /// practice (a stage the shell delegated an explicit sink for has somewhere else to write), but
+    /// nothing here enforces that; the two ride independent bits because both sides read one word.
+    pub screen: bool,
 }
 
 /// Build the three request words from a resolved endowment's parts.
@@ -133,6 +155,9 @@ pub fn request(prog_id: u64, arg: u64, mem_pages: u64, w: Wiring) -> (u64, u64, 
     if w.dir {
         w2 |= DIR_BIT;
     }
+    if w.screen {
+        w2 |= SCREEN_BIT;
+    }
     (prog_id, arg, w2)
 }
 
@@ -145,6 +170,7 @@ pub fn wiring(w2: u64) -> Wiring {
         source: w2 & SOURCE_BIT != 0,
         diagnostics: w2 & DIAG_BIT != 0,
         dir: w2 & DIR_BIT != 0,
+        screen: w2 & SCREEN_BIT != 0,
     }
 }
 
@@ -224,10 +250,10 @@ mod tests {
         assert_eq!(mem_pages(w2), 0);
     }
 
-    /// **The five flags are independent of each other and of the page count** (milestone 50, §67's
-    /// fourth, and milestone 31 phase 3's fifth). They share one word, and what init reads next off
-    /// the endpoint depends on all of them, so a bit that bled into another would make init take a
-    /// capability for a data word (or the reverse) and hang rather than fail.
+    /// **The six flags are independent of each other and of the page count** (milestone 50, §67's
+    /// fourth, milestone 31 phase 3's fifth, and DECISIONS §106's sixth). They share one word, and
+    /// what init reads next off the endpoint depends on all of them, so a bit that bled into another
+    /// would make init take a capability for a data word (or the reverse) and hang rather than fail.
     #[test]
     fn the_wiring_flags_do_not_collide() {
         for &interruptible in &[false, true] {
@@ -235,16 +261,19 @@ mod tests {
                 for &source in &[false, true] {
                     for &diagnostics in &[false, true] {
                         for &dir in &[false, true] {
-                            let w = Wiring {
-                                interruptible,
-                                sink,
-                                source,
-                                diagnostics,
-                                dir,
-                            };
-                            let (_, _, w2) = request(3, 0, 64, w);
-                            assert_eq!(wiring(w2), w, "{w:?}");
-                            assert_eq!(mem_pages(w2), 64, "{w:?}");
+                            for &screen in &[false, true] {
+                                let w = Wiring {
+                                    interruptible,
+                                    sink,
+                                    source,
+                                    diagnostics,
+                                    dir,
+                                    screen,
+                                };
+                                let (_, _, w2) = request(3, 0, 64, w);
+                                assert_eq!(wiring(w2), w, "{w:?}");
+                                assert_eq!(mem_pages(w2), 64, "{w:?}");
+                            }
                         }
                     }
                 }

@@ -345,6 +345,13 @@ pub fn counts(said: &[u8]) -> (u64, u64, u64) {
 /// The whole of what the operators added is here, and it is small: receive an endpoint, and put
 /// it where the result endpoint would have gone. Nothing decides what is behind it, because
 /// nothing here can find out.
+///
+/// **What this fallback does not implement**: a directory grant (`Wiring::dir`, milestone 31 phase
+/// 3) and a screen-narrowed tail's completion endpoint (`Wiring::screen`, DECISIONS §106). Both
+/// need a capability this stub has nothing behind (a file service to attenuate, a fault target to
+/// install), so neither bit is drained off the wire here, and a line that set one would desync the
+/// two sides' shared count of delegated capabilities. No guest test routes either shape through
+/// this path today; both are exercised only against the real init, by `script/shell-check`.
 fn init_service(spawn_ep: EpId, result: EpId) -> ! {
     loop {
         let m = crate::sched::ipc_recv(spawn_ep);
