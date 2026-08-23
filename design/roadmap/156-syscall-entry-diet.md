@@ -1,13 +1,41 @@
-# 156. `syscall_entry`'s measured size is every method combined, not the fastpath; extract the rest
+# 156. `syscall_entry`'s measured size is every method combined; extract the rest and ratchet both ways
 
 **Status: NOT-STARTED.** Minted 2026-08-23, found while fixing milestone 126's `pmap` (`abi::aspace::LIST`
 tripped `script/fastpath-footprint`'s 5% bound, +6.7% on riscv64). Extracting `LIST` alone into an
 `#[inline(never)]` function fixed that one regression; measuring why turned up a bigger, pre-existing
-gap this milestone tracks.
+gap this milestone tracks. **Scope widened 2026-08-23** (calef, answering "do we have a mechanism to
+ratchet down our performance benchmark" with "add it to milestone 156's scope"): the gate itself has
+the same one-directional problem the extraction work is about to make concrete, and both belong in
+one milestone since the second is what makes the first's gains actually stick.
 
-**Gate: NONE.** Nothing here needs a decision; it is mechanical extraction, verified per step by
-re-measuring. `script/fastpath-footprint`'s own `--save` flag is the only irreversible act in this
-milestone, and it is the last step, not the first.
+**Gate: NONE.** Nothing here needs a decision; it is mechanical extraction plus a small, symmetric
+change to an existing check, verified per step by re-measuring. `script/fastpath-footprint`'s own
+`--save` flag is the only irreversible act in this milestone, and it is the last step, not the first.
+
+## The second finding: the gate only ratchets in one direction
+
+Checked directly, `script/fastpath-footprint`'s own comparison:
+
+```python
+delta = (got - ref) / ref
+if delta > TOL:            # only fires on growth past +5%
+    ... fail ...
+elif abs(delta) > 0.001:
+    print(f"    {key}: {delta*100:+.1f}% against baseline ({ref}), within bound")
+```
+
+A shrink never fails and never blocks. `--save` re-records the baseline, but nothing prompts anyone
+to run it after an improvement, so a real gain (this milestone's own extraction work, worth
+hundreds of bytes) can land and sit unclaimed as slack in the recorded baseline indefinitely --
+exactly the "somebody remembers" failure mode AGENTS.md's ladder names as rung zero. Worse than
+cosmetic: a stale-loose baseline silently widens the tripwire's real tolerance. If `syscall_entry`
+shrinks 20% and nobody re-saves, a later regression of +15% against the *current* code is actually
++15% against a number 20% too generous, and the gate still says "within bound."
+
+**The fix is symmetry, not a new mechanism**: treat a shrink past the same 5% tolerance as an
+equally reportable event as growth, requiring the same `--save` acknowledgment (unlike growth, a
+shrink needs no justification for *why*, just an explicit commit that locks in the tighter number,
+so the baseline never drifts stale by more than one tolerance band in either direction).
 
 ## The finding
 
@@ -32,7 +60,7 @@ problem. `abi::aspace::LIST` was the first arm big enough (a loop, two function 
 5% line on its own commit. Every arm before it has been contributing bytes to a number labelled "the
 IPC fastpath" the whole time, individually below threshold, collectively real.
 
-## What this milestone does
+## What this milestone does, part one: the extraction
 
 Apply the extraction already proven on `LIST` (`kernel/src/syscall.rs`'s `aspace_list`, milestone
 126) to every other administrative method arm still inlined in `invoke`: pull the body into its own
@@ -56,6 +84,16 @@ each arm's real content before deciding it is a candidate -- the table above is 
 not a verdict, and `Endpoint`'s 150 lines mix the fastpath in with `SURVEY`/`REAP`, which do not
 belong in the hot measurement either.
 
+## What this milestone does, part two: symmetric ratcheting
+
+In `script/fastpath-footprint`'s Python comparison, change the one-sided `if delta > TOL: fail` into
+a check on `abs(delta) > TOL` for both directions, with distinct messages: growth keeps its existing
+"shrink it, or re-record with --save and say why"; a shrink past tolerance prints "this is smaller
+than the recorded baseline by more than the tolerance band -- re-record with --save to lock in the
+tighter bound" and **also fails**, on the same reasoning growth does: an inaccurate baseline in
+either direction is a gate that is no longer measuring what it claims to. No `--save`-side change
+needed; the flag already does the right thing once something calls it.
+
 ## Verification, the same shape as `LIST`'s fix
 
 Per arm extracted: `script/fastpath-footprint` before and after, on both `aarch64` and `riscv64`,
@@ -63,13 +101,17 @@ confirming the number drops and nothing else regresses. `script/lint` and the fu
 suite after all extractions, since this touches the kernel's syscall boundary. **Do not `--save` a
 new baseline until every planned extraction is done and measured together** -- saving mid-milestone
 would bake in a smaller-but-still-inflated number and hide how much headroom the full extraction
-actually recovers.
+actually recovers. Once the symmetric check is in place and every extraction is measured, the final
+`--save` is what the new check itself will now require rather than merely suggest.
 
 ## What this does not decide
 
 Whether `Endpoint`'s `REAP` (and any other genuinely-cold arm inside the 150-line block) is worth
 extracting on its own is a judgment call for whoever builds this, guided by the measured delta each
-extraction actually buys -- not every rare arm is large enough to be worth the diff.
+extraction actually buys -- not every rare arm is large enough to be worth the diff. The exact
+tolerance for the shrink-side check (whether it should match growth's 5% exactly, or use a wider
+band to avoid nagging on noise) is also left to measurement: check how much run-to-run variance the
+un-padded build actually has before picking a number narrower than what the data supports.
 
 ## Prior art
 
