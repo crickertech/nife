@@ -1238,8 +1238,22 @@ mod tests {
     #[test]
     fn a_search_answer_names_pages_a_reader_can_type() {
         let mut r = manual::index::Ranked::new();
-        r.offer(b"swish", b"notes/pipes.md", b"Pipes and redirection", 31);
-        r.offer(b"kernel", b"notes/ipc-naming.md", b"Who does IPC name?", 11);
+        // Same page length for both, so the ranking this test is not about (density) does not
+        // move the order the formatting assertions below depend on.
+        r.offer(
+            b"swish",
+            b"notes/pipes.md",
+            b"Pipes and redirection",
+            31,
+            100,
+        );
+        r.offer(
+            b"kernel",
+            b"notes/ipc-naming.md",
+            b"Who does IPC name?",
+            11,
+            100,
+        );
         let s = shown(|o| write_apropos(b"capability", &r, o));
 
         // **The typeable name is the deliverable.** A result a person cannot act on is a list of
@@ -1275,7 +1289,9 @@ mod tests {
         // saying so implies the store holds sixteen.
         let mut r = manual::index::Ranked::new();
         for i in 0..manual::index::RESULTS_MAX + 4 {
-            r.offer(b"kernel", b"notes/x.md", b"X", i as u16);
+            // Same page length for every offering, so the count this test is truncating stays the
+            // thing that decides rank, and this is a test about the truncation count, not density.
+            r.offer(b"kernel", b"notes/x.md", b"X", i as u16, 100);
         }
         let s = shown(|o| write_apropos(b"capability", &r, o));
         assert!(s.contains("16 of 20 pages, strongest first"), "{s}");
