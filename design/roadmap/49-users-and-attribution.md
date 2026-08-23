@@ -88,8 +88,11 @@ principal its own channel rather than badge a shared one (seL4's mechanism, neve
 also composes for free with milestone 152's durable per-user sessions: once a user's session exists,
 every service reached through it already has a per-user channel, which is attribution at exactly the
 granularity audit wants. §109 has the full reasoning, including where the channel model's own cost
-eventually bites (roughly tens of concurrently-durable sessions against `MAX_REGIONS`, a number
-comfortably beyond this tree's realistic target and cheap to raise if ever approached).
+eventually bites (roughly tens of concurrently-durable sessions against `MAX_REGIONS`). This is a
+general-purpose OS, not just a file server, so that headroom should be measured against cron's
+uncapped, resource-bound norm rather than a consumer file-sharing throttle; §109 corrects an
+earlier draft that used the wrong comparison. Raising `MAX_REGIONS` again, the same cheap move
+already made once, is the expected response as durable sessions are actually built and measured.
 
 **Sequencing.** After 47 (isolation is 47's per-shell root, and login hands out exactly what 47
 defines; 47 landed 2026-08-22). The documentation and the group/caretaker write-up are cheap; the

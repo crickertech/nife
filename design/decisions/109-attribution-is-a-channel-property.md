@@ -79,15 +79,35 @@ consuming some of that budget. `MAX_REGIONS` has been raised once already (16 to
 `notes/heap.md`) and raising it again is the first, cheap response if this tree ever approaches that
 number, long before badging would be the right call.
 
-**Comparative context, checked rather than assumed**: real desktop operating systems cap the
-concurrent-connection case this tree is actually targeting (a file server) far lower than their
-theoretical account-count limits. Windows Home allows 5 simultaneous SMB connections, Windows Pro
-20, both contractually enforced (EULA), regardless of a UID space that is functionally unbounded.
-macOS allows only 5 users logged in simultaneously, against a theoretical local-account ceiling
-in the billions. The number that actually governs a file-serving role, in every mature OS surveyed,
-is a small, deliberately low concurrent-session count, not total accounts. This tree's realistic
-target (a family's worth of users) sits comfortably inside that same small-tens range, on the same
-axis (concurrent sessions) that matters, before any of this becomes a real constraint.
+**Comparative context, corrected from an earlier draft of this decision that anchored the wrong
+number.** nife is a general-purpose operating system; file serving (Time Machine) is one workload
+on it, not the one this fork's headroom should be measured against. An earlier pass here cited
+Windows Home/Pro's 5/20 concurrent-SMB-connection cap and macOS's 5-simultaneous-user fast-switching
+limit, both of which are real, sourced numbers, but they measure a specific, deliberately
+product-throttled consumer feature, not what a general-purpose multi-user OS actually supports.
+Neither Windows nor macOS caps how many *accounts* can hold durable, persistent per-user state (a
+crontab, a systemd `--user` unit with `loginctl linger`) anywhere near 5 or 20; that model is
+resource-bound, not artificially capped, and Unix cron has run one crontab per account with no
+built-in ceiling since the 1970s. Shared systems have run that for accounts numbering in the
+hundreds as ordinary practice, though this note does not have a single precise citation for a
+figure and should not be read as claiming one.
+
+**seL4 itself supplies no comparison at all, and that is worth being precise about too.** seL4 has
+no user, login, or account concept anywhere in the kernel; badging distinguishes *senders on a
+shared endpoint*, for whatever a downstream system builds (VMs in a hypervisor, components in a
+CAmkES system), never "logged-in end users" as such. Citing seL4 as having solved "how many users"
+would be citing an answer it does not give; the honest version of the earlier reasoning (§2, §3
+above) is narrower and still holds: seL4 supports cheap many-sender fan-out for whatever a
+downstream system needs it for, this tree has never needed that, and every prior case here needed
+confinement rather than identity regardless.
+
+**So the number that actually matters is `MAX_REGIONS` itself, not a borrowed desktop-OS throttle.**
+The 50-70-concurrently-durable-session estimate above is the real headroom question for a tree that
+means to be general-purpose, and it is closer than "comfortably distant" once measured against
+cron's actual, uncapped norm rather than a file-sharing product limit. The right framing is not
+"this will never matter" but "raising `MAX_REGIONS` again, the same cheap move already made once
+(`notes/heap.md`, 16 to 256), is a normal, expected action for this tree to take as durable sessions
+are actually built and measured, not a distant hypothetical to defer indefinitely."
 [Windows connection limits (Windows OS Hub)](https://woshub.com/max-concurrent-connections-limit-windows/),
 [macOS user account limits (Twocanoes)](https://twocanoes.com/knowledge-base/how-many-users-on-macos/).
 
