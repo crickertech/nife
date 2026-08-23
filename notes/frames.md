@@ -313,6 +313,13 @@ and the difference is accounted rather than shrugged at:
   piece of work. Twenty frames is not worth the hazard.
 - **A page per kernel endpoint**, carved into chunks by `sched::create_endpoint` and never freed by
   design.
+- **The login service, ~640 (2026-08-22, milestone 49).** Same shape as the credential store above:
+  wired once behind a `DONE` flag (`kernel/src/user/login_tests.rs`) and shared by every login test.
+  `crate::untyped::create` reserves the whole 640-frame construction budget the instant the service
+  is spawned; splitting pieces of it into a caretaker or a client budget afterwards costs the ledger
+  nothing further; only the initial reservation does. See notes/login.md and `user/src/login.rs`'s
+  own BUGS on why nothing gives it back: the service serves logins for the life of the boot and this
+  slice builds no teardown path.
 
 ### BUGS in the ledger itself
 

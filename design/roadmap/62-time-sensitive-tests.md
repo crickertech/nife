@@ -1,16 +1,12 @@
 # 62. Tests that assert on time: make a red run mean something
 
-**Status: PARTIAL.** Raised 2026-08-01, from evidence rather than from taste. The token read
-`NOT-STARTED` until 2026-08-17, by which point most of what this block asks for had been built **by
-other lanes**, chiefly milestone 78's four rounds and milestone 50's shell work, and nobody came back
-to this file. That is why it is PARTIAL rather than NOT-STARTED and PARTIAL rather than BUILT; the
-precedent is milestone 40, whose status said `NOT-STARTED` with two phases shipped for the same reason.
-
-**Gate: NONE.** The acceptance run ran (2026-08-17), the icount instrument landed with milestone 78,
-and the disposition the run asked for was made (2026-08-18, the section "The disposition" below).
-What keeps this PARTIAL is stated there and is one thing: a repeat count of the tree as it now
-stands, because this block's own BUGS section says a flake cannot be shown fixed by a green run and
-the same standard applies to the change that removed it.
+**Status: BUILT (2026-08-23).** Raised 2026-08-01, from evidence rather than from taste. The token
+read `NOT-STARTED` until 2026-08-17, by which point most of what this block asks for had been built
+**by other lanes**, chiefly milestone 78's four rounds and milestone 50's shell work, and nobody came
+back to this file. That is why it went PARTIAL rather than NOT-STARTED, and stayed PARTIAL rather
+than BUILT for a time; the precedent is milestone 40, whose status said `NOT-STARTED` with two phases
+shipped for the same reason. **Closed 2026-08-22/23** by the confirmation run described below: 45 of
+45 green, the block's own acceptance standard, met on the tree as it now stands.
 
 **The premise this block stated was wrong, and the correction matters more than the disposition.**
 The paragraph below used to say that `script/icount` "asserts zero missed ticks on both ISAs, which
@@ -33,11 +29,11 @@ than against elapsed counter time (`kernel/src/arch/aarch64/timer.rs:382`,
 `testing::note_progress` (`kernel/src/testing.rs:288`), bumped on every IPC rendezvous, wake and
 console line, beside a per-test wall-clock ceiling.
 
-**What remains, and it is why this is not BUILT.** Both items in the gate line above were answered
-on 2026-08-17 and the block still is not done, which is worth saying plainly rather than rounding up.
-The icount instrument landed with milestone 78 (the load-sensitive assertions), as `script/icount`;
-its note is notes/instruction-clock.md. The
-acceptance run happened, and **it did not pass**, which is the section below.
+**What was left after 2026-08-18, and why it took until 2026-08-22/23 to close.** Both items in the
+gate line above were answered on 2026-08-17, and the block still was not done, which was worth
+saying plainly rather than rounding up. The icount instrument landed with milestone 78 (the
+load-sensitive assertions), as `script/icount`; its note is notes/instruction-clock.md. The
+acceptance run happened, and **it did not pass on the first attempt**, which is the section below.
 
 So the residual was no longer a missing instrument; it was a **disposition**, and it was made on
 2026-08-18. Both assertions are gone from the failing path, neither by a wider bound: one deleted,
@@ -152,13 +148,14 @@ it gives 60 migration workers two seconds of counter time to drain and 59 arrive
 block's own prescription, a budget in delivered guest ticks rather than in counter time
 (`sched::within_ticks` exists), and it wants a lane.
 
-**What is still needed to move this block off PARTIAL.** Eighteen runs is not forty-five, and the
-25% figure is the one that wants the bigger count: it is the cost this disposition introduced, it is
-higher than a reader would assume, and it comes from one host. The candidate fix is identified and
-deliberately not taken here (the quarter-second measurement window is far longer than the law needs,
-and shortening it is not a wider bound because the `assert_eq!` is untouched and the defect fails on
-the first tick), because it is a change justified entirely by a rate and this lane's rate rests on
-18 runs. That is the remaining work, and it is a measurement rather than a build.
+**What was still needed to move this block off PARTIAL, at the time this was written.** Eighteen
+runs is not forty-five, and the 25% figure was the one that wanted the bigger count: it was the cost
+this disposition introduced, higher than a reader would assume, and it came from one host. The
+candidate fix was identified and deliberately not taken here (the quarter-second measurement window
+is far longer than the law needs, and shortening it is not a wider bound because the `assert_eq!` is
+untouched and the defect fails on the first tick), because it would have been a change justified
+entirely by a rate resting on 18 runs. **The confirmation run below is that bigger count**, and it
+found the 25% figure did not survive it: zero of 90 legs reported `UNMEASURED` at 45 runs.
 
 ## The migration drain, 2026-08-18: the family's newest member, fixed in the prescribed unit
 
@@ -177,9 +174,39 @@ red with `migration workers never drained (5/12 done) within 200 delivered ticks
 version of the first injection never reached the target test at all, which is its own finding and is
 recorded in notes/load-sensitive-assertions.md.
 
-**This does not make the block BUILT.** It closes one site the acceptance run found; the scope note's
-backlog of unaudited sites is untouched, and the acceptance question ("does the suite survive
-repeated loaded runs") still belongs to whoever runs the instrument next.
+**This did not by itself make the block BUILT.** It closed one site the acceptance run found; the
+scope note's backlog of unaudited sites was untouched, and the acceptance question ("does the suite
+survive repeated loaded runs") still belonged to whoever ran the instrument next. That is the
+section below.
+
+## The confirmation run, 2026-08-22/23: 45 of 45 green, the block closes
+
+The one item left after the disposition and the migration-drain fix: a repeat count under load of
+the tree as it now stands, at the block's own 45-run standard, because a flake cannot be shown fixed
+by a green run and the same rule applies to the change that removed one. Full detail, every run in
+order, and the confidence-interval arithmetic are in notes/load-sensitive-assertions.md ("The
+confirmation run, 2026-08-22"); this is the number the block is owed.
+
+`script/repeat-under-load -n 45 -s 8`, the same recipe and the same host as 2026-08-17, run against
+tree `50a0e7cb` (both the assertion disposition and the migration-drain fix in place). Host: Mac15,3,
+8 cores. 45 runs, 112 minutes of wall clock. One-minute load average across the whole loop: **4.8
+low, 90.1 peak**, a wider band on both ends than the first acceptance run's 26.1 to 63.0.
+
+**Result: 45 of 45 green.** `ticks_arrive_at_the_configured_rate` ran on both ISA legs in every run
+(90 legs) and never printed `UNMEASURED`. `the_handler_keeps_up_when_no_lock_is_held` is gone from
+the suite, so it could contribute neither a red nor a false pass.
+`a_migrated_kernel_thread_keeps_its_hart_pointer`, the migration-drain fix's own target, was green
+in all 45 runs. No other assertion in the suite went red.
+
+**The honest bound this run sets, not a claim wider than that.** Zero red in 45 trials does not
+prove the true rate is zero; by the rule of three it bounds it at roughly 6.7% (95% confidence) at
+the full-suite-run granularity, and roughly 3.3% at the 90-leg granularity of the specific
+assertion. Both are compatible with the 2026-08-17 run's own observed rate if the disposition
+lowered it rather than eliminating the failure mode outright. Forty-five was the number the first
+acceptance run set as this block's standard, and this run met it; a tighter bound is not what the
+block asked for.
+
+**This closes the block.** The status above moves to BUILT.
 
 ## The problem
 
@@ -258,14 +285,17 @@ the second.
 
 - **Fixing this cannot be verified by running the suite once.** A flake that fires one run in six is
   indistinguishable from a fixed one until you have run it many times, so the acceptance evidence is
-  a repeat count, not a green run. *(Answered 2026-08-17 by the section above, and the answer was
-  "not yet". `script/repeat-under-load` is the instrument, so the next person does not have to build
-  one to re-ask the question.)*
-- **A green acceptance run would prove less than this block wants, and this one was not green
-  either.** Thirty-six passes are thirty-six draws from one host, one QEMU build and one load shape;
-  they say nothing about a GitHub runner, and nothing about the assertions that simply did not get
-  unlucky. Milestone 124's lane took 45 loaded full-suite runs without reproducing the fault it was
-  hunting, which is the standard of evidence here and also the warning attached to it.
+  a repeat count, not a green run. *(Answered 2026-08-17 by the section above, and the first answer
+  was "not yet". `script/repeat-under-load` is the instrument, so the next person did not have to
+  build one to re-ask the question. The 2026-08-22/23 confirmation run re-asked it at the same
+  45-run standard and got 45 of 45 green, which is what closed the block.)*
+- **A green acceptance run proves less than this block wants, on its own.** Forty-five passes are
+  forty-five draws from one host, one QEMU build and one load shape; they say nothing about a GitHub
+  runner, and nothing about the assertions that simply did not get unlucky. Milestone 124's lane took
+  45 loaded full-suite runs without reproducing the fault it was hunting, which is the standard of
+  evidence here and also the warning attached to it. The confirmation run's own BUGS entry in
+  notes/load-sensitive-assertions.md states the same limit in numbers: 0 of 45 bounds the true
+  failure rate at roughly 6.7% (95% confidence), not at zero.
 - **Deleting the timing assertions would be worse than the flakes.** `ticks_arrive_at_the_configured
   rate` is the test that catches re-arming the timer from `now()` inside the handler, which is a real
   bug this project has a comment about. The goal is tests that fail only when something is wrong, not
