@@ -6,16 +6,27 @@
 (DECISIONS §116): no component with meaningful live state exists or is being built, same shape as
 `std::thread::spawn` and hard links. §116 also checked the framing and records a transport shape
 (opaque blob over a shared page, capabilities via `GRANT`) as guidance for whoever eventually has a
-real component to swap, without committing to it. Dependency-aware orchestration needs no decision
-and never did, only a manifest extension: a component declares what it *needs*, not that another
-component *supplies* it, so there is no dependency graph to orchestrate against yet. That is real
-unbuilt work rather than anything waiting on calef.
+real component to swap, without committing to it. It is the one residual left, and it needed no
+decision from this lane: the other three are built.
 
-The other two residuals are done. **The component manifest is built** (2026-08-17,
-`crates/component_plan`, notes/component-manifest.md), which is the piece milestone 39's packaging
-analysis leans on. **The hung-component case is demonstrated** (2026-08-17,
-notes/hung-component.md), and it took a decision *out* of this milestone rather than adding one: see
-the section below.
+**The component manifest is built** (2026-08-17, `crates/component_plan`,
+notes/component-manifest.md), which is the piece milestone 39's packaging analysis leans on. **The
+hung-component case is demonstrated** (2026-08-17, notes/hung-component.md), and it took a decision
+*out* of this milestone rather than adding one: see the section below. **Dependency-aware
+orchestration is built** (2026-08-23, `component_plan::depends_on` and `dependents`,
+notes/dependency-orchestration.md): a component declares which contracts it cannot silently tolerate
+the absence of, and a supervisor asks the graph who must be warned before a swap rather than hard-coding
+it per system. The finding worth a sentence here: the field could not live on a capability need the way
+the roadmap's own phrasing suggested, because a role's supplier is the supervisor's choice and varies
+by wiring (§41's `use`/`offer` split, one level out), so it names contracts on `Requirements` instead,
+and it turns out only a component that itself forwards synchronously while serving others ever needs
+one populated: a pure consumer already degrades for free on the endpoint's own sender queue, which is
+§41's central mechanism doing a second job nobody had asked of it yet.
+
+**The status does not move.** Three of the four residuals this block named are now built, but the
+status line has tracked state handoff since it was declined, not a residual count, and state handoff
+is unchanged: still declined for want of a customer, still the crux, still calef's to decide when a
+stateful component exists to design it against.
 
 **In brief.** Every userspace component (driver, server, app) is a swappable, vendor-shippable unit behind a stable contract; operators replace them live, no reboot. The console hot-swap is instance one; a durable queue-broker decouples component lifecycles (opt-in per channel, for latency)
 
@@ -81,14 +92,18 @@ blocked thread never reaches `schedule()` to spend the kill a `DESTROY` arms). N
 built, deliberately: both its halves are behind those decisions.
 
 **What remains:** state handoff, declined for now (DECISIONS §116, want of a customer; the
-component here is near-stateless, which is what makes kill-and-replace sufficient), and
-dependency-aware orchestration (which will need the manifest to carry a dependency graph, and it
-does not yet: a component declares what it needs, not that another component supplies it). The
-hung-component work sharpens both: a hung component cannot be asked to serialise its state, so a
-handoff protocol that needs the outgoing instance's cooperation recovers a planned swap and not the
-failure it is most wanted for; and the quiescence protocol orchestration needs is exactly the step a
-hang makes unavailable, so a dependency-aware supervisor needs a non-cooperative fallback for every
-edge in its graph. Also the console proper: the component swapped owns the real
+component here is near-stateless, which is what makes kill-and-replace sufficient). Dependency-aware
+orchestration is built (2026-08-23) but the hung-component work already sharpens both residuals in
+the same way, and for the graph the sharpening is now a recorded gap rather than a prediction: the
+quiescence protocol orchestration needs (telling a dependent to degrade) is exactly the step a hang
+makes unavailable, so `component_plan::dependents` can name *who* to warn but has nothing to say when
+the named dependent is itself hung and cannot be warned. `broker` is not `Endpoint::REAP`-collectable
+any more than the console component was; a non-cooperative fallback for a dependent, per
+notes/hung-component.md's own account, is the same open decision (a timed wait, and what may be done
+to a component that never cooperates) applied one level out, not new work. And a hung component
+cannot be asked to serialise its state either, so a state-handoff protocol that needs the outgoing
+instance's cooperation would recover a planned swap and not the failure it is most wanted for. Also
+the console proper: the component swapped owns the real
 UART and is shaped like a console server, but `line_editor`/`display_terminal`/`compositor` are not themselves swapped,
 because the interactive stack is not running under the test harness.
 
@@ -166,9 +181,15 @@ ring variant is io_uring, DPDK, and virtio.
   rather than cited uncritically: Erlang/OTP `code_change` is the closest match (opaque term in,
   opaque term out, generic mechanism); VM live migration and CRIU are memory-page-level and assume
   identical old/new layout, which does not hold across a version swap here.
-- **Dependency-aware orchestration.** If B is a client of A, swapping A means quiesce B, swap,
-  resume; the supervisor (22) needs the dependency graph and a quiescence protocol. And a fallback
-  for when a node will not quiesce, per notes/hung-component.md.
+- ~~**Dependency-aware orchestration.**~~ **Built 2026-08-23**, `component_plan::depends_on` and
+  `dependents`, notes/dependency-orchestration.md. If B is a client of A, swapping A means quiesce B,
+  swap, resume, and the graph is what decides *who* rather than a supervisor hard-coding it: `broker`
+  declares it forwards synchronously to `backend`, and `queued()`'s `BOP_DOWN`/`BOP_UP` are now sent
+  to whoever the graph names rather than unconditionally. Direct dependents only, on purpose: whether
+  a dependent's own dependents need telling in turn is a property of that dependent's decoupling
+  mechanism, not something two contract names can express. A fallback for when a node will not
+  quiesce is still open, per notes/hung-component.md: the one step this graph asks of a dependent
+  (degrade) is exactly the step a hang makes unavailable.
 - ~~**The hung component.**~~ **Demonstrated 2026-08-17**, notes/hung-component.md, with the two
   decisions it cannot pass without stated there rather than in a chat message.
 

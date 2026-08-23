@@ -53,7 +53,7 @@ pub struct PerCpu {
 
     /// The thread currently running on this core (`NO_TID` before the core schedules).
     ///
-    /// Was a single field on the global `Scheduler`; per-CPU as of §11 step 3b, because each core
+    /// Was a single field on the global `IpcTables`; per-CPU as of §11 step 3b, because each core
     /// runs a different thread. An atomic because a remote core may *read* it (the reaper checks
     /// whether a thread is current on any core), even though only the owning core ever writes it.
     pub current: AtomicU64,
@@ -193,7 +193,7 @@ impl PerCpu {
     /// single-owner access, that makes the `&mut` genuinely exclusive: this core cannot re-enter
     /// through an interrupt mid-borrow, and no other core can reach this block at all. This is the
     /// standard per-CPU pattern; the `UnsafeCell` is sound precisely because of that invariant.
-    /// Every caller today already holds `SCHED` (which masks interrupts) or has masked them
+    /// Every caller today already holds `IPC_TABLES` (which masks interrupts) or has masked them
     /// explicitly in `schedule()`.
     pub fn with_runq<R>(&self, f: impl FnOnce(&mut Fifo<Thread>) -> R) -> R {
         debug_assert!(

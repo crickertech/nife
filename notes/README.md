@@ -435,6 +435,16 @@ in the code or the conversation doesn't make sense, it belongs here.
   authority, and only reclaiming the memory needs one. Why `abi::Error::Gone` never reaches a caller
   stranded mid-`CALL`, why a deadline belongs to the supervisor and is denominated in **progress
   rather than time**, and the two decisions calef owes before a watchdog can exist.
+- [Dependency-aware orchestration](dependency-orchestration.md): milestone 23's fourth residual, "if
+  B is a client of A, swapping A means quiesce B, swap, resume." Why the dependency cannot live on a
+  `CapNeed` (role resolution is the supervisor's business, and `CLIENT`'s `service` role resolves to
+  a different contract on each channel), so `Requirements::depends_on` names contracts instead. The
+  rule that resolves the ambiguity anyway: **only a component that forwards synchronously while
+  itself serving others needs telling**, because a pure consumer already degrades for free on the
+  endpoint's own sender queue (§41, a second time). `broker`'s `BOP_DOWN`/`BOP_UP` stopped being
+  unconditional and started being driven by `component_plan::dependents`'s own answer. Also why this
+  is direct-dependents-only on purpose, and the non-cooperative fallback it inherits, unsolved, from
+  notes/hung-component.md.
 - [The process view](process-view.md): milestone 126's view stratum: `ps` and `pgrep` work and
   neither can enumerate the machine. `endpoint::SURVEY` reads one supervision subtree, which is a
   scope the kernel already maintains and so cannot drift out of agreement with reality; a wide grant
@@ -1082,4 +1092,4 @@ Topics we've touched but not yet documented. Add as they come up:
 
 - The GIC (interrupt controller)
 - virtio
-- [The SCHED lock inventory](sched-lock-inventory.md): what the one remaining scheduler lock protects, by temperature; milestone 17's denominator, gated on 88's curve and 80's method.
+- [The IPC_TABLES lock inventory](ipc-tables-lock-inventory.md): what the one remaining IPC-tables lock protects, by temperature; milestone 17's denominator, gated on 88's curve and 80's method.

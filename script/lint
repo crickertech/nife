@@ -1347,9 +1347,16 @@ esac
 #     finishes a lane, so the status flip belongs in the merge rather than with whoever happens to
 #     notice afterwards.
 #
-#     **Aimed at the integrator, not the developer.** A lane may not edit `design/` at all, so a
-#     lane that trips this has found the integrator's job: it reports the status its milestone
-#     should carry, and the integrator lands that flip in the same merge.
+#     **Aimed at the integrator, not the developer, as a default.** The original intent: a lane
+#     reports the status its milestone should carry, and the integrator lands that flip separately
+#     from the lane's own commits. **Exception, recorded rather than left silent** (calef,
+#     2026-08-23, after a lane surfaced the gap between this comment and how lanes were actually
+#     being briefed): when the maintainer session is briefing every lane directly and reviewing
+#     every merge itself, lanes self-editing their own milestone's roadmap status is fine, and this
+#     check does not distinguish who made the edit regardless. The risk this comment's original
+#     wording guarded against (drift between a lane's claim and the merged tree, four milestones in
+#     one week) is the thing to watch for if that changes; it is not a reason to forbid the shortcut
+#     when one person is already both briefing and reviewing.
 #
 #     A branch that leaves the status unmoved still touches the file, if only to say why. That
 #     sentence was missing four times.

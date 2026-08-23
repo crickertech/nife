@@ -350,6 +350,20 @@ pub(crate) fn invoke(
                     Err(_) => Err(Error::BadPointer), // misaligned, already mapped, unknown space
                 }
             }
+            // List what this address space has mapped, one entry per call, without the ability
+            // to change any of it (milestone 126's `pmap`, DECISIONS §114): `Endpoint::SURVEY`'s
+            // shape one object type over, and pointedly `ENUMERATE` rather than `WRITE`, which is
+            // what `MAP_INTO` above takes. See `abi::aspace::LIST` for the wire contract and
+            // DECISIONS §114 for why this method's mere existence is the thing that makes
+            // `ENUMERATE` live on every address-space capability minted since 2026-08-17 (the
+            // `Rights::ALL`-on-creation invariant): the audit that check required is in
+            // notes/process-view.md.
+            abi::aspace::LIST => {
+                if !cap.rights.allows(Rights::ENUMERATE) {
+                    return Err(Error::NotPermitted);
+                }
+                aspace_list(frame, name, a0)
+            }
             _ => Err(Error::BadMethod),
         },
 
@@ -790,6 +804,49 @@ fn endpoint_reap(ep: crate::sched::EpId, tid: u64) -> Result<i64, Error> {
     Ok(0)
 }
 
+/// The body of `abi::aspace::LIST` (milestone 126's `pmap`, DECISIONS §114), pulled out of
+/// [`invoke`] and marked `#[inline(never)]` on purpose: `syscall_entry` is measured flat
+/// (`script/fastpath-footprint`), so a rare administrative loop inlined into the hot dispatcher
+/// grows every syscall's instruction footprint for a method almost nothing calls. One call-site's
+/// worth of bytes in `invoke` costs far less than this loop's own bytes would.
+#[inline(never)]
+fn aspace_list(frame: &mut TrapFrame, name: u64, cursor: u64) -> Result<i64, Error> {
+    // The capability names a registry entry by generation; once `Tcb::CONFIGURE` binds this space
+    // to a thread, `take_user_aspace` removes it, and `root` is `None` from here on for every
+    // capability that pointed at it. That is not a refusal (the capability is real and was never
+    // widened past what it always held): it reads as an empty listing, symmetric to `SURVEY`'s
+    // "before the scheduler exists there is no domain to report."
+    let Some(root) = crate::user::user_aspace_root(name) else {
+        frame.set_arg(1, 0);
+        frame.set_arg(2, 0);
+        return Ok(abi::survey::DONE as i64);
+    };
+    // Skip an entry whose `va` no longer translates (a race with revocation of a shared page this
+    // space had mapped) rather than report a fabricated `kind` for it; bounded by the log's own
+    // finite length, so this cannot loop forever.
+    let mut cursor = cursor;
+    loop {
+        let (next, va) = crate::revoke::list_mapping(root, cursor);
+        if next == abi::survey::DONE {
+            frame.set_arg(1, 0);
+            frame.set_arg(2, 0);
+            return Ok(abi::survey::DONE as i64);
+        }
+        if let Some((_, flags)) = crate::arch::mmu::translate_at(root, va) {
+            let kind = if flags.is_user_executable() {
+                abi::aspace::MAP_CODE
+            } else if flags.is_writable() {
+                abi::aspace::MAP_RW
+            } else {
+                abi::aspace::MAP_RO
+            };
+            frame.set_arg(1, va);
+            frame.set_arg(2, kind);
+            return Ok(next as i64);
+        }
+        cursor = next;
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -436,7 +436,10 @@ restarting its service, and the four-step table above is the correction. The int
 
 ## What is left of milestone 23
 
-Two residuals, and this lane changed the shape of neither, but it did narrow what one of them costs.
+One residual, at the time this note was written: this lane changed the shape of neither of the two
+that remained, but it did narrow what one of them costs. A later lane built the other
+(notes/dependency-orchestration.md, 2026-08-23); the paragraph below is kept as this note originally
+wrote it, plus a pointer to what that lane found.
 
 **State handoff** is unchanged and is still the crux: a serialise-old / absorb-new protocol over a
 supervisor-brokered channel, which is a wire format and so calef's. What this lane adds is a reason it
@@ -445,11 +448,14 @@ handoff protocol that only works when the outgoing instance cooperates recovers 
 a failure, which is the case it is most wanted for. Erlang/OTP's `code_change` has the same shape and
 the same hole.
 
-**Dependency-aware orchestration** is unchanged and still needs a manifest extension first: a
-component declares what it needs, not that another component supplies it, so there is no dependency
-graph. This lane touches it at one point worth recording: the quiescence protocol that orchestration
-needs is exactly the step a hang makes unavailable, so a dependency-aware supervisor needs a
-non-cooperative fallback for every edge in the graph, not just for the component it is replacing.
+**Dependency-aware orchestration is now built** (`component_plan::depends_on` and `dependents`,
+notes/dependency-orchestration.md), and the finding this note predicted held exactly: the quiescence
+protocol orchestration needs (telling a dependent to degrade before its dependency is swapped) is
+precisely the step a hang makes unavailable, so a dependency-aware supervisor still needs a
+non-cooperative fallback for every edge in the graph, not just for the component it is replacing. That
+fallback is not built, for the same reason a watchdog is not built here: both of its halves are behind
+the two decisions named above (how a supervisor notices, and what it may do to a component that never
+cooperates).
 
 ## See also
 

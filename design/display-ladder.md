@@ -71,7 +71,8 @@ answered on purpose.
    the DC8200 framebuffer path instead: U-Boot's `simple-framebuffer` handoff first (zero display
    code), a mode-setting driver only if ever needed, serial input until a USB HID milestone earns
    its own number. The JH7110 has no IOMMU, so display DMA on that board is confined by software
-   discipline, and the record will say so.
+   discipline, and the record will say so. **Milestone 157** (minted 2026-08-23) is where this is
+   tracked; until then the plan above is recorded but not built.
 
 Governance, stated now so it is not smuggled later: rungs one and two are demonstrator work.
 Rungs three and four reopen the parked competitor question ([competitor-question.md](competitor-question.md)), which is the architect's call

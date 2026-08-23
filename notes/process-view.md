@@ -437,22 +437,96 @@ regular expression is not a designation of anything.
   `READY`. Adding a bit to the state word is additive and cheap; it was left out to keep the first
   method minimal, and the moment something wants to watch a `^C` land is the moment to add it.
 
+- **`pmap` cannot be reached from the interactive prompt against any real process.** See "What
+  building it found" in the `pmap` section below: every `Object::Aspace` capability is minted and
+  consumed within its own builder's thread, `Tcb::CONFIGURE` removes the space from the registry
+  the instant it binds to a thread, and nothing shipped here delegates one to a second program.
+  `ps`'s `Manifest::domain` has no analogue because there is nothing alive to wire it to. Fixing
+  this is a spawn-protocol question, not a `pmap` change, and it is not decided here.
+
+- **`pmap` shows one row per mapped page, with no VA-range coalescing and no size column.**
+  `abi::aspace::LIST` reads the space's revocation log, which records one entry per page and
+  nothing about adjacency between them; upstream `pmap` coalesces contiguous same-permission pages
+  into ranges, which would need an ordering guarantee this log does not make.
+
+- **`pmap` cannot tell a device mapping from ordinary read/write memory.** `kind` is derived from
+  `paging::Flags`, which carries no bit for "this is device memory" as far as the syscall handler
+  can see, so a `DeviceFrame` mapping (always read/write, never executable) reads as `rw-`,
+  indistinguishable from a heap page.
+
+- **A resumed `LIST` cursor can land on a slot the space's own log recycled for an unrelated
+  mapping**, if a tombstoned entry was reused by `record_mapping` between two calls. Unlike a
+  survey's slot table, a log entry carries no generation to detect this; see
+  `kernel::revoke::list_mapping`'s doc for the mechanism and why it is accepted rather than fixed.
+
+## `pmap`, and `ENUMERATE` extended to the address-space object
+
+**`pmap` works on both ISAs, over `abi::aspace::LIST`: `Endpoint::SURVEY`'s split one object type
+over.** `abi::aspace::MAP_INTO` needs `WRITE`, the authority to shape a space; `LIST` needs
+`ENUMERATE`, the authority to look. A capability holding `ENUMERATE` alone lists every mapping and
+cannot make one, proved in both directions by `kernel::user::pmap_tests`, the same discipline
+`survey_tests` established: a viewer refused `MAP_INTO`, a builder refused `LIST`, an empty space
+answering rather than refusing, an empty slot answering `NoSuchSlot`.
+
+**The listing reads the space's own revocation log rather than walking page tables.** `kernel/src/
+revoke.rs` already keeps one entry per mapped page, per space, for reclamation (§13); `LIST` costs
+nothing that log did not already pay for, and the answer cannot drift out of agreement with what a
+real revoke would find. `revoke::list_mapping` hands back a `va`; the syscall handler turns it into
+a permission with `arch::mmu::translate_at(root, va)`, present on both architectures already and
+previously reachable only from revocation's own tests. `kind` reuses `abi::aspace::MAP_RO`/
+`MAP_RW`/`MAP_CODE`, the same three words `MAP_INTO`'s mode argument takes, rather than a second
+vocabulary invented for what is, read back, the same fact about the same page.
+
+### The delegation audit DECISIONS §114 required
+
+Every site that mints an `Object::Aspace` capability was found and checked: `user/src/builder.rs`,
+`crates/supervision_proto::build_child_space`, `user/src/hello.rs`'s `aspace_builder`,
+`user/src/os_primitives_benchmarker.rs`'s `spawn_one`, and `kernel/src/bench.rs`'s `map_el0`
+harness. **Every one retypes, maps, and (except `hello.rs`'s deliberately-unconfigured demo)
+consumes the capability at `Tcb::CONFIGURE`, all inside the one thread that started it. None
+delegates an `Object::Aspace` capability to a different program.** So the caveat's feared case --
+a holder nobody assessed for `ENUMERATE` gaining a real power the day the method starts consulting
+the bit -- has no instance in the shipped tree today, and this is the audit's actual finding rather
+than an assumption: there was nothing to narrow.
+
+### What building it found, which the fork's wording did not anticipate
+
+`Tcb::CONFIGURE` does not only consume the caller's capability, it removes the space's entry from
+the registry `user_aspace_root` (and so `LIST`) resolves through (`take_user_aspace`). So **the
+instant a space is bound to a thread, every capability that ever named it, including one already
+sitting in some other program's cspace, reads as an empty listing rather than a live one** --
+`kernel::user::pmap_tests::a_capability_outliving_its_space_reads_as_empty` proves this directly by
+calling `take_user_aspace` the way `configure_tcb` does and showing `LIST` answers `DONE`.
+
+Combined with the delegation-audit finding above (nothing hands an `Object::Aspace` capability to a
+second program at all), the practical consequence is that **there is no address space anywhere in
+this system today that a program other than its own builder can be handed a live view of.** `ps`
+reaches the interactive shell because `Manifest::domain` tells `system_initializer` which live
+supervision endpoint to place in a child's cspace (`deaths`, which persists for a thread's whole
+life). Nothing plays that role for an address space, because nothing survives long enough, held by
+anyone but its builder, to be worth wiring a manifest field to. `pmap`'s kernel mechanism and its
+program are real and proven end to end against a genuine `Object::Aspace`
+(`kernel::user::pmap_tests`), the same way `ps`'s `survey_tests` prove `SURVEY` without going
+through the shell -- but unlike `ps`, that is the only place `pmap` runs today.
+
+**This is not this lane's decision to make, and it was not decided here.** A fix would need a
+builder to hand a narrowed, still-registered view of a space it is constructing to a third party
+*before* `CONFIGURE` consumes its own copy, which changes how spawning works rather than how
+`pmap` works, and is named as an open finding in `design/roadmap/126-who-else-is-running.md`'s
+`BUGS` and `crates/pmap`'s own for whoever picks it up.
+
 ## What this does not build
 
-The rest of the view stratum (`top`, `pmap`, `pwdx`, `w`), the machine-wide statistics, `watch`, and
+The rest of the view stratum (`top`, `pwdx`, `w`), the machine-wide statistics, `watch`, and
 `sysctl` (which milestone 126's block records as a design fork rather than a program to port). The
 signalling stratum is not on this list and is not deferred either: calef's ruling abolished most of
-it, and the `pgrep` section above is where that is recorded.
+it, and the `pgrep` section above is where that is recorded. `pmap` is built (see above) and is not
+on this list either, though it is not reachable from the interactive shell, which is a finding
+rather than an omission.
 
-Each of the four remaining view programs is blocked on something real rather than on effort, which is
-worth writing down so nobody estimates from `ps`:
+Each of the three remaining view programs is blocked on something real rather than on effort, which
+is worth writing down so nobody estimates from `ps`:
 
-- **`pmap`** needs `ENUMERATE` extended to the address-space object, **decided (DECISIONS §114,
-  2026-08-23): yes**, mirroring `Endpoint`/`Rendezvous`'s `SURVEY`. One condition attached: every
-  capability minted since 2026-08-17 already carries the bit, so the day the new method reads it,
-  the operation becomes retroactively available to delegated holders nobody assessed for it.
-  Whoever builds `pmap` audits existing delegation sites first, the same narrowing already applied
-  once for `Endpoint`'s `READ`/`ENUMERATE` split above.
 - **`top`** needs per-thread CPU accounting that does not exist at all: `QuotaToken` is dead code
   whose own comment says `spawn_with_quota` has no caller of its own today.
 - **`pwdx` and `w`** need a process display name, and this system has `arg0` in `Spawn` and no

@@ -239,8 +239,12 @@ which is the control this whole milestone rests on and which the test asserts on
   files is now a compile-time derivation. See notes/component-manifest.md, including the honest limit:
   a manifest is compiled in rather than shipped beside a binary, which is a wire format and so a
   decision left to the architect.
-- **Dependency-aware orchestration.** One channel at a time, no dependency graph, no cross-component
-  quiescence.
+- ~~**Dependency-aware orchestration.**~~ **Built 2026-08-23**: `component_plan::depends_on` names
+  which contracts a component cannot silently tolerate the absence of, and `dependents` answers who
+  must be warned before a given contract is swapped. `queued()`'s `BOP_DOWN`/`BOP_UP` are driven by
+  that answer now rather than sent unconditionally. Direct dependents only; see
+  notes/dependency-orchestration.md, including the non-cooperative fallback it still owes
+  notes/hung-component.md.
 - ~~**A hung component.**~~ **Demonstrated 2026-08-17, and it half-corrects the sentence that used to
   stand here.** The old text said a livelocked instance "needs the stronger right, which is §32's
   recorded watchdog case". That is right about reclaiming its memory and **wrong about restarting its

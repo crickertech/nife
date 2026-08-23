@@ -154,6 +154,77 @@ pub fn record_mapping(phys: u64, root: u64, va: u64) -> bool {
     true
 }
 
+/// **One entry of what `root` has mapped, resuming from `cursor`** (`abi::aspace::LIST`,
+/// milestone 126's `pmap`, DECISIONS §114). `(0, 0)` means done, the same `abi::survey::DONE`
+/// convention `SURVEY` uses on the endpoint side: start with `cursor = 0`, feed each returned
+/// cursor back, stop when it comes back 0.
+///
+/// **Reads the space's own revocation log rather than walking page tables**, which is the same
+/// move `ps` makes over `/proc`: the kernel already keeps this record for reclamation, so
+/// answering "what is mapped" costs nothing the space did not already pay for, and the answer
+/// cannot drift out of agreement with what `revoke_frame`/`revoke_region` would find. The caller
+/// (`kernel::syscall`) turns each `va` this hands back into a `(phys, Flags)` with
+/// `arch::mmu::translate_at`, which is where the permission bits `pmap` prints come from; this
+/// function knows nothing about flags, on purpose, because the log does not record them.
+///
+/// **A tombstoned entry (`phys == 0`, an unmapped or revoked slot) is skipped silently**, and a
+/// slot a later `record_mapping` reused for an unrelated mapping is not detected: unlike
+/// `SURVEY`'s slot table, a log entry carries no generation, so a resumed cursor that outlives a
+/// tombstone-then-reuse in the same slot can read the wrong mapping there. Recorded in
+/// `crates/pmap`'s `BUGS`, because nothing in this module can tell the difference.
+///
+/// **Cursor encoding**: a log page's own physical address (always page-aligned, so its low 12
+/// bits are free and never legitimately 0 -- RAM starts at `0x4000_0000` on this board, the same
+/// fact [`LogEntry`]'s tombstone convention leans on) OR'd with the index into that page. Pages
+/// are only ever *prepended* to a space's chain, never freed or reordered until the whole space
+/// dies (`forget_root`), so a cursor this function handed back stays valid regardless of what
+/// `record_mapping` does to the chain in between: a page prepended after a walk starts is simply
+/// never reached by it (`SURVEY`'s "can miss a member born into an already-passed slot," one
+/// object type over), and a page already visited is never revisited because pages are singly
+/// linked toward *older* entries and a cursor only ever advances that way.
+pub fn list_mapping(root: u64, cursor: u64) -> (u64, u64) {
+    let spaces = SPACES.lock();
+    let Some(space) = spaces.iter().flatten().find(|s| s.root == root) else {
+        // The space is gone (a race with teardown, or a stale cursor from a caller that kept one
+        // past the space's life): nothing to report. Not a refusal; the syscall layer already
+        // checked the capability before calling here.
+        return (0, 0);
+    };
+
+    const PAGE_MASK: u64 = !(frames::FRAME_SIZE - 1);
+    let (mut page_phys, mut index) = if cursor == 0 {
+        (space.head, 0usize)
+    } else {
+        (cursor & PAGE_MASK, (cursor & !PAGE_MASK) as usize)
+    };
+
+    while page_phys != 0 {
+        // SAFETY: `page_phys` is either this space's own `head` or a cursor this function minted
+        // from a page in this space's chain; SPACES is held.
+        let page = unsafe { log_page(page_phys) };
+        while index < page.used as usize {
+            let entry = page.entries[index];
+            index += 1;
+            if entry.phys != 0 {
+                // `page_phys` is always nonzero (RAM starts at 0x4000_0000), so `page_phys |
+                // index` can never collide with the `(0, 0)` DONE sentinel below, even for the
+                // very last real entry in a space, where `index` has just walked off the end of
+                // this page. The bug this replaced returned a bare `0` for exactly that case
+                // (nothing left to point at), which a caller cannot tell apart from "this call
+                // found nothing": the last real mapping in every space was silently dropped.
+                // Pointing at the (now out-of-range) position instead costs one extra call --
+                // the next one finds `index == page.used`, falls through to `page.next`, and
+                // returns genuine `(0, 0)` if there is none -- and it is what keeps a hit's
+                // `next` and the DONE sentinel from ever being the same value.
+                return (page_phys | index as u64, entry.va);
+            }
+        }
+        page_phys = page.next;
+        index = 0;
+    }
+    (0, 0)
+}
+
 /// Unmap `phys` from every address space whose log records it, tombstoning the records.
 ///
 /// The unmapping (TLB broadcast included) happens under the registry lock. The old database

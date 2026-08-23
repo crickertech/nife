@@ -9,7 +9,7 @@
 //! between fitting and not.
 //!
 //! That is not a hypothesis. The 2026-08-15 CI overflows were symbolized to a thread spinning for
-//! `SCHED` with about 272 bytes of stack left, and the arithmetic behind it charged ~2.3 KiB to the
+//! `IPC_TABLES` with about 272 bytes of stack left, and the arithmetic behind it charged ~2.3 KiB to the
 //! interrupted thread for one preemption: trap frame, dispatch, the interrupt controller's claim,
 //! the tick, and the scheduler. Milestone 124's interim fix grew the stack from 16 KiB to 24 KiB
 //! with that measurement in hand and said in the same breath that the structural fix was **to bound
