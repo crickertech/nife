@@ -14,7 +14,7 @@
 //! it.
 //!
 //! Here the listing is a **capability**. What this crate is handed is a function that reads one
-//! entry of a domain, and that function is backed by `abi::endpoint::SURVEY` on a supervision
+//! entry of a domain, and that function is backed by `abi::rendezvous::SURVEY` on a supervision
 //! endpoint the program was endowed. It cannot widen the domain, cannot ask about a tid it was not
 //! shown, and cannot discover that any other domain exists. There is no path here that reaches a
 //! process this program's caller did not already have authority over, because the only input is the
@@ -102,7 +102,7 @@
 //!   one would be a leak wearing a familiar heading.
 //! - **The tid is a generational name, so it is a large and ugly number** after any slot reuse
 //!   (`(generation << 32) | slot`, `crates/slots`). It is printed as the one integer
-//!   `abi::endpoint::REAP` would accept, because splitting it into `gen:slot` would publish the
+//!   `abi::rendezvous::REAP` would accept, because splitting it into `gen:slot` would publish the
 //!   shape of the kernel's thread table to every program that can run `ps`.
 //! - **There is no sort order to choose.** Rows come out in the kernel's slot order, which is
 //!   neither creation order nor tid order once a slot has been reused. A `--sort` would be honest
@@ -133,7 +133,7 @@ pub const MAX_ROWS: usize = 128;
 /// Two fields, because two facts is what a supervision domain honestly knows about its members.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Row {
-    /// The kernel-stamped thread id, the same name `abi::endpoint::REAP` accepts.
+    /// The kernel-stamped thread id, the same name `abi::rendezvous::REAP` accepts.
     pub tid: u64,
     /// One of `abi::survey`'s state codes.
     pub state: u64,
@@ -160,7 +160,7 @@ pub struct Survey<'a> {
 
 /// **Walk a domain to its end and keep what it says.**
 ///
-/// `read(cursor)` is one `abi::endpoint::SURVEY`: it answers `(next_cursor, tid, state)`, where a
+/// `read(cursor)` is one `abi::rendezvous::SURVEY`: it answers `(next_cursor, tid, state)`, where a
 /// negative first word is a refusal and `abi::survey::DONE` means the walk is over. Start at 0, feed
 /// each `next_cursor` back; this function is that loop.
 ///

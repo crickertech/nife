@@ -1,6 +1,6 @@
 use super::*;
-use crate::cap::{Rights, endpoint_cap, untyped_cap};
-use crate::sched::EpId;
+use crate::cap::{Rights, rendezvous_cap, untyped_cap};
+use crate::sched::RendezvousId;
 
 const ROLE_UNTYPED_DEMO: u64 = 7;
 
@@ -13,9 +13,9 @@ const ROLE_UNTYPED_DEMO: u64 = 7;
 /// spins, deliberately, so that the free-frame count its caller reads is the measurement's
 /// rather than a teardown's. That makes it a thread only the caller can end, and a caller that
 /// drops the name has leaked a spinning thread onto every test that runs after it.
-pub fn start(image: &'static [u8], pages: u64) -> Option<(u64, EpId, crate::thread::Tid)> {
+pub fn start(image: &'static [u8], pages: u64) -> Option<(u64, RendezvousId, crate::thread::Tid)> {
     let region = crate::untyped::create(pages)?;
-    let report = crate::sched::create_endpoint();
+    let report = crate::sched::create_rendezvous();
 
     let tid = crate::sched::spawn(move || {
         run(
@@ -25,8 +25,8 @@ pub fn start(image: &'static [u8], pages: u64) -> Option<(u64, EpId, crate::thre
                 arg1: 0,
                 arg2: 0,
                 grants: &[
-                    untyped_cap(region),                 // slot 0: the memory budget
-                    endpoint_cap(report, Rights::WRITE), // slot 1: report the result
+                    untyped_cap(region),                   // slot 0: the memory budget
+                    rendezvous_cap(report, Rights::WRITE), // slot 1: report the result
                 ],
                 maps: &[],
             },

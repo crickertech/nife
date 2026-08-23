@@ -41,8 +41,8 @@
 use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use super::*;
-use crate::cap::{Rights, endpoint_cap, frame_cap, untyped_cap};
-use crate::sched::EpId;
+use crate::cap::{Rights, frame_cap, rendezvous_cap, untyped_cap};
+use crate::sched::RendezvousId;
 
 /// Which mmio block device the surveyor is given. The runners attach the GPT-partitioned image as
 /// the FOURTH mmio disk, after nifefs (0), RedoxFS (1) and the crash image (2); see
@@ -108,10 +108,10 @@ const SURVEY_EXTRA_STACK: usize = 4;
 /// What the surveyor was wired with, so a test can take its reports.
 pub struct Wiring {
     /// The surveyor's report endpoint: two messages, the roster summary then the table verdict.
-    pub report: EpId,
+    pub report: RendezvousId,
     /// The block server's readiness endpoint, so a hang in device bring-up is distinguishable from
     /// a hang in the first read.
-    pub ready: EpId,
+    pub ready: RendezvousId,
     /// The roster's physical frame, so the kernel's own tests can read the same bytes the surveyor
     /// sees without holding a mapping of their own.
     pub roster_phys: u64,
@@ -180,7 +180,7 @@ pub fn start(blk_image: &'static [u8], surveyor_image: &'static [u8]) -> Option<
     let dev = crate::virtio::find_block_device_n(GPT_DISK)?;
     let (blk_ep, ready, blk_shared) = fs_service::spawn_block_server(blk_image, dev);
     let (roster_phys, devices) = roster_page();
-    let report = crate::sched::create_endpoint();
+    let report = crate::sched::create_rendezvous();
     let budget = crate::untyped::create(MAP_BUDGET_PAGES).expect("no map budget for the surveyor");
 
     crate::sched::spawn(move || {
@@ -198,10 +198,10 @@ pub fn start(blk_image: &'static [u8], surveyor_image: &'static [u8]) -> Option<
                 .expect("no frame for the surveyor's stack")
                 .addr();
         }
-        crate::sched::grant_at(SURVEY_SLOT_REPORT, endpoint_cap(report, Rights::WRITE))
+        crate::sched::grant_at(SURVEY_SLOT_REPORT, rendezvous_cap(report, Rights::WRITE))
             .expect("surveyor slot 0 was occupied");
         // ONE disk, and no way to name another.
-        crate::sched::grant_at(SURVEY_SLOT_BLK, endpoint_cap(blk_ep, Rights::WRITE))
+        crate::sched::grant_at(SURVEY_SLOT_BLK, rendezvous_cap(blk_ep, Rights::WRITE))
             .expect("surveyor slot 1 was occupied");
         crate::sched::grant_at(SURVEY_SLOT_BUDGET, untyped_cap(budget))
             .expect("surveyor slot 2 was occupied");
@@ -253,15 +253,15 @@ pub fn start(blk_image: &'static [u8], surveyor_image: &'static [u8]) -> Option<
 /// obtain a writable window at all, and the fault on the read-only one is the second line of
 /// defence rather than the only one. A capability that is checked before the page table is written
 /// is what the spawn-time mapping had no room for.
-pub fn start_probe(surveyor_image: &'static [u8]) -> EpId {
+pub fn start_probe(surveyor_image: &'static [u8]) -> RendezvousId {
     let (roster_phys, _) = roster_page();
-    let report = crate::sched::create_endpoint();
+    let report = crate::sched::create_rendezvous();
     let budget = crate::untyped::create(MAP_BUDGET_PAGES).expect("no map budget for the probe");
 
     crate::sched::spawn(move || {
         // Slots 1 and 3 stay empty: no disk, and no page shared with one. The numbering is the
         // surveyor's, holes and all, so both roles read one slot map.
-        crate::sched::grant_at(SURVEY_SLOT_REPORT, endpoint_cap(report, Rights::WRITE))
+        crate::sched::grant_at(SURVEY_SLOT_REPORT, rendezvous_cap(report, Rights::WRITE))
             .expect("probe slot 0 was occupied");
         crate::sched::grant_at(SURVEY_SLOT_BUDGET, untyped_cap(budget))
             .expect("probe slot 2 was occupied");
@@ -286,9 +286,9 @@ pub fn start_probe(surveyor_image: &'static [u8]) -> EpId {
 /// What the revocation witness was wired with. See [`start_holder`].
 pub struct HolderWiring {
     /// Its report endpoint: the word it read, then (only if the kernel is broken) a second one.
-    pub report: EpId,
+    pub report: RendezvousId,
     /// The go-ahead. The kernel revokes the frame and then sends here.
-    pub resume: EpId,
+    pub resume: RendezvousId,
     /// The roster's physical frame, so the test can revoke exactly the page the program holds and
     /// can read the same bytes back through the direct map.
     pub roster_phys: u64,
@@ -307,18 +307,18 @@ pub struct HolderWiring {
 /// something about the disk mattered.
 pub fn start_holder(surveyor_image: &'static [u8]) -> HolderWiring {
     let (roster_phys, _) = roster_page();
-    let report = crate::sched::create_endpoint();
-    let resume = crate::sched::create_endpoint();
+    let report = crate::sched::create_rendezvous();
+    let resume = crate::sched::create_rendezvous();
     let budget = crate::untyped::create(MAP_BUDGET_PAGES).expect("no map budget for the holder");
 
     crate::sched::spawn(move || {
-        crate::sched::grant_at(SURVEY_SLOT_REPORT, endpoint_cap(report, Rights::WRITE))
+        crate::sched::grant_at(SURVEY_SLOT_REPORT, rendezvous_cap(report, Rights::WRITE))
             .expect("holder slot 0 was occupied");
         crate::sched::grant_at(SURVEY_SLOT_BUDGET, untyped_cap(budget))
             .expect("holder slot 2 was occupied");
         crate::sched::grant_at(SURVEY_SLOT_ROSTER, frame_cap(roster_phys, Rights::READ))
             .expect("holder slot 4 was occupied");
-        crate::sched::grant_at(SURVEY_SLOT_RESUME, endpoint_cap(resume, Rights::READ))
+        crate::sched::grant_at(SURVEY_SLOT_RESUME, rendezvous_cap(resume, Rights::READ))
             .expect("holder slot 5 was occupied");
         run(
             surveyor_image,
@@ -417,10 +417,10 @@ static LAST_BUDGET: AtomicU64 = AtomicU64::new(0);
 /// The blank disk's block service: the endpoint clients `CALL`, the page they share with the
 /// server, and (only for the caller that wired it) the server's readiness endpoint.
 pub struct BlankDisk {
-    pub blk_ep: EpId,
+    pub blk_ep: RendezvousId,
     pub blk_shared: u64,
     /// `None` for every caller after the first, because the readiness word is sent once.
-    pub blk_ready: Option<EpId>,
+    pub blk_ready: Option<RendezvousId>,
 }
 
 /// Bring the blank disk up under a block server, or hand back the one already running.
@@ -457,9 +457,9 @@ pub fn start_partitioner(
     image: &'static [u8],
     disk: &BlankDisk,
     role: u64,
-    entropy: Option<EpId>,
-) -> EpId {
-    let report = crate::sched::create_endpoint();
+    entropy: Option<RendezvousId>,
+) -> RendezvousId {
+    let report = crate::sched::create_rendezvous();
     let blk_ep = disk.blk_ep;
     let blk_shared = disk.blk_shared;
     let budget =
@@ -484,13 +484,13 @@ pub fn start_partitioner(
         // differs. It used to be the last of a shorter list, which said the same thing as long as
         // nothing was ever added after it; milestone 108 added two things, so the hole is explicit
         // now and the entropy run and the entropy-less run stay the same program.
-        crate::sched::grant_at(PARTITION_SLOT_REPORT, endpoint_cap(report, Rights::WRITE))
+        crate::sched::grant_at(PARTITION_SLOT_REPORT, rendezvous_cap(report, Rights::WRITE))
             .expect("partitioner slot 0 was occupied");
-        crate::sched::grant_at(PARTITION_SLOT_BLK, endpoint_cap(blk_ep, Rights::WRITE))
+        crate::sched::grant_at(PARTITION_SLOT_BLK, rendezvous_cap(blk_ep, Rights::WRITE))
             .expect("partitioner slot 1 was occupied");
         if entropy.is_some() {
             // Randomness, and no way to reach the RNG.
-            crate::sched::grant_at(PARTITION_SLOT_ENTROPY, endpoint_cap(ep, Rights::WRITE))
+            crate::sched::grant_at(PARTITION_SLOT_ENTROPY, rendezvous_cap(ep, Rights::WRITE))
                 .expect("partitioner slot 2 was occupied");
         }
         crate::sched::grant_at(PARTITION_SLOT_BUDGET, untyped_cap(budget))
@@ -525,10 +525,10 @@ pub fn start_maker(
     image: &'static [u8],
     disk: &BlankDisk,
     role: u64,
-    entropy: Option<EpId>,
+    entropy: Option<RendezvousId>,
     with_disk: bool,
-) -> EpId {
-    let report = crate::sched::create_endpoint();
+) -> RendezvousId {
+    let report = crate::sched::create_rendezvous();
     // **Give the previous run's reservation back before taking another.** An untyped is a
     // reservation rather than a cap, and this test starts five of these processes; holding all five
     // at once costs 7.5 MiB of a 128 MiB machine and the symptom is an unrelated test failing to get
@@ -575,14 +575,14 @@ pub fn start_maker(
         crate::sched::grant_at(MAKER_SLOT_BUDGET, untyped_cap(budget))
             .expect("mkfs slot 0 was occupied");
         if with_disk {
-            crate::sched::grant_at(MAKER_SLOT_BLK, endpoint_cap(blk_ep, Rights::WRITE))
+            crate::sched::grant_at(MAKER_SLOT_BLK, rendezvous_cap(blk_ep, Rights::WRITE))
                 .expect("mkfs slot 1 was occupied");
         }
         if has_entropy {
-            crate::sched::grant_at(MAKER_SLOT_ENTROPY, endpoint_cap(ep, Rights::WRITE))
+            crate::sched::grant_at(MAKER_SLOT_ENTROPY, rendezvous_cap(ep, Rights::WRITE))
                 .expect("mkfs slot 2 was occupied");
         }
-        crate::sched::grant_at(MAKER_SLOT_REPORT, endpoint_cap(report, Rights::WRITE))
+        crate::sched::grant_at(MAKER_SLOT_REPORT, rendezvous_cap(report, Rights::WRITE))
             .expect("mkfs slot 3 was occupied");
         // **The page goes in with the disk that needs it, in every run** (milestone 108). It is
         // granted even to the two runs that are meant to be refused, for the reason the whole

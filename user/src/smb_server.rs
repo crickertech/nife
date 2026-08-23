@@ -127,7 +127,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use abi::{endpoint, frame as fr, rights, untyped as ut};
+use abi::{frame as fr, rendezvous, rights, untyped as ut};
 use fs_proto::{dir, dirent, fs, xattr};
 use smb_proto::authenticator::{Attempt, Authenticator, NoIdentity, Verdict};
 use smb_proto::path::Path;
@@ -853,7 +853,7 @@ fn attach_frame(sid: u64) {
     if unsafe {
         invoke(
             STACK,
-            endpoint::SEND_CAP,
+            rendezvous::SEND_CAP,
             frame as u64,
             rights::READ | rights::WRITE,
             req(OP_ATTACH_FRAME, sid),

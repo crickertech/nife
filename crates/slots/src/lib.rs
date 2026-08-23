@@ -205,7 +205,7 @@ impl<T, const N: usize> Table<T, N> {
     /// slot `k` is still the only thing that can be at slot `k`, and if it died, `k` is simply
     /// empty rather than somebody else's.
     ///
-    /// The one caller today is `endpoint::SURVEY` (milestone 126), which reports one supervised
+    /// The one caller today is `rendezvous::SURVEY` (milestone 126), which reports one supervised
     /// thread per syscall and hands the next slot back to userspace as a cursor. What it buys is
     /// stated plainly and so is what it does not: the *set* can change between calls, so a resumed
     /// sweep is a sequence of snapshots rather than one. It never reports an entry twice and never

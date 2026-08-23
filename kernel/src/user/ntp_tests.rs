@@ -40,7 +40,7 @@ fn clock() -> clock_service::Wiring {
 
 /// The entropy service's request endpoint: the client's whole authority over randomness, and it
 /// names no device. `ensure` wires the service once per boot; whichever test asks first pays.
-fn entropy() -> Option<crate::sched::EpId> {
+fn entropy() -> Option<crate::sched::RendezvousId> {
     let image = program("entropy").expect("no entropy program in the initrd archive");
     let w = entropy_service::ensure(image, entropy_service::Bus::Mmio)?;
     if let Some(report) = w.wait_for_ready() {
@@ -82,12 +82,12 @@ fn exchange(
     // a sixty-second watchdog hang: `ipc_recv` on an endpoint nobody will ever send on does not
     // come back.
     assert!(
-        wait_for(|| crate::sched::endpoint_waiting_senders(server.report) > 0),
+        wait_for(|| crate::sched::rendezvous_waiting_senders(server.report) > 0),
         "the test server never saw a request: the client failed before it reached the network",
     );
     let served = crate::sched::ipc_recv(server.report);
     assert!(
-        wait_for(|| crate::sched::endpoint_waiting_senders(client) > 0),
+        wait_for(|| crate::sched::rendezvous_waiting_senders(client) > 0),
         "the client never reported: it is still blocked somewhere in the exchange",
     );
     let reported = crate::sched::ipc_recv(client);
@@ -286,7 +286,7 @@ fn an_ntp_client_holds_no_writable_clock_page() {
     let before = clock.page().read();
     // An endpoint nobody serves: the probe never sends a request, and giving it a real server
     // would only add a process to the boot.
-    let stack = crate::sched::create_endpoint();
+    let stack = crate::sched::create_rendezvous();
 
     let faults = USER_FAULTS.load(Ordering::Relaxed);
     let report = ntp_service::start_probe(
@@ -316,7 +316,7 @@ fn an_ntp_client_holds_no_writable_clock_page() {
         "something faulted, but not at the clock page's address",
     );
     assert_eq!(
-        crate::sched::endpoint_waiting_senders(report),
+        crate::sched::rendezvous_waiting_senders(report),
         0,
         "the probe reported past its write: the write did not fault, so an NTP client set the \
          clock by hand",
@@ -395,7 +395,7 @@ fn without_entropy_the_client_refuses_rather_than_guessing() {
     // would block in the network it should never have reached, and an unbounded `ipc_recv` here
     // would report that as a watchdog hang rather than as the refusal that did not happen.
     assert!(
-        wait_for(|| crate::sched::endpoint_waiting_senders(report) > 0),
+        wait_for(|| crate::sched::rendezvous_waiting_senders(report) > 0),
         "the client neither refused nor reported: with no nonce it can trust, it went to the \
          network anyway and is blocked there",
     );
@@ -412,7 +412,7 @@ fn without_entropy_the_client_refuses_rather_than_guessing() {
         reported[1] as i64,
     );
     assert_eq!(
-        crate::sched::endpoint_waiting_senders(server.report),
+        crate::sched::rendezvous_waiting_senders(server.report),
         0,
         "the server saw a request: the client sent one without a nonce it could trust",
     );

@@ -111,7 +111,7 @@ pub extern "C" fn _start(_a0: u64, _a1: u64, _a2: u64) -> ! {
 
     loop {
         let (op, slot, arg) = recv_cap(FRONT);
-        if slot == abi::endpoint::NO_CAP {
+        if slot == abi::rendezvous::NO_CAP {
             continue; // the contract says CALL; with no reply capability there is nobody to answer
         }
         match op {

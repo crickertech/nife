@@ -1,6 +1,6 @@
 use super::*;
-use crate::cap::{Rights, endpoint_cap, untyped_root_cap};
-use crate::sched::EpId;
+use crate::cap::{Rights, rendezvous_cap, untyped_root_cap};
+use crate::sched::RendezvousId;
 
 /// The timetable's budget. Every scheduled instance is 48 pages of it (`INSTANCE_PAGES` in
 /// `user/src/timetable.rs`) plus the loader's own scratch page tables, and the pages come home when
@@ -97,7 +97,7 @@ fn narrowed_archive() -> &'static [u8] {
 /// under test is the scheduler rather than a shortcut. Its complete authority is the four slots
 /// below, which is the same list `user/src/timetable.rs`'s header states and the reason a scheduled
 /// `date` in the shipped document is refused.
-fn spawn_timetable(fires: u64) -> (EpId, EpId, EpId) {
+fn spawn_timetable(fires: u64) -> (RendezvousId, RendezvousId, RendezvousId) {
     // **Not the initrd.** The archive this process is handed holds exactly the programs its own
     // document will ever build; see [`narrowed_archive`] for why the spawn site is the only place
     // that decision can be made.
@@ -141,15 +141,15 @@ fn spawn_timetable(fires: u64) -> (EpId, EpId, EpId) {
     }
     let aspace = readopt_user_aspace(space).expect("register the timetable aspace");
 
-    let out = crate::sched::create_endpoint();
-    let child_report = crate::sched::create_endpoint();
-    let deaths = crate::sched::create_endpoint();
+    let out = crate::sched::create_rendezvous();
+    let child_report = crate::sched::create_rendezvous();
+    let deaths = crate::sched::create_rendezvous();
     let budget = crate::untyped::create(TIMETABLE_BUDGET_PAGES).expect("no budget");
     let tcb_region = crate::untyped::create(2).expect("no tcb region");
     let tid = crate::sched::create_tcb(tcb_region).expect("no tcb");
 
     // Slot 0: where its own text goes. WRITE, so it can say things and cannot listen.
-    let s = crate::sched::tcb_insert_cap(tid, endpoint_cap(out, Rights::WRITE), None)
+    let s = crate::sched::tcb_insert_cap(tid, rendezvous_cap(out, Rights::WRITE), None)
         .expect("insert out");
     assert_eq!(s, 0, "the timetable's output endpoint must land in slot 0");
     // Slot 1: what every instance is made of.
@@ -160,16 +160,16 @@ fn spawn_timetable(fires: u64) -> (EpId, EpId, EpId) {
     // entire purpose; `WRITE` because a scheduled child reports and never listens.
     let s = crate::sched::tcb_insert_cap(
         tid,
-        endpoint_cap(child_report, Rights::WRITE.union(Rights::GRANT)),
+        rendezvous_cap(child_report, Rights::WRITE.union(Rights::GRANT)),
         None,
     )
     .expect("insert child report");
     assert_eq!(s, 2, "the child report endpoint must land in slot 2");
-    // Slot 3: the supervision endpoint. `READ` is what `RECV` and `Endpoint::REAP` take (§32);
+    // Slot 3: the supervision endpoint. `READ` is what `RECV` and `Rendezvous::REAP` take (§32);
     // `GRANT` is what lets it be placed in each child's reserved fault slot.
     let s = crate::sched::tcb_insert_cap(
         tid,
-        endpoint_cap(deaths, Rights::READ.union(Rights::GRANT)),
+        rendezvous_cap(deaths, Rights::READ.union(Rights::GRANT)),
         None,
     )
     .expect("insert deaths");
@@ -181,7 +181,7 @@ fn spawn_timetable(fires: u64) -> (EpId, EpId, EpId) {
 }
 
 /// One line of `sink_proto` bytes off `ep`, without its newline. `None` at end of stream.
-fn line(ep: EpId, buf: &mut [u8; 256]) -> Option<usize> {
+fn line(ep: RendezvousId, buf: &mut [u8; 256]) -> Option<usize> {
     let mut len = 0usize;
     loop {
         let m = crate::sched::ipc_recv(ep);
@@ -351,7 +351,7 @@ fn a_scheduled_entry_holds_what_the_plan_said_and_a_refused_one_never_runs() {
     // The clean-exit count is the supervision half of the claim, and it is not decoration: each of
     // those children was born with the timetable's supervision endpoint in its reserved fault slot,
     // died, reported its death to the timetable, and had its region reclaimed through
-    // `Endpoint::REAP`. A scheduler that leaked a region per fire would still print the fire count
+    // `Rendezvous::REAP`. A scheduler that leaked a region per fire would still print the fire count
     // and would run out of budget instead of finishing.
     let Some(n) = line(out, &mut buf) else {
         panic!("the timetable ended its stream without a summary");

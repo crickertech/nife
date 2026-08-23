@@ -39,7 +39,7 @@ const EXPECTED_REPORTS: usize = 4 * ATTEMPTS;
 /// process in the run holds a WRITE view of. Deliberately the same endowment `spawn_init` gives
 /// (the archive read-only at `INITRD_VA`, an untyped in slot 0, a report endpoint in slot 1), so
 /// what is under test is the seam rather than a privileged shortcut.
-fn spawn_confiner() -> sched::EpId {
+fn spawn_confiner() -> sched::RendezvousId {
     let (initrd_start, initrd_len) = memory::initrd_region().expect("no initrd region");
     let initrd_pages = initrd_len.div_ceil(FRAME_SIZE);
     let bytes = program("c_confiner").expect("no c_confiner program in the initrd archive");
@@ -74,7 +74,7 @@ fn spawn_confiner() -> sched::EpId {
     }
     let aspace = readopt_user_aspace(space).expect("register the c_confiner aspace");
 
-    let report = sched::create_endpoint();
+    let report = sched::create_rendezvous();
     let budget = crate::untyped::create(CONFINER_BUDGET_PAGES).expect("no budget for c_confiner");
     let tcb_region = crate::untyped::create(2).expect("no tcb region");
     let tid = sched::create_tcb(tcb_region).expect("no tcb");
@@ -83,7 +83,7 @@ fn spawn_confiner() -> sched::EpId {
     assert_eq!(s0, 0, "c_confiner's budget must land in slot 0");
     let s1 = sched::tcb_insert_cap(
         tid,
-        crate::cap::endpoint_cap(
+        crate::cap::rendezvous_cap(
             report,
             crate::cap::Rights::WRITE.union(crate::cap::Rights::GRANT),
         ),
@@ -123,7 +123,7 @@ fn run_seam() -> [[u64; 5]; EXPECTED_REPORTS] {
         sched::yield_now();
     }
     assert_eq!(
-        sched::endpoint_waiting_senders(report),
+        sched::rendezvous_waiting_senders(report),
         0,
         "the run made more than {EXPECTED_REPORTS} reports: the supervisor acted after the \
          honest attempt finished",

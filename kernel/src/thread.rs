@@ -322,7 +322,7 @@ impl Drop for QuotaToken {
 /// What a blocked thread waits on: the endpoint and the side of the rendezvous it waits as. The
 /// payload of [`wake_handshake::Handshake::wait_on`], opaque to that crate, matched by the kernel
 /// (`ipc_reply`'s reply-role check, the hang dump's wait column).
-pub type Wait = (crate::sched::EpId, WaitRole);
+pub type Wait = (crate::sched::RendezvousId, WaitRole);
 
 pub struct Thread {
     pub id: Tid,
@@ -446,7 +446,7 @@ pub struct Thread {
     /// relationship is fixed and visible in how the thread was built (§26.2). When the thread
     /// faults or exits, the kernel delivers a five-word message here and the corpse goes `Dead`
     /// until reaped; a thread with `None` dies and is reaped immediately, today's behaviour.
-    pub(crate) fault_ep: Option<crate::sched::EpId>,
+    pub(crate) fault_ep: Option<crate::sched::RendezvousId>,
 
     /// **The untyped region this TCB's page was retyped out of** (DECISIONS §32), or `None` for a
     /// kernel-created thread whose page came from `kmem`. Recorded at `create_tcb`, which is the one

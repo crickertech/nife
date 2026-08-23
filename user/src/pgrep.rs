@@ -1,7 +1,7 @@
 //! **`pgrep`: name the members of a domain that match, and do nothing to them** (milestone 126,
 //! notes/process-view.md).
 //!
-//! The whole program is: walk one supervision domain with `abi::endpoint::SURVEY`, filter it, then
+//! The whole program is: walk one supervision domain with `abi::rendezvous::SURVEY`, filter it, then
 //! say what matched on one stream and what went wrong on the other. The walk is `crates/ps` and the
 //! filter is `crates/pgrep`, both host-tested in milliseconds; what lives here is the syscall and
 //! the two sinks.

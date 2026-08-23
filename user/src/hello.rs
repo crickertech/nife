@@ -30,7 +30,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use abi::{Error, endpoint};
+use abi::{Error, rendezvous};
 /// The endowment a child is born holding, for the one loader this tree has (milestone 96). The
 /// interactive boot's own use of it is in `crates/system_initializer`; what is left here is milestone
 /// 19d's test roles, which build a child out of one budget and hand it two or three capabilities.
@@ -205,7 +205,7 @@ fn print(bytes: &[u8]) -> Result<(), Error> {
 
     // The length is the message. The data is already in place, shared, uncopied.
     // SAFETY: as above: the kernel validates the capability and the method.
-    let r = unsafe { invoke(REQUEST, endpoint::SEND, n as u64, 0, 0) };
+    let r = unsafe { invoke(REQUEST, rendezvous::SEND, n as u64, 0, 0) };
     if let Some(e) = Error::from_ret(r) {
         return Err(e); // e.g. NoSuchSlot: we were not handed a console
     }
@@ -218,7 +218,7 @@ fn print(bytes: &[u8]) -> Result<(), Error> {
 // The IPC primitives (send/recv/invoke/exit) come from the shared `user_rt` crate (19f.6).
 
 /// Receive a data word and, if the sender delegated one, a capability. Returns `(w0, slot)`, where
-/// `slot` is where the received capability landed in our cspace, or `endpoint::NO_CAP` if none came.
+/// `slot` is where the received capability landed in our cspace, or `rendezvous::NO_CAP` if none came.
 ///
 /// A thin shape over `user_rt::recv_cap`, which returns the third word this caller does not want.
 fn recv_cap(slot: u64) -> (u64, u64) {
@@ -534,10 +534,10 @@ fn init_console(initrd_len: u64) -> ! {
     };
 
     // The channel to the server, and a shared page to hand it the text.
-    let Ok(request) = retype_obj(UNTYPED, abi::objtype::ENDPOINT) else {
+    let Ok(request) = retype_obj(UNTYPED, abi::objtype::RENDEZVOUS) else {
         fail_report(REPORT)
     };
-    let Ok(reply) = retype_obj(UNTYPED, abi::objtype::ENDPOINT) else {
+    let Ok(reply) = retype_obj(UNTYPED, abi::objtype::RENDEZVOUS) else {
         fail_report(REPORT)
     };
     let Ok(shared) = retype_frame(UNTYPED) else {
@@ -762,7 +762,7 @@ fn ep_maker() -> ! {
         invoke(
             UNTYPED,
             abi::untyped::RETYPE_OBJ,
-            abi::objtype::ENDPOINT,
+            abi::objtype::RENDEZVOUS,
             0,
             0,
         )
@@ -772,7 +772,7 @@ fn ep_maker() -> ! {
 
     // Delegate a READ-only view (recv, never send) to whoever is on the channel; we keep WRITE.
     // SAFETY: `svc`.
-    check(unsafe { invoke(CHANNEL, endpoint::SEND_CAP, ep, abi::rights::READ, 0) } == 0);
+    check(unsafe { invoke(CHANNEL, rendezvous::SEND_CAP, ep, abi::rights::READ, 0) } == 0);
 
     // Speak first through our own creation: blocks until the peer receives, which is the proof.
     check(send(ep, 0x77, 0, 0) == 0);
@@ -788,7 +788,7 @@ fn ep_user() -> ! {
     const REPORT: u64 = 1;
 
     let (_w, slot) = recv_cap(CHANNEL);
-    check(slot != endpoint::NO_CAP);
+    check(slot != rendezvous::NO_CAP);
 
     let (w0, _, _) = recv(slot); // listen on the minted endpoint
     send(REPORT, w0, 0, 0); // report the word that crossed it
@@ -805,7 +805,15 @@ fn granter() -> ! {
     const RESOURCE: u64 = 1;
 
     // SAFETY: `svc`. Delegate RESOURCE, narrowed to WRITE (dropping GRANT), over CHANNEL.
-    unsafe { invoke(CHANNEL, endpoint::SEND_CAP, RESOURCE, abi::rights::WRITE, 0) };
+    unsafe {
+        invoke(
+            CHANNEL,
+            rendezvous::SEND_CAP,
+            RESOURCE,
+            abi::rights::WRITE,
+            0,
+        )
+    };
 
     exit(); // one-shot: our authority is passed on, so we leave and the kernel reaps us
 }
@@ -822,7 +830,7 @@ fn receiver() -> ! {
     // Receive the delegated capability. It lands in a fresh slot of our own cspace; RECV_CAP tells
     // us which one. We were never told the slot in advance: the kernel chose it and named it to us.
     let (_data, got) = recv_cap(CHANNEL);
-    let received = got != endpoint::NO_CAP;
+    let received = got != rendezvous::NO_CAP;
 
     // Use it. A SEND on the received capability rendezvous with whoever holds the other end, which
     // proves a capability minted for us by another process carries real authority.
@@ -833,7 +841,7 @@ fn receiver() -> ! {
     // Try to pass it on. We hold it WITHOUT grant, so the kernel refuses before any rendezvous, and
     // the invoke returns an error. LOOPBACK needs no receiver: the refusal happens at the check.
     // SAFETY: as above: the kernel validates the capability and the method.
-    let redelegate = unsafe { invoke(LOOPBACK, endpoint::SEND_CAP, got, abi::rights::WRITE, 0) };
+    let redelegate = unsafe { invoke(LOOPBACK, rendezvous::SEND_CAP, got, abi::rights::WRITE, 0) };
     let refused = redelegate < 0;
 
     // Verdict: bit 0 we received a capability, bit 1 re-delegation was refused. 0b11 is the story.
@@ -870,7 +878,7 @@ fn frame_producer() -> ! {
     unsafe {
         invoke(
             CHANNEL,
-            endpoint::SEND_CAP,
+            rendezvous::SEND_CAP,
             frame as u64,
             abi::rights::READ,
             0,
@@ -891,7 +899,7 @@ fn frame_consumer() -> ! {
     const RW_VA: u64 = 0x0000_0000_00B0_0000;
 
     let (_data, frame) = recv_cap(CHANNEL);
-    let received = frame != endpoint::NO_CAP;
+    let received = frame != rendezvous::NO_CAP;
 
     let mut read_ok = false;
     let mut rw_refused = false;

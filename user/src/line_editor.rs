@@ -12,7 +12,7 @@
 //!
 //! Nobody in that picture knows what they are talking to. The input driver holds "an endpoint I
 //! send wire bytes to"; the application holds "an endpoint that prints and reads lines"; the
-//! console server holds "an endpoint requests arrive on". Endpoint-only naming (notes/
+//! console server holds "an endpoint requests arrive on". Rendezvous-only naming (notes/
 //! ipc-naming.md) is what makes the discipline swappable: rewire the endpoints and no client can
 //! tell, which is milestone 23's hot-swap claim in component form.
 //!
@@ -86,7 +86,7 @@ pub extern "C" fn _start(_x0: u64, _x1: u64, _x2: u64) -> ! {
 
     loop {
         let (w0, slot, w1) = recv_cap(TERM);
-        if slot == abi::endpoint::NO_CAP {
+        if slot == abi::rendezvous::NO_CAP {
             // A plain SEND slipped in; the contract says CALL. With no reply capability there
             // is nobody to answer, so the only honest move is to drop it.
             continue;

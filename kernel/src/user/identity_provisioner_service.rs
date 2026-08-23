@@ -1,6 +1,6 @@
 use super::*;
-use crate::cap::{Rights, endpoint_cap};
-use crate::sched::EpId;
+use crate::cap::{Rights, rendezvous_cap};
+use crate::sched::RendezvousId;
 
 /// Where the tool expects the caller to have staged the identity and secret, in
 /// `cred_proto::place`'s layout. Must match `user/src/identity_provisioner.rs`'s own `REQ_VA`.
@@ -39,14 +39,14 @@ pub const RPT_CRED_FAILED: u64 = 4;
 /// constants and this module's re-exports of them).
 pub fn provision(
     image: &'static [u8],
-    prov: EpId,
+    prov: RendezvousId,
     prov_frame: u64,
-    fs_ep: EpId,
+    fs_ep: RendezvousId,
     fs_frame: u64,
     identity: &[u8],
     secret: &[u8],
 ) -> [u64; 2] {
-    let report = crate::sched::create_endpoint();
+    let report = crate::sched::create_rendezvous();
     let id_len = identity.len() as u64;
     let secret_len = secret.len() as u64;
 
@@ -89,9 +89,9 @@ pub fn provision(
                 arg1: secret_len,
                 arg2: 0,
                 grants: &[
-                    endpoint_cap(prov, Rights::WRITE),   // slot 0: PUT the credential
-                    endpoint_cap(fs_ep, Rights::WRITE),  // slot 1: MKDIR the home subtree
-                    endpoint_cap(report, Rights::WRITE), // slot 2: say what happened
+                    rendezvous_cap(prov, Rights::WRITE), // slot 0: PUT the credential
+                    rendezvous_cap(fs_ep, Rights::WRITE), // slot 1: MKDIR the home subtree
+                    rendezvous_cap(report, Rights::WRITE), // slot 2: say what happened
                 ],
                 maps: &maps,
             },

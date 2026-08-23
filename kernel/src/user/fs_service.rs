@@ -1,6 +1,6 @@
 use super::*;
-use crate::cap::{Rights, endpoint_cap, irq_cap, untyped_cap, virtio_cap};
-use crate::sched::EpId;
+use crate::cap::{Rights, irq_cap, rendezvous_cap, untyped_cap, virtio_cap};
+use crate::sched::RendezvousId;
 
 /// The block server's role in the driver binary (must match user/src/{hello,blk}.rs and virtio.rs).
 const ROLE_BLK_SERVER: u64 = 32;
@@ -219,7 +219,7 @@ static FILE_SHARED: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU6
 /// The wired service: the file-service endpoint clients `CALL`, the physical frame they share
 /// with the FS server, and (only on the call that did the wiring) the block server's and FS
 /// server's readiness endpoints.
-type Service = (EpId, u64, Option<(EpId, EpId)>);
+type Service = (RendezvousId, u64, Option<(RendezvousId, RendezvousId)>);
 
 /// Wire the block server and the FS server if this boot has not already, else hand back what is
 /// already running. `None` means no RedoxFS disk is attached.
@@ -246,12 +246,12 @@ fn ensure(blk_image: &'static [u8], fs_server_image: &'static [u8]) -> Option<Se
 fn wire_servers(
     blk_image: &'static [u8],
     fs_server_image: &'static [u8],
-) -> Option<(EpId, EpId, EpId, u64)> {
+) -> Option<(RendezvousId, RendezvousId, RendezvousId, u64)> {
     let (blk_ep, blk_ready, blk_shared) =
         spawn_block_server(blk_image, crate::virtio::find_block_device_n(1)?);
     let file_shared = file_channel();
-    let file_ep = crate::sched::create_endpoint(); // client WRITE (CALL) -> FS server READ
-    let ready = crate::sched::create_endpoint(); // FS server WRITE -> the kernel test RECVs
+    let file_ep = crate::sched::create_rendezvous(); // client WRITE (CALL) -> FS server READ
+    let ready = crate::sched::create_rendezvous(); // FS server WRITE -> the kernel test RECVs
     spawn_fs_server(
         fs_server_image,
         FsServer {
@@ -291,7 +291,7 @@ fn wire_servers(
 pub(super) fn spawn_block_server(
     blk_image: &'static [u8],
     dev: crate::virtio::VirtioMmioDevice,
-) -> (EpId, EpId, u64) {
+) -> (RendezvousId, RendezvousId, u64) {
     let dma = crate::memory::alloc_contiguous(1 + BLK_PAGES)
         .expect("no DMA region for the block server")
         .addr();
@@ -306,10 +306,10 @@ pub(super) fn spawn_block_server(
     };
     let blk_shared = dma + FRAME_SIZE; // the data pages start right after the rings page
 
-    let blk_ep = crate::sched::create_endpoint(); // FS server WRITE (CALL) -> block server READ
-    let blk_ready = crate::sched::create_endpoint(); // block server WRITE -> the kernel test RECVs
+    let blk_ep = crate::sched::create_rendezvous(); // FS server WRITE (CALL) -> block server READ
+    let blk_ready = crate::sched::create_rendezvous(); // block server WRITE -> the kernel test RECVs
 
-    let irq_ep = crate::sched::create_endpoint();
+    let irq_ep = crate::sched::create_rendezvous();
     crate::sched::bind_irq(dev.intid, irq_ep);
     crate::arch::irq::enable(dev.intid);
     let vid = crate::virtio::register(
@@ -340,10 +340,10 @@ pub(super) fn spawn_block_server(
                 arg1: dma, // the DMA region's physical address
                 arg2: 0,
                 grants: &[
-                    endpoint_cap(blk_ep, Rights::READ), // slot 0: RECV blk requests
-                    irq_cap(dev.intid),                 // slot 1: the device interrupt
-                    virtio_cap(vid),                    // slot 2: the confined transport
-                    endpoint_cap(blk_ready, Rights::WRITE), // slot 3: signal readiness once
+                    rendezvous_cap(blk_ep, Rights::READ), // slot 0: RECV blk requests
+                    irq_cap(dev.intid),                   // slot 1: the device interrupt
+                    virtio_cap(vid),                      // slot 2: the confined transport
+                    rendezvous_cap(blk_ready, Rights::WRITE), // slot 3: signal readiness once
                 ],
                 maps: &maps,
             },
@@ -361,11 +361,11 @@ struct FsServer {
     /// Which bank of [`FS_STACK_PHYS`] this process's poisoned stack is recorded in. One per
     /// FS server a boot can start, so the high-water instrument covers all of them.
     slot: usize,
-    blk_ep: EpId,
+    blk_ep: RendezvousId,
     blk_shared: u64,
-    file_ep: EpId,
+    file_ep: RendezvousId,
     file_shared: u64,
-    ready: EpId,
+    ready: RendezvousId,
     /// The untyped budget this server's heap draws from, in frames. The ordinary server gets
     /// [`FS_BUDGET_PAGES`]; milestone 37's two get a fraction of it, because an untyped is
     /// **reserved** rather than merely capped and three 8 MiB reservations do not fit in this
@@ -424,10 +424,10 @@ fn spawn_fs_server(fs_server_image: &'static [u8], cfg: FsServer) {
                 arg1: cfg.crash.1,
                 arg2: cfg.crash.2,
                 grants: &[
-                    untyped_cap(budget),                     // slot 0: the heap's untyped budget
-                    endpoint_cap(cfg.blk_ep, Rights::WRITE), // slot 1: CALL the block server
-                    endpoint_cap(cfg.file_ep, Rights::READ), // slot 2: RECV file requests
-                    endpoint_cap(cfg.ready, Rights::WRITE),  // slot 3: signal readiness once
+                    untyped_cap(budget),                       // slot 0: the heap's untyped budget
+                    rendezvous_cap(cfg.blk_ep, Rights::WRITE), // slot 1: CALL the block server
+                    rendezvous_cap(cfg.file_ep, Rights::READ), // slot 2: RECV file requests
+                    rendezvous_cap(cfg.ready, Rights::WRITE),  // slot 3: signal readiness once
                 ],
                 maps: &maps,
             },
@@ -450,9 +450,9 @@ fn spawn_fs_server(fs_server_image: &'static [u8], cfg: FsServer) {
 /// and it is what gives the recovery mount a defined moment to start at instead of a guess.
 #[cfg_attr(not(test), allow(dead_code))]
 pub struct CrashRun {
-    pub blk_ready: EpId,
-    pub fs_ready: EpId,
-    pub driver_report: EpId,
+    pub blk_ready: RendezvousId,
+    pub fs_ready: RendezvousId,
+    pub driver_report: RendezvousId,
 }
 
 /// The heap budget each of milestone 37's two FS servers draws from. Smaller than
@@ -494,8 +494,8 @@ pub fn start_crash(
     CRASH_BLK_SHARED.store(blk_shared, Ordering::Relaxed);
 
     let file_shared = file_channel();
-    let file_ep = crate::sched::create_endpoint();
-    let fs_ready = crate::sched::create_endpoint();
+    let file_ep = crate::sched::create_rendezvous();
+    let fs_ready = crate::sched::create_rendezvous();
     spawn_fs_server(
         fs_server_image,
         FsServer {
@@ -531,11 +531,14 @@ pub fn start_crash(
 ///
 /// Returns `(ready, report)`.
 #[cfg_attr(not(test), allow(dead_code))]
-pub fn recover_crash(fs_server_image: &'static [u8], client_image: &'static [u8]) -> (EpId, EpId) {
+pub fn recover_crash(
+    fs_server_image: &'static [u8],
+    client_image: &'static [u8],
+) -> (RendezvousId, RendezvousId) {
     use core::sync::atomic::Ordering;
     let file_shared = file_channel();
-    let file_ep = crate::sched::create_endpoint();
-    let ready = crate::sched::create_endpoint();
+    let file_ep = crate::sched::create_rendezvous();
+    let ready = crate::sched::create_rendezvous();
     spawn_fs_server(
         fs_server_image,
         FsServer {
@@ -577,18 +580,18 @@ const CLIENT_EXTRA_STACK: usize = 8;
 /// `grant_plan` hands it, so a field added there is a page needed here.
 fn spawn_fs_client(
     client_image: &'static [u8],
-    file_ep: EpId,
+    file_ep: RendezvousId,
     file_shared: u64,
     role: u64,
     arg: u64,
     arg2: u64,
     extra_stack: usize,
-) -> EpId {
+) -> RendezvousId {
     assert!(
         extra_stack <= CLIENT_EXTRA_STACK,
         "an FS client asked for more stack than this wiring maps",
     );
-    let report = crate::sched::create_endpoint();
+    let report = crate::sched::create_rendezvous();
     crate::sched::spawn(move || {
         let mut maps = [Mapping {
             va: 0,
@@ -613,8 +616,8 @@ fn spawn_fs_client(
                 // here takes a role and one number and leaves this zero.
                 arg2,
                 grants: &[
-                    endpoint_cap(file_ep, Rights::WRITE), // slot 0: CALL the FS server
-                    endpoint_cap(report, Rights::WRITE),  // slot 1: report to the kernel
+                    rendezvous_cap(file_ep, Rights::WRITE), // slot 0: CALL the FS server
+                    rendezvous_cap(report, Rights::WRITE),  // slot 1: report to the kernel
                 ],
                 maps: &maps[..n + extra_stack],
             },
@@ -635,7 +638,7 @@ pub fn start(
     fs_server_image: &'static [u8],
     client_image: &'static [u8],
     client_role: u64,
-) -> Option<(Option<(EpId, EpId)>, EpId)> {
+) -> Option<(Option<(RendezvousId, RendezvousId)>, RendezvousId)> {
     let (file_ep, file_shared, readiness) = ensure(blk_image, fs_server_image)?;
     // 0 = the end-to-end proof; 1 = the fs_read benchmark loop.
     let report = spawn_fs_client(client_image, file_ep, file_shared, client_role, 0, 0, 0);
@@ -687,7 +690,7 @@ pub struct Grant {
 ///
 /// `None` means an earlier caller in this boot already wired the service and drained these.
 #[cfg_attr(not(test), allow(dead_code))]
-pub fn wait_for_service(readiness: Option<(EpId, EpId)>) {
+pub fn wait_for_service(readiness: Option<(RendezvousId, RendezvousId)>) {
     let Some((blk_ready, fs_ready)) = readiness else {
         return;
     };
@@ -726,7 +729,7 @@ pub fn wait_for_service(readiness: Option<(EpId, EpId)>) {
 /// The fix is ordering, not a second page: drain the service, wait for the caretaker's own
 /// sentinel, and only then spawn the confined program.
 #[cfg_attr(not(test), allow(dead_code))]
-fn wait_for_caretaker(caretaker_ready: EpId) {
+fn wait_for_caretaker(caretaker_ready: RendezvousId) {
     assert_eq!(
         crate::sched::ipc_recv(caretaker_ready)[0],
         fs_proto::fixture::READY,
@@ -741,7 +744,7 @@ pub fn start_granted(
     caretaker_image: &'static [u8],
     client_image: &'static [u8],
     grant: Grant,
-) -> Option<EpId> {
+) -> Option<RendezvousId> {
     let Grant {
         name,
         rights,
@@ -753,8 +756,8 @@ pub fn start_granted(
         "a granted name rides in two argument words; this one does not fit",
     );
     let (file_ep, file_shared, readiness) = ensure(blk_image, fs_server_image)?;
-    let narrow_ep = crate::sched::create_endpoint();
-    let caretaker_ready = crate::sched::create_endpoint();
+    let narrow_ep = crate::sched::create_rendezvous();
+    let caretaker_ready = crate::sched::create_rendezvous();
 
     let (lo, hi) = fs_proto::grant::pack_name(name.as_bytes());
     let spec = fs_proto::grant::spec(name.len(), rights);
@@ -770,9 +773,9 @@ pub fn start_granted(
                 arg1: hi,
                 arg2: spec,
                 grants: &[
-                    endpoint_cap(file_ep, Rights::WRITE), // slot 0: CALL the FS server
-                    endpoint_cap(narrow_ep, Rights::READ), // slot 1: serve the narrowed capability
-                    endpoint_cap(caretaker_ready, Rights::WRITE), // slot 2: readiness, once
+                    rendezvous_cap(file_ep, Rights::WRITE), // slot 0: CALL the FS server
+                    rendezvous_cap(narrow_ep, Rights::READ), // slot 1: serve the narrowed capability
+                    rendezvous_cap(caretaker_ready, Rights::WRITE), // slot 2: readiness, once
                 ],
                 maps: &[Mapping {
                     va: FILE_VA_CLIENT,
@@ -872,7 +875,7 @@ pub fn blk_server_image() -> &'static [u8] {
 pub fn root_directory(
     blk_image: &'static [u8],
     fs_server_image: &'static [u8],
-) -> Option<(EpId, u64)> {
+) -> Option<(RendezvousId, u64)> {
     let (file_ep, file_shared, readiness) = ensure(blk_image, fs_server_image)?;
     wait_for_service(readiness);
     Some((file_ep, file_shared))
@@ -896,14 +899,14 @@ pub fn narrow_dir(
     caretaker_image: &'static [u8],
     name: &'static str,
     rights: u64,
-) -> Option<(EpId, u64)> {
+) -> Option<(RendezvousId, u64)> {
     assert!(
         fs_proto::grant::fits(name.as_bytes()),
         "a granted name rides in two argument words; this one does not fit",
     );
     let (file_ep, file_shared, readiness) = ensure(blk_image, fs_server_image)?;
-    let narrow_ep = crate::sched::create_endpoint();
-    let caretaker_ready = crate::sched::create_endpoint();
+    let narrow_ep = crate::sched::create_rendezvous();
+    let caretaker_ready = crate::sched::create_rendezvous();
 
     let (lo, hi) = fs_proto::grant::pack_name(name.as_bytes());
     let spec = fs_proto::grant::spec(name.len(), rights);
@@ -916,9 +919,9 @@ pub fn narrow_dir(
                 arg1: hi,
                 arg2: spec,
                 grants: &[
-                    endpoint_cap(file_ep, Rights::WRITE), // slot 0: CALL the FS server
-                    endpoint_cap(narrow_ep, Rights::READ), // slot 1: serve the narrowed capability
-                    endpoint_cap(caretaker_ready, Rights::WRITE), // slot 2: readiness, once
+                    rendezvous_cap(file_ep, Rights::WRITE), // slot 0: CALL the FS server
+                    rendezvous_cap(narrow_ep, Rights::READ), // slot 1: serve the narrowed capability
+                    rendezvous_cap(caretaker_ready, Rights::WRITE), // slot 2: readiness, once
                 ],
                 maps: &[Mapping {
                     va: FILE_VA_CLIENT,
@@ -945,7 +948,7 @@ pub fn start_granted_dir(
     caretaker_image: &'static [u8],
     client_image: &'static [u8],
     grant: DirGrant,
-) -> Option<EpId> {
+) -> Option<RendezvousId> {
     let DirGrant {
         name,
         rights,
@@ -1020,7 +1023,7 @@ pub fn start_granted_set(
     caretaker_image: &'static [u8],
     client_image: &'static [u8],
     grant: SetGrant<'_>,
-) -> Option<EpId> {
+) -> Option<RendezvousId> {
     let SetGrant {
         dir,
         names,
@@ -1035,8 +1038,8 @@ pub fn start_granted_set(
         "a granted directory's name rides in two argument words; this one does not fit",
     );
     let (file_ep, file_shared, readiness) = ensure(blk_image, fs_server_image)?;
-    let narrow_ep = crate::sched::create_endpoint();
-    let caretaker_ready = crate::sched::create_endpoint();
+    let narrow_ep = crate::sched::create_rendezvous();
+    let caretaker_ready = crate::sched::create_rendezvous();
 
     // The set, encoded into its own frame before anything can see it. `encode` refuses rather
     // than truncating, and a truncated set would be a capability nobody planned.
@@ -1061,9 +1064,9 @@ pub fn start_granted_set(
                 arg1: hi,
                 arg2: spec,
                 grants: &[
-                    endpoint_cap(file_ep, Rights::WRITE), // slot 0: CALL the FS server
-                    endpoint_cap(narrow_ep, Rights::READ), // slot 1: serve the narrowed capability
-                    endpoint_cap(caretaker_ready, Rights::WRITE), // slot 2: readiness, once
+                    rendezvous_cap(file_ep, Rights::WRITE), // slot 0: CALL the FS server
+                    rendezvous_cap(narrow_ep, Rights::READ), // slot 1: serve the narrowed capability
+                    rendezvous_cap(caretaker_ready, Rights::WRITE), // slot 2: readiness, once
                 ],
                 maps: &[
                     Mapping {
@@ -1111,11 +1114,11 @@ pub fn start_granted_set(
 #[cfg_attr(not(test), allow(dead_code))]
 pub struct FileSink {
     /// The FS service's two readiness endpoints, if this call is the one that wired it.
-    pub readiness: Option<(EpId, EpId)>,
+    pub readiness: Option<(RendezvousId, RendezvousId)>,
     /// The byte sink. Goes into a program's output slot with `WRITE`.
-    pub sink: EpId,
+    pub sink: RendezvousId,
     /// Readiness first, then `DONE` and the byte total at end of stream.
-    pub report: EpId,
+    pub report: RendezvousId,
 }
 
 #[cfg_attr(not(test), allow(dead_code))]
@@ -1125,8 +1128,8 @@ pub fn start_file_sink(
     sink_image: &'static [u8],
 ) -> Option<FileSink> {
     let (file_ep, file_shared, readiness) = ensure(blk_image, fs_server_image)?;
-    let sink = crate::sched::create_endpoint();
-    let report = crate::sched::create_endpoint();
+    let sink = crate::sched::create_rendezvous();
+    let report = crate::sched::create_rendezvous();
     crate::sched::spawn(move || {
         run(
             sink_image,
@@ -1135,9 +1138,9 @@ pub fn start_file_sink(
                 arg1: 0,
                 arg2: 0,
                 grants: &[
-                    endpoint_cap(sink, Rights::READ), // slot 0: the byte sink it serves
-                    endpoint_cap(file_ep, Rights::WRITE), // slot 1: CALL the FS server
-                    endpoint_cap(report, Rights::WRITE), // slot 2: readiness and the total
+                    rendezvous_cap(sink, Rights::READ), // slot 0: the byte sink it serves
+                    rendezvous_cap(file_ep, Rights::WRITE), // slot 1: CALL the FS server
+                    rendezvous_cap(report, Rights::WRITE), // slot 2: readiness and the total
                 ],
                 maps: &[Mapping {
                     va: FILE_VA_CLIENT,
@@ -1168,10 +1171,10 @@ pub fn start_sink_verify(
     blk_image: &'static [u8],
     fs_server_image: &'static [u8],
     sink_image: &'static [u8],
-) -> Option<(EpId, EpId)> {
+) -> Option<(RendezvousId, RendezvousId)> {
     let (file_ep, file_shared, _) = ensure(blk_image, fs_server_image)?;
-    let out = crate::sched::create_endpoint();
-    let report = crate::sched::create_endpoint();
+    let out = crate::sched::create_rendezvous();
+    let report = crate::sched::create_rendezvous();
     crate::sched::spawn(move || {
         run(
             sink_image,
@@ -1180,9 +1183,9 @@ pub fn start_sink_verify(
                 arg1: 0,
                 arg2: 0,
                 grants: &[
-                    endpoint_cap(out, Rights::WRITE), // slot 0: where the file's bytes go
-                    endpoint_cap(file_ep, Rights::WRITE), // slot 1: CALL the FS server
-                    endpoint_cap(report, Rights::WRITE), // slot 2: the size it found
+                    rendezvous_cap(out, Rights::WRITE), // slot 0: where the file's bytes go
+                    rendezvous_cap(file_ep, Rights::WRITE), // slot 1: CALL the FS server
+                    rendezvous_cap(report, Rights::WRITE), // slot 2: the size it found
                 ],
                 maps: &[Mapping {
                     va: FILE_VA_CLIENT,
@@ -1227,9 +1230,9 @@ pub fn start_std(
     blk_image: &'static [u8],
     fs_server_image: &'static [u8],
     std_image: &'static [u8],
-) -> Option<(Option<(EpId, EpId)>, EpId)> {
+) -> Option<(Option<(RendezvousId, RendezvousId)>, RendezvousId)> {
     let (file_ep, file_shared, readiness) = ensure(blk_image, fs_server_image)?;
-    let report = crate::sched::create_endpoint();
+    let report = crate::sched::create_rendezvous();
     let heap = crate::untyped::create(STD_FS_HEAP_PAGES).expect("no untyped for the std fs heap");
 
     // The shared file page, then the deep stack std needs. `run` maps one stack page; std's
@@ -1253,7 +1256,7 @@ pub fn start_std(
     crate::sched::spawn(move || {
         // The directory capability goes in at its named slot BEFORE `run` grants in order, so
         // `run`'s two grants land at 0 and 1 and slots 2 and 3 stay empty. See `grant_at`.
-        crate::sched::grant_at(FS_DIR_SLOT, endpoint_cap(file_ep, Rights::WRITE))
+        crate::sched::grant_at(FS_DIR_SLOT, rendezvous_cap(file_ep, Rights::WRITE))
             .expect("the std fs slot was already occupied");
         run(
             std_image,
@@ -1262,8 +1265,8 @@ pub fn start_std(
                 arg1: 0,
                 arg2: 0,
                 grants: &[
-                    untyped_cap(heap),                   // slot 0: the heap's budget
-                    endpoint_cap(report, Rights::WRITE), // slot 1: stdout/stderr
+                    untyped_cap(heap),                     // slot 0: the heap's budget
+                    rendezvous_cap(report, Rights::WRITE), // slot 1: stdout/stderr
                 ],
                 maps: &maps,
             },
@@ -1323,7 +1326,7 @@ pub fn start_granted_two_dirs(
     caretaker_image: &'static [u8],
     client_image: &'static [u8],
     grant: TwoDirGrant,
-) -> Option<EpId> {
+) -> Option<RendezvousId> {
     let TwoDirGrant {
         a,
         b,
@@ -1349,7 +1352,7 @@ pub fn start_granted_two_dirs(
         "one boot has one FS server, so both caretakers must share its one file channel",
     );
 
-    let report = crate::sched::create_endpoint();
+    let report = crate::sched::create_rendezvous();
     crate::sched::spawn(move || {
         let mut maps = [Mapping {
             va: 0,
@@ -1368,9 +1371,9 @@ pub fn start_granted_two_dirs(
                 arg1: arg,
                 arg2: 0,
                 grants: &[
-                    endpoint_cap(narrow_a, Rights::WRITE), // slot 0: CALL grant A's caretaker
-                    endpoint_cap(narrow_b, Rights::WRITE), // slot 1: CALL grant B's caretaker
-                    endpoint_cap(report, Rights::WRITE),   // slot 2: report to the kernel
+                    rendezvous_cap(narrow_a, Rights::WRITE), // slot 0: CALL grant A's caretaker
+                    rendezvous_cap(narrow_b, Rights::WRITE), // slot 1: CALL grant B's caretaker
+                    rendezvous_cap(report, Rights::WRITE),   // slot 2: report to the kernel
                 ],
                 maps: &maps[..n + stack_pages],
             },

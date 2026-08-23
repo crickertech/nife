@@ -28,7 +28,7 @@ pub enum Object {
     /// Invoking it is a `SEND` or a `RECV` (which one you may do is a matter of rights). Since
     /// milestone 8 this is how a process reaches the console: it holds a `WRITE` capability on
     /// the console server's endpoint, and printing is sending.
-    Endpoint(crate::sched::EpId),
+    Rendezvous(crate::sched::RendezvousId),
 
     /// **Untyped memory** (milestone 11): a capability to a chunk of raw physical memory the
     /// process may retype into pages. Invoking it grows the process's address space out of its
@@ -169,9 +169,9 @@ const _: () = assert!(
 ///
 /// **`WRITE` lets the holder `SEND`; `READ` lets it `RECV`.** Hand the two ends of one endpoint
 /// out with opposite rights and you have a one-way pipe that neither side can run backwards.
-pub fn endpoint_cap(ep: crate::sched::EpId, rights: Rights) -> Cap {
+pub fn rendezvous_cap(ep: crate::sched::RendezvousId, rights: Rights) -> Cap {
     Cap {
-        object: Object::Endpoint(ep),
+        object: Object::Rendezvous(ep),
         rights,
     }
 }
