@@ -290,6 +290,11 @@ fn std_inputs_stamp() -> u64 {
         // to either must rebuild the farm or the PAL silently drifts from the service.
         root.join("crates/clock_proto/src/lib.rs"),
         root.join("crates/entropy_proto/src/lib.rs"),
+        // The inert-configuration contract (milestone 47's environment-variable fork, DECISIONS
+        // §111): `sys/env` reads the page's layout and `PageBuilder`'s validated domains out of
+        // this crate, generated verbatim into the PAL, so a change to either must rebuild the
+        // farm or the PAL silently drifts from what assembles the page.
+        root.join("crates/env_proto/src/lib.rs"),
         root.join("targets/aarch64-unknown-nife.json"),
         root.join("targets/riscv64-unknown-nife.json"),
     ];
@@ -580,6 +585,13 @@ fn std_generate_modules() -> bool {
         (
             root.join("crates/entropy_proto/src/lib.rs"),
             farm_std_src().join("sys/pal/nife/entropyproto.rs"),
+        ),
+        // The inert-configuration contract (milestone 47's environment-variable fork, DECISIONS
+        // §111), so `sys/env`'s seeding reads the config page with the same layout and the same
+        // validated domains whoever assembles a page uses. Same discipline as the six above.
+        (
+            root.join("crates/env_proto/src/lib.rs"),
+            farm_std_src().join("sys/pal/nife/envproto.rs"),
         ),
         // The byte-sink contract (milestone 50), so `println!`'s framing and the classification of
         // a failed SEND are one definition shared with every sink and with the kernel-side tests.

@@ -2,7 +2,9 @@
 //! capability ABI. Every line exercises a PAL surface: `println!` SENDs on the stdout endpoint
 //! (slot 1), collections draw from the untyped budget (slot 0), `Instant` reads the virtual
 //! counter, `SystemTime` reads the clock page slot 5 grants (milestone 51), `std::random` asks the
-//! entropy service slot 6 grants (milestone 56), and `fs` returns honestly `Unsupported`.
+//! entropy service slot 6 grants (milestone 56), `std::env`'s `TZ`/`LANG`/`TERM` come from the
+//! inert-configuration page slot 7 grants (milestone 47's environment-variable fork, DECISIONS
+//! §111), and `fs` returns honestly `Unsupported`.
 //!
 //! The two `#![feature]`s below are about **the APIs' stability upstream, not about this platform**:
 //! `std::random` (rust-lang/rust#130703) and `std::fs::Dir` (rust-lang/rust#120426) are both still
@@ -24,9 +26,12 @@
 //!     64's inbound half). That is a fourth behaviour chosen by a fourth authority, on the same
 //!     principle as the three above; the grant is `net_stack`'s spawn word, not anything this
 //!     program can ask for.
-//!   - **granted neither** (only the heap and stdout slots): both return `Unsupported`, and the
-//!     program runs the phase-one transcript, proving the collections, timing, and the honest
-//!     refusals.
+//!   - **granted neither**: both return `Unsupported`, and the program runs the phase-one
+//!     transcript, proving the collections, timing, and the honest refusals. Every run, not only
+//!     this one, is also always granted a clock, entropy, and an inert-configuration page (slots
+//!     5, 6 and 7); the fs/net branch above is the only thing chosen by absence, so this bullet's
+//!     "neither" is about the filesystem and the network specifically, not about everything the
+//!     spawn wires in.
 //!
 //! One binary keeps the initrd inside its nifefs directory limit (`MAX_FILES`, 31 entries when
 //! this was written and 76 since 2026-08-01) while still proving all three. The kernel test suite spawns it three ways and checks each transcript
@@ -142,6 +147,30 @@ fn offline_demo() {
     assert!(a.iter().any(|&x| x != 0), "a draw is all zeros");
     println!("entropy ok");
 
+    // **Inert configuration, seeded from a grant, before this program's own code ever ran**
+    // (milestone 47's environment-variable fork, DECISIONS §111). `std_service::start` maps this
+    // process an inert-configuration page unconditionally, the same way it maps a clock, so by
+    // the time `main` started, `pal::nife::init` had already read `TZ`, `LANG` and `TERM` off it
+    // and pushed them into `std::env`'s table (`sys/env/nife.rs::seed`). Nothing here invented
+    // them: a process granted no such page is seeded with nothing, which is the same
+    // honest-absence shape `env::var("PATH")` still has below.
+    assert_eq!(
+        std::env::var("TZ").as_deref(),
+        Ok("UTC"),
+        "TZ was not seeded from the granted inert-configuration page",
+    );
+    assert_eq!(
+        std::env::var("LANG").as_deref(),
+        Ok("C"),
+        "LANG was not seeded from the granted inert-configuration page",
+    );
+    assert_eq!(
+        std::env::var("TERM").as_deref(),
+        Ok("dumb"),
+        "TERM was not seeded from the granted inert-configuration page",
+    );
+    println!("config seeded");
+
     // **The environment** (milestone 64, rank 4 of the measured gap list). Three separate claims,
     // and the first one is why the line exists at all.
     //
@@ -149,15 +178,16 @@ fn offline_demo() {
     // through to the unsupported one whose `env()` is `panic!`, and `std::env::vars()` aborted the
     // process. That compiled perfectly. Counting the iterator is what proves the call returned.
     //
-    // It must be EMPTY, because nothing endows a nife process with variables and inventing some
-    // would be exactly the ambient authority this system does not have.
+    // It must hold EXACTLY the three keys the config grant just seeded above and nothing else,
+    // because nothing endows a nife process with variables beyond what it was granted, and
+    // inventing more would be exactly the ambient authority this system does not have.
     //
     // And `set_var` must actually take, because that is what `set_var` means everywhere else and a
     // library configured by its caller through the environment is an ordinary thing to do.
     assert_eq!(
         std::env::vars().count(),
-        0,
-        "a nife process started with variables it was never granted",
+        3,
+        "a nife process started with variables beyond what its grants seeded",
     );
     assert!(
         std::env::var("PATH").is_err(),
@@ -171,7 +201,7 @@ fn offline_demo() {
     );
     assert_eq!(
         std::env::vars().count(),
-        1,
+        4,
         "the variable this process set is not in its own listing",
     );
     unsafe { std::env::remove_var("NIFE_DEMO") };

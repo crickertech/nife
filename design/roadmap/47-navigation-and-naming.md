@@ -15,6 +15,17 @@ discharged rather than merely aged.
 half and the one the other three lean on: **`/` is the root of your own namespace**, Plan 9's answer,
 in the shell and in the `std` PAL together so that one fork was answered once.
 
+**Environment variables' inert third was built 2026-08-23** (`milestone/47-env-config-page`), the
+second piece of the namespace half: a read-only page carrying `TZ`, `LANG` and `TERM`, each
+validated against a closed domain before it is ever written (DECISIONS §111). See "Environment
+variables" below and notes/env-config.md. What is built is end to end for a std program
+(`env_proto`, the kernel-side assembly and mapping, the `std` PAL's `sys/env::seed`), proven by
+`std_exerciser` on both ISAs; what remains is a shell-facing customer to declare wanting it (no
+`grant_plan::Manifest` field exists yet, the position `clock` was in before `date`), which is what
+would also make the `caps` preview extension §111 asks for meaningful. The other two thirds of
+what Unix calls "environment" stay where this milestone always put them: names (`PATH`, `HOME`)
+wait on `bind`, and secrets are answered elsewhere by an endpoint (§41).
+
 **`RMDIR` and `rm -r` were also already built**, found 2026-08-22 by the same kind of status check
 that caught the `IN-PROGRESS` token above: the code (`user/src/rm.rs`, `fs_proto::fs::RMDIR`), the
 decision (`DECISIONS §49`) and the concept note (notes/rm.md) all say `Built 2026-07-31`, but this
@@ -28,9 +39,11 @@ phase 2) through the same shell-builtin shape `mkdir` already has. The mtime hal
 existing name's time, and `-t`'s ability to set an arbitrary one) is not built; see the `touch`
 section below and notes/touch.md for why that half needs a decision this one does not.
 
-What remains genuinely unbuilt is completion, environment, `PATH`, `bind`, and `ln`'s symlink half
-(hard links declined for want of a customer, DECISIONS §110; symlinks-as-stored-paths were
-superseded by `bind`, DECISIONS §50).
+What remains genuinely unbuilt is completion, environment's names and secrets thirds (both answered
+elsewhere and waiting on their own machinery, `bind` and §41 respectively), a shell-facing customer
+for the inert-configuration page, `PATH`, `bind`, and `ln`'s symlink half (hard links declined for
+want of a customer, DECISIONS §110; symlinks-as-stored-paths were superseded by `bind`, DECISIONS
+§50).
 
 64's second pass (2026-08-18) reports that **nothing in this milestone was ever waiting on 64**, and
 hands over the sized demand this block asked for: named customers at ranks 16, 18 and 27 plus
@@ -73,13 +86,16 @@ name one directory entry outside the set and gets `ENOENT`. Witnessed from the h
 which has said "Built 2026-07-31" the whole time, and the sections below at "Built 2026-07-31: the
 matcher, then the grant", which contradicted the sentence from inside this same file.
 
-**Still to do**: completion, environment, `PATH`, `bind`, and `ln`'s symlink half. (Absolute paths
-came out of this list on 2026-08-18, `rmdir`/`rm -r` were already built and are now annotated as
-such, `touch`'s create half came out on 2026-08-22, and hard links were declined 2026-08-23,
-DECISIONS §110; see the Status block.) Completion is refused by design at the layer
-below and deferred to the application (`crates/line_editor/src/lib.rs:32`), environment has no PAL and
-no shell support, and `PATH` needs `Prog` to stop being a closed enum, which this block calls half the
-mechanism. The `std` PAL's `rename`, `unlink` and `rmdir` **were** bindings rather than missing verbs,
+**Still to do**: completion, environment's names and secrets thirds plus a shell-facing customer for
+the inert-configuration third, `PATH`, `bind`, and `ln`'s symlink half. (Absolute paths came out of
+this list on 2026-08-18, `rmdir`/`rm -r` were already built and are now annotated as such, `touch`'s
+create half came out on 2026-08-22, hard links were declined 2026-08-23, DECISIONS §110, and the
+environment's inert-configuration third came out on 2026-08-23, DECISIONS §111; see the Status
+block.) Completion is refused by design at the layer below and deferred to the application
+(`crates/line_editor/src/lib.rs:32`), environment's names and secrets thirds have no PAL and no
+shell support (the inert third does, but with nothing in the shell declaring it wants one), and
+`PATH` needs `Prog` to stop being a closed enum, which this block calls half the mechanism. The
+`std` PAL's `rename`, `unlink` and `rmdir` **were** bindings rather than missing verbs,
 and milestone 64 bound all three on 2026-08-04 (pull request #113,
 `patches/std-nife/overlay/std/src/sys/fs/nife.rs:945`, `:960`, `:979`); they answer `Unsupported` now
 only when the calling process holds no FS capability at all, which is a grant that was never made
@@ -631,9 +647,11 @@ undone. Four facts, each a lookup rather than an opinion, and the first changes 
   loader hands the program". Init is the ELF loader and already maps pages into a child before
   starting it, so it is the one component that can place a table without a new mechanism.
 - **The receiving side is built and empty.** `std::env` on nife is a process-local table
-  (`sys/env/nife.rs`), and `notes/std.md` says of it: *"When milestone 47's namespace gives a program
-  an endowment, it seeds this table; the shape does not change."* `temp_dir` already reads `TMPDIR`
-  from it, so one variable steers a real behaviour the day anything writes one.
+  (`sys/env/nife.rs`), and `notes/std.md` already named this milestone's namespace as where a real
+  endowment would come from to seed it, without changing the table's shape once it did. `temp_dir`
+  already reads `TMPDIR` from it, so one variable steers a real behaviour the day anything writes
+  one. (Prediction borne out: see the "Built 2026-08-23" subsection below, and
+  notes/env-config.md.)
 
 **Three encodings, with what each costs.** They are not equivalent and the choice is calef's, because
 the shell and init both read whatever is chosen and a stranger's program is written against it.
@@ -658,6 +676,35 @@ misclassified as "inert" (a secret typed into the wrong bucket by mistake) canno
 disguised as configuration, because it cannot parse as one. `caps run prog`'s existing preview is
 also extended to print inert-config *values*, not just key names, catching anything a domain hasn't
 been written for yet. See §111 for the full reasoning.
+
+### Built 2026-08-23, for a std program end to end. Not yet built: a shell customer. See notes/env-config.md.
+
+The page and everything it needed to reach a real process: `crates/env_proto` (the layout, the
+three closed domains, `PageBuilder` and `ConfigPage`, host-tested), a kernel-side assembler and
+mapper (`kernel/src/user/std_service.rs`, the clock page's own shape: a `Frame` with `READ` at a
+named slot, a fixed VA the loader maps read-only), and the `std` PAL's read side
+(`patches/std-nife/overlay/std/src/sys/env/nife.rs::seed`, called once from `pal::nife::init`
+before `main` runs). `std_exerciser`'s transcript proves the whole path on both ISAs: the kernel
+assembled and validated `TZ=UTC`, `LANG=C`, `TERM=dumb`, mapped the page, and the program read
+those exact three values out of `std::env` without doing anything to ask for them.
+
+**What this section predicted correctly.** All four "facts" the 2026-08-18 pricing found hold
+without adjustment: the wire change is between two programs and not the syscall surface, no new
+mechanism was needed beyond a page and a slot (`DIR_BIT`/`GRANT_WORDS`'s "announce, then read"
+shape did not even need announcing, since the receiving program's manifest already says whether it
+wants one, the same way `wants_clock` does today), and the receiving side really was "built and
+empty": `sys/env/nife.rs`'s `ENV` table needed one new function, not a redesign.
+
+**What it did not predict.** The manifest declaration this section's "Invert it" paragraph and
+DECISIONS §111 both call for does not exist yet, because nothing in `grant_plan::Prog` has a
+reason to read `TZ`/`LANG`/`TERM`. `date` did not read the clock page until `date` existed to be
+its customer; the config page is in that exact position. Concretely this means: no
+`grant_plan::Manifest::config` field, no wire bit on `spawnproto`, and the `caps run prog` preview
+extension §111 asks for has nothing to preview. What *is* built (the kernel unconditionally
+granting a std program a config page, the way it unconditionally grants one a clock) is a
+demonstration harness standing in for the shell's own "inheritance with visibility" default, not
+that mechanism itself: there is no shell-held default config set yet, only `std_service.rs`'s one
+fixed default (`UTC`/`C`/`dumb`).
 
 ## `bind` is not blocked on a mount table. It is blocked on a second grant (found 2026-08-18)
 

@@ -65,7 +65,7 @@ std by `cargo xtask std-src`. Each file binds one std concept to the ABI:
 | `std::random::SystemRng` | the entropy service's endpoint on slot 6 (`sys/random/nife.rs`), or a **panic** when not granted |
 | `HashMap` seed | the same service when granted; splitmix64 from the counter when not, and labelled |
 | `std::env::consts::OS` | `"nife"` (patched into `env_consts.rs`) |
-| `std::env::var` / `vars` / `set_var` | a **process-local table, empty at start** (`sys/env/nife.rs`); nothing endows a nife process with variables |
+| `std::env::var` / `vars` / `set_var` | a **process-local table** (`sys/env/nife.rs`), seeded only with `TZ`/`LANG`/`TERM` from a granted inert-configuration page (slot 7, milestone 47, DECISIONS §111) if one exists; otherwise empty at start |
 | `std::env::temp_dir` / `split_paths` / `join_paths` | `TMPDIR` or `/`, and a `:`-separated list (`sys/paths/nife.rs`) |
 | `std::env::current_dir` | `/`, the root of this process's own namespace (milestone 47); `Unsupported` when it holds no directory. `current_exe` and `chdir` refuse, `home_dir` is `None` |
 | `std::process::id` | `0`, because this system issues no process identifier (`sys/process/nife.rs`); everything else in `std::process` refuses |
@@ -543,13 +543,21 @@ completes, not why the poll path did not.
   safe: a TLS story, park/unpark on a kernel primitive, join. Phase one ships without it rather than
   shipping it wrong. The sync primitives are std's single-threaded `no_threads` implementations, and
   the allocator's spinlock is uncontended today but stays correct under future preemption.
-- **The environment is empty, and `set_var` is real** (milestone 64, `sys/env/nife.rs`). A nife
-  process inherits no variables, because there is nothing to inherit from: what a process holds is
-  what it was granted, and a variable is not a capability. So `env::var("HOME")` is `None` because
-  nobody gave this program a home, and `env::vars()` yields nothing. What a program sets on itself
-  reads back, because that is what `set_var` means on every platform and nothing about it leaves the
-  process. When milestone 47's namespace gives a program an endowment, it seeds this table; the shape
-  does not change.
+- **The environment starts with only what a grant seeded, and `set_var` is real** (milestone 64,
+  `sys/env/nife.rs`). A nife process inherits no variables, because there is nothing to inherit
+  from: what a process holds is what it was granted, and a variable is not a capability. So
+  `env::var("HOME")` is `None` because nobody gave this program a home. What a program sets on
+  itself reads back, because that is what `set_var` means on every platform and nothing about it
+  leaves the process.
+
+  **`TZ`, `LANG` and `TERM` are seeded from a grant** (milestone 47's environment-variable fork,
+  DECISIONS §111, `env_proto`). A process granted an inert-configuration page (`rt::CONFIG_SLOT`,
+  a `Frame` with `READ`, the same rights-ladder shape as the clock) has those three keys in its
+  table from the first line of `main` onward, read by `pal::nife::init` before the program's own
+  code runs; a process granted no such page is seeded with nothing. This is the *inert
+  configuration* third of the milestone's own three-way split of what Unix puts in one map;
+  **names** (`PATH`, `HOME`) still wait on `bind` (milestone 154's two-directory endowment), and
+  **secrets** are answered elsewhere, by an endpoint (§41), never by a string on this table.
 
   **This module exists because `env::vars()` used to abort the process.** Without a nife backend, std
   fell through to `sys::env::unsupported`, whose `env()` is `panic!("not supported on this

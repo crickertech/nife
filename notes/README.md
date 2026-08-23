@@ -890,6 +890,18 @@ in the code or the conversation doesn't make sense, it belongs here.
   `fs_proto` carries no verb for it and whether "set to now" is the write right already held or a
   separate authority is an open question the roadmap block names rather than answers.
 
+- [The inert-configuration page](env-config.md): milestone 47's environment-variable fork
+  (DECISIONS §111). `TZ`/`LANG`/`TERM` are the "genuinely just data" third of what Unix puts in
+  one environment map; the other two thirds are namespace (waits on `bind`) and secrets (already
+  answered, an endpoint, §41). A read-only page, the clock page's rights-ladder shape, with each
+  declared key validated against a closed domain before it is ever written, so a value that does
+  not parse as a real timezone/locale/terminal type is refused at assembly time rather than
+  carried through disguised as configuration. No seqlock, unlike the clock: the page has exactly
+  one writer and it finishes before the page has a second reader. Built end to end for a std
+  program (`env_proto`, kernel wiring, the `std` PAL's `sys/env::seed`), proven by `std_exerciser`
+  on both ISAs; no shell-facing program declares wanting it yet, the same position `clock` was in
+  before `date` existed.
+
 - [Navigating with no global namespace](shell-navigation.md): milestone 47's commands: `cd`, `pwd`,
   `ls`, `mkdir`, `rm` as **builtins** (which retires the worry that a listing *program* would hold the
   power to read everything it lists). The three earned divergences and why each is forced rather than
