@@ -52,14 +52,22 @@ pub struct Wiring {
 /// bytes and then blocks on [`Wiring::request`].
 ///
 /// `verify` is the credential service's verify endpoint (milestone 56), already sealed: login never
-/// provisions it and never could. `fs_ep`/`fs_frame` are the file service's root directory
-/// capability and the page its clients share with it (`fs_service::root_directory`).
-/// `construction_pages` bounds how many logins this instance can serve before every further one is
-/// answered [`login_proto::DENIED`] (see `user/src/login.rs`'s BUGS: nothing reclaims a caretaker's
-/// region in this slice).
+/// provisions it and never could. `verify_frame` is the exact physical frame that instance maps at
+/// its own `VERIFY_VA` (`credential_service::Wiring::verify_frame` on the instance `verify` came
+/// from). `fs_ep`/`fs_frame` are the file service's root directory capability and the page its
+/// clients share with it (`fs_service::root_directory`). `construction_pages` bounds how many
+/// logins this instance can serve before every further one is answered [`login_proto::DENIED`] (see
+/// `user/src/login.rs`'s BUGS: nothing reclaims a caretaker's region in this slice).
+///
+/// **`verify_frame` is a parameter and not a lookup**, on purpose (milestone 155): a caller that
+/// wired more than one credential service in the same boot (as that milestone's own suite does, for
+/// a store still open to provision against) cannot ask a bare global "which one," because there is
+/// no one answer. Taking the frame from the specific `Wiring` the caller already holds is correct
+/// regardless of how many other instances exist or when they were wired.
 pub fn start(
     image: &'static [u8],
     verify: EpId,
+    verify_frame: u64,
     fs_ep: EpId,
     fs_frame: u64,
     construction_pages: u64,
@@ -108,10 +116,9 @@ pub fn start(
     // The credential-relay page is a **different** frame from the one above, `credentialer.rs`'s own
     // reason (a provisioner's page and a client's page are never the same frame): it must be the
     // exact physical frame `credential_service` wired the service's own `VERIFY_VA` to, because that
-    // is the only page the credential service ever reads a request from.
-    // `credential_service::verify_frame()` exists for precisely this case (a client the service
-    // module does not spawn itself).
-    let cred_page = credential_service::verify_frame();
+    // is the only page the credential service ever reads a request from. Taken from the caller's own
+    // `Wiring` (see this function's own doc) rather than looked up.
+    let cred_page = verify_frame;
     // SAFETY: `login_page` is a fresh frame the direct map reaches; zeroing it before mapping is
     // what keeps a first request from reading whatever the allocator's last owner left there.
     // `cred_page` is not zeroed here: it is `credential_service`'s own frame, already live and

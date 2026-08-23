@@ -201,9 +201,23 @@ const FRAME_REPORT_MIN: usize = 16;
 /// the caretaker's construction *memory* (as opposed to the cspace slot this lane fixed) as never
 /// reclaimed. 16200 + 768 = 16968.
 ///
+/// **Raised again, 2026-08-23, milestone 155's provisioning tool.** Its own guest suite
+/// (`kernel/src/user/identity_provisioning_tests.rs`) needs a credential store *before* it is
+/// sealed, which the tree's one shared fixture cannot offer once it returns (`credential_tests.rs`'s
+/// own doc: the seal deletes the provision endpoint at both ends). So the suite wires a **second**,
+/// independent `credential_service` instance, the same permanent shape the first one already is in
+/// this ledger (`CRED_BUDGET_PAGES` 1536 + `CRED_STACK_PAGES` 16 = 1552, reserved once at `start()`
+/// and never given back, because nothing in this tree tears a credential service down), plus the
+/// small cost of the two `identity_provisioner` invocations run against it and the one
+/// `fs_subtree_caretaker` its headline test builds to prove the subtree that tool created is real.
+/// Measured directly from the suite's own `[that test kept N frames]` lines rather than
+/// re-derived: 1606 (setup: the second instance plus both provisioning attempts) + 53 (the
+/// caretaker) = 1659. 16968 + 1659 = 18627. See notes/frames.md's held-frames list for the same
+/// account.
+///
 /// Raising it is a decision, not a formality: read the `[that test kept N frames]` lines the run
 /// prints, find who grew, and be able to say why that growth is permanent.
-const SUITE_FRAME_BUDGET: usize = 16_968;
+const SUITE_FRAME_BUDGET: usize = 18_627;
 
 /// **The longest run of free frames the boot must still have at the end**, in frames.
 ///

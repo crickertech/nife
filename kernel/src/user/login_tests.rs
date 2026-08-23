@@ -51,6 +51,7 @@ fn wired() -> Option<ls::Wiring> {
             let w = ls::start(
                 login_image,
                 cred_wiring.verify,
+                cred_wiring.verify_frame,
                 fs_ep,
                 fs_frame,
                 CONSTRUCTION_PAGES,

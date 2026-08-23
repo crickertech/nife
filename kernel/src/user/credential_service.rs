@@ -58,6 +58,17 @@ pub struct Wiring {
     /// after the seal, the service has deleted its receive end and a `CALL` here would block
     /// forever, which is why nothing sends on it afterwards.
     pub provision: EpId,
+    /// The physical frame behind the verify page, **for this instance specifically**. Captured at
+    /// [`start`] time and carried on the `Wiring` itself, rather than through a shared global keyed
+    /// on "the credential service": milestone 155 wired a second, independently wired store (a
+    /// fresh, unsealed one to provision against, alongside the suite's one shared, already-sealed
+    /// fixture), and a global that assumed exactly one instance for the life of the test binary
+    /// could not tell the two apart. Every caller in this module now reads this field, or
+    /// [`provision_frame`](Wiring::provision_frame), instead.
+    pub verify_frame: u64,
+    /// The physical frame behind the provision page, for this instance. Same reason as
+    /// [`verify_frame`](Wiring::verify_frame).
+    pub provision_frame: u64,
 }
 
 /// **Wire and spawn the credential service.** It blocks on its provision endpoint immediately,
@@ -89,6 +100,10 @@ pub fn start(image: &'static [u8], entropy: EpId) -> Wiring {
         phys: frame(),
         flags: Flags::user_data(),
     };
+    // Captured locally for `Wiring::provision_frame`/`Wiring::verify_frame`, which is what every
+    // caller elsewhere in this module now reads instead of a shared global (see those fields' own
+    // docs): correct for *this* instance no matter how many others are wired in the same boot.
+    let (provision_frame, verify_frame) = (maps[0].phys, maps[1].phys);
     for k in 0..CRED_STACK_PAGES as usize {
         let phys = crate::memory::alloc()
             .expect("no frame for the credential service's stack")
@@ -129,6 +144,8 @@ pub fn start(image: &'static [u8], entropy: EpId) -> Wiring {
         ready,
         verify,
         provision,
+        verify_frame,
+        provision_frame,
     }
 }
 
@@ -139,22 +156,33 @@ pub fn start(image: &'static [u8], entropy: EpId) -> Wiring {
 /// holds no verify endpoint, which is the mirror of the client's position: neither party can do
 /// the other's job, and neither is prevented from it by a check.
 pub fn provisioner(image: &'static [u8], w: &Wiring) -> [u64; 5] {
-    spawn_cli(image, ROLE_PROVISIONER, w.provision, PROV_VA)
+    spawn_cli(
+        image,
+        ROLE_PROVISIONER,
+        w.provision,
+        PROV_VA,
+        w.provision_frame,
+    )
 }
 
 /// **Spawn a client** in `role` against the verify endpoint, and wait for its report.
 pub fn client(image: &'static [u8], w: &Wiring, role: u64) -> [u64; 5] {
-    spawn_cli(image, role, w.verify, VERIFY_VA)
+    spawn_cli(image, role, w.verify, VERIFY_VA, w.verify_frame)
 }
 
 /// The one spawn site the three `credentialer_test_client` roles share, because the whole claim is that they
 /// differ in their endowment and not in their code. Changing `endpoint` and `va` here is the
 /// entire difference between a provisioner and an attacker.
-fn spawn_cli(image: &'static [u8], role: u64, endpoint: EpId, va: u64) -> [u64; 5] {
+///
+/// `phys` is taken from the caller's own `Wiring` (`w.verify_frame`/`w.provision_frame`) rather than
+/// from a shared global: milestone 155 wired a second, independent credential service instance in
+/// the same boot, so nothing here can assume there is only one to ask about. A caller with its own
+/// `Wiring` in hand always knows which frame is correct.
+fn spawn_cli(image: &'static [u8], role: u64, endpoint: EpId, va: u64, phys: u64) -> [u64; 5] {
     let report = crate::sched::create_endpoint();
     let maps = [Mapping {
         va,
-        phys: page_for(va),
+        phys,
         flags: Flags::user_data(),
     }];
     crate::sched::spawn(move || {
@@ -176,19 +204,12 @@ fn spawn_cli(image: &'static [u8], role: u64, endpoint: EpId, va: u64) -> [u64; 
     crate::sched::ipc_recv(report)
 }
 
-/// The two shared frames, allocated once and remembered, because the service and its
-/// counterparty must map the **same** physical frame and the spawns happen at different times.
-///
-/// Plain atomics rather than a lock: the only writer is the boot/test thread.
-static FRAMES: [core::sync::atomic::AtomicU64; 2] = [
-    core::sync::atomic::AtomicU64::new(0),
-    core::sync::atomic::AtomicU64::new(0),
-];
-
-/// Allocate the next shared frame, in the order the service's `maps` array wants them.
+/// Allocate one fresh shared frame. Every caller keeps the return value itself (in a `Wiring`
+/// field, or in a `Mapping`'s own `phys`), rather than this module remembering it on a caller's
+/// behalf: milestone 155's own fix removed the global that used to do that (`FRAMES`), because a
+/// global keyed on nothing but "the credential service" cannot distinguish two independently wired
+/// instances in the same boot, and after that milestone there can be more than one.
 fn frame() -> u64 {
-    use core::sync::atomic::Ordering;
-    let i = usize::from(FRAMES[0].load(Ordering::Acquire) != 0);
     let phys = crate::memory::alloc()
         .expect("no frame for a credential page")
         .addr();
@@ -198,61 +219,24 @@ fn frame() -> u64 {
     unsafe {
         core::ptr::write_bytes(mmu::phys_to_virt(phys) as *mut u8, 0, FRAME_SIZE as usize);
     }
-    // Release: the frame must be zeroed before another thread can observe the pointer to it.
-    FRAMES[i].store(phys, Ordering::Release);
     phys
 }
 
-/// Which frame backs a given virtual address, for the counterparty's mapping.
-fn page_for(va: u64) -> u64 {
-    use core::sync::atomic::Ordering;
-    let i = usize::from(va == VERIFY_VA);
-    let phys = FRAMES[i].load(Ordering::Acquire);
-    assert_ne!(
-        phys, 0,
-        "the credential service was not wired before a client"
-    );
-    phys
-}
-
-/// Read the shared frame behind `va` directly, which is a thing only the kernel can do and is
-/// how a test checks a claim about what is *not* in a page.
-pub fn peek(va: u64, out: &mut [u8]) {
-    use core::sync::atomic::Ordering;
-    let i = usize::from(va == VERIFY_VA);
-    let phys = FRAMES[i].load(Ordering::Acquire);
+/// Read a shared frame directly, which is a thing only the kernel can do and is how a test checks
+/// a claim about what is *not* in a page.
+///
+/// **Takes the physical frame directly** (`w.verify_frame` on the `Wiring` a caller already holds),
+/// not a virtual address to look up: milestone 155 wired a second, independent credential service
+/// instance in the same boot, so a lookup keyed only on a virtual address (which reused the global
+/// `FRAMES` every instance's `start()` overwrites) could not tell one instance's frame from
+/// another's. The caller's own `Wiring` always can.
+pub fn peek(phys: u64, out: &mut [u8]) {
     // SAFETY: a frame this module allocated and still owns, read through the direct map.
     let page = unsafe {
         core::slice::from_raw_parts(mmu::phys_to_virt(phys) as *const u8, FRAME_SIZE as usize)
     };
     let n = out.len().min(page.len());
     out[..n].copy_from_slice(&page[..n]);
-}
-
-/// The verify page's address, for a test that wants to look at it.
-pub const fn verify_page_va() -> u64 {
-    VERIFY_VA
-}
-
-/// **The physical frame behind the verify page**, for wiring a client this module does not spawn
-/// itself (milestone 54's SMB adapter, which is spawned by [`super::virtio_service`] along with a
-/// network stack and a filesystem).
-///
-/// # BUGS
-///
-/// **There is one verify frame, so there can be one verify client at a time.** Two clients mapping
-/// it would interleave requests in one page and read each other's answers, which the service cannot
-/// see and nothing would catch. That is fine as it stands: the SMB adapter and
-/// `credentialer_test_client` are alive in different tests, and the test runner is single-threaded
-/// and waits for each one's report. It is a real limit on a real deployment (two shares means two
-/// adapters means two verify clients), and the fix is a frame per client, which is a change to how
-/// the service is wired rather than to the contract.
-///
-/// Panics if the service was never wired, which is a wiring bug in the caller rather than a
-/// condition to handle: there is no useful behaviour for "authenticate against a service that does
-/// not exist" other than saying so at the spawn.
-pub fn verify_frame() -> u64 {
-    page_for(VERIFY_VA)
 }
 
 /// Unpack the `k`th reply code from a `credentialer_test_client` report's second word. One byte per code; see
