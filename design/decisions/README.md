@@ -178,6 +178,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 117 | DECIDED | [A principal's subtree is named by its identity string, created at provisioning time](117-subtree-name-is-identity.md) |
 | 118 | DECIDED | [`Scheduler`/`SCHED` rename to `IpcTables`/`IPC_TABLES`](118-ipc-tables-name.md) |
 | 119 | DECIDED | [Splitting `OutOfMemory`'s three causes is declined for want of a customer](119-oom-causes-declined.md) |
+| 120 | DECIDED | [A QEMU-only virtio-rng stopgap for the interactive boot is declined for now](120-boot-entropy-stopgap-declined.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
 way milestone 76 moved four essays out of the roadmap: [the open design
