@@ -170,7 +170,8 @@ analysis) rather than a PAL trick.
   contract, §47's rights ladder, §56's verb table.
 - **Tier two, anything that traverses**, needs a namespace to resolve *against*, and that is 47's
   unbuilt half. `Path::new("assets").join("x.png")`, an absolute path, or a program wanting two
-  directories all land here.
+  directories all land here. **Minted as milestone 154** (2026-08-23): a process that holds two
+  directory capabilities, the same gap 47's `bind` independently named.
 
 So 64 can start and get a useful distance before it blocks. It will block **sooner than tier one
 suggests**, because real crates rarely open a bare name in a single directory; they join paths.

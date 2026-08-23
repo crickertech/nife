@@ -1,7 +1,9 @@
 # 134. The register of measures: every number this kernel owes itself
 
-**Status: PARTIAL.** The register exists and holds the tier A and tier B measures below; **none of
-E1 through E4 has been run.** What landed 2026-08-18 is the register itself
+**Status: PARTIAL.** The register exists and holds the tier A and tier B measures below.
+**Tier A (E1 through E4) ran 2026-08-22**; tier B remains gated on milestone 74's counters and
+milestone 127's silicon (see "What is built, and what is not" below for both). What landed
+2026-08-18 is the register itself
 (notes/register-of-measures.md), with the test for what belongs in it and the three states a measure
 can be in, plus the unsafe census calef folded into this block the same day and the `count-at-most`
 ceiling relation that census needed. See "What is built, and what is not" below. Raised 2026-08-18
@@ -203,8 +205,19 @@ to 93 per 10,000 lines, at every sample**, so the tree has been getting proporti
 nothing was measuring it. A single commit two days earlier, `d5a969a2`, moved that count by 94 in
 one change and nothing recorded it.
 
-**Not built: E1, E2, E3 and E4.** Every one of them is still startable today, which is why the gate
-stays `NONE`. The sequencing in this block is unchanged, and E2 remains the cheapest thing here.
+**Built 2026-08-22: E1, E2, E3 and E4**, as registered instruments rather than one-off scripts
+(`script/fastpath-footprint --features <name>`, `cargo xtask bench --extra-features <name>`,
+`kernel/src/bench.rs`'s `ipc_thread_scaling`/`app_displacement`). Results, each a real number rather
+than a placeholder: **E2** (thread census) found 4 new threads at the SMB/FS customer-path topology.
+**E1** (IPC latency vs. thread count) is flat at ~1,270-1,310 ns/iter through 16 threads, rising
+8-11% by 64-96 threads, a small but real knee consistent with the predicted low-tens location, muted
+by the dev machine's larger L1d against the 32 KB SiFive U74 target. **E3** (fastpath padding)
+roughly doubles instruction footprint on both ISAs but shows only a 2-3% latency effect on this
+machine, within run-to-run noise, no measurable cost here. **E4** (application displacement) is
+0-3% across 4-128 KiB working sets under concurrent IPC load, consistent with E1's own flat region.
+Full detail in `notes/register-of-measures.md`, updated the same day (Owed count 12 to 8, three
+honest `BUGS` entries: the sweeps were run at shipped values only, and both were measured on a
+shared, noisy machine rather than the quiet single-tenant conditions earlier steps had).
 
 **One correction this lane makes to the block above.** The block treats "register" and "experiments"
 as one deliverable. They are not the same size, and separating them is what let the register land in

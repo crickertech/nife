@@ -666,12 +666,12 @@ again, from inside, and the mount table is the cheap half.**
   **endowment** question, which is the category this milestone's own environment section says is
   expensive, and it is where the work actually is.
 
-**Proposed milestone (provisional, the integrator mints the number): a process that holds two
-directory capabilities.** The deliverable is the wiring plus the negative control that only a union
-can state: one process, two subtrees, `/a/x` and `/b/y` both resolving, `/a/../b` refused, and
-neither caretaker able to see the other's tree. `bind` then falls out as a name on a `Cwd` per entry,
-and `caps` gains a namespace section with more than one row in it. Until that exists, building the
-mount table would be machinery whose one interesting case is missing.
+**Minted as milestone 154** (2026-08-23): a process that holds two directory capabilities. The
+deliverable is the wiring plus the negative control that only a union can state: one process, two
+subtrees, `/a/x` and `/b/y` both resolving, `/a/../b` refused, and neither caretaker able to see the
+other's tree. `bind` then falls out as a name on a `Cwd` per entry, and `caps` gains a namespace
+section with more than one row in it. Until that exists, building the mount table would be machinery
+whose one interesting case is missing.
 
 ## Milestone 64 is what forces the namespace half of this milestone
 
