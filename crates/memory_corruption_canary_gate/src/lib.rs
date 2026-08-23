@@ -1,6 +1,6 @@
 //! **The corruption canary's arm/check/disarm serialization**, lifted out of
 //! `kernel/src/sched.rs` so loom can explore every interleaving of it on the host (milestone 80's
-//! method, third retrofit after `steal_request` and `wake_handshake`).
+//! method, third retrofit after `work_steal_slot` and `thread_wake_handshake`).
 //!
 //! # The bug this replaces
 //!
@@ -62,7 +62,7 @@
 //! The kernel's spelling, one armer and one checker:
 //!
 //! ```
-//! use canary_gate::Gate;
+//! use memory_corruption_canary_gate::Gate;
 //!
 //! static GATE: Gate = Gate::new();
 //!
@@ -90,9 +90,10 @@
 //! GATE.disarm();
 //! ```
 //!
-//! Name: unrecorded. Provisional, minted 2026-08-15 (the canary-race fix) and not yet put to
-//! calef; the type is `Gate` and the guards are `ArmGuard`/`CheckGuard`. Named as a noun for what
-//! it is, the gate in front of the canary's shared state, per CLAUDE.md's naming tenet.
+//! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review). Renamed from
+//! `canary_gate`: more explicit about what kind of canary (a memory-corruption detector watching
+//! arbitrary byte ranges, not a stack-smashing canary specifically). The type is `Gate` and the
+//! guards are `ArmGuard`/`CheckGuard`, minted 2026-08-15 (the canary-race fix).
 
 #![cfg_attr(not(test), no_std)]
 

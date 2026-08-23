@@ -38,7 +38,7 @@
 //! The kernel's own shape, minus the I/O:
 //!
 //! ```
-//! use regions::RegionTable;
+//! use memory_regions::RegionTable;
 //!
 //! let mut table = RegionTable::<8>::new();
 //!
@@ -64,7 +64,7 @@
 //! The claim is single-winner, which is the whole point:
 //!
 //! ```
-//! use regions::RegionTable;
+//! use memory_regions::RegionTable;
 //!
 //! let mut table = RegionTable::<4>::new();
 //! let r = table.insert_root(0, 2).unwrap();
@@ -74,14 +74,15 @@
 //!
 //! Name: `RegionTable`, `DestroyClaim`, `insert_root`, `claim_for_destroy` and `return_to_parent`
 //! are **provisional**, minted 2026-08-18 by milestone 135's lane and not yet put to calef. Nouns
-//! per the naming tenet; `RegionTable` inherits the crate's own unratified `regions`.
+//! per the naming tenet; `RegionTable` inherits its shape from the crate's own name, ratified
+//! 2026-08-23 as `memory_regions` (renamed from the unratified `regions`).
 
 use crate::{DestroyOutcome, destroy_outcome, split_new_watermark};
 
 /// A region's parent field naming no parent: this region came from the frame allocator rather than from
 /// a [`split`](RegionTable::split), so it is a **root** and its pages go back to the allocator.
 ///
-/// `u64::MAX` never resolves as a `slots` name (its slot bits exceed any table's capacity), so it is
+/// `u64::MAX` never resolves as a `generational_table` name (its slot bits exceed any table's capacity), so it is
 /// a safe sentinel rather than a value that could collide with a real region.
 pub const NO_PARENT: u64 = u64::MAX;
 
@@ -134,7 +135,7 @@ struct Region {
 /// pre-#316 `untyped::destroy`, whose gap double-freed.
 ///
 /// ```compile_fail,E0451
-/// let claim = regions::DestroyClaim { base_page: 0, pages: 4, parent: u64::MAX, is_root: true };
+/// let claim = memory_regions::DestroyClaim { base_page: 0, pages: 4, parent: u64::MAX, is_root: true };
 /// let _ = claim.pages();
 /// ```
 ///
@@ -142,7 +143,7 @@ struct Region {
 /// which is the bug in its original units.
 ///
 /// ```compile_fail,E0599
-/// let mut table = regions::RegionTable::<2>::new();
+/// let mut table = memory_regions::RegionTable::<2>::new();
 /// let name = table.insert_root(0x1000, 4).unwrap();
 /// let claim = table.claim_for_destroy(name).unwrap();
 /// let second = claim.clone();
@@ -153,7 +154,7 @@ struct Region {
 /// above honest: they fail on the one line that is supposed to be impossible, not on the setup.
 ///
 /// ```
-/// let mut table = regions::RegionTable::<2>::new();
+/// let mut table = memory_regions::RegionTable::<2>::new();
 /// let name = table.insert_root(0x1000, 4).unwrap();
 /// let claim = table.claim_for_destroy(name).unwrap();
 /// assert_eq!(claim.pages(), 4);
@@ -191,7 +192,7 @@ impl DestroyClaim {
     }
 }
 
-/// **The untyped regions**, a generational table (`crates/slots`) plus every decision taken over it.
+/// **The untyped regions**, a generational table (`crates/generational_table`) plus every decision taken over it.
 ///
 /// Generational because reclamation reuses slots: removing a region bumps its slot's generation, so
 /// every `Untyped` capability minted for it stops resolving and the slot is available to the next
@@ -202,7 +203,7 @@ impl DestroyClaim {
 /// lifetime. The kernel picks 256; the loom harnesses pick 2 or 4, because a model checker's search
 /// is exponential and nothing in the protocol depends on capacity.
 pub struct RegionTable<const N: usize> {
-    table: slots::Table<Region, N>,
+    table: generational_table::Table<Region, N>,
 }
 
 impl<const N: usize> Default for RegionTable<N> {
@@ -218,7 +219,7 @@ impl<const N: usize> RegionTable<N> {
     #[must_use]
     pub const fn new() -> Self {
         Self {
-            table: slots::Table::new(),
+            table: generational_table::Table::new(),
         }
     }
 
@@ -563,7 +564,7 @@ mod interleavings {
     /// afterwards. The flag is a *real* atomic, deliberately: it lives outside the model and
     /// accumulates across every execution loom runs, where a loom atomic would be reset by each.
     ///
-    /// Copied from `crates/canary_gate`, which is where this shape was first written. See
+    /// Copied from `crates/memory_corruption_canary_gate`, which is where this shape was first written. See
     /// notes/verification.md's non-vacuity section for why it is not optional.
     struct Reached(core::sync::atomic::AtomicBool);
 

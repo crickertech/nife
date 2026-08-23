@@ -24,7 +24,7 @@
 //! # Examples
 //!
 //! ```
-//! use regions::split_new_watermark;
+//! use memory_regions::split_new_watermark;
 //!
 //! // A 100-page parent that has spent 40: carving 10 more moves the watermark to 50.
 //! assert_eq!(split_new_watermark(100, 40, 10), Some(50));
@@ -40,7 +40,7 @@
 //! rather than a subtraction written at the call site:
 //!
 //! ```
-//! use regions::split_new_watermark;
+//! use memory_regions::split_new_watermark;
 //!
 //! // An empty carve would mint a zero-page region, which is not a thing.
 //! assert_eq!(split_new_watermark(100, 40, 0), None);
@@ -49,10 +49,10 @@
 //! assert_eq!(split_new_watermark(100, 40, u64::MAX), None);
 //! ```
 //!
-//! Name: unrecorded, and flagged. The naming tenet names it among the crate names that are generic
-//! words which could label almost anything in an operating system (`compose`, `measure`, `regions`,
-//! `slots`, `caps`, `frames`); three of those six were settled on 2026-08-01 and this one was not.
-//! Nothing records who chose it.
+//! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review). Renamed from
+//! `regions`: DECISIONS §113 already rejected bare "Region" for the identical `crates/compositor`
+//! collision (damaged-screen-rectangle "region") when choosing `MemoryRegion` for the kernel's
+//! `Untyped` type; this crate is that type's accounting logic.
 
 #![cfg_attr(not(test), no_std)]
 

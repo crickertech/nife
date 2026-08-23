@@ -49,7 +49,11 @@ fn zeroed_frame() -> u64 {
         .addr();
     // SAFETY: a fresh frame, reachable through the direct map, owned by this module from here on.
     unsafe {
-        core::ptr::write_bytes(phys_to_virt(pa) as *mut u8, 0, frames::FRAME_SIZE as usize);
+        core::ptr::write_bytes(
+            phys_to_virt(pa) as *mut u8,
+            0,
+            page_frames::FRAME_SIZE as usize,
+        );
     }
     pa
 }
@@ -100,7 +104,7 @@ pub fn virtio_regions(dma_base: u64, dma_size: u64, shadow_base: u64) -> [DmaReg
         },
         DmaRegion {
             base: shadow_base,
-            size: frames::FRAME_SIZE,
+            size: page_frames::FRAME_SIZE,
         },
     ]
 }

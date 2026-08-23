@@ -35,7 +35,7 @@
 //! and what inside it is already spoken for.
 //!
 //! ```
-//! use frames::{FrameAllocator, Frame, FRAME_SIZE};
+//! use page_frames::{FrameAllocator, Frame, FRAME_SIZE};
 //!
 //! const BASE: u64 = 0x4000_0000;
 //! const TOTAL: usize = 64;                      // 64 frames of address space
@@ -60,17 +60,17 @@
 //! A frame is an address that is known to be aligned, which is the point of the newtype:
 //!
 //! ```
-//! use frames::{Frame, FRAME_SIZE};
+//! use page_frames::{Frame, FRAME_SIZE};
 //!
 //! // `containing` rounds down to the frame an arbitrary address falls in.
 //! assert_eq!(Frame::containing(0x4000_0FFF).addr(), 0x4000_0000);
 //! assert_eq!(Frame::containing(0x4000_1000).addr(), 0x4000_1000);
 //! ```
 //!
-//! Name: unrecorded, and flagged. The naming tenet names it among the crate names that are generic
-//! words which could label almost anything in an operating system (`compose`, `measure`, `regions`,
-//! `slots`, `caps`, `frames`); three of those six were settled on 2026-08-01 and this one was not.
-//! Nothing records who chose it.
+//! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review). Renamed from
+//! `frames`: the same collision DECISIONS §113 already found and fixed for the kernel's `Frame`
+//! capability type (renamed to `PageFrame`) against `crates/compositor`'s own use of "frame" for a
+//! rendered screen update. This crate is the physical-page allocator that backs those page frames.
 
 #![cfg_attr(not(test), no_std)]
 

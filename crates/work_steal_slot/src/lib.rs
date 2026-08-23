@@ -48,7 +48,7 @@
 //! The two halves of one round, as the kernel spells them:
 //!
 //! ```
-//! use steal_request::Slot;
+//! use work_steal_slot::Slot;
 //!
 //! // On core 3, idle, having picked core 0 as the most loaded victim:
 //! let victim_slot = Slot::new();
@@ -80,10 +80,11 @@
 //!   kernel configuration can reach it (`MAX_CPUS` is single digits), so the branch that refuses it
 //!   is unreachable in the running system and is covered by a host test alone.
 //!
-//! Name: unrecorded. Provisional, minted 2026-08-04 (milestone 80) and not yet put to calef; the
-//! type is `Slot` and the methods are `claim`/`take`. Named as a noun for what the slot carries, the
-//! work-steal request, per CLAUDE.md's naming tenet. calef's call; `notes/interleaving.md` records
-//! why it was lifted into its own crate.
+//! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review). Renamed from
+//! `steal_request`: not a proper noun phrase as named (the primary type is `Slot`, not
+//! `StealRequest`); "work-steal" as a compound modifier matches standard scheduling terminology
+//! (Cilk, Go, Rayon). The type is `Slot` and the methods are `claim`/`take`.
+//! `notes/interleaving.md` records why it was lifted into its own crate.
 
 #![cfg_attr(not(test), no_std)]
 

@@ -1,6 +1,6 @@
 //! Host tests for the frame allocator. No emulator, no hardware, milliseconds.
 
-use frames::{FRAME_SIZE, Frame, FrameAllocator};
+use page_frames::{FRAME_SIZE, Frame, FrameAllocator};
 
 const BASE: u64 = 0x4000_0000;
 

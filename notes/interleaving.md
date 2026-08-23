@@ -30,14 +30,14 @@ not a proof about the silicon.
 ## The survey: where the hand-rolled protocols actually are
 
 The roadmap named three candidates (the per-CPU run-queue handoff, the reaper handoff, the IPC
-sender queue) and the brief added two more (`crates/intrusive`, `crates/slots`). **Four of those five
+sender queue) and the brief added two more (`crates/intrusive_fifo`, `crates/generational_table`). **Four of those five
 have no atomic protocol at all**, and finding that out is most of what the survey was for.
 
 | Candidate | What it actually is | Reachable by loom |
 |---|---|---|
 | The IPC sender queue (`crates/ipc`) | zero atomics. `Endpoint` is plain data under the `SCHED` `IrqSafeMutex` | nothing to explore |
-| `crates/intrusive` (the run queues) | zero atomics. Single-owner with interrupts masked, plus an `UnsafeCell` | nothing to explore |
-| `crates/slots` (the thread table) | zero atomics. Under `SCHED` | nothing to explore **as atomics**, and that reading was too narrow: `crates/regions` is a `slots` table under a lock, and its protocol had a real double free in it. See the note under `wake_handshake` below, and the `regions` section |
+| `crates/intrusive_fifo` (the run queues) | zero atomics. Single-owner with interrupts masked, plus an `UnsafeCell` | nothing to explore |
+| `crates/generational_table` (the thread table) | zero atomics. Under `SCHED` | nothing to explore **as atomics**, and that reading was too narrow: `crates/memory_regions` is a `generational_table` table under a lock, and its protocol had a real double free in it. See the note under `thread_wake_handshake` below, and the `memory_regions` section |
 | The reaper handoff (`PerCpu::switched_from`) | one `AtomicU64`, both accesses `Relaxed`, written and read **by the same core** with interrupts masked. The atomic is interior mutability, not synchronisation | nothing to explore |
 | The run-queue handoff | the migration inbox is an `IrqSafeMutex`; the *steal request slot* is the lock-free part | **yes**, and it is the pilot |
 
@@ -46,7 +46,7 @@ the search: this kernel puts almost everything behind a ranked interrupt-safe lo
 (DECISIONS §9, [locking.md](locking.md)). What is left, from a grep for every compare-exchange, swap
 and fetch-op outside test code:
 
-- **`crates/steal_request`** (new, milestone 80): the work-steal request slot. The pilot.
+- **`crates/work_steal_slot`** (new, milestone 80): the work-steal request slot. The pilot.
 - **`crates/clock_proto`**: the clock page's **seqlock**. Cross-*address-space*, hand-rolled, with an
   explicit fence in the reader. This one the roadmap did not name, and it is where the bug was.
 - **`kernel/src/smp.rs`**: the boot roster. `HWID`/`STARTABLE` written relaxed, then `ROSTER` stored
@@ -75,14 +75,14 @@ else. It reads a cardinal spelled as a word now, so the sentence is re-derived o
 count was wrong in both halves, and the note contradicted itself a few hundred lines down, where the
 timing table already said "all four crates".
 
-### `crates/steal_request`, the pilot
+### `crates/work_steal_slot`, the pilot
 
 An idle core cannot reach into a loaded core's run queue, deliberately (DECISIONS §11), so stealing
 is a message: the thief claims a one-slot mailbox in the victim with a compare-exchange from zero,
 pokes it with a reschedule interrupt, and the victim swaps the slot back to zero at its next
 scheduler entry and hands one thread into the thief's inbox. The slot was an `AtomicU32` field on
 `PerCpu` with the compare-exchange written inline in `sched.rs`; it is now a crate, and the kernel
-calls it rather than keeping a copy of the protocol. Same Phase-2 move `regions`, `ipc` and
+calls it rather than keeping a copy of the protocol. Same Phase-2 move `memory_regions`, `ipc` and
 `dma_validator` made for Kani.
 
 | Harness | Property |
@@ -107,7 +107,7 @@ documentation says the memory ordering is the point rather than decoration.
 | `two_writers_serialise_rather_than_corrupt_the_page` | the crate says several processes may hold the page read/write and the compare-exchange serialises them; "would corrupt silently" is a claim about interleavings |
 | `a_racing_reader_sees_an_unrecognised_page_or_a_whole_one` | `init` writes the magic last with a release, so a reader racing the first publish gets `UNKNOWN` or a whole page, never a recognised page with garbage in it |
 
-### `crates/wake_handshake`, the block/wake protocol (2026-08-14)
+### `crates/thread_wake_handshake`, the block/wake protocol (2026-08-14)
 
 The retrofit the fourth bench stop's audit asked for (notes/visionfive2.md said plainly that the
 block/wake protocol had no loom coverage and that covering it meant an extraction). The protocol
@@ -160,7 +160,7 @@ all three of this protocol's races were found by flakes and bench boots first an
 this model existed, and the model now holds the fixes in place where the next edit to `wake` or
 `finish_switch` cannot silently undo them.
 
-### `crates/canary_gate`, the corruption canary's serialization (2026-08-15)
+### `crates/memory_corruption_canary_gate`, the corruption canary's serialization (2026-08-15)
 
 The fourth extraction, and the first whose bug was in the extracted protocol itself rather than
 held in place around it. The registry canary (first-silicon diagnostics, `kernel/src/sched.rs`)
@@ -182,10 +182,10 @@ access tracking makes a torn plan an error in itself, not a value someone must n
 quiescence promise (after `disarm()` returns the caller writes the cell bare-handed), and
 single-flight for two checkers. A fourth, scratch-only harness encoded the OLD two-flag spelling
 against the exclusion model and loom falsified it on the first run, which is the falsification
-discipline the wake_handshake section above describes, applied to a protocol that was actually
+discipline the thread_wake_handshake section above describes, applied to a protocol that was actually
 broken.
 
-### `crates/regions`, the untyped region claim (2026-08-18)
+### `crates/memory_regions`, the untyped region claim (2026-08-18)
 
 The fifth extraction, milestone 135, and the first on the **memory-reclamation path**. It exists
 because a real double free landed there and its fix could not be gated: `untyped::destroy` checked
@@ -197,14 +197,14 @@ to destroy it, and said plainly in [object-revocation.md](object-revocation.md)'
 single-winner claim was argued from lock discipline and gated by nothing.
 
 **What moved.** The region table and every decision taken over it left `kernel/src/untyped.rs` for
-`crates/regions`, where the arithmetic it calls (`split_new_watermark`, `destroy_outcome`) was
+`crates/memory_regions`, where the arithmetic it calls (`split_new_watermark`, `destroy_outcome`) was
 already Kani-proved. `RegionTable::claim_for_destroy` takes `&mut self` and does both halves, which
 is rung one of CLAUDE.md's ladder rather than a tidier spelling: **the pre-fix shape is not
 expressible against that signature**, because there is no intermediate state in which a caller holds
 a decision about a table it no longer holds. The kernel keeps what a crate a model checker can run
 must not have, which is the I/O: the frame allocator, the direct map, the revoke, and the lock.
 
-**This is the second lock-based protocol here**, after `wake_handshake`, and the same caveat
+**This is the second lock-based protocol here**, after `thread_wake_handshake`, and the same caveat
 applies with the same force: what loom searches is the interleaving of *critical sections*, not
 memory orderings, because there are no hand-rolled orderings to search. The survey table above
 counts atomic protocols and by that count this had nothing in it. Two of the five protocols now
@@ -292,7 +292,7 @@ before the board lands.
 
 ### And the pilot found nothing, which is its own result
 
-All six `steal_request` harnesses passed on the first run, and that is worth having for three
+All six `work_steal_slot` harnesses passed on the first run, and that is worth having for three
 reasons rather than being a disappointment.
 
 It converts three comments into checked facts (the herd collapsing to one claim, the release/acquire
@@ -347,8 +347,8 @@ Watch the region claim fail, which is cheaper than trusting a green run. Delete 
 `self.table.remove(name)` from `RegionTable::claim_for_destroy` and:
 
 ```
-$ script/interleaving-check -p regions two_destroyers
-thread '...two_destroyers_race_and_exactly_one_reclaims' panicked at crates/regions/src/table.rs:
+$ script/interleaving-check -p memory_regions two_destroyers
+thread '...two_destroyers_race_and_exactly_one_reclaims' panicked at crates/memory_regions/src/table.rs:
 assertion `left == right` failed: exactly one caller may free a region's pages, and this execution had 2
   left: 2
  right: 1
@@ -398,10 +398,10 @@ last clause.** A model that searches code the kernel no longer runs reports succ
 question nobody is asking, and there is no symptom: the harness count holds, the executions stay
 green, and this note keeps saying the protocol is modelled.
 
-Milestone 136 gated that for `crates/regions`, and found the exposure was larger than it looked.
+Milestone 136 gated that for `crates/memory_regions`, and found the exposure was larger than it looked.
 
 **The gap is rebuildable from the public API alone.** Before the gate, this compiled, with no edit
-to `crates/regions` whatsoever:
+to `crates/memory_regions` whatsoever:
 
 ```rust
 pub fn destroy(region: u64) {
@@ -426,7 +426,7 @@ two halves that are each insufficient alone:
 
 | Half | Asserts | Catches |
 |---|---|---|
-| the surface pin | the public items of `crates/regions/src/table.rs`, **with receivers**, are exactly a pinned set | a new observer; a method removed; `claim_for_destroy` respelled `&self`, which deletes the single-borrow argument while changing no name |
+| the surface pin | the public items of `crates/memory_regions/src/table.rs`, **with receivers**, are exactly a pinned set | a new observer; a method removed; `claim_for_destroy` respelled `&self`, which deletes the single-borrow argument while changing no name |
 | the warrant pin | each function in `kernel/src/untyped.rs` that reaches a free loop made its entitling call first (`create`/`insert_root`, `destroy`/`claim_for_destroy`) | the rebuilt gap above, and any third path that returns region pages |
 
 Two `compile_fail` doctests on `DestroyClaim` cover what neither half can see, since a
@@ -450,7 +450,7 @@ The four other loom crates have the same exposure and are not gated; see BUGS.
 
 | | |
 |---|---|
-| Runtime, all five crates, warm | **under a second** wall on an M-series laptop (0.2 s measured 2026-08-14, with `wake_handshake`'s six harnesses adding ~10 ms of search; `canary_gate`'s three, measured 2026-08-15, add under 10 ms; `regions`' five, measured 2026-08-18, add ~50 ms over 1,364 executions) |
+| Runtime, all five crates, warm | **under a second** wall on an M-series laptop (0.2 s measured 2026-08-14, with `thread_wake_handshake`'s six harnesses adding ~10 ms of search; `memory_corruption_canary_gate`'s three, measured 2026-08-15, add under 10 ms; `memory_regions`' five, measured 2026-08-18, add ~50 ms over 1,364 executions) |
 | Runtime, cold (compiling loom and its 28 transitive crates) | ~6.5 s |
 | Crates added to `Cargo.lock` | **28** (loom plus `generator`, `scoped-tls`, `tracing`, `tracing-subscriber` and their trees) |
 | Crates compiled by an ordinary `cargo build`, `cargo test`, `cargo clippy` or `script/test` | **zero** |
@@ -483,7 +483,7 @@ evaluates `cfg(loom)` as false for every real target, so:
   the number of threads and the length of the protocol, so a harness added six months from now can
   take minutes without anyone intending it to. A gate whose cost is a step function is a gate that
   gets skipped. Revisit when there is a CI job for it.
-- **It cannot see the reschedule interrupt.** `steal_request`'s liveness claim is that a poked victim
+- **It cannot see the reschedule interrupt.** `work_steal_slot`'s liveness claim is that a poked victim
   eventually reaches a scheduler entry and clears its slot, and until it does, every other idle core
   is locked out of that victim. That is outside the model in both directions: loom does not know
   about the SGI, and it does not know about the timer tick that makes the thief retry.
@@ -494,7 +494,7 @@ evaluates `cfg(loom)` as false for every real target, so:
   participant explores no new state *in these cases*, and that is an argument, not a proof. Every
   harness carries reachability flags (the `Reached` type) so a bound that quietly empties the
   interesting branch fails loudly, which is `kani::cover!`'s job done by hand.
-- **The region model checks the claim, not the free loop.** What loom searches in `crates/regions`
+- **The region model checks the claim, not the free loop.** What loom searches in `crates/memory_regions`
   is who wins the right to reclaim a region. That the winner then frees the *right* pages, exactly
   once, is `destroy_outcome`'s Kani proof plus the kernel's own tests, and the two arguments meet
   only in the reader's head. Covering both would need the frame allocator lifted too.
@@ -502,7 +502,7 @@ evaluates `cfg(loom)` as false for every real target, so:
   a rank for the deadlock order; `loom::sync::Mutex` has neither. So the model says the protocol is
   correct *given* mutual exclusion, and says nothing about whether `IrqSafeMutex` provides it or
   whether the rank is right. That is `script/lint`'s rank check and [locking.md](locking.md), and
-  it is the same division `wake_handshake` records for `SCHED`.
+  it is the same division `thread_wake_handshake` records for `SCHED`.
 - **The gate on `untyped.rs` is narrower than the property it protects.** Milestone 136 closed the
   hole this bullet used to name (see *A lift is only worth what its caller does* above), and what it
   buys is bounded: the free-site pin covers `kernel/src/untyped.rs` only, so region pages freed from
