@@ -11,10 +11,16 @@ use crate::sched;
 /// by itself; this is the account the ledger's own message asks for.
 ///
 /// 128 for `login`'s own scratch (`OWN_UT_PAGES`), plus 128 per successful login (that program's
-/// `CARETAKER_REGION_PAGES` 64 + `CLIENT_BUDGET_PAGES` 64) for the three this suite performs (one in
-/// the headline test, two in the two-identity test): 128 + 3*128 = 512. 640 leaves headroom for
-/// `build_child`'s own bookkeeping without costing the ledger a number nobody can explain.
-const CONSTRUCTION_PAGES: u64 = 640;
+/// `CARETAKER_REGION_PAGES` 64 + `CLIENT_BUDGET_PAGES` 64) for the nine this suite performs in total
+/// (one in the headline test, two in the two-identity test, six in
+/// `the_login_service_serves_past_the_old_cspace_ceiling`, which relies on those three having
+/// already run against this same memoized instance to reach nine, one past the old eight-login
+/// cspace ceiling): 128 + 9*128 = 1280. 1408 leaves the same headroom the smaller number did, for
+/// `build_child`'s own bookkeeping, without costing the ledger a number nobody can explain. Every
+/// one of those nine pages is permanent (see `user/src/login.rs`'s BUGS: the caretaker's
+/// construction *memory* is still never reclaimed, only the cspace slot is now), so raising this
+/// past 640 raised `kernel::testing::SUITE_FRAME_BUDGET` too; that comment carries the account.
+const CONSTRUCTION_PAGES: u64 = 1408;
 
 /// **Wire the whole system once**: entropy, the credential service (`credential_tests::provisioned`'s
 /// own fixture, which already provisions `chris` and `corinne` among the three family logins
@@ -197,6 +203,72 @@ fn two_different_identities_get_independently_working_channels_and_correct_attri
             r[1] & ls::F_BUDGET_WORKS,
             ls::F_BUDGET_WORKS,
             "{label}'s budget did not work",
+        );
+    }
+}
+
+/// **Nothing else would have caught this**: `login`'s own capability table has sixteen slots
+/// (`kernel::cap::CSPACE_SLOTS`), eight are spent at rest (`REQUEST`..`AUDIT` plus its own scratch
+/// untyped), and before `user/src/login.rs`'s `mint` learned to drop its own copy of the
+/// caretaker's construction region, that region's capability was never freed on a successful
+/// login. That left room for exactly eight successful logins ever; a ninth, correctly
+/// authenticated, was silently answered [`login_proto::DENIED`], indistinguishable from a wrong
+/// password, at a far tighter ceiling than the memory bound `user/src/login.rs`'s BUGS documents.
+///
+/// This performs **six** successful logins against one service instance, on top of the three the
+/// headline test and the two-identity test above already performed against the same memoized
+/// instance (`wired()`): nine in total, one past that old eight-login ceiling. It asserts every one
+/// of its own six actually worked (not merely that the verdict was `OK`): a real `READDIR` through
+/// the minted directory and a real page retyped from the minted budget, the same proof the headline
+/// test above asks for. Alternates `chris` and `corinne` rather than repeating one identity, so a
+/// regression that only leaked on one particular identity's path would not hide from this test by
+/// accident.
+///
+/// Six rather than nine performed here directly: a real login's `CARETAKER_REGION_PAGES` and
+/// `CLIENT_BUDGET_PAGES` are permanently unreclaimable memory (see `user/src/login.rs`'s BUGS), so
+/// every attempt this test adds is a permanent charge against `kernel::testing::SUITE_FRAME_BUDGET`
+/// and not merely against `CONSTRUCTION_PAGES`. Reusing the other two tests' three logins rather
+/// than repeating them here is what keeps that charge to what actually proves the fix.
+#[test_case]
+fn the_login_service_serves_past_the_old_cspace_ceiling() {
+    let Some(w) = wired() else {
+        crate::testing::skip!("no virtio-rng device or no RedoxFS disk attached");
+    };
+    let cli =
+        program("login_test_client").expect("no login_test_client program in the initrd archive");
+
+    const ATTEMPTS: usize = 6;
+    for i in 0..ATTEMPTS {
+        let role = if i % 2 == 0 {
+            ls::ROLE_CHRIS
+        } else {
+            ls::ROLE_CORINNE
+        };
+        let r = ls::client(cli, &w, role);
+        assert_eq!(
+            r[0],
+            ls::RPT_OK,
+            "login {i} of {ATTEMPTS} in this test (the 4th through 9th against this shared \
+             instance, past the old eight-login cspace ceiling) was not authenticated; a real \
+             password was answered as though it were wrong",
+        );
+        assert_eq!(
+            r[1] & ls::F_DIR_WORKS,
+            ls::F_DIR_WORKS,
+            "login {i}'s directory capability did not work",
+        );
+        assert_eq!(
+            r[1] & ls::F_BUDGET_WORKS,
+            ls::F_BUDGET_WORKS,
+            "login {i}'s budget did not work",
+        );
+        // Drain the attribution record so the service is free to serve the next login (the
+        // headline test's own note: `send(AUDIT, ...)` is a blocking rendezvous).
+        let a = sched::ipc_recv(w.audit);
+        assert_eq!(
+            a[0],
+            login_proto::ATTRIBUTED,
+            "no attribution record followed login {i}",
         );
     }
 }

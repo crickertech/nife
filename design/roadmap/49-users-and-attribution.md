@@ -99,7 +99,10 @@ identity and secret produce a directory capability that answers a real `READDIR`
 retypes a real page (not merely that the capabilities arrived); a wrong secret is refused and nothing
 follows the refusal, which the client checks by never calling `RECV_CAP` on that path rather than by
 asserting a negative; and two different identities each get an independently working channel, correctly
-named in the audit trail and in the order they were established.
+named in the audit trail and in the order they were established. A fourth test proves the service
+survives past what used to be a hard, silent ceiling of eight logins ever (a leaked cspace slot per
+login; see BUGS), by taking the shared instance's login count to nine and checking each one's
+directory and budget work.
 
 See `user/src/login.rs`'s own BUGS for the itemised remainder (per-principal subtree scoping, the
 terminal, boot integration, measured-boot consultation, and reclamation), summarised in this
@@ -156,8 +159,15 @@ feature (`user/src/login.rs`'s own BUGS, more precisely worded per item).
   measurement table) does not extend to this non-init loader. Fixing it well means deciding how a
   loader outside the boot chain joins that chain at all, which is a design question and not a one-line
   patch.
-- **A caretaker's construction region is never reclaimed**; there is no logout. A real deployment needs
-  a teardown path, which is real work this slice does not build.
+- **A caretaker's construction memory is never reclaimed**; there is no logout. A real deployment
+  needs a teardown path, which is real work this slice does not build. (A narrower, related bug was
+  fixed in this same lane: `mint()` used to also leak one of `login`'s own sixteen cspace slots per
+  successful login, which is a fixed table and not a splittable budget, bounding the service to
+  exactly eight logins ever regardless of how generously `CONSTRUCTION_UT` was sized. `mint()` now
+  drops its own copy of the region capability once the caretaker has confirmed descent, the same
+  `cap_delete`-not-`DESTROY` pattern `root_supervisor` and `system_initializer::boot` already use.
+  That removes the cspace ceiling; the memory one above is unaffected and is the real, still-open
+  bound.)
 - **The audit endpoint proves establishment, not per-request attribution.** DECISIONS §109 describes
   both a server establishing a channel and (separately) a server logging which channel a later request
   arrived on. `login` is only the first half. No server in this tree today needs the second: every
