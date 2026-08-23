@@ -65,7 +65,8 @@ pub fn init_frequency(dtb_ptr: usize) {
     // `Dtb::from_ptr` re-checks the magic, and this runs on the same map `memory::init` uses.
     let dt = unsafe { dtb::Dtb::from_ptr(super::mmu::phys_to_virt(dtb_ptr as u64) as *const u8) }
         .expect("device tree is unreadable");
-    let list = machine_discovery::cpu_list::CpuList::from_device_tree(&dt).expect("cannot read /cpus");
+    let list =
+        machine_discovery::cpu_list::CpuList::from_device_tree(&dt).expect("cannot read /cpus");
     let hz = list
         .timebase_hz
         .expect("the device tree states no /cpus/timebase-frequency, and RISC-V has no CNTFRQ_EL0");

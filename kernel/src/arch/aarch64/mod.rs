@@ -137,8 +137,12 @@ pub fn psci_cpu_on(target_mpidr: u64, entry: u64, context: u64) -> i64 {
     };
     let func = func as u64;
     match conduit {
-        ::machine_discovery::aarch64::Conduit::Hvc => psci_call!("hvc #0", func, target_mpidr, entry, context),
-        ::machine_discovery::aarch64::Conduit::Smc => psci_call!("smc #0", func, target_mpidr, entry, context),
+        ::machine_discovery::aarch64::Conduit::Hvc => {
+            psci_call!("hvc #0", func, target_mpidr, entry, context)
+        }
+        ::machine_discovery::aarch64::Conduit::Smc => {
+            psci_call!("smc #0", func, target_mpidr, entry, context)
+        }
     }
 }
 

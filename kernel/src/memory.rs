@@ -130,7 +130,8 @@ pub fn init(dtb_ptr: usize) {
     // when a key press at the finished tour's prompt reached nothing (notes/visionfive2.md,
     // BUGS). A tree that does not say leaves this None, and the callers fall back to the QEMU
     // `virt` constant and print which source won.
-    if let Ok(Some(irq)) = machine_discovery::interrupt_id::of_node(&dtb, crate::console::UART_NODE) {
+    if let Ok(Some(irq)) = machine_discovery::interrupt_id::of_node(&dtb, crate::console::UART_NODE)
+    {
         *UART_IRQ.lock() = Some(irq);
     }
 

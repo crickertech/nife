@@ -344,6 +344,9 @@ mod tests {
         );
         assert!(sbi.spec_major >= 1, "and speaks at least SBI 1.0");
         assert_eq!(sbi.impl_name(), Some("OpenSBI"), "which is what QEMU ships");
-        assert!(sbi.extensions.contains(machine_discovery::riscv64::SBI_REQUIRED));
+        assert!(
+            sbi.extensions
+                .contains(machine_discovery::riscv64::SBI_REQUIRED)
+        );
     }
 }

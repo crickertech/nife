@@ -190,7 +190,8 @@ mod tests {
         let dt =
             unsafe { dtb::Dtb::from_ptr(crate::arch::mmu::phys_to_virt(ptr as u64) as *const u8) }
                 .expect("device tree is unreadable");
-        let ctx = machine_discovery::plic::PlicContexts::from_device_tree(&dt).expect("the PLIC wiring parses");
+        let ctx = machine_discovery::plic::PlicContexts::from_device_tree(&dt)
+            .expect("the PLIC wiring parses");
 
         // The online set, so the loop's claim ("every online hart") is the loop's shape.
         for hart in crate::smp::online_cpus() {
