@@ -1,8 +1,13 @@
 # 20. A portable HAL, proven on a second architecture
 
-**Status: BUILT.**
+**Status: BUILT** for the HAL split and RISC-V, which is this milestone's actual scope per its own
+title (**a second** architecture, singular). **The x86_64 half of the "Deliverable, in two parts"
+below was never tracked as open work and is split out to milestone 161** (2026-08-23, checked
+directly: `kernel/src/arch/` holds only `aarch64/` and `riscv64/`, no `x86_64/` exists). The
+reasoning below for why x86_64 comes after RISC-V remains accurate; the tracked work now lives at
+161.
 
-**In brief.** Make `arch/` a real HAL; bring up RISC-V then x86_64
+**In brief.** Make `arch/` a real HAL; bring up RISC-V (x86_64 tracked at milestone 161)
 
 **Why it matters.** the "portable verified core" claim; reach the demonstrator earns
 
@@ -22,7 +27,8 @@ RISC-V, ring-3 on x86, and EL0 on ARM. seL4 (verified on both ARM and RISC-V) is
    seam-*naming* subset that needs no second architecture is broken out as **20a** and can start now;
    the abstraction *shapes* (the codec and discovery interfaces) wait for RISC-V, because deriving
    them from one ISA is the wrong-abstraction trap DECISIONS warns against.
-2. **Bring up a second ISA, then a third: RISC-V first, x86_64 second.**
+2. **Bring up a second ISA, then a third: RISC-V first, x86_64 second.** RISC-V is this
+   milestone's own scope; x86_64 is milestone 161's.
 
 **Why RISC-V first.** It is structurally close to aarch64, so it reuses the most and needs the
 smallest new `arch/` subtree: device tree and virtio-mmio port unchanged, the weak-memory discipline
