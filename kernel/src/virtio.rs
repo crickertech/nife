@@ -455,7 +455,7 @@ const _: () = assert!(
     "a queue's rings overflow its ring block"
 );
 const _: () = assert!(
-    MAX_QUEUES as u64 * RING_BLOCK <= frames::FRAME_SIZE,
+    MAX_QUEUES as u64 * RING_BLOCK <= page_frames::FRAME_SIZE,
     "the shadow frame cannot hold every queue's ring block",
 );
 
@@ -628,7 +628,7 @@ pub fn register(transport: Transport, dma_base: u64, dma_size: u64, rid: Option<
         core::ptr::write_bytes(
             mmu::phys_to_virt(shadow_base) as *mut u8,
             0,
-            frames::FRAME_SIZE as usize,
+            page_frames::FRAME_SIZE as usize,
         );
     }
 
@@ -1022,11 +1022,11 @@ mod tests {
     fn two_regions() -> (u64, u64, u64) {
         let driver = crate::memory::alloc().expect("no driver frame").addr();
         let shadow = crate::memory::alloc().expect("no shadow frame").addr();
-        (driver, shadow, frames::FRAME_SIZE)
+        (driver, shadow, page_frames::FRAME_SIZE)
     }
     fn free_regions(driver: u64, shadow: u64) {
-        crate::memory::free(frames::Frame::from_addr(driver));
-        crate::memory::free(frames::Frame::from_addr(shadow));
+        crate::memory::free(page_frames::Frame::from_addr(driver));
+        crate::memory::free(page_frames::Frame::from_addr(shadow));
     }
 
     /// Drive `validate_and_shadow` against the fake regions with the standard closures. Queue 0,
@@ -1448,10 +1448,15 @@ mod tests {
             core::ptr::write_bytes(
                 mmu::phys_to_virt(dma) as *mut u8,
                 0,
-                frames::FRAME_SIZE as usize,
+                page_frames::FRAME_SIZE as usize,
             );
         }
-        let id = register(Transport::pci(&d), dma, frames::FRAME_SIZE, Some(d.rid));
+        let id = register(
+            Transport::pci(&d),
+            dma,
+            page_frames::FRAME_SIZE,
+            Some(d.rid),
+        );
 
         // A frame the domain does not map: the device's escape target.
         let victim = crate::memory::alloc().expect("no victim frame").addr();

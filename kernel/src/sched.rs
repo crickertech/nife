@@ -35,7 +35,7 @@
 
 use core::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
-use wake_handshake::{SwitchOutVerdict, WakeVerdict};
+use thread_wake_handshake::{SwitchOutVerdict, WakeVerdict};
 
 use crate::cpu;
 use crate::sync::{IrqSafeMutex, rank};
@@ -103,13 +103,13 @@ struct TcbPtr(*mut Thread);
 unsafe impl Send for TcbPtr {}
 
 struct Threads {
-    table: slots::Table<TcbPtr, MAX_THREADS>,
+    table: generational_table::Table<TcbPtr, MAX_THREADS>,
 }
 
 impl Threads {
     const fn new() -> Self {
         Self {
-            table: slots::Table::new(),
+            table: generational_table::Table::new(),
         }
     }
 
@@ -239,7 +239,7 @@ impl Threads {
 
     /// Every live TCB from slot `from` onward, with its slot index, for a **resumable** sweep
     /// (`endpoint::SURVEY`, milestone 126). The slot is the caller's cursor; see
-    /// `slots::Table::iter_from` for why a position would not do.
+    /// `generational_table::Table::iter_from` for why a position would not do.
     fn iter_from(&self, from: usize) -> impl Iterator<Item = (usize, &Thread)> + '_ {
         // SAFETY: as `iter_mut`, and shared rather than exclusive: each stored pointer is a
         // distinct live page, and `&self` carries IPC_TABLES for the walk.
@@ -267,7 +267,7 @@ struct IpcTables {
     /// entry is the page's physical address; the generational name (`crates/slots`, the same
     /// machinery as Tids) is what an `Object::Endpoint` capability carries, so the day endpoints
     /// can die, stale names will already fail safely.
-    endpoints: slots::Table<u64, MAX_ENDPOINTS>,
+    endpoints: generational_table::Table<u64, MAX_ENDPOINTS>,
     /// The kernel's **current** object chunk: where the kernel's endpoints (boot services, tests)
     /// are retyped from, so every endpoint lives uniformly in a pinned page regardless of who paid.
     /// Carved lazily on the first [`create_endpoint`] and **replaced when it fills**, which is what
@@ -286,7 +286,7 @@ struct IpcTables {
 ///
 /// This used to say it capped creations over the kernel's lifetime, on the grounds that endpoint
 /// teardown did not exist. That went stale when object revocation made destruction real: tearing
-/// down a region removes every endpoint whose page lives in it and `slots::Table::remove` frees the
+/// down a region removes every endpoint whose page lives in it and `generational_table::Table::remove` frees the
 /// slot for reuse, so this is a concurrent bound now. Corrected rather than left, because a stale
 /// bound is the kind of comment that gets believed during a capacity argument.
 const MAX_ENDPOINTS: usize = 512;
@@ -569,17 +569,17 @@ pub fn boot_stage() -> u32 {
 ///   a torn read of an in-flight legal write can print as a divergence. That is a false alarm
 ///   only in the sense that the mutation was legal; the printed delta says so itself.
 /// - The instrument's own state (the watch table, the shadow) is serialized by
-///   `canary_gate::Gate`, a one-word state machine with loom-searched guards. Its first protocol
+///   `memory_corruption_canary_gate::Gate`, a one-word state machine with loom-searched guards. Its first protocol
 ///   was two hand-written flags here, and that pair raced (2026-08-15): a `check` that lost the
 ///   single-flight slot returned silently having checked nothing, which the kernel test read as
 ///   a missed corruption (the thead-c906 flake, notes/cpu-models.md BUGS), and a re-arm could
 ///   rewrite the plan under a checker that had seen `ARMED` but not yet won the slot. See
-///   `crates/canary_gate` for both holes and the harnesses that falsify the old spelling.
+///   `crates/memory_corruption_canary_gate` for both holes and the harnesses that falsify the old spelling.
 #[cfg(not(feature = "bench"))]
 mod canary {
     use core::sync::atomic::{AtomicU64, Ordering};
 
-    use canary_gate::Gate;
+    use memory_corruption_canary_gate::Gate;
 
     /// One watched range and where its shadow copy lives.
     #[derive(Clone, Copy)]
@@ -597,10 +597,10 @@ mod canary {
     /// cannot flood the serial log that the dump itself needs.
     const PRINT_CAP: u64 = 48;
 
-    /// Interior-mutable statics whose one owner at a time is a live `canary_gate` guard:
+    /// Interior-mutable statics whose one owner at a time is a live `memory_corruption_canary_gate` guard:
     /// `arm` writes them holding an `ArmGuard`, `check` reads and writes them holding a
     /// `CheckGuard`, and the gate admits at most one guard of either kind (the exclusion is
-    /// loom-checked in `crates/canary_gate`, where the previous hand-written spelling of this
+    /// loom-checked in `crates/memory_corruption_canary_gate`, where the previous hand-written spelling of this
     /// serialization is also falsified).
     struct Racy<T>(core::cell::UnsafeCell<T>);
     // SAFETY: access is serialized by the gate's guards; see the struct comment.
@@ -629,7 +629,7 @@ mod canary {
         DIVERGED.store(0, Ordering::Relaxed);
         PRINTED.store(0, Ordering::Relaxed);
         // SAFETY: the ArmGuard is exclusive ownership of these statics (the gate's contract,
-        // loom-checked in crates/canary_gate); no check pass can start until it drops.
+        // loom-checked in crates/memory_corruption_canary_gate); no check pass can start until it drops.
         let (watches, count) = unsafe { &mut *WATCHES.0.get() };
         // SAFETY: as above.
         let shadow = unsafe { &mut *SHADOW.0.get() };
@@ -700,7 +700,7 @@ mod canary {
             return false;
         };
         // SAFETY: the CheckGuard is exclusive ownership of these statics (the gate's contract,
-        // loom-checked in crates/canary_gate), and taking it saw the arm guard's release, so the
+        // loom-checked in crates/memory_corruption_canary_gate), and taking it saw the arm guard's release, so the
         // plan is whole, never torn.
         let (watches, count) = unsafe { &*WATCHES.0.get() };
         // SAFETY: as above, and mutation is confined to the guard's lifetime.
@@ -792,7 +792,7 @@ pub fn init() {
 
     *sched = Some(IpcTables {
         threads,
-        endpoints: slots::Table::new(),
+        endpoints: generational_table::Table::new(),
         kernel_ep_region: None,
         kernel_ep_chunks: 0,
     });
@@ -1064,7 +1064,7 @@ pub fn serve_steal_request() {
 /// most-loaded other core and, if it has a queued thread to spare, request one over its steal slot
 /// and poke it with the reschedule SGI; the victim serves it at its next scheduler entry, the stolen
 /// thread lands in our inbox, and that SGI's drain runs it. One outstanding request per victim
-/// (`steal_request::Slot::claim` is a compare-exchange from empty), so a crowd of idle cores
+/// (`work_steal_slot::Slot::claim` is a compare-exchange from empty), so a crowd of idle cores
 /// collapses to one steal per victim per round.
 fn try_initiate_steal() {
     // Do not steal if we have work of our own arriving: our run queue is empty (that is why the idle
@@ -1518,7 +1518,7 @@ pub(crate) fn finish_switch() {
         return;
     };
     // The predecessor's context is saved now (we are running, so switch_to completed). What that
-    // makes legal is `wake_handshake::Handshake::finish_switch`'s verdict: reap a Finished
+    // makes legal is `thread_wake_handshake::Handshake::finish_switch`'s verdict: reap a Finished
     // predecessor, complete a wake that was deferred mid-switch-out, or simply clear `on_cpu` so
     // other cores may run it. The transition is the crate's (loom searches it; see
     // notes/interleaving.md); the reap and the queue push are ours.
@@ -1758,7 +1758,7 @@ fn pick_wake_target() -> usize {
 fn wake_load_aware(sched: &mut IpcTables, tid: Tid) -> Option<usize> {
     let t = sched.threads.get_mut(tid)?;
     // The whole decision (not-blocked, the boot-8 undelivered-wake gate, the switch-out deferral)
-    // is `wake_handshake::Handshake::try_wake`, the extracted protocol loom searches on the host
+    // is `thread_wake_handshake::Handshake::try_wake`, the extracted protocol loom searches on the host
     // (notes/interleaving.md). This function keeps what the crate cannot see: the trace ring, the
     // progress heartbeat, and §28.2's placement policy on the one verdict that queues.
     match t.handshake.try_wake() {
@@ -1799,7 +1799,7 @@ fn wake_load_aware(sched: &mut IpcTables, tid: Tid) -> Option<usize> {
 
 /// Move a blocked thread back to the ready queue. Caller holds the lock.
 ///
-/// The decision lives in `wake_handshake::Handshake::try_wake`, extracted so loom can search its
+/// The decision lives in `thread_wake_handshake::Handshake::try_wake`, extracted so loom can search its
 /// interleavings on the host (notes/interleaving.md); this function is the kernel-side half, the
 /// queue push and the trace ring. The two rules the verdicts carry, kept here in one breath
 /// because this is where a reader meets them: **the undelivered-wake gate** (boot 8: a wake whose

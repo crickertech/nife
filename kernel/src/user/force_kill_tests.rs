@@ -42,7 +42,8 @@ fn destroy_force_kills_a_runaway_and_reclaims_its_region() {
     user_aspace_map(aspace, STACK_VA, stack_phys, Flags::user_data()).expect("map stack");
 
     let tid = sched::create_tcb(region).expect("no tcb");
-    sched::configure_tcb(tid, CODE_VA, STACK_VA + frames::FRAME_SIZE, aspace).expect("configure");
+    sched::configure_tcb(tid, CODE_VA, STACK_VA + page_frames::FRAME_SIZE, aspace)
+        .expect("configure");
     sched::start_tcb(tid, [0; 3]).expect("start");
 
     // Let the runaway actually reach EL0 and start spinning, so we tear down a running thread,
@@ -167,7 +168,8 @@ fn destroy_reclaims_a_region_whose_resident_is_blocked_in_recv() {
         slot, 0,
         "the endpoint must land in slot 0 (the stub assumes it)"
     );
-    sched::configure_tcb(tid, CODE_VA, STACK_VA + frames::FRAME_SIZE, aspace).expect("configure");
+    sched::configure_tcb(tid, CODE_VA, STACK_VA + page_frames::FRAME_SIZE, aspace)
+        .expect("configure");
     sched::start_tcb(tid, [0; 3]).expect("start");
 
     // **Wait for it to be queued on the endpoint, not for "probably scheduled by now."** A test that

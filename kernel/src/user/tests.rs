@@ -2651,7 +2651,7 @@ fn a_process_can_build_start_and_run_a_child_thread() {
         "START ran a half-built thread (no address space, no entry)",
     );
 
-    crate::sched::configure_tcb(tid, CODE_VA, STACK_VA + frames::FRAME_SIZE, aspace)
+    crate::sched::configure_tcb(tid, CODE_VA, STACK_VA + page_frames::FRAME_SIZE, aspace)
         .expect("configure");
     crate::sched::start_tcb(tid, [0; 3]).expect("start");
 
@@ -2735,7 +2735,7 @@ fn reclaim_frees_a_started_then_exited_childs_regions() {
     let tcb_region = crate::untyped::create(2).expect("no tcb region");
     let tid = crate::sched::create_tcb(tcb_region).expect("no tcb");
     crate::sched::tcb_insert_cap(tid, report_cap, None).expect("cap insert");
-    crate::sched::configure_tcb(tid, CODE_VA, STACK_VA + frames::FRAME_SIZE, aspace)
+    crate::sched::configure_tcb(tid, CODE_VA, STACK_VA + page_frames::FRAME_SIZE, aspace)
         .expect("configure");
     crate::sched::start_tcb(tid, [0; 3]).expect("start");
 
@@ -2819,7 +2819,7 @@ fn spawn_to_reap_repeats_without_leaking() {
         let tcb_region = crate::untyped::create(2).expect("tcb region");
         let tid = crate::sched::create_tcb(tcb_region).expect("tcb");
         crate::sched::tcb_insert_cap(tid, report_cap, None).expect("cap insert");
-        crate::sched::configure_tcb(tid, CODE_VA, STACK_VA + frames::FRAME_SIZE, aspace)
+        crate::sched::configure_tcb(tid, CODE_VA, STACK_VA + page_frames::FRAME_SIZE, aspace)
             .expect("configure");
         crate::sched::start_tcb(tid, [0; 3]).expect("start");
 

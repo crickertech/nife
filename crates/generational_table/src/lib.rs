@@ -35,7 +35,7 @@
 //! same slot. That is the property worth showing:
 //!
 //! ```
-//! use slots::Table;
+//! use generational_table::Table;
 //!
 //! let mut t: Table<&str, 4> = Table::new();
 //! let a = t.insert_with(|_name| "first").unwrap();
@@ -55,7 +55,7 @@
 //! The table is fixed-size, so a full one refuses rather than allocating:
 //!
 //! ```
-//! use slots::Table;
+//! use generational_table::Table;
 //!
 //! let mut t: Table<u32, 2> = Table::new();
 //! assert!(t.insert_with(|_| 1).is_some());
@@ -63,10 +63,9 @@
 //! assert!(t.insert_with(|_| 3).is_none(), "a full table refuses");
 //! ```
 //!
-//! Name: unrecorded, and flagged. The naming tenet names it among the crate names that are generic
-//! words which could label almost anything in an operating system (`compose`, `measure`, `regions`,
-//! `slots`, `caps`, `frames`); three of those six were settled on 2026-08-01 and this one was not.
-//! Nothing records who chose it.
+//! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review). Renamed from
+//! `slots`: flagged in CLAUDE.md's own text as an example of a too-generic name; matches the
+//! crate's own opening line ("a fixed-capacity generational table").
 
 #![cfg_attr(not(test), no_std)]
 
@@ -214,7 +213,7 @@ impl<T, const N: usize> Table<T, N> {
     /// `from >= N` yields nothing, so a caller need not bound its own cursor.
     ///
     /// ```
-    /// use slots::Table;
+    /// use generational_table::Table;
     ///
     /// let mut t: Table<&str, 4> = Table::new();
     /// let a = t.insert_with(|_| "a").unwrap();

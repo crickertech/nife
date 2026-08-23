@@ -353,7 +353,10 @@ fn map_new() {
     timed("map_new", MAP_ITERS, || {
         for i in 0..MAP_ITERS {
             let page = space
-                .map_new(base + i * frames::FRAME_SIZE, paging::Flags::user_data())
+                .map_new(
+                    base + i * page_frames::FRAME_SIZE,
+                    paging::Flags::user_data(),
+                )
                 .expect("bench: map failed");
             // Touch it so the compiler cannot dissolve the loop.
             TOTAL.fetch_add(page[0] as u64, Ordering::Relaxed);
@@ -404,11 +407,11 @@ fn rfence_self() {
     let me = 1usize << crate::cpu::id();
 
     for _ in 0..WARMUP {
-        crate::arch::sbi_remote_sfence_vma(me, va, frames::FRAME_SIZE as usize);
+        crate::arch::sbi_remote_sfence_vma(me, va, page_frames::FRAME_SIZE as usize);
     }
     timed("rfence_self", RFENCE_ITERS, || {
         for _ in 0..RFENCE_ITERS {
-            crate::arch::sbi_remote_sfence_vma(me, va, frames::FRAME_SIZE as usize);
+            crate::arch::sbi_remote_sfence_vma(me, va, page_frames::FRAME_SIZE as usize);
         }
     });
 }
@@ -683,7 +686,7 @@ const APPDISP_IPC_PAIRS: usize = 8;
 const APPDISP_IPC_PAIRS_HIGH: usize = SCALE_MAX_PAIRS;
 
 /// Interior-mutable scratch the workload reads and writes. One `Racy<T>` per benchmark file:
-/// `sched.rs`'s corruption canary (`canary_gate::arm`) defines the same idiom for the same reason,
+/// `sched.rs`'s corruption canary (`memory_corruption_canary_gate::arm`) defines the same idiom for the same reason,
 /// a scratch region one thread at a time uses, serialized by the caller rather than by a lock that
 /// would then be part of the very cost this benchmark measures the absence of.
 #[cfg(target_arch = "aarch64")]

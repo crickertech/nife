@@ -123,7 +123,11 @@ fn zeroed_frame(what: &str) -> u64 {
         .addr();
     // SAFETY: a fresh frame, reachable through the direct map, owned by this module from here on.
     unsafe {
-        core::ptr::write_bytes(phys_to_virt(pa) as *mut u8, 0, frames::FRAME_SIZE as usize);
+        core::ptr::write_bytes(
+            phys_to_virt(pa) as *mut u8,
+            0,
+            page_frames::FRAME_SIZE as usize,
+        );
     }
     pa
 }
@@ -238,7 +242,7 @@ fn cmd_push(s: &mut Iommu, dword0: u64, dword1: u64) {
 pub fn attach(rid: u32, root: u64, pscid: u16) {
     let mut g = IOMMU.lock();
     let s = g.as_mut().expect("IOMMU attach before init");
-    let per_page = frames::FRAME_SIZE / s.dc_bytes;
+    let per_page = page_frames::FRAME_SIZE / s.dc_bytes;
     assert!(
         (rid as u64) < per_page,
         "device_id {rid} beyond the one-level device directory"

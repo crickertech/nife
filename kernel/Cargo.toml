@@ -32,8 +32,8 @@ bitfont = { version = "0.1.0", path = "../crates/bitfont" }
 calendar = { version = "0.1.0", path = "../crates/calendar" }
 # The corruption canary's arm/check/disarm serialization (2026-08-15), lifted out of `sched.rs`
 # after its hand-written two-flag protocol raced: the kernel calls the loom-searched gate rather
-# than keeping a copy of it, the third retrofit of steal_request's move. See notes/interleaving.md.
-canary_gate = { version = "0.1.0", path = "../crates/canary_gate" }
+# than keeping a copy of it, the third retrofit of work_steal_slot's move. See notes/interleaving.md.
+memory_corruption_canary_gate = { version = "0.1.0", path = "../crates/memory_corruption_canary_gate" }
 capability = { version = "0.1.0", path = "../crates/capability" }
 # The shell's grant-expression logic (milestone 47's `rm -r`). The kernel plans nothing; its `rm`
 # test **starts the program the way the shell would**, so the option bits it packs come from the
@@ -83,8 +83,8 @@ pci = { version = "0.1.0", path = "../crates/pci" }
 # kernel's nvme module is its volatile half, the same split as `pci` above.
 nvme = { version = "0.1.0", path = "../crates/nvme" }
 elf = { version = "0.1.0", path = "../crates/elf" }
-frames = { version = "0.1.0", path = "../crates/frames" }
-intrusive = { version = "0.1.0", path = "../crates/intrusive" }
+page_frames = { version = "0.1.0", path = "../crates/page_frames" }
+intrusive_fifo = { version = "0.1.0", path = "../crates/intrusive_fifo" }
 ipc = { version = "0.1.0", path = "../crates/ipc" }
 # What machine is this (milestone 60). The kernel reads the device tree and the ID registers; every
 # decoding of what it finds lives in the crate, host-tested against a real device tree and against
@@ -114,7 +114,7 @@ pgrep = { version = "0.1.0", path = "../crates/pgrep" }
 # `user/src/pmap.rs`'s real loop, against the real `aspace::LIST`, `ps`'s reasoning one object type
 # over: no party has its own copy of the cursor walk.
 pmap = { version = "0.1.0", path = "../crates/pmap" }
-regions = { version = "0.1.0", path = "../crates/regions" }
+memory_regions = { version = "0.1.0", path = "../crates/memory_regions" }
 # The byte-sink contract (milestone 50). The kernel's tests are a *sink* for every std program they
 # spawn, so the framing they decode comes from the same definition the PAL packs with rather than
 # from a second copy of it in a test helper, which is what it was before this milestone.
@@ -123,18 +123,18 @@ sink_proto = { version = "0.1.0", path = "../crates/sink_proto" }
 # *grants* a net server its listen ports, so it packs the grant with the same `listen_grant` the
 # server checks against rather than open-coding the layout of a word two programs must agree on.
 socket_proto = { version = "0.1.0", path = "../crates/socket_proto" }
-slots = { version = "0.1.0", path = "../crates/slots" }
+generational_table = { version = "0.1.0", path = "../crates/generational_table" }
 spin = { version = "0.12", default-features = false, features = ["spin_mutex"] }
 # The work-steal handshake (milestone 80): the one lock-free cross-core protocol in the scheduler,
 # lifted out of `cpu.rs` so a model checker can reach it. The kernel calls the checked type rather
-# than keeping a second copy of the compare-exchange, the same move `regions`, `ipc` and
+# than keeping a second copy of the compare-exchange, the same move `memory_regions`, `ipc` and
 # `dma_validator` made for Kani. See notes/interleaving.md.
-steal_request = { version = "0.1.0", path = "../crates/steal_request" }
+work_steal_slot = { version = "0.1.0", path = "../crates/work_steal_slot" }
 video_terminal = { version = "0.1.0", path = "../crates/video_terminal" }
 # The scheduler's block/wake handshake, so the kernel calls the loom-searched transitions rather
-# than keeping a copy of them: the second retrofit of steal_request's move, asked for by the
+# than keeping a copy of them: the second retrofit of work_steal_slot's move, asked for by the
 # fourth bench stop's audit. See notes/interleaving.md.
-wake_handshake = { version = "0.1.0", path = "../crates/wake_handshake" }
+thread_wake_handshake = { version = "0.1.0", path = "../crates/thread_wake_handshake" }
 
 # Typed, compile-time-checked MMIO register blocks. An off-by-four in a device's
 # register layout becomes a build error instead of a mystery at runtime.

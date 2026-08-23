@@ -7,7 +7,7 @@
 //! run queue, the one-shot Reply that leaves a caller blocked); the *policy* lives here, proved,
 //! and the scheduler calls it rather than hand-rolling the same branch six times.
 //!
-//! The wait queues are **intrusive** (`crates/intrusive`): generic over the node type, so in the
+//! The wait queues are **intrusive** (`crates/intrusive_fifo`): generic over the node type, so in the
 //! kernel a queue entry *is* the TCB, threaded through the same link the run queues use. One link
 //! means one queue, so "a blocked thread waits on exactly one endpoint" is a property of there
 //! being one field, not a rule anyone keeps. The queues are the kernel's real endpoint state, not
@@ -28,7 +28,7 @@
 //!
 //! ```
 //! use core::ptr::NonNull;
-//! use intrusive::Node;
+//! use intrusive_fifo::Node;
 //! use ipc::{Endpoint, Recv, Send};
 //!
 //! struct Tcb {
@@ -72,7 +72,7 @@
 //!
 //! ```
 //! # use core::ptr::NonNull;
-//! # use intrusive::Node;
+//! # use intrusive_fifo::Node;
 //! # use ipc::{Endpoint, Recv};
 //! # struct Tcb { next: Option<NonNull<Tcb>> }
 //! # unsafe impl Node for Tcb {
@@ -109,7 +109,7 @@
 
 use core::ptr::NonNull;
 
-use intrusive::{Fifo, Node};
+use intrusive_fifo::{Fifo, Node};
 
 /// One IPC endpoint: two intrusive wait queues and the pending-signal count.
 pub struct Endpoint<T: Node> {
@@ -324,7 +324,7 @@ impl<T: Node> Default for Endpoint<T> {
 /// check. A non-empty queue is modeled with a single waiter, because the decision and the
 /// invariant depend only on whether a queue is *empty*, never on its length: an operation pops
 /// (only shrinking) and pushes only to a queue that was empty, so the emptiness pattern
-/// transitions identically for one waiter or many. FIFO order within a queue is the `intrusive`
+/// transitions identically for one waiter or many. FIFO order within a queue is the `intrusive_fifo`
 /// crate's own proof; these harnesses prove the decisions made over it.
 ///
 /// # The obligations every `unsafe` call in here discharges

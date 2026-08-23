@@ -1,7 +1,7 @@
 //! **The scheduler's block/wake handshake**: the per-thread state machine that decides when a
 //! blocked thread may become runnable, lifted out of `kernel/src/sched.rs` so loom can explore
 //! every interleaving of it on the host (milestone 80's method, second retrofit after
-//! `steal_request`).
+//! `work_steal_slot`).
 //!
 //! # What this is, and what it is not
 //!
@@ -44,12 +44,12 @@
 //!   Rule: [`switch_in`](Handshake::switch_in) asserts `on_cpu` is clear, so the discipline has a
 //!   tripwire at the one place every path to a CPU passes through. (The phrase "steal-then-STOP"
 //!   has been used for this family; the nearest recorded artifacts are this edge and
-//!   `steal_request`'s BUGS entry about a claimed slot a stopped victim never serves, which is a
+//!   `work_steal_slot`'s BUGS entry about a claimed slot a stopped victim never serves, which is a
 //!   liveness question outside both crates' models.)
 //!
 //! # The division of labor with the kernel
 //!
-//! The kernel **calls** these transitions; it does not mirror them. The regions-crate precedent
+//! The kernel **calls** these transitions; it does not mirror them. The memory_regions-crate precedent
 //! (DECISIONS §16's extraction rule): a proof over a copy proves the copy. `Thread` embeds a
 //! [`Handshake`] and `sched.rs` goes through these methods at every block, wake, switch and
 //! finish-switch site. What stays kernel-side, on purpose:
@@ -72,7 +72,7 @@
 //! One rendezvous, as the kernel spells it, with the waker racing the receiver's switch-out:
 //!
 //! ```
-//! use wake_handshake::{Handshake, RunState, SwitchOutVerdict, WakeVerdict};
+//! use thread_wake_handshake::{Handshake, RunState, SwitchOutVerdict, WakeVerdict};
 //!
 //! // The receiver, running, parks itself in ipc_recv (under IPC_TABLES):
 //! let mut hs: Handshake<(u64, char)> = Handshake::on_cpu_now();
@@ -118,16 +118,17 @@
 //!   single-owner, and really does run `finish_switch` before the next scheduler entry is
 //!   established by reading `sched.rs`, not by the model. See notes/interleaving.md for what the
 //!   model covers and what it cannot reach.
-//! - **Liveness is out of scope**, here as in `steal_request`: a refused or deferred wake depends
+//! - **Liveness is out of scope**, here as in `work_steal_slot`: a refused or deferred wake depends
 //!   on a later scheduler entry that loom cannot see (the reschedule SGI, the timer tick).
 //!
-//! Name: unrecorded. Provisional, minted 2026-08-14 (the block/wake loom extraction, the retrofit
-//! the fourth bench stop's audit asked for) and not yet put to Chris. Named for the mechanism the
-//! crate holds: the handshake between a waker and a thread that is parking or switching out.
-//! Refused along the way: `block_wake` (two verbs; the tenet says nouns), `wake_gate` (names only
-//! the boot-8 rule, one of three), `sched_state` and `run_state` (generic words that could name
-//! almost anything in a scheduler), `parking` (a verb, and std's `park` vocabulary means something
-//! narrower). Chris's call.
+//! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review). Renamed from
+//! `wake_handshake`: more explicit about the subject being woken (a blocked thread, coordinated
+//! between a waker on one core and that thread's own core mid-context-switch). Minted 2026-08-14
+//! (the block/wake loom extraction, the retrofit the fourth bench stop's audit asked for). Refused
+//! along the way: `block_wake` (two verbs; the tenet says nouns), `wake_gate` (names only the
+//! boot-8 rule, one of three), `sched_state` and `run_state` (generic words that could name almost
+//! anything in a scheduler), `parking` (a verb, and std's `park` vocabulary means something
+//! narrower).
 
 #![cfg_attr(not(test), no_std)]
 
@@ -588,7 +589,7 @@ mod interleavings {
 
     use super::*;
 
-    /// Non-vacuity, `steal_request`'s pattern: a real (non-loom) atomic that accumulates across
+    /// Non-vacuity, `work_steal_slot`'s pattern: a real (non-loom) atomic that accumulates across
     /// every execution of the search, asserted afterwards, so a bound that quietly empties the
     /// interesting branch fails loudly. See notes/verification.md's non-vacuity section.
     struct Reached(core::sync::atomic::AtomicBool);

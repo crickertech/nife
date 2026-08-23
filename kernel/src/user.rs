@@ -38,7 +38,7 @@
 //! piece, on purpose. Not accreted here because it was convenient.
 
 use elf::Elf;
-use frames::{FRAME_SIZE, Frame};
+use page_frames::{FRAME_SIZE, Frame};
 use paging::{Flags, Half, MapError, Mapper};
 
 use crate::arch::exceptions::{TrapFrame, enter_user};
@@ -259,8 +259,9 @@ const MAX_USER_SPACES: usize = 32;
 /// process's space (region-paid tables, revocation logs, ASID tagging) works on a user-built
 /// one identically. Entries are never removed in 19b; their `Drop` (which would destroy a
 /// region the creator still holds a capability to) stays dormant until 19c designs teardown.
-static USER_SPACES: crate::sync::IrqSafeMutex<slots::Table<AddressSpace, MAX_USER_SPACES>> =
-    crate::sync::IrqSafeMutex::new(crate::sync::rank::ASPACES, slots::Table::new());
+static USER_SPACES: crate::sync::IrqSafeMutex<
+    generational_table::Table<AddressSpace, MAX_USER_SPACES>,
+> = crate::sync::IrqSafeMutex::new(crate::sync::rank::ASPACES, generational_table::Table::new());
 
 /// Create an address space **in and backed by** `region` (the `RETYPE_OBJ(ASPACE)` engine): the
 /// root page is retyped from it (pinning it, atomically with the carve), and the region becomes

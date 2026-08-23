@@ -15,7 +15,7 @@
 use core::cell::UnsafeCell;
 use core::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
 
-use intrusive::Fifo;
+use intrusive_fifo::Fifo;
 
 use crate::sync::{IrqSafeMutex, rank};
 use crate::thread::{Thread, Tid};
@@ -79,7 +79,7 @@ pub struct PerCpu {
     /// - **Deferred wakes** (milestone 14 phase A.3): a `Blocked` predecessor that a waker
     ///   caught *mid-switch-out* (the handshake's `on_cpu` still set, its saved context still
     ///   stale) is not queued by the waker; the wake is parked in `wake_pending` (both fields on
-    ///   `wake_handshake::Handshake`, the loom-searched extraction) and completed by
+    ///   `thread_wake_handshake::Handshake`, the loom-searched extraction) and completed by
     ///   the successor, after the context is real. Without this, a rendezvous or interrupt
     ///   arriving in that window put the thread on a second core while its first was still
     ///   running it: two cores in one thread, on a stale register file.
@@ -135,9 +135,9 @@ pub struct PerCpu {
     ///
     /// **The one lock-free cross-core protocol in the scheduler**, and therefore the one place a
     /// weak-memory bug could hide where no lock would catch it. Milestone 80 lifted it into
-    /// [`steal_request`] so loom can explore every interleaving of it on the host; this field is
+    /// `work_steal_slot` so loom can explore every interleaving of it on the host; this field is
     /// the checked type itself, not a copy of it. See notes/interleaving.md.
-    pub steal_request: steal_request::Slot,
+    pub steal_request: work_steal_slot::Slot,
 
     /// **How many threads this core has adopted out of its own inbox**, monotonic since boot.
     ///
@@ -179,7 +179,7 @@ impl PerCpu {
             inbox: IrqSafeMutex::new(rank::INBOX, Fifo::new()),
             runq_len: AtomicUsize::new(0),
             inbox_len: AtomicUsize::new(0),
-            steal_request: steal_request::Slot::new(),
+            steal_request: work_steal_slot::Slot::new(),
             adopted: AtomicU64::new(0),
             rng: AtomicU32::new(1), // reseeded per core in init_this_cpu; never left 0 (xorshift)
         }

@@ -26,7 +26,7 @@
 
 use core::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
-use frames::FRAME_SIZE;
+use page_frames::FRAME_SIZE;
 use paging::Flags;
 
 use crate::arch::mmu::{self, KERNEL_VA_BASE};
@@ -271,12 +271,12 @@ impl Drop for KernelStack {
 /// **Where a thread is in its life.** The enum itself lives in `crates/wake_handshake` now,
 /// because the block/wake transitions that read and write it were lifted there for loom to search
 /// (the fourth bench stop's retrofit; see that crate's header and notes/interleaving.md). The
-/// kernel keeps its vocabulary: `State` here is exactly `wake_handshake::RunState`, and nothing in
+/// kernel keeps its vocabulary: `State` here is exactly `thread_wake_handshake::RunState`, and nothing in
 /// `sched.rs` reads any differently than it did.
-pub use wake_handshake::RunState as State;
+pub use thread_wake_handshake::RunState as State;
 
 /// **Which side of a rendezvous a blocked thread is waiting as.** The role half of the
-/// handshake's [`wait_on`](wake_handshake::Handshake::wait_on) payload, recorded at the same
+/// handshake's [`wait_on`](thread_wake_handshake::Handshake::wait_on) payload, recorded at the same
 /// instant `state` goes `Blocked` and by the same code,
 /// so a hang dump can say *what kind* of wait a thread is in rather than only that it waits.
 ///
@@ -320,7 +320,7 @@ impl Drop for QuotaToken {
 }
 
 /// What a blocked thread waits on: the endpoint and the side of the rendezvous it waits as. The
-/// payload of [`wake_handshake::Handshake::wait_on`], opaque to that crate, matched by the kernel
+/// payload of [`thread_wake_handshake::Handshake::wait_on`], opaque to that crate, matched by the kernel
 /// (`ipc_reply`'s reply-role check, the hang dump's wait column).
 pub type Wait = (crate::sched::EpId, WaitRole);
 
@@ -333,7 +333,7 @@ pub struct Thread {
     /// the kernel **calls** the checked transitions rather than mirroring them (the regions-crate
     /// precedent). Every access is under `IPC_TABLES`, exactly as before; the crate's header carries
     /// the protocol's rules, its races and its BUGS.
-    pub handshake: wake_handshake::Handshake<Wait>,
+    pub handshake: thread_wake_handshake::Handshake<Wait>,
 
     /// **The entire saved CPU state of this thread**: one stack pointer.
     ///
@@ -467,7 +467,7 @@ pub struct Thread {
 }
 
 // SAFETY: plain storage of the link, nothing else, which is all the queue's contract asks.
-unsafe impl intrusive::Node for Thread {
+unsafe impl intrusive_fifo::Node for Thread {
     fn next(&self) -> Option<core::ptr::NonNull<Self>> {
         self.next
     }
@@ -488,8 +488,8 @@ impl Thread {
     /// beyond a null placeholder.
     pub fn boot() -> Self {
         Thread {
-            id: UNNAMED, // named 0 by the table's first insert (see slots::Table)
-            handshake: wake_handshake::Handshake::on_cpu_now(), // adopted mid-run: standing on its CPU
+            id: UNNAMED, // named 0 by the table's first insert (see generational_table::Table)
+            handshake: thread_wake_handshake::Handshake::on_cpu_now(), // adopted mid-run: standing on its CPU
             context: core::ptr::null_mut(),
             stack: None,
             space: None,
@@ -517,8 +517,8 @@ impl Thread {
     /// queue is empty. See smp.rs and `sched::adopt_secondary_idle`.
     pub fn adopt_current() -> Self {
         Thread {
-            id: UNNAMED,                                        // named at insert, like every thread
-            handshake: wake_handshake::Handshake::on_cpu_now(), // adopted mid-run: standing on its CPU
+            id: UNNAMED, // named at insert, like every thread
+            handshake: thread_wake_handshake::Handshake::on_cpu_now(), // adopted mid-run: standing on its CPU
             context: core::ptr::null_mut(),
             stack: None,
             space: None,
@@ -620,7 +620,7 @@ impl Thread {
         unsafe {
             dst.write(Thread {
                 id,
-                handshake: wake_handshake::Handshake::ready(),
+                handshake: thread_wake_handshake::Handshake::ready(),
                 context,
                 stack: Some(stack),
                 space: None, // a kernel thread until it calls `user::exec`
@@ -663,7 +663,7 @@ impl Thread {
     pub fn embryo() -> Self {
         Thread {
             id: UNNAMED,
-            handshake: wake_handshake::Handshake::embryo(),
+            handshake: thread_wake_handshake::Handshake::embryo(),
             context: core::ptr::null_mut(),
             stack: None,
             space: None,
