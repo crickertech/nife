@@ -168,6 +168,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 106 | DECIDED | [Take the `terminal_sink_caretaker` narrowing: an unredirected tail stage's output goes to the screen, not the shell](106-tail-output-narrowing.md) |
 | 108 | DECIDED | [Disabling a user's login credentials kills their durable session](108-credential-revocation-kills-durable-session.md) |
 | 109 | DECIDED | [Attribution is a property of a channel, not of a capability](109-attribution-is-a-channel-property.md) |
+| 110 | DECIDED | [Hard links are declined, for want of a customer](110-hard-links-declined.md) |
 | 111 | DECIDED | [Inert configuration is a read-only page, and each declared key is validated against a closed domain](111-inert-config-is-a-validated-page.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same

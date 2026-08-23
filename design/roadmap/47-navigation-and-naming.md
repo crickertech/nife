@@ -28,8 +28,9 @@ phase 2) through the same shell-builtin shape `mkdir` already has. The mtime hal
 existing name's time, and `-t`'s ability to set an arbitrary one) is not built; see the `touch`
 section below and notes/touch.md for why that half needs a decision this one does not.
 
-What remains genuinely unbuilt is completion, environment, `PATH`, `bind`, and `ln` (both its
-hard-link and symlink halves; symlinks-as-stored-paths were superseded by `bind`, DECISIONS §50).
+What remains genuinely unbuilt is completion, environment, `PATH`, `bind`, and `ln`'s symlink half
+(hard links declined for want of a customer, DECISIONS §110; symlinks-as-stored-paths were
+superseded by `bind`, DECISIONS §50).
 
 64's second pass (2026-08-18) reports that **nothing in this milestone was ever waiting on 64**, and
 hands over the sized demand this block asked for: named customers at ranks 16, 18 and 27 plus
@@ -72,9 +73,10 @@ name one directory entry outside the set and gets `ENOENT`. Witnessed from the h
 which has said "Built 2026-07-31" the whole time, and the sections below at "Built 2026-07-31: the
 matcher, then the grant", which contradicted the sentence from inside this same file.
 
-**Still to do**: completion, environment, `PATH`, `bind`, and `ln`. (Absolute paths came out of this
-list on 2026-08-18, `rmdir`/`rm -r` were already built and are now annotated as such, and `touch`'s
-create half came out on 2026-08-22; see the Status block.) Completion is refused by design at the layer
+**Still to do**: completion, environment, `PATH`, `bind`, and `ln`'s symlink half. (Absolute paths
+came out of this list on 2026-08-18, `rmdir`/`rm -r` were already built and are now annotated as
+such, `touch`'s create half came out on 2026-08-22, and hard links were declined 2026-08-23,
+DECISIONS §110; see the Status block.) Completion is refused by design at the layer
 below and deferred to the application (`crates/line_editor/src/lib.rs:32`), environment has no PAL and
 no shell support, and `PATH` needs `Prog` to stop being a closed enum, which this block calls half the
 mechanism. The `std` PAL's `rename`, `unlink` and `rmdir` **were** bindings rather than missing verbs,
@@ -229,7 +231,11 @@ escalation to recursive removal, which is Unix's behaviour and worth keeping for
 
 ## `ln`: hard links make it not a tree, and symlinks stop being an escalation
 
-Two verbs with very different stories. Neither is built.
+Two verbs with very different stories. Neither is built. **Hard links are declined** (calef,
+2026-08-23, DECISIONS §110): no customer needs them, `mv`/`RENAME` already covers the atomic-replace
+idiom they're usually reached for, and offering them would cost an audit of every place subtree
+reasoning quietly assumes a tree rather than a DAG, for a feature nobody's asked for. Symlinks'
+mechanism question is separately settled (§50, below: `bind`, not stored paths).
 
 **Hard links are mechanically easy.** RedoxFS keeps link counts, and **§48's deferred-delete fix
 already depends on them**: "the last link goes" is exactly what made `rm` an unlink rather than a
@@ -260,11 +266,9 @@ The cost is that one symlink means different things to different holders. That s
 exactly Plan 9's per-process namespace behaviour, so it is a well-explored place to stand rather than
 a novel one.
 
-**What to settle before building either:** whether hard links are offered at all given the DAG
-consequence (declining is defensible, and `mv` plus `RENAME` already covers the common
-atomic-replace idiom that hard links are usually reached for); and, for symlinks, what a stored path
-containing `..` means when the holder's root is shallower than the creator's: §48 clamps, so it
-should clamp here too rather than erroring, but that is a decision.
+**Hard links: decided, declined (§110).** What remains, for symlinks: what a stored path containing
+`..` means when the holder's root is shallower than the creator's. §48 clamps, so it should clamp
+here too rather than erroring, but that is a decision, not yet made.
 
 ### ~~Open fork~~ **SETTLED 2026-07-31: `bind`, not stored paths** (DECISIONS §50)
 
