@@ -7,7 +7,7 @@ license.workspace = true
 # The mDNS/DNS-SD wire format (RFC 6762, RFC 6763) for milestone 55's Time Machine advertisement:
 # DNS messages on port 5353, the PTR/SRV/TXT service convention, and the `_adisk._tcp` TXT record
 # whose flags are what puts a server in the Mac's backup-disk list. Pure computation, the same
-# split `ntp_proto` and `fs_proto` make: no socket, no timer, no policy. The responder program that
+# split `ntp_proto` and `filesystem_proto` make: no socket, no timer, no policy. The responder program that
 # joins 224.0.0.251 and carries these bytes is a later phase (it needs stack surface the tree does
 # not have yet; see notes/mdns.md). See notes/mdns.md for the measured reference captures.
 

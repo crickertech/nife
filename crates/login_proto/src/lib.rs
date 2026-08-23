@@ -74,21 +74,21 @@
 //!
 //! # The request page
 //!
-//! Identical in shape to [`cred_proto`]'s: an identity and a secret, because this service's whole
+//! Identical in shape to [`credential_proto`]'s: an identity and a secret, because this service's whole
 //! first act is relaying the presented pair to the credential service's own `VERIFY` unchanged. Its
 //! `place`/`read`/`req`/`op` do not encode anything specific to that service's own semantics (`op`
 //! is a caller-supplied word), so this contract reuses them rather than defining a second copy of
 //! the same layout and risking the two drifting the way `credentialer.rs`'s own compile-time
-//! assertions exist to catch for `cred`/`cred_proto`.
+//! assertions exist to catch for `cred`/`credential_proto`.
 //!
 //! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review). Minted 2026-08-22
 //! for milestone 49, following the tree's existing `<subject>_proto` pattern (`credential_proto`,
 //! `clock_proto`, `entropy_proto`).
 
-pub use cred_proto::{MAX_IDENTITY, MAX_SECRET, PAGE, op, place, read, wipe};
+pub use credential_proto::{MAX_IDENTITY, MAX_SECRET, PAGE, op, place, read, wipe};
 
 /// The one request opcode this contract defines. There is only one verb (authenticate), so unlike
-/// `cred_proto` (verify, provision) there is nothing to distinguish it from; it exists so a reader
+/// `credential_proto` (verify, provision) there is nothing to distinguish it from; it exists so a reader
 /// of a captured request word can tell this contract's traffic from any other sharing the encoding.
 /// Build a request word with `place(page, identity, secret, LOGIN)`, which returns it already
 /// carrying this opcode and the two lengths.
@@ -100,7 +100,7 @@ pub const OK: u64 = 1;
 
 /// **Refused.** The identity is unknown, the secret is wrong, or the service could not mint a
 /// capability set for an otherwise-authenticated principal (see this service's BUGS on the second
-/// case: it is folded into the same code on purpose, for [`cred_proto`]'s reason: a caller must not
+/// case: it is folded into the same code on purpose, for [`credential_proto`]'s reason: a caller must not
 /// be able to distinguish "wrong password" from "the service is out of memory" by trying the same
 /// identity twice and comparing outcomes).
 pub const DENIED: u64 = 2;

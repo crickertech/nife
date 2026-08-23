@@ -13,7 +13,7 @@
 //!   `CALL`s here).
 //! - **slot 1**: the report endpoint, `WRITE`.
 //! - **[`FILE_VA`]**: the base of the channel shared with the FS server (a name out, file bytes
-//!   both ways). `fs_proto::fs::TRANSFER_PAGES` pages, all of them mapped by this client's wiring,
+//!   both ways). `filesystem_proto::fs::TRANSFER_PAGES` pages, all of them mapped by this client's wiring,
 //!   because the throughput role asks for the whole of it in one request.
 //!
 //! Name: ratified 2026-08-01 (calef, milestone 63), replacing `fsclient`. Refused `fsclient`
@@ -28,7 +28,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use fs_proto::{dir, fixture, fs, grant, xattr};
+use filesystem_proto::{dir, fixture, fs, grant, xattr};
 use grant_plan::nav::{TwoRoots, Which};
 use user_rt::{call, exit, now, send};
 
@@ -39,7 +39,7 @@ const FILE: u64 = 0;
 const REPORT: u64 = 1;
 /// The base of the client's mapping of the channel it shares with the FS server.
 ///
-/// **It is `fs_proto::fs::TRANSFER_MAX` bytes wide, not one page** (milestone 138 step 3), and the
+/// **It is `filesystem_proto::fs::TRANSFER_MAX` bytes wide, not one page** (milestone 138 step 3), and the
 /// kernel's wiring maps every page of it here (`kernel/src/user/fs_service.rs`, `map_channel`). A
 /// client may not ask for more than it mapped, and this one maps all of it, which is what lets the
 /// throughput role measure the contract's own ceiling rather than a page.
@@ -100,7 +100,7 @@ const STAGE_WRITE: u64 = 3;
 /// compared against `SUCCESS`.
 ///
 /// `w0` is the raw reply word, `w1` is `0xBADD_0000 | stage << 12 | errno`. The errno is recovered
-/// with `fs_proto::reply_errno`'s rule (a negative reply is a negated errno). Note the known
+/// with `filesystem_proto::reply_errno`'s rule (a negative reply is a negated errno). Note the known
 /// reply-space overlap (notes/std.md): the kernel's own `invoke` errors are -1..-8, so a small value
 /// here is ambiguous between "the server returned this errno" and "the IPC itself failed". The raw
 /// word travels in `w0` precisely so that ambiguity is visible rather than hidden.
@@ -193,7 +193,7 @@ const ROLE_DIR_ATTACKER: u64 = 5;
 /// nothing; it tries a name the set carries and a name it does not, and reports what got through.
 const ROLE_SET_ATTRS: u64 = 6;
 /// Milestone 54: seed the file the SMB gate reads ([`fixture::SMB_SEED_NAME`]), so the bytes the
-/// host's SMB prober asserts were put on the filesystem through `fs_proto` by a different process
+/// host's SMB prober asserts were put on the filesystem through `filesystem_proto` by a different process
 /// than the one that serves them.
 const ROLE_SMB_SEED: u64 = 7;
 /// Milestone 54's write path: read back, through the FS server, the file the **host's** SMB
@@ -202,8 +202,8 @@ const ROLE_SMB_SEED: u64 = 7;
 /// performed it, which is the thing a protocol test must never be allowed to be.
 const ROLE_SMB_VERIFY: u64 = 8;
 /// Milestone 38: sequential and random read/write throughput through the FS server, the four
-/// phases `fs_proto::fixture::throughput` names. The `--real --smp` bench boot spawns it after
-/// [`ROLE_BENCH`], on the service that role already wired. The number lives in `fs_proto` because
+/// phases `filesystem_proto::fixture::throughput` names. The `--real --smp` bench boot spawns it after
+/// [`ROLE_BENCH`], on the service that role already wired. The number lives in `filesystem_proto` because
 /// the kernel passes it and this program matches on it, which is rule 7's case exactly.
 const ROLE_THROUGHPUT: u64 = fixture::throughput::ROLE;
 /// Milestone 154: the confined program that holds **two** directory capabilities at once, one at
@@ -239,7 +239,7 @@ pub extern "C" fn _start(role: u64, a1: u64, _a2: u64) -> ! {
 /// This runs *after* the SMB adapter has finished serving, in a process that holds a directory
 /// capability and nothing that names the network. That separation is the whole point: the bytes
 /// were put there by a host process over TCP, and are read here by a different process through
-/// `fs_proto`, so "the write crossed SMB2 -> the `Share` seam -> `fs_proto` -> RedoxFS" is
+/// `filesystem_proto`, so "the write crossed SMB2 -> the `Share` seam -> `filesystem_proto` -> RedoxFS" is
 /// something the machine checks rather than something the writer asserts about itself.
 ///
 /// It classifies rather than merely failing, in [`crash_verify`]'s shape: the second report word
@@ -299,7 +299,7 @@ fn durability_witness() -> u64 {
 
     let (first, _) = call(FILE, fs::req(fs::SYNC, 0, 0), 0);
     if (first as i64) < 0 {
-        return match fs_proto::reply_errno(first as i64) {
+        return match filesystem_proto::reply_errno(first as i64) {
             // The device offers no VIRTIO_BLK_F_FLUSH. An honest answer about the machine rather
             // than a bug here, and it must be reported as its own thing.
             Some(95) => durability::NO_DEVICE_FLUSH,
@@ -322,7 +322,7 @@ fn durability_witness() -> u64 {
 
 /// **Did the SMB client's `mkdir` make a directory, and is the file inside it?**
 ///
-/// Descended rather than opened by path, deliberately: `fs_proto` has no paths, so reaching
+/// Descended rather than opened by path, deliberately: `filesystem_proto` has no paths, so reaching
 /// `tm_bands\band0` from here means an `OPENDIR` and then an `OPEN` under the handle it minted.
 /// That is the same walk the adapter performs, done from the other side of the machine by a
 /// process with nothing that names the network, which is what makes it a witness rather than an
@@ -340,7 +340,7 @@ fn smb_verify_nested() -> u64 {
         dir::ALL,
     );
     if (d as i64) < 0 {
-        return match fs_proto::reply_errno(d as i64) {
+        return match filesystem_proto::reply_errno(d as i64) {
             // The name is there and is not a directory: the adapter wrote a file whose name
             // contains a separator, which is the flat share's failure exactly.
             Some(dir::ENOTDIR) => fixture::smb_wrote::DIR_IS_A_FILE,
@@ -378,7 +378,7 @@ fn smb_verify_nested() -> u64 {
 /// [`fixture::SMB_SEED_NAME`] under the granted directory, whole and exact, then report.
 ///
 /// CREATE first, and on any refusal fall back to OPEN + TRUNCATE: create is create, not
-/// create-or-open (`fs_proto::fs::CREATE`), and this role must be idempotent because the HVF leg
+/// create-or-open (`filesystem_proto::fs::CREATE`), and this role must be idempotent because the HVF leg
 /// reboots the suite on the same disk image the first run already seeded. The truncate is what
 /// makes the fallback equal to the create: without it a shorter payload would leave the old tail
 /// behind, which is exactly the half-working write §27 warns about.
@@ -608,7 +608,7 @@ fn attacker(writable: bool) -> ! {
         ),
         0,
     );
-    if fs_proto::reply_errno(g0 as i64) == Some(xattr::ENOTSUP) {
+    if filesystem_proto::reply_errno(g0 as i64) == Some(xattr::ENOTSUP) {
         verdict |= escape::GRANTED_ATTRS_FAILED;
     }
 
@@ -805,7 +805,7 @@ fn dir_attacker(run: u64) -> ! {
         // buffer with a length the server chose would be a panic this program cannot report.
         let n = (n as usize).min(buf.len());
         get_page(n, &mut buf);
-        for (name, _) in fs_proto::dirent::iter(&buf[..n]) {
+        for (name, _) in filesystem_proto::dirent::iter(&buf[..n]) {
             for stranger in [
                 fixture::MOTD_NAME,
                 fixture::SCRATCH_NAME,
@@ -937,8 +937,8 @@ fn dir_attacker(run: u64) -> ! {
 ///   already argues (the endpoint is the boundary), witnessed here with two live caretakers
 ///   rather than inferred from one.
 fn two_dir() -> ! {
+    use filesystem_proto::fixture::twodir as t;
     use fixture::tree;
-    use fs_proto::fixture::twodir as t;
 
     /// Grant A's endpoint: `fs_service::start_granted_two_dirs`' slot 0.
     const FILE_A: u64 = 0;
@@ -1270,14 +1270,14 @@ fn attr_witness(scratch: u64) -> u64 {
         xattr::spec(xattr::RAW, (xattr::MAX_VALUE + 1) as u64),
     )
     .0 as i64;
-    if fs_proto::reply_errno(r) == Some(xattr::E2BIG) {
+    if filesystem_proto::reply_errno(r) == Some(xattr::E2BIG) {
         v |= attrs::OVERSIZE_REFUSED;
     }
 
     // 4. Removing it takes it away, and reading it afterwards is ENODATA. Without this the round
     //    trip above is equally true of a store that never forgets anything.
     if xattr_remove(scratch, attrs::NAME) >= 0
-        && fs_proto::reply_errno(xattr_get(scratch, attrs::NAME)) == Some(xattr::ENODATA)
+        && filesystem_proto::reply_errno(xattr_get(scratch, attrs::NAME)) == Some(xattr::ENODATA)
     {
         v |= attrs::GONE_AFTER_REMOVE;
     }
@@ -1340,7 +1340,7 @@ fn attr_witness(scratch: u64) -> u64 {
         }
         get_page(n as usize, &mut buf);
         let mut seen = 0u64;
-        for (name, _) in fs_proto::dirent::iter(&buf[..(n as usize).min(buf.len())]) {
+        for (name, _) in filesystem_proto::dirent::iter(&buf[..(n as usize).min(buf.len())]) {
             if name == xattr::STORE_DIR.as_bytes() {
                 clean = false;
             }
@@ -1399,7 +1399,7 @@ fn bench() -> ! {
 /// payload cost. The bench boot turns those into the `fs_seq_write` / `fs_seq_read` /
 /// `fs_rand_read` / `fs_record_read` / `fs_rand_write` / `fs_payload_fill` lines and into MiB/s.
 ///
-/// **What one transfer is, and why that is the whole story.** One `fs_proto` request moves at most
+/// **What one transfer is, and why that is the whole story.** One `filesystem_proto` request moves at most
 /// `fs::TRANSFER_MAX` bytes, because the payload travels through the region the client shares with
 /// the server. That was one page until milestone 138 step 3 and is sixteen now, so a phase here is
 /// `UNIT` per request and the throughput is the request rate times `UNIT`. A Linux program reading
@@ -1415,10 +1415,10 @@ fn bench() -> ! {
 /// allocation, and the read phases have something laid out by the server under test rather than by
 /// the host tool. It is also the reason there is no separate "create" number.
 ///
-/// **What a write here promises, which decides what it compares against.** Every `fs_proto` write
+/// **What a write here promises, which decides what it compares against.** Every `filesystem_proto` write
 /// goes through one RedoxFS transaction that commits to the header ring before the reply, so the
 /// filesystem's own state is durable per request the way `O_DSYNC` makes ext4's; but no device
-/// flush is issued unless a client asks for one (`fs_proto::fs::SYNC`), so the bytes sit where
+/// flush is issued unless a client asks for one (`filesystem_proto::fs::SYNC`), so the bytes sit where
 /// `O_DIRECT` alone leaves them. This sits **between** Linux's two, and notes/benchmarks.md prints
 /// both rather than picking one.
 ///
@@ -1539,7 +1539,7 @@ fn throughput() -> ! {
 }
 
 /// Open the throughput file, creating it if this is the first run against this image and emptying
-/// it if it is not. `CREATE` answers `EEXIST` rather than opening (`fs_proto`'s note says why), so
+/// it if it is not. `CREATE` answers `EEXIST` rather than opening (`filesystem_proto`'s note says why), so
 /// the fallback is an explicit open-and-truncate, the same shape [`smb_seed`] uses.
 fn throughput_file() -> u64 {
     let name = fixture::THROUGHPUT_NAME;

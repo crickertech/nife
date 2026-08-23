@@ -24,14 +24,14 @@
 //!   bytes of contiguous pages (a name on open, file bytes on read/write).
 //!
 //! The server only ever OPENS the image (never creates: creation is std-gated and host-side), and
-//! it maps RedoxFS's error type to the wire exactly once, in [`serve`], via `fs_proto::reply_err`.
+//! it maps RedoxFS's error type to the wire exactly once, in [`serve`], via `filesystem_proto::reply_err`.
 
 #![no_std]
 #![no_main]
 
 extern crate alloc;
 
-use fs_proto::{blk, fs, op, reply_err, xattr};
+use filesystem_proto::{blk, fs, op, reply_err, xattr};
 use fs_server::{CachedDisk, Server};
 use redoxfs::Disk;
 use syscall::error::{EINVAL, EIO, Error, Result};
@@ -149,7 +149,7 @@ struct IpcDisk;
 
 impl IpcDisk {
     /// One blk `CALL` for `count` contiguous blocks starting at `block` (milestone 138 step 4):
-    /// opcode and count pack into the first word ([`fs_proto::blk::req`]), the starting block index
+    /// opcode and count pack into the first word ([`filesystem_proto::blk::req`]), the starting block index
     /// is the second. Returns the reply's first word as a signed result (negative is an error, per
     /// the wire convention). The bulk rides in [`BLK_PAGE`], `count * BLOCK` bytes of it.
     fn blk_n(op_code: u64, block: u64, count: usize) -> i64 {
@@ -204,7 +204,7 @@ impl IpcDisk {
                 // Then die, with the transaction's commit still unwritten. Announce it first, on the
                 // readiness endpoint this process already holds, so the waiting test knows the kill
                 // was the injector's and not something else going wrong.
-                send(READY, fs_proto::fixture::crash::CUT, 0, 0);
+                send(READY, filesystem_proto::fixture::crash::CUT, 0, 0);
                 panic!();
             }
             if chunk.len() < BLOCK {
@@ -330,7 +330,7 @@ impl Disk for IpcDisk {
 }
 
 impl IpcDisk {
-    /// **Make the device durable** (milestone 55): one `fs_proto::blk::FLUSH`, and the block
+    /// **Make the device durable** (milestone 55): one `filesystem_proto::blk::FLUSH`, and the block
     /// server's answer handed back untouched.
     ///
     /// Not part of the `Disk` trait, because RedoxFS's `Disk` has no sync method and this tree does
@@ -342,7 +342,7 @@ impl IpcDisk {
     /// block-protocol errno reaches a file-service client, and it is deliberate: `EOPNOTSUPP` from
     /// a device with no flush and `EIO` from a device that refused one are different facts, and
     /// folding either into the other would leave a caller unable to tell "this storage cannot be
-    /// made durable" from "this storage failed to". `fs_proto::fs::SYNC` documents the boundary.
+    /// made durable" from "this storage failed to". `filesystem_proto::fs::SYNC` documents the boundary.
     fn sync() -> i64 {
         Self::blk(blk::FLUSH, 0)
     }
@@ -386,7 +386,7 @@ fn serve(server: &mut Server<CachedDisk<IpcDisk>>) -> ! {
         // one page every client has always mapped: a `READDIR` that filled 64 KiB would be written
         // into a single-page client's unmapped second page. `READ` and `WRITE` are the two verbs
         // whose length the CLIENT chooses, so they are the two that may use the whole channel, and
-        // a client asking for one page still gets exactly one page. See `fs_proto::fs::TRANSFER_PAGES`.
+        // a client asking for one page still gets exactly one page. See `filesystem_proto::fs::TRANSFER_PAGES`.
         let len = fs::req_len(w0).min(BLOCK);
         let bulk_len = fs::req_len(w0).min(fs::TRANSFER_MAX);
         let offset = w1;
@@ -555,7 +555,7 @@ fn serve(server: &mut Server<CachedDisk<IpcDisk>>) -> ! {
             fs::STATFS => server.statfs(handle).and_then(|(block, total, free)| {
                 // SAFETY: the whole page is ours to fill; the encoder never writes past its slice.
                 let buf = unsafe { file_page(BLOCK) };
-                fs_proto::statfs::encode(buf, block, total, free)
+                filesystem_proto::statfs::encode(buf, block, total, free)
                     .map(|n| n as i64)
                     .ok_or(Error::new(EINVAL))
             }),
@@ -589,7 +589,7 @@ pub extern "C" fn _start(crash_at_write: u64, crash_after_blocks: u64, crash_tea
     };
     // The image is open: signal readiness (so the test can tell an open-path hang from a serve-path
     // one), then serve forever.
-    send(READY, fs_proto::fixture::READY, 0, 0);
+    send(READY, filesystem_proto::fixture::READY, 0, 0);
     serve(&mut server);
 }
 

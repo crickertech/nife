@@ -95,12 +95,12 @@ const DIR_BIT: u64 = 1 << 36;
 /// **The two messages a [`Wiring::dir`] request is followed by**, in order, each three words:
 ///
 /// 1. **the caretaker's `START` words**, which init passes to `fs_subtree_caretaker` verbatim: the
-///    granted directory's name and the `fs_proto::dir` rights the subtree capability is to carry;
+///    granted directory's name and the `filesystem_proto::dir` rights the subtree capability is to carry;
 /// 2. **the confined program's `START` words**, which init passes to the program verbatim: for `rm`,
 ///    the operand's name and the options that were typed.
 ///
-/// **This module does not decode either, deliberately.** They are `fs_proto::grant`'s packing, and
-/// `grant_plan` has no non-dev dependency on `fs_proto` on purpose (its own manifest says why: the
+/// **This module does not decode either, deliberately.** They are `filesystem_proto::grant`'s packing, and
+/// `grant_plan` has no non-dev dependency on `filesystem_proto` on purpose (its own manifest says why: the
 /// shell must be able to check a command line without linking the filesystem contract). Passing them
 /// through as opaque triples keeps that true, and it means a change to how a grant is packed is a
 /// change in one crate rather than in the wire this one owns. The shell packs them; init forwards

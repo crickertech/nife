@@ -367,7 +367,7 @@ const SH_CLOCK_VA: u64 = 0x00d0_0000;
 /// **Build the interactive system and become its spawn service.** Never returns: the last thing it
 /// does is park in `RECV` on the shell's spawn channel for the life of the boot.
 ///
-/// `initrd_len` is the archive length the kernel passed at entry; `fs_rights` is the `fs_proto::dir`
+/// `initrd_len` is the archive length the kernel passed at entry; `fs_rights` is the `filesystem_proto::dir`
 /// rights the file-service endpoint carries, and 0 means this boot attached no disk.
 pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
     // The archive the kernel mapped read-only; its length arrived at entry.
@@ -1221,7 +1221,7 @@ fn spawn_service(
                 Some(tcb) => {
                     // **A program behind a directory grant is started with the grant's own three
                     // words** rather than with an integer, which is `rm`'s shape: a spec carrying
-                    // the options and two words of name (`fs_proto::grant`). init forwards what the
+                    // the options and two words of name (`filesystem_proto::grant`). init forwards what the
                     // shell packed and reads none of it; see `spawnproto::GRANT_WORDS`.
                     let (a0, a1, a2) = match grant {
                         Some((_, child)) => child,
@@ -1278,7 +1278,7 @@ fn spawn_service(
             // come back. init closes it on the child's behalf. It is the same hole `SPAWN_OK`
             // closed for the output side, one stream over.
             if !ok && let Some(ep) = diagnostics {
-                send(ep, sink_proto::eof(), 0, 0);
+                send(ep, byte_sink_proto::eof(), 0, 0);
             }
         }
 
@@ -1374,7 +1374,7 @@ fn build_caretaker(
     // it will reach through the handle that one request minted.
     let (verdict, _, _) = recv(ready);
     cap_delete(ready);
-    if verdict == fs_proto::fixture::READY {
+    if verdict == filesystem_proto::fixture::READY {
         Some(narrow_ep)
     } else {
         // A refused descent. The caretaker has already exited; the endpoint goes back, and the

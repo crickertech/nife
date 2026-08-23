@@ -86,20 +86,20 @@ pub fn start_on(
     // **The inert-configuration page** (milestone 47's environment-variable fork, DECISIONS
     // §111). Unlike the clock, nothing here runs a service: the page is assembled once, into a
     // frame nothing else can see, and only mapped read-only afterward, so there is no seqlock
-    // and no readiness handshake to wait on (see `env_proto`'s own docs for why). The values are
+    // and no readiness handshake to wait on (see `environment_proto`'s own docs for why). The values are
     // the conservative universal defaults ("no clock service configured this program's locale
     // or terminal, so tell it the least assuming thing"), the same posture `date` takes when no
     // clock service is running: an honest baseline rather than a guess. There is no shell here
     // yet to hold a *different* default and pass it explicitly (the "inheritance with
     // visibility" shape the roadmap names); that arrives with whatever program first declares it
     // wants this page through `grant_plan::Manifest`, which none does today.
-    let config_bytes = env_proto::PageBuilder::new()
+    let config_bytes = environment_proto::PageBuilder::new()
         .tz("UTC")
-        .expect("UTC is not a recognized env_proto::domain::KNOWN_TZ member")
+        .expect("UTC is not a recognized environment_proto::domain::KNOWN_TZ member")
         .lang("C")
-        .expect("C is not a recognized env_proto::domain::KNOWN_LANG member")
+        .expect("C is not a recognized environment_proto::domain::KNOWN_LANG member")
         .term("dumb")
-        .expect("dumb is not a recognized env_proto::domain::KNOWN_TERM member")
+        .expect("dumb is not a recognized environment_proto::domain::KNOWN_TERM member")
         .build();
     let config_phys = crate::memory::alloc()
         .expect("no frame for the std program's config page")

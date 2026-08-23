@@ -111,7 +111,7 @@ fn provisioning_fills_the_store_and_the_seal_closes_it() {
     for k in 0..3 {
         assert_eq!(
             cs::nth(codes, k),
-            cred_proto::OK,
+            credential_proto::OK,
             "identity {k} was not stored (reply {}), codes {codes:#018x}",
             cs::nth(codes, k),
         );
@@ -119,7 +119,7 @@ fn provisioning_fills_the_store_and_the_seal_closes_it() {
     for k in 3..6 {
         assert_eq!(
             cs::nth(codes, k),
-            cred_proto::OK,
+            credential_proto::OK,
             "share {} was not stored (reply {}), codes {codes:#018x}",
             k - 3,
             cs::nth(codes, k),
@@ -127,12 +127,12 @@ fn provisioning_fills_the_store_and_the_seal_closes_it() {
     }
     assert_eq!(
         cs::nth(codes, 6),
-        cred_proto::FULL,
+        credential_proto::FULL,
         "a seventh secret in a six-slot store must be refused, not silently accepted",
     );
     assert_eq!(
         cs::nth(codes, 7),
-        cred_proto::OK,
+        credential_proto::OK,
         "the seal was not accepted"
     );
     assert_eq!(
@@ -179,22 +179,22 @@ fn a_client_gets_a_correct_yes_or_no_and_nothing_else() {
     let codes = r[1];
     assert_eq!(
         cs::nth(codes, 0),
-        cred_proto::MATCH,
+        credential_proto::MATCH,
         "the right secret for a provisioned identity was refused, codes {codes:#018x}",
     );
     assert_eq!(
         cs::nth(codes, 1),
-        cred_proto::MISMATCH,
+        credential_proto::MISMATCH,
         "the wrong secret was accepted, codes {codes:#018x}",
     );
     assert_eq!(
         cs::nth(codes, 2),
-        cred_proto::MISMATCH,
+        credential_proto::MISMATCH,
         "an identity nobody provisioned was accepted, codes {codes:#018x}",
     );
     assert_eq!(
         cs::nth(codes, 3),
-        cred_proto::MISMATCH,
+        credential_proto::MISMATCH,
         "one identity's secret opened another's account, codes {codes:#018x}",
     );
     assert_eq!(
@@ -234,7 +234,7 @@ fn the_same_endowment_cannot_write_the_store() {
     // forbidden opcode from an unknown one, and it does not.
     assert_eq!(
         cs::nth(codes, 0),
-        cred_proto::MISMATCH,
+        credential_proto::MISMATCH,
         "a PUT on the verify endpoint is a verify of an identity nobody provisioned, so the \
          answer must be MISMATCH; codes {codes:#018x}",
     );
@@ -251,7 +251,7 @@ fn the_same_endowment_cannot_write_the_store() {
     // at a serve loop never carried authority in the first place.
     assert_eq!(
         cs::nth(codes, 1),
-        cred_proto::MISMATCH,
+        credential_proto::MISMATCH,
         "a SEAL on the verify endpoint is an NTLM_PROOF for a resource nobody provisioned, so \
          the answer must be MISMATCH; codes {codes:#018x}",
     );
@@ -262,7 +262,7 @@ fn the_same_endowment_cannot_write_the_store() {
     ] {
         assert_eq!(
             cs::nth(codes, k),
-            cred_proto::MALFORMED,
+            credential_proto::MALFORMED,
             "{what} on the verify endpoint was answered {} rather than MALFORMED, codes \
              {codes:#018x}",
             cs::nth(codes, k),
@@ -270,7 +270,7 @@ fn the_same_endowment_cannot_write_the_store() {
     }
     assert_eq!(
         cs::nth(codes, 5),
-        cred_proto::MISMATCH,
+        credential_proto::MISMATCH,
         "the attacker installed a working credential for itself, codes {codes:#018x}",
     );
     assert_eq!(
@@ -305,7 +305,7 @@ fn an_smb_server_authenticates_a_session_without_ever_holding_the_key() {
 
     assert_eq!(
         cs::nth(codes, 0),
-        cred_proto::MATCH,
+        credential_proto::MATCH,
         "the published NTLMv2 proof for a provisioned share was refused, codes {codes:#018x}",
     );
     assert_eq!(
@@ -316,7 +316,7 @@ fn an_smb_server_authenticates_a_session_without_ever_holding_the_key() {
 
     assert_eq!(
         cs::nth(codes, 1),
-        cred_proto::MISMATCH,
+        credential_proto::MISMATCH,
         "a proof with one bit flipped was accepted, codes {codes:#018x}",
     );
     assert_eq!(
@@ -332,19 +332,19 @@ fn an_smb_server_authenticates_a_session_without_ever_holding_the_key() {
     // would turn this endpoint into an oracle for which shares exist.
     assert_eq!(
         cs::nth(codes, 2),
-        cred_proto::MISMATCH,
+        credential_proto::MISMATCH,
         "a password-only identity answered an NTLM challenge, codes {codes:#018x}",
     );
     assert_eq!(
         cs::nth(codes, 3),
-        cred_proto::MISMATCH,
+        credential_proto::MISMATCH,
         "an unprovisioned resource answered an NTLM challenge, codes {codes:#018x}",
     );
 
     // One password, two derivations: the same share answers an ordinary verify.
     assert_eq!(
         cs::nth(codes, 4),
-        cred_proto::MATCH,
+        credential_proto::MATCH,
         "a share provisioned for NTLM stopped answering its own password, codes {codes:#018x}",
     );
     assert_eq!(
@@ -426,7 +426,7 @@ fn the_service_survives_everything_the_attacker_did() {
     let r = cs::client(cli, &w, cs::ROLE_HONEST);
     assert_eq!(
         cs::nth(r[1], 0),
-        cred_proto::MATCH,
+        credential_proto::MATCH,
         "the credential service stopped answering correctly after an attacker talked to it",
     );
 }

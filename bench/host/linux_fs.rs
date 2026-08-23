@@ -2,7 +2,7 @@
 //! binary and booted as PID 1 in a one-file initramfs under QEMU-HVF, on the *same* M-series core,
 //! at the *same* virtualization tier, through the *same* virtio-blk-device model and the *same*
 //! raw host image file as nife's own bench boot. It mounts a scratch ext4 disk, runs the four
-//! phases `fs_proto::fixture::throughput` defines, prints them, and powers the machine off (it is
+//! phases `filesystem_proto::fixture::throughput` defines, prints them, and powers the machine off (it is
 //! PID 1: exiting would panic the kernel).
 //!
 //! # What it measures, and why there are two variants of everything
@@ -70,7 +70,7 @@ const O_DSYNC: i32 = 0o10000;
 const O_DIRECT: i32 = 0o200000; // aarch64 Linux
 const RB_POWER_OFF: i32 = 0x4321fedc_u32 as i32;
 
-/// The measurement's shape, kept identical to `fs_proto::fixture::throughput` by hand. It is not
+/// The measurement's shape, kept identical to `filesystem_proto::fixture::throughput` by hand. It is not
 /// shared as a crate because this file is compiled by `rustc` alone, outside the workspace, exactly
 /// as `linux_all.rs` is: a benchmark that needed the workspace to build could not be run on a
 /// machine that is not this one.
@@ -111,7 +111,7 @@ fn next_offset(state: &mut u64, unit: usize) -> i64 {
 /// medium before it returns). The two are separate because **nife sits between them**: the FS
 /// server puts every write through a RedoxFS transaction that commits to the header ring before it
 /// replies, so there is no dirty state anywhere above the device, but it issues no
-/// `VIRTIO_BLK_T_FLUSH` unless a client asks for one (`fs_proto::fs::SYNC`, milestone 55). So
+/// `VIRTIO_BLK_T_FLUSH` unless a client asks for one (`filesystem_proto::fs::SYNC`, milestone 55). So
 /// `direct` alone is the closest analogue for where the bytes are, and `direct` plus `dsync` is the
 /// closest analogue for the metadata commit, and quoting only one of them would be picking the
 /// answer.
@@ -281,7 +281,7 @@ fn main() {
     phases(b"/mnt/throughput\0", "buffered", false, false, UNIT);
     phases(b"/mnt/throughput\0", "direct", true, false, UNIT);
     phases(b"/mnt/throughput\0", "direct_dsync", true, true, UNIT);
-    // **What our 4 KiB cap costs, priced on the other system.** A `fs_proto` request carries at
+    // **What our 4 KiB cap costs, priced on the other system.** A `filesystem_proto` request carries at
     // most one page because the payload travels through one shared page, so nife has no choice
     // about the unit; a Linux program has, and would take 64 KiB without thinking about it. This
     // row is the same ext4, the same flags and the same total bytes, with the unit a real program

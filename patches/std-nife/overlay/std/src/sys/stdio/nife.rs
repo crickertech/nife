@@ -1,4 +1,4 @@
-//! stdout/stderr over the **sink contract** (`crates/sink_proto`, milestone 50), on the endpoint
+//! stdout/stderr over the **sink contract** (`crates/byte_sink_proto`, milestone 50), on the endpoint
 //! the std slot convention puts in slot 1 (see `pal/nife/rt.rs`): SEND, register-only, up to 16
 //! bytes per message.
 //!
@@ -20,13 +20,13 @@
 //! This used to swallow every failed SEND, on the grounds that "a program without a console still
 //! runs, it just prints into the void, which is what every OS does to a process whose stdout is
 //! closed". That is right for a program with no console and wrong for a pipeline, where `yes | head`
-//! must end when `head` exits. `sink_proto::classify` splits the two, and each half is routed
+//! must end when `head` exits. `byte_sink_proto::classify` splits the two, and each half is routed
 //! through the seam std already has for exactly this:
 //!
-//! - **No sink** ([`sink_proto::Sent::NoSink`]) is [`io::ErrorKind::Unsupported`], which
+//! - **No sink** ([`byte_sink_proto::Sent::NoSink`]) is [`io::ErrorKind::Unsupported`], which
 //!   [`is_ebadf`] accepts, so `io::stdio`'s `handle_ebadf` swallows it and the program keeps
 //!   running. It is also the same answer every other ungranted capability gives in this PAL.
-//! - **A destroyed sink** ([`sink_proto::Sent::Gone`]) is [`io::ErrorKind::BrokenPipe`], which
+//! - **A destroyed sink** ([`byte_sink_proto::Sent::Gone`]) is [`io::ErrorKind::BrokenPipe`], which
 //!   `is_ebadf` rejects, so it propagates and `println!` panics. The target is panic=abort, so the
 //!   process dies and the kernel attributes the fault. That is what a Rust program on Linux does
 //!   when its reader exits, and it is milestone 50's "`SIGPIPE` becomes a return code".

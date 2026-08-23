@@ -180,16 +180,18 @@ fn spawn_timetable(fires: u64) -> (RendezvousId, RendezvousId, RendezvousId) {
     (out, child_report, deaths)
 }
 
-/// One line of `sink_proto` bytes off `ep`, without its newline. `None` at end of stream.
+/// One line of `byte_sink_proto` bytes off `ep`, without its newline. `None` at end of stream.
 fn line(ep: RendezvousId, buf: &mut [u8; 256]) -> Option<usize> {
     let mut len = 0usize;
     loop {
         let m = crate::sched::ipc_recv(ep);
-        let mut chunk = [0u8; sink_proto::INLINE_MAX];
-        match sink_proto::unpack(m[0], m[1], m[2], &mut chunk) {
-            sink_proto::Msg::Eof => return None,
-            sink_proto::Msg::Malformed => panic!("the timetable wrote a malformed sink message"),
-            sink_proto::Msg::Bytes(n) => {
+        let mut chunk = [0u8; byte_sink_proto::INLINE_MAX];
+        match byte_sink_proto::unpack(m[0], m[1], m[2], &mut chunk) {
+            byte_sink_proto::Msg::Eof => return None,
+            byte_sink_proto::Msg::Malformed => {
+                panic!("the timetable wrote a malformed sink message")
+            }
+            byte_sink_proto::Msg::Bytes(n) => {
                 for &b in &chunk[..n] {
                     if b == b'\n' {
                         return Some(len);
@@ -324,7 +326,7 @@ fn a_scheduled_entry_holds_what_the_plan_said_and_a_refused_one_never_runs() {
     // `worker` squares its argument, so the shipped document's two admitted entries answer 49
     // (`worker 7`) and 9 (`worker 3`). **This is the negative control**: every refused entry in the
     // document is a program that would have written something else here (`date` and `wc` write
-    // `sink_proto` bytes, `budgeter` writes a page count), so a document whose refusals had leaked
+    // `byte_sink_proto` bytes, `budgeter` writes a page count), so a document whose refusals had leaked
     // would fail on the value rather than on a count.
     let mut nines = 0;
     let mut forty_nines = 0;

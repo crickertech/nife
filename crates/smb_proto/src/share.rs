@@ -3,7 +3,7 @@
 //! Milestone 54's block names the shape: the adapter holds one directory capability and one
 //! network endpoint. [`Share`] is the directory-capability side of that seam, drawn so the
 //! protocol machine ([`crate::server`]) never knows what backs it: the host tests and the QEMU
-//! gate serve a [`FixtureShare`] (files baked into the binary), and the fs_proto-backed
+//! gate serve a [`FixtureShare`] (files baked into the binary), and the filesystem_proto-backed
 //! implementation, which walks a real directory capability into the FS server, implements this
 //! same trait in the server program where the IPC lives.
 //!
@@ -26,13 +26,13 @@
 //!   be handed `..` even by an implementation that forgot to check. The traversal refusal is a wire
 //!   decision and lives at the wire (see that module's header).
 //! - **A directory is an opened object with an id**, [`DirId`], exactly as a file is. [`ROOT_DIR`]
-//!   is the share root, which the backing neither mints nor closes, mirroring `fs_proto`'s
+//!   is the share root, which the backing neither mints nor closes, mirroring `filesystem_proto`'s
 //!   `fs::ROOT` because the fs-backed share makes them literally the same number.
 //! - **[`Share::entry`] takes the directory to list.** It listed "the share" before, which was
 //!   expressible only because there was one directory.
 //!
 //! [`Share::mkdir`] and [`Share::rmdir`] are the two new verbs, and they are separate from
-//! [`Share::create`] and [`Share::remove`] rather than folded into them for `fs_proto`'s reason: a
+//! [`Share::create`] and [`Share::remove`] rather than folded into them for `filesystem_proto`'s reason: a
 //! call that removes whatever it finds is how one word destroys a subtree, and this contract does
 //! not offer it at any name.
 //!
@@ -76,11 +76,11 @@ pub enum Error {
     /// there. The flat share could not tell them apart because it had one directory.
     PathNotFound,
     /// The node is a file and the operation is a directory's: listing it, descending into it, or
-    /// `RMDIR`. The mirror of [`Error::IsDirectory`], and it exists for the same reason `fs_proto`
+    /// `RMDIR`. The mirror of [`Error::IsDirectory`], and it exists for the same reason `filesystem_proto`
     /// has both.
     NotDirectory,
     /// The directory is not empty, and this contract removes only empty ones. The recursion lives
-    /// in the client, one refusable step at a time, exactly as `fs_proto::fs::RMDIR` argues.
+    /// in the client, one refusable step at a time, exactly as `filesystem_proto::fs::RMDIR` argues.
     NotEmpty,
     /// The name is already taken, and the request said create rather than create-or-open.
     Exists,
@@ -116,7 +116,7 @@ pub type DirId = u64;
 /// **The share's root directory.** Never minted, never closed, and always openable: it is the
 /// directory the share *is*, so a backing that has nothing else still has this.
 ///
-/// Zero because `fs_proto::fs::ROOT` is zero, which makes the fs-backed share's mapping the
+/// Zero because `filesystem_proto::fs::ROOT` is zero, which makes the fs-backed share's mapping the
 /// identity function rather than an off-by-one waiting to happen.
 pub const ROOT_DIR: DirId = 0;
 
@@ -140,7 +140,7 @@ impl Node {
     }
 }
 
-/// **What a volume reports about itself**: the answer to `fs_proto::fs::STATFS`, carried through
+/// **What a volume reports about itself**: the answer to `filesystem_proto::fs::STATFS`, carried through
 /// the seam so `FileFsSizeInformation` and `FileFsFullSizeInformation` can stop being a constant.
 ///
 /// A backing that cannot ask answers `None` from [`Share::statfs`] and the protocol layer falls
@@ -171,7 +171,7 @@ pub struct Entry<'a> {
 /// `FileFsSizeInformation` and `FileFsFullSizeInformation` make a client decide whether to start
 /// writing, and macOS will not write to a volume reporting zero free space. A backing that can ask
 /// its store answers [`Share::statfs`] with a [`Volume`] and this constant is not consulted; the
-/// fs-backed share does exactly that as of milestone 54's `fs_proto::fs::STATFS`.
+/// fs-backed share does exactly that as of milestone 54's `filesystem_proto::fs::STATFS`.
 ///
 /// What is left is the case with no honest answer: [`FixtureShare`] is files baked into a binary
 /// and has no volume at all. Reporting this figure for it is a stated approximation rather than a
@@ -240,7 +240,7 @@ pub trait Share {
     fn close(&self, file: FileId);
 
     /// Create a new file at `path` and open it. **Create is create**, matching
-    /// `fs_proto::fs::CREATE`: an existing name is [`Error::Exists`] and nothing is modified, so
+    /// `filesystem_proto::fs::CREATE`: an existing name is [`Error::Exists`] and nothing is modified, so
     /// the caller decides what create-or-open means rather than inheriting somebody's guess. A
     /// missing parent directory is [`Error::PathNotFound`]; this call makes one name, never a
     /// chain of them.
@@ -248,7 +248,7 @@ pub trait Share {
         Err(Error::ReadOnly)
     }
 
-    /// **Make a child directory and open it**, matching `fs_proto::fs::MKDIR` down to its
+    /// **Make a child directory and open it**, matching `filesystem_proto::fs::MKDIR` down to its
     /// refusals: [`Error::Exists`] for a name already taken and [`Error::PathNotFound`] for a
     /// missing parent. One level per call, for [`Share::create`]'s reason.
     ///
@@ -277,7 +277,7 @@ pub trait Share {
     /// temp-file-then-rename idiom lands.
     ///
     /// **A directory may be renamed in place but not moved into another directory**, and the
-    /// answer is [`Error::Io`]'s status via the caller. That is `fs_proto::fs::RENAME`'s own
+    /// answer is [`Error::Io`]'s status via the caller. That is `filesystem_proto::fs::RENAME`'s own
     /// boundary, drawn there because the guard against making a directory its own descendant is an
     /// ancestry walk in a server whose stack is measured at three quarters used. The limitation
     /// surfaces here rather than being hidden, per DECISIONS §42.
@@ -286,13 +286,13 @@ pub trait Share {
     }
 
     /// Take a **file's** name out of the share. This is `unlink`: a file another handle still has
-    /// open keeps reading (`fs_proto::fs::UNLINK` says so at length), which is what the
+    /// open keeps reading (`filesystem_proto::fs::UNLINK` says so at length), which is what the
     /// delete-on-close and atomic-replace idioms rest on. A directory is [`Error::IsDirectory`].
     fn remove(&self, _path: Path<'_>) -> Result<(), Error> {
         Err(Error::ReadOnly)
     }
 
-    /// Remove an **empty** directory, `fs_proto::fs::RMDIR`. A non-empty one is
+    /// Remove an **empty** directory, `filesystem_proto::fs::RMDIR`. A non-empty one is
     /// [`Error::NotEmpty`], refused rather than emptied, and a file is [`Error::NotDirectory`].
     ///
     /// Empty-only is the safety property rather than a limitation: `rm -r`'s recursion belongs in
@@ -308,7 +308,7 @@ pub trait Share {
     /// promises macOS the share honours.
     ///
     /// It takes no file, because nothing under this trait can honour a per-file sync: the
-    /// fs-backed share's `fs_proto::fs::SYNC` flushes the device the whole image lives on. The
+    /// fs-backed share's `filesystem_proto::fs::SYNC` flushes the device the whole image lives on. The
     /// protocol machine still resolves the client's file id before calling this, so a `FLUSH` of a
     /// handle that is not open is refused rather than humoured; what the id does not do is narrow
     /// what gets synced.
@@ -363,7 +363,7 @@ pub const FIXTURE: FixtureShare = FixtureShare {
             b"readme.md",
             b"This share is served by nife's smb_server through the socket contract.\n\
               It is read-only and everything in it is baked into the server binary;\n\
-              the fs_proto-backed share is what a real mount reads.\n",
+              the filesystem_proto-backed share is what a real mount reads.\n",
         ),
         (b"bands\\0", b"a band file, one directory down\n"),
     ],
@@ -724,7 +724,7 @@ impl Share for MemoryShare {
         let leaked = Self::leak(to.as_bytes());
         let mut nodes = self.nodes.borrow_mut();
         if let Some(dst) = dst {
-            // Replace, matching fs_proto::fs::RENAME. The slot is emptied rather than removed so
+            // Replace, matching filesystem_proto::fs::RENAME. The slot is emptied rather than removed so
             // no other node's id moves, which is exactly the property this share exists to hold.
             nodes[dst].0 = b"";
         }

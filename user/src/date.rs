@@ -194,7 +194,7 @@ pub extern "C" fn _start(fmt: u64, offset_minutes: u64, provenance: u64) -> ! {
         // with the answer. That is also why the second stream is already closed above.
         source_line(REPORT, r.state, r.generation);
     }
-    send(REPORT, sink_proto::eof(), 0, 0);
+    send(REPORT, byte_sink_proto::eof(), 0, 0);
     exit();
 }
 
@@ -272,7 +272,7 @@ fn source_line(slot: u64, st: u64, generation: u64) {
 /// makes `date | wc` impossible.
 fn end() -> ! {
     diag_end();
-    send(REPORT, sink_proto::eof(), 0, 0);
+    send(REPORT, byte_sink_proto::eof(), 0, 0);
     exit();
 }
 
@@ -300,7 +300,7 @@ fn complain(bytes: &[u8]) {
 /// message nobody is going to send.
 fn diag_end() {
     if HAS_DIAG.load(Ordering::Relaxed) {
-        send(DIAG_SLOT, sink_proto::eof(), 0, 0);
+        send(DIAG_SLOT, byte_sink_proto::eof(), 0, 0);
     }
 }
 

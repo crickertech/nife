@@ -157,7 +157,7 @@
 //! two concurrent callers would interleave their words on one page, exactly the limit
 //! `credentialer.rs` already documents for its own verify page and for the same reason: this
 //! process has one thread and no wait-any primitive, so it cannot serve two rendezvous at once.
-//! `fs_proto`'s answer (a channel per client) is the shape to copy when a second concurrent caller
+//! `filesystem_proto`'s answer (a channel per client) is the shape to copy when a second concurrent caller
 //! exists; today this program's only callers are `login_test_client` roles the test suite runs one
 //! at a time.
 //!
@@ -173,18 +173,18 @@
 //! named by the identity string itself; see the module docs above for what that does and does not
 //! cover, and the two bounds this brought with it, named honestly rather than left implicit:
 //!
-//! - **An identity longer than [`fs_proto::grant::MAX_NAME`] (16 bytes) cannot get a per-identity
+//! - **An identity longer than [`filesystem_proto::grant::MAX_NAME`] (16 bytes) cannot get a per-identity
 //!   subtree in this slice at all**, even though [`login_proto::MAX_IDENTITY`] (64 bytes) would
 //!   otherwise accept it. The grant name travels in two `START` argument words to the caretaker,
-//!   not a frame (`fs_proto::grant`'s own doc explains why: a per-file or per-subtree grant this way
+//!   not a frame (`filesystem_proto::grant`'s own doc explains why: a per-file or per-subtree grant this way
 //!   costs no extra page and no extra mapping), and that encoding is the 16-byte one, not
 //!   `login_proto`'s wider one. `mint` refuses (folded into [`login_proto::DENIED`], next bullet)
-//!   rather than silently truncating the name `fs_proto::grant::pack_name` would otherwise produce,
+//!   rather than silently truncating the name `filesystem_proto::grant::pack_name` would otherwise produce,
 //!   which would attenuate the caretaker to a *different* subtree than the one
 //!   `identity_provisioner` created (a name collision hazard, not merely a usability one: two
 //!   identities that agree on their first 16 bytes would silently share a subtree). Lifting this
 //!   bound to `login_proto`'s own 64 means giving the caretaker a frame for its grant instead of two
-//!   argument words, which is a change to `fs_proto::grant`'s contract and every caretaker built
+//!   argument words, which is a change to `filesystem_proto::grant`'s contract and every caretaker built
 //!   against it, not a one-line fix here.
 //! - **An authenticated identity with no provisioned subtree is refused, indistinguishably from a
 //!   wrong password.** `mint`'s caretaker construction reaches the same `OPENDIR`-against-a-missing-
@@ -413,8 +413,13 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
         // SAFETY: the wiring mapped one page read/write at CRED_VA before this process ran, shared
         // with the credential service and with nothing else.
         let cred_page =
-            unsafe { core::slice::from_raw_parts_mut(CRED_VA as *mut u8, cred_proto::PAGE) };
-        let placed = cred_proto::place(cred_page, identity, secret, cred_proto::verify::VERIFY);
+            unsafe { core::slice::from_raw_parts_mut(CRED_VA as *mut u8, credential_proto::PAGE) };
+        let placed = credential_proto::place(
+            cred_page,
+            identity,
+            secret,
+            credential_proto::verify::VERIFY,
+        );
         // The presented secret has now been copied to CRED_VA (or the placement failed and never
         // will be); either way LOGIN_VA's copy is done being read.
         wipe_login_page();
@@ -423,9 +428,9 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
             continue;
         };
         let (cr0, _) = call(VERIFY, cw0, 0);
-        cred_proto::wipe(cred_page);
+        credential_proto::wipe(cred_page);
 
-        if !cred_proto::authenticated(cr0) {
+        if !credential_proto::authenticated(cr0) {
             send(RESULT, login_proto::DENIED, 0, 0);
             continue;
         }
@@ -472,7 +477,7 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
 /// `identity` must already name a subtree `identity_provisioner` created; this process never
 /// creates one (DECISIONS §117: provision-time creation, not auto-vivified at login).
 fn mint(own_ut: u64, care: &elf::Elf, identity: &[u8]) -> Option<(u64, u64, u64)> {
-    // **The grant name travels in two `START` argument words, not a frame** (`fs_proto::grant`'s own
+    // **The grant name travels in two `START` argument words, not a frame** (`filesystem_proto::grant`'s own
     // doc), so it is capped at `grant::MAX_NAME` (16 bytes): smaller than `login_proto::MAX_IDENTITY`
     // (64), the bound `identity` already satisfies by construction (`login_proto::read` checked it).
     // `pack_name` does not itself refuse an oversized name; it silently stops copying at the 16th
@@ -480,7 +485,7 @@ fn mint(own_ut: u64, care: &elf::Elf, identity: &[u8]) -> Option<(u64, u64, u64)
     // the one `identity_provisioner` created. Refusing here, before anything is built, is what keeps
     // that silent truncation from ever happening. See this program's BUGS: identities over 16 bytes
     // cannot get a per-identity subtree in this slice at all.
-    if !fs_proto::grant::fits(identity) {
+    if !filesystem_proto::grant::fits(identity) {
         return None;
     }
 
@@ -488,8 +493,8 @@ fn mint(own_ut: u64, care: &elf::Elf, identity: &[u8]) -> Option<(u64, u64, u64)
     let narrow_ep = retype_obj(region, abi::objtype::RENDEZVOUS).ok()?;
     let ready = retype_obj(region, abi::objtype::RENDEZVOUS).ok()?;
 
-    let (lo, hi) = fs_proto::grant::pack_name(identity);
-    let spec = fs_proto::grant::spec(identity.len(), fs_proto::dir::ALL);
+    let (lo, hi) = filesystem_proto::grant::pack_name(identity);
+    let spec = filesystem_proto::grant::spec(identity.len(), filesystem_proto::dir::ALL);
 
     // Its whole authority: the file service to attenuate, the endpoint it will serve, one place to
     // say it is ready, and the frame it shares with the file service. No untyped of its own, no
@@ -527,14 +532,14 @@ fn mint(own_ut: u64, care: &elf::Elf, identity: &[u8]) -> Option<(u64, u64, u64)
     // **This is also where "the credential is real but nobody ever provisioned this identity's
     // subtree" is answered**, and deliberately with no special case: `identity_provisioner` didn't
     // run, or its `MKDIR` never reached this file service's disk, so the caretaker's `OPENDIR`
-    // against `identity` comes back `ENOENT` and it reports [`fs_proto::fixture::DESCENT_REFUSED`]
+    // against `identity` comes back `ENOENT` and it reports [`filesystem_proto::fixture::DESCENT_REFUSED`]
     // here instead of `READY`, which this function already turns into `None` and this program's
     // caller already folds into `login_proto::DENIED`, indistinguishable from a wrong password. See
     // this program's BUGS for why that fold is the considered answer for this case too, not merely
     // an accident of reusing the same code path.
     let (verdict, _, _) = recv(ready);
     cap_delete(ready);
-    if verdict != fs_proto::fixture::READY {
+    if verdict != filesystem_proto::fixture::READY {
         cap_delete(narrow_ep);
         // **`region` used to be abandoned here.** The caretaker's `OPENDIR` was refused, so it has
         // already called `exit()` (`fs_subtree_caretaker.rs`'s own descent handshake): nothing is

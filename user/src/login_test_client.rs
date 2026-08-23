@@ -14,7 +14,7 @@
 //!   does on a denial and a client that tried would block forever.
 //! - [`ROLE_CHRIS_MARK`] and [`ROLE_CORINNE_MARK`] (DECISIONS §117) each log in and then, through
 //!   the delegated directory, `CREATE` a one-shot marker file naming the identity that wrote it, and
-//!   check that [`fs_proto::fixture::tree::INNER`] is *not* there (that name lives only in the old,
+//!   check that [`filesystem_proto::fixture::tree::INNER`] is *not* there (that name lives only in the old,
 //!   shared fixture subtree every identity used to be attenuated to before §117; its absence is this
 //!   client's own proof that the granted directory is not that one). [`ROLE_CHRIS_CHECK`] logs in as
 //!   `chris` again, in a second, independent channel, and reads the marker back: the kernel test
@@ -128,7 +128,7 @@ pub const RPT_MALFORMED: u64 = login_proto::MALFORMED;
 /// capabilities this process proved actually work, rather than merely that they arrived.
 pub const F_DIR_WORKS: u64 = 1 << 0;
 pub const F_BUDGET_WORKS: u64 = 1 << 1;
-/// **Set when [`fs_proto::fixture::tree::INNER`] is confirmed absent** from the granted directory:
+/// **Set when [`filesystem_proto::fixture::tree::INNER`] is confirmed absent** from the granted directory:
 /// that name exists only in the old, shared fixture subtree every identity used to be attenuated to.
 /// Its absence is this client's own proof (not merely an assertion) that the identity in this role is
 /// not looking at that subtree. Set only by [`ROLE_CHRIS_MARK`]/[`ROLE_CORINNE_MARK`].
@@ -223,7 +223,7 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
     if mapped {
         let (r0, _) = call(
             dir_ep,
-            fs_proto::fs::req(fs_proto::fs::READDIR, fs_proto::fs::ROOT, 0),
+            filesystem_proto::fs::req(filesystem_proto::fs::READDIR, filesystem_proto::fs::ROOT, 0),
             0,
         );
         // `call` returns the reply word as a `u64`; a negative errno reads as a huge one
@@ -241,7 +241,7 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
                     if write_marker(dir_ep, b"chris") {
                         flags |= F_MARKER_WRITTEN;
                     }
-                    if absent(dir_ep, fs_proto::fixture::tree::INNER) {
+                    if absent(dir_ep, filesystem_proto::fixture::tree::INNER) {
                         flags |= F_NOT_SHARED_SUBTREE;
                     }
                 }
@@ -249,7 +249,7 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
                     if write_marker(dir_ep, b"corinne") {
                         flags |= F_MARKER_WRITTEN;
                     }
-                    if absent(dir_ep, fs_proto::fixture::tree::INNER) {
+                    if absent(dir_ep, filesystem_proto::fixture::tree::INNER) {
                         flags |= F_NOT_SHARED_SUBTREE;
                     }
                 }
@@ -273,7 +273,7 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
 /// Copy `bytes` into the shared filesystem page (a name to open/create, or data to write).
 fn put_page(bytes: &[u8]) {
     for (i, &b) in bytes.iter().enumerate() {
-        // SAFETY: FS_VA is a mapped, writable page of at least `fs_proto::PAGE` bytes (this program
+        // SAFETY: FS_VA is a mapped, writable page of at least `filesystem_proto::PAGE` bytes (this program
         // maps exactly one page of it); a name or this marker's short content is far shorter.
         unsafe { core::ptr::write_volatile((FS_VA + i as u64) as *mut u8, b) };
     }
@@ -289,13 +289,13 @@ fn get_page(n: usize, out: &mut [u8]) {
 
 /// `CREATE` [`MARKER_NAME`] under `dir` and `WRITE` `content` into it, then `CLOSE` the handle.
 /// `true` only if every step succeeded. Create is create, not create-or-open
-/// (`fs_proto::fs::CREATE`'s own contract), so this fails loudly rather than overwriting a marker a
+/// (`filesystem_proto::fs::CREATE`'s own contract), so this fails loudly rather than overwriting a marker a
 /// previous run left behind, which would silently defeat the isolation proof this role exists for.
 fn write_marker(dir: u64, content: &[u8]) -> bool {
     put_page(MARKER_NAME.as_bytes());
     let (h, _) = call(
         dir,
-        fs_proto::fs::req(fs_proto::fs::CREATE, 0, MARKER_NAME.len() as u64),
+        filesystem_proto::fs::req(filesystem_proto::fs::CREATE, 0, MARKER_NAME.len() as u64),
         0,
     );
     if (h as i64) < 0 {
@@ -304,22 +304,26 @@ fn write_marker(dir: u64, content: &[u8]) -> bool {
     put_page(content);
     let (w, _) = call(
         dir,
-        fs_proto::fs::req(fs_proto::fs::WRITE, h, content.len() as u64),
+        filesystem_proto::fs::req(filesystem_proto::fs::WRITE, h, content.len() as u64),
         0,
     );
     let ok = w as i64 == content.len() as i64;
-    let _ = call(dir, fs_proto::fs::req(fs_proto::fs::CLOSE, h, 0), 0);
+    let _ = call(
+        dir,
+        filesystem_proto::fs::req(filesystem_proto::fs::CLOSE, h, 0),
+        0,
+    );
     ok
 }
 
 /// `true` if `OPEN`ing `name` under `dir` is refused. The expected answer for a name that lives only
-/// in the old, shared fixture subtree ([`fs_proto::fixture::tree::INNER`]) when `dir` is a genuinely
+/// in the old, shared fixture subtree ([`filesystem_proto::fixture::tree::INNER`]) when `dir` is a genuinely
 /// different, identity-scoped one.
 fn absent(dir: u64, name: &str) -> bool {
     put_page(name.as_bytes());
     let (r0, _) = call(
         dir,
-        fs_proto::fs::req(fs_proto::fs::OPEN, 0, name.len() as u64),
+        filesystem_proto::fs::req(filesystem_proto::fs::OPEN, 0, name.len() as u64),
         0,
     );
     (r0 as i64) < 0
@@ -333,14 +337,22 @@ fn read_marker(dir: u64) -> Option<u64> {
     put_page(MARKER_NAME.as_bytes());
     let (h, _) = call(
         dir,
-        fs_proto::fs::req(fs_proto::fs::OPEN, 0, MARKER_NAME.len() as u64),
+        filesystem_proto::fs::req(filesystem_proto::fs::OPEN, 0, MARKER_NAME.len() as u64),
         0,
     );
     if (h as i64) < 0 {
         return None;
     }
-    let (n, _) = call(dir, fs_proto::fs::req(fs_proto::fs::READ, h, 16), 0);
-    let _ = call(dir, fs_proto::fs::req(fs_proto::fs::CLOSE, h, 0), 0);
+    let (n, _) = call(
+        dir,
+        filesystem_proto::fs::req(filesystem_proto::fs::READ, h, 16),
+        0,
+    );
+    let _ = call(
+        dir,
+        filesystem_proto::fs::req(filesystem_proto::fs::CLOSE, h, 0),
+        0,
+    );
     if (n as i64) < 0 {
         return None;
     }
@@ -361,7 +373,7 @@ fn teardown_directory(dir: u64, region: u64) -> u64 {
     };
     let (r0, _) = call(
         dir,
-        fs_proto::fs::req(fs_proto::fs::READDIR, fs_proto::fs::ROOT, 0),
+        filesystem_proto::fs::req(filesystem_proto::fs::READDIR, filesystem_proto::fs::ROOT, 0),
         0,
     );
     if (r0 as i64) < 0 {

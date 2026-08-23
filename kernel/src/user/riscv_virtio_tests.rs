@@ -206,12 +206,12 @@ fn the_fs_server_serves_redoxfs_over_a_capability_contract() {
     let [head, status, attrs, ..] = sched::ipc_recv(report);
     assert_eq!(
         status,
-        fs_proto::fixture::SUCCESS,
+        filesystem_proto::fixture::SUCCESS,
         "the client did not report success: a check in the read or write path failed",
     );
     assert_eq!(
         &head.to_le_bytes()[..],
-        &fs_proto::fixture::MOTD[..8],
+        &filesystem_proto::fixture::MOTD[..8],
         "the client read the wrong motd bytes off the RedoxFS image",
     );
     // Milestone 57: the same attribute witness, the same exact expected set. The layer is the
@@ -250,7 +250,7 @@ fn std_fs_reads_a_file_through_a_granted_directory_capability() {
 /// verdict carries it, which is what the parity gate wants (§19: the same suite, both ISAs).
 #[test_case]
 fn a_read_only_per_file_grant_survives_an_attacker() {
-    let Some(verdict) = attack_a_grant(fs_proto::grant::READ, false) else {
+    let Some(verdict) = attack_a_grant(filesystem_proto::grant::READ, false) else {
         return;
     };
     assert_eq!(
@@ -263,8 +263,11 @@ fn a_read_only_per_file_grant_survives_an_attacker() {
 /// test's control here too). See the aarch64 twin.
 #[test_case]
 fn a_writable_per_file_grant_writes_that_file_and_still_only_that_file() {
-    use fs_proto::fixture::escape;
-    let Some(verdict) = attack_a_grant(fs_proto::grant::READ | fs_proto::grant::WRITE, true) else {
+    use filesystem_proto::fixture::escape;
+    let Some(verdict) = attack_a_grant(
+        filesystem_proto::grant::READ | filesystem_proto::grant::WRITE,
+        true,
+    ) else {
         return;
     };
     assert_eq!(
@@ -285,9 +288,9 @@ fn attack_a_grant(rights: u64, writable: bool) -> Option<u64> {
         program("fs_test_client").expect("no fs_test_client program in the initrd archive"),
         fs_service::Grant {
             name: if writable {
-                fs_proto::fixture::SCRATCH_NAME
+                filesystem_proto::fixture::SCRATCH_NAME
             } else {
-                fs_proto::fixture::MOTD_NAME
+                filesystem_proto::fixture::MOTD_NAME
             },
             rights,
             role: 2, // ROLE_ATTACKER
@@ -302,7 +305,7 @@ fn attack_a_grant(rights: u64, writable: bool) -> Option<u64> {
     let [tag, verdict, ..] = sched::ipc_recv(report);
     assert_eq!(
         tag,
-        fs_proto::fixture::VERDICT,
+        filesystem_proto::fixture::VERDICT,
         "the attacker's report is not a verdict word",
     );
     Some(verdict)
@@ -569,8 +572,8 @@ fn mdns_responder_image() -> &'static [u8] {
 /// tests use, so the parity claim covers identity and not only the wire.
 ///
 /// **The share is the real filesystem here too**: the FS service is wired first, the seed role
-/// writes `fs_proto::fixture::SMB_SEED` through it, and the adapter gets the directory
-/// capability, so the parity gate covers the fs_proto-backed share and not only the wire. The
+/// writes `filesystem_proto::fixture::SMB_SEED` through it, and the adapter gets the directory
+/// capability, so the parity gate covers the filesystem_proto-backed share and not only the wire. The
 /// aarch64 twin documents the shape, the fallback, and the free-frame print.
 #[test_case]
 fn a_host_process_connects_to_the_guest_and_is_answered() {
@@ -590,7 +593,7 @@ fn a_host_process_connects_to_the_guest_and_is_answered() {
         let status = sched::ipc_recv(seed_report)[0];
         assert_eq!(
             status,
-            fs_proto::fixture::SUCCESS,
+            filesystem_proto::fixture::SUCCESS,
             "the seeding client could not put the SMB gate's file on the filesystem",
         );
         let (ep, shared) = fs_service::root_directory(

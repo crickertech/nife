@@ -29,7 +29,7 @@
 //! - **A domain with processes in it.** A table on the output stream.
 //! - **A domain that is empty.** No rows, and a line on the *diagnostics* stream saying the domain
 //!   is empty. Not an error: the caller's authority was never in question.
-//! - **A refusal.** No rows at all, and a line on diagnostics naming the reason. `fs_proto` chose
+//! - **A refusal.** No rows at all, and a line on diagnostics naming the reason. `filesystem_proto` chose
 //!   `EPERM` over an empty listing for this exact reason, and so does this.
 //!
 //! # Collect first, complain second, print third

@@ -126,7 +126,7 @@ fn attrs_of<D: redoxfs::Disk>(
 ) -> Result<Attrs, syscall::error::Error> {
     let mut page = [0u8; 4096];
     let n = srv.list_xattr(handle, &mut page)?;
-    let names: Vec<Vec<u8>> = fs_proto::xattr::list::iter(&page[..n])
+    let names: Vec<Vec<u8>> = filesystem_proto::xattr::list::iter(&page[..n])
         .map(|s| s.to_vec())
         .collect();
     let mut out = Vec::new();
@@ -270,7 +270,7 @@ fn record_workload() -> Recorded {
 
     // The rename: `made` becomes `renamed`, both of which `snapshot` reads, so a recovery that
     // found the file under both names or under neither is a state that never existed.
-    let root = fs_proto::fs::ROOT as u32;
+    let root = filesystem_proto::fs::ROOT as u32;
     srv.rename(root, "made", root, "renamed").expect("op 8");
     mark(&mut srv, &mut states, 8);
 
@@ -284,7 +284,7 @@ fn record_workload() -> Recorded {
     // first blob, which is two node creations inside one commit. 11 grows the blob, rewriting the
     // store file in place. 12 **shrinks** it, which is the path that has to truncate afterwards or
     // leave a tail the reader walks as records nobody wrote (DECISIONS §27, and notes/xattr.md).
-    srv.set_xattr(h, b"user.DOSATTRIB", fs_proto::xattr::RAW, b"0x20")
+    srv.set_xattr(h, b"user.DOSATTRIB", filesystem_proto::xattr::RAW, b"0x20")
         .expect("op 9");
     mark(&mut srv, &mut states, 9);
     srv.write(h, 0, &tagged(b'a', 300)).expect("op 10");

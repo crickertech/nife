@@ -172,7 +172,7 @@ pub mod proto {
     /// Eight, not sixteen, and that is the request shape rather than a choice: a served request
     /// here arrives through `recv_cap`, which hands the server the reply capability and **two** data
     /// words. [`OP_BYTES`] carries eight for the same reason, from the other direction. So a
-    /// sixteen-byte `sink_proto` message is two of these, which is the honest cost of a second
+    /// sixteen-byte `byte_sink_proto` message is two of these, which is the honest cost of a second
     /// writer that needs no page.
     ///
     /// # Why this exists when `OP_WRITE` already prints
@@ -180,12 +180,12 @@ pub mod proto {
     /// [`OP_WRITE`] reads from **the client's output page**, and there is one of those: init maps a
     /// single frame into the terminal read-only and into the shell read/write. A second printing
     /// client would need a second frame, and the terminal would have to be told which one a request
-    /// meant, which is a protocol change with a page-index in it. `fs_proto` has the same shape and
+    /// meant, which is a protocol change with a page-index in it. `filesystem_proto` has the same shape and
     /// the same problem (DECISIONS §55: two client processes staging into one page do not compose,
     /// and that is why the file behind a `>` is the shell itself).
     ///
     /// Register-only sidesteps it entirely, and the sixteen bytes are not a compromise: they are the
-    /// three-word fastpath and the exact payload of a `sink_proto` message, so an adapter that turns
+    /// three-word fastpath and the exact payload of a `byte_sink_proto` message, so an adapter that turns
     /// the sink contract into terminal output is one unpack and one `CALL` with **no page at all**.
     /// [`OP_BYTES`] already proved the shape in the other direction, for the input driver.
     ///

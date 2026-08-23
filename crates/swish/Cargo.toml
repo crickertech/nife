@@ -25,9 +25,9 @@ grant_plan = { version = "0.1.0", path = "../grant_plan" }
 
 # `dir::explain`, the filesystem's half of a refusal. `grant_plan` deliberately keeps this a dev
 # dependency so a command line can be checked without linking the filesystem contract; the shell
-# links it either way, because `Say::Failed` carries an errno that only `fs_proto` can put a sentence
+# links it either way, because `Say::Failed` carries an errno that only `filesystem_proto` can put a sentence
 # to, and inventing a friendlier word for it here is exactly what must not happen.
-fs_proto = { version = "0.1.0", path = "../fs_proto" }
+filesystem_proto = { version = "0.1.0", path = "../filesystem_proto" }
 
 # `has_magic`, and only that. Whether an arbitrary word is a pattern at all is asked before anything
 # treats it as a path, so `echo a:b` prints text instead of being refused as a name. Expansion itself

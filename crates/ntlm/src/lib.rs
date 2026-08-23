@@ -3,7 +3,7 @@
 //! The arithmetic behind the secrets service's NTLM operation, and nothing else: no syscalls, no
 //! allocation, no `alloc`, so it compiles for the host and for both bare-metal targets from one
 //! source and its tests run in milliseconds. The store that holds the key is `cred`; the wire
-//! contract is `cred_proto`; the service is `user/src/credentialer.rs`.
+//! contract is `credential_proto`; the service is `user/src/credentialer.rs`.
 //!
 //! Name: unrecorded. Provisional, minted by milestone 65's lane on 2026-08-04 and not yet put to
 //! calef. It is a standard term of art, in the family the naming tenet says are already right
@@ -82,7 +82,7 @@
 //! server never receives anything it can compare against a stored tag. The server holds a key,
 //! computes a MAC over a challenge it chose, and compares that to the MAC the client sent. So the
 //! NT hash is not a verifier, it is **a key the server computes with**, and the shape of
-//! `cred_proto::verify::VERIFY` (secret in, boolean out) does not fit it.
+//! `credential_proto::verify::VERIFY` (secret in, boolean out) does not fit it.
 //!
 //! That is the whole reason milestone 65 exists as a milestone. The principle is unchanged, though:
 //! *hand out the operation, not the secret.* Only the operation was wrong.

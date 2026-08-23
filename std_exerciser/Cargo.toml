@@ -20,15 +20,15 @@ license = "MIT OR Apache-2.0"
 [workspace]
 
 # The FS-service contract's shared fixture (the file the test image ships and its exact bytes), so
-# the demo, the host image builder, and the kernel test agree on one definition. `fs_proto` is
+# the demo, the host image builder, and the kernel test agree on one definition. `filesystem_proto` is
 # `no_std` and dependency-free, and the demo touches only its `fixture` module: it does NOT speak
 # the wire protocol, because that is `std::fs`'s job now (the whole point of this milestone).
 [dependencies]
-fs_proto = { path = "../crates/fs_proto" }
+filesystem_proto = { path = "../crates/filesystem_proto" }
 
 # The socket contract's shared fixture (milestone 64's inbound half): the port the runners forward
 # a host port to, the port no test grants, and the two strings the gate trades. Same reasoning as
-# `fs_proto` above and rule 7's: a port number two binaries agree on is a crate. The demo touches
+# `filesystem_proto` above and rule 7's: a port number two binaries agree on is a crate. The demo touches
 # only `socket_proto::fixture` and never the wire constants, because speaking the wire is
 # `std::net`'s job now, which is this milestone's whole point.
 socket_proto = { path = "../crates/socket_proto" }

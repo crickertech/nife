@@ -6,7 +6,7 @@
 //!
 //! A GPT is written in *logical* blocks, almost always 512 bytes: the primary header is at LBA 1,
 //! the entry array at LBA 2, the backup header at the last LBA. The block service a program holds
-//! moves one **filesystem block** per request, 4096 bytes (`fs_proto::blk::BLOCK_SIZE`), because
+//! moves one **filesystem block** per request, 4096 bytes (`filesystem_proto::blk::BLOCK_SIZE`), because
 //! that is what RedoxFS reads and what makes a mount's device round trips affordable. So "read LBA
 //! 1" is really "read transfer block 0 and take bytes 512..1024 of it", and "read the 33 blocks of
 //! the backup table" straddles a boundary that depends on the disk's size.

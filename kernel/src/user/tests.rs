@@ -1148,12 +1148,12 @@ fn the_fs_server_serves_redoxfs_over_a_capability_contract() {
     let [head, status, attrs, ..] = sched::ipc_recv(report);
     assert_eq!(
         status,
-        fs_proto::fixture::SUCCESS,
+        filesystem_proto::fixture::SUCCESS,
         "the client did not report success: a check in the read or write path failed",
     );
     assert_eq!(
         &head.to_le_bytes()[..],
-        &fs_proto::fixture::MOTD[..8],
+        &filesystem_proto::fixture::MOTD[..8],
         "the client read the wrong motd bytes off the RedoxFS image",
     );
     assert_attrs(attrs);
@@ -1180,7 +1180,7 @@ fn the_fs_server_serves_redoxfs_over_a_capability_contract() {
 #[cfg(target_arch = "aarch64")]
 #[test_case]
 fn a_read_only_per_file_grant_survives_an_attacker() {
-    let Some(verdict) = attack_a_grant(fs_proto::grant::READ, false) else {
+    let Some(verdict) = attack_a_grant(filesystem_proto::grant::READ, false) else {
         return;
     };
     assert_eq!(
@@ -1206,8 +1206,8 @@ fn a_read_only_per_file_grant_survives_an_attacker() {
 #[cfg(target_arch = "aarch64")]
 #[test_case]
 fn a_read_only_per_file_grant_reads_its_files_attributes_and_writes_none() {
-    use fs_proto::fixture::escape;
-    let Some(verdict) = attack_a_grant(fs_proto::grant::READ, false) else {
+    use filesystem_proto::fixture::escape;
+    let Some(verdict) = attack_a_grant(filesystem_proto::grant::READ, false) else {
         return;
     };
     assert_eq!(
@@ -1241,8 +1241,11 @@ fn a_read_only_per_file_grant_reads_its_files_attributes_and_writes_none() {
 #[cfg(target_arch = "aarch64")]
 #[test_case]
 fn a_writable_per_file_grant_writes_that_file_and_still_only_that_file() {
-    use fs_proto::fixture::escape;
-    let Some(verdict) = attack_a_grant(fs_proto::grant::READ | fs_proto::grant::WRITE, true) else {
+    use filesystem_proto::fixture::escape;
+    let Some(verdict) = attack_a_grant(
+        filesystem_proto::grant::READ | filesystem_proto::grant::WRITE,
+        true,
+    ) else {
         return;
     };
     // `WROTE_ATTR` joined the expected set in milestone 61, and it is the third way to change a
@@ -1271,9 +1274,9 @@ fn attack_a_grant(rights: u64, writable: bool) -> Option<u64> {
             // The writable run damages what it is granted, so it is granted the file the fixture
             // discipline already covers; see the attacker's own note.
             name: if writable {
-                fs_proto::fixture::SCRATCH_NAME
+                filesystem_proto::fixture::SCRATCH_NAME
             } else {
-                fs_proto::fixture::MOTD_NAME
+                filesystem_proto::fixture::MOTD_NAME
             },
             rights,
             role: 2, // ROLE_ATTACKER
@@ -1288,7 +1291,7 @@ fn attack_a_grant(rights: u64, writable: bool) -> Option<u64> {
     let [tag, verdict, ..] = sched::ipc_recv(report);
     assert_eq!(
         tag,
-        fs_proto::fixture::VERDICT,
+        filesystem_proto::fixture::VERDICT,
         "the attacker's report is not a verdict word",
     );
     Some(verdict)
@@ -1297,7 +1300,7 @@ fn attack_a_grant(rights: u64, writable: bool) -> Option<u64> {
 /// Name the bits an escape verdict set, so a failure reads as a sentence instead of a bitmap.
 #[cfg(target_arch = "aarch64")]
 fn describe_escape(v: u64) -> &'static str {
-    use fs_proto::fixture::escape;
+    use filesystem_proto::fixture::escape;
     if v & escape::SECOND_FILE != 0 {
         "it opened a file the grant does not designate"
     } else if v & escape::WROTE != 0 {
@@ -1727,9 +1730,9 @@ fn a_reopened_socket_id_connects_again_over_tcp() {
 ///
 /// **And the share is the real filesystem** (the milestone's second act): this test first wires
 /// the FS service and runs `fs_test_client`'s seed role, which writes
-/// `fs_proto::fixture::SMB_SEED` through the FS server, and then hands the adapter the directory
+/// `filesystem_proto::fixture::SMB_SEED` through the FS server, and then hands the adapter the directory
 /// capability. What the prober reads back is therefore bytes that crossed
-/// RedoxFS -> `fs_proto` -> the `Share` seam -> SMB2 -> TCP, seeded by a different process than
+/// RedoxFS -> `filesystem_proto` -> the `Share` seam -> SMB2 -> TCP, seeded by a different process than
 /// the one serving them. This is the first boot that holds the block server, the FS server,
 /// `net_stack`, and the SMB adapter at once, which is why it prints the free-frame count: the
 /// number is the headroom claim, measured rather than argued. With a NIC but no RedoxFS disk the
@@ -1759,7 +1762,7 @@ fn a_host_process_connects_to_the_guest_and_is_answered() {
         let status = sched::ipc_recv(seed_report)[0];
         assert_eq!(
             status,
-            fs_proto::fixture::SUCCESS,
+            filesystem_proto::fixture::SUCCESS,
             "the seeding client could not put the SMB gate's file on the filesystem",
         );
         let (ep, shared) = fs_service::root_directory(

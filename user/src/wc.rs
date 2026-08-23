@@ -1,13 +1,13 @@
 //! **`wc`: the consumer** (milestone 50, notes/pipes.md).
 //!
 //! It counts lines, words and bytes on its input and writes the three numbers to its output. Both
-//! ends are the sink contract (`crates/sink_proto`), which is the entire reason this program is
+//! ends are the sink contract (`crates/byte_sink_proto`), which is the entire reason this program is
 //! worth having: it is the first thing in the tree that **reads** a stream, and it reads it with
 //! the same sixteen-byte framing that `date` and every `println!` write.
 //!
 //! # It cannot tell what is feeding it, and that is the demonstration
 //!
-//! Slot 1 holds an endpoint with `READ`. Sink messages arrive on it until [`sink_proto::OP_EOF`].
+//! Slot 1 holds an endpoint with `READ`. Sink messages arrive on it until [`byte_sink_proto::OP_EOF`].
 //! Behind that endpoint there is either another program (`date | wc`), a file the shell opened and
 //! streamed (`wc < report.txt`, and `wc report.txt`, which is the same thing with the operator left
 //! out), or the shell itself typing bytes into it (`echo hello | wc`). There is no message this
@@ -110,11 +110,11 @@ fn count() -> (u64, u64, u64) {
 
     loop {
         let (w0, w1, w2) = recv(SOURCE);
-        let mut buf = [0u8; sink_proto::INLINE_MAX];
-        let n = match sink_proto::unpack(w0, w1, w2, &mut buf) {
-            sink_proto::Msg::Bytes(n) => n,
-            sink_proto::Msg::Eof => break,
-            sink_proto::Msg::Malformed => break,
+        let mut buf = [0u8; byte_sink_proto::INLINE_MAX];
+        let n = match byte_sink_proto::unpack(w0, w1, w2, &mut buf) {
+            byte_sink_proto::Msg::Bytes(n) => n,
+            byte_sink_proto::Msg::Eof => break,
+            byte_sink_proto::Msg::Malformed => break,
         };
         for &b in &buf[..n] {
             bytes += 1;
@@ -158,19 +158,19 @@ fn report(lines: u64, words: u64, bytes: u64) {
 
     let mut off = 0usize;
     while off < n {
-        let (w0, w1, w2, took) = sink_proto::pack(&out[off..n]);
+        let (w0, w1, w2, took) = byte_sink_proto::pack(&out[off..n]);
         // A failed send is not recoverable and not reportable: the one channel this program would
         // report on is the one that failed. `Gone` means the reader stopped caring, which is
         // exactly when there is nothing left to say.
         if !matches!(
-            sink_proto::classify(send(SINK, w0, w1, w2)),
-            sink_proto::Sent::Ok
+            byte_sink_proto::classify(send(SINK, w0, w1, w2)),
+            byte_sink_proto::Sent::Ok
         ) {
             return;
         }
         off += took;
     }
-    send(SINK, sink_proto::eof(), 0, 0);
+    send(SINK, byte_sink_proto::eof(), 0, 0);
 }
 
 /// Render a `u64` in base 10 into `out`, returning how many bytes it took.

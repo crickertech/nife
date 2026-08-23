@@ -1,5 +1,5 @@
-use fs_proto::dir;
-use fs_proto::fixture::twodir as t;
+use filesystem_proto::dir;
+use filesystem_proto::fixture::twodir as t;
 
 use super::*;
 use crate::sched;
@@ -24,8 +24,8 @@ fn two_dir_witness() -> Option<u64> {
             .expect("no fs_subtree_caretaker program in the initrd archive"),
         program("fs_test_client").expect("no fs_test_client program in the initrd archive"),
         fs_service::TwoDirGrant {
-            a: (fs_proto::fixture::tree::SUB, dir::READ),
-            b: (fs_proto::fixture::tree::OTHER, dir::READ),
+            a: (filesystem_proto::fixture::tree::SUB, dir::READ),
+            b: (filesystem_proto::fixture::tree::OTHER, dir::READ),
             role: 10, // ROLE_TWO_DIR
             arg: 0,
             stack_pages: 0,
@@ -39,7 +39,7 @@ fn two_dir_witness() -> Option<u64> {
     let [tag, verdict, ..] = sched::ipc_recv(report);
     assert_eq!(
         tag,
-        fs_proto::fixture::VERDICT,
+        filesystem_proto::fixture::VERDICT,
         "the two-directory witness's report is not a verdict word",
     );
     Some(verdict)

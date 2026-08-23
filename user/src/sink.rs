@@ -1,12 +1,12 @@
 //! **The sink contract's ends, in one binary** (milestone 50, notes/sink-protocol.md).
 //!
-//! Three roles, chosen by `arg0` at START. Two of them are the two sides of `sink_proto` and the
+//! Three roles, chosen by `arg0` at START. Two of them are the two sides of `byte_sink_proto` and the
 //! third reads back what the second one wrote.
 //!
 //! # `ROLE_FILE`: a file behind a sink
 //!
 //! The `fs_file_caretaker` shape, one contract further out. `fs_file_caretaker` is a caretaker
-//! because it "serves the same `fs_proto` protocol its own client speaks"; this one serves a
+//! because it "serves the same `filesystem_proto` protocol its own client speaks"; this one serves a
 //! *different* and much smaller protocol than it speaks, and that asymmetry is the point. It holds
 //! an FS-service endpoint, which is a directory capability: it can open names, read them, write at
 //! arbitrary offsets, truncate, and stat. Its client holds an endpoint to this process, over which
@@ -19,7 +19,7 @@
 //!
 //! # `ROLE_WRITER`: a program that does not know what it is writing to
 //!
-//! It writes [`sink_proto::fixture::TRANSCRIPT`] to whatever is in slot 0 and reports how the last
+//! It writes [`byte_sink_proto::fixture::TRANSCRIPT`] to whatever is in slot 0 and reports how the last
 //! `SEND` classified. Its whole job is to make the classification assertable **by value**, because
 //! "gone" and "never had one" are two numbers and a test that could not tell them apart would not
 //! be testing milestone 50's one behaviour change.
@@ -51,8 +51,8 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use fs_proto::fs;
-use sink_proto::fixture;
+use byte_sink_proto::fixture;
+use filesystem_proto::fs;
 use user_rt::{call, exit, recv, send};
 
 /// The byte sink. `WRITE` in a writing role, `READ` in a sink role, and the whole of what a writer
@@ -69,7 +69,7 @@ const REPORT_WRITER: u64 = 1;
 /// The page shared with the FS server. Matches `fs_service`'s `FILE_VA_CLIENT`.
 const PAGE_VA: u64 = 0x0000_0000_0060_0000;
 /// Its size, the FS contract's transfer unit.
-const PAGE: usize = fs_proto::PAGE;
+const PAGE: usize = filesystem_proto::PAGE;
 
 const ROLE_WRITER: u64 = 0;
 const ROLE_FILE: u64 = 1;
@@ -98,14 +98,14 @@ pub extern "C" fn _start(role: u64, a1: u64, _a2: u64) -> ! {
 fn writer(repeat: u64) -> ! {
     let mut total = 0u64;
     let mut rounds = 0u64;
-    let mut last = sink_proto::Sent::Ok;
+    let mut last = byte_sink_proto::Sent::Ok;
 
     'outer: loop {
         let mut off = 0usize;
         while off < fixture::TRANSCRIPT.len() {
-            let (w0, w1, w2, n) = sink_proto::pack(&fixture::TRANSCRIPT[off..]);
-            last = sink_proto::classify(send(SINK, w0, w1, w2));
-            if !matches!(last, sink_proto::Sent::Ok) {
+            let (w0, w1, w2, n) = byte_sink_proto::pack(&fixture::TRANSCRIPT[off..]);
+            last = byte_sink_proto::classify(send(SINK, w0, w1, w2));
+            if !matches!(last, byte_sink_proto::Sent::Ok) {
                 break 'outer;
             }
             off += n;
@@ -117,8 +117,8 @@ fn writer(repeat: u64) -> ! {
         }
     }
 
-    if matches!(last, sink_proto::Sent::Ok) {
-        let _ = send(SINK, sink_proto::eof(), 0, 0);
+    if matches!(last, byte_sink_proto::Sent::Ok) {
+        let _ = send(SINK, byte_sink_proto::eof(), 0, 0);
     }
     send(REPORT_WRITER, fixture::code(last), total, rounds);
     exit();
@@ -187,10 +187,10 @@ fn file_sink() -> ! {
     let mut off = 0u64;
     loop {
         let (w0, w1, w2) = recv(SINK);
-        let mut buf = [0u8; sink_proto::INLINE_MAX];
-        match sink_proto::unpack(w0, w1, w2, &mut buf) {
-            sink_proto::Msg::Bytes(0) => {}
-            sink_proto::Msg::Bytes(n) => {
+        let mut buf = [0u8; byte_sink_proto::INLINE_MAX];
+        match byte_sink_proto::unpack(w0, w1, w2, &mut buf) {
+            byte_sink_proto::Msg::Bytes(0) => {}
+            byte_sink_proto::Msg::Bytes(n) => {
                 put(&buf[..n]);
                 let wrote = fs_call(fs::req(fs::WRITE, handle, n as u64), off);
                 if wrote != n as i64 {
@@ -201,8 +201,8 @@ fn file_sink() -> ! {
                 }
                 off += n as u64;
             }
-            sink_proto::Msg::Eof => break,
-            sink_proto::Msg::Malformed => {
+            byte_sink_proto::Msg::Eof => break,
+            byte_sink_proto::Msg::Malformed => {
                 send(REPORT_FS, fixture::BAD, w0, off);
                 exit();
             }
@@ -246,19 +246,19 @@ fn verify() -> ! {
         // and it is the whole of what a sink adapter is.
         let mut i = 0usize;
         while i < got as usize {
-            let mut chunk = [0u8; sink_proto::INLINE_MAX];
-            let n = (got as usize - i).min(sink_proto::INLINE_MAX);
+            let mut chunk = [0u8; byte_sink_proto::INLINE_MAX];
+            let n = (got as usize - i).min(byte_sink_proto::INLINE_MAX);
             for (k, b) in chunk[..n].iter_mut().enumerate() {
                 *b = get(i + k);
             }
-            let (w0, w1, w2, _) = sink_proto::pack(&chunk[..n]);
+            let (w0, w1, w2, _) = byte_sink_proto::pack(&chunk[..n]);
             send(SINK, w0, w1, w2);
             i += n;
         }
         off += got as u64;
     }
 
-    send(SINK, sink_proto::eof(), 0, 0);
+    send(SINK, byte_sink_proto::eof(), 0, 0);
     let _ = fs_call(fs::req(fs::CLOSE, handle, 0), 0);
     send(REPORT_FS, fixture::DONE, size, 0);
     exit();

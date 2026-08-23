@@ -1072,7 +1072,7 @@ fn is_delimiter(s: &[u8]) -> bool {
 /// The rule is deliberately narrower than `CommonMark`'s: a closer must not be preceded by a space,
 /// which is what stops a stray `*` mid-sentence from swallowing the rest of a paragraph. And `_` is
 /// **not** an emphasis delimiter in this renderer at all, because this repository writes
-/// `snake_case` identifiers in running prose constantly (`fs_proto`, `line_editor`,
+/// `snake_case` identifiers in running prose constantly (`filesystem_proto`, `line_editor`,
 /// `__rust_alloc`) and treating them as markup would misrender far more than it would style.
 fn closer(s: &[u8], open: usize, ch: u8, double: bool) -> Option<usize> {
     let mut i = open;

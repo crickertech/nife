@@ -57,7 +57,7 @@
 //! **Volume capabilities: [`VOLUME_FULL_SYNC`], and nothing else.** That bit **is**
 //! `fruit:time machine = yes`: it is the single flag on the SMB side that tells macOS this
 //! server's durability is good enough to hold a backup, and without it the share is a share and
-//! never a destination. **It is backed by a real device flush** (`fs_proto::fs::SYNC` under SMB2's
+//! never a destination. **It is backed by a real device flush** (`filesystem_proto::fs::SYNC` under SMB2's
 //! `FLUSH`, milestone 55); see BUGS for what it still does not promise. The two it does not set:
 //!
 //! - [`VOLUME_CASE_SENSITIVE`] would be a lie in the other direction. The backing filesystem is
@@ -103,16 +103,16 @@
 //!   of milestone 55 gets written.
 //! - **[`VOLUME_FULL_SYNC`] is backed as of 2026-08-18, and here is what it still does not
 //!   promise.** The entry that used to sit here said the claim outran the stack, and it did: every
-//!   `fs_proto` write committed to the RedoxFS header ring before the reply, so there was never a
+//!   `filesystem_proto` write committed to the RedoxFS header ring before the reply, so there was never a
 //!   write-back cache above the block device, but the block server issued no
 //!   `VIRTIO_BLK_T_FLUSH`, so the durability of the last acknowledged write was the device's word
-//!   rather than ours. Milestone 55's durability half added `fs_proto::blk::FLUSH` and
-//!   `fs_proto::fs::SYNC`, and SMB2's `FLUSH` now drives both; a device that offers no
+//!   rather than ours. Milestone 55's durability half added `filesystem_proto::blk::FLUSH` and
+//!   `filesystem_proto::fs::SYNC`, and SMB2's `FLUSH` now drives both; a device that offers no
 //!   `VIRTIO_BLK_F_FLUSH` produces an error at the client rather than a success.
 //!
 //!   What is left is narrower and worth naming where the claim is met. **The sync is device-wide**,
 //!   so flushing one handle makes the whole image durable; nothing below can do less. **Nothing
-//!   fences**: `fs_proto` has no ordering primitive, so this promises "everything acknowledged is
+//!   fences**: `filesystem_proto` has no ordering primitive, so this promises "everything acknowledged is
 //!   durable now" and not "these writes landed in this order". And **a device that lies about its
 //!   own flush is outside anything a protocol can check**, which is the same limit
 //!   notes/fs-server.md's crash-injection table records from the other side.
