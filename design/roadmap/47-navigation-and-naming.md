@@ -636,12 +636,20 @@ the shell and init both read whatever is chosen and a stranger's program is writ
 | **A read-only page init maps** (§15's BootInfo) | One frame per process, one fixed VA constant, and a parser crate both `user_rt` and the `std` PAL depend on (rule 7: two binaries agree on it, so it is a crate) | A page is 4 KiB and an environment is unbounded in principle; the page is a fixed cost even for the programs that read nothing |
 | **An endpoint to a configuration service** | The most machinery by far: a server, a protocol, a slot | It is the right answer for the **secrets** third of this section and the wrong one for `TZ` |
 
-**Recommendation, and it is a recommendation rather than an option list because this half is
-reversible**: the page, for the inert-configuration third only, with the declaration in the manifest
-that closes the `LD_PRELOAD` class. The other two thirds are already answered elsewhere in this
-milestone: names become capabilities (the namespace above), and secrets become endpoints (§41's
-broker shape). **The irreversible part is the page's layout**, and that is what needs an answer
-before anything is built.
+**Decided (calef, 2026-08-23, DECISIONS §111): the page**, for the inert-configuration third only,
+with the declaration in the manifest that closes the `LD_PRELOAD` class. The other two thirds stay
+answered elsewhere in this milestone: names become capabilities (the namespace above), and secrets
+become endpoints (§41's broker shape).
+
+**The page's layout, the irreversible part, is also settled**: each declared key is checked against a
+closed, validated domain at assembly time rather than accepted as an arbitrary string (a real IANA
+timezone identifier for `TZ`, a real locale code for `LANG`, a real terminal type for `TERM`), so a
+value that doesn't parse as a member of its key's domain is refused when the page is built, not
+silently carried. This closes a real gap the recommendation above didn't originally address: a value
+misclassified as "inert" (a secret typed into the wrong bucket by mistake) cannot ride through
+disguised as configuration, because it cannot parse as one. `caps run prog`'s existing preview is
+also extended to print inert-config *values*, not just key names, catching anything a domain hasn't
+been written for yet. See §111 for the full reasoning.
 
 ## `bind` is not blocked on a mount table. It is blocked on a second grant (found 2026-08-18)
 
