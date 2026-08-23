@@ -51,11 +51,12 @@ Unix's `touch` does two other things, and neither is built:
   clock, so "there is nothing to set it to" is no longer true), but closing the excuse is not the
   same as building the verb.
 - **`touch -t`, setting an arbitrary time.** This is a sharper question than the one above: it is
-  the ability to *lie about history*, which matters for anything reasoning from mtime, a backup
-  target (milestone 55) not least. Whether "set to now" is the write right this shell already holds,
-  or a separate authority the way `date`'s clock capability is separate from everything else this
-  shell can do, is design/roadmap/47-navigation-and-naming.md's open question. It has not been
-  decided, so nothing here answers it by default.
+  the ability to *lie about history*, which matters for anything reasoning from mtime. **Decided**
+  (calef, 2026-08-23, DECISIONS §112): not the write right this shell already holds. It needs a
+  separate authority, the same way `date`'s clock capability is separate from everything else this
+  shell can do, following two independent precedents (POSIX's own `utime()` split and this tree's
+  §43) that converge on the same line. Still not built: the decision only settles which right gates
+  it, not the verb itself.
 
 Building the create half now and leaving the mtime half open follows the same split this milestone
 already made twice: `rm` (unlink) and `RMDIR` (structural bound) shipped as two verbs rather than
@@ -77,8 +78,8 @@ which confirms the name reached the platter and did not leak to the parent direc
 - **No mtime verb at all**, so `touch` on an existing file cannot do the one thing Unix's `touch`
   is usually typed for. A script that relies on `touch`-to-bump-mtime (make-style staleness checks,
   for instance) will not observe any change here.
-- **The authority question for `-t` is unresolved**, not merely unbuilt: it is unclear whether
-  setting an arbitrary mtime should ride the write right this shell already holds or need something
-  narrower. Building the verb before that is answered would ship a decision by accident.
+- **The authority question for `-t` is decided (DECISIONS §112) but not yet built.** Setting an
+  arbitrary mtime needs a separate right, not the write right this shell already holds. The verb
+  itself, and the new right's wire shape, are still open.
 - **No `-c` (don't create)**, because Unix's `-c` exists to suppress the create half, and there is
   nothing else here to fall back to.
