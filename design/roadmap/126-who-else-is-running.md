@@ -7,10 +7,12 @@ ordering and taken in the units that ordering uses, which is packages rather tha
 
 **Gate: DECISION.** It was `NONE` while `ps` was the next thing to build, and `ps` and `pgrep` are
 now built. **Every remaining view program is blocked on something a lane cannot supply**, which the
-strata section names one by one: `pmap` on extending `ENUMERATE` to `Aspace`, which is calef's call
-and is the open decision this gate points at; `top` on per-thread CPU accounting that does not exist;
-`pwdx` and `w` on a process display name this system has no design for. The `sysctl` fork below is
-calef's too, and it decides whether "we implemented `procps`" is a true sentence.
+strata section names one by one: `pmap`'s fork, extending `ENUMERATE` to the address-space object,
+is **decided (DECISIONS §114, 2026-08-23)**: yes, mirroring `Endpoint`/`Rendezvous`'s `SURVEY`. A
+lane can take `pmap` without waiting further. `top` still waits on per-thread CPU accounting that
+does not exist; `pwdx` and `w` still wait on a process display name this system has no design for.
+The `sysctl` fork below is calef's too, still open, and it decides whether "we implemented
+`procps`" is a true sentence.
 
 **What a lane could still take without waiting**, and it is the honest exception to the token: `watch`
 needs nothing (`line_editor` and the compositor exist), and the real `dpkg -L procps` file list is
@@ -43,11 +45,13 @@ the ruling below. `capability::Rights::ENUMERATE` is the answer, the kernel-leve
 and `REAP` still take `READ`, and a viewer is granted `ENUMERATE` alone. notes/process-view.md
 carries the whole argument.
 
-**Only `Endpoint` consults the new right today, deliberately.** `Aspace` wants it when `pmap` is
-built (observe a mapping without being able to map) and `Untyped` wants it when `free` is built
-(ask what is committed without being able to `SPLIT` or `DESTROY`). Both are named here rather than
-pre-wired, because a right defined for hypothetical callers is the speculative abstraction this
-tree declines; the consumer that can say what it needs is the one that should extend it.
+**Only `Endpoint` consults the new right today.** The address-space object will when `pmap` is
+built (observe a mapping without being able to map; **decided, DECISIONS §114**) and the
+memory-region object (`Untyped`, renamed by DECISIONS §113) wants it when `free` is built (ask
+what is committed without being able to `SPLIT` or `DESTROY`, still undecided). Both are named
+here rather than pre-wired, because a right defined for hypothetical callers is the speculative
+abstraction this tree declines; the consumer that can say what it needs is the one that should
+extend it.
 
 ## Built: `pgrep`, 2026-08-17
 
@@ -79,8 +83,8 @@ reader meets the feature.
 **Still to build:** the rest of the view stratum (`top`, `pmap`, `pwdx`, `w`), the machine-wide
 statistics, `watch`, and the `sysctl` fork below. The signalling stratum is no longer on this list;
 see the ruling below. Each of the four remaining view programs is blocked on something real rather
-than on effort, and notes/process-view.md names what: `pmap` on extending `ENUMERATE` to `Aspace`,
-which is calef's open decision; `top` on per-thread CPU accounting that does not exist; `pwdx` and
+than on effort, and notes/process-view.md names what: `pmap`'s fork is **decided (DECISIONS
+§114)**, so it is a lane's to take; `top` on per-thread CPU accounting that does not exist; `pwdx` and
 `w` on a process display name this system does not have. The package
 file list still wants a real `dpkg -L procps` before anyone counts programs; nothing built so far
 depended on it, and the next lane does.
