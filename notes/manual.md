@@ -274,12 +274,12 @@ which is this whole milestone in one constant.
 
 | bundle | pages | terms | postings | markdown | index | probes |
 |---|---|---|---|---|---|---|
-| `manual` | 1 | 1119 | 1119 | 29690 | 53248 | 5 |
-| `swish` | 2 | 1807 | 2130 | 88772 | 81920 | 5 |
+| `manual` | 1 | 1222 | 1222 | 34011 | 57344 | 5 |
+| `swish` | 2 | 1820 | 2143 | 91736 | 81920 | 5 |
 | `kernel` | 3 | 2461 | 3369 | 101022 | 106496 | 6 |
 | `glob` | 1 | 882 | 882 | 20019 | 40960 | 4 |
 
-**239,503 bytes of markdown produce 282,624 bytes of index**, which is 1.18x, and that is the number
+**246,788 bytes of markdown produce 286,720 bytes of index**, which is 1.16x, and that is the number
 worth arguing with rather than the pleasant ones. (It was 1.56x when phase 1 measured it and 1.24x
 in the middle, and the improvement is not an optimisation: the notes it indexes grew, and page
 alignment's fixed floor is a smaller share of a bigger bundle. It went the other way on 2026-08-18,
@@ -287,7 +287,10 @@ from 1.14x, and that one *is* a cost: underscore-joined terms are a third term f
 `snake_case` identifier in the prose, which is what makes those identifiers findable.) Two things pay for it. A term record stores its
 term **inline** in 24 bytes so a probe is one page read rather than two, which is most of the bulk.
 And page alignment puts a four-page floor (16 KiB) under every bundle however small, so a bundle of
-one short page still costs 16 KiB to index.
+one short page still costs 16 KiB to index. **Ranking by length (2026-08-22) cost four more bytes
+per page record**, spent out of the six the layout already held spare: with four pages in the
+shipped store that is sixteen bytes, immeasurable against the four-page floor, which is why the
+ratio above barely moved.
 
 The `manual` row indexes **this page**, so editing it moves its own numbers. Rerun
 `cargo xtask manual` for current ones; the ratio is what is stable.
@@ -304,36 +307,42 @@ $ cargo xtask manual capability
 documentation store: target/redoxfs-tree/doc
 
   bundle     pages   terms postings  markdown    index probes
-  manual         1    1119     1119     29690    53248      5
-  swish          2    1807     2130     88772    81920      5
+  manual         1    1222     1222     34011    57344      5
+  swish          2    1820     2143     91736    81920      5
   kernel         3    2461     3369    101022   106496      6
   glob           1     882      882     20019    40960      4
 
-  239503 bytes of markdown, 282624 bytes of index
+  246788 bytes of markdown, 286720 bytes of index
 
 search: capability
     46  doc/kernel/capabilities.md    Capabilities, and why the kernel has no `open()`  notes/capabilities.md
-    32  doc/swish/pipes.md            Pipes and redirection: `>`, `<` and `|` are one   notes/pipes.md
-    14  doc/manual/manual.md          The manual: documentation as a system service   notes/manual.md
     11  doc/kernel/ipc-naming.md      Who does IPC name?                              notes/ipc-naming.md
-     8  doc/glob/glob.md              The glob matcher                                notes/glob.md
+    18  doc/manual/manual.md          The manual: documentation as a system service   notes/manual.md
      3  doc/swish/line-discipline.md  The line discipline as a userspace component    notes/line-discipline.md
+     8  doc/glob/glob.md              The glob matcher                                notes/glob.md
+    32  doc/swish/pipes.md            Pipes and redirection: `>`, `<` and `|` are one   notes/pipes.md
 ```
 
 The host prints a fourth column the prompt does not: the page's path in the **source tree**, which is
 provenance rather than something to open. The store location beside it is computed by the searcher
 from the shard it opened, so no byte of the index carries it and the two cannot disagree.
 
+**The order is no longer sorted by that first column**, and that is the ranking increment showing
+itself rather than a bug in the example: `notes/pipes.md` has the second-highest raw count (32) but
+the lowest density, because it is the longest page in the `swish` bundle, and `notes/ipc-naming.md`
+outranks it with a third of the mentions because it is short. `Found::count` still prints the raw
+number honestly; only the order it appears in changed.
+
 Search the same store from the prompt, where the answer is what a person acts on:
 
 ```text
 $ apropos capability
     46  doc/kernel/capabilities.md    Capabilities, and why the kernel has no `open()`
-    32  doc/swish/pipes.md            Pipes and redirection: `>`, `<` and `|` are one
-    14  doc/manual/manual.md          The manual: documentation as a system service
     11  doc/kernel/ipc-naming.md      Who does IPC name?
-     8  doc/glob/glob.md              The glob matcher
+    18  doc/manual/manual.md          The manual: documentation as a system service
      3  doc/swish/line-discipline.md  The line discipline as a userspace component
+     8  doc/glob/glob.md              The glob matcher
+    32  doc/swish/pipes.md            Pipes and redirection: `>`, `<` and `|` are one
 $ caps wc doc/kernel/ipc-naming.md
   wc would grant the new process, and nothing else:
     cap 0  endpoint  result   report its answer back
@@ -448,9 +457,15 @@ doc: reads an input stream: name a file, redirect with '<', or pipe into it
   so `apropos line-discipline` searches `line` and then `discipline` separately (as two queries;
   this verb takes one word), and `apropos notes/glob.md` folds to `notesglobmd`, which no page
   says. A search is for words, and the location a result prints is what you hand to `doc`.
-- **Ranking is occurrence count and nothing else.** A long page that mentions a word in passing can
-  outrank a short page about it. Dividing by document length would be one division and needs the
-  page's length, which the layout does not store.
+- ~~**Ranking is occurrence count and nothing else.**~~ **It divides by document length now**
+  (2026-08-22): the page record grew a `tokens` field, spent out of the six bytes it already held
+  spare, and `manual::index::Ranked::offer` ranks by `count / tokens` (fixed-point, one division)
+  rather than by raw `count`. A short page where a term is dense now outranks a long page where it
+  is only mentioned in passing, even with a smaller raw count. `Found::count` still reports the
+  raw occurrence count in the printed answer; only the order changed, and `apropos capability`'s
+  own answer over this store did not reorder, because the strongest page for that term is also the
+  densest one. `index::VERSION` moved to 2 for the format change; every shard is a build artifact
+  regenerated by `cargo xtask manual`, so there was nothing to migrate.
 - **A search answer is up to 86 columns wide** when a long location meets a long title, so it wraps
   on the 80-column serial console and wraps hard on the 32-column graphical one. The location is
   never truncated to fit, deliberately: it is the name the reader is meant to type, and a wrapped
@@ -494,25 +509,25 @@ The guest-side `apropos` that used to head this list is built (phase 2, above), 
 builtin the entry predicted. The spawn-protocol decision that used to head this list is also built
 (DECISIONS §106, 2026-08-22): `doc <page>` renders at the prompt with no `| wc` in front of it, the
 caretaker-hop race it flagged before the decision was made is a named, accepted interim rather than
-a surprise, and both are recorded in this note's `BUGS` section now rather than here. What is left,
-in the order it pays off:
+a surprise, and both are recorded in this note's `BUGS` section now rather than here. The ranking
+item that used to be third here is built too (2026-08-22, same day): see this note's `BUGS` section
+for what changed and what did not. What is left, in the order it pays off:
 
 1. **Colour and the pager, which are the same decision's other two thirds.** DECISIONS §106 took
    the narrowing for a tail stage's *primary* output; it did not extend the same bit to "tell this
    stage it ends at a real screen" (colour, the honest replacement for `isatty`) or to granting one
    line of *input* without granting the keyboard (the pager). Both still want the wiring bit this
    entry originally scoped for all three; §106 built the narrowest slice that unblocks `doc <page>`.
+   This is a spawn-protocol decision, the same shape as §106 itself, so it is not this lane's call
+   to make unilaterally.
 2. **The store as something a package installs**, rather than a table in `xtask`. `DOC_BUNDLES` is
    the shape milestone 40 asked for minus a package manager, and milestone 39 is where the manifest,
-   the hash and the version it should hang off already live.
-3. **Ranking that divides by length.** `script/apropos` made this matter: over six pages occurrence
-   count is fine, and over 512 a long page that mentions a word in passing can outrank a short page
-   about it. A page record is 128 bytes and holds 122, so a token count fits in the spare six with
-   no format growth at all. Not taken here because it changes what the guest answers and this lane
-   was already correcting a record rather than writing one.
+   the hash and the version it should hang off already live. Blocked on milestone 39 itself, whose
+   own Gate is `DECISION, MILESTONE 23` with no decision taken.
 
 Phase 3 of the roadmap (a graphical viewer as a compositor client) is untouched and still wants
-milestone 33's rungs.
+milestone 33's rungs, which are themselves blocked (notes/frames.md's `Frame`-sizing fork, milestone
+29's status).
 
 ## Prior art
 
