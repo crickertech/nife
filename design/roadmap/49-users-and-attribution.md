@@ -2,15 +2,14 @@
 
 **Status: NOT-STARTED.**
 
-**Gate: DECISION, MILESTONE 47.** Sequenced after 47, because login hands out exactly the per-shell
-root 47 defines. The fork to settle first is whether attribution is a property of a capability (an
-invocation carrying a stamped origin) or of a channel (a server logging which endpoint a request
-arrived on); the block warns that the wrong answer quietly reintroduces ambient identity.
+**Gate: NONE.** Milestone 47 landed 2026-08-22. The attribution fork is decided (DECISIONS §109):
+channel, not capability. What remains is a real component to build (login), not a further decision.
 
-**Now also a named prerequisite for milestone 152 (durable delegation)**, minted 2026-08-22: a
-scheduled job registered by a specific user (milestone 129's #387) needs a durable principal to be
-supervised by, and login-produces-capabilities is where that principal would first exist. 152 gates
-on this milestone rather than guessing at identity itself.
+**A named prerequisite for milestone 152 (durable delegation)**, minted 2026-08-22: a scheduled job
+registered by a specific user (milestone 129's #387) needs a durable principal to be supervised by,
+and login-produces-capabilities is where that principal would first exist. 152 gates on this
+milestone rather than guessing at identity itself, and inherits §109's channel-shaped answer to how
+attribution composes with its own per-user sessions.
 
 **In brief.** Unix's uid does four different jobs at once. Three of them are already answered here,
 structurally and without anyone having declared it; the fourth has no mechanism whatsoever. This
@@ -40,7 +39,7 @@ and completes a position the code already holds instead of migrating to a new on
 | **Authorization** | Capabilities. There is no check to bypass because there is no check | Built |
 | **Isolation between humans** | Milestone 47's per-shell root. Two people's shells hold different directory capabilities and neither can *name* the other's files | Built (never demonstrated multi-user) |
 | **Resource accounting** | The untyped budget. A user's allowance is the region they were granted; `run --mem 16` splits from it | Built |
-| **Attribution** (*who did this?*) | Nothing | **Missing entirely** |
+| **Attribution** (*who did this?*) | A channel (DECISIONS §109) | Decided, not yet built |
 
 Isolation is the one worth dwelling on, because it is stronger than what a uid buys. Unix isolates by
 *refusing* a request that names another user's file; the name is still sayable, the check is still
@@ -80,15 +79,23 @@ because the uid is present at every syscall and doubles as the answer. Measured 
 *what code* is running and capabilities establish *what it can reach*, but nothing records *who
 asked*, and that gap is real rather than rhetorical.
 
-The design fork to settle before building, and it should be settled deliberately: attribution can be
-**a property of a capability** (an invocation carries a stamped origin, which risks re-growing an
-ambient identity through the back door), or **a property of a channel** (a server logs which endpoint
-a request arrived on, which is honest, needs no kernel change, and gives coarser answers). The second
-looks right and the first should not be dismissed without argument. Whichever wins gets a DECISIONS
-entry, because a wrong answer here quietly reintroduces the thing this whole model removed.
+**Decided (calef, 2026-08-22, DECISIONS §109): channel.** A server that wants to know who is asking
+gives each principal its own endpoint, established once, and logs which one a request arrived on.
+This tree has already faced this exact question three times, independently, under different names
+(the compositor's shared-endpoint identity, the FS server's confinement, the fault endpoint's sender
+trust) and answered it the same way every time without anyone naming it as one policy: give each
+principal its own channel rather than badge a shared one (seL4's mechanism, never built here). It
+also composes for free with milestone 152's durable per-user sessions: once a user's session exists,
+every service reached through it already has a per-user channel, which is attribution at exactly the
+granularity audit wants. §109 has the full reasoning, including where the channel model's own cost
+eventually bites (roughly tens of concurrently-durable sessions against `MAX_REGIONS`). This is a
+general-purpose OS, not just a file server, so that headroom should be measured against cron's
+uncapped, resource-bound norm rather than a consumer file-sharing throttle; §109 corrects an
+earlier draft that used the wrong comparison. Raising `MAX_REGIONS` again, the same cheap move
+already made once, is the expected response as durable sessions are actually built and measured.
 
 **Sequencing.** After 47 (isolation is 47's per-shell root, and login hands out exactly what 47
-defines). The documentation and the group/caretaker write-up are cheap; the login service is a real
-component; attribution is a design fork first and a build second. **Effort: 2 lanes estimated**,
-noting estimates for unbuilt work are guesses on a history-calibrated scale, and the attribution half
-could be one lane or three depending on which fork wins.
+defines; 47 landed 2026-08-22). The documentation and the group/caretaker write-up are cheap; the
+login service and the channel-shaped attribution logging are both ordinary builds now, no longer
+contingent on a fork. **Effort: 2 lanes estimated**, noting estimates for unbuilt work are guesses on
+a history-calibrated scale.
