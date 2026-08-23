@@ -171,6 +171,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 110 | DECIDED | [Hard links are declined, for want of a customer](110-hard-links-declined.md) |
 | 111 | DECIDED | [Inert configuration is a read-only page, and each declared key is validated against a closed domain](111-inert-config-is-a-validated-page.md) |
 | 112 | DECIDED | [`touch`'s two behaviors need two rights: write covers "now", a separate right covers "arbitrary"](112-touch-mtime-authority.md) |
+| 113 | DECIDED | [Eleven kernel object and identifier names move from contraction or borrowed jargon to the plain, standard term](113-kernel-object-plain-names.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
 way milestone 76 moved four essays out of the roadmap: [the open design
