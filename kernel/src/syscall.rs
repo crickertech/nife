@@ -228,8 +228,7 @@ pub(crate) fn invoke(
                 if !cap.rights.allows(Rights::READ) {
                     return Err(Error::NotPermitted);
                 }
-                sched::reap_supervised(ep, a0)?;
-                Ok(0)
+                endpoint_reap(ep, a0)
             }
 
             // **Read one entry of the domain this endpoint supervises** (milestone 126). The view
@@ -357,52 +356,20 @@ pub(crate) fn invoke(
         // A thread under construction (19c.3). WRITE on the TCB cap is the authority to shape
         // and start it. Every method refuses a thread that is not an embryo, in the scheduler.
         Object::Tcb(tid) => match method {
+            // Body extracted (milestone 156): every `Tcb` method is process-spawn machinery a
+            // loader runs once per child, never a step of the IPC round trip, so each moves out
+            // of `invoke`'s own bytes. See `untyped_map`'s doc comment for the full reasoning.
             abi::tcb::CONFIGURE => {
                 if !cap.rights.allows(Rights::WRITE) {
                     return Err(Error::NotPermitted);
                 }
-                // a2 is the aspace cap slot; it must be a WRITE Aspace cap, and it is consumed.
-                let aspace = sched::current_cap(a2).map_err(|_| Error::NoSuchSlot)?;
-                let Object::Aspace(aspace_name) = aspace.object else {
-                    return Err(Error::WrongObject);
-                };
-                if !aspace.rights.allows(Rights::WRITE) {
-                    return Err(Error::NotPermitted);
-                }
-                sched::configure_tcb(tid, a0, a1, aspace_name)?;
-                // Consume the aspace cap: it is the thread's now, and a second bind must not find
-                // it. (The space already left the registry, so the cap is inert regardless; this
-                // keeps the caller's cspace honest.)
-                let _ = sched::delete_current_cap(a2);
-                Ok(0)
+                tcb_configure(tid, a0, a1, a2)
             }
             abi::tcb::CAP_INSERT => {
                 if !cap.rights.allows(Rights::WRITE) {
                     return Err(Error::NotPermitted);
                 }
-                // a0 = the cap to give the child, a1 = rights to narrow it to. GRANT-gated and
-                // narrowing-only, exactly as SEND_CAP: you may endow a child only with authority
-                // you were trusted to pass on, and only narrowed. a2 = target slot: 0 is first-free
-                // (the original behaviour, so every existing caller is unchanged), n is slot n - 1
-                // (a supervisor placing a fault endpoint in the reserved slot, milestone 22).
-                let src = sched::current_cap(a0).map_err(|_| Error::NoSuchSlot)?;
-                if !src.rights.allows(Rights::GRANT) {
-                    return Err(Error::NotPermitted);
-                }
-                let narrowed = Rights::from_bits(a1 as u32);
-                if !narrowed.is_subset_of(src.rights) {
-                    return Err(Error::NotPermitted);
-                }
-                let target = (a2 != 0).then(|| a2 - 1);
-                let child_slot = sched::tcb_insert_cap(
-                    tid,
-                    crate::cap::Cap {
-                        object: src.object,
-                        rights: narrowed,
-                    },
-                    target,
-                )?;
-                Ok(child_slot as i64)
+                tcb_cap_insert(tid, a0, a1, a2)
             }
             abi::tcb::START => {
                 if !cap.rights.allows(Rights::WRITE) {
@@ -415,197 +382,55 @@ pub(crate) fn invoke(
         },
 
         Object::Untyped(region) => match method {
+            // Body extracted (milestone 156): all five `Untyped` methods are memory-management
+            // administration a spawner runs while building a process, never a step of the IPC
+            // round trip `script/fastpath-footprint` bounds, so each stays out of `invoke`'s own
+            // bytes and `#[inline(never)]` on purpose. See `aspace_list`, the pattern this copies.
             abi::untyped::MAP => {
                 if !cap.rights.allows(Rights::WRITE) {
                     return Err(Error::NotPermitted);
                 }
-                // Retype a page out of the untyped and map it, writable, at `a0` in the caller's
-                // own address space. Both the page and any page tables come from the untyped, so
-                // the KERNEL ALLOCATES NOTHING: `mmu::map_current_user_page`'s only source of
-                // memory is the closure below, which bumps the untyped's watermark.
-                let va = a0;
-                // Reject the cheap failures BEFORE retyping a page for them: a non-page-aligned
-                // or non-low-half address can never be mapped, and without this pre-check each
-                // such attempt would silently spend a page of the process's own untyped (a
-                // self-inflicted budget leak the audit noted). An already-mapped `va` still costs
-                // one page, which is process-local and bounded by the untyped. The gate itself is
-                // proved: every address it admits is aligned and in the low half (see
-                // `paging::is_user_page_va` and its harness).
-                if !paging::is_user_page_va::<crate::arch::mmu::Format>(va) {
-                    return Err(Error::BadPointer);
-                }
-                match mmu::map_current_user_page(va, paging::Flags::user_data(), || {
-                    crate::untyped::retype_page(region)
-                }) {
-                    Ok(phys) => {
-                        // Record the mapping so it can be revoked before the region is ever
-                        // reclaimed (§13). Untyped::MAP pages are process-private, but they still
-                        // must be unmapped before untyped::destroy frees the region under them.
-                        // The record is paid from the caller's own address-space budget (phase
-                        // C); if it cannot afford the record, it cannot keep the mapping: an
-                        // unrecorded mapping is invisible to revocation, the §13 hole.
-                        if !crate::revoke::record_mapping(phys, mmu::current_user_root(), va) {
-                            mmu::unmap_user_at(mmu::current_user_root(), va);
-                            return Err(Error::OutOfMemory);
-                        }
-                        Ok(0)
-                    }
-                    Err(paging::MapError::OutOfFrames) => Err(Error::OutOfMemory),
-                    Err(_) => Err(Error::BadPointer), // misaligned, already mapped, or wrong half
-                }
+                untyped_map(region, a0)
             }
-            // Retype a page into a page-resident KERNEL OBJECT the caller now owns (19a):
-            // the object lives in the carved page, the region is pinned (a live endpoint's page
-            // must never be freed under a blocked thread), and the caller gets full rights on
-            // its own object, delegation narrowing them as ever.
             abi::untyped::RETYPE_OBJ => {
                 if !cap.rights.allows(Rights::WRITE) {
                     return Err(Error::NotPermitted);
                 }
-                match a0 {
-                    abi::objtype::ENDPOINT => {
-                        let ep = sched::create_endpoint_from(region).ok_or(Error::OutOfMemory)?;
-                        // `Rights::ALL`, not a list. The comment above has always said the creator
-                        // gets full rights on its own object; spelling the set out meant "full"
-                        // silently stopped being full the day `ENUMERATE` was added, and the
-                        // symptom was three steps away: init could not narrow `deaths` to a right
-                        // it did not itself hold, `CAP_INSERT` refused the widen, and the spawn
-                        // surfaced as `OutOfMemory` at a prompt. A rights set that must be updated
-                        // by hand whenever a right is added is rung four; `ALL` is the invariant.
-                        let slot = sched::grant(crate::cap::endpoint_cap(ep, Rights::ALL))
-                            .map_err(|_| Error::OutOfMemory)?;
-                        Ok(slot as i64)
-                    }
-                    // An address space (19b): the page becomes the L0 root, the untyped becomes
-                    // the space's backing region for tables and records (one budget model; see
-                    // the abi doc and design/init-and-granular-spawn.md).
-                    abi::objtype::ASPACE => {
-                        let name =
-                            crate::user::user_aspace_create(region).ok_or(Error::OutOfMemory)?;
-                        // `Rights::ALL` for the ENDPOINT arm's reason: "full rights on its own
-                        // object" is the invariant, and a hand-listed set stops being full the
-                        // next time a right is added. `Aspace` does not consult `ENUMERATE` today
-                        // and is expected to when `pmap` is built; holding a right nothing checks
-                        // confers nothing, and not holding it is what blocks a future grant.
-                        let slot = sched::grant(crate::cap::aspace_cap(name, Rights::ALL))
-                            .map_err(|_| Error::OutOfMemory)?;
-                        Ok(slot as i64)
-                    }
-                    // A thread (19c.3): the page holds an embryo TCB, born in no queue and not
-                    // runnable until CONFIGURE + START. The page is the creator's region's.
-                    abi::objtype::TCB => {
-                        let tid = sched::create_tcb(region).ok_or(Error::OutOfMemory)?;
-                        let slot = sched::grant(crate::cap::tcb_cap(tid, Rights::ALL))
-                            .map_err(|_| Error::OutOfMemory)?;
-                        Ok(slot as i64)
-                    }
-                    _ => Err(Error::BadMethod), // no such object type
-                }
+                untyped_retype_obj(region, a0)
             }
             abi::untyped::RETYPE => {
                 if !cap.rights.allows(Rights::WRITE) {
                     return Err(Error::NotPermitted);
                 }
-                // Retype a page into a Frame capability the caller now holds, instead of mapping it
-                // in one shot. The caller gets full rights on its own frame (read, write, and the
-                // right to pass it on); delegation is where those narrow. Nothing is mapped yet.
-                let phys = crate::untyped::retype_page(region).ok_or(Error::OutOfMemory)?;
-                let slot = sched::grant(crate::cap::frame_cap(phys, Rights::ALL))
-                    .map_err(|_| Error::OutOfMemory)?; // cspace full
-                Ok(slot as i64)
+                untyped_retype(region)
             }
-            // Carve a child untyped off this one (subdivision), so a spawner can give each child its
-            // own reclaimable region. `a0` is the child's page count. See untyped::split.
             abi::untyped::SPLIT => {
                 if !cap.rights.allows(Rights::WRITE) {
                     return Err(Error::NotPermitted);
                 }
-                let child = crate::untyped::split(region, a0).ok_or(Error::OutOfMemory)?;
-                // The child inherits THIS capability's rights, never more (milestone 31). SPLIT is a
-                // fresh mint, so it must honor the derive-never-widens invariant by hand: a process
-                // holding a spend-only (GRANT-less) untyped must not SPLIT itself a GRANT-bearing
-                // child over the same memory and manufacture the right its capability withheld.
-                // `Cap::mint_child` is that inheriting mint, and `split_never_widens_rights`
-                // (crates/capability) proves it never widens, at the one mint site outside `derive` the
-                // caps proofs otherwise miss (milestone 35). Rights narrow monotonically from the
-                // delegable root budget down; init holds that root with GRANT and hands narrowed
-                // budgets on. See DECISIONS §16.
-                let slot = sched::grant(cap.mint_child(crate::cap::Object::Untyped(child)))
-                    .map_err(|_| Error::OutOfMemory)?; // cspace full
-                Ok(slot as i64)
+                untyped_split(cap, region, a0)
             }
-            // Reclaim this region and every object retyped from it (object revocation): tear the
-            // objects down and return the memory. Refused (NotPermitted) while a live thread still
-            // occupies it, or if it has been split into children (destroy those first). Generational
-            // names make every capability to the reclaimed objects stale on next use.
             abi::untyped::DESTROY => {
                 if !cap.rights.allows(Rights::WRITE) {
                     return Err(Error::NotPermitted);
                 }
-                sched::reclaim_region(region).map_err(|_| Error::NotPermitted)?;
-                Ok(0)
+                untyped_destroy(region)
             }
             _ => Err(Error::BadMethod),
         },
 
         Object::Frame(phys) => match method {
-            abi::frame::MAP => {
-                // a0 = va, a1 = writable (0/1), a2 = an untyped slot the page tables come from.
-                let va = a0;
-                if !paging::is_user_page_va::<crate::arch::mmu::Format>(va) {
-                    return Err(Error::BadPointer);
-                }
-                // A read/write mapping needs WRITE on the frame; a read-only one needs READ. This
-                // is where a delegated, narrowed frame is confined: a peer handed READ alone can
-                // map it to look, never to change it.
-                let flags = if a1 != 0 {
-                    if !cap.rights.allows(Rights::WRITE) {
-                        return Err(Error::NotPermitted);
-                    }
-                    paging::Flags::user_data()
-                } else {
-                    if !cap.rights.allows(Rights::READ) {
-                        return Err(Error::NotPermitted);
-                    }
-                    paging::Flags::user_rodata()
-                };
-                // Page tables come from an untyped the caller holds, so mapping a frame, like
-                // everything a process spends, comes out of its own budget and not the kernel's.
-                let ut = sched::current_cap(a2).map_err(|_| Error::NoSuchSlot)?;
-                let Object::Untyped(region) = ut.object else {
-                    return Err(Error::WrongObject);
-                };
-                if !ut.rights.allows(Rights::WRITE) {
-                    return Err(Error::NotPermitted);
-                }
-                match mmu::map_current_user_frame(va, phys, flags, || {
-                    crate::untyped::retype_page(region)
-                }) {
-                    Ok(()) => {
-                        // Record the mapping so a later REVOKE (or untyped::destroy) can pull this
-                        // page out of every holder before it is reused (§13). Unrecordable means
-                        // unmappable, at the mapper's own expense (phase C): see Untyped::MAP.
-                        if !crate::revoke::record_mapping(phys, mmu::current_user_root(), va) {
-                            mmu::unmap_user_at(mmu::current_user_root(), va);
-                            return Err(Error::OutOfMemory);
-                        }
-                        Ok(0)
-                    }
-                    Err(paging::MapError::OutOfFrames) => Err(Error::OutOfMemory),
-                    Err(_) => Err(Error::BadPointer), // misaligned, already mapped, or wrong half
-                }
-            }
-
-            // Un-share: unmap this page from every holder and delete every capability to it,
-            // including the caller's own. Needs GRANT (you were trusted to lend the frame, so you
-            // may take it back); a read-only consumer, handed it without GRANT, cannot revoke the
-            // owner. Does not reclaim the page (untyped is spend-only); that is untyped::destroy. §13.
+            // Body extracted (milestone 156), the same reason as `Untyped`'s five methods:
+            // neither `MAP` nor `REVOKE` is a step of the IPC round trip, so both move out of
+            // `invoke`'s own bytes. `MAP`'s rights check is data-dependent (branches on `a1`), so
+            // it lives inside `frame_map` rather than at the call site here, unlike the fixed
+            // single-right checks the other extractions keep in `invoke`.
+            abi::frame::MAP => frame_map(cap, phys, a0, a1, a2),
             abi::frame::REVOKE => {
                 if !cap.rights.allows(Rights::GRANT) {
                     return Err(Error::NotPermitted);
                 }
-                crate::revoke::revoke_frame(phys);
-                Ok(0)
+                frame_revoke(phys)
             }
             _ => Err(Error::BadMethod),
         },
@@ -636,50 +461,333 @@ pub(crate) fn invoke(
             if !cap.rights.allows(Rights::WRITE) {
                 return Err(Error::NotPermitted);
             }
-            use crate::virtio::TransportError;
-            let map = |e: TransportError| match e {
-                TransportError::DmaEscape => Error::DeviceRefused,
-                _ => Error::WrongObject,
-            };
-            match method {
-                abi::virtio::READ_REG => crate::virtio::read_register(id, a0)
-                    .map(|v| v as i64)
-                    .ok_or(Error::WrongObject),
-                abi::virtio::WRITE_REG => crate::virtio::write_register(id, a0, a1 as u32)
-                    .map(|_| 0)
-                    .map_err(map),
-                abi::virtio::SETUP_QUEUE => crate::virtio::setup_queue(id, a0 as u16, a1 as u16)
-                    .map(|_| 0)
-                    .map_err(map),
-                abi::virtio::NOTIFY => crate::virtio::notify(id, a0 as u16).map(|_| 0).map_err(map),
-                _ => Err(Error::BadMethod),
-            }
+            virtio_invoke(id, method, a0, a1)
         }
 
         Object::Irq(intid) => match method {
-            // WAIT blocks on the endpoint the kernel routed this interrupt to. The interrupt
-            // arrives as a message (sched::irq_notify), exactly like any other.
+            // Body extracted (milestone 156). `WAIT` does block on the same `sched::ipc_recv`
+            // the `Endpoint` fastpath uses, but the caller here is a driver waiting on a device
+            // interrupt, not the IPC round trip this gate bounds, so it moves out of `invoke`'s
+            // own bytes with the rest. See `untyped_map`'s doc comment for the full reasoning.
             abi::irq::WAIT => {
                 if !cap.rights.allows(Rights::READ) {
                     return Err(Error::NotPermitted);
                 }
-                let ep = sched::irq_route(intid).ok_or(Error::WrongObject)?;
-                let m = sched::ipc_recv(ep);
-                Ok(m[0] as i64)
+                irq_wait(intid)
             }
-            // ACK re-enables the interrupt at the controller. The kernel masked it when it fired;
-            // now that the driver has serviced the device, it is safe to let it fire again. This
-            // names `arch::irq`, not a specific controller: the GIC on aarch64, the PLIC on RISC-V.
             abi::irq::ACK => {
                 if !cap.rights.allows(Rights::READ) {
                     return Err(Error::NotPermitted);
                 }
-                crate::arch::irq::enable(intid);
-                Ok(0)
+                irq_ack(intid)
             }
             _ => Err(Error::BadMethod),
         },
     }
+}
+
+/// `Untyped::MAP`: retype a page out of the untyped and map it, writable, at `va` in the caller's
+/// own address space. Both the page and any page tables come from the untyped, so the KERNEL
+/// ALLOCATES NOTHING: `mmu::map_current_user_page`'s only source of memory is the closure below,
+/// which bumps the untyped's watermark.
+///
+/// Pulled out of [`invoke`] and marked `#[inline(never)]` (milestone 156, the pattern
+/// `aspace_list` proved on milestone 126's `LIST`): `syscall_entry` is measured flat, so a rare
+/// administrative arm inlined into the hot dispatcher grows every syscall's footprint for a
+/// method that never runs on an IPC round trip.
+#[inline(never)]
+fn untyped_map(region: u64, va: u64) -> Result<i64, Error> {
+    // Reject the cheap failures BEFORE retyping a page for them: a non-page-aligned or
+    // non-low-half address can never be mapped, and without this pre-check each such attempt
+    // would silently spend a page of the process's own untyped (a self-inflicted budget leak the
+    // audit noted). An already-mapped `va` still costs one page, which is process-local and
+    // bounded by the untyped. The gate itself is proved: every address it admits is aligned and
+    // in the low half (see `paging::is_user_page_va` and its harness).
+    if !paging::is_user_page_va::<crate::arch::mmu::Format>(va) {
+        return Err(Error::BadPointer);
+    }
+    match mmu::map_current_user_page(va, paging::Flags::user_data(), || {
+        crate::untyped::retype_page(region)
+    }) {
+        Ok(phys) => {
+            // Record the mapping so it can be revoked before the region is ever reclaimed (§13).
+            // Untyped::MAP pages are process-private, but they still must be unmapped before
+            // untyped::destroy frees the region under them. The record is paid from the caller's
+            // own address-space budget (phase C); if it cannot afford the record, it cannot keep
+            // the mapping: an unrecorded mapping is invisible to revocation, the §13 hole.
+            if !crate::revoke::record_mapping(phys, mmu::current_user_root(), va) {
+                mmu::unmap_user_at(mmu::current_user_root(), va);
+                return Err(Error::OutOfMemory);
+            }
+            Ok(0)
+        }
+        Err(paging::MapError::OutOfFrames) => Err(Error::OutOfMemory),
+        Err(_) => Err(Error::BadPointer), // misaligned, already mapped, or wrong half
+    }
+}
+
+/// `Untyped::RETYPE_OBJ`: retype a page into a page-resident KERNEL OBJECT the caller now owns
+/// (19a). The object lives in the carved page, the region is pinned (a live endpoint's page must
+/// never be freed under a blocked thread), and the caller gets full rights on its own object,
+/// delegation narrowing them as ever. `#[inline(never)]` for the reason `untyped_map` gives.
+#[inline(never)]
+fn untyped_retype_obj(region: u64, kind: u64) -> Result<i64, Error> {
+    match kind {
+        abi::objtype::ENDPOINT => {
+            let ep = sched::create_endpoint_from(region).ok_or(Error::OutOfMemory)?;
+            // `Rights::ALL`, not a list. The comment above has always said the creator gets full
+            // rights on its own object; spelling the set out meant "full" silently stopped being
+            // full the day `ENUMERATE` was added, and the symptom was three steps away: init
+            // could not narrow `deaths` to a right it did not itself hold, `CAP_INSERT` refused
+            // the widen, and the spawn surfaced as `OutOfMemory` at a prompt. A rights set that
+            // must be updated by hand whenever a right is added is rung four; `ALL` is the
+            // invariant.
+            let slot = sched::grant(crate::cap::endpoint_cap(ep, Rights::ALL))
+                .map_err(|_| Error::OutOfMemory)?;
+            Ok(slot as i64)
+        }
+        // An address space (19b): the page becomes the L0 root, the untyped becomes the space's
+        // backing region for tables and records (one budget model; see the abi doc and
+        // design/init-and-granular-spawn.md).
+        abi::objtype::ASPACE => {
+            let name = crate::user::user_aspace_create(region).ok_or(Error::OutOfMemory)?;
+            // `Rights::ALL` for the ENDPOINT arm's reason: "full rights on its own object" is the
+            // invariant, and a hand-listed set stops being full the next time a right is added.
+            // `Aspace` does not consult `ENUMERATE` today and is expected to when `pmap` is
+            // built; holding a right nothing checks confers nothing, and not holding it is what
+            // blocks a future grant.
+            let slot = sched::grant(crate::cap::aspace_cap(name, Rights::ALL))
+                .map_err(|_| Error::OutOfMemory)?;
+            Ok(slot as i64)
+        }
+        // A thread (19c.3): the page holds an embryo TCB, born in no queue and not runnable
+        // until CONFIGURE + START. The page is the creator's region's.
+        abi::objtype::TCB => {
+            let tid = sched::create_tcb(region).ok_or(Error::OutOfMemory)?;
+            let slot = sched::grant(crate::cap::tcb_cap(tid, Rights::ALL))
+                .map_err(|_| Error::OutOfMemory)?;
+            Ok(slot as i64)
+        }
+        _ => Err(Error::BadMethod), // no such object type
+    }
+}
+
+/// `Untyped::RETYPE`: retype a page into a Frame capability the caller now holds, instead of
+/// mapping it in one shot. The caller gets full rights on its own frame (read, write, and the
+/// right to pass it on); delegation is where those narrow. Nothing is mapped yet.
+/// `#[inline(never)]` for the reason `untyped_map` gives.
+#[inline(never)]
+fn untyped_retype(region: u64) -> Result<i64, Error> {
+    let phys = crate::untyped::retype_page(region).ok_or(Error::OutOfMemory)?;
+    let slot =
+        sched::grant(crate::cap::frame_cap(phys, Rights::ALL)).map_err(|_| Error::OutOfMemory)?; // cspace full
+    Ok(slot as i64)
+}
+
+/// `Untyped::SPLIT`: carve a child untyped off this one (subdivision), so a spawner can give each
+/// child its own reclaimable region. `count` is the child's page count. `#[inline(never)]` for
+/// the reason `untyped_map` gives.
+#[inline(never)]
+fn untyped_split(cap: crate::cap::Cap, region: u64, count: u64) -> Result<i64, Error> {
+    let child = crate::untyped::split(region, count).ok_or(Error::OutOfMemory)?;
+    // The child inherits THIS capability's rights, never more (milestone 31). SPLIT is a fresh
+    // mint, so it must honor the derive-never-widens invariant by hand: a process holding a
+    // spend-only (GRANT-less) untyped must not SPLIT itself a GRANT-bearing child over the same
+    // memory and manufacture the right its capability withheld. `Cap::mint_child` is that
+    // inheriting mint, and `split_never_widens_rights` (crates/capability) proves it never widens,
+    // at the one mint site outside `derive` the caps proofs otherwise miss (milestone 35). Rights
+    // narrow monotonically from the delegable root budget down; init holds that root with GRANT
+    // and hands narrowed budgets on. See DECISIONS §16.
+    let slot = sched::grant(cap.mint_child(crate::cap::Object::Untyped(child)))
+        .map_err(|_| Error::OutOfMemory)?; // cspace full
+    Ok(slot as i64)
+}
+
+/// `Untyped::DESTROY`: reclaim this region and every object retyped from it (object revocation):
+/// tear the objects down and return the memory. Refused (`NotPermitted`) while a live thread still
+/// occupies it, or if it has been split into children (destroy those first). Generational names
+/// make every capability to the reclaimed objects stale on next use. `#[inline(never)]` for the
+/// reason `untyped_map` gives.
+#[inline(never)]
+fn untyped_destroy(region: u64) -> Result<i64, Error> {
+    sched::reclaim_region(region).map_err(|_| Error::NotPermitted)?;
+    Ok(0)
+}
+
+/// `Frame::MAP`: map an existing frame at `va` in the caller's own address space (`a1` writable
+/// 0/1, `a2` an untyped slot the page tables come from). Un-share is `frame_revoke`; this is the
+/// other half. `#[inline(never)]` for the reason `untyped_map` gives.
+#[inline(never)]
+fn frame_map(
+    cap: crate::cap::Cap,
+    phys: u64,
+    va: u64,
+    writable: u64,
+    ut_slot: u64,
+) -> Result<i64, Error> {
+    if !paging::is_user_page_va::<crate::arch::mmu::Format>(va) {
+        return Err(Error::BadPointer);
+    }
+    // A read/write mapping needs WRITE on the frame; a read-only one needs READ. This is where a
+    // delegated, narrowed frame is confined: a peer handed READ alone can map it to look, never
+    // to change it.
+    let flags = if writable != 0 {
+        if !cap.rights.allows(Rights::WRITE) {
+            return Err(Error::NotPermitted);
+        }
+        paging::Flags::user_data()
+    } else {
+        if !cap.rights.allows(Rights::READ) {
+            return Err(Error::NotPermitted);
+        }
+        paging::Flags::user_rodata()
+    };
+    // Page tables come from an untyped the caller holds, so mapping a frame, like everything a
+    // process spends, comes out of its own budget and not the kernel's.
+    let ut = sched::current_cap(ut_slot).map_err(|_| Error::NoSuchSlot)?;
+    let Object::Untyped(region) = ut.object else {
+        return Err(Error::WrongObject);
+    };
+    if !ut.rights.allows(Rights::WRITE) {
+        return Err(Error::NotPermitted);
+    }
+    match mmu::map_current_user_frame(va, phys, flags, || crate::untyped::retype_page(region)) {
+        Ok(()) => {
+            // Record the mapping so a later REVOKE (or untyped::destroy) can pull this page out
+            // of every holder before it is reused (§13). Unrecordable means unmappable, at the
+            // mapper's own expense (phase C): see Untyped::MAP.
+            if !crate::revoke::record_mapping(phys, mmu::current_user_root(), va) {
+                mmu::unmap_user_at(mmu::current_user_root(), va);
+                return Err(Error::OutOfMemory);
+            }
+            Ok(0)
+        }
+        Err(paging::MapError::OutOfFrames) => Err(Error::OutOfMemory),
+        Err(_) => Err(Error::BadPointer), // misaligned, already mapped, or wrong half
+    }
+}
+
+/// `Frame::REVOKE`: un-share this page from every holder and delete every capability to it,
+/// including the caller's own. Does not reclaim the page (untyped is spend-only); that is
+/// `Untyped::DESTROY`. §13. `#[inline(never)]` for the reason `untyped_map` gives.
+#[inline(never)]
+fn frame_revoke(phys: u64) -> Result<i64, Error> {
+    crate::revoke::revoke_frame(phys);
+    Ok(0)
+}
+
+/// `Tcb::CONFIGURE`: bind an address space to an embryo thread and set its entry point and stack
+/// (`a0` entry, `a1` stack, `a2` the aspace cap slot, consumed). `#[inline(never)]` for the
+/// reason `untyped_map` gives.
+#[inline(never)]
+fn tcb_configure(
+    tid: crate::thread::Tid,
+    entry: u64,
+    stack: u64,
+    aspace_slot: u64,
+) -> Result<i64, Error> {
+    // aspace_slot must name a WRITE Aspace cap, and it is consumed.
+    let aspace = sched::current_cap(aspace_slot).map_err(|_| Error::NoSuchSlot)?;
+    let Object::Aspace(aspace_name) = aspace.object else {
+        return Err(Error::WrongObject);
+    };
+    if !aspace.rights.allows(Rights::WRITE) {
+        return Err(Error::NotPermitted);
+    }
+    sched::configure_tcb(tid, entry, stack, aspace_name)?;
+    // Consume the aspace cap: it is the thread's now, and a second bind must not find it. (The
+    // space already left the registry, so the cap is inert regardless; this keeps the caller's
+    // cspace honest.)
+    let _ = sched::delete_current_cap(aspace_slot);
+    Ok(0)
+}
+
+/// `Tcb::CAP_INSERT`: endow the embryo with a capability (`a0` the cap to give, `a1` the rights
+/// to narrow it to, `a2` the target slot: 0 is first-free, n is slot n - 1, a supervisor placing
+/// a fault endpoint in the reserved slot, milestone 22). GRANT-gated and narrowing-only, exactly
+/// as `SEND_CAP`: you may endow a child only with authority you were trusted to pass on, and only
+/// narrowed. `#[inline(never)]` for the reason `untyped_map` gives.
+#[inline(never)]
+fn tcb_cap_insert(
+    tid: crate::thread::Tid,
+    src_slot: u64,
+    rights: u64,
+    target: u64,
+) -> Result<i64, Error> {
+    let src = sched::current_cap(src_slot).map_err(|_| Error::NoSuchSlot)?;
+    if !src.rights.allows(Rights::GRANT) {
+        return Err(Error::NotPermitted);
+    }
+    let narrowed = Rights::from_bits(rights as u32);
+    if !narrowed.is_subset_of(src.rights) {
+        return Err(Error::NotPermitted);
+    }
+    let target = (target != 0).then(|| target - 1);
+    let child_slot = sched::tcb_insert_cap(
+        tid,
+        crate::cap::Cap {
+            object: src.object,
+            rights: narrowed,
+        },
+        target,
+    )?;
+    Ok(child_slot as i64)
+}
+
+/// `Irq::WAIT`: block on the endpoint the kernel routed this interrupt to. The interrupt arrives
+/// as a message (`sched::irq_notify`), exactly like any other. `#[inline(never)]` for the reason
+/// `untyped_map` gives.
+#[inline(never)]
+fn irq_wait(intid: u32) -> Result<i64, Error> {
+    let ep = sched::irq_route(intid).ok_or(Error::WrongObject)?;
+    let m = sched::ipc_recv(ep);
+    Ok(m[0] as i64)
+}
+
+/// `Irq::ACK`: re-enable the interrupt at the controller. The kernel masked it when it fired; now
+/// that the driver has serviced the device, it is safe to let it fire again. This names
+/// `arch::irq`, not a specific controller: the GIC on aarch64, the PLIC on RISC-V.
+/// `#[inline(never)]` for the reason `untyped_map` gives.
+#[inline(never)]
+fn irq_ack(intid: u32) -> Result<i64, Error> {
+    crate::arch::irq::enable(intid);
+    Ok(0)
+}
+
+/// `Virtio`'s four register-level methods (`READ_REG`, `WRITE_REG`, `SETUP_QUEUE`, `NOTIFY`): a
+/// driver's transport-level plumbing, not a step of the IPC round trip. `#[inline(never)]` for
+/// the reason `untyped_map` gives.
+#[inline(never)]
+fn virtio_invoke(id: usize, method: u64, a0: u64, a1: u64) -> Result<i64, Error> {
+    use crate::virtio::TransportError;
+    let map = |e: TransportError| match e {
+        TransportError::DmaEscape => Error::DeviceRefused,
+        _ => Error::WrongObject,
+    };
+    match method {
+        abi::virtio::READ_REG => crate::virtio::read_register(id, a0)
+            .map(|v| v as i64)
+            .ok_or(Error::WrongObject),
+        abi::virtio::WRITE_REG => crate::virtio::write_register(id, a0, a1 as u32)
+            .map(|_| 0)
+            .map_err(map),
+        abi::virtio::SETUP_QUEUE => crate::virtio::setup_queue(id, a0 as u16, a1 as u16)
+            .map(|_| 0)
+            .map_err(map),
+        abi::virtio::NOTIFY => crate::virtio::notify(id, a0 as u16).map(|_| 0).map_err(map),
+        _ => Err(Error::BadMethod),
+    }
+}
+
+/// `Endpoint::REAP`: collect a corpse this endpoint supervises (DECISIONS §32), the control half
+/// `endpoint::SURVEY` is the view half of. Administrative, not the IPC round trip: rare enough
+/// (one call per child death, not per message) that it moves out of `invoke`'s own bytes with the
+/// rest of this arm's non-fastpath methods. `#[inline(never)]` for the reason `untyped_map`
+/// gives.
+#[inline(never)]
+fn endpoint_reap(ep: crate::sched::EpId, tid: u64) -> Result<i64, Error> {
+    sched::reap_supervised(ep, tid)?;
+    Ok(0)
 }
 
 #[cfg(test)]
