@@ -1788,6 +1788,15 @@ pub fn plan_against_with(
     // never also declares a file (a program that wanted both would need positional arity, which is
     // the same widening `ArgSpec` is waiting on).
     //
+    // **That widening is `FileSpec` + `InputSpec`'s problem, not `ArgSpec` + `InputSpec`'s.** An
+    // argument is numeric-shaped and `arg` above already claims a fixed earlier position, so a
+    // manifest declaring both `ArgSpec::Required` and `InputSpec::Required` has nothing left to
+    // disambiguate: `arg` takes position 0, `input`'s fallback takes whatever bare name is left,
+    // exactly as `arg` and `file` already compose for [`STAMPS_A_FILE`] below. No shipped program
+    // has declared the combination, which is `notes/adding-a-program.md`'s open question, but the
+    // absence is unclaimed headroom rather than a refusal here; see
+    // `an_argument_and_an_input_stream_compose_by_the_same_fixed_order` in this module's tests.
+    //
     // **What the child ends up holding is narrower than a file capability**, and that is worth being
     // exact about rather than claiming the headline. The shell opens the name and streams it, so the
     // program is handed an endpoint carrying the bytes of that one file: it cannot seek, re-read,
@@ -2682,6 +2691,23 @@ mod tests {
         cwd: nav::Cwd::root(),
     };
 
+    /// The combination milestone 117's fifth stranger found no program declares: an integer
+    /// argument **and** an input stream. Unlike [`STAMPS_A_FILE`]'s pairing with `FileSpec`, this
+    /// one needs no "positional arity" widening, because `arg` consumes a fixed position (index 0,
+    /// numeric-shaped) before `input`'s bare-name fallback ever looks at what is left; see the
+    /// `positionals_fill_the_manifest_slots_in_the_order_typed` and
+    /// `an_argument_and_an_input_compose_by_the_same_fixed_order` tests below. Kept here rather than
+    /// promoted to a shipped manifest, per notes/adding-a-program.md's own `BUGS` entry: whether the
+    /// combination is *wanted* is calef's call, not this test's.
+    const TAKES_ARG_AND_READS: Manifest = Manifest {
+        arg: ArgSpec::Required,
+        file: FileSpec::Forbidden,
+        input: InputSpec::Required {
+            writes_while_reading: false,
+        },
+        ..READS_A_FILE
+    };
+
     #[test]
     fn a_bare_name_is_the_grant_and_the_manifest_is_the_direction() {
         // The headline: naming a file IS the grant, and the direction comes from the manifest, not
@@ -2739,6 +2765,48 @@ mod tests {
         assert_eq!(
             plan_against(&swapped, Prog::Worker, STAMPS_A_FILE, WITH_DIR),
             Err(Refusal::ArgRequired),
+        );
+    }
+
+    /// **An argument and an input stream compose today, with no widening owed.** Milestone
+    /// 117's fifth stranger left `notes/adding-a-program.md`'s `BUGS` section unsure whether this
+    /// combination "needs `ArgSpec`'s widening" the way `FileSpec` + `InputSpec` genuinely does
+    /// (see the comment above the input operand in [`plan_against_with`]): two bare names cannot
+    /// both self-classify, but an integer argument and a bare-name input feed can, because `arg`
+    /// is numeric-shaped and consumes a fixed earlier position before `input`'s fallback ever
+    /// looks at what remains. This test is the check: the line composes exactly the way
+    /// [`positionals_fill_the_manifest_slots_in_the_order_typed`] shows `arg` and `file` composing,
+    /// and the one thing actually missing is that no shipped program declares the combination, so
+    /// `crates/swish`'s preview sweep never exercises it (see that crate's
+    /// `the_arg_line_follows_the_manifest_for_every_program`, which hard-codes a single-operand
+    /// line and only fails on this shape because it forgets the input operand, not because the
+    /// combination is refused).
+    #[test]
+    fn an_argument_and_an_input_stream_compose_by_the_same_fixed_order() {
+        let Command::Run(r) = parse(b"nth 21 report.txt") else {
+            panic!()
+        };
+        let e = plan_against(&r, Prog::Worker, TAKES_ARG_AND_READS, WITH_DIR).unwrap();
+        assert_eq!(e.arg, 21);
+        assert_eq!(
+            e.source,
+            Source::File(FileGrant {
+                dir: nav::Cwd::root(),
+                name: Name::new(b"report.txt").unwrap(),
+                writable: false,
+            }),
+        );
+
+        // The line the doc's own example used, with only the argument and no input operand: this
+        // is the shape `crates/swish`'s sweep actually types, and it is refused for the ordinary
+        // reason (the program declared an input and none was given), not because arg-plus-input is
+        // a closed door.
+        let Command::Run(missing_input) = parse(b"nth 21") else {
+            panic!()
+        };
+        assert_eq!(
+            plan_against(&missing_input, Prog::Worker, TAKES_ARG_AND_READS, WITH_DIR),
+            Err(Refusal::InputRequired),
         );
     }
 

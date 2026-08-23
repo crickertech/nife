@@ -546,6 +546,41 @@ milestone is a run 6, conducted when `script/stranger-test --due` next exits 1, 
 the current record. Everything else run 5 asked for either has a tracked home now or was never a
 lane's call to make.
 
+## The arg-plus-input clarity lane, 2026-08-22
+
+**Status stays `PARTIAL`, and no run was conducted here, on purpose.** `script/stranger-test --due`
+still reports "not due for another 26 days" against the same record the second handoffs lane left; a
+run this milestone does not yet owe would be exactly the failure `## The cadence lane` names, so this
+lane confirmed the cadence rather than pre-empting it (`script/stranger-test --due` and `--check` both
+still pass) and spent its work on the one item the second handoffs lane left correctly-but-thinly
+recorded: handoff 2 above, "decide whether an argument-plus-input manifest is wanted."
+
+**That handoff was correctly left undecided, and it was also mis-stated as more undecided than it
+is.** The second handoffs lane's item 2 says the fork is "already recorded... with the file and the
+test it turns red," which is true, but the recording it pointed at still read as though
+`ArgSpec` + `InputSpec` might be the same kind of closed door as `FileSpec` + `InputSpec`, because
+`plan_against_with`'s comment ruled the second combination out and said nothing about the first. A
+newcomer meeting both in the same page had no way to tell headroom from a deliberate gap, which is
+this milestone's own recurring failure mode (a fact a reader needs, left only where the person who
+already knows it would think to look).
+
+**Tested rather than argued, per the six-questions convention.** A host test added to
+`crates/grant_plan/src/lib.rs` (`an_argument_and_an_input_stream_compose_by_the_same_fixed_order`)
+plans `nth 21 report.txt` against a manifest declaring both `ArgSpec::Required` and
+`InputSpec::Required` and gets a clean grant back: `arg` claims the fixed first position, numeric-
+shaped, before `input`'s bare-name fallback ever looks at what is left, exactly the way `arg` and
+`file` already compose for `STAMPS_A_FILE`. **The combination is not blocked by the planner today.**
+The only reason it cannot ship is that `crates/swish`'s
+`the_arg_line_follows_the_manifest_for_every_program` types a single-operand preview line and never
+supplies the input operand such a program would also need, which is a gap in that sweep rather than
+in `plan_against_with`. `plan_against_with`'s comment and `notes/adding-a-program.md`'s `BUGS` entry
+both now say this in place, so the distinction is where a reader meets each of the two combinations
+rather than only here.
+
+**What is still genuinely calef's**, unchanged by this lane: whether an argument-plus-input program
+is wanted at all. Nothing here decides that; it only removes the false impression that deciding it
+requires widening `ArgSpec` first.
+
 ## Scope note
 
 **Not a documentation rewrite.** The tree's documentation is unusually good and this milestone must
