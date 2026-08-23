@@ -1,4 +1,4 @@
-# 113. Seven kernel object and identifier names move from contraction or borrowed jargon to the plain, standard term
+# 113. Eleven kernel object and identifier names move from contraction or borrowed jargon to the plain, standard term
 
 **Status: DECIDED.** calef, 2026-08-23, after repeatedly having to ask what `Aspace`, `Endpoint`,
 `Untyped`, and `Tcb` meant in the course of ordinary conversation about this tree: *"I have
@@ -7,7 +7,8 @@ they're clearly not working."*
 
 ## The question
 
-Five kernel object type names, plus two identifiers that name them, were checked one at a time
+Five kernel object type names, plus six identifiers or pointers derived from them, were checked one
+at a time
 against whether a reader needs to
 already know a specific external system (seL4, in every case) to recognize them on sight. The
 check that mattered was not "is this a real term of art somewhere" but the plainer one calef named
@@ -17,7 +18,7 @@ other on several of these, so no single borrowed word is broadly recognized eith
 
 ## The decision
 
-Seven renames, all of the same shape: replace a contraction or a borrowed short word with the plain,
+Eleven renames, all of the same shape: replace a contraction or a borrowed short word with the plain,
 standard English compound the field already uses for the concept, so a reader who knows the concept
 recognizes it immediately and a reader who doesn't gets a running start from the words themselves.
 
@@ -30,15 +31,31 @@ recognizes it immediately and a reader who doesn't gets a running start from the
 | `Tcb` | `ThreadControlBlock` | acronym spelled out |
 | `EpId` | `RendezvousId` | follows `Endpoint`'s rename; names what it identifies |
 | `Tid` | `ThreadId` | acronym spelled out, follows `Tcb`'s rename |
+| `TcbPtr` | `ThreadControlBlockPointer` | follows `Tcb`'s rename; `Ptr` spelled out too |
+| `TidSet` | `ThreadIdSet` | follows `Tid`'s rename |
+| `EpFail` | `RendezvousFailure` | follows `Endpoint`'s rename; `Fail` spelled out too |
+| `FreeVas` | `FreeAddressSpace` | `Vas` ("virtual address space") is `Aspace`'s own concept under a second contraction |
 
 ## Why each one, with the in-tree evidence that decided it
 
-**`EpId` -> `RendezvousId` and `Tid` -> `ThreadId`.** Both are id-typed companions of a renamed
-object rather than independent decisions: `EpId` identifies an `Endpoint`/`Rendezvous`, `Tid`
-identifies the thread a `Tcb`/`ThreadControlBlock` tracks. Leaving the identifier abbreviated
-after spelling out the object it names would just move the same problem one field over, and
-`ThreadId` in particular has no more external constraint than `Tcb` did: nothing outside this
-tree requires the three-letter form.
+**`EpId` -> `RendezvousId`, `Tid` -> `ThreadId`, `TcbPtr` -> `ThreadControlBlockPointer`,
+`TidSet` -> `ThreadIdSet`, `EpFail` -> `RendezvousFailure`.** All five are companions of a
+renamed object rather than independent decisions: they identify, point at, collect, or report on
+an `Endpoint`/`Rendezvous` or a `Tcb`/`ThreadControlBlock`. Leaving a companion abbreviated after
+spelling out the object it names would just move the same problem one field over, and the same
+test applies to the suffix as to the root: `Ptr` and `Fail` have no more external constraint than
+`Tcb` did, so they are spelled out too (`Pointer`, `Failure`), not left as a shorter compromise.
+
+**`FreeVas` -> `FreeAddressSpace`.** `Vas` is "virtual address space," `Aspace`'s own concept
+reached a second time through a second, unrelated contraction (`kernel/src/thread.rs`'s
+`FREE_STACK_VAS` / `struct FreeVas`). Once `Aspace` becomes `AddressSpace`, a reader meeting `Vas`
+two files over would have to learn that it names the same thing under a different abbreviation;
+folding it into the same rename removes a second name for one concept rather than leaving one.
+
+**`Aspace` -> `AddressSpace`.** No rationale for the contraction exists anywhere in the tree
+(checked: commit history, `notes/`, `DECISIONS.md`). It is also not seL4's term: seL4 calls the
+equivalent object `VSpace`, so `Aspace` is neither the full English word nor borrowed vocabulary,
+just an unexplained local abbreviation. Its own sibling variants in `kernel/src/cap.rs`'s `Object`
 
 **`Aspace` -> `AddressSpace`.** No rationale for the contraction exists anywhere in the tree
 (checked: commit history, `notes/`, `DECISIONS.md`). It is also not seL4's term: seL4 calls the
@@ -107,19 +124,38 @@ a wire format or hardware spec verbatim, and renaming them would just be wrong),
 internal convenience this tree chose and could equally have spelled out. `Tcb`, `Aspace`,
 `Untyped`, `Frame` and `Endpoint` were all the second kind.
 
+## The sweep's first pass: `kernel/src`, checked and left alone
+
+A systematic sweep of every top-level `struct`/`enum` name in `kernel/src`, prioritized over
+`crates/` per calef's direction (2026-08-23), turned up two groups that were checked against the
+same external-constraint test and are **not** part of this decision:
+
+- **Real hardware and protocol names, exempt like `pci`/`dtb`/`elf`**: `Gic` (ARM's own name for
+  the Generic Interrupt Controller), `Iommu` (the industry name for the hardware feature, not a
+  local coinage), `Ns16550` and `Pl011` (literal chip and ARM PrimeCell part numbers), `Nvme` (the
+  protocol's actual name), `Smmu` (ARM's own name for its IOMMU), `PciNvmeDevice`,
+  `PciVirtioDevice`, `VirtioMmioDevice`. Renaming any of these would make them wrong, not clearer.
+- **Left as borderline, not decided here**: `IrqSafeMutex`/`IrqSafeGuard` (IRQ) and `RamMap`
+  (RAM). Both acronyms are arguably as universally known as any full English phrase would be,
+  closer to `CPU` than to `Tcb`; flagged rather than renamed pending calef's read.
+
+`crates/` has not yet been swept; that is separate, ongoing work.
+
 ## What this does not decide
 
 The mechanical rename itself: each touches a real, measured surface (`Endpoint` alone is 81
 occurrences across 23 `.rs` files; the others are unmeasured but comparable, being equally
 foundational kernel object types) and is left to whoever executes it, tracked as its own piece of
-work per name. This decision settles the five names, not the rename lane(s) that carry them out.
+work per name. This decision settles the eleven names, not the rename lane(s) that carry them out.
 
-A systematic sweep for other internal abbreviations sharing this shape (checked against the same
-external-constraint test above) is separate, ongoing work; findings land as their own entries once
-checked, not folded into this one.
+The `crates/` half of the systematic sweep, and the `IrqSafeMutex`/`RamMap` borderline call above,
+are separate, ongoing work; findings land as their own entries once checked, not folded into this
+one.
 
 ## What it unblocks
 
-Seven renames the tree can now execute without re-litigating the name each time: `Aspace` ->
+Eleven renames the tree can now execute without re-litigating the name each time: `Aspace` ->
 `AddressSpace`, `Untyped` -> `MemoryRegion`, `Endpoint` -> `Rendezvous`, `Frame` -> `PageFrame`,
-`Tcb` -> `ThreadControlBlock`, `EpId` -> `RendezvousId`, `Tid` -> `ThreadId`.
+`Tcb` -> `ThreadControlBlock`, `EpId` -> `RendezvousId`, `Tid` -> `ThreadId`, `TcbPtr` ->
+`ThreadControlBlockPointer`, `TidSet` -> `ThreadIdSet`, `EpFail` -> `RendezvousFailure`, `FreeVas`
+-> `FreeAddressSpace`.
