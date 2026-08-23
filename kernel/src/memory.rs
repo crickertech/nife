@@ -10,7 +10,7 @@
 //! **bootstrap**.
 
 use dtb::{Dtb, Region};
-use frames::{FRAME_SIZE, Frame, FrameAllocator, Stats};
+use page_frames::{FRAME_SIZE, Frame, FrameAllocator, Stats};
 
 use crate::arch::mmu::{phys_to_virt, virt_to_phys};
 use crate::println;
@@ -124,13 +124,14 @@ pub fn init(dtb_ptr: usize) {
     }
 
     // The console UART's interrupt line, decoded per the tree's own `#interrupt-cells` rather
-    // than assumed (crates/isa/src/interrupt_id.rs). It was a constant, and the constant was the
+    // than assumed (crates/machine_discovery/src/interrupt_id.rs). It was a constant, and the constant was the
     // last QEMU number on the interrupt path: the tour's driver demo armed PLIC source 10 on the
     // JH7110, whose UART0 interrupts on line 32, and boot 13 (2026-08-15) proved it on silicon
     // when a key press at the finished tour's prompt reached nothing (notes/visionfive2.md,
     // BUGS). A tree that does not say leaves this None, and the callers fall back to the QEMU
     // `virt` constant and print which source won.
-    if let Ok(Some(irq)) = isa::interrupt_id::of_node(&dtb, crate::console::UART_NODE) {
+    if let Ok(Some(irq)) = machine_discovery::interrupt_id::of_node(&dtb, crate::console::UART_NODE)
+    {
         *UART_IRQ.lock() = Some(irq);
     }
 
@@ -421,7 +422,7 @@ pub fn rtc_region() -> Option<(u64, u64, u64)> {
 /// The console UART's interrupt line, as the device tree states it: PLIC source 10 on QEMU's
 /// riscv64 `virt`, 32 on the JH7110, GIC INTID 33 on QEMU's aarch64 `virt`. `None` before `init`
 /// and on a tree that does not say (no `interrupts`, no resolvable parent, or an entry shape the
-/// decoder refuses; see `isa::interrupt_id`). The callers own the fallback (`user::UART_RX_INTID`,
+/// decoder refuses; see `machine_discovery::interrupt_id`). The callers own the fallback (`user::UART_RX_INTID`,
 /// the QEMU constant) and print which source won, so a bench transcript is diagnosable.
 pub fn uart_irq() -> Option<u32> {
     *UART_IRQ.lock()
@@ -584,7 +585,7 @@ mod tests {
     /// endianness reads back as a handful of bytes, not gigabytes).
     #[test_case]
     fn memory_map_came_from_the_device_tree() {
-        use frames::FRAME_SIZE;
+        use page_frames::FRAME_SIZE;
 
         let s = crate::memory::stats().expect("allocator not initialized");
 
@@ -619,7 +620,7 @@ mod tests {
     /// allocator: it covers *every* frame of the image, and it allocates nothing.
     #[test_case]
     fn every_frame_of_the_kernel_image_is_reserved() {
-        use frames::{FRAME_SIZE, Frame};
+        use page_frames::{FRAME_SIZE, Frame};
 
         let (start, end) = crate::memory::image_bounds();
         let mut addr = start - start % FRAME_SIZE; // round DOWN to the containing frame
@@ -675,7 +676,7 @@ mod tests {
     /// the cheapest way to find out we've been handing out an MMIO hole.
     #[test_case]
     fn an_allocated_frame_is_real_memory() {
-        use frames::FRAME_SIZE;
+        use page_frames::FRAME_SIZE;
 
         let frame = crate::memory::alloc().expect("out of memory");
         // The allocator speaks physical; we must name it virtually to touch it.
@@ -741,7 +742,7 @@ mod tests {
     /// to the runner, this catches it rather than milestone 10 catching it.
     #[test_case]
     fn initrd_is_reserved_if_present() {
-        use frames::{FRAME_SIZE, Frame};
+        use page_frames::{FRAME_SIZE, Frame};
 
         let Some((start, size)) = crate::memory::initrd_region() else {
             return;
@@ -770,7 +771,9 @@ mod tests {
 
         crate::memory::free(a);
         for i in 0..8u64 {
-            crate::memory::free(frames::Frame::from_addr(b.addr() + i * frames::FRAME_SIZE));
+            crate::memory::free(page_frames::Frame::from_addr(
+                b.addr() + i * page_frames::FRAME_SIZE,
+            ));
         }
 
         assert_eq!(

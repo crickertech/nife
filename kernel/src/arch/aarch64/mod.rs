@@ -125,7 +125,7 @@ pub const PSCI_NOT_DISCOVERED: i64 = i64::MIN;
 ///
 /// # BUGS
 ///
-/// - **The `smc` path has never executed.** `crates/isa`'s host tests decode a real QEMU dump that
+/// - **The `smc` path has never executed.** `crates/machine_discovery`'s host tests decode a real QEMU dump that
 ///   states `smc` (`virt,virtualization=on`), so the *reading* is exercised on a genuine tree; that
 ///   configuration enters the kernel at EL2 and this kernel expects EL1, so nothing here boots it.
 ///   The `hvc` path is exercised on every test run. Choosing the wrong one of the two is an
@@ -137,8 +137,12 @@ pub fn psci_cpu_on(target_mpidr: u64, entry: u64, context: u64) -> i64 {
     };
     let func = func as u64;
     match conduit {
-        ::isa::aarch64::Conduit::Hvc => psci_call!("hvc #0", func, target_mpidr, entry, context),
-        ::isa::aarch64::Conduit::Smc => psci_call!("smc #0", func, target_mpidr, entry, context),
+        ::machine_discovery::aarch64::Conduit::Hvc => {
+            psci_call!("hvc #0", func, target_mpidr, entry, context)
+        }
+        ::machine_discovery::aarch64::Conduit::Smc => {
+            psci_call!("smc #0", func, target_mpidr, entry, context)
+        }
     }
 }
 

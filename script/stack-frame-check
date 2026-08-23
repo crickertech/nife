@@ -128,7 +128,7 @@ TEST_MARKERS = ("_tests::", "::tests::", "kernel::testing::")
 EXCEPT = {
     "kernel::sched::init":
         "boot only: brings the scheduler up before any thread stack exists",
-    "<slots::Table<u64, 512>>::new":
+    "<generational_table::Table<u64, 512>>::new":
         "boot only: constructs the endpoint table, called from sched::init",
     "kernel::user::disk_service::devices":
         "boot stack: called by roster_page below, before its sched::spawn",

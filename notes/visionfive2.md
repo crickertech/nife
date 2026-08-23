@@ -135,7 +135,7 @@ still a bench question**, because QEMU emulates none of this silicon:
    `console::configure_from_dtb(dtb)` immediately after `console::init`, so no output is ever
    produced with a stale stride. The node is matched by its name, `serial@10000000`, pinned beside
    the equally hardcoded base address; the jh7110 fixture test
-   (crates/isa/tests/riscv64_jh7110.rs) is the witness for both.
+   (crates/machine_discovery/tests/riscv64_jh7110.rs) is the witness for both.
 
 With that built, the honest first-boot expectation moves up one rung: **the banner should
 appear**, provided the DTB U-Boot hands us is readable (see DRAM above) and the silicon matches
@@ -156,7 +156,7 @@ missing, and was built 2026-08-14: the **ISA record** (`isa::riscv64`) counted d
 the S7's `rv64imac` narrowed the machine's common extensions, and an S7 whose tree spells its MMU
 as `riscv,none` would have read as a machine that cannot run us at all. A disabled hart now
 contributes nothing to the record, host-proven against the hand-written jh7110 fixture
-(crates/isa/tests/riscv64_jh7110.rs). The roster limitation this paragraph used to end on
+(crates/machine_discovery/tests/riscv64_jh7110.rs). The roster limitation this paragraph used to end on
 (`cpu::MAX_CPUS` was 4 against this SoC's five described harts) closed on 2026-08-14: the constant
 is 8 and the roster seats cores by hart id, so hart 4 has a seat; the BUGS below carry the details
 and what boot 10 must still prove.
@@ -192,7 +192,7 @@ single-letter run proves the writer was spelling privilege modes; otherwise it i
 silence is not evidence of absence. Multi-letter `_s`-prefixed extensions (`_sstc`, `_svadu`,
 QEMU's own string is full of them) never count: only the run before the first `_` is scanned.
 Host-proven on both generations of spelling and both JH7110 trees
-(crates/isa/tests/riscv64_isa_strings.rs, riscv64_jh7110.rs, riscv64_jh7110_vendor.rs): the
+(crates/machine_discovery/tests/riscv64_isa_strings.rs, riscv64_jh7110.rs, riscv64_jh7110_vendor.rs): the
 mainline fixture's S7 is excluded by `status`, the vendor fixture's by its ISA string, and the
 same conclusion arrives through the two trees' different lies.
 
@@ -442,7 +442,7 @@ The PLIC node itself is found by its `sifive,plic-1.0.0` compatible rather than 
 the JH7110 spells the node `interrupt-controller@c000000` where QEMU says `plic@c000000`, and the
 old `plic@` name-prefix read found nothing there. QEMU-proven in both directions: the kernel suite
 asserts the live `virt` tree reproduces `2h + 1`, and the host fixtures hold the JH7110's `2h`
-answer with no S context for hart 0 (crates/isa/tests/riscv64_plic_contexts.rs). What QEMU cannot
+answer with no S context for hart 0 (crates/machine_discovery/tests/riscv64_plic_contexts.rs). What QEMU cannot
 prove, the real PLIC honoring context `2h`, is a bench fact like everything else here.
 
 **The CLINT is at QEMU's address.** `starfive,jh7110-clint` at 0x200_0000 [dtsi]; timer and IPI go
@@ -705,7 +705,7 @@ been closed; its entry carries the record):
   (`isa::interrupt_id`; one cell is a PLIC source verbatim, three are the GIC's
   `<type number flags>` with the bank base added). Host tests hold the whole claim: the same
   read answers 10 on QEMU's tree and **32 on both JH7110 fixtures**
-  (`crates/isa/tests/interrupt_ids.rs`), and 33 on aarch64 `virt`, where `UART_RX_INTID = 33`
+  (`crates/machine_discovery/tests/interrupt_ids.rs`), and 33 on aarch64 `virt`, where `UART_RX_INTID = 33`
   was the same bug one board away and was fixed in the same motion (`user::spawn_init` now asks
   the tree first). The constants survive as the documented fallback for a tree that does not
   say, and every boot path prints a `uart irq` line naming which source won, so the next bench
@@ -751,9 +751,9 @@ each fixing the failure the previous one found:
    The kernel's own `compatible = "sifive,plic-1.0.0"` match found nothing: the VisionFive 2's
    U-Boot-supplied tree (captured at the bench via `fdt addr`/`save mmc`, read with `dtc`) names
    its PLIC `compatible = "riscv,plic0"` only, the older generic RISC-V PLIC binding, not the
-   SiFive-specific string either JH7110 fixture in `crates/isa/tests/fixtures/` had assumed.
+   SiFive-specific string either JH7110 fixture in `crates/machine_discovery/tests/fixtures/` had assumed.
    Fixed by trying both strings; a new host fixture
-   (`crates/isa/tests/fixtures/visionfive2-uboot-control.dtb`, trimmed from the real 42 KB
+   (`crates/machine_discovery/tests/fixtures/visionfive2-uboot-control.dtb`, trimmed from the real 42 KB
    capture) holds the real board's tree so this cannot regress silently. The S-context formula
    itself (hart h's context is 2h on this board) was already correct; only the node-finding step
    was wrong.
