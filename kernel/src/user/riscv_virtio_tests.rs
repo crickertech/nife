@@ -624,7 +624,7 @@ fn a_host_process_connects_to_the_guest_and_is_answered() {
     let cred = had_fs
         .then(super::credential_tests::provisioned)
         .flatten()
-        .map(|(w, _, _)| (w.verify, super::credential_service::verify_frame()));
+        .map(|(w, _, _)| (w.verify, w.verify_frame));
     let Some((report, smb_report, mdns_report, net)) = virtio_service::start_net_stack_with_smb(
         net_stack_image(),
         smb_server_image(),

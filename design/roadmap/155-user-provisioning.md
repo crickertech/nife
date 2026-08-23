@@ -1,14 +1,13 @@
 # 155. A provisioning tool: create an identity and its home subtree together
 
-**Status: NOT-STARTED.** Minted 2026-08-23, surfaced by DECISIONS §117 rather than invented ahead
-of a need: deciding that a principal's subtree is created at provisioning time, not auto-vivified
-at first login, means a provisioning tool has to exist to do that creating. Checked before minting
-this: nothing outside test harness code (`user/src/credentialer_test_client.rs`,
-`kernel/src/user/credential_tests.rs`) calls the credential service's `PROVISION` endpoint today,
-so this is a real gap and not a restatement of existing work.
-
-**Gate: NONE.** Nothing here needs a decision beyond §117's, which is already made. What is missing
-is the program itself.
+**Status: BUILT.** `milestone/155-identity-provisioner`, 2026-08-23 (an agent lane; see that pull
+request's `**Lane:**` line for the record CLAUDE.md asks for). `user/src/identity_provisioner.rs`
+(provisional name, calef's to ratify) `PUT`s an identity and secret into the credential store and
+`MKDIR`s its home subtree, as one tool invocation, tested end to end against a real credential
+service and a real filesystem (`kernel/src/user/identity_provisioning_tests.rs`,
+`kernel/src/user/identity_provisioner_service.rs`). All three questions this block itself raised
+were answered by precedent, without a design fork (it needed none: minted with **Gate: NONE**, and
+that held); see "What it needs" below for each.
 
 ## What this is, in brief
 
@@ -18,19 +17,38 @@ the credential store over `cred_proto`'s `PROVISION` endpoint, and creates that 
 subtree (named by the identity string itself, DECISIONS §117) under whatever directory capability
 holds the principal tree.
 
-## What it needs, named rather than designed here
+## What it needs, and how each question was answered
 
-- **A capability contract.** The tool needs `WRITE`/`GRANT` on the credential store's provision
-  endpoint and a directory capability wide enough to create a new subtree under. Both are
-  administrative authority in a system that otherwise minimizes it, so who may run this tool (and
-  how that is itself provisioned, since the tool needs the same capability discipline as everything
-  else here) is this milestone's own first design question, not assumed by minting the number.
-- **What happens if the identity already exists.** `cred_proto`'s own semantics for a duplicate
-  `PUT` govern this; check them before assuming re-provisioning is either idempotent or refused.
-- **Whether subtree creation and credential `PUT` are one transaction or two steps that can fail
-  independently.** If they are two steps, a failure between them leaves an identity with no home or
-  a subtree with no identity, and this milestone has to say which failure mode is acceptable and
-  why, or how it's prevented.
+- **A capability contract, and who may run this tool.** Answered by the tree's own standing model
+  rather than invented: authority here is a capability held, never a checked identity, so "who may
+  run this tool" is answered completely by "whoever is handed its two capabilities at spawn," the
+  same shape `credentialer_test_client.rs`'s provisioner role and `login.rs`'s own BUGS already
+  carry for "not wired into the interactive boot" (see this milestone's own BUGS, below, for the
+  same bound). The tool holds `WRITE` (not `GRANT`; it delegates neither capability onward) on the
+  credential service's provision endpoint and on the directory capability holding the principal
+  tree, unnarrowed in this slice's own wiring for the same reason `login.rs` names for its own fixed
+  subtree grant. A real deployment's answer to how an operator comes to hold those two capabilities
+  is the same open boot-wiring question `login.rs` already leaves open, not decided here.
+- **What happens if the identity already exists.** Checked, not assumed: `cred::Store::put`'s own
+  rule is "a duplicate identity is refused" (`Error::Identity`, which the credential service maps to
+  `cred_proto::MALFORMED`, the same code a malformed request gets, because neither is an
+  authentication outcome). This tool does not special-case it; it reports the raw code back
+  (`RPT_CRED_FAILED`, word 1 carrying `cred_proto::MALFORMED`) so a caller can tell a duplicate from
+  every other refusal without a second vocabulary for the same fact. Proved by
+  `a_duplicate_identity_is_refused_without_disturbing_the_original`.
+- **One transaction or two.** Two, honestly: this system has no cross-server commit protocol between
+  the credential service and the file service, and building one would be a real architectural
+  undertaking, not a detail of this tool. **The subtree is created first.** A failed `MKDIR` is a
+  clean no-op (nothing written to the credential store yet). A failed credential `PUT` *after* a
+  successful `MKDIR` leaves an orphaned, empty, inert subtree, which is the accepted failure mode:
+  nobody can authenticate as an identity with no stored credential, so the orphan is harmless and
+  recoverable by re-running the tool. The other order risks the opposite (a live credential for an
+  identity with no home), which is dangerous rather than merely untidy once a caller wires
+  per-identity subtree lookup (DECISIONS §117's own follow-on): a login could authenticate and then
+  have nowhere defined to go. A pre-existing subtree (`EEXIST`) is treated as recovery rather than
+  refusal: the tool proceeds to the credential half instead of failing a retry that finds its own
+  prior work. The full argument is in `identity_provisioner.rs`'s own module docs, where a reader
+  meets the code it governs.
 
 ## What it does not decide
 
@@ -43,3 +61,45 @@ half, if it gets one, should be sequenced against that rather than invented inde
 Unix `useradd`/`adduser` (the shape, not the mechanism: no uid, no `/etc/passwd` line, a
 capability-shaped grant instead). See DECISIONS §117 for why the subtree name itself needs no
 separate lookup.
+
+## BUGS
+
+**Not wired into the interactive boot.** This process is spawned directly by the kernel's guest
+test harness (`kernel/src/user/identity_provisioner_service.rs`), the same way `credentialer` and
+`login` are, and is not reachable from `crates/system_initializer::boot`'s real prompt. An
+operator's real path to holding this tool's two capabilities is real work this slice does not
+attempt, matching `login.rs`'s own identical bound.
+
+**No `SEAL`.** Deliberately: sealing ends provisioning for the whole store, forever, and is an
+operator's decision made once after every identity for a boot is in, not a side effect of one
+identity's own provisioning. This tool's caller seals when it is done, exactly as
+`credentialer_test_client.rs`'s provisioner role already does in its own tests.
+
+**The directory capability this slice wires the tool against is the file service's whole root,
+unnarrowed.** The same bound `login.rs` names for its own fixed subtree grant. A real deployment
+scopes this to a dedicated "principal tree" parent directory once one exists, rather than the
+filesystem's whole root; that directory does not exist yet and is follow-on, not invented here.
+
+**The two-step ordering is proved by example, not exhaustively.** The subtree-first argument in
+`identity_provisioner.rs`'s own module docs is exercised by two guest tests (a fresh identity, and a
+genuine duplicate against a subtree the first attempt already created), not by a proof over every
+interleaving a real deployment's retries could hit. The two servers this tool talks to are each
+proved independently and at length elsewhere (`cred_proto`'s Kani harnesses, `fs_proto`'s); the
+orchestration between them is this milestone's own and is tested rather than proved.
+
+**This milestone found and fixed a latent single-instance assumption in `credential_service.rs`
+that predates it**, because it is the first caller to need a second, independently wired instance
+in the same boot. The module used to remember each shared frame in one bare global (`FRAMES`,
+keyed only on a virtual address) and hand it back through `verify_frame()`/`provision_frame()`;
+every earlier caller happened to be correct only because `credential_tests::provisioned()`'s
+instance was the *only* one ever wired for the life of the test binary, so "the global's current
+value" and "this instance's value" were always the same fact. A second `start()` call broke that
+silently: the global would hold whichever instance ran most recently, and a caller still asking the
+global for the *other* instance's frame (`login_service::start`, `credential_service::client`/
+`provisioner`, `credential_service::peek`, and the two SMB-adapter guest tests that call it) would
+read the wrong page. Fixed by removing the global and its two accessors entirely: `Wiring` now
+carries `verify_frame`/`provision_frame` itself, and every one of those call sites was updated to
+read the specific `Wiring` it already holds rather than ask a shared global. All of it was exercised
+by the existing `credential_tests`/`login_tests`/`riscv_virtio_tests`/`tests`/`std_tests` suites
+before this milestone's own tests were added, so this is a fix with the tree's own pre-existing
+coverage behind it, not an untested change riding along.

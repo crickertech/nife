@@ -489,6 +489,16 @@ path = "src/login_test_client.rs"
 test = false
 bench = false
 
+# The provisioning tool (milestone 155, provisional name; DECISIONS §117): a `useradd`-equivalent
+# that PUTs an identity and secret into the credential store and creates that identity's home
+# subtree as one act, so a principal never exists with one and not the other for longer than this
+# tool's own two calls. `mkinitrd` packs it as "identity_provisioner" for both ISAs.
+[[bin]]
+name = "identity_provisioner"
+path = "src/identity_provisioner.rs"
+test = false
+bench = false
+
 # The NTP client (milestone 51): holds a network capability and the right to PROPOSE a time, and
 # deliberately not the right to set one. One binary, three roles (the client, the test server that
 # answers it, and the probe that proves the clock page is unreachable). `mkinitrd` packs it as "ntp"

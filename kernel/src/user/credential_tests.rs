@@ -37,7 +37,7 @@ pub(super) fn provisioned() -> Option<(cs::Wiring, [u64; 3], [u64; 3])> {
     static OK: AtomicBool = AtomicBool::new(false);
     #[allow(clippy::declare_interior_mutable_const)]
     const ZERO: AtomicU64 = AtomicU64::new(0);
-    static SAVED: [AtomicU64; 9] = [ZERO; 9];
+    static SAVED: [AtomicU64; 11] = [ZERO; 11];
 
     if !DONE.load(Ordering::Acquire) {
         let rng = program("entropy").expect("no entropy program in the initrd archive");
@@ -68,6 +68,8 @@ pub(super) fn provisioned() -> Option<(cs::Wiring, [u64; 3], [u64; 3])> {
             ready[0],
             ready[1],
             ready[2],
+            w.verify_frame,
+            w.provision_frame,
         ]) {
             slot.store(v, Ordering::Relaxed);
         }
@@ -83,6 +85,8 @@ pub(super) fn provisioned() -> Option<(cs::Wiring, [u64; 3], [u64; 3])> {
             ready: v(0),
             verify: v(1),
             provision: v(2),
+            verify_frame: v(9),
+            provision_frame: v(10),
         },
         [v(3), v(4), v(5)],
         [v(6), v(7), v(8)],
@@ -367,7 +371,7 @@ fn no_ntlm_key_material_survives_in_the_shared_frame() {
     let _ = cs::client(cli, &w, cs::ROLE_NTLM);
 
     let mut page = [0u8; 4096];
-    cs::peek(cs::verify_page_va(), &mut page);
+    cs::peek(w.verify_frame, &mut page);
     for (what, bytes) in [
         // NTOWFv2, [MS-NLMP] §4.2.4.1.1. The one value that must never leave the service.
         (
@@ -446,7 +450,7 @@ fn the_shared_frame_holds_nothing_after_an_answer() {
     let _ = cs::client(cli, &w, cs::ROLE_HONEST);
 
     let mut page = [0u8; 4096];
-    cs::peek(cs::verify_page_va(), &mut page);
+    cs::peek(w.verify_frame, &mut page);
     let secret = b"correct horse battery staple";
     assert!(
         !page.windows(secret.len()).any(|s| s == secret),
