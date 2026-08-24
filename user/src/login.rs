@@ -145,7 +145,8 @@
 //! - mapped [`LOGIN_VA`]: the page shared with whichever client is calling right now.
 //! - mapped [`CRED_VA`]: the page shared with the credential service, for the relayed `VERIFY`.
 //! - mapped [`INITRD_VA`]: the archive, read-only, so this process can find `fs_subtree_caretaker`'s
-//!   own bytes the way `crates/system_initializer` does.
+//!   own bytes and [`measured_boot::PROGRAM_MEASUREMENTS`], the exact way `crates/system_initializer`
+//!   does, and verify the first against the second before ever building a caretaker from it.
 //!
 //! Name: unrecorded. Provisional, minted 2026-08-22 for milestone 49 and not yet put to calef.
 //! `login` is the plain noun for what this program answers a request to do, on the pattern
@@ -239,13 +240,57 @@
 //! remainder of this milestone, and its first lane is now this decision rather than a
 //! `build_child` exercise.
 //!
-//! **This process does not consult `measured_boot::PROGRAM_MEASUREMENTS` before building a
-//! caretaker.** `crates/system_initializer` refuses to load a program whose bytes do not match the
-//! archive's measurement table (milestone 104); this process loads `fs_subtree_caretaker` by name
-//! with no such check, because it is not wired into the trust chain the kernel's boot vouches for.
-//! Inconsistent with milestone 104's discipline, and named here rather than fixed, because fixing it
-//! well means deciding how a non-init loader joins that chain at all, which is a design question and
-//! not a one-line patch.
+//! **Resolved, 2026-08-24.** This process used to load `fs_subtree_caretaker` by name with no check
+//! at all, inconsistent with `crates/system_initializer`'s own discipline (milestone 104: refuse a
+//! program whose bytes do not match the archive's measurement table). Investigating "how a non-init
+//! loader joins that chain" (the open question this BUGS entry used to leave unanswered) found the
+//! premise did not hold: this process maps the *same physical archive* the kernel already maps for
+//! `system_initializer`, the same read-only way, at the same address (`kernel::user::spawn_init` for
+//! aarch64's init, `kernel::user::login_service`'s own `start` for this process, both taking the
+//! physical range from `memory::initrd_region()`), so the kernel's boot already vouches for this
+//! process's copy exactly as much as it vouches for init's. There is no new trust boundary to cross:
+//! `_start` now reads
+//! [`measured_boot::PROGRAM_MEASUREMENTS`] out of that same archive and calls
+//! [`measured_boot::verify_in_manifest`] against `fs_subtree_caretaker`'s bytes, the identical
+//! function `system_initializer::measured` calls for its own six components.
+//!
+//! **Not folded into a boot failure.** `system_initializer` treats this exact program as optional
+//! (its own doc: an unvouched `fs_subtree_caretaker` "costs `rm` and nothing else"), and this process
+//! mirrors that instead of refusing to start: the check runs once, at `_start`, before any client
+//! exists, and on refusal `care_elf` becomes `None` rather than a call to [`fail`]. [`mint`] then
+//! returns `None` immediately for every future login (`care?`, its very first line), which its
+//! caller already folds into [`login_proto::DENIED`], the same code "the construction budget is
+//! spent" and "the caretaker's descent was refused" already share.
+//!
+//! **This fold is not the anti-oracle reasoning the other two folded cases get, and should not be
+//! read as one.** A wrong password and a missing subtree both vary with what a caller presents, so
+//! folding them prevents a caller from learning something about a specific identity by comparing
+//! outcomes across attempts. A failed caretaker measurement varies with *nothing* a caller controls:
+//! the archive is immutable RAM fixed for the whole boot, so every identity, on every attempt, for
+//! the rest of this process's life, gets the identical answer. There is nothing to probe. The honest
+//! reason for the fold is narrower and more mundane: [`login_proto`] has no separate wire code for
+//! "this service's core dependency failed to verify," and DENIED's own doc already covers "the
+//! service could not mint a capability set for an otherwise-authenticated principal," which this is
+//! one more instance of. The cost this leaves unaddressed is operational rather than a security gap:
+//! an operator whose build produced a tampered or unmeasured `fs_subtree_caretaker` sees every real
+//! login denied with no signal that the *cause* is the caretaker rather than, say, a misconfigured
+//! credential store, and the audit endpoint does not help (it only records a *successful* login, the
+//! same limitation already named below for the no-subtree case). A deployment that wants that
+//! distinguished needs an operator-facing log distinct from the login result, which this slice does
+//! not build.
+//!
+//! Proven by
+//! `kernel::user::login_tests::logins_caretaker_measurement_matches_the_real_table_and_a_tampered_one_would_be_refused`:
+//! the real archive's `fs_subtree_caretaker` bytes verify against the real measurement table (so
+//! `wired()`'s own instance, and every other test in that file, depends on this check passing), and
+//! the identical [`measured_boot::verify_in_manifest`] call `_start` now makes refuses a tampered
+//! copy and a name the table does not mention. That test cannot spawn a second login instance against
+//! a deliberately corrupted archive to prove the wire-level `DENIED` end to end: the initrd is one
+//! physical region the whole kernel test binary shares, set up once at boot, and `cargo xtask` always
+//! packs a table that agrees with the bytes it just packed, so no test in this suite can make the real
+//! archive disagree with itself. Proving the exact check `_start` performs, against the exact name and
+//! table it uses, is the strongest proof available without a second, deliberately-tampered kernel
+//! image, which is out of scope for this fix.
 //!
 //! **Resolved, 2026-08-23.** A caretaker's construction memory used to never come back: every
 //! successful login spent [`CARETAKER_REGION_PAGES`] and [`CLIENT_BUDGET_PAGES`] out of
@@ -380,6 +425,32 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
         fail(3)
     };
 
+    // **The table `crates/system_initializer` already consults before loading anything it did not
+    // build itself** (milestone 104), read the identical way: bytes that are not UTF-8 become the
+    // empty table rather than a fault (`measured_boot`'s own reasoning for why that is the safe
+    // direction to fail), and an empty table vouches for nothing. Checked once, here, rather than
+    // per login: the archive is immutable RAM this process shares with the whole boot, so every
+    // future request would see exactly the same verdict, and there is nothing to gain by re-hashing
+    // the same bytes on every request.
+    //
+    // **Not a boot failure**, unlike the two checks above. `crates/system_initializer` treats this
+    // exact program as optional (its own doc: "without one, a directory grant cannot be delivered,
+    // ... which costs `rm` and nothing else"), and this process mirrors that rather than refusing to
+    // come up at all: an unvouched caretaker costs this service the one thing it exists to hand out,
+    // so every login is answered `DENIED` below (via `mint`) instead. See this program's BUGS for why
+    // that fold is not the same anti-oracle reasoning a wrong password gets, and is the considered
+    // answer anyway.
+    let table = fs
+        .read(measured_boot::PROGRAM_MEASUREMENTS)
+        .and_then(|b| core::str::from_utf8(b).ok())
+        .unwrap_or("");
+    let care_elf =
+        if measured_boot::verify_in_manifest(table, "fs_subtree_caretaker", care_bytes).is_ok() {
+            Some(care_elf)
+        } else {
+            None
+        };
+
     let Ok(own_ut) = untyped_split(CONSTRUCTION_UT, OWN_UT_PAGES) else {
         fail(4)
     };
@@ -435,7 +506,7 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
             continue;
         }
 
-        match mint(own_ut, &care_elf, &identity_buf[..identity_len]) {
+        match mint(own_ut, care_elf.as_ref(), &identity_buf[..identity_len]) {
             Some((dir_ep, budget, region)) => {
                 send(RESULT, login_proto::OK, 0, 0);
                 delegate(dir_ep, abi::rights::WRITE);
@@ -476,7 +547,14 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
 ///
 /// `identity` must already name a subtree `identity_provisioner` created; this process never
 /// creates one (DECISIONS §117: provision-time creation, not auto-vivified at login).
-fn mint(own_ut: u64, care: &elf::Elf, identity: &[u8]) -> Option<(u64, u64, u64)> {
+///
+/// `care` is `None` when `_start`'s own measurement check refused `fs_subtree_caretaker`'s bytes
+/// (this program's BUGS, "does not consult `measured_boot::PROGRAM_MEASUREMENTS`", resolved): this
+/// function has nothing to build from and returns `None` immediately, the same as every other
+/// reason it cannot serve a login.
+fn mint(own_ut: u64, care: Option<&elf::Elf>, identity: &[u8]) -> Option<(u64, u64, u64)> {
+    let care = care?;
+
     // **The grant name travels in two `START` argument words, not a frame** (`filesystem_proto::grant`'s own
     // doc), so it is capped at `grant::MAX_NAME` (16 bytes): smaller than `login_proto::MAX_IDENTITY`
     // (64), the bound `identity` already satisfies by construction (`login_proto::read` checked it).

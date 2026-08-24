@@ -615,6 +615,9 @@ pmap = { version = "0.1.0", path = "../crates/pmap" }
 ps = { version = "0.1.0", path = "../crates/ps" }
 elf = { version = "0.1.0", path = "../crates/elf" }
 entropy_proto = { version = "0.1.0", path = "../crates/entropy_proto" }
+# login's own measured-boot consultation before it will build a caretaker from an archive entry
+# (milestone 49's BUGS, resolved): the same crate `crates/system_initializer` already depends on.
+measured_boot = { version = "0.1.0", path = "../crates/measured_boot" }
 filesystem_proto = { version = "0.1.0", path = "../crates/filesystem_proto" }
 graphics_proto = { version = "0.1.0", path = "../crates/graphics_proto" }
 line_editor = { version = "0.1.0", path = "../crates/line_editor" }
