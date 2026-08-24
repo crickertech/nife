@@ -183,11 +183,11 @@ pub fn find_rsdp(hint: u64) -> Option<(u64, Rsdp)> {
     }
 
     // SAFETY: the BIOS Data Area is at a fixed low physical address on every PC and is memory.
-    let ebda_segment = u16::from_le_bytes([
-        unsafe { phys_slice(EBDA_SEGMENT_PTR, 2) }[0],
-        unsafe { phys_slice(EBDA_SEGMENT_PTR, 2) }[1],
-    ]);
-    let ebda = (ebda_segment as u64) << 4;
+    let bda = unsafe { phys_slice(EBDA_SEGMENT_PTR, 2) };
+    // A SEGMENT, not an address: the BDA holds it in real-mode form, so it is shifted left four to
+    // become the physical address. Reading it as an address directly would land in the first 64 KiB
+    // and find nothing, quietly.
+    let ebda = (u16::from_le_bytes([bda[0], bda[1]]) as u64) << 4;
     if ebda >= 0x400
         && let Some(found) = scan_for_rsdp(ebda..ebda + 0x400)
     {
