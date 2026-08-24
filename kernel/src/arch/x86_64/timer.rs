@@ -1,4 +1,4 @@
-//! **The timer, x86_64.** Not built; this module states the shape it will take and refuses to
+//! **The timer, `x86_64`.** Not built; this module states the shape it will take and refuses to
 //! guess.
 //!
 //! # Why there is nothing here yet, and it is not laziness

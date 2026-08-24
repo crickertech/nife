@@ -1,4 +1,4 @@
-//! **The interrupt controller, x86_64.** The local APIC and the IO APIC. Not built.
+//! **The interrupt controller, `x86_64`.** The local APIC and the IO APIC. Not built.
 //!
 //! # What it replaces, and the one structural difference
 //!

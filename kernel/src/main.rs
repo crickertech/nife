@@ -19,22 +19,6 @@
 // Not the crates/ library surface milestone 68's ratchet tracks (DECISIONS §107): the kernel binary
 // is one crate root behind an ABI boundary, not a documented API.
 #![allow(missing_docs)]
-// **The x86_64 scaffold's dead code, and this is a deliberate exception that is a foot gun.**
-//
-// The x86 boot (in `kernel_main` below) is a self-contained tour that ends in `arch::halt()` before
-// userspace, before the scheduler, and before any device, because the arch layer beneath those is
-// not built (milestone 161). So roughly 90 functions and 45 constants are unreferenced from an
-// x86_64 build while being perfectly live on the other two, and each would be a `-D warnings`
-// failure.
-//
-// This is rung two of CLAUDE.md's ladder giving way to rung four, knowingly. The right answer is
-// what milestone 41 did for RISC-V: remove the blanket allow and gate each item, so that genuinely
-// dead code is still caught. **The trigger for doing that here is the x86 boot joining the shared
-// path** (or, sooner, whichever of the scheduler/userspace steps makes the bulk of this reachable),
-// and until then a per-item sweep would be ~85 attributes describing a fact that is about to stop
-// being true. The cost while it stands is real and worth naming: **an actually-dead function
-// introduced on x86_64 will not be reported.**
-#![cfg_attr(target_arch = "x86_64", allow(dead_code))]
 #![feature(custom_test_frameworks)]
 #![test_runner(crate::testing::runner)]
 #![reexport_test_harness_main = "test_main"]

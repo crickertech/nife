@@ -593,7 +593,7 @@ pub const INIT_TEST_SGI: u32 = 3;
 #[cfg_attr(not(test), allow(dead_code))]
 #[cfg(target_arch = "riscv64")]
 pub const INIT_TEST_SGI: u32 = 10;
-/// x86_64 (milestone 161): the same UART line, for RISC-V's reason and one more. x86 *does* have a
+/// `x86_64` (milestone 161): the same UART line, for RISC-V's reason and one more. x86 *does* have a
 /// self-directed interrupt (a local APIC IPI to self), so unlike RISC-V it is not forced into this
 /// choice; it is here because the APIC is not built, so the only interrupt this port can name is
 /// the console UART's, and naming the same line as [`UART_RX_INTID`] keeps the two consistent the
@@ -615,7 +615,7 @@ pub const INIT_TEST_SGI: u32 = 4;
 pub const UART_RX_INTID: u32 = 33;
 #[cfg(target_arch = "riscv64")]
 pub const UART_RX_INTID: u32 = 10;
-/// x86_64: COM1 is ISA IRQ 4, which has been true since the PC/AT and is what QEMU's `q35`
+/// `x86_64`: COM1 is ISA IRQ 4, which has been true since the PC/AT and is what QEMU's `q35`
 /// presents. **What that number means depends on the interrupt controller**, and on x86 that is
 /// two questions rather than one: which IO APIC input the legacy IRQ was remapped to (the ACPI
 /// MADT's interrupt source overrides say, and this port does not read them), and which IDT vector
@@ -643,11 +643,11 @@ pub const UART_PHYS: u64 = 0x0900_0000;
 #[cfg_attr(not(test), allow(dead_code))]
 #[cfg(target_arch = "riscv64")]
 pub const UART_PHYS: u64 = 0x1000_0000;
-/// x86_64 has **no physical address for its console at all**: COM1 lives in the I/O port space,
+/// `x86_64` has **no physical address for its console at all**: COM1 lives in the I/O port space,
 /// which has no page tables in front of it, so there is nothing here for a device capability to be
 /// a mapping *of*. The constant is zero and unused, and that zero is the marker for a real design
 /// question this port has not answered: a userspace console driver on x86 needs a port-range grant
-/// through the TSS I/O permission bitmap, not a mapped page. See arch/x86_64/port.rs.
+/// through the TSS I/O permission bitmap, not a mapped page. See `arch/x86_64/port.rs`.
 #[cfg_attr(not(test), allow(dead_code))]
 #[cfg(target_arch = "x86_64")]
 pub const UART_PHYS: u64 = 0;
@@ -664,7 +664,7 @@ pub const INIT_ROLES_ENTRY: &str = "init";
 #[cfg_attr(not(test), allow(dead_code))]
 #[cfg(target_arch = "riscv64")]
 pub const INIT_ROLES_ENTRY: &str = "hello";
-/// x86_64 packs no initrd yet (no user programs are built for this target), so this names what it
+/// `x86_64` packs no initrd yet (no user programs are built for this target), so this names what it
 /// would be rather than what is there. Nothing reads it: the x86 boot tour halts before userspace.
 #[cfg_attr(not(test), allow(dead_code))]
 #[cfg(target_arch = "x86_64")]

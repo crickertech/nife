@@ -20,7 +20,7 @@
 //! layout macro can express. Named offsets and bit masks are clearer for a device this small.
 //!
 //! **The register block need not be in memory at all** (milestone 161). The same 16550 that QEMU's
-//! RISC-V `virt` puts at physical `0x1000_0000` is, on every x86 machine including the OptiPlex
+//! RISC-V `virt` puts at physical `0x1000_0000` is, on every x86 machine including the `OptiPlex`
 //! milestone 87 tracks, at **I/O port** `0x3f8`: a separate address space reached only by the `in`
 //! and `out` instructions, with no page tables in front of it. That is a difference in how the
 //! eight registers are *reached* and in nothing else, so it is a type parameter

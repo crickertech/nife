@@ -1,4 +1,4 @@
-//! **The MMU, x86_64.** The third implementation of the seam milestone 20 built: `crates/paging`
+//! **The MMU, `x86_64`.** The third implementation of the seam milestone 20 built: `crates/paging`
 //! owns the level walk and `paging::x86_64::Ia32e` owns the entry format, and this module is the
 //! glue that names `CR3`, the direct map, and where this machine's devices are.
 //!

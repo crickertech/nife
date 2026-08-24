@@ -1,6 +1,12 @@
 # 161. The x86_64 kernel port: bring up the HAL's third architecture
 
-**Status: NOT-STARTED.** Minted 2026-08-23, splitting real work out of milestone 20's stale text.
+**Status: PARTIAL.** Minted 2026-08-23, splitting real work out of milestone 20's stale text; early
+boot built and gated the same day. **The kernel boots on QEMU's `q35`, reaches Rust in the high half
+of a 4-level address space, prints over a 16550, installs a GDT/TSS and an IDT, catches a breakpoint
+and steps over it, and halts.** What is built and what is still open are spelled out at the bottom of
+this block; `notes/x86-port.md` is the working record. The scope note below (milestone 20's "enough
+of each ISA to boot, confine a ring-3/U process, and run the test suite") is unchanged and is not
+met: ring 3 does not exist here yet.
 DECISIONS §19 declared the target set (aarch64, riscv64, x86_64) and recorded honestly that
 *"x86_64 is a declared target that does not exist yet."* Milestone 20's own "Deliverable, in two
 parts" already named "bring up a second ISA, then a third: RISC-V first, x86_64 second," but 20 is
@@ -58,3 +64,75 @@ the stress points, not the mechanism.
 Architectural parity (DECISIONS §19) reaching all three declared targets rather than two. Milestone
 25's `sel4bench` cross-OS comparison, once real x86 hardware (87) is behind it, gets a third
 comparison point.
+
+
+## What was built (2026-08-23)
+
+Ordered as it was built, because each step is what made the next one debuggable.
+
+1. **The boot path.** `kernel/link-x86_64.ld` and `kernel/src/arch/x86_64/boot.s`: a 32-bit
+   trampoline into long mode and the high half. The boot protocol is the surprise and is written up
+   at length in both files and in `notes/x86-port.md`: Multiboot 1 **cannot** boot a 64-bit kernel
+   (QEMU refuses the image rather than ignoring the header) and QEMU 11 has no Multiboot 2, so the
+   image carries a **PVH** ELF note instead. PVH also hands over the ACPI RSDP address, which is the
+   nearest thing x86 has to the single device-tree pointer the other two architectures pass.
+2. **The console.** The existing NS16550 driver, unchanged in substance: x86 puts the same part at an
+   I/O **port** rather than a memory address, so `drivers/ns16550.rs` gained a `RegisterSpace` type
+   parameter (defaulting to MMIO, so nothing else changed) and `arch/x86_64/port.rs` supplies the
+   `in`/`out` half. One driver, two address spaces, which is also what milestone 87's real machine
+   will want.
+3. **The trap path.** `segments.rs` (GDT + TSS, with the double fault on its own IST) and
+   `exceptions.rs` + `trap.s` (an IDT, 256 generated stubs, one trap frame). Proven by taking an
+   `int3` and returning from it. Before this line a fault is a triple fault and a silent machine
+   reset.
+4. **The page-table format**, behind milestone 20's existing seam: `crates/paging/src/x86_64.rs`,
+   sixty lines of entry codec plus seven host tests and six Kani harnesses, with **no change to the
+   generic walk**. That is the milestone-20 claim tested and holding.
+
+Plus the build wiring it all needs: `kernel/build.rs`, `.cargo/config.toml` (including the static
+relocation model, which this target does not default to), `rust-toolchain.toml`,
+`scripts/qemu-runner-x86_64.sh`, and an x86_64 pass in `script/lint`.
+
+**The evidence that the `arch/` split is real**: making the *entire* kernel compile for a third
+architecture took 42 compiler errors, every one of them a missing `arch::` name, and four `cfg` arms
+in files that already had two. `crates/paging` needed nothing.
+
+## What is still open
+
+In the order it should be done, because each is a prerequisite for the next.
+
+1. **Fine-grained page tables.** The boot map is 2 MiB pages with no permission separation at all:
+   everything present, writable and executable, both halves. `mmu::init` and everything downstream of
+   it (`map_page`, `flush_tlb`, `translate`) are `unimplemented!()`. This also lifts the recorded
+   limitation that the direct map only covers the low 1 GiB.
+2. **The APIC**, which needs **ACPI table parsing** first (MADT), and that is the largest
+   single piece of work left: it is what x86 has instead of a device tree, and `iommu.rs`, `irq.rs`
+   and PCI interrupt routing are all blocked on it.
+3. **A clock.** `timer.rs` is entirely unimplemented on purpose and its header argues the case: x86
+   has at least four clocks, none self-describing the way `CNTFRQ_EL0` and the RISC-V `timebase`
+   node are, and the one everything uses (the TSC) must be calibrated against another. Every
+   function there returns a number the scheduler and every benchmark are downstream of, so a guess
+   is worse than a panic.
+4. **Ring 3**: the `syscall`/`sysret` MSR setup, the `swapgs` pair in `trap.s` (whose location is
+   marked), and `enter_user`. The syscall ABI is written down in `exceptions.rs`
+   (`rax` + `rdi`/`rsi`/`rdx`/`r10`/`r8`/`r9`) and is **provisional**: it is a boundary rather than a
+   habit (DECISIONS §10, §16) and nothing speaks it yet.
+5. **The kernel test suite**, and therefore a `script/test` leg. Blocked on 4: the suite's
+   userspace-exec tests hand-assemble machine code and its supervision fixtures are per-ISA stubs.
+6. **SMP**, via INIT-SIPI-SIPI, which needs the APIC (2) and a real-mode trampoline copied below
+   1 MiB.
+7. **VT-d**, blocked on ACPI DMAR (2).
+
+Two things that are not steps but are owed:
+
+- **A capability shape for port I/O.** On the other two architectures a device is a page, so a device
+  capability is a mapping and the MMU enforces it. x86's legacy devices, the console UART included,
+  are in an I/O space with no page tables; the only mechanism with the right granularity is the TSS
+  I/O permission bitmap, which is per-task rather than per-page. `user::UART_PHYS` is zero on this
+  architecture and that zero is the marker. Written up as **§121 (PROPOSED)**, since it is a change
+  to what a capability *is* rather than an implementation choice. The number is provisional: a lane
+  minted it against the current index, and the integrator owns it at merge.
+- **Two arch-contract names that do not stretch to a third architecture**: `arch::psci_cpu_on` (an
+  ARM firmware interface's name for an operation x86 performs by sending an interrupt) and
+  `kernel_main`'s `dtb` argument (which carries `hvm_start_info` here). Both are naming decisions and
+  so calef's; recorded in `notes/x86-port.md` and in `arch/x86_64/mod.rs`.

@@ -70,7 +70,7 @@ pub(crate) const UART_NODE: &[u8] = b"";
 /// currently runs bare (identity map), so `phys_to_virt` is the identity until the Sv39 step.
 #[cfg(not(target_arch = "x86_64"))]
 const UART_BASE: usize = crate::arch::mmu::phys_to_virt(UART_PHYS) as usize;
-/// x86_64's console base is a port number and needs no translation; see [`UART_PORT`].
+/// `x86_64`'s console base is a port number and needs no translation; see [`UART_PORT`].
 #[cfg(target_arch = "x86_64")]
 const UART_BASE: usize = UART_PORT;
 

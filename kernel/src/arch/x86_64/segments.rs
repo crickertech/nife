@@ -1,6 +1,6 @@
 //! **The GDT and the TSS**, which have no counterpart at all on the other two architectures.
 //!
-//! aarch64 and RISC-V have no segmentation. x86_64 has *almost* none: in 64-bit mode a segment's
+//! aarch64 and RISC-V have no segmentation. `x86_64` has *almost* none: in 64-bit mode a segment's
 //! base and limit are ignored for everything except `fs` and `gs`, so the descriptors below carry
 //! essentially no information. What they still carry is the three bits that decide **what mode the
 //! CPU is in**: the code segment's `L` bit (64-bit), `DPL` (which ring), and `D/B`. So the GDT

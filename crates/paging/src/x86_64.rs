@@ -1,4 +1,4 @@
-//! The x86_64 four-level page-table format: 4 KiB pages, 48-bit virtual addresses.
+//! The `x86_64` four-level page-table format: 4 KiB pages, 48-bit virtual addresses.
 //!
 //! ```text
 //!  47      39 38      30 29      21 20      12 11         0
@@ -71,7 +71,7 @@ const SW_DEVICE: u64 = 1 << 10;
 /// and bit 63 is XD, so the mask must not be widened without checking both ends.
 const ADDR_MASK: u64 = 0x000f_ffff_ffff_f000;
 
-/// The x86_64 four-level (IA-32e) page-table format.
+/// The `x86_64` four-level (IA-32e) page-table format.
 pub struct Ia32e;
 
 impl Ia32e {
@@ -112,7 +112,7 @@ impl Ia32e {
 impl PageFormat for Ia32e {
     const LEVELS: usize = 4;
 
-    /// Bit 47. An x86_64 virtual address is canonical when bits 63:47 are all equal, which is the
+    /// Bit 47. An `x86_64` virtual address is canonical when bits 63:47 are all equal, which is the
     /// same shape as Sv39's sign extension from bit 38, one bit position over.
     const SPLIT_SHIFT: u32 = 47;
 
@@ -208,7 +208,7 @@ mod tests {
         }
     }
 
-    /// **A table-pointer entry grants everything**, because on x86 the levels are ANDed and a
+    /// **A table-pointer entry grants everything**, because on x86 the levels are `AND`ed and a
     /// restrictive intermediate entry would silently override the leaf. This is the one place the
     /// three formats genuinely disagree, so it gets its own test rather than a comment.
     #[test]
@@ -281,7 +281,7 @@ mod tests {
     }
 }
 
-/// Machine-checked proofs of the x86_64 format, mirroring the other two modules'. The shared
+/// Machine-checked proofs of the `x86_64` format, mirroring the other two modules'. The shared
 /// `Mapper` walk inherits all three formats' guarantees. See notes/verification.md.
 #[cfg(kani)]
 mod verification {

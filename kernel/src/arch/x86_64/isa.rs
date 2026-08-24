@@ -1,4 +1,4 @@
-//! **What CPU is this**, x86_64. The third implementation of the arch contract aarch64 answers from
+//! **What CPU is this**, `x86_64`. The third implementation of the arch contract aarch64 answers from
 //! `MIDR_EL1` and RISC-V from the device tree plus `mvendorid`.
 //!
 //! x86 has had one answer since 1993 and it is a good one: `CPUID`, an instruction that returns
@@ -18,7 +18,7 @@ use core::arch::x86_64::__cpuid;
 /// What this machine is, as far as this port has learned to ask.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub struct Isa {
-    /// The 12-character vendor string CPUID leaf 0 returns: "GenuineIntel", "AuthenticAMD", or on
+    /// The 12-character vendor string CPUID leaf 0 returns: "`GenuineIntel`", "`AuthenticAMD`", or on
     /// QEMU whatever `-cpu` was asked for.
     pub vendor: [u8; 12],
     /// The maximum standard CPUID leaf this part answers.

@@ -1,4 +1,4 @@
-//! **The saved register context of a thread, x86_64.** The Rust half of `context.s`, and the third
+//! **The saved register context of a thread, `x86_64`.** The Rust half of `context.s`, and the third
 //! implementation of the seam `thread.rs` talks to: it asks for a context "for a kernel thread" or
 //! "for a user thread" and never names a register, so which register carries the closure, the entry
 //! or the return stays inside `arch/`.

@@ -1,4 +1,4 @@
-//! **The IDT and the trap path, x86_64.** The third implementation of the arch contract aarch64
+//! **The IDT and the trap path, `x86_64`.** The third implementation of the arch contract aarch64
 //! states with `VBAR_EL1` and RISC-V with `stvec`.
 //!
 //! The shape of the difference is worth naming, because it is what the assembly beside this file
@@ -23,7 +23,7 @@ use crate::arch::UserFault;
 /// of the push order because the stack grows down. Then the vector number and error code the stub
 /// manufactured, then the five words the CPU itself pushed.
 ///
-/// `rsp` and `ss` are in the frame unconditionally, which is an x86_64 change from 32-bit and is
+/// `rsp` and `ss` are in the frame unconditionally, which is an `x86_64` change from 32-bit and is
 /// load-bearing here: a long-mode interrupt pushes SS:RSP even when the ring does not change, so
 /// there is exactly one frame layout rather than two, and `iretq` always pops five words.
 #[repr(C)]
@@ -71,12 +71,12 @@ impl TrapFrame {
     /// **`rax`, following Linux**, and that choice is worth stating because it is the one place a
     /// third architecture could gratuitously invent a third convention. The tree's shape is one
     /// number register plus six argument registers, with argument 0 doubling as the return
-    /// (aarch64: `x8` + `x0`..`x5`; RISC-V: `a7` + `a0`..`a5`). Applying that shape to x86_64's own
+    /// (aarch64: `x8` + `x0`..`x5`; RISC-V: `a7` + `a0`..`a5`). Applying that shape to `x86_64`'s own
     /// `syscall` convention gives `rax` + `rdi`, `rsi`, `rdx`, `r10`, `r8`, `r9`.
     ///
     /// **`r10` rather than `rcx` is not a preference**, it is the instruction: `syscall` overwrites
     /// `rcx` with the return address and `r11` with the caller's RFLAGS, so the fourth argument
-    /// cannot ride in the C ABI's fourth register. Every x86_64 kernel makes the same substitution
+    /// cannot ride in the C ABI's fourth register. Every `x86_64` kernel makes the same substitution
     /// for the same reason.
     ///
     /// **Provisional.** Nothing speaks this ABI yet: the x86 boot halts before user mode, and no
@@ -337,7 +337,7 @@ fn faulting_address() -> u64 {
     let cr2: u64;
     // SAFETY: reads a control register. No side effects.
     unsafe {
-        core::arch::asm!("mov {}, cr2", out(reg) cr2, options(nomem, nostack, preserves_flags))
+        core::arch::asm!("mov {}, cr2", out(reg) cr2, options(nomem, nostack, preserves_flags));
     };
     cr2
 }

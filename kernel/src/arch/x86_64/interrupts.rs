@@ -1,4 +1,4 @@
-//! **Interrupt masking, x86_64.** The third implementation of the arch contract aarch64 states with
+//! **Interrupt masking, `x86_64`.** The third implementation of the arch contract aarch64 states with
 //! `PSTATE.DAIF` and RISC-V with `sstatus.SIE`.
 //!
 //! On x86 the switch is `RFLAGS.IF` (bit 9), set by `sti` and cleared by `cli`. Reading it means

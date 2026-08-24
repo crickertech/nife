@@ -1,4 +1,4 @@
-//! **Asking the host to terminate, x86_64.** The test harness's exit path.
+//! **Asking the host to terminate, `x86_64`.** The test harness's exit path.
 //!
 //! The module keeps the aarch64 name (`arch::semihosting::exit`) because it is the arch contract the
 //! test harness calls, exactly as the RISC-V one does, and like that one the mechanism has nothing
@@ -15,7 +15,7 @@
 //!
 //! # BUGS
 //!
-//! - **A real machine has no `isa-debug-exit`.** Milestone 87's OptiPlex will need the same answer
+//! - **A real machine has no `isa-debug-exit`.** Milestone 87's `OptiPlex` will need the same answer
 //!   the VisionFive 2 needed: print a fixed marker line the serial harness can read, then power
 //!   down (ACPI S5 rather than SBI SRST). Nothing here does that yet, so a test build run on real
 //!   x86 hardware would write to a port nothing answers and fall through to the halt loop.

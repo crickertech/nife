@@ -1,4 +1,4 @@
-//! **The IOMMU, x86_64.** Intel calls it VT-d; AMD calls it AMD-Vi. Neither is built.
+//! **The IOMMU, `x86_64`.** Intel calls it VT-d; AMD calls it AMD-Vi. Neither is built.
 //!
 //! The role is the same one the aarch64 SMMU and the RISC-V IOMMU fill: a device emits addresses,
 //! and something between it and memory decides whether those addresses mean anything. Without it a
@@ -11,7 +11,7 @@
 //! this port does not parse them yet. That ordering is the reason this module is a stub rather than
 //! a partial implementation: there is nothing useful to do before DMAR is readable.
 //!
-//! Milestone 87's OptiPlex 7050 has VT-d, which is one of the reasons it was chosen.
+//! Milestone 87's `OptiPlex` 7050 has VT-d, which is one of the reasons it was chosen.
 
 /// Is an IOMMU active? Always false: none is built, and saying so plainly is what keeps a
 /// confinement claim honest.
