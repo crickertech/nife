@@ -44,26 +44,127 @@ would fail the next legitimate unsafe block anywhere outside `arch/`. The reason
 measurement gets headroom (unlike `unsafe-thread-safety-claims`' zero-headroom ceiling) is recorded
 in `notes/unsafe-obligations.md` beside the marker.
 
+## Round 2 (2026-08-24): `user_rt`, `ipc`, and the broader `read_volatile`/`write_volatile` sweep
+
+The three concrete next steps round 1 named, taken in the order it suggested.
+
+**`crates/user_rt`'s `SYS_INVOKE` round trip collapsed, a second real §94-shaped reduction.** Six
+methods (`recv`, `recv_cap`, `recv_fault`, `call`, `survey`, `list`), each duplicated once per
+architecture, had each hand-rolled its own `asm!` block asserting the identical invariant
+("`svc`/`ecall` traps to the kernel, which validates before acting") at a register layout that
+differed only in which of the five return words the caller happened to read back: twelve
+hand-written copies of one assertion. `invoke5` (new, private to the crate, one per architecture)
+holds the trap once; every caller above it, including `invoke` itself, is now a safe wrapper with no
+`asm!` of its own -- the exact "collapse N hand-written assertions of one invariant into one" shape
+this block's own text names as the best available reduction. One honest behavioural note recorded in
+`notes/unsafe-obligations.md` and in the code: three of the collapsed functions (`recv`, `recv_cap`,
+`recv_fault`) used to leave one input register unset for the kernel to read as whatever value
+happened to be there (harmless, since those methods read no input words); routing them through the
+shared primitive means they now pass an explicit `0`, a strict tightening rather than a behaviour
+change. **Measured from the diff: 14 `unsafe {` blocks removed, 9 added, net -5**, entirely inside
+`crates/user_rt/src/lib.rs`.
+
+**`crates/ipc` read in full: no reduction found, and that is the milestone's own predicted outcome
+for at least one target.** Production code carries exactly three `unsafe` blocks, one each inside
+`send`, `recv` and `remove_sender`, and each already asserts a genuinely different fact (which of
+two queues, which node, under what caller contract) rather than the same fact copied three times --
+there is no §94 shape to collapse here. The other 41 sites the crate's `unsafe {` count includes
+(baseline "44 blocks") are doc examples, `#[cfg(kani)]` proof harnesses and `#[cfg(test)]` unit
+tests, each deliberately exercising a distinct state-machine transition; collapsing those would
+either be impossible (a test suite's whole value is that each call is a different scenario) or would
+be exactly the "hides it behind a macro" anti-pattern this block refuses. The crate's own doc
+comments already do the milestone's other job for comments rather than code: the shared proof
+obligations are stated once, at the module and section level ("stated once here rather than
+re-derived at each of the eleven/twenty-odd sites"), with each call site's own comment adding only
+what is particular to it. Nothing to migrate; reported honestly rather than forcing a relocation to
+move a number.
+
+**The broader `read_volatile`/`write_volatile` sweep round 1's own BUGS section asked for, run for
+real this time.** Grepping directly for `read_volatile`/`write_volatile` across `user/src/` (rather
+than by the `r8`/`w8`/`r16` naming convention round 1 searched by name) surfaced roughly thirty
+files; most turned out not to be the pattern (device register blocks with their own poll loops,
+framebuffer/graphics code, or programs whose entire point is deliberately invalid or one-off memory
+access -- see "What is still open" below for the accounting). One cluster was a clean, large match:
+eight programs (`rm`, `fs_file_caretaker`, `sink`, `fs_subtree_caretaker`, `fs_nameset_caretaker`,
+`login_test_client`, `fs_test_client`, `swish`) each hand-rolled a `put_page`/`get_page`-shaped
+byte-copy loop over the page shared with the FS server, every one asserting "this VA is a mapped
+page of this size" by hand in near-identical wording (`fs_nameset_caretaker` carries a second,
+read-only window for its name set; `fs_test_client` carries five such helpers over one window sized
+to `fs::TRANSFER_MAX` rather than one page). Migrated onto the **existing**
+`user_rt::mapped_window::MappedWindow` (round 1's type, reused rather than duplicated, per this
+block's own instruction). **21 `unsafe {` blocks removed, 10 added, net -11** across the nine files.
+`fs_subtree_caretaker.rs` alone is flat (1 block before and after: one hand-rolled function traded
+for one window construction), the same "still real by criterion 2" case `smb_server.rs` was in round
+1: raw pointer arithmetic replaced by a typed, bounds-checked abstraction, even though the file's own
+count does not move.
+
+**Combined round 2: 35 `unsafe {` blocks removed, 19 added, net -16.** Measured from the diff against
+this round's own base commit (`a269403e`), the same discipline round 1 used and for the same reason:
+a tree-wide census is contaminated by unrelated concurrent growth. This round's paired measurement
+happens to be uncontaminated regardless -- nothing else landed on this branch between the base commit
+and this reduction, so the tree-wide census confirms the diff exactly: 792 blocks outside `arch/` at
+the base commit, 776 after, precisely -16. Density (the ceiling's actual unit) moved only 90 to 89
+truncated, because this reduction also removed lines (duplicated `asm!` blocks and SAFETY comments
+along with the blocks themselves), so the denominator moved with the numerator for the first time
+this ceiling has had to account for.
+
+**The ratchet, cinched again**: `<!--count-at-most:unsafe-density-outside-arch-->` lowered from 97 to
+96 in the same commit (`notes/unsafe-obligations.md`, `notes/counted-claims.md`,
+`notes/register-of-measures.md`), keeping the same 7-point headroom the 100-vs-93 and 97-vs-90
+ceilings both carried, now above the 89 this round reached.
+
 ## What is still open
 
-**`user/`'s remaining unsafe is still largely unread.** This lane read and fixed one real cluster
-(the shared-page volatile-access pattern); it did not do the broader survey this milestone's own
-BUGS section calls for ("nobody has read enough of it to say whether that number is raw shared-page
-handling, a missing safe wrapper, or something else"). That survey is still the next lane's cheapest
-useful output.
+**`crates/ipc`'s unsafe is settled**: read in full, genuinely per-call-site distinct, no further work
+indicated there (see round 2 above).
 
-**Other candidate clusters, named for a follow-on lane rather than re-derived from scratch:**
+**The broader `user/` survey this milestone's BUGS section calls for is still not complete**, and is
+now a better-informed job than it was after round 1: the `read_volatile`/`write_volatile` grep
+(rather than the round-1 name-based search) is the right net, and round 2's pass through its results
+sorted the non-FS hits into rough categories a follow-on lane can use rather than re-deriving:
 
-- **`crates/user_rt` itself** (31 unsafe blocks per the 2026-08-18 baseline, not re-measured here):
-  the runtime crate every program links against is exactly where a shared, checked abstraction pays
-  for itself most, and `MappedWindow` is now a precedent living there for whatever's found.
-- **`ipc`** (44 blocks at the same baseline): the rendezvous state machine crate; unread by this
-  lane, worth checking whether its unsafe is genuinely per-call-site distinct or another §94 shape.
-- **Any other DMA-page or shared-frame driver this lane did not touch.** The seven programs migrated
-  were found by searching for the exact `r8`/`w8`/`r16`/`w16`/`r32` naming convention; a driver using
-  different accessor names but the same underlying pattern (raw offset into a fixed-VA page, no
-  bounds check) would not have been caught by that search and is worth a second pass with a broader
-  net (e.g. grep for `read_volatile`/`write_volatile` directly rather than by function name).
+- **Device register blocks with their own poll/wait loops**: `console.rs` (UART FR/DR), `input.rs`
+  (a PL011/NS16550 pair behind `rd`/`wr` helpers -- yet another naming variant on the same
+  read/write-a-fixed-offset shape, confirming the point a broader net exists to make), `driver.rs`
+  (a `NonNull<u8>`-based UART driver, a different idiom already), `clock.rs` (RTC registers),
+  `jh7110_trng.rs` (TRNG registers). These read a small, hardware-defined register set rather than a
+  data buffer; whether `MappedWindow`'s bounds check is the right fit for a register block (as
+  opposed to a page of caller data) or whether these want their own idiom is an open question, not a
+  settled "yes, migrate."
+- **Framebuffer/graphics code**: `display.rs`, `painter.rs`, `window.rs`, `compositor.rs`,
+  `display_terminal.rs`. Likely several distinct, dynamically-many surfaces rather than one static
+  page per program, and pixel-level access at real volume (thousands of writes per frame), so a
+  bounds check per pixel write is a real performance question this lane did not measure -- flagged
+  rather than migrated blind, per this project's "elegance and performance beat implementation
+  convenience" tenet, which cuts the other way when the convenient answer is also the slow one.
+- **`swish.rs`'s other two windows**: `OUT_VA`/`LINE_VA` (`stage`/`read_line`, talking to the
+  terminal) and `jf_load`/`jf_store` (the job frame, parametrized by a runtime `va` rather than a
+  fixed constant -- actually a *better* `MappedWindow` fit than the static case, since `new` already
+  takes a runtime base). Left alone only because this round already touched `swish.rs` once (its
+  `FS_VA` cluster) and a shell is worth changing minimally per sitting.
+- **`heeder.rs` is done** (migrated this round, see above); nothing else in that shape remains
+  outstanding there.
+- **`disk_surveyor.rs`'s `ROSTER_VA`**: a single shared `u64` flag at a fixed VA, not a byte-copy
+  loop, so lower value (one invariant asserted twice, not N times), but the same underlying pattern.
+  Not migrated; small enough for whoever picks up this list next.
+- **`net_stack.rs`'s `a_r8`/`a_r16`/`a_w16`/`a_w8`** (4 unsafe blocks, 14 call sites): the exact
+  `a_r8`/`a_w8` naming variant `mapped_window.rs`'s own doc comment already names as one of the
+  shapes round 1 collapsed -- except this file was not one of round 1's seven and is still
+  unmigrated. Harder than the FS cluster: the VA is not a fixed constant but `socket_va(sid) =
+  0x00A0_0000 + sid * 0x1000`, a different page per open socket, and callers pass an already-offset
+  absolute VA rather than a (window, offset) pair, so migrating cleanly means restructuring call
+  sites to separate the per-socket base from the field offset, not just swapping the four functions'
+  bodies. Real candidate, deliberately not attempted this round given the size of what else this
+  round already touched.
+- **Deliberately not migration candidates, named so nobody re-derives them and wastes a look**:
+  `hello.rs` (tests `.bss` zeroing and `.data` writability on purpose; the raw access *is* the test),
+  `flaky.rs` and `outlaw.rs` (deliberately touch a bad/unauthorized address to provoke a fault; a
+  bounds-checked wrapper would defeat the point), `budgeter.rs` and `swapper.rs` (single one-off
+  writes, not a repeated hand-written invariant -- nothing to collapse).
+- **`login_test_client.rs`'s `PAGE_VA`** uses `core::slice::from_raw_parts_mut` rather than
+  `read_volatile`/`write_volatile`, so the grep this round ran legitimately did not catch it; it is a
+  different pattern (an ordinary, non-volatile slice reference into shared memory) and out of this
+  sweep's scope by construction, not by oversight.
 
 **This block still sets no target number**, per its own original text -- the ratchet moves by
 measured reduction, not by picking a floor in advance.

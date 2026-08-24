@@ -53,6 +53,7 @@
 
 use byte_sink_proto::fixture;
 use filesystem_proto::fs;
+use user_rt::mapped_window::MappedWindow;
 use user_rt::{call, exit, recv, send};
 
 /// The byte sink. `WRITE` in a writing role, `READ` in a sink role, and the whole of what a writer
@@ -70,6 +71,11 @@ const REPORT_WRITER: u64 = 1;
 const PAGE_VA: u64 = 0x0000_0000_0060_0000;
 /// Its size, the FS contract's transfer unit.
 const PAGE: usize = filesystem_proto::PAGE;
+
+// SAFETY: the wiring maps one page read/write at PAGE_VA before this program runs (milestone 139
+// round 2; see `user_rt::mapped_window`, which is what collapsed the hand-rolled read_volatile/
+// write_volatile below).
+const WINDOW: MappedWindow = unsafe { MappedWindow::new(PAGE_VA, PAGE as u64) };
 
 const ROLE_WRITER: u64 = 0;
 const ROLE_FILE: u64 = 1;
@@ -130,15 +136,13 @@ fn writer(repeat: u64) -> ! {
 /// Copy `bytes` into the shared page.
 fn put(bytes: &[u8]) {
     for (i, &b) in bytes.iter().take(PAGE).enumerate() {
-        // SAFETY: PAGE_VA is a mapped, writable page of PAGE bytes; the loop is clamped to it.
-        unsafe { core::ptr::write_volatile((PAGE_VA + i as u64) as *mut u8, b) };
+        WINDOW.w8(i as u64, b);
     }
 }
 
 /// Read one byte out of the shared page.
 fn get(i: usize) -> u8 {
-    // SAFETY: as above; callers clamp `i` to the page.
-    unsafe { core::ptr::read_volatile((PAGE_VA + i as u64) as *const u8) }
+    WINDOW.r8(i as u64)
 }
 
 /// One request to the FS server. Negative replies are the caller's to interpret.

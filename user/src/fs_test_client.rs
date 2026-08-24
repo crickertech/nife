@@ -30,6 +30,7 @@
 
 use filesystem_proto::{dir, fixture, fs, grant, xattr};
 use grant_plan::nav::{TwoRoots, Which};
+use user_rt::mapped_window::MappedWindow;
 use user_rt::{call, exit, now, send};
 
 /// The file-service endpoint: the client's whole authority to the filesystem. Naming a file over it
@@ -45,6 +46,12 @@ const REPORT: u64 = 1;
 /// throughput role measure the contract's own ceiling rather than a page.
 const FILE_VA: u64 = 0x0000_0000_0060_0000;
 
+// SAFETY: the kernel's wiring maps every page of the fs::TRANSFER_MAX-byte channel at FILE_VA
+// before this program runs (milestone 139 round 2; see `user_rt::mapped_window`, which is what
+// collapsed the five hand-rolled read_volatile/write_volatile loops below into bounds-checked
+// calls).
+const WINDOW: MappedWindow = unsafe { MappedWindow::new(FILE_VA, fs::TRANSFER_MAX as u64) };
+
 /// A failed check is a fault, not a wrong answer: panic, and the handler traps.
 fn check(ok: bool) {
     if !ok {
@@ -55,9 +62,7 @@ fn check(ok: bool) {
 /// Copy `bytes` into the shared page (a name to open, or data to write).
 fn put_page(bytes: &[u8]) {
     for (i, &b) in bytes.iter().enumerate() {
-        // SAFETY: FILE_VA is a mapped, writable region of fs::TRANSFER_MAX bytes; a name is far
-        // shorter than one page of it.
-        unsafe { core::ptr::write_volatile((FILE_VA + i as u64) as *mut u8, b) };
+        WINDOW.w8(i as u64, b);
     }
 }
 
@@ -65,16 +70,14 @@ fn put_page(bytes: &[u8]) {
 /// rename's source and destination names sit back to back.
 fn put_page_at(off: usize, bytes: &[u8]) {
     for (i, &b) in bytes.iter().enumerate() {
-        // SAFETY: as above; two names are far shorter than one page of the channel.
-        unsafe { core::ptr::write_volatile((FILE_VA + (off + i) as u64) as *mut u8, b) };
+        WINDOW.w8((off + i) as u64, b);
     }
 }
 
 /// Read `n` bytes out of the shared page (a completed read landed there).
 fn get_page(n: usize, out: &mut [u8]) {
     for (i, b) in out.iter_mut().take(n).enumerate() {
-        // SAFETY: as above; `n` is bounded by the page and by `out`.
-        *b = unsafe { core::ptr::read_volatile((FILE_VA + i as u64) as *const u8) };
+        *b = WINDOW.r8(i as u64);
     }
 }
 
@@ -1171,8 +1174,7 @@ fn dir_rename(src_dir: u64, src: &str, dst_dir: u64, dst: &str) -> i64 {
 /// than any local this program could afford, so it goes straight to the page.
 fn fill_page(off: usize, len: usize, b: u8) {
     for i in 0..len {
-        // SAFETY: FILE_VA is a mapped, writable 4096-byte page and the caller keeps within it.
-        unsafe { core::ptr::write_volatile((FILE_VA + (off + i) as u64) as *mut u8, b) };
+        WINDOW.w8((off + i) as u64, b);
     }
 }
 
@@ -1576,10 +1578,7 @@ fn paint_page(state: &mut u64) {
         x ^= x >> 7;
         x ^= x << 17;
         *state = x;
-        // SAFETY: FILE_VA is a mapped, writable, 8-byte-aligned channel of at least UNIT bytes
-        // (UNIT is fs::TRANSFER_MAX and this client maps all of it), and `i` walks it in 8-byte
-        // steps.
-        unsafe { core::ptr::write_volatile((FILE_VA + i as u64) as *mut u64, x) };
+        WINDOW.write::<u64>(i as u64, x);
         i += 8;
     }
 }
