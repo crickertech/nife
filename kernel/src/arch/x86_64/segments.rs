@@ -153,6 +153,24 @@ pub unsafe fn init() {
         base: (&raw const GDT) as u64,
     };
 
+    // **Loading a segment register in long mode DESTROYS that segment's base MSR**, and `gs`'s base
+    // is where this kernel keeps its per-CPU pointer (the analog of aarch64's `TPIDR_EL1` and
+    // RISC-V's `tp`). `cpu::init_this_cpu` has already run by the time anything calls this, because
+    // the console lock reads the per-CPU block, so the `mov gs, ax` below would silently zero the
+    // pointer and the very next `println!` would dereference null.
+    //
+    // That is exactly what happened during bring-up, and it is worth recording how it presented:
+    // not as a null dereference but as an instruction fetch from the middle of a static, several
+    // frames away, with the register dump showing a perfectly correct GDT, TSS and IDT. Nothing
+    // about the symptom pointed here.
+    //
+    // So the base is saved and put back around the reload. Doing it here rather than making the
+    // caller re-arm the pointer keeps the ordering constraint from existing at all, which is the
+    // ladder's first rung: the wrong state is not representable rather than merely documented.
+    // `fs` gets no such treatment because nothing uses its base; if anything ever does, it needs the
+    // same two lines.
+    let gs_base = super::percpu();
+
     // SAFETY: `gdtr` describes the table above, which is well-formed by construction. The far
     // return reloads CS from a descriptor whose L bit is set, so the CPU stays in 64-bit mode; the
     // data selectors are reloaded before anything can use a stale one.
@@ -179,6 +197,9 @@ pub unsafe fn init() {
             options(preserves_flags),
         );
     }
+
+    // Put the per-CPU pointer back; see the comment above the `asm!`.
+    super::set_percpu(gs_base);
 }
 
 /// Point this CPU's ring-0 trap stack at `top`. Called whenever the thread that would take a trap

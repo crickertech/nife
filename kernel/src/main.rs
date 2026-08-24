@@ -111,7 +111,12 @@ pub static DTB: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsiz
 // And the icount boot parks before the bench boot it implies, so `bench::run()` and everything after
 // it is deliberately unreachable in that one configuration (milestone 78).
 #[cfg_attr(
-    any(target_arch = "riscv64", feature = "smb_serve", feature = "icount"),
+    any(
+        target_arch = "riscv64",
+        target_arch = "x86_64",
+        feature = "smb_serve",
+        feature = "icount"
+    ),
     allow(unreachable_code)
 )]
 #[unsafe(no_mangle)]
@@ -137,6 +142,58 @@ pub extern "C" fn kernel_main(dtb: usize) -> ! {
     // and this is a no-op in effect.
     #[cfg(target_arch = "riscv64")]
     console::configure_from_dtb(dtb);
+
+    // **The x86_64 boot is a self-contained tour and it halts at the end**, the same shape the
+    // RISC-V boot took on its first day and for the same reason: the arch layer beneath the shared
+    // path is not built yet, so there is nothing honest to fall through to. What it proves is
+    // exactly the part that is real, one line per step, and it stops the moment it would have to
+    // guess (milestone 161). See notes/x86-port.md.
+    #[cfg(target_arch = "x86_64")]
+    {
+        // A live code address proves the far jump in boot.s landed in the high half and that we are
+        // executing there rather than merely reaching the UART through the identity map (the boot
+        // table maps both). If this reads 0xffffffff801xxxxx, long mode is on and the kernel is in
+        // the high half.
+        let pc = kernel_main as *const () as usize;
+        println!();
+        println!("nife on x86_64 (long mode, ring 0, 4-level paging)");
+        println!("  cpu 0 booted: high-half kernel, .bss, and the 16550 console are up.");
+        println!("  running at  : {pc:#018x}  (high half: the long-mode jump landed)");
+        println!("  boot info   : {dtb:#018x}  (PVH hvm_start_info, not a device tree)");
+
+        // What machine is this. CPUID needs nothing to be brought up first, which makes x86 the
+        // only one of the three where this can run before anything else.
+        arch::isa::init(dtb);
+        arch::isa::print_summary();
+
+        // The GDT, the TSS and the IDT. Until this line a fault is a triple fault and a silent
+        // machine reset; after it, a fault prints. That is the whole value of the step, and it is
+        // why it is the second thing the tour does rather than the tenth.
+        arch::init();
+        let caught = arch::exceptions::self_test();
+        println!(
+            "  traps       : idt installed; a breakpoint was caught and stepped over ({caught})"
+        );
+
+        arch::mmu::print_summary();
+        println!(
+            "  image       : text {:#x}..{:#x}, stack {:#x}..{:#x}",
+            arch::mmu::text_start(),
+            arch::mmu::text_end(),
+            arch::mmu::stack_bottom(),
+            stack_top(),
+        );
+
+        // And that is the end of what is built. Everything the RISC-V tour does past this point
+        // (the frame allocator, fine-grained tables, the timer, userspace) needs an arch layer this
+        // port has not written, and each of those is a loud `unimplemented!()` rather than a
+        // plausible number. Halting here is the honest stop; see the roadmap for the order the rest
+        // comes in.
+        println!();
+        println!("  next        : fine-grained page tables, the APIC, a clock, then ring 3.");
+        println!("nife x86_64: early boot complete, halting.");
+        arch::halt();
+    }
 
     // The RISC-V boot is a self-contained tour, right here in this block, and it halts at the end
     // rather than falling through to the shared boot path below. From OpenSBI's S-mode handoff it
