@@ -270,3 +270,27 @@ boot_pdpt_high:
     .space 4096
 boot_pd:
     .space 4 * 4096
+
+# ---------------------------------------------------------------------------------------------
+# The secondary-CPU entry, which on this architecture does not yet exist.
+#
+# `smp::bring_up_secondaries` takes this symbol's address and hands it to `arch::psci_cpu_on`, so
+# the symbol has to resolve or the kernel does not link. It cannot be the real thing yet, and the
+# reason is worth writing down rather than leaving as an empty stub: an x86 secondary is started by
+# INIT followed by two STARTUP inter-processor interrupts through the local APIC, and a STARTUP IPI
+# carries an 8-bit vector naming a page **below 1 MiB** that the CPU begins executing **in 16-bit
+# real mode**. So the entry point cannot be a label in this image at all: it has to be a copy of a
+# real-mode trampoline placed in low memory at run time, which then repeats the whole protected-mode
+# and long-mode transition above before it can reach any of this.
+#
+# `psci_cpu_on` returns an error on this architecture, so nothing ever jumps here. If something
+# does, halting is the only safe thing: a CPU that runs on into the wrong mode corrupts memory
+# rather than stopping.
+# ---------------------------------------------------------------------------------------------
+.section .text.boot, "ax"
+.code16
+.global secondary_boot
+secondary_boot:
+    cli
+1:  hlt
+    jmp 1b

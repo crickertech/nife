@@ -24,6 +24,15 @@ mod riscv64;
 #[cfg(target_arch = "riscv64")]
 pub use riscv64::*;
 
+// The third architecture (milestone 161, notes/x86-port.md), and the one that tests whether the
+// split above is real or an accident of two similar RISC machines. Same `cfg`, same flat
+// re-export, no change anywhere else in this file: a new ISA is a new directory.
+#[cfg(target_arch = "x86_64")]
+mod x86_64;
+
+#[cfg(target_arch = "x86_64")]
+pub use x86_64::*;
+
 /// Which access a user thread was attempting when it faulted.
 ///
 /// `Fetch` is not "a read of an instruction": the two arrive through different exception classes on

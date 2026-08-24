@@ -19,6 +19,17 @@
 //! *indices* are what the 16550 defines, and the stride between them is a runtime value no static
 //! layout macro can express. Named offsets and bit masks are clearer for a device this small.
 //!
+//! **The register block need not be in memory at all** (milestone 161). The same 16550 that QEMU's
+//! RISC-V `virt` puts at physical `0x1000_0000` is, on every x86 machine including the OptiPlex
+//! milestone 87 tracks, at **I/O port** `0x3f8`: a separate address space reached only by the `in`
+//! and `out` instructions, with no page tables in front of it. That is a difference in how the
+//! eight registers are *reached* and in nothing else, so it is a type parameter
+//! ([`RegisterSpace`]) rather than a second driver. The parameter defaults to [`Mmio`], so every
+//! existing use of `Ns16550` means exactly what it always did.
+//!
+//! Splitting the access out this way is also what keeps rule #1: `in`/`out` are instructions, so
+//! the port-space implementation lives under `arch/x86_64/`, not here.
+//!
 //! Same rule as every driver here (DECISIONS.md §4): **it reaches into no globals.** It is
 //! constructed with a base address and a shape and knows nothing else. It is the sibling of
 //! `pl011.rs`, selected by the console at compile time. See notes/riscv-port.md.
@@ -107,25 +118,88 @@ const _: () = {
     assert!(Shape::divisor_for(3_686_400) == 2);
 };
 
-/// A handle to one NS16550: a base pointer and the block's [`Shape`].
-pub struct Ns16550 {
-    base: *mut u8,
-    shape: Shape,
+/// **How this 16550's eight registers are reached**: memory, or the x86 I/O port space.
+///
+/// A trait rather than a runtime flag because the choice is fixed per architecture at compile time
+/// and there is no call site that could want either, so a branch on every register access would buy
+/// nothing. Two implementations exist: [`Mmio`] below, and the port-space one in
+/// `arch/x86_64/port.rs`, which lives there because `in` and `out` are instructions (rule #1).
+///
+/// # Safety
+/// An implementation performs raw accesses at addresses the caller supplies. Implementing it is a
+/// promise that the four functions read and write exactly the width and location named, with no
+/// caching, reordering or elision, which is what a device register requires and what an ordinary
+/// Rust load does not promise.
+pub unsafe trait RegisterSpace {
+    /// Read one byte at `addr`.
+    ///
+    /// # Safety
+    /// `addr` must name a real register of a real device.
+    unsafe fn read8(addr: usize) -> u8;
+    /// Write one byte at `addr`.
+    ///
+    /// # Safety
+    /// As [`read8`](Self::read8), and the value must be one the device is meant to receive.
+    unsafe fn write8(addr: usize, val: u8);
+    /// Read one 32-bit word at `addr`, for the parts whose registers are four bytes wide.
+    ///
+    /// # Safety
+    /// As [`read8`](Self::read8), plus `addr` must be 4-byte aligned.
+    unsafe fn read32(addr: usize) -> u32;
+    /// Write one 32-bit word at `addr`.
+    ///
+    /// # Safety
+    /// As [`read32`](Self::read32).
+    unsafe fn write32(addr: usize, val: u32);
 }
 
-// SAFETY: the pointer names MMIO, not memory Rust manages. Concurrent use is excluded by the
-// console's lock, not by this type, exactly as for `Pl011`.
-unsafe impl Send for Ns16550 {}
+/// Registers reached as memory, which is what every 16550 outside x86 looks like. The default, so
+/// a bare `Ns16550` means what it has always meant.
+pub struct Mmio;
 
-impl Ns16550 {
+// SAFETY: every access below is a `read_volatile`/`write_volatile` of the exact width named at the
+// exact address given, which is the contract.
+unsafe impl RegisterSpace for Mmio {
+    unsafe fn read8(addr: usize) -> u8 {
+        // SAFETY: the caller promises `addr` names a mapped device register.
+        unsafe { core::ptr::read_volatile(addr as *const u8) }
+    }
+    unsafe fn write8(addr: usize, val: u8) {
+        // SAFETY: as `read8`.
+        unsafe { core::ptr::write_volatile(addr as *mut u8, val) }
+    }
+    unsafe fn read32(addr: usize) -> u32 {
+        // SAFETY: as `read8`, and the caller promises 4-byte alignment.
+        unsafe { core::ptr::read_volatile(addr as *const u32) }
+    }
+    unsafe fn write32(addr: usize, val: u32) {
+        // SAFETY: as `read32`.
+        unsafe { core::ptr::write_volatile(addr as *mut u32, val) }
+    }
+}
+
+/// A handle to one NS16550: a base address, the block's [`Shape`], and how to reach it.
+pub struct Ns16550<S: RegisterSpace = Mmio> {
+    base: usize,
+    shape: Shape,
+    space: core::marker::PhantomData<S>,
+}
+
+// SAFETY: the base names a device, not memory Rust manages. Concurrent use is excluded by the
+// console's lock, not by this type, exactly as for `Pl011`.
+unsafe impl<S: RegisterSpace> Send for Ns16550<S> {}
+
+impl<S: RegisterSpace> Ns16550<S> {
     /// # Safety
-    /// `base` must be the address of a real, mapped NS16550 register block. The shape starts as
-    /// [`Shape::QEMU_VIRT`]; [`configure`](Self::configure) replaces it once the device tree has
-    /// been read.
+    /// `base` must be the address of a real NS16550 register block, in whichever space `S` names: a
+    /// mapped physical address for [`Mmio`], an I/O port number for the x86 port space. The shape
+    /// starts as [`Shape::QEMU_VIRT`]; [`configure`](Self::configure) replaces it once the device
+    /// tree has been read.
     pub const unsafe fn new(base: usize) -> Self {
         Self {
-            base: base as *mut u8,
+            base,
             shape: Shape::QEMU_VIRT,
+            space: core::marker::PhantomData,
         }
     }
 
@@ -141,7 +215,7 @@ impl Ns16550 {
     /// pointer casts is the same move `drivers/plic.rs` makes: the 32-bit arm's alignment is a
     /// checked runtime fact (`off & 3 == 0`), not a static property a pointer cast could promise.
     fn reg_addr(&self, reg: usize) -> usize {
-        self.base as usize + (reg << self.shape.reg_shift)
+        self.base + (reg << self.shape.reg_shift)
     }
 
     fn read(&self, reg: usize) -> u8 {
@@ -151,9 +225,9 @@ impl Ns16550 {
         // 32-bit arm requires 4-byte alignment, checked, because an unaligned volatile u32 traps.
         unsafe {
             if self.shape.reg_io_width == 4 && addr & 3 == 0 {
-                core::ptr::read_volatile(addr as *const u32) as u8
+                S::read32(addr) as u8
             } else {
-                core::ptr::read_volatile(addr as *const u8)
+                S::read8(addr)
             }
         }
     }
@@ -163,9 +237,9 @@ impl Ns16550 {
         // SAFETY: as `read`.
         unsafe {
             if self.shape.reg_io_width == 4 && addr & 3 == 0 {
-                core::ptr::write_volatile(addr as *mut u32, val as u32);
+                S::write32(addr, val as u32);
             } else {
-                core::ptr::write_volatile(addr as *mut u8, val);
+                S::write8(addr, val);
             }
         }
     }
@@ -266,7 +340,7 @@ impl Ns16550 {
     }
 }
 
-impl core::fmt::Write for Ns16550 {
+impl<S: RegisterSpace> core::fmt::Write for Ns16550<S> {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
         for byte in s.bytes() {
             // Terminals want CRLF; Rust gives us LF.

@@ -43,7 +43,11 @@ DEBUG_EXIT="-device isa-debug-exit,iobase=0xf4,iosize=0x04"
 # `-no-reboot` turns a triple fault into an exit instead of a silent reset loop, which is the
 # difference between seeing that early boot died and watching a blank terminal. Every failure in
 # this port's bring-up so far has been a triple fault; add `-d int,cpu_reset` to see the state.
-exec qemu-system-x86_64 \
+#
+# NOT `exec`, and that is the one thing in this file that is not like the other two runners. See the
+# status translation below.
+set +e
+qemu-system-x86_64 \
     -machine q35 \
     -cpu "$CPU" \
     -smp "$SMP" \
@@ -54,3 +58,15 @@ exec qemu-system-x86_64 \
     $DEBUG_EXIT \
     -kernel "$ELF" \
     "$@"
+STATUS=$?
+
+# **isa-debug-exit cannot produce exit status 0.** It terminates QEMU with `(value << 1) | 1`, so
+# every status it can report is odd and "the suite passed" has to be some other agreed number. The
+# guest writes 1, which lands here as 3; this turns that back into the 0 the harness and every other
+# architecture's runner mean by success. The matching half is EXIT_SUCCESS in
+# kernel/src/arch/x86_64/semihosting.rs, and the two files name the same number on purpose: getting
+# this backwards produces a suite that passes when it fails.
+if [ "$STATUS" -eq 3 ]; then
+    exit 0
+fi
+exit "$STATUS"

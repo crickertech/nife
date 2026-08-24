@@ -15,6 +15,12 @@ use core::fmt::Write;
 use crate::drivers::ns16550::Ns16550 as ConsoleUart;
 #[cfg(target_arch = "aarch64")]
 use crate::drivers::pl011::Pl011 as ConsoleUart;
+// x86_64's `q35` (and milestone 87's OptiPlex, through its Dell C4PDJ module) has the SAME NS16550
+// the RISC-V board does, at an I/O PORT rather than a memory address. That is a difference in how
+// the eight registers are reached and in nothing else, so it is the same driver with a different
+// register space rather than a third one; see drivers/ns16550.rs and arch/x86_64/port.rs.
+#[cfg(target_arch = "x86_64")]
+type ConsoleUart = crate::drivers::ns16550::Ns16550<crate::arch::PortIo>;
 use crate::sync::{IrqSafeMutex, rank};
 
 /// The console UART's **physical** address on QEMU's `virt` machine.
@@ -22,6 +28,11 @@ use crate::sync::{IrqSafeMutex, rank};
 const UART_PHYS: u64 = 0x0900_0000; // PL011
 #[cfg(target_arch = "riscv64")]
 const UART_PHYS: u64 = 0x1000_0000; // NS16550
+/// **A port number, not a physical address**, which is why it does not go through `phys_to_virt`
+/// below: x86's I/O space has no page tables in front of it and nothing to translate. COM1 has been
+/// at 0x3f8 since the PC/AT and is there on QEMU's `q35`.
+#[cfg(target_arch = "x86_64")]
+const UART_PORT: usize = crate::arch::mmu::COM1_PORT;
 
 /// The console UART's node name in the device tree, pinned beside `UART_PHYS` and carrying its
 /// address in the unit suffix. Same hardcode-with-a-witness stance as the address itself: on
@@ -34,6 +45,11 @@ const UART_PHYS: u64 = 0x1000_0000; // NS16550
 pub(crate) const UART_NODE: &[u8] = b"pl011@9000000";
 #[cfg(target_arch = "riscv64")]
 pub(crate) const UART_NODE: &[u8] = b"serial@10000000";
+/// x86 has no device tree, so there is no node to name. The empty slice keeps the constant's shape
+/// across the three architectures for the portable readers (`memory::init`); nothing on x86 looks
+/// the console up by name, because ACPI does not describe a legacy COM port that way.
+#[cfg(target_arch = "x86_64")]
+pub(crate) const UART_NODE: &[u8] = b"";
 
 /// The console UART's address, as the kernel sees it.
 ///
@@ -52,7 +68,11 @@ pub(crate) const UART_NODE: &[u8] = b"serial@10000000";
 /// **This is a virtual address.** It lives in the kernel's direct map at `pa | KERNEL_VA_BASE`; on
 /// aarch64 boot.s maps it before any Rust runs and `mmu::init` preserves it. On RISC-V the kernel
 /// currently runs bare (identity map), so `phys_to_virt` is the identity until the Sv39 step.
+#[cfg(not(target_arch = "x86_64"))]
 const UART_BASE: usize = crate::arch::mmu::phys_to_virt(UART_PHYS) as usize;
+/// x86_64's console base is a port number and needs no translation; see [`UART_PORT`].
+#[cfg(target_arch = "x86_64")]
+const UART_BASE: usize = UART_PORT;
 
 /// The console UART.
 ///

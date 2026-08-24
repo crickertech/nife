@@ -856,6 +856,11 @@ pub fn blk_server_image() -> &'static [u8] {
     return program("init").expect("no init program in the initrd archive");
     #[cfg(target_arch = "riscv64")]
     return program("blk").expect("no blk program in the initrd archive");
+    // x86_64 (milestone 161) builds no user programs at all yet, so there is no archive to look in
+    // and no third answer to give. The panic is the same shape as the other two arms': a boot
+    // archive without the block server is a build that did not finish.
+    #[cfg(target_arch = "x86_64")]
+    panic!("x86_64 has no block-server program: userspace is not built for this target");
 }
 
 /// **Wire the filesystem and hand back the root directory capability**, for a boot rather than

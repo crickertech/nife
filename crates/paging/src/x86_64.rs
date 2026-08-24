@@ -215,9 +215,21 @@ mod tests {
     fn a_table_entry_grants_everything_and_leaves_the_leaf_to_decide() {
         let e = Ia32e::table_entry(0x20_0000);
         assert_ne!(e & P, 0);
-        assert_ne!(e & RW, 0, "a read-only intermediate would veto a writable leaf");
-        assert_ne!(e & US, 0, "a supervisor intermediate would veto a user leaf");
-        assert_eq!(e & XD, 0, "an XD intermediate would veto an executable leaf");
+        assert_ne!(
+            e & RW,
+            0,
+            "a read-only intermediate would veto a writable leaf"
+        );
+        assert_ne!(
+            e & US,
+            0,
+            "a supervisor intermediate would veto a user leaf"
+        );
+        assert_eq!(
+            e & XD,
+            0,
+            "an XD intermediate would veto an executable leaf"
+        );
         assert_eq!(Ia32e::entry_pa(e), 0x20_0000);
     }
 
