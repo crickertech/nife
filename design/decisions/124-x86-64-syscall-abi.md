@@ -50,8 +50,8 @@ third architecture, and is worth quoting in full since it is the actual case bei
 
 So the pattern across all three architectures, without exception, is: adopt the ISA's own standard
 syscall calling convention, unmodified. `rax` + `rdi`/`rsi`/`rdx`/`r10`/`r8`/`r9` is x86-64 Linux's
-own `syscall(2)` convention, the same one glibc and musl use for a raw syscall — not invented for
-this port, and the `r10`-not-`rcx` substitution is not a choice at all, it is what the `syscall`
+own `syscall(2)` convention, the same one glibc and musl use for a raw syscall, not invented for
+this port; the `r10`-not-`rcx` substitution is not a choice at all, it is what the `syscall`
 instruction's own side effects force on every x86_64 kernel that uses it.
 
 ## Recommendation
@@ -71,4 +71,4 @@ something depends on it ("anything two programs agree on"). Nothing currently de
 beyond the one hand-assembled probe program milestone 161's ring-3 lane wrote
 (`kernel/src/arch/x86_64/ring3_probe.s`), which item 4's own lane is expected to delete. So this is
 cheap to decide now and expensive to leave ambiguous once item 4 starts compiling real userspace
-programs against it — exactly the moment this decision should already be settled, not still open.
+programs against it, exactly the moment this decision should already be settled, not still open.
