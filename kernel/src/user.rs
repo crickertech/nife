@@ -1883,7 +1883,7 @@ pub mod disk_service;
 /// The second is the negative control the first would be weaker without. The roster is a read-only
 /// mapping, so a program that knows exactly where it is still cannot add a device to it or turn an
 /// entry into a handle. `lsblk` plus `parted` cannot make that claim.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod disk_tests;
 
 /// **Play an application printing to a display terminal**: put `text` in its output page and
@@ -2064,7 +2064,7 @@ fn boot_clock_page() -> u64 {
 /// Arch-neutral on purpose: one portable binary carrying both RTC drivers, one host-tested
 /// contract, and the machine's own device tree choosing between them, so **both ISAs run literally
 /// these tests** rather than two copies that can drift (DECISIONS §19, parity is a gate).
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod clock_tests;
 
 /// **`date`** (milestone 51; DECISIONS §43, notes/date.md).
@@ -2079,7 +2079,7 @@ mod clock_tests;
 /// rather than 1970 or a panic**, which DECISIONS §43 listed as proven by construction only. It is
 /// proven in the guest now, on a board whose RTC works, because the page is the thing under test
 /// and a frame nobody has published to is an honest unknown clock.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod date_tests;
 
 /// **The entropy service** (milestone 56, DECISIONS §44): a virtio-rng device, its DMA page, its
@@ -2110,7 +2110,7 @@ pub mod entropy_service;
 /// through a capability that names no device, that consecutive draws are not the same bytes (a
 /// stuck source, a re-served buffer, or a driver reading a stale ring all present as repeats), and
 /// that the count in a reply is honoured so a caller cannot be handed zeros it mistakes for entropy.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod entropy_tests;
 
 /// **The credential service, its provisioner, and its clients** (milestone 56, the credential half;
@@ -2153,7 +2153,7 @@ pub mod credential_service;
 ///   reading it, cannot;
 /// - that the frame a client shares with the service holds **nothing** after the answer, which is
 ///   the strongest form of "the reply carried no data" that a test can check.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod credential_tests;
 
 /// **The login service: authentication produces capabilities, not a mutated identity** (milestone
@@ -2177,7 +2177,7 @@ pub mod login_service;
 /// checkable). See `user/src/login.rs`'s BUGS for what this slice does not attempt: a terminal,
 /// per-principal subtree scoping, and wiring into the interactive boot are all named there as
 /// follow-on rather than guessed at here.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod login_tests;
 
 /// **A provisioning tool: create an identity and its home subtree together** (milestone 155,
@@ -2198,7 +2198,7 @@ pub mod identity_provisioner_service;
 /// already exists (`EEXIST`) is recovery rather than a second failure. See
 /// `user/src/identity_provisioner.rs`'s own module docs for the ordering argument these tests hold
 /// it to.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod identity_provisioning_tests;
 
 /// **The NTP client, and the test server that answers it** (milestone 51; DECISIONS §43, §44).
@@ -2228,7 +2228,7 @@ pub mod ntp_service;
 /// the clock page kills the process.
 ///
 /// Not arch-gated: one portable binary, the same assertions on aarch64 and riscv64 (DECISIONS §19).
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod ntp_tests;
 
 /// Milestone 11: hand a process an untyped budget and let it spend it.
@@ -2245,7 +2245,7 @@ pub mod untyped_service;
 #[cfg(test)]
 pub mod alloc_service;
 
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod heap_tests;
 
 /// **The compositor: one screen, several mutually distrusting clients** (milestone 33, rung two of
@@ -2265,7 +2265,7 @@ mod heap_tests;
 /// **These tests run before `display_tests`** (`compositor_tests` sorts first), which matters for the
 /// host-side scanout check: the composed screen goes up first and rung one's pattern last, and
 /// `cargo xtask` looks for both in that order. See notes/compositor.md.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod compositor_tests;
 
 /// **The display: virtio-gpu, a confined driver, and a client that draws** (milestone 29, rung one
@@ -2275,7 +2275,7 @@ mod compositor_tests;
 /// portable binaries in both archives, the transport is the same PCIe seam on both boards, and the
 /// contract is one host-tested crate, so **both ISAs run literally this test** rather than two
 /// copies of it that can drift (DECISIONS §19: parity is a gate).
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod display_tests;
 
 /// **Rust `std` on the native ABI** (milestone 27): spawn the `std_exerciser` demo, an ordinary Rust
@@ -2293,7 +2293,7 @@ mod display_tests;
 #[cfg(test)]
 pub mod std_service;
 
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod std_tests;
 
 /// **Capability delegation: authority moves between processes at runtime.**
@@ -2382,8 +2382,34 @@ pub mod revoke_service;
 /// appear below: a property that has no RISC-V analogue at all (`el1_runs_on_sp_el1`), and a
 /// property whose RISC-V twin lives in `riscv_virtio_tests` and would be duplicated rather than
 /// gained. See notes/riscv-parity-scope.md.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod tests;
+
+#[cfg(test)]
+/// Spin the scheduler until `done()`, or give up after a wall-clock deadline. Returns whether it
+/// happened. **Time-based, not a fixed yield count** (DECISIONS §28): with work spread across
+/// cores, the test thread's own core is often idle, so a yield returns at once and a fixed count
+/// of them elapses in almost no real time, timing out before a parallel result on another core
+/// lands. A ~2 s deadline gives the other cores real time to finish while staying far under the
+/// 60 s hang watchdog, so a genuine hang still fails.
+///
+/// It lives **here** rather than in `tests` because six sibling modules use it and that one does
+/// not compile on every architecture: `user::tests` needs a real ELF program out of the initrd
+/// and is `#[cfg(all(test, initrd))]`, which would have taken this helper down with it on a
+/// target that packs none (milestone 161, roadmap item 4). A helper every module uses does not
+/// belong inside one of them. Milestone 81 needed it in two of them: running on the physical core makes the
+/// yield-count version fail for the *mirror* reason it fails on a loaded host, since a yield on an
+/// idle core costs nanoseconds there. See notes/hvf-leg.md.
+pub(crate) fn wait_for(mut done: impl FnMut() -> bool) -> bool {
+    let deadline = crate::arch::timer::now() + 2 * crate::arch::timer::frequency();
+    while crate::arch::timer::now() < deadline {
+        if done() {
+            return true;
+        }
+        crate::sched::yield_now();
+    }
+    done()
+}
 
 /// **Forcible teardown: `DESTROY` tears a runaway down** (DECISIONS §16 amendment, §24's second-`^C`
 /// tier). A child spinning at EL0, never yielding and never checking an endpoint, cannot be waited
@@ -2408,7 +2434,7 @@ mod force_kill_tests;
 /// the sub-server crashes, its supervisor hears about it, reaps it through the spawner, and asks for a
 /// replacement, which runs and exits cleanly. init could not have done any of that, and that is what
 /// these two tests prove.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod authority_tests;
 
 /// **The interactive boot's half of the same idea: a job's memory comes home** (milestone 22, the
@@ -2427,7 +2453,7 @@ mod authority_tests;
 ///
 /// Cross-ISA, because every piece is portable: `job_undertaker` is an ordinary program in both archives
 /// and the reap authorization reads two TCB fields.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod job_undertaker_tests;
 
 /// **A memory-unsafe C component, confined** (milestone 36, DECISIONS §31).
@@ -2471,7 +2497,7 @@ mod job_undertaker_tests;
 /// bugs take *different* fault paths on each (a permission fault on the read-only page, a translation
 /// fault on the unmapped one), which is more of each architecture's fault machinery than any previous
 /// test has exercised from userspace.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod c_seam_tests;
 
 /// **A running component replaced under a talking client** (milestone 23, DECISIONS §41).
@@ -2512,7 +2538,7 @@ mod c_seam_tests;
 ///
 /// The second test covers the latency ladder's opt-in rung, `broker`. Both ISAs, because a swap
 /// that only worked on one would be a finding, not a pass.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod live_swap_tests;
 
 /// **Measured boot: the kernel refuses to enter an init it was not built for** (milestone 22 phase
@@ -2530,7 +2556,7 @@ mod live_swap_tests;
 /// matches the archive in RAM), and says Err for bytes off by one bit. The boot path's only response
 /// to Err is `arch::halt()`, which is three lines up from here in `trust::require` and is the sort of
 /// thing a reader can check by looking.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod measured_boot_tests;
 
 /// **The fault endpoint: a supervisor watches a child die and reap it** (milestone 22, DECISIONS
@@ -2612,7 +2638,7 @@ mod pmap_tests;
 /// The negative control is what makes it worth having: the shipped document contains entries a Unix
 /// cron would simply have run (`date` wants a clock, `ps` wants a process view), and the timetable
 /// holds neither, so both are refused **in writing, before anything fires** and neither ever runs.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod timetable_tests;
 
 /// **The directory capability, attacked** (milestone 47, notes/dir-capability.md).
@@ -2622,7 +2648,7 @@ mod timetable_tests;
 /// bitmap, so the only difference between the legs is which binary carries the block-server role,
 /// and that is one `cfg` in [`blk_server_image`] rather than a second copy of every assertion. The
 /// parity gate (DECISIONS §19) is met by literally the same test running twice.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod dir_capability_tests;
 
 /// **One process, two directory capabilities** (milestone 154,
@@ -2635,7 +2661,7 @@ mod dir_capability_tests;
 /// the deliverable both milestone 47's `bind` and milestone 64's `File::open` fork were blocked
 /// on: `/a/x` and `/b/y` both resolve, `/a/../b` is refused, and neither caretaker can see the
 /// other's tree.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod multi_dir_namespace_tests;
 
 /// **The navigation builtins, and the property that two shells cannot name each other's files**
@@ -2648,7 +2674,7 @@ mod multi_dir_namespace_tests;
 /// holding a `fs_subtree_caretaker`'s narrowed endpoint where the interactive one holds a terminal.
 /// So the builtins under test are the builtins at the prompt rather than a reimplementation of
 /// them, and the thing being confined is a shell.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod shell_navigation_tests;
 
 /// **`rm` as a program, and a recursive removal bounded by the capability it was handed**
@@ -2667,7 +2693,7 @@ mod shell_navigation_tests;
 /// exactly where the capabilities stop**: the same command line against the same tree does the
 /// whole job through one grant and cannot begin through a narrower one, and no branch in the
 /// program decides which.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod rm_program_tests;
 
 /// **Globbing: the expansion you see is the grant** (milestone 47's globbing lane;
@@ -2680,7 +2706,7 @@ mod rm_program_tests;
 /// `READDIR`) and then the **real `rm` binary** behind a real `fs_nameset_caretaker`. The argument
 /// the two halves make together is the one Unix cannot make: the names a command displays are
 /// literally the authority it would transfer, and nothing else in the directory moves.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod glob_grant_tests;
 
 /// Parity C: the virtio-blk driver, its two attackers, and the DMA confinement, on RISC-V.
@@ -2720,7 +2746,7 @@ pub mod pipeline_service;
 /// The claim under test is one sentence: **a program holds an endpoint for its output and cannot
 /// tell what is on the other end.** So the assertions are all of the form "the same binary, two
 /// destinations, the same bytes", never "the pipeline printed something".
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod pipeline_tests;
 
 /// **`>` and `<` at a prompt that holds a filesystem** (milestone 50, notes/pipes.md).
@@ -2738,7 +2764,7 @@ mod pipeline_tests;
 ///
 /// One module for both ISAs, for [`shell_navigation_tests`]'s reason: nothing here is
 /// architecture-specific, so the parity gate (DECISIONS §19) is met by the same test running twice.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod redirection_tests;
 
 /// **`time <command>` at a real prompt** (milestone 86, notes/time-command.md).
@@ -2754,7 +2780,7 @@ mod redirection_tests;
 ///
 /// One module for both ISAs, for [`shell_navigation_tests`]'s reason: nothing here is
 /// architecture-specific, so the parity gate (DECISIONS §19) is met by the same test running twice.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod time_tests;
 
 /// **Quoting, sequencing and `$?` at a real prompt** (milestone 67, notes/swish-language.md).
@@ -2775,7 +2801,7 @@ mod time_tests;
 ///
 /// One module for both ISAs, for [`shell_navigation_tests`]'s reason: nothing here is
 /// architecture-specific, so the parity gate (DECISIONS §19) is met by the same test running twice.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod language_tests;
 
 /// **The sink contract, and the one behaviour it changed** (milestone 50, notes/sink-protocol.md).
@@ -2787,7 +2813,7 @@ mod language_tests;
 ///
 /// Both run on both ISAs (§19), because the claim is about a contract and not about an instruction
 /// set.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod sink_tests;
 
 /// **No test may leak a runnable thread** (the regression proxy for the test-thread starvation that

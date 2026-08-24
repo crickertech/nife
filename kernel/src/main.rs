@@ -282,6 +282,12 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // slices (RAM, and what is already spoken for) and hands them to the half that does not
         // care where they came from.
         stack::init();
+        // Paint the boot stack's unused region for the high-water instrument (milestone 84), before
+        // anything else can push a frame into it. Both other boots do this here, in the same breath
+        // as `stack::init`; without it the instrument reads whatever the trampoline left and reports
+        // 100% of a 64 KiB stack in use, which is what the first x86 test run said.
+        #[cfg(test)]
+        stack::paint_boot_stack();
         let regions = arch::machine::bring_up_memory(&info);
         let first = memory::alloc().expect("no frame from the allocator");
         println!(
@@ -302,7 +308,10 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             arch::mmu::text_start(),
             arch::mmu::text_end(),
             arch::mmu::stack_bottom(),
-            stack_top(),
+            // `arch::mmu`'s rather than this file's `stack_top`, which is `#[cfg(not(test))]`
+            // because it belongs to the aarch64 tour. Same linker symbol, same answer, and this
+            // one exists in a test build, which is the boot this tour now has to survive.
+            arch::mmu::stack_top(),
         );
 
         // Milestone 162: RDSEED needs no ring 3, no capability, and nothing this port has not
@@ -342,6 +351,16 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             "  scheduler   : up on 1 cpu, preempting at {} Hz (idle thread registered)",
             arch::timer::TICK_HZ,
         );
+
+        // **SMP, which on this machine is one line and a refusal**, and it is called anyway rather
+        // than skipped. `arch::can_start_secondaries` is false here (INIT-SIPI-SIPI is roadmap item
+        // 5), so this prints the mechanism and returns; what it does *first* is mark the boot core
+        // in `ONLINE_MASK`, and that is not optional. Everything that broadcasts (`online_cpus`,
+        // `nth_online`, the shootdown loops) reads that mask, so a kernel that never called this
+        // has an empty online set while `online_count` says one, and the two disagreeing is what
+        // `the_online_set_is_the_mask_and_the_sampler_stays_inside_it` caught on the first x86 test
+        // run. Both other boots call this in the same position.
+        smp::bring_up_secondaries();
 
         // A kernel thread, which is the cheapest proof that `kmem`, `untyped` and the context
         // switch all work on this architecture: its stack came from the kernel's own budget and
@@ -1446,9 +1465,22 @@ mod tests {
     /// begins with the magic `0xd00dfeed`, stored **big-endian** (the format predates
     /// the little-endian consensus and never changed), so we have to byte-swap on the
     /// way in. If this passes, the machine is genuinely describing itself to us.
+    /// **Not on x86_64**, and the reason is the whole of what that architecture's boot handoff
+    /// differs by: what arrives in `kernel_main`'s one pointer there is PVH's `hvm_start_info`,
+    /// which carries the same *kind* of thing (the memory map, the root of everything else
+    /// discoverable) in an entirely different format. `machine_discovery::x86_64` decodes it and
+    /// is host-tested against a real dump, which is the stronger place for that check to live;
+    /// this test's subject genuinely does not exist there.
     #[test_case]
     fn device_tree_has_the_right_magic() {
         use core::sync::atomic::Ordering;
+
+        if cfg!(target_arch = "x86_64") {
+            crate::testing::skip!(
+                "this machine hands over PVH hvm_start_info, not a device tree (see \
+                 machine_discovery::x86_64, host-tested)"
+            );
+        }
 
         // DTB holds the PHYSICAL address QEMU gave us in x0. Since the kernel moved to the
         // high half, TTBR0 is disabled and a low address does not exist: dereferencing it

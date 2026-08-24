@@ -358,10 +358,6 @@ pub fn bring_up_secondaries() {
         }
     }
 
-    // The entry point PSCI needs is PHYSICAL: the core starts with its MMU off. Cast the
-    // function item through a pointer (not straight to an integer, which the compiler warns on).
-    let entry = arch::mmu::virt_to_phys(secondary_boot as *const () as u64);
-
     // What starts a core here, and whether this machine can be asked at all. The arch prints the
     // mechanism it found (the PSCI conduit and function id on aarch64, read out of `/psci`); a
     // machine that states none is a real machine and this is where we say so, once, rather than
@@ -371,6 +367,19 @@ pub fn bring_up_secondaries() {
         println!("  smp: 1 core(s) online");
         return;
     }
+
+    // The entry point PSCI needs is PHYSICAL: the core starts with its MMU off. Cast the
+    // function item through a pointer (not straight to an integer, which the compiler warns on).
+    //
+    // **Below the refusal above, not before it** (milestone 161, roadmap item 4). It used to be the
+    // first thing this function did, and on x86_64 that panicked: `secondary_boot` is in `.boot`
+    // there, a section the linker places at its *physical* address because the trampoline starts in
+    // 32-bit protected mode and cannot name a 64-bit one, so `virt_to_phys` gets a low address and
+    // subtracts a high-half base from it. Computing an entry for a machine that cannot be asked to
+    // start anything was always work for nothing; on the third architecture it was also wrong.
+    // (When x86 SMP lands, this conversion is not the right one for it either: that entry is
+    // already physical. See milestone 161's roadmap item 5.)
+    let entry = arch::mmu::virt_to_phys(secondary_boot as *const () as u64);
 
     let mut started = 0;
     for id in 0..MAX_CPUS {
@@ -627,6 +636,17 @@ mod tests {
     /// id says, on the machine every merge boots.
     #[test_case]
     fn the_roster_is_the_machines_own_core_list() {
+        // **No roster, no claim.** `read_cpu_list` is the only thing that fills this in, and it
+        // reads a device tree; x86_64 has none, and its own roster (the ACPI MADT's processor
+        // entries, seated by local APIC id rather than by index) arrives with SMP bring-up on that
+        // architecture, milestone 161's item 5. Zero here means "nobody has said", which is a third
+        // answer from "this machine has no cores".
+        if super::described_count() == 0 {
+            crate::testing::skip!(
+                "nothing has read this machine's core roster (no device tree; the x86 ACPI roster \
+                 is milestone 161's SMP item)"
+            );
+        }
         let ptr = crate::DTB.load(Ordering::Relaxed);
         // SAFETY: the pointer firmware handed us, already parsed twice on this boot.
         let dt = unsafe { dtb::Dtb::from_ptr(arch::mmu::phys_to_virt(ptr as u64) as *const u8) }
@@ -690,6 +710,17 @@ mod tests {
     /// bring-up worked from was a constant and could only ever agree with itself.
     #[test_case]
     fn every_core_the_tree_described_is_running() {
+        // **No roster, no claim.** `read_cpu_list` is the only thing that fills this in, and it
+        // reads a device tree; x86_64 has none, and its own roster (the ACPI MADT's processor
+        // entries, seated by local APIC id rather than by index) arrives with SMP bring-up on that
+        // architecture, milestone 161's item 5. Zero here means "nobody has said", which is a third
+        // answer from "this machine has no cores".
+        if super::described_count() == 0 {
+            crate::testing::skip!(
+                "nothing has read this machine's core roster (no device tree; the x86 ACPI roster \
+                 is milestone 161's SMP item)"
+            );
+        }
         assert_eq!(
             online_count(),
             super::described_count(),
@@ -745,6 +776,17 @@ mod tests {
     /// on an eight-slot kernel has four secondaries, honestly.
     #[test_case]
     fn all_secondaries_came_online() {
+        // **No roster, no claim.** `read_cpu_list` is the only thing that fills this in, and it
+        // reads a device tree; x86_64 has none, and its own roster (the ACPI MADT's processor
+        // entries, seated by local APIC id rather than by index) arrives with SMP bring-up on that
+        // architecture, milestone 161's item 5. Zero here means "nobody has said", which is a third
+        // answer from "this machine has no cores".
+        if super::described_count() == 0 {
+            crate::testing::skip!(
+                "nothing has read this machine's core roster (no device tree; the x86 ACPI roster \
+                 is milestone 161's SMP item)"
+            );
+        }
         assert_eq!(
             ONLINE.load(Ordering::Acquire),
             super::described_count() - 1,
@@ -835,10 +877,15 @@ mod tests {
 
         let n = online_count();
         let here = cpu::id();
-        assert!(
-            n >= 2,
-            "a cross-core placement test needs at least two online cores; this machine has {n}",
-        );
+        // **A machine with one core is not a machine that failed this test.** This was an assertion
+        // until milestone 161 brought up a third architecture whose SMP bring-up is not written
+        // (x86 INIT-SIPI-SIPI, roadmap item 5), which is exactly the "the fixture is not on this
+        // boot" case milestone 145's `skip!()` exists for. Both other legs run at `-smp 4` and are
+        // unaffected; a single-core leg now says so rather than reporting a red suite for a
+        // property it had no way to exercise.
+        if n < 2 {
+            crate::testing::skip!("a cross-core placement test needs at least two online cores");
+        }
 
         // Every ONLINE core but this one, placed from here: the remote path, inbox plus SGI. The
         // set, not `0..n` (first-silicon sweep, 2026-08-14): the range would place probes into
