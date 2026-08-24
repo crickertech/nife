@@ -3,13 +3,20 @@
 //! two architectures are both RISC machines with a device tree, weak memory and a similar MMU, and
 //! this one is none of those things.
 //!
-//! **This is a scaffold, and it says so in every stub.** What is real: the boot path (a 32-bit
-//! multiboot-style trampoline into long mode and the high half), the GDT and TSS, the IDT and the
-//! trap frame, the console UART over port I/O, the page-table format, the address arithmetic, the
-//! interrupt-masking primitives, the context switch, and the test exit. What is not: the
-//! fine-grained page tables, the APIC, any clock, VT-d, SMP bring-up, and ring 3. Each of those is
-//! an `unimplemented!()` that names itself and the reason, exactly as the RISC-V port shipped on
-//! its first day, so that nobody mistakes a stub for a working port.
+//! **This is a partial port, and it says so in every remaining stub.** What is real: the boot path
+//! (a 32-bit multiboot-style trampoline into long mode and the high half), the GDT and TSS, the IDT
+//! and the trap frame, the console UART over port I/O, the page-table format, the fine-grained W^X
+//! kernel map, the local APIC and a calibrated timer, the IO APIC and a routed device line, user
+//! address spaces, the `syscall` pair and ring 3, the address arithmetic, the interrupt-masking
+//! primitives, the context switch, and the test exit. What is not: VT-d and SMP bring-up, each an
+//! `unimplemented!()` that names itself and the reason, so that nobody mistakes a stub for a working
+//! port.
+//!
+//! **And one thing that is real only at this layer**, which is worth saying here because this module
+//! is where a reader looks first: a program runs at ring 3, but there is no *process* behind it. The
+//! scheduler, the kernel heap and the untyped budget have never been brought up on this
+//! architecture, so `user::run` and `KernelStack::new` have nothing to stand on. See
+//! design/roadmap/161-x86-64-kernel-port.md, item 4.
 //!
 //! # What this port has already shown about the seam
 //!
@@ -60,18 +67,83 @@ global_asm!(include_str!("boot.s"));
 // The context switch and the two first-run trampolines (the asm half of context.rs).
 global_asm!(include_str!("context.s"));
 
-// The 256 trap stubs and the common save/restore path (the asm half of exceptions.rs).
-global_asm!(include_str!("trap.s"));
+// The 256 trap stubs, the shared restore path, the `syscall` entry, and the two doors into ring 3
+// (the asm half of exceptions.rs). The three constants are substituted rather than duplicated: a
+// 64-bit assembler cannot read a Rust `const`, and the alternative is two files that can drift.
+global_asm!(
+    include_str!("trap.s"),
+    USER_CODE = const segments::USER_CODE as u64,
+    USER_DATA = const segments::USER_DATA as u64,
+    SYSCALL_VECTOR = const exceptions::SYSCALL_VECTOR,
+);
+
+// The hand-assembled ring-3 probe `exceptions::ring3_self_test` runs, with its three syscall
+// numbers substituted from the Rust definitions that also intercept them.
+global_asm!(
+    include_str!("ring3_probe.s"),
+    ABI = const exceptions::PROBE_ABI_NR,
+    REPORT = const exceptions::PROBE_REPORT_NR,
+    ESCAPED = const exceptions::PROBE_ESCAPED_NR,
+);
 
 /// `IA32_GS_BASE`: the MSR holding the base of the `gs` segment, and this architecture's answer to
 /// aarch64's `TPIDR_EL1` and RISC-V's `tp`. A per-CPU register the kernel owns.
 ///
-/// **There is a second one, and knowing why matters before user mode exists.** `IA32_KERNEL_GS_BASE`
-/// (0xC0000102) holds the *other* value, and the `swapgs` instruction exchanges the two. That pair
-/// is how a trap from ring 3 recovers the kernel's per-CPU pointer without trusting anything the
-/// user program could have set, which is exactly the problem RISC-V solves with `sscratch`. Nothing
-/// uses it yet because nothing runs in ring 3; trap.s records where the `swapgs` goes.
+/// **There is a second one, and it is now load-bearing.** `IA32_KERNEL_GS_BASE` (0xC0000102) holds
+/// the *other* value, and `swapgs` exchanges the two. That pair is how a trap from ring 3 recovers
+/// the kernel's per-CPU pointer without trusting anything the user program could have set, which is
+/// exactly the problem RISC-V solves with `sscratch`. The convention this kernel keeps, stated once
+/// here because it is the sort of thing that is otherwise only true by accident: **while executing
+/// in ring 0, `IA32_GS_BASE` names the per-CPU block and `IA32_KERNEL_GS_BASE` holds the user's
+/// value; in ring 3 they are the other way round.** trap.s does the swapping, guarded on the
+/// interrupted CPL, and its header says why the guard rather than a bare instruction.
 const IA32_GS_BASE: u32 = 0xC000_0101;
+
+/// Read a model-specific register. `rdmsr` returns the value split across `edx:eax`, with the
+/// register number in `ecx`.
+///
+/// **Name provisional** (milestone 161): calef names public functions (AGENTS.md, milestone 160),
+/// and this one was minted by a lane.
+///
+/// # Safety
+/// `msr` must be a register this CPU implements. Reading one it does not is a general protection
+/// fault, and `CPUID` is the only way to know for the optional ones.
+pub unsafe fn read_msr(msr: u32) -> u64 {
+    let low: u32;
+    let high: u32;
+    // SAFETY: the caller's contract. A read has no architectural side effects.
+    unsafe {
+        asm!(
+            "rdmsr",
+            in("ecx") msr,
+            out("eax") low,
+            out("edx") high,
+            options(nomem, nostack, preserves_flags),
+        );
+    }
+    ((high as u64) << 32) | low as u64
+}
+
+/// Write a model-specific register. The counterpart of [`read_msr`], with the same split.
+///
+/// **Name provisional** (milestone 161).
+///
+/// # Safety
+/// `msr` must be one this CPU implements, and `value` must be legal for it. An MSR write is one of
+/// the few instructions that can change what mode the machine is in (`IA32_EFER` alone controls
+/// long mode, `NXE` and `syscall`), so this is exactly as dangerous as what the caller names.
+pub unsafe fn write_msr(msr: u32, value: u64) {
+    // SAFETY: the caller's contract.
+    unsafe {
+        asm!(
+            "wrmsr",
+            in("ecx") msr,
+            in("eax") value as u32,
+            in("edx") (value >> 32) as u32,
+            options(nomem, nostack, preserves_flags),
+        );
+    }
+}
 
 /// The logical id of the CPU the kernel boots on. Always 0 on x86: unlike RISC-V, where firmware
 /// picks a boot hart and the spec does not require it to be hart 0, the x86 boot processor is
@@ -83,34 +155,15 @@ pub fn boot_cpu_id() -> usize {
 
 /// Set this CPU's per-CPU pointer, by writing the `gs` segment base.
 pub fn set_percpu(ptr: usize) {
-    // SAFETY: writes a per-CPU MSR the kernel reserves for its own per-CPU block. `wrmsr` takes the
-    // value split across edx:eax and the MSR number in ecx.
-    unsafe {
-        asm!(
-            "wrmsr",
-            in("ecx") IA32_GS_BASE,
-            in("eax") ptr as u32,
-            in("edx") (ptr >> 32) as u32,
-            options(nomem, nostack, preserves_flags),
-        );
-    }
+    // SAFETY: `IA32_GS_BASE` exists on every long-mode CPU, and this value is the per-CPU block
+    // this kernel reserves the register for.
+    unsafe { write_msr(IA32_GS_BASE, ptr as u64) };
 }
 
 /// Read this CPU's per-CPU pointer (the value last handed to [`set_percpu`]).
 pub fn percpu() -> usize {
-    let low: u32;
-    let high: u32;
-    // SAFETY: reads an MSR. No side effects.
-    unsafe {
-        asm!(
-            "rdmsr",
-            in("ecx") IA32_GS_BASE,
-            out("eax") low,
-            out("edx") high,
-            options(nomem, nostack, preserves_flags),
-        );
-    }
-    ((high as usize) << 32) | low as usize
+    // SAFETY: `IA32_GS_BASE` exists on every long-mode CPU; a read has no side effects.
+    unsafe { read_msr(IA32_GS_BASE) as usize }
 }
 
 /// **Test-only: does the per-CPU pointer name the CPU we are physically running on?**
@@ -156,6 +209,14 @@ pub fn init() {
     // SAFETY: called once per CPU during boot, with a valid stack, before interrupts are unmasked.
     unsafe { segments::init() };
     exceptions::init();
+    // And the second door into the kernel, which shares none of the first one's machinery: four
+    // MSRs, no gate and no descriptor. It goes here rather than with ring 3 because it is per-CPU
+    // state like the GDT and the IDT, and because a `syscall` before it is programmed is a jump to
+    // whatever `IA32_LSTAR` holds, which on a cold machine is zero.
+    //
+    // SAFETY: `segments::init` above installed the GDT these selectors index, and nothing has
+    // entered ring 3 (nothing can: this is the boot CPU's own bring-up).
+    unsafe { exceptions::init_syscall() };
 }
 
 /// Stop this CPU forever, cheaply. `hlt` parks it until an interrupt; with interrupts masked and
