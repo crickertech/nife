@@ -593,14 +593,18 @@ pub const INIT_TEST_SGI: u32 = 3;
 #[cfg_attr(not(test), allow(dead_code))]
 #[cfg(target_arch = "riscv64")]
 pub const INIT_TEST_SGI: u32 = 10;
-/// `x86_64` (milestone 161): the same UART line, for RISC-V's reason and one more. x86 *does* have a
-/// self-directed interrupt (a local APIC IPI to self), so unlike RISC-V it is not forced into this
-/// choice; it is here because the APIC is not built, so the only interrupt this port can name is
-/// the console UART's, and naming the same line as [`UART_RX_INTID`] keeps the two consistent the
-/// way the RISC-V arm does. Revisit when the APIC lands.
+/// `x86_64` (milestone 161, updated by roadmap item 4): **the local APIC's self-IPI test vector**,
+/// which puts this ISA on aarch64's side of the split rather than RISC-V's. The local APIC will
+/// deliver a vector to its own CPU on demand through the ICR, so x86 needs no device to raise an
+/// interrupt by hand, and `arch::x86_64::irq::raise_self_interrupt` is the mechanism. The intid for
+/// such a source **is its vector**, which is why this is 0x22 and not a small number like the other
+/// two: see `arch::x86_64::exceptions::x86_trap_body`'s self-IPI arm for the naming rule.
+///
+/// It was 4 (COM1's legacy IRQ) while the APIC was unbuilt and that arm's own comment said to
+/// revisit this when it landed.
 #[cfg_attr(not(test), allow(dead_code))]
 #[cfg(target_arch = "x86_64")]
-pub const INIT_TEST_SGI: u32 = 4;
+pub const INIT_TEST_SGI: u32 = crate::arch::irq::SELF_TEST_VECTOR as u32;
 
 /// The console UART's receive interrupt on QEMU `virt`. init routes and delegates it so the input
 /// driver it builds (19d.2c) can wait on keystrokes. aarch64's PL011 is SPI 1 = INTID 33; RISC-V's
@@ -1192,6 +1196,183 @@ pub const OUTLAW_READ_KERNEL: u64 = 1;
 /// permissions, the entry point, argument passing across the `START` boundary, and the endpoint
 /// SEND, all from a program the kernel did not hand-write. `load` is arch-neutral; this is the same
 /// code aarch64 runs, now on the RISC-V address space and trap path.
+/// The hand-assembled `x86_64` programs, because no compiled one exists for this target yet.
+#[cfg(target_arch = "x86_64")]
+pub mod x86_programs;
+
+/// Where the x86 demo's children put their code and stack. Any two low-half pages would do; these
+/// are the ones the supervision fixtures use on every architecture, so a reader who has seen one
+/// recognises them.
+#[cfg(target_arch = "x86_64")]
+const X86_DEMO_CODE_VA: u64 = 0x40_0000;
+#[cfg(target_arch = "x86_64")]
+const X86_DEMO_STACK_VA: u64 = 0x50_0000;
+/// The word the reporting child SENDs, and the address the faulting one loads from. Both are
+/// distinctive so that a zero anywhere in the report is visibly a failure rather than a plausible
+/// value.
+#[cfg(target_arch = "x86_64")]
+const X86_DEMO_WORD: u32 = 0x0161_0004;
+#[cfg(target_arch = "x86_64")]
+const X86_DEMO_BAD_ADDR: u32 = 0x00A5_0000;
+
+/// What the x86 userspace demo found. Every field is something a **program in ring 3** or the
+/// **kernel's own supervision path** produced, rather than something the tour assumed.
+#[cfg(target_arch = "x86_64")]
+#[derive(Debug, Clone, Copy)]
+pub struct X86UserspaceReport {
+    /// The word the reporting child SENDed, as it arrived on the endpoint. Proves the child reached
+    /// ring 3, made a `syscall` that reached the portable dispatcher, and was answered.
+    pub reported: u64,
+    /// The thread id the kernel stamped on the faulting child's death message.
+    pub faulted_tid: u64,
+    /// The pc the faulting child died at, from the message. `X86_DEMO_CODE_VA + 5` if the fault
+    /// landed on the instruction it was supposed to.
+    pub fault_pc: u64,
+    /// The address it faulted on, from the message.
+    pub fault_addr: u64,
+    /// Frames free before the demo, and after both children's regions were reclaimed. Equal is the
+    /// interesting answer.
+    pub frames_before: usize,
+    pub frames_after: usize,
+}
+
+/// **Build one hand-assembled child out of `region` and start it.** The x86 boot tour's own
+/// `build_child_in`, kept beside the demo rather than shared with `supervision_tests` because that
+/// module is `#[cfg(test)]` and this runs on an ordinary boot.
+///
+/// `slot0` is the capability the program's own slot 0 will hold, if any; `fault_ep` goes in the
+/// reserved fault slot, so `START` records it as this child's supervision endpoint.
+#[cfg(target_arch = "x86_64")]
+fn x86_build_child(
+    region: u64,
+    program: &[u32],
+    slot0: Option<crate::cap::Cap>,
+    fault_ep: Option<crate::sched::RendezvousId>,
+) -> Result<u64, &'static str> {
+    let aspace = user_aspace_create(region).ok_or("no address space for the child")?;
+
+    let code_phys = crate::untyped::retype_page(region).ok_or("no code frame")?;
+    // SAFETY: a fresh frame this region owns, reachable through the direct map; the program is
+    // written there and then mapped executable. The kernel cannot address `X86_DEMO_CODE_VA`
+    // itself, which is why the frame is written through its physical name instead.
+    unsafe {
+        let dst = mmu::phys_to_virt(code_phys) as *mut u32;
+        for (i, &word) in program.iter().enumerate() {
+            dst.add(i).write(word);
+        }
+    }
+    // A no-op on this architecture (the instruction cache is architecturally coherent), and called
+    // anyway because the seam is what the other two need and skipping it here would make this code
+    // wrong to copy.
+    sync_icache(
+        mmu::phys_to_virt(code_phys),
+        core::mem::size_of_val(program),
+    );
+    user_aspace_map(aspace, X86_DEMO_CODE_VA, code_phys, Flags::user_code())
+        .map_err(|_| "could not map the child's code")?;
+
+    let stack_phys = crate::untyped::retype_page(region).ok_or("no stack frame")?;
+    user_aspace_map(aspace, X86_DEMO_STACK_VA, stack_phys, Flags::user_data())
+        .map_err(|_| "could not map the child's stack")?;
+
+    let tid = crate::sched::create_tcb(region).ok_or("no tcb")?;
+    if let Some(cap) = slot0 {
+        let slot = crate::sched::tcb_insert_cap(tid, cap, None)
+            .map_err(|_| "no room for the child's slot 0")?;
+        if slot != 0 {
+            return Err("the child's capability did not land in slot 0, which its code assumes");
+        }
+    }
+    if let Some(ep) = fault_ep {
+        // The spawn-slot convention: a supervision endpoint goes in the reserved fault slot, and
+        // the kernel consumes it at START so the child cannot forge fault messages on it.
+        let cap = crate::cap::rendezvous_cap(ep, crate::cap::Rights::READ);
+        crate::sched::tcb_insert_cap(tid, cap, Some(abi::fault::FAULT_EP_SLOT))
+            .map_err(|_| "no room for the fault endpoint")?;
+    }
+    crate::sched::configure_tcb(
+        tid,
+        X86_DEMO_CODE_VA,
+        X86_DEMO_STACK_VA + FRAME_SIZE,
+        aspace,
+    )
+    .map_err(|_| "could not configure the child")?;
+    crate::sched::start_tcb(tid, [0; 3]).map_err(|_| "could not start the child")?;
+    Ok(tid)
+}
+
+/// **Prove there is a userspace on `x86_64`**, which is the claim roadmap item 4 exists to make and
+/// is a strictly larger one than item 3's ring-3 probe.
+///
+/// Two children, because the two halves of "a process" fail differently and a single program that
+/// did both could hide one behind the other:
+///
+///   - **One reports and exits.** Its whole world (address space, code page, stack page, TCB) is
+///     carved from one untyped region, it is dispatched to ring 3 by the *scheduler* rather than by
+///     a hand-written entry path, it invokes a capability it was granted, and the word it SENDs
+///     arrives here. That is the loader-shaped path minus the ELF: every kernel object a process
+///     needs, built from a budget, in the order a real spawn builds them.
+///   - **One faults.** It loads from an address nothing maps, the page tables refuse it, and the
+///     trap path turns that into a supervision message naming the thread, the pc and the address.
+///     Until this item the same arm recorded the fault and then panicked, because there was no
+///     thread to kill.
+///
+/// And then both regions are destroyed and the frame count is compared, because a userspace that
+/// leaks its processes is not one.
+///
+/// **Name provisional** (milestone 161, roadmap item 4).
+#[cfg(target_arch = "x86_64")]
+pub fn x86_userspace_demo() -> Result<X86UserspaceReport, &'static str> {
+    use abi::fault::EVENT_FAULT;
+
+    let frames_before = crate::memory::free_frames();
+
+    // The reporting child. Sixteen pages is what the supervision fixtures give a child on the other
+    // two architectures: an address space's root and tables, a code page, a stack page and a TCB.
+    let report_region = crate::untyped::create(16).ok_or("no region for the reporting child")?;
+    let report_ep = crate::sched::create_rendezvous();
+    let report_cap = crate::cap::rendezvous_cap(report_ep, crate::cap::Rights::WRITE);
+    x86_build_child(
+        report_region,
+        &x86_programs::report(X86_DEMO_WORD),
+        Some(report_cap),
+        None,
+    )?;
+    let reported = crate::sched::ipc_recv(report_ep)[0];
+
+    // The faulting child, with a supervision endpoint of its own.
+    let fault_region = crate::untyped::create(16).ok_or("no region for the faulting child")?;
+    let fault_ep = crate::sched::create_rendezvous();
+    let child = x86_build_child(
+        fault_region,
+        &x86_programs::fault(X86_DEMO_BAD_ADDR),
+        None,
+        Some(fault_ep),
+    )?;
+    let msg = crate::sched::ipc_recv(fault_ep);
+    if msg[0] != EVENT_FAULT {
+        return Err("the child's death did not arrive as a FAULT event");
+    }
+    if msg[1] != child {
+        return Err("the fault message named the wrong thread");
+    }
+
+    // Reap the corpse (the supervisor's explicit act, DECISIONS §32) and give both regions back.
+    crate::sched::reap_supervised(fault_ep, child)
+        .map_err(|_| "the corpse refused to be reaped")?;
+    crate::untyped::destroy(report_region);
+    crate::untyped::destroy(fault_region);
+
+    Ok(X86UserspaceReport {
+        reported,
+        faulted_tid: msg[1],
+        fault_pc: msg[2],
+        fault_addr: msg[3],
+        frames_before,
+        frames_after: crate::memory::free_frames(),
+    })
+}
+
 #[cfg(target_arch = "riscv64")]
 pub fn riscv_worker_demo(worker: &[u8], n: u64) -> Result<u64, LoadError> {
     // The kernel's real loader: parse, build the address space, map the W^X segments and a stack.

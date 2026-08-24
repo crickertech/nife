@@ -319,51 +319,97 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             None => println!("  entropy     : rdseed not supported (cpuid leaf 7 ebx.18 clear)"),
         }
 
-        // Ring 3, which is the step this whole tour has been building toward: every line above it
-        // is about the kernel talking to the machine, and this one is about the kernel refusing a
-        // program. A hand-assembled probe is entered at CPL 3 through `iretq`, makes syscalls that
-        // reach the *portable* dispatcher, is put back, and then tries to read the kernel's own
-        // `.text` and is refused by the page tables.
+        // The per-CPU interrupt stacks go live here, for the reason both other boots arm them right
+        // after their own `mmu::init`: their guard pages are holes in the map that was just
+        // installed, and before that they are covered by the coarse boot map and are not holes yet.
+        interrupt_stack::init();
+
+        // **The scheduler** (milestone 161, roadmap item 4). Everything below this line is a
+        // process rather than a program, which is the distinction item 3 stopped at.
         //
-        // What it does NOT prove is a real process: no ELF is loaded, no capability is granted, and
-        // there is no scheduler behind it (milestone 161, roadmap item 4). The line says what it
-        // measured and nothing more.
-        //
-        // SAFETY: the MMU, the GDT, the IDT and the syscall MSRs are all up by this line, this is
-        // the boot thread, and no other thread exists on this architecture.
-        match unsafe { arch::exceptions::ring3_self_test() } {
-            Ok(report) => {
-                println!(
-                    "  ring 3      : a program ran at cpl {} (cs {:#06x}, ss {:#06x}) and made {} syscalls",
-                    report.cs & 3,
-                    report.cs,
-                    report.ss,
-                    report.syscalls,
-                );
-                println!(
-                    "                the portable dispatcher answered BadSyscall ({}) to an unknown number",
-                    report.dispatcher_answer,
-                );
-                match report.fault {
-                    Some((fault, at)) => println!(
-                        "                reading the kernel's .text at {at:#x} from ring 3: {fault:?}",
-                    ),
-                    None => println!(
-                        "                FAILED: reading the kernel's .text at {:#x} did not fault",
-                        report.forbidden_address,
-                    ),
+        // Interrupts are off here (the two measurement windows above turned them back off), which
+        // is what `sched::init` needs: a timer tick landing mid-init would run the deferred
+        // `schedule()` before the idle thread is registered and hit "nothing runnable and no idle
+        // thread". The RISC-V boot masks them explicitly at this point for the same reason.
+        sched::init();
+
+        // Re-arm the local APIC timer and let it run for good. `timer::init` rewrites the LVT
+        // unmasked, which is what undoes the `mask_timer` the PIT window needed so its count would
+        // be the PIT's alone. From here this timer is what preempts.
+        arch::timer::init();
+        arch::interrupts::enable();
+        println!(
+            "  scheduler   : up on 1 cpu, preempting at {} Hz (idle thread registered)",
+            arch::timer::TICK_HZ,
+        );
+
+        // A kernel thread, which is the cheapest proof that `kmem`, `untyped` and the context
+        // switch all work on this architecture: its stack came from the kernel's own budget and
+        // running it at all is one `switch_to` out and one back.
+        {
+            use core::sync::atomic::AtomicU64;
+            static SAW: AtomicU64 = AtomicU64::new(0);
+            let captured = 0x1610_0004u64;
+            match sched::spawn(move || SAW.store(captured, core::sync::atomic::Ordering::SeqCst)) {
+                Some(_) => {
+                    for _ in 0..8 {
+                        sched::yield_now();
+                    }
+                    let saw = SAW.load(core::sync::atomic::Ordering::SeqCst);
+                    println!(
+                        "  kernel task : a spawned thread ran and carried its captured state ({saw:#x}){}",
+                        if saw == captured { "" } else { "  FAILED" },
+                    );
                 }
+                None => println!("  kernel task : FAILED: could not spawn a kernel thread"),
             }
-            Err(why) => println!("  ring 3      : FAILED: {why}"),
         }
 
-        // And that is the end of what is built. Everything the RISC-V tour does past this point
-        // (the scheduler, userspace, the device drivers) needs an arch layer this port has not
-        // written, and each of those is a loud `unimplemented!()` rather than a plausible number.
-        // Halting here is the honest stop; see the roadmap for the order the rest comes in.
+        // **Userspace**, which is the step this whole tour has been building toward: every line
+        // above it is about the kernel talking to the machine, and this one is about the kernel
+        // running a program and refusing it. Two hand-assembled children, each built out of its own
+        // untyped region the way a real spawn builds one; see `user::x86_userspace_demo`.
+        match user::x86_userspace_demo() {
+            Ok(report) => {
+                println!(
+                    "  userspace   : a process built from untyped ran at cpl 3 and sent {:#x} on a granted cap",
+                    report.reported,
+                );
+                println!(
+                    "                thread {} died at pc {:#x} on addr {:#x}, delivered to its supervisor",
+                    report.faulted_tid, report.fault_pc, report.fault_addr,
+                );
+                println!(
+                    "                {} frames free before, {} after both regions were destroyed{}",
+                    report.frames_before,
+                    report.frames_after,
+                    if report.frames_before == report.frames_after {
+                        ""
+                    } else {
+                        "  (LEAKED)"
+                    },
+                );
+            }
+            Err(why) => println!("  userspace   : FAILED: {why}"),
+        }
+
+        // A test build runs the kernel suite right here and exits via semihosting, instead of the
+        // rest of the tour. Everything the tests need is now up: the frame allocator, the fine page
+        // tables, the scheduler and its idle thread, the timer and interrupts. The x86 equivalent of
+        // the `#[cfg(test)] test_main()` both other boots reach.
+        #[cfg(test)]
+        {
+            test_main();
+            arch::halt();
+        }
+
+        // And that is the end of what is built. What the RISC-V tour does past this point (the
+        // device drivers, an initrd, a shell) needs user programs compiled for
+        // `x86_64-unknown-none`, and none are: `crates/user_rt` has no arms for this ISA. See the
+        // roadmap for the order the rest comes in.
         println!();
-        println!("  next        : the kernel's own test suite, and therefore a script/test leg.");
-        println!("nife x86_64: early boot complete, halting.");
+        println!("  next        : real ELF user programs (user_rt has no x86_64 arms), then SMP.");
+        println!("nife x86_64: boot complete, halting.");
         arch::halt();
     }
 

@@ -94,6 +94,21 @@ const _: () = assert!(size_of::<Tss>() == 104);
 /// needs its own, since `rsp0` names a per-core stack.
 static mut TSS: Tss = Tss::new();
 
+/// **Where `TSS.rsp0` is, for trap.s.**
+///
+/// The `isr_restore` path writes the outgoing thread's kernel-stack top here on every return to
+/// ring 3, so the *next* trap from that thread lands on its own stack rather than on whoever was
+/// running last. It is a pointer rather than the field's symbol because `TSS` is an ordinary Rust
+/// static and giving it a `no_mangle` name to let assembly index into a `packed` struct by hand
+/// would put the layout in two places.
+///
+/// Zero until [`init`] runs, which is before the IDT exists, so nothing can reach the write through
+/// it earlier. [`init`] asserts that ordering rather than leaving it to be noticed.
+///
+/// **Name provisional** (milestone 161, roadmap item 4).
+#[unsafe(no_mangle)]
+static mut X86_TSS_RSP0: u64 = 0;
+
 /// The GDT: seven 8-byte slots, the last two of which are one 16-byte TSS descriptor.
 static mut GDT: [u64; 7] = [
     0,                     // 0x00: the mandatory null descriptor
@@ -134,6 +149,11 @@ pub unsafe fn init() {
     // the way it does rather than being a single store.
     let base = (&raw const TSS) as u64;
     let limit = (size_of::<Tss>() - 1) as u64;
+
+    // Hand trap.s the address of the one field it writes. Before the IDT exists, so no trap can
+    // have taken the path that reads it. See `X86_TSS_RSP0`.
+    // SAFETY: single-threaded boot, writing a static this CPU owns, before any trap can be taken.
+    unsafe { X86_TSS_RSP0 = (&raw const TSS.rsp0) as u64 };
     let low = (limit & 0xffff)
         | ((base & 0x00ff_ffff) << 16)
         | (0x89 << 40)                    // present, type 9 = available 64-bit TSS

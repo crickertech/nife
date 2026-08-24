@@ -80,6 +80,12 @@ mod reg {
     /// Spurious Interrupt Vector. Bit 8 is the **software enable**, and the low eight bits are the
     /// vector a spurious interrupt arrives on.
     pub const SPURIOUS: u64 = 0x0f0;
+    /// Interrupt Command Register, low word: the vector, the delivery mode, and the destination
+    /// shorthand. **Writing this word is what sends the IPI**, so the high word must already be in
+    /// place. See [`super::send_ipi`].
+    pub const ICR_LOW: u64 = 0x300;
+    /// Interrupt Command Register, high word: the destination local APIC id, in bits 31:24.
+    pub const ICR_HIGH: u64 = 0x310;
     /// Local Vector Table entry for the timer: the vector, the mask bit, and the mode.
     pub const LVT_TIMER: u64 = 0x320;
     /// What the timer counts down from.
@@ -100,6 +106,28 @@ pub const SPURIOUS_VECTOR: u8 = 0xff;
 /// **The vector the local APIC timer raises.** 0x20, the first vector after the 32 the architecture
 /// reserves for exceptions. Not a hardware fact: it is our choice, written into the LVT.
 pub const TIMER_VECTOR: u8 = 0x20;
+
+/// **The vector a reschedule inter-processor interrupt arrives on**, and this architecture's
+/// counterpart of aarch64's `sched::RESCHED_SGI` and RISC-V's SBI software interrupt.
+///
+/// 0x21, immediately after the timer and well below [`GSI_VECTOR_BASE`], so the local APIC's own
+/// sources stay grouped in 0x20..0x2f the way [`gsi_vector`]'s comment promises.
+///
+/// **Name provisional** (milestone 161, roadmap item 4): calef names public items.
+pub const RESCHEDULE_VECTOR: u8 = 0x21;
+
+/// **The vector `raise_self_interrupt` uses for the scheduler's own interrupt-delivery tests.**
+///
+/// 0x22, in the same local-APIC band. It is a *test* fixture rather than a device line, and it has
+/// to be one: see [`raise_self_interrupt`] for why x86 cannot use its console UART the way RISC-V
+/// does, and why a self-IPI is the honest analog of aarch64's software-generated interrupt.
+///
+/// **Name provisional** (milestone 161, roadmap item 4).
+pub const SELF_TEST_VECTOR: u8 = 0x22;
+/// A second test vector, so two tests cannot see each other's routes (aarch64's two SGIs).
+///
+/// **Name provisional** (milestone 161, roadmap item 4).
+pub const SELF_TEST_VECTOR_B: u8 = 0x23;
 
 /// LVT bit 16: masked. Set on every entry at reset, which is why an unmasked entry is a deliberate
 /// act.
@@ -579,13 +607,81 @@ pub fn enable(intid: u32) {
     );
 }
 
-/// Send a reschedule inter-processor interrupt to `target_cpu`.
+/// **ICR delivery mode `Fixed`**, bits 10:8 = 000: deliver `vector` to the destination, exactly as
+/// if a device line had raised it. The other modes (NMI, INIT, STARTUP) are SMP bring-up's, not
+/// this.
+const ICR_FIXED: u32 = 0b000 << 8;
+/// ICR bit 14, the level bit. Must be 1 for every delivery mode except INIT de-assert, which no
+/// modern part uses; a zero here is silently ignored on some steppings and not on others.
+const ICR_ASSERT: u32 = 1 << 14;
+/// ICR destination shorthand bits 19:18 = 01: **self**, no destination field consulted.
+const ICR_SELF: u32 = 0b01 << 18;
+/// ICR bit 12, delivery status: set by the APIC while a previous IPI is still being sent. Read-only,
+/// and polled before writing a new one.
+const ICR_PENDING: u32 = 1 << 12;
+
+/// Wait for any previous IPI to be accepted. The ICR is one register per local APIC, so writing it
+/// while a send is outstanding loses one of the two.
+fn wait_for_ipi_delivery() {
+    while read(reg::ICR_LOW) & ICR_PENDING != 0 {
+        core::hint::spin_loop();
+    }
+}
+
+/// **Send `vector` to the local APIC whose id is `dest_apic_id`.**
+///
+/// The write to [`reg::ICR_LOW`] is what sends it, so the destination goes in the high word first;
+/// a version of this that wrote them the other way round would send to whoever the previous IPI
+/// named, which is a bug that only appears once there is a second CPU to get it wrong about.
+///
+/// **Name provisional** (milestone 161, roadmap item 4).
+pub fn send_ipi(dest_apic_id: u8, vector: u8) {
+    wait_for_ipi_delivery();
+    write(reg::ICR_HIGH, (dest_apic_id as u32) << 24);
+    write(reg::ICR_LOW, ICR_FIXED | ICR_ASSERT | vector as u32);
+}
+
+/// **Raise `vector` on the CPU executing this**, through the local APIC's self shorthand.
+///
+/// This is x86's answer to a question the other two architectures answer very differently, and the
+/// asymmetry is worth stating because `sched`'s interrupt-delivery tests depend on it. aarch64 can
+/// raise a software-generated interrupt on itself with no device at all. RISC-V cannot raise
+/// anything: `sip.SEIP` is read-only to S-mode and the PLIC's pending block is read-only by
+/// specification, so its tests assert the console UART's transmit-empty line instead. x86 is
+/// aarch64's case rather than RISC-V's: the local APIC will deliver any vector to itself on demand,
+/// through a real delivery path (the ICR, the IRR, the ISR, an EOI), so the interrupt is the
+/// hardware's and not a function call wearing a handler's name.
+///
+/// It is deliberately **not** the console UART's line. COM1's interrupt is discoverable here
+/// (`Acpi::isa_irqs[4]`) and unwired, and asserting a device this port has no driver for would prove
+/// less than this does while being able to fail for reasons unrelated to the kernel.
+///
+/// **Name provisional** (milestone 161, roadmap item 4).
+pub fn raise_self_interrupt(vector: u8) {
+    wait_for_ipi_delivery();
+    // No destination word: the `self` shorthand tells the APIC to ignore it, and writing one would
+    // be a claim about which CPU this is that the shorthand exists to avoid making.
+    write(
+        reg::ICR_LOW,
+        ICR_SELF | ICR_FIXED | ICR_ASSERT | vector as u32,
+    );
+}
+
+/// Send a reschedule inter-processor interrupt to `target_cpu`, whose handler drains its inbox and
+/// serves any outstanding work-steal request (`sched::drain_inbox`, `sched::serve_steal_request`).
+/// The x86 counterpart of aarch64's reschedule SGI and RISC-V's SBI IPI.
 ///
 /// # BUGS
-/// **Unimplemented**, and blocked on nothing but SMP existing: the mechanism is a write to the local
-/// APIC's Interrupt Command Register, which this module already has the base address for.
-#[allow(dead_code)]
+/// **The logical cpu id is used as the destination local APIC id**, which is true on the one CPU
+/// this port brings up (the boot CPU is logical 0 and QEMU gives it APIC id 0) and is not true in
+/// general: the two numbers are independent and the MADT states the mapping. SMP bring-up
+/// (milestone 161, roadmap item 5) is what has to build that table, because it is the same table
+/// INIT-SIPI-SIPI needs to name a CPU to start. Nothing calls this today: every caller in `sched`
+/// is guarded by "the target is another core", and there is no other core.
 pub fn send_reschedule(target_cpu: usize) {
-    let _ = target_cpu;
-    unimplemented!("x86_64 irq::send_reschedule: no secondary CPU exists yet (milestone 161)")
+    debug_assert!(
+        local_apic_ready(),
+        "a reschedule IPI before the local APIC is up has nothing to send it with"
+    );
+    send_ipi(target_cpu as u8, RESCHEDULE_VECTOR);
 }

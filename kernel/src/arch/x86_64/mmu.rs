@@ -119,6 +119,26 @@ pub const DIRECT_MAP_BASE: u64 = 0xffff_8880_0000_0000;
 /// The top-level (PML4) index the direct map occupies, **duplicated in `boot.s`** because a 32-bit
 /// assembler cannot compute it from the constant above. This is the gate that keeps the two in
 /// agreement: change [`DIRECT_MAP_BASE`] without changing `boot.s` and the kernel does not build.
+/// **Where kernel thread stacks live, virtually** (`thread.rs`'s `STACK_AREA`).
+///
+/// `0xffff_c900_0000_0000` is **Linux's `VMALLOC_START`**, taken rather than invented for the same
+/// reason [`DIRECT_MAP_BASE`] is Linux's `page_offset_base`: a reader who has met one x86_64 kernel
+/// has met this number, and the alternative is a constant nobody can check against anything.
+///
+/// **The portable expression the other two architectures use does not survive here**, and the way
+/// it fails is silent. `thread.rs` computed this as `KERNEL_VA_BASE | 0x10_0000_0000` ("64 GiB above
+/// the direct map"), which works where the kernel base is a *half* base with room above it.
+/// [`KERNEL_VA_BASE`] here is `0xffff_ffff_8000_0000`, which already has every bit of
+/// `0x10_0000_0000` set, so the OR was the identity: every kernel thread stack would have been
+/// mapped at the kernel image's own base, over `.text`. Caught by reading rather than by booting,
+/// because the mapper's overwrite refusal turns it into `kmem: no memory to wire one` far from the
+/// cause.
+///
+/// PML4[402], which is nothing else's: the image is PML4[511] and the direct map PML4[273].
+///
+/// **Name provisional** (milestone 161, roadmap item 4).
+pub const THREAD_STACK_AREA: u64 = 0xffff_c900_0000_0000;
+
 const DIRECT_MAP_PML4_INDEX: u64 = 273;
 
 const _: () = {
