@@ -353,6 +353,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "jh7110_trng"
+version = "0.1.0"
+dependencies = [
+ "dtb",
+]
+
+[[package]]
 name = "kernel"
 version = "0.1.0"
 dependencies = [
@@ -916,6 +923,7 @@ dependencies = [
  "gpt",
  "grant_plan",
  "graphics_proto",
+ "jh7110_trng",
  "line_editor",
  "login_proto",
  "manual",

@@ -1,0 +1,22 @@
+[package]
+name = "jh7110_trng"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+# Name: PROVISIONAL (milestone 159's lane, 2026-08-24). Chip-qualified and unambiguous rather than
+# generic (`trng` alone would be the "generic word that could name almost anything" AGENTS.md
+# warns off), the same reasoning that keeps `nvme` and `pci` named for the spec rather than for
+# "storage" or "bus". calef has not ratified it; see src/lib.rs for the full note and script/names.
+#
+# no_std for the driver, std for host tests, the §7 pure-logic split `pci` and `nvme` already use:
+# this crate owns register offsets, bit decode, and the DTB discovery query only. No unsafe code
+# and no raw pointer anywhere in here; the volatile MMIO access is the future driver's job, in
+# whichever program ends up holding the `DeviceFrame` capability (rule 2: a driver is handed a base
+# address and knows nothing else).
+
+[dependencies]
+dtb = { version = "0.1.0", path = "../dtb" }
+
+[lints]
+workspace = true
