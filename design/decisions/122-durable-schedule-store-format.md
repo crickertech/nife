@@ -1,9 +1,13 @@
 # 122. The on-disk, per-user schedule store: format, write path, read-at-boot path
 
-**Status: PROPOSED.** Raised 2026-08-24 by milestone 152's lane, from the milestone's own BUGS
-section: "the on-disk, per-user schedule store has no format, no write path, and no read-at-boot
-path." The number is **provisional**, minted by this lane against the current `design/decisions/`
-index (highest existing was 121 at the time of writing); expect renumbering at merge.
+**Status: DECIDED.** calef, 2026-08-24, ratified option 1: reuse `timetable::parse`'s document
+format unchanged, one file per identity inside that identity's own subtree, written and read through
+ordinary `filesystem_proto` verbs. Confirmed this is a persistence-format decision only, not an
+invitation to adopt cron's calendar syntax, which stays milestone 129's own deliberately deferred
+question. Raised 2026-08-24 by milestone 152's lane, from the milestone's own BUGS section: "the
+on-disk, per-user schedule store has no format, no write path, and no read-at-boot path." The number
+is **provisional**, minted by this lane against the current `design/decisions/` index (highest
+existing was 121 at the time of writing); expect renumbering at merge.
 
 ## The problem
 
