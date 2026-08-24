@@ -678,7 +678,14 @@ fn a_host_process_connects_to_the_guest_and_is_answered() {
         "the SMB adapter did not serve a mount-shaped exchange (code {verdict:#x}); 0xE11x is the \
          listen grant, 0xE120 means no SMB connection arrived (the runner's \
          NIFE_SMB_HOSTFWD_PORT hostfwd, or the prober), 0xE121 a connection with no SMB on it, \
-         0xE130 an arg2 share mode nobody defined",
+         0xE130 an arg2 share mode nobody defined. 0xE14x is milestone 152's durable-session \
+         self-proof (authenticated wiring only): 0xE140 could not open a session, 0xE141 could \
+         not mint the synthetic pending-job child, 0xE142 means DESTROY succeeded on a session \
+         that still had a live child, 0xE143 could not destroy the synthetic child, 0xE144 means \
+         DESTROY still refused a childless session, 0xE146 could not open the kept session (a \
+         distinct code from 0xE140's, once the scratch session has already proven the lifecycle \
+         rule holds), 0xE145 means the kept session could not be closed after serving real \
+         connections",
     );
     let verdict = sched::ipc_recv(mdns_report)[0];
     assert_eq!(

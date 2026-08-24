@@ -31,6 +31,17 @@ store and requires it to be empty. **The demo boot (`smb-serve`) still admits gu
 so**, for a reason worth knowing before you read further: there is no way to *tell* it a password.
 See BUGS.
 
+**The session/connection split landed on 2026-08-24** (milestone 152, durable delegation's first
+buildable piece). `smb_server.rs` used to be one accept-serve-close loop where all session state,
+NTLMSSP proof included, died with the socket, which is the "unprotected afterwards" line above and
+also meant there was nothing here that could outlive a disconnect even in principle. It now splits
+into the transient per-connection protocol handler (`serve_connection`, unchanged) and a durable
+`DurableSession`, built once before the accept loop, kept alive by DECISIONS §16's ordinary
+parent-with-live-children rule rather than any new mechanism. No real scheduled job is registered
+against one yet (that is milestone 129/#387, and reconnect-time reattachment, both still open); see
+`smb_server`'s own module header ("The durable session") for the full account and
+design/roadmap/152-durable-delegation.md for the design this closes the first BUGS item of.
+
 ## The pieces
 
 | Piece | Where | What it is |
