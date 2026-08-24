@@ -204,6 +204,22 @@ it.
   decided; see `crates/jh7110_trng/src/lib.rs`'s "Health testing" section and
   `design/roadmap/159-jh7110-trng-driver.md` for the argument, which a lane deliberately did not
   resolve on its own initiative.
+- **A second backend exists on aarch64 and x86_64, milestone 162.** `entropy` can now be spawned in
+  an instruction mode that needs no virtio device at all: `RNDRRS` (aarch64, `FEAT_RNG`) rather than
+  `RDSEED` (x86_64), or the DRBG-buffered `RNDR`/`RDRAND`, since `entropy`'s whole discipline ("no
+  pool, no whitening, no mixing, no DRBG") rules out a buffered instruction the same way it rules out
+  software conditioning. `RNDRRS`'s register encoding is `S3_3_C2_C4_1`; success/failure rides
+  `PSTATE.NZCV` after the `MRS`, the same idiom Linux's `arch/arm64/include/asm/archrandom.h` uses.
+  `RDSEED`'s carry flag and Intel's DRNG Software Implementation Guide (rev. 2.2, §5.3.1.2) give the
+  retry bound (100 attempts, a `pause` between). Both instructions' own specifications describe
+  SP800-90B-shaped on-die conditioning as part of their architectural contract, so bytes pass through
+  unmodified, same as virtio-rng; the health-test question above does not apply to either. **Proven
+  end to end under QEMU on aarch64, but only with `--cpu neoverse-n2`**: the suite's default CPU
+  (`cortex-a72`) predates `FEAT_RNG`, and QEMU's `max` model, despite carrying `FEAT_RNG`, cannot even
+  boot this kernel (a missing 4 KiB stage-1 granule, checked and confirmed 2026-08-24 against QEMU
+  11.0.2, unrelated to entropy). On x86_64 the instruction itself is proven (a kernel-side boot probe;
+  see `design/roadmap/162-cpu-instruction-entropy.md`), but the service cannot be spawned into
+  userspace at all yet: there is no ring 3 on this port (milestone 161 item 3).
 - **No health test.** A device that started returning a constant would be passed straight through.
   The kernel tests would catch it, a running system would not. NIST SP 800-90B's repetition-count and
   adaptive-proportion tests are the cheap standard answer and are not implemented.

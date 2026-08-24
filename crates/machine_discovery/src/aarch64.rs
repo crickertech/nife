@@ -71,6 +71,13 @@ pub struct Isa {
     /// `ID_AA64MMFR2_EL1.VARange`, decoded to 48 or 52. See BUGS: 52 is a claim about the part, not
     /// a configuration this kernel could adopt by flipping one field.
     pub va_bits: u8,
+    /// `ID_AA64ISAR0_EL1.RNDR`, milestone 162: does this part implement `FEAT_RNG`, the `RNDR`/
+    /// `RNDRRS` random-number instructions? Read here for the same reason `PARange` and
+    /// `ASIDBits` are: the field is architected and readable at EL1, so there is no excuse to
+    /// assume it. Unlike those two, a `false` here is not fatal to the boot; it only means the
+    /// entropy service's instruction backend stays unoffered (`kernel/src/user/entropy_service.rs`),
+    /// the same way a missing virtio-rng device does.
+    pub rndr: bool,
 }
 
 /// What a machine is missing that this kernel needs.
@@ -91,13 +98,16 @@ impl Missing {
 }
 
 impl Isa {
-    /// Decode the three registers the kernel reads. Pure: no `mrs` here, so this is host-testable
+    /// Decode the four registers the kernel reads. Pure: no `mrs` here, so this is host-testable
     /// against words captured from real parts.
     ///
     /// The field positions are the ARM ARM's (D19.2 in DDI 0487): `MIDR_EL1` is
     /// `implementer` 31:24, `variant` 23:20, `architecture` 19:16, `partnum` 15:4, `revision` 3:0,
-    /// and the `ID_AA64MMFR*` fields are 4 bits each at the offsets named below.
-    pub fn decode(midr_el1: u64, mmfr0_el1: u64, mmfr2_el1: u64) -> Isa {
+    /// the `ID_AA64MMFR*` fields are 4 bits each at the offsets named below, and
+    /// `ID_AA64ISAR0_EL1.RNDR` is bits 63:60 (`0b0001` implemented, `0b0000` not; every other
+    /// encoding is reserved and decoded as not implemented, the same conservative default
+    /// `ASIDBits`' reserved encodings use).
+    pub fn decode(midr_el1: u64, mmfr0_el1: u64, mmfr2_el1: u64, isar0_el1: u64) -> Isa {
         let f = |reg: u64, shift: u32| ((reg >> shift) & 0xf) as u8;
 
         Isa {
@@ -124,6 +134,7 @@ impl Isa {
                 0b0001 => 52,
                 _ => 48,
             },
+            rndr: f(isar0_el1, 60) == 0b0001,
         }
     }
 

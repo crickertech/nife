@@ -10,13 +10,27 @@ const DMA_VA: u64 = 0x0000_0000_0090_0000;
 /// gets the grant it needs and no more" is the standing rule in both directions.
 const DMA_FRAMES: u64 = 1;
 
+/// What `Spawn::arg0` means. Must match `user/src/entropy.rs`; the kernel's own spawn-argument
+/// convention with the one program it spawns (not a wire contract between two user programs, so
+/// rule 7 does not apply), the same footing `DMA_VA` above is already on.
+const MODE_VIRTIO: u64 = 0;
+const MODE_INSTRUCTION: u64 = 1;
+
 /// Which bus to take the RNG from. Both `virt` machines offer both, and the milestone-56 test
 /// runs the same binary over each in turn, because a driver that works on one transport and
 /// silently not the other is exactly what DECISIONS §18's seam exists to prevent.
+///
+/// **`Instruction` is not a bus** (milestone 162): `RDSEED`/`RNDRRS` need no MMIO, no PCIe function,
+/// no transport at all. It is named here anyway rather than given a parallel enum, because
+/// everything this type already exists to do (pick which source `ensure` wires, index the
+/// once-per-boot state below, name the source a failure came from) is exactly what an instruction
+/// source also needs, and "no bus" is itself the fact worth a reader seeing in the same place the
+/// other two sources are. Provisional; flagged for calef the same as the other new names here.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Bus {
     Mmio,
     Pci,
+    Instruction,
 }
 
 pub struct Wiring {
@@ -39,15 +53,18 @@ pub struct Wiring {
 /// endpoint; later callers get the same request endpoint and `None` for it.
 ///
 /// Plain atomics rather than a lock: the only writer is the boot/test thread that calls this.
-static WIRED: [core::sync::atomic::AtomicBool; 2] = [
+static WIRED: [core::sync::atomic::AtomicBool; 3] = [
+    core::sync::atomic::AtomicBool::new(false),
     core::sync::atomic::AtomicBool::new(false),
     core::sync::atomic::AtomicBool::new(false),
 ];
-static REQUEST: [core::sync::atomic::AtomicU64; 2] = [
+static REQUEST: [core::sync::atomic::AtomicU64; 3] = [
+    core::sync::atomic::AtomicU64::new(0),
     core::sync::atomic::AtomicU64::new(0),
     core::sync::atomic::AtomicU64::new(0),
 ];
-static CONFINED: [core::sync::atomic::AtomicBool; 2] = [
+static CONFINED: [core::sync::atomic::AtomicBool; 3] = [
+    core::sync::atomic::AtomicBool::new(false),
     core::sync::atomic::AtomicBool::new(false),
     core::sync::atomic::AtomicBool::new(false),
 ];
@@ -57,6 +74,7 @@ impl Bus {
         match self {
             Bus::Mmio => 0,
             Bus::Pci => 1,
+            Bus::Instruction => 2,
         }
     }
 }
@@ -82,12 +100,19 @@ pub fn ensure(image: &'static [u8], bus: Bus) -> Option<Wiring> {
     Some(w)
 }
 
-/// **Wire and spawn the entropy service.** `None` if `bus` has no virtio-rng function on it.
+/// **Wire and spawn the entropy service.** `None` if `bus` has no virtio-rng function on it (or,
+/// for [`Bus::Instruction`], if this machine does not implement the instruction).
 fn start(image: &'static [u8], bus: Bus) -> Option<Wiring> {
+    if bus == Bus::Instruction {
+        return start_instruction(image);
+    }
     // The two buses differ in exactly two things: where the registers are, and whether there is
     // a requester id for the IOMMU to confine. Everything below is shared, which is the §18
     // seam doing its job.
     let (transport, intid, rid) = match bus {
+        Bus::Instruction => {
+            unreachable!("start_instruction handles this bus; see the early return above")
+        }
         Bus::Mmio => {
             let d = crate::virtio::find_entropy_device()?;
             (
@@ -137,7 +162,7 @@ fn start(image: &'static [u8], bus: Bus) -> Option<Wiring> {
         run(
             image,
             Spawn {
-                arg0: 0,
+                arg0: MODE_VIRTIO,
                 arg1: dma, // the DMA region's PHYSICAL base: descriptors speak physical
                 arg2: 0,
                 grants: &[
@@ -157,6 +182,67 @@ fn start(image: &'static [u8], bus: Bus) -> Option<Wiring> {
         request,
         bus,
         confined_by_iommu,
+    })
+}
+
+/// **Does this machine implement an instruction source `entropy` can use?** The kernel's call to
+/// make, not the process's: `ID_AA64ISAR0_EL1` (aarch64) is not readable from EL0, so `entropy.rs`
+/// cannot check `FEAT_RNG` itself, the same way it cannot check whether a `Virtio` capability really
+/// names a device; it trusts what it was spawned with.
+#[cfg(target_arch = "aarch64")]
+fn instruction_backend_available() -> bool {
+    crate::arch::isa::get().rndr
+}
+
+/// `x86_64`: `RDSEED` exists on real hardware (checked via `CPUID` leaf 7's `EBX` bit 18), but this
+/// port has no ring 3 yet (milestone 161, item 3): there is no way to schedule a userspace `entropy`
+/// process onto it, so wiring one here would spawn a process nothing could ever run. This is the
+/// gap milestone 162's own report names for the lane that builds ring 3.
+///
+/// riscv64: neither `RDSEED` nor `RNDR`/`RNDRRS` exists on this ISA. Milestone 159's JH7110 TRNG is
+/// the real hardware source there, wired through the JH7110 driver rather than through this file.
+#[cfg(not(target_arch = "aarch64"))]
+fn instruction_backend_available() -> bool {
+    false
+}
+
+/// **Wire and spawn the entropy service in instruction mode**: no virtio device, no DMA page, no
+/// IRQ. `None` if this machine does not implement the instruction its architecture would use
+/// (see [`instruction_backend_available`]), the same "no source, no service" answer the virtio path
+/// gives for a missing device.
+fn start_instruction(image: &'static [u8]) -> Option<Wiring> {
+    if !instruction_backend_available() {
+        return None;
+    }
+
+    let ready = crate::sched::create_rendezvous();
+    let request = crate::sched::create_rendezvous();
+
+    crate::sched::spawn(move || {
+        run(
+            image,
+            Spawn {
+                arg0: MODE_INSTRUCTION,
+                arg1: 0,
+                arg2: 0,
+                grants: &[
+                    rendezvous_cap(request, Rights::READ), // slot 0: RECV client requests
+                    rendezvous_cap(ready, Rights::WRITE),  // slot 1: signal readiness once
+                ],
+                maps: &[],
+            },
+        )
+    })
+    .expect("could not spawn the entropy service");
+
+    Some(Wiring {
+        ready: Some(ready),
+        request,
+        bus: Bus::Instruction,
+        // Nothing here is a device, so there is nothing an IOMMU could confine. `false` states
+        // that rather than leaving the virtio path's field to be misread as "not confined" in the
+        // sense that matters for a real device.
+        confined_by_iommu: false,
     })
 }
 

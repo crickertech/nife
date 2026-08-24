@@ -20,7 +20,7 @@ fn mmfr0(tgran4: u64, tgran64: u64, tgran16: u64, asid_bits: u64, pa_range: u64)
 
 #[test]
 fn a_cortex_a72_decodes_to_a_cortex_a72() {
-    let cpu = Isa::decode(A72.0, A72.1, A72.2);
+    let cpu = Isa::decode(A72.0, A72.1, A72.2, 0);
 
     assert_eq!(cpu.implementer, 0x41);
     assert_eq!(cpu.implementer_name(), Some("Arm"));
@@ -60,7 +60,7 @@ fn a_cortex_a72_decodes_to_a_cortex_a72() {
 #[test]
 fn the_sixteen_kib_granule_field_is_inverted() {
     // 4 KiB yes, 64 KiB no, 16 KiB yes, 16-bit ASIDs, 48-bit PA.
-    let cpu = Isa::decode(0, mmfr0(0b0000, 0b1111, 0b0001, 0b0010, 0b0101), 0);
+    let cpu = Isa::decode(0, mmfr0(0b0000, 0b1111, 0b0001, 0b0010, 0b0101), 0, 0);
 
     assert!(cpu.granules.k4);
     assert!(
@@ -81,7 +81,7 @@ fn the_sixteen_kib_granule_field_is_inverted() {
 fn a_machine_without_the_4k_granule_is_refused() {
     // 4 KiB no, 64 KiB yes, 16 KiB yes, 16-bit ASIDs, 48-bit PA.
     let missing =
-        Isa::decode(0, mmfr0(0b1111, 0b0000, 0b0001, 0b0010, 0b0101), 0).missing_requirements();
+        Isa::decode(0, mmfr0(0b1111, 0b0000, 0b0001, 0b0010, 0b0101), 0, 0).missing_requirements();
 
     assert!(missing.any());
     assert!(missing.granule_4k);
@@ -102,7 +102,7 @@ fn a_machine_without_the_4k_granule_is_refused() {
 #[test]
 fn a_reserved_asid_encoding_is_refused_rather_than_rounded() {
     // ASIDBits = 0b0001, which ARM does not define. Everything else is a normal part.
-    let cpu = Isa::decode(0, mmfr0(0b0000, 0b0000, 0b0001, 0b0001, 0b0101), 0);
+    let cpu = Isa::decode(0, mmfr0(0b0000, 0b0000, 0b0001, 0b0001, 0b0101), 0, 0);
 
     assert_eq!(cpu.asid_bits, 0);
     assert!(cpu.missing_requirements().asid_bits);
@@ -116,7 +116,7 @@ fn a_reserved_asid_encoding_is_refused_rather_than_rounded() {
 #[test]
 fn eight_asid_bits_decode_and_suffice() {
     // ASIDBits = 0b0000, everything else a normal part.
-    let cpu = Isa::decode(0, mmfr0(0b0000, 0b0000, 0b0001, 0b0000, 0b0101), 0);
+    let cpu = Isa::decode(0, mmfr0(0b0000, 0b0000, 0b0001, 0b0000, 0b0101), 0, 0);
 
     assert_eq!(
         cpu.asid_bits, 8,
@@ -141,7 +141,7 @@ fn every_defined_physical_address_range_decodes() {
         (0b0110, 52),
         (0b0111, 56),
     ] {
-        let cpu = Isa::decode(0, encoding, 0);
+        let cpu = Isa::decode(0, encoding, 0, 0);
         assert_eq!(cpu.pa_bits(), bits, "PARange {encoding:#06b}");
         assert_eq!(
             cpu.pa_range, encoding as u8,
@@ -150,7 +150,7 @@ fn every_defined_physical_address_range_decodes() {
     }
 
     assert_eq!(
-        Isa::decode(0, 0b1000, 0).pa_bits(),
+        Isa::decode(0, 0b1000, 0, 0).pa_bits(),
         0,
         "reserved, and reported as such"
     );
@@ -160,10 +160,10 @@ fn every_defined_physical_address_range_decodes() {
 /// what we configured. Reported, and acted on by nothing (see the module BUGS).
 #[test]
 fn the_virtual_address_range_is_reported_not_assumed() {
-    assert_eq!(Isa::decode(0, 0, 0).va_bits, 48);
-    assert_eq!(Isa::decode(0, 0, 0b0001 << 16).va_bits, 52);
+    assert_eq!(Isa::decode(0, 0, 0, 0).va_bits, 48);
+    assert_eq!(Isa::decode(0, 0, 0b0001 << 16, 0).va_bits, 52);
     assert_eq!(
-        Isa::decode(0, 0, 0b1111 << 16).va_bits,
+        Isa::decode(0, 0, 0b1111 << 16, 0).va_bits,
         48,
         "reserved reads as the base case"
     );
@@ -182,7 +182,7 @@ fn the_virtual_address_range_is_reported_not_assumed() {
 #[test]
 fn every_implementer_is_reachable_through_midr() {
     for row in &IMPLEMENTERS {
-        let cpu = Isa::decode((row.code as u64) << 24, 0, 0);
+        let cpu = Isa::decode((row.code as u64) << 24, 0, 0, 0);
         assert_eq!(cpu.implementer, row.code, "MIDR_EL1[31:24] is the code");
         assert_eq!(
             cpu.implementer_name(),
@@ -195,15 +195,38 @@ fn every_implementer_is_reachable_through_midr() {
 
     // The two this project actually meets: QEMU's cortex-a72, and the Apple Silicon it is
     // developed on.
-    assert_eq!(Isa::decode(A72.0, 0, 0).implementer_name(), Some("Arm"));
+    assert_eq!(Isa::decode(A72.0, 0, 0, 0).implementer_name(), Some("Arm"));
     assert_eq!(
-        Isa::decode(0x6100_0000, 0, 0).implementer_name(),
+        Isa::decode(0x6100_0000, 0, 0, 0).implementer_name(),
         Some("Apple")
     );
 
     // And codes ARM has not assigned. Reported as a number, because a name here would be a guess
     // about who made the chip somebody is trying to bring a kernel up on.
-    assert_eq!(Isa::decode(0x0700_0000, 0, 0).implementer_name(), None);
-    assert_eq!(Isa::decode(0x0700_0000, 0, 0).implementer, 0x07);
-    assert_eq!(Isa::decode(0xff00_0000, 0, 0).implementer_name(), None);
+    assert_eq!(Isa::decode(0x0700_0000, 0, 0, 0).implementer_name(), None);
+    assert_eq!(Isa::decode(0x0700_0000, 0, 0, 0).implementer, 0x07);
+    assert_eq!(Isa::decode(0xff00_0000, 0, 0, 0).implementer_name(), None);
+}
+
+/// **`ID_AA64ISAR0_EL1.RNDR`, milestone 162.** `0b0001` is the one encoding ARM defines as
+/// "implemented"; the A72 fixture above has it clear, which is correct (the A72 predates
+/// ARMv8.5-RNG by several years), so this test is the only witness for the field reading `true`.
+///
+/// Every other nonzero encoding is reserved and decodes as `false`, the same conservative default
+/// `ASIDBits`' reserved encodings use: a value ARM has not defined is not a claim the instruction
+/// exists.
+#[test]
+fn the_random_number_instructions_field_decodes() {
+    assert!(
+        !Isa::decode(A72.0, A72.1, A72.2, 0).rndr,
+        "the A72 has no FEAT_RNG"
+    );
+    assert!(
+        Isa::decode(0, 0, 0, 0b0001 << 60).rndr,
+        "0b0001 is ARM's encoding for implemented"
+    );
+    assert!(
+        !Isa::decode(0, 0, 0, 0b0010 << 60).rndr,
+        "every other encoding is reserved and must not be trusted"
+    );
 }

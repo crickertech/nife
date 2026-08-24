@@ -52,6 +52,45 @@
 //!
 //! Name: unrecorded. Introduced 2026-07-30 with milestone 56, on the resource-name pattern `clock`
 //! also follows.
+//!
+//! # A second backend, and a smaller authority than the first (milestone 162)
+//!
+//! RDRAND/RDSEED (`x86_64`) and RNDR/RNDRRS (aarch64, `FEAT_RNG`) are **unprivileged CPU instructions**:
+//! no MMIO, no capability, no device discovery, executable at any privilege level. That is exactly
+//! the trap DECISIONS §44 exists to name: if this service let a client obtain those bytes by
+//! executing the instruction itself, the request endpoint above would be theatre, because ambient
+//! authority to the CPU is ambient authority to entropy. So [`instr`] is not a function a client
+//! links; it is the same shape as the virtio backend above, a second way *this* process reaches
+//! bytes, still gated behind the one endpoint every client already holds.
+//!
+//! **The kernel decides which backend a boot gets, the same way it decides `Bus::Mmio` vs.
+//! `Bus::Pci`.** `ID_AA64ISAR0_EL1.RNDR` (aarch64) is only readable at EL1 (a userspace `MRS` on it
+//! traps as an unknown register, `arch::isa::init` already reads it into the boot-time record), so
+//! this process never probes for the feature itself; it trusts the kernel's choice of which mode to
+//! spawn it in the same way it already trusts a granted `Virtio` capability to name a real device.
+//! See `kernel/src/user/entropy_service.rs::ensure_instruction`.
+//!
+//! **Why RDSEED/RNDRRS and not RDRAND/RNDR.** Intel's own DRNG Software Implementation Guide (rev.
+//! 2.2) documents `RDRAND` as SP800-90C RBG2(P) output: a hardware `CTR_DRBG` seeded from the
+//! conditioned entropy source, servicing up to 511 draws per reseed. `RDSEED` instead comes
+//! straight off the SP800-90C RBG3(XOR) enhanced non-deterministic generator, one draw, one fresh
+//! sample of the conditioned entropy source, no DRBG in the path. ARM's RNDR/RNDRRS pair is the same
+//! split (RNDR may be DRBG-buffered the way RDRAND is; RNDRRS forces a reseed from the entropy
+//! source before it answers, the way RDSEED does). This service's whole discipline is "no pool, no
+//! whitening, no mixing, **no DRBG**", stated two paragraphs up; taking RDRAND or RNDR would
+//! silently reintroduce, in hardware, the exact primitive this file already refuses to add in
+//! software. RDSEED/RNDRRS are the instructions that keep the claim "these are the device's bytes"
+//! true. The cost is real and is not hidden: both are rate-limited by the physical entropy source
+//! and can run dry under load in a way RDRAND/RNDR, buffered by their DRBG, do not; a caller that
+//! exhausts the retry budget gets [`proto::NO_ENTROPY`], the same honest answer a dry virtio device
+//! gives, rather than a fallback to the DRBG-backed sibling instruction.
+//!
+//! On-die conditioning is a different question from a DRBG and this service does not refuse it:
+//! both Intel's noise source and ARM's entropy source run an AES-CBC-MAC-shaped conditioner
+//! (SP800-90B's noise-source-plus-conditioning-function model) before either instruction's output is
+//! ever visible to software. That conditioning is part of the instruction's own architectural
+//! contract, the same way it is part of what "a device" means for virtio-rng; this file adds nothing
+//! on top of it either way.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks
@@ -65,11 +104,24 @@ use entropy_proto as proto;
 use user_rt::mapped_window::{MappedWindow, PAGE};
 use user_rt::{exit, invoke, recv_cap, reply, send};
 
-/// Capability slots, by convention with `kernel/src/user/entropy_service.rs`.
+/// Capability slots for the virtio backend, by convention with `kernel/src/user/entropy_service.rs`.
 const REQ: u64 = 0;
 const IRQ: u64 = 1;
 const VIRTIO: u64 = 2;
 const READY: u64 = 3;
+
+/// What `arg0` means, by convention with `kernel/src/user/entropy_service.rs::start` and
+/// `::start_instruction`. Not a wire contract between two *user* programs (rule 7 does not apply):
+/// it is the kernel's own spawn-argument convention with the one program it spawns, the same
+/// footing `DMA_VA` below is already on.
+const MODE_VIRTIO: u64 = 0;
+const MODE_INSTRUCTION: u64 = 1;
+
+/// Capability slots for the instruction backend: two, not four. No `Irq`, no `Virtio`, no DMA
+/// mapping at all, because `RNDRRS`/`RDSEED` need none of them. Smaller authority than the virtio
+/// backend's, which is itself already minimal.
+const I_REQ: u64 = 0;
+const I_READY: u64 = 1;
 
 /// Where the kernel maps this service's DMA page. Must match `kernel/src/user/entropy_service.rs`.
 const DMA_VA: u64 = 0x0000_0000_0090_0000;
@@ -331,7 +383,15 @@ impl Pool {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn _start(_arg0: u64, dma_phys: u64, _arg2: u64) -> ! {
+pub extern "C" fn _start(mode: u64, dma_phys: u64, _arg2: u64) -> ! {
+    if mode == MODE_INSTRUCTION {
+        // No virtio device, no DMA page, no IRQ: the kernel would not have spawned this mode
+        // unless it already confirmed the instruction's feature bit (aarch64's `ID_AA64ISAR0_EL1`,
+        // checked at EL1 because EL0 cannot read it). This process trusts that the same way it
+        // trusts a granted `Virtio` capability to name a real device.
+        serve_instruction();
+    }
+    debug_assert_eq!(mode, MODE_VIRTIO, "entropy: unknown spawn mode {mode:#x}");
     if mr(MAGIC) != 0x7472_6976 {
         die(E_MAGIC);
     }
@@ -406,6 +466,133 @@ fn serve(mut pool: Pool) -> ! {
             // room in it for an error code. So an unknown opcode is answered "you got nothing",
             // which is true. A second operation would be the moment to widen the reply, and that
             // is a contract change rather than a branch added here.
+            _ => (proto::NO_ENTROPY, 0),
+        };
+        reply(cap, count, word);
+    }
+}
+
+/// **The instruction backend** (milestone 162): RDSEED on `x86_64`, RNDRRS on aarch64. Confined here
+/// rather than lifted into a shared userspace arch-abstraction crate: nothing in `user/src/` has
+/// needed one before this (the precedent, `crates/user_rt`, is the syscall ABI itself, one crate
+/// *every* program depends on, not a single-consumer helper), so a module inside the one program
+/// that uses it is the smaller thing to build. **Provisional**, flagged for calef: if a second
+/// userspace program ever needs per-architecture `asm!` of its own, this is the first candidate to
+/// pull out into a crate rather than duplicate.
+mod instr {
+    /// How many times to retry a transient "no data this cycle" result before giving up.
+    ///
+    /// Both instructions this module uses draw straight from the conditioned entropy source rather
+    /// than a buffered DRBG (see the module doc above for why that is the point), so underflow under
+    /// load is expected rather than exceptional, unlike `RDRAND`/`RNDR`. Intel's DRNG Software
+    /// Implementation Guide (rev. 2.2, §5.3.1.2) calls this service an "asynchronous application"
+    /// (one that cannot block indefinitely waiting on a seed) and says to give up after "somewhere
+    /// between 1 and 100" retries depending on sensitivity to delay. This service is one serialized
+    /// request queue, not many threads hammering the instruction at once, so the high end of that
+    /// range costs nothing. ARM's own text for `RNDR`/`RNDRRS` ("if the instruction cannot return a
+    /// genuine random number in a reasonable period of time") reads as the hardware already
+    /// retrying before it ever signals failure, and Linux's `arch/arm64/include/asm/archrandom.h`
+    /// does not retry at the instruction level at all; one bound shared by both architectures is not
+    /// a stronger claim than either vendor makes, and it is simpler than two.
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+    const RETRIES: u32 = 100;
+
+    /// Draw eight bytes of real entropy, or `None` if the source stayed dry across [`RETRIES`]
+    /// attempts. Unlike the virtio backend's [`super::Pool`], there is no gathering across a
+    /// boundary to do: one successful draw is exactly [`super::proto::MAX_BYTES`] bytes, so a
+    /// single request never needs more than one attempt loop.
+    #[cfg(target_arch = "x86_64")]
+    pub fn draw() -> Option<[u8; 8]> {
+        for _ in 0..RETRIES {
+            let v: u64;
+            let ok: u8;
+            // SAFETY: `rdseed` is unprivileged at any ring (Intel DRNG guide §3.3.2: "no hardware
+            // ring requirements... may be invoked as part of an operating system... or directly by
+            // an application") and touches no memory. Success/failure rides the carry flag, not an
+            // exception, which `setc` captures in the same block before anything else can disturb
+            // it.
+            unsafe {
+                core::arch::asm!(
+                    "rdseed {v}",
+                    "setc {ok}",
+                    v = out(reg) v,
+                    ok = out(reg_byte) ok,
+                    options(nomem, nostack),
+                );
+            }
+            if ok != 0 {
+                return Some(v.to_le_bytes());
+            }
+            // SAFETY: `pause` is Intel's own documented spin-loop hint for exactly this retry shape
+            // (DRNG guide §5.3.1.1/.2); it touches no memory and has no failure mode.
+            unsafe { core::arch::asm!("pause", options(nomem, nostack)) };
+        }
+        None
+    }
+
+    /// See the `x86_64` [`draw`] above; same contract, ARM's instruction.
+    #[cfg(target_arch = "aarch64")]
+    pub fn draw() -> Option<[u8; 8]> {
+        for _ in 0..RETRIES {
+            let v: u64;
+            let ok: u64;
+            // SAFETY: `RNDRRS` (`S3_3_C2_C4_1`, the numeric encoding rather than the mnemonic alias
+            // so this assembles regardless of the assembler's FEAT_RNG name table) is unprivileged
+            // once FEAT_RNG is present. The kernel already confirmed that before spawning this
+            // process in instruction mode (`ID_AA64ISAR0_EL1` is not EL0-readable, so this file
+            // cannot check it itself); executing it without the feature present would trap as an
+            // unknown register access. Success/failure is this instruction's own architected side
+            // effect on PSTATE.NZCV (Arm ARM, "Random Number instructions": `0b0000` success,
+            // `0b0100` otherwise), which `cset ok, ne` reads back in the same block, the identical
+            // idiom Linux's `arch/arm64/include/asm/archrandom.h` uses. Touches no memory.
+            unsafe {
+                core::arch::asm!(
+                    "mrs {v}, S3_3_C2_C4_1",
+                    "cset {ok}, ne",
+                    v = out(reg) v,
+                    ok = out(reg) ok,
+                    options(nomem, nostack),
+                );
+            }
+            if ok != 0 {
+                return Some(v.to_le_bytes());
+            }
+        }
+        None
+    }
+
+    #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+    pub fn draw() -> Option<[u8; 8]> {
+        // The kernel never spawns MODE_INSTRUCTION on an architecture with neither instruction
+        // (riscv64: milestone 159's JH7110 TRNG is the real hardware source there), so this arm
+        // exists only to keep the crate building for a fourth architecture that adds neither
+        // instruction, rather than to be reached.
+        None
+    }
+}
+
+/// The instruction-mode serve loop: `RECV` on `I_REQ`, one instruction draw per request, one wait
+/// point. No device, so no bring-up steps and nothing that can [`die`]: the only degenerate case is
+/// a dry source, reported the same way a request's own [`proto::NO_ENTROPY`] answer already is.
+fn serve_instruction() -> ! {
+    let first = instr::draw();
+    send(
+        I_READY,
+        proto::READY,
+        u64::from(first.is_some()),
+        first.map_or(0, |_| proto::MAX_BYTES),
+    );
+    loop {
+        let (w0, cap, _) = recv_cap(I_REQ);
+        if cap == rendezvous::NO_CAP {
+            // Same reasoning as `serve`'s identical line: nobody is waiting for an answer.
+            continue;
+        }
+        let (count, word) = match proto::op(w0) {
+            proto::GET => match instr::draw() {
+                Some(bytes) => (proto::want(w0), u64::from_le_bytes(bytes)),
+                None => (proto::NO_ENTROPY, 0),
+            },
             _ => (proto::NO_ENTROPY, 0),
         };
         reply(cap, count, word);

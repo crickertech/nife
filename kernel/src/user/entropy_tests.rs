@@ -155,3 +155,35 @@ fn a_reply_never_delivers_more_bytes_than_it_says() {
         "the service stopped serving after an unknown opcode",
     );
 }
+
+/// **The instruction backend, milestone 162: RNDRRS on aarch64, no virtio device at all.**
+///
+/// `Bus::Instruction` needs `ID_AA64ISAR0_EL1.RNDR` set, which the suite's default CPU
+/// (`cortex-a72`, an ARMv8.0-A part) does not implement: `FEAT_RNG` is ARMv8.5. This is the same
+/// shape as the virtio tests above skipping when `NIFE_RNG` is unset, one level down the stack:
+/// a real hardware precondition this suite cannot fake, named rather than assumed. Run this test
+/// for real with `script/test --arch aarch64 --cpu neoverse-n2` (verified 2026-08-24 against QEMU
+/// 11.0.2). **Not `--cpu max`**: QEMU's `max` model does carry `FEAT_RNG`, but this kernel refuses
+/// to boot on it at all ("no 4 KiB stage-1 granule (`ID_AA64MMFR0_EL1.TGran4`)"), a QEMU-model quirk
+/// unrelated to entropy; `neoverse-n2` (Armv9.0-A) has both. On `x86_64`, `RDSEED` has no such gap
+/// because ring 3 does not exist yet on that port at all (see
+/// `design/roadmap/162-cpu-instruction-entropy.md`), so there is no service to test end to end
+/// there yet, only the kernel-side probe the boot tour already proves. This test also compiles and
+/// runs (and skips) on riscv64, which has neither instruction: `instruction_backend_available`
+/// there is unconditionally `false`, the JH7110's real hardware source (milestone 159) being a
+/// separate driver entirely, so the skip is correct there too, just for a different reason.
+#[test_case]
+fn a_client_obtains_unpredictable_bytes_from_rndrrs_with_no_device_at_all() {
+    let Some(w) = start(Bus::Instruction) else {
+        crate::testing::skip!(
+            "no instruction-mode entropy source on this build (aarch64 needs FEAT_RNG, \
+             ID_AA64ISAR0_EL1.RNDR clear here; try --cpu neoverse-n2. riscv64 has none.)"
+        );
+    };
+    assert!(
+        !w.confined_by_iommu,
+        "an instruction has no device for an IOMMU to confine",
+    );
+    let words = draw(&w);
+    assert_unpredictable(&words, "rndrrs");
+}
