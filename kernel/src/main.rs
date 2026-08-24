@@ -159,6 +159,17 @@ pub extern "C" fn kernel_main(dtb: usize) -> ! {
             "  traps       : idt installed; a breakpoint was caught and stepped over ({caught})"
         );
 
+        // What the loader said: the PVH memory map and the ACPI root pointer. The x86 stand-in for
+        // the device tree, and the only thing that reads the map so far; `memory::init` is a
+        // device-tree parser, so the frame allocator cannot come up here until there is a discovery
+        // seam between the two. See notes/x86-port.md.
+        match arch::machine::boot_info(dtb) {
+            Some(info) => arch::machine::print_memory_map(&info),
+            None => {
+                println!("  memory      : no PVH boot info at {dtb:#x} (booted some other way?)");
+            }
+        }
+
         arch::mmu::print_summary();
         println!(
             "  image       : text {:#x}..{:#x}, stack {:#x}..{:#x}",

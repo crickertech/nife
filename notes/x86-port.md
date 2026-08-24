@@ -12,8 +12,9 @@ genuinely do not fit the existing seam, and an honest account of what is built.
 ## Status, and it is a partial port
 
 **Built, running, and gated:** the boot path, the console, the GDT/TSS, the IDT and trap frame, the
-page-table format, the address arithmetic, interrupt masking, the context switch, and the test exit.
-A boot under QEMU's `q35` prints a tour and halts.
+page-table format, the boot-handoff parser (the memory map and the ACPI root pointer), the address
+arithmetic, interrupt masking, the context switch, and the test exit. A boot under QEMU's `q35`
+prints a tour and halts.
 
 **Not built:** the fine-grained page tables, the APIC, any clock, VT-d, SMP bring-up, ring 3, and the
 kernel's own test suite. Every one of those is a loud `unimplemented!()` in `arch/x86_64/` that names
@@ -106,6 +107,63 @@ every one of them "this `arch::` name does not exist yet", and:
   same places they already had two.
 
 That is the whole diff above `arch/`. A new ISA was a new directory.
+
+## What the loader hands over, and what it does not
+
+`machine_discovery::x86_64` decodes `hvm_start_info`, host-tested, for the same reason `crates/dtb`
+exists rather than a device-tree reader living in `arch/aarch64/`: a parser proved only inside a
+booting kernel is proved by nothing that runs in milliseconds. The kernel side
+(`arch/x86_64/machine.rs`) does nothing but turn a physical address into bytes through the direct
+map.
+
+What q35 actually produces, read back out of the guest on 2026-08-23 with `-m 256M`:
+
+```
+  memory      : 9 regions from the PVH handoff, rsdp 0x0
+                0x000000000000..0x00000009fc00  ram
+                0x00000009fc00..0x0000000a0000  reserved
+                0x0000000f0000..0x000000100000  reserved
+                0x000000100000..0x00000ffdf000  ram
+                0x00000ffdf000..0x000010000000  reserved
+                0x0000b0000000..0x0000c0000000  reserved
+                0x0000fed1c000..0x0000fed20000  reserved
+                0x0000fffc0000..0x000100000000  reserved
+                0x00fd00000000..0x010000000000  reserved
+                usable ram: 261627 KiB
+```
+
+Two things worth taking from that beyond the RAM.
+
+**`0xb0000000..0xc0000000` is the PCIe ECAM window**, reported as reserved, which independently
+confirms the constant `arch::mmu::PCI_ECAM_PHYS` currently hardcodes. That constant should
+eventually come from ACPI's MCFG table; until then the memory map is a second witness for it, which
+is better than the constant standing alone.
+
+**`rsdp 0x0`: QEMU's PVH loader does not fill the ACPI root pointer in.** The field exists and is
+zero, which means the RSDP has to be found the older way, by scanning `0xe0000..0x100000` for the
+`"RSD PTR "` signature. That range is exactly the third reserved region above. This matters because
+everything x86 needs a device tree for (the APIC in the MADT, the ECAM window in the MCFG, the IOMMU
+in the DMAR) hangs off the RSDP, so the scan is a prerequisite for the whole next step and cannot be
+skipped by trusting the handoff.
+
+## The discovery seam milestone 20 promised and did not build
+
+Milestone 20's deliverable had two abstraction shapes in it. The first, "a generic level-walk plus a
+per-arch entry codec", **was built and holds**: `crates/paging` needed no change for a third format.
+The second, "put device discovery behind a 'here is the hardware' interface (device tree today,
+ACPI/PCI later)", **was not built**, and this port is where that shows.
+
+`kernel/src/memory.rs`'s `init` takes a device-tree pointer and reads `Dtb` directly for the RAM
+regions, the reservations, the interrupt controller, the RTC, the UART's interrupt and the PCIe
+window. Nothing about that is wrong on two architectures that both have a device tree. On x86 there
+is no tree, so **the frame allocator cannot come up at all** until the discovery half is separated
+from the consumption half.
+
+The seam is visible and small: everything in `memory::init` after "the whole span we have to be able
+to describe" needs only two slices of `Region`, the RAM map and the forbidden list, and none of it
+cares where they came from. Splitting it is what the fine-map step needs first, and it is the
+largest single piece of portable-code work this port implies. It is not done here because it touches
+a file every lane edits and it is a milestone-sized change rather than a step in this one.
 
 ## The three things that genuinely do not fit
 

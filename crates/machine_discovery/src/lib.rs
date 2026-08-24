@@ -75,3 +75,9 @@ pub mod cpu_list;
 pub mod interrupt_id;
 pub mod plic;
 pub mod riscv64;
+// The third architecture's boot handoff (milestone 161). Not an ISA record like the two beside it:
+// x86 answers "what CPU is this" from CPUID and needs no parser for that, but it has no device
+// tree, so where RAM is and where the ACPI tables are arrive in the boot protocol's own structure.
+// Same reason the RISC-V half is a parser: what the firmware says is a format somebody has to read,
+// and a format read only inside a booting kernel is read by nothing that runs in milliseconds.
+pub mod x86_64;

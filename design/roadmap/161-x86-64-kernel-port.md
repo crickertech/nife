@@ -89,6 +89,15 @@ Ordered as it was built, because each step is what made the next one debuggable.
    sixty lines of entry codec plus seven host tests and six Kani harnesses, with **no change to the
    generic walk**. That is the milestone-20 claim tested and holding.
 
+5. **The boot handoff, parsed.** `crates/machine_discovery/src/x86_64.rs` decodes
+   `hvm_start_info`, host-tested (seven tests), beside the two ISA records already in that crate; it
+   is a parser, so it lives where a parser can be proved in milliseconds rather than in an emulator.
+   The tour prints the memory map, which is what proves the handoff carries real data: nine regions,
+   255 MiB usable, and the PCIe ECAM window reported as reserved at exactly the address
+   `arch::mmu::PCI_ECAM_PHYS` hardcodes. **QEMU's PVH loader leaves the ACPI RSDP field zero**, so
+   the root pointer has to be found by scanning the BIOS area, which is a prerequisite for the APIC
+   step rather than a detail.
+
 Plus the build wiring it all needs: `kernel/build.rs`, `.cargo/config.toml` (including the static
 relocation model, which this target does not default to), `rust-toolchain.toml`,
 `scripts/qemu-runner-x86_64.sh`, and an x86_64 pass in `script/lint`.
@@ -101,6 +110,13 @@ in files that already had two. `crates/paging` needed nothing.
 
 In the order it should be done, because each is a prerequisite for the next.
 
+0. **A device-discovery seam**, which is milestone 20's other promised abstraction and the one that
+   was never built. `memory::init` takes a device-tree pointer and reads `Dtb` directly, so the
+   frame allocator cannot come up on a machine without a tree, and nothing below can start until it
+   can. The seam is visible and small (everything after "the whole span we have to be able to
+   describe" needs only a RAM slice and a forbidden slice), but it touches a file every lane edits
+   and is milestone-sized rather than a step in this one. **This should be its own milestone**, and
+   it blocks everything below. See notes/x86-port.md.
 1. **Fine-grained page tables.** The boot map is 2 MiB pages with no permission separation at all:
    everything present, writable and executable, both halves. `mmu::init` and everything downstream of
    it (`map_page`, `flush_tlb`, `translate`) are `unimplemented!()`. This also lifts the recorded

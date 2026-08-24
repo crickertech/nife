@@ -40,6 +40,8 @@ pub mod interrupts;
 pub mod iommu;
 pub mod irq;
 pub mod isa;
+// What the loader said (milestone 161): the kernel side of `machine_discovery::x86_64`.
+pub mod machine;
 pub mod mmu;
 pub mod port;
 pub mod segments;
