@@ -847,8 +847,8 @@ mod tests {
         let mut body = q35_madt_body();
         body[41] = 200;
         let table = isa_irq_table(&body);
-        for irq in 1..ISA_IRQ_COUNT {
-            assert_eq!(table[irq], IsaIrqRouting::isa_default(irq as u8));
+        for (irq, routing) in table.iter().enumerate().skip(1) {
+            assert_eq!(*routing, IsaIrqRouting::isa_default(irq as u8));
         }
         assert_eq!(table[0].gsi, 2, "the well-formed override still applied");
     }

@@ -11,9 +11,13 @@
 //! - **Only RAM and reservations cross the seam.** `memory::bring_up_frames` takes those two, and
 //!   the device *windows* the device-tree front end also discovers (the interrupt controller, the
 //!   RTC, the UART's interrupt line, the PCIe ECAM range) are still read from a tree by the front
-//!   end and stay `None` here. The APIC and ECAM addresses this module reads out of ACPI are not
-//!   yet wired into those statics, so `memory::pci_regions()` and friends report nothing on x86
-//!   even though ACPI answered. Widening the seam is its own milestone; see notes/x86-port.md.
+//!   end and stay `None` here. What ACPI answers is handed to `arch::x86_64::irq` **directly** by
+//!   the boot tour rather than through `memory.rs`'s statics, so `memory::pci_regions()` and
+//!   friends still report nothing on x86 even though the MCFG answered a few lines earlier.
+//!   Widening the seam is its own milestone; see notes/x86-port.md.
+//! - **COM1's interrupt is discovered and not used.** [`Acpi::isa_irqs`] resolves all sixteen
+//!   legacy IRQs, so `isa_irqs[4]` is the console UART's line and could be routed the way the PIT's
+//!   is; the x86 console is polled, so nothing asks.
 
 use machine_discovery::x86_64::{BootInfo, MEMMAP_ENTRY_LEN, MemoryEntry, memory_entry};
 

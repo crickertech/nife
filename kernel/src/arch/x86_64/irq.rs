@@ -1,4 +1,4 @@
-//! **The interrupt controller, `x86_64`: the local APIC.**
+//! **The interrupt controller, `x86_64`: the local APIC and the IO APIC.**
 //!
 //! The third implementation of what aarch64 answers with a GIC and RISC-V with a PLIC, and the one
 //! structural difference worth knowing before reading any of it: on x86 the interrupt controller is

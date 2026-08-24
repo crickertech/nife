@@ -4,7 +4,8 @@
 boot built and gated the same day. **The kernel boots on QEMU's `q35`, reaches Rust in the high half
 of a 4-level address space, prints over a 16550, installs a GDT/TSS and an IDT, catches a breakpoint
 and steps over it, takes a calibrated timer interrupt, brings up the frame allocator, replaces the
-boot map with fine-grained W^X page tables of its own, and halts.** What is built and what is still
+boot map with fine-grained W^X page tables of its own, routes a real device line through the IO
+APIC's redirection table, and halts.** What is built and what is still
 open are spelled out at the bottom of this block; `notes/x86-port.md` is the working record. The
 scope note below (milestone 20's "enough of each ISA to boot, confine a ring-3/U process, and run
 the test suite") is unchanged and is not met: ring 3 does not exist here yet.
@@ -67,7 +68,7 @@ Architectural parity (DECISIONS §19) reaching all three declared targets rather
 comparison point.
 
 
-## What was built (2026-08-23, plus step 9 on 2026-08-24)
+## What was built (2026-08-23, plus steps 9 and 10 on 2026-08-24)
 
 Ordered as it was built, because each step is what made the next one debuggable.
 
@@ -152,6 +153,30 @@ Ordered as it was built, because each step is what made the next one debuggable.
    `CR4.PGE` is still off, so the `G` bit the kernel's `Flags` set is ignored and every `mov cr3`
    flushes everything.
 
+10. **The IO APIC, and a real device line routed through it** (2026-08-24, the open list's item 2
+    below). `irq.rs` gained the redirection table: the `IOREGSEL`/`IOWIN` index-and-data register
+    pair, an entry count read from the version register, every entry masked on the way in, and
+    `route_gsi`/`mask_gsi`/`enable` writing one. The arch contract's `enable(intid)` now means what
+    it means on the other two architectures, and `exceptions::enable_external` stopped being an
+    `unimplemented!()` and became a documented no-op, because x86 has one interrupt gate
+    (`RFLAGS.IF`) where RISC-V has two.
+
+    **The trap the item flagged is real, and the fix is in the crate rather than the kernel.** A
+    legacy IRQ number is not an IO APIC input: q35's MADT rewires ISA IRQ 0 to GSI 2 (the PIT is on
+    pin 2; pin 0 carries the 8259 cascade) and IRQs 5, 9, 10 and 11 to level-triggered. Resolving
+    that is pure logic over table bytes, so it is `machine_discovery::acpi::isa_irq_table`, with
+    six host tests, one of which is the IRQ-0 case by name. The flags word is **two two-bit
+    fields**, not two bits, and a test exists for exactly that misreading: `0x000d` is active
+    *high*, level, and a decoder testing bit 1 for polarity would answer active low and arm a line
+    that never fires.
+
+    **Verified on q35**: `pit irq 0 -> gsi 2 on vector 0x32: 20 interrupts in ~0.2 s at 100 Hz`,
+    with the local APIC timer masked for that window so the count is the PIT's alone. Twenty is the
+    same number the local APIC timer produces in the same window against the same TSC, which is
+    what makes it a measurement rather than a nonzero. The vector map is flat
+    (`GSI_VECTOR_BASE + gsi`, base 0x30), so a stray vector in a fault report names its line by
+    subtraction; it costs the ability to express a priority policy, and there is not one to express.
+
 Plus the build wiring it all needs: `kernel/build.rs`, `.cargo/config.toml` (including the static
 relocation model, which this target does not default to), `rust-toolchain.toml`,
 `scripts/qemu-runner-x86_64.sh`, and an x86_64 pass in `script/lint`.
@@ -171,7 +196,10 @@ In the order it should be done, because each is a prerequisite for the next.
    half is still owed and should be its own milestone**: the device *windows* (interrupt controller,
    RTC, UART interrupt line, PCIe ECAM) are still tree-only and stay `None` on x86, so ACPI answers
    for the ECAM window and PCI still reports nothing. notes/x86-port.md has the table of which fact
-   has which source.
+   has which source. **Item 2 made this sharper rather than smaller**: the boot tour now hands the
+   MADT's answers to `arch::x86_64::irq` *directly*, so the interrupt controller has a working x86
+   path that goes around `memory.rs` instead of through it, and COM1's interrupt line is discovered
+   (`Acpi::isa_irqs[4]`) and unused.
 1. **Fine-grained page tables, and the address-space layout they force a decision about. BUILT
    2026-08-24**; see step 9 of "What was built" for what landed and what it cost. The number is kept
    in place rather than struck out because the items below cite each other by it.
@@ -183,18 +211,26 @@ In the order it should be done, because each is a prerequisite for the next.
    else, so the direct map costs 0.2% of RAM in page tables. 2 MiB and 1 GiB leaves are a change to
    the shared format trait that all three architectures would want, and they want their own
    milestone rather than an x86 patch.
-2. **The IO APIC.** The *local* APIC and its timer are built and taking interrupts; what is left is
-   routing a **device** line, which is the IO APIC's redirection table. The MADT already gives its
-   address, its global-interrupt base, and the interrupt source overrides, and that last one is the
-   trap: a legacy IRQ number is not an IO APIC input, because on essentially every PC the timer's
-   IRQ 0 arrives as GSI 2. PCI *interrupt* routing is blocked beyond that, on AML rather than on
-   tables, which is why MSI (which bypasses the routing entirely by writing a vector straight to the
-   local APIC) is the path worth building. **Its register page is already mapped device-typed** by
-   `mmu::init` (step 9 above), so this is redirection-table code rather than a page-table detour.
+2. **The IO APIC. BUILT 2026-08-24**; see step 10 of "What was built". The number is kept in place
+   rather than struck out because the items below cite each other by it.
+
+   The trap this item existed to flag turned out to be exactly as stated and is now proven rather
+   than asserted: q35's MADT says ISA IRQ 0 arrives as GSI 2, and the resolution lives in
+   `machine_discovery::acpi::isa_irq_table` where a host test holds it. What is still open here is
+   **PCI interrupt routing**, which is blocked on AML rather than on tables, and **MSI**, which
+   bypasses the redirection table entirely by writing a vector straight to the local APIC and is
+   the path worth building for that reason. Neither is this item, and neither was.
 3. **Ring 3**: the `syscall`/`sysret` MSR setup, the `swapgs` pair in `trap.s` (whose location is
    marked), and `enter_user`. The syscall ABI is written down in `exceptions.rs`
    (`rax` + `rdi`/`rsi`/`rdx`/`r10`/`r8`/`r9`) and is **provisional**: it is a boundary rather than a
    habit (DECISIONS §10, §16) and nothing speaks it yet.
+
+   **What item 2 leaves for this one.** Nothing blocking, and two facts worth having. The trap
+   frame is now reached by a *device* interrupt as well as by the CPU's own, so the path a ring-3
+   preemption will take is exercised end to end in ring 0 before any of it has to work across a
+   privilege change. And `exceptions::enable_external` is now a real (empty) function with an
+   assertion rather than an `unimplemented!()`, so the shared `user.rs` paths that call it will not
+   panic on this architecture the first time they are compiled for it.
 
    **Item 1 cleared the ground for this and left three things named rather than done.** The low half
    of the kernel's tables is now genuinely empty (asserted, not assumed), so a process root has
