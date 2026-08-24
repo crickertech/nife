@@ -55,14 +55,34 @@ thread_trampoline:
     jmp 1b
 
 # The first-run landing pad for a USER thread. rbx = entry, rbp = user stack pointer,
-# r12..r14 = the child's first three arguments.
+# r13..r15 = the child's first three arguments.
+#
+# THE REGISTERS HERE WERE WRONG UNTIL MILESTONE 161 AND NOTHING COULD HAVE CAUGHT IT. This read
+# r12, r13 and r14 while `Context::for_user_thread` wrote r13, r14 and r15, so a child would have
+# received (0, arg0, arg1) and arg2 would have vanished. Both files were internally consistent and
+# neither was executed: this port had no way to enter ring 3 until item 3 of its roadmap, so the
+# only witness would have been a user program reading its own arguments. It is corrected against
+# context.rs, whose per-field doc comments are the more specific of the two records.
+#
+# It is STILL not executed: this trampoline is the scheduler's entry path, and the scheduler has not
+# been brought up on this architecture (roadmap item 4). The ring-3 self test enters through
+# `enter_user` directly and does not pass here.
+#
+# RESERVE THE TRAP FRAME BEFORE THE FIRST RUST FRAME EXISTS (milestone 71's fix, carried across for
+# parity; the other two ISAs each have this line and the reasoning in full). We arrive with
+# rsp = the kernel stack top, and `user::enter_frame` puts this thread's TrapFrame at top - 176,
+# where every trap from ring 3 will rebuild it (`TSS.RSP0` = top). Without this the entry path's own
+# frames start at the same top and overlap the region `frame.write` is about to fill. 176 is
+# size_of::<TrapFrame>(), asserted in exceptions.rs, and a multiple of 16 so rsp stays aligned for
+# the `call` below.
 .global user_entry_trampoline
 user_entry_trampoline:
+    sub rsp, 176                    # reserve [top-176, top) for this thread's TrapFrame
     mov rdi, rbx
     mov rsi, rbp
-    mov rdx, r12
-    mov rcx, r13
-    mov r8, r14
+    mov rdx, r13
+    mov rcx, r14
+    mov r8, r15
     xor rbp, rbp
     call user_thread_entry
 1:  hlt
