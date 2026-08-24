@@ -14,13 +14,14 @@ genuinely do not fit the existing seam, and an honest account of what is built.
 **Built, running, and gated:** the boot path, the console, the GDT/TSS, the IDT and trap frame, the
 page-table format, the boot-handoff parser, the ACPI tables (the RSDP scan, the root-table walk with
 checksums, the MADT and the MCFG), **the local APIC and a calibrated periodic timer**, the frame
-allocator, **the fine-grained W^X kernel page tables**, the address arithmetic, interrupt masking,
-the context switch, and the test exit. A boot under QEMU's `q35` prints a tour, takes real hardware
-interrupts, builds and installs its own page tables, and halts.
+allocator, **the fine-grained W^X kernel page tables**, **the IO APIC and a routed device line**,
+the address arithmetic, interrupt masking, the context switch, and the test exit. A boot under
+QEMU's `q35` prints a tour, takes real hardware interrupts from the CPU's own timer *and* from a
+device, builds and installs its own page tables, and halts.
 
-**Not built:** the **IO APIC** (so no device interrupt is routed), VT-d, SMP bring-up, ring 3, and
-the kernel's own test suite. Every one of those is a loud `unimplemented!()` in `arch/x86_64/` that
-names itself and why. See design/roadmap/161-x86-64-kernel-port.md for the order they come in.
+**Not built:** VT-d, SMP bring-up, ring 3, and the kernel's own test suite. Every one of those is a
+loud `unimplemented!()` in `arch/x86_64/` that names itself and why. See
+design/roadmap/161-x86-64-kernel-port.md for the order they come in.
 
 ## How the machine is entered, and why it is not multiboot
 
@@ -223,9 +224,9 @@ which is the shape this should not be left in:
 | Fact | Device-tree machines | x86 |
 |---|---|---|
 | RAM, reservations | `memory::init` | `machine::bring_up_memory` (**shared consumer**) |
-| Interrupt controller | `memory::init` -> `GIC_REGIONS`/`PLIC_REGION` | ACPI MADT -> `machine::Acpi`, unwired |
+| Interrupt controller | `memory::init` -> `GIC_REGIONS`/`PLIC_REGION` | ACPI MADT -> `machine::Acpi` -> `irq::init_{local,io}_apic` **directly**, bypassing the statics |
 | PCIe ECAM window | `memory::init` -> `PCI_REGIONS` | ACPI MCFG -> `machine::Acpi`, unwired |
-| Console UART interrupt | `memory::init` -> `UART_IRQ` | not discovered (needs the MADT overrides) |
+| Console UART interrupt | `memory::init` -> `UART_IRQ` | discoverable now (`Acpi::isa_irqs[4]` is COM1's), unwired |
 
 The type at the seam is another loose end worth naming: `Region` is `dtb::Region`, which is a plain
 `{ start, size }` pair and means nothing device-tree-specific, but a machine with no device tree
@@ -269,6 +270,113 @@ much later as a hang:
   masked.
 - **The Task Priority Register is zeroed.** Anything else silently drops interrupts below that
   priority class, which looks exactly like a controller that was never wired up.
+
+## The IO APIC, and the number that is not the number
+
+Milestone 161's roadmap item 2, built 2026-08-24. The local APIC's timer proves the CPU accepts an
+interrupt it did not raise. A **device** line is a different claim, and the IO APIC is what makes
+it: it takes physical interrupt inputs and turns each into a vector delivered to some local APIC.
+
+### The register interface is two words, and that is the first surprise
+
+The whole device is a 4 KiB page with two 32-bit registers in it. `IOREGSEL` at offset 0 takes the
+*number* of the register you want; `IOWIN` at offset 0x10 is a window onto whatever `IOREGSEL` last
+named. So every access is a pair, the device is stateful, and two CPUs doing this concurrently would
+interleave and each read the other's register. Nothing here is concurrent yet (one CPU,
+single-threaded boot), and `irq.rs` says out loud that a lock belongs there the day SMP lands.
+
+What is behind the window:
+
+| Register | What it is |
+|---|---|
+| `0x00` | this IO APIC's id, bits 27:24 |
+| `0x01` | version in bits 7:0, and **the entry count minus one** in bits 23:16 |
+| `0x10 + 2n` | redirection entry `n`, low word: vector, delivery mode, polarity (bit 13), trigger (bit 15), mask (bit 16) |
+| `0x11 + 2n` | redirection entry `n`, high word: the destination local APIC id in bits 63:56 |
+
+The "minus one" in the version register is the field's definition rather than an off-by-one to
+correct for: a 24-entry part reports 23. And the two words are written **high first**, so the
+destination is in place before the low word's mask bit clears and the line goes live.
+
+### A legacy IRQ number is not a pin number, and this is the whole trap
+
+The PIT's IRQ 0 does not arrive on IO APIC input 0. On q35, and on essentially every PC:
+
+```
+                io apic 0 at 0xfec00000, gsi base 0
+                isa irq 0 -> gsi 2 (active high, edge)
+                isa irq 5 -> gsi 5 (active high, level)
+                isa irq 9 -> gsi 9 (active high, level)
+                isa irq 10 -> gsi 10 (active high, level)
+                isa irq 11 -> gsi 11 (active high, level)
+```
+
+The PIT is wired to pin 2 because pin 0 carries the 8259 cascade. A kernel that armed redirection
+entry 0 for "the timer" would have armed a line nothing drives, and the failure is the quiet kind:
+no interrupts, no error, nothing anywhere to say why.
+
+Resolving that is pure logic over table bytes, so it is in the crate rather than in the kernel:
+`machine_discovery::acpi::isa_irq_table` walks the MADT's interrupt source overrides once and
+returns all sixteen legacy IRQs resolved, with six host tests holding it. `irq::record_isa_routing`
+copies the answer into a static, and `irq::enable(intid)` takes a *legacy IRQ number* the way the
+arch contract's other two implementations take an INTID or a PLIC source.
+
+**The flags word is two two-bit fields, not two bits**, and reading it as two bits gets both wrong.
+Bits 1:0 are polarity (`00` conforms to the bus, `01` active high, `11` active low) and bits 3:2 are
+trigger mode (`00` conforms, `01` edge, `11` level). QEMU emits `0x000d` for the PCI-link IRQs,
+which is `0b1101`: active **high**, level. A decoder that tested bit 1 for polarity would answer
+"active low" and arm a line that never asserts. There is a test named for exactly that misreading.
+
+`00` meaning "conforms to the bus" is also not a synonym for "active high, edge" even though the two
+coincide on the ISA bus; the default lives in one place (`IsaIrqRouting::isa_default`) so a future
+reader cannot change it in only one of the two.
+
+### What it was proved with, and why the PIT
+
+The PIT twice over: `timer.rs` already drives it for calibration, and IRQ 0 is the one line every PC
+rewires, so routing it is simultaneously the easiest device to reach and the strongest test of the
+override table. Channel **0** is the one whose output goes to the interrupt controller, which is
+exactly why calibration cannot use it and why this can use nothing else. Mode 2 (rate generator)
+pulses the line once per reload and reloads itself.
+
+Measured on QEMU TCG, 2026-08-24, with the local APIC timer masked for the window so the count is
+the PIT's alone:
+
+```
+  io apic     : id 0 at 0xfec00000 up, version 0x20, 24 redirection entries, gsi base 0
+  device irq  : pit irq 0 -> gsi 2 on vector 0x32: 20 interrupts in ~0.2s at 100 Hz
+```
+
+Twenty is the same number the local APIC timer produces in the same window against the same TSC,
+which is what makes it a measurement rather than a nonzero.
+
+### The choices, and what each one costs
+
+**The vector map is flat**: `GSI_VECTOR_BASE + gsi`, with the base at 0x30 so that 0x20..0x2f stays
+free for the local APIC's own LVT sources (the timer, and later thermal, performance, error and
+inter-processor vectors). Flat means a stray vector in a fault report names its line by subtraction.
+It costs the ability to express a priority policy, since x86 priority is the vector's top four bits
+and a flat map fixes which line lands in which class. There is no policy to express yet.
+
+**Physical destination mode, fixed delivery, at the boot CPU.** Not lowest-priority delivery and not
+a logical group: the simplest thing that is correct on one CPU and stays correct on several.
+Distributing interrupts is a policy too.
+
+**Every entry is masked during bring-up.** They power on masked, so this changes nothing on a cold
+boot. It matters on a warm one, where firmware may have armed a line for its own use and left it
+armed, and an inherited interrupt arriving on a vector this kernel never assigned is a puzzle with
+no clue in it.
+
+**The 8259s stay masked rather than being remapped.** The same device line reaches both controllers,
+so an unmasked 8259 would deliver a second copy of every interrupt the redirection table routes, on
+a vector that is an exception number.
+
+### What this did not touch
+
+**PCI interrupt routing**, which is blocked on AML rather than on tables: a PCI function's legacy
+interrupt goes through a router the DSDT's `_PRT` describes, and there is no interpreter here.
+**MSI**, which bypasses the redirection table entirely by writing a vector straight to the local
+APIC, is the path worth building for that reason and is its own piece of work.
 
 ## The fine map, and the hazard that was designed out instead of sequenced around
 

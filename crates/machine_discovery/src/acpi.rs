@@ -352,6 +352,106 @@ impl Iterator for MadtEntries<'_> {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Legacy IRQ numbers, and the overrides that make them a lie.
+// ---------------------------------------------------------------------------------------------
+
+/// **The polarity field of an MPS INTI flags word**, bits 1:0. `00` means "whatever this bus
+/// specifies", `01` active high, `11` active low. `10` is reserved.
+pub const INTI_POLARITY_MASK: u16 = 0b11;
+/// Polarity `11`: the line is asserted low.
+const INTI_POLARITY_ACTIVE_LOW: u16 = 0b11;
+
+/// **The trigger-mode field**, bits 3:2. `00` means "whatever this bus specifies", `01` edge, `11`
+/// level. `10` is reserved.
+pub const INTI_TRIGGER_MASK: u16 = 0b11 << 2;
+/// Trigger `11`: the line stays asserted until the device is serviced.
+const INTI_TRIGGER_LEVEL: u16 = 0b11 << 2;
+
+/// The bus number an [`MadtEntry::InterruptSourceOverride`] uses for the ISA bus. It is the only
+/// value ACPI defines for that field, which is why the overrides are exactly the legacy IRQs.
+pub const ISA_BUS: u8 = 0;
+
+/// How many legacy ISA IRQs there are: two cascaded 8259s, eight lines each.
+pub const ISA_IRQ_COUNT: usize = 16;
+
+/// **How one ISA interrupt actually reaches an IO APIC.**
+///
+/// The whole point of this type is that `gsi` is very often *not* the IRQ number it was looked up
+/// by. On essentially every PC the timer's IRQ 0 arrives as global system interrupt 2, because the
+/// PIT is wired to the IO APIC's pin 2 while pin 0 carries the 8259 cascade. A kernel that armed
+/// redirection entry 0 for "the timer" would arm a line nothing drives, and would see no
+/// interrupts and no error.
+///
+/// **Provisional name** (milestone 161), along with the two fields and [`isa_irq_table`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IsaIrqRouting {
+    /// The global system interrupt this IRQ arrives on.
+    pub gsi: u32,
+    /// The line is asserted low rather than high.
+    pub active_low: bool,
+    /// The line is level triggered rather than edge triggered.
+    pub level_triggered: bool,
+}
+
+impl IsaIrqRouting {
+    /// **What an ISA IRQ is when nothing overrides it**: identity-mapped onto the global interrupt
+    /// space, active high, edge triggered. That is the ISA bus's own convention, which is what the
+    /// `00` ("conforms to the specifications of the bus") encoding in an override's flags means.
+    pub const fn isa_default(irq: u8) -> Self {
+        Self {
+            gsi: irq as u32,
+            active_low: false,
+            level_triggered: false,
+        }
+    }
+
+    /// Apply an override's MPS INTI flags word. `00` in either field means "conforms to the bus",
+    /// which for the ISA bus is what [`isa_default`](Self::isa_default) already set, so those bits
+    /// deliberately change nothing.
+    const fn with_flags(mut self, flags: u16) -> Self {
+        if flags & INTI_POLARITY_MASK == INTI_POLARITY_ACTIVE_LOW {
+            self.active_low = true;
+        }
+        if flags & INTI_TRIGGER_MASK == INTI_TRIGGER_LEVEL {
+            self.level_triggered = true;
+        }
+        self
+    }
+}
+
+/// **Resolve all sixteen legacy ISA IRQs through the MADT's interrupt source overrides.** `body`
+/// begins after the SDT header.
+///
+/// Returned as a whole table rather than one lookup at a time because the overrides are a list that
+/// has to be walked to answer any single question, and the caller (an interrupt controller being
+/// brought up) wants the answers to outlive the table's bytes.
+///
+/// An override naming a source outside 0..16 is ignored: the field is a legacy IRQ number and there
+/// are sixteen of those, so a larger one is a malformed table rather than a seventeenth IRQ.
+pub fn isa_irq_table(body: &[u8]) -> [IsaIrqRouting; ISA_IRQ_COUNT] {
+    let mut table = core::array::from_fn(|irq| IsaIrqRouting::isa_default(irq as u8));
+    for entry in madt_entries(body) {
+        if let MadtEntry::InterruptSourceOverride {
+            bus,
+            source,
+            gsi,
+            flags,
+        } = entry
+            && bus == ISA_BUS
+            && (source as usize) < ISA_IRQ_COUNT
+        {
+            table[source as usize] = IsaIrqRouting {
+                gsi,
+                active_low: false,
+                level_triggered: false,
+            }
+            .with_flags(flags);
+        }
+    }
+    table
+}
+
+// ---------------------------------------------------------------------------------------------
 // The MCFG: where the PCIe ECAM window is.
 // ---------------------------------------------------------------------------------------------
 
@@ -661,6 +761,96 @@ mod tests {
                 online_capable: true,
             }
         );
+    }
+
+    /// **The trap, resolved.** IRQ 0 is the timer and it is not IO APIC input 0; the override says
+    /// it arrives as GSI 2. A kernel that armed redirection entry 0 would arm the 8259 cascade and
+    /// see nothing at all, with no error anywhere to say why.
+    #[test]
+    fn the_timers_irq_0_resolves_to_gsi_2() {
+        let table = isa_irq_table(&q35_madt_body());
+        assert_eq!(
+            table[0],
+            IsaIrqRouting {
+                gsi: 2,
+                active_low: false,
+                level_triggered: false,
+            },
+            "IRQ 0 is remapped on essentially every PC"
+        );
+    }
+
+    /// An IRQ with no override keeps its number and the ISA bus's own polarity and trigger mode.
+    #[test]
+    fn an_irq_with_no_override_is_identity_mapped_edge_triggered_and_active_high() {
+        let table = isa_irq_table(&q35_madt_body());
+        for irq in [1usize, 4, 8, 15] {
+            assert_eq!(
+                table[irq],
+                IsaIrqRouting::isa_default(irq as u8),
+                "IRQ {irq} has no override in this MADT"
+            );
+        }
+        assert_eq!(table[4].gsi, 4, "COM1 really is GSI 4 on a PC");
+    }
+
+    /// **The flags word is two two-bit fields, and reading it as two one-bit flags gets both
+    /// wrong.** `0x000d` is `0b1101`: bits 1:0 are `01`, active *high*, and bits 3:2 are `11`,
+    /// level triggered. A decoder that tested bit 1 for polarity and bit 3 for trigger would answer
+    /// "active low, level" here, which is a redirection entry that never fires.
+    #[test]
+    fn the_inti_flags_are_two_two_bit_fields_not_two_bits() {
+        let table = isa_irq_table(&q35_madt_body());
+        assert_eq!(
+            table[5],
+            IsaIrqRouting {
+                gsi: 5,
+                active_low: false,
+                level_triggered: true,
+            },
+        );
+    }
+
+    /// Active low is `11` in bits 1:0, and it is the encoding a PCI line uses.
+    #[test]
+    fn active_low_is_the_11_encoding() {
+        let mut body = q35_madt_body();
+        body[46..48].copy_from_slice(&0b1111u16.to_le_bytes());
+        let table = isa_irq_table(&body);
+        assert!(table[5].active_low);
+        assert!(table[5].level_triggered);
+    }
+
+    /// **A `00` field means "conforms to the bus", not "active high, edge" by accident.** The two
+    /// happen to coincide on the ISA bus, and the test exists so that a future reader changing the
+    /// default cannot do it in only one of the two places.
+    #[test]
+    fn a_conforms_to_the_bus_override_keeps_the_isa_defaults_but_takes_the_new_gsi() {
+        let mut body = q35_madt_body();
+        // Rewrite the second override: IRQ 9 -> GSI 9, flags 0 (conforms).
+        body[41] = 9;
+        body[42..46].copy_from_slice(&9u32.to_le_bytes());
+        body[46..48].copy_from_slice(&0u16.to_le_bytes());
+        let table = isa_irq_table(&body);
+        assert_eq!(table[9], IsaIrqRouting::isa_default(9));
+        assert_eq!(
+            table[5],
+            IsaIrqRouting::isa_default(5),
+            "IRQ 5 is back to itself"
+        );
+    }
+
+    /// An override naming a source outside the sixteen legacy IRQs is a malformed table, not a
+    /// seventeenth IRQ, and must not index past the end of the table.
+    #[test]
+    fn an_override_for_a_source_above_15_is_ignored() {
+        let mut body = q35_madt_body();
+        body[41] = 200;
+        let table = isa_irq_table(&body);
+        for (irq, routing) in table.iter().enumerate().skip(1) {
+            assert_eq!(*routing, IsaIrqRouting::isa_default(irq as u8));
+        }
+        assert_eq!(table[0].gsi, 2, "the well-formed override still applied");
     }
 
     /// The MCFG entry q35 produces: bus 0 through 255 at 0xb0000000.

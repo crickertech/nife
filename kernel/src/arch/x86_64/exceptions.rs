@@ -230,6 +230,11 @@ pub static ROUTED_IRQS: AtomicUsize = AtomicUsize::new(0);
 /// between assertion and acknowledgement, and the local APIC has a dedicated spurious vector.
 pub static SPURIOUS_IRQS: AtomicUsize = AtomicUsize::new(0);
 
+/// **How many *device* interrupts arrived through the IO APIC**, as distinct from the local APIC's
+/// own timer. Counted separately because the two prove different things: the timer proves the local
+/// APIC delivers and the trap path returns, and this proves a line outside the CPU reached it.
+pub static DEVICE_IRQS: AtomicUsize = AtomicUsize::new(0);
+
 /// **How many system calls were taken.** Named for aarch64's `svc` instruction because that is the
 /// arch contract's word; on x86 the mechanism will be `syscall`, which does not go through the IDT
 /// at all.
@@ -276,13 +281,23 @@ pub unsafe fn enter_user(frame: *mut TrapFrame) -> ! {
     unimplemented!("x86_64 enter_user({frame:p}): user mode is not built (milestone 161)")
 }
 
-/// Unmask external interrupts at the controller. On x86 that is the local APIC (and the IO APIC
-/// behind it), which this port has not brought up.
+/// Unmask external interrupts at the controller.
 ///
-/// # BUGS
-/// **Unimplemented.** See `irq.rs`.
+/// **Nothing to do on this architecture, and that is a real difference rather than a stub.** RISC-V
+/// has a second gate, `sie.SEIE`, that has to be opened before an external interrupt can be
+/// delivered even with `sstatus.SIE` set. x86 has one gate, `RFLAGS.IF`, which
+/// `arch::interrupts::enable` owns. What is *per source* here is the IO APIC's mask bit, which
+/// `irq::enable` clears when it arms a line, and the local APIC's Task Priority Register, which
+/// `irq::init_local_apic` sets to zero so no priority class is dropped.
+///
+/// # Panics
+/// If the local APIC is not up. An empty function that silently succeeded before the controller
+/// exists would let a caller believe interrupts are unmasked when nothing can deliver one.
 pub fn enable_external() {
-    unimplemented!("x86_64 enable_external: the APIC is not built (milestone 161)")
+    assert!(
+        super::irq::local_apic_ready(),
+        "external interrupts are the local APIC's to deliver, and it is not up yet",
+    );
 }
 
 /// Install the IDT on this CPU.
@@ -400,6 +415,15 @@ pub unsafe extern "C" fn x86_trap_handler(frame: *mut TrapFrame) {
         // The local APIC timer. Counted, then acknowledged below with every other interrupt.
         v if v == super::irq::TIMER_VECTOR as u64 => {
             super::timer::tick();
+            ROUTED_IRQS.fetch_add(1, Ordering::Relaxed);
+            super::irq::end_of_interrupt();
+        }
+        // A device line, routed by the IO APIC's redirection table onto a vector this kernel chose
+        // (irq::GSI_VECTOR_BASE plus the GSI). No device driver claims one yet, so this counts and
+        // acknowledges; when one does, the GSI is recoverable from the vector by subtraction, which
+        // is why the map is flat.
+        v if super::irq::is_device_vector(v) => {
+            DEVICE_IRQS.fetch_add(1, Ordering::Relaxed);
             ROUTED_IRQS.fetch_add(1, Ordering::Relaxed);
             super::irq::end_of_interrupt();
         }

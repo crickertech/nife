@@ -11,9 +11,13 @@
 //! - **Only RAM and reservations cross the seam.** `memory::bring_up_frames` takes those two, and
 //!   the device *windows* the device-tree front end also discovers (the interrupt controller, the
 //!   RTC, the UART's interrupt line, the PCIe ECAM range) are still read from a tree by the front
-//!   end and stay `None` here. The APIC and ECAM addresses this module reads out of ACPI are not
-//!   yet wired into those statics, so `memory::pci_regions()` and friends report nothing on x86
-//!   even though ACPI answered. Widening the seam is its own milestone; see notes/x86-port.md.
+//!   end and stay `None` here. What ACPI answers is handed to `arch::x86_64::irq` **directly** by
+//!   the boot tour rather than through `memory.rs`'s statics, so `memory::pci_regions()` and
+//!   friends still report nothing on x86 even though the MCFG answered a few lines earlier.
+//!   Widening the seam is its own milestone; see notes/x86-port.md.
+//! - **COM1's interrupt is discovered and not used.** [`Acpi::isa_irqs`] resolves all sixteen
+//!   legacy IRQs, so `isa_irqs[4]` is the console UART's line and could be routed the way the PIT's
+//!   is; the x86 console is polled, so nothing asks.
 
 use machine_discovery::x86_64::{BootInfo, MEMMAP_ENTRY_LEN, MemoryEntry, memory_entry};
 
@@ -103,8 +107,9 @@ pub fn print_memory_map(info: &BootInfo) {
 // ---------------------------------------------------------------------------------------------
 
 use machine_discovery::acpi::{
-    self, MADT_PCAT_COMPAT, MadtEntry, Rsdp, SdtHeader, madt_entries, mcfg_entry, parse_madt,
-    parse_rsdp, parse_sdt_header, root_entry, root_entry_count,
+    self, ISA_IRQ_COUNT, IsaIrqRouting, MADT_PCAT_COMPAT, MadtEntry, Rsdp, SdtHeader,
+    isa_irq_table, madt_entries, mcfg_entry, parse_madt, parse_rsdp, parse_sdt_header, root_entry,
+    root_entry_count,
 };
 
 /// The BIOS area the RSDP is required to be in when it is not in the EBDA: `0xe0000..0x100000`,
@@ -127,12 +132,19 @@ const MAX_MADT_ENTRIES: usize = 256;
 /// Every field is `Option` because a machine is allowed not to have the table it comes from, and
 /// "the firmware did not say" has to be distinguishable from "the firmware said zero". That is the
 /// same posture `memory::uart_irq` takes on the other two architectures.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy)]
 pub struct Acpi {
     /// The local APIC's physical address, from the MADT (with any address-override applied).
     pub local_apic: Option<u64>,
     /// The first IO APIC's id, physical address and global-interrupt base.
     pub io_apic: Option<(u8, u32, u32)>,
+    /// **The sixteen legacy ISA IRQs, resolved through the MADT's interrupt source overrides.**
+    ///
+    /// Not an `Option`, unlike everything around it, and for a reason worth stating: a machine with
+    /// no overrides at all is not a machine with no answer. The ISA bus's own convention (identity
+    /// onto the global interrupt space, active high, edge triggered) *is* the answer in that case,
+    /// which is what `IsaIrqRouting::isa_default` encodes.
+    pub isa_irqs: [IsaIrqRouting; ISA_IRQ_COUNT],
     /// How many processors the MADT lists as enabled.
     pub enabled_cpus: usize,
     /// How many it lists as present but not enabled.
@@ -141,6 +153,20 @@ pub struct Acpi {
     pub has_8259: bool,
     /// The PCIe ECAM window, from the MCFG: base, first bus, last bus.
     pub ecam: Option<(u64, u8, u8)>,
+}
+
+impl Default for Acpi {
+    fn default() -> Self {
+        Self {
+            local_apic: None,
+            io_apic: None,
+            isa_irqs: core::array::from_fn(|irq| IsaIrqRouting::isa_default(irq as u8)),
+            enabled_cpus: 0,
+            disabled_cpus: 0,
+            has_8259: false,
+            ecam: None,
+        }
+    }
 }
 
 /// Read `len` bytes at physical address `at` through the direct map.
@@ -289,6 +315,10 @@ fn read_madt(body: &[u8], into: &mut Acpi) {
     };
     into.local_apic = Some(madt.local_apic as u64);
     into.has_8259 = madt.flags & MADT_PCAT_COMPAT != 0;
+    // The overrides in one pass of their own, in the crate, because resolving them is pure logic
+    // over bytes and belongs where a host test can prove it. See its `the_timers_irq_0_resolves_to
+    // _gsi_2` test for the case this whole table exists for.
+    into.isa_irqs = isa_irq_table(body);
 
     for entry in madt_entries(body).take(MAX_MADT_ENTRIES) {
         match entry {
@@ -340,12 +370,42 @@ pub fn print_acpi_summary(found: &Acpi) {
     if let Some((id, address, gsi_base)) = found.io_apic {
         crate::println!("                io apic {id} at {address:#x}, gsi base {gsi_base}");
     }
+    print_isa_overrides(found);
     match found.ecam {
         Some((base, lo, hi)) => crate::println!(
             "                pcie ecam {base:#x}, buses {lo}..={hi} (mmu::PCI_ECAM_PHYS says {:#x})",
             super::mmu::PCI_ECAM_PHYS,
         ),
         None => crate::println!("                no MCFG: the PCIe window is not described"),
+    }
+}
+
+/// **Print every legacy IRQ the MADT rewired**, and only those.
+///
+/// Sixteen lines of identity mapping would be noise; the ones that moved are the whole reason this
+/// table is read, and the first of them is always the timer. A boot that printed nothing here on a
+/// PC would itself be the finding.
+fn print_isa_overrides(found: &Acpi) {
+    let moved = found
+        .isa_irqs
+        .iter()
+        .enumerate()
+        .filter(|(irq, r)| **r != IsaIrqRouting::isa_default(*irq as u8));
+    for (irq, routing) in moved {
+        crate::println!(
+            "                isa irq {irq} -> gsi {} ({}, {})",
+            routing.gsi,
+            if routing.active_low {
+                "active low"
+            } else {
+                "active high"
+            },
+            if routing.level_triggered {
+                "level"
+            } else {
+                "edge"
+            },
+        );
     }
 }
 
