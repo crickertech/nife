@@ -102,6 +102,37 @@ is the only answer, and it should be built as a capability rather than bolted on
 option 2 declares a parity gap, and both are calef's under the tenets: the syscall surface is a
 boundary, and a parity gap needs a recorded plan rather than a silence.
 
+### Amended 2026-08-24: option 2 now, but not argued blind against the alternatives
+
+calef asked whether option 2 can be built so there is something to measure against if a later call
+goes to option 1 or option 3, rather than deferring the whole question to argument again when it
+comes back. It can, and neither half needs the feature it is pricing.
+
+**Option 3's cost is already on record, just never cited here.** The dominant cost of an I/O-port
+broker is one IPC round trip per register access, and this kernel's own IPC round trip is measured:
+**~337 ns** (release, HVF, aarch64), against a **null syscall at ~27 ns**, both from
+`notes/benchmarks.md`'s cross-OS table. Neither number is x86-specific, and citing it here is not a
+claim that it transfers unchanged to different silicon; it is the order-of-magnitude confirmation
+this file's own "obviously wrong for a UART" already asserted without a number. A raw `in`/`out`
+instruction is single-digit cycles; hundreds of nanoseconds per register access, on a device a driver
+polls in a tight loop, is the gap that makes option 3 wrong regardless of which architecture supplies
+the exact figure.
+
+**Option 1's cost is not measurable yet, and the reason is narrower than "nothing runs in ring 3".**
+The dominant cost is the TSS I/O bitmap write on every context switch, and that does not need the
+capability type built to measure: a micro-benchmark that writes an 8 KiB bitmap into the current
+CPU's TSS on every switch, timed against a switch that does not, is a far smaller thing than option 1
+itself, in the same shape `script/bench`'s existing icount-based measures already take. What it needs
+that does not exist yet is **real context switching between two threads on x86_64**, which is
+downstream of ring 3 (this milestone's item 3, in a lane as of 2026-08-24) but not necessarily
+delivered by it: that lane's own proof may run only one program in ring 3, not switch between two.
+Whether it does is this decision's own next input, not something to guess now.
+
+**So the plan, not just the recommendation:** option 2 stands, and once x86 has two threads actually
+switching, a small follow-on benchmark (unscoped as its own milestone; whoever picks it up mints the
+number) measures the TSS-bitmap-write cost the same way `ipc_rtt` and `null_syscall` already measure
+theirs. That turns the next 1-vs-3 call into one made on both sides' numbers, not one side's.
+
 ## What is needed to answer it
 
 One question, and it is not technical: **is a userspace console driver on x86 part of what the
