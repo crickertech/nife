@@ -108,6 +108,14 @@ Ordered as it was built, because each step is what made the next one debuggable.
    `0xb0000000`, which is exactly what `arch::mmu::PCI_ECAM_PHYS` hardcodes and what the PVH memory
    map independently reports as reserved.
 
+7. **The local APIC and a calibrated periodic timer.** `irq.rs` masks the 8259s (an obligation the
+   MADT states, and their power-on vectors overlap the CPU's own exception vectors), enables the
+   local APIC at the address ACPI gave, and owns the timer's LVT; `timer.rs` measures both the TSC
+   and the APIC timer against the PIT in one ten-millisecond window, because x86 has four clocks and
+   no architected way to ask any of them its rate. **Verified: 20 ticks in ~0.2 s at 100 Hz, 20
+   routed, 0 spurious**, which proves the whole interrupt path rather than only the clock. A missed
+   EOI is a hang on this architecture, so exactly one tick would have been the failure to expect.
+
 Plus the build wiring it all needs: `kernel/build.rs`, `.cargo/config.toml` (including the static
 relocation model, which this target does not default to), `rust-toolchain.toml`,
 `scripts/qemu-runner-x86_64.sh`, and an x86_64 pass in `script/lint`.
@@ -131,26 +139,23 @@ In the order it should be done, because each is a prerequisite for the next.
    everything present, writable and executable, both halves. `mmu::init` and everything downstream of
    it (`map_page`, `flush_tlb`, `translate`) are `unimplemented!()`. This also lifts the recorded
    limitation that the direct map only covers the low 1 GiB.
-2. **The APIC.** Its discovery is **done** (the MADT gives the local APIC address, the IO APIC
-   address and base, and the interrupt source overrides); what remains is driving them. Two
-   obligations the tables already state: the 8259 PICs are present and must be masked first, and a
-   legacy IRQ number is not an IO APIC input, because the source overrides rewire them. PCI
-   *interrupt* routing is the piece still blocked, on AML rather than on tables, which is why MSI
-   (which bypasses the routing entirely) is the path worth building.
-3. **A clock.** `timer.rs` is entirely unimplemented on purpose and its header argues the case: x86
-   has at least four clocks, none self-describing the way `CNTFRQ_EL0` and the RISC-V `timebase`
-   node are, and the one everything uses (the TSC) must be calibrated against another. Every
-   function there returns a number the scheduler and every benchmark are downstream of, so a guess
-   is worse than a panic.
-4. **Ring 3**: the `syscall`/`sysret` MSR setup, the `swapgs` pair in `trap.s` (whose location is
+2. **The IO APIC.** The *local* APIC and its timer are built and taking interrupts; what is left is
+   routing a **device** line, which is the IO APIC's redirection table. The MADT already gives its
+   address, its global-interrupt base, and the interrupt source overrides, and that last one is the
+   trap: a legacy IRQ number is not an IO APIC input, because on essentially every PC the timer's
+   IRQ 0 arrives as GSI 2. PCI *interrupt* routing is blocked beyond that, on AML rather than on
+   tables, which is why MSI (which bypasses the routing entirely by writing a vector straight to the
+   local APIC) is the path worth building.
+3. **Ring 3**: the `syscall`/`sysret` MSR setup, the `swapgs` pair in `trap.s` (whose location is
    marked), and `enter_user`. The syscall ABI is written down in `exceptions.rs`
    (`rax` + `rdi`/`rsi`/`rdx`/`r10`/`r8`/`r9`) and is **provisional**: it is a boundary rather than a
    habit (DECISIONS §10, §16) and nothing speaks it yet.
-5. **The kernel test suite**, and therefore a `script/test` leg. Blocked on 4: the suite's
+4. **The kernel test suite**, and therefore a `script/test` leg. Blocked on 3: the suite's
    userspace-exec tests hand-assemble machine code and its supervision fixtures are per-ISA stubs.
-6. **SMP**, via INIT-SIPI-SIPI, which needs the APIC (2) and a real-mode trampoline copied below
-   1 MiB.
-7. **VT-d.** No longer blocked on table parsing: `machine_discovery::acpi` walks the root table
+5. **SMP**, via INIT-SIPI-SIPI. The local APIC is up, so what remains is the Interrupt Command
+   Register sequence and a real-mode trampoline copied below 1 MiB. Also needs a per-CPU TSS and a
+   per-CPU GDT, since `TSS.RSP0` names a per-core stack.
+6. **VT-d.** No longer blocked on table parsing: `machine_discovery::acpi` walks the root table
    generically, so finding the DMAR is adding a signature arm. What remains is the device itself.
 
 Two things that are not steps but are owed:

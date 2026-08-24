@@ -25,11 +25,20 @@
 //!
 //! # BUGS
 //!
-//! - **The direct map only covers the low 1 GiB**, because that is what `boot.s`'s high PDPT entry
-//!   aliases. A physical address above 1 GiB has no high-half alias, so `phys_to_virt` computes an
-//!   address that is arithmetically right and not mapped. QEMU's 256 MiB default keeps every real
-//!   address well below the line; a machine with more memory than that would fault somewhere far
-//!   from here. Fixing it is part of building the fine map.
+//! - **The direct map covers the low 1 GiB, and at this base it could never cover more than 2.**
+//!   `boot.s`'s high PDPT entry aliases one gigabyte, so a physical address above that has no
+//!   high-half alias today and `phys_to_virt` computes an address that is arithmetically right and
+//!   not mapped. QEMU's 256 MiB default keeps every real RAM address well below the line.
+//!
+//!   The deeper constraint is the one to design against rather than patch: `KERNEL_VA_BASE` is
+//!   `0xffffffff80000000` because the target's code model requires it, and there are only **2 GiB
+//!   of address space above it**. So `VA = PA | KERNEL_VA_BASE` cannot ever address more than 2 GiB
+//!   of physical memory, which is not enough for a real machine and not enough to reach the local
+//!   APIC at `0xfee00000` either. Linux solves this by separating the two things this constant is
+//!   currently doing: the kernel *image* lives at `0xffffffff80000000` (where the code model needs
+//!   it) and the *direct map* is somewhere else entirely with room to be large. Doing the same is
+//!   part of the fine-map step, and until then device registers above 1 GiB are reached through
+//!   [`device_va`] instead.
 
 use paging::x86_64::Ia32e;
 
@@ -59,6 +68,20 @@ pub const fn phys_to_virt(pa: u64) -> u64 {
 /// [`phys_to_virt`] for any address in the direct map.
 pub const fn virt_to_phys(va: u64) -> u64 {
     va & !KERNEL_VA_BASE
+}
+
+/// **Where to reach a device register block, before the fine map exists.**
+///
+/// The identity map, which `boot.s` built over the low 4 GiB and which is still installed. That is
+/// not where these should be reached from: the direct map is, and it cannot reach them, for the
+/// reason in this module's BUGS. So this exists as **one place to change** when the fine map lands,
+/// rather than a dozen call sites each doing `pa as usize` with a comment.
+///
+/// It is a foot gun and says so: every caller of this is code that will stop working the moment the
+/// identity map is dropped, which is a thing the fine-map step must do (an identity map is a
+/// complete alias of physical memory in the low half, which is exactly the half user programs get).
+pub const fn device_va(pa: u64) -> u64 {
+    pa
 }
 
 /// COM1's I/O port on every x86 machine since the PC/AT, and on QEMU's `q35`. Not an address in the

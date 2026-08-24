@@ -176,6 +176,45 @@ pub extern "C" fn kernel_main(dtb: usize) -> ! {
         let acpi = arch::machine::read_acpi(arch::machine::boot_info(dtb).map_or(0, |i| i.rsdp));
         arch::machine::print_acpi_summary(&acpi);
 
+        // The local APIC, and then a real hardware interrupt. Until this point the only trap the
+        // kernel has taken is one it raised itself with `int3`; a periodic timer proves the other
+        // half, that an interrupt the CPU did not ask for arrives, is dispatched by vector, and is
+        // acknowledged so that a second one can follow.
+        if let Some(apic) = acpi.local_apic {
+            // SAFETY: the address came from the machine's own ACPI MADT, and the identity map the
+            // boot tables installed still covers it.
+            unsafe { arch::irq::init_local_apic(apic) };
+            println!(
+                "  apic        : local apic {apic:#x} up, id {}, version {:#x}, 8259s masked",
+                arch::irq::local_apic_id(),
+                arch::irq::local_apic_version(),
+            );
+
+            arch::timer::init_frequency(dtb);
+            println!(
+                "  clocks      : tsc {} MHz, apic timer {} MHz (both measured against the PIT)",
+                arch::timer::frequency() / 1_000_000,
+                arch::timer::apic_timer_frequency() / 1_000_000,
+            );
+
+            arch::timer::init();
+            arch::interrupts::enable();
+            let start = arch::timer::now();
+            while arch::timer::now().wrapping_sub(start) < arch::timer::frequency() / 5 {
+                arch::wait_for_interrupt();
+            }
+            arch::interrupts::disable();
+            println!(
+                "  timer       : {} ticks in ~0.2s at {} Hz ({} routed, {} spurious)",
+                arch::timer::ticks(),
+                arch::timer::TICK_HZ,
+                arch::exceptions::ROUTED_IRQS.load(core::sync::atomic::Ordering::Relaxed),
+                arch::exceptions::SPURIOUS_IRQS.load(core::sync::atomic::Ordering::Relaxed),
+            );
+        } else {
+            println!("  apic        : skipped, the MADT did not say where the local apic is");
+        }
+
         arch::mmu::print_summary();
         println!(
             "  image       : text {:#x}..{:#x}, stack {:#x}..{:#x}",
@@ -192,7 +231,7 @@ pub extern "C" fn kernel_main(dtb: usize) -> ! {
         // comes in.
         println!();
         println!(
-            "  next        : a discovery seam, fine-grained page tables, the APIC, a clock, ring 3."
+            "  next        : a discovery seam, fine-grained page tables, the IO APIC, then ring 3."
         );
         println!("nife x86_64: early boot complete, halting.");
         arch::halt();

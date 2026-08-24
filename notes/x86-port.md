@@ -12,12 +12,13 @@ genuinely do not fit the existing seam, and an honest account of what is built.
 ## Status, and it is a partial port
 
 **Built, running, and gated:** the boot path, the console, the GDT/TSS, the IDT and trap frame, the
-page-table format, the boot-handoff parser, **the ACPI tables** (the RSDP scan, the root-table walk
-with checksums, the MADT and the MCFG), the address arithmetic, interrupt masking, the context
-switch, and the test exit. A boot under QEMU's `q35` prints a tour and halts.
+page-table format, the boot-handoff parser, the ACPI tables (the RSDP scan, the root-table walk with
+checksums, the MADT and the MCFG), **the local APIC and a calibrated periodic timer**, the address
+arithmetic, interrupt masking, the context switch, and the test exit. A boot under QEMU's `q35`
+prints a tour, takes real hardware interrupts, and halts.
 
-**Not built:** the fine-grained page tables, the APIC, any clock, VT-d, SMP bring-up, ring 3, and the
-kernel's own test suite. Every one of those is a loud `unimplemented!()` in `arch/x86_64/` that names
+**Not built:** the fine-grained page tables, the **IO APIC** (so no device interrupt is routed),
+VT-d, SMP bring-up, ring 3, and the kernel's own test suite. Every one of those is a loud `unimplemented!()` in `arch/x86_64/` that names
 itself and why. See design/roadmap/161-x86-64-kernel-port.md for the order they come in.
 
 ## How the machine is entered, and why it is not multiboot
@@ -210,6 +211,45 @@ cares where they came from. Splitting it is what the fine-map step needs first, 
 largest single piece of portable-code work this port implies. It is not done here because it touches
 a file every lane edits and it is a milestone-sized change rather than a step in this one.
 
+## The clock, and why it needed a calibration loop
+
+The other two architectures read their timer's rate out of a register or a device-tree property.
+x86 has at least four clocks and no architected way to ask any of them, on the parts this has to run
+on: `CPUID` leaf 0x15 gives the TSC's ratio to a crystal whose frequency leaf 0x16 may not report,
+and the local APIC timer counts a bus clock nothing reports at all.
+
+So the rate is **measured**, against the one device on a PC whose frequency is a fixed number: the
+8254 PIT at 1193182 Hz, a number that has not changed since 1981 because it came from dividing the
+NTSC colour-burst crystal and every clone copied it. One ten-millisecond window, polled on channel 2
+(the only channel whose gate is under software control and whose output can be read), with both the
+TSC and the APIC timer sampled across it, so one wait produces both numbers and they cannot disagree
+with each other.
+
+Measured on QEMU TCG, 2026-08-23:
+
+```
+  apic        : local apic 0xfee00000 up, id 0, version 0x14, 8259s masked
+  clocks      : tsc 1001 MHz, apic timer 62 MHz (both measured against the PIT)
+  timer       : 20 ticks in ~0.2s at 100 Hz (20 routed, 0 spurious)
+```
+
+**Twenty ticks in a fifth of a second at 100 Hz is the number that proves the whole interrupt path**,
+not just the clock: an interrupt the CPU did not ask for arrived, the IDT dispatched it by vector,
+and the handler acknowledged it so a second could follow. A missed EOI is a hang rather than an
+error on this architecture, so exactly one tick would have been the failure to expect. The 62 MHz
+APIC timer is 1 GHz divided by 16, which is the divider `irq.rs` programs, so the two measurements
+agree with each other as well as with the emulator's nominal rate.
+
+Two obligations the ACPI tables state and this code honours, both of which would otherwise show up
+much later as a hang:
+
+- **The 8259 PICs are masked before the local APIC is enabled.** Their power-on vector base overlaps
+  the CPU's own exception vectors, so an interrupt from one arrives as, for instance, the double
+  fault. The order matters: the reverse leaves a window in which the IDT is live and they are not
+  masked.
+- **The Task Priority Register is zeroed.** Anything else silently drops interrupts below that
+  priority class, which looks exactly like a controller that was never wired up.
+
 ## The three things that genuinely do not fit
 
 Recorded because the failures of an abstraction are worth more than its successes.
@@ -241,7 +281,23 @@ this question rather than a value. Written up as **§121 (PROPOSED)**, because i
 this tree where the object a capability names is not memory, and how that is answered decides the
 shape of every future capability over something that is not a frame.
 
-### 3. Two names in the arch contract are aarch64's and do not stretch
+### 3. The direct map cannot cover a real machine, and it is the base that forbids it
+
+`KERNEL_VA_BASE` is `0xffffffff80000000` because the target's code model requires it, and there are
+only **2 GiB of address space above it**. So `VA = PA | KERNEL_VA_BASE` can never address more than
+2 GiB of physical memory, which is not enough for a real machine and not enough to reach the local
+APIC at `0xfee00000` either.
+
+Linux solves it by separating the two jobs this one constant is doing: the kernel *image* sits at
+`0xffffffff80000000`, where the code model needs it, and the *direct map* is somewhere else entirely
+with room to be large. Doing the same is part of the fine-map step. Until then, device registers
+above 1 GiB are reached through the boot tables' identity map, via `mmu::device_va`, which exists as
+one place to change rather than a dozen call sites each casting a physical address with a comment.
+It is a foot gun and says so: every caller of it stops working the moment the identity map is
+dropped, which the fine-map step must do, because an identity map is a complete alias of physical
+memory sitting in the half user programs get.
+
+### 4. Two names in the arch contract are aarch64's and do not stretch
 
 - **`arch::psci_cpu_on`** is an ARM firmware interface's name. RISC-V already had to implement it as
   an SBI call underneath; x86 has no third mechanism to hide behind it, because SMP bring-up here is

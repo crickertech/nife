@@ -397,13 +397,32 @@ pub unsafe extern "C" fn x86_trap_handler(frame: *mut TrapFrame) {
         3 => {
             BRK_COUNT.fetch_add(1, Ordering::Relaxed);
         }
-        // Everything else is, for now, fatal and reported. The routing that makes a timer tick or a
-        // device interrupt into something other than a panic is the APIC step; see irq.rs.
+        // The local APIC timer. Counted, then acknowledged below with every other interrupt.
+        v if v == super::irq::TIMER_VECTOR as u64 => {
+            super::timer::tick();
+            ROUTED_IRQS.fetch_add(1, Ordering::Relaxed);
+            super::irq::end_of_interrupt();
+        }
+        // A spurious interrupt: the local APIC had to deliver something and had nothing real. It
+        // is **not** acknowledged, and that is architecture rather than an oversight: the APIC does
+        // not set an in-service bit for a spurious interrupt, so an EOI here would acknowledge
+        // whatever genuinely is in service and lose it.
+        v if v == super::irq::SPURIOUS_VECTOR as u64 => {
+            SPURIOUS_IRQS.fetch_add(1, Ordering::Relaxed);
+        }
+        // Any other vector at or above 32 is a device interrupt nothing has claimed. Counted and
+        // acknowledged rather than fatal: an unowned interrupt that is not acknowledged wedges the
+        // local APIC, which turns a stray line into a dead machine.
+        v if v >= 32 => {
+            SPURIOUS_IRQS.fetch_add(1, Ordering::Relaxed);
+            super::irq::end_of_interrupt();
+        }
+        // Everything below 32 is an architectural exception, and every one of them is fatal here.
         vector => {
             let name = EXCEPTION_NAMES
                 .get(vector as usize)
                 .copied()
-                .unwrap_or("interrupt");
+                .unwrap_or("reserved");
             crate::println!();
             crate::println!("=== x86_64 trap: vector {vector} ({name}) ===");
             crate::println!("  error code : {:#018x}", frame.error_code);
