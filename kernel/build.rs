@@ -13,6 +13,10 @@ fn main() {
     let (link_script, boot_asm) = match arch.as_str() {
         "aarch64" => ("link-aarch64.ld", "src/arch/aarch64/boot.s"),
         "riscv64" => ("link-riscv64.ld", "src/arch/riscv64/boot.s"),
+        // x86_64 (milestone 161). Its script is the only one of the three with two worlds in it: a
+        // low 32-bit `.boot` for the trampoline and a high 64-bit everything-else. See
+        // link-x86_64.ld's header for why that is forced rather than chosen.
+        "x86_64" => ("link-x86_64.ld", "src/arch/x86_64/boot.s"),
         other => panic!("nife has no linker script for target arch {other}"),
     };
 

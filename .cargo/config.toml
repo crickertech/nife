@@ -17,3 +17,16 @@ runner = "scripts/qemu-runner-aarch64.sh"
 # See scripts/qemu-runner-riscv64.sh and notes/riscv-port.md.
 [target.riscv64imac-unknown-none-elf]
 runner = "scripts/qemu-runner-riscv64.sh"
+
+# x86_64 (milestone 161). QEMU's `q35` boots the ELF directly through the PVH note in the image
+# (there is no OpenSBI to hand off and no arm64 Image header to strip), so the runner is the
+# simplest of the three. See scripts/qemu-runner-x86_64.sh and notes/x86-port.md.
+[target.x86_64-unknown-none]
+runner = "scripts/qemu-runner-x86_64.sh"
+# `x86_64-unknown-none` defaults to a static-PIE, which a kernel cannot be: nothing relocates us,
+# and the boot trampoline is linked at a physical address 4 GiB below the rest of the image, so a
+# position-independent image would resolve its own symbols against whichever of the two worlds the
+# loader happened to pick as the base. The other two kernel targets are static already; this one
+# has to be told. The target's `code-model: kernel` is what fixes KERNEL_VA_BASE at
+# 0xffffffff80000000, and link-x86_64.ld's header explains why that is not a free choice.
+rustflags = ["-C", "relocation-model=static"]
