@@ -429,13 +429,23 @@ Measured over the Rust that runs on nife, which is every tracked `.rs` file exce
 Each exclusion's reason is in `script/lint` beside the derivation; `patches/` is a real hole rather
 than a boundary and the register's BUGS says so.
 
-| | 2026-07-15 | 2026-07-28 | 2026-08-04 | 2026-08-14 | 2026-08-18 |
-|---|---|---|---|---|---|
-| `unsafe {}` outside `kernel/src/arch/` | 171 | 426 | 728 | 763 | 747 |
-| code lines outside it | 7,508 | 19,223 | 58,351 | 64,452 | 80,359 |
-| **blocks per 10,000 lines** | 227.8 | 221.6 | 124.8 | 118.4 | **93.0** |
-| `unsafe {}` inside `kernel/src/arch/` | 34 | 102 | 128 | 134 | 139 |
-| `unsafe impl Send`/`Sync` | 7 | 12 | 15 | 15 | 17 |
+| | 2026-07-15 | 2026-07-28 | 2026-08-04 | 2026-08-14 | 2026-08-18 | 2026-08-23 |
+|---|---|---|---|---|---|---|
+| `unsafe {}` outside `kernel/src/arch/` | 171 | 426 | 728 | 763 | 747 | 777 |
+| code lines outside it | 7,508 | 19,223 | 58,351 | 64,452 | 80,359 | 85,530 |
+| **blocks per 10,000 lines** | 227.8 | 221.6 | 124.8 | 118.4 | 93.0 | **90.8** |
+| `unsafe {}` inside `kernel/src/arch/` | 34 | 102 | 128 | 134 | 139 | 141 |
+| `unsafe impl Send`/`Sync` | 7 | 12 | 15 | 15 | 17 | 20 |
+
+**The 2026-08-23 column mixes two different things and the density is what separates them.** The
+raw count outside `arch/` rose by 30 (747 to 777) between 2026-08-18 and this lane starting,
+because five days of unrelated tree growth (other milestones) added unsafe at roughly the tree's
+own rate. Against that growth, milestone 139 alone removed 22 net blocks (24 hand-rolled
+volatile-access blocks in seven programs, collapsed into two generic methods in one new crate
+module): the count outside `arch/` immediately before this lane's reduction was 799, not 777. The
+density is the number that tells the two apart: it was already at 93.4 (799 blocks over 85,476
+lines) when this lane started, essentially unchanged from 2026-08-18's 93.0 despite five days of
+unrelated growth, and the reduction alone took it to 90.8. See below for the cluster.
 
 (`script/lint` prints the density as an integer, truncated: 92 rather than 93.0. Truncated on
 purpose, so a ceiling can never fail a tree that sits exactly on it.)
@@ -454,13 +464,51 @@ invariant **96 times** and now asserts it once.
 
 ### What each number is held to, and why the answers differ
 
-**At most 100** <!--count-at-most:unsafe-density-outside-arch--> unsafe blocks per 10,000 lines
-outside `kernel/src/arch/`, which is one per hundred lines of code. The direction is down, because
-unsafe outside `arch/` is not paying for hardware access: it is a raw syscall, a shared page, or a
-hand-rolled data structure, and each of those has a safe wrapper somebody could write. The ceiling
-is written at a threshold the tree crossed **the day before this was written** rather than at
-slack: every sample before 2026-08-18 would have failed it, 2026-08-16 included at 111.7. That is
-what makes it a ratchet instead of decoration.
+**At most 97** <!--count-at-most:unsafe-density-outside-arch--> unsafe blocks per 10,000 lines
+outside `kernel/src/arch/`. The direction is down, because unsafe outside `arch/` is not paying
+for hardware access: it is a raw syscall, a shared page, or a hand-rolled data structure, and each
+of those has a safe wrapper somebody could write. The ceiling is written at a threshold the tree
+crossed **the day before this was written** rather than at slack: every sample before 2026-08-18
+would have failed it, 2026-08-16 included at 111.7. That is what makes it a ratchet instead of
+decoration.
+
+**Lowered from 100 to 97 by milestone 139 (2026-08-23), cinching the ratchet behind a real
+reduction rather than the tree's own growth.** Seven userspace programs
+(`entropy`, `kbd`, `net_transport`, `mdns_responder`, `socket_test_client`, `smb_server`, `ntp`)
+each hand-rolled the same `r8`/`w8`/`r16`/`w16`/`r32` volatile-access functions over a DMA page or
+a shared IPC frame, one hand-written `// SAFETY:` comment per function, asserting one invariant
+("this offset is inside the page the kernel mapped here") by hand at every call site; `ntp.rs`'s
+own comment had already named the duplication ("the same shape net_stack and socket_test_client
+use") without anyone lifting it out. `user_rt::mapped_window::MappedWindow` (new, milestone 139)
+holds that invariant once, at construction, and turns every access into a bounds-checked call with
+no unsafe at the call site.
+
+**Measured precisely from the diff, not from a before/after tree census** (which the 2026-08-23
+column above already shows gets contaminated by unrelated concurrent growth): **32 `unsafe {`
+blocks removed across the seven programs, 11 added** (9 window constructions -- one per program,
+except `smb_server`, which needs two: one for its boot-wired FS channel at `FS_VA`, sized to
+`fs::TRANSFER_MAX` rather than one page, and one for its runtime-mapped socket frame at
+`FRAME_VA` -- plus the 2 generic `read`/`write` methods inside `MappedWindow` itself, doc-comment
+examples excluded since the census strips comments). **Net -21.** `smb_server.rs` alone is flat
+(11 unsafe blocks before and after: two hand-rolled functions traded for two window
+constructions), which is still a real reduction by this milestone's own test -- criterion 2, a
+raw-pointer assertion replaced by a typed, bounds-checked abstraction -- even though it does not
+move that one file's own block count. The checked bound is a genuine soundness improvement the
+hand-written copies never had: a wrong offset used to be a silent out-of-bounds volatile access,
+and is now a panic naming the access. Full account in `design/roadmap/139-drive-down-unsafe.md`.
+
+**The new ceiling keeps 7 points of headroom above the density this reduction actually reached
+(90.8, truncated to 90), the same absolute headroom the original 100-vs-93 ceiling carried**,
+rather than being written at the exact new value the way `unsafe-thread-safety-claims` and
+`agents-md-lines` are. Those two are populations small enough, or additions rare enough, that every
+single one deserves a stop; this measurement moved on 38 non-merge commits in 14 days before it was
+first gated, which is ordinary lane traffic rather than a population worth stopping on every
+member. A zero-headroom density ceiling would fail the next lane that adds one legitimate unsafe
+block anywhere outside `arch/` without growing the tree's line count to match, which is exactly the
+"only ever rejects legitimate work" signature this script has already deleted three checks for.
+Headroom here is not slack given back: the ceiling fell by the same 3 points the density fell from
+its pre-reduction reading (100 to 97, against 93.4 to 90.8), so the full gain this lane won is
+locked in and nobody can silently spend it back up to 100.
 
 **At most 20 `unsafe impl Send`/`Sync` claims** <!--count-at-most:unsafe-thread-safety-claims-->,
 and this one has no headroom at all. Each is a hand-written assertion that the compiler is wrong

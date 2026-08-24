@@ -49,6 +49,7 @@
 
 use abi::{frame as fr, rendezvous, rights, untyped as ut};
 use socket_proto::*;
+use user_rt::mapped_window::{MappedWindow, PAGE};
 use user_rt::{call, exit, invoke, send};
 
 const REPORT: u64 = 0;
@@ -70,6 +71,14 @@ const NO_ANSWER: u64 = 2;
 
 /// Where the client maps its shared frame.
 const FRAME_VA: u64 = 0x0000_0000_00A0_0000;
+
+/// The window onto that frame (milestone 139; see `user_rt::mapped_window`). A `static`, not a
+/// `const`, for the same reason the type's own doc names as its second valid case: the range is
+/// only actually mapped once `attach_frame`'s `Frame::MAP` succeeds, and every `r8`/`w8`/`r16le`/
+/// `w16le` call in this file happens after that, during the protocol exchanges `attach_frame` is
+/// called to set up.
+// SAFETY: `attach_frame` maps this frame writable at FRAME_VA before any read or write below runs.
+static WINDOW: MappedWindow = unsafe { MappedWindow::new(FRAME_VA, PAGE) };
 
 /// slirp's guest-visible nameserver address (a NAT to the *host's* resolver, not a resolver), the
 /// gateway that hosts slirp's own TFTP server, and the guestfwd echo peer the runners attach.
@@ -132,21 +141,20 @@ const MDNS_GRANTED_PORT: u64 = 5354;
 /// resolver behaviour, not a widened timeout.
 const DNS_ATTEMPTS: u32 = 3;
 
+// `va` is an absolute address, `FRAME_VA + <some offset>`, computed at every call site; `WINDOW`
+// wants an offset, so these subtract the base back out and let its own bounds check (milestone
+// 139) stand in for the hand-written "va is inside the frame" this used to assert only in prose.
 fn w8(va: u64, v: u8) {
-    // SAFETY: `va` addresses a field inside a shared frame this process has mapped. Volatile because the peer writes the same frame, so a cached read would be a stale one.
-    unsafe { core::ptr::write_volatile(va as *mut u8, v) }
+    WINDOW.w8(va - FRAME_VA, v);
 }
 fn w16le(va: u64, v: u16) {
-    // SAFETY: `va` addresses a field inside a shared frame this process has mapped. Volatile because the peer writes the same frame, so a cached read would be a stale one.
-    unsafe { core::ptr::write_volatile(va as *mut u16, v) }
+    WINDOW.w16(va - FRAME_VA, v);
 }
 fn r8(va: u64) -> u8 {
-    // SAFETY: `va` addresses a field inside a shared frame this process has mapped. Volatile because the peer writes the same frame, so a cached read would be a stale one.
-    unsafe { core::ptr::read_volatile(va as *const u8) }
+    WINDOW.r8(va - FRAME_VA)
 }
 fn r16le(va: u64) -> u16 {
-    // SAFETY: `va` addresses a field inside a shared frame this process has mapped. Volatile because the peer writes the same frame, so a cached read would be a stale one.
-    unsafe { core::ptr::read_volatile(va as *const u16) }
+    WINDOW.r16(va - FRAME_VA)
 }
 
 /// The source endpoint a UDP RECV reply left in the frame header (`socket_proto`'s layout note).

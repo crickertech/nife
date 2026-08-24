@@ -62,6 +62,7 @@
 
 use abi::{irq, rendezvous, virtio};
 use entropy_proto as proto;
+use user_rt::mapped_window::{MappedWindow, PAGE};
 use user_rt::{exit, invoke, recv_cap, reply, send};
 
 /// Capability slots, by convention with `kernel/src/user/entropy_service.rs`.
@@ -72,6 +73,10 @@ const READY: u64 = 3;
 
 /// Where the kernel maps this service's DMA page. Must match `kernel/src/user/entropy_service.rs`.
 const DMA_VA: u64 = 0x0000_0000_0090_0000;
+
+// SAFETY: the wiring maps one page read/write at DMA_VA before this program runs (milestone 139;
+// see `user_rt::mapped_window`, which is what collapsed the hand-rolled r8/w8/r16/w16/r32 below).
+const WINDOW: MappedWindow = unsafe { MappedWindow::new(DMA_VA, PAGE) };
 
 // virtio-mmio register offsets. The §18 transport seam speaks this vocabulary on both buses, so
 // this driver runs over PCIe and over mmio without knowing which one it got.
@@ -133,28 +138,23 @@ const E_FEATURES: u64 = 0x03;
 const E_QUEUE: u64 = 0x04;
 
 fn r8(off: u64) -> u8 {
-    // SAFETY: inside the DMA page the kernel mapped read/write at DMA_VA.
-    unsafe { core::ptr::read_volatile((DMA_VA + off) as *const u8) }
+    WINDOW.r8(off)
 }
 
 fn w8(off: u64, v: u8) {
-    // SAFETY: as above.
-    unsafe { core::ptr::write_volatile((DMA_VA + off) as *mut u8, v) }
+    WINDOW.w8(off, v);
 }
 
 fn r16(off: u64) -> u16 {
-    // SAFETY: as above.
-    unsafe { core::ptr::read_volatile((DMA_VA + off) as *const u16) }
+    WINDOW.r16(off)
 }
 
 fn w16(off: u64, v: u16) {
-    // SAFETY: as above.
-    unsafe { core::ptr::write_volatile((DMA_VA + off) as *mut u16, v) }
+    WINDOW.w16(off, v);
 }
 
 fn r32(off: u64) -> u32 {
-    // SAFETY: as above.
-    unsafe { core::ptr::read_volatile((DMA_VA + off) as *const u32) }
+    WINDOW.r32(off)
 }
 
 fn mr(off: u64) -> u32 {
@@ -192,13 +192,12 @@ fn die(code: u64) -> ! {
 /// Write descriptor 0: the whole buffer, device-**writable**, which is the direction that matters
 /// here. This is a receive-only device; nothing this process holds is ever read by it.
 fn write_desc(addr: u64, len: u32) {
-    // SAFETY: inside the DMA page, at the descriptor table the kernel programmed the queue with.
-    unsafe {
-        core::ptr::write_volatile((DMA_VA + Q_DESC) as *mut u64, addr);
-        core::ptr::write_volatile((DMA_VA + Q_DESC + 8) as *mut u32, len);
-        core::ptr::write_volatile((DMA_VA + Q_DESC + 12) as *mut u16, VIRTQ_DESC_F_WRITE);
-        core::ptr::write_volatile((DMA_VA + Q_DESC + 14) as *mut u16, 0);
-    }
+    // Inside the DMA page, at the descriptor table the kernel programmed the queue with; all four
+    // writes are bounds-checked by `WINDOW` rather than trusted by hand.
+    WINDOW.write(Q_DESC, addr);
+    WINDOW.write(Q_DESC + 8, len);
+    WINDOW.write::<u16>(Q_DESC + 12, VIRTQ_DESC_F_WRITE);
+    WINDOW.write::<u16>(Q_DESC + 14, 0);
 }
 
 /// The service's running state: where the device's bytes are and how many of them are still ours

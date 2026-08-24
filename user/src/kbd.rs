@@ -47,6 +47,7 @@
 #![no_main]
 
 use abi::{irq, virtio};
+use user_rt::mapped_window::{MappedWindow, PAGE};
 use user_rt::{call, invoke, send};
 
 /// Capability slots, by convention with `kernel/src/user/keyboard_service.rs`.
@@ -58,6 +59,12 @@ const DOORBELL: u64 = 3;
 /// Where the kernel maps this driver's DMA page and the compositor's input ring.
 const DMA_VA: u64 = 0x0000_0000_0090_0000;
 const RING_VA: u64 = 0x0000_0000_0082_0000;
+
+// SAFETY: the wiring maps one page read/write at DMA_VA before this program runs (milestone 139).
+const DMA: MappedWindow = unsafe { MappedWindow::new(DMA_VA, PAGE) };
+// SAFETY: the wiring maps one page read/write at RING_VA, shared with the compositor, before this
+// program runs.
+const RING: MappedWindow = unsafe { MappedWindow::new(RING_VA, PAGE) };
 
 // virtio-mmio register offsets. The §18 transport seam speaks this vocabulary on both buses, so a
 // driver written against it runs over PCIe and over mmio without knowing which it got.
@@ -115,18 +122,15 @@ fn event_buf(i: usize) -> u64 {
 }
 
 fn r16(off: u64) -> u16 {
-    // SAFETY: inside the DMA page the kernel mapped read/write at DMA_VA.
-    unsafe { core::ptr::read_volatile((DMA_VA + off) as *const u16) }
+    DMA.r16(off)
 }
 
 fn r32(off: u64) -> u32 {
-    // SAFETY: as above.
-    unsafe { core::ptr::read_volatile((DMA_VA + off) as *const u32) }
+    DMA.r32(off)
 }
 
 fn w16(off: u64, v: u16) {
-    // SAFETY: as above.
-    unsafe { core::ptr::write_volatile((DMA_VA + off) as *mut u16, v) }
+    DMA.w16(off, v);
 }
 
 fn mr(off: u64) -> u32 {
@@ -158,13 +162,12 @@ fn barrier() {
 
 fn write_desc(i: u64, addr: u64, len: u32, flags: u16) {
     let b = EQ_DESC + i * 16;
-    // SAFETY: inside the DMA page, at the descriptor table the kernel programmed the queue with.
-    unsafe {
-        core::ptr::write_volatile((DMA_VA + b) as *mut u64, addr);
-        core::ptr::write_volatile((DMA_VA + b + 8) as *mut u32, len);
-        core::ptr::write_volatile((DMA_VA + b + 12) as *mut u16, flags);
-        core::ptr::write_volatile((DMA_VA + b + 14) as *mut u16, 0);
-    }
+    // Inside the DMA page, at the descriptor table the kernel programmed the queue with; all four
+    // writes are bounds-checked by `DMA` rather than trusted by hand.
+    DMA.write(b, addr);
+    DMA.write(b + 8, len);
+    DMA.write(b + 12, flags);
+    DMA.write::<u16>(b + 14, 0);
 }
 
 fn die(code: u64) -> ! {
@@ -179,10 +182,8 @@ fn die(code: u64) -> ! {
 /// fence between them is what makes it true on a weakly ordered machine (DECISIONS rule 4).
 fn ring_push(tail: &mut u32, byte: u8) {
     use compositor::proto::ring;
-    let at = RING_VA + ring::BYTES + (*tail % ring::CAPACITY) as u64;
-    // SAFETY: inside the ring frame the kernel mapped read/write into this process and the
-    // compositor, and nowhere else.
-    unsafe { core::ptr::write_volatile(at as *mut u8, byte) };
+    let at = ring::BYTES + (*tail % ring::CAPACITY) as u64;
+    RING.w8(at, byte);
     *tail = tail.wrapping_add(1);
 }
 
@@ -196,8 +197,7 @@ fn ring_publish(tail: u32) {
     // after `ring_publish` orders it against the compositor anyway, because the compositor is
     // blocked in `recv_cap` on that doorbell. See notes/memory-ordering.md.
     core::sync::atomic::fence(core::sync::atomic::Ordering::SeqCst);
-    // SAFETY: inside the ring frame.
-    unsafe { core::ptr::write_volatile((RING_VA + ring::TAIL) as *mut u32, tail) };
+    RING.w32(ring::TAIL, tail);
 }
 
 #[unsafe(no_mangle)]
