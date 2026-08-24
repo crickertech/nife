@@ -8,10 +8,12 @@
 //!
 //! # BUGS
 //!
-//! - **Nothing consumes the memory map yet.** The boot tour prints it, which proves the handoff and
-//!   the parse, and the frame allocator is still `memory::init`'s, which reads a device tree and so
-//!   cannot run here. Closing that is the fine-map step; see
-//!   design/roadmap/161-x86-64-kernel-port.md and the discovery-seam note in notes/x86-port.md.
+//! - **Only RAM and reservations cross the seam.** `memory::bring_up_frames` takes those two, and
+//!   the device *windows* the device-tree front end also discovers (the interrupt controller, the
+//!   RTC, the UART's interrupt line, the PCIe ECAM range) are still read from a tree by the front
+//!   end and stay `None` here. The APIC and ECAM addresses this module reads out of ACPI are not
+//!   yet wired into those statics, so `memory::pci_regions()` and friends report nothing on x86
+//!   even though ACPI answered. Widening the seam is its own milestone; see notes/x86-port.md.
 
 use machine_discovery::x86_64::{BootInfo, MEMMAP_ENTRY_LEN, MemoryEntry, memory_entry};
 
@@ -345,4 +347,72 @@ pub fn print_acpi_summary(found: &Acpi) {
         ),
         None => crate::println!("                no MCFG: the PCIe window is not described"),
     }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Bringing the frame allocator up from the PVH memory map.
+// ---------------------------------------------------------------------------------------------
+
+/// The most RAM regions handed to the allocator. `memory::bring_up_frames` indexes a fixed map of
+/// this size, so more than this cannot be described; q35 produces three.
+const MAX_RAM_REGIONS: usize = 16;
+
+/// **The whole first megabyte is never allocatable**, and this is the one x86 reservation with no
+/// counterpart on the other two architectures.
+///
+/// It holds the real-mode interrupt vector table, the BIOS data area, the extended BIOS data area,
+/// the VGA window, option ROM shadow, and (on this boot) the `hvm_start_info` structure and the
+/// memory map the loader wrote. Some of that is described as RAM by the memory map, because it
+/// physically is; none of it is memory the kernel may hand out. It is also where an SMP real-mode
+/// trampoline has to be copied, since a STARTUP IPI's vector can only name a page below this line.
+const LOW_MEGABYTE: u64 = 0x0010_0000;
+
+/// **Bring the frame allocator up from what the loader described.**
+///
+/// The x86 counterpart of `memory::init`'s device-tree front end: it turns the PVH memory map into
+/// the two slices `memory::bring_up_frames` takes, and nothing else.
+///
+/// Returns how many RAM regions were used, which the boot print reports; a machine describing more
+/// than [`MAX_RAM_REGIONS`] gets the first that many, and saying how many were taken is what makes
+/// that visible rather than silent.
+pub fn bring_up_memory(info: &BootInfo) -> usize {
+    let mut ram = [dtb::Region { start: 0, size: 0 }; MAX_RAM_REGIONS];
+    let mut count = 0;
+
+    for i in 0..info.memmap_entries as usize {
+        if count == MAX_RAM_REGIONS {
+            break;
+        }
+        let Some(e) = memory_map_entry(info, i) else {
+            break;
+        };
+        if !e.is_usable_ram() {
+            continue;
+        }
+        // Clip the low megabyte off rather than reserving it afterwards. Either works; clipping is
+        // the one that cannot be undone by a later `mark_free`, and the allocator's own rule is
+        // that reserving has to win, which means order would otherwise matter.
+        let start = e.addr.max(LOW_MEGABYTE);
+        let end = e.end();
+        if end <= start {
+            continue;
+        }
+        ram[count] = dtb::Region {
+            start,
+            size: end - start,
+        };
+        count += 1;
+    }
+
+    // Two reservations, and both would be catastrophic to miss. The kernel image is the code
+    // running right now, plus the boot page tables the CPU is walking (they live in `.boot_scratch`,
+    // which the linker script puts inside the image bounds precisely so that this one entry covers
+    // them). The low megabyte is clipped above rather than listed here.
+    let forbidden = [dtb::Region {
+        start: crate::memory::image_start(),
+        size: crate::memory::image_end() - crate::memory::image_start(),
+    }];
+
+    crate::memory::bring_up_frames(&ram[..count], &forbidden);
+    count
 }

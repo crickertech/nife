@@ -199,17 +199,33 @@ per-arch entry codec", **was built and holds**: `crates/paging` needed no change
 The second, "put device discovery behind a 'here is the hardware' interface (device tree today,
 ACPI/PCI later)", **was not built**, and this port is where that shows.
 
-`kernel/src/memory.rs`'s `init` takes a device-tree pointer and reads `Dtb` directly for the RAM
+`kernel/src/memory.rs`'s `init` took a device-tree pointer and read `Dtb` directly for the RAM
 regions, the reservations, the interrupt controller, the RTC, the UART's interrupt and the PCIe
 window. Nothing about that is wrong on two architectures that both have a device tree. On x86 there
-is no tree, so **the frame allocator cannot come up at all** until the discovery half is separated
-from the consumption half.
+is no tree, so **the frame allocator could not come up at all**.
 
-The seam is visible and small: everything in `memory::init` after "the whole span we have to be able
-to describe" needs only two slices of `Region`, the RAM map and the forbidden list, and none of it
-cares where they came from. Splitting it is what the fine-map step needs first, and it is the
-largest single piece of portable-code work this port implies. It is not done here because it touches
-a file every lane edits and it is a milestone-sized change rather than a step in this one.
+**The narrow half is now split out** (`memory::bring_up_frames`), because without it nothing below
+the allocator can exist on this architecture and the port would have stopped there. `init` is now
+explicitly a device-tree *front end*: it reads the tree, assembles a RAM slice and a forbidden slice,
+and hands them to a function that does not care where they came from.
+`arch::x86_64::machine::bring_up_memory` is the x86 front end doing the same job from the PVH map.
+
+**The wide half is still owed, and it is the milestone.** What crosses the seam today is RAM and
+reservations only. The device *windows* the tree front end also discovers stay in `memory.rs`'s
+statics and stay `None` on x86, so `memory::pci_regions()` reports nothing even though the ACPI MCFG
+answered a few lines earlier. Two facts now have two sources that do not know about each other,
+which is the shape this should not be left in:
+
+| Fact | Device-tree machines | x86 |
+|---|---|---|
+| RAM, reservations | `memory::init` | `machine::bring_up_memory` (**shared consumer**) |
+| Interrupt controller | `memory::init` -> `GIC_REGIONS`/`PLIC_REGION` | ACPI MADT -> `machine::Acpi`, unwired |
+| PCIe ECAM window | `memory::init` -> `PCI_REGIONS` | ACPI MCFG -> `machine::Acpi`, unwired |
+| Console UART interrupt | `memory::init` -> `UART_IRQ` | not discovered (needs the MADT overrides) |
+
+The type at the seam is another loose end worth naming: `Region` is `dtb::Region`, which is a plain
+`{ start, size }` pair and means nothing device-tree-specific, but a machine with no device tree
+naming a device-tree type is a smell rather than a design.
 
 ## The clock, and why it needed a calibration loop
 

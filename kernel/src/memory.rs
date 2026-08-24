@@ -155,22 +155,6 @@ pub fn init(dtb_ptr: usize) {
         }
     }
 
-    // The whole span we have to be able to describe. Note this is the *span*, not the
-    // *sum*: if a board has RAM at 0x4000_0000 and again at 0x8_0000_0000, we track
-    // every frame between them and simply never free the hole. A bit of wasted bitmap
-    // buys a much simpler index calculation.
-    {
-        let mut map = RAM.lock();
-        for (i, r) in ram.iter().enumerate() {
-            map.regions[i] = (r.start, r.size);
-        }
-        map.count = ram.len();
-    }
-
-    let base = ram.iter().map(|r| r.start).min().unwrap();
-    let top = ram.iter().map(|r| r.end()).max().unwrap();
-    let total_frames = FrameAllocator::frames_in(top - base);
-
     // Everything that is already spoken for, and must not be allocated or scribbled on.
     //
     // The initrd matters and is easy to miss: the bootloader loaded a file into RAM for
@@ -216,6 +200,60 @@ pub fn init(dtb_ptr: usize) {
         claim(*r);
     }
     let forbidden = &forbidden[..n];
+
+    let forbidden = &forbidden[..n];
+
+    bring_up_frames(ram, forbidden);
+}
+
+/// **Bring the frame allocator up over a described machine**, given RAM and everything already
+/// spoken for. The half of [`init`] that does not care where the description came from.
+///
+/// # Why this is a separate function
+///
+/// It is the narrow half of the seam milestone 20 promised and did not build: "put device discovery
+/// behind a 'here is the hardware' interface (device tree today, ACPI/PCI later)". [`init`] above is
+/// a **device-tree front end**, so on a machine without a device tree there is nothing it can do,
+/// and `x86_64` has PVH's memory map and ACPI instead (milestone 161). Splitting the two apart is what
+/// lets a third architecture reach the allocator at all.
+///
+/// **Narrow, and the rest is still owed.** What crosses this seam is RAM and reservations. The
+/// device *windows* [`init`] also discovers (the interrupt controller, the RTC, the UART's interrupt
+/// line, the PCIe ECAM range) are still read from the tree by the front end and stored in this
+/// module's statics, which simply stay `None` on a machine with no tree. Widening it is its own
+/// milestone; see notes/x86-port.md.
+///
+/// `ram` is every region that is real, allocatable memory. `forbidden` is every region inside it
+/// that something else already owns, and **it must include the kernel image**, or the allocator
+/// hands out the code it is running from.
+///
+/// # BUGS
+///
+/// - **The type at this seam is still the device tree's.** `Region` is `dtb::Region`, which is a
+///   plain `{ start, size }` pair and means nothing device-tree-specific, but a machine with no
+///   device tree naming a device-tree type is a smell rather than a design. Moving it belongs with
+///   the wider seam.
+/// - **At most `MAX_REGIONS` RAM regions.** More than that indexes past the map below. Both `virt`
+///   boards describe one; q35 describes three. A caller with more must decide what to drop, because
+///   this cannot.
+pub fn bring_up_frames(ram: &[Region], forbidden: &[Region]) {
+    assert!(!ram.is_empty(), "the machine describes no RAM at all");
+
+    // The whole span we have to be able to describe. Note this is the *span*, not the
+    // *sum*: if a board has RAM at 0x4000_0000 and again at 0x8_0000_0000, we track
+    // every frame between them and simply never free the hole. A bit of wasted bitmap
+    // buys a much simpler index calculation.
+    {
+        let mut map = RAM.lock();
+        for (i, r) in ram.iter().enumerate() {
+            map.regions[i] = (r.start, r.size);
+        }
+        map.count = ram.len();
+    }
+
+    let base = ram.iter().map(|r| r.start).min().unwrap();
+    let top = ram.iter().map(|r| r.end()).max().unwrap();
+    let total_frames = FrameAllocator::frames_in(top - base);
 
     // --- the bootstrap problem ---
     //
@@ -543,14 +581,18 @@ pub fn print_summary() {
 /// **They are VIRTUAL addresses**, because the kernel is linked high. Everything in this
 /// module deals in *physical* frames, so we convert on the way in. Getting this backwards
 /// would reserve frames that don't exist and hand out the ones that hold our code.
-fn image_start() -> u64 {
+///
+/// `pub(crate)` since milestone 161: an architecture that assembles its own forbidden list
+/// (`x86_64`, which has no device tree to read one from) needs the image's bounds to put in it,
+/// and the alternative was a second copy of this in `arch/`.
+pub(crate) fn image_start() -> u64 {
     unsafe extern "C" {
         static __image_start: core::ffi::c_void;
     }
     virt_to_phys((&raw const __image_start) as u64)
 }
 
-fn image_end() -> u64 {
+pub(crate) fn image_end() -> u64 {
     unsafe extern "C" {
         static __image_end: core::ffi::c_void;
     }

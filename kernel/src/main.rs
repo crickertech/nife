@@ -163,17 +163,17 @@ pub extern "C" fn kernel_main(dtb: usize) -> ! {
         // the device tree, and the only thing that reads the map so far; `memory::init` is a
         // device-tree parser, so the frame allocator cannot come up here until there is a discovery
         // seam between the two. See notes/x86-port.md.
-        match arch::machine::boot_info(dtb) {
-            Some(info) => arch::machine::print_memory_map(&info),
-            None => {
-                println!("  memory      : no PVH boot info at {dtb:#x} (booted some other way?)");
-            }
-        }
+        let Some(info) = arch::machine::boot_info(dtb) else {
+            println!("  memory      : no PVH boot info at {dtb:#x}; nothing else can be found");
+            println!("nife x86_64: early boot cannot continue, halting.");
+            arch::halt();
+        };
+        arch::machine::print_memory_map(&info);
 
         // ACPI: what x86 has instead of a device tree. The RSDP is scanned for rather than taken
         // from the handoff, because QEMU's PVH loader leaves that field zero (measured); the
         // checksum inside the parser is what separates a real hit from a coincidence.
-        let acpi = arch::machine::read_acpi(arch::machine::boot_info(dtb).map_or(0, |i| i.rsdp));
+        let acpi = arch::machine::read_acpi(info.rsdp);
         arch::machine::print_acpi_summary(&acpi);
 
         // The local APIC, and then a real hardware interrupt. Until this point the only trap the
@@ -215,6 +215,19 @@ pub extern "C" fn kernel_main(dtb: usize) -> ! {
             println!("  apic        : skipped, the MADT did not say where the local apic is");
         }
 
+        // The frame allocator, from the PVH memory map. This is the seam: `memory::init` is a
+        // device-tree front end and there is no tree here, so the x86 side assembles the same two
+        // slices (RAM, and what is already spoken for) and hands them to the half that does not
+        // care where they came from.
+        stack::init();
+        let regions = arch::machine::bring_up_memory(&info);
+        let first = memory::alloc().expect("no frame from the allocator");
+        println!(
+            "  frames      : allocator up over {regions} ram region(s) (first frame {:#x})",
+            first.addr(),
+        );
+        memory::print_summary();
+
         arch::mmu::print_summary();
         println!(
             "  image       : text {:#x}..{:#x}, stack {:#x}..{:#x}",
@@ -230,9 +243,7 @@ pub extern "C" fn kernel_main(dtb: usize) -> ! {
         // plausible number. Halting here is the honest stop; see the roadmap for the order the rest
         // comes in.
         println!();
-        println!(
-            "  next        : a discovery seam, fine-grained page tables, the IO APIC, then ring 3."
-        );
+        println!("  next        : fine-grained page tables, the IO APIC, then ring 3.");
         println!("nife x86_64: early boot complete, halting.");
         arch::halt();
     }
