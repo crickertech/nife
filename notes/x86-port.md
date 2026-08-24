@@ -13,13 +13,14 @@ genuinely do not fit the existing seam, and an honest account of what is built.
 
 **Built, running, and gated:** the boot path, the console, the GDT/TSS, the IDT and trap frame, the
 page-table format, the boot-handoff parser, the ACPI tables (the RSDP scan, the root-table walk with
-checksums, the MADT and the MCFG), **the local APIC and a calibrated periodic timer**, the address
-arithmetic, interrupt masking, the context switch, and the test exit. A boot under QEMU's `q35`
-prints a tour, takes real hardware interrupts, and halts.
+checksums, the MADT and the MCFG), **the local APIC and a calibrated periodic timer**, the frame
+allocator, **the fine-grained W^X kernel page tables**, the address arithmetic, interrupt masking,
+the context switch, and the test exit. A boot under QEMU's `q35` prints a tour, takes real hardware
+interrupts, builds and installs its own page tables, and halts.
 
-**Not built:** the fine-grained page tables, the **IO APIC** (so no device interrupt is routed),
-VT-d, SMP bring-up, ring 3, and the kernel's own test suite. Every one of those is a loud `unimplemented!()` in `arch/x86_64/` that names
-itself and why. See design/roadmap/161-x86-64-kernel-port.md for the order they come in.
+**Not built:** the **IO APIC** (so no device interrupt is routed), VT-d, SMP bring-up, ring 3, and
+the kernel's own test suite. Every one of those is a loud `unimplemented!()` in `arch/x86_64/` that
+names itself and why. See design/roadmap/161-x86-64-kernel-port.md for the order they come in.
 
 ## How the machine is entered, and why it is not multiboot
 
@@ -79,10 +80,13 @@ descriptor whose `L` bit is set, and only then jumps to the high alias of itself
 so it may use the sign-extended 32-bit relocations that make kernel code compact. Moving the base
 breaks every relocation in the image, silently, in a way that looks like random corruption.
 
-The boot map is 4 GiB identity-mapped with 2 MiB pages, plus the first gigabyte aliased at
-`KERNEL_VA_BASE`. 4 GiB rather than the 1 GiB the image needs, because everything x86 talks to early
-is above 1 GiB and below 4: the local APIC at `0xfee00000`, the IO APIC at `0xfec00000`, and q35's
-PCIe ECAM window at `0xb0000000`.
+The boot map is 4 GiB identity-mapped with 2 MiB pages, the first gigabyte aliased at
+`KERNEL_VA_BASE` (where the image is linked), and the same 4 GiB aliased a third time at
+`DIRECT_MAP_BASE` (where `phys_to_virt` points; see "Two bases" below). 4 GiB rather than the 1 GiB
+the image needs, because everything x86 talks to early is above 1 GiB and below 4: the local APIC at
+`0xfee00000`, the IO APIC at `0xfec00000`, and q35's PCIe ECAM window at `0xb0000000`. The identity
+map is dropped by `mmu::init`; the other two survive it, and the direct-map alias costs eight bytes
+because it points at the page directories the identity map already built.
 
 **When it fails, it fails silently.** A wrong page table means the instruction after `mov cr0, eax`
 is fetched through a broken mapping, the CPU takes a page fault with no IDT, escalates to a double
@@ -266,6 +270,81 @@ much later as a hang:
 - **The Task Priority Register is zeroed.** Anything else silently drops interrupts below that
   priority class, which looks exactly like a controller that was never wired up.
 
+## The fine map, and the hazard that was designed out instead of sequenced around
+
+Milestone 161's roadmap item 1, built 2026-08-24. What `boot.s` leaves behind is enough to run and
+not enough to be a kernel: 2 MiB pages, everything present, writable *and* executable, in both
+halves, plus an identity map of the low 4 GiB sitting in the half ring 3 will get. `mmu::init`
+replaces it with a four-level map built through the shared `paging::Mapper`, exactly as the other
+two architectures do.
+
+What the new map says, in the order `map_everything` builds it:
+
+| What | Where | Flags |
+|---|---|---|
+| All of RAM, minus the kernel image's own frames | `DIRECT_MAP_BASE + pa` | `kernel_data` (RW, never X) |
+| The first megabyte, and reserved entries below the top of RAM | `DIRECT_MAP_BASE + pa` | `kernel_data` |
+| `.text` | `KERNEL_VA_BASE + pa` | `kernel_code` (X, never W) |
+| `.rodata` | `KERNEL_VA_BASE + pa` | `kernel_rodata` (neither) |
+| `.data` + `.bss`, the boot stack, the per-CPU secondary and interrupt stacks | `KERNEL_VA_BASE + pa` | `kernel_data` |
+| Every guard page | -- | **not mapped**, and `verify` asserts it |
+| The local APIC (from the MADT), the IO APIC, bus 0 of the PCIe ECAM window | `DIRECT_MAP_BASE + pa` | `device` (uncacheable) |
+| Physical page 0, and the identity map | -- | **not mapped** |
+
+**The image's own frames are skipped in the direct map**, which is a difference from the other two
+ports rather than a copy of them. There, the image and the direct map share a base, so a direct-map
+entry for those frames would collide with the section mappings and the mapper's overwrite refusal
+catches the ordering mistake. Here the bases differ, so it would not collide: it would quietly be a
+second, **writable** alias of `.text`. W^X that a second mapping undoes is not W^X.
+
+### The hazard the roadmap flagged, and why there is no sequencing step
+
+`phys_to_virt` changes meaning the instant a new `CR3` is installed, if the old and new tables put
+the direct map in different places. That is not hypothetical: `memory::bring_up_frames` turns the
+frame bitmap's physical address into a `&'static mut [u8]` and **stores it**, and the PVH structure
+and the ACPI tables are read the same way, all before any fine map exists.
+
+The roadmap's prescribed answer was to carry both aliases across the switch and drop the old one
+afterwards. The answer taken instead was to make the arithmetic never change: **`boot.s` writes
+PML4[273] itself**, pointing at the same low PDPT the identity map already uses, so the direct map
+exists from before the first Rust instruction and `mmu::init` widens it rather than introducing it.
+Eight bytes, no extra memory, no second step, and nothing to remember. The two constants are kept in
+agreement by a `const` assertion in `mmu.rs` that recomputes PML4[273] from `DIRECT_MAP_BASE`, so
+changing one without the other fails the build rather than the boot.
+
+The one thing that *does* change across the switch is the local APIC page's **memory type**, from
+the boot map's cacheable to device. `irq.rs` keeps its base as a direct-map address and needs no
+re-derivation.
+
+### What made it debuggable
+
+`verify` walks the finished tables in software and asserts the five things that would kill the
+machine, before `mov cr3` bets on them: this function's own code is mapped, executable and not
+writable; the current stack is mapped; the frame bitmap is reachable through the direct map; PML4[0]
+is zero (the identity map is gone); and every guard page is a hole. **The identity-map check has to
+read the PML4 entry rather than call `translate`**, because the kernel mapper serves the high half
+and would answer `None` for a low address whatever the tables said. That is the shape of assertion
+this file exists to warn about: one that passes for a reason unrelated to the thing it names.
+
+The console is the other reason this step was less frightening here than on the other two
+architectures: COM1 is an I/O **port**, so nothing the page tables do can make the machine go silent.
+
+### What it costs, measured
+
+`556 KiB of page tables for 254 MiB of RAM` on q35 with `-m 256M`, printed on every boot. That 0.2%
+is the price of 4 KiB leaves, which is all `crates/paging` maps; Linux uses 2 MiB and 1 GiB leaves
+for this map and would pay a few kilobytes. Extrapolated, a 32 GiB machine would spend ~64 MiB of
+RAM describing its own RAM. Adding larger leaves is a change to the shared format trait that all
+three architectures would want, so it is recorded in `arch/x86_64/mmu.rs`'s `BUGS` rather than
+patched here.
+
+Two other honest limits live in that same `BUGS` section. `mmu::init` must draw its table frames
+from **below 4 GiB**, because that is all the boot map's direct map reaches and the mapper writes
+every table through it (the frame allocator hands out the lowest free frame first, so this holds
+today). And **`CR4.PGE` is off**, so the `G` bit the kernel's `Flags` set is ignored and every
+`mov cr3` flushes the whole TLB: correct and slow, and worth revisiting with ring 3, when a context
+switch starts happening often enough to measure.
+
 ## The three things that genuinely do not fit
 
 Recorded because the failures of an abstraction are worth more than its successes.
@@ -297,21 +376,34 @@ this question rather than a value. Written up as **§121 (PROPOSED)**, because i
 this tree where the object a capability names is not memory, and how that is answered decides the
 shape of every future capability over something that is not a frame.
 
-### 3. The direct map cannot cover a real machine, and it is the base that forbids it
+### 3. One base cannot do both jobs, so this architecture has two
+
+**Resolved 2026-08-24** (milestone 161's roadmap item 1); left here because it is the one place the
+three architectures' address arithmetic genuinely diverges, and a reader of the other two ports will
+arrive expecting a single constant.
 
 `KERNEL_VA_BASE` is `0xffffffff80000000` because the target's code model requires it, and there are
 only **2 GiB of address space above it**. So `VA = PA | KERNEL_VA_BASE` can never address more than
 2 GiB of physical memory, which is not enough for a real machine and not enough to reach the local
-APIC at `0xfee00000` either.
+APIC at `0xfee00000` either. It is not even invertible up there: `phys_to_virt(0xfee00000)` produced
+a valid distinct address whose `virt_to_phys` did not give `0xfee00000` back.
 
-Linux solves it by separating the two jobs this one constant is doing: the kernel *image* sits at
-`0xffffffff80000000`, where the code model needs it, and the *direct map* is somewhere else entirely
-with room to be large. Doing the same is part of the fine-map step. Until then, device registers
-above 1 GiB are reached through the boot tables' identity map, via `mmu::device_va`, which exists as
-one place to change rather than a dozen call sites each casting a physical address with a comment.
-It is a foot gun and says so: every caller of it stops working the moment the identity map is
-dropped, which the fine-map step must do, because an identity map is a complete alias of physical
-memory sitting in the half user programs get.
+Linux separates the two jobs this one constant was doing, and so does this port now. The kernel
+*image* sits at `KERNEL_VA_BASE`, where the code model needs it; the *direct map* sits at
+`DIRECT_MAP_BASE = 0xffff888000000000`, which is Linux's `page_offset_base`, taken rather than
+invented so that a reader who has met one x86_64 kernel has met this number. They are PML4[511] and
+PML4[273], so nothing about them interferes, and both are canonically high, so the same bit-47
+`Ia32e::in_half` test admits both. `crates/paging` needed no change, which is the second time this
+port has been able to say that.
+
+**`virt_to_phys` therefore has two branches**, and that is not a wart: the kernel hands it linker
+symbols (`memory::image_start`) as well as pointers that came out of `phys_to_virt`
+(`sched`, `kmem`). Linux's `__pa()` makes the same distinction for the same reason. `phys_to_virt`
+has one branch, because everything physical is in the direct map.
+
+`mmu::device_va`, the foot gun that reached device registers through the identity map because the
+direct map could not, is **deleted**. So is the identity map itself, which was a complete alias of
+physical memory sitting in the half user programs get.
 
 ### 4. Two names in the arch contract are aarch64's and do not stretch
 
@@ -367,21 +459,36 @@ or, equivalently, `cargo run -p kernel --target x86_64-unknown-none` (the runner
 `.cargo/config.toml` builds the same command line; bound it, because the kernel halts rather than
 exiting).
 
-Expected output, 2026-08-23:
+Expected output, 2026-08-24 (the memory-map and ACPI blocks elided; they are quoted in full
+earlier in this file):
 
 ```
 nife on x86_64 (long mode, ring 0, 4-level paging)
   cpu 0 booted: high-half kernel, .bss, and the 16550 console are up.
-  running at  : 0xffffffff8010a2f0  (high half: the long-mode jump landed)
+  running at  : 0xffffffff8010b4b0  (high half: the long-mode jump landed)
   boot info   : 0x0000000000001580  (PVH hvm_start_info, not a device tree)
   cpu         : x86_64, vendor AuthenticAMD, cpuid leaves 0..0xd
   traps       : idt installed; a breakpoint was caught and stepped over (1)
-  mmu         : 4-level paging on (cr3 0x102000), boot map: 4 GiB identity + 1 GiB high
-  image       : text 0xffffffff80109000..0xffffffff80119000, stack 0xffffffff8012a000..0xffffffff8013a000
+  memory      : 9 regions from the PVH handoff, rsdp 0x0
+                ...
+  acpi        : rsdp at 0xf52e0 (revision 0), root table 0xffe2344 (rsdt)
+                ...
+  apic        : local apic 0xfee00000 up, id 0, version 0x14, 8259s masked
+  clocks      : tsc 1001 MHz, apic timer 62 MHz (both measured against the PIT)
+  timer       : 20 ticks in ~0.2s at 100 Hz (20 routed, 0 spurious)
+  frames      : allocator up over 1 ram region(s) (first frame 0x1fc000)
+  memory          : 254 MiB total, 253 MiB free (1012 KiB in use)
+  mmu         : fine W^X 4-level map installed (cr3 0x1fd000), image 0xffffffff80000000, direct map 0xffff888000000000
+                556 KiB of page tables, no identity map, guard pages are holes
+  image       : text 0xffffffff80109000..0xffffffff80126000, stack 0xffffffff8013a000..0xffffffff8014a000
 
-  next        : fine-grained page tables, the APIC, a clock, then ring 3.
+  next        : the IO APIC, then ring 3.
 nife x86_64: early boot complete, halting.
 ```
+
+**The lines after the `mmu` one are the proof, not the `mmu` line itself.** They are printed after
+the `mov cr3`, through a console the new tables do not describe (COM1 is a port) but from code and a
+stack they do.
 
 The vendor string is whatever `-cpu` was asked for; `max` on this host reports `AuthenticAMD`.
 
