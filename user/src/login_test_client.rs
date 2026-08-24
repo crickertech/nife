@@ -52,6 +52,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
+use user_rt::mapped_window::MappedWindow;
 use user_rt::{call, exit, invoke, map_frame, recv, recv_cap, send, yield_now};
 
 /// The login service's request endpoint (slot 0), `WRITE`.
@@ -68,6 +69,12 @@ const PAGE_VA: u64 = 0x0000_0000_00e2_0000;
 /// contract's shared page), and a client of both must not confuse them the way `credentialer.rs`'s
 /// own two-frame rule exists to prevent for its own pair.
 const FS_VA: u64 = 0x0000_0000_00f0_0000;
+
+// SAFETY: constructing the window touches no memory; only `put_page`/`get_page` do, and every
+// caller of those runs behind `if mapped { .. }` (this process's own `map_frame(fs_frame, FS_VA,
+// ..)` having already returned true), the same condition the hand-rolled comment this replaces
+// relied on (milestone 139 round 2; see `user_rt::mapped_window`).
+const FS_WINDOW: MappedWindow = unsafe { MappedWindow::new(FS_VA, filesystem_proto::PAGE as u64) };
 
 pub const ROLE_CHRIS: u64 = 0;
 pub const ROLE_CORINNE: u64 = 1;
@@ -273,17 +280,14 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
 /// Copy `bytes` into the shared filesystem page (a name to open/create, or data to write).
 fn put_page(bytes: &[u8]) {
     for (i, &b) in bytes.iter().enumerate() {
-        // SAFETY: FS_VA is a mapped, writable page of at least `filesystem_proto::PAGE` bytes (this program
-        // maps exactly one page of it); a name or this marker's short content is far shorter.
-        unsafe { core::ptr::write_volatile((FS_VA + i as u64) as *mut u8, b) };
+        FS_WINDOW.w8(i as u64, b);
     }
 }
 
 /// Read `n` bytes out of the shared filesystem page into `out`.
 fn get_page(n: usize, out: &mut [u8]) {
     for (i, b) in out.iter_mut().take(n).enumerate() {
-        // SAFETY: as above; `n` is bounded by the page and by `out`.
-        *b = unsafe { core::ptr::read_volatile((FS_VA + i as u64) as *const u8) };
+        *b = FS_WINDOW.r8(i as u64);
     }
 }
 

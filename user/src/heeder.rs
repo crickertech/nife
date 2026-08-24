@@ -29,19 +29,23 @@
 
 use grant_plan::jobframe;
 use user_rt::exit;
+use user_rt::mapped_window::{self, MappedWindow};
 
 /// Where init maps the shared job frame in the child's address space. Must match the shell/init
 /// wiring (below the ELF load address `0x40_0000` and the stack).
 const JOB_FRAME_VA: usize = 0x0030_0000;
 
+// SAFETY: init mapped one page read/write at JOB_FRAME_VA before this program runs (milestone 139
+// round 2; see `user_rt::mapped_window`, which is what collapsed the hand-rolled read_volatile/
+// write_volatile pair below).
+const WINDOW: MappedWindow = unsafe { MappedWindow::new(JOB_FRAME_VA as u64, mapped_window::PAGE) };
+
 fn load(off: usize) -> u64 {
-    // SAFETY: init mapped the job frame read/write at JOB_FRAME_VA; `off` is a valid word offset.
-    unsafe { core::ptr::read_volatile((JOB_FRAME_VA + off) as *const u64) }
+    WINDOW.read(off as u64)
 }
 
 fn store(off: usize, v: u64) {
-    // SAFETY: as above; this word is the child's to write (one writer per word, see jobframe).
-    unsafe { core::ptr::write_volatile((JOB_FRAME_VA + off) as *mut u64, v) }
+    WINDOW.write(off as u64, v);
 }
 
 #[unsafe(no_mangle)]
