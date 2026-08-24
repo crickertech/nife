@@ -138,6 +138,7 @@ use socket_proto::{
     DATA_MAX, LISTEN_DENIED, LISTEN_GRANTED, LISTEN_IN_USE, OFF_LEN, OFF_PAYLOAD, OP_ACCEPT,
     OP_ATTACH_FRAME, OP_CLOSE, OP_LISTEN, OP_RECV, OP_SEND, REP_ERR, REP_OK, req,
 };
+use user_rt::mapped_window::MappedWindow;
 use user_rt::{call, exit, invoke, now, send};
 
 const REPORT: u64 = 0;
@@ -169,6 +170,13 @@ const CRED: u64 = 4;
 /// reply whose length the server chooses stays inside one page.
 const FS_VA: u64 = 0x0000_0000_00B0_0000;
 
+/// The window onto the whole FS channel (milestone 139; see `user_rt::mapped_window`), sized to
+/// `fs::TRANSFER_MAX` (the full [`fs::TRANSFER_PAGES`]-page channel the kernel wires here), not
+/// just one page: a request for more than one page's worth was exactly the un-checked case this
+/// type exists to catch.
+// SAFETY: the kernel's wiring maps every page of the channel at FS_VA before this program runs.
+const FS_WINDOW: MappedWindow = unsafe { MappedWindow::new(FS_VA, fs::TRANSFER_MAX as u64) };
+
 /// Where the page shared with the **credential** service is mapped. A different frame from
 /// [`FS_VA`]'s and from the network one, because it is shared with a different process; must match
 /// the kernel-side wiring like every VA here.
@@ -192,6 +200,14 @@ const CONN_SID: u64 = 3;
 
 /// Where the shared frame is mapped in this process.
 const FRAME_VA: u64 = 0x0000_0000_00A0_0000;
+
+/// The window onto that frame (milestone 139; see `user_rt::mapped_window`). A `static`, not a
+/// `const`: the range is only actually mapped once the `Frame::MAP` below succeeds, and every
+/// access through this window happens after that, during the exchanges that follow.
+// SAFETY: this program maps a frame writable at FRAME_VA (below) before any read or write through
+// this window runs.
+static FRAME_WINDOW: MappedWindow =
+    unsafe { MappedWindow::new(FRAME_VA, user_rt::mapped_window::PAGE) };
 
 /// The success word the kernel test asserts, and the "listening" word the serve-forever boot
 /// prints on. Distinct stage codes (0xE1xx, disjoint from `socket_test_client`'s 0xE0xx) name
@@ -224,15 +240,6 @@ fn tx() -> &'static mut [u8] {
     unsafe { &mut *p }
 }
 
-fn w8(va: u64, v: u8) {
-    // SAFETY: `va` addresses a field inside a shared frame this process has mapped. Volatile because the peer writes the same frame, so a cached read would be a stale one.
-    unsafe { core::ptr::write_volatile(va as *mut u8, v) }
-}
-fn r8(va: u64) -> u8 {
-    // SAFETY: `va` addresses a field inside a shared frame this process has mapped. Volatile because the peer writes the same frame, so a cached read would be a stale one.
-    unsafe { core::ptr::read_volatile(va as *const u8) }
-}
-
 // ============================================================================================
 // The filesystem_proto-backed share: milestone 54's second act. Everything below and nothing above
 // touches the FS endpoint; the protocol machine sees only the `Share` trait.
@@ -252,7 +259,7 @@ static mut NAME: [u8; 255] = [0; 255];
 /// Copy `bytes` to the start of the FS-shared page (a name to resolve).
 fn fs_put(bytes: &[u8]) {
     for (i, &b) in bytes.iter().enumerate() {
-        w8(FS_VA + i as u64, b);
+        FS_WINDOW.w8(i as u64, b);
     }
 }
 
@@ -276,7 +283,7 @@ fn fs_readdir(dir: u64, cursor: u64) -> &'static [u8] {
     // dead before this borrow: every caller consumes one page before asking for the next.
     let d = unsafe { &mut *p };
     for (i, b) in d.iter_mut().take(n).enumerate() {
-        *b = r8(FS_VA + i as u64);
+        *b = FS_WINDOW.r8(i as u64);
     }
     &d[..n]
 }
@@ -551,7 +558,7 @@ impl Share for FsShare {
         let n = (r0 as usize).min(filesystem_proto::PAGE);
         let mut rec = [0u8; filesystem_proto::statfs::LEN];
         for (i, b) in rec.iter_mut().enumerate().take(n) {
-            *b = r8(FS_VA + i as u64);
+            *b = FS_WINDOW.r8(i as u64);
         }
         let (block_size, total_blocks, free_blocks) = filesystem_proto::statfs::decode(&rec[..n])?;
         Some(Volume {
@@ -627,7 +634,7 @@ impl Share for FsShare {
                 break; // end of file
             }
             for i in 0..got {
-                out[done + i] = r8(FS_VA + i as u64);
+                out[done + i] = FS_WINDOW.r8(i as u64);
             }
             done += got;
             if got < want {
@@ -651,7 +658,7 @@ impl Share for FsShare {
         while done < data.len() {
             let chunk = (data.len() - done).min(fs::TRANSFER_MAX);
             for (i, &b) in data[done..done + chunk].iter().enumerate() {
-                w8(FS_VA + i as u64, b);
+                FS_WINDOW.w8(i as u64, b);
             }
             let (r0, _) = call(
                 FS,
@@ -708,7 +715,7 @@ impl Share for FsShare {
         // Source first, destination back to back: filesystem_proto::fs::RENAME's page layout.
         fs_put(src_name);
         for (i, &b) in dst_name.iter().enumerate() {
-            w8(FS_VA + (src_name.len() + i) as u64, b);
+            FS_WINDOW.w8((src_name.len() + i) as u64, b);
         }
         let (r0, _) = call(
             FS,
@@ -876,7 +883,7 @@ fn send_all(buf: &[u8]) -> bool {
     while off < buf.len() {
         let chunk = (buf.len() - off).min(DATA_MAX);
         for (i, &b) in buf[off..off + chunk].iter().enumerate() {
-            w8(FRAME_VA + OFF_PAYLOAD + i as u64, b);
+            FRAME_WINDOW.w8(OFF_PAYLOAD + i as u64, b);
         }
         let (sent, _) = call(STACK, req(OP_SEND, CONN_SID), chunk as u64);
         if sent == REP_ERR || sent as usize > chunk {
@@ -910,7 +917,7 @@ fn recv_into(at: usize) -> Option<usize> {
         return None; // a peer overrunning the reassembly buffer is a broken peer
     }
     for i in 0..n {
-        buf[at + i] = r8(FRAME_VA + OFF_PAYLOAD + i as u64);
+        buf[at + i] = FRAME_WINDOW.r8(OFF_PAYLOAD + i as u64);
     }
     // The frame's own length field is net_stack's word for the same count; trust the reply word.
     let _ = OFF_LEN;

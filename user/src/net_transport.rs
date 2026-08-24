@@ -24,9 +24,16 @@ use abi::{irq, virtio};
 use smoltcp::phy::{self, Device, DeviceCapabilities, Medium};
 use smoltcp::time::Instant;
 use user_rt::invoke;
+use user_rt::mapped_window::{MappedWindow, PAGE};
 
 /// The DMA page's virtual address, matching the kernel's `net_server` mapping.
 const DMA_VA: u64 = 0x0000_0000_0090_0000;
+
+// SAFETY: the spawn service maps one page read/write at DMA_VA before this program runs
+// (milestone 139; see `user_rt::mapped_window`, which is what collapsed the hand-rolled
+// r8/r16/r32/w8/w16 and `write_desc` below -- including the stray comment milestone 112 found
+// pasted onto one of them, describing `invoke` and capability validation over a plain DMA write).
+const WINDOW: MappedWindow = unsafe { MappedWindow::new(DMA_VA, PAGE) };
 
 /// Capability slots the kernel granted, by convention.
 const IRQ: u64 = 1;
@@ -87,31 +94,22 @@ fn tx_buf(i: usize) -> u64 {
 }
 
 // Raw DMA-page and device-register access. The DMA page is one contiguous physical frame mapped at
-// DMA_VA, so a physical address the device needs is `dma_phys + offset`.
+// DMA_VA, so a physical address the device needs is `dma_phys + offset`. Bounds-checked against
+// the page by `WINDOW` (milestone 139) instead of trusted by hand at every call site.
 fn r8(off: u64) -> u8 {
-    // SAFETY: `DMA_VA` is the base of the single contiguous DMA frame this process mapped at startup, and callers pass offsets inside it. Volatile because the device reads and writes the same memory.
-    unsafe { core::ptr::read_volatile((DMA_VA + off) as *const u8) }
+    WINDOW.r8(off)
 }
 fn r16(off: u64) -> u16 {
-    // SAFETY: `DMA_VA` is the base of the single contiguous DMA frame this process mapped at startup, and callers pass offsets inside it. Volatile because the device reads and writes the same memory.
-    unsafe { core::ptr::read_volatile((DMA_VA + off) as *const u16) }
+    WINDOW.r16(off)
 }
 fn r32(off: u64) -> u32 {
-    // SAFETY: `DMA_VA` is the base of the single contiguous DMA frame this process mapped at startup, and callers pass offsets inside it. Volatile because the device reads and writes the same memory.
-    unsafe { core::ptr::read_volatile((DMA_VA + off) as *const u32) }
+    WINDOW.r32(off)
 }
 fn w8(off: u64, v: u8) {
-    // SAFETY: `DMA_VA` is the base of the single contiguous DMA frame this process mapped at startup, and callers pass offsets inside it. Volatile because the device reads and writes the same memory.
-    unsafe { core::ptr::write_volatile((DMA_VA + off) as *mut u8, v) }
+    WINDOW.w8(off, v);
 }
 fn w16(off: u64, v: u16) {
-    // SAFETY: `DMA_VA` is the base of the single contiguous DMA frame this process mapped at startup, and callers pass offsets inside it. Volatile because the device reads and writes the same memory.
-    //
-    // Milestone 112 found this comment describing `invoke` and capability validation, pasted from
-    // `mr`/`mw` below onto a `write_volatile` into the DMA page. It said nothing about the operation
-    // it sat over, and both unsafe lints were satisfied throughout, because a comment exists and
-    // that is the entire property `undocumented_unsafe_blocks` checks.
-    unsafe { core::ptr::write_volatile((DMA_VA + off) as *mut u16, v) }
+    WINDOW.w16(off, v);
 }
 
 fn mr(off: u64) -> u32 {
@@ -143,13 +141,10 @@ fn barrier() {
 
 fn write_desc(desc_base: u64, i: u64, addr: u64, len: u32, flags: u16, next: u16) {
     let b = desc_base + i * 16;
-    // SAFETY: `DMA_VA` is the base of the single contiguous DMA frame this process mapped at startup, and callers pass offsets inside it. Volatile because the device reads and writes the same memory.
-    unsafe {
-        core::ptr::write_volatile((DMA_VA + b) as *mut u64, addr);
-        core::ptr::write_volatile((DMA_VA + b + 8) as *mut u32, len);
-        core::ptr::write_volatile((DMA_VA + b + 12) as *mut u16, flags);
-        core::ptr::write_volatile((DMA_VA + b + 14) as *mut u16, next);
-    }
+    WINDOW.write(b, addr);
+    WINDOW.write(b + 8, len);
+    WINDOW.write(b + 12, flags);
+    WINDOW.write(b + 14, next);
 }
 
 /// The virtio-net device, presenting smoltcp's `Device`. Holds the ring bookkeeping; the buffers
