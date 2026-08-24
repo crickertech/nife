@@ -180,9 +180,30 @@ it.
   real, and it is a fact about the emulator rather than a property of the driver. On hardware the
   quality of the bytes is the quality of the board's generator, full stop, because nothing here
   conditions them.
-- **No hardware TRNG yet.** The StarFive JH7110's TRNG is the candidate for the VisionFive 2 and
-  **needs verifying** before it is relied on. Until it is, "nife has a cryptographic random
-  source" is a claim about QEMU.
+- **No hardware TRNG yet, but "needs verifying" is now precise rather than open-ended** (milestone
+  159, 2026-08-24). The StarFive JH7110's TRNG is documented, from the chip's own datasheet and
+  Linux's mainline driver, but nothing about it has run: `crates/jh7110_trng` holds the register
+  layout (`CTRL`/`STAT`/`MODE`/`SMODE`/`IE`/`ISTAT`/`RAND0..RAND7`/`AUTO_RQSTS`/`AUTO_AGE`,
+  transcribed from `drivers/char/hw_random/jh7110-trng.c`, mainline as of 2026-08-24) and a DTB
+  discovery query (`starfive,jh7110-trng`, `reg = <0x1600C000 0x4000>`, PLIC interrupt 30, from the
+  device-tree binding's own worked example), both host-tested against fixtures, never against
+  silicon. `user/src/jh7110_trng.rs` is a full `entropy_proto` backend built on that logic, over a
+  raw `DeviceFrame` mapping rather than a virtqueue (this device has no DMA and no queue, only
+  registers), but it is **not wired to `entropy_service`'s `Bus` enum and nothing spawns it**. What
+  the datasheet does not settle: whether the VisionFive 2's own shipped device tree actually
+  carries the TRNG node the mainline one does (nobody has captured one from the board to check),
+  and the whole question below.
+- **The health-test story got sharper, not answered.** The datasheet (§2.8.2) documents "Support
+  LFSR based digital post process" and "Support self re-seeding" but claims no NIST SP 800-90B,
+  FIPS 140, or AIS-31 compliance anywhere reachable. The Linux driver names exactly one hardware
+  fault signal, `ISTAT.LFSR_LOCKUP` (an SEU in the post-processing stage), which is cheap to read
+  and the new driver reads it, treating a lockup the way this service already treats a dry
+  virtio-rng device: retry, bounded, then tell the caller the truth. Whether that hardware bit is
+  *enough* before trusting these bytes for anything security-shaped, or whether this tree needs a
+  software statistical test (repetition-count, adaptive-proportion) over and above it, is not
+  decided; see `crates/jh7110_trng/src/lib.rs`'s "Health testing" section and
+  `design/roadmap/159-jh7110-trng-driver.md` for the argument, which a lane deliberately did not
+  resolve on its own initiative.
 - **No health test.** A device that started returning a constant would be passed straight through.
   The kernel tests would catch it, a running system would not. NIST SP 800-90B's repetition-count and
   adaptive-proportion tests are the cheap standard answer and are not implemented.

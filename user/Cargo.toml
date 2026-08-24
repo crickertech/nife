@@ -449,6 +449,17 @@ path = "src/entropy.rs"
 test = false
 bench = false
 
+# The JH7110 TRNG driver (milestone 159): an alternate entropy_proto backend for real riscv64
+# hardware (the VisionFive 2), beside "entropy"'s virtio-rng one. NOT packed into any initrd and
+# NOT wired to any spawner yet (see src/jh7110_trng.rs's own doc for why); it builds and
+# type-checks on every target this workspace builds for, same as any other program here, but
+# nothing currently spawns it. Name: PROVISIONAL, matching the crate it is the volatile shell over.
+[[bin]]
+name = "jh7110_trng"
+path = "src/jh7110_trng.rs"
+test = false
+bench = false
+
 # The credential service (milestone 56, the credential half): holds the credential store and serves
 # one question over one endpoint. Its authority to *write* the store is a second endpoint that it
 # deletes at the seal, so a client cannot be refused permission to write it; there is no object left
@@ -615,6 +626,9 @@ pmap = { version = "0.1.0", path = "../crates/pmap" }
 ps = { version = "0.1.0", path = "../crates/ps" }
 elf = { version = "0.1.0", path = "../crates/elf" }
 entropy_proto = { version = "0.1.0", path = "../crates/entropy_proto" }
+# The JH7110 TRNG's register logic and DTB discovery (milestone 159), host-tested in the crate
+# itself; jh7110_trng.rs is the volatile shell over it, unwired, per the crate's own doc.
+jh7110_trng = { version = "0.1.0", path = "../crates/jh7110_trng" }
 # login's own measured-boot consultation before it will build a caretaker from an archive entry
 # (milestone 49's BUGS, resolved): the same crate `crates/system_initializer` already depends on.
 measured_boot = { version = "0.1.0", path = "../crates/measured_boot" }

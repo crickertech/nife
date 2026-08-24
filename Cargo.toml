@@ -31,6 +31,7 @@ members = [
     "crates/glob",
     "crates/gpt",
     "crates/ipc",
+    "crates/jh7110_trng",
     "crates/machine_discovery",
     "crates/paging",
     "crates/pci",
