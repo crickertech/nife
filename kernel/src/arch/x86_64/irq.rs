@@ -35,7 +35,7 @@
 
 use core::sync::atomic::{AtomicU64, Ordering};
 
-use super::mmu::device_va;
+use super::mmu::phys_to_virt;
 use super::port::{in8, out8};
 
 /// The local APIC's registers, as offsets from its base. 32-bit, and **all of them must be accessed
@@ -93,18 +93,40 @@ const PIC1_DATA: u16 = 0x21;
 const PIC2_COMMAND: u16 = 0xa0;
 const PIC2_DATA: u16 = 0xa1;
 
-/// Where this CPU's local APIC is, as a virtual address. Zero until [`init`] runs.
+/// Where this CPU's local APIC is, as a virtual address. Zero until [`init_local_apic`] runs.
 ///
 /// A static rather than a parameter because every accessor below needs it and the alternative is
 /// threading it through the whole interrupt path. It is written once during single-threaded boot.
+///
+/// **It is a direct-map address and stays valid across `mmu::init`'s `CR3` switch**, which is why
+/// this can be computed once. That is not free: `boot.s` installs the direct map at the same base
+/// the fine map uses precisely so that `phys_to_virt` never changes meaning (`arch/x86_64/mmu.rs`).
+/// What the fine map *does* change is the memory type, from the boot map's cacheable to device.
 static LOCAL_APIC: AtomicU64 = AtomicU64::new(0);
+
+/// The **physical** address the local APIC was found at, kept beside the virtual one so that
+/// `mmu::init` can map exactly that page device-typed rather than mapping the architectural default
+/// and hoping firmware left it there. Zero until [`init_local_apic`] runs.
+static LOCAL_APIC_PHYS: AtomicU64 = AtomicU64::new(0);
+
+/// Where this machine's local APIC is, physically, or `None` if ACPI has not said yet.
+///
+/// **Provisional name** (milestone 161): `mmu::LOCAL_APIC_PHYS` is the architectural *default*
+/// constant and this is what the machine actually reported, which is a distinction worth a better
+/// pair of names than these two.
+pub fn local_apic_phys() -> Option<u64> {
+    match LOCAL_APIC_PHYS.load(Ordering::Relaxed) {
+        0 => None,
+        base => Some(base),
+    }
+}
 
 /// Read a local APIC register.
 fn read(offset: u64) -> u32 {
     let base = LOCAL_APIC.load(Ordering::Relaxed);
     debug_assert!(base != 0, "the local APIC has not been located");
     // SAFETY: an aligned 32-bit MMIO read of a register the APIC defines, at the address the ACPI
-    // MADT stated, reached through the identity map (see `mmu::device_va`).
+    // MADT stated, reached through the direct map (see `mmu::phys_to_virt`).
     unsafe { core::ptr::read_volatile((base + offset) as *const u32) }
 }
 
@@ -145,11 +167,13 @@ fn mask_the_8259s() {
 /// finds out where firmware left it rather than assuming the reset default.
 ///
 /// # Safety
-/// `base` must be this machine's real local APIC address, and the identity map must still cover it.
+/// `base` must be this machine's real local APIC address. The direct map covers it from `boot.s`
+/// on, and `mmu::init` re-maps that page device-typed rather than moving it.
 pub unsafe fn init_local_apic(base: u64) {
     mask_the_8259s();
 
-    LOCAL_APIC.store(device_va(base), Ordering::Relaxed);
+    LOCAL_APIC_PHYS.store(base, Ordering::Relaxed);
+    LOCAL_APIC.store(phys_to_virt(base), Ordering::Relaxed);
 
     // Accept every priority class. The reset value is already zero on every part this has run on,
     // and writing it is one instruction against a failure (interrupts silently dropped by priority)
