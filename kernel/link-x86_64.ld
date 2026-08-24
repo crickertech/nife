@@ -1,0 +1,166 @@
+/* nife kernel image layout, x86_64 (milestone 161, notes/x86-port.md).
+ *
+ * THE KERNEL IS LINKED HIGH AND LOADED LOW, the same shape as link-aarch64.ld and
+ * link-riscv64.ld, for the same reason: the kernel lives in the high half of the address space, so
+ * the portable "kernel = high half, user = low half" model (paging::Half, the user-VA gate) holds
+ * identically on all three architectures (DECISIONS §17).
+ *
+ * WHAT IS DIFFERENT HERE, AND IT IS THE ONE STRUCTURAL DIVERGENCE OF THE THREE.
+ *
+ * The other two ISAs enter the kernel in the mode it runs in, with paging off but the register
+ * width already correct, so their whole image can be linked high and the boot code reaches its own
+ * symbols PC-relatively until it turns the MMU on. x86_64 cannot do that: a multiboot kernel is
+ * entered in 32-BIT protected mode, and a 32-bit instruction stream cannot even name a 64-bit
+ * address, let alone load one. So the image has TWO parts:
+ *
+ *   1. `.boot`, linked at its PHYSICAL address (VA == PA, low), holding the 32-bit trampoline, the
+ *      multiboot header, the boot GDT and the boot page tables. Absolute symbol references inside
+ *      it are 32-bit and correct because they are physical.
+ *   2. Everything else, linked HIGH at KERNEL_VA_BASE + its physical address, with AT() telling the
+ *      loader where the bytes go. The trampoline builds a page table that maps the kernel both
+ *      identity (so `mov cr0` does not vanish mid-instruction-stream) and high, then far-jumps into
+ *      64-bit mode and, from there, to the high alias of itself.
+ *
+ * KERNEL_VA_BASE IS NOT A FREE CHOICE. `x86_64-unknown-none` has `code-model: kernel`, which
+ * promises LLVM that every symbol is in the top 2 GiB of the address space so it may use the
+ * sign-extended 32-bit relocations that make kernel code compact. 0xffffffff80000000 is that model's
+ * base, exactly as it is for Linux. Moving it breaks every relocation in the image, silently, in a
+ * way that looks like random corruption. See notes/x86-port.md.
+ *
+ * PHYS_START is 1 MiB because the multiboot specification forbids loading below it (the first
+ * megabyte is real-mode legacy: the IVT, the BIOS data area, the VGA window, option ROMs).
+ */
+
+ENTRY(_start)
+
+KERNEL_VA_BASE = 0xffffffff80000000;
+
+/* The lowest address a multiboot image may be loaded at. QEMU's `-kernel` ELF loader honours the
+ * program headers' p_paddr, so this is where the bytes actually land. */
+PHYS_START = 0x00100000;
+
+SECTIONS
+{
+    . = PHYS_START;
+    __boot_start = .;
+
+    /* The PVH entry note, and the reason it gets an output section to itself: QEMU finds the entry
+     * point by walking PT_NOTE program headers, and lld only emits a PT_NOTE for an output section
+     * whose type is SHT_NOTE. Folding this into `.boot` below would make the output section
+     * PROGBITS, produce no PT_NOTE, and leave QEMU reporting nothing more informative than a guest
+     * that never runs. KEEP() because nothing references it. See arch/x86_64/boot.s. */
+    .note.Xen : ALIGN(4) {
+        KEEP(*(.note.Xen))
+    }
+
+    /* The 32-bit world, linked LOW. */
+    .boot : ALIGN(4096) {
+        KEEP(*(.text.boot))
+        KEEP(*(.data.boot))
+        . = ALIGN(4096);
+    }
+
+    /* The boot page tables and the 32-bit stack: reserved address space rather than image bytes,
+     * because 28 KiB of zeros in the ELF would be 28 KiB QEMU copies for nothing. NOLOAD means the
+     * loader is told nothing about them, so boot.s zeroes them itself before filling them in
+     * (`rep stosd`); do not add anything here that expects to arrive pre-zeroed from the loader. */
+    .boot_scratch (NOLOAD) : ALIGN(4096) {
+        __boot_scratch_start = .;
+        *(.bss.boot)
+        . = ALIGN(4096);
+        __boot_scratch_end = .;
+    }
+
+    __boot_end = .;
+
+    /* From here on, virtual addresses are high-half aliases of the physical addresses the loader
+     * writes to (AT()). VA = PA + KERNEL_VA_BASE is exact and reversible, which is what
+     * `mmu::phys_to_virt`/`virt_to_phys` are. */
+    . = __boot_end + KERNEL_VA_BASE;
+
+    /* The image bounds `memory::init` reads, as HIGH virtual addresses (it passes them straight to
+     * virt_to_phys). The image really begins at PHYS_START, in `.boot`, so this names that page's
+     * high alias even though nothing executes there. */
+    __image_start = KERNEL_VA_BASE + PHYS_START;
+
+    .text : AT(ADDR(.text) - KERNEL_VA_BASE) ALIGN(4096) {
+        __text_start = .;
+        *(.text .text.*)
+        . = ALIGN(4096);
+        __text_end = .;
+    }
+
+    .rodata : AT(ADDR(.rodata) - KERNEL_VA_BASE) ALIGN(4096) {
+        __rodata_start = .;
+        *(.rodata .rodata.*)
+        . = ALIGN(4096);
+        __rodata_end = .;
+    }
+
+    .data : AT(ADDR(.data) - KERNEL_VA_BASE) ALIGN(4096) {
+        __data_start = .;
+        *(.data .data.*)
+        /* Named explicitly rather than left as orphans, and this is a trap specific to this script
+         * rather than a tidiness preference. lld places an output section it was not told about
+         * immediately after the last section with compatible flags, and here that is `.boot`, at a
+         * LOW address 4 GiB below everything the kernel is linked for. A `.got` entry landing there
+         * still resolves (the identity map covers it) and would hide the fact that a relocation the
+         * kernel code model promised would not exist does; naming them means they land high with
+         * everything else, where a stray one shows up as a build-visible size instead. */
+        *(.got .got.plt)
+        *(.data.rel.ro .data.rel.ro.*)
+        . = ALIGN(4096);
+        __data_end = .;
+    }
+
+    /* .bss occupies zero bytes in the file; boot.s zeroes it by hand once running high, 8 bytes at
+     * a time, so both bounds are 8-byte aligned (the 4096 alignment more than covers it). */
+    .bss : AT(ADDR(.bss) - KERNEL_VA_BASE) ALIGN(4096) {
+        __bss_start = .;
+        *(.bss .bss.*)
+        *(COMMON)
+        . = ALIGN(4096);
+        __bss_end = .;
+    }
+
+    /* The guard page: one page, left unmapped once the fine tables are built. Until then it is
+     * reserved address space beneath the stack. Same mechanism as the other two; see notes/stack.md. */
+    . = ALIGN(4096);
+    __stack_guard = .;
+    . += 4096;
+
+    /* The boot stack. Grows DOWN, so __stack_top is the HIGH address, after the reserved space.
+     * The System V AMD64 ABI wants rsp 16-byte aligned at a call boundary, which a page-aligned
+     * top satisfies. */
+    __stack_bottom = .;
+    . += 0x10000;              /* 64 KiB */
+    __stack_top = .;
+
+    /* The per-CPU secondary stacks (milestone 90), each with an unmapped page below it. Same shape
+     * as the other two scripts; the slot layout lives in kernel/src/smp.rs. */
+    .secondary_stacks (NOLOAD) : AT(ADDR(.secondary_stacks) - KERNEL_VA_BASE) ALIGN(4096) {
+        __secondary_stacks_start = .;
+        *(.secondary_stacks)
+        . = ALIGN(4096);
+        __secondary_stacks_end = .;
+    }
+
+    /* The per-CPU interrupt stacks (milestone 124), laid out by kernel/src/interrupt_stack.rs. On
+     * x86_64 these are also what the TSS's IST/RSP0 entries point at, which is a use the other two
+     * architectures have no equivalent of. See notes/stack.md. */
+    .interrupt_stacks (NOLOAD) : AT(ADDR(.interrupt_stacks) - KERNEL_VA_BASE) ALIGN(4096) {
+        __interrupt_stacks_start = .;
+        *(.interrupt_stacks)
+        . = ALIGN(4096);
+        __interrupt_stacks_end = .;
+    }
+
+    __image_end = .;
+    __image_size = __image_end - __image_start;
+
+    /DISCARD/ : {
+        *(.comment)
+        *(.note*)
+        *(.eh_frame*)         /* stack-unwinding tables; we never unwind */
+    }
+}
