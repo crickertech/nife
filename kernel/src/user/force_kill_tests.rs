@@ -11,7 +11,7 @@ const STACK_VA: u64 = 0x50_0000;
 const SPIN_STUB: &[u32] = &[0x1400_0000]; // b .
 #[cfg(target_arch = "riscv64")]
 const SPIN_STUB: &[u32] = &[0x0000_006F]; // j .  (jal x0, 0)
-/// x86_64's is in `user::x86_programs`, shared with the boot tour; see that module's header.
+/// `x86_64`'s is in `user::x86_programs`, shared with the boot tour; see that module's header.
 #[cfg(target_arch = "x86_64")]
 const SPIN_STUB: &[u32] = super::x86_programs::SPIN;
 
@@ -115,7 +115,7 @@ const RECV_STUB: &[u32] = &[
     0x0000_0893 | ((abi::SYS_EXIT as u32) << 20),         // li a7, SYS_EXIT
     0x0000_0073,                                          // ecall               (exit)
 ];
-/// x86_64's is in `user::x86_programs`; see [`SPIN_STUB`].
+/// `x86_64`'s is in `user::x86_programs`; see [`SPIN_STUB`].
 #[cfg(target_arch = "x86_64")]
 const RECV_STUB: &[u32] = &super::x86_programs::recv();
 

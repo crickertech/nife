@@ -31,7 +31,7 @@ const RUNNER: &str = "scripts/qemu-runner-aarch64.sh";
 /// only so `initrd-riscv` builds the userspace archive for the matching target.
 const RISCV_TARGET: &str = "riscv64imac-unknown-none-elf";
 
-/// The x86_64 target (milestone 161). The kernel is built and run through cargo +
+/// The `x86_64` target (milestone 161). The kernel is built and run through cargo +
 /// `scripts/qemu-runner-x86_64.sh`, exactly as the RISC-V one is; unlike the other two there is no
 /// userspace archive to build for it, because `crates/user_rt` has no arms for this ISA and nothing
 /// in `user/` compiles for it. See notes/x86-port.md.

@@ -15,20 +15,19 @@ genuinely do not fit the existing seam, and an honest account of what is built.
 page-table format, the boot-handoff parser, the ACPI tables (the RSDP scan, the root-table walk with
 checksums, the MADT and the MCFG), **the local APIC and a calibrated periodic timer**, the frame
 allocator, **the fine-grained W^X kernel page tables**, **the IO APIC and a routed device line**,
-**user address spaces, the `syscall` pair and ring 3**, the address arithmetic, interrupt masking,
-the context switch, and the test exit. A boot under QEMU's `q35` prints a tour, takes real hardware
-interrupts from the CPU's own timer *and* from a device, builds and installs its own page tables,
-runs a program at CPL 3 that makes syscalls and is refused when it reaches for the kernel, and
-halts.
+**user address spaces, the `syscall` pair and ring 3**, **the scheduler, preemption, kernel threads
+and real ring-3 processes**, **the kernel's own test suite and a `script/test` leg**, the address
+arithmetic, interrupt masking, the context switch, and the test exit. A boot under QEMU's `q35`
+prints a tour, takes real hardware interrupts from the CPU's own timer *and* from a device, builds
+and installs its own page tables, brings up the scheduler, runs a kernel thread, builds two
+processes out of untyped memory and runs them at CPL 3 (one invokes a capability and exits, one
+faults and is delivered to its supervisor), and halts. `script/test --arch x86_64` runs **97 tests,
+skips 7, and takes 2.7 seconds**.
 
-**Not built:** VT-d, SMP bring-up, and the kernel's own test suite. Every one of those is a loud
-`unimplemented!()` in `arch/x86_64/` that names itself and why. See
-design/roadmap/161-x86-64-kernel-port.md for the order they come in.
-
-**And one thing in between, which this note is careful about throughout**: ring 3 is built *at the
-arch layer*. A program runs there, but there is no process behind it, because `kmem`, `untyped`,
-`sched` and `user::AddressSpace` have never been brought up on this architecture. The distance
-between "a program ran at CPL 3" and "a userspace" is roadmap item 4, and it is real.
+**Not built:** VT-d, SMP bring-up, and **user programs**. The first two are loud `unimplemented!()`s
+in `arch/x86_64/` that name themselves and why. The third is a different shape of gap and is the one
+that bounds everything else on this architecture; see "What a userspace needs that this port does
+not have" below. See design/roadmap/161-x86-64-kernel-port.md for the order they come in.
 
 ## How the machine is entered, and why it is not multiboot
 
@@ -550,10 +549,10 @@ workload here to measure.
 
 ### What it was proved with, and the honest size of the claim
 
-There is no ELF built for `x86_64-unknown-none` and no scheduler on this architecture, so the proof
-is a hand-assembled probe (`arch/x86_64/ring3_probe.s`) entered straight from the boot thread. That
-is the shape both other ports shipped on their first day and then deleted, and it will be deleted
-here for the same reason.
+There was no ELF built for `x86_64-unknown-none` and no scheduler on this architecture, so the proof
+was a hand-assembled probe (`arch/x86_64/ring3_probe.s`) entered straight from the boot thread. That
+is the shape both other ports shipped on their first day and then deleted, and it was deleted here
+for the same reason by roadmap item 4; the transcript below is what it printed while it existed.
 
 ```
   ring 3      : a program ran at cpl 3 (cs 0x0023, ss 0x001b) and made 2 syscalls
@@ -582,13 +581,17 @@ of the two would have passed it. x86 is the most forthcoming of the three archit
 pushes an error code saying so outright, where aarch64 reads it out of `ESR_EL1` and RISC-V has to
 re-walk the tables to find out.
 
-### The way back, which is scaffolding and says so
+### The way back, which was scaffolding and is gone
 
-`enter_user` never returns, and the boot tour has to print what happened, so `trap.s` grew
+`enter_user` never returns, and the boot tour had to print what happened, so `trap.s` grew
 `x86_enter_user_and_wait` and `x86_leave_user`: park the six callee-saved registers and the call's
 own return address on the current stack, record that block's address, enter ring 3, and resume it
-from the trap handler when the probe is done. It is `switch_to`'s two halves with a ring change in
-the middle, which is not a coincidence, and the scheduler makes it redundant (roadmap item 4).
+from the trap handler when the probe was done. It was `switch_to`'s two halves with a ring change in
+the middle, which was not a coincidence.
+
+**Both, and `ring3_probe.s` with them, were deleted by roadmap item 4**, which is what the paragraph
+above predicted: a scheduler does with two threads what that pair did with one. What replaced them
+as the tour's proof is a pair of real processes; see "The scheduler" below.
 
 ### Two latent bugs on a path nothing had ever executed
 
@@ -606,6 +609,166 @@ neither could have been caught earlier and both were in code that looked finishe
 Both are fixed and both are **still** unexecuted: that trampoline is the *scheduler's* entry path,
 and the self test enters through `enter_user` directly. They are the argument for reading the two
 halves of a context switch side by side rather than one at a time.
+
+## The scheduler, and what "a process" cost that "a program at CPL 3" did not
+
+Milestone 161's roadmap item 4, built 2026-08-24. Item 3 ended with a hand-assembled probe entered
+from the boot thread; this is the distance between that and a process, and the distance was real.
+
+Almost none of it was new x86 code. `kmem`, `untyped`, `sched` and `user::AddressSpace` are portable
+and came up on this architecture by being compiled for it. What had to be written was the arch layer
+underneath them, and what had to be *found* was four places where portable code encoded an
+assumption that held on two architectures and not on three.
+
+### The trap path grew the split both other ports already had
+
+`x86_trap_handler` became `x86_trap_dispatch` (outer) plus `x86_trap_body` (inner), with
+`dispatch_on_interrupt_stack` in trap.s between them. The outer half stays on the interrupted
+thread's stack and is where the deferred `schedule()` runs; the inner half may run on this CPU's
+interrupt stack. That is not an optimisation: `schedule()` parks the running `rsp` in the outgoing
+thread's `Context`, so calling it from a per-CPU stack would park a per-CPU address in a thread and
+the thread would later resume on bytes the next interrupt had spent. See kernel/src/interrupt_stack.rs.
+
+The timer arm now calls `sched::on_tick` and returns `true`, which is DECISIONS §9's record-and-defer
+with the deferral one frame out.
+
+### `TSS.RSP0` is recomputed from the frame on every return to ring 3
+
+x86 has two doors into the kernel from ring 3 and they find their stack differently: a trap reads
+`TSS.RSP0`, and `syscall` reads nothing at all and has to be told separately. With one user program
+there was one kernel stack and `ring3_self_test` set both by hand. With a scheduler there is one per
+thread, and the pair has to be re-pointed every time the thread that would come through them changes.
+
+**The frame's own address is the answer.** Every thread's `TrapFrame` lives at `stack_top - 176` for
+the life of the thread (milestone 71, `user::enter_frame`), so at the top of `isr_restore` the top is
+`rsp + 176`, computed from the frame about to be loaded rather than from any record of who is
+running. RISC-V does exactly this, at exactly this point, in `trap_return`. It costs four
+instructions on a path that already tests the same `cs` for `swapgs`, and it makes the wrong state
+unrepresentable rather than a duty somebody has to remember at each context switch.
+
+### A self-IPI is this architecture's software-generated interrupt
+
+`sched`'s two interrupt-delivery tests need a way to raise an interrupt by hand. aarch64 has an SGI
+and needs no device; RISC-V can raise nothing at all and has to assert its console UART's transmit
+line. **x86 is aarch64's case**: the local APIC's Interrupt Command Register has a "self" destination
+shorthand, so any vector can be delivered to the CPU executing the write, through the real path (the
+ICR, the IRR, the ISR, an EOI). `irq::raise_self_interrupt` is the whole of it, and the same ICR code
+is `irq::send_reschedule`, which stopped being `unimplemented!()`.
+
+**The intid for such a source is its vector**, and that is the naming rule this architecture needs
+because `irq::enable` takes a *legacy IRQ number* instead. The two domains cannot collide: legacy
+IRQs are 0..15 and the local APIC's own vectors are 0x20..0x2f.
+
+A **device** line still cannot become a message here, and the missing piece is an inversion rather
+than a mechanism: the flat vector map makes the GSI recoverable by subtraction, but a legacy IRQ is
+not, because GSI 0 is the 8259 cascade and has no legacy owner, so an inversion falling back to the
+GSI would answer 0 for both it and the PIT's IRQ 0. Nothing needs it until there is a userspace
+driver here.
+
+### Four things portable code got right for two architectures and wrong for three
+
+Worth listing together, because they are one shape: a default arm, or an expression, that names one
+of two answers and is silently wrong when a third exists.
+
+- **`thread.rs`'s stack area.** `KERNEL_VA_BASE | 0x10_0000_0000`, "64 GiB above the direct map",
+  which is right where the kernel base is a *half* base with room above it. `KERNEL_VA_BASE` here is
+  `0xffffffff80000000` and already carries that bit, so the OR was the **identity**: every kernel
+  thread stack would have been mapped at the kernel image's own base, over `.text`. It is now each
+  `arch::mmu::THREAD_STACK_AREA`, and x86's is Linux's `VMALLOC_START`. Found by reading; it would
+  have surfaced as `kmem: no memory to wire one`, arbitrarily far from the cause.
+- **`crates/elf`'s `EXPECTED_MACHINE`.** `#[cfg(not(target_arch = "riscv64"))] EM_AARCH64`, and
+  `not(riscv64)` catches x86_64: the x86 kernel was compiled to **accept aarch64 binaries and refuse
+  its own**. Now a three-arm `cfg`.
+- **`xtask`'s `ArchLegs`.** `fn aarch64(self) { self != Riscv64 }`, which answers `true` for every
+  leg the moment there is a third variant. Now explicit `matches!`.
+- **`smp::bring_up_secondaries`.** It computed the secondary entry with `virt_to_phys` *before*
+  checking whether any core can be started, and on x86 that panics: `secondary_boot` is in `.boot`,
+  which the linker places at its physical address because the trampoline starts in 32-bit protected
+  mode and cannot name a 64-bit one. The conversion moved below the refusal. (It is not the right
+  conversion for x86 SMP either, when that lands: that entry is already physical.)
+
+The x86 tour also has to *call* `bring_up_secondaries`, even though it can start nothing. That
+function marks the boot core in `ONLINE_MASK` before it refuses, and everything that broadcasts
+(`online_cpus`, `nth_online`, the shootdown loops) reads that mask. Not calling it left the online
+set empty while `online_count` said one, which the suite caught on its first run.
+
+### What the boot tour shows now
+
+```
+  scheduler   : up on 1 cpu, preempting at 100 Hz (idle thread registered)
+  smp: none yet (x86 uses INIT-SIPI-SIPI via the local APIC; milestone 161)
+  smp: 1 core(s) online
+  kernel task : a spawned thread ran and carried its captured state (0x16100004)
+  userspace   : a process built from untyped ran at cpl 3 and sent 0x1610004 on a granted cap
+                thread 8589934594 died at pc 0x400005 on addr 0xa50000, delivered to its supervisor
+                two children cost 0 frames the first round and 0 the second (steady state)
+```
+
+Two children, because the two halves of "a process" fail differently. One is built out of a single
+untyped region (address space, code page, stack page, TCB, two endpoints), granted a capability,
+dispatched to ring 3 **by the scheduler**, invokes that capability, and exits; one loads from an
+unmapped address and its death arrives on its supervision endpoint naming the thread, the pc and the
+address. Then both regions are destroyed and the frame count is compared.
+
+**The round runs twice, and that is what makes the frame number evidence.** A first round pays
+first-use carves that are not leaks; a system in steady state charges the second round zero. The
+first version of this reported sixteen frames a round going missing, which was true and was the
+demo's own fault twice over: the reporting child's corpse was never collected, so its region was
+still holding a live TCB when `destroy` refused it (silently, because `destroy` has nowhere to
+report), and both endpoints were drawn from the kernel's shared pool rather than from the region
+being reclaimed.
+
+### The suite: 97 pass, 7 skip, 2.7 seconds
+
+The 7, each with its reason printed:
+
+| Test | Why |
+|---|---|
+| `nvme::the_nvme_disk_serves_the_block_interface_end_to_end` | the runner attaches no NVMe controller |
+| `pci::the_discovered_pci_windows_are_the_machines_own_...` | discovery is device-tree-only (the seam's wide half, roadmap item 0) |
+| `smp::all_secondaries_came_online` | nothing has read this machine's core roster |
+| `smp::every_core_the_tree_described_is_running` | same |
+| `smp::the_roster_is_the_machines_own_core_list` | same |
+| `smp::work_can_be_placed_on_every_core` | one core online |
+| `tests::device_tree_has_the_right_magic` | PVH `hvm_start_info` is not a device tree |
+
+The last five are new `skip!()`s, and the first three of those replace assertions that a single-core
+machine with no device tree cannot satisfy. `work_can_be_placed_on_every_core` was an `assert!(n >= 2)`
+until a legitimately single-core machine existed.
+
+### `cfg(initrd)`, and why the reason is in the cfg rather than the architecture
+
+Thirty test modules under `kernel/src/user/` are gated `#[cfg(all(test, initrd))]`, a cfg
+`kernel/build.rs` emits for every target that has user programs to pack. They are portable in every
+respect except that their fixture is a **real ELF binary read out of the initrd archive**, and this
+target has none.
+
+`#[cfg(not(target_arch = "x86_64"))]` would have said the same thing thirty times and been wrong the
+day this port can build user programs, in thirty places nobody would think to look. `cfg(initrd)`
+reads as what it means, and unblocking it is one match arm in the build script.
+
+Six modules under `user/` **do** run here (23 tests): `force_kill_tests`, `pmap_tests`, `reap_tests`,
+`supervision_tests`, `survey_tests` and `thread_leak_police`. Their fixtures are hand-assembled
+programs rather than ELFs, and those live in `kernel/src/user/x86_programs.rs` rather than in a
+`#[cfg(test)]` module, because the boot tour needs the same four programs.
+
+### What a userspace needs that this port does not have
+
+The bound on everything above, listed because it is the next lane's brief rather than a caveat:
+
+- **`crates/user_rt` has no `x86_64` arms.** Thirteen functions have an aarch64/RISC-V pair each and
+  no fallback, so nothing in `user/` compiles. Eleven are transliteration (`syscall` instead of
+  `svc`/`ecall`, the ABI is already written down); **two are design**: `now()` and `cntfrq()` read
+  `CNTVCT_EL0`/`CNTFRQ_EL0` and the `time` CSR, and x86 has neither. `rdtsc` is the obvious answer
+  and it is a decision (its rate is not architected, and this kernel measures it against the PIT).
+- **`user/build.rs` cannot compile its C components for this target**, so `c_shim` and `c_swappable`
+  would not link even once `user_rt` is done.
+- **`crates/elf` now accepts `EM_X86_64`**, so the loader side is ready.
+- **`xtask` packs no x86 archive**, and `read_stripped`'s cache tag would collide with aarch64's
+  under `"host"` if one were added; `boot_programs(arch)`'s `_` arm silently catches x86; and
+  `target/init-measure-x86_64.txt` does not exist, so the trust root would be empty and any boot
+  program refused as `Unmeasured`.
+- **`scripts/qemu-runner-x86_64.sh` passes no `-initrd`.**
 
 ## The three things that genuinely do not fit
 
@@ -698,16 +861,19 @@ ordering constraint stops existing rather than being documented for callers to r
 `arch/x86_64/` and every portable file compiled with `target_arch = "x86_64"`. Three narrowings, each
 argued where the gate is (see `script/lint`):
 
-- **No `--all-targets`**: the kernel's test suite does not compile for x86_64, because its
-  userspace-exec tests hand-assemble machine code and its supervision fixtures are per-ISA stubs.
-  Bringing the suite up is downstream of ring 3 existing here.
+- **No `--all-targets`**: written when the test suite did not compile for this target. It does now
+  (milestone 161's item 4), so this narrowing is stale and is the next thing to widen; the suite is
+  gated by `script/test --arch x86_64` in the meantime, which is the stronger check of the two.
 - **No feature loop**: all eight boot-mode features fail on x86_64, measured, because each selects a
   boot path needing an arch layer this port has not written.
-- **`-A dead_code`**: the boot tour halts before the scheduler, so ~85 items live on the other two
-  ISAs are unreferenced here. Code dead on *all three* architectures is still caught by the other two
-  passes; what can hide is code dead on x86_64 alone.
+- **`-A dead_code`**: partly stale for the same reason. The tour no longer halts before the
+  scheduler, so much of what was unreferenced now is not; what remains dead here is what needs a
+  userspace (the services, the drivers). Code dead on *all three* architectures is still caught by
+  the other two passes; what can hide is code dead on x86_64 alone.
 
-There is **no `script/test` leg for x86_64**, for the same reason there is no `--all-targets`.
+**There is a `script/test` leg**: `--arch x86_64`, in `xtask`'s `test`, and it runs by default
+alongside the other two. It builds nothing before it boots, because there is no userspace archive to
+pack and `scripts/qemu-runner-x86_64.sh` attaches no disks.
 
 ## Reproducing it
 
@@ -748,12 +914,34 @@ nife on x86_64 (long mode, ring 0, 4-level paging)
                 560 KiB of page tables, no identity map, guard pages are holes
   image       : text 0xffffffff80109000..0xffffffff80144000, stack 0xffffffff8015c000..0xffffffff8016c000
   entropy     : rdseed supported (cpuid leaf 7 ebx.18), drew 0x48d292e828c52899
-  ring 3      : a program ran at cpl 3 (cs 0x0023, ss 0x001b) and made 2 syscalls
-                the portable dispatcher answered BadSyscall (-6) to an unknown number
-                reading the kernel's .text at 0xffffffff80109000 from ring 3: Permission(Read)
+  scheduler   : up on 1 cpu, preempting at 100 Hz (idle thread registered)
+  smp: none yet (x86 uses INIT-SIPI-SIPI via the local APIC; milestone 161)
+  smp: 1 core(s) online
+  kernel task : a spawned thread ran and carried its captured state (0x16100004)
 
-  next        : the kernel's own test suite, and therefore a script/test leg.
-nife x86_64: early boot complete, halting.
+  user thread 8589934594 killed: vector 14 (page fault)
+    rip 0x0000000000400005   addr 0x0000000000a50000   user rsp 0x0000000000501000   err 0x00000004
+  the kernel is fine.
+
+  user thread 17179869186 killed: vector 14 (page fault)
+    rip 0x0000000000400005   addr 0x0000000000a50000   user rsp 0x0000000000501000   err 0x00000004
+  the kernel is fine.
+  userspace   : a process built from untyped ran at cpl 3 and sent 0x1610004 on a granted cap
+                thread 8589934594 died at pc 0x400005 on addr 0xa50000, delivered to its supervisor
+                two children cost 0 frames the first round and 0 the second (steady state)
+
+  next        : real ELF user programs (user_rt has no x86_64 arms), then SMP.
+nife x86_64: boot complete, halting.
+```
+
+The two `user thread ... killed` blocks are the *faulting* child of each round dying, printed by the
+trap path on its way to `sched::fault`. They are the demo working, not a failure; the tour's
+`userspace` lines are what assert on them.
+
+To run the kernel's own suite instead of the tour:
+
+```sh
+script/test --arch x86_64
 ```
 
 **The lines after the `mmu` one are the proof, not the `mmu` line itself.** They are printed after

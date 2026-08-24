@@ -109,7 +109,7 @@ const EM_X86_64: u16 = 62;
 ///
 /// **This was a two-way split and the third architecture is why it is now three** (milestone 161,
 /// roadmap item 4). It read `#[cfg(not(target_arch = "riscv64"))] EM_AARCH64`, and `not(riscv64)`
-/// catches x86_64: the x86 kernel was compiled to accept **aarch64** binaries and to refuse its own.
+/// catches `x86_64`: the x86 kernel was compiled to accept **aarch64** binaries and to refuse its own.
 /// A default arm that names one architecture is a trap the moment a third exists, which is the
 /// general lesson worth taking from this line rather than the specific number.
 #[cfg(target_arch = "riscv64")]
@@ -726,8 +726,8 @@ mod tests {
 
     /// **A binary for a machine nife does not run at all, caught here rather than as an illegal
     /// instruction at EL0.** SPARC (2), chosen because it is a real `e_machine` value that no arm of
-    /// `EXPECTED_MACHINE` will ever take: the number this test used to use was x86_64's, which
-    /// stopped being foreign the day x86_64 became a target (milestone 161).
+    /// `EXPECTED_MACHINE` will ever take: the number this test used to use was `x86_64`'s, which
+    /// stopped being foreign the day `x86_64` became a target (milestone 161).
     #[test]
     fn a_binary_for_another_machine_is_refused() {
         let mut b = Builder::new().seg(PF_R | PF_X, 0x40_0000, &[0xaa; 16], 16);
@@ -736,7 +736,7 @@ mod tests {
     }
 
     /// **A binary for one of the *other* nife architectures is refused too.** These host tests build
-    /// with `EXPECTED_MACHINE == EM_AARCH64`, so a riscv ELF (243) and an x86_64 one (62) are both
+    /// with `EXPECTED_MACHINE == EM_AARCH64`, so a riscv ELF (243) and an `x86_64` one (62) are both
     /// foreign here, exactly as an aarch64 ELF would be to either of those kernels. The check is
     /// symmetric, not aarch64-privileged.
     #[test]

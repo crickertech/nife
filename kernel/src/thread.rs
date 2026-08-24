@@ -65,7 +65,7 @@ pub const STACK_PAGES: usize = 6;
 /// It has to be far above the direct map, so a stack address can never collide with the virtual
 /// *name* of a physical one. This was `KERNEL_VA_BASE | 0x10_0000_0000` here, computed portably,
 /// which was right on two architectures whose kernel base is a half base with room above it and
-/// silently the identity on x86_64, where `KERNEL_VA_BASE` already carries that bit and every kernel
+/// silently the identity on `x86_64`, where `KERNEL_VA_BASE` already carries that bit and every kernel
 /// thread stack would have landed on the kernel image. See each `arch::mmu::THREAD_STACK_AREA`.
 const STACK_AREA: u64 = mmu::THREAD_STACK_AREA;
 

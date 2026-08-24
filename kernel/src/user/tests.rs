@@ -27,7 +27,7 @@ use crate::sched;
 const HELLO_ENTRY: &str = "init";
 #[cfg(target_arch = "riscv64")]
 const HELLO_ENTRY: &str = "hello";
-/// **x86_64 packs no initrd at all**, because no user program is built for
+/// **`x86_64` packs no initrd at all**, because no user program is built for
 /// `x86_64-unknown-none` (`crates/user_rt` has no arms for this ISA; see notes/x86-port.md). This
 /// names what the entry would be called rather than what is there, and every test that reaches for
 /// it skips instead: see [`init_image`].

@@ -1220,7 +1220,7 @@ const X86_DEMO_BAD_ADDR: u32 = 0x00A5_0000;
 #[cfg(target_arch = "x86_64")]
 #[derive(Debug, Clone, Copy)]
 pub struct X86UserspaceReport {
-    /// The word the reporting child SENDed, as it arrived on the endpoint. Proves the child reached
+    /// The word the reporting child sent, as it arrived on the endpoint. Proves the child reached
     /// ring 3, made a `syscall` that reached the portable dispatcher, and was answered.
     pub reported: u64,
     /// The thread id the kernel stamped on the faulting child's death message.

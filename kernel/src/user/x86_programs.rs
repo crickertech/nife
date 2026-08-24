@@ -113,10 +113,12 @@ pub const FAULT_PC_OFFSET: u64 = 5;
 /// value: the `xor esi, esi` above encodes it as a zero and would then be sending under the wrong
 /// method with nothing to say so.
 pub const fn report(word: u32) -> [u32; 8] {
-    assert!(
-        abi::rendezvous::SEND == 0,
-        "the `xor esi, esi` in this program encodes SEND as zero"
-    );
+    const {
+        assert!(
+            abi::rendezvous::SEND == 0,
+            "the `xor esi, esi` in this program encodes SEND as zero"
+        );
+    }
     let w = word.to_le_bytes();
     let inv = (abi::SYS_INVOKE as u32).to_le_bytes();
     let ext = (abi::SYS_EXIT as u32).to_le_bytes();

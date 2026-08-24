@@ -122,7 +122,7 @@ pub const DIRECT_MAP_BASE: u64 = 0xffff_8880_0000_0000;
 /// **Where kernel thread stacks live, virtually** (`thread.rs`'s `STACK_AREA`).
 ///
 /// `0xffff_c900_0000_0000` is **Linux's `VMALLOC_START`**, taken rather than invented for the same
-/// reason [`DIRECT_MAP_BASE`] is Linux's `page_offset_base`: a reader who has met one x86_64 kernel
+/// reason [`DIRECT_MAP_BASE`] is Linux's `page_offset_base`: a reader who has met one `x86_64` kernel
 /// has met this number, and the alternative is a constant nobody can check against anything.
 ///
 /// **The portable expression the other two architectures use does not survive here**, and the way

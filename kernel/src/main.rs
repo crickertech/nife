@@ -1465,7 +1465,7 @@ mod tests {
     /// begins with the magic `0xd00dfeed`, stored **big-endian** (the format predates
     /// the little-endian consensus and never changed), so we have to byte-swap on the
     /// way in. If this passes, the machine is genuinely describing itself to us.
-    /// **Not on x86_64**, and the reason is the whole of what that architecture's boot handoff
+    /// **Not on `x86_64`**, and the reason is the whole of what that architecture's boot handoff
     /// differs by: what arrives in `kernel_main`'s one pointer there is PVH's `hvm_start_info`,
     /// which carries the same *kind* of thing (the memory map, the root of everything else
     /// discoverable) in an entirely different format. `machine_discovery::x86_64` decodes it and

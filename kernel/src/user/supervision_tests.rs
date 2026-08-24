@@ -12,7 +12,7 @@ const BAD_ADDR: u64 = 0x00A5_0000;
 pub(super) const REPORT_WORD: u64 = 0x42;
 
 /// **How far past the entry [`FAULT_STUB`]'s faulting instruction begins**, which is the length of
-/// the one instruction that precedes it. Four on both fixed-width ISAs and five on x86_64, where a
+/// the one instruction that precedes it. Four on both fixed-width ISAs and five on `x86_64`, where a
 /// `mov r32, imm32` is five bytes; the constant exists because a test asserting on the faulting pc
 /// used to add a literal 4 and would have been asserting aarch64's instruction width on a machine
 /// that has none.
@@ -33,7 +33,7 @@ pub(super) const FAULT_STUB: &[u32] = &[
     0x00A5_0537, // lui a0, 0xA50             (a0 = 0x00A5_0000)
     0x0005_3583, // ld  a1, 0(a0)             (load page fault: nothing maps BAD_ADDR)
 ];
-/// x86_64's is in `user::x86_programs`, not here, because the boot tour needs the same program and
+/// `x86_64`'s is in `user::x86_programs`, not here, because the boot tour needs the same program and
 /// this module is `#[cfg(test)]`. See that module's header.
 #[cfg(target_arch = "x86_64")]
 pub(super) const FAULT_STUB: &[u32] = &super::x86_programs::fault(BAD_ADDR as u32);
@@ -64,7 +64,7 @@ pub(super) const REPORT_STUB: &[u32] = &[
     0x0000_0893 | ((abi::SYS_EXIT as u32) << 20),   // li a7, SYS_EXIT
     0x0000_0073,                                    // ecall               (exit)
 ];
-/// x86_64's is in `user::x86_programs`; see [`FAULT_STUB`].
+/// `x86_64`'s is in `user::x86_programs`; see [`FAULT_STUB`].
 #[cfg(target_arch = "x86_64")]
 pub(super) const REPORT_STUB: &[u32] = &super::x86_programs::report(REPORT_WORD as u32);
 
