@@ -464,7 +464,7 @@ invariant **96 times** and now asserts it once.
 
 ### What each number is held to, and why the answers differ
 
-**At most 97** <!--count-at-most:unsafe-density-outside-arch--> unsafe blocks per 10,000 lines
+**At most 96** <!--count-at-most:unsafe-density-outside-arch--> unsafe blocks per 10,000 lines
 outside `kernel/src/arch/`. The direction is down, because unsafe outside `arch/` is not paying
 for hardware access: it is a raw syscall, a shared page, or a hand-rolled data structure, and each
 of those has a safe wrapper somebody could write. The ceiling is written at a threshold the tree
@@ -509,6 +509,43 @@ block anywhere outside `arch/` without growing the tree's line count to match, w
 Headroom here is not slack given back: the ceiling fell by the same 3 points the density fell from
 its pre-reduction reading (100 to 97, against 93.4 to 90.8), so the full gain this lane won is
 locked in and nobody can silently spend it back up to 100.
+
+**Lowered again, 97 to 96, by milestone 139 round 2 (2026-08-24).** Two further reductions, both
+measured the same way (from the diff, bracketed by the exact base commit this round branched from,
+`a269403e`, rather than a stale baseline): the round found no unrelated tree growth in between, so
+this is the cleanest paired measurement this ceiling has had.
+
+*`crates/user_rt`'s `SYS_INVOKE` round trip.* Six methods (`recv`, `recv_cap`, `recv_fault`, `call`,
+`survey`, `list`), each duplicated once per architecture, had each hand-rolled its own `asm!` block
+asserting the identical invariant ("`svc`/`ecall` traps to the kernel, which validates before
+acting") at a register layout that differed only in which of the five return words the caller
+happened to read: twelve hand-written copies of one assertion, the exact §94 shape. `invoke5` (new,
+private to the crate) holds the trap once per architecture; every caller above it, including
+`invoke` itself, is now a safe wrapper with no `asm!` of its own. **14 `unsafe {` blocks removed, 9
+added, net -5**, in `crates/user_rt/src/lib.rs` alone.
+
+*The broader `read_volatile`/`write_volatile` sweep round 1's BUGS section asked for.* Grepping
+directly for `read_volatile`/`write_volatile` (rather than by the `r8`/`w8`/`r16` naming convention
+round 1 searched by name) found a second cluster the name-based search could not have seen: eight
+programs (`rm`, `fs_file_caretaker`, `sink`, `fs_subtree_caretaker`, `fs_nameset_caretaker`,
+`login_test_client`, `fs_test_client`, `swish`) each hand-rolled a `put_page`/`get_page` byte-copy
+loop over the page shared with the FS server (`fs_nameset_caretaker` carries a second, read-only
+window for its name set; `fs_test_client` carries five such helpers over one window sized to
+`fs::TRANSFER_MAX`), every one asserting "this VA is a mapped page of this size" by hand, near
+word-for-word the same comment. Migrated onto the existing `user_rt::mapped_window::MappedWindow`
+(round 1's type, reused rather than duplicated) the same way the DMA-page cluster was. **21 removed,
+10 added, net -11** across the nine files. `fs_subtree_caretaker.rs` alone is flat (1 before, 1
+after: one hand-rolled function traded for one window construction), the same "still real by
+criterion 2" case `smb_server.rs` was in round 1.
+
+**Combined: 35 `unsafe {` blocks removed, 19 added, net -16**, all measured from the diff against
+base commit `a269403e`. The tree-wide census confirms it cleanly for once, because nothing else
+landed on this branch in between: 792 blocks outside `arch/` at the base commit, 776 in the working
+tree after, exactly -16. Density moved only 90 to 89 (truncated), because the reduction also removed
+lines (duplicated `asm!` blocks and doc comments along with the blocks themselves), which is the
+first time this ceiling's headroom math has had to account for the denominator moving with the
+numerator. Ceiling set to 96, keeping the same 7-point headroom the 100-vs-93 and 97-vs-90 ceilings
+both carried, above the 89 this round reached.
 
 **At most 20 `unsafe impl Send`/`Sync` claims** <!--count-at-most:unsafe-thread-safety-claims-->,
 and this one has no headroom at all. Each is a hand-written assertion that the compiler is wrong

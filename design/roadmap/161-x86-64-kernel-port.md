@@ -371,10 +371,10 @@ In the order it should be done, because each is a prerequisite for the next.
    scheduler, so the program is a hand-assembled probe entered from the boot thread rather than a
    process. Item 4 is where that gap closes, and it is the reason item 4 is the next thing.
 
-   The syscall ABI (`rax` + `rdi`/`rsi`/`rdx`/`r10`/`r8`/`r9`) is now **spoken** rather than merely
-   written down, but it stays **provisional**: it is a boundary rather than a habit (DECISIONS §10,
-   §16), and one probe program agreeing with the kernel is not the same as a decision having been
-   made.
+   The syscall ABI (`rax` + `rdi`/`rsi`/`rdx`/`r10`/`r8`/`r9`) is now **spoken and ratified**: it was
+   a boundary rather than a habit (DECISIONS §10, §16), and one probe program agreeing with the
+   kernel was not the same as a decision having been made, so it went up as
+   [DECISIONS §124](../decisions/124-x86-64-syscall-abi.md), which calef ratified 2026-08-24.
 
    **The two `CR4` bits stay off, and that is now a recorded choice rather than a deferral.**
    `CR4.PCIDE` off means `crates/asid`'s tags have nowhere to live: PCID is `CR3[11:0]`, and with
@@ -447,16 +447,17 @@ In the order it should be done, because each is a prerequisite for the next.
 6. **VT-d.** No longer blocked on table parsing: `machine_discovery::acpi` walks the root table
    generically, so finding the DMAR is adding a signature arm. What remains is the device itself.
 
-Two things that are not steps but are owed:
+One thing that is not a step but is owed:
 
 - **A capability shape for port I/O.** On the other two architectures a device is a page, so a device
   capability is a mapping and the MMU enforces it. x86's legacy devices, the console UART included,
   are in an I/O space with no page tables; the only mechanism with the right granularity is the TSS
   I/O permission bitmap, which is per-task rather than per-page. `user::UART_PHYS` is zero on this
-  architecture and that zero is the marker. Written up as **§121 (PROPOSED)**, since it is a change
-  to what a capability *is* rather than an implementation choice. The number is provisional: a lane
-  minted it against the current index, and the integrator owns it at merge.
-- **Two arch-contract names that do not stretch to a third architecture**: `arch::psci_cpu_on` (an
-  ARM firmware interface's name for an operation x86 performs by sending an interrupt) and
-  `kernel_main`'s `dtb` argument (which carries `hvm_start_info` here). Both are naming decisions and
-  so calef's; recorded in `notes/x86-port.md` and in `arch/x86_64/mod.rs`.
+  architecture and that zero is the marker. Written up as
+  [DECISIONS §121](../decisions/121-port-io-capability.md) (PROPOSED), since it is a change to what a
+  capability *is* rather than an implementation choice. The number is provisional: a lane minted it
+  against the current index, and the integrator owns it at merge.
+
+**Resolved**: the two arch-contract names that did not stretch to a third architecture,
+`arch::psci_cpu_on` and `kernel_main`'s `dtb` argument, were renamed `arch::cpu_start` and
+`boot_info_pointer`; see `notes/x86-port.md` and `arch/x86_64/mod.rs`.

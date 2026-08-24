@@ -81,6 +81,7 @@ use grant_plan::{
 };
 use line_editor::proto;
 use swish::{Route, Say, Status, Untimed, sequence};
+use user_rt::mapped_window::MappedWindow;
 use user_rt::{
     call, cap_delete, exit, invoke, monotonic_nanos, reap, recv, recv_fault, send, yield_now,
 };
@@ -146,6 +147,13 @@ fn holdings(nav: &Nav) -> grant_plan::Holdings {
 /// It is `fs_service`'s `FILE_VA_CLIENT`, the address every FS client in this system maps its half
 /// of the contract at, which is why [`OUT_VA`] moved out of the way rather than this.
 const FS_VA: u64 = 0x0000_0000_0060_0000;
+
+// SAFETY: the navigating wiring maps one page read/write at FS_VA before this shell runs, when it
+// has an FS_VA at all (milestone 139 round 2; see `user_rt::mapped_window`, which is what
+// collapsed the hand-rolled read_volatile/write_volatile loops below). Constructing the window
+// touches no memory; every caller of `put_page`/`get_page` already runs behind a `dir.is_some()`
+// check, which is only true in that wiring, matching the comment this replaces.
+const FS_WINDOW: MappedWindow = unsafe { MappedWindow::new(FS_VA, filesystem_proto::PAGE as u64) };
 
 /// The directory capability's slot in the navigating wiring (`fs_service::start_granted_dir` grants
 /// it at 0). A shell that was granted none has no such slot at all, which is why [`Nav::dir`] is an
@@ -686,17 +694,14 @@ const ROUNDS: usize = 16;
 /// Copy a name into the page shared with the FS server.
 fn put_page(bytes: &[u8]) {
     for (i, &b) in bytes.iter().take(filesystem_proto::PAGE).enumerate() {
-        // SAFETY: FS_VA is a mapped, writable page of filesystem_proto::PAGE bytes in the navigating wiring,
-        // and every caller is behind a `dir.is_some()` check, which is only true in that wiring.
-        unsafe { core::ptr::write_volatile((FS_VA + i as u64) as *mut u8, b) };
+        FS_WINDOW.w8(i as u64, b);
     }
 }
 
 /// Copy `n` bytes out of that page (a listing landed there).
 fn get_page(n: usize, out: &mut [u8]) {
     for (i, b) in out.iter_mut().take(n).enumerate() {
-        // SAFETY: as above; `n` is bounded by the page and by `out`.
-        *b = unsafe { core::ptr::read_volatile((FS_VA + i as u64) as *const u8) };
+        *b = FS_WINDOW.r8(i as u64);
     }
 }
 
