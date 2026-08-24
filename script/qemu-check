@@ -30,8 +30,9 @@ cd "$(dirname "$0")/.."
 want="$(tr -d ' \n' < .qemu-version)"
 
 if ! command -v qemu-system-aarch64 >/dev/null 2>&1 \
-    || ! command -v qemu-system-riscv64 >/dev/null 2>&1; then
-    echo "qemu-check: qemu-system-aarch64 and qemu-system-riscv64 must both be on PATH." >&2
+    || ! command -v qemu-system-riscv64 >/dev/null 2>&1 \
+    || ! command -v qemu-system-x86_64 >/dev/null 2>&1; then
+    echo "qemu-check: qemu-system-aarch64, qemu-system-riscv64 and qemu-system-x86_64 must all be on PATH." >&2
     echo "  Run script/bootstrap, or on Linux script/ci-qemu to build the pinned version." >&2
     exit 1
 fi
