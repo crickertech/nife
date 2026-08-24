@@ -47,6 +47,7 @@ use smoltcp::iface::{Config, Interface, SocketHandle, SocketSet};
 use smoltcp::socket::{dhcpv4, tcp, udp};
 use smoltcp::time::Instant;
 use smoltcp::wire::{EthernetAddress, HardwareAddress, IpAddress, IpCidr, IpEndpoint, Ipv4Address};
+use user_rt::mapped_window::{MappedWindow, PAGE};
 use user_rt::{cap_delete, cntfrq, invoke, now, recv_cap, reply, send};
 
 #[path = "net_transport.rs"]
@@ -98,36 +99,18 @@ fn instant() -> Instant {
     Instant::from_millis(ms)
 }
 
-// Absolute-VA access to a mapped shared frame (little-endian for the length and port fields).
-fn a_r8(va: u64) -> u8 {
-    // SAFETY: `va` addresses a field inside a shared frame this process has mapped. Volatile because the peer writes the same frame, so a cached read would be a stale one.
-    unsafe { core::ptr::read_volatile(va as *const u8) }
-}
-fn a_r16(va: u64) -> u16 {
-    // SAFETY: `va` addresses a field inside a shared frame this process has mapped. Volatile because the peer writes the same frame, so a cached read would be a stale one.
-    unsafe { core::ptr::read_volatile(va as *const u16) }
-}
-fn a_w16(va: u64, v: u16) {
-    // SAFETY: `va` addresses a field inside a shared frame this process has mapped. Volatile because the peer writes the same frame, so a cached read would be a stale one.
-    unsafe { core::ptr::write_volatile(va as *mut u16, v) }
-}
-fn a_w8(va: u64, v: u8) {
-    // SAFETY: `va` addresses a field inside a shared frame this process has mapped. Volatile because the peer writes the same frame, so a cached read would be a stale one.
-    unsafe { core::ptr::write_volatile(va as *mut u8, v) }
-}
-
-/// One open socket: its smoltcp handle, whether it is TCP, where its shared frame is mapped, and the
-/// ephemeral local port it was assigned.
+/// One open socket: its smoltcp handle, whether it is TCP, the window onto its shared frame (if it
+/// has one), and the ephemeral local port it was assigned.
 ///
 /// `listen_port` is nonzero on a **listener** and zero on everything else, which is the whole of the
 /// distinction inside the server: a listener holds a smoltcp socket parked in `Listen` state, has no
-/// shared frame (`va == 0`, and it never needs one, because no bytes cross on a listener), and its
-/// port is the one it was granted rather than one the allocator handed out.
+/// shared frame (`window == None`, and it never needs one, because no bytes cross on a listener),
+/// and its port is the one it was granted rather than one the allocator handed out.
 #[derive(Clone, Copy)]
 struct Sock {
     handle: SocketHandle,
     is_tcp: bool,
-    va: u64,
+    window: Option<MappedWindow>,
     local_port: u16,
     listen_port: u16,
 }
@@ -232,7 +215,9 @@ fn server(dma_phys: u64, grant_word: u64) -> ! {
 
     // --- Serve the socket contract. One synchronous exchange per request. ---
     let mut socks: [Option<Sock>; MAX_SOCKETS] = [None; MAX_SOCKETS];
-    let mut frame_va: [u64; MAX_SOCKETS] = [0; MAX_SOCKETS];
+    // Windows onto each socket id's shared frame, once `OP_ATTACH_FRAME` maps it. `None` until
+    // then, and forever on a listener, which never gets one (see [`Sock`]).
+    let mut frame_window: [Option<MappedWindow>; MAX_SOCKETS] = [None; MAX_SOCKETS];
     let mut ports = PortAllocator::new();
     loop {
         let (w0, cap_slot, w1) = recv_cap(STACK);
@@ -257,7 +242,13 @@ fn server(dma_phys: u64, grant_word: u64) -> ! {
                 let r = unsafe { invoke(cap_slot, fr::MAP, va, 1, UNTYPED) };
                 cap_delete(cap_slot);
                 if r >= 0 {
-                    frame_va[sid] = va;
+                    // SAFETY: the MAP above just mapped one page read/write at `va`, and it stays
+                    // mapped for the rest of this socket id's life (no unmap syscall exists), so
+                    // this asserts that once here instead of at every access the way the four
+                    // `a_r8`/`a_r16`/`a_w16`/`a_w8` functions used to duplicate at each call site
+                    // (milestone 139 round 3; the exact naming variant
+                    // `user_rt::mapped_window`'s own doc comment already named).
+                    frame_window[sid] = Some(unsafe { MappedWindow::new(va, PAGE) });
                 }
             }
 
@@ -278,7 +269,7 @@ fn server(dma_phys: u64, grant_word: u64) -> ! {
                 socks[sid] = Some(Sock {
                     handle,
                     is_tcp: false,
-                    va: frame_va[sid],
+                    window: frame_window[sid],
                     local_port,
                     listen_port: 0,
                 });
@@ -295,7 +286,7 @@ fn server(dma_phys: u64, grant_word: u64) -> ! {
                 socks[sid] = Some(Sock {
                     handle,
                     is_tcp: true,
-                    va: frame_va[sid],
+                    window: frame_window[sid],
                     local_port,
                     listen_port: 0,
                 });
@@ -354,17 +345,24 @@ fn server(dma_phys: u64, grant_word: u64) -> ! {
             }
 
             OP_BIND_UDP => {
-                let rep = udp_bind(&mut sockets, &mut socks, frame_va[sid], sid, w1, grant_word);
+                let rep = udp_bind(
+                    &mut sockets,
+                    &mut socks,
+                    frame_window[sid],
+                    sid,
+                    w1,
+                    grant_word,
+                );
                 reply(cap_slot, rep, 0);
             }
 
             OP_ACCEPT => {
                 // The target id's frame must already be attached: an accepted connection carries
                 // bytes, so it needs the resource a listener never did.
-                let target_va = if w1 < MAX_SOCKETS as u64 {
-                    frame_va[w1 as usize]
+                let target_window = if w1 < MAX_SOCKETS as u64 {
+                    frame_window[w1 as usize]
                 } else {
-                    0
+                    None
                 };
                 let rep = tcp_accept(
                     &mut iface,
@@ -373,7 +371,7 @@ fn server(dma_phys: u64, grant_word: u64) -> ! {
                     &mut socks,
                     sid,
                     w1,
-                    target_va,
+                    target_window,
                 );
                 reply(cap_slot, rep, 0);
             }
@@ -388,14 +386,14 @@ fn server(dma_phys: u64, grant_word: u64) -> ! {
 }
 
 /// Read the destination (octets + little-endian port) from a shared frame's header.
-fn read_dst(va: u64) -> IpEndpoint {
+fn read_dst(window: MappedWindow) -> IpEndpoint {
     let ip = Ipv4Address::new(
-        a_r8(va + OFF_DST_IP),
-        a_r8(va + OFF_DST_IP + 1),
-        a_r8(va + OFF_DST_IP + 2),
-        a_r8(va + OFF_DST_IP + 3),
+        window.r8(OFF_DST_IP),
+        window.r8(OFF_DST_IP + 1),
+        window.r8(OFF_DST_IP + 2),
+        window.r8(OFF_DST_IP + 3),
     );
-    let port = a_r16(va + OFF_DST_PORT);
+    let port = window.r16(OFF_DST_PORT);
     IpEndpoint::new(IpAddress::Ipv4(ip), port)
 }
 
@@ -468,13 +466,16 @@ fn udp_sendto(
     len: usize,
 ) -> u64 {
     let Some(sk) = socks[sid] else { return REP_ERR };
-    if sk.is_tcp || sk.va == 0 || len > DATA_MAX {
+    if sk.is_tcp || len > DATA_MAX {
         return REP_ERR;
     }
-    let dst = read_dst(sk.va);
+    let Some(window) = sk.window else {
+        return REP_ERR;
+    };
+    let dst = read_dst(window);
     let mut buf = vec![0u8; len];
     for (i, b) in buf.iter_mut().enumerate() {
-        *b = a_r8(sk.va + OFF_PAYLOAD + i as u64);
+        *b = window.r8(OFF_PAYLOAD + i as u64);
     }
     if sockets
         .get_mut::<udp::Socket>(sk.handle)
@@ -495,9 +496,9 @@ fn sock_recv(
     sid: usize,
 ) -> u64 {
     let Some(sk) = socks[sid] else { return REP_ERR };
-    if sk.va == 0 {
+    let Some(window) = sk.window else {
         return REP_ERR;
-    }
+    };
     let handle = sk.handle;
     let ready = if sk.is_tcp {
         service_until(iface, dev, sockets, |s| {
@@ -527,21 +528,18 @@ fn sock_recv(
                 // to be discarded here with `.map(|(n, _)| n)`.
                 let IpAddress::Ipv4(src) = meta.endpoint.addr;
                 for (i, &b) in src.octets().iter().enumerate() {
-                    a_w8(sk.va + OFF_DST_IP + i as u64, b);
+                    window.w8(OFF_DST_IP + i as u64, b);
                 }
-                a_w16(sk.va + OFF_DST_PORT, meta.endpoint.port);
+                window.w16(OFF_DST_PORT, meta.endpoint.port);
                 n
             }
             Err(_) => 0,
         }
     };
     for (i, &b) in buf[..n].iter().enumerate() {
-        // SAFETY: the payload area of this socket's mapped shared frame; `n` is the byte count smoltcp just produced into `buf`, which is sized to that frame's payload capacity.
-        unsafe {
-            core::ptr::write_volatile((sk.va + OFF_PAYLOAD + i as u64) as *mut u8, b);
-        }
+        window.w8(OFF_PAYLOAD + i as u64, b);
     }
-    a_w16(sk.va + OFF_LEN, n as u16);
+    window.w16(OFF_LEN, n as u16);
     n as u64
 }
 
@@ -553,10 +551,13 @@ fn tcp_connect(
     sid: usize,
 ) -> u64 {
     let Some(sk) = socks[sid] else { return REP_ERR };
-    if !sk.is_tcp || sk.va == 0 {
+    if !sk.is_tcp {
         return REP_ERR;
     }
-    let dst = read_dst(sk.va);
+    let Some(window) = sk.window else {
+        return REP_ERR;
+    };
+    let dst = read_dst(window);
     let handle = sk.handle;
     let local = sk.local_port;
     {
@@ -634,7 +635,7 @@ fn tcp_listen(
     socks[sid] = Some(Sock {
         handle,
         is_tcp: true,
-        va: 0,
+        window: None,
         local_port: port,
         listen_port: port,
     });
@@ -665,13 +666,13 @@ fn tcp_accept(
     socks: &mut [Option<Sock>; MAX_SOCKETS],
     lsid: usize,
     target_word: u64,
-    target_va: u64,
+    target_window: Option<MappedWindow>,
 ) -> u64 {
     if target_word >= MAX_SOCKETS as u64 {
         return REP_ERR;
     }
     let target = target_word as usize;
-    if target == lsid || socks[target].is_some() || target_va == 0 {
+    if target == lsid || socks[target].is_some() || target_window.is_none() {
         return REP_ERR;
     }
     let Some(listener) = socks[lsid] else {
@@ -717,7 +718,7 @@ fn tcp_accept(
     socks[target] = Some(Sock {
         handle,
         is_tcp: true,
-        va: target_va,
+        window: target_window,
         local_port: port,
         listen_port: 0,
     });
@@ -735,7 +736,7 @@ fn tcp_accept(
 fn udp_bind(
     sockets: &mut SocketSet,
     socks: &mut [Option<Sock>; MAX_SOCKETS],
-    va: u64,
+    window: Option<MappedWindow>,
     sid: usize,
     port_word: u64,
     grant: u64,
@@ -769,7 +770,7 @@ fn udp_bind(
     socks[sid] = Some(Sock {
         handle,
         is_tcp: false,
-        va,
+        window,
         local_port: port,
         listen_port: 0,
     });
@@ -785,12 +786,15 @@ fn tcp_send(
     len: usize,
 ) -> u64 {
     let Some(sk) = socks[sid] else { return REP_ERR };
-    if !sk.is_tcp || sk.va == 0 || len > DATA_MAX {
+    if !sk.is_tcp || len > DATA_MAX {
         return REP_ERR;
     }
+    let Some(window) = sk.window else {
+        return REP_ERR;
+    };
     let mut buf = vec![0u8; len];
     for (i, b) in buf.iter_mut().enumerate() {
-        *b = a_r8(sk.va + OFF_PAYLOAD + i as u64);
+        *b = window.r8(OFF_PAYLOAD + i as u64);
     }
     let sent = sockets
         .get_mut::<tcp::Socket>(sk.handle)
