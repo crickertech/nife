@@ -144,10 +144,49 @@ In the order it should be done, because each is a prerequisite for the next.
    RTC, UART interrupt line, PCIe ECAM) are still tree-only and stay `None` on x86, so ACPI answers
    for the ECAM window and PCI still reports nothing. notes/x86-port.md has the table of which fact
    has which source.
-1. **Fine-grained page tables.** The boot map is 2 MiB pages with no permission separation at all:
-   everything present, writable and executable, both halves. `mmu::init` and everything downstream of
-   it (`map_page`, `flush_tlb`, `translate`) are `unimplemented!()`. This also lifts the recorded
-   limitation that the direct map only covers the low 1 GiB.
+1. **Fine-grained page tables, and the address-space layout they force a decision about.**
+
+   The boot map is 2 MiB pages with no permission separation at all: everything present, writable
+   and executable, in both halves. `mmu::init` and everything downstream of it (`map_page`,
+   `flush_tlb`, `translate`) are `unimplemented!()`. The frame allocator is up (step 8 above), so
+   nothing blocks the work except one decision, which is written out here so the next lane does not
+   have to rediscover it.
+
+   **The problem.** `KERNEL_VA_BASE` is `0xffffffff80000000` because the target's `code-model:
+   kernel` requires every symbol to be in the top 2 GiB, and there are therefore only **2 GiB of
+   address space above it**. So `VA = PA | KERNEL_VA_BASE` cannot address more than 2 GiB of
+   physical memory, and it is not even an injective-with-inverse map above that line: `phys_to_virt`
+   of the local APIC at `0xfee00000` produces a valid distinct address, but `virt_to_phys` of that
+   address does not give `0xfee00000` back. Today the port dodges this by reaching device registers
+   through the boot tables' identity map (`mmu::device_va`), which the fine map must delete, because
+   an identity map is a complete alias of physical memory sitting in the half user programs get.
+
+   **The options.**
+
+   - **Keep one base and cap physical memory at 2 GiB.** Costs nothing to build and is wrong on any
+     machine worth running: milestone 87's OptiPlex has more RAM than that, and the local APIC is
+     above the line regardless of how much RAM there is.
+   - **Two bases, which is what Linux does.** The kernel *image* stays at `0xffffffff80000000`,
+     where the code model needs it, and the *direct map* moves to its own base with room to be
+     large (Linux uses `0xffff888000000000`). `phys_to_virt` becomes the direct map's arithmetic and
+     `virt_to_phys` its exact inverse again, over the whole physical space. The two are separate
+     PML4 entries, so nothing about them interferes.
+
+   **Recommended: two bases.** It is the known answer, it is what every x86_64 kernel does, and the
+   alternative fails on the machine this port exists to reach. The `paging` crate needs nothing:
+   `Ia32e::in_half` splits at bit 47 and `0xffff888000000000` is canonically high, so a direct map
+   there is in the kernel half by the same test the kernel image is.
+
+   **The one hazard, and it is the same one `boot.s` already survives once.** `phys_to_virt` changes
+   meaning at the moment the fine map is installed: before it, only the boot tables' `KERNEL_VA_BASE
+   + 1 GiB` alias and the identity map exist, and anything that already read a physical address
+   through the old arithmetic (the PVH structure, the ACPI tables, the frame bitmap) must either be
+   re-derived or be reached through a mapping the new tables also carry. The cheapest correct
+   sequencing is to build the new tables with **both** the old alias and the new direct map present,
+   switch `CR3`, then drop the old alias in a second step once nothing needs it.
+
+   Doing this also lifts the recorded limitation that the direct map covers only the low 1 GiB, and
+   is what lets `mmu::device_va` be deleted rather than carried.
 2. **The IO APIC.** The *local* APIC and its timer are built and taking interrupts; what is left is
    routing a **device** line, which is the IO APIC's redirection table. The MADT already gives its
    address, its global-interrupt base, and the interrupt source overrides, and that last one is the
