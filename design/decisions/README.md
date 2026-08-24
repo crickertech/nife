@@ -182,7 +182,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 121 | PROPOSED | [What a device capability is when the device has no page: x86 port I/O](121-port-io-capability.md) |
 | 122 | DECIDED | [The on-disk, per-user schedule store: format, write path, read-at-boot path](122-durable-schedule-store-format.md) |
 | 123 | DECIDED | [Boot-time re-derivation: what grants the privilege, and how it dies after one use](123-boot-time-rederivation-privilege.md) |
-| 124 | PROPOSED | [Ratify the x86_64 syscall ABI](124-x86-64-syscall-abi.md) |
+| 124 | DECIDED | [Ratify the x86_64 syscall ABI](124-x86-64-syscall-abi.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
 way milestone 76 moved four essays out of the roadmap: [the open design
