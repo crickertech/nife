@@ -301,11 +301,10 @@ In the order it should be done, because each is a prerequisite for the next.
    scheduler, so the program is a hand-assembled probe entered from the boot thread rather than a
    process. Item 4 is where that gap closes, and it is the reason item 4 is the next thing.
 
-   The syscall ABI (`rax` + `rdi`/`rsi`/`rdx`/`r10`/`r8`/`r9`) is now **spoken** rather than merely
-   written down, and the ratification question is no longer only prose: it is a boundary rather than
-   a habit (DECISIONS §10, §16), and one probe program agreeing with the kernel is not the same as a
-   decision having been made, so it is written up as
-   [DECISIONS §124](../decisions/124-x86-64-syscall-abi.md) (PROPOSED, calef's to ratify).
+   The syscall ABI (`rax` + `rdi`/`rsi`/`rdx`/`r10`/`r8`/`r9`) is now **spoken and ratified**: it was
+   a boundary rather than a habit (DECISIONS §10, §16), and one probe program agreeing with the
+   kernel was not the same as a decision having been made, so it went up as
+   [DECISIONS §124](../decisions/124-x86-64-syscall-abi.md), which calef ratified 2026-08-24.
 
    **The two `CR4` bits stay off, and that is now a recorded choice rather than a deferral.**
    `CR4.PCIDE` off means `crates/asid`'s tags have nowhere to live: PCID is `CR3[11:0]`, and with
