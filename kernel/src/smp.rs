@@ -164,7 +164,7 @@ fn stack_top(id: usize) -> u64 {
 ///
 /// An "id" here is whatever the bring-up call names a core by: an `MPIDR_EL1[39:0]` affinity value
 /// on aarch64, a hart id on RISC-V. Nothing portable interprets it; it is read out of `/cpus` and
-/// handed back to `arch::psci_cpu_on`.
+/// handed back to `arch::cpu_start`.
 ///
 /// `u64::MAX` is safe as the empty marker rather than merely convenient: an aarch64 affinity value
 /// is 40 bits by architecture, so it cannot reach it, and a RISC-V hart id that could would fail the
@@ -339,7 +339,7 @@ unsafe extern "C" {
 ///   handled (notes/visionfive2.md).
 /// - **The conduit half is proved by parsing and not by calling.** `crates/machine_discovery`'s host tests read a
 ///   real QEMU dump that states `smc`, so the decode is exercised; no machine here boots that
-///   configuration, so the `smc` instruction path has never executed. See `arch::psci_cpu_on`.
+///   configuration, so the `smc` instruction path has never executed. See `arch::cpu_start`.
 pub fn bring_up_secondaries() {
     // Record the boot core as online before starting anyone, so a TLB shootdown from here on names
     // it. (Secondaries add their own bits as they come up.)
@@ -393,7 +393,7 @@ pub fn bring_up_secondaries() {
         // Seating placed this core at the slot its hardware id names (see read_cpu_list), so the
         // equation the rest of the kernel indexes by holds by construction; this cannot fire.
         debug_assert_eq!(hwid, id as u64, "a seated core is not at its own hart id");
-        let ret = arch::psci_cpu_on(hwid, entry, stack_top(id));
+        let ret = arch::cpu_start(hwid, entry, stack_top(id));
         if ret == 0 {
             started += 1;
         } else {

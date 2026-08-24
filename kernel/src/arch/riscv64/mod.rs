@@ -157,13 +157,13 @@ pub fn percpu_matches_hart() -> bool {
     hart_from_sscratch == hart_from_tp
 }
 
-/// Start a secondary hart. The name is aarch64's (`psci_cpu_on`); the mechanism is the SBI HSM
+/// Start a secondary hart, via the SBI HSM
 /// (Hart State Management) extension's `sbi_hart_start(hartid, start_addr, opaque)`. The firmware
 /// starts the target hart at `entry` (a physical address) in S-mode with paging off, `a0` = its hart
 /// id and `a1` = `context`. Returns the SBI error (0 = success; a hart QEMU did not create, when
 /// `-smp` is smaller than `MAX_CPUS`, returns a nonzero error rather than hanging). See boot.s
 /// `secondary_boot`.
-pub fn psci_cpu_on(target_hart: u64, entry: u64, context: u64) -> i64 {
+pub fn cpu_start(target_hart: u64, entry: u64, context: u64) -> i64 {
     const SBI_HSM_EID: usize = 0x0048_534D; // "HSM"
     const SBI_HART_START_FID: usize = 0;
     let error: i64;

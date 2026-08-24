@@ -85,7 +85,7 @@ pub static DTB: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsiz
 ///
 /// `extern "C"` matters: it tells Rust to follow the aarch64 calling convention
 /// (AAPCS64), because assembly is about to call this and the two need to agree on
-/// where arguments live. `dtb` arrives in `x0`. See notes/registers.md.
+/// where arguments live. `boot_info_pointer` arrives in `x0`. See notes/registers.md.
 ///
 /// `-> !` means this never returns, which is true: there is nowhere to return *to*.
 // On riscv64, the boot tour below ends in `arch::halt()`, so the rest of `kernel_main` (the shared
@@ -104,8 +104,8 @@ pub static DTB: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsiz
     allow(unreachable_code)
 )]
 #[unsafe(no_mangle)]
-pub extern "C" fn kernel_main(dtb: usize) -> ! {
-    DTB.store(dtb, core::sync::atomic::Ordering::Relaxed);
+pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
+    DTB.store(boot_info_pointer, core::sync::atomic::Ordering::Relaxed);
 
     // Per-CPU pointer FIRST, before anything takes a lock. The lock path reads this core's
     // held-rank out of its per-CPU block, so `TPIDR_EL1` must point at that block before
@@ -125,7 +125,7 @@ pub extern "C" fn kernel_main(dtb: usize) -> ! {
     // (notes/visionfive2.md; console::configure_from_dtb). On QEMU the tree restates the defaults
     // and this is a no-op in effect.
     #[cfg(target_arch = "riscv64")]
-    console::configure_from_dtb(dtb);
+    console::configure_from_dtb(boot_info_pointer);
 
     // **The x86_64 boot is a self-contained tour and it halts at the end**, the same shape the
     // RISC-V boot took on its first day and for the same reason: the arch layer beneath the shared
@@ -143,11 +143,13 @@ pub extern "C" fn kernel_main(dtb: usize) -> ! {
         println!("nife on x86_64 (long mode, ring 0, 4-level paging)");
         println!("  cpu 0 booted: high-half kernel, .bss, and the 16550 console are up.");
         println!("  running at  : {pc:#018x}  (high half: the long-mode jump landed)");
-        println!("  boot info   : {dtb:#018x}  (PVH hvm_start_info, not a device tree)");
+        println!(
+            "  boot info   : {boot_info_pointer:#018x}  (PVH hvm_start_info, not a device tree)"
+        );
 
         // What machine is this. CPUID needs nothing to be brought up first, which makes x86 the
         // only one of the three where this can run before anything else.
-        arch::isa::init(dtb);
+        arch::isa::init(boot_info_pointer);
         arch::isa::print_summary();
 
         // The GDT, the TSS and the IDT. Until this line a fault is a triple fault and a silent
@@ -163,8 +165,10 @@ pub extern "C" fn kernel_main(dtb: usize) -> ! {
         // the device tree, and the only thing that reads the map so far; `memory::init` is a
         // device-tree parser, so the frame allocator cannot come up here until there is a discovery
         // seam between the two. See notes/x86-port.md.
-        let Some(info) = arch::machine::boot_info(dtb) else {
-            println!("  memory      : no PVH boot info at {dtb:#x}; nothing else can be found");
+        let Some(info) = arch::machine::boot_info(boot_info_pointer) else {
+            println!(
+                "  memory      : no PVH boot info at {boot_info_pointer:#x}; nothing else can be found"
+            );
             println!("nife x86_64: early boot cannot continue, halting.");
             arch::halt();
         };
@@ -190,7 +194,7 @@ pub extern "C" fn kernel_main(dtb: usize) -> ! {
                 arch::irq::local_apic_version(),
             );
 
-            arch::timer::init_frequency(dtb);
+            arch::timer::init_frequency(boot_info_pointer);
             println!(
                 "  clocks      : tsc {} MHz, apic timer {} MHz (both measured against the PIT)",
                 arch::timer::frequency() / 1_000_000,
@@ -267,7 +271,7 @@ pub extern "C" fn kernel_main(dtb: usize) -> ! {
         println!("nife on RISC-V (rv64, S-mode, Sv39)");
         println!("  hart 0 booted: high-half kernel, .bss, and the NS16550 console are up.");
         println!("  running at  : {pc:#018x}  (high half: Sv39 paging is on)");
-        println!("  device tree : {dtb:#018x}");
+        println!("  device tree : {boot_info_pointer:#018x}");
 
         // Traps: install stvec and prove the round-trip by taking a breakpoint and returning.
         arch::exceptions::init();
@@ -281,7 +285,7 @@ pub extern "C" fn kernel_main(dtb: usize) -> ! {
         // The counter's rate comes out of the device tree first (milestone 100). It used to be a
         // 10 MHz constant, which is QEMU's; RISC-V has no CNTFRQ_EL0 to read, so the tree is the
         // architected source and this is the earliest point anything needs the number.
-        arch::timer::init_frequency(dtb);
+        arch::timer::init_frequency(boot_info_pointer);
         arch::timer::init();
         arch::interrupts::enable();
         let start = arch::timer::now();
@@ -301,7 +305,7 @@ pub extern "C" fn kernel_main(dtb: usize) -> ! {
         // memory::init and everything after it can push frames into it.
         #[cfg(test)]
         stack::paint_boot_stack();
-        memory::init(dtb);
+        memory::init(boot_info_pointer);
         let f = memory::alloc().expect("no frame from the allocator");
         println!(
             "  memory      : device tree parsed, frame allocator up (first frame {:#x})",
@@ -313,18 +317,18 @@ pub extern "C" fn kernel_main(dtb: usize) -> ! {
         // walk is a worse place to find out. It reads the same device tree `memory::init` just
         // parsed, then asks OpenSBI what it implements. The summary prints after paging, because
         // one of the numbers in it is measured by `mmu::init`.
-        arch::isa::init(dtb);
+        arch::isa::init(boot_info_pointer);
 
         // Which harts does this machine have (milestone 100)? Here, while the device tree is still
         // reachable through the boot map, rather than at bring-up time after `mmu::init` has
         // replaced it. The list used to be `0..cpu::MAX_CPUS`, a constant.
-        smp::read_cpu_list(dtb);
+        smp::read_cpu_list(boot_info_pointer);
 
         // And how does the PLIC number their S-mode contexts? Read here, in the same window and
         // before anything touches a context: the `2*hart + 1` formula this replaces is QEMU's
         // layout, and the JH7110's disabled S7 shifts every context down one (arch::irq,
         // notes/visionfive2.md). On QEMU the tree reproduces the formula exactly.
-        arch::irq::init_contexts(dtb);
+        arch::irq::init_contexts(boot_info_pointer);
 
         // Replace the coarse RWX boot table with fine-grained W^X Sv39 kernel tables. We keep
         // running (and printing) across the satp switch, which proves the fine map covers this code.
@@ -790,21 +794,21 @@ pub extern "C" fn kernel_main(dtb: usize) -> ! {
 
     // Now that faults are reportable, go find out how much RAM we actually have. A bug
     // in here is a fault, and a fault is now legible rather than fatal-and-silent.
-    memory::init(dtb);
+    memory::init(boot_info_pointer);
 
     // What machine is this (milestone 60). Three `mrs` reads, and the reason they happen HERE is
     // the line below: `mmu::init` takes `TCR_EL1.IPS` from this record and builds tables on a 4 KiB
     // granule this checks the part actually has. A machine that cannot run us says so and stops,
     // rather than turning the MMU on and faulting on the next instruction fetch with no console
     // line to explain it.
-    arch::isa::init(dtb);
+    arch::isa::init(boot_info_pointer);
 
     // Which cores does this machine have, and how are they started (milestone 100)? Both come out
     // of the device tree, and both have to be read HERE: `mmu::init` on the next line replaces the
     // coarse boot map, and the blob is only reachable through that one. The list used to be
     // `0..cpu::MAX_CPUS` and the PSCI conduit used to be `hvc`, compiled in; `isa::init` above took
     // the `/psci` half.
-    smp::read_cpu_list(dtb);
+    smp::read_cpu_list(boot_info_pointer);
 
     // And now the sketchiest moment in the kernel. The instant SCTLR_EL1.M is set, the very
     // next instruction is fetched through the MMU. See arch/aarch64/mmu.rs.
@@ -834,7 +838,7 @@ pub extern "C" fn kernel_main(dtb: usize) -> ! {
     // The scheduler comes up FIRST, so that the very first timer tick already has somewhere to
     // send a reschedule. Adopting the boot context as thread 0 costs one allocation.
     sched::init();
-    interrupts_init(dtb);
+    interrupts_init(boot_info_pointer);
 
     // Bring the other cores online. They come up idle: step 2 proves the bring-up path works
     // (PSCI, per-core stacks, the MMU replay), and leaves real multi-core scheduling to step 3.
@@ -869,7 +873,7 @@ pub extern "C" fn kernel_main(dtb: usize) -> ! {
         println!("  exception level : EL{}", CurrentEL.read(CurrentEL::EL));
         arch::isa::print_summary();
         println!("  stack top       : {:#018x}", stack_top());
-        println!("  device tree     : {dtb:#018x}");
+        println!("  device tree     : {boot_info_pointer:#018x}");
         memory::print_summary();
         arch::mmu::print_summary();
         {

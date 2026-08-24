@@ -30,11 +30,12 @@ static mut ISA: Isa = Isa {
     max_leaf: 0,
 };
 
-/// Read what this machine is. `dtb_ptr` is ignored: the argument is the portable arch contract's
-/// (both other architectures are handed a device tree), and x86 answers from the instruction set
-/// itself. Named rather than dropped so the seam stays one shape across three architectures.
-pub fn init(dtb_ptr: usize) {
-    let _ = dtb_ptr;
+/// Read what this machine is. `boot_info_pointer` is ignored: the argument is the portable arch
+/// contract's (both other architectures are handed a device tree), and x86 answers from the
+/// instruction set itself. Named rather than dropped so the seam stays one shape across three
+/// architectures.
+pub fn init(boot_info_pointer: usize) {
+    let _ = boot_info_pointer;
     // `__cpuid` is a safe function in `core::arch::x86_64` (the instruction has no precondition on
     // a 64-bit part), so there is no `unsafe` block here and none is needed. Leaf 0 in particular
     // needs no maximum-leaf check first, because leaf 0 is what reports the maximum.

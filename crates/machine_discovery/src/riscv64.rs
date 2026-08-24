@@ -438,7 +438,7 @@ pub const SBI_TABLE: [SbiRow; 4] = [
         name: "HSM",
         bit: SBI_HSM,
         eid: EID_HSM,
-        why: "arch::psci_cpu_on starts every secondary hart",
+        why: "arch::cpu_start starts every secondary hart",
     },
 ];
 
