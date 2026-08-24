@@ -484,6 +484,66 @@ fn login_denies_an_authenticated_identity_with_no_provisioned_subtree() {
     );
 }
 
+/// **The measurement gap this milestone's BUGS used to name, resolved.** `login`'s `_start` now
+/// reads [`measured_boot::PROGRAM_MEASUREMENTS`] out of the same archive it reads
+/// `fs_subtree_caretaker` from and calls [`measured_boot::verify_in_manifest`] before it will ever
+/// build a caretaker from those bytes, the identical check `crates/system_initializer::measured`
+/// performs for its own six boot components (see `user/src/login.rs`'s own BUGS, "Resolved,
+/// 2026-08-24", for the full reasoning, including why this is a boot-time check rather than a
+/// per-login one, and why the fold into [`login_proto::DENIED`] it produces on refusal is not the
+/// same anti-oracle reasoning a wrong password or a missing subtree gets).
+///
+/// **This suite cannot make the real, already-booted archive disagree with itself** to prove a live
+/// refusal end to end: the initrd is one physical region the whole kernel test binary shares, wired
+/// once at boot, and `cargo xtask` always packs a measurement table that agrees with the bytes it
+/// just packed alongside it. A second login instance spawned against a deliberately tampered archive
+/// is not something this suite (or `ls::start`, which always takes the one real
+/// `memory::initrd_region()`) can construct. So this proves the two things a live end-to-end refusal
+/// would have proven, at the exact level `login`'s own check operates on: the real
+/// `fs_subtree_caretaker` bytes verify against the real table (which is *also* the reason `wired()`'s
+/// own instance, and every other test in this file, can log anyone in at all, now that the check
+/// exists), and the identical [`measured_boot::verify_in_manifest`] call `_start` makes refuses a
+/// tampered copy of those same bytes and a name the table does not mention, mirroring
+/// `measured_boot_tests::the_measurement_table_refuses_a_tampered_program_and_an_unnamed_one`, which
+/// covers `console` and the boot-time components but not this one (`fs_subtree_caretaker` is not in
+/// that test's own `BOOT_COMPONENTS`, since it is not a boot-time component; it is what a directory
+/// grant is made of, per-invocation, and this milestone is what first gave it a measurement
+/// consumer at all).
+#[test_case]
+fn logins_caretaker_measurement_matches_the_real_table_and_a_tampered_one_would_be_refused() {
+    let table = program(measured_boot::PROGRAM_MEASUREMENTS)
+        .and_then(|b| core::str::from_utf8(b).ok())
+        .expect("the measurement table is missing or is not text");
+    let bytes = program("fs_subtree_caretaker").expect("the archive has no 'fs_subtree_caretaker'");
+
+    assert_eq!(
+        measured_boot::verify_in_manifest(table, "fs_subtree_caretaker", bytes),
+        Ok(()),
+        "the caretaker every login builds a session from does not match the table login's own \
+         _start now consults; login would refuse every login rather than serve one",
+    );
+
+    let mut h = measured_boot::Sha256::new();
+    h.update(&[bytes[0] ^ 1]);
+    h.update(&bytes[1..]);
+    let tampered = h.finalize();
+    assert_ne!(
+        measured_boot::expected_in_manifest(table, "fs_subtree_caretaker"),
+        Some(tampered),
+        "a tampered fs_subtree_caretaker still satisfied the table",
+    );
+    assert_eq!(
+        measured_boot::verify_in_manifest(table, "fs_subtree_caretaker", b"not the real caretaker"),
+        Err(measured_boot::VerifyError::Mismatch),
+        "login's own check would wave through a caretaker whose bytes do not match the table",
+    );
+    assert_eq!(
+        measured_boot::verify_in_manifest(table, "no-such-caretaker", bytes),
+        Err(measured_boot::VerifyError::Unmeasured),
+        "login's own check would vouch for a name the table does not mention",
+    );
+}
+
 /// **Nothing else would have caught this**: the caretaker-teardown fix (this milestone; see
 /// `user/src/login.rs`'s own BUGS, "Resolved"), proven by needing more memory than could possibly
 /// fit if a session's pages did not actually come back. `wired()`'s shared instance holds

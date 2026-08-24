@@ -126,9 +126,9 @@ subtree in this slice at all, because the grant name travels in two argument wor
 (`fs_proto::grant::MAX_NAME`), narrower than `login_proto::MAX_IDENTITY`'s sixty-four; `login`
 refuses rather than silently truncating.
 
-See `user/src/login.rs`'s own BUGS for the itemised remainder (the terminal, boot integration,
-measured-boot consultation, reclamation, and the two bounds above), summarised in this milestone's
-BUGS below.
+See `user/src/login.rs`'s own BUGS for the itemised remainder (the terminal and boot integration,
+plus the two bounds above; measured-boot consultation and reclamation are both resolved), summarised
+in this milestone's BUGS below.
 
 ## Attribution is the actual work, and the one place Unix does something we do not
 
@@ -215,11 +215,20 @@ feature (`user/src/login.rs`'s own BUGS, more precisely worded per item).
   but never given a home. Replacing the shell's build-time endowment with a real login prompt remains this milestone's
   largest piece and stays blocked until either §120 is revisited with a real customer or milestone
   159 lands.
-- **`login` does not consult `measured_boot::PROGRAM_MEASUREMENTS` before building a caretaker.**
-  Milestone 104's discipline (init refuses to load a program whose bytes do not match the archive's
-  measurement table) does not extend to this non-init loader. Fixing it well means deciding how a
-  loader outside the boot chain joins that chain at all, which is a design question and not a one-line
-  patch.
+- **Resolved, 2026-08-24.** `login` used to load `fs_subtree_caretaker` by name with no check at all,
+  inconsistent with milestone 104's discipline (init refuses to load a program whose bytes do not
+  match the archive's measurement table). Investigating "how a loader outside the boot chain joins
+  that chain" found the premise false: `login` maps the identical physical archive the kernel already
+  maps for `crates/system_initializer`, the same read-only way, so the kernel's boot already vouches
+  for `login`'s copy exactly as much as it vouches for init's. No new trust decision was needed;
+  `login`'s `_start` now reads `measured_boot::PROGRAM_MEASUREMENTS` from that same archive and calls
+  the same `measured_boot::verify_in_manifest` `system_initializer::measured` already calls, once, at
+  startup, before any client exists. A refusal does not crash the service (mirroring
+  `system_initializer`'s own "an unvouched `fs_subtree_caretaker` costs a feature, not a boot"): every
+  login is answered `login_proto::DENIED` instead, and `user/src/login.rs`'s own BUGS explains why
+  that fold is not the same anti-oracle reasoning the wrong-password and no-subtree folds get (this
+  check varies with nothing a caller controls, so there is nothing to probe). See
+  `kernel::user::login_tests::logins_caretaker_measurement_matches_the_real_table_and_a_tampered_one_would_be_refused`.
 - **Resolved, 2026-08-23 (milestone/49-caretaker-teardown).** A caretaker's construction memory used
   to be spent forever, with no logout that gave it back. `mint()` now delegates its own copy of the
   caretaker's construction region to the authenticated client as a fourth capability, narrowed to

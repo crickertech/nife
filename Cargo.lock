@@ -921,6 +921,7 @@ dependencies = [
  "manual",
  "mdns_config",
  "mdns_proto",
+ "measured_boot",
  "nifefs",
  "ntp_proto",
  "pgrep",
