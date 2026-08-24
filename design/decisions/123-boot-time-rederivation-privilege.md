@@ -1,10 +1,14 @@
 # 123. Boot-time re-derivation: what grants the privilege, and how it dies after one use
 
-**Status: PROPOSED.** Raised from milestone 152's own BUGS section (durable delegation), which named
-this exact gap: "a privileged, boot-only operation... [but] what object grants that privilege, and
-how it is scoped so it cannot be invoked again after boot, is not worked out." The number is
-**provisional**, minted by this lane against the current tree; the integrator assigns the real
-section number at merge, per this project's own convention for `DECISIONS.md` numbering.
+**Status: DECIDED.** calef, 2026-08-24, ratified option (a): a boot-only process holding a
+construction budget and read access to the schedule store, re-deriving every durable session the
+store names, then deleting both capabilities from its own cspace in `root_supervisor`'s exact shape.
+The four hardening refinements below are to be built into it, not conditions on the ratification.
+Raised from milestone 152's own BUGS section (durable delegation), which named this exact gap: "a
+privileged, boot-only operation... [but] what object grants that privilege, and how it is scoped so
+it cannot be invoked again after boot, is not worked out." The number is **provisional**, minted by
+a lane against the tree at the time; the integrator assigns the real section number at merge, per
+this project's own convention for `DECISIONS.md` numbering.
 
 ## The question
 
@@ -187,6 +191,53 @@ operation afterward and reporting the failure. Whether this lives as a new dedic
 (provisional name, calef's to ratify) or a phase inside `root_supervisor`/`system_initializer` is a
 smaller, more reversible question this decision does not need to settle; either shape gets the same
 scoping property, which is the part that matters.
+
+## Hardening the window, amended 2026-08-24
+
+calef asked, after reviewing the recommendation above, whether the residual risk in option (a) can be
+narrowed further: for however long the re-deriver holds the store-read capability and the construction
+budget before its own `cap_delete` pass runs, a compromise of that process grants exactly the
+"impersonate any user in the store" power this decision exists to prevent. **None of what follows
+eliminates that window.** No real system does, when the capability must exist at all, even
+momentarily: `root_supervisor` accepts the identical shape, and so does UEFI's `ExitBootServices`
+(cited above). These are refinements to build *into* option (a), narrowing the window and its blast
+radius, not a different option and not a claim that the risk goes to zero.
+
+**1. Shrink the window per-identity rather than per-boot, using `Untyped::SPLIT`.** This decision's own
+"How reversible is this" section already notes that `SPLIT` is existing, proven mechanism (DECISIONS
+§16) that option (a) needs zero new primitives to use. Rather than holding the undivided store-read
+capability across the whole re-derivation pass and deleting it once at the end, split off only what one
+identity's re-derivation needs, derive that session, and move to the next. A mid-run compromise's blast
+radius shrinks to "identities not yet processed" rather than the whole store, as re-derivation proceeds.
+
+**2. Gate the re-deriver's own binary through measured boot before it is ever granted the capability.**
+`crates/system_initializer` already performs exactly this check for every program it loads: it reads
+the program from the archive and calls `measured_boot::verify_in_manifest`, refusing to hand back an
+ELF on either `Unmeasured` (the table says nothing about this name) or `Mismatch` (milestone 104's
+discipline). The same check, applied to the re-deriver before it is ever handed the store-read
+capability, is real defense against a tampered binary holding that power. **It does nothing against a
+logic bug in the correct, unmodified code while it runs**, which stays the harder half of the residual
+risk and is not addressed by any of these four refinements.
+
+**3. Keep the process's own code surface minimal, as a stated design property rather than an incidental
+one.** The smaller and simpler the re-deriver is, the lower the odds a bug exists in the window at all.
+This is already implicit in "a small dedicated boot-only process" elsewhere in this file; stated here so
+whoever builds it treats minimality as a requirement rather than something that happened to be true of
+a first draft.
+
+**4. A liveness watchdog for the failure mode this file does not otherwise cover.** Everything above
+addresses *misuse* of the capability during the window. A distinct, non-malicious failure mode is the
+re-deriver hanging or crashing *before* its deletion pass runs, leaving the capability live past its
+expected window by accident. Something else needs to notice this and act, whether that is killing the
+stuck process or a fallback revocation path reached some other way. **Named here, not designed**: this
+file's own discipline elsewhere is to record an open sub-question rather than guess at its mechanism,
+and this is one of them.
+
+None of these four change the recommendation. Option (a) remains the right base shape, and neither
+option (b) nor option (c) removes this residual-window risk while both add real cost of their own that
+this file's existing analysis already prices: (b) a new kind of kernel-checked runtime state, (c) a new
+capability method on the syscall surface. These four are refinements to build into option (a) once
+someone picks it up, recorded now so the eventual builder inherits them rather than rediscovering them.
 
 ## What is blocked until this is answered
 
