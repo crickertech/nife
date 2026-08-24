@@ -405,12 +405,15 @@ In the order it should be done, because each is a prerequisite for the next.
    this whole milestone rather than an item within it: **no user program is compiled for
    `x86_64-unknown-none`.** Consequences, each a concrete piece of work:
 
-   - `crates/user_rt` has **thirteen functions with an aarch64/RISC-V pair each and no fallback**, so
-     nothing in `user/` compiles. Eleven are transliteration (`syscall` for `svc`/`ecall`; the ABI is
-     already written down and now spoken). **Two are a design fork**: `now()` and `cntfrq()` read
-     `CNTVCT_EL0`/`CNTFRQ_EL0` and RISC-V's `time` CSR, and x86 has neither. `rdtsc` is the obvious
-     answer and is a decision rather than a transliteration, because its rate is not architected and
-     this kernel already measures it against the PIT.
+   - `crates/user_rt` has **seven places with an aarch64/RISC-V pair each and no fallback**, so
+     nothing in `user/` compiles: `invoke5`, `yield_now`, `cap_delete`, `now`, `cntfrq`, and the
+     `cfg`s inside `exit` and `trap`. It was thirteen until the `invoke5` collapse landed on main
+     the same day, which is most of the work already done. Five of the seven are transliteration
+     (`syscall` for `svc`/`ecall`; the ABI is written down as §124 and now spoken). **Two are a
+     design fork**: `now()` and `cntfrq()` read `CNTVCT_EL0`/`CNTFRQ_EL0` and RISC-V's `time` CSR,
+     and x86 has neither. `rdtsc` is the obvious answer and is a decision rather than a
+     transliteration, because its rate is not architected and this kernel already measures it
+     against the PIT.
    - `user/build.rs` cannot compile its C components for this target, so `c_shim` and `c_swappable`
      would not link even once `user_rt` is done.
    - `xtask` packs no x86 archive. Adding one needs a third arm in `read_stripped`'s cache tag (x86

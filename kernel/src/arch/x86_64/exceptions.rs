@@ -79,11 +79,11 @@ impl TrapFrame {
     /// cannot ride in the C ABI's fourth register. Every `x86_64` kernel makes the same substitution
     /// for the same reason.
     ///
-    /// **Provisional.** Nothing speaks this ABI yet: the x86 boot halts before user mode, and no
-    /// user program is built for the target. A syscall ABI is a boundary rather than a habit
-    /// (DECISIONS §10, §16) and is exactly the kind of decision the "move fast on what can be
-    /// undone" tenet calls expensive, so it is written here to be argued with rather than merged as
-    /// settled. See design/roadmap/161-x86-64-kernel-port.md.
+    /// **Ratified as DECISIONS §124** (2026-08-24). It was written here provisionally, because a
+    /// syscall ABI is a boundary rather than a habit (DECISIONS §10, §16) and is exactly the kind of
+    /// decision the "move fast on what can be undone" tenet calls expensive; it is now settled, and
+    /// it is **spoken**: every hand-assembled program in `user::x86_programs` reaches
+    /// `crate::syscall::dispatch` through these accessors, from ring 3, under the scheduler.
     pub fn syscall_nr(&self) -> u64 {
         self.rax
     }

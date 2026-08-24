@@ -25,8 +25,8 @@
 //! # The ABI these speak
 //!
 //! `rax` carries the syscall number and `rdi`, `rsi`, `rdx`, `r10`, `r8`, `r9` the arguments
-//! (`arch::x86_64::exceptions::TrapFrame::syscall_nr`). It is **provisional** (DECISIONS §124), and
-//! these programs are the first things in the tree to speak it from ring 3 through a scheduler.
+//! (`arch::x86_64::exceptions::TrapFrame::syscall_nr`), ratified as **DECISIONS §124**. These
+//! programs are the first things in the tree to speak it from ring 3 through a scheduler.
 //!
 //! # BUGS
 //!

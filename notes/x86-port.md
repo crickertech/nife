@@ -756,11 +756,13 @@ programs rather than ELFs, and those live in `kernel/src/user/x86_programs.rs` r
 
 The bound on everything above, listed because it is the next lane's brief rather than a caveat:
 
-- **`crates/user_rt` has no `x86_64` arms.** Thirteen functions have an aarch64/RISC-V pair each and
-  no fallback, so nothing in `user/` compiles. Eleven are transliteration (`syscall` instead of
-  `svc`/`ecall`, the ABI is already written down); **two are design**: `now()` and `cntfrq()` read
-  `CNTVCT_EL0`/`CNTFRQ_EL0` and the `time` CSR, and x86 has neither. `rdtsc` is the obvious answer
-  and it is a decision (its rate is not architected, and this kernel measures it against the PIT).
+- **`crates/user_rt` has no `x86_64` arms.** Seven places have an aarch64/RISC-V pair each and no
+  fallback, so nothing in `user/` compiles: `invoke5`, `yield_now`, `cap_delete`, `now`, `cntfrq`,
+  and the `cfg`s inside `exit` and `trap`. It was thirteen until the `invoke5` collapse landed on
+  2026-08-24. Five are transliteration (`syscall` instead of `svc`/`ecall`; the ABI is DECISIONS
+  §124); **two are design**: `now()` and `cntfrq()` read `CNTVCT_EL0`/`CNTFRQ_EL0` and the `time`
+  CSR, and x86 has neither. `rdtsc` is the obvious answer and it is a decision (its rate is not
+  architected, and this kernel measures it against the PIT).
 - **`user/build.rs` cannot compile its C components for this target**, so `c_shim` and `c_swappable`
   would not link even once `user_rt` is done.
 - **`crates/elf` now accepts `EM_X86_64`**, so the loader side is ready.
