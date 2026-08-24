@@ -380,11 +380,11 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                     report.faulted_tid, report.fault_pc, report.fault_addr,
                 );
                 println!(
-                    "                {} frames free before, {} after both regions were destroyed{}",
-                    report.frames_before,
-                    report.frames_after,
-                    if report.frames_before == report.frames_after {
-                        ""
+                    "                two children cost {} frames the first round and {} the second{}",
+                    report.first_round_frames,
+                    report.second_round_frames,
+                    if report.second_round_frames == 0 {
+                        " (steady state)"
                     } else {
                         "  (LEAKED)"
                     },

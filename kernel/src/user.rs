@@ -1230,10 +1230,15 @@ pub struct X86UserspaceReport {
     pub fault_pc: u64,
     /// The address it faulted on, from the message.
     pub fault_addr: u64,
-    /// Frames free before the demo, and after both children's regions were reclaimed. Equal is the
-    /// interesting answer.
-    pub frames_before: usize,
-    pub frames_after: usize,
+    /// **What the first round of two children cost the frame allocator**, net of their regions
+    /// being destroyed.
+    pub first_round_frames: isize,
+    /// **What an identical second round cost.** This is the number that means something, and the
+    /// reason the demo runs twice: a first round pays first-use carves that are not leaks (the
+    /// kernel's object budget, the endpoint region, a thread stack the recycler has not seen yet),
+    /// and a system that has reached a steady state charges the second round **zero**. It is the
+    /// same distinction `thread.rs`'s stack-VA reuse test draws, and the same evidence.
+    pub second_round_frames: isize,
 }
 
 /// **Build one hand-assembled child out of `region` and start it.** The x86 boot tour's own
@@ -1323,26 +1328,66 @@ fn x86_build_child(
 /// **Name provisional** (milestone 161, roadmap item 4).
 #[cfg(target_arch = "x86_64")]
 pub fn x86_userspace_demo() -> Result<X86UserspaceReport, &'static str> {
-    use abi::fault::EVENT_FAULT;
+    let before = crate::memory::free_frames();
+    let round = x86_userspace_round()?;
+    let after_first = crate::memory::free_frames();
+    // The same two children again, from scratch. See `X86UserspaceReport::second_round_frames`.
+    x86_userspace_round()?;
+    let after_second = crate::memory::free_frames();
 
-    let frames_before = crate::memory::free_frames();
+    Ok(X86UserspaceReport {
+        first_round_frames: before as isize - after_first as isize,
+        second_round_frames: after_first as isize - after_second as isize,
+        ..round
+    })
+}
 
-    // The reporting child. Sixteen pages is what the supervision fixtures give a child on the other
-    // two architectures: an address space's root and tables, a code page, a stack page and a TCB.
+/// One round of the demo: build both children, collect what each produced, and give their regions
+/// back. Called twice by [`x86_userspace_demo`], which is what turns its frame numbers into
+/// evidence.
+///
+/// **Every kernel object a child needs comes out of that child's own region**, its two endpoints
+/// included (`create_rendezvous_from`), so one `DESTROY` reclaims the whole of it and the frame
+/// count is an exact statement rather than an approximate one. The first version drew the endpoints
+/// from the kernel's shared pool and never collected the reporting child's corpse, and the tour
+/// reported sixteen frames a round going missing: correct, and exactly the kind of thing a
+/// steady-state number is for.
+#[cfg(target_arch = "x86_64")]
+fn x86_userspace_round() -> Result<X86UserspaceReport, &'static str> {
+    use abi::fault::{EVENT_EXIT, EVENT_FAULT};
+
+    // Sixteen pages is what the supervision fixtures give a child on the other two architectures:
+    // an address space's root and tables, a code page, a stack page, a TCB, and here two endpoints.
     let report_region = crate::untyped::create(16).ok_or("no region for the reporting child")?;
-    let report_ep = crate::sched::create_rendezvous();
-    let report_cap = crate::cap::rendezvous_cap(report_ep, crate::cap::Rights::WRITE);
-    x86_build_child(
+    let report_ep =
+        crate::sched::create_rendezvous_from(report_region).ok_or("no reporting endpoint")?;
+    let reporter_supervisor = crate::sched::create_rendezvous_from(report_region)
+        .ok_or("no supervision endpoint for the reporting child")?;
+    let reporter = x86_build_child(
         report_region,
         &x86_programs::report(X86_DEMO_WORD),
-        Some(report_cap),
-        None,
+        Some(crate::cap::rendezvous_cap(
+            report_ep,
+            crate::cap::Rights::WRITE,
+        )),
+        Some(reporter_supervisor),
     )?;
     let reported = crate::sched::ipc_recv(report_ep)[0];
 
-    // The faulting child, with a supervision endpoint of its own.
+    // **Collect the corpse before reclaiming the region**, which is what a supervisor is for and
+    // what the first draft of this left out: a region still holding a live TCB is refused, and the
+    // refusal is silent because `destroy` has nowhere to report it.
+    let exit = crate::sched::ipc_recv(reporter_supervisor);
+    if exit[0] != EVENT_EXIT {
+        return Err("the reporting child's clean exit did not arrive as an EXIT event");
+    }
+    crate::sched::reap_supervised(reporter_supervisor, reporter)
+        .map_err(|_| "the reporting child's corpse refused to be reaped")?;
+
+    // The faulting child, in a region of its own.
     let fault_region = crate::untyped::create(16).ok_or("no region for the faulting child")?;
-    let fault_ep = crate::sched::create_rendezvous();
+    let fault_ep = crate::sched::create_rendezvous_from(fault_region)
+        .ok_or("no supervision endpoint for the faulting child")?;
     let child = x86_build_child(
         fault_region,
         &x86_programs::fault(X86_DEMO_BAD_ADDR),
@@ -1356,10 +1401,15 @@ pub fn x86_userspace_demo() -> Result<X86UserspaceReport, &'static str> {
     if msg[1] != child {
         return Err("the fault message named the wrong thread");
     }
-
-    // Reap the corpse (the supervisor's explicit act, DECISIONS §32) and give both regions back.
+    if msg[2] != X86_DEMO_CODE_VA + x86_programs::FAULT_PC_OFFSET {
+        return Err("the faulting pc was not the load instruction");
+    }
+    if msg[3] != X86_DEMO_BAD_ADDR as u64 {
+        return Err("the faulting address was not carried in the message");
+    }
     crate::sched::reap_supervised(fault_ep, child)
-        .map_err(|_| "the corpse refused to be reaped")?;
+        .map_err(|_| "the faulting child's corpse refused to be reaped")?;
+
     crate::untyped::destroy(report_region);
     crate::untyped::destroy(fault_region);
 
@@ -1368,8 +1418,8 @@ pub fn x86_userspace_demo() -> Result<X86UserspaceReport, &'static str> {
         faulted_tid: msg[1],
         fault_pc: msg[2],
         fault_addr: msg[3],
-        frames_before,
-        frames_after: crate::memory::free_frames(),
+        first_round_frames: 0,
+        second_round_frames: 0,
     })
 }
 
