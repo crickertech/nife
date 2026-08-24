@@ -638,7 +638,7 @@ video_terminal = { version = "0.1.0", path = "../crates/video_terminal" }
 
 # smoltcp (milestone 30, piece 3): the userspace TCP/IP stack. no_std, heap over user_rt's
 # UntypedHeap. Pinned at 0.13.1; divergence policy is the vendored-engine discipline (DECISIONS §18).
-smoltcp = { version = "0.13.1", default-features = false, features = [
+smoltcp = { version = "0.14.0", default-features = false, features = [
     "alloc",
     "medium-ethernet",
     # Multicast group membership (milestone 55's mDNS stack half): join_multicast_group, IGMP, and,
