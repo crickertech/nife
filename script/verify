@@ -223,9 +223,17 @@ set -- -j "${VERIFY_JOBS:-4}" --output-format=terse
 # agree with a list that was one crate short. Its 21 seconds are measured on the dev Mac rather than
 # from a CI log, which is the wrong machine for this column and is why the row is a slight
 # underestimate; replace it from the first CI run that includes it.
+#
+# **No apostrophes in this table, anywhere, ever** (found 2026-08-24). The `paging` row used to read
+# "the IOMMU domain's page set"; that one apostrophe, alone, made the dev Mac's `/bin/sh` (bash
+# 3.2.57) fail to parse this whole file with "unexpected EOF looking for matching `)'", despite the
+# heredoc's delimiter being quoted (`<<'TABLE'`), which POSIX says makes the body fully literal. Real
+# bash 3.2 bug, confirmed by bisection: removing the one apostrophe fixed it with nothing else
+# changed. `script/lint`'s `sh -n` check (added the same day) catches a regression here; this comment
+# is why a future editor should not just delete that check to add one back.
 CRATES="$(cat <<'TABLE'
 capability	8	the capability model
-paging	9	the address arithmetic, and the IOMMU domain's page set
+paging	9	the address arithmetic, and the page set for an IOMMU domain
 memory_regions	1	the untyped-region accounting, no double-free
 elf	1	the loader's front half, panic-free on hostile input
 page_frames	4	the physical frame allocator

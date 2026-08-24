@@ -2158,3 +2158,31 @@ shellcheck --severity=warning script/* scripts/*.sh
 # same defect as script/fmt's: a gate reporting a number it did not measure. Anything that looks like
 # evidence has to be derived from the thing it describes.
 echo "shellcheck: $(ls script/* scripts/*.sh | wc -l | tr -d ' ') sh scripts, no errors or warnings"
+
+# ShellCheck is a static analyzer and knows POSIX from bashisms, but it does not *run* a shell, so it
+# cannot catch a shell's own parser being wrong about syntax that is valid. `/bin/sh` on the dev Mac
+# is bash 3.2.57 (Apple's last GPLv2 build, frozen since 2007), and it has a real bug: a single
+# apostrophe on one line of script/verify's CRATES table, deep inside a `<<'TABLE'` heredoc whose
+# delimiter is quoted (meaning POSIX says the body is fully literal, no exceptions), was enough to
+# make bash 3.2 report "unexpected EOF looking for matching `)'" for the *whole file* -- confirmed by
+# bisection, and confirmed that removing the one apostrophe fixed it with everything else unchanged.
+# `sh -n` (parse only, nothing runs) is cheap and catches exactly this: a file that dash, zsh, and
+# ShellCheck all call clean but the dev machine's own interpreter cannot even parse. Ubuntu CI's
+# `/bin/sh` is dash and will not reproduce this defect, which is fine: the gate's job here is to fire
+# on the machine that has the bug, not to prove the bug exists everywhere.
+echo "==> sh -n (does the dev machine's own /bin/sh parse every script)"
+shfail=""
+for f in script/* scripts/*.sh; do
+    [ -f "$f" ] || continue
+    head -n1 "$f" | grep -q '^#!.*\bsh\b' || continue
+    if ! /bin/sh -n "$f" 2>/tmp/lint-sh-n.$$; then
+        echo "lint: /bin/sh cannot parse $f:" >&2
+        sed 's/^/  /' /tmp/lint-sh-n.$$ >&2
+        shfail=1
+    fi
+    rm -f /tmp/lint-sh-n.$$
+done
+if [ -n "$shfail" ]; then
+    exit 1
+fi
+echo "sh -n: every #!/bin/sh script parses under this machine's own /bin/sh"
