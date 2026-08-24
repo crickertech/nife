@@ -1851,7 +1851,15 @@ fn a_host_process_connects_to_the_guest_and_is_answered() {
          listen grant, 0xE120 means no SMB connection ever arrived (is the runner adding the \
          NIFE_SMB_HOSTFWD_PORT hostfwd, and is xtask's SMB prober running?), 0xE121 means a \
          connection arrived but no SMB message was answered on it, 0xE130 an arg2 share mode \
-         nobody defined",
+         nobody defined. 0xE14x is milestone 152's durable-session self-proof, run only on the \
+         authenticated wiring: 0xE140 could not open a session (SPLIT off the adapter's own \
+         UNTYPED), 0xE141 could not mint the synthetic pending-job child, 0xE142 means \
+         Untyped::DESTROY succeeded on a session that still had a live child (DECISIONS §16's \
+         refusal did not hold), 0xE143 could not destroy the synthetic child, 0xE144 means DESTROY \
+         still refused a childless session, 0xE146 could not open the kept session (a distinct \
+         code from 0xE140's, once the scratch session above has already proven the lifecycle rule \
+         holds), 0xE145 means the kept session (built the same way, held across every connection \
+         this run served) could not be closed afterward",
     );
     let verdict = sched::ipc_recv(mdns_report)[0];
     assert_eq!(

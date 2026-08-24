@@ -126,16 +126,55 @@ is a user's durable session, kept alive by §16's live-children rule, reattached
 the credentialer's identity lookup, torn down (cascading to its scheduled jobs) when credentials are
 revoked, and re-derived rather than restored at boot from a durable, measured-boot-trusted store.
 
+## What was built (2026-08-24, `smb_server`'s session/connection split)
+
+The first BUGS item below (`smb_server` had no session/connection separation to build this against)
+is closed. `user/src/smb_server.rs` now splits what used to be one accept-serve-close loop into two
+objects with two different lifetimes, exactly the shape that BUGS entry named:
+
+- **The transient per-connection protocol handler is unchanged**: `serve_connection` still rebuilds
+  `smb_proto::server::Connection` on every accepted socket and drops it when the function returns.
+  Nothing about the wire protocol moved.
+- **`DurableSession` is the new, second half**: a capability budget (`Untyped::SPLIT` off this
+  process's own budget, the same operation `login.rs`'s `mint()` uses) built once in `_start`,
+  **before** the accept loop, and never rebuilt or torn down by any connection `serve` accepts and
+  closes afterward. What keeps it alive past a disconnect is DECISIONS §16's existing rule and
+  nothing new: `Untyped::DESTROY` on it refuses while it has a live child and succeeds once it does
+  not. `DurableSession::mint_pending_job` is the one primitive a future scheduled-job registrar
+  (milestone 129/#387) would hold a job's authority against; this lane wires no real registrar.
+- **Proven on every boot that wires the authenticated share**, on both aarch64 and riscv64, under
+  the existing SMB gate (`kernel::user::tests::a_host_process_connects_to_the_guest_and_is_answered`
+  and its riscv64 twin): `open_durable_session_or_die` opens a scratch session, mints a synthetic
+  pending-job child (standing in for a real scheduled job, which this lane does not register), and
+  asserts `try_close` refuses while that child lives and succeeds once it is destroyed, before
+  opening the real, kept session `serve` holds across every connection. A second check after the
+  gate's real SMB traffic (two full negotiate-through-read connections) confirms the kept session is
+  still in good standing and closes cleanly. Any of these seven properties failing halts the boot
+  with its own stage code (`0xE140`-`0xE146`) rather than reporting a plain success; see
+  `smb_server`'s own module header ("The durable session") and BUGS entry for the full account, and
+  the two kernel gate files for what each code means.
+
+**What this does not build, on purpose.** `DurableSession` holds no per-login narrowing of the
+directory capability (this adapter still authenticates exactly one configured account; see
+`smb_server`'s existing BUGS), no scheduled job is ever really registered against it, and reconnect
+does not reattach to an existing session (there is only ever one, built once at boot). Those are the
+milestone's second and third design pieces plus the runtime-registrar wiring (#387), all still open;
+see the two entries below for what has changed about them.
+
 ## BUGS
 
-- **`smb_server` has no session/connection separation to build this against.** Checked directly
-  (`user/src/smb_server.rs`): today's server is a single accept-serve-close loop (`serve()`),
-  one connection at a time, with no object that could persist past a disconnect even in principle.
-  Building this means splitting what is currently one thing into two: a transient per-connection
-  protocol handler (dies with the socket, as today) and a durable per-login object that outlives it.
-  That is real structural work, not a lifecycle-rule change, and it has not been scoped yet.
-- **The on-disk, per-user schedule store (point 4) has no format, no write path, and no read-at-boot
-  path.** Named as a gap here; none of the three is designed yet.
-- **Boot-time re-derivation's own mechanism is asserted, not designed.** "A privileged, boot-only
-  operation" is the right shape by analogy to `root_supervisor`, but what object grants that
-  privilege, and how it is scoped so it cannot be invoked again after boot, is not worked out.
+- ~~`smb_server` has no session/connection separation to build this against.~~ **Built 2026-08-24**;
+  see "What was built" above and `user/src/smb_server.rs`'s own module header and BUGS entry for the
+  live version of this record (a limitation belongs where a reader meets the feature, not only here).
+- **The on-disk, per-user schedule store has no format, no write path, and no read-at-boot path.**
+  Investigated rather than guessed at: [DECISIONS §122](../decisions/122-durable-schedule-store-format.md)
+  (PROPOSED, provisional number pending merge) lays out the options against the tree's own precedent
+  (today's compile-time `timetable.conf`, milestone 56's sealed credential store) and recommends a
+  shape. Not built by this lane; the decision needs calef's answer before any of the three parts is
+  written.
+- **Boot-time re-derivation's own mechanism was asserted, not designed.** Investigated rather than
+  guessed at: [DECISIONS §123](../decisions/123-boot-time-rederivation-privilege.md) (PROPOSED,
+  provisional number pending merge) proposes `root_supervisor`'s own shape (a boot-only process that
+  builds what it needs, then deletes its own capabilities, so the privilege is scoped by local
+  deletion rather than a runtime flag) and argues why that needs no new kernel primitive. Not built
+  by this lane; the decision needs calef's answer before it is.

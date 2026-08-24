@@ -37,10 +37,71 @@
 //! milestone 47's rights split already expresses. A share whose rights lived both here and in the
 //! grant would be a share whose rights can disagree with themselves.
 //!
+//! # The durable session (milestone 152's first piece)
+//!
+//! Everything above this point is one thing: an accept-serve-close loop where the whole of a
+//! session's state, NTLMSSP proof included, dies with the socket (`notes/smb.md`: "a session is
+//! proven at setup and unprotected afterwards"). Milestone 152 needs a durable principal a
+//! scheduled job's authority can be supervised by, one that outlives the connection that
+//! registered it, and this program had nothing that could be it: no object here survived a
+//! disconnect even in principle. This is the split that fixes that, named as the milestone's own
+//! BUGS section asked for: "a transient per-connection protocol handler (dies with the socket, as
+//! today) and a durable per-login object that outlives it."
+//!
+//! **[`DurableSession`] is the second half.** It is *not* [`smb_proto::server::Connection`], which
+//! stays exactly what it was: rebuilt by [`serve_connection`] on every accepted socket, holding the
+//! NTLMSSP challenge and the wire-protocol state machine, and gone the moment that function
+//! returns. A `DurableSession` is built once, in [`_start`], **before** the accept loop it sits
+//! above, and nothing in [`serve_connection`] or [`serve`] ever tears it down: every disconnect and
+//! reconnect this program serves happens entirely inside the loop the session was built above, so
+//! the session outlives every one of them by construction, not by a lifetime annotation asserting
+//! it does.
+//!
+//! **What keeps it alive is DECISIONS §16, not a new rule.** A `DurableSession` owns a region
+//! split off this process's own [`UNTYPED`] budget (`Untyped::SPLIT`, the same operation
+//! `user/src/login.rs`'s `mint()` uses to carve a caretaker's construction region), and
+//! `Untyped::DESTROY` on that region refuses outright while it has live children and succeeds once
+//! it does not, the identical rule a parent untyped region has always had, applied here to a
+//! session instead of a spawn budget. [`DurableSession::try_close`] is that call, exposed rather
+//! than hidden, so a future scheduled-job registrar (milestone 129/#387, explicitly not built by
+//! this lane) has exactly one primitive to hold a job's authority against: mint a pending-job
+//! child of the session with [`DurableSession::mint_pending_job`], and the session stops being
+//! destroyable until that child is gone. §92's own gap ("this says nothing about a caretaker with
+//! no client, because none exists yet") is what this closes for the *session* side; a scheduled
+//! job supervised by this session is the caretaker-with-a-durable-client case §92 could not have
+//! meant.
+//!
+//! **What it holds today, honestly.** A `DurableSession` is a reclaimable budget and nothing more:
+//! it does not yet carry a per-session narrowing of [`FS`], the way `login.rs`'s `mint()` hands
+//! each principal its own attenuated directory. This program's one directory capability is still
+//! shared by every session an authenticated share admits (this program's own BUGS: "an
+//! authenticated share authenticates exactly one account"), so there is no per-login directory to
+//! move into the session yet. Attenuating a share per login is real, separate work (the BUGS entry
+//! below on the resource being a named constant is the same gap from the other side), not a defect
+//! of this piece.
+//!
+//! **What this lane proves, and what it deliberately does not.** [`open_durable_session_or_die`]
+//! runs a self-contained proof of exactly the property this whole design leans on, on every boot
+//! that wires [`SHARE_FS_AUTHENTICATED`]: mint a synthetic pending-job child of a scratch session,
+//! confirm `try_close` refuses while it lives, destroy the child, confirm `try_close` now succeeds,
+//! then build the real, kept session the same way. No scheduled job is registered anywhere in this
+//! lane: the pending-job child is deliberately synthetic, standing in for what milestone 129's
+//! registrar will eventually mint against a session it reattaches to, and no reconnect-time
+//! reattachment (the credentialer lookup design/roadmap/152 describes) is built either. Both are
+//! milestone 152's own BUGS items 2 and 3, unstarted; this piece is the first of the three and
+//! stands alone.
+//!
+//! Name: unrecorded, provisional, minted by this lane on 2026-08-24. `DurableSession` says what it
+//! is (durable, unlike `Connection`) and what it is not (a login, which is `login.rs`'s own noun);
+//! expect ratification to weigh it against that program's vocabulary.
+//!
 //! # Capability contract
 //! - slot 0: the report endpoint (WRITE)
 //! - slot 1: the `Stack` endpoint (WRITE), shared with the stack's other client if any
-//! - slot 2: an untyped budget (to mint and delegate the shared frame)
+//! - slot 2: an untyped budget (to mint and delegate the shared frame). Milestone 152's
+//!   [`DurableSession`] spends from this same slot rather than needing a slot of its own: a session
+//!   is `Untyped::SPLIT` off it, the same way the shared frame is retyped off it, and the wiring
+//!   below never has to grant a new capability for this piece.
 //! - slot 3: the file-service endpoint (WRITE), the directory capability the share serves.
 //!   Present only when `arg2` says fs-backed, along with [`FS_VA`] mapped to the whole file
 //!   channel shared with the FS server (`fs::TRANSFER_MAX` bytes, not one page).
@@ -65,6 +126,14 @@
 //!
 //! # BUGS
 //!
+//! - **[`DurableSession`] is not reachable from any real session yet, and holds no scheduled job.**
+//!   It is built once at boot (see "The durable session" above) and proves its own lifecycle rule
+//!   against a synthetic child it mints and destroys itself; nothing in this program's SMB2 path
+//!   ever mints a real pending-job child of it, and no client action extends or shortens its life.
+//!   Wiring a real scheduled-job registrar (milestone 129/#387) and reconnect-time reattachment via
+//!   a scoped credentialer lookup (design/roadmap/152-durable-delegation.md's second and third
+//!   pieces) are both unstarted; this entry is that BUGS item, moved here rather than left only in
+//!   the roadmap doc, per the standard that a limitation belongs where a reader meets the feature.
 //! - **A listing still costs a walk.** `QUERY_DIRECTORY` re-walks `READDIR` from cursor 0 for
 //!   each entry and pays an OPEN + FSTAT + CLOSE to learn its size, because `filesystem_proto`'s dirent
 //!   records carry name and kind only. Reads and writes no longer pay it: the write path made
@@ -193,6 +262,20 @@ const SHARE_FS_READ_WRITE: u64 = 2;
 /// The fs-backed share, read-write, **and no guests**: a session must present an NTLMv2 proof that
 /// the credential service accepts. Needs slot [`CRED`] and the page at [`CRED_VA`].
 const SHARE_FS_AUTHENTICATED: u64 = 3;
+
+/// **A [`DurableSession`]'s own budget**, split off [`UNTYPED`] each time one is opened (once for
+/// the self-proof's scratch session, once more for the kept one; see
+/// [`open_durable_session_or_die`]). Small on purpose: this program never retypes an object out of
+/// it, only ever splits a child off it to stand in for derived authority, so its own bookkeeping is
+/// the whole cost, and [`UNTYPED`]'s own budget (`NET_CLIENT_BUDGET_PAGES` in
+/// `kernel/src/user/virtio_service.rs`, 16 pages) has to cover [`attach_frame`]'s frame and page
+/// tables first.
+const SESSION_UT_PAGES: u64 = 4;
+
+/// One synthetic child of a [`DurableSession`], standing in for one scheduled job's own delegated
+/// authority (milestone 152's later, unscoped pieces are what would mint a real one; see the module
+/// header). One page is enough: nothing is ever retyped from it either.
+const PENDING_JOB_PAGES: u64 = 1;
 
 /// See the module header on why these are 2 and 3.
 const LISTEN_SID: u64 = 2;
@@ -850,6 +933,118 @@ fn done(code: u64) -> ! {
     exit();
 }
 
+/// Carve `pages` off `parent`'s unspent budget into a new child untyped (`Untyped::SPLIT`,
+/// DECISIONS §16), returning the child's slot. `Err` carries the kernel's negative error code
+/// (`OutOfMemory` if the parent's budget or this cspace is exhausted, `NotPermitted` without
+/// `WRITE` on `parent`, neither of which this program's own capabilities should ever hit).
+fn untyped_split(parent: u64, pages: u64) -> Result<u64, i64> {
+    // SAFETY: `svc`. `parent` is an untyped capability this process holds with WRITE (every one
+    // granted to it is; see the capability contract above), which is what `SPLIT` requires.
+    let r = unsafe { invoke(parent, ut::SPLIT, pages, 0, 0) };
+    if r < 0 { Err(r) } else { Ok(r as u64) }
+}
+
+/// Reclaim `region` (`Untyped::DESTROY`, DECISIONS §16): tear down every object retyped from it and
+/// return its pages. Refuses (a negative code, `NotPermitted` in practice) while a live thread
+/// occupies it or while it has been [`untyped_split`] into children not yet themselves destroyed;
+/// this is the whole of the rule [`DurableSession`] leans on.
+fn untyped_destroy(region: u64) -> Result<(), i64> {
+    // SAFETY: `svc`.
+    let r = unsafe { invoke(region, ut::DESTROY, 0, 0, 0) };
+    if r < 0 { Err(r) } else { Ok(()) }
+}
+
+/// **The durable per-login object** (milestone 152, "durable delegation"). See the module header,
+/// "The durable session", for the full argument; this is the type itself.
+///
+/// A `DurableSession` is nothing but a reclaimable budget: [`Self::open`] is one `Untyped::SPLIT`
+/// off this process's own [`UNTYPED`], and everything this session's authority would ever be built
+/// from (today: nothing real, only [`Self::mint_pending_job`]'s synthetic stand-in) is split from
+/// `self.ut` in turn, never from `UNTYPED` directly. That is what makes [`Self::try_close`] mean
+/// something: DECISIONS §16 refuses `Untyped::DESTROY` on a region with live children, so a session
+/// holding a live job cannot be closed out from under it, and one holding none can.
+///
+/// Name: provisional, `DurableSession`, minted by this lane 2026-08-24. See the module header's
+/// own naming note for the reasoning and the alternative it was weighed against.
+struct DurableSession {
+    /// This session's own budget. `Untyped::SPLIT`s off it are this session's own children, and
+    /// `Untyped::DESTROY` on it is refused for exactly as long as one of them is still alive.
+    ut: u64,
+}
+
+impl DurableSession {
+    /// Open a durable session by splitting `pages` off this process's own [`UNTYPED`]. Mirrors
+    /// `login.rs`'s `mint()`, which splits a caretaker's construction region off `CONSTRUCTION_UT`
+    /// the same way; a `DurableSession` plays the role `CONSTRUCTION_UT` plays there, one level up
+    /// (a session's own budget rather than a whole service's), with neither reattachment nor a real
+    /// registrar wired yet (this program's own BUGS names both as separate, unscoped work).
+    fn open(pages: u64) -> Result<Self, i64> {
+        Ok(Self {
+            ut: untyped_split(UNTYPED, pages)?,
+        })
+    }
+
+    /// Mint a synthetic child standing in for one scheduled job's derived authority. A real
+    /// registrar (milestone 129/#387) is out of scope for this lane; this is what proves the shape
+    /// it will need without building it, per the roadmap's own BUGS entry.
+    fn mint_pending_job(&self, pages: u64) -> Result<u64, i64> {
+        untyped_split(self.ut, pages)
+    }
+
+    /// Try to reclaim the whole session. Refuses while a pending job's region still lives
+    /// (DECISIONS §16); succeeds once every child minted from it has itself been destroyed.
+    fn try_close(&self) -> Result<(), i64> {
+        untyped_destroy(self.ut)
+    }
+}
+
+/// **Prove the property [`DurableSession`] exists to have, then build the one this boot keeps.**
+///
+/// Run once, in [`_start`], only for [`SHARE_FS_AUTHENTICATED`]: open a scratch session, mint a
+/// synthetic pending-job child of it, confirm [`DurableSession::try_close`] refuses while that
+/// child lives (DECISIONS §16's whole point), destroy the child, confirm `try_close` now succeeds,
+/// and only then open the real session `serve` is handed. A failure at any step calls [`done`] with
+/// a distinct stage code rather than continuing to serve on a property that did not hold: this
+/// program has nothing useful left to say to a client if the rule its own design depends on turned
+/// out not to be true.
+///
+/// This is the proof the module header promises and milestone 152's own BUGS section asks for: "a
+/// durable per-login object that outlives" the transient connections `serve_connection` rebuilds.
+/// Reading `serve`'s callers shows the scratch session here is opened and fully torn down **before**
+/// any connection is ever accepted, and the kept session it returns is built the same way and then
+/// held across every connection `serve`'s bounded loop accepts and closes afterward: the object
+/// this function hands back is never rebuilt by a connection and never torn down by one, which is
+/// the structural half of the claim, and the scratch run above is the behavioural half.
+fn open_durable_session_or_die() -> DurableSession {
+    let Ok(scratch) = DurableSession::open(SESSION_UT_PAGES) else {
+        done(0xE140)
+    };
+    let Ok(job) = scratch.mint_pending_job(PENDING_JOB_PAGES) else {
+        done(0xE141)
+    };
+    // The core property: a parent with a live child refuses DESTROY. If this succeeded, the rule
+    // this whole design leans on does not hold, and continuing to serve would be asserting a
+    // property that just failed its own check.
+    if scratch.try_close().is_ok() {
+        done(0xE142);
+    }
+    if untyped_destroy(job).is_err() {
+        done(0xE143);
+    }
+    // And the other half: once the child is gone, the session is destroyable again.
+    if scratch.try_close().is_err() {
+        done(0xE144);
+    }
+    // A distinct code from the scratch session's own open failure above (0xE140): this is the
+    // *kept* session, after the scratch one has already been proven and fully torn down, so a
+    // failure here says the budget ran out between the two opens rather than that the lifecycle
+    // rule itself is broken.
+    match DurableSession::open(SESSION_UT_PAGES) {
+        Ok(s) => s,
+        Err(_) => done(0xE146),
+    }
+}
+
 /// Mint a frame from our untyped, map it writable, and delegate it to socket `sid`.
 fn attach_frame(sid: u64) {
     // SAFETY: `svc`. RETYPE returns the new frame capability's slot, or a negative error.
@@ -998,23 +1193,42 @@ pub extern "C" fn _start(rounds: u64, port: u64, fs_backed: u64) -> ! {
     // Dispatched once, here, so the serve loops stay monomorphic over the trait and no protocol
     // code asks again.
     match fs_backed {
-        SHARE_FIXTURE => serve(rounds, &FIXTURE, &NoIdentity),
-        SHARE_FS_READ_ONLY => serve(rounds, &FsShare { writable: false }, &NoIdentity),
-        SHARE_FS_READ_WRITE => serve(rounds, &FsShare { writable: true }, &NoIdentity),
+        SHARE_FIXTURE => serve(rounds, &FIXTURE, &NoIdentity, None),
+        SHARE_FS_READ_ONLY => serve(rounds, &FsShare { writable: false }, &NoIdentity, None),
+        SHARE_FS_READ_WRITE => serve(rounds, &FsShare { writable: true }, &NoIdentity, None),
         // The only mode that admits nobody by default. It is a separate arm rather than a flag on
         // the one above so that a boot has to *say* it wants identity, and so that a reader of a
         // `Spawn` literal can see which it got.
-        SHARE_FS_AUTHENTICATED => serve(
-            rounds,
-            &FsShare { writable: true },
-            &CredentialAuthenticator,
-        ),
+        //
+        // **The only mode with a durable session, too, and for the same reason as the guest
+        // wirings' `None`**: `DurableSession` stands in for a *login's* authority (milestone 152),
+        // and the other three arms authenticate nobody. `open_durable_session_or_die` runs its
+        // whole self-proof before this program ever accepts a connection; see that function's doc.
+        SHARE_FS_AUTHENTICATED => {
+            let session = open_durable_session_or_die();
+            serve(
+                rounds,
+                &FsShare { writable: true },
+                &CredentialAuthenticator,
+                Some(&session),
+            )
+        }
         _ => done(0xE130), // an arg2 nobody defined: a wiring bug, named rather than guessed
     }
 }
 
-/// The accept loops, over whichever share and authenticator the boot wired.
-fn serve(rounds: u64, share: &impl Share, auth: &impl Authenticator) -> ! {
+/// The accept loops, over whichever share and authenticator the boot wired. `session` is
+/// [`SHARE_FS_AUTHENTICATED`]'s durable per-login object, built once by
+/// [`open_durable_session_or_die`] before this function's caller ever dispatched here; `None` for
+/// every other wiring, which authenticates nobody and so has no login to be durable about. This
+/// function never builds one and never tears one down: it is handed in already alive and stays that
+/// way for the whole of this call, which is the structural half of [`DurableSession`]'s own claim.
+fn serve(
+    rounds: u64,
+    share: &impl Share,
+    auth: &impl Authenticator,
+    session: Option<&DurableSession>,
+) -> ! {
     if rounds == 0 {
         // The serve-forever boot: say we are listening, then serve until the machine stops.
         send(REPORT, OK, 0, 0);
@@ -1046,6 +1260,20 @@ fn serve(rounds: u64, share: &impl Share, auth: &impl Authenticator) -> ! {
         left -= 1;
     }
     let _ = call(STACK, req(OP_CLOSE, LISTEN_SID), 0);
+
+    // **The post-condition, over real wire activity rather than the synthetic proof above.** Every
+    // connection this loop served is gone: each one's `Connection` was rebuilt and dropped inside
+    // `serve_connection`, once per round, and this function held no second one. `session`, if this
+    // is the authenticated wiring, was built by `open_durable_session_or_die` before the loop above
+    // ever ran and was never touched by it. If it is still a session in good standing, closing it
+    // (with no pending job minted against it since the self-proof) must succeed; if it does not,
+    // something during real SMB traffic left it in a state its own lifecycle rule cannot explain,
+    // which is worth stopping on rather than reporting a plain OK for.
+    if let Some(session) = session
+        && session.try_close().is_err()
+    {
+        done(0xE145);
+    }
     done(OK);
 }
 
