@@ -86,6 +86,7 @@ use filesystem_proto::{blk, req};
 use gpt::Gpt;
 use gpt::guid::types;
 use gpt::span::Span;
+use user_rt::mapped_window::MappedWindow;
 use user_rt::{call, send};
 
 /// Slot 0: where the verdict goes. An endpoint with `WRITE`.
@@ -189,15 +190,23 @@ fn holder() -> ! {
     if !user_rt::map_frame(ROSTER_FRAME, ROSTER_VA, false, BUDGET) {
         user_rt::exit()
     }
-    // SAFETY: ROSTER_VA is mapped read-only from the frame in slot 4, on the line above.
-    let word = unsafe { core::ptr::read_volatile(ROSTER_VA as *const u64) };
+    // SAFETY: ROSTER_VA is mapped read-only from the frame in slot 4, on the line above: the
+    // program's own `Frame::MAP` succeeded first, which is exactly the case
+    // `user_rt::mapped_window::MappedWindow::new`'s own doc names (milestone 139 round 3).
+    let roster = unsafe { MappedWindow::new(ROSTER_VA, filesystem_proto::PAGE as u64) };
+    let word = roster.read::<u64>(0);
     send(REPORT, R_HOLDING, word, 0);
 
     // The kernel revokes the frame while we are parked here.
     user_rt::recv(RESUME);
 
-    // SAFETY: not safe any more, and that is the test. The page is gone.
-    let after = unsafe { core::ptr::read_volatile(ROSTER_VA as *const u64) };
+    // Not safe any more, and that is the test: the page is gone. This is the one deliberate
+    // exception to `new`'s "stays mapped for as long as `self` is used" contract, and it is the
+    // whole point of this role (see the module doc above). `MappedWindow`'s own bounds check does
+    // not (and cannot) catch it: offset 0 is inside the 4 KiB window `roster` was told about, so
+    // the check passes and the real hardware fault happens inside `read`, at the exact volatile
+    // access the hand-written version used to make. Nothing about the fault mechanism changed.
+    let after = roster.read::<u64>(0);
     // Unreachable in a working kernel. If the read did land, say so, so a silent pass is
     // impossible: the test asserts on the fault, and this message is what it sees instead.
     send(REPORT, R_HOLDING, after, 1);
@@ -369,8 +378,12 @@ fn probe() -> ! {
         ROSTER_VA,
         if rw_refused { P_RW_REFUSED } else { 0 },
     );
-    // SAFETY: not safe, and that is the test. The kernel refuses it.
-    unsafe { core::ptr::write_volatile(ROSTER_VA as *mut u64, 0) };
+    // SAFETY: ROSTER_VA is mapped read-only from the frame in slot 4, above (the program's own
+    // `Frame::MAP` succeeded). Not safe to write through, and that is the test: as in `holder`'s
+    // second read, `MappedWindow`'s bounds check passes (offset 0 is inside the window) and the
+    // kernel refuses the write itself, at the same volatile access the hand-written version made.
+    let roster = unsafe { MappedWindow::new(ROSTER_VA, filesystem_proto::PAGE as u64) };
+    roster.write(0u64, 0u64);
     // Unreachable in a working kernel; if we get here the write was allowed and the test's
     // fault-count assertion is what says so.
     user_rt::exit()
