@@ -1,12 +1,72 @@
 # 139. Drive the unsafe count down, and cinch the ratchet behind it
 
-**Status: NOT-STARTED.** Minted 2026-08-18 by calef, immediately after folding the unsafe census into
+**Status: PARTIAL.** Minted 2026-08-18 by calef, immediately after folding the unsafe census into
 milestone 134: *"Can we also create a milestone to drive down the unsafe metrics and cinch up the
 ratchet?"*
 
-**Gate: MILESTONE 134.** 134 builds the instrument, which is the census and the ceiling relation in
-`script/lint`. This milestone spends it. Starting before the ceiling exists means driving a number
-nobody is holding, which is the state this project has been in since the first `unsafe` block.
+**Gate: NONE.** Milestone 134's instrument (the census and the ceiling relation in `script/lint`)
+has existed and been live all along; this milestone spent it for its first real reduction below.
+
+## What was built
+
+**The `MappedWindow` cluster, the milestone's first real reduction.** Seven userspace programs
+(`entropy`, `kbd`, `net_transport`, `mdns_responder`, `socket_test_client`, `smb_server`, `ntp`)
+each hand-rolled the same `r8`/`w8`/`r16`/`w16`/`r32` volatile-access functions over a DMA page or
+a shared IPC frame, one hand-written `// SAFETY:` comment per function asserting the same
+invariant ("this offset is inside the page the kernel mapped here") by hand at every call site --
+the exact §94 shape this milestone's own text names as the best available reduction.
+`user_rt::mapped_window::MappedWindow` (new) holds that invariant once, at construction, and turns
+every access into a bounds-checked call: a wrong offset used to be a silent out-of-bounds volatile
+access and is now a panic naming the access, which is a real soundness improvement the hand-written
+copies never had, not just a relocation.
+
+**Measured precisely from the diff** (a before/after tree census is contaminated by unrelated
+concurrent growth -- five days between this milestone's baseline and this reduction added 30
+unrelated `unsafe` blocks elsewhere in the tree at roughly the tree's own rate): **32 `unsafe {`
+blocks removed across the seven programs, 11 added** (9 window constructions -- one per program
+except `smb_server`, which needs two: one for its boot-wired FS channel sized to
+`fs::TRANSFER_MAX`, one for its runtime-mapped socket frame -- plus the 2 generic `read`/`write`
+methods inside `MappedWindow` itself). **Net -21.** `smb_server.rs` alone is flat (11 blocks before
+and after), still a real reduction by this milestone's own criterion 2 (raw pointer arithmetic
+replaced by a typed, bounds-checked abstraction) even though it does not move that file's own
+count.
+
+**Density**: 93.4 (799 blocks over 85,476 lines) immediately before this reduction, 90.8 (778 over
+85,526) after -- essentially the density the milestone's own baseline recorded on 2026-08-18 (93.0),
+despite five days of unrelated tree growth in between, which is what makes density rather than raw
+count the number worth trusting. Full measurement history in `notes/unsafe-obligations.md`'s table.
+
+**The ratchet, cinched**: `<!--count-at-most:unsafe-density-outside-arch-->` lowered from 100 to 97
+in the same commit (`notes/unsafe-obligations.md`, `notes/counted-claims.md`,
+`notes/register-of-measures.md`), 7 points of headroom above the 90.8 this reduction reached -- the
+same absolute headroom the original 100-vs-93 ceiling carried, not a zero-headroom ceiling that
+would fail the next legitimate unsafe block anywhere outside `arch/`. The reasoning for why this
+measurement gets headroom (unlike `unsafe-thread-safety-claims`' zero-headroom ceiling) is recorded
+in `notes/unsafe-obligations.md` beside the marker.
+
+## What is still open
+
+**`user/`'s remaining unsafe is still largely unread.** This lane read and fixed one real cluster
+(the shared-page volatile-access pattern); it did not do the broader survey this milestone's own
+BUGS section calls for ("nobody has read enough of it to say whether that number is raw shared-page
+handling, a missing safe wrapper, or something else"). That survey is still the next lane's cheapest
+useful output.
+
+**Other candidate clusters, named for a follow-on lane rather than re-derived from scratch:**
+
+- **`crates/user_rt` itself** (31 unsafe blocks per the 2026-08-18 baseline, not re-measured here):
+  the runtime crate every program links against is exactly where a shared, checked abstraction pays
+  for itself most, and `MappedWindow` is now a precedent living there for whatever's found.
+- **`ipc`** (44 blocks at the same baseline): the rendezvous state machine crate; unread by this
+  lane, worth checking whether its unsafe is genuinely per-call-site distinct or another §94 shape.
+- **Any other DMA-page or shared-frame driver this lane did not touch.** The seven programs migrated
+  were found by searching for the exact `r8`/`w8`/`r16`/`w16`/`r32` naming convention; a driver using
+  different accessor names but the same underlying pattern (raw offset into a fixed-VA page, no
+  bounds check) would not have been caught by that search and is worth a second pass with a broader
+  net (e.g. grep for `read_volatile`/`write_volatile` directly rather than by function name).
+
+**This block still sets no target number**, per its own original text -- the ratchet moves by
+measured reduction, not by picking a floor in advance.
 
 **In brief.** Reduce the hand-written `unsafe` this tree carries outside `kernel/src/arch/`, and lower
 the ceiling after each reduction so the ground gained cannot be given back quietly.

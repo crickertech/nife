@@ -91,6 +91,7 @@ use socket_proto::{
     DATA_MAX, LISTEN_DENIED, LISTEN_GRANTED, LISTEN_IN_USE, OFF_DST_IP, OFF_DST_PORT, OFF_PAYLOAD,
     OP_ATTACH_FRAME, OP_BIND_UDP, OP_RECV, OP_SENDTO, REP_ERR, req,
 };
+use user_rt::mapped_window::{MappedWindow, PAGE};
 use user_rt::{call, exit, invoke, send};
 
 const REPORT: u64 = 0;
@@ -103,6 +104,10 @@ const SID: u64 = 4;
 /// Where the shared frame is mapped. Every program in this tree picks its own VA and the kernel's
 /// spawn service must agree; this one matches nothing else because nothing else maps it.
 const FRAME_VA: u64 = 0x0000_0000_00A0_0000;
+
+// SAFETY: this program's own `Frame::MAP` (below) mapped one page read/write at FRAME_VA before
+// any of `WINDOW`'s accessors are called (milestone 139).
+const WINDOW: MappedWindow = unsafe { MappedWindow::new(FRAME_VA, PAGE) };
 
 /// **The advertisement, as a document rather than as constants.** See `mdns_config`: the values are
 /// measured off a working Time Machine server, and they are data every step of the way from that
@@ -141,21 +146,20 @@ const E_ANNOUNCE_SEND: u64 = 0xE231;
 const E_NO_QUERY: u64 = 0xE240; // nothing ever asked: the group join, or the host side
 const E_ANSWER_SEND: u64 = 0xE241;
 
+// `va` is always `FRAME_VA + <an offset constant>` at every call site, so subtracting FRAME_VA
+// recovers the offset `WINDOW` bounds-checks against (milestone 139; see `user_rt::mapped_window`,
+// the same abstraction socket_test_client, smb_server, ntp, kbd, entropy and net_transport share).
 fn w8(va: u64, v: u8) {
-    // SAFETY: `va` addresses a field inside a shared frame this process has mapped. Volatile because the peer writes the same frame, so a cached read would be a stale one.
-    unsafe { core::ptr::write_volatile(va as *mut u8, v) }
+    WINDOW.w8(va - FRAME_VA, v);
 }
 fn r8(va: u64) -> u8 {
-    // SAFETY: `va` addresses a field inside a shared frame this process has mapped. Volatile because the peer writes the same frame, so a cached read would be a stale one.
-    unsafe { core::ptr::read_volatile(va as *const u8) }
+    WINDOW.r8(va - FRAME_VA)
 }
 fn w16le(va: u64, v: u16) {
-    // SAFETY: `va` addresses a field inside a shared frame this process has mapped. Volatile because the peer writes the same frame, so a cached read would be a stale one.
-    unsafe { core::ptr::write_volatile(va as *mut u16, v) }
+    WINDOW.w16(va - FRAME_VA, v);
 }
 fn r16le(va: u64) -> u16 {
-    // SAFETY: `va` addresses a field inside a shared frame this process has mapped. Volatile because the peer writes the same frame, so a cached read would be a stale one.
-    unsafe { core::ptr::read_volatile(va as *const u16) }
+    WINDOW.r16(va - FRAME_VA)
 }
 
 /// Report `code` and stop. A one-shot role must exit rather than spin: a leaked spinner starves

@@ -11,6 +11,12 @@
 //! `GlobalAlloc` that turns the budget a program was granted into `Vec` and `String`. It is a
 //! module, not a default: a program that never allocates links no allocator.
 //!
+//! Milestone 139 added a third: [`mapped_window`], the raw volatile-access-into-a-mapped-page
+//! seven drivers had each hand-rolled (a DMA page or a shared IPC frame, read and written by
+//! `unsafe { core::ptr::read_volatile/write_volatile }` at every call site). Same shape as the
+//! panic handler above: the invariant was one thing asserted N times by hand, and only the
+//! declaration needed to be per-caller.
+//!
 //! The `#[panic_handler]` is **still not an item here, and now the trap underneath it is**
 //! (milestone 130). A panic handler is per-final-binary: exactly one may exist in a linked program,
 //! so an item in this library would force it on every program that links the crate and collide with
@@ -100,6 +106,7 @@
 #![no_std]
 
 pub mod heap;
+pub mod mapped_window;
 
 /// Invoke a capability: the one syscall a userspace program makes. `cap` names a capability in the
 /// process's cspace, `method` selects the operation, and `a0..a2` are its arguments; the return is

@@ -107,6 +107,7 @@ use ntp_proto::{Packet, Query, Reject, Short, Timestamp, leap, mode};
 // does is that the two cannot drift, and a per-consumer subset would throw that away.
 #[allow(dead_code)]
 use socket_proto::*;
+use user_rt::mapped_window::{MappedWindow, PAGE};
 use user_rt::{call, cap_delete, cntfrq, exit, invoke, now, recv_cap, reply, send, yield_now};
 
 // =================================================================================================
@@ -187,6 +188,10 @@ const SERVER_TURNAROUND_NANOS: u64 = 1_000;
 /// Where both roles map the shared socket frame in their own address spaces. Above the program's
 /// segments; the same address `socket_test_client` uses, and each address space is its own.
 const FRAME_VA: u64 = 0x0000_0000_00A0_0000;
+
+// SAFETY: this program's own `Frame::MAP` (both roles do it before touching the frame) mapped one
+// page read/write at FRAME_VA before any of `WINDOW`'s accessors are called (milestone 139).
+const WINDOW: MappedWindow = unsafe { MappedWindow::new(FRAME_VA, PAGE) };
 
 /// The one socket id this client uses.
 const SID: u64 = 0;
@@ -425,24 +430,23 @@ fn attach_frame() {
 }
 
 // =================================================================================================
-// The shared frame. Absolute-VA volatile access, the same shape net_stack and socket_test_client use.
+// The shared frame. Absolute-VA volatile access through `WINDOW` (milestone 139), the same
+// abstraction mdns_responder, socket_test_client, smb_server, kbd, entropy and net_transport share.
+// `va` is always `FRAME_VA + <an offset constant>`, so subtracting FRAME_VA recovers the offset
+// `WINDOW` bounds-checks against.
 // =================================================================================================
 
 fn r8(va: u64) -> u8 {
-    // SAFETY: inside the one frame this process mapped at FRAME_VA.
-    unsafe { core::ptr::read_volatile(va as *const u8) }
+    WINDOW.r8(va - FRAME_VA)
 }
 fn w8(va: u64, v: u8) {
-    // SAFETY: as above.
-    unsafe { core::ptr::write_volatile(va as *mut u8, v) }
+    WINDOW.w8(va - FRAME_VA, v);
 }
 fn r16le(va: u64) -> u16 {
-    // SAFETY: as above.
-    unsafe { core::ptr::read_volatile(va as *const u16) }
+    WINDOW.r16(va - FRAME_VA)
 }
 fn w16le(va: u64, v: u16) {
-    // SAFETY: as above.
-    unsafe { core::ptr::write_volatile(va as *mut u16, v) }
+    WINDOW.w16(va - FRAME_VA, v);
 }
 
 /// Write the destination header: the address and port the *wiring* named, not one this program
