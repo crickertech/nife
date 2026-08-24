@@ -98,6 +98,16 @@ Ordered as it was built, because each step is what made the next one debuggable.
    the root pointer has to be found by scanning the BIOS area, which is a prerequisite for the APIC
    step rather than a detail.
 
+6. **ACPI**, which is what x86 has instead of a device tree.
+   `crates/machine_discovery/src/acpi.rs` decodes the RSDP, the root-table walk, the SDT header, the
+   MADT and the MCFG, host-tested (thirteen tests), beside the arch records rather than inside the
+   x86_64 one because ACPI is not an x86 standard. The kernel side scans for the RSDP, since QEMU's
+   PVH loader leaves the field zero, and every table's checksum is verified before it is believed.
+   **Verified against real firmware**: five tables found on q35, the local APIC at `0xfee00000`, one
+   enabled CPU, the 8259s reported present, the IO APIC at `0xfec00000`, and the ECAM window at
+   `0xb0000000`, which is exactly what `arch::mmu::PCI_ECAM_PHYS` hardcodes and what the PVH memory
+   map independently reports as reserved.
+
 Plus the build wiring it all needs: `kernel/build.rs`, `.cargo/config.toml` (including the static
 relocation model, which this target does not default to), `rust-toolchain.toml`,
 `scripts/qemu-runner-x86_64.sh`, and an x86_64 pass in `script/lint`.
@@ -121,9 +131,12 @@ In the order it should be done, because each is a prerequisite for the next.
    everything present, writable and executable, both halves. `mmu::init` and everything downstream of
    it (`map_page`, `flush_tlb`, `translate`) are `unimplemented!()`. This also lifts the recorded
    limitation that the direct map only covers the low 1 GiB.
-2. **The APIC**, which needs **ACPI table parsing** first (MADT), and that is the largest
-   single piece of work left: it is what x86 has instead of a device tree, and `iommu.rs`, `irq.rs`
-   and PCI interrupt routing are all blocked on it.
+2. **The APIC.** Its discovery is **done** (the MADT gives the local APIC address, the IO APIC
+   address and base, and the interrupt source overrides); what remains is driving them. Two
+   obligations the tables already state: the 8259 PICs are present and must be masked first, and a
+   legacy IRQ number is not an IO APIC input, because the source overrides rewire them. PCI
+   *interrupt* routing is the piece still blocked, on AML rather than on tables, which is why MSI
+   (which bypasses the routing entirely) is the path worth building.
 3. **A clock.** `timer.rs` is entirely unimplemented on purpose and its header argues the case: x86
    has at least four clocks, none self-describing the way `CNTFRQ_EL0` and the RISC-V `timebase`
    node are, and the one everything uses (the TSC) must be calibrated against another. Every
@@ -137,7 +150,8 @@ In the order it should be done, because each is a prerequisite for the next.
    userspace-exec tests hand-assemble machine code and its supervision fixtures are per-ISA stubs.
 6. **SMP**, via INIT-SIPI-SIPI, which needs the APIC (2) and a real-mode trampoline copied below
    1 MiB.
-7. **VT-d**, blocked on ACPI DMAR (2).
+7. **VT-d.** No longer blocked on table parsing: `machine_discovery::acpi` walks the root table
+   generically, so finding the DMAR is adding a signature arm. What remains is the device itself.
 
 Two things that are not steps but are owed:
 

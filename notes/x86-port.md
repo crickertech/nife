@@ -12,9 +12,9 @@ genuinely do not fit the existing seam, and an honest account of what is built.
 ## Status, and it is a partial port
 
 **Built, running, and gated:** the boot path, the console, the GDT/TSS, the IDT and trap frame, the
-page-table format, the boot-handoff parser (the memory map and the ACPI root pointer), the address
-arithmetic, interrupt masking, the context switch, and the test exit. A boot under QEMU's `q35`
-prints a tour and halts.
+page-table format, the boot-handoff parser, **the ACPI tables** (the RSDP scan, the root-table walk
+with checksums, the MADT and the MCFG), the address arithmetic, interrupt masking, the context
+switch, and the test exit. A boot under QEMU's `q35` prints a tour and halts.
 
 **Not built:** the fine-grained page tables, the APIC, any clock, VT-d, SMP bring-up, ring 3, and the
 kernel's own test suite. Every one of those is a loud `unimplemented!()` in `arch/x86_64/` that names
@@ -140,11 +140,56 @@ eventually come from ACPI's MCFG table; until then the memory map is a second wi
 is better than the constant standing alone.
 
 **`rsdp 0x0`: QEMU's PVH loader does not fill the ACPI root pointer in.** The field exists and is
-zero, which means the RSDP has to be found the older way, by scanning `0xe0000..0x100000` for the
-`"RSD PTR "` signature. That range is exactly the third reserved region above. This matters because
-everything x86 needs a device tree for (the APIC in the MADT, the ECAM window in the MCFG, the IOMMU
-in the DMAR) hangs off the RSDP, so the scan is a prerequisite for the whole next step and cannot be
-skipped by trusting the handoff.
+zero, which means the RSDP has to be found the older way, by scanning for the `"RSD PTR "`
+signature. That is what `arch::x86_64::machine::find_rsdp` does, and it finds one at `0xf52e0`, in
+the third reserved region above.
+
+## ACPI, which is where the rest of the machine is described
+
+`machine_discovery::acpi` decodes the RSDP, the root table, the SDT header, the MADT and the MCFG,
+host-tested with thirteen tests. It sits beside the arch records rather than inside the `x86_64`
+module for the reason `cpu_list` does: **ACPI is not an x86 standard**, and milestone 20's own text
+expects the machine after the VisionFive 2 to be a UEFI/ACPI one.
+
+**The checksum is the whole defence and it is worth being explicit about why.** The RSDP is found by
+scanning memory for an eight-byte string, so without the checksum any sixteen bytes that happen to
+spell `RSD PTR ` would be believed and the kernel would follow a pointer into somebody's data. Every
+table is checksummed on the way in, and one that fails is reported as absent rather than used: a
+corrupt MADT would hand out an APIC address and there is nothing downstream that could notice it was
+wrong.
+
+What q35 actually has, read on 2026-08-23:
+
+```
+  acpi        : rsdp at 0xf52e0 (revision 0), root table 0xffe2344 (rsdt)
+                0x000ffe213c  FACP (244 bytes)
+                0x000ffe2230  APIC (120 bytes)
+                0x000ffe22a8  HPET (56 bytes)
+                0x000ffe22e0  MCFG (60 bytes)
+                0x000ffe231c  WAET (40 bytes)
+                local apic 0xfee00000, 1 cpu(s) enabled, 0 disabled, 8259s present (must be masked)
+                io apic 0 at 0xfec00000, gsi base 0
+                pcie ecam 0xb0000000, buses 0..=255 (mmu::PCI_ECAM_PHYS says 0xb0000000)
+```
+
+Three things to take from that.
+
+**The ECAM window the MCFG describes is exactly the constant `arch::mmu::PCI_ECAM_PHYS` hardcodes**,
+which is now confirmed twice over (the PVH memory map reports the same range as reserved). The
+constant should come from here rather than being checked against here, and doing that is a line of
+code once something consumes it.
+
+**`8259s present (must be masked)`** is the MADT's `PCAT_COMPAT` flag, and it is a real obligation
+rather than trivia: the legacy PICs are still wired and still raise interrupts, so whoever brings the
+APIC up has to mask both of them first or a spurious interrupt arrives through a controller nothing
+is driving.
+
+**What is deliberately not decoded is AML**, the bytecode in the DSDT that describes everything with
+no fixed table, including PCI interrupt routing (`_PRT`). AML needs an interpreter, which is a
+project rather than a parser. That is the reason `arch::mmu::PCI_IRQ_BASE` is zero and honest about
+it: a PCI function's legacy interrupt goes through a router the `_PRT` describes, and MSI bypasses
+the routing entirely by writing a vector straight to the local APIC. The MSI path is the one worth
+building here, precisely because it needs no AML.
 
 ## The discovery seam milestone 20 promised and did not build
 

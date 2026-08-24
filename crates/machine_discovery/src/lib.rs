@@ -70,7 +70,12 @@
 // worklist (notes/doc-coverage.md) is burned down.
 #![allow(missing_docs)]
 
+// ACPI (milestone 161), and it sits here rather than in the x86_64 module for the reason
+// `cpu_list` does: ACPI is not an x86 standard. Every aarch64 server that is not a device-tree
+// board describes itself with the same tables, and milestone 20's own text expects the machine
+// after the VisionFive 2 to be a UEFI/ACPI one. x86 is its first consumer, not its owner.
 pub mod aarch64;
+pub mod acpi;
 pub mod cpu_list;
 pub mod interrupt_id;
 pub mod plic;

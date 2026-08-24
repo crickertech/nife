@@ -170,6 +170,12 @@ pub extern "C" fn kernel_main(dtb: usize) -> ! {
             }
         }
 
+        // ACPI: what x86 has instead of a device tree. The RSDP is scanned for rather than taken
+        // from the handoff, because QEMU's PVH loader leaves that field zero (measured); the
+        // checksum inside the parser is what separates a real hit from a coincidence.
+        let acpi = arch::machine::read_acpi(arch::machine::boot_info(dtb).map_or(0, |i| i.rsdp));
+        arch::machine::print_acpi_summary(&acpi);
+
         arch::mmu::print_summary();
         println!(
             "  image       : text {:#x}..{:#x}, stack {:#x}..{:#x}",
@@ -185,7 +191,9 @@ pub extern "C" fn kernel_main(dtb: usize) -> ! {
         // plausible number. Halting here is the honest stop; see the roadmap for the order the rest
         // comes in.
         println!();
-        println!("  next        : fine-grained page tables, the APIC, a clock, then ring 3.");
+        println!(
+            "  next        : a discovery seam, fine-grained page tables, the APIC, a clock, ring 3."
+        );
         println!("nife x86_64: early boot complete, halting.");
         arch::halt();
     }
