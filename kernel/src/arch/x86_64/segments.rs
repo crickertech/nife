@@ -205,13 +205,19 @@ pub unsafe fn init() {
 /// Point this CPU's ring-0 trap stack at `top`. Called whenever the thread that would take a trap
 /// from user mode changes, which on the other two architectures is `sscratch.kernel_sp` (RISC-V) or
 /// nothing at all (aarch64 banks `SP_EL1`).
-#[allow(dead_code)] // Its caller is the user-mode entry path, which milestone 161 has not reached.
+///
+/// **It sets two things, and that is the point.** x86 has two doors into the kernel from ring 3 and
+/// they find their stack differently: a trap reads `TSS.RSP0`, and `syscall` reads nothing at all,
+/// so the syscall entry path has to be told separately (`exceptions::set_syscall_kernel_stack`).
+/// Two writes behind one function is what stops the two ever naming different stacks; the wrong
+/// state is not representable rather than merely documented.
 pub fn set_kernel_stack(top: u64) {
     // SAFETY: writes this CPU's own TSS field. The CPU reads it only on a privilege transition,
     // which cannot happen while this runs with interrupts masked by the caller. `write_unaligned`
     // because the TSS is `packed`: rsp0 sits at byte 4 and a plain store would assume alignment the
     // layout does not promise.
     unsafe { (&raw mut TSS.rsp0).write_unaligned(top) };
+    super::exceptions::set_syscall_kernel_stack(top);
 }
 
 /// Point an IST slot (1-based, as the IDT encodes it) at `top`.

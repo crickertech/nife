@@ -319,12 +319,50 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             None => println!("  entropy     : rdseed not supported (cpuid leaf 7 ebx.18 clear)"),
         }
 
+        // Ring 3, which is the step this whole tour has been building toward: every line above it
+        // is about the kernel talking to the machine, and this one is about the kernel refusing a
+        // program. A hand-assembled probe is entered at CPL 3 through `iretq`, makes syscalls that
+        // reach the *portable* dispatcher, is put back, and then tries to read the kernel's own
+        // `.text` and is refused by the page tables.
+        //
+        // What it does NOT prove is a real process: no ELF is loaded, no capability is granted, and
+        // there is no scheduler behind it (milestone 161, roadmap item 4). The line says what it
+        // measured and nothing more.
+        //
+        // SAFETY: the MMU, the GDT, the IDT and the syscall MSRs are all up by this line, this is
+        // the boot thread, and no other thread exists on this architecture.
+        match unsafe { arch::exceptions::ring3_self_test() } {
+            Ok(report) => {
+                println!(
+                    "  ring 3      : a program ran at cpl {} (cs {:#06x}, ss {:#06x}) and made {} syscalls",
+                    report.cs & 3,
+                    report.cs,
+                    report.ss,
+                    report.syscalls,
+                );
+                println!(
+                    "                the portable dispatcher answered BadSyscall ({}) to an unknown number",
+                    report.dispatcher_answer,
+                );
+                match report.fault {
+                    Some((fault, at)) => println!(
+                        "                reading the kernel's .text at {at:#x} from ring 3: {fault:?}",
+                    ),
+                    None => println!(
+                        "                FAILED: reading the kernel's .text at {:#x} did not fault",
+                        report.forbidden_address,
+                    ),
+                }
+            }
+            Err(why) => println!("  ring 3      : FAILED: {why}"),
+        }
+
         // And that is the end of what is built. Everything the RISC-V tour does past this point
         // (the scheduler, userspace, the device drivers) needs an arch layer this port has not
         // written, and each of those is a loud `unimplemented!()` rather than a plausible number.
         // Halting here is the honest stop; see the roadmap for the order the rest comes in.
         println!();
-        println!("  next        : ring 3.");
+        println!("  next        : the kernel's own test suite, and therefore a script/test leg.");
         println!("nife x86_64: early boot complete, halting.");
         arch::halt();
     }

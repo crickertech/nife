@@ -60,13 +60,18 @@
 //!   leaves (one PDPT covers 512 GiB) is the fix, and it needs a `CPUID` check for `PDPE1GB`.
 //!
 //! - **`CR4.PGE` is off, so the `G` bit the kernel's `Flags` set is ignored.** Every `mov cr3`
-//!   therefore flushes the whole TLB, which is correct and slow. Turning PGE on is worth doing with
-//!   ring 3 (roadmap item 3), where a context switch starts happening often enough to measure, and
-//!   it has to be turned on *after* the fine map is installed or the boot map's non-global entries
-//!   are the ones that get pinned.
+//!   therefore flushes the whole TLB, which is correct and slow. It stays off through roadmap item
+//!   3 on purpose: nothing here switches address spaces often enough to measure yet, so turning it
+//!   on would be a change whose benefit could only be asserted. When it is turned on it has to be
+//!   *after* the fine map is installed, or the boot map's non-global entries are the ones that get
+//!   pinned.
 //!
-//! - **User address spaces are still `unimplemented!()`.** Nothing runs in ring 3 yet (roadmap item
-//!   3), so `CR3` never names anything but the kernel root; those functions stay loud stubs.
+//! - **`CR4.PCIDE` is off, so an address space has no hardware tag.** `crates/asid` hands every
+//!   space a number and this architecture has nowhere to put it: PCID is `CR3[11:0]`, and with
+//!   PCIDE clear those bits are reserved-zero rather than a tag. [`ttbr0_value`] therefore drops the
+//!   number and [`flush_asid`] flushes the whole TLB rather than one space's entries. Both say so in
+//!   their own words; neither pretends to a selectivity the hardware does not have. Same reason as
+//!   PGE above: there is nothing to measure it against yet.
 
 use core::sync::atomic::{AtomicU64, Ordering};
 
@@ -740,91 +745,181 @@ pub(crate) fn phys_to_ptr(pa: u64) -> *mut paging::PageTable {
 }
 
 // ---------------------------------------------------------------------------------------------
-// The user address spaces. None of this is built; see the module header.
+// The user address spaces (milestone 161, roadmap item 3).
 //
-// Each stub names itself and the reason, so a caller that reaches one gets a sentence rather than a
-// hang. It is the scaffold the RISC-V port shipped on its first day, and what is left of the one
-// this module shipped on its own: the kernel half above is now real.
+// The x86 shape is RISC-V's rather than aarch64's, which is what every function below is arranged
+// around: `CR3` names the WHOLE address space the way `satp` does, so a process's own root must
+// carry the kernel's high-half entries ([`share_kernel_half`]) or the `mov cr3` unmaps the kernel
+// that is executing it. aarch64 needs no such copy, because TTBR1 is a second root every process
+// shares implicitly.
 //
-// The x86 shape is aarch64's rather than RISC-V's, which is worth recording before anyone writes
-// it: there are two roots' worth of behaviour in one register. `CR3` names the whole address space
-// like RISC-V's `satp`, so a process's own root must carry the kernel's high-half entries
-// (`share_kernel_half`), but the ASID equivalent (PCID, `CR3[11:0]`) is only honoured when
-// `CR4.PCIDE` is set, and until it is, EVERY `mov cr3` flushes the entire non-global TLB. That is
-// why `crates/asid`'s reuse contract will need a different answer here than on either of the others.
+// Where it is neither: the ASID equivalent. PCID lives in `CR3[11:0]` and is honoured **only** when
+// `CR4.PCIDE` is set. It is not set here (see this module's BUGS and roadmap item 3), so a tag
+// cannot be written into `CR3` at all -- bits 11:5 and 2:0 are reserved-zero with PCIDE clear, and
+// a nonzero one faults -- and every `mov cr3` discards the entire non-global TLB. [`ttbr0_value`]
+// and [`flush_asid`] are where that shows, and each says so in its own words.
 // ---------------------------------------------------------------------------------------------
 
-macro_rules! not_yet {
-    ($name:literal) => {
-        unimplemented!(concat!(
-            "x86_64 mmu::",
-            $name,
-            ": ring 3 does not exist on this architecture yet (milestone 161, roadmap item 3)"
-        ))
-    };
+/// The raw `CR3`, flag and PCID bits included. [`current_root`] is this with the address masked
+/// out; the two differ only once `CR4.PCIDE` or the PWT/PCD bits are used, and neither is today.
+/// Kept apart so [`switch_user_root`]'s early return compares what the hardware actually holds.
+fn read_cr3() -> u64 {
+    let cr3: u64;
+    // SAFETY: reads a control register. No side effects.
+    unsafe {
+        core::arch::asm!("mov {}, cr3", out(reg) cr3, options(nomem, nostack, preserves_flags));
+    }
+    cr3
 }
 
 /// The physical root of the currently installed user address space.
+///
+/// On this architecture there is only one root, so this is the same register [`current_root`]
+/// reads. A thread with no user space of its own is running on [`reserved_root`], whose low half is
+/// empty, so "the user root" is always a real answer rather than a `None` in disguise.
 pub fn current_user_root() -> u64 {
-    not_yet!("current_user_root")
+    current_root()
 }
 
 /// The root a thread with no user address space runs on.
+///
+/// **The kernel's own root**, exactly as on RISC-V and for the same reason: one register names the
+/// whole space, so there is no separate empty user table to point at. Its low half is zero
+/// (`init`'s `verify` asserts it), so every user address faults, which is what a kernel thread
+/// should get.
 #[allow(dead_code)]
 pub fn reserved_root() -> u64 {
-    not_yet!("reserved_root")
+    ttbr0_value(KERNEL_ROOT.load(Ordering::Relaxed), 0)
 }
 
 /// Compose the value `CR3` should hold for a root and an address-space id. Named for aarch64's
-/// register because that is the arch contract's word; here it is `root | pcid`.
+/// register because that is the arch contract's word.
+///
+/// **The `asid` is deliberately dropped, and that is the honest encoding rather than a stub.** The
+/// PCID field is `CR3[11:0]`, and with `CR4.PCIDE` clear those bits are not a tag: bits 2:0 and
+/// 11:5 are reserved and must be written as zero, so `root | asid` would `#GP` on the very first
+/// switch rather than tagging anything. There is nothing to write the number into until PCIDE is
+/// on, and turning it on is roadmap item 3's own deferred decision (see this module's BUGS).
+///
+/// What that costs is stated where it is paid: [`flush_asid`] cannot flush one address space,
+/// because the hardware holds no tag to select on.
 #[allow(dead_code)]
 pub fn ttbr0_value(root: u64, asid: u16) -> u64 {
-    let _ = (root, asid);
-    not_yet!("ttbr0_value")
+    debug_assert_eq!(
+        root & 0xfff,
+        0,
+        "a page-table root is page-aligned; CR3's low twelve bits are not part of it"
+    );
+    // The tag has nowhere to go while PCIDE is off; see this function's own doc comment. When it is
+    // turned on, this becomes `root | (asid as u64 & 0xfff)` and `crates/asid`'s reuse contract
+    // acquires a meaning here that it does not have today.
+    let _ = asid;
+    root
 }
 
-/// Give `root` the kernel's high-half entries, so a process's own tables map the kernel.
+/// Populate a fresh process root's **high half** with the kernel's, so one `CR3` pointing at it
+/// sees both the process's user pages (low half) and the whole kernel (high half).
+///
+/// This is the single-root requirement RISC-V has and aarch64 does not, and x86 is on RISC-V's side
+/// of it. The kernel half is PML4 entries 256..512, which is the `SPLIT_SHIFT = 47` line
+/// `Ia32e::in_half` tests: **both** kernel bases live up there ([`KERNEL_VA_BASE`] is PML4[511] and
+/// [`DIRECT_MAP_BASE`] is PML4[273]), so one `copy_from_slice` shares the image, the direct map and
+/// every device window at once. The entries point at kernel intermediate tables, so this shares the
+/// map itself rather than a snapshot of it: a page the kernel maps afterwards is visible in every
+/// process, which is what a shared high half has to mean.
+///
+/// Called by `user::AddressSpace::new` right after it allocates a root.
 #[allow(dead_code)]
 pub fn share_kernel_half(root: u64) {
-    let _ = root;
-    not_yet!("share_kernel_half")
+    let kernel_root = KERNEL_ROOT.load(Ordering::Relaxed);
+    assert_ne!(
+        kernel_root, 0,
+        "share_kernel_half before mmu::init: there is no kernel map to share yet"
+    );
+    // SAFETY: both are page-aligned root tables reachable through the direct map, which `boot.s`
+    // installed before any Rust ran. Only the high-half entries are written; the low half stays
+    // zero for the process's own pages.
+    unsafe {
+        let dst = &mut (*phys_to_ptr(root)).entries;
+        let src = &(*phys_to_ptr(kernel_root)).entries;
+        dst[paging::ENTRIES / 2..].copy_from_slice(&src[paging::ENTRIES / 2..]);
+    }
 }
 
-/// Install the address space named by `cr3`.
+/// Install the address space named by `cr3`, **unless it is already installed**.
+///
+/// The early return is worth more here than on either of the other two architectures. `CR4.PGE` is
+/// off, so a `mov cr3` throws away *every* translation this CPU holds, the kernel's included; a
+/// switch between two threads of the same space, or between two kernel threads (both naming
+/// [`reserved_root`]), would otherwise pay for a full TLB refill to change nothing. The comparison
+/// reads the register back, so it is against what the hardware is walking rather than against our
+/// record of it.
 ///
 /// # Safety
-/// Not implemented; see the module header.
+/// `cr3` must be a value [`ttbr0_value`] composed over a **live** root that carries the kernel's
+/// high half, or [`reserved_root`]. Anything else unmaps the instruction after this one, which on
+/// this architecture is a page fault taken with tables that cannot describe the fault handler: a
+/// double fault, then a triple fault, then a silent machine reset.
 #[allow(dead_code)]
 pub unsafe fn switch_user_root(cr3: u64) {
-    let _ = cr3;
-    not_yet!("switch_user_root")
+    if read_cr3() == cr3 {
+        return;
+    }
+    // SAFETY: this function's own `# Safety` contract is exactly the one `install` needs; it
+    // forwards, it does not weaken.
+    unsafe { install(cr3) };
 }
 
-/// Stop using any user address space.
+/// Remove the user address space from this CPU: fall back to the kernel-only reserved root.
 #[allow(dead_code)]
 pub fn deactivate_user() {
-    not_yet!("deactivate_user")
+    // SAFETY: `reserved_root()` composes `KERNEL_ROOT`, the fine map `init` built, verified and is
+    // running on. It carries the kernel half by construction and its low half is empty.
+    unsafe { switch_user_root(reserved_root()) };
 }
 
-/// Discharge every translation tagged with `asid`.
+/// Discharge every translation belonging to the address space tagged `asid`.
+///
+/// **It flushes everything, and saying so is the point.** `crates/asid`'s teardown contract is
+/// "after this call, and only after it, the number may tag someone else". With `CR4.PCIDE` clear
+/// the hardware holds no tag at all, so there is no set of entries this could select: the only
+/// implementation that keeps the contract true is to discard the whole non-global TLB, which a
+/// `CR3` reload does. Over-flushing is correct and slow; under-flushing would be one process
+/// reading another's memory with no fault to announce it, which is the failure `flush_asid` exists
+/// to prevent.
+///
+/// Local to this CPU. x86 has no TLB broadcast (`invlpg` and a `CR3` reload are both local), so an
+/// SMP kernel needs a software shootdown IPI here, the same problem RISC-V solves with SBI RFENCE.
+/// There is one CPU (roadmap item 5), so this is the whole of it.
 #[allow(dead_code)]
 pub fn flush_asid(asid: u16) {
-    let _ = asid;
-    not_yet!("flush_asid")
+    let _ = asid; // nothing to select on; see this function's doc comment
+    // SAFETY: rewriting CR3 with the value it already holds changes no mapping and invalidates
+    // every non-global entry, which is exactly the discharge this owes. TLB maintenance is always
+    // sound; getting it wrong means a stale translation, which is the unsafety that matters here.
+    unsafe { install(read_cr3()) };
 }
 
-/// Map one user page at `va`, allocating the leaf and any intermediate tables from `alloc`.
+/// Map one user page at `va` in the currently installed address space, allocating the leaf and any
+/// intermediate tables from `alloc`. Returns the leaf's physical address, for revocation records.
 #[allow(dead_code)]
 pub fn map_current_user_page(
     va: u64,
     flags: paging::Flags,
-    alloc: impl FnMut() -> Option<u64>,
+    mut alloc: impl FnMut() -> Option<u64>,
 ) -> Result<u64, paging::MapError> {
-    let _ = (va, flags, alloc);
-    not_yet!("map_current_user_page")
+    let leaf = alloc().ok_or(paging::MapError::OutOfFrames)?;
+    map_current_user_frame(va, leaf, flags, alloc)?;
+    Ok(leaf)
 }
 
-/// Map one user page at `va` onto the already-owned physical frame `phys`.
+/// Map one user page at `va` onto the already-owned physical frame `phys` in the current address
+/// space, drawing any intermediate tables from `alloc`.
+///
+/// The TLB is flushed for `va` afterwards. x86 does not require it for a *newly valid* leaf the way
+/// RISC-V does, because the walker is not permitted to cache a not-present entry, but a `va` that
+/// was mapped and unmapped inside one address space would otherwise keep the old translation, and
+/// distinguishing the two cases here would be a foot gun for one `invlpg`.
 #[allow(dead_code)]
 pub fn map_current_user_frame(
     va: u64,
@@ -832,29 +927,40 @@ pub fn map_current_user_frame(
     flags: paging::Flags,
     alloc: impl FnMut() -> Option<u64>,
 ) -> Result<(), paging::MapError> {
-    let _ = (va, phys, flags, alloc);
-    not_yet!("map_current_user_frame")
+    let root = current_root();
+    // SAFETY: `root` is the live installed root; the direct map makes `phys_to_ptr` valid for every
+    // table frame it reaches.
+    let mut mapper = unsafe { Mapper::<_, _, Ia32e>::new(root, Half::Low, alloc, phys_to_ptr) };
+    mapper.map(va, phys, flags)?;
+    flush_tlb(va);
+    Ok(())
 }
 
-/// Unmap one user page at `va` in the space rooted at `root`.
+/// Unmap one user page at `va` in the space rooted at `root`, invalidate the TLB, and return the
+/// frame it named (the caller's to free; the mapper never owned it).
 #[allow(dead_code)]
 pub fn unmap_user_at(root: u64, va: u64) -> Option<u64> {
-    let _ = (root, va);
-    not_yet!("unmap_user_at")
+    // SAFETY: `root` is a low-half-owning root; `unmap` allocates nothing, so the `|| None`
+    // allocator is never called; the direct map makes `phys_to_ptr` valid.
+    let mut mapper = unsafe { Mapper::<_, _, Ia32e>::new(root, Half::Low, || None, phys_to_ptr) };
+    let (pa, flush) = mapper.unmap(va).ok()?;
+    flush.flush(flush_tlb);
+    Some(pa)
 }
 
 /// Translate `va` in the space rooted at physical `root`.
 #[allow(dead_code)]
 pub fn translate_at(root: u64, va: u64) -> Option<(u64, paging::Flags)> {
-    let _ = (root, va);
-    not_yet!("translate_at")
+    // SAFETY: `root` is a page table; the direct map makes `phys_to_ptr` valid; a translate
+    // allocates nothing, so the `|| None` allocator is never called.
+    let mapper = unsafe { Mapper::<_, _, Ia32e>::new(root, Half::Low, || None, phys_to_ptr) };
+    mapper.translate(va)
 }
 
-/// Translate `va` as a user address in the current space.
+/// Translate `va` as a user address in the currently installed space.
 #[allow(dead_code)]
 pub fn translate_user(va: u64) -> Option<(u64, paging::Flags)> {
-    let _ = va;
-    not_yet!("translate_user")
+    translate_at(current_root(), va)
 }
 
 // ---------------------------------------------------------------------------------------------

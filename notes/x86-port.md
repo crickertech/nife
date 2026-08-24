@@ -15,13 +15,20 @@ genuinely do not fit the existing seam, and an honest account of what is built.
 page-table format, the boot-handoff parser, the ACPI tables (the RSDP scan, the root-table walk with
 checksums, the MADT and the MCFG), **the local APIC and a calibrated periodic timer**, the frame
 allocator, **the fine-grained W^X kernel page tables**, **the IO APIC and a routed device line**,
-the address arithmetic, interrupt masking, the context switch, and the test exit. A boot under
-QEMU's `q35` prints a tour, takes real hardware interrupts from the CPU's own timer *and* from a
-device, builds and installs its own page tables, and halts.
+**user address spaces, the `syscall` pair and ring 3**, the address arithmetic, interrupt masking,
+the context switch, and the test exit. A boot under QEMU's `q35` prints a tour, takes real hardware
+interrupts from the CPU's own timer *and* from a device, builds and installs its own page tables,
+runs a program at CPL 3 that makes syscalls and is refused when it reaches for the kernel, and
+halts.
 
-**Not built:** VT-d, SMP bring-up, ring 3, and the kernel's own test suite. Every one of those is a
-loud `unimplemented!()` in `arch/x86_64/` that names itself and why. See
+**Not built:** VT-d, SMP bring-up, and the kernel's own test suite. Every one of those is a loud
+`unimplemented!()` in `arch/x86_64/` that names itself and why. See
 design/roadmap/161-x86-64-kernel-port.md for the order they come in.
+
+**And one thing in between, which this note is careful about throughout**: ring 3 is built *at the
+arch layer*. A program runs there, but there is no process behind it, because `kmem`, `untyped`,
+`sched` and `user::AddressSpace` have never been brought up on this architecture. The distance
+between "a program ran at CPL 3" and "a userspace" is roadmap item 4, and it is real.
 
 ## How the machine is entered, and why it is not multiboot
 
@@ -453,6 +460,153 @@ today). And **`CR4.PGE` is off**, so the `G` bit the kernel's `Flags` set is ign
 `mov cr3` flushes the whole TLB: correct and slow, and worth revisiting with ring 3, when a context
 switch starts happening often enough to measure.
 
+## Ring 3, and the four pieces that have to work in order
+
+Milestone 161's roadmap item 3, built 2026-08-24. Everything above this heading is the kernel
+talking to the machine. This is the kernel refusing a program, which is the thing the rest of it
+exists for.
+
+### The address spaces are RISC-V's model, not aarch64's
+
+`arch/x86_64/mmu.rs`'s header used to say the x86 shape was "aarch64's rather than RISC-V's". That
+is the wrong way round and it was corrected while implementing it. What matters is how many roots
+the hardware has: aarch64 has two (`TTBR0` for the user, `TTBR1` for the kernel), so switching a
+process leaves the kernel mapped for free. RISC-V has one `satp` and x86 has one `CR3`, so **a
+process's own root must carry the kernel's entries** or the `mov cr3` unmaps the instruction after
+it.
+
+`share_kernel_half` is therefore one `copy_from_slice` of PML4 entries 256..512, exactly the RISC-V
+twin, and it is worth noticing how much it buys on this architecture specifically: both kernel bases
+are up there (the image at PML4[511], the direct map at PML4[273]) along with every device window,
+so one copy shares all of it. The entries point at the kernel's own intermediate tables, so this
+shares the map rather than a snapshot: a page the kernel maps afterwards appears in every process,
+which is what a shared half has to mean.
+
+**Where x86 is neither**: the ASID. PCID lives in `CR3[11:0]` and is honoured only with `CR4.PCIDE`
+set, and it is not set here. So `ttbr0_value` drops the tag `crates/asid` hands it, because with
+PCIDE clear those bits are reserved-zero and `root | asid` would `#GP` rather than tag anything; and
+`flush_asid` flushes the **whole** TLB, because there is no tag for it to select on. Both say so
+where a reader meets them. Over-flushing is correct and slow; under-flushing would be one process
+reading another's memory with nothing to announce it, which is the failure that function exists to
+prevent.
+
+### `swapgs` is an exchange, which is the whole reason it is guarded
+
+A trap from ring 3 arrives with the *user's* `GS` base, and this kernel keeps its per-CPU pointer in
+`IA32_GS_BASE`, so the first thing that takes a lock would read whatever the program left there.
+`swapgs` exchanges `IA32_GS_BASE` with `IA32_KERNEL_GS_BASE`, and that is what makes the pointer
+unforgeable: the value the kernel needs sits in a register ring 3 cannot write, which is the problem
+RISC-V solves with `sscratch`.
+
+Because it is an exchange rather than a load it must run **exactly once per privilege change in each
+direction**. A trap from ring 0 that swapped would install the user's base while running kernel
+code; a nested trap that swapped again would put the kernel's back and then hand it to the user on
+the way out. So both sites test the saved `CS`'s low two bits, which *are* the interrupted CPL.
+
+**It does not trip the bug this port already has a section about.** "Loading a segment register in
+long mode destroys that segment's base MSR" applies to loading a *selector*; `swapgs` writes the MSR
+pair and loads nothing. That was checked against the instruction's definition rather than assumed,
+precisely because the earlier bug cost an afternoon and presented as something else entirely.
+
+**The one delicate window is on the way out.** Between the exit `swapgs` and the `iretq` the CPU is
+in ring 0 holding the user's GS base, so an interrupt taken there would see CPL 0, decline to swap,
+and dereference the user's value. `RFLAGS.IF` is clear at every such site (an interrupt gate cleared
+it; `IA32_FMASK` clears it for `syscall`; the two ring-3 entry points `cli` first), which closes it
+for everything except an NMI or a machine check. Closing it for those needs a paranoid entry path
+that reads `IA32_GS_BASE` and decides, which this port does not have. Recorded rather than pretended
+away.
+
+### `syscall` shares almost nothing with the IDT
+
+Four MSRs are its entire configuration and none has a useful default:
+
+| MSR | What it carries |
+|---|---|
+| `IA32_STAR[47:32]` | the kernel CS; the kernel SS is that **plus 8**, which is why the GDT's order is arithmetic |
+| `IA32_STAR[63:48]` | the base `sysret` derives the user pair from: SS = base + 8, CS = base + 16 |
+| `IA32_LSTAR` | where a 64-bit `syscall` jumps. A raw address, so a zero here is a jump to zero |
+| `IA32_FMASK` | the `RFLAGS` bits cleared on entry, `IF` among them |
+| `IA32_EFER.SCE` | whether `syscall` is a legal instruction at all, rather than `#UD` |
+
+`SCE` is enabled **last**, so the instruction becomes legal only after the address it jumps to and
+the flags it clears are already in place. Three `const` assertions in `exceptions.rs` tie
+`SYSRET_SELECTOR_BASE` to the selectors in `segments.rs`, so changing one file without the other
+stops the build rather than landing a program on the kernel's data segment.
+
+The entry path is where the difference from a trap gate is felt: **`syscall` does not switch stacks
+and pushes nothing**. `rsp` still names the user's stack and every register still holds a user value,
+so the first three instructions are `swapgs`, park the user's `rsp` in a static, and load the
+kernel's. `segments::set_kernel_stack` writes `TSS.RSP0` and that static together, so the two doors
+into the kernel cannot come to name different stacks; both are one CPU's, which is the same
+single-TSS limitation SMP bring-up already has to fix.
+
+**The return is an `iretq`, not a `sysretq`, and that is a decision.** `sysret` returns to whatever
+`rcx` holds without checking it is canonical, and a non-canonical `rcx` faults *in ring 0 on the
+user's stack*: the shape of CVE-2012-0217. Using it safely needs an explicit canonicality check plus
+an `iretq` fallback, which is Linux's "opportunistic sysret" dance. Sharing one restore path costs
+some tens of cycles per syscall and buys one `swapgs` rule with one place to get it wrong. It is in
+the handler's `BUGS` as worth revisiting **with a benchmark**, once there is a syscall-heavy
+workload here to measure.
+
+### What it was proved with, and the honest size of the claim
+
+There is no ELF built for `x86_64-unknown-none` and no scheduler on this architecture, so the proof
+is a hand-assembled probe (`arch/x86_64/ring3_probe.s`) entered straight from the boot thread. That
+is the shape both other ports shipped on their first day and then deleted, and it will be deleted
+here for the same reason.
+
+```
+  ring 3      : a program ran at cpl 3 (cs 0x0023, ss 0x001b) and made 2 syscalls
+                the portable dispatcher answered BadSyscall (-6) to an unknown number
+                reading the kernel's .text at 0xffffffff80109000 from ring 3: Permission(Read)
+```
+
+Three facts, and they get stronger down the list.
+
+**`cs 0x0023`** is the hardware's own answer to what ring this is, because CPL is literally
+`CS[1:0]`. A program that had somehow stayed in ring 0 would have reported `0x08`.
+
+**`BadSyscall (-6)`** came out of the *portable* `crate::syscall::dispatch`, through
+`TrapFrame::{syscall_nr, arg, set_arg}`, and reached the program in `rdi`. Asking for a refusal is
+deliberate rather than lazy: an unimplemented number is the one thing that dispatcher can answer on a
+kernel with no scheduler, so it is the only round trip available through the real thing rather than a
+stand-in. Getting the answer back proves the entry, the ABI accessors and the return all work, and
+it is checked in code rather than printed and left to a reader, because the interesting failure is
+not "no answer" but "an answer from somewhere else": a return register the restore path never wrote
+would most likely still hold the zero the entry frame put there.
+
+**`Permission(Read)` rather than `Translation(Read)`** is the strongest of the three. The page *was*
+found, because a process root carries the kernel's high half, and the walk refused it on the `U/S`
+bit. A test that only asserted "something faulted" could not tell those apart, and the sloppier
+of the two would have passed it. x86 is the most forthcoming of the three architectures here: it
+pushes an error code saying so outright, where aarch64 reads it out of `ESR_EL1` and RISC-V has to
+re-walk the tables to find out.
+
+### The way back, which is scaffolding and says so
+
+`enter_user` never returns, and the boot tour has to print what happened, so `trap.s` grew
+`x86_enter_user_and_wait` and `x86_leave_user`: park the six callee-saved registers and the call's
+own return address on the current stack, record that block's address, enter ring 3, and resume it
+from the trap handler when the probe is done. It is `switch_to`'s two halves with a ring change in
+the middle, which is not a coincidence, and the scheduler makes it redundant (roadmap item 4).
+
+### Two latent bugs on a path nothing had ever executed
+
+Found by reading `context.s` against `context.rs` while wiring this up, and worth recording because
+neither could have been caught earlier and both were in code that looked finished:
+
+- **The child's arguments were in the wrong registers.** `Context::for_user_thread` wrote them to
+  `r13`/`r14`/`r15`; `user_entry_trampoline` read them from `r12`/`r13`/`r14`. A child would have
+  received `(0, arg0, arg1)` and `arg2` would have vanished. Both files were internally consistent
+  and neither was executed.
+- **The trampoline did not reserve a trap frame's worth of stack**, which milestone 71 established
+  both other architectures need: the thread's `TrapFrame` lives at `top - 176` for the life of the
+  thread, and the entry path's own frames start at the same top.
+
+Both are fixed and both are **still** unexecuted: that trampoline is the *scheduler's* entry path,
+and the self test enters through `enter_user` directly. They are the argument for reading the two
+halves of a context switch side by side rather than one at a time.
+
 ## The three things that genuinely do not fit
 
 Recorded because the failures of an abstraction are worth more than its successes.
@@ -477,9 +631,11 @@ tables in front of it. x86 gates that space two ways: `RFLAGS.IOPL` (all-or-noth
 level) and the TSS **I/O permission bitmap**, one bit per port, which is per-task rather than
 per-page.
 
-Nothing here uses the bitmap yet, because nothing runs in ring 3. When something does, that bitmap is
-where a port grant has to be recorded, and it is a genuinely different shape of capability from the
-one the tree has. `user::UART_PHYS` is **zero** on this architecture, and that zero is the marker for
+Nothing uses the bitmap. `TrapFrame::for_user_entry` leaves `IOPL` at 0 and the TSS's bitmap offset
+points past the end of the structure, so a ring-3 program on this kernel may not touch a port at
+all, which is the only correct answer while there is no way to say which ports it may have. When
+there is, that bitmap is where a port grant has to be recorded, and it is a genuinely different
+shape of capability from the one the tree has. `user::UART_PHYS` is **zero** on this architecture, and that zero is the marker for
 this question rather than a value. Written up as **§121 (PROPOSED)**, because it is the first case in
 this tree where the object a capability names is not memory, and how that is answered decides the
 shape of every future capability over something that is not a frame.
@@ -584,19 +740,27 @@ nife on x86_64 (long mode, ring 0, 4-level paging)
   apic        : local apic 0xfee00000 up, id 0, version 0x14, 8259s masked
   clocks      : tsc 1001 MHz, apic timer 62 MHz (both measured against the PIT)
   timer       : 20 ticks in ~0.2s at 100 Hz (20 routed, 0 spurious)
-  frames      : allocator up over 1 ram region(s) (first frame 0x1fc000)
-  memory          : 254 MiB total, 253 MiB free (1012 KiB in use)
-  mmu         : fine W^X 4-level map installed (cr3 0x1fd000), image 0xffffffff80000000, direct map 0xffff888000000000
-                556 KiB of page tables, no identity map, guard pages are holes
-  image       : text 0xffffffff80109000..0xffffffff80126000, stack 0xffffffff8013a000..0xffffffff8014a000
+  io apic     : id 0 at 0xfec00000 up, version 0x20, 24 redirection entries, gsi base 0
+  device irq  : pit irq 0 -> gsi 2 on vector 0x32: 20 interrupts in ~0.2s at 100 Hz
+  frames      : allocator up over 1 ram region(s) (first frame 0x21e000)
+  memory          : 254 MiB total, 253 MiB free (1148 KiB in use)
+  mmu         : fine W^X 4-level map installed (cr3 0x21f000), image 0xffffffff80000000, direct map 0xffff888000000000
+                560 KiB of page tables, no identity map, guard pages are holes
+  image       : text 0xffffffff80109000..0xffffffff80144000, stack 0xffffffff8015c000..0xffffffff8016c000
+  entropy     : rdseed supported (cpuid leaf 7 ebx.18), drew 0x48d292e828c52899
+  ring 3      : a program ran at cpl 3 (cs 0x0023, ss 0x001b) and made 2 syscalls
+                the portable dispatcher answered BadSyscall (-6) to an unknown number
+                reading the kernel's .text at 0xffffffff80109000 from ring 3: Permission(Read)
 
-  next        : the IO APIC, then ring 3.
+  next        : the kernel's own test suite, and therefore a script/test leg.
 nife x86_64: early boot complete, halting.
 ```
 
 **The lines after the `mmu` one are the proof, not the `mmu` line itself.** They are printed after
 the `mov cr3`, through a console the new tables do not describe (COM1 is a port) but from code and a
 stack they do.
+
+The frame numbers and the `rdseed` word change from boot to boot; everything else is stable.
 
 The vendor string is whatever `-cpu` was asked for; `max` on this host reports `AuthenticAMD`.
 
