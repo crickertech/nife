@@ -70,8 +70,19 @@
 // worklist (notes/doc-coverage.md) is burned down.
 #![allow(missing_docs)]
 
+// ACPI (milestone 161), and it sits here rather than in the x86_64 module for the reason
+// `cpu_list` does: ACPI is not an x86 standard. Every aarch64 server that is not a device-tree
+// board describes itself with the same tables, and milestone 20's own text expects the machine
+// after the VisionFive 2 to be a UEFI/ACPI one. x86 is its first consumer, not its owner.
 pub mod aarch64;
+pub mod acpi;
 pub mod cpu_list;
 pub mod interrupt_id;
 pub mod plic;
 pub mod riscv64;
+// The third architecture's boot handoff (milestone 161). Not an ISA record like the two beside it:
+// x86 answers "what CPU is this" from CPUID and needs no parser for that, but it has no device
+// tree, so where RAM is and where the ACPI tables are arrive in the boot protocol's own structure.
+// Same reason the RISC-V half is a parser: what the firmware says is a format somebody has to read,
+// and a format read only inside a booting kernel is read by nothing that runs in milliseconds.
+pub mod x86_64;

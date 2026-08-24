@@ -139,10 +139,14 @@ use core::marker::PhantomData;
 pub mod aarch64;
 pub mod domain;
 pub mod sv39;
+// The third format (milestone 161). Named `x86_64` for the architecture, like `aarch64` above,
+// rather than for the mode; the type inside is `Ia32e`, which is Intel's own name for it.
+pub mod x86_64;
 
 pub use aarch64::Aarch64;
 pub use domain::{DmaRegion, build_identity_domain};
 pub use sv39::Sv39;
+pub use x86_64::Ia32e;
 
 /// 4 KiB, the page size every format here maps in.
 pub const PAGE_SIZE: u64 = 4096;

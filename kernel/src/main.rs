@@ -95,7 +95,12 @@ pub static DTB: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsiz
 // And the icount boot parks before the bench boot it implies, so `bench::run()` and everything after
 // it is deliberately unreachable in that one configuration (milestone 78).
 #[cfg_attr(
-    any(target_arch = "riscv64", feature = "smb_serve", feature = "icount"),
+    any(
+        target_arch = "riscv64",
+        target_arch = "x86_64",
+        feature = "smb_serve",
+        feature = "icount"
+    ),
     allow(unreachable_code)
 )]
 #[unsafe(no_mangle)]
@@ -121,6 +126,127 @@ pub extern "C" fn kernel_main(dtb: usize) -> ! {
     // and this is a no-op in effect.
     #[cfg(target_arch = "riscv64")]
     console::configure_from_dtb(dtb);
+
+    // **The x86_64 boot is a self-contained tour and it halts at the end**, the same shape the
+    // RISC-V boot took on its first day and for the same reason: the arch layer beneath the shared
+    // path is not built yet, so there is nothing honest to fall through to. What it proves is
+    // exactly the part that is real, one line per step, and it stops the moment it would have to
+    // guess (milestone 161). See notes/x86-port.md.
+    #[cfg(target_arch = "x86_64")]
+    {
+        // A live code address proves the far jump in boot.s landed in the high half and that we are
+        // executing there rather than merely reaching the UART through the identity map (the boot
+        // table maps both). If this reads 0xffffffff801xxxxx, long mode is on and the kernel is in
+        // the high half.
+        let pc = kernel_main as *const () as usize;
+        println!();
+        println!("nife on x86_64 (long mode, ring 0, 4-level paging)");
+        println!("  cpu 0 booted: high-half kernel, .bss, and the 16550 console are up.");
+        println!("  running at  : {pc:#018x}  (high half: the long-mode jump landed)");
+        println!("  boot info   : {dtb:#018x}  (PVH hvm_start_info, not a device tree)");
+
+        // What machine is this. CPUID needs nothing to be brought up first, which makes x86 the
+        // only one of the three where this can run before anything else.
+        arch::isa::init(dtb);
+        arch::isa::print_summary();
+
+        // The GDT, the TSS and the IDT. Until this line a fault is a triple fault and a silent
+        // machine reset; after it, a fault prints. That is the whole value of the step, and it is
+        // why it is the second thing the tour does rather than the tenth.
+        arch::init();
+        let caught = arch::exceptions::self_test();
+        println!(
+            "  traps       : idt installed; a breakpoint was caught and stepped over ({caught})"
+        );
+
+        // What the loader said: the PVH memory map and the ACPI root pointer. The x86 stand-in for
+        // the device tree, and the only thing that reads the map so far; `memory::init` is a
+        // device-tree parser, so the frame allocator cannot come up here until there is a discovery
+        // seam between the two. See notes/x86-port.md.
+        let Some(info) = arch::machine::boot_info(dtb) else {
+            println!("  memory      : no PVH boot info at {dtb:#x}; nothing else can be found");
+            println!("nife x86_64: early boot cannot continue, halting.");
+            arch::halt();
+        };
+        arch::machine::print_memory_map(&info);
+
+        // ACPI: what x86 has instead of a device tree. The RSDP is scanned for rather than taken
+        // from the handoff, because QEMU's PVH loader leaves that field zero (measured); the
+        // checksum inside the parser is what separates a real hit from a coincidence.
+        let acpi = arch::machine::read_acpi(info.rsdp);
+        arch::machine::print_acpi_summary(&acpi);
+
+        // The local APIC, and then a real hardware interrupt. Until this point the only trap the
+        // kernel has taken is one it raised itself with `int3`; a periodic timer proves the other
+        // half, that an interrupt the CPU did not ask for arrives, is dispatched by vector, and is
+        // acknowledged so that a second one can follow.
+        if let Some(apic) = acpi.local_apic {
+            // SAFETY: the address came from the machine's own ACPI MADT, and the identity map the
+            // boot tables installed still covers it.
+            unsafe { arch::irq::init_local_apic(apic) };
+            println!(
+                "  apic        : local apic {apic:#x} up, id {}, version {:#x}, 8259s masked",
+                arch::irq::local_apic_id(),
+                arch::irq::local_apic_version(),
+            );
+
+            arch::timer::init_frequency(dtb);
+            println!(
+                "  clocks      : tsc {} MHz, apic timer {} MHz (both measured against the PIT)",
+                arch::timer::frequency() / 1_000_000,
+                arch::timer::apic_timer_frequency() / 1_000_000,
+            );
+
+            arch::timer::init();
+            arch::interrupts::enable();
+            let start = arch::timer::now();
+            while arch::timer::now().wrapping_sub(start) < arch::timer::frequency() / 5 {
+                arch::wait_for_interrupt();
+            }
+            arch::interrupts::disable();
+            println!(
+                "  timer       : {} ticks in ~0.2s at {} Hz ({} routed, {} spurious)",
+                arch::timer::ticks(),
+                arch::timer::TICK_HZ,
+                arch::exceptions::ROUTED_IRQS.load(core::sync::atomic::Ordering::Relaxed),
+                arch::exceptions::SPURIOUS_IRQS.load(core::sync::atomic::Ordering::Relaxed),
+            );
+        } else {
+            println!("  apic        : skipped, the MADT did not say where the local apic is");
+        }
+
+        // The frame allocator, from the PVH memory map. This is the seam: `memory::init` is a
+        // device-tree front end and there is no tree here, so the x86 side assembles the same two
+        // slices (RAM, and what is already spoken for) and hands them to the half that does not
+        // care where they came from.
+        stack::init();
+        let regions = arch::machine::bring_up_memory(&info);
+        let first = memory::alloc().expect("no frame from the allocator");
+        println!(
+            "  frames      : allocator up over {regions} ram region(s) (first frame {:#x})",
+            first.addr(),
+        );
+        memory::print_summary();
+
+        arch::mmu::print_summary();
+        println!(
+            "  image       : text {:#x}..{:#x}, stack {:#x}..{:#x}",
+            arch::mmu::text_start(),
+            arch::mmu::text_end(),
+            arch::mmu::stack_bottom(),
+            stack_top(),
+        );
+
+        // And that is the end of what is built. Everything the RISC-V tour does past this point
+        // (the frame allocator, fine-grained tables, the timer, userspace) needs an arch layer this
+        // port has not written, and each of those is a loud `unimplemented!()` rather than a
+        // plausible number. Halting here is the honest stop; see the roadmap for the order the rest
+        // comes in.
+        println!();
+        println!("  next        : fine-grained page tables, the IO APIC, then ring 3.");
+        println!("nife x86_64: early boot complete, halting.");
+        arch::halt();
+    }
 
     // The RISC-V boot is a self-contained tour, right here in this block, and it halts at the end
     // rather than falling through to the shared boot path below. From OpenSBI's S-mode handoff it

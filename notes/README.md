@@ -1018,6 +1018,13 @@ in the code or the conversation doesn't make sense, it belongs here.
   (`Context` is aarch64-shaped in portable code; the `paging` crate encodes the aarch64 descriptor
   format), the RISC-V specifics (SBI, S-mode boot, Sv39, NS16550, PLIC/CLINT), and the incremental
   plan from "compiles for riscv64" to "the capability core runs on a second ISA".
+- [Porting to x86_64](x86-port.md): the third-architecture port (milestone 161), the one milestone
+  20 named as the real test of whether `arch/` is a HAL or an accident of two similar RISC machines.
+  Why the boot protocol is PVH and not multiboot (QEMU refuses a 64-bit multiboot image and has no
+  multiboot 2), the two-world image the 32-bit entry forces, the exact list of what changed above
+  `arch/` (42 missing names and four `cfg` arms; `crates/paging` needed nothing), the three things
+  that genuinely do not fit the seam, the segment-reload bug that zeroes the per-CPU pointer, and an
+  honest account of what the gates cover.
 - [The VisionFive 2: first silicon](visionfive2.md): milestone 16a's board facts, every one with a
   source. The four real differences from QEMU `virt` (DRAM base, the DW-8250 UART, the PLIC context
   map, the disabled S7 hart), the Image-header load path through vendor U-Boot, the microSD payload

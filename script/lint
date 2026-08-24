@@ -99,6 +99,45 @@ cargo clippy --workspace --exclude kernel --exclude user --exclude user_rt \
 echo "==> clippy: kernel + user + user_rt (aarch64)"
 cargo clippy -p kernel -p user -p user_rt --target aarch64-unknown-none-softfloat --all-targets -- -D warnings
 
+# The third architecture (milestone 161). **The kernel BINARY only, with dead code allowed**, and
+# every one of those narrowings is a scope gap rather than an oversight, so they are named here,
+# where a reader checking what is covered will look.
+#
+# - **No `--all-targets`**, because the kernel's test suite does not compile for x86_64. Its
+#   userspace-exec tests hand-assemble machine code (`user/tests.rs`) and its supervision fixtures
+#   are per-ISA stubs, so bringing the suite up is downstream of ring 3 existing at all here.
+# - **No feature loop.** All eight boot-mode features fail on x86_64, measured, because each one
+#   selects a boot path that needs an arch layer this port has not written. Adding them to the loop
+#   below would fail the gate for a reason the gate cannot fix.
+# - **`-A dead_code`, and this one deserves the argument rather than the note.** The x86 boot is a
+#   self-contained tour that halts before the scheduler and userspace, so about 85 items that are
+#   live on the other two ISAs are unreferenced here. The source-level way to say that is a
+#   crate-level `allow`, which the ratchet below refuses, and it is right to: that is exactly the
+#   blanket milestone 41 removed, and it blindfolded the whole kernel on riscv64 while `-D warnings`
+#   reported success. The per-item way is ~85 `cfg_attr`s scattered through portable files that
+#   every other lane also edits, describing a fact that stops being true as soon as the x86 boot
+#   reaches the shared path.
+#
+#   So the suppression lives HERE instead, on one invocation, where it is visible next to what it
+#   gives up. **What it gives up is small and worth stating exactly**: code that is dead on ALL
+#   THREE architectures is still caught, by the aarch64 and riscv64 passes above, which keep full
+#   dead-code checking. The only thing that can now hide is code dead on x86_64 alone, which today
+#   is the expected state of a partial port and tomorrow is a real gap. **The trigger for removing
+#   this flag is the x86 boot joining the shared path**; see design/roadmap/161-x86-64-kernel-port.md.
+#
+# - **`-A clippy::reversed_empty_ranges`** is a smaller thing and is not a suppression of a real
+#   finding: `arch::mmu::VIRTIO_SLOTS` is genuinely ZERO on q35 (a PC has no virtio-mmio bus; every
+#   virtio device is a PCI function), so `virtio.rs`'s three scan loops correctly iterate over
+#   nothing. The alternative, a non-zero slot count over a zero base, would make the kernel probe
+#   address 0.
+#
+# What it does cover is every line of `arch/x86_64/` and every portable file compiled with
+# `target_arch = "x86_64"`, held to the same `-D warnings` as the other two. `user` and `user_rt`
+# are absent because no userspace is built for this target yet.
+echo "==> clippy: kernel (x86_64, the binary only; see the note above)"
+cargo clippy -p kernel --target x86_64-unknown-none -- \
+    -D warnings -A dead_code -A clippy::reversed_empty_ranges
+
 # The kernel's boot-mode features (shell, bench, initboot) each compile DIFFERENT code in and out:
 # `initboot` and `shell` drop the milestone tour, `bench` diverges before the boot entirely, and
 # `icount` (milestone 78) parks before `bench` does, which is the one configuration where
