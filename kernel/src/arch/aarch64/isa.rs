@@ -17,7 +17,7 @@
 
 use core::sync::atomic::{AtomicU8, AtomicU32, Ordering};
 
-use aarch64_cpu::registers::{ID_AA64MMFR0_EL1, ID_AA64MMFR2_EL1, MIDR_EL1};
+use aarch64_cpu::registers::{ID_AA64ISAR0_EL1, ID_AA64MMFR0_EL1, ID_AA64MMFR2_EL1, MIDR_EL1};
 use machine_discovery::aarch64::{Conduit, Isa, Psci};
 use tock_registers::interfaces::Readable;
 
@@ -91,6 +91,7 @@ pub fn init(dtb_ptr: usize) {
         MIDR_EL1.get(),
         ID_AA64MMFR0_EL1.get(),
         ID_AA64MMFR2_EL1.get(),
+        ID_AA64ISAR0_EL1.get(),
     );
 
     let missing = cpu.missing_requirements();
