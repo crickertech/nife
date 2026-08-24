@@ -3,10 +3,11 @@
 **Status: PARTIAL.** Minted 2026-08-23, splitting real work out of milestone 20's stale text; early
 boot built and gated the same day. **The kernel boots on QEMU's `q35`, reaches Rust in the high half
 of a 4-level address space, prints over a 16550, installs a GDT/TSS and an IDT, catches a breakpoint
-and steps over it, and halts.** What is built and what is still open are spelled out at the bottom of
-this block; `notes/x86-port.md` is the working record. The scope note below (milestone 20's "enough
-of each ISA to boot, confine a ring-3/U process, and run the test suite") is unchanged and is not
-met: ring 3 does not exist here yet.
+and steps over it, takes a calibrated timer interrupt, brings up the frame allocator, replaces the
+boot map with fine-grained W^X page tables of its own, and halts.** What is built and what is still
+open are spelled out at the bottom of this block; `notes/x86-port.md` is the working record. The
+scope note below (milestone 20's "enough of each ISA to boot, confine a ring-3/U process, and run
+the test suite") is unchanged and is not met: ring 3 does not exist here yet.
 DECISIONS §19 declared the target set (aarch64, riscv64, x86_64) and recorded honestly that
 *"x86_64 is a declared target that does not exist yet."* Milestone 20's own "Deliverable, in two
 parts" already named "bring up a second ISA, then a third: RISC-V first, x86_64 second," but 20 is
@@ -66,7 +67,7 @@ Architectural parity (DECISIONS §19) reaching all three declared targets rather
 comparison point.
 
 
-## What was built (2026-08-23)
+## What was built (2026-08-23, plus step 9 on 2026-08-24)
 
 Ordered as it was built, because each step is what made the next one debuggable.
 
@@ -124,6 +125,33 @@ Ordered as it was built, because each step is what made the next one debuggable.
    and the kernel image is the one entry on the forbidden list, which covers the boot page tables
    because the linker script puts `.boot_scratch` inside the image bounds.
 
+9. **Fine-grained page tables, on a direct map with a base of its own** (2026-08-24, the open
+   list's item 1 below). `mmu::init` builds a W^X four-level map and switches `CR3` to it:
+   `.text` executable and read-only, `.rodata` neither writable nor executable, everything else
+   non-executable, every guard page a hole, device registers device-typed, and **no identity map**.
+   The direct map now covers all of physical memory rather than the low gigabyte.
+
+   The address-space decision item 1 recorded was taken as recorded: **two bases**, Linux's, the
+   image at `KERNEL_VA_BASE` where the code model pins it and the direct map at
+   `0xffff888000000000` (PML4[273]), with `virt_to_phys` inverting both, which is Linux's `__pa()`
+   shape. `crates/paging` again needed nothing.
+
+   **The sequencing hazard was removed rather than sequenced around**, and that is the part worth
+   carrying forward. Item 1 prescribed carrying the old alias across the `CR3` switch and dropping
+   it afterwards, because `phys_to_virt` changes meaning at that instant and the frame bitmap is a
+   stored `&'static mut [u8]` derived through it. Instead `boot.s` installs PML4[273] itself,
+   pointing at the same low PDPT the identity map already used: eight bytes, no memory, and
+   `phys_to_virt` means one thing for the machine's whole life. `mmu::device_va`, the foot gun that
+   existed only because the direct map could not reach a device, was deleted outright rather than
+   migrated.
+
+   **Verified on q35 with `-m 256M`**: the tour keeps printing across the `mov cr3`, the timer
+   keeps ticking, and the map costs **556 KiB of page tables for 254 MiB of RAM**. That 0.2% is the
+   price of 4 KiB leaves and is recorded in `arch/x86_64/mmu.rs`'s `BUGS`, with the two other honest
+   limits: `mmu::init` must draw its tables from below 4 GiB (all the boot map reaches), and
+   `CR4.PGE` is still off, so the `G` bit the kernel's `Flags` set is ignored and every `mov cr3`
+   flushes everything.
+
 Plus the build wiring it all needs: `kernel/build.rs`, `.cargo/config.toml` (including the static
 relocation model, which this target does not default to), `rust-toolchain.toml`,
 `scripts/qemu-runner-x86_64.sh`, and an x86_64 pass in `script/lint`.
@@ -144,60 +172,40 @@ In the order it should be done, because each is a prerequisite for the next.
    RTC, UART interrupt line, PCIe ECAM) are still tree-only and stay `None` on x86, so ACPI answers
    for the ECAM window and PCI still reports nothing. notes/x86-port.md has the table of which fact
    has which source.
-1. **Fine-grained page tables, and the address-space layout they force a decision about.**
+1. **Fine-grained page tables, and the address-space layout they force a decision about. BUILT
+   2026-08-24**; see step 9 of "What was built" for what landed and what it cost. The number is kept
+   in place rather than struck out because the items below cite each other by it.
 
-   The boot map is 2 MiB pages with no permission separation at all: everything present, writable
-   and executable, in both halves. `mmu::init` and everything downstream of it (`map_page`,
-   `flush_tlb`, `translate`) are `unimplemented!()`. The frame allocator is up (step 8 above), so
-   nothing blocks the work except one decision, which is written out here so the next lane does not
-   have to rediscover it.
-
-   **The problem.** `KERNEL_VA_BASE` is `0xffffffff80000000` because the target's `code-model:
-   kernel` requires every symbol to be in the top 2 GiB, and there are therefore only **2 GiB of
-   address space above it**. So `VA = PA | KERNEL_VA_BASE` cannot address more than 2 GiB of
-   physical memory, and it is not even an injective-with-inverse map above that line: `phys_to_virt`
-   of the local APIC at `0xfee00000` produces a valid distinct address, but `virt_to_phys` of that
-   address does not give `0xfee00000` back. Today the port dodges this by reaching device registers
-   through the boot tables' identity map (`mmu::device_va`), which the fine map must delete, because
-   an identity map is a complete alias of physical memory sitting in the half user programs get.
-
-   **The options.**
-
-   - **Keep one base and cap physical memory at 2 GiB.** Costs nothing to build and is wrong on any
-     machine worth running: milestone 87's OptiPlex has more RAM than that, and the local APIC is
-     above the line regardless of how much RAM there is.
-   - **Two bases, which is what Linux does.** The kernel *image* stays at `0xffffffff80000000`,
-     where the code model needs it, and the *direct map* moves to its own base with room to be
-     large (Linux uses `0xffff888000000000`). `phys_to_virt` becomes the direct map's arithmetic and
-     `virt_to_phys` its exact inverse again, over the whole physical space. The two are separate
-     PML4 entries, so nothing about them interferes.
-
-   **Recommended: two bases.** It is the known answer, it is what every x86_64 kernel does, and the
-   alternative fails on the machine this port exists to reach. The `paging` crate needs nothing:
-   `Ia32e::in_half` splits at bit 47 and `0xffff888000000000` is canonically high, so a direct map
-   there is in the kernel half by the same test the kernel image is.
-
-   **The one hazard, and it is the same one `boot.s` already survives once.** `phys_to_virt` changes
-   meaning at the moment the fine map is installed: before it, only the boot tables' `KERNEL_VA_BASE
-   + 1 GiB` alias and the identity map exist, and anything that already read a physical address
-   through the old arithmetic (the PVH structure, the ACPI tables, the frame bitmap) must either be
-   re-derived or be reached through a mapping the new tables also carry. The cheapest correct
-   sequencing is to build the new tables with **both** the old alias and the new direct map present,
-   switch `CR3`, then drop the old alias in a second step once nothing needs it.
-
-   Doing this also lifts the recorded limitation that the direct map covers only the low 1 GiB, and
-   is what lets `mmu::device_va` be deleted rather than carried.
+   The decision this item existed to record (two bases, Linux's) was taken as recorded, and the
+   hazard it flagged was removed rather than sequenced around: `boot.s` installs the direct map's
+   PML4 entry itself, so `phys_to_virt` never changes meaning. `mmu::device_va` is gone. What is
+   still open here is not the map but its **leaves**: `crates/paging` maps 4 KiB pages and nothing
+   else, so the direct map costs 0.2% of RAM in page tables. 2 MiB and 1 GiB leaves are a change to
+   the shared format trait that all three architectures would want, and they want their own
+   milestone rather than an x86 patch.
 2. **The IO APIC.** The *local* APIC and its timer are built and taking interrupts; what is left is
    routing a **device** line, which is the IO APIC's redirection table. The MADT already gives its
    address, its global-interrupt base, and the interrupt source overrides, and that last one is the
    trap: a legacy IRQ number is not an IO APIC input, because on essentially every PC the timer's
    IRQ 0 arrives as GSI 2. PCI *interrupt* routing is blocked beyond that, on AML rather than on
    tables, which is why MSI (which bypasses the routing entirely by writing a vector straight to the
-   local APIC) is the path worth building.
+   local APIC) is the path worth building. **Its register page is already mapped device-typed** by
+   `mmu::init` (step 9 above), so this is redirection-table code rather than a page-table detour.
 3. **Ring 3**: the `syscall`/`sysret` MSR setup, the `swapgs` pair in `trap.s` (whose location is
    marked), and `enter_user`. The syscall ABI is written down in `exceptions.rs`
    (`rax` + `rdi`/`rsi`/`rdx`/`r10`/`r8`/`r9`) and is **provisional**: it is a boundary rather than a
    habit (DECISIONS §10, §16) and nothing speaks it yet.
+
+   **Item 1 cleared the ground for this and left three things named rather than done.** The low half
+   of the kernel's tables is now genuinely empty (asserted, not assumed), so a process root has
+   somewhere to put user pages. What remains in `arch/x86_64/mmu.rs` is the user block, still a wall
+   of `unimplemented!()`: `share_kernel_half` (x86 is RISC-V's single-root model, so a process root
+   must carry the kernel's high-half PML4 entries), `ttbr0_value` (here `root | pcid`), and the
+   `CR3` switch. Two decisions come with them, both already written up in that module: **`CR4.PCIDE`
+   is off**, so `crates/asid`'s tags mean nothing to the hardware and every switch flushes the whole
+   TLB, and **`CR4.PGE` is off**, so the kernel's global mappings are not pinned across those
+   flushes. Turning both on belongs with this item rather than before it, because until a context
+   switch happens often enough to measure, neither can be shown to be worth its risk.
 4. **The kernel test suite**, and therefore a `script/test` leg. Blocked on 3: the suite's
    userspace-exec tests hand-assemble machine code and its supervision fixtures are per-ISA stubs.
 5. **SMP**, via INIT-SIPI-SIPI. The local APIC is up, so what remains is the Interrupt Command

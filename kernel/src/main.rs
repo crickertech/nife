@@ -232,6 +232,12 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         );
         memory::print_summary();
 
+        // Replace the boot map (4 GiB identity, everything present/writable/executable) with
+        // fine-grained W^X tables and switch `CR3` to them. We keep running, and keep printing,
+        // across the switch, which is what proves the fine map covers this code and this stack.
+        // The identity map is gone afterwards, and with it the last alias of physical memory in the
+        // half ring 3 will get. See notes/x86-port.md.
+        arch::mmu::init();
         arch::mmu::print_summary();
         println!(
             "  image       : text {:#x}..{:#x}, stack {:#x}..{:#x}",
@@ -242,12 +248,11 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         );
 
         // And that is the end of what is built. Everything the RISC-V tour does past this point
-        // (the frame allocator, fine-grained tables, the timer, userspace) needs an arch layer this
-        // port has not written, and each of those is a loud `unimplemented!()` rather than a
-        // plausible number. Halting here is the honest stop; see the roadmap for the order the rest
-        // comes in.
+        // (the scheduler, userspace, the device drivers) needs an arch layer this port has not
+        // written, and each of those is a loud `unimplemented!()` rather than a plausible number.
+        // Halting here is the honest stop; see the roadmap for the order the rest comes in.
         println!();
-        println!("  next        : fine-grained page tables, the IO APIC, then ring 3.");
+        println!("  next        : the IO APIC, then ring 3.");
         println!("nife x86_64: early boot complete, halting.");
         arch::halt();
     }

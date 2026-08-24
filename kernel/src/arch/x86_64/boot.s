@@ -41,10 +41,12 @@
 #
 #   1. Zero the boot page tables. They are NOLOAD, so nothing has zeroed them, and PML4/PDPT entries
 #      we do not write must read as not-present or the CPU walks into garbage.
-#   2. Fill them: 4 GiB identity-mapped with 2 MiB pages, plus the same first GiB aliased at
-#      KERNEL_VA_BASE. The identity half is not a convenience, it is what keeps `mov cr0, eax`
-#      from being the last instruction ever fetched: paging comes on between one instruction and
-#      the next, and the next one's address is still low.
+#   2. Fill them: 4 GiB identity-mapped with 2 MiB pages, the first GiB aliased at KERNEL_VA_BASE
+#      (where the image is linked), and the same 4 GiB aliased again at DIRECT_MAP_BASE (where
+#      `mmu::phys_to_virt` points). The identity half is not a convenience, it is what keeps
+#      `mov cr0, eax` from being the last instruction ever fetched: paging comes on between one
+#      instruction and the next, and the next one's address is still low. The direct map is not a
+#      convenience either; see step 2e for why it has to exist before Rust runs.
 #   3. CR4.PAE, then CR3, then EFER.LME, then CR0.PG. The CPU only enters long mode when PG is set
 #      *while* LME is set and PAE is on; any other order either faults or silently enters 32-bit
 #      paging, which then walks our 4-level table as a 3-level one and triple-faults.
@@ -149,6 +151,28 @@ _start:
     or eax, 0x03
     mov [edi + 511 * 8], eax
     mov dword ptr [edi + 511 * 8 + 4], 0
+
+    # --- 2e. the direct map, at PML4[273], reusing the SAME low PDPT ---
+    #
+    # THIS IS THE ENTRY THAT MAKES `mmu::phys_to_virt` MEAN ONE THING FOR THE MACHINE'S WHOLE LIFE,
+    # and it costs eight bytes because the low 4 GiB are already described by boot_pdpt_low.
+    #
+    # x86_64 cannot do what the other two architectures do, which is put the kernel image and the
+    # direct map at one base: `code-model: kernel` pins every kernel symbol to the top 2 GiB, so
+    # KERNEL_VA_BASE is 0xffffffff80000000 and there is no room above it for a map of physical
+    # memory. The kernel image therefore keeps that base and the direct map gets its own,
+    # DIRECT_MAP_BASE = 0xffff888000000000, which is Linux's and which decomposes as PML4[273].
+    #
+    # Establishing it HERE rather than when mmu::init builds the fine tables is what removes the
+    # sequencing hazard the roadmap warned about: the frame allocator's bitmap, the PVH structure
+    # and the ACPI tables are all read through phys_to_virt before the fine map exists, and if that
+    # arithmetic changed meaning at the `mov cr3` those pointers would silently start naming
+    # somewhere else. It does not change meaning, because this entry and the fine map's direct map
+    # are the same base. See arch/x86_64/mmu.rs, which asserts the index below at compile time.
+    mov eax, offset boot_pdpt_low
+    or eax, 0x03
+    mov [edi + 273 * 8], eax
+    mov dword ptr [edi + 273 * 8 + 4], 0
 
     # --- 3. PAE, CR3, LME, PG, in that order ---
     mov eax, cr4
