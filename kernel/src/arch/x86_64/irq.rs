@@ -14,26 +14,52 @@
 //!
 //! # What is built here and what is not
 //!
-//! Built: the local APIC (enable, EOI, the timer's LVT), masking the legacy 8259 PICs, and the
-//! calibration counter `timer.rs` needs. That is enough for a real hardware interrupt to be
-//! delivered, taken and acknowledged, which is what the boot tour proves.
+//! Built: the local APIC (enable, EOI, the timer's LVT), masking the legacy 8259 PICs, the
+//! calibration counter `timer.rs` needs, and **the IO APIC's redirection table**, so a real device
+//! line reaches the kernel on a vector this module chose. The boot tour proves both halves: the
+//! local APIC's own timer, and the PIT arriving through the IO APIC.
 //!
-//! Not built: the **IO APIC**, so no *device* interrupt is routed yet, and IPIs, so no secondary CPU
-//! can be started. Both are `unimplemented!()` below and each says which.
+//! Not built: IPIs, so no secondary CPU can be started, and no interrupt is routed to any CPU but
+//! the boot one.
 //!
 //! # The two obligations the tables state and code must honour
 //!
 //! **The 8259s are still there.** The MADT's `PCAT_COMPAT` flag says so on every PC, and QEMU's
 //! `q35` sets it. They are wired, they will raise interrupts on vectors 8..15 (their power-on
-//! default, which overlaps the CPU's own exception vectors), and nothing drives them. [`init`] masks
-//! both before the local APIC is enabled, in that order, because the reverse leaves a window where
-//! an unowned interrupt can arrive at a live IDT.
+//! default, which overlaps the CPU's own exception vectors), and nothing drives them.
+//! [`init_local_apic`] masks both before the local APIC is enabled, in that order, because the
+//! reverse leaves a window where an unowned interrupt can arrive at a live IDT. **They are masked
+//! rather than remapped, and the IO APIC does not coexist with them being live**: the same device
+//! line reaches both controllers, so an unmasked 8259 would deliver a second copy of every
+//! interrupt the redirection table routes, on a vector that is an exception number.
 //!
 //! **A legacy IRQ number is not an IO APIC input.** The MADT's interrupt source overrides rewire
-//! them, and on essentially every PC the timer's IRQ 0 arrives as global system interrupt 2. Nothing
-//! here reads a legacy number, and the IO APIC work must.
+//! them, and on essentially every PC the timer's IRQ 0 arrives as global system interrupt 2,
+//! because the PIT is wired to the IO APIC's pin 2 while pin 0 carries the 8259 cascade. The
+//! resolution is `machine_discovery::acpi::isa_irq_table`, host-tested, and [`record_isa_routing`]
+//! is what hands the answer to this module. **Nothing here may take a legacy IRQ number as a pin
+//! number**, and the failure mode if it did is the quiet one: a redirection entry armed on a line
+//! nothing drives, no interrupts, and no error.
+//!
+//! # BUGS
+//!
+//! - **One IO APIC, and only the boot CPU.** A machine with several IO APICs divides the global
+//!   interrupt space between them by `gsi_base`; this takes the first the MADT lists and refuses a
+//!   GSI outside its range rather than looking for a second. Every redirection entry is programmed
+//!   in physical destination mode at the boot CPU's local APIC id, so nothing is distributed and
+//!   nothing is affine to a CPU that does not exist yet.
+//! - **The redirection table is written through the boot map's cacheable alias** when the tour
+//!   arms a line before `mmu::init` runs, the same as the local APIC's registers already are. It
+//!   works on QEMU and on real hardware (the MMIO hole is uncacheable by MTRR whatever the page
+//!   tables say), but it is a mapping this code does not control. After `mmu::init` the page is
+//!   device-typed by name; see `arch/x86_64/mmu.rs`.
+//! - **Nothing masks a routed line on the way out.** A GSI armed by [`enable`] stays armed until
+//!   something calls [`mask_gsi`]; there is no owner registry and no revocation, because there is
+//!   no device driver on this architecture to own one yet.
 
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+
+use machine_discovery::acpi::{ISA_IRQ_COUNT, IsaIrqRouting};
 
 use super::mmu::phys_to_virt;
 use super::port::{in8, out8};
@@ -233,21 +259,297 @@ pub fn arm_periodic_timer(count: u32) {
 }
 
 /// Stop the timer delivering.
-#[allow(dead_code)]
 pub fn mask_timer() {
     write(reg::LVT_TIMER, LVT_MASKED | TIMER_VECTOR as u32);
 }
 
 // ---------------------------------------------------------------------------------------------
-// The portable arch contract's names, which the IO APIC and IPIs would implement. Neither is built.
+// The IO APIC: where a *device* line becomes a vector.
 // ---------------------------------------------------------------------------------------------
 
-/// Bring up the interrupt controller. The local APIC's own bring-up is [`init_local_apic`], which
-/// takes an address the ACPI tables supplied; this name is the arch contract's no-argument one and
-/// belongs to the IO APIC, which is not built.
+/// **The IO APIC's registers are not a flat array, and that is the first thing to know about it.**
+///
+/// The whole device is two 32-bit words in the memory map: an index register and a data window.
+/// To touch register `n` you write `n` to [`IOREGSEL`] and then read or write [`IOWIN`], which
+/// makes every access a *pair* and makes the device stateful. Two CPUs doing this concurrently
+/// would interleave and each would read the other's register; nothing here is concurrent yet
+/// (single-threaded boot, one CPU), and this note is where the next person finds out that a lock
+/// belongs here the moment SMP lands.
+mod io_reg {
+    /// The index register, at offset 0. Write the number of the register you want.
+    pub const IOREGSEL: u64 = 0x00;
+    /// The data window, at offset 0x10. Reads and writes land on whatever [`IOREGSEL`] last named.
+    pub const IOWIN: u64 = 0x10;
+
+    /// Register 0: this IO APIC's id, in bits 27:24.
+    pub const ID: u32 = 0x00;
+    /// Register 1: the version in bits 7:0, and in bits 23:16 **the number of redirection entries
+    /// minus one**. That "minus one" is the field's definition, not an off-by-one: a 24-entry part
+    /// reports 23.
+    pub const VERSION: u32 = 0x01;
+    /// Register 0x10: the first word of redirection entry 0. Each entry is **two** consecutive
+    /// registers, low word first, so entry `n` is at `0x10 + 2 * n`.
+    pub const REDIRECTION_BASE: u32 = 0x10;
+}
+
+/// Redirection entry bit 16: masked. Every entry powers on masked, which is why arming one is a
+/// deliberate act and why [`init_io_apic`] masking them all again is belt and braces rather than
+/// necessity.
+const REDIR_MASKED: u32 = 1 << 16;
+/// Redirection entry bit 15: level triggered rather than edge triggered.
+const REDIR_LEVEL: u32 = 1 << 15;
+/// Redirection entry bit 13: the input pin is asserted low rather than high.
+const REDIR_ACTIVE_LOW: u32 = 1 << 13;
+
+/// **The first vector the IO APIC's lines are routed to.** 0x30, which leaves 0x20..0x2f for the
+/// local APIC's own sources (the timer at [`TIMER_VECTOR`], and later the thermal, performance,
+/// error and inter-processor vectors, which are LVT entries rather than redirection entries).
+///
+/// A GSI's vector is this plus the GSI, which is flat and reversible: a stray vector in a fault
+/// report names its line by subtraction. That costs the ability to prioritise (x86 priority is the
+/// vector's top four bits, so a flat map gives 0x30..0x47 two priority classes and no say in
+/// which line is in which). Nothing here has a priority policy to express yet.
+///
+/// **Provisional name** (milestone 161), along with [`gsi_vector`] and the IO APIC entry points
+/// below.
+pub const GSI_VECTOR_BASE: u8 = 0x30;
+
+/// The most redirection entries this kernel will use. Real parts have 24 (the 82093AA, QEMU's q35,
+/// the ICH-era chipsets); the field could report up to 256, and this cap is the number that still
+/// fits in the vector space above [`GSI_VECTOR_BASE`]. It bounds [`is_device_vector`] and the mask
+/// loop in [`init_io_apic`] against a version register saying something absurd, and it is the
+/// reason [`gsi_vector`] cannot silently wrap onto an exception vector.
+const MAX_REDIRECTION_ENTRIES: u32 = 256 - GSI_VECTOR_BASE as u32;
+
+/// Where this machine's IO APIC is, as a virtual address. Zero until [`init_io_apic`] runs. The
+/// same direct-map reasoning as [`LOCAL_APIC`].
+static IO_APIC: AtomicU64 = AtomicU64::new(0);
+/// The **physical** address the IO APIC was found at, kept for `mmu::init` for the reason
+/// [`LOCAL_APIC_PHYS`] is.
+static IO_APIC_PHYS: AtomicU64 = AtomicU64::new(0);
+/// The first global system interrupt this IO APIC owns. Usually 0, and a machine with several
+/// parts divides the space by giving each a different base.
+static IO_APIC_GSI_BASE: AtomicU32 = AtomicU32::new(0);
+/// How many redirection entries it has, read from its version register. Zero until then.
+static IO_APIC_ENTRIES: AtomicU32 = AtomicU32::new(0);
+
+/// **The sixteen legacy ISA IRQs as the MADT resolved them**, packed one to a word so the table can
+/// live in a static without a lock: the GSI in bits 15:0, "active low" in bit 16, "level triggered"
+/// in bit 17. [`NO_ROUTING`] means [`record_isa_routing`] has not run.
+///
+/// Packed rather than held as a `[IsaIrqRouting; 16]` behind a mutex because it is written once,
+/// during single-threaded boot, and read from interrupt-controller code where taking a lock would
+/// be the more surprising thing.
+static ISA_ROUTING: [AtomicU32; ISA_IRQ_COUNT] =
+    [const { AtomicU32::new(NO_ROUTING) }; ISA_IRQ_COUNT];
+
+/// The value in [`ISA_ROUTING`] that means "the MADT has not been read".
+const NO_ROUTING: u32 = u32::MAX;
+
+/// Bit 16 of a packed [`ISA_ROUTING`] word.
+const PACKED_ACTIVE_LOW: u32 = 1 << 16;
+/// Bit 17 of a packed [`ISA_ROUTING`] word.
+const PACKED_LEVEL: u32 = 1 << 17;
+
+/// Write the IO APIC's index register, then its data window.
+fn io_apic_write(index: u32, value: u32) {
+    let base = IO_APIC.load(Ordering::Relaxed);
+    debug_assert!(base != 0, "the IO APIC has not been located");
+    // SAFETY: two aligned 32-bit MMIO writes to the two registers this device has, at the address
+    // the ACPI MADT stated, reached through the direct map. The index write must land before the
+    // data write, which `write_volatile` guarantees against another volatile access and TSO
+    // guarantees against the device.
+    unsafe {
+        core::ptr::write_volatile((base + io_reg::IOREGSEL) as *mut u32, index);
+        core::ptr::write_volatile((base + io_reg::IOWIN) as *mut u32, value);
+    }
+}
+
+/// Write the IO APIC's index register, then read its data window.
+fn io_apic_read(index: u32) -> u32 {
+    let base = IO_APIC.load(Ordering::Relaxed);
+    debug_assert!(base != 0, "the IO APIC has not been located");
+    // SAFETY: as `io_apic_write`.
+    unsafe {
+        core::ptr::write_volatile((base + io_reg::IOREGSEL) as *mut u32, index);
+        core::ptr::read_volatile((base + io_reg::IOWIN) as *const u32)
+    }
+}
+
+/// **Bring up the IO APIC at physical address `base`, owning global system interrupts from
+/// `gsi_base` up.** Both come from the ACPI MADT.
+///
+/// Every redirection entry is masked on the way in. They power on masked, so this changes nothing
+/// on a cold boot; it matters on a warm one, where firmware may have armed a line for its own use
+/// and left it armed, and an inherited interrupt arriving at a vector this kernel has not assigned
+/// is a puzzle with no clue in it.
+///
+/// # Safety
+/// `base` must be this machine's real IO APIC address, and the direct map must cover it.
+pub unsafe fn init_io_apic(base: u64, gsi_base: u32) {
+    IO_APIC_PHYS.store(base, Ordering::Relaxed);
+    IO_APIC.store(phys_to_virt(base), Ordering::Relaxed);
+    IO_APIC_GSI_BASE.store(gsi_base, Ordering::Relaxed);
+
+    // The version register's bits 23:16 are the entry count *minus one*.
+    let entries = (((io_apic_read(io_reg::VERSION) >> 16) & 0xff) + 1).min(MAX_REDIRECTION_ENTRIES);
+    IO_APIC_ENTRIES.store(entries, Ordering::Relaxed);
+
+    for entry in 0..entries {
+        let index = io_reg::REDIRECTION_BASE + 2 * entry;
+        io_apic_write(index + 1, 0);
+        io_apic_write(index, REDIR_MASKED);
+    }
+}
+
+/// Where this machine's IO APIC is, physically, or `None` if [`init_io_apic`] has not run. Read by
+/// `mmu::init` so the fine map covers the address the machine reported rather than the constant.
+pub fn io_apic_phys() -> Option<u64> {
+    match IO_APIC_PHYS.load(Ordering::Relaxed) {
+        0 => None,
+        base => Some(base),
+    }
+}
+
+/// This IO APIC's id, from its own register rather than from the MADT. Printed at boot because a
+/// disagreement between the two is a firmware bug worth seeing rather than averaging over.
+pub fn io_apic_id() -> u8 {
+    ((io_apic_read(io_reg::ID) >> 24) & 0x0f) as u8
+}
+
+/// Its version register's low byte. 0x11 on the discrete 82093AA and on QEMU's q35, 0x20 on the
+/// ICH-era parts.
+pub fn io_apic_version() -> u8 {
+    io_apic_read(io_reg::VERSION) as u8
+}
+
+/// How many redirection entries it has. Zero until [`init_io_apic`] has run.
+pub fn io_apic_entries() -> u32 {
+    IO_APIC_ENTRIES.load(Ordering::Relaxed)
+}
+
+/// **The vector a global system interrupt is routed to.** See [`GSI_VECTOR_BASE`] for why the map
+/// is flat.
+pub const fn gsi_vector(gsi: u32) -> u8 {
+    GSI_VECTOR_BASE.wrapping_add(gsi as u8)
+}
+
+/// Is `vector` one of the IO APIC's? The trap handler asks, so that a device interrupt is counted
+/// as routed rather than as an unowned vector nothing claimed.
+pub fn is_device_vector(vector: u64) -> bool {
+    let base = GSI_VECTOR_BASE as u64;
+    vector >= base && vector < base + io_apic_entries() as u64
+}
+
+/// The redirection-table index for `gsi`, or `None` when this IO APIC does not own that GSI.
+///
+/// **Not the same number as the GSI**, on a machine with more than one IO APIC: each owns a slice
+/// of the global space starting at its own `gsi_base`, and the index is the offset into that slice.
+fn redirection_index(gsi: u32) -> Option<u32> {
+    let base = IO_APIC_GSI_BASE.load(Ordering::Relaxed);
+    let entries = IO_APIC_ENTRIES.load(Ordering::Relaxed);
+    let index = gsi.checked_sub(base)?;
+    (index < entries).then_some(index)
+}
+
+/// **Route `gsi` to `vector` on the local APIC `dest_apic_id`, and unmask it.**
+///
+/// Fixed delivery mode and physical destination mode: the vector is delivered to exactly the local
+/// APIC whose id is named, rather than to a logical group or to whichever CPU is running at the
+/// lowest priority. That is the simplest thing that is correct on one CPU and stays correct on
+/// several; distributing interrupts is a policy, and there is nothing here to have one yet.
+///
+/// The high word is written **first**, and the low word (which carries the mask bit) last, so the
+/// destination is already in place at the instant the line goes live. The reverse order leaves a
+/// window in which an interrupt is delivered to whatever CPU the previous value named.
+///
+/// # Panics
+/// If this IO APIC does not own `gsi`. Silently doing nothing would be an unarmed line that looks
+/// exactly like a device that never interrupts.
+pub fn route_gsi(gsi: u32, vector: u8, active_low: bool, level_triggered: bool, dest_apic_id: u8) {
+    let index = redirection_index(gsi).unwrap_or_else(|| {
+        panic!(
+            "gsi {gsi} is outside the IO APIC's range (base {}, {} entries)",
+            IO_APIC_GSI_BASE.load(Ordering::Relaxed),
+            IO_APIC_ENTRIES.load(Ordering::Relaxed),
+        )
+    });
+    let at = io_reg::REDIRECTION_BASE + 2 * index;
+
+    let mut low = vector as u32;
+    if active_low {
+        low |= REDIR_ACTIVE_LOW;
+    }
+    if level_triggered {
+        low |= REDIR_LEVEL;
+    }
+
+    io_apic_write(at + 1, (dest_apic_id as u32) << 24);
+    io_apic_write(at, low);
+}
+
+/// Mask `gsi` at the IO APIC, leaving the rest of its entry alone.
+///
+/// # Panics
+/// As [`route_gsi`]: a GSI this part does not own is a caller bug, not a no-op.
+pub fn mask_gsi(gsi: u32) {
+    let index = redirection_index(gsi).unwrap_or_else(|| {
+        panic!("gsi {gsi} is outside the IO APIC's range");
+    });
+    let at = io_reg::REDIRECTION_BASE + 2 * index;
+    io_apic_write(at, io_apic_read(at) | REDIR_MASKED);
+}
+
+/// **Record how the MADT's interrupt source overrides resolve the sixteen legacy ISA IRQs**, so
+/// that [`enable`] can take a legacy number the way the arch contract's callers do.
+///
+/// Called once, after ACPI has been walked and before any line is armed. Without it [`enable`]
+/// falls back to the identity map, which is wrong for the timer on every PC ever built.
+pub fn record_isa_routing(table: &[IsaIrqRouting; ISA_IRQ_COUNT]) {
+    for (irq, routing) in table.iter().enumerate() {
+        let mut packed = routing.gsi & 0xffff;
+        if routing.active_low {
+            packed |= PACKED_ACTIVE_LOW;
+        }
+        if routing.level_triggered {
+            packed |= PACKED_LEVEL;
+        }
+        ISA_ROUTING[irq].store(packed, Ordering::Relaxed);
+    }
+}
+
+/// How legacy IRQ `irq` reaches this machine's IO APIC, falling back to the ISA bus's own defaults
+/// when [`record_isa_routing`] has not run or the number is not a legacy IRQ.
+pub fn isa_routing(irq: u32) -> IsaIrqRouting {
+    let fallback = IsaIrqRouting::isa_default(irq as u8);
+    let Some(slot) = ISA_ROUTING.get(irq as usize) else {
+        return fallback;
+    };
+    match slot.load(Ordering::Relaxed) {
+        NO_ROUTING => fallback,
+        packed => IsaIrqRouting {
+            gsi: packed & 0xffff,
+            active_low: packed & PACKED_ACTIVE_LOW != 0,
+            level_triggered: packed & PACKED_LEVEL != 0,
+        },
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// The portable arch contract's names.
+// ---------------------------------------------------------------------------------------------
+
+/// Bring up the interrupt controller.
+///
+/// # BUGS
+/// **Unimplemented, and it is the argument rather than the work.** The IO APIC's bring-up is
+/// [`init_io_apic`], which takes the address and global-interrupt base the ACPI MADT supplied; this
+/// name is the arch contract's no-argument one, written for two architectures that read those facts
+/// out of a device tree the shared `memory::init` had already parsed. Wiring it up is the device
+/// discovery seam (roadmap item 0), not this module.
 #[allow(dead_code)]
 pub fn init() {
-    unimplemented!("x86_64 irq::init: the IO APIC is not built (milestone 161)")
+    unimplemented!("x86_64 irq::init: see init_io_apic, which takes the MADT's address")
 }
 
 /// Bring up this CPU's local interrupt interface. See [`init_local_apic`], which is the same
@@ -257,16 +559,24 @@ pub fn init_this_cpu() {
     unimplemented!("x86_64 irq::init_this_cpu: see init_local_apic (milestone 161)")
 }
 
-/// Unmask interrupt `intid` at the controller.
+/// **Unmask interrupt `intid` at the controller**, where `intid` is a *legacy IRQ number* the way
+/// the arch contract's other two implementations take an INTID or a PLIC source.
 ///
-/// # BUGS
-/// **Unimplemented.** This is the IO APIC's redirection table, and it needs the MADT's interrupt
-/// source overrides applied first, because `intid` here is a legacy IRQ number and the IO APIC input
-/// it corresponds to is very often a different number. See this module's header.
-#[allow(dead_code)]
+/// The translation is the whole point of this function: [`isa_routing`] turns the legacy number
+/// into the GSI the MADT says it actually arrives on, plus that line's polarity and trigger mode,
+/// and only then is a redirection entry written. IRQ 0 becomes GSI 2 here, and a version of this
+/// that skipped the step would arm the 8259 cascade and report success.
+///
+/// The vector is [`gsi_vector`]'s, and the destination is the boot CPU.
 pub fn enable(intid: u32) {
-    let _ = intid;
-    unimplemented!("x86_64 irq::enable: the IO APIC is not built (milestone 161)")
+    let routing = isa_routing(intid);
+    route_gsi(
+        routing.gsi,
+        gsi_vector(routing.gsi),
+        routing.active_low,
+        routing.level_triggered,
+        local_apic_id(),
+    );
 }
 
 /// Send a reschedule inter-processor interrupt to `target_cpu`.

@@ -219,6 +219,64 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             println!("  apic        : skipped, the MADT did not say where the local apic is");
         }
 
+        // The IO APIC, and with it a real *device* interrupt. The local APIC timer above proves the
+        // CPU takes an interrupt it did not ask for; this proves a line outside the CPU reaches it,
+        // which is a different claim and needs a different device.
+        //
+        // The PIT is that device, and it is the right one twice over: `timer.rs` already drives it
+        // for calibration, and its legacy IRQ 0 is the line every PC rewires, arriving as global
+        // system interrupt 2. Arming redirection entry 0 for "the timer" would arm the 8259 cascade
+        // and produce no interrupts and no error, so routing this line is simultaneously the
+        // easiest device to reach and the strongest test of the override table.
+        if let (Some((io_id, io_addr, gsi_base)), true) =
+            (acpi.io_apic, arch::irq::local_apic_ready())
+        {
+            // SAFETY: the address and global-interrupt base came from the machine's own ACPI MADT,
+            // and the boot map covers the whole low 4 GiB this device sits in.
+            unsafe { arch::irq::init_io_apic(io_addr as u64, gsi_base) };
+            arch::irq::record_isa_routing(&acpi.isa_irqs);
+            let chip_id = arch::irq::io_apic_id();
+            println!(
+                "  io apic     : id {chip_id} at {io_addr:#x} up, version {:#x}, {} redirection entries, gsi base {gsi_base}",
+                arch::irq::io_apic_version(),
+                arch::irq::io_apic_entries(),
+            );
+            if chip_id != io_id {
+                // Worth a line rather than an average: the MADT and the chip disagreeing about
+                // which IO APIC this is means one of the two is describing a different machine.
+                println!(
+                    "                the MADT calls it id {io_id}; the register above is the chip's own answer"
+                );
+            }
+
+            // The local APIC timer is masked for the window below so the count is the PIT's alone.
+            // Both would be delivered correctly; one number that means one thing is worth more.
+            arch::irq::mask_timer();
+
+            let pit = arch::irq::isa_routing(arch::timer::PIT_IRQ);
+            let vector = arch::irq::gsi_vector(pit.gsi);
+            let hz = arch::timer::start_pit_ticking(arch::timer::TICK_HZ);
+            arch::irq::enable(arch::timer::PIT_IRQ);
+
+            arch::exceptions::enable_external();
+            arch::interrupts::enable();
+            let start = arch::timer::now();
+            while arch::timer::now().wrapping_sub(start) < arch::timer::frequency() / 5 {
+                arch::wait_for_interrupt();
+            }
+            arch::interrupts::disable();
+            arch::irq::mask_gsi(pit.gsi);
+
+            println!(
+                "  device irq  : pit irq {} -> gsi {} on vector {vector:#x}: {} interrupts in ~0.2s at {hz} Hz",
+                arch::timer::PIT_IRQ,
+                pit.gsi,
+                arch::exceptions::DEVICE_IRQS.load(core::sync::atomic::Ordering::Relaxed),
+            );
+        } else {
+            println!("  io apic     : skipped, the MADT did not describe one");
+        }
+
         // The frame allocator, from the PVH memory map. This is the seam: `memory::init` is a
         // device-tree front end and there is no tree here, so the x86 side assembles the same two
         // slices (RAM, and what is already spoken for) and hands them to the half that does not
@@ -252,7 +310,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // written, and each of those is a loud `unimplemented!()` rather than a plausible number.
         // Halting here is the honest stop; see the roadmap for the order the rest comes in.
         println!();
-        println!("  next        : the IO APIC, then ring 3.");
+        println!("  next        : ring 3.");
         println!("nife x86_64: early boot complete, halting.");
         arch::halt();
     }

@@ -68,6 +68,23 @@ const PIT_GATE_PORT: u16 = 0x61;
 /// one-shot stopwatch.
 const PIT_CHANNEL2_ONESHOT: u8 = 0b1011_0010;
 
+/// PIT **channel 0**'s data port. Channel 0 is the one whose output is wired to the interrupt
+/// controller, which is why calibration cannot use it (it would mean taking interrupts) and why
+/// proving the IO APIC works can use nothing else.
+const PIT_CHANNEL0: u16 = 0x40;
+
+/// Channel 0, access mode lobyte/hibyte, operating mode 2 (rate generator), binary. Mode 2 pulses
+/// the output line once per reload and then reloads itself, which is a periodic interrupt source
+/// rather than the one-shot mode 0 the calibration uses.
+const PIT_CHANNEL0_RATE: u8 = 0b0011_0100;
+
+/// **The legacy ISA IRQ number channel 0's output carries.** Zero, on every PC.
+///
+/// It is emphatically **not** the IO APIC input the line arrives on: the MADT's interrupt source
+/// overrides say the PIT is wired to global system interrupt 2, because pin 0 carries the 8259
+/// cascade. See `arch/x86_64/irq.rs`.
+pub const PIT_IRQ: u32 = 0;
+
 /// The TSC's frequency in hertz, measured by [`init_frequency`]. Zero until then.
 static TSC_HZ: AtomicU64 = AtomicU64::new(0);
 
@@ -174,6 +191,36 @@ pub fn init_frequency(boot_info_pointer: usize) {
     let per_second = 1000 / CALIBRATION_MS;
     TSC_HZ.store(tsc_delta * per_second, Ordering::Relaxed);
     APIC_TIMER_HZ.store(apic_delta as u64 * per_second, Ordering::Relaxed);
+}
+
+/// **Start PIT channel 0 pulsing its interrupt line at about `hz`**, and report the rate actually
+/// programmed.
+///
+/// The rate is "about" because the divisor is an integer: the PIT counts down from it at
+/// [`PIT_HZ`], so only the frequencies that divide 1193182 exactly are exact. 100 Hz is 11932.4,
+/// which rounds to a real rate of 100.0035 Hz. Reporting the achieved rate rather than the asked-for
+/// one is what keeps a boot print from claiming a number the hardware is not producing.
+///
+/// **This does not route the interrupt anywhere.** The line goes to both interrupt controllers; the
+/// 8259s are masked, and the IO APIC delivers nothing until `irq::enable` arms the redirection entry
+/// the MADT's override names. This is the device half, and it is here because `timer.rs` is where
+/// the PIT lives.
+///
+/// **Provisional name** (milestone 161).
+pub fn start_pit_ticking(hz: u64) -> u64 {
+    let divisor = (PIT_HZ / hz).clamp(1, u16::MAX as u64) as u16;
+
+    // SAFETY: the PIT is a fixed ISA device present on every x86 machine, and these three writes
+    // are its documented programming sequence: the mode/command byte first (which latches the
+    // access mode), then the divisor's low byte and high byte in that order, because the access
+    // mode just selected says there are two of them.
+    unsafe {
+        out8(PIT_COMMAND, PIT_CHANNEL0_RATE);
+        out8(PIT_CHANNEL0, divisor as u8);
+        out8(PIT_CHANNEL0, (divisor >> 8) as u8);
+    }
+
+    PIT_HZ / divisor as u64
 }
 
 /// The counter's current value: the TSC.

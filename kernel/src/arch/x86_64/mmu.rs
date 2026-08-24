@@ -164,8 +164,9 @@ pub const COM1_PORT: usize = 0x3f8;
 #[cfg_attr(not(test), allow(dead_code))]
 pub const LOCAL_APIC_PHYS: u64 = 0xfee0_0000;
 
-/// The IO APIC's default physical base on a PC-compatible machine. The real answer is in the ACPI
-/// MADT, which this port does not parse yet; this is the value every machine so far has put there.
+/// The IO APIC's default physical base on a PC-compatible machine, used only when the ACPI MADT
+/// did not say. `irq::io_apic_phys()` is what the machine actually reported, and q35 reports
+/// exactly this.
 #[cfg_attr(not(test), allow(dead_code))]
 pub const IO_APIC_PHYS: u64 = 0xfec0_0000;
 
@@ -465,10 +466,11 @@ where
     let apic = super::irq::local_apic_phys().unwrap_or(LOCAL_APIC_PHYS);
     direct_map(m, apic, apic + PAGE_SIZE, Flags::device())?;
 
-    // The IO APIC's own page. Nothing routes a device line through it yet (roadmap item 2); the
-    // page is mapped here because the mapping is this module's job either way, and item 2 should be
-    // redirection-table code rather than a page-table detour.
-    direct_map(m, IO_APIC_PHYS, IO_APIC_PHYS + PAGE_SIZE, Flags::device())?;
+    // The IO APIC's own page, from the MADT when ACPI answered and from the architectural default
+    // when it did not, for the same reason the local APIC's is: the address is the machine's to
+    // state, and a machine with two of them puts the second somewhere this constant does not name.
+    let io_apic = super::irq::io_apic_phys().unwrap_or(IO_APIC_PHYS);
+    direct_map(m, io_apic, io_apic + PAGE_SIZE, Flags::device())?;
 
     // Bus 0 of the PCIe ECAM window, the same one-bus cap the other two architectures apply and for
     // the same reason: every device QEMU puts on this machine is on bus 0, and all 256 buses would
