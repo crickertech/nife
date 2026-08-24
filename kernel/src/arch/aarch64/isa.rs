@@ -32,7 +32,7 @@ static ISA: IrqSafeMutex<Option<Isa>> = IrqSafeMutex::new(rank::ISA, None);
 
 /// The `/psci` record, in three plain atomics rather than behind the mutex above (milestone 100).
 ///
-/// `psci_cpu_on` reads these, and it runs on the bring-up path with interrupts enabled; putting the
+/// `cpu_start` reads these, and it runs on the bring-up path with interrupts enabled; putting the
 /// PSCI facts behind a lock would put a lock rank on the path that starts a core, for a value that
 /// is written once before any secondary exists and never again. Atomics say that directly.
 const PSCI_ABSENT: u8 = 0;
@@ -123,7 +123,7 @@ pub fn get() -> Isa {
 
 /// **What a `CPU_ON` call needs**: the conduit to make it on and the function id to make it with,
 /// or `None` when this machine stated neither well enough to try. Read by
-/// [`super::psci_cpu_on`] on every core it starts.
+/// [`super::cpu_start`] on every core it starts.
 pub fn psci() -> Option<(Conduit, u32)> {
     let conduit = match PSCI_CONDUIT.load(Ordering::Relaxed) {
         PSCI_HVC => Conduit::Hvc,

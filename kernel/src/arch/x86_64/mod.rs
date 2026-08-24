@@ -19,18 +19,16 @@
 //! than MMIO) as a type parameter rather than a second driver, which is the strongest evidence so
 //! far that "a new ISA is a new directory" is true rather than aspirational.
 //!
-//! # And two places it did not hold, recorded honestly
+//! # And two places it did not hold, until calef ratified the rename
 //!
-//! **`arch::psci_cpu_on` is an aarch64 name that leaked**, and RISC-V already had to implement it
+//! **`arch::psci_cpu_on` was an aarch64 name that leaked**, and RISC-V already had to implement it
 //! as an SBI call under an ARM firmware interface's name. x86 has no third mechanism to hide behind
 //! it: SMP bring-up here is INIT-SIPI-SIPI through the local APIC, sent by the interrupt controller,
-//! at a physical page below 1 MiB, in 16-bit real mode. The name should be
-//! `arch::start_secondary_cpu` and is not, because renaming it is calef's call and a lane ships a
-//! provisional name rather than deciding one.
+//! at a physical page below 1 MiB, in 16-bit real mode. Ratified as `arch::cpu_start`.
 //!
-//! **The single pointer `kernel_main` takes is called `dtb`.** x86 has no device tree; what arrives
+//! **The single pointer `kernel_main` took was called `dtb`.** x86 has no device tree; what arrives
 //! there is PVH's `hvm_start_info`, which carries the memory map and the ACPI RSDP address, so the
-//! *shape* is right and only the name is wrong. Same disposition: recorded, not renamed.
+//! *shape* was right and only the name was wrong. Ratified as `boot_info_pointer`.
 
 use core::arch::{asm, global_asm};
 
@@ -135,7 +133,7 @@ pub fn percpu_matches_hart() -> bool {
 /// arch contract's name for this operation is aarch64's firmware interface. Returns a nonzero error
 /// rather than panicking, because that is what `smp::bring_up_secondaries` already expects from a
 /// CPU that will not start, and this port genuinely cannot start one.
-pub fn psci_cpu_on(target_cpu: u64, entry: u64, context: u64) -> i64 {
+pub fn cpu_start(target_cpu: u64, entry: u64, context: u64) -> i64 {
     let _ = (target_cpu, entry, context);
     -1
 }

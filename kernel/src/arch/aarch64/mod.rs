@@ -104,7 +104,7 @@ macro_rules! psci_call {
     }};
 }
 
-/// What [`psci_cpu_on`] returns when the machine never told us how to make the call. Not a PSCI
+/// What [`cpu_start`] returns when the machine never told us how to make the call. Not a PSCI
 /// error code: PSCI's own space runs from -1 to -9, and inventing a tenth would be a lie about who
 /// answered. Nothing reaches this in the normal path, because `smp::bring_up_secondaries` asks
 /// [`can_start_secondaries`] first.
@@ -131,7 +131,7 @@ pub const PSCI_NOT_DISCOVERED: i64 = i64::MIN;
 ///   The `hvc` path is exercised on every test run. Choosing the wrong one of the two is an
 ///   undefined-instruction trap rather than an error code, which is why it is read rather than
 ///   defaulted, and why this note is here rather than in a tracker.
-pub fn psci_cpu_on(target_mpidr: u64, entry: u64, context: u64) -> i64 {
+pub fn cpu_start(target_mpidr: u64, entry: u64, context: u64) -> i64 {
     let Some((conduit, func)) = isa::psci() else {
         return PSCI_NOT_DISCOVERED;
     };

@@ -156,15 +156,15 @@ fn measure_against_the_pit() -> (u64, u32) {
 
 /// **Measure the TSC and the local APIC timer against the PIT.**
 ///
-/// Takes the portable arch contract's device-tree argument, which x86 does not have; the numbers
+/// Takes the portable arch contract's boot-info-pointer argument, which x86 ignores; the numbers
 /// come from the machine rather than from a table, which is the shape of the difference this
 /// module's header is about.
 ///
 /// # Panics
 /// If the local APIC is not up. The order is APIC then timer, and a timer calibrated against a
 /// counter that is not running would produce a plausible TSC frequency and a nonsense tick period.
-pub fn init_frequency(dtb_ptr: usize) {
-    let _ = dtb_ptr;
+pub fn init_frequency(boot_info_pointer: usize) {
+    let _ = boot_info_pointer;
     assert!(
         irq::local_apic_ready(),
         "the timer calibrates the local APIC's counter, so the APIC must be up first",
