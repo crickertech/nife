@@ -5,10 +5,13 @@ boot built and gated the same day. **The kernel boots on QEMU's `q35`, reaches R
 of a 4-level address space, prints over a 16550, installs a GDT/TSS and an IDT, catches a breakpoint
 and steps over it, takes a calibrated timer interrupt, brings up the frame allocator, replaces the
 boot map with fine-grained W^X page tables of its own, routes a real device line through the IO
-APIC's redirection table, and halts.** What is built and what is still
+APIC's redirection table, runs a program at ring 3 that makes syscalls and is refused by the page
+tables when it reaches for the kernel, and halts.** What is built and what is still
 open are spelled out at the bottom of this block; `notes/x86-port.md` is the working record. The
 scope note below (milestone 20's "enough of each ISA to boot, confine a ring-3/U process, and run
-the test suite") is unchanged and is not met: ring 3 does not exist here yet.
+the test suite") is **two thirds met** as of 2026-08-24: the machine boots and it confines a ring-3
+program. The test suite is item 4, and so is everything between "a program ran at ring 3" and "a
+process", which is a real distance rather than a formality.
 DECISIONS §19 declared the target set (aarch64, riscv64, x86_64) and recorded honestly that
 *"x86_64 is a declared target that does not exist yet."* Milestone 20's own "Deliverable, in two
 parts" already named "bring up a second ISA, then a third: RISC-V first, x86_64 second," but 20 is
@@ -177,6 +180,71 @@ Ordered as it was built, because each step is what made the next one debuggable.
     (`GSI_VECTOR_BASE + gsi`, base 0x30), so a stray vector in a fault report names its line by
     subtraction; it costs the ability to express a priority policy, and there is not one to express.
 
+11. **Ring 3, the `syscall` pair, and a program the page tables refuse** (2026-08-24, the open
+    list's item 3 below). Four pieces, and the order below is the order they have to work in.
+
+    **The user address spaces.** `arch/x86_64/mmu.rs`'s user block stopped being a wall of
+    `unimplemented!()`. x86 is **RISC-V's single-root model**, not aarch64's: `CR3` names the whole
+    address space, so `share_kernel_half` copies PML4 entries 256..512 out of the kernel root into
+    every process root, which shares the image (PML4[511]), the direct map (PML4[273]) and every
+    device window in one `copy_from_slice`. Without it the `mov cr3` unmaps the instruction after
+    it.
+
+    **The `swapgs` pair, guarded on the interrupted CPL.** The guard is the whole design: `swapgs`
+    is an *exchange*, so a trap from ring 0 that swapped would install the user's GS base while
+    running kernel code, and the next nested trap would hand the kernel's back to the user. Both
+    sites test the saved `CS`'s low two bits, which are the interrupted privilege level. It does
+    **not** trip the hazard `segments.rs` documents (loading a segment register in long mode zeroes
+    that segment's base MSR), because it writes the MSR pair and loads no selector; that was checked
+    against the instruction's definition rather than assumed, since it is exactly the shape of bug
+    that cost this port an afternoon once.
+
+    **The `syscall` entry.** Four MSRs (`IA32_STAR`, `IA32_LSTAR`, `IA32_FMASK`, and `EFER.SCE`
+    last, so the instruction becomes legal only after the address it jumps to exists), programmed in
+    `arch::init` beside the GDT and the IDT because they are per-CPU state of the same kind. The
+    entry path is the part with no counterpart on the other two architectures: `syscall` **does not
+    switch stacks** and pushes nothing, so the first three instructions are `swapgs`, park the
+    user's `rsp`, and load the kernel's. `segments::set_kernel_stack` writes `TSS.RSP0` and the
+    `syscall` path's stack together, so the two doors into the kernel cannot come to name different
+    stacks.
+
+    **The return is an `iretq`, not a `sysretq`, and that is a decision rather than an omission.**
+    `sysret` returns to `rcx` without checking it is canonical, and a non-canonical `rcx` faults *in
+    ring 0 on the user's stack* (the shape of CVE-2012-0217); using it safely needs an explicit
+    canonicality check and an `iretq` fallback. Sharing one restore path costs some tens of cycles
+    per syscall and buys one `swapgs` rule with one place to get it wrong. Recorded in that
+    function's `BUGS` as worth revisiting **with a benchmark**, once there is a syscall-heavy
+    workload here to measure.
+
+    **What it was proved with, and the honest size of the claim.** There is no ELF built for
+    `x86_64-unknown-none` and no scheduler on this architecture, so the proof is a hand-assembled
+    probe (`arch/x86_64/ring3_probe.s`) entered from the boot thread, the same shape the other two
+    ports shipped on their first day. Verified on q35:
+
+    ```
+      ring 3      : a program ran at cpl 3 (cs 0x0023, ss 0x001b) and made 2 syscalls
+                    the portable dispatcher answered BadSyscall (-6) to an unknown number
+                    reading the kernel's .text at 0xffffffff80109000 from ring 3: Permission(Read)
+    ```
+
+    Three separate facts, and the third is the strongest. `cs 0x23` is the **hardware's** answer to
+    what ring this is, since CPL is literally `CS[1:0]`. `BadSyscall (-6)` came out of the
+    *portable* `crate::syscall::dispatch` through `TrapFrame::{syscall_nr, arg, set_arg}` and
+    reached the program in `rdi`, which means the ABI accessors, the entry and the return all work;
+    asking for a refusal is deliberate, because it is the one answer that dispatcher can give on a
+    kernel with no scheduler. And `Permission(Read)` rather than `Translation(Read)` is the page
+    tables saying the walk **found** the kernel's `.text` and refused it, which is the privilege
+    boundary doing its job rather than an accident of an incomplete map.
+
+    **Two latent bugs on the untested user-thread path were found and fixed while reading it.**
+    `Context::for_user_thread` wrote the child's three arguments into `r13`/`r14`/`r15` while
+    `user_entry_trampoline` read them from `r12`/`r13`/`r14`, so a child would have received
+    `(0, arg0, arg1)`; and the trampoline did not reserve a trap frame's worth of stack, which
+    milestone 71 established both other architectures need. Neither could have been caught before
+    this item, because nothing had ever entered ring 3 here. Both are still unexecuted: that
+    trampoline is the *scheduler's* entry path, and the self test enters through `enter_user`
+    directly.
+
 Plus the build wiring it all needs: `kernel/build.rs`, `.cargo/config.toml` (including the static
 relocation model, which this target does not default to), `rust-toolchain.toml`,
 `scripts/qemu-runner-x86_64.sh`, and an x86_64 pass in `script/lint`.
@@ -220,30 +288,52 @@ In the order it should be done, because each is a prerequisite for the next.
    **PCI interrupt routing**, which is blocked on AML rather than on tables, and **MSI**, which
    bypasses the redirection table entirely by writing a vector straight to the local APIC and is
    the path worth building for that reason. Neither is this item, and neither was.
-3. **Ring 3**: the `syscall`/`sysret` MSR setup, the `swapgs` pair in `trap.s` (whose location is
-   marked), and `enter_user`. The syscall ABI is written down in `exceptions.rs`
-   (`rax` + `rdi`/`rsi`/`rdx`/`r10`/`r8`/`r9`) and is **provisional**: it is a boundary rather than a
-   habit (DECISIONS §10, §16) and nothing speaks it yet.
+3. **Ring 3. BUILT 2026-08-24**; see step 11 of "What was built" for what landed, what it proved,
+   and the two things it deliberately did not. The number is kept in place rather than struck out
+   because the items below cite each other by it.
 
-   **What item 2 leaves for this one.** Nothing blocking, and two facts worth having. The trap
-   frame is now reached by a *device* interrupt as well as by the CPU's own, so the path a ring-3
-   preemption will take is exercised end to end in ring 0 before any of it has to work across a
-   privilege change. And `exceptions::enable_external` is now a real (empty) function with an
-   assertion rather than an `unimplemented!()`, so the shared `user.rs` paths that call it will not
-   panic on this architecture the first time they are compiled for it.
+   **What is proven is the arch layer, and the boundary between that and a process is where this
+   item now stops.** A program runs at CPL 3 (the hardware's own `cs` reads `0x23`), makes syscalls
+   that reach the *portable* `crate::syscall::dispatch` and get its answer back in `rdi`, returns to
+   ring 3, and is refused by the page tables when it reads the kernel's `.text`. What is **not**
+   proven is anything above the arch layer: there is no ELF loader path here, no capability grant,
+   no argument passing beyond the three registers `TrapFrame::for_user_entry` sets, and no
+   scheduler, so the program is a hand-assembled probe entered from the boot thread rather than a
+   process. Item 4 is where that gap closes, and it is the reason item 4 is the next thing.
 
-   **Item 1 cleared the ground for this and left three things named rather than done.** The low half
-   of the kernel's tables is now genuinely empty (asserted, not assumed), so a process root has
-   somewhere to put user pages. What remains in `arch/x86_64/mmu.rs` is the user block, still a wall
-   of `unimplemented!()`: `share_kernel_half` (x86 is RISC-V's single-root model, so a process root
-   must carry the kernel's high-half PML4 entries), `ttbr0_value` (here `root | pcid`), and the
-   `CR3` switch. Two decisions come with them, both already written up in that module: **`CR4.PCIDE`
-   is off**, so `crates/asid`'s tags mean nothing to the hardware and every switch flushes the whole
-   TLB, and **`CR4.PGE` is off**, so the kernel's global mappings are not pinned across those
-   flushes. Turning both on belongs with this item rather than before it, because until a context
-   switch happens often enough to measure, neither can be shown to be worth its risk.
-4. **The kernel test suite**, and therefore a `script/test` leg. Blocked on 3: the suite's
-   userspace-exec tests hand-assemble machine code and its supervision fixtures are per-ISA stubs.
+   The syscall ABI (`rax` + `rdi`/`rsi`/`rdx`/`r10`/`r8`/`r9`) is now **spoken** rather than merely
+   written down, but it stays **provisional**: it is a boundary rather than a habit (DECISIONS §10,
+   §16), and one probe program agreeing with the kernel is not the same as a decision having been
+   made.
+
+   **The two `CR4` bits stay off, and that is now a recorded choice rather than a deferral.**
+   `CR4.PCIDE` off means `crates/asid`'s tags have nowhere to live: PCID is `CR3[11:0]`, and with
+   PCIDE clear those bits are reserved-zero, so writing a tag into them faults rather than tagging
+   anything. `arch/x86_64/mmu.rs`'s `ttbr0_value` therefore drops the number and `flush_asid`
+   flushes the whole TLB, each saying so in its own words rather than implying a selectivity the
+   hardware does not have. `CR4.PGE` off means every `mov cr3` discards the kernel's mappings too.
+   Both are worth turning on and neither can be *shown* to be worth it yet: nothing on this
+   architecture switches address spaces often enough to measure, so turning them on now would buy a
+   number nobody could check. That measurement arrives with the scheduler (item 4), which is where
+   the decision belongs.
+4. **The kernel test suite**, and therefore a `script/test` leg. **Unblocked by 3 as of
+   2026-08-24**, and now the next thing rather than the fourth: the suite's userspace-exec tests
+   hand-assemble machine code and its supervision fixtures are per-ISA stubs, and both now have an
+   arch layer to sit on.
+
+   **What item 3 leaves for it, and the list is longer than the usual "nothing blocking".** Ring 3
+   is proven at the arch layer and *only* there. A test suite needs the layer above it: `kmem`,
+   `untyped`, `sched` and `user::AddressSpace` have never been brought up on this architecture, so
+   `user::run` and `user::enter_at_on_current` have no scheduler to run on and `KernelStack::new`
+   has no budget to draw from. That bring-up is the bulk of this item, and it is mostly *portable*
+   code meeting a third architecture for the first time rather than new x86 work.
+
+   Three concrete hand-overs. The `x86_enter_user_and_wait`/`x86_leave_user` pair in `trap.s` is
+   bring-up scaffolding written to be **deleted**: it is `switch_to`'s two halves with a ring change
+   in the middle, and a scheduler makes it redundant. `arch/x86_64/ring3_probe.s` goes the same way,
+   for the same reason the other two ports' hand-assembled programs did. And `x86_trap_handler`'s
+   ring-3 arm records the fault and then panics, because there is no thread to kill; that is the
+   line a scheduler turns into a real teardown.
 5. **SMP**, via INIT-SIPI-SIPI. The local APIC is up, so what remains is the Interrupt Command
    Register sequence and a real-mode trampoline copied below 1 MiB. Also needs a per-CPU TSS and a
    per-CPU GDT, since `TSS.RSP0` names a per-core stack.
