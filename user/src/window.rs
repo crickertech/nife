@@ -45,6 +45,7 @@
 
 use compositor::proto::{ctl, wlist};
 use compositor::status;
+use user_rt::mapped_window::MappedWindow;
 use user_rt::{call, exit, invoke, recv_cap, send};
 
 /// Capability slots, by convention with `kernel/src/user/compositor_service.rs`.
@@ -93,14 +94,20 @@ fn wr32(va: u64, v: u32) {
     unsafe { core::ptr::write_volatile(va as *mut u32, v) }
 }
 
-fn px_write(i: usize, v: u32) {
-    // SAFETY: `i` is below the surface's pixel count, so this is inside the mapped surface.
-    unsafe { core::ptr::write_volatile((SURFACE_VA + (i * 4) as u64) as *mut u32, v) }
+/// **Not a `const`, unlike `painter.rs`'s twin**: the compositor maps this client's surface at
+/// `spawn_client` time to exactly `SCENE[i].frames()` pages (`kernel/src/user/compositor_service.rs`),
+/// which differs per client and is not knowable at this program's compile time. The bound this
+/// process itself can trust is `bytes`, the `w * h * 4` computed and checked against
+/// `compositor::MAX_SURFACE_BYTES` in `_start` below (milestone 43, notes/shared-page-audit.md
+/// finding 4) before any pixel is painted, so the window is constructed there, once, right after
+/// that check passes, and threaded to every `px_write`/`px_read` call rather than declared as a
+/// file-level constant (milestone 139 round 4).
+fn px_write(surface: &MappedWindow, i: usize, v: u32) {
+    surface.w32((i * 4) as u64, v);
 }
 
-fn px_read(i: usize) -> u32 {
-    // SAFETY: as above.
-    unsafe { core::ptr::read_volatile((SURFACE_VA + (i * 4) as u64) as *const u32) }
+fn px_read(surface: &MappedWindow, i: usize) -> u32 {
+    surface.r32((i * 4) as u64)
 }
 
 fn die(code: u64) -> ! {
@@ -173,13 +180,22 @@ pub extern "C" fn _start(role: u64, neighbour_va: u64, _arg2: u64) -> ! {
     if w == 0 || h == 0 || bytes > compositor::MAX_SURFACE_BYTES {
         die(E_GEOMETRY);
     }
+    // SAFETY: the compositor's `spawn_client` mapped `bytes` bytes (this client's own `w * h * 4`,
+    // published on the control page it just read and validated above) read/write at `SURFACE_VA`
+    // before `HELLO`'s reply arrived (see `px_write`/`px_read`'s doc). Constructing the window
+    // touches no memory.
+    let surface = unsafe { MappedWindow::new(SURFACE_VA, bytes as u64) };
 
     // Paint. Every pixel is a function of the coordinates and of *which window we are*, so a surface
     // painted by the wrong client, at the wrong offset, or not at all is visibly wrong (crates/compositor
     // asserts those properties on the host).
     for y in 0..h {
         for x in 0..w {
-            px_write((y * w + x) as usize, compositor::window_pixel(id, x, y));
+            px_write(
+                &surface,
+                (y * w + x) as usize,
+                compositor::window_pixel(id, x, y),
+            );
         }
     }
 
@@ -188,7 +204,7 @@ pub extern "C" fn _start(role: u64, neighbour_va: u64, _arg2: u64) -> ! {
 
     // Read our own surface back and digest it: the client-side witness that what we painted is what
     // is in the frames, taken after the compositor read them.
-    let digest = compositor::surface_checksum(w, h, px_read);
+    let digest = compositor::surface_checksum(w, h, |i| px_read(&surface, i));
 
     // --- The refusal that needs no attack: ask for something we hold no capability for. ---
     if role & ROLE_PROBE_INPUT != 0 {
@@ -206,7 +222,7 @@ pub extern "C" fn _start(role: u64, neighbour_va: u64, _arg2: u64) -> ! {
         if r0 as i64 != 0 {
             die(E_REPORT);
         }
-        let after = compositor::surface_checksum(w, h, px_read);
+        let after = compositor::surface_checksum(w, h, |i| px_read(&surface, i));
         send(REPORT, status::WIN_INTACT, after, digest);
         exit();
     }

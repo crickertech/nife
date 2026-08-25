@@ -69,6 +69,7 @@
 use compositor::proto::ctl;
 use graphics_proto as gfx;
 use line_editor::proto;
+use user_rt::mapped_window::MappedWindow;
 use user_rt::{call, invoke, recv_cap, send};
 use video_terminal::status::{MODE_DISPLAY, MODE_WINDOW};
 
@@ -159,16 +160,22 @@ fn die(code: u64) -> ! {
 /// Ordinarily only the damaged rectangle is passed: everything outside it is already correct, and
 /// repainting it would make the damage rectangle a decoration rather than a saving. The exception
 /// is the first frame, which paints the whole surface; see [`Wiring::present`].
-fn paint(x0: u32, y0: u32, w: u32, h: u32, stride: u32) -> (u32, u32, u32, u32) {
+fn paint(
+    surface: &MappedWindow,
+    x0: u32,
+    y0: u32,
+    w: u32,
+    h: u32,
+    stride: u32,
+) -> (u32, u32, u32, u32) {
     let t = term();
     for y in y0..y0 + h {
         for x in x0..x0 + w {
-            let at = SURFACE_VA + (y * stride) as u64 + (x * 4) as u64;
-            // SAFETY: inside the surface frames the kernel mapped read/write. The rectangle is
-            // either the engine's damage or the whole surface this process asked the geometry of,
-            // and `Vt::pixel` is defined outside its own grid (it is the default background), which
-            // is what makes the second case safe as well as correct.
-            unsafe { core::ptr::write_volatile(at as *mut u32, t.pixel(x, y)) };
+            let off = (y * stride) as u64 + (x * 4) as u64;
+            // The rectangle is either the engine's damage or the whole surface this process asked
+            // the geometry of, and `Vt::pixel` is defined outside its own grid (it is the default
+            // background), which is what makes the second case safe as well as correct.
+            surface.w32(off, t.pixel(x, y));
         }
     }
     (x0, y0, w, h)
@@ -187,6 +194,9 @@ struct Wiring {
     /// 128 is not a multiple of 7, so a full-scanout terminal owns 18 columns and leaves two
     /// pixels on the right that no cell covers. See [`Wiring::present`].
     surface: (u32, u32),
+    /// The bounds-checked window onto the surface frames, sized to this wiring's own geometry
+    /// (milestone 139 round 4; see the `SAFETY` comment where `_start` constructs it).
+    window: MappedWindow,
     /// Has the whole surface been painted once? Until it has, the strip outside the grid holds
     /// whatever the frames held at boot.
     painted_all: bool,
@@ -216,10 +226,17 @@ impl Wiring {
         // rendering bug for a day. The grid can never write there afterwards, so once is enough.
         let (x, y, w, h) = if self.painted_all {
             let (x, y, w, h) = damage.to_pixels();
-            paint(x, y, w, h, self.stride)
+            paint(&self.window, x, y, w, h, self.stride)
         } else {
             self.painted_all = true;
-            paint(0, 0, self.surface.0, self.surface.1, self.stride)
+            paint(
+                &self.window,
+                0,
+                0,
+                self.surface.0,
+                self.surface.1,
+                self.stride,
+            )
         };
 
         // The pixels must be visible to whoever reads them next: another address space, and through
@@ -357,12 +374,31 @@ pub extern "C" fn _start(mode: u64, _arg1: u64, _arg2: u64) -> ! {
     }
     *term() = video_terminal::Vt::new(cols, rows);
 
+    // SAFETY: MODE_DISPLAY mapped `gfx::SURFACE_FRAMES` frames (`gfx::SURFACE_BYTES` bytes) at
+    // SURFACE_VA itself, in the `MAP` loop above; MODE_WINDOW's frames are mapped by the
+    // compositor's `spawn_client_term` before `HELLO`'s reply arrived, sized to the same geometry
+    // (`stride`, `h`) this process just read off the control page it validated above (milestone 139
+    // round 4). `stride * h` stays inside what was mapped in both wirings: it is exactly the bound
+    // in the first case, and it is the compositor's own published geometry, which is what it sized
+    // the mapping to, in the second.
+    let window = unsafe {
+        MappedWindow::new(
+            SURFACE_VA,
+            if mode == MODE_DISPLAY {
+                gfx::SURFACE_BYTES as u64
+            } else {
+                stride as u64 * h as u64
+            },
+        )
+    };
+
     let mut wiring = Wiring {
         mode,
         stride,
         pending: None,
         seq: 0,
         surface: (w, h),
+        window,
         painted_all: false,
     };
     // The blank grid is a *defined* picture (spaces on the default background), so presenting it

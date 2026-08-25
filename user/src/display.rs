@@ -54,6 +54,7 @@
 #![no_main]
 
 use graphics_proto as gfx;
+use user_rt::mapped_window::MappedWindow;
 use user_rt::{exit, invoke, recv_cap, send};
 
 /// Capability slots, by convention with `kernel/src/user/display_service.rs`.
@@ -197,14 +198,19 @@ fn barrier() {
     };
 }
 
+// SAFETY: the `MAP` loop in `_start` maps `DMA_FRAMES` frames read/write at `DMA_VA` before any
+// command is written or the surface digested (milestone 139 round 4: this is the shared invariant
+// `dma_write`/`dma_read` used to assert by hand at every call site, now checked once here and
+// enforced per access rather than trusted at each of the few dozen ring/request/response/surface
+// offsets below, `surface_pixel` included). Constructing a window touches no memory.
+const WINDOW: MappedWindow = unsafe { MappedWindow::new(DMA_VA, DMA_FRAMES * 4096) };
+
 fn dma_write<T>(off: u64, val: T) {
-    // SAFETY: `off` is inside the mapped DMA region and `T` fits; the region is mapped read/write.
-    unsafe { core::ptr::write_volatile((DMA_VA + off) as *mut T, val) };
+    WINDOW.write(off, val);
 }
 
 fn dma_read<T: Copy>(off: u64) -> T {
-    // SAFETY: as above.
-    unsafe { core::ptr::read_volatile((DMA_VA + off) as *const T) }
+    WINDOW.read(off)
 }
 
 /// Report a bring-up failure and stop. Distinct from every success word, so the kernel test prints
