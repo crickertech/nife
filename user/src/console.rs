@@ -75,6 +75,11 @@ const SHARED_VA: u64 = 0x0060_0000;
 /// byte count from a client is clamped to.
 const PAGE: u64 = 4096;
 /// The server's device mapping of the UART registers. Must match init's `CON_UART_VA`.
+// Unused on x86_64: there is no page for it to name (`user::UART_PHYS` is zero, DECISIONS §121),
+// so the arm below traps instead of reading. Kept unconditional rather than cfg'd out because the
+// address is the wiring's fact, agreed with init, and hiding it on one architecture would make the
+// two sides of that agreement look like two different constants.
+#[cfg_attr(target_arch = "x86_64", allow(dead_code))]
 const UART_VA: u64 = 0x0070_0000;
 
 #[unsafe(no_mangle)]
@@ -144,6 +149,26 @@ fn uart_put(byte: u8) {
         }
         core::ptr::write_volatile((UART_VA + THR) as *mut u8, byte);
     }
+}
+
+/// **`x86_64` cannot transmit from ring 3 at all** (milestone 161), and this arm dies rather than
+/// dropping the byte.
+///
+/// The other two arms differ in a register layout. This one differs in kind: COM1 is at I/O ports
+/// `0x3f8..0x400`, `IOPL` is 0 and the TSS's I/O permission bitmap is empty, so an `out` from a
+/// process is a general protection fault and there is no page for `UART_VA` to be
+/// (`user::UART_PHYS` is zero here). Giving a process the port range is
+/// [DECISIONS §121](../../design/decisions/121-port-io-capability.md), which is PROPOSED: a
+/// question about what a capability *is*, not a driver to write.
+///
+/// **A silent no-op was the other option and is the wrong one.** It would compile, link, run, and
+/// produce a console that acknowledges every byte and prints none, which is a lie told in the one
+/// place the operator is looking. `trap()` reports `EVENT_FAULT` to this program's supervisor
+/// (DECISIONS §26), so a boot that ever reaches here says so out loud on the first byte. Nothing
+/// reaches it today: `xtask`'s x86 archive does not carry this program, for exactly this reason.
+#[cfg(target_arch = "x86_64")]
+fn uart_put(_byte: u8) {
+    user_rt::trap()
 }
 
 user_rt::panic_handler!();

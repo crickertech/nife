@@ -324,6 +324,45 @@ const CHILD_STUB: [u32; 9] = [
     0x0000_0073,                                          // ecall               (EXIT)
 ];
 
+/// `x86_64`: rdi=slot 0, rsi=SEND, rdx=1, r10=0, r8=0, rax=`SYS_INVOKE`, syscall; then rax=`SYS_EXIT`,
+/// rdi=0, syscall (DECISIONS §124).
+///
+/// **Bytes rather than words, because x86 instructions are not a fixed width**, which is the one
+/// place this port could not follow the shape the other two share. Every immediate is loaded with
+/// the 32-bit form (`mov r32, imm32`), which zeroes the upper half of the 64-bit register on this
+/// architecture; that is not an optimisation but the only encoding that keeps a load of a small
+/// constant to five bytes, and every value here fits in 32 bits.
+///
+/// `r10` and `r8` need a REX prefix (`0x41`) to be named at all, which is why those two rows are
+/// six bytes where the others are five: the registers the `syscall` ABI's fourth and fifth
+/// arguments ride in did not exist on the 386 whose opcode map this still is.
+#[cfg(target_arch = "x86_64")]
+const CHILD_STUB: [u8; 46] = {
+    const SEND_METHOD: u32 = abi::rendezvous::SEND as u32;
+    const INVOKE_NR: u32 = abi::SYS_INVOKE as u32;
+    const EXIT_NR: u32 = abi::SYS_EXIT as u32;
+    /// The little-endian bytes of a 32-bit immediate, so each row below reads as one instruction
+    /// rather than as four hand-computed constants.
+    const fn imm(v: u32) -> [u8; 4] {
+        v.to_le_bytes()
+    }
+    let send = imm(SEND_METHOD);
+    let invoke = imm(INVOKE_NR);
+    let exit = imm(EXIT_NR);
+    [
+        0xBF, 0x00, 0x00, 0x00, 0x00, // mov edi, 0          (slot 0)
+        0xBE, send[0], send[1], send[2], send[3], // mov esi, SEND       (method)
+        0xBA, 0x01, 0x00, 0x00, 0x00, // mov edx, 1          (the done word)
+        0x41, 0xBA, 0x00, 0x00, 0x00, 0x00, // mov r10d, 0
+        0x41, 0xB8, 0x00, 0x00, 0x00, 0x00, // mov r8d, 0
+        0xB8, invoke[0], invoke[1], invoke[2], invoke[3], // mov eax, SYS_INVOKE
+        0x0F, 0x05, // syscall             (SEND)
+        0xB8, exit[0], exit[1], exit[2], exit[3], // mov eax, SYS_EXIT
+        0xBF, 0x00, 0x00, 0x00, 0x00, // mov edi, 0          (the exit status)
+        0x0F, 0x05, // syscall             (EXIT)
+    ]
+};
+
 /// **Spawn latency, measured from EL0 (the primitive suite).** lmbench's `lat_proc`: the cost to
 /// build, start, run to exit, reap, and reclaim a whole child process, driven entirely from EL0
 /// through the granular verbs (`SPLIT` a region, retype an address space and a TCB, map code and a
@@ -347,12 +386,21 @@ fn spawn_bench() -> ! {
             SP_UNTYPED,
         )
     };
-    // SAFETY: SPAWN_SCRATCH_VA is a page we just mapped read/write into our own address space.
+    // Copied as **bytes**, not as elements, because the stub's element type differs by
+    // architecture: two fixed-width ISAs spell it as `[u32; 9]` and x86_64 has to spell it as
+    // `[u8; 43]`. One `copy_nonoverlapping` over `size_of_val` serves all three and reads the same
+    // on each; a loop over `.iter()` would need the element type to agree, which is exactly the
+    // thing that cannot.
+    //
+    // SAFETY: SPAWN_SCRATCH_VA is a page we just mapped read/write into our own address space, and
+    // the stub is far smaller than the 4 KiB frame. Source and destination cannot overlap: one is
+    // this program's `.rodata` and the other is a frame we retyped a moment ago.
     unsafe {
-        let dst = SPAWN_SCRATCH_VA as *mut u32;
-        for (i, &insn) in CHILD_STUB.iter().enumerate() {
-            dst.add(i).write(insn);
-        }
+        core::ptr::copy_nonoverlapping(
+            CHILD_STUB.as_ptr().cast::<u8>(),
+            SPAWN_SCRATCH_VA as *mut u8,
+            core::mem::size_of_val(&CHILD_STUB),
+        );
     }
 
     for _ in 0..SPAWN_WARMUP {
@@ -460,7 +508,8 @@ fn spawn_one(code_frame: u64) {
 }
 
 /// One null syscall: a trap with an unrecognized number. The kernel returns an error, which we
-/// discard; we are timing the crossing, not the result. aarch64 `svc` + `x8`, RISC-V `ecall` + `a7`.
+/// discard; we are timing the crossing, not the result. aarch64 `svc` + `x8`, RISC-V `ecall` + `a7`,
+/// `x86_64` `syscall` + `rax`.
 #[inline(never)]
 fn null_syscall() {
     // SAFETY: the trap is rejected (unknown number) with an error and no side effect.
@@ -480,6 +529,21 @@ fn null_syscall() {
             "ecall",
             in("a7") 0xFFFFu64,
             lateout("a0") _,
+            options(nostack, nomem),
+        );
+    }
+    #[cfg(target_arch = "x86_64")]
+    // SAFETY: `syscall` with the benchmark's null-syscall number: it traps to the kernel, which
+    // returns immediately. This is the measurement, and the options promise it touches neither
+    // memory nor the stack. `rcx` and `r11` are the instruction's own clobbers, declared here for
+    // the same reason every other `syscall` site declares them (crates/user_rt).
+    unsafe {
+        core::arch::asm!(
+            "syscall",
+            in("rax") 0xFFFFu64,
+            lateout("rdi") _,
+            lateout("rcx") _,
+            lateout("r11") _,
             options(nostack, nomem),
         );
     }
