@@ -861,10 +861,18 @@ pub struct DirGrant {
 /// no 128-bit vector register for LLVM to legalise an AES block into and no scalar fallback for
 /// that operator. Nothing on this side fixes it; see `xtask`'s `initrd_x86` and notes/x86-port.md.
 ///
-/// So on `x86_64` the archive carries no `fs_server`, and every test that needs a filesystem skips
-/// with [`NO_FS_SERVER`] rather than panicking on a lookup.
+/// So on `x86_64` the archive carries no `redoxfs_server`, and every test that needs a filesystem
+/// skips with [`NO_FS_SERVER`] rather than panicking on a lookup.
+///
+/// **The archive entry is `redoxfs_server`, not `fs_server`, on every architecture that has one**
+/// (milestone 140 increment zero renamed the crate and its packed name together). A lookup for the
+/// old name returns `None` everywhere, which reads exactly like "no fixture on this build" and
+/// skips 30 tests silently rather than failing loudly -- caught only because one of those thirty is
+/// `kernel::user::tests::a_host_process_connects_to_the_guest_and_is_answered`, whose absence took
+/// the SMB adapter, the mDNS responder and the inbound TCP listener down with it, which is what a
+/// bisection of the resulting host-side network-check failures actually found.
 pub fn fs_server_image() -> Option<&'static [u8]> {
-    program("fs_server")
+    program("redoxfs_server")
 }
 
 /// The reason a test gives when [`fs_server_image`] is `None`. One string, because a dozen files
