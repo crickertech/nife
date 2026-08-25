@@ -62,9 +62,14 @@ Fuchsia `use`/`offer` split), which is what stops a vendor's declaration being a
 surface. And the role name is the *component's* while the object is the *supervisor's*, so one
 declaration wired two ways makes a component's **peer** substitutable too: `chatty` asks to use
 `service` and gets the shared endpoint on one channel and the queue broker's front endpoint on the
-other, without noticing. What is **not** done is shipping a manifest with a binary rather than
-compiling it in, which is a wire format and so calef's call; the options and their costs are in that
-note's `BUGS`.
+other, without noticing. What is **not** done is shipping a manifest as its own artifact rather than
+compiling it in; the options and their costs are in `notes/component-manifest.md`'s `BUGS`, and that
+note's own recommendation is to leave this decided-not-yet rather than raise it now: "decide it when
+a second supervisor or an out-of-tree component actually exists, because until then the parsed
+format would be a format with one producer and one consumer that are compiled together." Nothing
+has shipped outside this tree, so the trigger (also `design/what-a-distribution-packages.md`'s: "a
+component first built outside this tree, or a binary first distributed to someone who cannot rebuild
+it") has not fired. Not a live question awaiting calef's call; a correctly-deferred one.
 
 **The hung component was demonstrated 2026-08-17, and it corrects a sentence this block and two
 DECISIONS sections all repeat.** §32 declined the case with "a supervisor that must restart a *hung*
