@@ -11,7 +11,7 @@
 //! machine-readable line the rest of the harness uses, so the icount baseline gates it and `--real`
 //! gives its true magnitude. Five primitives: null syscall, context switch, IPC round trip, page
 //! map, and spawn. Spawn is the whole reason object revocation was built: the loop reclaims each
-//! child's region (`Untyped::DESTROY`) so it can repeat.
+//! child's region (`MemoryRegion::DESTROY`) so it can repeat.
 //!
 //! Name: ratified 2026-08-01 (calef, milestone 63), replacing `elbench`, and it is the name that
 //! forced `nifefs`'s `NAME_LEN` from 24 to 32. The raise was taken first and on its own merits,
@@ -56,7 +56,7 @@ const SINK_PIPE_IN: u64 = 1; // the consumer RECVs them here (slot 0 is REPORT)
 /// least once, which is what makes the comparison about back pressure rather than about buffer size.
 const SINK_MSGS: u64 = 5_000;
 
-// Spawn-benchmark slots. slot 0 REPORT (the final result home to the bench boot), slot 1 UNTYPED
+// Spawn-benchmark slots. slot 0 REPORT (the final result home to the bench boot), slot 1 MEMORY_REGION
 // (the spawner's whole budget), slot 2 CHILD_DONE (children SEND here, the spawner RECVs; it also
 // delegates a WRITE view to each child, so it needs READ|WRITE|GRANT). The shared code frame is
 // retyped at setup into whatever slot `grant` hands back.
@@ -336,7 +336,7 @@ fn spawn_bench() -> ! {
     // SAFETY: `invoke` traps to the kernel, which validates the capability and the method
     // before acting (user_rt's contract). A caller cannot break an invariant by passing a
     // bad slot or method; it gets an error back.
-    let code_frame = unsafe { invoke(SP_UNTYPED, abi::untyped::RETYPE, 0, 0, 0) } as u64;
+    let code_frame = unsafe { invoke(SP_UNTYPED, abi::memory_region::RETYPE, 0, 0, 0) } as u64;
     // SAFETY: as above: the kernel validates the capability and the method.
     unsafe {
         invoke(
@@ -374,12 +374,13 @@ fn spawn_bench() -> ! {
 fn spawn_one(code_frame: u64) {
     // The child's own region, so it is independently reclaimable.
     // SAFETY: as above: the kernel validates the capability and the method.
-    let child_ut = unsafe { invoke(SP_UNTYPED, abi::untyped::SPLIT, CHILD_PAGES, 0, 0) } as u64;
+    let child_ut =
+        unsafe { invoke(SP_UNTYPED, abi::memory_region::SPLIT, CHILD_PAGES, 0, 0) } as u64;
     // SAFETY: as above: the kernel validates the capability and the method.
     let aspace = unsafe {
         invoke(
             child_ut,
-            abi::untyped::RETYPE_OBJ,
+            abi::memory_region::RETYPE_OBJ,
             abi::objtype::ADDRESS_SPACE,
             0,
             0,
@@ -397,7 +398,7 @@ fn spawn_one(code_frame: u64) {
         )
     };
     // SAFETY: as above: the kernel validates the capability and the method.
-    let stack = unsafe { invoke(child_ut, abi::untyped::RETYPE, 0, 0, 0) } as u64;
+    let stack = unsafe { invoke(child_ut, abi::memory_region::RETYPE, 0, 0, 0) } as u64;
     // SAFETY: as above: the kernel validates the capability and the method.
     unsafe {
         invoke(
@@ -416,7 +417,7 @@ fn spawn_one(code_frame: u64) {
     let tcb = unsafe {
         invoke(
             child_ut,
-            abi::untyped::RETYPE_OBJ,
+            abi::memory_region::RETYPE_OBJ,
             abi::objtype::THREAD_CONTROL_BLOCK,
             0,
             0,
@@ -450,7 +451,7 @@ fn spawn_one(code_frame: u64) {
     // so yield until the child has finished exiting.
     let _ = recv(SP_CHILD_DONE);
     // SAFETY: as above: the kernel validates the capability and the method.
-    while unsafe { invoke(child_ut, abi::untyped::DESTROY, 0, 0, 0) } != 0 {
+    while unsafe { invoke(child_ut, abi::memory_region::DESTROY, 0, 0, 0) } != 0 {
         yield_now();
     }
     // Free the slots this child used (the address space cap was consumed by CONFIGURE) so the fixed capability table

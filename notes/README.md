@@ -577,7 +577,7 @@ in the code or the conversation doesn't make sense, it belongs here.
   assumptions on the first boot: the physical timer (fixed, we use the virtual timer now) and
   semihosting (emulation-only, so tests stay on TCG).
 
-- [Untyped memory: the kernel stops allocating](untyped.md): milestone 11: a process spends
+- [Memory regions: the kernel stops allocating](memory-regions.md): milestone 11: a process spends
   pages out of a capability to raw memory it was handed, and the kernel's free-frame count does not
   move while it allocates. A process cannot make the kernel allocate, so it cannot exhaust it.
 

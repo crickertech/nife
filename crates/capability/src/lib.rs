@@ -95,7 +95,7 @@ impl Rights {
     /// not refused to a viewer, it is unnameable by one.
     ///
     /// **Deliberately not pre-wired to other objects.** Only `Rendezvous` consults it today. `AddressSpace`
-    /// wants it when `pmap` is built (observe a mapping without being able to map) and `Untyped`
+    /// wants it when `pmap` is built (observe a mapping without being able to map) and `MemoryRegion`
     /// wants it when `free` is built (ask what is committed without being able to `SPLIT` or
     /// `DESTROY`), and both are named in milestone 126's strata rather than built ahead of a
     /// consumer that can say what it needs. A right defined for three hypothetical callers is the
@@ -158,7 +158,7 @@ impl<O> Cap<O> {
     /// fresh mint site *outside* [`CapabilityTable::derive`] must honor by hand so that authority never
     /// widens: the child inherits the parent's rights, never a superset.
     ///
-    /// `Untyped::SPLIT` is such a site (kernel/src/cap.rs, milestone 31): it carves a child budget
+    /// `MemoryRegion::SPLIT` is such a site (kernel/src/cap.rs, milestone 31): it carves a child budget
     /// off a parent untyped and mints a capability to it, and because that mint is not a `derive` the
     /// "derive never widens rights" proof does not reach it. Routing it through here puts it under the
     /// [`split_never_widens_rights`](../src/lib.rs) proof, so a spend-only (GRANT-less) untyped cannot
@@ -495,7 +495,7 @@ mod verification {
     }
 
     /// **Authority never widens at the other mint site either: `split` inherits, it does not grant.**
-    /// `Untyped::SPLIT` mints a child budget outside [`CapabilityTable::derive`] (kernel/src/cap.rs), so
+    /// `MemoryRegion::SPLIT` mints a child budget outside [`CapabilityTable::derive`] (kernel/src/cap.rs), so
     /// `derive_never_widens_rights` does not reach it; the kernel routes that mint through
     /// [`Cap::mint_child`], and this proves the theorem there. Milestone 35.
     ///
@@ -509,7 +509,7 @@ mod verification {
     /// syscall layer relies on is checked here and not inferred by a reader).
     ///
     /// The delegability is therefore a property of the *root's* mint, not a widening at `SPLIT`:
-    /// `untyped_root_cap` mints once with `READ|WRITE|GRANT`, `SPLIT` inherits whatever the parent
+    /// `memory_region_root_cap` mints once with `READ|WRITE|GRANT`, `SPLIT` inherits whatever the parent
     /// holds, `CAP_INSERT` narrows on the way into a child. Rights down a budget tree are monotonically
     /// non-increasing from the root, a child holds `GRANT` only because the root did, and a spend-only
     /// untyped provably cannot split itself a `GRANT`-bearing child.

@@ -41,7 +41,7 @@ use user_rt::{cap_delete, exit, invoke, send};
 const INITRD_VA: u64 = 0x2000_0000;
 
 /// The capabilities the kernel grants this program before it runs.
-const UNTYPED: u64 = 0; // a budget to retype the child's address space, frames, and TCB from
+const MEMORY_REGION: u64 = 0; // a budget to retype the child's address space, frames, and TCB from
 const REPORT: u64 = 1; // the report endpoint; we hand the child a narrowed WRITE view of it
 
 /// The input we hand the worker. It returns `n * n` on the report endpoint.
@@ -108,7 +108,7 @@ fn build_and_start(elf: &elf::Elf, n: u64) -> Result<(), ()> {
             // SAFETY: `invoke` traps to the kernel, which validates the capability and the method
             // before acting (user_rt's contract). A caller cannot break an invariant by passing a
             // bad slot or method; it gets an error back.
-            if unsafe { invoke(frame, abi::page_frame::MAP, scratch, 1, UNTYPED) } != 0 {
+            if unsafe { invoke(frame, abi::page_frame::MAP, scratch, 1, MEMORY_REGION) } != 0 {
                 return Err(());
             }
             // SAFETY: `scratch` is a page we just mapped read/write in our own space.
@@ -193,14 +193,14 @@ fn build_and_start(elf: &elf::Elf, n: u64) -> Result<(), ()> {
 /// Retype a kernel object out of our untyped budget; returns the slot its capability landed in.
 fn retype_obj(objtype: u64) -> Result<u64, ()> {
     // SAFETY: as above: the kernel validates the capability and the method.
-    let r = unsafe { invoke(UNTYPED, abi::untyped::RETYPE_OBJ, objtype, 0, 0) };
+    let r = unsafe { invoke(MEMORY_REGION, abi::memory_region::RETYPE_OBJ, objtype, 0, 0) };
     if r < 0 { Err(()) } else { Ok(r as u64) }
 }
 
 /// Retype a page of our budget into a `PageFrame` capability; returns its cap slot.
 fn retype_page_frame() -> Result<u64, ()> {
     // SAFETY: as above: the kernel validates the capability and the method.
-    let r = unsafe { invoke(UNTYPED, abi::untyped::RETYPE, 0, 0, 0) };
+    let r = unsafe { invoke(MEMORY_REGION, abi::memory_region::RETYPE, 0, 0, 0) };
     if r < 0 { Err(()) } else { Ok(r as u64) }
 }
 

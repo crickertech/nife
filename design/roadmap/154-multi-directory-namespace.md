@@ -5,9 +5,12 @@ on the same gap: milestone 47's `bind` ("It is blocked on a second grant") and m
 `File::open` fork ("tier two, anything that traverses, needs a namespace to resolve *against*, and
 that is 47's unbuilt half"). Both name the identical missing primitive; this gives it one home
 instead of two. **Built 2026-08-23**: the core mechanism (a process holding and resolving against
-two directory capabilities at once), proven end to end on both ISAs. **Still open**, named below:
-extending `caps`'s display, wiring a second grant into the real interactive boot, and the
-shell-to-init spawn-protocol encoding for a second grant.
+two directory capabilities at once), proven end to end on both ISAs. **[DECISIONS
+§126](../decisions/126-two-directory-cwd.md) decided 2026-08-25** how a two-grant process moves
+between them: a real, single, moving `cwd`, not the shadowed-union ambiguity 47's own questions
+still leave open. **Still open**, named below: extending `caps`'s display and `Holdings` to the
+now-decided shape, wiring a second grant into the real interactive boot, and the shell-to-init
+spawn-protocol encoding for a second grant.
 
 **Gate: NONE.** Nothing here is a design fork; §50 already decided namespace composition over
 stored paths, and 47's absolute-paths work already proved the resolver lives in the client's
@@ -86,22 +89,32 @@ Two second-level pieces, host-tested and guest-tested rather than left as design
   the wire-level witness that the endpoint is the boundary (notes/dir-capability.md's structural
   finding), demonstrated here with two live caretakers instead of inferred from one.
 
-## What is still open, named rather than decided here
+## What is now decided, and what is still open
 
-- **`caps` was not extended.** The shell's own endowment display (`grant_plan::Holdings`,
-  `crates/swish::write_holdings`) models "a directory capability" as one `bool`, and that field
-  also drives `plan_stage`/`redirect_target`'s decision about what a child gets when a command
-  names a file. Turning it into "N directories" forces exactly the ambiguity 47's four open
-  questions already name as undecided (which grant a bare relative name resolves against, whether
-  two grants shadow or refuse ambiguously): deciding that now would be answering 47's question
-  inside 154's own gate, and this milestone's gate is NONE precisely because nothing here was
-  supposed to be a design fork. Recorded as a finding for 47 rather than decided here. The
-  mechanism this milestone built (`TwoRoots`, `start_granted_two_dirs`) does not depend on that
-  question being answered, so nothing here is blocked on it, only `caps`' own output is.
+**[DECISIONS §126](../decisions/126-two-directory-cwd.md) closed the ambiguity the first bullet
+below used to name.** A two-grant shell gets a real, single, moving `cwd`: state `(which, pos)`
+in place of one-grant `Holdings`' bare `Cwd`, a bare relative name resolves against `pos` inside
+whichever tree `which` currently names, an absolute `/a/...`/`/b/...` path both resolves and moves
+between trees, and `..` at either tree's own root refuses exactly the way one-grant `Cwd::apply`
+already refuses at its own root today. That is a real, single answer, not a per-caller choice, and
+it does not answer 47's four open questions (unions and shadowing across more than two labeled
+sources, enumeration, the compile-time-set-to-runtime-lookup gap, whether `$PATH` survives as a
+string): those stay exactly as open as they were, since this decision only ever concerned two
+disjoint, individually-labeled trees with one position at a time.
+
+- **`caps` was not extended, but the design question it was waiting on is answered.** The shell's
+  own endowment display (`grant_plan::Holdings`, `crates/swish::write_holdings`) models "a
+  directory capability" as one `bool` plus one `Cwd`, and that pair also drives
+  `plan_stage`/`redirect_target`'s decision about what a child gets when a command names a file.
+  Extending it to `§126`'s `(which, pos)` shape is now implementation, not a design fork: nothing
+  left to decide before `caps` can show two labeled rows and a real current position inside one of
+  them.
 - **The interactive shell still holds at most one directory capability.** Wiring a second grant
-  into the real boot needs a boot-time decision about what the second subtree even *is*, which is
-  policy rather than mechanism and is calef's to make, not a lane's.
+  into the real boot still needs a boot-time decision about what the second subtree even *is*,
+  which is policy rather than mechanism and remains calef's to make, not a lane's. `§126` answered
+  how a second grant behaves once held; it does not answer what that second grant should be on a
+  real boot.
 - **The shell-to-init spawn-protocol encoding remains unbuilt**, as this block already said before
   anything here was built: `grant_plan::spawnproto`'s `DIR_BIT`/`GRANT_WORDS` carry exactly one
-  directory grant today, and a second would need either a second bit or a count, decided by
-  whoever wires an interactive `bind` against a real second grant.
+  directory grant today, and a second would need either a second bit or a count, following the
+  existing precedent rather than inventing a new shape.

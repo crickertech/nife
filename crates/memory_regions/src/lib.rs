@@ -1,6 +1,6 @@
-//! **The untyped-region accounting, as pure logic** (object revocation, DECISIONS §16).
+//! **The memory-region accounting, as pure logic** (object revocation, DECISIONS §16).
 //!
-//! The kernel's untyped allocator (`kernel/src/untyped.rs`) is a bump watermark per region, with a
+//! The kernel's memory-region allocator (`kernel/src/memory_region.rs`) is a bump watermark per region, with a
 //! parent/child tree from `SPLIT` and a LIFO return-of-pages on `DESTROY`. The scary property is
 //! **no double-free**: a physical page must reach the frame allocator at most once across any
 //! sequence of create/split/destroy. That safety rests on two arithmetic decisions, and this crate
@@ -52,7 +52,9 @@
 //! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review). Renamed from
 //! `regions`: DECISIONS §113 already rejected bare "Region" for the identical `crates/compositor`
 //! collision (damaged-screen-rectangle "region") when choosing `MemoryRegion` for the kernel's
-//! `Untyped` type; this crate is that type's accounting logic.
+//! own object; this crate is that type's accounting logic. The kernel type itself was `Untyped`
+//! until this same DECISIONS §113 entry, built out by milestone 158: this crate's own name and
+//! vocabulary anticipated the rename by a session.
 
 #![cfg_attr(not(test), no_std)]
 

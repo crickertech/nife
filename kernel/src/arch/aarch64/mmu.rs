@@ -831,7 +831,7 @@ pub fn map_current_user_page(
     mut alloc: impl FnMut() -> Option<u64>,
 ) -> Result<u64, MapError> {
     // The leaf is a fresh page from `alloc`; the page tables to reach it come from the same
-    // `alloc`. This is the Untyped::MAP path: everything, page and tables, out of one source. The
+    // `alloc`. This is the MemoryRegion::MAP path: everything, page and tables, out of one source. The
     // leaf's physical address is returned so the caller can record the mapping for revocation (§13).
     let leaf = alloc().ok_or(MapError::OutOfPageFrames)?;
     map_current_user_page_frame(va, leaf, flags, alloc)?;

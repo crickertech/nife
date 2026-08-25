@@ -1,5 +1,5 @@
 use super::*;
-use crate::cap::{Rights, rendezvous_cap, untyped_root_cap};
+use crate::cap::{Rights, memory_region_root_cap, rendezvous_cap};
 use crate::sched::RendezvousId;
 
 /// The timetable's budget. Every scheduled instance is 48 pages of it (`INSTANCE_PAGES` in
@@ -144,8 +144,8 @@ fn spawn_timetable(fires: u64) -> (RendezvousId, RendezvousId, RendezvousId) {
     let out = crate::sched::create_rendezvous();
     let child_report = crate::sched::create_rendezvous();
     let deaths = crate::sched::create_rendezvous();
-    let budget = crate::untyped::create(TIMETABLE_BUDGET_PAGES).expect("no budget");
-    let thread_control_block_region = crate::untyped::create(2).expect("no tcb region");
+    let budget = crate::memory_region::create(TIMETABLE_BUDGET_PAGES).expect("no budget");
+    let thread_control_block_region = crate::memory_region::create(2).expect("no tcb region");
     let tid =
         crate::sched::create_thread_control_block(thread_control_block_region).expect("no tcb");
 
@@ -158,8 +158,9 @@ fn spawn_timetable(fires: u64) -> (RendezvousId, RendezvousId, RendezvousId) {
     .expect("insert out");
     assert_eq!(s, 0, "the timetable's output endpoint must land in slot 0");
     // Slot 1: what every instance is made of.
-    let s = crate::sched::thread_control_block_insert_cap(tid, untyped_root_cap(budget), None)
-        .expect("insert budget");
+    let s =
+        crate::sched::thread_control_block_insert_cap(tid, memory_region_root_cap(budget), None)
+            .expect("insert budget");
     assert_eq!(s, 1, "the timetable's budget must land in slot 1");
     // Slot 2: what each instance is handed as its own slot 0. `GRANT` because handing it on is the
     // entire purpose; `WRITE` because a scheduled child reports and never listens.

@@ -24,10 +24,10 @@ fn destroy_force_kills_a_runaway_and_reclaims_its_region() {
 
     // The runaway's whole world in one region: the address space's root and tables, its code
     // page, its stack, and its TCB, so a single `DESTROY` reclaims all of it.
-    let region = crate::untyped::create(16).expect("no region for the runaway");
+    let region = crate::memory_region::create(16).expect("no region for the runaway");
     let aspace = user_address_space_create(region).expect("no aspace");
 
-    let code_phys = crate::untyped::retype_page(region).expect("no code frame");
+    let code_phys = crate::memory_region::retype_page(region).expect("no code frame");
     // SAFETY: a fresh frame we own, direct-mapped; write the spin loop and make it fetchable.
     unsafe {
         let dst = mmu::phys_to_virt(code_phys) as *mut u32;
@@ -41,7 +41,7 @@ fn destroy_force_kills_a_runaway_and_reclaims_its_region() {
     );
     user_address_space_map(aspace, CODE_VA, code_phys, Flags::user_code()).expect("map code");
 
-    let stack_phys = crate::untyped::retype_page(region).expect("no stack frame");
+    let stack_phys = crate::memory_region::retype_page(region).expect("no stack frame");
     user_address_space_map(aspace, STACK_VA, stack_phys, Flags::user_data()).expect("map stack");
 
     let tid = sched::create_thread_control_block(region).expect("no tcb");
@@ -141,11 +141,11 @@ fn destroy_reclaims_a_region_whose_resident_is_blocked_in_recv() {
 
     // The child's whole world in one region, its rendezvous included: address space, code, stack, TCB, and
     // the rendezvous it will park on.
-    let region = crate::untyped::create(16).expect("no region for the blocked child");
+    let region = crate::memory_region::create(16).expect("no region for the blocked child");
     let ep = sched::create_rendezvous_from(region).expect("no rendezvous in the child's region");
 
     let aspace = user_address_space_create(region).expect("no aspace");
-    let code_phys = crate::untyped::retype_page(region).expect("no code frame");
+    let code_phys = crate::memory_region::retype_page(region).expect("no code frame");
     // SAFETY: a fresh frame we own, direct-mapped; write the stub and make it fetchable.
     unsafe {
         let dst = mmu::phys_to_virt(code_phys) as *mut u32;
@@ -158,7 +158,7 @@ fn destroy_reclaims_a_region_whose_resident_is_blocked_in_recv() {
         core::mem::size_of_val(RECV_STUB),
     );
     user_address_space_map(aspace, CODE_VA, code_phys, Flags::user_code()).expect("map code");
-    let stack_phys = crate::untyped::retype_page(region).expect("no stack frame");
+    let stack_phys = crate::memory_region::retype_page(region).expect("no stack frame");
     user_address_space_map(aspace, STACK_VA, stack_phys, Flags::user_data()).expect("map stack");
 
     let tid = sched::create_thread_control_block(region).expect("no tcb");
@@ -232,7 +232,7 @@ fn destroy_reclaims_a_region_whose_resident_is_blocked_in_recv() {
 /// What this asserts is the property that makes the ordering irrelevant: **dropping a space built
 /// from a lent region returns nothing.** Called on the old code it fails on its own assertion
 /// rather than panicking in the allocator, which is the difference between a regression gate and a
-/// coin flip: the double free needs the two `untyped::destroy` calls to also overlap, and no test
+/// coin flip: the double free needs the two `memory_region::destroy` calls to also overlap, and no test
 /// can schedule that.
 #[test_case]
 fn an_address_space_never_frees_a_region_it_was_lent() {
@@ -255,7 +255,7 @@ fn an_address_space_never_frees_a_region_it_was_lent() {
 
     // Four pages is enough for a root and one table; nothing is mapped here, so the space is only
     // ever asked who owns its memory.
-    let region = crate::untyped::create(4).expect("no region for the lent-backing test");
+    let region = crate::memory_region::create(4).expect("no region for the lent-backing test");
     let name = user_address_space_create(region).expect("no address space from the region");
     let allocated = frames_before - crate::memory::free_page_frames();
     assert_eq!(
@@ -268,7 +268,7 @@ fn an_address_space_never_frees_a_region_it_was_lent() {
     let space = take_user_address_space(name).expect("the space was not in the registry");
 
     // `reclaim_region`'s unpin, arriving BEFORE the drop. This one line is the whole race.
-    crate::untyped::unpin(region);
+    crate::memory_region::unpin(region);
     drop(space);
 
     assert_eq!(
@@ -279,7 +279,7 @@ fn an_address_space_never_frees_a_region_it_was_lent() {
     );
 
     // And the owner's reclaim still works, returning the run exactly once.
-    crate::untyped::destroy(region);
+    crate::memory_region::destroy(region);
     assert_eq!(
         crate::memory::free_page_frames(),
         frames_before,

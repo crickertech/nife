@@ -204,7 +204,7 @@ pub mod rendezvous {
     /// `invoke(cap, REAP, tid, _, _)` -> 0. **Collect a corpse this endpoint supervises**
     /// (DECISIONS §32). `tid` is the thread id the kernel stamped on the death message
     /// ([`fault`](super::fault)); the kernel reclaims that thread's TCB, its address space, and the
-    /// region behind them, exactly what [`untyped::DESTROY`](super::untyped::DESTROY) would have
+    /// region behind them, exactly what [`memory_region::DESTROY`](super::memory_region::DESTROY) would have
     /// reclaimed. Needs `READ` on this endpoint: the authority to collect is the authority to
     /// *receive* deaths here, which is what a supervisor holds.
     ///
@@ -218,7 +218,7 @@ pub mod rendezvous {
     /// Three distinct refusals, because a restart policy wants to tell them apart:
     ///
     /// - [`crate::Error::StillAlive`] the thread is not dead. Collecting a corpse is not killing; killing a
-    ///   live child is the stronger act and stays with `Untyped::DESTROY` (§24's forcible `^C`).
+    ///   live child is the stronger act and stays with `MemoryRegion::DESTROY` (§24's forcible `^C`).
     /// - [`crate::Error::NotSupervised`] no thread by that tid supervised by *this* endpoint: another
     ///   supervisor's child, an already-collected one, or a stale tid whose generational name no
     ///   longer resolves. The two are deliberately one error, so a supervisor cannot probe the tid
@@ -309,7 +309,7 @@ pub mod reply {
     pub const REPLY: u64 = 0;
 }
 
-/// Object types for [`untyped::RETYPE_OBJ`]: what a page of untyped becomes.
+/// Object types for [`memory_region::RETYPE_OBJ`]: what a page of untyped becomes.
 pub mod objtype {
     /// An IPC rendezvous, page-resident, owned by the caller's budget (milestone 19a).
     pub const RENDEZVOUS: u64 = 1;
@@ -332,7 +332,7 @@ pub mod objtype {
 }
 
 /// Methods on a `ThreadControlBlock` capability (milestone 19c.3): **another thread, under construction.**
-/// Created by [`untyped::RETYPE_OBJ`] with [`objtype::THREAD_CONTROL_BLOCK`].
+/// Created by [`memory_region::RETYPE_OBJ`] with [`objtype::THREAD_CONTROL_BLOCK`].
 pub mod thread_control_block {
     /// `invoke(cap, CONFIGURE, entry, user_sp, address_space_slot)` -> 0. Bind the address space
     /// named by the capability in `address_space_slot` (which is **consumed**: it becomes the
@@ -360,7 +360,7 @@ pub mod thread_control_block {
 }
 
 /// Methods on an `AddressSpace` capability (milestone 19b): **another process's memory, under
-/// construction.** Created by [`untyped::RETYPE_OBJ`] with [`objtype::ADDRESS_SPACE`]; nothing can
+/// construction.** Created by [`memory_region::RETYPE_OBJ`] with [`objtype::ADDRESS_SPACE`]; nothing can
 /// run in it until TCBs arrive (19c), so today it is a structure you build, revocation can reach,
 /// and (milestone 126, `pmap`) `ENUMERATE` can look at without touching.
 pub mod address_space {
@@ -511,8 +511,8 @@ pub mod virtio {
     pub const NOTIFY: u64 = 3;
 }
 
-/// Methods on an `Untyped` capability. **How a process spends its own memory.**
-pub mod untyped {
+/// Methods on a `MemoryRegion` capability. **How a process spends its own memory.**
+pub mod memory_region {
     /// `invoke(cap, MAP, va, _, _)` -> 0. Retype one page out of the untyped and map it, writable,
     /// at `va` in the caller's own address space. The page and any page tables it needs both come
     /// from the untyped; the kernel allocates nothing. Returns `OutOfMemory` when the untyped is
@@ -557,10 +557,10 @@ pub mod untyped {
 
 /// Methods on a `PageFrame` capability. **A physical page a process holds, maps, and shares.**
 pub mod page_frame {
-    /// `invoke(cap, MAP, va, writable, untyped_slot)` -> 0. Map this frame at `va` in the caller's
+    /// `invoke(cap, MAP, va, writable, memory_region_slot)` -> 0. Map this frame at `va` in the caller's
     /// own address space. `writable` != 0 maps it read/write (needs `WRITE` on the frame); `0` maps
     /// it read-only (needs `READ`). Page tables to reach `va` come from the untyped named by
-    /// `untyped_slot`, so the kernel allocates nothing. `BadPointer` for a misaligned or high `va`,
+    /// `memory_region_slot`, so the kernel allocates nothing. `BadPointer` for a misaligned or high `va`,
     /// `OutOfMemory` when that untyped is exhausted.
     pub const MAP: u64 = 0;
 
@@ -568,7 +568,7 @@ pub mod page_frame {
     /// address space that mapped it and delete every capability to it, including the caller's own, so
     /// no holder can reach or re-map it. Needs `GRANT` (you were trusted to lend the frame, so you may
     /// take it back; a read-only consumer handed it without `GRANT` cannot revoke the owner). It does
-    /// **not** reclaim the page: the untyped is spend-only, and `untyped::destroy` reclaims a whole
+    /// **not** reclaim the page: the untyped is spend-only, and `memory_region::destroy` reclaims a whole
     /// region. See DECISIONS §13 and notes/capability-lifecycle.md.
     ///
     /// **On a device capability the same method means take-back, not un-share** (milestone 23,
@@ -618,7 +618,7 @@ pub enum Error {
     /// **The thread is still running.** [`rendezvous::REAP`] collects a corpse, and this one is not
     /// one yet. Distinct from `NotPermitted` on purpose (DECISIONS §32): "you may not kill" and "no
     /// such child" are different facts, and a restart policy branches on them differently (wait, or
-    /// escalate to the owner's `Untyped::DESTROY`, versus give up on that tid).
+    /// escalate to the owner's `MemoryRegion::DESTROY`, versus give up on that tid).
     StillAlive = -9,
 
     /// **This endpoint does not supervise a thread by that tid.** Another supervisor's child, one

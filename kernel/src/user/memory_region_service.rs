@@ -1,8 +1,8 @@
 use super::*;
-use crate::cap::{Rights, rendezvous_cap, untyped_cap};
+use crate::cap::{Rights, memory_region_cap, rendezvous_cap};
 use crate::sched::RendezvousId;
 
-const ROLE_UNTYPED_DEMO: u64 = 7;
+const ROLE_MEMORY_REGION_DEMO: u64 = 7;
 
 /// Carve `pages` of memory into an untyped region, hand it to a fresh process, and return the
 /// region id, the endpoint the process reports on, and the thread it runs as. The kernel's ONE
@@ -17,18 +17,18 @@ pub fn start(
     image: &'static [u8],
     pages: u64,
 ) -> Option<(u64, RendezvousId, crate::thread::ThreadId)> {
-    let region = crate::untyped::create(pages)?;
+    let region = crate::memory_region::create(pages)?;
     let report = crate::sched::create_rendezvous();
 
     let tid = crate::sched::spawn(move || {
         run(
             image,
             Spawn {
-                arg0: ROLE_UNTYPED_DEMO,
+                arg0: ROLE_MEMORY_REGION_DEMO,
                 arg1: 0,
                 arg2: 0,
                 grants: &[
-                    untyped_cap(region),                   // slot 0: the memory budget
+                    memory_region_cap(region),             // slot 0: the memory budget
                     rendezvous_cap(report, Rights::WRITE), // slot 1: report the result
                 ],
                 maps: &[],

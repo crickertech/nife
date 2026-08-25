@@ -47,14 +47,14 @@
 //! and `socket_client`, which belongs to the real clients milestone 54 will need. This file is a
 //! single-consumer `#[path]` module rather than a `[[bin]]`.
 
-use abi::{page_frame as fr, rendezvous, rights, untyped as ut};
+use abi::{memory_region as ut, page_frame as fr, rendezvous, rights};
 use socket_proto::*;
 use user_rt::mapped_window::{MappedWindow, PAGE};
 use user_rt::{call, exit, invoke, send};
 
 const REPORT: u64 = 0;
 const STACK: u64 = 1;
-const UNTYPED: u64 = 2;
+const MEMORY_REGION: u64 = 2;
 
 /// Test selectors (the entry role), and the success word the kernel test asserts.
 pub const TEST_UDP_DNS: u64 = 1;
@@ -188,13 +188,13 @@ fn done(code: u64) -> ! {
 /// Mint a frame from our untyped, map it writable, and delegate it to socket `sid`.
 fn attach_page_frame(sid: u64) {
     // SAFETY: `svc`. RETYPE returns the new frame capability's slot, or a negative error.
-    let frame = unsafe { invoke(UNTYPED, ut::RETYPE, 0, 0, 0) };
+    let frame = unsafe { invoke(MEMORY_REGION, ut::RETYPE, 0, 0, 0) };
     if frame < 0 {
         done(0xE001);
     }
     let frame = frame as u64;
     // SAFETY: `svc`. Map it writable; page tables come from our untyped.
-    if unsafe { invoke(frame, fr::MAP, PAGE_FRAME_VA, 1, UNTYPED) } < 0 {
+    if unsafe { invoke(frame, fr::MAP, PAGE_FRAME_VA, 1, MEMORY_REGION) } < 0 {
         done(0xE002);
     }
     // Delegate it (narrowed to read/write) with the ATTACH request. SAFETY: `svc`.

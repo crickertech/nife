@@ -27,8 +27,9 @@ const TEST_ROWS: usize = 8;
 /// One test's world: a budget the builder owns, and a region the rendezvous points come out of.
 /// `survey_tests::arena`, verbatim.
 fn arena() -> (u64, u64) {
-    let budget = crate::untyped::create(BUILDER_BUDGET_PAGES).expect("no builder budget");
-    let rendezvous_region = crate::untyped::create(RENDEZVOUS_PAGES).expect("no rendezvous region");
+    let budget = crate::memory_region::create(BUILDER_BUDGET_PAGES).expect("no builder budget");
+    let rendezvous_region =
+        crate::memory_region::create(RENDEZVOUS_PAGES).expect("no rendezvous region");
     (budget, rendezvous_region)
 }
 
@@ -59,7 +60,7 @@ fn child_in(
     report: Option<sched::RendezvousId>,
     fault_ep: sched::RendezvousId,
 ) -> u64 {
-    let region = crate::untyped::split(budget, INSTANCE_PAGES).expect("no instance region");
+    let region = crate::memory_region::split(budget, INSTANCE_PAGES).expect("no instance region");
     build_child_in(region, stub, report, Some(fault_ep))
 }
 

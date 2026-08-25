@@ -73,7 +73,7 @@ pub struct AddressSpace {
     /// **The untyped region every page of this address space comes from, and who frees it**
     /// (milestone 14 phase B.4): the root table, the intermediate tables, and every owned leaf
     /// are retyped out of one region. The region *is* the record of what this address space
-    /// owns, which is why there is no frame list: teardown is `untyped::destroy`, one call,
+    /// owns, which is why there is no frame list: teardown is `memory_region::destroy`, one call,
     /// made safe by §13 revocation.
     ///
     /// It carries the owner rather than just the name because **two different things build an
@@ -87,16 +87,16 @@ pub struct AddressSpace {
 /// A space is built two ways, and they differ in exactly this. [`AddressSpace::new`] carves its
 /// own region out of the frame allocator, so nobody else has a name for it and its `Drop` is the
 /// only thing that can ever free it. [`user_address_space_create`] is handed a region that the caller
-/// already holds an `Untyped` capability to (the `RETYPE_OBJ(ADDRESS_SPACE)` engine, milestone 19b), and
-/// that caller reclaims it with `Untyped::DESTROY`. **A lent region has two names for one run of
+/// already holds a `MemoryRegion` capability to (the `RETYPE_OBJ(ADDRESS_SPACE)` engine, milestone 19b), and
+/// that caller reclaims it with `MemoryRegion::DESTROY`. **A lent region has two names for one run of
 /// memory, and only one of them may free it.**
 ///
-/// Until 2026-08-18 both cases stored a bare `u64` and `Drop` called `untyped::destroy`
+/// Until 2026-08-18 both cases stored a bare `u64` and `Drop` called `memory_region::destroy`
 /// unconditionally, on the theory that a lent region is still pinned (`retype_object_page` pins,
 /// `sched::reclaim_region` unpins) so the borrower's `destroy` is refused. That reasoning holds
 /// only while the pin is still set, and `reclaim_region` clears it **before** the reaper's
 /// deferred drop can land: `sched::finish_switch` hoists a dead thread's space out from under
-/// `IPC_TABLES`, releases the lock, and only then drops it. Two `untyped::destroy` calls for one
+/// `IPC_TABLES`, releases the lock, and only then drops it. Two `memory_region::destroy` calls for one
 /// region then overlap, both pass the refusal check, and both free every page of the run. That is
 /// the intermittent `double free of frame 0x82a3e000` in
 /// `force_kill_tests::destroy_reclaims_a_region_whose_resident_is_blocked_in_recv`
@@ -109,7 +109,7 @@ pub struct AddressSpace {
 enum Backing {
     /// The space carved this region itself and holds the only name for it. `Drop` frees it.
     Owned(u64),
-    /// The region was handed in and belongs to whoever holds its `Untyped` capability. `Drop`
+    /// The region was handed in and belongs to whoever holds its `MemoryRegion` capability. `Drop`
     /// **must not** free it; the memory comes back at that owner's `sched::reclaim_region`.
     Lent(u64),
 }
@@ -135,8 +135,8 @@ impl AddressSpace {
     /// and running out is a clean `OutOfPageFrames` at map time, spending nobody's memory but its
     /// own. The region's pages are retyped zeroed, so the root needs no separate scrub.
     pub fn new(content_pages: u64) -> Option<Self> {
-        let region = crate::untyped::create(content_pages + AS_OVERHEAD)?;
-        let root = crate::untyped::retype_page(region)?;
+        let region = crate::memory_region::create(content_pages + AS_OVERHEAD)?;
+        let root = crate::memory_region::retype_page(region)?;
 
         // Share the kernel into this root. On RISC-V a process runs on a single `satp` that must map
         // both the process (low half) and the kernel (high half), so the root gets copies of the
@@ -147,7 +147,7 @@ impl AddressSpace {
         // Into the revocation registry (phase C): this is how a later revoke finds our mapping
         // log, whose pages this same region will pay for. Full registry = no address space.
         if !crate::revoke::register_space(root, region) {
-            crate::untyped::destroy(region);
+            crate::memory_region::destroy(region);
             return None;
         }
 
@@ -155,7 +155,7 @@ impl AddressSpace {
         // registry above admitted us, bounding live spaces at 160. The `?` is honesty, not a path.
         let Some(asid) = ASIDS.lock().alloc() else {
             crate::revoke::forget_root(root);
-            crate::untyped::destroy(region);
+            crate::memory_region::destroy(region);
             return None;
         };
 
@@ -176,8 +176,8 @@ impl AddressSpace {
         // Out of the address space's own region: the watermark is the ownership record, so
         // there is nothing to push anywhere. `retype_page` hands the page back zeroed, which is
         // what keeps `.bss` free for the loader.
-        let frame =
-            crate::untyped::retype_page(self.backing.region()).ok_or(MapError::OutOfPageFrames)?;
+        let frame = crate::memory_region::retype_page(self.backing.region())
+            .ok_or(MapError::OutOfPageFrames)?;
         self.map_at(va, frame, flags)?;
 
         // SAFETY: the frame is ours (retyped from our region), and the direct map is valid for
@@ -221,7 +221,7 @@ impl AddressSpace {
             Mapper::<_, _, crate::arch::mmu::Format>::new(
                 root,
                 Half::Low,
-                || crate::untyped::retype_page(region),
+                || crate::memory_region::retype_page(region),
                 phys_to_ptr,
             )
         };
@@ -271,7 +271,7 @@ static USER_SPACES: crate::sync::IrqSafeMutex<
 /// the space's table-and-record budget, exactly as for an exec-built space. `None` on an
 /// exhausted region, a full registry, or ASID exhaustion (unreachable; the type is honest).
 pub fn user_address_space_create(region: u64) -> Option<u64> {
-    let root = crate::untyped::retype_object_page(region)?;
+    let root = crate::memory_region::retype_object_page(region)?;
     mmu::share_kernel_half(root); // RISC-V single-satp: the process root carries the kernel high half
 
     if !crate::revoke::register_space(root, region) {
@@ -285,7 +285,7 @@ pub fn user_address_space_create(region: u64) -> Option<u64> {
     let space = AddressSpace {
         root: PageFrame::from_addr(root),
         asid,
-        // Lent, not owned: the caller holds the `Untyped` capability to this region and reclaims
+        // Lent, not owned: the caller holds the `MemoryRegion` capability to this region and reclaims
         // it with `DESTROY`. See `Backing` for the double free that taught us to say so.
         backing: Backing::Lent(region),
     };
@@ -402,11 +402,11 @@ impl Drop for AddressSpace {
         // "reclaim-on-process-death" wiring §13 deferred; the frame list it replaced is gone.
         //
         // **Only for a region we own.** A lent one (`user_address_space_create`) belongs to whoever
-        // holds its `Untyped` capability, and freeing it here is a double free of the whole run
+        // holds its `MemoryRegion` capability, and freeing it here is a double free of the whole run
         // the moment `sched::reclaim_region` has already unpinned it. `Backing` carries the
         // whole argument.
         if let Backing::Owned(region) = self.backing {
-            crate::untyped::destroy(region);
+            crate::memory_region::destroy(region);
         }
 
         // The ASID contract (crates/asid): invalidate every TLB entry wearing our tag, THEN
@@ -783,7 +783,7 @@ pub fn spawn_init(
     // sized for a full copy of the initrd program plus its tables and init's scratch. Carving it out
     // here changes nothing about what init gets; it changes who can name it afterwards, which is the
     // whole difference between 8 MiB spent and 8 MiB lent. See notes/frames.md.
-    let build_region = crate::untyped::create(2048).expect("no building budget for init");
+    let build_region = crate::memory_region::create(2048).expect("no building budget for init");
 
     let tid = crate::sched::spawn(move || {
         let elf = match Elf::parse(init_bytes) {
@@ -831,7 +831,8 @@ pub fn spawn_init(
         crate::sched::adopt_address_space(space);
         // The delegable root budget: init narrows and hands budgets to the children it builds, so
         // the root carries GRANT (milestone 31). Rights only narrow downward from here.
-        crate::sched::grant(crate::cap::untyped_root_cap(build_region)).expect("grant untyped");
+        crate::sched::grant(crate::cap::memory_region_root_cap(build_region))
+            .expect("grant untyped");
         crate::sched::grant(crate::cap::rendezvous_cap(
             report,
             crate::cap::Rights::WRITE.union(crate::cap::Rights::GRANT),
@@ -1261,7 +1262,7 @@ fn x86_build_child(
 ) -> Result<u64, &'static str> {
     let aspace = user_address_space_create(region).ok_or("no aspace for the child")?;
 
-    let code_phys = crate::untyped::retype_page(region).ok_or("no code frame")?;
+    let code_phys = crate::memory_region::retype_page(region).ok_or("no code frame")?;
     // SAFETY: a fresh frame this region owns, reachable through the direct map; the program is
     // written there and then mapped executable. The kernel cannot address `X86_DEMO_CODE_VA`
     // itself, which is why the frame is written through its physical name instead.
@@ -1281,7 +1282,7 @@ fn x86_build_child(
     user_address_space_map(aspace, X86_DEMO_CODE_VA, code_phys, Flags::user_code())
         .map_err(|_| "could not map the child's code")?;
 
-    let stack_phys = crate::untyped::retype_page(region).ok_or("no stack frame")?;
+    let stack_phys = crate::memory_region::retype_page(region).ok_or("no stack frame")?;
     user_address_space_map(aspace, X86_DEMO_STACK_VA, stack_phys, Flags::user_data())
         .map_err(|_| "could not map the child's stack")?;
 
@@ -1364,7 +1365,8 @@ fn x86_userspace_round() -> Result<X86UserspaceReport, &'static str> {
 
     // Sixteen pages is what the supervision fixtures give a child on the other two architectures:
     // an address space's root and tables, a code page, a stack page, a TCB, and here two endpoints.
-    let report_region = crate::untyped::create(16).ok_or("no region for the reporting child")?;
+    let report_region =
+        crate::memory_region::create(16).ok_or("no region for the reporting child")?;
     let report_ep =
         crate::sched::create_rendezvous_from(report_region).ok_or("no reporting endpoint")?;
     let reporter_supervisor = crate::sched::create_rendezvous_from(report_region)
@@ -1391,7 +1393,8 @@ fn x86_userspace_round() -> Result<X86UserspaceReport, &'static str> {
         .map_err(|_| "the reporting child's corpse refused to be reaped")?;
 
     // The faulting child, in a region of its own.
-    let fault_region = crate::untyped::create(16).ok_or("no region for the faulting child")?;
+    let fault_region =
+        crate::memory_region::create(16).ok_or("no region for the faulting child")?;
     let fault_ep = crate::sched::create_rendezvous_from(fault_region)
         .ok_or("no supervision endpoint for the faulting child")?;
     let child = x86_build_child(
@@ -1416,8 +1419,8 @@ fn x86_userspace_round() -> Result<X86UserspaceReport, &'static str> {
     crate::sched::reap_supervised(fault_ep, child)
         .map_err(|_| "the faulting child's corpse refused to be reaped")?;
 
-    crate::untyped::destroy(report_region);
-    crate::untyped::destroy(fault_region);
+    crate::memory_region::destroy(report_region);
+    crate::memory_region::destroy(fault_region);
 
     Ok(X86UserspaceReport {
         reported,
@@ -1441,7 +1444,7 @@ pub fn riscv_worker_demo(worker: &[u8], n: u64) -> Result<u64, LoadError> {
     let result_cap = crate::cap::rendezvous_cap(result, crate::cap::Rights::WRITE);
 
     // Build the thread from parts: a TCB, the cap in slot 0, configure at the ELF's entry, start.
-    let thread_control_block_region = crate::untyped::create(2).expect("no tcb region");
+    let thread_control_block_region = crate::memory_region::create(2).expect("no tcb region");
     let tid =
         crate::sched::create_thread_control_block(thread_control_block_region).expect("no tcb");
     let slot =
@@ -1523,16 +1526,16 @@ pub fn riscv_initrd_demo(archive: &'static [u8]) -> Result<u64, LoadError> {
     // endpoint WRITE|GRANT (slot 1, so init may delegate a narrowed view to the child it builds).
     let aspace_name = readopt_user_address_space(space).expect("register init address space");
     let report = crate::sched::create_rendezvous();
-    let build_region = crate::untyped::create(2048).expect("no building budget for init");
+    let build_region = crate::memory_region::create(2048).expect("no building budget for init");
 
-    let thread_control_block_region = crate::untyped::create(2).expect("no tcb region");
+    let thread_control_block_region = crate::memory_region::create(2).expect("no tcb region");
     let tid =
         crate::sched::create_thread_control_block(thread_control_block_region).expect("no tcb");
     // The delegable root budget (milestone 31): init hands narrowed budgets to its children, so the
     // root carries GRANT; rights only narrow downward from here.
     let s0 = crate::sched::thread_control_block_insert_cap(
         tid,
-        crate::cap::untyped_root_cap(build_region),
+        crate::cap::memory_region_root_cap(build_region),
         None,
     )
     .expect("insert budget");
@@ -1654,7 +1657,7 @@ pub fn riscv_uart_driver_demo(
     crate::sched::bind_irq(uart_irq, irq_ep);
     let report = crate::sched::create_rendezvous();
 
-    let thread_control_block_region = crate::untyped::create(2).expect("no tcb region");
+    let thread_control_block_region = crate::memory_region::create(2).expect("no tcb region");
     let tid =
         crate::sched::create_thread_control_block(thread_control_block_region).expect("no tcb");
     // slot 0: the Irq capability (READ permits WAIT/ACK). slot 1: the report endpoint (WRITE).
@@ -1753,9 +1756,9 @@ pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), Loa
     let irq_ep = crate::sched::create_rendezvous();
     crate::sched::bind_irq(uart_irq, irq_ep);
     let build_region =
-        crate::untyped::create(2048).expect("no building budget for system_initializer");
+        crate::memory_region::create(2048).expect("no building budget for system_initializer");
 
-    let thread_control_block_region = crate::untyped::create(2).expect("no tcb region");
+    let thread_control_block_region = crate::memory_region::create(2).expect("no tcb region");
     let tid =
         crate::sched::create_thread_control_block(thread_control_block_region).expect("no tcb");
     // slot 0: the delegable root budget (milestone 31), GRANT included so system_initializer can split off a
@@ -1764,7 +1767,7 @@ pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), Loa
     // UART Irq, READ|GRANT so it can delegate it to input.
     let s0 = crate::sched::thread_control_block_insert_cap(
         tid,
-        crate::cap::untyped_root_cap(build_region),
+        crate::cap::memory_region_root_cap(build_region),
         None,
     )
     .expect("insert budget");
@@ -2288,7 +2291,7 @@ mod ntp_tests;
 
 /// Milestone 11: hand a process an untyped budget and let it spend it.
 #[cfg_attr(not(test), allow(dead_code))] // the tour and the userspace tests
-pub mod untyped_service;
+pub mod memory_region_service;
 
 /// **The untyped-backed userspace heap** (milestone 27): spawn the `allocator_exerciser` workload, the
 /// first program that links `extern crate alloc`, with an untyped budget (slot 0) and a report

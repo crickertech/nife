@@ -77,7 +77,7 @@ fn build_child(
     report: Option<sched::RendezvousId>,
     fault_ep: Option<sched::RendezvousId>,
 ) -> (u64, u64) {
-    let region = crate::untyped::create(16).expect("no region for the child");
+    let region = crate::memory_region::create(16).expect("no region for the child");
     (build_child_in(region, stub, report, fault_ep), region)
 }
 
@@ -92,7 +92,7 @@ pub(super) fn build_child_in(
 ) -> u64 {
     let aspace = user_address_space_create(region).expect("no aspace");
 
-    let code_phys = crate::untyped::retype_page(region).expect("no code frame");
+    let code_phys = crate::memory_region::retype_page(region).expect("no code frame");
     // SAFETY: a fresh frame we own, direct-mapped; write the stub and make it fetchable.
     unsafe {
         let dst = mmu::phys_to_virt(code_phys) as *mut u32;
@@ -103,7 +103,7 @@ pub(super) fn build_child_in(
     sync_icache(mmu::phys_to_virt(code_phys), core::mem::size_of_val(stub));
     user_address_space_map(aspace, CODE_VA, code_phys, Flags::user_code()).expect("map code");
 
-    let stack_phys = crate::untyped::retype_page(region).expect("no stack frame");
+    let stack_phys = crate::memory_region::retype_page(region).expect("no stack frame");
     user_address_space_map(aspace, STACK_VA, stack_phys, Flags::user_data()).expect("map stack");
 
     let tid = sched::create_thread_control_block(region).expect("no tcb");

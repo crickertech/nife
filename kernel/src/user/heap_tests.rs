@@ -6,7 +6,7 @@ use super::*;
 /// bit; the committed count proves the heap both grew (it allocated more than zero pages)
 /// and stayed inside its own 64-page cap, i.e. growth is demand-driven, not budget-eating.
 #[test_case]
-fn a_process_runs_alloc_collections_on_its_own_untyped() {
+fn a_process_runs_alloc_collections_on_its_own_memory_region() {
     let image = program("allocator_exerciser")
         .expect("no allocator_exerciser program in the initrd archive");
     let report = alloc_service::start(image);

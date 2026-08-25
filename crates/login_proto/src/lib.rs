@@ -31,15 +31,15 @@
 //!    stages to the directory endpoint and the caretaker's own hop to the file service, which is
 //!    sound for the reason `crates/system_initializer` gives (`fs_subtree_caretaker` and its client
 //!    share one frame because every request on both hops is a blocking `CALL`);
-//! 3. the **budget**: an `Untyped`, `WRITE | GRANT`, freshly split so the client's memory is
+//! 3. the **budget**: a `MemoryRegion`, `WRITE | GRANT`, freshly split so the client's memory is
 //!    genuinely its own and it may in turn split, spend, or hand pieces of it on. `WRITE` is also
-//!    what `Untyped::DESTROY` needs, so this capability doubles as its own reclaim: a client that
+//!    what `MemoryRegion::DESTROY` needs, so this capability doubles as its own reclaim: a client that
 //!    calls `DESTROY` on it, alongside the fourth capability below, gives back everything a session
 //!    spent rather than only the caretaker's half;
-//! 4. the **logout ticket**: an `Untyped`, `WRITE` only, the exact region the directory capability's
+//! 4. the **logout ticket**: a `MemoryRegion`, `WRITE` only, the exact region the directory capability's
 //!    caretaker was built from (`user/src/login.rs`'s `mint`, see that program's module docs,
 //!    "Reclaiming a session"). It has nothing left to `SPLIT` or `RETYPE` (its whole budget went
-//!    into building the caretaker), so its only remaining use is `invoke(cap, abi::untyped::DESTROY,
+//!    into building the caretaker), so its only remaining use is `invoke(cap, abi::memory_region::DESTROY,
 //!    0, 0, 0)`, which reclaims the caretaker's TCB, address space and endpoint and returns the
 //!    pages to `login`'s own construction budget. **A client should retry `DESTROY` a bounded few
 //!    times on refusal rather than treat one attempt as final**: the caretaker can be transiently

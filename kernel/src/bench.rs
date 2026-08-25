@@ -1012,7 +1012,8 @@ fn map_el0() {
     // The target space, backed by its own region. The region pays for the root, the intermediate
     // tables, and the mapping-record log pages; the leaves are aliases of one frame, so they cost it
     // nothing. Sized for the warmup plus timed maps plus that overhead.
-    let Some(region) = crate::untyped::create(MAP_EL0_WARMUP + MAP_EL0_ITERS + MAP_EL0_OVERHEAD)
+    let Some(region) =
+        crate::memory_region::create(MAP_EL0_WARMUP + MAP_EL0_ITERS + MAP_EL0_OVERHEAD)
     else {
         println!("bench: map_el0 skipped (no region)");
         return;
@@ -1022,11 +1023,11 @@ fn map_el0() {
         return;
     };
     // One frame to alias-map, from its own one-page region so the address space region stays pure overhead.
-    let Some(frame_region) = crate::untyped::create(1) else {
+    let Some(frame_region) = crate::memory_region::create(1) else {
         println!("bench: map_el0 skipped (no frame region)");
         return;
     };
-    let Some(phys) = crate::untyped::retype_page(frame_region) else {
+    let Some(phys) = crate::memory_region::retype_page(frame_region) else {
         println!("bench: map_el0 skipped (no frame)");
         return;
     };
@@ -1066,13 +1067,13 @@ fn spawn_el0() {
         println!("bench: spawn_el0 skipped (no os_primitives_benchmarker in the initrd)");
         return;
     };
-    let Some(region) = crate::untyped::create(SPAWN_EL0_BUDGET) else {
+    let Some(region) = crate::memory_region::create(SPAWN_EL0_BUDGET) else {
         println!("bench: spawn_el0 skipped (no budget)");
         return;
     };
     let report = sched::create_rendezvous();
     let child_done = sched::create_rendezvous();
-    use crate::cap::{Rights, rendezvous_cap, untyped_cap};
+    use crate::cap::{Rights, memory_region_cap, rendezvous_cap};
     sched::spawn(move || {
         crate::user::run(
             image,
@@ -1082,7 +1083,7 @@ fn spawn_el0() {
                 arg2: 0,
                 grants: &[
                     rendezvous_cap(report, Rights::WRITE), // slot 0: report the result home
-                    untyped_cap(region),                   // slot 1: the spawner's whole budget
+                    memory_region_cap(region),             // slot 1: the spawner's whole budget
                     rendezvous_cap(
                         child_done,
                         Rights::READ.union(Rights::WRITE).union(Rights::GRANT),

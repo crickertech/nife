@@ -65,8 +65,8 @@ mod syscall;
 mod thread;
 // The measured-boot trust root: the digest of the boot program this kernel image was built
 // against (milestone 22 phase B.1, DECISIONS §22). Generated into the image by build.rs.
+mod memory_region;
 mod trust;
-mod untyped;
 mod user;
 mod virtio;
 
@@ -1318,7 +1318,8 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
 
                 // Milestone 11: a process spends its own memory; the kernel allocates nothing.
                 if let Some(image) = user::program("init")
-                    && let Some((_region, report, _demo)) = user::untyped_service::start(image, 24)
+                    && let Some((_region, report, _demo)) =
+                        user::memory_region_service::start(image, 24)
                 {
                     sched::ipc_recv(report); // the process signals it is loaded and ready
                     let before = memory::stats().unwrap().used;

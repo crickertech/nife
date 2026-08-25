@@ -31,8 +31,9 @@ const SLOT_MASK: u64 = 0xffff_ffff;
 /// rendezvous points exhausted the kernel's rendezvous budget for every test that ran afterwards, which is
 /// the sort of failure a test should not be able to inflict on its neighbours.
 fn arena() -> (u64, u64) {
-    let budget = crate::untyped::create(BUILDER_BUDGET_PAGES).expect("no builder budget");
-    let rendezvous_region = crate::untyped::create(RENDEZVOUS_PAGES).expect("no rendezvous region");
+    let budget = crate::memory_region::create(BUILDER_BUDGET_PAGES).expect("no builder budget");
+    let rendezvous_region =
+        crate::memory_region::create(RENDEZVOUS_PAGES).expect("no rendezvous region");
     (budget, rendezvous_region)
 }
 
@@ -110,7 +111,7 @@ fn occupied_slots() -> usize {
 /// is nothing there, which is what no-ambient-authority feels like, and it is a different fact
 /// from `NotPermitted` (something there, restricted). For every occupied slot, the capability
 /// must be an `Rendezvous`, which cannot build by dispatch: the rendezvous arm of `invoke` offers
-/// send, receive, delegate, call, and reap, and no constructor at all. Untyped methods are *not*
+/// send, receive, delegate, call, and reap, and no constructor at all. `MemoryRegion` methods are *not*
 /// invoked on those slots, because method numbers are per-object-type and `RETYPE_OBJ`'s number
 /// is `SEND_CAP`'s on an rendezvous.
 fn assert_can_only_supervise(expected: &[u64]) {
@@ -123,7 +124,14 @@ fn assert_can_only_supervise(expected: &[u64]) {
                     abi::objtype::ADDRESS_SPACE,
                 ] {
                     assert_eq!(
-                        invoke(&mut frame, slot, abi::untyped::RETYPE_OBJ, objtype, 0, 0),
+                        invoke(
+                            &mut frame,
+                            slot,
+                            abi::memory_region::RETYPE_OBJ,
+                            objtype,
+                            0,
+                            0
+                        ),
                         Err(Error::NoSuchSlot),
                         "slot {slot} answered something other than \"you hold no such \
                          capability\" to a construction request",
@@ -169,7 +177,7 @@ fn tidy(budget: u64, rendezvous_region: u64, slots: &[u64]) {
 fn a_supervisor_holding_only_its_rendezvous_reaps_its_dead_child() {
     let (budget, rendezvous_region) = arena();
     let fault_ep = rendezvous(rendezvous_region);
-    let instance = crate::untyped::split(budget, INSTANCE_PAGES).expect("no instance region");
+    let instance = crate::memory_region::split(budget, INSTANCE_PAGES).expect("no instance region");
     let child = build_child_in(instance, FAULT_STUB, None, Some(fault_ep));
 
     let cap = hold_rendezvous(fault_ep);
@@ -210,11 +218,11 @@ fn a_supervisor_holding_only_its_rendezvous_reaps_its_dead_child() {
 fn the_reaped_region_returns_to_the_builder_not_the_reaper() {
     let (budget, rendezvous_region) = arena();
     let fault_ep = rendezvous(rendezvous_region);
-    let (spent_before, _) = crate::untyped::usage(budget).expect("the budget exists");
+    let (spent_before, _) = crate::memory_region::usage(budget).expect("the budget exists");
 
-    let instance = crate::untyped::split(budget, INSTANCE_PAGES).expect("no instance region");
+    let instance = crate::memory_region::split(budget, INSTANCE_PAGES).expect("no instance region");
     assert_eq!(
-        crate::untyped::usage(budget).unwrap().0,
+        crate::memory_region::usage(budget).unwrap().0,
         spent_before + INSTANCE_PAGES,
         "the split did not come out of the builder's budget",
     );
@@ -228,17 +236,17 @@ fn the_reaped_region_returns_to_the_builder_not_the_reaper() {
     assert_eq!(reap_when_settled(cap, msg[1]), Ok(0), "the reap failed");
 
     assert_eq!(
-        crate::untyped::usage(budget).unwrap().0,
+        crate::memory_region::usage(budget).unwrap().0,
         spent_before,
         "the reaped pages did not go back to the builder's budget: the reaper freed the corpse \
          and stranded its memory",
     );
     assert!(
-        !crate::untyped::has_children(budget),
+        !crate::memory_region::has_children(budget),
         "the instance region outlived its corpse, so the builder's budget is still committed",
     );
     // Genuinely spendable again, not merely un-bumped bookkeeping.
-    let again = crate::untyped::split(budget, INSTANCE_PAGES)
+    let again = crate::memory_region::split(budget, INSTANCE_PAGES)
         .expect("the builder could not re-spend the pages the reap returned");
     sched::reclaim_region(again).expect("reclaim the re-split region");
 
@@ -264,7 +272,7 @@ fn reap_refuses_a_live_child_with_a_distinct_error() {
     let (budget, rendezvous_region) = arena();
     let report = rendezvous(rendezvous_region);
     let fault_ep = rendezvous(rendezvous_region);
-    let instance = crate::untyped::split(budget, INSTANCE_PAGES).expect("no instance region");
+    let instance = crate::memory_region::split(budget, INSTANCE_PAGES).expect("no instance region");
     let child = build_child_in(instance, REPORT_STUB, Some(report), Some(fault_ep));
 
     let cap = hold_rendezvous(fault_ep);
@@ -306,7 +314,7 @@ fn reap_refuses_another_supervisors_child() {
     let (budget, rendezvous_region) = arena();
     let mine = rendezvous(rendezvous_region);
     let theirs = rendezvous(rendezvous_region);
-    let instance = crate::untyped::split(budget, INSTANCE_PAGES).expect("no instance region");
+    let instance = crate::memory_region::split(budget, INSTANCE_PAGES).expect("no instance region");
     let child = build_child_in(instance, FAULT_STUB, None, Some(theirs));
 
     let cap_mine = hold_rendezvous(mine);
@@ -349,7 +357,8 @@ fn reap_refuses_a_recycled_thread_id_rather_than_the_wrong_thread() {
     let report = rendezvous(rendezvous_region);
     let cap = hold_rendezvous(fault_ep);
 
-    let first_region = crate::untyped::split(budget, INSTANCE_PAGES).expect("no first region");
+    let first_region =
+        crate::memory_region::split(budget, INSTANCE_PAGES).expect("no first region");
     let first = build_child_in(first_region, FAULT_STUB, None, Some(fault_ep));
     assert_eq!(recv_death(cap)[1], first);
     assert_eq!(
@@ -358,7 +367,8 @@ fn reap_refuses_a_recycled_thread_id_rather_than_the_wrong_thread() {
         "the first reap failed"
     );
 
-    let second_region = crate::untyped::split(budget, INSTANCE_PAGES).expect("no second region");
+    let second_region =
+        crate::memory_region::split(budget, INSTANCE_PAGES).expect("no second region");
     let second = build_child_in(second_region, REPORT_STUB, Some(report), Some(fault_ep));
     assert_eq!(
         second & SLOT_MASK,
@@ -397,7 +407,7 @@ fn reap_refuses_a_recycled_thread_id_rather_than_the_wrong_thread() {
 /// choose not to read. So the reap has to unlink the corpse from that queue before freeing its
 /// TCB, or the supervisor's next `RECV` follows a pointer into a recycled page.
 ///
-/// This was reachable before §32 too, through `Untyped::DESTROY`; every existing caller happened
+/// This was reachable before §32 too, through `MemoryRegion::DESTROY`; every existing caller happened
 /// to receive first, so it never fired. `rendezvous::REAP` makes it easy to reach, which is how it
 /// was found. `crates/ipc`'s `remove_sender` is the fix, and the second half of this test (a
 /// fresh child's death arriving normally on the same rendezvous) is what proves the queue is
@@ -406,7 +416,7 @@ fn reap_refuses_a_recycled_thread_id_rather_than_the_wrong_thread() {
 fn reaping_an_uncollected_corpse_leaves_no_ghost_on_the_rendezvous() {
     let (budget, rendezvous_region) = arena();
     let fault_ep = rendezvous(rendezvous_region);
-    let instance = crate::untyped::split(budget, INSTANCE_PAGES).expect("no instance region");
+    let instance = crate::memory_region::split(budget, INSTANCE_PAGES).expect("no instance region");
     let child = build_child_in(instance, FAULT_STUB, None, Some(fault_ep));
     let cap = hold_rendezvous(fault_ep);
 
@@ -429,7 +439,8 @@ fn reaping_an_uncollected_corpse_leaves_no_ghost_on_the_rendezvous() {
 
     // The rendezvous still works, which is the real assertion: a stale head or tail would show up
     // here and not in the count above.
-    let next_region = crate::untyped::split(budget, INSTANCE_PAGES).expect("no second region");
+    let next_region =
+        crate::memory_region::split(budget, INSTANCE_PAGES).expect("no second region");
     let next = build_child_in(next_region, FAULT_STUB, None, Some(fault_ep));
     let msg = recv_death(cap);
     assert_eq!(

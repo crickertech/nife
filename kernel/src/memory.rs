@@ -358,8 +358,8 @@ pub fn stats() -> Option<Stats> {
     Some(ALLOCATOR.lock().as_ref()?.stats())
 }
 
-/// Free frames right now. For tests that prove reclamation actually returns memory (the untyped
-/// flat-frame-count property, notes/untyped.md): a region reclaimed by object revocation should
+/// Free frames right now. For tests that prove reclamation actually returns memory (the memory
+/// region flat-frame-count property, notes/memory-regions.md): a region reclaimed by object revocation should
 /// bring this exactly back to where it stood before the region was created.
 #[cfg_attr(not(test), allow(dead_code))] // the reclamation tests in sched.rs and user/tests.rs
 pub fn free_page_frames() -> usize {

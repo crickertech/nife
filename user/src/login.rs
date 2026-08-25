@@ -42,7 +42,7 @@
 //!
 //! This program's BUGS used to name two candidate shapes for giving back a caretaker's construction
 //! memory and pick neither: a principal's supervision endpoint reaching this process, or a caretaker
-//! `Untyped::DESTROY`ed by name. Investigating both against this tree's own precedent found a third,
+//! `MemoryRegion::DESTROY`ed by name. Investigating both against this tree's own precedent found a third,
 //! smaller than either, and it is what [`mint`] now builds.
 //!
 //! **The fourth delegated capability is [`mint`]'s own `region`, undropped.** A successful login
@@ -50,9 +50,9 @@
 //! construction region the moment the caretaker confirmed descent (see the capability-table-ceiling
 //! fix this BUGS section used to describe below `mint`'s own comment). That capability is not discarded
 //! anymore: it is delegated to the authenticated client, narrowed to `WRITE` (the one right
-//! `Untyped::DESTROY` needs, per `abi::untyped::DESTROY`'s own doc), the same "delegate, then drop
+//! `MemoryRegion::DESTROY` needs, per `abi::memory_region::DESTROY`'s own doc), the same "delegate, then drop
 //! our own copy" pattern already used for the directory and the budget. The client now holds its own
-//! **logout ticket**: an `Untyped` capability with nothing left to `SPLIT` or `RETYPE` (the region's
+//! **logout ticket**: a `MemoryRegion` capability with nothing left to `SPLIT` or `RETYPE` (the region's
 //! whole budget was spent building the caretaker), whose only remaining use is `DESTROY`. Calling it
 //! reclaims the caretaker's TCB, address space, and endpoints, and the pages come home to
 //! [`CONSTRUCTION_UT`] under §13 region ownership (the region's builder, not its destroyer), exactly
@@ -70,9 +70,9 @@
 //! `mint` call) can hand the means to do that directly to the one party who should hold it, the
 //! client, without keeping anything itself.
 //!
-//! **Why `Untyped::DESTROY` actually works here, checked against §32's own documented gap rather
+//! **Why `MemoryRegion::DESTROY` actually works here, checked against §32's own documented gap rather
 //! than assumed.** A supervisor's `Endpoint::REAP` only collects an *already-dead* thread (§32:
-//! "it authorizes collecting a corpse, not killing"); killing a *live* one needs `Untyped::DESTROY`'s
+//! "it authorizes collecting a corpse, not killing"); killing a *live* one needs `MemoryRegion::DESTROY`'s
 //! stronger right, and that refuses permanently against a thread `Blocked` on an endpoint outside the
 //! region being destroyed (notes/hung-component.md's case (c), the open, unsolved half of the hung-
 //! component taxonomy). The caretaker built by [`mint`] is never in that shape: its own client-facing
@@ -96,7 +96,7 @@
 //!
 //! **A full logout needs no fifth capability, because the third one already carried enough right.**
 //! [`CLIENT_BUDGET_PAGES`] is delegated with `WRITE | GRANT` (every principal's own spending money),
-//! and `WRITE` is the one right `Untyped::DESTROY` needs. Nothing before this fix had a reason to
+//! and `WRITE` is the one right `MemoryRegion::DESTROY` needs. Nothing before this fix had a reason to
 //! call it, so this program's BUGS never named it, but any client holding `budget` could always
 //! reclaim it the same way the logout ticket reclaims `region`. `user/src/login_test_client.rs`'s
 //! `ROLE_LOGOUT` does both, so a full logout gives back everything a session spent:
@@ -296,8 +296,8 @@
 //! successful login spent [`CARETAKER_REGION_PAGES`] and [`CLIENT_BUDGET_PAGES`] out of
 //! [`CONSTRUCTION_UT`] for the rest of this process's life, with no logout that gave the memory
 //! back. `mint` now returns its own copy of the caretaker's construction region as a fourth
-//! delegated capability (narrowed to `WRITE`, the one right `Untyped::DESTROY` needs) instead of
-//! dropping it, and the authenticated client holds it as its own logout ticket: an `Untyped` with
+//! delegated capability (narrowed to `WRITE`, the one right `MemoryRegion::DESTROY` needs) instead of
+//! dropping it, and the authenticated client holds it as its own logout ticket: a `MemoryRegion` with
 //! nothing left to `SPLIT` or `RETYPE` (the region's whole budget already went into building the
 //! caretaker), whose only remaining use is `DESTROY`. Calling it reclaims the caretaker's TCB,
 //! address space and endpoints, and the pages come home to [`CONSTRUCTION_UT`] under §13 region
@@ -353,8 +353,8 @@
 #![no_main]
 
 use supervision_proto::{
-    ChildEndowment, build_child, retype_obj_from as retype_obj, thread_control_block_start,
-    untyped_destroy, untyped_split,
+    ChildEndowment, build_child, memory_region_destroy, memory_region_split,
+    retype_obj_from as retype_obj, thread_control_block_start,
 };
 use user_rt::{call, cap_delete, invoke, recv, send, yield_now};
 
@@ -451,7 +451,7 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
             None
         };
 
-    let Ok(own_ut) = untyped_split(CONSTRUCTION_UT, OWN_UT_PAGES) else {
+    let Ok(own_ut) = memory_region_split(CONSTRUCTION_UT, OWN_UT_PAGES) else {
         fail(4)
     };
 
@@ -512,7 +512,7 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
                 delegate(dir_ep, abi::rights::WRITE);
                 delegate(FS_PAGE_FRAME, abi::rights::READ | abi::rights::WRITE);
                 delegate(budget, abi::rights::WRITE | abi::rights::GRANT);
-                // The logout ticket: `WRITE` is the one right `Untyped::DESTROY` needs (this
+                // The logout ticket: `WRITE` is the one right `MemoryRegion::DESTROY` needs (this
                 // program's own module docs, "Reclaiming a session"). Not `GRANT`: a client that
                 // could delegate its own logout ticket onward could hand another principal the
                 // means to end this one's session, which is authority narrower to withhold than to
@@ -567,7 +567,7 @@ fn mint(own_ut: u64, care: Option<&elf::Elf>, identity: &[u8]) -> Option<(u64, u
         return None;
     }
 
-    let region = untyped_split(CONSTRUCTION_UT, CARETAKER_REGION_PAGES).ok()?;
+    let region = memory_region_split(CONSTRUCTION_UT, CARETAKER_REGION_PAGES).ok()?;
     let narrow_ep = retype_obj(region, abi::objtype::RENDEZVOUS).ok()?;
     let ready = retype_obj(region, abi::objtype::RENDEZVOUS).ok()?;
 
@@ -639,7 +639,7 @@ fn mint(own_ut: u64, care: Option<&elf::Elf>, identity: &[u8]) -> Option<(u64, u
     // budget below. Dropping it here, the way an earlier version of this function did, was what
     // made the caretaker's construction memory permanently unreclaimable: nobody downstream ever
     // held a capability that could `DESTROY` it.
-    let budget = untyped_split(CONSTRUCTION_UT, CLIENT_BUDGET_PAGES).ok()?;
+    let budget = memory_region_split(CONSTRUCTION_UT, CLIENT_BUDGET_PAGES).ok()?;
     Some((narrow_ep, budget, region))
 }
 
@@ -652,7 +652,7 @@ fn mint(own_ut: u64, care: Option<&elf::Elf>, identity: &[u8]) -> Option<(u64, u
 /// dozen attempts has a different problem than this loop can fix.
 fn reclaim(region: u64) {
     for _ in 0..RECLAIM_ATTEMPTS {
-        if untyped_destroy(region) {
+        if memory_region_destroy(region) {
             return;
         }
         yield_now();

@@ -97,7 +97,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use abi::{page_frame as fr, rendezvous, rights, untyped as ut};
+use abi::{memory_region as ut, page_frame as fr, rendezvous, rights};
 use clock_proto::propose;
 use ntp_proto::{Packet, Query, Reject, Short, Timestamp, leap, mode};
 // The socket contract, verbatim from the file `net_stack` compiles, so the client and the test
@@ -128,7 +128,7 @@ const REPORT: u64 = 0;
 /// holds `WRITE`, the test server `READ`.
 const STACK: u64 = 1;
 /// Slot 2: an untyped budget, to mint and map the one shared frame.
-const UNTYPED: u64 = 2;
+const MEMORY_REGION: u64 = 2;
 /// Slot 3: the clock service's **propose** endpoint (WRITE). Not a page, and not a way to set
 /// anything.
 const PROPOSE: u64 = 3;
@@ -405,13 +405,13 @@ fn reject_code(r: Reject) -> u64 {
 /// Exactly what `socket_test_client` does, because it is exactly the same contract.
 fn attach_page_frame() {
     // SAFETY: `svc`. RETYPE answers with the new frame capability's slot, or a negative error.
-    let frame = unsafe { invoke(UNTYPED, ut::RETYPE, 0, 0, 0) };
+    let frame = unsafe { invoke(MEMORY_REGION, ut::RETYPE, 0, 0, 0) };
     if frame < 0 {
         done(RPT_NET_ERROR, 0, 0);
     }
     let frame = frame as u64;
     // SAFETY: `svc`. Map it writable; the page tables come from our untyped.
-    if unsafe { invoke(frame, fr::MAP, PAGE_FRAME_VA, 1, UNTYPED) } < 0 {
+    if unsafe { invoke(frame, fr::MAP, PAGE_FRAME_VA, 1, MEMORY_REGION) } < 0 {
         done(RPT_NET_ERROR, 1, 0);
     }
     // SAFETY: `svc`. Delegate it, narrowed to read/write, with the ATTACH request.
@@ -514,7 +514,7 @@ fn server(variant: u64, claimed_nanos: u64) -> ! {
             // capability for, because the mapping outlives it. No reply; nobody is waiting.
             OP_ATTACH_PAGE_FRAME => {
                 // SAFETY: `svc`. The cap is the frame the client delegated.
-                let _ = unsafe { invoke(cap, fr::MAP, PAGE_FRAME_VA, 1, UNTYPED) };
+                let _ = unsafe { invoke(cap, fr::MAP, PAGE_FRAME_VA, 1, MEMORY_REGION) };
                 cap_delete(cap);
             }
             OP_OPEN_UDP | OP_OPEN_TCP => {

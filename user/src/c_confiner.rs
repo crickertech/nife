@@ -4,7 +4,7 @@
 //! It is three roles in one program, and the fusion is deliberate rather than lazy:
 //!
 //! 1. **Builder.** It splits a region off its budget per instance and lays `c_shim` out in it, so a
-//!    single `Untyped::DESTROY` reaps a whole instance (§16 object revocation).
+//!    single `MemoryRegion::DESTROY` reaps a whole instance (§16 object revocation).
 //! 2. **Supervisor.** It holds the C component's supervision endpoint (§26), so a fault becomes a
 //!    five-word message it receives rather than a silence it has to guess at, and it decides whether
 //!    to restart. The kernel relaunches nothing.
@@ -126,7 +126,7 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
         g.fill(0);
         g[c_seam::IN_OFF..c_seam::IN_OFF + c_seam::INPUT.len()].copy_from_slice(c_seam::INPUT);
 
-        let Ok(region) = supervision_proto::untyped_split(ROOT_UT, INSTANCE_PAGES) else {
+        let Ok(region) = supervision_proto::memory_region_split(ROOT_UT, INSTANCE_PAGES) else {
             bail(10)
         };
         let Ok(tcb) = supervision_proto::build_child(

@@ -4,7 +4,7 @@
 //! Until now a granted capability could not be retracted and a spent page could not be reclaimed.
 //! That was safe only by a structural accident: retyped frames are **spend-only, never reused**
 //! (untyped.rs), so a peer that still mapped a shared frame after the granter left was mapping
-//! valid, non-reused memory. `untyped::destroy` carried a tripwire saying exactly this: wiring up
+//! valid, non-reused memory. `memory_region::destroy` carried a tripwire saying exactly this: wiring up
 //! any reclamation before revocation exists turns those "harmless" dangling mappings into a
 //! use-after-free.
 //!
@@ -22,7 +22,7 @@
 //! retyped from *its own* untyped region, reached through a fixed registry of live spaces (root,
 //! region, log head). A process that maps a thousand shared pages spends its own budget recording
 //! them; a process that cannot afford the record cannot make the mapping. And teardown got
-//! simpler, not more complex: the log pages are region pages, so `untyped::destroy` reclaims the
+//! simpler, not more complex: the log pages are region pages, so `memory_region::destroy` reclaims the
 //! records with the process, and "forget this root" is one registry slot going empty.
 
 use crate::arch::mmu;
@@ -111,7 +111,7 @@ pub fn forget_root(root: u64) {
 
 /// Record that the address space rooted at `root` mapped `phys` at `va`, **paid for by that
 /// space's own region**: the record goes in an existing log slot, or a fresh log page is retyped
-/// from the region (rank MAPPINGS > UNTYPED makes that legal under this lock). Returns `false` if
+/// from the region (rank MAPPINGS > `MEMORY_REGION` makes that legal under this lock). Returns `false` if
 /// the space is unknown or its budget is exhausted, and the caller must then unmap what it just
 /// mapped: an unrecorded mapping is invisible to revocation, which is the §13 use-after-free.
 #[must_use]
@@ -142,7 +142,7 @@ pub fn record_mapping(phys: u64, root: u64, va: u64) -> bool {
 
     // No room anywhere: a fresh page from the space's own budget becomes the new head. Retyped
     // zeroed, so `used = 0` and `next = 0` need no separate scrub.
-    let Some(fresh) = crate::untyped::retype_page(space.region) else {
+    let Some(fresh) = crate::memory_region::retype_page(space.region) else {
         return false; // out of budget: the caller unmaps, the process pays for its own limit
     };
     // SAFETY: just retyped exclusively for the log; SPACES is held.
@@ -293,7 +293,7 @@ pub fn revoke_device_from_others(phys: u64) {
     unmap_everywhere(phys, mmu::current_user_root());
 }
 
-/// Revoke every mapped page in `[base, base + size)`. `untyped::destroy` calls this before
+/// Revoke every mapped page in `[base, base + size)`. `memory_region::destroy` calls this before
 /// returning a region to the allocator, which is what turns the old "spend-only, never reused"
 /// invariant into the stronger "no live mapping survives" one that makes reuse actually safe.
 ///
@@ -378,15 +378,15 @@ mod tests {
     }
 
     /// **Destroying an untyped region unmaps its pages, THEN reclaims them.** A page from the
-    /// region is mapped into an address space; `untyped::destroy` must remove that mapping before
+    /// region is mapped into an address space; `memory_region::destroy` must remove that mapping before
     /// the page returns to the allocator, or a later allocation hands out memory a live process
     /// still maps (the use-after-free the tripwire in untyped.rs warns of). Both halves are
     /// asserted: the mapping is gone, and the region's frames come back.
     #[test_case]
     fn destroy_unmaps_a_region_before_reclaiming_it() {
         let mut space = AddressSpace::new(2).expect("no space");
-        let region = crate::untyped::create(4).expect("no region");
-        let phys = crate::untyped::retype_page(region).expect("retype");
+        let region = crate::memory_region::create(4).expect("no region");
+        let phys = crate::memory_region::retype_page(region).expect("retype");
         let va = 0x40_0000u64;
         space
             .map_physical(va, phys, Flags::user_data())
@@ -398,7 +398,7 @@ mod tests {
         );
 
         let free_before = crate::memory::stats().unwrap().free();
-        crate::untyped::destroy(region);
+        crate::memory_region::destroy(region);
         let free_after = crate::memory::stats().unwrap().free();
 
         assert!(
@@ -442,7 +442,7 @@ mod tests {
         assert!(
             refused,
             "2048 mappings recorded out of a {}-page region: records are not being paid for",
-            crate::untyped::usage(0).map(|(_, p)| p).unwrap_or(0),
+            crate::memory_region::usage(0).map(|(_, p)| p).unwrap_or(0),
         );
 
         crate::memory::free(page_frames::PageFrame::from_addr(shared));

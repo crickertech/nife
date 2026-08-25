@@ -1,5 +1,5 @@
 use super::*;
-use crate::cap::{Rights, rendezvous_cap, untyped_cap};
+use crate::cap::{Rights, memory_region_cap, rendezvous_cap};
 use crate::sched::RendezvousId;
 
 /// The demo caps its own heap at 64 pages; the budget must also cover the program's page
@@ -13,7 +13,8 @@ pub const BUDGET_PAGES: u64 = 96;
 const EXTRA_STACK_PAGES: u64 = 3;
 
 pub fn start(image: &'static [u8]) -> RendezvousId {
-    let budget = crate::untyped::create(BUDGET_PAGES).expect("no untyped for allocator_exerciser");
+    let budget =
+        crate::memory_region::create(BUDGET_PAGES).expect("no untyped for allocator_exerciser");
     let report = crate::sched::create_rendezvous();
 
     let mut stack = [Mapping {
@@ -41,7 +42,7 @@ pub fn start(image: &'static [u8]) -> RendezvousId {
                 arg1: 0,
                 arg2: 0,
                 grants: &[
-                    untyped_cap(budget),                   // slot 0: the heap's budget
+                    memory_region_cap(budget),             // slot 0: the heap's budget
                     rendezvous_cap(report, Rights::WRITE), // slot 1: report the verdict
                 ],
                 maps: &stack,

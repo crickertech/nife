@@ -1,8 +1,8 @@
-//! Untyped memory. **The kernel stops allocating.**
+//! Memory regions. **The kernel stops allocating.**
 //!
 //! Milestone 11, and DECISIONS.md §10's deliberately-deferred third axis. The idea, from seL4:
 //! the kernel does not own a pool it hands out from. Instead a process holds a capability to a
-//! chunk of raw memory (an `Untyped` region, `capability::Object::Untyped`), and to get a page it
+//! chunk of raw memory (a `MemoryRegion`, `capability::Object::MemoryRegion`), and to get a page it
 //! **retypes** part of that memory into the thing it wants. The kernel is a bookkeeper: it advances a watermark and hands
 //! back a physical address. It calls no allocator.
 //!
@@ -12,11 +12,11 @@
 //! process allocates.** Every page the process maps comes out of its own untyped, carved once at
 //! the start. A process cannot make the kernel allocate, so it cannot exhaust kernel memory: it
 //! can only run out of *its own* budget, and when it does, the retype fails and the kernel is
-//! untouched. That is the astonishing property, and `notes/untyped.md` shows the flat frame count.
+//! untouched. That is the astonishing property, and `notes/memory-regions.md` shows the flat frame count.
 //!
 //! # Where the boundary sits now (updated across milestone 14)
 //!
-//! Milestone 11 converted the memory a process **asks for** (`Untyped::MAP` pages) to untyped.
+//! Milestone 11 converted the memory a process **asks for** (`MemoryRegion::MAP` pages) to untyped.
 //! Milestone 14 phase B.4 converted the memory a process **is made of**: `exec` carves one
 //! region per process and the address space's root, tables, and image pages are all retyped
 //! from it, so teardown is [`destroy`] and the whole budget returns in one call. The kernel's
@@ -27,7 +27,7 @@
 //!
 //! # Where the bookkeeping lives (milestone 135)
 //!
-//! The table itself, and every decision taken over it, is `crates/regions`: host-testable, Kani-
+//! The table itself, and every decision taken over it, is `crates/memory_regions`: host-testable, Kani-
 //! proved for the arithmetic, and searched by loom for the racing case (`script/interleaving-check`).
 //! What stays here is what a crate a model checker can run must not have, which is the I/O: the
 //! frame allocator, the direct map, the revoke, and the lock. The division is not tidiness. The
@@ -59,16 +59,16 @@ use crate::sync::{IrqSafeMutex, rank};
 /// and go can create regions without end, as long as no more than this many live at a time.
 const MAX_REGIONS: usize = 256;
 
-/// The untyped regions (`crates/regions`, notes/generational-names.md). Generational, which is the
+/// The untyped regions (`crates/memory_regions`, notes/generational-names.md). Generational, which is the
 /// reuse the old fixed count-based array lacked: reclaiming a region removes it, which bumps its
-/// slot's generation, so every `Untyped` capability minted for that region stops resolving
+/// slot's generation, so every `MemoryRegion` capability minted for that region stops resolving
 /// (stale-safe, the same machinery as Tids and endpoint names), and the slot is reused by the next
-/// `create`. What an `Object::Untyped` capability carries is the generational `u64` name.
+/// `create`. What an `Object::MemoryRegion` capability carries is the generational `u64` name.
 ///
 /// **Page units inside, byte addresses outside.** The crate is `FRAME_SIZE`-agnostic on purpose, so
 /// every conversion happens here, at the boundary where the constant is already in scope.
 static REGIONS: IrqSafeMutex<RegionTable<MAX_REGIONS>> =
-    IrqSafeMutex::new(rank::UNTYPED, RegionTable::new());
+    IrqSafeMutex::new(rank::MEMORY_REGION, RegionTable::new());
 
 /// Carve `pages` of physical memory out of the frame allocator, once, and make it an untyped
 /// region. **This is the kernel's one allocation for this memory**: the seL4 boundary, where all
@@ -184,7 +184,7 @@ pub fn unpin(region: u64) {
 }
 
 /// Return a region's whole backing to the frame allocator, **safely** (milestone 13). The name goes
-/// with it: its slot's generation is bumped, so every `Untyped` capability minted for this region
+/// with it: its slot's generation is bumped, so every `MemoryRegion` capability minted for this region
 /// stops resolving and the slot is reused by the next `create`/[`split`]. (An older line here said
 /// the slot stays and indices are stable; that stopped being true when regions became generational,
 /// and the sentence outlived the fact.)
@@ -208,7 +208,7 @@ pub fn unpin(region: u64) {
 /// `RegionTable::claim_for_destroy` decides and removes the name in **one borrow**, so at most one
 /// caller ever reaches the free loop below for a given region. This used to be two hold of the
 /// region lock with a gap between them, and the gap was a real double free rather than an
-/// untidiness: two callers with a name for one region (an owner's `Untyped::DESTROY` and a
+/// untidiness: two callers with a name for one region (an owner's `MemoryRegion::DESTROY` and a
 /// supervisor's `rendezvous::REAP`, both landing in `sched::reclaim_region`) could each pass the
 /// refusal check, each release the lock, and each run the free loop over the same pages. It
 /// surfaced once in 45 loaded runs on riscv64 (notes/object-revocation.md). The fix landed as pull

@@ -11,7 +11,7 @@
 //! the one program the spawner can build. A compromised supervisor is a restart loop, not a foothold.
 //!
 //! **It reaps its own children now** (DECISIONS §32). It used to ask the spawner to, because reaping
-//! meant `Untyped::DESTROY` and only the spawner held the region capability; the reap is a method on
+//! meant `MemoryRegion::DESTROY` and only the spawner held the region capability; the reap is a method on
 //! the supervision endpoint this program already holds, so the proxy hop is gone. Nothing about what
 //! it holds has grown: still no memory, still nothing it can build with. The reclaimed pages go back
 //! to the *spawner's* budget, because that is who owns the region (§13). The instance handle the

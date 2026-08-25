@@ -1,5 +1,5 @@
 use super::*;
-use crate::cap::{Rights, rendezvous_cap, untyped_cap};
+use crate::cap::{Rights, memory_region_cap, rendezvous_cap};
 use crate::sched::RendezvousId;
 
 /// Where the service maps the provisioner's page. Must match user/src/credentialer.rs.
@@ -81,8 +81,8 @@ pub fn start(image: &'static [u8], entropy: RendezvousId) -> Wiring {
     let provision = crate::sched::create_rendezvous();
     let verify = crate::sched::create_rendezvous();
     let ready = crate::sched::create_rendezvous();
-    let budget =
-        crate::untyped::create(CRED_BUDGET_PAGES).expect("no untyped for the credential store");
+    let budget = crate::memory_region::create(CRED_BUDGET_PAGES)
+        .expect("no untyped for the credential store");
 
     // The two shared pages, then the extra stack, in one array the spawn closure owns.
     let mut maps = [Mapping {
@@ -131,7 +131,7 @@ pub fn start(image: &'static [u8], entropy: RendezvousId) -> Wiring {
                     rendezvous_cap(provision, Rights::READ), // slot 0: write the store, until SEAL
                     rendezvous_cap(verify, Rights::READ),    // slot 1: answer questions, forever
                     rendezvous_cap(entropy, Rights::WRITE),  // slot 2: salts, naming no device
-                    untyped_cap(budget),                     // slot 3: the memory-hard scratch
+                    memory_region_cap(budget),               // slot 3: the memory-hard scratch
                     rendezvous_cap(ready, Rights::WRITE),    // slot 4: one message, after the seal
                 ],
                 maps: &maps,

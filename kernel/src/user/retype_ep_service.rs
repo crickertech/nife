@@ -1,5 +1,5 @@
 use super::*;
-use crate::cap::{Rights, rendezvous_cap, untyped_cap};
+use crate::cap::{Rights, memory_region_cap, rendezvous_cap};
 use crate::sched::RendezvousId;
 
 const ROLE_MAKER: u64 = 17;
@@ -10,7 +10,7 @@ const ROLE_USER: u64 = 18;
 pub fn wire(image: &'static [u8]) -> RendezvousId {
     let channel = crate::sched::create_rendezvous();
     let report = crate::sched::create_rendezvous();
-    let region = crate::untyped::create(4).expect("no region for the maker's budget");
+    let region = crate::memory_region::create(4).expect("no region for the maker's budget");
 
     crate::sched::spawn(move || {
         run(
@@ -20,7 +20,7 @@ pub fn wire(image: &'static [u8]) -> RendezvousId {
                 arg1: 0,
                 arg2: 0,
                 grants: &[
-                    untyped_cap(region),                    // slot 0: the budget to mint from
+                    memory_region_cap(region),              // slot 0: the budget to mint from
                     rendezvous_cap(channel, Rights::WRITE), // slot 1: delegate the mint here
                 ],
                 maps: &[],

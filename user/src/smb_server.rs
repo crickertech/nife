@@ -58,9 +58,9 @@
 //! it does.
 //!
 //! **What keeps it alive is DECISIONS §16, not a new rule.** A `DurableSession` owns a region
-//! split off this process's own [`UNTYPED`] budget (`Untyped::SPLIT`, the same operation
+//! split off this process's own [`MEMORY_REGION`] budget (`MemoryRegion::SPLIT`, the same operation
 //! `user/src/login.rs`'s `mint()` uses to carve a caretaker's construction region), and
-//! `Untyped::DESTROY` on that region refuses outright while it has live children and succeeds once
+//! `MemoryRegion::DESTROY` on that region refuses outright while it has live children and succeeds once
 //! it does not, the identical rule a parent untyped region has always had, applied here to a
 //! session instead of a spawn budget. [`DurableSession::try_close`] is that call, exposed rather
 //! than hidden, so a future scheduled-job registrar (milestone 129/#387, explicitly not built by
@@ -100,7 +100,7 @@
 //! - slot 1: the `Stack` endpoint (WRITE), shared with the stack's other client if any
 //! - slot 2: an untyped budget (to mint and delegate the shared frame). Milestone 152's
 //!   [`DurableSession`] spends from this same slot rather than needing a slot of its own: a session
-//!   is `Untyped::SPLIT` off it, the same way the shared frame is retyped off it, and the wiring
+//!   is `MemoryRegion::SPLIT` off it, the same way the shared frame is retyped off it, and the wiring
 //!   below never has to grant a new capability for this piece.
 //! - slot 3: the file-service endpoint (WRITE), the directory capability the share serves.
 //!   Present only when `arg2` says fs-backed, along with [`FS_VA`] mapped to the whole file
@@ -196,7 +196,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use abi::{page_frame as fr, rendezvous, rights, untyped as ut};
+use abi::{memory_region as ut, page_frame as fr, rendezvous, rights};
 use filesystem_proto::{dir, dirent, fs, xattr};
 use smb_proto::authenticator::{Attempt, Authenticator, NoIdentity, Verdict};
 use smb_proto::path::Path;
@@ -212,7 +212,7 @@ use user_rt::{call, exit, invoke, now, send};
 
 const REPORT: u64 = 0;
 const STACK: u64 = 1;
-const UNTYPED: u64 = 2;
+const MEMORY_REGION: u64 = 2;
 /// The file-service endpoint: the share's whole authority to the filesystem (see the module
 /// header; present only in the fs-backed wiring).
 const FS: u64 = 3;
@@ -263,11 +263,11 @@ const SHARE_FS_READ_WRITE: u64 = 2;
 /// the credential service accepts. Needs slot [`CRED`] and the page at [`CRED_VA`].
 const SHARE_FS_AUTHENTICATED: u64 = 3;
 
-/// **A [`DurableSession`]'s own budget**, split off [`UNTYPED`] each time one is opened (once for
+/// **A [`DurableSession`]'s own budget**, split off [`MEMORY_REGION`] each time one is opened (once for
 /// the self-proof's scratch session, once more for the kept one; see
 /// [`open_durable_session_or_die`]). Small on purpose: this program never retypes an object out of
 /// it, only ever splits a child off it to stand in for derived authority, so its own bookkeeping is
-/// the whole cost, and [`UNTYPED`]'s own budget (`NET_CLIENT_BUDGET_PAGES` in
+/// the whole cost, and [`MEMORY_REGION`]'s own budget (`NET_CLIENT_BUDGET_PAGES` in
 /// `kernel/src/user/virtio_service.rs`, 16 pages) has to cover [`attach_page_frame`]'s frame and page
 /// tables first.
 const SESSION_UT_PAGES: u64 = 4;
@@ -933,22 +933,22 @@ fn done(code: u64) -> ! {
     exit();
 }
 
-/// Carve `pages` off `parent`'s unspent budget into a new child untyped (`Untyped::SPLIT`,
+/// Carve `pages` off `parent`'s unspent budget into a new child untyped (`MemoryRegion::SPLIT`,
 /// DECISIONS §16), returning the child's slot. `Err` carries the kernel's negative error code
 /// (`OutOfMemory` if the parent's budget or this capability table is exhausted, `NotPermitted` without
 /// `WRITE` on `parent`, neither of which this program's own capabilities should ever hit).
-fn untyped_split(parent: u64, pages: u64) -> Result<u64, i64> {
+fn memory_region_split(parent: u64, pages: u64) -> Result<u64, i64> {
     // SAFETY: `svc`. `parent` is an untyped capability this process holds with WRITE (every one
     // granted to it is; see the capability contract above), which is what `SPLIT` requires.
     let r = unsafe { invoke(parent, ut::SPLIT, pages, 0, 0) };
     if r < 0 { Err(r) } else { Ok(r as u64) }
 }
 
-/// Reclaim `region` (`Untyped::DESTROY`, DECISIONS §16): tear down every object retyped from it and
+/// Reclaim `region` (`MemoryRegion::DESTROY`, DECISIONS §16): tear down every object retyped from it and
 /// return its pages. Refuses (a negative code, `NotPermitted` in practice) while a live thread
-/// occupies it or while it has been [`untyped_split`] into children not yet themselves destroyed;
+/// occupies it or while it has been [`memory_region_split`] into children not yet themselves destroyed;
 /// this is the whole of the rule [`DurableSession`] leans on.
-fn untyped_destroy(region: u64) -> Result<(), i64> {
+fn memory_region_destroy(region: u64) -> Result<(), i64> {
     // SAFETY: `svc`.
     let r = unsafe { invoke(region, ut::DESTROY, 0, 0, 0) };
     if r < 0 { Err(r) } else { Ok(()) }
@@ -957,30 +957,30 @@ fn untyped_destroy(region: u64) -> Result<(), i64> {
 /// **The durable per-login object** (milestone 152, "durable delegation"). See the module header,
 /// "The durable session", for the full argument; this is the type itself.
 ///
-/// A `DurableSession` is nothing but a reclaimable budget: [`Self::open`] is one `Untyped::SPLIT`
-/// off this process's own [`UNTYPED`], and everything this session's authority would ever be built
+/// A `DurableSession` is nothing but a reclaimable budget: [`Self::open`] is one `MemoryRegion::SPLIT`
+/// off this process's own [`MEMORY_REGION`], and everything this session's authority would ever be built
 /// from (today: nothing real, only [`Self::mint_pending_job`]'s synthetic stand-in) is split from
-/// `self.ut` in turn, never from `UNTYPED` directly. That is what makes [`Self::try_close`] mean
-/// something: DECISIONS §16 refuses `Untyped::DESTROY` on a region with live children, so a session
+/// `self.ut` in turn, never from `MEMORY_REGION` directly. That is what makes [`Self::try_close`] mean
+/// something: DECISIONS §16 refuses `MemoryRegion::DESTROY` on a region with live children, so a session
 /// holding a live job cannot be closed out from under it, and one holding none can.
 ///
 /// Name: provisional, `DurableSession`, minted by this lane 2026-08-24. See the module header's
 /// own naming note for the reasoning and the alternative it was weighed against.
 struct DurableSession {
-    /// This session's own budget. `Untyped::SPLIT`s off it are this session's own children, and
-    /// `Untyped::DESTROY` on it is refused for exactly as long as one of them is still alive.
+    /// This session's own budget. `MemoryRegion::SPLIT`s off it are this session's own children, and
+    /// `MemoryRegion::DESTROY` on it is refused for exactly as long as one of them is still alive.
     ut: u64,
 }
 
 impl DurableSession {
-    /// Open a durable session by splitting `pages` off this process's own [`UNTYPED`]. Mirrors
+    /// Open a durable session by splitting `pages` off this process's own [`MEMORY_REGION`]. Mirrors
     /// `login.rs`'s `mint()`, which splits a caretaker's construction region off `CONSTRUCTION_UT`
     /// the same way; a `DurableSession` plays the role `CONSTRUCTION_UT` plays there, one level up
     /// (a session's own budget rather than a whole service's), with neither reattachment nor a real
     /// registrar wired yet (this program's own BUGS names both as separate, unscoped work).
     fn open(pages: u64) -> Result<Self, i64> {
         Ok(Self {
-            ut: untyped_split(UNTYPED, pages)?,
+            ut: memory_region_split(MEMORY_REGION, pages)?,
         })
     }
 
@@ -988,13 +988,13 @@ impl DurableSession {
     /// registrar (milestone 129/#387) is out of scope for this lane; this is what proves the shape
     /// it will need without building it, per the roadmap's own BUGS entry.
     fn mint_pending_job(&self, pages: u64) -> Result<u64, i64> {
-        untyped_split(self.ut, pages)
+        memory_region_split(self.ut, pages)
     }
 
     /// Try to reclaim the whole session. Refuses while a pending job's region still lives
     /// (DECISIONS §16); succeeds once every child minted from it has itself been destroyed.
     fn try_close(&self) -> Result<(), i64> {
-        untyped_destroy(self.ut)
+        memory_region_destroy(self.ut)
     }
 }
 
@@ -1028,7 +1028,7 @@ fn open_durable_session_or_die() -> DurableSession {
     if scratch.try_close().is_ok() {
         done(0xE142);
     }
-    if untyped_destroy(job).is_err() {
+    if memory_region_destroy(job).is_err() {
         done(0xE143);
     }
     // And the other half: once the child is gone, the session is destroyable again.
@@ -1048,12 +1048,12 @@ fn open_durable_session_or_die() -> DurableSession {
 /// Mint a frame from our untyped, map it writable, and delegate it to socket `sid`.
 fn attach_page_frame(sid: u64) {
     // SAFETY: `svc`. RETYPE returns the new frame capability's slot, or a negative error.
-    let frame = unsafe { invoke(UNTYPED, ut::RETYPE, 0, 0, 0) };
+    let frame = unsafe { invoke(MEMORY_REGION, ut::RETYPE, 0, 0, 0) };
     if frame < 0 {
         done(0xE101);
     }
     // SAFETY: `svc`. Map it writable; page tables come from our untyped.
-    if unsafe { invoke(frame as u64, fr::MAP, PAGE_FRAME_VA, 1, UNTYPED) } < 0 {
+    if unsafe { invoke(frame as u64, fr::MAP, PAGE_FRAME_VA, 1, MEMORY_REGION) } < 0 {
         done(0xE102);
     }
     // SAFETY: `svc`. Delegate it (narrowed to read/write) with the ATTACH request.

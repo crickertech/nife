@@ -107,7 +107,7 @@ pub extern "C" fn _start(role: u64, dma_phys: u64, arg2: u64) -> ! {
     match role {
         PRINTING => printing_client(),
         VIRTIO_BLK => virtio::run(dma_phys),
-        UNTYPED_DEMO => untyped_demo(),
+        UNTYPED_DEMO => memory_region_demo(),
         VIRTIO_ATTACK => virtio::run_attack(dma_phys),
         VIRTIO_ATTACK_INDIRECT => virtio::run_attack_indirect(dma_phys),
         VIRTIO_BLK_WRITE => virtio::run_write(dma_phys),
@@ -262,17 +262,17 @@ fn call_client() -> ! {
 /// nothing there. Reports 1 if REVOKE succeeded and the slot is now empty. See kernel/src/user.rs
 /// `revoke_service`.
 fn revoke_demo() -> ! {
-    const UNTYPED: u64 = 0; // retype + page tables
+    const MEMORY_REGION: u64 = 0; // retype + page tables
     const REPORT: u64 = 1;
     const VA: u64 = 0x0000_0000_00c0_0000;
 
     // Retype a page into a PageFrame capability we hold, then map it writable.
     // SAFETY: `svc`. The result is the slot the new capability landed in.
-    let frame = unsafe { invoke(UNTYPED, abi::untyped::RETYPE, 0, 0, 0) };
+    let frame = unsafe { invoke(MEMORY_REGION, abi::memory_region::RETYPE, 0, 0, 0) };
     check(frame >= 0);
     let frame = frame as u64;
     // SAFETY: as above: the kernel validates the capability and the method.
-    check(unsafe { invoke(frame, abi::page_frame::MAP, VA, 1, UNTYPED) } == 0);
+    check(unsafe { invoke(frame, abi::page_frame::MAP, VA, 1, MEMORY_REGION) } == 0);
     // SAFETY: VA is now a mapped, writable page in our address space.
     unsafe { core::ptr::write_volatile(VA as *mut u64, 0xABCD) };
 
@@ -281,7 +281,7 @@ fn revoke_demo() -> ! {
     let revoked = unsafe { invoke(frame, abi::page_frame::REVOKE, 0, 0, 0) };
     // Our PageFrame capability is gone now: a second operation on that slot must fail (NoSuchSlot). We
     // do NOT touch VA again, which is unmapped and would fault. SAFETY: `svc`.
-    let after = unsafe { invoke(frame, abi::page_frame::MAP, VA, 1, UNTYPED) };
+    let after = unsafe { invoke(frame, abi::page_frame::MAP, VA, 1, MEMORY_REGION) };
 
     send(REPORT, if revoked == 0 && after < 0 { 1 } else { 0 }, 0, 0);
     exit();
@@ -411,7 +411,7 @@ fn init_boot(initrd_len: u64, fs_rights: u64) -> ! {
 /// interrupt fires, then reports. Receiving the report proves init can build an interrupt-driven
 /// driver -- the mechanism the input and virtio drivers need for their completions.
 fn init_irq(initrd_len: u64) -> ! {
-    const UNTYPED: u64 = 0;
+    const MEMORY_REGION: u64 = 0;
     const REPORT: u64 = 1;
     const TEST_IRQ: u64 = 3; // the Irq cap the kernel granted init (spawn_init)
 
@@ -427,7 +427,7 @@ fn init_irq(initrd_len: u64) -> ! {
         (REPORT, abi::rights::WRITE),
         (TEST_IRQ, abi::rights::READ), // WAIT/ACK the interrupt
     ];
-    let Ok(tcb) = build_child(UNTYPED, &elf, caps, &[]) else {
+    let Ok(tcb) = build_child(MEMORY_REGION, &elf, caps, &[]) else {
         fail_report(REPORT)
     };
     check(thread_control_block_start(tcb, IRQ_CHILD, 0, 0));
@@ -442,7 +442,7 @@ fn init_irq(initrd_len: u64) -> ! {
 /// `WORKER_INPUT * WORKER_INPUT` proves the argument crossed the `START` boundary intact: the
 /// mechanism the interactive `run <n>` command and, later, real spawned services stand on.
 fn init_worker(initrd_len: u64) -> ! {
-    const UNTYPED: u64 = 0;
+    const MEMORY_REGION: u64 = 0;
     const REPORT: u64 = 1;
 
     // The worker is its own binary now (19f.2), loaded from the archive by name, not a role of this
@@ -457,7 +457,7 @@ fn init_worker(initrd_len: u64) -> ! {
     // The worker's whole authority: the report endpoint as its slot 0, so its one SEND lands where
     // the test (or, in the boot system, the shell) is waiting.
     let caps: &[(u64, u64)] = &[(REPORT, abi::rights::WRITE)];
-    let Ok(tcb) = build_child(UNTYPED, &elf, caps, &[]) else {
+    let Ok(tcb) = build_child(MEMORY_REGION, &elf, caps, &[]) else {
         fail_report(REPORT)
     };
     // x0 is unused (a standalone binary needs no role selector); the input is in x1 (the multi-arg
@@ -472,7 +472,7 @@ fn init_worker(initrd_len: u64) -> ! {
 /// and starts it; the workload runs a fixed iteration count and SENDs the run's CRC home. Receiving
 /// `coremark::PINNED_CRC_64` proves a real compute program ran correctly against the native ABI.
 fn init_coremark(initrd_len: u64) -> ! {
-    const UNTYPED: u64 = 0;
+    const MEMORY_REGION: u64 = 0;
     const REPORT: u64 = 1;
 
     let Some(bytes) = program(initrd_len, "coremark") else {
@@ -482,7 +482,7 @@ fn init_coremark(initrd_len: u64) -> ! {
         fail_report(REPORT)
     };
     let caps: &[(u64, u64)] = &[(REPORT, abi::rights::WRITE)];
-    let Ok(tcb) = build_child(UNTYPED, &elf, caps, &[]) else {
+    let Ok(tcb) = build_child(MEMORY_REGION, &elf, caps, &[]) else {
         fail_report(REPORT)
     };
     check(thread_control_block_start(tcb, 0, 0, 0)); // no args: the workload's iteration count is fixed
@@ -516,7 +516,7 @@ fn irq_child() -> ! {
 /// the acked length home. The report proves the whole userspace-built console works: a driver init
 /// constructed, wired to a channel init created, driving hardware init delegated.
 fn init_console(initrd_len: u64) -> ! {
-    const UNTYPED: u64 = 0;
+    const MEMORY_REGION: u64 = 0;
     const REPORT: u64 = 1;
     const UART_DEV: u64 = 2;
     const SHARED_VA: u64 = 0x0060_0000; // must match the console server's SHARED_VA
@@ -534,19 +534,19 @@ fn init_console(initrd_len: u64) -> ! {
     };
 
     // The channel to the server, and a shared page to hand it the text.
-    let Ok(request) = retype_obj(UNTYPED, abi::objtype::RENDEZVOUS) else {
+    let Ok(request) = retype_obj(MEMORY_REGION, abi::objtype::RENDEZVOUS) else {
         fail_report(REPORT)
     };
-    let Ok(reply) = retype_obj(UNTYPED, abi::objtype::RENDEZVOUS) else {
+    let Ok(reply) = retype_obj(MEMORY_REGION, abi::objtype::RENDEZVOUS) else {
         fail_report(REPORT)
     };
-    let Ok(shared) = retype_page_frame(UNTYPED) else {
+    let Ok(shared) = retype_page_frame(MEMORY_REGION) else {
         fail_report(REPORT)
     };
 
     // Map the shared page read/write in init's own space, so init (the client) can write into it.
     // SAFETY: as above: the kernel validates the capability and the method.
-    if unsafe { invoke(shared, abi::page_frame::MAP, SHARED_VA, 1, UNTYPED) } != 0 {
+    if unsafe { invoke(shared, abi::page_frame::MAP, SHARED_VA, 1, MEMORY_REGION) } != 0 {
         fail_report(REPORT);
     }
 
@@ -557,7 +557,7 @@ fn init_console(initrd_len: u64) -> ! {
         (SHARED_VA, shared, abi::address_space::MAP_RO),
         (CHILD_UART_VA, UART_DEV, abi::address_space::MAP_RO),
     ];
-    let Ok(tcb) = build_child(UNTYPED, &elf, caps, maps) else {
+    let Ok(tcb) = build_child(MEMORY_REGION, &elf, caps, maps) else {
         fail_report(REPORT)
     };
     check(thread_control_block_start(tcb, 0, 0, 0)); // no role selector: console is its own binary
@@ -589,7 +589,7 @@ fn init_dev(initrd_len: u64) -> ! {
 }
 
 fn init_build(initrd_len: u64, device: bool) -> ! {
-    const UNTYPED: u64 = 0;
+    const MEMORY_REGION: u64 = 0;
     const REPORT: u64 = 1;
     const UART_DEV: u64 = 2; // the UART device cap the kernel granted init (spawn_init)
     const CHILD_UART_VA: u64 = 0x0070_0000;
@@ -609,7 +609,7 @@ fn init_build(initrd_len: u64, device: bool) -> ! {
     let dev_maps: &[(u64, u64, u64)] = &[(CHILD_UART_VA, UART_DEV, abi::address_space::MAP_RO)];
     let maps = if device { dev_maps } else { no_maps };
 
-    match build_child(UNTYPED, &elf, caps, maps) {
+    match build_child(MEMORY_REGION, &elf, caps, maps) {
         Ok(child_tcb) => {
             let role = if device { DEV_CHILD } else { CHILD };
             check(thread_control_block_start(child_tcb, role, 0, 0));
@@ -709,15 +709,15 @@ fn thread_control_block_start(tcb: u64, arg0: u64, arg1: u64, arg2: u64) -> bool
 /// too: the same va twice is refused. Nothing can run in the built space yet (TCBs are 19c);
 /// what this witnesses is that a process can construct one at all.
 fn address_space_builder() -> ! {
-    const UNTYPED: u64 = 0;
+    const MEMORY_REGION: u64 = 0;
     const REPORT: u64 = 1;
     const VA: u64 = 0x0040_0000;
 
     // SAFETY: `svc` throughout.
     let aspace = unsafe {
         invoke(
-            UNTYPED,
-            abi::untyped::RETYPE_OBJ,
+            MEMORY_REGION,
+            abi::memory_region::RETYPE_OBJ,
             abi::objtype::ADDRESS_SPACE,
             0,
             0,
@@ -727,7 +727,7 @@ fn address_space_builder() -> ! {
     if aspace >= 0 {
         verdict |= 1; // built a space out of our own pages
         // SAFETY: as above: the kernel validates the capability and the method.
-        let frame = unsafe { invoke(UNTYPED, abi::untyped::RETYPE, 0, 0, 0) };
+        let frame = unsafe { invoke(MEMORY_REGION, abi::memory_region::RETYPE, 0, 0, 0) };
         if frame >= 0 {
             let mapped =
                 // SAFETY: as above: the kernel validates the capability and the method.
@@ -753,15 +753,15 @@ fn address_space_builder() -> ! {
 /// over the channel and SENDs a word into it. If the kernel's object really works, a peer we
 /// have never met receives that word over an endpoint that did not exist a moment ago.
 fn ep_maker() -> ! {
-    const UNTYPED: u64 = 0;
+    const MEMORY_REGION: u64 = 0;
     const CHANNEL: u64 = 1;
 
     // SAFETY: `svc`. Retype one page of our budget into an endpoint; the kernel returns the slot
     // where our full-rights capability to it landed.
     let ep = unsafe {
         invoke(
-            UNTYPED,
-            abi::untyped::RETYPE_OBJ,
+            MEMORY_REGION,
+            abi::memory_region::RETYPE_OBJ,
             abi::objtype::RENDEZVOUS,
             0,
             0,
@@ -856,13 +856,13 @@ fn receiver() -> ! {
 /// the *same physical page*. The kernel never copies the data and was never told these two
 /// processes would share memory: they composed the sharing themselves out of a capability.
 fn page_frame_producer() -> ! {
-    const UNTYPED: u64 = 0; // retype the frame and draw page tables from here
+    const MEMORY_REGION: u64 = 0; // retype the frame and draw page tables from here
     const CHANNEL: u64 = 1; // delegate the frame to the consumer over here
     const PAGE_FRAME_VA: u64 = 0x0000_0000_00A0_0000;
 
     // Retype: a page out of our budget becomes a PageFrame capability we hold. Nothing is mapped yet.
     // SAFETY: `svc`. The result is the slot the new capability landed in.
-    let frame = unsafe { invoke(UNTYPED, abi::untyped::RETYPE, 0, 0, 0) };
+    let frame = unsafe { invoke(MEMORY_REGION, abi::memory_region::RETYPE, 0, 0, 0) };
     check(frame >= 0);
 
     // Map it read/write; the page tables to reach PAGE_FRAME_VA come from the same untyped.
@@ -874,7 +874,7 @@ fn page_frame_producer() -> ! {
                 abi::page_frame::MAP,
                 PAGE_FRAME_VA,
                 1,
-                UNTYPED,
+                MEMORY_REGION,
             )
         } == 0,
     );
@@ -903,7 +903,7 @@ fn page_frame_producer() -> ! {
 /// cannot map the page writable, because it was handed the frame with `READ` alone.
 fn page_frame_consumer() -> ! {
     const CHANNEL: u64 = 0; // RECV_CAP the frame here
-    const UNTYPED: u64 = 1; // page tables for our own mappings come from here
+    const MEMORY_REGION: u64 = 1; // page tables for our own mappings come from here
     const REPORT: u64 = 2; // report the verdict here
     const PAGE_FRAME_VA: u64 = 0x0000_0000_00A0_0000;
     const RW_VA: u64 = 0x0000_0000_00B0_0000;
@@ -916,7 +916,8 @@ fn page_frame_consumer() -> ! {
     if received {
         // Map the shared page read-only and read the producer's sentinel through it.
         // SAFETY: `svc`.
-        let mapped = unsafe { invoke(frame, abi::page_frame::MAP, PAGE_FRAME_VA, 0, UNTYPED) } == 0;
+        let mapped =
+            unsafe { invoke(frame, abi::page_frame::MAP, PAGE_FRAME_VA, 0, MEMORY_REGION) } == 0;
         if mapped {
             // SAFETY: PAGE_FRAME_VA is now a mapped, readable page.
             let seen = unsafe { core::ptr::read_volatile(PAGE_FRAME_VA as *const u64) };
@@ -925,7 +926,7 @@ fn page_frame_consumer() -> ! {
 
         // Try to map it read/write. We hold it READ only, so the kernel refuses before mapping.
         // SAFETY: `svc`.
-        let rw = unsafe { invoke(frame, abi::page_frame::MAP, RW_VA, 1, UNTYPED) };
+        let rw = unsafe { invoke(frame, abi::page_frame::MAP, RW_VA, 1, MEMORY_REGION) };
         rw_refused = rw < 0;
     }
 
@@ -968,8 +969,8 @@ fn fail() -> ! {
 ///
 /// The whole point is what the KERNEL does while this runs: nothing. Every page here comes out of
 /// the untyped, so the kernel's free-frame count does not move. A test checks exactly that.
-fn untyped_demo() -> ! {
-    const UNTYPED: u64 = 0;
+fn memory_region_demo() -> ! {
+    const MEMORY_REGION: u64 = 0;
     const REPORT: u64 = 1;
     const BASE_VA: u64 = 0x0000_0000_00c0_0000;
 
@@ -981,7 +982,7 @@ fn untyped_demo() -> ! {
     loop {
         let va = BASE_VA + mapped * 4096;
         // Retype a page out of our untyped and map it here. SAFETY: `svc`.
-        let r = unsafe { invoke(UNTYPED, abi::untyped::MAP, va, 0, 0) };
+        let r = unsafe { invoke(MEMORY_REGION, abi::memory_region::MAP, va, 0, 0) };
         if let Some(e) = Error::from_ret(r) {
             // OutOfMemory means our budget is spent. Any other error is a real bug.
             if e != Error::OutOfMemory {

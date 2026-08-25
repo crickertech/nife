@@ -152,7 +152,7 @@ const INITRD_VA: u64 = 0x2000_0000;
 /// Pages per instance region. Enough for a small program's segments, its stack, its address-space
 /// tables and its TCB, and the same number `user/src/spawner.rs` arrived at for the same job.
 ///
-/// A per-instance region rather than one shared pool is what makes a single `Untyped::DESTROY`
+/// A per-instance region rather than one shared pool is what makes a single `MemoryRegion::DESTROY`
 /// reclaim a whole dead child, which is the property the reap depends on.
 const INSTANCE_PAGES: u64 = 48;
 
@@ -329,7 +329,7 @@ pub extern "C" fn _start(fires_wanted: u64, initrd_len: u64, _a2: u64) -> ! {
 /// thread, and since DECISIONS §32 the region capability is not the reap either. The pages come back
 /// to this budget when the corpse is collected.
 fn fire(elf: &elf::Elf, arg: u64) -> bool {
-    let Ok(region) = supervision_proto::untyped_split(BUDGET, INSTANCE_PAGES) else {
+    let Ok(region) = supervision_proto::memory_region_split(BUDGET, INSTANCE_PAGES) else {
         return false;
     };
     let Ok(tcb) = supervision_proto::build_child(
@@ -344,12 +344,12 @@ fn fire(elf: &elf::Elf, arg: u64) -> bool {
     ) else {
         // The region is ours and the child does not exist, so hand the pages straight back rather
         // than leaking them into a budget that will refuse the next fire.
-        supervision_proto::untyped_destroy(region);
+        supervision_proto::memory_region_destroy(region);
         return false;
     };
     if !supervision_proto::thread_control_block_start(tcb, 0, arg, 0) {
         cap_delete(tcb);
-        supervision_proto::untyped_destroy(region);
+        supervision_proto::memory_region_destroy(region);
         return false;
     }
     cap_delete(tcb);
