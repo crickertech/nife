@@ -116,8 +116,18 @@ fn wc_counts(out: RendezvousId, what: &str) -> (u64, u64, u64) {
 /// arms broken the same way would satisfy equality on its own.
 #[test_case]
 fn one_reader_two_sources_and_the_same_answer() {
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
     let sink_image = program("sink").expect("no sink program in the initrd archive");
-    let blk = program("init").expect("no init program in the initrd archive");
+    // **The block server, whichever binary carries it here.** This named `"init"` outright, which
+    // is the aarch64 convention: there `init` *is* the hello binary and hello carries the role. On
+    // both other architectures `init` is the portable `builder` demo, which has no such role, so
+    // this asked for the wrong program on two of three. It never bit, because
+    // `fs_service::start_file_sink` short-circuits on a machine with no disk and neither of those
+    // architectures attaches one to a leg that reaches here; `fs_service::blk_server_image()` is
+    // the one place that disagreement is written down, and now this goes through it.
+    let blk = fs_service::blk_server_image();
     let Some(redoxfs_server) = program("redoxfs_server") else {
         crate::println!("    (no FS server in this archive; skipping)");
         return;
@@ -221,6 +231,12 @@ fn one_reader_two_sources_and_the_same_answer() {
 /// asserted on both sides as well.
 #[test_case]
 fn a_program_cannot_tell_what_its_output_slot_holds() {
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
+    if std_service::std_exerciser_image().is_none() {
+        crate::testing::skip!(std_service::NO_STD_EXERCISER);
+    }
     let std_exerciser =
         program("std_exerciser").expect("no std_exerciser program in the initrd archive");
     let clock = program("clock").expect("no clock program in the initrd archive");
@@ -247,7 +263,14 @@ fn a_program_cannot_tell_what_its_output_slot_holds() {
     // Arm two: a file sink. It opens its file before the writer exists, for the reason
     // `fs_service::wait_for_caretaker` records: it stages a name in the page it shares with the
     // FS server, and a client that already existed could write over it.
-    let blk = program("init").expect("no init program in the initrd archive");
+    // **The block server, whichever binary carries it here.** This named `"init"` outright, which
+    // is the aarch64 convention: there `init` *is* the hello binary and hello carries the role. On
+    // both other architectures `init` is the portable `builder` demo, which has no such role, so
+    // this asked for the wrong program on two of three. It never bit, because
+    // `fs_service::start_file_sink` short-circuits on a machine with no disk and neither of those
+    // architectures attaches one to a leg that reaches here; `fs_service::blk_server_image()` is
+    // the one place that disagreement is written down, and now this goes through it.
+    let blk = fs_service::blk_server_image();
     let Some(file_sink) = fs_service::start_file_sink(blk, redoxfs_server, sink_image) else {
         crate::println!("    (no RedoxFS disk attached; skipping)");
         return;

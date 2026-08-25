@@ -169,6 +169,9 @@ fn wired() -> Option<Wired> {
 /// created fails this test loudly rather than silently).
 #[test_case]
 fn provisioning_creates_a_working_credential_and_a_real_subtree() {
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
     let Some(w) = wired() else {
         crate::testing::skip!("no virtio-rng device or no RedoxFS disk attached");
     };
@@ -213,6 +216,9 @@ fn provisioning_creates_a_working_credential_and_a_real_subtree() {
 /// the first one anything.
 #[test_case]
 fn a_duplicate_identity_is_refused_without_disturbing_the_original() {
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
     let Some(w) = wired() else {
         crate::testing::skip!("no virtio-rng device or no RedoxFS disk attached");
     };

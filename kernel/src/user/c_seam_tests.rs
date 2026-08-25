@@ -63,6 +63,8 @@ fn spawn_confiner() -> sched::RendezvousId {
             .map_new(USER_STACK_VA - k * FRAME_SIZE, Flags::user_data())
             .expect("could not map c_confiner's stack");
     }
+    #[cfg(target_arch = "x86_64")]
+    map_x86_timebase_page(&mut space).expect("could not map c_confiner's timebase page");
     for i in 0..initrd_pages {
         space
             .map_physical(

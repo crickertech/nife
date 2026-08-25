@@ -95,6 +95,9 @@ fn run_rm(rights: u64, name: &str, flags: u64) -> Option<Outcome> {
 /// the *same operand*, and the outcome is decided by what was in the capability table.
 #[test_case]
 fn rm_r_takes_the_subtree_it_was_granted_and_a_narrower_grant_cannot_begin() {
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
     let Some(refused) = run_rm(dir::REMOVE_TREE, tree::RM_DOOMED, 0) else {
         crate::println!("    (no RedoxFS disk attached; skipping)");
         return;
@@ -156,6 +159,9 @@ fn rm_r_takes_the_subtree_it_was_granted_and_a_narrower_grant_cannot_begin() {
 /// order.
 #[test_case]
 fn rm_f_ignores_a_name_that_is_not_there_and_success_says_nothing() {
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
     let Some(loud) = run_rm(dir::REMOVE_TREE, tree::RM_MISSING, 0) else {
         crate::println!("    (no RedoxFS disk attached; skipping)");
         return;

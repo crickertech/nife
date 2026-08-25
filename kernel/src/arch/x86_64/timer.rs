@@ -85,8 +85,16 @@ const PIT_CHANNEL0_RATE: u8 = 0b0011_0100;
 /// cascade. See `arch/x86_64/irq.rs`.
 pub const PIT_IRQ: u32 = 0;
 
-/// The TSC's frequency in hertz, measured by [`init_frequency`]. Zero until then.
+/// The TSC's frequency in hertz, established by [`init_frequency`]. Zero until then.
 static TSC_HZ: AtomicU64 = AtomicU64::new(0);
+
+/// Whether [`TSC_HZ`] came from `CPUID` leaf `0x15` (`true`) or from PIT calibration (`false`).
+/// Set by [`init_frequency`] alongside `TSC_HZ` itself; meaningless before that (reads `false`,
+/// the calibration path's own value, which is also what every QEMU boot actually takes: see
+/// `arch::x86_64::isa::tsc_crystal_hz`'s own docs for why leaf 0x15 is empirically unavailable
+/// under `-cpu max`).
+static TSC_HZ_FROM_CPUID: core::sync::atomic::AtomicBool =
+    core::sync::atomic::AtomicBool::new(false);
 
 /// The local APIC timer's frequency in hertz, at the divider `irq` programs. Zero until measured.
 static APIC_TIMER_HZ: AtomicU64 = AtomicU64::new(0);
@@ -171,11 +179,18 @@ fn measure_against_the_pit() -> (u64, u32) {
     )
 }
 
-/// **Measure the TSC and the local APIC timer against the PIT.**
+/// **Establish the TSC's rate and measure the local APIC timer against the PIT.**
 ///
 /// Takes the portable arch contract's boot-info-pointer argument, which x86 ignores; the numbers
 /// come from the machine rather than from a table, which is the shape of the difference this
 /// module's header is about.
+///
+/// **The TSC rate itself is asked for before it is measured** (milestone 161's `cntfrq`
+/// follow-up): `isa::tsc_crystal_hz` reads `CPUID` leaf `0x15` first, and only the PIT-measured
+/// delta is used if that comes back `None`. The local APIC timer's rate has no `CPUID`
+/// equivalent at all, so the PIT window always runs regardless of which source wins the TSC
+/// number; the one window prices both. See [`crate::arch::x86_64::isa::tsc_crystal_hz`] for why
+/// this project's own QEMU invocation always takes the calibrated path.
 ///
 /// # Panics
 /// If the local APIC is not up. The order is APIC then timer, and a timer calibrated against a
@@ -189,8 +204,18 @@ pub fn init_frequency(boot_info_pointer: usize) {
 
     let (tsc_delta, apic_delta) = measure_against_the_pit();
     let per_second = 1000 / CALIBRATION_MS;
-    TSC_HZ.store(tsc_delta * per_second, Ordering::Relaxed);
     APIC_TIMER_HZ.store(apic_delta as u64 * per_second, Ordering::Relaxed);
+
+    match super::isa::tsc_crystal_hz() {
+        Some(hz) => {
+            TSC_HZ.store(hz, Ordering::Relaxed);
+            TSC_HZ_FROM_CPUID.store(true, Ordering::Relaxed);
+        }
+        None => {
+            TSC_HZ.store(tsc_delta * per_second, Ordering::Relaxed);
+            TSC_HZ_FROM_CPUID.store(false, Ordering::Relaxed);
+        }
+    }
 }
 
 /// **Start PIT channel 0 pulsing its interrupt line at about `hz`**, and report the rate actually
@@ -228,15 +253,38 @@ pub fn now() -> u64 {
     rdtsc()
 }
 
+/// How many counter ticks make a second, or `None` if [`init_frequency`] has not run yet.
+///
+/// Unlike [`frequency`], does not panic: this is for a caller (the timebase page,
+/// `kernel::user::x86_timebase_page_phys`) that must handle "not measured yet" as a normal,
+/// representable state rather than a bug to crash on. In practice this is never `None` by the
+/// time any process is loaded: `init_frequency` runs early in the boot tour, well before the
+/// first call to `kernel::user::load`.
+pub fn frequency_checked() -> Option<u64> {
+    let hz = TSC_HZ.load(Ordering::Relaxed);
+    (hz != 0).then_some(hz)
+}
+
 /// How many counter ticks make a second.
 ///
 /// # Panics
 /// If [`init_frequency`] has not run. Returning zero would make every duration computed from it
 /// either zero or a division by zero, arbitrarily far from the missing call.
 pub fn frequency() -> u64 {
-    let hz = TSC_HZ.load(Ordering::Relaxed);
-    assert!(hz != 0, "the TSC frequency has not been measured yet");
-    hz
+    frequency_checked().expect("the TSC frequency has not been measured yet")
+}
+
+/// Whether [`frequency`]'s number came from `CPUID` leaf `0x15` or from PIT calibration, for the
+/// boot print and this milestone's own evidence. `"uncalibrated"` before [`init_frequency`] has
+/// run, which [`frequency`] itself would panic on; this never panics.
+pub fn frequency_source() -> &'static str {
+    if TSC_HZ.load(Ordering::Relaxed) == 0 {
+        "uncalibrated"
+    } else if TSC_HZ_FROM_CPUID.load(Ordering::Relaxed) {
+        "cpuid leaf 0x15"
+    } else {
+        "PIT calibration"
+    }
 }
 
 /// Counter ticks between scheduler ticks.

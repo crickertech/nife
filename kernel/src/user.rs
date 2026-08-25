@@ -289,6 +289,20 @@ pub fn user_address_space_create(region: u64) -> Option<u64> {
         // it with `DESTROY`. See `Backing` for the double free that taught us to say so.
         backing: Backing::Lent(region),
     };
+
+    // The x86_64 timebase page is **not** mapped unconditionally here (an earlier version of this
+    // lane's work did, and a full-suite run under `script/test --arch x86_64` caught two
+    // regressions: `a_process_can_build_an_address_space_from_el0`'s hand-sized demo region ran
+    // out of table budget, and it makes no sense for the many callers of this syscall that build
+    // nothing resembling a real ELF process at all). This syscall is shared by every purpose that
+    // needs a bare address space object, not only the userspace ELF loader
+    // (`supervision_proto::build_child_space`), and the loader is where this page actually
+    // belongs: see that crate's own x86_64-gated code for the targeted fix, which maps a zeroed
+    // placeholder (this crate has no way to hand a child-builder the *real*, kernel-measured
+    // number without a new syscall or capability plumbing well past this milestone's scope; see
+    // `timebase_proto`'s and `user_rt::cntfrq`'s own `BUGS` sections) only into spaces the loader
+    // itself builds, so `user_rt::cntfrq` reads "unknown" there and falls back rather than
+    // faulting on an unmapped read.
     let name = USER_SPACES.lock().insert_with(|_| space);
     if name.is_none() {
         // Undo the bookkeeping; the page stays spent on the caller's budget.
@@ -463,7 +477,93 @@ pub fn load(image: &[u8]) -> Result<(AddressSpace, u64), LoadError> {
         .map_new(USER_STACK_VA, Flags::user_data())
         .map_err(LoadError::Unmappable)?;
 
+    // The x86_64 timebase page (milestone 161's `cntfrq` follow-up): the one number this
+    // architecture's `user_rt::now()` needs that neither a register (aarch64's `CNTFRQ_EL0`) nor
+    // a build-time constant (RISC-V's device-tree rate) can give it. `map_physical` does not
+    // spend `content`'s budget (only the intermediate table pages it walks come from the space's
+    // own region, the same as every `Spawn::maps` entry `run()` applies below), so this needs no
+    // extra accounting here. Unconditional, the same "grant is unconditional, a zeroed page reads
+    // as unknown" shape `boot_clock_page` already uses: see `x86_timebase_page_phys`'s own docs.
+    #[cfg(target_arch = "x86_64")]
+    if let Some(phys) = x86_timebase_page_phys() {
+        space
+            .map_physical(timebase_proto::PAGE_VA, phys, Flags::user_rodata())
+            .map_err(LoadError::Unmappable)?;
+    }
+
     Ok((space, elf.entry()))
+}
+
+/// **The `x86_64` timebase page's one physical frame**, computed and written once, then reused for
+/// every process `load` maps it into. The frequency the kernel measured or read from `CPUID`
+/// does not change while the machine runs, so one frame mapped read-only into every address space
+/// is correct rather than merely convenient: there is only ever one true answer to publish.
+///
+/// `None` only if the frame allocator is out of memory (propagated by `load` as the same
+/// `OutOfFrames` a segment that would not fit reports; this is not a bad-program condition, so it
+/// is not a panic). If [`crate::arch::timer::frequency_checked`] has not resolved yet (never
+/// observed: `init_frequency` runs early in the `x86_64` boot tour, well before the first call to
+/// `load`), the frame is allocated anyway and left zeroed, which [`timebase_proto::TimebasePage::hz`]
+/// reads as "unknown" rather than a fabricated rate; that keeps every `x86_64` process's layout
+/// identical regardless of boot order, the same reason `boot_clock_page` hands out a zeroed page
+/// when there is no `clock` program to ask.
+#[cfg(target_arch = "x86_64")]
+fn x86_timebase_page_phys() -> Option<u64> {
+    use core::sync::atomic::{AtomicU64, Ordering};
+    static PAGE_PHYS: AtomicU64 = AtomicU64::new(0);
+
+    let cached = PAGE_PHYS.load(Ordering::Acquire);
+    if cached != 0 {
+        return Some(cached);
+    }
+
+    let phys = crate::memory::alloc()?.addr();
+    // `phys_to_virt` is a plain address computation (a `const fn`, no memory access), so nothing
+    // below this line needs a safety comment for naming `dst`; the comments that follow cover the
+    // two places `dst` is actually written through.
+    let dst = mmu::phys_to_virt(phys) as *mut u8;
+    match crate::arch::timer::frequency_checked() {
+        Some(hz) => {
+            let bytes = timebase_proto::build_page(hz);
+            // SAFETY: `dst` names a freshly allocated frame, reachable through the direct map and
+            // owned by nobody else yet; `bytes` is `PAGE_BYTES` (16) bytes, far under the frame's
+            // `FRAME_SIZE`, so the copy does not run past it.
+            unsafe { core::ptr::copy_nonoverlapping(bytes.as_ptr(), dst, bytes.len()) };
+        }
+        // Not yet measured: leave the frame zeroed (retype_page-equivalent frames from
+        // `memory::alloc` are not guaranteed pre-zeroed the way `Untyped::retype_page` promises,
+        // so this writes zero explicitly rather than assuming it).
+        //
+        // SAFETY: as the `Some` arm above: `dst` names a freshly allocated, exclusively owned
+        // frame, and `PAGE_BYTES` is far under `FRAME_SIZE`.
+        None => unsafe { core::ptr::write_bytes(dst, 0, timebase_proto::PAGE_BYTES) },
+    }
+
+    PAGE_PHYS.store(phys, Ordering::Release);
+    Some(phys)
+}
+
+/// Map the `x86_64` timebase page into `space`, if this process needs one built directly rather
+/// than through [`load`]. Several kernel-side functions build a top-level process's own
+/// `AddressSpace` by hand instead of calling `load` (`spawn_init`, and every
+/// `spawn_<program>`-shaped test harness that hands a narrowed archive to a named program:
+/// `timetable_tests::spawn_timetable`, `authority_tests`' `root_supervisor` spawn,
+/// `c_seam_tests::spawn_confiner`, `login_service`, `live_swap_tests`' `swapper` spawn), because
+/// each wants a narrower or differently-shaped world than a generic `load` call builds. `load`'s
+/// own unconditional mapping never reaches any of them, and each one found this the same way:
+/// **empirically**, as an unmapped-read page fault the first time something in that process
+/// called `user_rt::cntfrq` (`timetable`'s own scheduling logic was the one that actually found
+/// this; `load`'s coverage alone left every one of these kernel-built processes unmapped and it
+/// took a real `script/test --arch x86_64` run, not a reading of the call graph, to find them
+/// all). Factored out once here rather than copied into each, per CLAUDE.md rule 7's reasoning
+/// one level down: this is kernel-internal, not shared with a second *binary*, but the six call
+/// sites are exactly the "same lines three times" shape that rule exists to prevent.
+#[cfg(target_arch = "x86_64")]
+fn map_x86_timebase_page(space: &mut AddressSpace) -> Result<(), MapError> {
+    if let Some(phys) = x86_timebase_page_phys() {
+        space.map_physical(timebase_proto::PAGE_VA, phys, Flags::user_rodata())?;
+    }
+    Ok(())
 }
 
 /// Lay an ELF's loadable segments into `space`, honouring their permissions exactly (milestone
@@ -659,6 +759,28 @@ pub const UART_PHYS: u64 = 0x1000_0000;
 #[cfg(target_arch = "x86_64")]
 pub const UART_PHYS: u64 = 0;
 
+/// **Is there a UART a device capability can be a mapping of on this machine?** (milestone 161.)
+///
+/// [`UART_PHYS`] is zero on `x86_64` and that zero is the marker for
+/// [DECISIONS §121](../../design/decisions/121-port-io-capability.md) (PROPOSED). Several fixtures
+/// need to ask, so they ask here rather than each testing a constant against zero and each writing
+/// its own sentence about why.
+///
+/// **The trap this exists to prevent is a green test rather than a red one.** A fixture that went
+/// ahead anyway would grant a device capability over *physical page zero*, map it, and read
+/// real-mode interrupt-vector bytes; the read would succeed, a revoke would still fault, and a
+/// suite would report that x86 has a userspace device story. It does not.
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn machine_has_no_device_page_for_the_console() -> bool {
+    UART_PHYS == 0
+}
+
+/// The reason a fixture gives when [`machine_has_no_device_page_for_the_console`] is true.
+#[cfg_attr(not(test), allow(dead_code))]
+pub const NO_UART_PAGE: &str = "this machine's console UART is in the I/O port space, so there is \
+                                no page for a device capability to be a mapping of and no \
+                                capability shape for a port yet (DECISIONS \u{a7}121)";
+
 /// The archive entry holding the milestone 7-19 **role catalogue**: the one binary the kernel
 /// re-enters at a chosen role to play a client, a server, or init itself.
 ///
@@ -671,8 +793,10 @@ pub const INIT_ROLES_ENTRY: &str = "init";
 #[cfg_attr(not(test), allow(dead_code))]
 #[cfg(target_arch = "riscv64")]
 pub const INIT_ROLES_ENTRY: &str = "hello";
-/// `x86_64` packs no initrd yet (no user programs are built for this target), so this names what it
-/// would be rather than what is there. Nothing reads it: the x86 boot tour halts before userspace.
+/// `x86_64` packs RISC-V's archive (milestone 161, item 4's hand-off), so it gets RISC-V's answer:
+/// its `init` is the portable `builder` demo and hello is packed under its own name. This constant
+/// said the same thing before there was an archive, and it turned out to be right; the reason it
+/// was right is that the archive was going to be RISC-V's rather than that the name was a guess.
 #[cfg_attr(not(test), allow(dead_code))]
 #[cfg(target_arch = "x86_64")]
 pub const INIT_ROLES_ENTRY: &str = "hello";
@@ -815,6 +939,8 @@ pub fn spawn_init(
                 .map_new(USER_STACK_VA - k * FRAME_SIZE, Flags::user_data())
                 .expect("could not map init's stack");
         }
+        #[cfg(target_arch = "x86_64")]
+        map_x86_timebase_page(&mut space).expect("could not map init's timebase page");
 
         // Map the initrd, one page at a time, read-only. These are reserved RAM pages the frame
         // allocator does not own, so this maps rather than allocates.
@@ -840,6 +966,15 @@ pub fn spawn_init(
         .expect("grant report");
         // A device capability for the UART (slot 2), so init can build a driver and hand it the
         // registers (19d.2). WRITE (device access) | GRANT (init delegates it to the driver).
+        //
+        // **On x86_64 `UART_PHYS` is zero and this grants a device capability over physical page
+        // zero**, which is a foot gun and is marked as one rather than designed away (AGENTS.md's
+        // ladder: an exception must say it is an exception). The slot is positional, so declining
+        // to grant here would renumber the interrupt capability below and every role that names
+        // it; and there is nothing better to put in the slot until DECISIONS §121 decides what a
+        // port capability is. Nothing reaches it today: every fixture that would map it asks
+        // `machine_has_no_device_page_for_the_console()` first and skips. A role that maps it
+        // anyway gets the real-mode interrupt vector table and will look like it works.
         crate::sched::grant(crate::cap::device_frame_cap(
             UART_PHYS,
             crate::cap::Rights::WRITE.union(crate::cap::Rights::GRANT),
@@ -1202,7 +1337,9 @@ pub const OUTLAW_READ_KERNEL: u64 = 1;
 /// permissions, the entry point, argument passing across the `START` boundary, and the endpoint
 /// SEND, all from a program the kernel did not hand-write. `load` is arch-neutral; this is the same
 /// code aarch64 runs, now on the RISC-V address space and trap path.
-/// The hand-assembled `x86_64` programs, because no compiled one exists for this target yet.
+/// The hand-assembled `x86_64` programs. Compiled ones now exist (item 4's hand-off), but these
+/// stay: the boot tour runs before any archive is parsed, and a fixture that needs no initrd is
+/// what lets the userspace demo run on a `cargo run` with no `-initrd` at all.
 #[cfg(target_arch = "x86_64")]
 pub mod x86_programs;
 

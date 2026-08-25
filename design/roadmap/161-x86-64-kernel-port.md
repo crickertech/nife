@@ -8,14 +8,15 @@ boot map with fine-grained W^X page tables of its own, routes a real device line
 APIC's redirection table, brings up the scheduler and preempts, runs a kernel thread, builds two
 processes out of untyped memory and runs them at ring 3 (one invokes a capability it was granted and
 exits, one is refused by the page tables and its death is delivered to its supervisor), gives both
-regions back leaving the frame count where it found it, and halts. `script/test --arch x86_64` runs
-97 of the kernel's own tests and skips 7.** What is built and what is still open are spelled out at
-the bottom of this block; `notes/x86-port.md` is the working record. The scope note below (milestone
-20's "enough of each ISA to boot, confine a ring-3/U process, and run the test suite") is **met** as
-of 2026-08-24, on QEMU. What keeps this milestone PARTIAL rather than BUILT is items 0, 5 and 6, and
-one thing none of them names: **no user program is compiled for `x86_64-unknown-none`**, so the
-processes above are hand-assembled and thirty of the suite's test modules are behind `cfg(initrd)`.
-That is item 4's own hand-off and is written up in its block.
+regions back leaving the frame count where it found it, and runs a userspace built from **real ELF
+programs**, read out of an initrd it found in PVH's module list, before it halts.**
+`script/test --arch x86_64` runs
+**170 of the kernel's own tests and skips 67**, every skip naming its missing fixture. What is built
+and what is still open are spelled out at the bottom of this block; `notes/x86-port.md` is the
+working record. The scope note below (milestone 20's "enough of each ISA to boot, confine a ring-3/U
+process, and run the test suite") is **met** as of 2026-08-24, on QEMU. What keeps this milestone
+PARTIAL rather than BUILT is items 0, 5 and 6. Item 4's own hand-off, **no user program compiled for
+`x86_64-unknown-none`**, was closed the same day; see step 13 of "What was built".
 DECISIONS §19 declared the target set (aarch64, riscv64, x86_64) and recorded honestly that
 *"x86_64 is a declared target that does not exist yet."* Milestone 20's own "Deliverable, in two
 parts" already named "bring up a second ISA, then a third: RISC-V first, x86_64 second," but 20 is
@@ -126,7 +127,7 @@ Ordered as it was built, because each step is what made the next one debuggable.
    EOI is a hang on this architecture, so exactly one tick would have been the failure to expect.
 
 8. **The frame allocator.** `memory::init` was split into a device-tree front end and
-   `memory::bring_up_frames`, which takes a RAM slice and a forbidden slice and does not care where
+   `memory::bring_up_page_frames`, which takes a RAM slice and a forbidden slice and does not care where
    they came from; the x86 front end builds those from the PVH map. **Verified: 254 MiB total, 254
    MiB free, first frame 0x16f000.** The whole first megabyte is clipped rather than reserved (it
    holds the IVT, the BDA, the EBDA, the boot info, and the page a STARTUP IPI's vector can name),
@@ -315,6 +316,57 @@ Ordered as it was built, because each step is what made the next one debuggable.
     does not attach, four are SMP or roster facts a single-core machine with no device tree cannot
     have, and one is the device-tree magic, which PVH's `hvm_start_info` genuinely is not.
 
+13. **Userspace: every program in `user/` compiled for this target, an archive, and the thirty
+    gated test modules running** (2026-08-24, item 4's own hand-off). The suite went from **97 pass /
+    7 skip** to **170 pass / 67 skip**, and every skip prints the fixture it wants.
+
+    **`crates/user_rt` cost five transliterations and two decisions.** The five follow DECISIONS
+    §124 mechanically. Three facts at those sites have no counterpart on either other architecture
+    and each is the instruction rather than a choice: `syscall` clobbers `rcx` and `r11`
+    unconditionally, `r10` carries the fourth argument because `syscall` has already taken `rcx`,
+    and `syscall` pushes nothing.
+
+    **`now()` and `cntfrq()` are the two that are not transliteration, and the answer was `rdtsc`
+    with the frequency hardcoded.** `now()` is `rdtsc`, readable from ring 3 because `CR4.TSD` is
+    clear at reset and this kernel does not change it; it answers in `edx:eax`, so a single
+    `out(reg)` reads a counter that wraps every four seconds. `cntfrq()` is **RISC-V's recorded gap,
+    one architecture worse**, and it returns a constant with a `BUGS` section: there is no
+    architected TSC rate (`CPUID` leaf 0x15 gives a ratio to a crystal leaf 0x16 may not report,
+    and neither leaf is universal), the kernel therefore **measures** it against the PIT, and a
+    ring-3 program cannot repeat that measurement because the PIT is at ports 0x40..0x43 behind
+    `IOPL` 0 and an empty TSS bitmap. Calibrating in userspace was considered and is not available;
+    a program that could touch the PIT would be one that had escaped this kernel's confinement, so
+    that is §121 rather than an oversight. The constant is QEMU's 1 GHz (measured at 1001 MHz); on
+    milestone 87's Dell it will be wrong with no way for a caller to tell, and **both architectures
+    want the same fix**, which is an aux-vector entry at process start.
+
+    **Three programs refuse rather than pretend.** `console::uart_put`, `input`'s `uart` module and
+    `swap_proto::probe_device` cannot reach a device from ring 3; their x86 arms `trap()` rather
+    than no-op, because a silent no-op is a console that acknowledges every byte and prints none.
+    `user/build.rs` compiles the C seam with `--target=x86_64-unknown-none-elf -mno-sse -mno-mmx
+    -mno-red-zone`, matching the Rust target's own `-mmx,-sse,+soft-float` and `disable_redzone`.
+
+    **The archive arrives as a PVH module**, which is `/chosen/linux,initrd-start` one machine over:
+    `machine_discovery::x86_64::module` decodes the list (host-tested), the x86 memory front end
+    reserves the region and records it, and free memory drops from 254 MiB to 249 with a 4.4 MB
+    archive attached. `xtask` grew `initrd-x86`, and the two packers now share one
+    `portable_archive_entries()` table.
+
+    **Four bugs, every one latent since the day it was written**, and none catchable before there
+    were user programs here. `arch::x86_64::irq::enable` conflated two numbering schemes (a legacy
+    IRQ and a local APIC vector) and panicked on `SELF_TEST_VECTOR`; `user_rt::trap()`'s `int3` is
+    refused from ring 3 by a DPL-0 gate and raised **#GP 0x1a** instead of #BP, so it is `ud2` now;
+    `user/link.ld` did not name `.got`, which x86 emits and the other two do not, so the orphan
+    landed after `.bss` and the `data` segment lost its zero-fill tail entirely; and
+    `fs_service::blk_server_image()`'s x86 arm was a `panic!` that fired before any disk check.
+    `xtask`'s `read_stripped` cache tag was a fifth, latent and never yet fired: x86 shared
+    aarch64's `"host"` namespace, so packing both archives in one run would have measured one
+    architecture's bytes under the other's name.
+
+    **What still bounds this architecture is devices, not userspace.** 21 of the 67 skips are one
+    toolchain failure (see item 4's block), 13 are the missing RTC, 15 are the unenumerated PCI bus,
+    5 are §121, and 4 are SMP.
+
 Plus the build wiring it all needs: `kernel/build.rs`, `.cargo/config.toml` (including the static
 relocation model, which this target does not default to), `rust-toolchain.toml`,
 `scripts/qemu-runner-x86_64.sh`, and an x86_64 pass in `script/lint`.
@@ -328,7 +380,7 @@ in files that already had two. `crates/paging` needed nothing.
 In the order it should be done, because each is a prerequisite for the next.
 
 0. **The device-discovery seam**, milestone 20's other promised abstraction. Its **narrow half is
-   built** (`memory::bring_up_frames`), because without it the frame allocator could not come up on
+   built** (`memory::bring_up_page_frames`), because without it the frame allocator could not come up on
    a machine with no device tree and the port stopped there; `memory::init` is now explicitly a
    device-tree front end and `arch::x86_64::machine::bring_up_memory` is the x86 one. **The wide
    half is still owed and should be its own milestone**: the device *windows* (interrupt controller,
@@ -401,42 +453,50 @@ In the order it should be done, because each is a prerequisite for the next.
    `ring3_probe.s` are deleted, and the ring-3 fault arm is a real teardown through `sched::fault`.
    The bring-up was indeed mostly portable code meeting a third architecture for the first time.
 
-   **What is still open here is not the suite but its fixtures**, and it is the thing that now bounds
-   this whole milestone rather than an item within it: **no user program is compiled for
-   `x86_64-unknown-none`.** Consequences, each a concrete piece of work:
+   **Its own hand-off was closed the same day it was written** (2026-08-24; see step 13 of "What
+   was built"). Every program in `user/` compiles for `x86_64-unknown-none`, `xtask` packs an
+   archive, QEMU's PVH loader hands it over as a module, `cfg(initrd)` is on, and the suite runs
+   **170 tests and skips 67** where it ran 97 and skipped 7. The block's own prediction held
+   exactly: turning the cfg on was **one match arm** in `kernel/build.rs`, and all thirty modules
+   came back with nothing else edited.
 
-   - `crates/user_rt` has **seven places with an aarch64/RISC-V pair each and no fallback**, so
-     nothing in `user/` compiles: `invoke5`, `yield_now`, `cap_delete`, `now`, `cntfrq`, and the
-     `cfg`s inside `exit` and `trap`. It was thirteen until the `invoke5` collapse landed on main
-     the same day, which is most of the work already done. Five of the seven are transliteration
-     (`syscall` for `svc`/`ecall`; the ABI is written down as §124 and now spoken). **Two are a
-     design fork**: `now()` and `cntfrq()` read `CNTVCT_EL0`/`CNTFRQ_EL0` and RISC-V's `time` CSR,
-     and x86 has neither. `rdtsc` is the obvious answer and is a decision rather than a
-     transliteration, because its rate is not architected and this kernel already measures it
-     against the PIT.
-   - `user/build.rs` cannot compile its C components for this target, so `c_shim` and `c_swappable`
-     would not link even once `user_rt` is done.
-   - `xtask` packs no x86 archive. Adding one needs a third arm in `read_stripped`'s cache tag (x86
-     would collide with aarch64 under `"host"` today, silently, producing wrong measurements), a
-     third arm in `boot_programs` (whose `_` catches x86 now), and a `target/init-measure-x86_64.txt`
-     without which the trust root is empty and any boot program is refused as `Unmeasured`.
-   - `scripts/qemu-runner-x86_64.sh` passes no `-initrd`.
-   - `crates/elf` **is** ready: it accepts `EM_X86_64` as of this item.
+   Of the five concrete pieces it listed, four are done and the fifth was already true:
+   `crates/user_rt` has its x86 arms (five transliterations, plus `now()`/`cntfrq()`, which went to
+   `rdtsc` and a hardcoded rate for the reasons in step 13); `user/build.rs` compiles the C seam;
+   `xtask` packs an x86 archive, with the `read_stripped` cache-tag collision fixed before it could
+   fire and a real `target/init-measure-x86_64.txt`; `scripts/qemu-runner-x86_64.sh` passes
+   `-initrd`; and `crates/elf` was indeed ready.
 
-   Until then, thirty test modules under `kernel/src/user/` are behind **`cfg(initrd)`**, a cfg
-   `kernel/build.rs` emits for every target that has user programs. The cfg names the reason rather
-   than the architecture on purpose: `#[cfg(not(target_arch = "x86_64"))]` would have said the same
-   thing thirty times and been wrong the day this port can build them, in thirty places nobody would
-   look. Six modules under `user/` do run here, on the hand-assembled programs in
-   `kernel/src/user/x86_programs.rs`.
+   **What replaced it is a shorter list, and none of it is userspace.** Two items are genuinely new
+   findings rather than restatements:
 
-   **This wants its own milestone**, and it is the largest single piece of x86 work left: it is what
-   stands between this port and the shell, the drivers and the services, all of which are userspace.
+   - **`fs_server` does not compile for `x86_64-unknown-none`, and it is not our bug.** It links
+     the vendored RedoxFS engine, which depends on `aes` unconditionally (the crypto is not behind
+     a feature), and `aes` for this target ends in
+     `rustc-LLVM ERROR: Do not know how to split the result of this operator!` at every optimisation
+     level including zero. The target spec is the cause: `-mmx,-sse,+soft-float` leaves LLVM no
+     128-bit vector register to legalise an AES block into and no scalar fallback. **21 of the 67
+     skips are this one fact.** The routes out are a patch against the vendored crate to make its
+     crypto optional (`patches/` is where a carried patch belongs) or an x86 userspace target that
+     keeps SSE; both want their own milestone (now minted: milestone 164), and until one lands
+     there is no point attaching a
+     disk to the x86 runner, because there would be nothing to open it with.
+   - **One foot gun is marked rather than removed** (AGENTS.md's ladder: an exception must say it
+     is one). `spawn_init` grants slot 2 a device capability over `user::UART_PHYS`, which on this
+     architecture is *physical page zero*. The slot is positional, so declining to grant would
+     renumber the interrupt capability and every role that names it, and there is nothing better to
+     put there until DECISIONS §121 answers what a port capability is. Nothing reaches it: every
+     fixture that would map it asks `user::machine_has_no_device_page_for_the_console()` first and
+     skips. A role that mapped it anyway would read the real-mode interrupt vector table and look
+     like it worked.
 
-   **A second, narrower gap found once userspace could compile: `fs_server` cannot compile for
-   this target at all**, because its vendored RedoxFS engine needs `aes`, and `aes` needs SSE this
-   target disables. Tracked separately as **milestone 164**, since it is a toolchain problem rather
-   than an item in this port's own sequence.
+   The rest of the 67 are the items above and below this one, doing what they were always going to
+   do: 13 skips want the RTC (item 0's device windows, or §121 for the CMOS ports), 15 want a PCI
+   bus the discovery seam does not enumerate here (item 0 again, and it is the single change that
+   would unlock the most), 5 want a UART page (§121), 4 want a second core (item 5), 1 wants
+   `CR4.PCIDE` (item 3's measurement), and 1 wants an `x86_64-unknown-nife` target and a `std` farm
+   (milestone 27).
+
 5. **SMP**, via INIT-SIPI-SIPI. The local APIC is up, so what remains is the Interrupt Command
    Register sequence and a real-mode trampoline copied below 1 MiB. Also needs a per-CPU TSS and a
    per-CPU GDT, since `TSS.RSP0` names a per-core stack.

@@ -127,6 +127,9 @@ fn describe(v: u64) -> &'static str {
 /// handle the shell still holds keeps reading the bytes, and the name really is gone.
 #[test_case]
 fn a_shell_navigates_its_own_subtree_and_clamps_at_its_root() {
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
     let Some(v) = navigate(tree::SUB, 4) else {
         crate::println!("    (no RedoxFS disk attached; skipping)");
         return;
@@ -159,6 +162,9 @@ fn a_shell_navigates_its_own_subtree_and_clamps_at_its_root() {
 /// FS server, so the harness runs them in turn).
 #[test_case]
 fn two_shells_with_different_roots_cannot_name_each_others_files() {
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
     let Some(a) = navigate(tree::SUB, 5) else {
         crate::println!("    (no RedoxFS disk attached; skipping)");
         return;

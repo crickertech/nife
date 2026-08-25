@@ -57,13 +57,34 @@ fn compile_c_component(manifest_dir: &Path) {
             "-march=rv64imac",
             "-mabi=lp64",
         ],
+        // Match `x86_64-unknown-none` exactly (milestone 161). That Rust target sets
+        // `features = "-mmx,-sse,+soft-float"` and `disable_redzone = true`, and both halves of
+        // that have to be said again here or the object disagrees with every Rust object it is
+        // linked beside.
+        //
+        // **`-mno-sse` is the aarch64 arm's `-mgeneral-regs-only` argument, one ISA over**: the
+        // kernel does not enable the FP unit for ring 3, so a clang that felt free to vectorize a
+        // byte loop into `xmm` registers would take `#UD` (`CR4.OSFXSR` clear) on the first one.
+        // `-mno-red-zone` is the one with no counterpart on either other architecture: the red zone
+        // is 128 bytes below `rsp` a leaf function may use without adjusting the pointer, and it is
+        // safe only if nothing can push there behind the function's back. Ring 3 code is preempted
+        // by an interrupt that switches to a *different* stack, so a user program could in fact
+        // keep it; it is off anyway because the Rust half has it off, and an ABI that is off by 128
+        // bytes on one side of a call is not an ABI.
+        "x86_64" => vec![
+            "--target=x86_64-unknown-none-elf",
+            "-mno-sse",
+            "-mno-mmx",
+            "-mno-red-zone",
+        ],
         // The host passes (`cargo clippy` over the workspace excludes `user`, but a stray host
         // build of this package would land here) have nothing to compile for and no business
         // guessing. Say so rather than emitting a broken link arg.
         other => {
             println!(
                 "cargo::warning=user/build.rs: no C component for target arch '{other}'; the \
-                 c_shim and c_swappable binaries will not link. Build for aarch64 or riscv64."
+                 c_shim and c_swappable binaries will not link. Build for aarch64, riscv64 \
+                 or x86_64."
             );
             return;
         }
@@ -126,7 +147,7 @@ fn compile_one(manifest_dir: &Path, clang: &Path, flags: &[&str], source: &str, 
     println!("cargo::rustc-link-arg-bin={bin}={}", out.display());
 }
 
-/// **Find a clang that can target both of this project's bare ISAs.**
+/// **Find a clang that can target every one of this project's bare ISAs.**
 ///
 /// The same discipline `xtask`'s `llvm_tool` uses for `llvm-objcopy`: resolve the tool from a known
 /// list rather than hoping it is on `PATH` under the right name, and fail loudly with what to
@@ -134,11 +155,16 @@ fn compile_one(manifest_dir: &Path, clang: &Path, flags: &[&str], source: &str, 
 /// dev machine (Apple's, in the Xcode command line tools) is built with the AArch64 and X86
 /// backends only and cannot emit RISC-V at all.
 ///
-/// Both backends are required from one compiler even when only one ISA is being built. That is
-/// DECISIONS §19 (parity is a gate, not an aspiration) applied to the toolchain: a machine where the two
-/// architectures would be compiled by two different clangs is a machine where "it works on aarch64"
+/// Every backend is required from one compiler even when only one ISA is being built. That is
+/// DECISIONS §19 (parity is a gate, not an aspiration) applied to the toolchain: a machine where the
+/// architectures would be compiled by different clangs is a machine where "it works on aarch64"
 /// stops predicting anything about riscv64, and the failure would surface halfway through a build
 /// rather than here.
+///
+/// **Milestone 161 made this a three-way check and did not change the rejection**, which is the
+/// useful thing to notice: adding `x86_64` costs nothing here because every clang that already passed
+/// (Homebrew's keg, a distro build) has the X86 backend, and the one that already failed (Apple's)
+/// fails on RISC-V exactly as before.
 fn resolve_clang() -> Option<PathBuf> {
     // The escape hatch **overrides** the search rather than joining it: "use this compiler" has to
     // mean that, or a typo in the path silently falls back to a different compiler and the build is
@@ -148,7 +174,7 @@ fn resolve_clang() -> Option<PathBuf> {
         && !explicit.is_empty()
     {
         let cc = PathBuf::from(explicit);
-        return has_both_backends(&cc).then_some(cc);
+        return has_every_backend(&cc).then_some(cc);
     }
     [
         // Homebrew's `llvm` keg, which is what `script/bootstrap` installs on macOS. It is not
@@ -160,12 +186,16 @@ fn resolve_clang() -> Option<PathBuf> {
     ]
     .into_iter()
     .map(PathBuf::from)
-    .find(|c| has_both_backends(c))
+    .find(|c| has_every_backend(c))
 }
 
-/// Does this clang have the AArch64 *and* RISC-V backends registered? `-print-targets` answers
+/// Does this clang have the AArch64, RISC-V *and* X86 backends registered? `-print-targets` answers
 /// without compiling anything, and a clang that cannot be run at all simply fails the check.
-fn has_both_backends(clang: &Path) -> bool {
+///
+/// Name provisional (milestone 161): it was `has_both_backends` when there were two, and "both" is
+/// a word with an arity in it, which is the smallest possible version of a name going stale. calef
+/// names functions (AGENTS.md, extended 2026-08-23).
+fn has_every_backend(clang: &Path) -> bool {
     let Ok(out) = Command::new(clang).arg("-print-targets").output() else {
         return false;
     };
@@ -177,22 +207,22 @@ fn has_both_backends(clang: &Path) -> bool {
         text.lines()
             .any(|l| l.split_whitespace().next() == Some(name))
     };
-    has("aarch64") && has("riscv64")
+    has("aarch64") && has("riscv64") && has("x86-64")
 }
 
 /// What to do about a missing or unsuitable clang. Long on purpose: the failure lands on a fresh
 /// clone or a machine whose only clang is Apple's, and a reader deserves to know why the compiler
 /// they already have was rejected.
 const CLANG_HELP: &str = "\
-user/build.rs: no clang found that can target both aarch64 and riscv64.
+user/build.rs: no clang found that can target aarch64, riscv64 and x86-64.
 
 nife links a C component into the `c_shim` program (milestone 36, DECISIONS \u{a7}30), so the
-build needs a bare-metal clang with BOTH the AArch64 and RISC-V backends. Apple's clang, in the
-Xcode command line tools, has no RISC-V backend and is deliberately rejected: two different
-compilers for the two architectures would break the parity gate (DECISIONS \u{a7}19).
+build needs a bare-metal clang with ALL THREE of the AArch64, RISC-V and X86 backends. Apple's
+clang, in the Xcode command line tools, has no RISC-V backend and is deliberately rejected: two
+different compilers for two of the architectures would break the parity gate (DECISIONS \u{a7}19).
 
   macOS:   brew install llvm      (script/bootstrap does this)
   Debian:  sudo apt-get install clang
-  other:   any clang whose `clang -print-targets` lists both aarch64 and riscv64
+  other:   any clang whose `clang -print-targets` lists aarch64, riscv64 and x86-64
 
 Then re-run the build. To point at a specific compiler, set NIFE_CC=/path/to/clang.";

@@ -86,14 +86,22 @@
 //! # }
 //! ```
 //!
-//! # Two ABIs, one surface
+//! # Three ABIs, one surface
 //!
 //! The syscall instruction and the register file differ by architecture, and this is the one place
 //! in userspace that names them. aarch64 uses `svc #0` with the syscall number in `x8` and arguments
-//! in `x0..x5`; RISC-V uses `ecall` with the number in `a7` and arguments in `a0..a5`. Both return in
-//! the first argument register (`x0` / `a0`). The kernel reconciles the two in `TrapFrame`
-//! (DECISIONS §17); here we simply select the right asm at compile time. Every function's signature,
-//! semantics, and the `abi` constants are identical across both.
+//! in `x0..x5`; RISC-V uses `ecall` with the number in `a7` and arguments in `a0..a5`; `x86_64` uses
+//! `syscall` with the number in `rax` and arguments in `rdi`, `rsi`, `rdx`, `r10`, `r8`, `r9`
+//! ([DECISIONS §124](../../../design/decisions/124-x86-64-syscall-abi.md), ratified 2026-08-24).
+//! All three return in the first argument register (`x0` / `a0` / `rdi`). The kernel reconciles them
+//! in `TrapFrame` (DECISIONS §17); here we simply select the right asm at compile time. Every
+//! function's signature, semantics, and the `abi` constants are identical across all three.
+//!
+//! **`x86_64` is the arm that costs more than a transliteration**, and there are exactly three places
+//! it does. `syscall` clobbers `rcx` and `r11` unconditionally, so every site declares them; `rdtsc`
+//! answers in two halves rather than one register (see [`now`]); and there is **no architected
+//! counter frequency at all**, which is why [`cntfrq`] carries a `BUGS` section rather than a number
+//! with a comment. Everything else is the same three instructions in a different spelling.
 //!
 //! Name: unrecorded, and half-argued in the way that keeps it that way. Milestone 63 treats
 //! `user_` as settled precedent while renaming `uheap`: "the `u` was *userspace*, and `user_rt`
@@ -172,6 +180,45 @@ unsafe fn invoke5(cap: u64, method: u64, a0: u64, a1: u64, a2: u64) -> (u64, u64
             inlateout("a2") a0 => w2,
             inlateout("a3") a1 => w3,
             inlateout("a4") a2 => w4,
+            options(nostack),
+        );
+    }
+    (w0, w1, w2, w3, w4)
+}
+
+/// The raw five-register round trip (`x86_64`, milestone 161). See the aarch64 twin's doc for the
+/// contract this collapses; only the trap instruction and register file differ. `syscall`, the
+/// number in `rax`, the five words in `rdi`, `rsi`, `rdx`, `r10`, `r8` (DECISIONS §124).
+///
+/// **Two operands here have no counterpart on the other two architectures**, and both are the
+/// instruction rather than a choice. `syscall` writes the return address into `rcx` and the
+/// caller's `RFLAGS` into `r11`, unconditionally, so both are declared clobbered; a version of
+/// this without them compiles and then corrupts whichever local the register allocator had put
+/// there. And `r10` carries the fourth word instead of the C ABI's `rcx` for exactly the same
+/// reason, which is why §124 records that substitution as forced rather than preferred.
+///
+/// `options(nostack)` still holds: `syscall` does not push, which is the whole reason the kernel's
+/// entry path has to park `rsp` by hand (see `arch/x86_64/trap.s`).
+///
+/// # Safety
+/// `syscall` traps to the kernel, which validates the capability and method before acting. Same
+/// contract as the aarch64 twin: the caller trusts the kernel, not the other way around.
+#[cfg(target_arch = "x86_64")]
+unsafe fn invoke5(cap: u64, method: u64, a0: u64, a1: u64, a2: u64) -> (u64, u64, u64, u64, u64) {
+    let (mut w0, mut w1, mut w2, mut w3, mut w4): (u64, u64, u64, u64, u64);
+    // SAFETY: see the function doc; `rax` selects SYS_INVOKE (DECISIONS §10, §124), and the five
+    // argument registers carry the five-word ABI in both directions.
+    unsafe {
+        core::arch::asm!(
+            "syscall",
+            in("rax") abi::SYS_INVOKE,
+            inlateout("rdi") cap => w0,
+            inlateout("rsi") method => w1,
+            inlateout("rdx") a0 => w2,
+            inlateout("r10") a1 => w3,
+            inlateout("r8") a2 => w4,
+            lateout("rcx") _,
+            lateout("r11") _,
             options(nostack),
         );
     }
@@ -337,6 +384,22 @@ pub fn yield_now() {
     }
 }
 
+/// Give up the CPU (`x86_64`). `syscall`, `SYS_YIELD` in `rax`. `rcx` and `r11` are clobbered by the
+/// instruction itself, and `nomem` survives that: neither is memory.
+#[cfg(target_arch = "x86_64")]
+pub fn yield_now() {
+    // SAFETY: `syscall`; SYS_YIELD gives up the CPU and returns with nothing to clean up.
+    unsafe {
+        core::arch::asm!(
+            "syscall",
+            in("rax") abi::SYS_YIELD,
+            lateout("rcx") _,
+            lateout("r11") _,
+            options(nostack, nomem),
+        );
+    }
+}
+
 /// Drop the capability in `slot` from this thread's capability table (`SYS_CAP_DELETE`). Deleting an empty
 /// slot is a no-op. A program that retypes many objects (a loader, a spawner) frees each slot as
 /// soon as it is done with it, so its fixed capability table does not fill.
@@ -362,6 +425,22 @@ pub fn cap_delete(slot: u64) {
             "ecall",
             in("a7") abi::SYS_CAP_DELETE,
             in("a0") slot,
+            options(nostack, nomem),
+        );
+    }
+}
+
+/// Drop the capability in `slot` (`x86_64`). `syscall`, `SYS_CAP_DELETE` in `rax`, slot in `rdi`.
+#[cfg(target_arch = "x86_64")]
+pub fn cap_delete(slot: u64) {
+    // SAFETY: `syscall`; SYS_CAP_DELETE frees a slot in the caller's own capability table, nothing to clean up.
+    unsafe {
+        core::arch::asm!(
+            "syscall",
+            in("rax") abi::SYS_CAP_DELETE,
+            in("rdi") slot,
+            lateout("rcx") _,
+            lateout("r11") _,
             options(nostack, nomem),
         );
     }
@@ -417,6 +496,95 @@ pub fn cntfrq() -> u64 {
     10_000_000
 }
 
+/// The monotonic tick count (`x86_64`, milestone 161): `rdtsc`, which reads the time-stamp counter.
+/// Readable from ring 3 because `CR4.TSD` is clear, which is the reset state and which this kernel
+/// does not change; that is the same shape as aarch64 needing `CNTKCTL_EL1.EL0VCTEN` and RISC-V
+/// needing `scounteren.TM`, with the difference that here the permissive state is the default and
+/// the kernel would have to act to *close* it.
+///
+/// **`rdtsc` returns the count split across two 32-bit registers** (`edx:eax`), a shape inherited
+/// from the Pentium that introduced it, so this is a shift and an or rather than a move. Writing it
+/// as a single `out(reg)` compiles and reads only the low half, which is a counter that wraps every
+/// four seconds at 1 GHz and looks correct in any test short enough to run.
+///
+/// **No serialisation, deliberately.** `rdtsc` is not ordered against surrounding instructions, so
+/// a sufficiently tight measurement wants `lfence` or `rdtscp` around it. Pair this with [`cntfrq`]
+/// and the granularity that buys is nanoseconds; the reordering window is tens of cycles, and the
+/// kernel's own calibration accepts the same trade for the same reason
+/// (`kernel/src/arch/x86_64/timer.rs`).
+#[cfg(target_arch = "x86_64")]
+pub fn now() -> u64 {
+    let (lo, hi): (u32, u32);
+    // SAFETY: reading a counter ring 3 is permitted to read. No side effects, no memory touched.
+    unsafe {
+        core::arch::asm!("rdtsc", out("eax") lo, out("edx") hi, options(nomem, nostack));
+    }
+    ((hi as u64) << 32) | (lo as u64)
+}
+
+/// The counter frequency in Hz (`x86_64`), read from the **timebase page** the kernel maps
+/// read-only into every process at [`timebase_proto::PAGE_VA`] (milestone 161's `cntfrq`
+/// follow-up).
+///
+/// aarch64 has `CNTFRQ_EL0`, which states the rate. RISC-V has none, but the device tree does,
+/// and the process cannot read it. x86 has **no architected rate a ring-3 program can ask for
+/// directly**: `CPUID` leaf `0x15` gives the TSC's ratio to a crystal clock on the parts that
+/// implement it, but a ring-3 program cannot calibrate one for itself the way the kernel's
+/// fallback does, against the 8254 PIT: the PIT is at I/O ports `0x40..0x43`, `IOPL` is 0 and the
+/// TSS's I/O permission bitmap is empty, so `in`/`out` from a process is a general protection
+/// fault. That is not an oversight to route around, it is
+/// [DECISIONS §121](../../../design/decisions/121-port-io-capability.md), which closed port I/O
+/// to userspace **permanently**: a program that could calibrate its own clock by touching the PIT
+/// would be a program that had escaped the confinement this kernel exists to enforce.
+///
+/// So the kernel is the only party that can ever know this number, and it publishes rather than
+/// gates: `arch::x86_64::timer::init_frequency` reads `CPUID` leaf `0x15` first and falls back to
+/// PIT calibration only if the part does not report one (see that function's own docs; under this
+/// project's QEMU invocation the leaf is unavailable and calibration is what every boot actually
+/// uses), then every kernel-side function that builds a top-level process's address space writes
+/// the result into a page and maps it, read-only, before the process ever runs: `kernel::user::load`
+/// (the generic ELF loader every ordinary test fixture calls) and the handful of functions that
+/// build one by hand for a narrower world (`spawn_init`, and the `spawn_<program>`-shaped test
+/// harnesses: `timetable_tests::spawn_timetable`, `authority_tests`' `root_supervisor` spawn,
+/// `c_seam_tests::spawn_confiner`, `login_service`, `live_swap_tests`' `swapper` spawn; see
+/// `kernel::user::map_x86_timebase_page`, which all of them call). This function is the reader: a
+/// plain load through an unsafe pointer, no syscall, the same "ambient, no capability" shape
+/// [`now`] already has.
+///
+/// # BUGS
+///
+/// **A zeroed page (calibration has not run, or a process was built by the userspace ELF loader
+/// rather than by the kernel) reads as 1 GHz, not as "unknown".** This function still needs *some*
+/// `u64` to hand back rather than an `Option` (every other architecture's `cntfrq` returns a bare
+/// rate, and widening this one alone to `Option<u64>` would make every caller of the portable
+/// `monotonic_nanos` handle a case the other two architectures cannot produce), so a zeroed page
+/// falls back to the same 1 GHz constant this function used to hardcode unconditionally. Two real
+/// cases reach this, and only one of them is rare:
+///
+/// - **Calibration genuinely has not run yet.** Not observed in practice: `init_frequency` runs
+///   early in the boot tour, well before the first process is loaded.
+/// - **A process was built by `supervision_proto::build_child_space`** (the tree's one userspace
+///   ELF loader, used by `root_supervisor`, `spawner`, `system_initializer`, and every role
+///   `hello` builds, `coremark` and `timetable`'s own `worker` included), which maps a *freshly
+///   retyped, zeroed* placeholder rather than the kernel's real page: nothing in that crate holds
+///   a capability naming the kernel's specific physical frame, so it cannot forward the real
+///   number, only a page shaped enough not to fault. See that crate's own comment at the map site
+///   for why closing this gap needs more than a userspace crate can do alone (a capability the
+///   kernel would have to hand down through every generation of the supervision tree, which is
+///   real plumbing this milestone's scope did not reach). **This is where the 1 GHz constant
+///   actually still lives**, not the "always wrong on real hardware" gap the pre-fix version of
+///   this function had: a process built this way gets a syscall-free, non-faulting, honestly
+///   *approximate* answer instead of the kernel's measured one, and every process built directly
+///   by the kernel gets the real number.
+#[cfg(target_arch = "x86_64")]
+pub fn cntfrq() -> u64 {
+    // SAFETY: every kernel-side space-building function this crate's own docs list maps a page
+    // (real, or a zeroed placeholder; see this function's own `BUGS` section) read-only at
+    // `timebase_proto::PAGE_VA` into every x86_64 process before it ever runs.
+    let page = unsafe { timebase_proto::TimebasePage::new(timebase_proto::PAGE_VA) };
+    page.hz().unwrap_or(1_000_000_000)
+}
+
 /// **Monotonic nanoseconds since boot**, from [`now`] and [`cntfrq`].
 ///
 /// Here rather than in each program because two of them need it and the naive form is wrong:
@@ -454,18 +622,37 @@ pub fn exit() -> ! {
     unsafe {
         core::arch::asm!("ecall", in("a7") abi::SYS_EXIT, in("a0") 0u64, options(nostack, nomem));
     }
+    #[cfg(target_arch = "x86_64")]
+    // SAFETY: `syscall` with SYS_EXIT traps to the kernel, which never returns to this thread. The
+    // options promise it touches neither memory nor the stack; `rcx` and `r11` are the
+    // instruction's own clobbers and are declared as such even here, where nothing comes back, so
+    // this reads the same as every other `syscall` site rather than being a special case.
+    unsafe {
+        core::arch::asm!(
+            "syscall",
+            in("rax") abi::SYS_EXIT,
+            in("rdi") 0u64,
+            lateout("rcx") _,
+            lateout("r11") _,
+            options(nostack, nomem),
+        );
+    }
     loop {
         core::hint::spin_loop();
     }
 }
 
 /// **Die where the mistake was.** Raise a breakpoint the kernel turns into a fault, so the process
-/// is killed rather than allowed to limp on: `brk #0` on aarch64, `ebreak` on riscv64.
+/// is killed rather than allowed to limp on.
 ///
 /// This is the other way a program can end, and the difference from [`exit`] is not a spelling.
 /// `exit` reports `EVENT_EXIT` to a supervisor and this reports `EVENT_FAULT`
 /// (`kernel/src/sched.rs`, DECISIONS §26), so a supervised child that traps is legible as having
 /// failed and one that exits is not. A panic must take this path or it lies about what happened.
+///
+/// The instruction differs per architecture and `x86_64`'s is not the obvious one: `brk #0` on
+/// aarch64, `ebreak` on riscv64, **`ud2`** on `x86_64`. See that arm for why its breakpoint
+/// instruction cannot be used from ring 3.
 ///
 /// The trailing spin never runs. It is here for the same reason [`exit`]'s is, to satisfy `-> !`
 /// if the trap ever came back, and it spins rather than calling `exit` on purpose: `exit` would
@@ -487,6 +674,28 @@ pub fn trap() -> ! {
     // promise it touches neither memory nor the stack.
     unsafe {
         core::arch::asm!("ebreak", options(nostack, nomem));
+    };
+    #[cfg(target_arch = "x86_64")]
+    // SAFETY: `ud2` faults; the kernel turns a fault from ring 3 into a kill. The options promise
+    // it touches neither memory nor the stack.
+    //
+    // **`ud2` rather than `int3`, and this was measured rather than chosen** (milestone 161).
+    // `int3` is the obvious transliteration of `brk`/`ebreak` and it does not work from ring 3
+    // here: a *software* interrupt is refused unless the IDT gate's DPL admits the caller's
+    // privilege level, and this kernel's gates are all DPL 0, so `int3` from a process raises
+    // **#GP with error code 0x1a** (`(3 << 3) | 2`, the vector it was refused, tagged as an IDT
+    // selector) instead of #BP. The process does die, so the first version of this looked like it
+    // worked; what it reported was a general protection fault at address zero, which names neither
+    // the instruction nor the reason and would have sent the next reader hunting a segmentation
+    // bug.
+    //
+    // Opening vector 3 to ring 3 is the other fix and Linux takes it, because Linux has ptrace and
+    // wants a debugger to be able to plant breakpoints. There is no debugger here, so that would
+    // widen what a process may do to buy nothing. `ud2` is a **fault the CPU raises** on an opcode
+    // permanently reserved to be invalid, so no gate DPL is involved, and "this must never execute"
+    // is exactly what the instruction means.
+    unsafe {
+        core::arch::asm!("ud2", options(nostack, nomem));
     };
     loop {
         core::hint::spin_loop();

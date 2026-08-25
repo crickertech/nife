@@ -174,6 +174,9 @@ fn redoxfs_server_image() -> &'static [u8] {
 /// the image and not about this capability (see `login_test_client.rs`).
 #[test_case]
 fn login_grants_a_working_capability_set_to_the_identity_it_verified() {
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
     let Some(w) = wired() else {
         crate::testing::skip!("no virtio-rng device or no RedoxFS disk attached");
     };
@@ -214,6 +217,9 @@ fn login_grants_a_working_capability_set_to_the_identity_it_verified() {
 /// promise broken at the sender.
 #[test_case]
 fn login_denies_a_wrong_secret_and_sends_nothing_further() {
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
     let Some(w) = wired() else {
         crate::testing::skip!("no virtio-rng device or no RedoxFS disk attached");
     };
@@ -238,6 +244,9 @@ fn login_denies_a_wrong_secret_and_sends_nothing_further() {
 /// record is honest about which principal established which.
 #[test_case]
 fn two_different_identities_get_independently_working_channels_and_correct_attribution() {
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
     let Some(w) = wired() else {
         crate::testing::skip!("no virtio-rng device or no RedoxFS disk attached");
     };
@@ -317,6 +326,9 @@ fn two_different_identities_get_independently_working_channels_and_correct_attri
 /// than repeating them here is what keeps that charge to what actually proves the fix.
 #[test_case]
 fn the_login_service_serves_past_the_old_capability_table_ceiling() {
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
     let Some(w) = wired() else {
         crate::testing::skip!("no virtio-rng device or no RedoxFS disk attached");
     };
@@ -382,6 +394,9 @@ fn the_login_service_serves_past_the_old_capability_table_ceiling() {
 /// the other half: that `login`, given one, finds and attenuates to the *right* one.
 #[test_case]
 fn login_scopes_each_identity_to_its_own_provisioned_subtree() {
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
     let Some(w) = wired() else {
         crate::testing::skip!("no virtio-rng device or no RedoxFS disk attached");
     };
@@ -471,6 +486,9 @@ fn login_scopes_each_identity_to_its_own_provisioned_subtree() {
 /// send lives only on the success path.
 #[test_case]
 fn login_denies_an_authenticated_identity_with_no_provisioned_subtree() {
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
     let Some(w) = wired() else {
         crate::testing::skip!("no virtio-rng device or no RedoxFS disk attached");
     };
@@ -560,6 +578,9 @@ fn logins_caretaker_measurement_matches_the_real_table_and_a_tampered_one_would_
 /// nothing afterward (`login_test_client.rs`'s own re-check, not merely the syscalls' return codes).
 #[test_case]
 fn caretaker_teardown_reclaims_a_full_session_worth_of_memory() {
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
     let Some(w) = wired() else {
         crate::testing::skip!("no virtio-rng device or no RedoxFS disk attached");
     };

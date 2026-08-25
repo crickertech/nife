@@ -2,6 +2,25 @@ use super::*;
 use crate::cap::{Rights, memory_region_cap, page_frame_cap, rendezvous_cap};
 use crate::sched::RendezvousId;
 
+/// **The `std` demo's binary, or `None` because this target has no `std` for it** (milestone 161).
+///
+/// `std_exerciser` is not built with the rest of `user/`: it is its own workspace, compiled with
+/// `-Zbuild-std` for a **custom target** (`aarch64-unknown-nife`, `riscv64-unknown-nife`) against
+/// the patched `std` in the `nife-dev` toolchain. There is no `x86_64-unknown-nife` spec and no
+/// x86 farm, so the program simply is not in that archive; making one is milestone 27's work.
+///
+/// A named accessor rather than an `.expect` at nine call sites, for [`super::fs_service::
+/// fs_server_image`]'s reason: a fixture missing because of the *toolchain* rather than because of
+/// the *machine* deserves to say so once, where a reader will find it.
+pub fn std_exerciser_image() -> Option<&'static [u8]> {
+    program("std_exerciser")
+}
+
+/// The reason a test gives when [`std_exerciser_image`] is `None`.
+pub const NO_STD_EXERCISER: &str = "no std_exerciser in this archive: it is built with -Zbuild-std \
+                                    for a custom target against the nife-dev toolchain, and there \
+                                    is no x86_64-unknown-nife spec or farm yet (milestone 27)";
+
 /// Where the loader maps the clock page for a std program. Must match the std PAL's
 /// `rt::CLOCK_PAGE`, and the slot must match its `rt::CLOCK_SLOT`.
 const CLOCK_PAGE_STD: u64 = 0x1200_0000;

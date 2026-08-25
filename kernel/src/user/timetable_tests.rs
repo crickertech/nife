@@ -131,6 +131,8 @@ fn spawn_timetable(fires: u64) -> (RendezvousId, RendezvousId, RendezvousId) {
             .map_new(USER_STACK_VA - k * FRAME_SIZE, Flags::user_data())
             .expect("could not map the timetable's stack");
     }
+    #[cfg(target_arch = "x86_64")]
+    map_x86_timebase_page(&mut space).expect("could not map the timetable's timebase page");
     for i in 0..archive_pages {
         let page = space
             .map_new(INITRD_VA + i * FRAME_SIZE, Flags::user_rodata())

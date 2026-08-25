@@ -619,6 +619,31 @@ pub fn probe_device() -> u64 {
     unsafe { core::ptr::read_volatile((DEV_VA + 0x05) as *const u8) as u64 }
 }
 
+/// **`x86_64` has no device page to probe** (milestone 161), and this arm exists so the crate
+/// compiles for the third architecture rather than because there is something here to read.
+///
+/// The other two arms differ only in a register layout, which is what a UART driver is *for*. This
+/// one differs in kind: COM1 on x86 is at I/O ports `0x3f8..0x400`, an address space with no page
+/// tables in front of it, so `user::UART_PHYS` is **zero** and there is nothing for a device
+/// capability to be a mapping of. That zero is the marker for
+/// [DECISIONS §121](../../../design/decisions/121-port-io-capability.md) (PROPOSED), which is a
+/// question about what a capability *is* rather than a driver to write.
+///
+/// **So the live-swap fixture does not run here**, and `kernel/src/user/live_swap_tests.rs` says so
+/// with `skip!()` rather than by leaving this arm to produce a passing test. A version of this that
+/// read `DEV_VA` anyway would in fact pass: on x86 the fixture would map physical page zero, the
+/// read would return an IVT byte, and revocation would still fault. That is the trap worth naming,
+/// because a green test proving revocation over a page that is not a device is a green test about
+/// nothing, and it would read as x86 having a device story it does not have.
+///
+/// The value is arbitrary and never observed. It is not `0`, because zero is what a real probe of a
+/// quiet line status register could plausibly return, and a sentinel a reader can tell from data is
+/// worth one line.
+#[cfg(target_arch = "x86_64")]
+pub fn probe_device() -> u64 {
+    u64::MAX
+}
+
 // ===========================================================================================
 // The shared page, as bytes.
 // ===========================================================================================

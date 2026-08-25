@@ -503,6 +503,27 @@ pub fn bitmap_region() -> (u64, u64) {
     )
 }
 
+/// **Record where the loader put the initrd**, for a front end that is not the device tree's
+/// (milestone 161).
+///
+/// [`init`] reads the bounds out of `/chosen` and stores them itself, which works on the two
+/// architectures that have a device tree. `x86_64` gets them from PVH's module list instead
+/// (`arch::x86_64::machine::initrd`), so the storing has to be reachable from there. This is the
+/// same seam [`bring_up_page_frames`] is: the fact crosses it, the *source* of the fact does not.
+///
+/// **It does not reserve the region**, and the asymmetry with [`init`] is deliberate. A caller here
+/// is already building the `forbidden` slice it hands [`bring_up_page_frames`], so doing it in both
+/// places would either double-reserve or, worse, make each side assume the other did it. The x86
+/// front end passes the same region both ways, one line apart, where a reader can see it.
+/// Only a device-tree-less front end calls this, so on the two architectures that have a tree it is
+/// dead, and saying so here is cheaper than the alternative (`#[cfg(target_arch = "x86_64")]`),
+/// which would make a seam look like an x86 detail.
+#[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
+pub fn record_initrd(start: u64, size: u64) {
+    INITRD_START.store(start as usize, core::sync::atomic::Ordering::Relaxed);
+    INITRD_SIZE.store(size as usize, core::sync::atomic::Ordering::Relaxed);
+}
+
 /// The initrd, if the bootloader gave us one. Test support.
 pub fn initrd_region() -> Option<(u64, u64)> {
     let start = INITRD_START.load(core::sync::atomic::Ordering::Relaxed) as u64;

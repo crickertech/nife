@@ -86,6 +86,9 @@ fn nanos_of(said: &[u8]) -> u64 {
 /// process.
 #[test_case]
 fn a_command_is_timed_by_the_shells_clock_and_holds_none_itself() {
+    if clock_service::machine_has_no_rtc() {
+        crate::testing::skip!(clock_service::NO_RTC);
+    }
     let w = clock();
     let mut buf = [0u8; 2048];
     let n = transcript(Some(w.page_phys), &mut buf);

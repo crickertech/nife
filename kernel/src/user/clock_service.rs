@@ -23,6 +23,29 @@ pub struct Wiring {
     pub kind: u64,
 }
 
+/// **Does this machine have an RTC at all?** (milestone 161.)
+///
+/// `memory::rtc_region()` is the device tree's answer, and both QEMU `virt` boards give one (a
+/// PL031 on aarch64, a Goldfish on riscv64). q35 does not, and the reason is structural rather than
+/// a missing binding: x86's real-time clock is the CMOS at I/O ports `0x70`/`0x71`, which has no
+/// page for a device capability to be a mapping of, and nothing has read it into the
+/// device-discovery seam's device windows either (milestone 161's roadmap item 0, the seam's wide
+/// half).
+///
+/// Here rather than in a test module because four of them ask the same question, and it is asked
+/// **before** [`start`] rather than of the [`Wiring::kind`] it returns: a test that skipped after
+/// spawning the service would leave its frames charged to a run that did not happen.
+pub fn machine_has_no_rtc() -> bool {
+    crate::memory::rtc_region().is_none()
+}
+
+/// The reason every RTC-dependent test gives when it skips. One string, because four files share
+/// one cause and a reader comparing two runs should not have to decide whether two wordings mean
+/// the same thing.
+pub const NO_RTC: &str = "this machine has no RTC binding (x86's CMOS clock is in the I/O port \
+                          space, and the device-discovery seam does not answer for device windows \
+                          here)";
+
 /// Wire and spawn the clock service.
 pub fn start(image: &'static [u8]) -> Wiring {
     let page_phys = crate::memory::alloc()

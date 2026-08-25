@@ -1,0 +1,19 @@
+[package]
+name = "timebase_proto"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+# The x86_64 timebase page (milestone 161's cntfrq follow-up, DECISIONS §121's calibration path):
+# one definition of the read-only page that carries the TSC's calibrated rate into every
+# ELF-loaded x86_64 process, so the kernel (which computes the number once, at boot) and
+# `user_rt::cntfrq` (which reads it, ambiently, once per process) cannot drift on the page's
+# layout or its fixed virtual address. The same split `clock_proto` makes for the wall clock and
+# `environment_proto` makes for TZ/LANG/TERM: a magic-prefixed page, one writer before the page
+# has a second observer, no seqlock needed for the same reason neither of those needs one for
+# their own single-writer-then-read-only halves.
+
+[lints]
+workspace = true
+
+[dependencies]

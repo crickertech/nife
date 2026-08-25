@@ -35,6 +35,24 @@ SECTIONS
 
     .data : ALIGN(4096) {
         *(.data .data.*)
+
+        /* The GOT, placed here on purpose and BEFORE .bss (milestone 161).
+         *
+         * Left unnamed, the linker appends orphan sections after the last one it was told about,
+         * which is .bss. .got has file contents and .bss does not, so the `data` PT_LOAD's
+         * p_filesz then stretches past .bss to cover it, p_memsz == p_filesz, and the segment has
+         * no zero-fill tail at all. Two things break quietly: the loader has nothing to zero, so
+         * .bss is whatever bytes happened to be in the file, and the kernel's own
+         * `the_initrd_holds_a_native_executable` test loses the memsz > filesz it asserts on,
+         * which is how this was found.
+         *
+         * It shows up on x86_64 and not on the other two. The GOT is not something this project
+         * asked for: all three targets use the static relocation model and none of these programs
+         * is position-independent, but LLVM's x86-64 backend still routes a few references through
+         * a GOT entry, and the aarch64 and RISC-V backends produce none for the same source. So
+         * this is one line that costs nothing where it is not needed and prevents a silent hole
+         * where it is. */
+        *(.got .got.plt)
     } :data
 
     /* .bss is in the `data` segment but occupies NO space in the file. That is what makes

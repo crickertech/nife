@@ -596,7 +596,28 @@ pub fn init_this_cpu() {
 /// that skipped the step would arm the 8259 cascade and report success.
 ///
 /// The vector is [`gsi_vector`]'s, and the destination is the boot CPU.
+///
+/// # An intid on this architecture is one of two things
+///
+/// **A local APIC source names itself by its vector**, because there is no controller input to
+/// name: [`RESCHEDULE_VECTOR`], [`SELF_TEST_VECTOR`] and its `_B` twin are raised by writing the
+/// ICR, and the ICR takes a vector. There is nothing to unmask, so this is a **no-op** for them,
+/// and that is a real answer rather than a shrug: the line is already deliverable the moment the
+/// local APIC is enabled, which is what `RFLAGS.IF` then gates.
+///
+/// **Everything else is a legacy IRQ**, 0..15, and goes through the translation above.
+///
+/// The two ranges cannot collide, which is what makes one function able to take both:
+/// [`GSI_VECTOR_BASE`]'s doc reserves 0x20..0x2f for the local APIC's own sources, and a legacy IRQ
+/// number never reaches 0x20. **This was a real bug until userspace arrived** (milestone 161, item
+/// 4's hand-off): `spawn_init` enables `user::INIT_TEST_SGI`, which on x86 *is*
+/// `SELF_TEST_VECTOR`, and routing 34 as though it were a legacy IRQ panicked with
+/// "gsi 34 is outside the IO APIC's range". Nothing had ever called `enable` with a local-APIC
+/// number before, because nothing above the arch layer had run.
 pub fn enable(intid: u32) {
+    if is_local_apic_source(intid) {
+        return;
+    }
     let routing = isa_routing(intid);
     route_gsi(
         routing.gsi,
@@ -605,6 +626,15 @@ pub fn enable(intid: u32) {
         routing.level_triggered,
         local_apic_id(),
     );
+}
+
+/// **Does this intid name a local APIC source rather than a controller input?** See [`enable`].
+///
+/// The range is `TIMER_VECTOR..GSI_VECTOR_BASE`, spelled from those two constants rather than as
+/// `0x20..0x30`, so that moving either one moves this with it. A hard-coded pair here would be the
+/// third place the same two numbers are written down.
+fn is_local_apic_source(intid: u32) -> bool {
+    (TIMER_VECTOR as u32..GSI_VECTOR_BASE as u32).contains(&intid)
 }
 
 /// **ICR delivery mode `Fixed`**, bits 10:8 = 000: deliver `vector` to the destination, exactly as

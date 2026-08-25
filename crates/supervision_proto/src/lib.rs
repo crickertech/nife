@@ -290,6 +290,42 @@ pub fn build_child_space(
         cap_delete(stack_frame);
     }
 
+    // The x86_64 timebase page (milestone 161's `cntfrq` follow-up). This is the tree's only
+    // userspace ELF loader, so it is the one place that reaches every child any program here
+    // builds (`root_supervisor`, `spawner`, `hello`'s roles, `system_initializer`, ...) without
+    // every individual caller needing to know about it.
+    //
+    // **This maps a freshly retyped, zeroed placeholder, not the real page.** `retype_page_frame_from`
+    // gives back memory out of `build_ut` (the child's own budget, exactly like the stack pages
+    // just above), which this process can always afford and which carries no capability from the
+    // kernel to forward. A zeroed page fails `timebase_proto::TimebasePage`'s magic check and
+    // reads as "unknown," so `user_rt::cntfrq` here falls back to its own constant instead of
+    // faulting on an unmapped read, which is what happened before this existed: `coremark`, built
+    // this way by `hello`'s `init_coremark` role, paged-faulted reading a VA `kernel::user::load`
+    // never had reason to map into it. The kernel-computed *real* number only reaches a process
+    // `kernel::user::load` builds directly; see `user_rt::cntfrq`'s own `BUGS` section for the
+    // honest gap this leaves and why closing it needs more than this crate can do on its own
+    // (the real number would have to ride a capability from whoever built *us*, and nothing here
+    // is handed one).
+    #[cfg(target_arch = "x86_64")]
+    {
+        let timebase_frame = retype_page_frame_from(build_ut)?;
+        // SAFETY: as above: the kernel validates the capability and the method.
+        if unsafe {
+            invoke(
+                aspace,
+                abi::address_space::MAP_INTO,
+                timebase_proto::PAGE_VA,
+                timebase_frame,
+                abi::address_space::MAP_RO,
+            )
+        } != 0
+        {
+            return Err(());
+        }
+        cap_delete(timebase_frame);
+    }
+
     // The blobs: fresh read-only pages carrying bytes we chose. Read-only because a program image
     // is data the child reads, and a child that could rewrite the image it was handed could hand a
     // different one on.

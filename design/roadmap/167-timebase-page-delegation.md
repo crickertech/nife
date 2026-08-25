@@ -22,7 +22,7 @@ capability is involved, because the kernel does not need permission to touch its
 `crates/supervision_proto::build_child_space` runs in **userspace**, inside whatever process calls
 it (`root_supervisor`, `spawner`, and any other builder role), and builds every page of the child it
 constructs by `Untyped::RETYPE`ing a **fresh frame out of its own budget**
-(`retype_frame_from(build_ut)`). It has no mechanism for mapping a specific, pre-existing physical
+(`retype_page_frame_from(build_ut)`). It has no mechanism for mapping a specific, pre-existing physical
 frame it does not itself own, because in this capability model a process can only map what it holds
 a capability for, and nothing today mints or grants a capability naming the kernel's timebase frame
 to any userspace process.

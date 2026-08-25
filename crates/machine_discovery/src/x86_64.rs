@@ -238,6 +238,57 @@ pub fn memory_entry(bytes: &[u8], index: usize) -> Option<MemoryEntry> {
     })
 }
 
+/// The size of one `hvm_modlist_entry`.
+pub const MODULE_ENTRY_LEN: usize = 32;
+
+/// **A module the loader put in RAM for the kernel**, which on this system means the initrd.
+///
+/// This is x86's answer to `/chosen/linux,initrd-start`, and the analogy is close enough to be
+/// worth stating: on both other architectures the loader writes the archive's bounds into the
+/// device tree and `memory::init` reads them out; here it writes them into a list of these, and
+/// [`BootInfo::modules`] says where the list is. The only real difference is that a module carries
+/// a command line of its own, which nothing here uses.
+///
+/// PVH allows several. QEMU's loader produces exactly one per `-initrd`, and one is what this
+/// kernel wants; a caller taking the first is not making an assumption so much as declining to
+/// invent a policy for a case the machine does not produce.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Module {
+    /// Where the module's bytes are, physically.
+    pub addr: u64,
+    /// How many bytes there are.
+    pub size: u64,
+    /// Where this module's own NUL-terminated command line is, or 0. Unused here; decoded because
+    /// leaving a field out of a decoder is how a reader comes to believe the structure is smaller
+    /// than it is.
+    pub cmdline: u64,
+}
+
+impl Module {
+    /// One past the last byte, saturating for [`MemoryEntry::end`]'s reason: a malformed size near
+    /// `u64::MAX` must not make the range look empty to a caller that reserves it.
+    pub const fn end(&self) -> u64 {
+        self.addr.saturating_add(self.size)
+    }
+}
+
+/// Decode module `index` out of `bytes`, which must begin at the module list.
+///
+/// Indexed rather than iterated for [`memory_entry`]'s reason: the kernel reads the list through
+/// its direct map, one entry at a time, and never holds a slice of the whole thing. `None` when the
+/// bytes end before that entry does.
+pub fn module(bytes: &[u8], index: usize) -> Option<Module> {
+    let at = index.checked_mul(MODULE_ENTRY_LEN)?;
+    if bytes.len() < at.checked_add(MODULE_ENTRY_LEN)? {
+        return None;
+    }
+    Some(Module {
+        addr: u64(bytes, at),
+        size: u64(bytes, at + 8),
+        cmdline: u64(bytes, at + 16),
+    })
+}
+
 fn u32(bytes: &[u8], at: usize) -> u32 {
     u32::from_le_bytes([bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]])
 }
@@ -396,5 +447,65 @@ mod tests {
     fn an_absurd_size_saturates_rather_than_wrapping() {
         let b = entry_bytes::<MEMMAP_ENTRY_LEN>(&[(0x1000, u64::MAX, 1)]);
         assert_eq!(memory_entry(&b, 0).unwrap().end(), u64::MAX);
+    }
+
+    /// Build a module list of `entries`, each `(paddr, size, cmdline_paddr)`.
+    fn module_bytes<const N: usize>(entries: &[(u64, u64, u64)]) -> [u8; N] {
+        let mut b = [0u8; N];
+        for (i, &(addr, size, cmdline)) in entries.iter().enumerate() {
+            let at = i * MODULE_ENTRY_LEN;
+            b[at..at + 8].copy_from_slice(&addr.to_le_bytes());
+            b[at + 8..at + 16].copy_from_slice(&size.to_le_bytes());
+            b[at + 16..at + 24].copy_from_slice(&cmdline.to_le_bytes());
+            // The last eight bytes are `reserved` and stay zero, which is what makes an entry 32
+            // bytes rather than 24. A decoder that stepped by 24 would read the second module's
+            // address out of the first one's tail.
+        }
+        b
+    }
+
+    /// **A module list decodes entry by entry, at the 32-byte stride the structure gives.** The
+    /// second entry is what makes this a test rather than a field read: the reserved word at the
+    /// end of the first is invisible in a one-module list, and QEMU only ever produces one.
+    #[test]
+    fn a_module_list_decodes_entry_by_entry() {
+        let b = module_bytes::<{ 2 * MODULE_ENTRY_LEN }>(&[
+            (0x0100_0000, 0x0002_2000, 0),
+            (0x0200_0000, 0x1000, 0x0f00),
+        ]);
+        assert_eq!(
+            module(&b, 0),
+            Some(Module {
+                addr: 0x0100_0000,
+                size: 0x0002_2000,
+                cmdline: 0,
+            })
+        );
+        assert_eq!(
+            module(&b, 1),
+            Some(Module {
+                addr: 0x0200_0000,
+                size: 0x1000,
+                cmdline: 0x0f00,
+            })
+        );
+        assert_eq!(module(&b, 2), None, "past the end is None, not garbage");
+    }
+
+    /// Bytes ending inside an entry are refused rather than read past, exactly as a truncated
+    /// memory map is.
+    #[test]
+    fn a_truncated_module_entry_is_refused() {
+        let b = module_bytes::<MODULE_ENTRY_LEN>(&[(0x0100_0000, 0x1000, 0)]);
+        assert_eq!(module(&b[..MODULE_ENTRY_LEN - 1], 0), None);
+    }
+
+    /// A module claiming a size near `u64::MAX` saturates, for the memory map's reason: the kernel
+    /// reserves `addr..end()` so the allocator cannot hand out the archive it is about to read, and
+    /// a wrapped `end` would reserve nothing at all.
+    #[test]
+    fn an_absurd_module_size_saturates() {
+        let b = module_bytes::<MODULE_ENTRY_LEN>(&[(0x1000, u64::MAX, 0)]);
+        assert_eq!(module(&b, 0).unwrap().end(), u64::MAX);
     }
 }

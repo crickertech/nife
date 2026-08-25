@@ -396,6 +396,7 @@ dependencies = [
  "socket_proto",
  "spin",
  "thread_wake_handshake",
+ "timebase_proto",
  "tock-registers",
  "video_terminal",
  "watch",
@@ -727,6 +728,7 @@ version = "0.1.0"
 dependencies = [
  "abi",
  "elf",
+ "timebase_proto",
  "user_rt",
 ]
 
@@ -822,6 +824,10 @@ version = "0.1.0"
 dependencies = [
  "loom",
 ]
+
+[[package]]
+name = "timebase_proto"
+version = "0.1.0"
 
 [[package]]
 name = "timetable"
@@ -956,6 +962,7 @@ name = "user_rt"
 version = "0.1.0"
 dependencies = [
  "abi",
+ "timebase_proto",
  "user_heap",
 ]
 

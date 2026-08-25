@@ -21,13 +21,18 @@ arithmetic, interrupt masking, the context switch, and the test exit. A boot und
 prints a tour, takes real hardware interrupts from the CPU's own timer *and* from a device, builds
 and installs its own page tables, brings up the scheduler, runs a kernel thread, builds two
 processes out of untyped memory and runs them at CPL 3 (one invokes a capability and exits, one
-faults and is delivered to its supervisor), and halts. `script/test --arch x86_64` runs **97 tests,
-skips 7, and takes 2.7 seconds**.
+faults and is delivered to its supervisor), and halts.
 
-**Not built:** VT-d, SMP bring-up, and **user programs**. The first two are loud `unimplemented!()`s
-in `arch/x86_64/` that name themselves and why. The third is a different shape of gap and is the one
-that bounds everything else on this architecture; see "What a userspace needs that this port does
-not have" below. See design/roadmap/161-x86-64-kernel-port.md for the order they come in.
+**And since 2026-08-24, userspace:** every program in `user/` compiles for `x86_64-unknown-none`,
+`xtask` packs the same archive RISC-V's leg does, QEMU's PVH loader hands it over as a module, and
+`cfg(initrd)` is on. `script/test --arch x86_64` runs **170 tests and skips 67**, where it ran 97
+and skipped 7 the day before.
+
+**Not built:** VT-d and SMP bring-up, both loud `unimplemented!()`s in `arch/x86_64/` that name
+themselves and why. What bounds this architecture now is not userspace but **devices**: no PCI bus
+is enumerated, so no virtio function of any kind is found, and the console UART is in an I/O port
+space with no capability shape yet (DECISIONS §121). See "What a userspace still does not have here"
+below, and design/roadmap/161-x86-64-kernel-port.md for the order the rest comes in.
 
 ## How the machine is entered, and why it is not multiboot
 
@@ -221,7 +226,7 @@ regions, the reservations, the interrupt controller, the RTC, the UART's interru
 window. Nothing about that is wrong on two architectures that both have a device tree. On x86 there
 is no tree, so **the frame allocator could not come up at all**.
 
-**The narrow half is now split out** (`memory::bring_up_frames`), because without it nothing below
+**The narrow half is now split out** (`memory::bring_up_page_frames`), because without it nothing below
 the allocator can exist on this architecture and the port would have stopped there. `init` is now
 explicitly a device-tree *front end*: it reads the tree, assembles a RAM slice and a forbidden slice,
 and hands them to a function that does not care where they came from.
@@ -419,7 +424,7 @@ second, **writable** alias of `.text`. W^X that a second mapping undoes is not W
 ### The hazard the roadmap flagged, and why there is no sequencing step
 
 `phys_to_virt` changes meaning the instant a new `CR3` is installed, if the old and new tables put
-the direct map in different places. That is not hypothetical: `memory::bring_up_frames` turns the
+the direct map in different places. That is not hypothetical: `memory::bring_up_page_frames` turns the
 frame bitmap's physical address into a `&'static mut [u8]` and **stores it**, and the PVH structure
 and the ACPI tables are read the same way, all before any fine map exists.
 
@@ -723,59 +728,209 @@ still holding a live TCB when `destroy` refused it (silently, because `destroy` 
 report), and both endpoints were drawn from the kernel's shared pool rather than from the region
 being reclaimed.
 
-### The suite: 97 pass, 7 skip, 2.7 seconds
+## The userspace, and how an archive reaches a machine with no device tree
 
-The 7, each with its reason printed:
+Item 4's hand-off, 2026-08-24. Five pieces, and only one of them was interesting.
 
-| Test | Why |
-|---|---|
-| `nvme::the_nvme_disk_serves_the_block_interface_end_to_end` | the runner attaches no NVMe controller |
-| `pci::the_discovered_pci_windows_are_the_machines_own_...` | discovery is device-tree-only (the seam's wide half, roadmap item 0) |
-| `smp::all_secondaries_came_online` | nothing has read this machine's core roster |
-| `smp::every_core_the_tree_described_is_running` | same |
-| `smp::the_roster_is_the_machines_own_core_list` | same |
-| `smp::work_can_be_placed_on_every_core` | one core online |
-| `tests::device_tree_has_the_right_magic` | PVH `hvm_start_info` is not a device tree |
+### `user_rt` needed five transliterations and two decisions
 
-The last five are new `skip!()`s, and the first three of those replace assertions that a single-core
-machine with no device tree cannot satisfy. `work_can_be_placed_on_every_core` was an `assert!(n >= 2)`
-until a legitimately single-core machine existed.
+The five are mechanical once DECISIONS §124 is read: `syscall` where aarch64 writes `svc` and
+RISC-V writes `ecall`, the number in `rax`, the arguments in `rdi`/`rsi`/`rdx`/`r10`/`r8`/`r9`.
+Three facts at those sites have no counterpart on either other architecture and all three are the
+instruction rather than a choice: `syscall` clobbers `rcx` (the return address) and `r11` (the
+caller's `RFLAGS`) unconditionally, so every site declares them; `r10` carries the fourth argument
+because `syscall` has already taken `rcx`; and `syscall` pushes nothing, which is why the kernel's
+entry path parks `rsp` by hand and why `options(nostack)` is honest here.
 
-### `cfg(initrd)`, and why the reason is in the cfg rather than the architecture
+The two that are not transliterations are **`now()` and `cntfrq()`**. aarch64 reads `CNTVCT_EL0`
+and `CNTFRQ_EL0`; RISC-V reads the `time` CSR and hardcodes the rate because nothing tells
+userspace. x86 has neither register.
 
-Thirty test modules under `kernel/src/user/` are gated `#[cfg(all(test, initrd))]`, a cfg
+`now()` is `rdtsc`, and ring 3 may read it because `CR4.TSD` is clear at reset and this kernel does
+not change it. That is the same shape as aarch64 needing `CNTKCTL_EL1.EL0VCTEN` and RISC-V needing
+`scounteren.TM`, with the difference that here the permissive state is the default and the kernel
+would have to act to *close* it. One trap: `rdtsc` answers in `edx:eax`, so reading it into a single
+`out(reg)` compiles and silently returns a counter that wraps every four seconds.
+
+`cntfrq()` is **RISC-V's gap, one architecture worse**, and it is a constant with a `BUGS` section
+rather than a number with a comment. There is no architected TSC rate at all: `CPUID` leaf 0x15
+gives a ratio to a crystal that leaf 0x16 may not report, and neither leaf exists on every part. So
+the kernel does not read the rate, it **measures** it against the PIT (`timer::init_frequency`) and
+stores it in `TSC_HZ`. A ring-3 program cannot repeat that measurement, and should not be able to:
+the PIT is at ports 0x40..0x43, `IOPL` is 0 and the TSS's permission bitmap is empty, so an `in`
+from a process is a #GP. That is §121 not being decided yet rather than an oversight to route
+around. The constant returned is QEMU's 1 GHz, which the kernel measures as 1001 MHz; on milestone
+87's real Dell it will be the CPU's base frequency and this will be wrong with no way for a caller
+to tell. **Both architectures want the same fix**: hand the frequency to a process at start, the
+way Linux passes `AT_HWCAP` in the aux vector, so the one component that measured it is the one
+that reports it.
+
+### Four programs needed an arm, and three of them refuse rather than pretend
+
+`os_primitives_benchmarker` hand-assembles a child stub, which had to become **bytes rather than
+words** because x86 instructions are not a fixed width; one `copy_nonoverlapping` over
+`size_of_val` now serves all three element types.
+
+`console::uart_put`, `input`'s `uart` module and `swap_proto::probe_device` cannot reach a device
+from ring 3 at all. Their x86 arms `trap()` (or return a sentinel that nothing observes) rather than
+no-op, and that is the whole point: a silent no-op compiles into a console that acknowledges every
+byte and prints none, which is a lie told in the one place an operator is looking. Those programs
+are packed into the archive anyway, because an archive entry costs a directory slot and nothing
+spawns a program by accident, and the tests that would spawn them skip with the reason.
+
+### The archive arrives as a PVH module, which is the device tree's `/chosen` one machine over
+
+`hvm_start_info` carries `nr_modules` and `modlist_paddr`, and QEMU's PVH loader turns `-initrd
+FILE` into exactly one entry there. `machine_discovery::x86_64::module` decodes it (host-tested,
+three tests, including the 32-byte stride that a one-module list cannot catch), and
+`arch::x86_64::machine::initrd` reads entry zero through the direct map. The x86 front end then does
+what `memory::init` does with the tree's answer: adds the region to the `forbidden` slice so the
+allocator cannot hand out the archive it is about to read, and calls `memory::record_initrd`. The
+evidence it works is arithmetic rather than a print: free memory drops from 254 MiB to 249 with a
+4.4 MB archive attached.
+
+**The first module is taken and any others ignored.** PVH permits several; this kernel wants one;
+inventing a policy for a case the machine never produces would be code nobody could test.
+
+### `xtask` grew a third packer, and one latent bug came out with it
+
+`initrd_x86` packs the same table `initrd_riscv` does, which is now
+`portable_archive_entries()`: one list, two callers, because duplicating it would have let the two
+drift the first time somebody added a program to one of them. x86 builds the whole `user` package
+rather than naming binaries, which is both shorter and self-maintaining now that everything
+compiles for the target.
+
+`read_stripped`'s cache tag is the latent bug. It namespaces stripped copies by the target directory
+a binary came from, and an `x86_64-unknown-none` path fell through to `"host"`, sharing a filename
+with every aarch64 build of the same program. Nothing had noticed because nothing ever asked for
+both. The moment an x86 archive is packed in the same run as an aarch64 one, whichever ran second
+would read the other's bytes back out of `target/stripped` and **measure them**: a real digest of a
+real program, and the wrong one, in a trust root. The check is anchored on the full triple rather
+than a substring, because a host path on an x86 CI runner contains `x86_64-unknown-linux-gnu`.
+
+### The suite: 170 pass, 67 skip
+
+It was **97 pass, 7 skip** the day the scheduler landed and nothing in `user/` compiled. Item 4's
+hand-off (2026-08-24) built the userspace, packed an archive, and turned `cfg(initrd)` on, and the
+whole of `kernel/src/user/` came into the binary at once.
+
+Every skip prints why. Grouped by cause, largest first:
+
+| Count | Reason | What would close it |
+|---|---|---|
+| 21 | no `fs_server` in the archive | it does not compile for this target; see below |
+| 13 | no RTC binding | the discovery seam's wide half (item 0), or §121 for the CMOS ports |
+| 11 | no virtio-rng on either bus | the runner attaches none, and PCI is not enumerated here |
+| 5 | the console UART is in the I/O port space | DECISIONS §121 |
+| 4 | one core online / no core roster | SMP, item 5 |
+| 4 | no PCI bus enumerated, so no GPU, keyboard or NVMe | item 0 again, and the runner |
+| 1 | no `std_exerciser` | an `x86_64-unknown-nife` target and a `std` farm (milestone 27) |
+| 1 | no `mkfs` | `fs_server`'s cause, one binary over |
+| 1 | address spaces are not tagged | `CR4.PCIDE`, which is calef's call (item 3) |
+| 1 | `hvm_start_info` is not a device tree | nothing; it is a true statement about this machine |
+| 1 | no instruction-mode entropy source on this build | milestone 162 |
+
+**The `fs_server` group is the one that is not about this machine.** It is a toolchain failure and
+it is worth stating exactly, because the next person to try will otherwise spend an afternoon on it:
+`fs_server` links the vendored RedoxFS engine, which depends on the `aes` crate **unconditionally**
+(its encrypted-volume support is not behind a feature), and building `aes` for
+`x86_64-unknown-none` ends in
+
+```
+rustc-LLVM ERROR: Do not know how to split the result of this operator!
+```
+
+at **every** optimisation level, zero included. The cause is the target spec rather than the crate:
+`x86_64-unknown-none` is `-mmx,-sse,+soft-float`, so LLVM has no 128-bit vector register to legalise
+an AES block into and no scalar fallback for that operator. Nothing on this side fixes it. The two
+routes out are a RedoxFS built without its crypto (a patch against a vendored crate, which
+`patches/README.md` is the place for) or an x86 userspace target that keeps SSE. Both are their own
+work, and until one of them happens x86 has no filesystem, which also means there is no point
+attaching a disk to the runner.
+
+### Four bugs userspace found, and every one had been latent since the day it was written
+
+None of these could have been caught before there were user programs on this architecture, which is
+the argument for doing item 4's hand-off rather than deferring it.
+
+1. **`arch::x86_64::irq::enable` conflated two numbering schemes.** An intid on x86 is either a
+   legacy IRQ (0..15, which needs the MADT's override table and a redirection entry) or a **local
+   APIC vector** (0x20..0x2f, raised by writing the ICR, with no controller input to unmask).
+   `enable` assumed the first, always. `spawn_init` enables `user::INIT_TEST_SGI`, which on this
+   architecture *is* `SELF_TEST_VECTOR` = 0x22 = 34, and the kernel panicked with
+   `gsi 34 is outside the IO APIC's range`. The fix is three lines and the ranges were already
+   documented as disjoint in `GSI_VECTOR_BASE`'s own doc comment; nothing above the arch layer had
+   ever called `enable` before.
+
+2. **`user_rt::trap()` cannot use `int3` from ring 3.** A *software* interrupt is refused unless the
+   IDT gate's DPL admits the caller's privilege, and every gate here is DPL 0, so `int3` from a
+   process raises **#GP with error code 0x1a** (`(3 << 3) | 2`: the vector it was refused, tagged as
+   an IDT selector) rather than #BP. The process died either way, so the first version looked like
+   it worked; what it reported was a general protection fault at address zero, naming neither the
+   instruction nor the reason. It is `ud2` now: a fault the CPU raises on a permanently invalid
+   opcode, so no gate DPL is involved. Opening vector 3 to ring 3 is what Linux does, and Linux has
+   ptrace to justify it; this kernel has no debugger, so that would widen what a process may do and
+   buy nothing.
+
+3. **`user/link.ld` did not name `.got`, and x86 emits one.** An unnamed orphan section is appended
+   after the last section the script mentions, which was `.bss`. `.got` has file contents and `.bss`
+   does not, so the `data` segment's `p_filesz` stretched past `.bss` to cover it, `p_memsz ==
+   p_filesz`, and the segment had **no zero-fill tail at all**: the loader had nothing to zero and
+   `.bss` was whatever the file happened to hold. Found by `the_initrd_holds_a_native_executable`,
+   which asserts `memsz > filesz` precisely so the zero-fill test below it is not vacuous. It shows
+   up here and not on the other two because all three targets use the static relocation model and
+   none of these programs is position-independent, but LLVM's x86-64 backend still routes a few
+   references through a GOT entry where the aarch64 and RISC-V backends produce none.
+
+4. **`fs_service::blk_server_image()`'s x86 arm was a `panic!`.** It read "x86_64 builds no user
+   programs at all yet", which was true when it was written and stopped being true the same day the
+   archive existed. It panicked *before* any disk check, so a dozen test files that already degrade
+   gracefully on a machine with no disk aborted the suite instead.
+
+### `cfg(initrd)`, and the prediction it made
+
+Thirty test modules under `kernel/src/user/` were gated `#[cfg(all(test, initrd))]`, a cfg
 `kernel/build.rs` emits for every target that has user programs to pack. They are portable in every
-respect except that their fixture is a **real ELF binary read out of the initrd archive**, and this
-target has none.
+respect except that their fixture is a **real ELF binary read out of the initrd archive**.
 
 `#[cfg(not(target_arch = "x86_64"))]` would have said the same thing thirty times and been wrong the
-day this port can build user programs, in thirty places nobody would think to look. `cfg(initrd)`
-reads as what it means, and unblocking it is one match arm in the build script.
+day this port could build user programs, in thirty places nobody would think to look. `cfg(initrd)`
+reads as what it means, and unblocking it was **one match arm in the build script**, with nothing
+else edited: every one of those modules came back at once. That is the prediction the cfg was
+written to make, and it held. It is recorded here as well as in the build script because the
+alternative spelling would have needed thirty edits and would have been found by whoever hit the
+thirty-first.
 
-Six modules under `user/` **do** run here (23 tests): `force_kill_tests`, `pmap_tests`, `reap_tests`,
+Six modules under `user/` ran here before that: `force_kill_tests`, `pmap_tests`, `reap_tests`,
 `supervision_tests`, `survey_tests` and `thread_leak_police`. Their fixtures are hand-assembled
 programs rather than ELFs, and those live in `kernel/src/user/x86_programs.rs` rather than in a
-`#[cfg(test)]` module, because the boot tour needs the same four programs.
+`#[cfg(test)]` module, because the boot tour needs the same four programs. They stay: a fixture that
+needs no initrd is what lets the userspace demo run on a `cargo run` with no `-initrd` at all.
 
-### What a userspace needs that this port does not have
+### What a userspace still does not have here
 
-The bound on everything above, listed because it is the next lane's brief rather than a caveat:
+The bound on everything above, listed because it is the next lane's brief rather than a caveat.
+Every item is a device or a toolchain, and none is `user_rt` any more.
 
-- **`crates/user_rt` has no `x86_64` arms.** Seven places have an aarch64/RISC-V pair each and no
-  fallback, so nothing in `user/` compiles: `invoke5`, `yield_now`, `cap_delete`, `now`, `cntfrq`,
-  and the `cfg`s inside `exit` and `trap`. It was thirteen until the `invoke5` collapse landed on
-  2026-08-24. Five are transliteration (`syscall` instead of `svc`/`ecall`; the ABI is DECISIONS
-  §124); **two are design**: `now()` and `cntfrq()` read `CNTVCT_EL0`/`CNTFRQ_EL0` and the `time`
-  CSR, and x86 has neither. `rdtsc` is the obvious answer and it is a decision (its rate is not
-  architected, and this kernel measures it against the PIT).
-- **`user/build.rs` cannot compile its C components for this target**, so `c_shim` and `c_swappable`
-  would not link even once `user_rt` is done.
-- **`crates/elf` now accepts `EM_X86_64`**, so the loader side is ready.
-- **`xtask` packs no x86 archive**, and `read_stripped`'s cache tag would collide with aarch64's
-  under `"host"` if one were added; `boot_programs(arch)`'s `_` arm silently catches x86; and
-  `target/init-measure-x86_64.txt` does not exist, so the trust root would be empty and any boot
-  program refused as `Unmeasured`.
-- **`scripts/qemu-runner-x86_64.sh` passes no `-initrd`.**
+- **No device a ring-3 process can reach.** The console UART is in the I/O port space, so
+  `user::UART_PHYS` is zero and `console`, `input`, `kbd` and `swapper` are packed but cannot run;
+  their arms `trap()` rather than no-op, so a boot that reached one would say so on the first byte.
+  That is DECISIONS §121, still PROPOSED. **One foot gun is marked rather than removed**:
+  `spawn_init` grants slot 2 a device capability over `UART_PHYS`, which on this architecture is
+  *physical page zero*. The slot is positional, so declining to grant would renumber the interrupt
+  capability and every role that names it, and there is nothing better to put there until §121 is
+  answered. Nothing reaches it: every fixture that would map it asks
+  `user::machine_has_no_device_page_for_the_console()` first.
+- **No PCI bus is enumerated**, so no virtio function of any kind is found: no disk, NIC, GPU,
+  keyboard or RNG. ACPI's MCFG names the ECAM window and `arch::x86_64::irq` is handed it directly,
+  but `memory::pci_regions()` still answers `None` because nothing plumbs that into the discovery
+  seam's device windows. That is roadmap item 0, and it is the single change that would unlock the
+  most skips.
+- **No filesystem**, for the `aes` reason above, which is upstream of attaching a disk rather than
+  downstream of it.
+- **No `std`**: there is no `x86_64-unknown-nife` target spec and no farm (milestone 27).
+- **No second core** (item 5), and **no ASID tags**, because `CR4.PCIDE` is off (item 3, calef's
+  call, and it wants a number rather than an argument).
 
 ## The three things that genuinely do not fit
 

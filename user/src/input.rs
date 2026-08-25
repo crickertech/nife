@@ -34,6 +34,11 @@ use abi::irq;
 use line_editor::proto;
 use user_rt::{call, invoke};
 
+// Unused on x86_64: there is no page for it to name (`user::UART_PHYS` is zero, DECISIONS §121),
+// so the arm below traps instead of reading. Kept unconditional rather than cfg'd out because the
+// address is the wiring's fact, agreed with init, and hiding it on one architecture would make the
+// two sides of that agreement look like two different constants.
+#[cfg_attr(target_arch = "x86_64", allow(dead_code))]
 const UART_VA: u64 = 0x0000_0000_00a0_0000;
 
 const TERM: u64 = 0; // CALL: forward raw wire bytes to the line discipline
@@ -143,6 +148,36 @@ mod uart {
     }
     pub fn clear_interrupt() {
         // The NS16550 clears the receive interrupt when the byte is read (rx_get, in drain).
+    }
+}
+
+/// **`x86_64` has no UART a process can reach** (milestone 161), so every entry point here dies
+/// rather than returning a plausible answer.
+///
+/// The two arms above differ in a register layout, which is what an input driver's device half is
+/// for. This one differs in kind: COM1 is at I/O ports `0x3f8..0x400`, `IOPL` is 0 and the TSS's
+/// I/O permission bitmap is empty, so `in`/`out` from ring 3 is a general protection fault, and
+/// `user::UART_PHYS` is zero because there is no page to map. Handing a process a port range is
+/// [DECISIONS §121](../../design/decisions/121-port-io-capability.md), still PROPOSED.
+///
+/// **Returning `false` from `rx_pending` would have been the quiet option and is the wrong one**:
+/// it compiles into a driver that waits forever on an interrupt it can never see, which looks
+/// exactly like a hung machine and names nothing. `trap()` reports `EVENT_FAULT` to this program's
+/// supervisor (DECISIONS §26). Nothing reaches it today; `xtask`'s x86 archive does not carry this
+/// program, for exactly this reason.
+#[cfg(target_arch = "x86_64")]
+mod uart {
+    pub fn rx_pending() -> bool {
+        user_rt::trap()
+    }
+    pub fn rx_get() -> u8 {
+        user_rt::trap()
+    }
+    pub fn arm_rx_interrupt() {
+        user_rt::trap()
+    }
+    pub fn clear_interrupt() {
+        user_rt::trap()
     }
 }
 

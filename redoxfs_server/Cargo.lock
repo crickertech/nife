@@ -634,6 +634,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "timebase_proto"
+version = "0.1.0"
+
+[[package]]
 name = "typenum"
 version = "1.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -654,6 +658,7 @@ name = "user_rt"
 version = "0.1.0"
 dependencies = [
  "abi",
+ "timebase_proto",
  "user_heap",
 ]
 

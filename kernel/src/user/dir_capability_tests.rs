@@ -120,6 +120,9 @@ fn describe_dirscape(v: u64) -> &'static str {
 /// refused rather than quietly given something smaller.
 #[test_case]
 fn a_read_only_directory_capability_reaches_its_subtree_and_nothing_above_it() {
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
     let Some(v) = attack_a_subtree(dir::DESCEND | dir::READ | dir::ENUMERATE, 1) else {
         return;
     };
@@ -140,6 +143,9 @@ fn a_read_only_directory_capability_reaches_its_subtree_and_nothing_above_it() {
 /// widened.
 #[test_case]
 fn a_full_directory_capability_does_everything_inside_and_nothing_outside() {
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
     let Some(v) = attack_a_subtree(dir::ALL, 2) else {
         return;
     };
@@ -175,6 +181,9 @@ fn a_full_directory_capability_does_everything_inside_and_nothing_outside() {
 ///   than a rule.
 #[test_case]
 fn an_append_only_directory_capability_adds_and_cannot_walk_or_list() {
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
     let Some(v) = attack_a_subtree(dir::READ | dir::WRITE | dir::CREATE, 3) else {
         return;
     };
@@ -203,6 +212,9 @@ fn an_append_only_directory_capability_adds_and_cannot_walk_or_list() {
 /// caretaker one hop up holds a capability that could open it.
 #[test_case]
 fn a_name_set_capability_reads_its_attributes_and_still_names_only_its_set() {
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
     let Some(report) = fs_service::start_granted_set(
         blk_server_image(),
         program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),

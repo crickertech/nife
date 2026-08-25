@@ -32,17 +32,20 @@ fn main() {
 /// item 4.)
 ///
 /// A great many `#[test_case]`s in `kernel/src/user/` are portable in every respect except that
-/// their fixture is a **real ELF binary read out of the initrd archive**, and `x86_64-unknown-none`
-/// has none: `crates/user_rt` has no arms for that ISA and `user/build.rs` cannot compile its C
-/// components for it, so nothing in `user/` builds and `xtask` packs no archive. See
-/// notes/x86-port.md.
+/// their fixture is a **real ELF binary read out of the initrd archive**, so a target with no
+/// archive cannot compile them into its test binary.
 ///
 /// **The cfg names the reason rather than the architecture**, which is the whole point of spending a
 /// build script on it. `#[cfg(all(test, initrd))]` on a module reads "this needs an initrd", and
-/// stays true; `#[cfg(not(target_arch = "x86_64"))]` would have said "not on x86" twenty-six times
-/// over and would be wrong the day x86 gets user programs, in twenty-six places nobody would think
-/// to look. The day this port can build them, one arm of the match below changes and every one of
-/// those modules comes back at once.
+/// stays true; `#[cfg(not(target_arch = "x86_64"))]` would have said "not on x86" thirty times over
+/// and would be wrong the day x86 gets user programs, in thirty places nobody would think to look.
+///
+/// **That day came, and it was one arm** (milestone 161, item 4's hand-off, 2026-08-24). `user_rt`
+/// grew its `x86_64` arms, `user/build.rs` learned to compile the C components for the target, and
+/// `xtask`'s `initrd-x86` packs the archive; every one of those thirty modules came back at once,
+/// with nothing else edited. That is the prediction the cfg was written to make and it held, which
+/// is worth recording here rather than only in the roadmap: the alternative spelling would have
+/// needed thirty edits and would have been found by whoever hit the thirty-first.
 ///
 /// **Name provisional** (milestone 161): calef names things, and a `cfg` a reader meets in front of
 /// a module is as reader-facing as a crate.
@@ -51,8 +54,8 @@ fn declare_initrd_cfg(arch: &str) {
     // silenced: a typo'd `#[cfg(initd)]` should still be caught.
     println!("cargo::rustc-check-cfg=cfg(initrd)");
     match arch {
-        "aarch64" | "riscv64" => println!("cargo::rustc-cfg=initrd"),
-        // x86_64, and anything a fourth port adds before it can build userspace.
+        "aarch64" | "riscv64" | "x86_64" => println!("cargo::rustc-cfg=initrd"),
+        // Anything a fourth port adds before it can build userspace.
         _ => {}
     }
 }

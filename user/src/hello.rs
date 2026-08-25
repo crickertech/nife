@@ -323,6 +323,11 @@ fn program(initrd_len: u64, name: &str) -> Option<&'static [u8]> {
 const ROLES_ENTRY: &str = "init";
 #[cfg(target_arch = "riscv64")]
 const ROLES_ENTRY: &str = "hello";
+/// `x86_64`'s archive follows RISC-V's layout rather than aarch64's (milestone 161): its `init` is the
+/// portable `builder` demo, so hello is packed under its own name here too. The kernel side is
+/// `kernel::user::INIT_ROLES_ENTRY`, which already said `"hello"` before this archive existed.
+#[cfg(target_arch = "x86_64")]
+const ROLES_ENTRY: &str = "hello";
 
 /// The init role that builds a device-driver child (milestone 19d.2); matches kernel test wiring.
 const INIT_DEV: u64 = 23;
