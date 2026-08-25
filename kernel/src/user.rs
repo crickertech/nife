@@ -2112,6 +2112,15 @@ pub mod entropy_service;
 /// through a capability that names no device, that consecutive draws are not the same bytes (a
 /// stuck source, a re-served buffer, or a driver reading a stale ring all present as repeats), and
 /// that the count in a reply is honoured so a caller cannot be handed zeros it mistakes for entropy.
+///
+/// `cfg(initrd)`: see `kernel/build.rs::declare_initrd_cfg`. Not aarch64/riscv64-only for much
+/// longer: `x86_64` picks it up the moment milestone 161 item 4's userspace-compilation hand-off
+/// lands (no `x86_64` arm in `declare_initrd_cfg` as of this writing), and every test in this
+/// module, including the instruction-backend one below, needs no further change to run there.
+/// Confirmed 2026-08-25 by cherry-picking milestone 162's `x86_64` scheduling fix onto that
+/// hand-off's branch:
+/// `a_client_obtains_unpredictable_bytes_from_rndrrs_with_no_device_at_all` passes under the
+/// suite's default `-cpu max` with no code change of its own.
 #[cfg(all(test, initrd))]
 mod entropy_tests;
 

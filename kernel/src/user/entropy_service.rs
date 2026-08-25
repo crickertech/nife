@@ -195,7 +195,7 @@ fn instruction_backend_available() -> bool {
 }
 
 /// `x86_64`: ring 3 (milestone 161, item 3) and a real userspace on this port both landed on
-/// `main` after this function's x86_64 arm was first written unconditionally `false`; that gap is
+/// `main` after this function's `x86_64` arm was first written unconditionally `false`; that gap is
 /// closed. Same shape as the aarch64 arm above: `CPUID` leaf 7's `EBX` bit 18 is read once at boot
 /// (`kernel/src/arch/x86_64/isa.rs::init`) and cached in `Isa`, because `entropy.rs` in userspace
 /// has no way to execute `CPUID` and trust the answer the way ring 0 does; it trusts what it was

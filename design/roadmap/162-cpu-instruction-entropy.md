@@ -1,6 +1,12 @@
 # 162. Real hardware entropy on x86_64 and aarch64: RDSEED and RNDRRS
 
-**Status: PARTIAL.** Minted 2026-08-24, from calef asking for architectural parity with milestone
+**Status: PARTIAL, updated 2026-08-25.** aarch64 is fully built and proven; riscv64 is correctly
+excluded (neither instruction exists on that ISA). x86_64's own work inside this milestone is
+complete and verified correct (see "What was built" below); what remains is entirely outside this
+milestone's scope, milestone 161 item 4's userspace-compilation hand-off, which x86_64's proof is
+gated behind (`cfg(initrd)`). No further code in `entropy_service.rs` or `entropy.rs` is expected;
+this is a status waiting on a merge, not open design or implementation work. Minted 2026-08-24, from
+calef asking for architectural parity with milestone
 159 (the JH7110's TRNG, riscv64/VisionFive 2 only) after "we now have a customer" reopened the
 question DECISIONS §120 declined for want of one. Unlike 159, this is **not hardware-gated**: RDSEED
 (x86_64) and RNDRRS (aarch64, ARMv8.5-RNG/FEAT_RNG) are CPU instructions, not board peripherals, and
@@ -109,17 +115,35 @@ question. `neoverse-n2` (Armv9.0-A) has both. The test itself skips cleanly unde
 the same way the virtio tests already skip when `NIFE_RNG` is unset; run it for real with
 `script/test --arch aarch64 --cpu neoverse-n2`.
 
-**x86_64: the instruction is proven; the service is not, because there is nowhere to run it yet.**
+**x86_64: the scheduling fix is done and proven correct; one prerequisite outside this milestone still
+blocks proving it in this tree's own suite (updated 2026-08-25).**
 `kernel/src/arch/x86_64/isa.rs` checks `CPUID` leaf 7 `EBX` bit 18 and gained `draw_rdseed`, proven
-in the boot tour (a kernel-side probe, ring 0, retrying per Intel's own DRNG guide). But
-`kernel/src/user/entropy_service.rs::instruction_backend_available` returns `false` unconditionally
-on x86_64: milestone 161's ring 3 (item 3) does not exist yet, so there is no way to schedule a
-userspace `entropy` process onto this architecture at all. The userspace `RDSEED` backend
-(`user/src/entropy.rs`) is written and builds, but is genuinely unreachable until ring 3 lands; this
-is why the milestone's status is `PARTIAL` rather than `BUILT`, honestly, not `NOT-STARTED` (the
-instruction-level proof is real and done). The next x86_64 step is free once ring 3 exists: flip
-`instruction_backend_available`'s x86_64 arm to check `arch::isa::get().rdseed`, matching the aarch64
-arm exactly.
+in the boot tour (a kernel-side probe, ring 0, retrying per Intel's own DRNG guide). Ring 3 (milestone
+161 item 3) landed on `main` 2026-08-24, and with it
+`kernel/src/user/entropy_service.rs::instruction_backend_available`'s x86_64 arm now reads
+`arch::isa::get().rdseed`, exactly mirroring the aarch64 arm's shape, in place of the unconditional
+`false` this section used to describe. The userspace `RDSEED` backend (`user/src/entropy.rs`) needed
+no change at all: it was already written and correct, only unreachable.
+
+**What still blocks the end-to-end proof is a second, separate prerequisite**: milestone 161 item 4's
+userspace-compilation hand-off. `kernel/build.rs::declare_initrd_cfg` sets `cfg(initrd)` for aarch64
+and riscv64 only; `x86_64` has no `entropy` binary (or any user program) to pack into an initrd until
+that hand-off lands, and `kernel::user::entropy_tests` (this milestone's whole proof, shared
+arch-neutral across all three ISAs) is gated `#[cfg(all(test, initrd))]`, so it does not compile on
+`x86_64` yet. This is not a gap in milestone 162's own work: it is a dependency on a different,
+larger piece of work (crates/user_rt gaining x86_64 arms, `user/build.rs` compiling C components for
+that target, xtask packing the archive) that milestone 162's original report did not know it would
+need, because ring 3 alone looked sufficient from where that report was written.
+
+**Verified rather than assumed**, since the fix is otherwise untestable on `main` today: milestone
+162's x86_64 commit, cherry-picked onto the open userspace-compilation branch (PR #476, not yet
+merged as of this writing) in a throwaway worktree, makes
+`a_client_obtains_unpredictable_bytes_from_rndrrs_with_no_device_at_all` pass on `x86_64`, unmodified,
+under that architecture's suite-default `-cpu max` (no `--cpu` override needed, unlike aarch64's
+`neoverse-n2` requirement above). So the milestone 162 code is complete and correct on all three
+architectures; **status stays `PARTIAL`** until item 4 lands on `main` and this suite can prove it
+itself, at which point no further code change is expected, only a status flip once `script/test
+--arch x86_64` shows the test passing rather than absent.
 
 **riscv64: correctly excluded.** Neither `RDSEED` nor `RNDR`/`RNDRRS` exists on this ISA; milestone
 159's JH7110 TRNG is the real hardware source there, through its own driver, not through this file.
