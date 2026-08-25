@@ -5,9 +5,9 @@ the current index at merge). Found by milestone 161's x86_64 userspace lane (pul
 which named it plainly as "the finding that is not our bug" and proposed it as its own milestone
 rather than routing around it. This block gives that debt a home.
 
-**Gate: NONE.** Unlike milestone 163 (the JH7110's PCIe driver, minted the same day for a similarly
-orphaned finding), this is a toolchain and dependency problem, not a hardware one. A lane can make
-real progress here without a board.
+**Gate: NONE.** Unlike milestone 163 (the JH7110's PCIe root complex), minted the same day for a
+similarly orphaned finding, this is a toolchain and dependency problem, not a hardware one. A lane
+can make real progress here without a board.
 
 ## What it needs
 
