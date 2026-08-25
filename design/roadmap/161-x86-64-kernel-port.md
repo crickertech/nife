@@ -326,19 +326,24 @@ Ordered as it was built, because each step is what made the next one debuggable.
     unconditionally, `r10` carries the fourth argument because `syscall` has already taken `rcx`,
     and `syscall` pushes nothing.
 
-    **`now()` and `cntfrq()` are the two that are not transliteration, and the answer was `rdtsc`
-    with the frequency hardcoded.** `now()` is `rdtsc`, readable from ring 3 because `CR4.TSD` is
-    clear at reset and this kernel does not change it; it answers in `edx:eax`, so a single
-    `out(reg)` reads a counter that wraps every four seconds. `cntfrq()` is **RISC-V's recorded gap,
-    one architecture worse**, and it returns a constant with a `BUGS` section: there is no
-    architected TSC rate (`CPUID` leaf 0x15 gives a ratio to a crystal leaf 0x16 may not report,
-    and neither leaf is universal), the kernel therefore **measures** it against the PIT, and a
-    ring-3 program cannot repeat that measurement because the PIT is at ports 0x40..0x43 behind
-    `IOPL` 0 and an empty TSS bitmap. Calibrating in userspace was considered and is not available;
-    a program that could touch the PIT would be one that had escaped this kernel's confinement, so
-    that is §121 rather than an oversight. The constant is QEMU's 1 GHz (measured at 1001 MHz); on
-    milestone 87's Dell it will be wrong with no way for a caller to tell, and **both architectures
-    want the same fix**, which is an aux-vector entry at process start.
+    **`now()` and `cntfrq()` are the two that are not transliteration, and the answer, ratified as
+    [DECISIONS §127](../decisions/127-x86-64-timer-rdtsc.md), is PIT-calibrated `rdtsc` with the
+    measured frequency delivered through a mapped page.** `now()` is `rdtsc`, readable from ring 3
+    because `CR4.TSD` is clear at reset and this kernel does not change it; it answers in
+    `edx:eax`, so a single `out(reg)` reads a counter that wraps every four seconds. `cntfrq()` is
+    **RISC-V's recorded gap, one architecture worse**: there is no architected TSC rate (`CPUID`
+    leaf 0x15 gives a ratio to a crystal leaf 0x16 may not report, and neither leaf is universal),
+    so the kernel **measures** it against the PIT at boot (`kernel/src/arch/x86_64/timer.rs`) and
+    delivers the number through `timebase_proto::TimebasePage`, mapped read-only into every
+    process the kernel builds directly, the same aux-vector-at-process-start shape riscv64's own
+    `cntfrq` doc comment already predicted. A ring-3 program cannot repeat the PIT measurement
+    itself because the PIT is at ports 0x40..0x43 behind `IOPL` 0 and an empty TSS bitmap; that is
+    §121 rather than an oversight. **The 1 GHz constant that remains is narrower than it first
+    reads**: only a process built by `supervision_proto::build_child_space` (the userspace ELF
+    loader, not the kernel) falls back to it, because that loader maps a freshly retyped, zeroed
+    placeholder page rather than a capability naming the kernel's real one. Closing that gap is
+    [milestone 167](167-timebase-page-delegation.md)'s own, separately-scoped remaining piece, not
+    a live design fork on this one.
 
     **Three programs refuse rather than pretend.** `console::uart_put`, `input`'s `uart` module and
     `swap_proto::probe_device` cannot reach a device from ring 3; their x86 arms `trap()` rather
@@ -462,7 +467,8 @@ In the order it should be done, because each is a prerequisite for the next.
 
    Of the five concrete pieces it listed, four are done and the fifth was already true:
    `crates/user_rt` has its x86 arms (five transliterations, plus `now()`/`cntfrq()`, which went to
-   `rdtsc` and a hardcoded rate for the reasons in step 13); `user/build.rs` compiles the C seam;
+   `rdtsc` and a PIT-measured rate for the reasons in step 13, [DECISIONS §127](../decisions/127-x86-64-timer-rdtsc.md));
+   `user/build.rs` compiles the C seam;
    `xtask` packs an x86 archive, with the `read_stripped` cache-tag collision fixed before it could
    fire and a real `target/init-measure-x86_64.txt`; `scripts/qemu-runner-x86_64.sh` passes
    `-initrd`; and `crates/elf` was indeed ready.
