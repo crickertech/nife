@@ -296,8 +296,8 @@ fn direct(fs: &nifefs::Fs, w: &Wiring) -> ! {
     // ------------------------------------------------------------------------------------------
 
     for &(va, slot, mode) in component.devices() {
-        // SAFETY: plain syscall; the aspace capability is still ours until CONFIGURE consumes it.
-        if unsafe { invoke(b_aspace, abi::aspace::MAP_INTO, va, slot, mode) } != 0 {
+        // SAFETY: plain syscall; the address space capability is still ours until CONFIGURE consumes it.
+        if unsafe { invoke(b_aspace, abi::address_space::MAP_INTO, va, slot, mode) } != 0 {
             bail(24)
         }
     }
@@ -696,8 +696,8 @@ fn hung(fs: &nifefs::Fs, w: &Wiring) -> ! {
     send(REPORT, swap_proto::RPT_STEP, swap_proto::step::REVOKED, 0);
 
     for &(va, slot, mode) in component.devices() {
-        // SAFETY: plain syscall; the aspace capability is still ours until CONFIGURE consumes it.
-        if unsafe { invoke(b_aspace, abi::aspace::MAP_INTO, va, slot, mode) } != 0 {
+        // SAFETY: plain syscall; the address space capability is still ours until CONFIGURE consumes it.
+        if unsafe { invoke(b_aspace, abi::address_space::MAP_INTO, va, slot, mode) } != 0 {
             bail(83)
         }
     }

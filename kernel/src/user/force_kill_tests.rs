@@ -15,7 +15,7 @@ const SPIN_STUB: &[u32] = &[0x0000_006F]; // j .  (jal x0, 0)
 #[cfg(target_arch = "x86_64")]
 const SPIN_STUB: &[u32] = super::x86_programs::SPIN;
 
-/// Build a runaway from parts (aspace, code, stack, TCB all in one region), start it, then
+/// Build a runaway from parts (address space, code, stack, TCB all in one region), start it, then
 /// reclaim its region while it still spins, and assert the region comes back whole.
 #[test_case]
 fn destroy_force_kills_a_runaway_and_reclaims_its_region() {
@@ -25,7 +25,7 @@ fn destroy_force_kills_a_runaway_and_reclaims_its_region() {
     // The runaway's whole world in one region: the address space's root and tables, its code
     // page, its stack, and its TCB, so a single `DESTROY` reclaims all of it.
     let region = crate::untyped::create(16).expect("no region for the runaway");
-    let aspace = user_aspace_create(region).expect("no aspace");
+    let aspace = user_address_space_create(region).expect("no aspace");
 
     let code_phys = crate::untyped::retype_page(region).expect("no code frame");
     // SAFETY: a fresh frame we own, direct-mapped; write the spin loop and make it fetchable.
@@ -39,10 +39,10 @@ fn destroy_force_kills_a_runaway_and_reclaims_its_region() {
         mmu::phys_to_virt(code_phys),
         core::mem::size_of_val(SPIN_STUB),
     );
-    user_aspace_map(aspace, CODE_VA, code_phys, Flags::user_code()).expect("map code");
+    user_address_space_map(aspace, CODE_VA, code_phys, Flags::user_code()).expect("map code");
 
     let stack_phys = crate::untyped::retype_page(region).expect("no stack frame");
-    user_aspace_map(aspace, STACK_VA, stack_phys, Flags::user_data()).expect("map stack");
+    user_address_space_map(aspace, STACK_VA, stack_phys, Flags::user_data()).expect("map stack");
 
     let tid = sched::create_thread_control_block(region).expect("no tcb");
     sched::configure_thread_control_block(tid, CODE_VA, STACK_VA + page_frames::FRAME_SIZE, aspace)
@@ -139,12 +139,12 @@ const RECV_STUB: &[u32] = &super::x86_programs::recv();
 fn destroy_reclaims_a_region_whose_resident_is_blocked_in_recv() {
     let frames_before = crate::memory::free_frames();
 
-    // The child's whole world in one region, its rendezvous included: aspace, code, stack, TCB, and
+    // The child's whole world in one region, its rendezvous included: address space, code, stack, TCB, and
     // the rendezvous it will park on.
     let region = crate::untyped::create(16).expect("no region for the blocked child");
     let ep = sched::create_rendezvous_from(region).expect("no rendezvous in the child's region");
 
-    let aspace = user_aspace_create(region).expect("no aspace");
+    let aspace = user_address_space_create(region).expect("no aspace");
     let code_phys = crate::untyped::retype_page(region).expect("no code frame");
     // SAFETY: a fresh frame we own, direct-mapped; write the stub and make it fetchable.
     unsafe {
@@ -157,9 +157,9 @@ fn destroy_reclaims_a_region_whose_resident_is_blocked_in_recv() {
         mmu::phys_to_virt(code_phys),
         core::mem::size_of_val(RECV_STUB),
     );
-    user_aspace_map(aspace, CODE_VA, code_phys, Flags::user_code()).expect("map code");
+    user_address_space_map(aspace, CODE_VA, code_phys, Flags::user_code()).expect("map code");
     let stack_phys = crate::untyped::retype_page(region).expect("no stack frame");
-    user_aspace_map(aspace, STACK_VA, stack_phys, Flags::user_data()).expect("map stack");
+    user_address_space_map(aspace, STACK_VA, stack_phys, Flags::user_data()).expect("map stack");
 
     let tid = sched::create_thread_control_block(region).expect("no tcb");
     // READ, because the child receives on it. The rights are the point of not reusing
@@ -256,7 +256,7 @@ fn an_address_space_never_frees_a_region_it_was_lent() {
     // Four pages is enough for a root and one table; nothing is mapped here, so the space is only
     // ever asked who owns its memory.
     let region = crate::untyped::create(4).expect("no region for the lent-backing test");
-    let name = user_aspace_create(region).expect("no aspace from the region");
+    let name = user_address_space_create(region).expect("no address space from the region");
     let allocated = frames_before - crate::memory::free_frames();
     assert_eq!(
         allocated, 4,
@@ -265,7 +265,7 @@ fn an_address_space_never_frees_a_region_it_was_lent() {
 
     // Out of the registry, exactly as `ThreadControlBlock::CONFIGURE` does: from here the space is an owned value
     // whose `Drop` is the thing under test, which is the shape the reaper holds it in.
-    let space = take_user_aspace(name).expect("the space was not in the registry");
+    let space = take_user_address_space(name).expect("the space was not in the registry");
 
     // `reclaim_region`'s unpin, arriving BEFORE the drop. This one line is the whole race.
     crate::untyped::unpin(region);

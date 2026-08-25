@@ -56,12 +56,12 @@ live per object type in `crates/abi`:
   `RECV_CAP`. The synchronous-IPC primitive the whole system talks over. `WRITE` rights permit
   `SEND`; `READ` rights permit `RECV`; `GRANT` permits passing a capability along.
 - **Reply** (`reply::REPLY`): the one-shot return leg of a `CALL`.
-- **Untyped / objects** (`objtype::`): `RETYPE` an untyped region into an `ENDPOINT`, `ASPACE`, or
-  `TCB`. This is how a process builds new kernel objects out of a raw memory budget it holds.
+- **Untyped / objects** (`objtype::`): `RETYPE` an untyped region into an `ENDPOINT`, `ADDRESS_SPACE`,
+  or `TCB`. This is how a process builds new kernel objects out of a raw memory budget it holds.
 - **TCB** (`tcb::`): `CONFIGURE` (entry, stack, address space), `CAP_INSERT` (place a capability into
   the child's capability table), `START` (see §3).
-- **Aspace** (`aspace::MAP_INTO`, with modes `MAP_RO` / `MAP_RW` / `MAP_CODE`): map a frame into an
-  address space at a chosen virtual address with chosen permissions.
+- **AddressSpace** (`address_space::MAP_INTO`, with modes `MAP_RO` / `MAP_RW` / `MAP_CODE`): map a
+  frame into an address space at a chosen virtual address with chosen permissions.
 - **Irq** (`irq::WAIT` / `ACK`): block until an interrupt the capability names fires, then
   re-enable it. This is how a userspace driver owns its device's interrupt.
 - **Rights** (`rights::READ` / `WRITE` / `GRANT`): the authority a capability carries, checked on

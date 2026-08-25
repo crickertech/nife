@@ -139,7 +139,7 @@ fn spawn_timetable(fires: u64) -> (RendezvousId, RendezvousId, RendezvousId) {
         let to = (from + FRAME_SIZE as usize).min(archive.len());
         page[..to - from].copy_from_slice(&archive[from..to]);
     }
-    let aspace = readopt_user_aspace(space).expect("register the timetable aspace");
+    let aspace = readopt_user_address_space(space).expect("register the timetable aspace");
 
     let out = crate::sched::create_rendezvous();
     let child_report = crate::sched::create_rendezvous();

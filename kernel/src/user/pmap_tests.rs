@@ -1,4 +1,4 @@
-//! `pmap_tests`: `abi::aspace::LIST` proved against a real `Object::Aspace`, driven by
+//! `pmap_tests`: `abi::address_space::LIST` proved against a real `Object::AddressSpace`, driven by
 //! `pmap::collect`, the real program's real loop. `survey_tests`'s shape, one object type over;
 //! see that module's header for the discipline this one repeats rather than restates.
 
@@ -13,25 +13,27 @@ use crate::syscall::invoke;
 /// here maps more than three pages, so this is generous slack rather than a tight bound.
 const SPACE_PAGES: u64 = 24;
 
-/// A fresh address space, backed by its own region, the `RETYPE_OBJ(ASPACE)` engine driven
+/// A fresh address space, backed by its own region, the `RETYPE_OBJ(ADDRESS_SPACE)` engine driven
 /// directly rather than through a spawned builder thread: this kernel test *is* the builder.
 /// Returns the space's `name` and the region backing it, so [`tidy`] can give the region back.
 fn arena_space() -> (u64, u64) {
     let region = crate::untyped::create(SPACE_PAGES).expect("no space region");
-    let name = crate::user::user_aspace_create(region).expect("no address space");
+    let name = crate::user::user_address_space_create(region).expect("no address space");
     (name, region)
 }
 
 /// Hold the space **the way a builder holds it**: `WRITE`, the authority `MAP_INTO` takes.
 fn hold_builder(name: u64) -> u64 {
-    sched::grant(crate::cap::aspace_cap(name, Rights::WRITE)).expect("grant the aspace")
+    sched::grant(crate::cap::address_space_cap(name, Rights::WRITE))
+        .expect("grant the address space")
 }
 
 /// Hold the space **the way `pmap` holds it**: `ENUMERATE` and nothing else. Not that a viewer is
 /// refused `MAP_INTO`; it cannot name it, because that takes `WRITE` and this capability does not
 /// carry it.
 fn hold_viewer(name: u64) -> u64 {
-    sched::grant(crate::cap::aspace_cap(name, Rights::ENUMERATE)).expect("grant the aspace")
+    sched::grant(crate::cap::address_space_cap(name, Rights::ENUMERATE))
+        .expect("grant the address space")
 }
 
 /// A fresh frame, from its own one-page region, granted into a fresh capability table slot with `rights`.
@@ -65,7 +67,7 @@ fn map_into(aspace_slot: u64, va: u64, frame_slot: u64, mode: u64) -> Result<i64
     invoke(
         &mut fr,
         aspace_slot,
-        abi::aspace::MAP_INTO,
+        abi::address_space::MAP_INTO,
         va,
         frame_slot,
         mode,
@@ -76,7 +78,7 @@ fn map_into(aspace_slot: u64, va: u64, frame_slot: u64, mode: u64) -> Result<i64
 /// userspace caller would read out of its registers.
 fn list(slot: u64, cursor: u64) -> (i64, u64, u64) {
     let mut frame = TrapFrame::for_user_entry(0, 0, [0, 0, 0]);
-    match invoke(&mut frame, slot, abi::aspace::LIST, cursor, 0, 0) {
+    match invoke(&mut frame, slot, abi::address_space::LIST, cursor, 0, 0) {
         Ok(next) => (next, frame.arg(1), frame.arg(2)),
         Err(e) => (e as i64, 0, 0),
     }
@@ -113,17 +115,17 @@ fn a_viewer_sees_every_mapping_and_can_touch_none_of_it() {
 
     let (code_frame, code_region) = frame(Rights::READ);
     assert_eq!(
-        map_into(builder, CODE_VA, code_frame, abi::aspace::MAP_CODE),
+        map_into(builder, CODE_VA, code_frame, abi::address_space::MAP_CODE),
         Ok(0)
     );
     let (rw_frame, rw_region) = frame(Rights::WRITE);
     assert_eq!(
-        map_into(builder, RW_VA, rw_frame, abi::aspace::MAP_RW),
+        map_into(builder, RW_VA, rw_frame, abi::address_space::MAP_RW),
         Ok(0)
     );
     let (ro_frame, ro_region) = frame(Rights::READ);
     assert_eq!(
-        map_into(builder, RO_VA, ro_frame, abi::aspace::MAP_RO),
+        map_into(builder, RO_VA, ro_frame, abi::address_space::MAP_RO),
         Ok(0)
     );
 
@@ -134,7 +136,7 @@ fn a_viewer_sees_every_mapping_and_can_touch_none_of_it() {
     assert!(
         l.rows().contains(&pmap::Row {
             va: CODE_VA,
-            kind: abi::aspace::MAP_CODE
+            kind: abi::address_space::MAP_CODE
         }),
         "{:?}",
         l.rows()
@@ -142,7 +144,7 @@ fn a_viewer_sees_every_mapping_and_can_touch_none_of_it() {
     assert!(
         l.rows().contains(&pmap::Row {
             va: RW_VA,
-            kind: abi::aspace::MAP_RW
+            kind: abi::address_space::MAP_RW
         }),
         "{:?}",
         l.rows()
@@ -150,7 +152,7 @@ fn a_viewer_sees_every_mapping_and_can_touch_none_of_it() {
     assert!(
         l.rows().contains(&pmap::Row {
             va: RO_VA,
-            kind: abi::aspace::MAP_RO
+            kind: abi::address_space::MAP_RO
         }),
         "{:?}",
         l.rows()
@@ -160,7 +162,7 @@ fn a_viewer_sees_every_mapping_and_can_touch_none_of_it() {
     // refused the one thing this test's builder capability can do: change one.
     let (spare, spare_region) = frame(Rights::READ);
     assert_eq!(
-        map_into(viewer, 0x0070_0000, spare, abi::aspace::MAP_RO),
+        map_into(viewer, 0x0070_0000, spare, abi::address_space::MAP_RO),
         Err(Error::NotPermitted),
         "ENUMERATE let a viewer map a page; that is the exact power SURVEY's split exists to deny",
     );
@@ -211,22 +213,22 @@ fn an_empty_space_is_a_real_answer_not_a_refusal() {
 #[test_case]
 fn an_empty_slot_holds_no_capability_at_all() {
     // A slot nothing has ever granted into: `sched::current_cap` finds nothing there, the same
-    // fact `abi::aspace::LIST`'s dispatch checks before it ever looks at rights. Nothing to tidy:
+    // fact `abi::address_space::LIST`'s dispatch checks before it ever looks at rights. Nothing to tidy:
     // this test grants nothing and carves no region.
     let mut fr = TrapFrame::for_user_entry(0, 0, [0, 0, 0]);
     let empty_slot = 15; // the highest capability table slot; nothing in this test has granted into it
     assert_eq!(
-        invoke(&mut fr, empty_slot, abi::aspace::LIST, 0, 0, 0),
+        invoke(&mut fr, empty_slot, abi::address_space::LIST, 0, 0, 0),
         Err(Error::NoSuchSlot),
     );
 }
 
 /// **A capability that outlived its space's registry membership reads as empty, not refused.**
 ///
-/// This is `ThreadControlBlock::CONFIGURE`'s shape without spinning up a real thread: `take_user_aspace` is
+/// This is `ThreadControlBlock::CONFIGURE`'s shape without spinning up a real thread: `take_user_address_space` is
 /// exactly what `configure_thread_control_block` calls to move a space out of the registry and into a TCB. A
 /// capability minted before that call still decodes to the same `name`; the syscall handler's
-/// `user_aspace_root` lookup is what actually notices the space is gone, and the documented
+/// `user_address_space_root` lookup is what actually notices the space is gone, and the documented
 /// answer is `DONE`, symmetric to `sched::survey_supervised`'s "before the scheduler exists there
 /// is no domain to report."
 #[test_case]
@@ -239,17 +241,17 @@ fn a_capability_outliving_its_space_reads_as_empty() {
     let builder = hold_builder(name);
     let (f, frame_region) = frame(Rights::READ);
     assert_eq!(
-        map_into(builder, 0x0040_0000, f, abi::aspace::MAP_RO),
+        map_into(builder, 0x0040_0000, f, abi::address_space::MAP_RO),
         Ok(0)
     );
 
     // Simulate `ThreadControlBlock::CONFIGURE` binding this space to a thread, without building one: the
-    // registry entry goes away exactly as it would there. `take_user_aspace`'s removal from
-    // `USER_SPACES` is what `user_aspace_root` (and so `LIST`) actually notices. Dropped
+    // registry entry goes away exactly as it would there. `take_user_address_space`'s removal from
+    // `USER_SPACES` is what `user_address_space_root` (and so `LIST`) actually notices. Dropped
     // explicitly, before `tidy` reclaims the space's own region, so the ASID and revocation
     // bookkeeping its `Drop` does (`Backing::Lent`, so it frees no memory) happens in the same
     // order `ThreadControlBlock::CONFIGURE` -> thread death would give it, rather than at the end of scope.
-    let space = crate::user::take_user_aspace(name).expect("the space was still registered");
+    let space = crate::user::take_user_address_space(name).expect("the space was still registered");
     drop(space);
 
     assert_eq!(list(viewer, 0), (abi::survey::DONE as i64, 0, 0));

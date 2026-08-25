@@ -41,7 +41,7 @@ use user_rt::{cap_delete, exit, invoke, send};
 const INITRD_VA: u64 = 0x2000_0000;
 
 /// The capabilities the kernel grants this program before it runs.
-const UNTYPED: u64 = 0; // a budget to retype the child's aspace, frames, and TCB from
+const UNTYPED: u64 = 0; // a budget to retype the child's address space, frames, and TCB from
 const REPORT: u64 = 1; // the report endpoint; we hand the child a narrowed WRITE view of it
 
 /// The input we hand the worker. It returns `n * n` on the report endpoint.
@@ -86,7 +86,7 @@ pub extern "C" fn _start(_x0: u64, initrd_len: u64, _x2: u64) -> ! {
 /// hold. It mirrors `hello`'s `build_child`, trimmed to exactly what this one child needs.
 fn build_and_start(elf: &elf::Elf, n: u64) -> Result<(), ()> {
     // A fresh address space, retyped from our budget.
-    let aspace = retype_obj(abi::objtype::ASPACE)?;
+    let aspace = retype_obj(abi::objtype::ADDRESS_SPACE)?;
 
     // Lay each loadable segment into the child at the VA it names, with its own permissions. Each
     // page: retype a frame, map it in our OWN space to fill it, copy this page's slice of the
@@ -94,11 +94,11 @@ fn build_and_start(elf: &elf::Elf, n: u64) -> Result<(), ()> {
     let mut scratch = 0x1000_0000u64;
     for seg in elf.segments() {
         let mode = if seg.is_executable() {
-            abi::aspace::MAP_CODE
+            abi::address_space::MAP_CODE
         } else if seg.is_writable() {
-            abi::aspace::MAP_RW
+            abi::address_space::MAP_RW
         } else {
-            abi::aspace::MAP_RO
+            abi::address_space::MAP_RO
         };
         let (start, end) = seg.page_range(PAGE);
         let mut va = start;
@@ -126,7 +126,7 @@ fn build_and_start(elf: &elf::Elf, n: u64) -> Result<(), ()> {
             }
             // Into the child at the segment's own VA, with the segment's permissions.
             // SAFETY: as above: the kernel validates the capability and the method.
-            if unsafe { invoke(aspace, abi::aspace::MAP_INTO, va, frame, mode) } != 0 {
+            if unsafe { invoke(aspace, abi::address_space::MAP_INTO, va, frame, mode) } != 0 {
                 return Err(());
             }
             cap_delete(frame); // done with this frame's cap; free the slot for reuse
@@ -141,10 +141,10 @@ fn build_and_start(elf: &elf::Elf, n: u64) -> Result<(), ()> {
     if unsafe {
         invoke(
             aspace,
-            abi::aspace::MAP_INTO,
+            abi::address_space::MAP_INTO,
             CHILD_STACK_TOP - PAGE,
             stack_frame,
-            abi::aspace::MAP_RW,
+            abi::address_space::MAP_RW,
         )
     } != 0
     {

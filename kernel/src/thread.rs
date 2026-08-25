@@ -71,7 +71,7 @@ const STACK_AREA: u64 = mmu::THREAD_STACK_AREA;
 
 /// One thread's slot in [`STACK_AREA`]: the guard page, then [`STACK_PAGES`] of stack. Every slot
 /// is this wide and every base is a multiple of it from `STACK_AREA`, including the reused ones
-/// (`FREE_STACK_VAS` hands back the slot base, never an interior address), which is what lets a
+/// (`FREE_STACK_ADDRESS_SPACE` hands back the slot base, never an interior address), which is what lets a
 /// fault handler turn an address back into "slot N, this far into its guard page". See
 /// [`crate::stack::guard_page_at`].
 pub const STACK_SLOT_SPAN: u64 = (STACK_PAGES as u64 + 1) * FRAME_SIZE;
@@ -104,19 +104,20 @@ pub const UNNAMED: ThreadId = u64::MAX;
 /// Handing the address range back means a new thread lands in page tables that already exist,
 /// and the whole system reaches a steady state. A test asserts that a second batch of threads
 /// costs **exactly zero** additional frames.
-static FREE_STACK_VAS: IrqSafeMutex<FreeVas> = IrqSafeMutex::new(rank::STACK_VA, FreeVas::new());
+static FREE_STACK_ADDRESS_SPACE: IrqSafeMutex<FreeAddressSpace> =
+    IrqSafeMutex::new(rank::STACK_VA, FreeAddressSpace::new());
 
 /// A fixed stack of reusable stack-VA ranges (milestone 14 phase B.1). Bounded by construction:
 /// a range is pushed only when a thread dies and popped when one spawns, so the free count can
 /// never exceed the most threads that ever lived at once, which the scheduler caps at
 /// `MAX_THREADS` (= 128; sched.rs). The array is sized to that bound, and the debug assert is the
 /// cross-check.
-struct FreeVas {
+struct FreeAddressSpace {
     vas: [u64; 128],
     len: usize,
 }
 
-impl FreeVas {
+impl FreeAddressSpace {
     const fn new() -> Self {
         Self {
             vas: [0; 128],
@@ -175,7 +176,7 @@ impl KernelStack {
 
         // Reuse a dead thread's address range if there is one, so the page tables covering it
         // are already built. Only bump into fresh address space when there isn't.
-        let base = FREE_STACK_VAS
+        let base = FREE_STACK_ADDRESS_SPACE
             .lock()
             .pop()
             .unwrap_or_else(|| NEXT_STACK_VA.fetch_add(span, Ordering::Relaxed));
@@ -267,7 +268,7 @@ impl Drop for KernelStack {
 
         // Hand the address range back, so the next thread lands in page tables that already
         // exist. The physical pages were recycled above; this returns the *names*.
-        FREE_STACK_VAS.lock().push(self.guard);
+        FREE_STACK_ADDRESS_SPACE.lock().push(self.guard);
     }
 }
 

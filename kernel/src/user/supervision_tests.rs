@@ -68,7 +68,7 @@ pub(super) const REPORT_STUB: &[u32] = &[
 #[cfg(target_arch = "x86_64")]
 pub(super) const REPORT_STUB: &[u32] = &super::x86_programs::report(REPORT_WORD as u32);
 
-/// Build a child from `stub` with its whole world in one region (aspace, code, stack, TCB), so a
+/// Build a child from `stub` with its whole world in one region (address space, code, stack, TCB), so a
 /// single `DESTROY` reclaims it. `report` goes in slot 0 (what the report stub SENDs on);
 /// `fault_ep`, if given, goes in the reserved fault slot, so `START` records it as the child's
 /// supervision endpoint. Returns `(child_tid, region)`.
@@ -90,7 +90,7 @@ pub(super) fn build_child_in(
     report: Option<sched::RendezvousId>,
     fault_ep: Option<sched::RendezvousId>,
 ) -> u64 {
-    let aspace = user_aspace_create(region).expect("no aspace");
+    let aspace = user_address_space_create(region).expect("no aspace");
 
     let code_phys = crate::untyped::retype_page(region).expect("no code frame");
     // SAFETY: a fresh frame we own, direct-mapped; write the stub and make it fetchable.
@@ -101,10 +101,10 @@ pub(super) fn build_child_in(
         }
     }
     sync_icache(mmu::phys_to_virt(code_phys), core::mem::size_of_val(stub));
-    user_aspace_map(aspace, CODE_VA, code_phys, Flags::user_code()).expect("map code");
+    user_address_space_map(aspace, CODE_VA, code_phys, Flags::user_code()).expect("map code");
 
     let stack_phys = crate::untyped::retype_page(region).expect("no stack frame");
-    user_aspace_map(aspace, STACK_VA, stack_phys, Flags::user_data()).expect("map stack");
+    user_address_space_map(aspace, STACK_VA, stack_phys, Flags::user_data()).expect("map stack");
 
     let tid = sched::create_thread_control_block(region).expect("no tcb");
     if let Some(rep) = report {

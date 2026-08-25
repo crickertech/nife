@@ -94,7 +94,7 @@ impl Rights {
     /// one bit for three operations cannot express that. With this right the wrong operation is
     /// not refused to a viewer, it is unnameable by one.
     ///
-    /// **Deliberately not pre-wired to other objects.** Only `Rendezvous` consults it today. `Aspace`
+    /// **Deliberately not pre-wired to other objects.** Only `Rendezvous` consults it today. `AddressSpace`
     /// wants it when `pmap` is built (observe a mapping without being able to map) and `Untyped`
     /// wants it when `free` is built (ask what is committed without being able to `SPLIT` or
     /// `DESTROY`), and both are named in milestone 126's strata rather than built ahead of a

@@ -438,7 +438,7 @@ regular expression is not a designation of anything.
   method minimal, and the moment something wants to watch a `^C` land is the moment to add it.
 
 - **`pmap` cannot be reached from the interactive prompt against any real process.** See "What
-  building it found" in the `pmap` section below: every `Object::Aspace` capability is minted and
+  building it found" in the `pmap` section below: every `Object::AddressSpace` capability is minted and
   consumed within its own builder's thread, `Tcb::CONFIGURE` removes the space from the registry
   the instant it binds to a thread, and nothing shipped here delegates one to a second program.
   `ps`'s `Manifest::domain` has no analogue because there is nothing alive to wire it to. Fixing
@@ -479,12 +479,12 @@ vocabulary invented for what is, read back, the same fact about the same page.
 
 ### The delegation audit DECISIONS §114 required
 
-Every site that mints an `Object::Aspace` capability was found and checked: `user/src/builder.rs`,
+Every site that mints an `Object::AddressSpace` capability was found and checked: `user/src/builder.rs`,
 `crates/supervision_proto::build_child_space`, `user/src/hello.rs`'s `aspace_builder`,
 `user/src/os_primitives_benchmarker.rs`'s `spawn_one`, and `kernel/src/bench.rs`'s `map_el0`
 harness. **Every one retypes, maps, and (except `hello.rs`'s deliberately-unconfigured demo)
 consumes the capability at `Tcb::CONFIGURE`, all inside the one thread that started it. None
-delegates an `Object::Aspace` capability to a different program.** So the caveat's feared case --
+delegates an `Object::AddressSpace` capability to a different program.** So the caveat's feared case --
 a holder nobody assessed for `ENUMERATE` gaining a real power the day the method starts consulting
 the bit -- has no instance in the shipped tree today, and this is the audit's actual finding rather
 than an assumption: there was nothing to narrow.
@@ -498,14 +498,14 @@ sitting in some other program's capability table, reads as an empty listing rath
 `kernel::user::pmap_tests::a_capability_outliving_its_space_reads_as_empty` proves this directly by
 calling `take_user_aspace` the way `configure_tcb` does and showing `LIST` answers `DONE`.
 
-Combined with the delegation-audit finding above (nothing hands an `Object::Aspace` capability to a
+Combined with the delegation-audit finding above (nothing hands an `Object::AddressSpace` capability to a
 second program at all), the practical consequence is that **there is no address space anywhere in
 this system today that a program other than its own builder can be handed a live view of.** `ps`
 reaches the interactive shell because `Manifest::domain` tells `system_initializer` which live
 supervision endpoint to place in a child's capability table (`deaths`, which persists for a thread's whole
 life). Nothing plays that role for an address space, because nothing survives long enough, held by
 anyone but its builder, to be worth wiring a manifest field to. `pmap`'s kernel mechanism and its
-program are real and proven end to end against a genuine `Object::Aspace`
+program are real and proven end to end against a genuine `Object::AddressSpace`
 (`kernel::user::pmap_tests`), the same way `ps`'s `survey_tests` prove `SURVEY` without going
 through the shell -- but unlike `ps`, that is the only place `pmap` runs today.
 

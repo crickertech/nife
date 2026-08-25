@@ -154,7 +154,7 @@ pub fn record_mapping(phys: u64, root: u64, va: u64) -> bool {
     true
 }
 
-/// **One entry of what `root` has mapped, resuming from `cursor`** (`abi::aspace::LIST`,
+/// **One entry of what `root` has mapped, resuming from `cursor`** (`abi::address_space::LIST`,
 /// milestone 126's `pmap`, DECISIONS §114). `(0, 0)` means done, the same `abi::survey::DONE`
 /// convention `SURVEY` uses on the endpoint side: start with `cursor = 0`, feed each returned
 /// cursor back, stop when it comes back 0.

@@ -948,7 +948,7 @@ fn sink_throughput() {
 /// above, the map path *consumes* resources per call, so the bench boot builds the target here rather
 /// than granting an endpoint: a fresh registry address space (its own untyped region as budget) and a
 /// single frame. `os_primitives_benchmarker` (`EL_MAP`) is granted a WRITE cap on that space and a READ cap on the frame,
-/// then times a loop of `invoke(aspace, MAP_INTO, va_i, frame, MAP_RO)`, aliasing the one frame at a
+/// then times a loop of `invoke(address space, MAP_INTO, va_i, frame, MAP_RO)`, aliasing the one frame at a
 /// fresh VA each iteration. The target is a separate space, not `os_primitives_benchmarker`'s own (a run()-adopted space
 /// is not in the registry `MAP_INTO` resolves), which is immaterial: the map path's cost is the same
 /// whoever owns the space. See `user/src/os_primitives_benchmarker.rs`.
@@ -965,11 +965,11 @@ fn map_el0() {
         println!("bench: map_el0 skipped (no region)");
         return;
     };
-    let Some(name) = crate::user::user_aspace_create(region) else {
+    let Some(name) = crate::user::user_address_space_create(region) else {
         println!("bench: map_el0 skipped (no address space)");
         return;
     };
-    // One frame to alias-map, from its own one-page region so the aspace region stays pure overhead.
+    // One frame to alias-map, from its own one-page region so the address space region stays pure overhead.
     let Some(frame_region) = crate::untyped::create(1) else {
         println!("bench: map_el0 skipped (no frame region)");
         return;
@@ -980,7 +980,7 @@ fn map_el0() {
     };
 
     let report = sched::create_rendezvous();
-    use crate::cap::{Rights, aspace_cap, frame_cap, rendezvous_cap};
+    use crate::cap::{Rights, address_space_cap, frame_cap, rendezvous_cap};
     sched::spawn(move || {
         crate::user::run(
             image,
@@ -990,7 +990,7 @@ fn map_el0() {
                 arg2: 0,
                 grants: &[
                     rendezvous_cap(report, Rights::WRITE), // slot 0: report the result
-                    aspace_cap(name, Rights::WRITE),       // slot 1: the space we map into
+                    address_space_cap(name, Rights::WRITE), // slot 1: the space we map into
                     frame_cap(phys, Rights::READ),         // slot 2: the frame we alias-map
                 ],
                 maps: &[],
