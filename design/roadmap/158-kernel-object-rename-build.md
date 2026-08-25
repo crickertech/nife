@@ -8,10 +8,6 @@ identifier names move from contraction or borrowed jargon to the plain, standard
 `Aspace(u64)`, not `AddressSpace(u64)` -- the decision was real, the rename was not, until each of
 the seven names below was renamed in its own lane. `Untyped` -> `MemoryRegion` was the last.
 
-**Gate: NONE.** Nothing here needs deciding; §113 already settled every name. This is the mechanical
-build DECISIONS §113 itself flagged as separate, future work: "each touches a real, measured
-surface... and is left to whoever executes it, tracked as its own piece of work per name."
-
 ## What was built
 
 `Endpoint`/`EpId`/`EpFail` -> `Rendezvous`/`RendezvousId`/`RendezvousFailure`, the biggest,
