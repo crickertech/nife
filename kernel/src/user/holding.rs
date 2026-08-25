@@ -50,7 +50,7 @@
 //! calef's call; expect this one to change.
 
 use crate::sched;
-use crate::thread::Tid;
+use crate::thread::ThreadId;
 
 /// The most threads one holding covers. **Four is the widest service this boot builds**, and as of
 /// milestone 55's responder lane it builds exactly four: a `net_stack`, its socket client, the SMB
@@ -102,7 +102,7 @@ fn reclaim(region: u64, deadline: u64) -> bool {
 /// failed the build. A frame that big can step over the guard in one move and land in the
 /// neighbouring thread's stack with no fault at all. See notes/stack-high-water.md.
 pub struct Holding {
-    threads: [Option<Tid>; MAX_THREADS],
+    threads: [Option<ThreadId>; MAX_THREADS],
     regions: [Option<u64>; MAX_REGIONS],
     after: [Option<u64>; MAX_REGIONS],
 }
@@ -121,7 +121,7 @@ impl Holding {
     /// # Panics
     /// If more than [`MAX_THREADS`] are added, because a silently dropped thread is a leak that
     /// looks like a fix.
-    pub fn add_thread(&mut self, tid: Tid) {
+    pub fn add_thread(&mut self, tid: ThreadId) {
         let slot = self
             .threads
             .iter_mut()

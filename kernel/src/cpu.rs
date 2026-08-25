@@ -18,11 +18,11 @@ use core::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering
 use intrusive_fifo::Fifo;
 
 use crate::sync::{IrqSafeMutex, rank};
-use crate::thread::{Thread, Tid};
+use crate::thread::{Thread, ThreadId};
 
 /// A `current`/`idle` slot holding no thread. Tids are small integers from 0 up, so `u64::MAX`
 /// can never collide with a real one.
-pub const NO_TID: Tid = u64::MAX;
+pub const NO_TID: ThreadId = u64::MAX;
 
 /// The most cores we support: the seats, not the machine. A fixed maximum lets the blocks be a
 /// static array, so they exist before there is a heap and can be pointed at from a core's very

@@ -174,7 +174,7 @@ only exists under QEMU; real silicon has none. Milestone 53 ("The board's own pe
 storage on real silicon") is **Status: PARTIAL, Gate: HARDWARE**, and its own text is direct: "this is
 where virtio stops carrying us." What it still owes is the JH7110's Synopsys DesignWare GMAC driver on
 the VisionFive 2 (the riscv64 board already on the desk since 2026-08-14) and the PLDA XpressRICH
-root-complex work that carries the NVMe driver to the real M.2 slot. **aarch64 has no board at all
+root-complex work that carries the NVMe driver to the real M.2 slot (milestone 163, NOT-STARTED). **aarch64 has no board at all
 yet**; notes/aarch64-board-survey.md is still choosing one. So the realistic near-term path to a real
 Mac is through riscv64, not aarch64, purely because that is where hardware already exists. That is a
 sequencing observation, not a design fork: it costs nothing to reverse if an aarch64 board arrives

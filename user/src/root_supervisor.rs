@@ -125,7 +125,7 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
     ) else {
         bail(10)
     };
-    if !supervision_proto::tcb_start(tcb, 0, flaky.len() as u64, 0) {
+    if !supervision_proto::thread_control_block_start(tcb, 0, flaky.len() as u64, 0) {
         bail(11)
     }
     cap_delete(tcb);
@@ -152,7 +152,7 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
     ) else {
         bail(12)
     };
-    if !supervision_proto::tcb_start(tcb, 0, 0, 0) {
+    if !supervision_proto::thread_control_block_start(tcb, 0, 0, 0) {
         bail(13)
     }
     cap_delete(tcb);
@@ -173,7 +173,15 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
     // bad slot or method; it gets an error back.
     let frame = unsafe { invoke(ROOT_UT, abi::untyped::RETYPE, 0, 0, 0) };
     // SAFETY: as above: the kernel validates the capability and the method.
-    let object = unsafe { invoke(ROOT_UT, abi::untyped::RETYPE_OBJ, abi::objtype::TCB, 0, 0) };
+    let object = unsafe {
+        invoke(
+            ROOT_UT,
+            abi::untyped::RETYPE_OBJ,
+            abi::objtype::THREAD_CONTROL_BLOCK,
+            0,
+            0,
+        )
+    };
     send(
         REPORT,
         REPORT_INIT_DROPPED,

@@ -2,6 +2,14 @@
 
 *(Written during milestone 14 phase B, when "where do TCBs live" became a decision.)*
 
+*Renamed 2026-08-24 (DECISIONS §113, milestone 158): the kernel capability object this note
+describes, "a thread under construction", was spelled `Tcb` (and its pointer wrapper `TcbPtr`) in
+code until this rename; both are now `ThreadControlBlock` and `ThreadControlBlockPointer`. The
+companion thread-id type `Tid` is now `ThreadId`. This note keeps saying "TCB" throughout, on
+purpose: that acronym is what the type is now spelled out in full, so the informal usage and the
+type name finally agree, and the acronym-collision section below (Thread Control Block vs Trusted
+Computing Base) is unaffected by the rename either way.*
+
 ## What it is
 
 The kernel's bookkeeping record for one thread: our `Thread` struct in `kernel/src/thread.rs`.
@@ -22,7 +30,7 @@ trusted core. Expand the term when there is any doubt.
 
 ## Where TCBs live (the phase B.2 decision)
 
-Decided at B.2: a **static pool**, a MAX_THREADS-sized array in BSS, a Tid's slot bits naming
+Decided at B.2: a **static pool**, a MAX_THREADS-sized array in BSS, a ThreadId's slot bits naming
 its storage directly. That pool was always a scaffold: the B.2 note said "the pool upgrades to
 retype-backed storage behind the table when init lands."
 

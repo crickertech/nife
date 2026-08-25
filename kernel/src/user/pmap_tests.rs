@@ -223,8 +223,8 @@ fn an_empty_slot_holds_no_capability_at_all() {
 
 /// **A capability that outlived its space's registry membership reads as empty, not refused.**
 ///
-/// This is `Tcb::CONFIGURE`'s shape without spinning up a real thread: `take_user_aspace` is
-/// exactly what `configure_tcb` calls to move a space out of the registry and into a TCB. A
+/// This is `ThreadControlBlock::CONFIGURE`'s shape without spinning up a real thread: `take_user_aspace` is
+/// exactly what `configure_thread_control_block` calls to move a space out of the registry and into a TCB. A
 /// capability minted before that call still decodes to the same `name`; the syscall handler's
 /// `user_aspace_root` lookup is what actually notices the space is gone, and the documented
 /// answer is `DONE`, symmetric to `sched::survey_supervised`'s "before the scheduler exists there
@@ -243,12 +243,12 @@ fn a_capability_outliving_its_space_reads_as_empty() {
         Ok(0)
     );
 
-    // Simulate `Tcb::CONFIGURE` binding this space to a thread, without building one: the
+    // Simulate `ThreadControlBlock::CONFIGURE` binding this space to a thread, without building one: the
     // registry entry goes away exactly as it would there. `take_user_aspace`'s removal from
     // `USER_SPACES` is what `user_aspace_root` (and so `LIST`) actually notices. Dropped
     // explicitly, before `tidy` reclaims the space's own region, so the ASID and revocation
     // bookkeeping its `Drop` does (`Backing::Lent`, so it frees no memory) happens in the same
-    // order `Tcb::CONFIGURE` -> thread death would give it, rather than at the end of scope.
+    // order `ThreadControlBlock::CONFIGURE` -> thread death would give it, rather than at the end of scope.
     let space = crate::user::take_user_aspace(name).expect("the space was still registered");
     drop(space);
 

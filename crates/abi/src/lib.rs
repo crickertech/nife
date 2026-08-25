@@ -104,7 +104,8 @@
 //! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review). Considered and
 //! declined: `application_binary_interface`, spelled out fully to match this session's other
 //! renames -- rejected on the actual test (does the architect have to ask what this means, which
-//! sank `Tcb`/`Aspace`/`Untyped`), not on effort. "ABI" is closer to "CPU" than to "TCB" on that
+//! sank `Tcb`/`Aspace`/`Untyped`, the abbreviations these renames replaced), not on effort. "ABI"
+//! is closer to "CPU" than to "TCB" on that
 //! scale, and this is the tree's single most-imported crate, so the ergonomic cost of spelling it
 //! out would have been the highest of any rename this pass. Sits in the tenet's protected group
 //! (`elf`, `pci`, `dtb`, `gpt`, `ipc`, `paging`, `glob`, `asid`) for the same reason those do.
@@ -324,15 +325,15 @@ pub mod objtype {
 
     /// A thread (milestone 19c.3): the retyped page holds the TCB, and the object is born an
     /// **embryo**, in no queue and not runnable. It becomes a running thread only through
-    /// [`crate::tcb::CONFIGURE`] (bind an address space, set entry and stack) and [`crate::tcb::START`], with
-    /// [`crate::tcb::CAP_INSERT`] granting its initial authority in between. A half-built TCB can never
+    /// [`crate::thread_control_block::CONFIGURE`] (bind an address space, set entry and stack) and [`crate::thread_control_block::START`], with
+    /// [`crate::thread_control_block::CAP_INSERT`] granting its initial authority in between. A half-built TCB can never
     /// run: `START` refuses one with no bound space or no entry.
-    pub const TCB: u64 = 3;
+    pub const THREAD_CONTROL_BLOCK: u64 = 3;
 }
 
-/// Methods on a `Tcb` capability (milestone 19c.3): **another thread, under construction.**
-/// Created by [`untyped::RETYPE_OBJ`] with [`objtype::TCB`].
-pub mod tcb {
+/// Methods on a `ThreadControlBlock` capability (milestone 19c.3): **another thread, under construction.**
+/// Created by [`untyped::RETYPE_OBJ`] with [`objtype::THREAD_CONTROL_BLOCK`].
+pub mod thread_control_block {
     /// `invoke(cap, CONFIGURE, entry, user_sp, aspace_slot)` -> 0. Bind the address space named
     /// by the capability in `aspace_slot` (which is **consumed**: it becomes the thread's, and
     /// dies with it), and set where EL0 execution begins and on what user stack. Needs `WRITE`
@@ -442,7 +443,7 @@ pub mod rights {
 /// convention and a spawn-slot convention. No new syscall and no new method (§26).
 pub mod fault {
     /// **The spawn-slot convention.** A supervised child is spawned with its supervision endpoint
-    /// in this reserved capability table slot (via [`crate::tcb::CAP_INSERT`] with an explicit target slot, or a
+    /// in this reserved capability table slot (via [`crate::thread_control_block::CAP_INSERT`] with an explicit target slot, or a
     /// [`Spawn`](../user/struct.Spawn.html) grant). At `START` the kernel reads this slot: if it
     /// holds a `Rendezvous` capability the thread is supervised, and the kernel records the endpoint
     /// as the thread's fault target and clears the slot (so the child cannot forge fault messages

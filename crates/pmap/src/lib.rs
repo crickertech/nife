@@ -76,7 +76,7 @@
 //!   and why it is accepted rather than fixed here.
 //! - **There is no address space this program can be granted at the interactive prompt.** Every
 //!   `Object::Aspace` capability in this tree today is minted and consumed within the same thread
-//!   (`RETYPE_OBJ(ASPACE)` -> `MAP_INTO`* -> `Tcb::CONFIGURE`, which removes the space from the
+//!   (`RETYPE_OBJ(ASPACE)` -> `MAP_INTO`* -> `ThreadControlBlock::CONFIGURE`, which removes the space from the
 //!   registry the moment it binds to a thread), and nothing in the shipped tree ever delegates one to
 //!   a different program. So unlike `ps`, which the shell endows a live supervision endpoint (
 //!   `Manifest::domain`), `pmap` has no analogous manifest field and no wiring in

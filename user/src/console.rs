@@ -26,6 +26,43 @@
 
 use user_rt::{recv, send};
 
+/// The PL011's register block, migrated onto `tock_registers` (milestone 139 round 5): every
+/// offset checked at compile time instead of asserted by a hand-written comment, matching
+/// `kernel/src/drivers/pl011.rs`'s own idiom for the identical hardware. Only the two registers
+/// `uart_put` needs (DR, FR): the kernel's own driver configures the device at boot, so this
+/// program only ever transmits. The RISC-V half below stays on plain volatile access, for the
+/// reason `kernel/src/drivers/ns16550.rs`'s own module doc gives: the NS16550's register *stride*
+/// is a runtime value (QEMU spaces its emulated registers one byte apart; the JH7110's real
+/// hardware spaces them four bytes apart, `reg-shift = <2>`), which `register_structs!`'s
+/// compile-time-fixed layout cannot express. The PL011 has no such knob, so it is the one half of
+/// this file the macro actually fits.
+#[cfg(target_arch = "aarch64")]
+mod pl011 {
+    use tock_registers::registers::{ReadOnly, WriteOnly};
+    use tock_registers::{register_bitfields, register_structs};
+
+    register_bitfields! {
+        u32,
+        /// Flag register.
+        pub FR [
+            /// Transmit FIFO full. Writing to DR while this is set would drop the byte.
+            TXFF OFFSET(5) NUMBITS(1) [],
+        ],
+    }
+
+    register_structs! {
+        /// The PL011's memory-mapped register block, the same layout
+        /// `kernel/src/drivers/pl011.rs` verifies at compile time for the identical hardware.
+        #[allow(non_snake_case)]
+        pub RegisterBlock {
+            (0x00 => pub DR: WriteOnly<u32>),
+            (0x04 => _reserved0),
+            (0x18 => pub FR: ReadOnly<u32, FR::Register>),
+            (0x1c => @END),
+        }
+    }
+}
+
 /// The request endpoint (slot 0): the server RECVs a byte count on it.
 const REQUEST: u64 = 0;
 /// The reply endpoint (slot 1): the server SENDs the acked count back on it.
@@ -79,16 +116,19 @@ pub extern "C" fn _start(_x0: u64, _x1: u64, _x2: u64) -> ! {
 /// boot; we only transmit.
 #[cfg(target_arch = "aarch64")]
 fn uart_put(byte: u8) {
-    const DR: u64 = 0x00; // data register
-    const FR: u64 = 0x18; // flag register
-    const FR_TXFF: u32 = 1 << 5; // transmit FIFO full
-    // SAFETY: UART_VA is our device mapping of the PL011, handed to us at spawn.
-    unsafe {
-        while core::ptr::read_volatile((UART_VA + FR) as *const u32) & FR_TXFF != 0 {
-            core::hint::spin_loop();
-        }
-        core::ptr::write_volatile((UART_VA + DR) as *mut u32, byte as u32);
+    use pl011::{FR, RegisterBlock};
+    use tock_registers::interfaces::{Readable, Writeable};
+
+    // SAFETY: UART_VA is our device mapping of the PL011, handed to us at spawn, for the whole
+    // lifetime of this process. This is the same invariant the hand-written read_volatile/
+    // write_volatile calls used to assert by comment; register_structs! now checks every offset
+    // above at compile time instead (kernel/src/drivers/pl011.rs's own comment: "an off-by-four
+    // here is a build error rather than a mystery at runtime", true here for the identical reason).
+    let regs = unsafe { &*(UART_VA as *const RegisterBlock) };
+    while regs.FR.is_set(FR::TXFF) {
+        core::hint::spin_loop();
     }
+    regs.DR.set(byte as u32);
 }
 
 /// The NS16550 twin (RISC-V): byte registers, Transmit Holding Register Empty in the LSR.

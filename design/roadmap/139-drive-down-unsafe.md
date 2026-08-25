@@ -217,6 +217,27 @@ restructuring. Left as a named follow-on: migrate `console.rs`, `input.rs` and `
 `tock_registers::register_structs!`, matching `kernel/src/drivers/pl011.rs`'s and
 `kernel/src/drivers/ns16550.rs`'s own shape; `clock.rs` and `driver.rs` need nothing, per above.
 
+**Correction, 2026-08-24 (round 5's lane, found by reading the file rather than trusting the
+paragraph above): `kernel/src/drivers/ns16550.rs` does not use `tock_registers`.** The two
+paragraphs above claim it does ("drive the identical PL011/NS16550 hardware... using
+`tock-registers`' `register_structs!`/`register_bitfields!` macros"), twice, and both are wrong.
+`ns16550.rs`'s own module doc says plainly: "This one uses plain volatile access rather than
+`tock_registers` register blocks: the register indices are what the 16550 defines, and the stride
+between them is a runtime value no static layout macro can express." The JH7110's real UART spaces
+its registers four bytes apart (`reg-shift = <2>`); QEMU's emulated NS16550 spaces them one byte
+apart, carried as runtime data (`Shape`, since the VisionFive 2 prep) rather than a compile-time
+layout, which is exactly what `register_structs!` cannot express. Only `pl011.rs` uses
+`tock_registers` today. This does not overturn round 3's conclusion (the PL011 follow-on named
+below is still real and still worth taking); it changes which half of `console.rs` and `input.rs`
+that follow-on actually applies to, which round 5 (below) worked out per-file rather than assuming
+"the identical hardware" meant identical treatment.
+
+**Decided, 2026-08-24:** calef, in conversation: *"Take the dependency for user, launch the
+lane."* `tock-registers` is now a dependency of the `user` crate (`user/Cargo.toml`), pinned to
+`"0.10"`, matching `kernel/Cargo.toml`'s own pin so the two crates using this library never skew.
+See round 5 below for what actually migrated, including the runtime-stride finding above that
+narrowed it.
+
 **Investigation: framebuffer/graphics code (`display.rs`, `painter.rs`, `window.rs`, `compositor.rs`,
 `display_terminal.rs`) -- one decisive structural finding, and the performance question narrowed but
 not settled.** Read in full. **The part of this pipeline that would actually run at real per-frame
@@ -345,6 +366,80 @@ five genuinely per-pixel sites round 2 and round 3 identified are now four migra
 structural non-issue (`compositor.rs` itself needed nothing). Nothing about this cluster remains
 open.
 
+## Round 5 (2026-08-24): `tock-registers` for the fixed-layout device blocks, and the ns16550
+correction narrows it to a per-file, per-architecture call
+
+Round 3 named `console.rs`, `input.rs` and `jh7110_trng.rs` as one follow-on, on the strength of
+"`kernel/src/drivers/pl011.rs` and `kernel/src/drivers/ns16550.rs` already use
+`tock_registers`... for the identical hardware." That premise was checked before migrating
+anything (a lane cannot answer "is the premise true" by reading its own brief) and turned out to
+be half wrong: see the correction above. `ns16550.rs` was never migrated, for exactly the reason
+its own module doc gives, the runtime-variable register stride `register_structs!` cannot express.
+That correction changed the unit of analysis from "three files" to "which half of which file has a
+compile-time-fixed layout," since `console.rs` and `input.rs` each carry two architecture-gated
+halves (an aarch64 PL011 driver and a riscv64 NS16550 driver) behind one file name.
+
+**`console.rs`'s and `input.rs`'s aarch64 halves: migrated.** Both drive the PL011 at a fixed
+offset table (`DR`, `FR`; `input.rs` also `IMSC`, `ICR`), the same fixed layout
+`kernel/src/drivers/pl011.rs` already verifies at compile time for the identical hardware, with no
+runtime knob analogous to the NS16550's stride. Each file gained a local `register_structs!`/
+`register_bitfields!` block (private to that file, not shared between the two, matching how they
+already did not share their hand-written offset constants either) and a single-pointer-cast
+`unsafe` function replacing the hand-rolled `read_volatile`/`write_volatile` pair.
+
+**`console.rs`'s and `input.rs`'s riscv64 halves: genuinely unsuitable, the same finding
+`ns16550.rs` itself already made.** Both hard-code the NS16550 register layout at QEMU's one-byte
+stride (`THR`/`LSR` in `console.rs`; `RBR`/`IER`/`LSR` in `input.rs`), with no `Shape` parameter
+and no way to vary it at runtime today. That is not a reason to migrate them: it is a reason not
+to. The underlying hardware fact `ns16550.rs`'s module doc names, that this device family's
+register stride is a fact the JH7110's real silicon and QEMU's emulation disagree on and that only
+a runtime value (the device tree, eventually `Shape`) can resolve, holds for these two files
+exactly as it holds for the kernel's own driver; they simply have not grown a `Shape` parameter
+yet to make the disagreement visible. Encoding today's QEMU-only assumption into a
+`register_structs!` block would not fix that gap, it would fossilize it behind a stronger-looking
+mechanism: a compile-time-checked layout that is confidently wrong the day this driver runs
+against real JH7110 hardware, which is a worse failure mode than the honest hand-written offsets
+that at least invite a reader to ask "is this the right stride." Left unmigrated, on purpose,
+matching `ns16550.rs`'s own precedent rather than round 3's "identical hardware" premise.
+
+**`jh7110_trng.rs`: migrated.** Checked against the crate's own sourced register file
+(`crates/jh7110_trng::regs`, transcribed from `jh7110-trng.c`) and the device-tree binding
+(`starfive,jh7110-trng`, `reg = <0x1600C000 0x4000>`) before assuming this was the file round 3's
+brief warned it might be ("the one most likely to have this problem," being real-hardware-specific
+code for a board this tree has not yet run against, milestone 159, `NOT-STARTED`, gate HARDWARE):
+the binding gives one `reg` window with no `reg-shift`/`reg-io-width` knob, unlike the NS16550's
+binding, so there is no runtime-variable aspect to this device's layout for `register_structs!` to
+be the wrong tool for. `r32`/`w32` (two hand-written volatile-access functions, one `unsafe` block
+apiece) collapsed into one `regs()` pointer-cast function reused by every accessor; the register
+block names only the registers this driver touches (`CTRL`, `ISTAT`, `RAND0..RAND7`), with `STAT`,
+`MODE`, `SMODE`, `IE`, `AUTO_RQSTS` and `AUTO_AGE` as reserved padding, the same "not otherwise
+used" status the crate's own `regs` module already gives several of them. This has not run against
+real silicon either way (see the crate's and the program's own module docs); the migration changes
+nothing about that gap, only how the register offsets are checked.
+
+**Measured from the diff against this round's own base commit (`757562a3`): 5 `unsafe {` blocks
+removed, 3 added, net -2** (`console.rs` flat at 1 before and 1 after -- still a real reduction by
+rounds 1-3's own criterion 2, raw pointer arithmetic replaced by a compile-time-checked typed
+abstraction, the same "flat but real" case `smb_server.rs`, `fs_subtree_caretaker.rs` and
+`swish.rs`'s terminal pair were; `input.rs` 2 removed, 1 added, net -1; `jh7110_trng.rs` 2 removed,
+1 added, net -1). Tree-wide census, base commit versus this round's tree: 782 blocks outside
+`arch/` in 88,761 lines (88 per 10,000) before, 780 blocks in 88,812 lines (87 per 10,000) after --
+the line count grew despite the block count falling, because the compile-time-checked layout costs
+more lines in doc comments and macro invocations than the hand-written offsets and SAFETY comments
+it replaced, the mirror image of round 2's `asm!`-collapse where both moved together.
+
+**The ratchet, cinched a fourth time: `<!--count-at-most:unsafe-density-outside-arch-->` lowered
+from 95 to 94** (`notes/unsafe-obligations.md`, `notes/counted-claims.md`,
+`notes/register-of-measures.md`), keeping the same 7-point headroom every ceiling in this milestone
+has carried, now above the 87 this round reached. **One honest caveat this round's own report
+should carry rather than let a merge discover**: a separate, concurrently-running round-4 lane
+(`milestone/139-round4-graphics`) is measuring and migrating a different candidate set from the
+same base commit at the same time. Whichever of the two rounds' pull requests lands second will
+find this ceiling arithmetic stale (both rounds subtracted from the same starting density) and
+needs to re-measure from the merged tree rather than trust either round's own before/after numbers
+in isolation, the same discipline round 2's own report names for tree-wide census under concurrent
+growth.
+
 ## What is still open
 
 **`crates/ipc`'s unsafe is settled**: read in full, genuinely per-call-site distinct, no further work
@@ -363,17 +458,17 @@ sorted the non-FS hits into rough categories a follow-on lane can use rather tha
   round 3 left open (negligible at every volume this cluster sees, on both ISAs) is recorded there.
   Nothing else in this cluster remains outstanding.
 - **`heeder.rs` is done** (round 2); nothing else in that shape remains outstanding there.
-- **Device register blocks, investigated rather than migrated (round 3)**: `console.rs`, `input.rs`,
-  `clock.rs` and `jh7110_trng.rs` are genuinely per-driver distinct at the invariant level, so
-  `MappedWindow` is the wrong fit; `driver.rs` is already a different idiom and needs nothing. The
-  real follow-on is concrete: migrate `console.rs`, `input.rs` and `jh7110_trng.rs` onto
-  `tock_registers::register_structs!`/`register_bitfields!`, matching the idiom
-  `kernel/src/drivers/pl011.rs` and `kernel/src/drivers/ns16550.rs` already use for the identical
-  hardware, which checks every register offset at compile time rather than by hand-written comment
-  (a stronger property than either `MappedWindow`'s runtime check or the status quo). Out of this
-  round's scope because it is a new dependency for the `user` crate (a decision, not a lane's call)
-  touching files that gate boot output and keyboard input. See the investigation above for the full
-  reasoning and the `ipc`-round-2 precedent it rests on.
+- **Device register blocks: done for the files that had a fixed layout (round 5), and nothing
+  else in this shape remains outstanding.** `console.rs`'s and `input.rs`'s aarch64 (PL011) halves
+  and `jh7110_trng.rs` are migrated onto `tock_registers::register_structs!`/`register_bitfields!`,
+  matching `kernel/src/drivers/pl011.rs`'s own idiom. `console.rs`'s and `input.rs`'s riscv64
+  (NS16550) halves are deliberately NOT migrated: round 3's premise that
+  `kernel/src/drivers/ns16550.rs` already uses this idiom "for the identical hardware" was false
+  (see the correction above), and the real fact it got wrong, that this device family's register
+  stride is a runtime value no compile-time layout macro can express, applies to these two files'
+  riscv64 halves exactly as it applies to the kernel's own NS16550 driver. `clock.rs`'s RTC drivers
+  and `driver.rs` still need nothing, per round 3's reading. See round 5 above for the full
+  per-file, per-architecture reasoning and the measured reduction.
 - **Deliberately not migration candidates, named so nobody re-derives them and wastes a look**:
   `hello.rs` (tests `.bss` zeroing and `.data` writability on purpose; the raw access *is* the test),
   `flaky.rs` and `outlaw.rs` (deliberately touch a bad/unauthorized address to provoke a fault; a

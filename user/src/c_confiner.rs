@@ -152,7 +152,7 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
         ) else {
             bail(11)
         };
-        if !supervision_proto::tcb_start(tcb, 0, attempt, 0) {
+        if !supervision_proto::thread_control_block_start(tcb, 0, attempt, 0) {
             bail(12)
         }
         // Neither capability is the thing itself, and neither is needed any more. The TCB capability

@@ -353,8 +353,8 @@
 #![no_main]
 
 use supervision_proto::{
-    ChildEndowment, build_child, retype_obj_from as retype_obj, tcb_start, untyped_destroy,
-    untyped_split,
+    ChildEndowment, build_child, retype_obj_from as retype_obj, thread_control_block_start,
+    untyped_destroy, untyped_split,
 };
 use user_rt::{call, cap_delete, invoke, recv, send, yield_now};
 
@@ -594,7 +594,7 @@ fn mint(own_ut: u64, care: Option<&elf::Elf>, identity: &[u8]) -> Option<(u64, u
         },
     );
     let tcb = built.ok()?;
-    let started = tcb_start(tcb, lo, hi, spec);
+    let started = thread_control_block_start(tcb, lo, hi, spec);
     cap_delete(tcb);
     if !started {
         cap_delete(ready);
