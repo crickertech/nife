@@ -35,6 +35,7 @@ members = [
     "crates/machine_discovery",
     "crates/paging",
     "crates/pci",
+    "crates/schedule_store",
     "crates/pgrep",
     "crates/pmap",
     "crates/ps",

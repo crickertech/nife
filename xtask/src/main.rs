@@ -4371,6 +4371,10 @@ fn initrd_riscv() -> bool {
             // carry it and the same test suite runs against either ISA.
             "--bin",
             "identity_provisioner",
+            // The boot-time re-deriver (milestone 152's third piece, provisional name). Portable,
+            // so both archives carry it and the same test suite runs against either ISA.
+            "--bin",
+            "session_reviver",
             // The disk surveyor (milestone 57), portable like the rest, and its write-half twin.
             "--bin",
             "disk_surveyor",
@@ -4489,6 +4493,9 @@ fn initrd_riscv() -> bool {
         // secret into the credential store and MKDIRs its home subtree as one act. Portable, so
         // both archives carry it and the same guest tests run against either ISA.
         ("identity_provisioner", "identity_provisioner"),
+        // The boot-time re-deriver (milestone 152's third piece, provisional name). Portable, so
+        // both archives carry it and the same guest tests run against either ISA.
+        ("session_reviver", "session_reviver"),
         // The NTP client (milestone 51), with its test server and its clock-page probe as roles of
         // the same binary. Portable, so both archives carry it and both ISAs run the same tests.
         ("ntp", "ntp"),
@@ -4692,6 +4699,10 @@ fn mkinitrd() -> bool {
         // The provisioning tool (milestone 155): a `useradd`-equivalent that PUTs an identity and
         // secret into the credential store and MKDIRs its home subtree as one act.
         ("identity_provisioner", "identity_provisioner"),
+        // The boot-time re-deriver (milestone 152's third piece, provisional name): a
+        // root_supervisor-shaped boot-only process that reads the durable schedule store's
+        // manifest and re-derives every identity it names, then deletes its own capabilities.
+        ("session_reviver", "session_reviver"),
         ("ntp", "ntp"),
         // The outlaw (milestone 19's user-test port): the privilege-boundary programs
         // kernel::user::tests used to hand-assemble.

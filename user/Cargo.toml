@@ -510,6 +510,17 @@ path = "src/identity_provisioner.rs"
 test = false
 bench = false
 
+# The boot-time re-deriver (milestone 152's third piece, provisional name; DECISIONS §123): a
+# `root_supervisor`-shaped boot-only process that reads the durable schedule store's manifest, reads
+# and parses each named identity's own schedule file, mints and tears down a synthetic stand-in for
+# the session it would re-derive, then deletes its own construction budget and store-read capability
+# and proves both gone. `mkinitrd` packs it as "session_reviver" for both ISAs.
+[[bin]]
+name = "session_reviver"
+path = "src/session_reviver.rs"
+test = false
+bench = false
+
 # The NTP client (milestone 51): holds a network capability and the right to PROPOSE a time, and
 # deliberately not the right to set one. One binary, three roles (the client, the test server that
 # answers it, and the probe that proves the clock page is unreachable). `mkinitrd` packs it as "ntp"
@@ -647,6 +658,10 @@ swish = { version = "0.1.0", path = "../crates/swish" }
 # give, and the fire arithmetic. `user/src/timetable.rs` keeps the budget, the counter and the
 # loader; everything a host test or Kani can reach is in the crate.
 timetable = { version = "0.1.0", path = "../crates/timetable" }
+# The durable schedule store's shared names (milestone 152, DECISIONS §122/§125): the fixed file
+# names `session_reviver.rs` and `fs_test_client.rs`'s `ROLE_SCHEDULE_SEED` both depend on, and the
+# manifest format neither `timetable` nor `filesystem_proto` already owns.
+schedule_store = { version = "0.1.0", path = "../crates/schedule_store" }
 user_rt = { version = "0.1.0", path = "../crates/user_rt" }
 video_terminal = { version = "0.1.0", path = "../crates/video_terminal" }
 

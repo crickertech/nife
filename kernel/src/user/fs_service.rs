@@ -578,7 +578,12 @@ const CLIENT_EXTRA_STACK: usize = 8;
 /// stage; four extra pages overflowed by 48 bytes at the same `sp` and with the same symptom.
 /// Recorded because it will happen a third time: the shell's stack is sized by the largest value
 /// `grant_plan` hands it, so a field added there is a page needed here.
-fn spawn_fs_client(
+/// `pub(super)` (rather than private, its shape before milestone 152) so a sibling test module can
+/// spawn a client with a nonzero `extra_stack` directly, bypassing [`start`]'s convenience wrapper
+/// (which hardcodes `0`): `kernel::user::session_reviver_tests` needs more than the one-page default
+/// for its two `fs_test_client` roles, found short under `script/test`'s own aarch64 run (a data
+/// abort at the stack's guard page).
+pub(super) fn spawn_fs_client(
     client_image: &'static [u8],
     file_ep: RendezvousId,
     file_shared: u64,
