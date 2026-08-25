@@ -257,3 +257,54 @@ pub unsafe fn set_interrupt_stack(slot: u8, top: u64) {
             .write_unaligned(top);
     }
 }
+
+/// **Bench-only** (DECISIONS §121's amendment, 2026-08-24): the I/O permission bitmap option 1
+/// would write into the current CPU's TSS on every switch-in, sized for the whole port space,
+/// **not installed as live**.
+///
+/// The x86 port space is 16 bits (`in`/`out` address exactly 64 Ki ports), one bit of "may this
+/// ring-3 thread touch this port" each, so the bitmap is `65536 / 8 == 8192` bytes exactly (the
+/// module doc's "8 KiB" is not a round number picked for convenience; it is what the architecture
+/// requires). Some real implementations (Linux's, e.g.) append one further guard byte set to all
+/// ones, because the CPU may read two bytes when checking the highest port and a bitmap that ends
+/// exactly at the limit would read past it; that byte is not needed here because nothing ever
+/// checks this array against a real port access (see below).
+///
+/// **What this measures, and what it does not.** §121's option 1 would extend the live [`Tss`]
+/// with this array, point `iomap_base` at it, and have the scheduler overwrite it on every
+/// switch-in. This does the write (the dominant cost the amendment names) without any of the
+/// rest: `iomap_base` above still points past the end of `TSS`, `ltr` is never re-issued, and no
+/// `in`/`out` from ring 3 ever runs in this benchmark boot (there is no ring-3 program on this
+/// port yet; see `user::x86_programs`). So the number this produces is the cost of an 8 KiB
+/// per-CPU memory write on the switch path, not a proof that the bitmap enforces anything; that
+/// second half is option 1's real implementation, out of scope here (`design/decisions/121-port-io-capability.md`).
+#[cfg(feature = "bench")]
+const IOMAP_BYTES: usize = 65536 / 8;
+
+#[cfg(feature = "bench")]
+#[repr(C, align(8))]
+struct BenchIoBitmap([u8; IOMAP_BYTES]);
+
+/// A second CPU-owned 8 KiB region, separate from the live `TSS` static above so this benchmark
+/// can never be mistaken for having wired the real one in. One instance because this port has one
+/// CPU (`smp::bring_up_secondaries` is a refusal on `x86_64` today); a real per-CPU version would
+/// need `crate::cpu::PerCpu`, which option 1 would also need and this benchmark does not.
+#[cfg(feature = "bench")]
+static mut BENCH_IOMAP: BenchIoBitmap = BenchIoBitmap([0; IOMAP_BYTES]);
+
+/// Write a full I/O permission bitmap's worth of bytes into this CPU's bench-only scratch region,
+/// the way `schedule()` would write the incoming thread's bitmap into the TSS under option 1. The
+/// pattern argument (varied per call by the caller) and the touch after are both there so nothing
+/// about this write is provably dead code to the optimizer.
+///
+/// Safe to call from anywhere: the internal `unsafe` is this CPU's own static, single-hart, no
+/// concurrent access, the same fact `bench.rs`'s single-threaded caller already relies on.
+#[cfg(feature = "bench")]
+pub fn bench_write_io_bitmap(pattern: u8) -> u8 {
+    // SAFETY: single-hart bench boot; writes and reads this CPU's own static, never aliased.
+    unsafe {
+        let base = (&raw mut BENCH_IOMAP.0).cast::<u8>();
+        base.write_bytes(pattern, IOMAP_BYTES);
+        base.add(IOMAP_BYTES - 1).read()
+    }
+}

@@ -330,6 +330,33 @@ and the difference is accounted rather than shrugged at:
   headline test builds to prove the created subtree is real. This suite's own tests report their
   charge directly (`[that test kept N frames]`), which is where the 1659 comes from rather than a
   re-derivation here.
+- **`MappedWindow`'s formatted panic, ~5 (2026-08-25, milestone 139 round 4).** Found by the
+  `toolchain/nightly-bump` PR going red on a plain toolchain bump with no code change of its own;
+  bisected against CI's own historical `build + test (host + QEMU)` logs (five independent runs at
+  18621 before `202831a3`/`c94f5d21`, two independent runs at 18626 immediately after, both
+  populations internally exact). `MappedWindow::check` (`crates/user_rt/src/mapped_window.rs`,
+  milestone 139) panics with a *formatted* message, and that alone is enough to pull `core::fmt`'s
+  panic-with-arguments machinery into any binary that calls it, even once. Measured directly
+  (`llvm-size`, dev profile): `painter`, `window` and `display` each grew their linked text by
+  roughly 54 KiB (11–15 KiB to 65–70 KiB) adopting it; `display_terminal`, which already pulled the
+  formatter in elsewhere, grew by only ~5 KiB. `display` is the standing candidate for where this
+  becomes permanent rather than transient: `kernel/src/user/display_tests.rs` says outright that
+  its driver instance "is a long-lived server and never exits" for the rest of that test's boot,
+  and a process's `AddressSpace` is sized from its own ELF segment page count
+  (`kernel/src/user.rs::load`), so a permanently bigger binary should cost permanently more frames
+  by construction. **This is the fact the account does not have**: the per-program page math for
+  `display` alone (roughly +14 pages between the same two commits) does not cleanly reduce to the
+  suite's measured +5, and that specific test's own reported charge moved by only +1 across the
+  same comparison. `report_frame_ledger`'s attribution is by whichever test happened to be running
+  when a shared or lazily-built resource was first touched, not by the code that spent it, and
+  `#[test_case]` registration order can shift when unrelated code size changes elsewhere in the
+  binary, so a clean per-test diff was not trustworthy evidence here; only the repeated, internally
+  consistent *suite-wide* total is. Recorded as +5, attributed to this migration with confidence;
+  not attributed to a specific one of the four migrated programs. See `kernel/src/testing.rs`'s
+  `SUITE_FRAME_BUDGET` doc comment for the rest of the account, including the separate ~1-2 frame
+  cross-environment variance this raise also had to make room for (18621 → 18626 → 18627 local →
+  18628 the one CI run that actually failed), which this investigation ruled a `swish.rs` change
+  and a QEMU version mismatch out of and could not otherwise pin down.
 
 ### BUGS in the ledger itself
 
