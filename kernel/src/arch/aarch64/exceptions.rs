@@ -694,7 +694,13 @@ fn fatal(frame: &TrapFrame, index: u64, esr: u64) -> ! {
 fn print_reg_row(frame: &TrapFrame, first: usize) {
     use crate::print;
     print!("  ");
-    for (i, x) in frame.x.iter().enumerate().take((first + 4).min(31)).skip(first) {
+    for (i, x) in frame
+        .x
+        .iter()
+        .enumerate()
+        .take((first + 4).min(31))
+        .skip(first)
+    {
         print!("x{i:<2} {x:#018x}  ");
     }
     println!();
