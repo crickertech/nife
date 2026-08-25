@@ -5,6 +5,11 @@
 one of them; it is `crates/supervision_proto`'s `build_child` now, and every caller reaches it there.
 What the loader does is unchanged, and the steps below are still the steps.)*
 
+*What this note does not cover: the archive entry named `init` means a different program on each
+architecture today (`hello`'s `init_boot` role on aarch64, `system_initializer` reached by its own
+name on riscv64, and whatever `builder`-descended path x86_64 lands on), which is its own open
+question, not a fact this note states. See [milestone 166](../roadmap/166-init-boot-parity.md).*
+
 ## The one thing 19d moves, and why it matters
 
 Until 19d, when a program ran on nife the **kernel** read its file and set it up: it parsed
