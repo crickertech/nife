@@ -515,14 +515,41 @@ builder to hand a narrowed, still-registered view of a space it is constructing 
 `pmap` works, and is named as an open finding in `design/roadmap/126-who-else-is-running.md`'s
 `BUGS` and `crates/pmap`'s own for whoever picks it up.
 
+## `watch`, redrawn over the same domain
+
+**`watch` works on both ISAs, and it is granted exactly what `ps` and `pgrep` are, plus a required
+argument.** It re-walks the domain a bounded number of times (`crates/watch`'s `clamp_iterations`)
+and prefixes each table with `CSI 2J`/`CSI H` (erase, then home the cursor) so the terminal shows
+the latest snapshot in place, proven against a real `video_terminal::Vt` in
+`kernel::user::watch_tests`: a domain member is spawned, surveyed, reaped through a capability
+`watch` itself never holds, and surveyed again, and the first survey's tid is shown gone from the
+whole rendered grid rather than merely absent from wherever the second frame wrote.
+
+**It is not upstream `watch`.** Re-running an arbitrary command needs a program to hold spawn
+authority, which in this system belongs to the shell alone (`grant_plan::spawnproto`) and is granted
+to nothing the shell spawns -- an interruptible child is built with no capabilities in its cspace at
+all, so there is no route from "a program is running" to "that program can start a second one"
+without new spawn-delegation machinery this milestone does not build. That is the same category of
+gap `top`, `pwdx` and `w` are blocked on. So `watch` redraws the one thing it can already reach
+without any of that: the domain it was spawned into, exactly `ps`'s own listing, which is also real
+`watch`'s own single most common invocation (`watch ps`).
+
+**Bounded rather than interruptible, stated as a scope decision rather than found later.** Since an
+interruptible (`^C`-stoppable) spawn is endowed no capabilities at all, and this program needs the
+domain and the output sink for its whole run, it cannot be both. A typed count
+(`watch N`, clamped to `[1, watch::MAX_ITERATIONS]`) bounds it instead, and it always terminates on
+its own. The interval between frames is fixed and is a yield-spin against `monotonic_nanos`, not a
+sleep, because this kernel has neither (`user/src/timetable.rs`'s module docs name the first four
+consumers of milestone 106's timed-wait fork; `watch` is the fifth).
+
 ## What this does not build
 
-The rest of the view stratum (`top`, `pwdx`, `w`), the machine-wide statistics, `watch`, and
-`sysctl` (which milestone 126's block records as a design fork rather than a program to port). The
-signalling stratum is not on this list and is not deferred either: calef's ruling abolished most of
-it, and the `pgrep` section above is where that is recorded. `pmap` is built (see above) and is not
-on this list either, though it is not reachable from the interactive shell, which is a finding
-rather than an omission.
+The rest of the view stratum (`top`, `pwdx`, `w`), the machine-wide statistics, and `sysctl` (which
+milestone 126's block records as a design fork rather than a program to port). The signalling
+stratum is not on this list and is not deferred either: calef's ruling abolished most of it, and the
+`pgrep` section above is where that is recorded. `pmap` is built (see above) and is not on this list
+either, though it is not reachable from the interactive shell, which is a finding rather than an
+omission. `watch` is built (see above) and is not on this list either.
 
 Each of the three remaining view programs is blocked on something real rather than on effort, which
 is worth writing down so nobody estimates from `ps`:

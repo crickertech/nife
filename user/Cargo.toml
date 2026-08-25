@@ -591,6 +591,20 @@ path = "src/pmap.rs"
 test = false
 bench = false
 
+# `watch` (milestone 126): `ps`'s own domain walk, redrawn a bounded number of times instead of
+# printed once, with `CSI 2J`/`CSI H` ahead of each frame so the terminal shows the latest snapshot
+# rather than the whole run scrolling past. Not real `watch`'s "re-run an arbitrary command": that
+# needs spawn authority this system grants to the shell alone. Holds exactly `ps`'s three
+# capabilities and reads its own typed count out of the argument register `ps` leaves unused. The
+# redraw and the interval are crates/watch, host-tested. Portable for `ps`'s reason. **Provisional
+# name**: the same word upstream `procps` uses, flagged anyway because this program is narrower than
+# upstream's; see the crate's module docs.
+[[bin]]
+name = "watch"
+path = "src/watch.rs"
+test = false
+bench = false
+
 [lints]
 workspace = true
 
@@ -635,6 +649,7 @@ nifefs = { version = "0.1.0", path = "../crates/nifefs" }
 pgrep = { version = "0.1.0", path = "../crates/pgrep" }
 pmap = { version = "0.1.0", path = "../crates/pmap" }
 ps = { version = "0.1.0", path = "../crates/ps" }
+watch = { version = "0.1.0", path = "../crates/watch" }
 elf = { version = "0.1.0", path = "../crates/elf" }
 entropy_proto = { version = "0.1.0", path = "../crates/entropy_proto" }
 # The JH7110 TRNG's register logic and DTB discovery (milestone 159), host-tested in the crate

@@ -398,6 +398,7 @@ dependencies = [
  "thread_wake_handshake",
  "tock-registers",
  "video_terminal",
+ "watch",
  "work_steal_slot",
 ]
 
@@ -942,6 +943,7 @@ dependencies = [
  "user_rt",
  "video_terminal",
  "virtio",
+ "watch",
 ]
 
 [[package]]
@@ -984,6 +986,15 @@ dependencies = [
  "filesystem_proto",
  "nifefs",
  "user_rt",
+]
+
+[[package]]
+name = "watch"
+version = "0.1.0"
+dependencies = [
+ "abi",
+ "ps",
+ "video_terminal",
 ]
 
 [[package]]
