@@ -277,11 +277,11 @@ pub(crate) fn invoke(
             _ => Err(Error::BadMethod),
         },
 
-        // Another process's memory, under construction (19b). WRITE on the aspace cap is the
+        // Another process's memory, under construction (19b). WRITE on the address space cap is the
         // authority to shape it; the frame's own rights gate what kind of mapping, exactly as
         // frame::MAP; the va gate is the proved paging::is_user_page_va, as everywhere.
-        Object::Aspace(name) => match method {
-            abi::aspace::MAP_INTO => {
+        Object::AddressSpace(name) => match method {
+            abi::address_space::MAP_INTO => {
                 if !cap.rights.allows(Rights::WRITE) {
                     return Err(Error::NotPermitted);
                 }
@@ -305,13 +305,13 @@ pub(crate) fn invoke(
                         // 0 read-only, 1 read/write, 2 executable code (a loader's child .text).
                         // Code is W^X: user_code is RX, never writable, so it needs only READ.
                         let flags = match a2 {
-                            abi::aspace::MAP_RW => {
+                            abi::address_space::MAP_RW => {
                                 if !frame.rights.allows(Rights::WRITE) {
                                     return Err(Error::NotPermitted);
                                 }
                                 paging::Flags::user_data()
                             }
-                            abi::aspace::MAP_CODE => {
+                            abi::address_space::MAP_CODE => {
                                 if !frame.rights.allows(Rights::READ) {
                                     return Err(Error::NotPermitted);
                                 }
@@ -328,7 +328,7 @@ pub(crate) fn invoke(
                     }
                     _ => return Err(Error::WrongObject),
                 };
-                match crate::user::user_aspace_map(name, va, phys, flags) {
+                match crate::user::user_address_space_map(name, va, phys, flags) {
                     Ok(()) => {
                         // When userspace maps a frame it wrote executable (a spawner building a
                         // child's code, MAP_CODE), the instruction fetcher must be made to see the
@@ -353,16 +353,16 @@ pub(crate) fn invoke(
             // List what this address space has mapped, one entry per call, without the ability
             // to change any of it (milestone 126's `pmap`, DECISIONS §114): `Rendezvous::SURVEY`'s
             // shape one object type over, and pointedly `ENUMERATE` rather than `WRITE`, which is
-            // what `MAP_INTO` above takes. See `abi::aspace::LIST` for the wire contract and
+            // what `MAP_INTO` above takes. See `abi::address_space::LIST` for the wire contract and
             // DECISIONS §114 for why this method's mere existence is the thing that makes
             // `ENUMERATE` live on every address-space capability minted since 2026-08-17 (the
             // `Rights::ALL`-on-creation invariant): the audit that check required is in
             // notes/process-view.md.
-            abi::aspace::LIST => {
+            abi::address_space::LIST => {
                 if !cap.rights.allows(Rights::ENUMERATE) {
                     return Err(Error::NotPermitted);
                 }
-                aspace_list(frame, name, a0)
+                address_space_list(frame, name, a0)
             }
             _ => Err(Error::BadMethod),
         },
@@ -399,7 +399,7 @@ pub(crate) fn invoke(
             // Body extracted (milestone 156): all five `Untyped` methods are memory-management
             // administration a spawner runs while building a process, never a step of the IPC
             // round trip `script/fastpath-footprint` bounds, so each stays out of `invoke`'s own
-            // bytes and `#[inline(never)]` on purpose. See `aspace_list`, the pattern this copies.
+            // bytes and `#[inline(never)]` on purpose. See `address_space_list`, the pattern this copies.
             abi::untyped::MAP => {
                 if !cap.rights.allows(Rights::WRITE) {
                     return Err(Error::NotPermitted);
@@ -506,7 +506,7 @@ pub(crate) fn invoke(
 /// which bumps the untyped's watermark.
 ///
 /// Pulled out of [`invoke`] and marked `#[inline(never)]` (milestone 156, the pattern
-/// `aspace_list` proved on milestone 126's `LIST`): `syscall_entry` is measured flat, so a rare
+/// `address_space_list` proved on milestone 126's `LIST`): `syscall_entry` is measured flat, so a rare
 /// administrative arm inlined into the hot dispatcher grows every syscall's footprint for a
 /// method that never runs on an IPC round trip.
 #[inline(never)]
@@ -563,14 +563,14 @@ fn untyped_retype_obj(region: u64, kind: u64) -> Result<i64, Error> {
         // An address space (19b): the page becomes the L0 root, the untyped becomes the space's
         // backing region for tables and records (one budget model; see the abi doc and
         // design/init-and-granular-spawn.md).
-        abi::objtype::ASPACE => {
-            let name = crate::user::user_aspace_create(region).ok_or(Error::OutOfMemory)?;
+        abi::objtype::ADDRESS_SPACE => {
+            let name = crate::user::user_address_space_create(region).ok_or(Error::OutOfMemory)?;
             // `Rights::ALL` for the RENDEZVOUS arm's reason: "full rights on its own object" is the
             // invariant, and a hand-listed set stops being full the next time a right is added.
-            // `Aspace` does not consult `ENUMERATE` today and is expected to when `pmap` is
+            // `AddressSpace` does not consult `ENUMERATE` today and is expected to when `pmap` is
             // built; holding a right nothing checks confers nothing, and not holding it is what
             // blocks a future grant.
-            let slot = sched::grant(crate::cap::aspace_cap(name, Rights::ALL))
+            let slot = sched::grant(crate::cap::address_space_cap(name, Rights::ALL))
                 .map_err(|_| Error::OutOfMemory)?;
             Ok(slot as i64)
         }
@@ -692,7 +692,7 @@ fn frame_revoke(phys: u64) -> Result<i64, Error> {
 }
 
 /// `ThreadControlBlock::CONFIGURE`: bind an address space to an embryo thread and set its entry point and stack
-/// (`a0` entry, `a1` stack, `a2` the aspace cap slot, consumed). `#[inline(never)]` for the
+/// (`a0` entry, `a1` stack, `a2` the address space cap slot, consumed). `#[inline(never)]` for the
 /// reason `untyped_map` gives.
 #[inline(never)]
 fn thread_control_block_configure(
@@ -701,16 +701,16 @@ fn thread_control_block_configure(
     stack: u64,
     aspace_slot: u64,
 ) -> Result<i64, Error> {
-    // aspace_slot must name a WRITE Aspace cap, and it is consumed.
+    // aspace_slot must name a WRITE AddressSpace cap, and it is consumed.
     let aspace = sched::current_cap(aspace_slot).map_err(|_| Error::NoSuchSlot)?;
-    let Object::Aspace(aspace_name) = aspace.object else {
+    let Object::AddressSpace(aspace_name) = aspace.object else {
         return Err(Error::WrongObject);
     };
     if !aspace.rights.allows(Rights::WRITE) {
         return Err(Error::NotPermitted);
     }
     sched::configure_thread_control_block(tid, entry, stack, aspace_name)?;
-    // Consume the aspace cap: it is the thread's now, and a second bind must not find it. (The
+    // Consume the address space cap: it is the thread's now, and a second bind must not find it. (The
     // space already left the registry, so the cap is inert regardless; this keeps the caller's
     // capability table honest.)
     let _ = sched::delete_current_cap(aspace_slot);
@@ -805,19 +805,19 @@ fn rendezvous_reap(ep: crate::sched::RendezvousId, tid: u64) -> Result<i64, Erro
     Ok(0)
 }
 
-/// The body of `abi::aspace::LIST` (milestone 126's `pmap`, DECISIONS §114), pulled out of
+/// The body of `abi::address_space::LIST` (milestone 126's `pmap`, DECISIONS §114), pulled out of
 /// [`invoke`] and marked `#[inline(never)]` on purpose: `syscall_entry` is measured flat
 /// (`script/fastpath-footprint`), so a rare administrative loop inlined into the hot dispatcher
 /// grows every syscall's instruction footprint for a method almost nothing calls. One call-site's
 /// worth of bytes in `invoke` costs far less than this loop's own bytes would.
 #[inline(never)]
-fn aspace_list(frame: &mut TrapFrame, name: u64, cursor: u64) -> Result<i64, Error> {
+fn address_space_list(frame: &mut TrapFrame, name: u64, cursor: u64) -> Result<i64, Error> {
     // The capability names a registry entry by generation; once `ThreadControlBlock::CONFIGURE` binds this space
-    // to a thread, `take_user_aspace` removes it, and `root` is `None` from here on for every
+    // to a thread, `take_user_address_space` removes it, and `root` is `None` from here on for every
     // capability that pointed at it. That is not a refusal (the capability is real and was never
     // widened past what it always held): it reads as an empty listing, symmetric to `SURVEY`'s
     // "before the scheduler exists there is no domain to report."
-    let Some(root) = crate::user::user_aspace_root(name) else {
+    let Some(root) = crate::user::user_address_space_root(name) else {
         frame.set_arg(1, 0);
         frame.set_arg(2, 0);
         return Ok(abi::survey::DONE as i64);
@@ -835,11 +835,11 @@ fn aspace_list(frame: &mut TrapFrame, name: u64, cursor: u64) -> Result<i64, Err
         }
         if let Some((_, flags)) = crate::arch::mmu::translate_at(root, va) {
             let kind = if flags.is_user_executable() {
-                abi::aspace::MAP_CODE
+                abi::address_space::MAP_CODE
             } else if flags.is_writable() {
-                abi::aspace::MAP_RW
+                abi::address_space::MAP_RW
             } else {
-                abi::aspace::MAP_RO
+                abi::address_space::MAP_RO
             };
             frame.set_arg(1, va);
             frame.set_arg(2, kind);

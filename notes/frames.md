@@ -97,7 +97,7 @@ were, and are, three routes:
 | Route | Who calls it | In the mapping database? |
 |---|---|---|
 | `Frame::MAP` | a process, for a frame it holds | **yes** |
-| `Aspace::MAP_INTO` | a userspace loader, into a space it is building | **yes** (`user_aspace_map`) |
+| `AddressSpace::MAP_INTO` | a userspace loader, into a space it is building | **yes** (`user_address_space_map`) |
 | `Spawn::maps` | the kernel, before the process's first instruction | **no** |
 
 The first two go through `revoke::record_mapping`, and an unrecordable mapping is refused rather
@@ -428,8 +428,9 @@ and the difference is accounted rather than shrugged at:
      which is defined as `CAPABILITY_TABLE_SLOTS - 1` and which every supervised program agrees on. It leaves
      469 `MAP` calls and 469 mapping records in place, so it buys the pixels without buying any of
      the elegance.
-  3. **Map the run into the client's space without giving it capabilities**, which `aspace::MAP_INTO`
-     already does: the spawner holds the `Aspace`, maps each frame into it, and deletes its own cap
+  3. **Map the run into the client's space without giving it capabilities**, which
+     `address_space::MAP_INTO` already does: the spawner holds the `AddressSpace`, maps each frame
+     into it, and deletes its own cap
      between iterations, so one slot serves the whole run and the client holds none. This needs **no
      model change and no new method**, and unlike the `Spawn::maps` mechanism it replaced, every
      mapping it makes is recorded and therefore revocable (§13, §67). Its cost is 469 kernel-side
@@ -464,7 +465,7 @@ and the difference is accounted rather than shrugged at:
   both mechanisms appear in a single spawn literal (a `frame_cap` whose only job is to be probed for
   presence, beside a `Mapping` that does the actual work). Migrating it means touching the shell's
   spawn path and §67's grant manifest, which is a bigger change than the wart. Note that the *shell*
-  spawns `date` through `Aspace::MAP_INTO`, which is recorded, so the revocability gap there is in
+  spawns `date` through `AddressSpace::MAP_INTO`, which is recorded, so the revocability gap there is in
   the test wiring rather than in the real path.
 
 - **Each migrated program costs one more untyped region.** `untyped::create` takes a contiguous run

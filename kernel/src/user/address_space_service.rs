@@ -24,7 +24,7 @@ pub fn wire(image: &'static [u8]) -> RendezvousId {
             },
         )
     })
-    .expect("could not spawn the aspace builder");
+    .expect("could not spawn the address space builder");
 
     report
 }

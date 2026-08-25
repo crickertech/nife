@@ -63,7 +63,7 @@ const CALL_CLIENT: u64 = 15;
 const REVOKE_DEMO: u64 = 16;
 const EP_MAKER: u64 = 17;
 const EP_USER: u64 = 18;
-const ASPACE_BUILDER: u64 = 19;
+const ADDRESS_SPACE_BUILDER: u64 = 19;
 const INIT: u64 = 20;
 const CHILD: u64 = 21;
 const DEV_CHILD: u64 = 22;
@@ -123,7 +123,7 @@ pub extern "C" fn _start(role: u64, dma_phys: u64, arg2: u64) -> ! {
         FRAME_CONSUMER => frame_consumer(),
         EP_MAKER => ep_maker(),
         EP_USER => ep_user(),
-        ASPACE_BUILDER => aspace_builder(),
+        ADDRESS_SPACE_BUILDER => address_space_builder(),
         INIT => init(dma_phys), // x1 carries the initrd length
         INIT_DEV => init_dev(dma_phys),
         INIT_CONSOLE => init_console(dma_phys),
@@ -554,8 +554,8 @@ fn init_console(initrd_len: u64) -> ! {
     // the shared page read-only and the UART device-typed, at the VAs the server expects.
     let caps: &[(u64, u64)] = &[(request, abi::rights::READ), (reply, abi::rights::WRITE)];
     let maps: &[(u64, u64, u64)] = &[
-        (SHARED_VA, shared, abi::aspace::MAP_RO),
-        (CHILD_UART_VA, UART_DEV, abi::aspace::MAP_RO),
+        (SHARED_VA, shared, abi::address_space::MAP_RO),
+        (CHILD_UART_VA, UART_DEV, abi::address_space::MAP_RO),
     ];
     let Ok(tcb) = build_child(UNTYPED, &elf, caps, maps) else {
         fail_report(REPORT)
@@ -606,7 +606,7 @@ fn init_build(initrd_len: u64, device: bool) -> ! {
     // The child's authority: its report endpoint at slot 0 (WRITE). A driver also gets the UART.
     let caps: &[(u64, u64)] = &[(REPORT, abi::rights::WRITE)];
     let no_maps: &[(u64, u64, u64)] = &[];
-    let dev_maps: &[(u64, u64, u64)] = &[(CHILD_UART_VA, UART_DEV, abi::aspace::MAP_RO)];
+    let dev_maps: &[(u64, u64, u64)] = &[(CHILD_UART_VA, UART_DEV, abi::address_space::MAP_RO)];
     let maps = if device { dev_maps } else { no_maps };
 
     match build_child(UNTYPED, &elf, caps, maps) {
@@ -687,7 +687,7 @@ fn build_child(
     )
 }
 
-/// Retype a kernel object (endpoint | aspace | tcb) out of `untyped`; returns its cap slot.
+/// Retype a kernel object (endpoint | address space | tcb) out of `untyped`; returns its cap slot.
 fn retype_obj(untyped: u64, objtype: u64) -> Result<u64, ()> {
     supervision_proto::retype_obj_from(untyped, objtype)
 }
@@ -708,7 +708,7 @@ fn thread_control_block_start(tcb: u64, arg0: u64, arg1: u64, arg2: u64) -> bool
 /// frame, maps the frame into the space it built, and proves the kernel keeps the rules there
 /// too: the same va twice is refused. Nothing can run in the built space yet (TCBs are 19c);
 /// what this witnesses is that a process can construct one at all.
-fn aspace_builder() -> ! {
+fn address_space_builder() -> ! {
     const UNTYPED: u64 = 0;
     const REPORT: u64 = 1;
     const VA: u64 = 0x0040_0000;
@@ -718,7 +718,7 @@ fn aspace_builder() -> ! {
         invoke(
             UNTYPED,
             abi::untyped::RETYPE_OBJ,
-            abi::objtype::ASPACE,
+            abi::objtype::ADDRESS_SPACE,
             0,
             0,
         )
@@ -731,13 +731,13 @@ fn aspace_builder() -> ! {
         if frame >= 0 {
             let mapped =
                 // SAFETY: as above: the kernel validates the capability and the method.
-                unsafe { invoke(aspace as u64, abi::aspace::MAP_INTO, VA, frame as u64, 1) };
+                unsafe { invoke(aspace as u64, abi::address_space::MAP_INTO, VA, frame as u64, 1) };
             if mapped == 0 {
                 verdict |= 2; // mapped our frame into the space we built
             }
             let again =
                 // SAFETY: as above: the kernel validates the capability and the method.
-                unsafe { invoke(aspace as u64, abi::aspace::MAP_INTO, VA, frame as u64, 1) };
+                unsafe { invoke(aspace as u64, abi::address_space::MAP_INTO, VA, frame as u64, 1) };
             if again < 0 {
                 verdict |= 4; // the same va twice was refused: break-before-make holds there too
             }

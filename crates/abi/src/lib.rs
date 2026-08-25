@@ -321,7 +321,7 @@ pub mod objtype {
     /// principle (the user pays, the kernel allocates nothing) in this kernel's idiom, rather
     /// than seL4's per-call paging-structure objects, which belong to the explicitness this
     /// project deliberately did not copy.
-    pub const ASPACE: u64 = 2;
+    pub const ADDRESS_SPACE: u64 = 2;
 
     /// A thread (milestone 19c.3): the retyped page holds the TCB, and the object is born an
     /// **embryo**, in no queue and not runnable. It becomes a running thread only through
@@ -334,10 +334,11 @@ pub mod objtype {
 /// Methods on a `ThreadControlBlock` capability (milestone 19c.3): **another thread, under construction.**
 /// Created by [`untyped::RETYPE_OBJ`] with [`objtype::THREAD_CONTROL_BLOCK`].
 pub mod thread_control_block {
-    /// `invoke(cap, CONFIGURE, entry, user_sp, aspace_slot)` -> 0. Bind the address space named
-    /// by the capability in `aspace_slot` (which is **consumed**: it becomes the thread's, and
-    /// dies with it), and set where EL0 execution begins and on what user stack. Needs `WRITE`
-    /// on the TCB cap and `WRITE` on the aspace cap. Only an unstarted (embryo) TCB.
+    /// `invoke(cap, CONFIGURE, entry, user_sp, address_space_slot)` -> 0. Bind the address space
+    /// named by the capability in `address_space_slot` (which is **consumed**: it becomes the
+    /// thread's, and dies with it), and set where EL0 execution begins and on what user stack.
+    /// Needs `WRITE` on the TCB cap and `WRITE` on the address-space cap. Only an unstarted
+    /// (embryo) TCB.
     pub const CONFIGURE: u64 = 0;
 
     /// `invoke(cap, CAP_INSERT, cap_slot, rights, target)` -> `child_slot`. Copy the capability in
@@ -358,14 +359,14 @@ pub mod thread_control_block {
     pub const START: u64 = 2;
 }
 
-/// Methods on an `Aspace` capability (milestone 19b): **another process's memory, under
-/// construction.** Created by [`untyped::RETYPE_OBJ`] with [`objtype::ASPACE`]; nothing can run
-/// in it until TCBs arrive (19c), so today it is a structure you build, revocation can reach, and
-/// (milestone 126, `pmap`) `ENUMERATE` can look at without touching.
-pub mod aspace {
+/// Methods on an `AddressSpace` capability (milestone 19b): **another process's memory, under
+/// construction.** Created by [`untyped::RETYPE_OBJ`] with [`objtype::ADDRESS_SPACE`]; nothing can
+/// run in it until TCBs arrive (19c), so today it is a structure you build, revocation can reach,
+/// and (milestone 126, `pmap`) `ENUMERATE` can look at without touching.
+pub mod address_space {
     /// `invoke(cap, MAP_INTO, va, frame_slot, writable)` -> 0. Map the frame in `frame_slot`
-    /// into THIS address space at `va`, read-only or read/write. Needs `WRITE` on the aspace
-    /// capability; the frame capability needs `READ` for a read-only mapping, `WRITE` for a
+    /// into THIS address space at `va`, read-only or read/write. Needs `WRITE` on the
+    /// address-space capability; the frame capability needs `READ` for a read-only mapping, `WRITE` for a
     /// writable one, the `frame::MAP` rule verbatim. Page tables and the revocation record are
     /// paid from the space's own backing region; a mapping whose record cannot be afforded is
     /// refused and unmapped (`OutOfMemory`), never left invisible to revocation.

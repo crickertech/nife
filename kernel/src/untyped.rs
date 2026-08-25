@@ -164,7 +164,7 @@ pub fn usage(region: u64) -> Option<(u64, u64)> {
 
 /// This region's physical span `(base, size_in_bytes)`, or `None` if the name is stale. Object
 /// revocation needs it to find which kernel objects live in the region (`sched::reclaim_region`
-/// scans the registries for TCB/endpoint/aspace pages that fall inside this span).
+/// scans the registries for TCB/endpoint/address space pages that fall inside this span).
 pub fn region_bounds(region: u64) -> Option<(u64, u64)> {
     REGIONS
         .lock()

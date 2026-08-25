@@ -472,8 +472,8 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
         &ChildEndowment {
             caps: &[(request, abi::rights::READ), (reply, abi::rights::WRITE)],
             maps: &[
-                (CON_SHARED_VA, con_shared, abi::aspace::MAP_RO),
-                (CON_UART_VA, g.uart_dev, abi::aspace::MAP_RO), // mode ignored for a DeviceFrame
+                (CON_SHARED_VA, con_shared, abi::address_space::MAP_RO),
+                (CON_UART_VA, g.uart_dev, abi::address_space::MAP_RO), // mode ignored for a DeviceFrame
             ],
             stack_pages: CHILD_STACK_PAGES,
             ..ChildEndowment::new()
@@ -495,9 +495,9 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
                 (reply, abi::rights::READ),
             ],
             maps: &[
-                (CON_SHARED_VA, con_shared, abi::aspace::MAP_RW), // it fills what the console reads
-                (TERM_OUT_VA, term_out, abi::aspace::MAP_RO),
-                (TERM_IN_VA, term_in, abi::aspace::MAP_RW),
+                (CON_SHARED_VA, con_shared, abi::address_space::MAP_RW), // it fills what the console reads
+                (TERM_OUT_VA, term_out, abi::address_space::MAP_RO),
+                (TERM_IN_VA, term_in, abi::address_space::MAP_RW),
             ],
             stack_pages: CHILD_STACK_PAGES,
             ..ChildEndowment::new()
@@ -562,7 +562,7 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
                 (term_ep, abi::rights::WRITE),
                 (g.uart_irq, abi::rights::READ),
             ],
-            maps: &[(IN_UART_VA, g.uart_dev, abi::aspace::MAP_RO)],
+            maps: &[(IN_UART_VA, g.uart_dev, abi::address_space::MAP_RO)],
             stack_pages: CHILD_STACK_PAGES,
             ..ChildEndowment::new()
         },
@@ -632,10 +632,10 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
         (g.clock_page, abi::rights::READ),
     ];
     let sh_maps: [(u64, u64, u64); 4] = [
-        (SH_OUT_VA, term_out, abi::aspace::MAP_RW), // shell writes text and prompts here
-        (LINE_VA, term_in, abi::aspace::MAP_RO),    // shell reads completed lines
-        (SH_FS_VA, g.fs_page, abi::aspace::MAP_RW), // and its half of the FS contract
-        (SH_CLOCK_VA, g.clock_page, abi::aspace::MAP_RO), // and the clock it times with
+        (SH_OUT_VA, term_out, abi::address_space::MAP_RW), // shell writes text and prompts here
+        (LINE_VA, term_in, abi::address_space::MAP_RO),    // shell reads completed lines
+        (SH_FS_VA, g.fs_page, abi::address_space::MAP_RW), // and its half of the FS contract
+        (SH_CLOCK_VA, g.clock_page, abi::address_space::MAP_RO), // and the clock it times with
     ];
     // A boot with no disk gets the same lists with the FS pair taken out of the middle, which is a
     // second pair of arrays rather than a slice: the clock is granted either way, and "the last
@@ -663,7 +663,7 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
 
     // Free every boot cap the spawn service does not need, so init's 16-slot capability table has room to
     // build a supervised child (which holds a job untyped and a job frame while the loader retypes
-    // an aspace, frames, and a TCB). The drivers and the shell hold the narrowed copies that matter.
+    // an address space, frames, and a TCB). The drivers and the shell hold the narrowed copies that matter.
     //
     // **Only the input frame, and the two that stay have a reason each.** `term_ep` is still ours to
     // delegate: the sink adapter below is handed `WRITE` on it, and the drop announcement is a
@@ -1013,7 +1013,7 @@ fn spawn_service(
                     job,
                     e,
                     &ChildEndowment {
-                        maps: &[(CHILD_JOBFRAME_VA, fr, abi::aspace::MAP_RW)],
+                        maps: &[(CHILD_JOBFRAME_VA, fr, abi::address_space::MAP_RW)],
                         stack_pages: CHILD_STACK_PAGES,
                         ..ChildEndowment::new()
                     },
@@ -1175,7 +1175,7 @@ fn spawn_service(
                 placed_n += 1;
             }
             let placed: &[(u64, u64, u64)] = &placed_buf[..placed_n];
-            let clock_map = [(CHILD_CLOCK_VA, clock_page, abi::aspace::MAP_RO)];
+            let clock_map = [(CHILD_CLOCK_VA, clock_page, abi::address_space::MAP_RO)];
             // **The FS contract's shared page, for a program behind a directory grant.** The same
             // frame the caretaker maps and the same frame the FS server maps: one page for all three
             // parties, sound because every request on both hops is a blocking `CALL`, so the client
@@ -1183,7 +1183,7 @@ fn spawn_service(
             let dir_map = [(
                 FS_CLIENT_PAGE_VA,
                 fs.map_or(0, |f| f.page),
-                abi::aspace::MAP_RW,
+                abi::address_space::MAP_RW,
             )];
             // The region's own comment lives at the split above, which milestone 31 phase 3 moved
             // earlier so a caretaker could be built out of it. Everything the child is made of comes
@@ -1365,7 +1365,7 @@ fn build_caretaker(
                 (narrow_ep, abi::rights::READ),
                 (ready, abi::rights::WRITE),
             ],
-            maps: &[(FS_CLIENT_PAGE_VA, fs.page, abi::aspace::MAP_RW)],
+            maps: &[(FS_CLIENT_PAGE_VA, fs.page, abi::address_space::MAP_RW)],
             stack_pages: CARETAKER_STACK_PAGES,
             ..ChildEndowment::new()
         },

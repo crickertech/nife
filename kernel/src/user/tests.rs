@@ -15,7 +15,7 @@ use crate::sched;
 
 /// **The `hello` binary's ELF bytes**, pulled out of the initrd archive by name (milestone 19f).
 /// This is the binary carrying the milestone 7-19 role catalogue: the printing client, the
-/// untyped demo, the granter and receiver, the call server, the aspace builder, the init roles.
+/// untyped demo, the granter and receiver, the call server, the address space builder, the init roles.
 /// A test that loads a real user program wants the program's bytes, not the whole nifefs
 /// archive; only the `spawn_init` tests pass the archive, because init parses it itself.
 ///
@@ -2365,14 +2365,14 @@ fn a_dead_user_thread_frees_its_whole_address_space() {
 #[test_case]
 fn a_user_built_aspace_maps_translates_and_revokes() {
     let region = crate::untyped::create(8).expect("no region");
-    let name = user_aspace_create(region).expect("no aspace");
-    let root = user_aspace_root(name).expect("aspace has no root");
+    let name = user_address_space_create(region).expect("no address space");
+    let root = user_address_space_root(name).expect("address space has no root");
 
     let frame_region = crate::untyped::create(2).expect("no frame region");
     let phys = crate::untyped::retype_page(frame_region).expect("no frame");
     let va = 0x40_0000u64;
 
-    user_aspace_map(name, va, phys, Flags::user_rodata()).expect("map_into failed");
+    user_address_space_map(name, va, phys, Flags::user_rodata()).expect("map_into failed");
 
     let (mapped_pa, flags) = mmu::translate_at(root, va).expect("the walker sees no mapping");
     assert_eq!(mapped_pa, phys, "mapped the wrong frame");
@@ -2384,7 +2384,7 @@ fn a_user_built_aspace_maps_translates_and_revokes() {
 
     // Same va twice: refused, the break-before-make contract holds for built spaces too.
     assert!(
-        user_aspace_map(name, va, phys, Flags::user_rodata()).is_err(),
+        user_address_space_map(name, va, phys, Flags::user_rodata()).is_err(),
         "double-map at one va was allowed"
     );
 
@@ -2608,8 +2608,8 @@ fn a_process_can_build_start_and_run_a_child_thread() {
     let expect_word = super::supervision_tests::REPORT_WORD;
 
     // The child's address space, and a region to carve its code and stack frames from.
-    let as_region = crate::untyped::create(8).expect("no aspace region");
-    let aspace = user_aspace_create(as_region).expect("no aspace");
+    let as_region = crate::untyped::create(8).expect("no address space region");
+    let aspace = user_address_space_create(as_region).expect("no aspace");
     let frames_region = crate::untyped::create(2).expect("no frame region");
 
     let code_phys = crate::untyped::retype_page(frames_region).expect("no code frame");
@@ -2622,10 +2622,10 @@ fn a_process_can_build_start_and_run_a_child_thread() {
         }
     }
     sync_icache(mmu::phys_to_virt(code_phys), size_of_val(code));
-    user_aspace_map(aspace, CODE_VA, code_phys, Flags::user_code()).expect("map code");
+    user_address_space_map(aspace, CODE_VA, code_phys, Flags::user_code()).expect("map code");
 
     let stack_phys = crate::untyped::retype_page(frames_region).expect("no stack frame");
-    user_aspace_map(aspace, STACK_VA, stack_phys, Flags::user_data()).expect("map stack");
+    user_address_space_map(aspace, STACK_VA, stack_phys, Flags::user_data()).expect("map stack");
 
     // The child's one authority: WRITE on a report rendezvous, so it can SEND but not receive.
     let report = crate::sched::create_rendezvous();
@@ -2716,8 +2716,8 @@ fn reclaim_frees_a_started_then_exited_childs_regions() {
     let frames_before = crate::memory::free_frames();
 
     // The child's whole address space in one region: root, tables, code, and stack.
-    let as_region = crate::untyped::create(8).expect("no aspace region");
-    let aspace = user_aspace_create(as_region).expect("no aspace");
+    let as_region = crate::untyped::create(8).expect("no address space region");
+    let aspace = user_address_space_create(as_region).expect("no aspace");
 
     let code_phys = crate::untyped::retype_page(as_region).expect("no code frame");
     // SAFETY: a fresh frame we own, direct-mapped.
@@ -2728,10 +2728,10 @@ fn reclaim_frees_a_started_then_exited_childs_regions() {
         }
     }
     sync_icache(mmu::phys_to_virt(code_phys), size_of_val(code));
-    user_aspace_map(aspace, CODE_VA, code_phys, Flags::user_code()).expect("map code");
+    user_address_space_map(aspace, CODE_VA, code_phys, Flags::user_code()).expect("map code");
 
     let stack_phys = crate::untyped::retype_page(as_region).expect("no stack frame");
-    user_aspace_map(aspace, STACK_VA, stack_phys, Flags::user_data()).expect("map stack");
+    user_address_space_map(aspace, STACK_VA, stack_phys, Flags::user_data()).expect("map stack");
 
     let report_cap = crate::cap::rendezvous_cap(
         report,
@@ -2809,8 +2809,8 @@ fn spawn_to_reap_repeats_without_leaking() {
     let baseline = crate::memory::free_frames();
 
     for round in 0..6 {
-        let as_region = crate::untyped::create(8).expect("aspace region");
-        let aspace = user_aspace_create(as_region).expect("aspace");
+        let as_region = crate::untyped::create(8).expect("address space region");
+        let aspace = user_address_space_create(as_region).expect("aspace");
         let code_phys = crate::untyped::retype_page(as_region).expect("code frame");
         // SAFETY: a fresh frame we own, direct-mapped.
         unsafe {
@@ -2820,9 +2820,10 @@ fn spawn_to_reap_repeats_without_leaking() {
             }
         }
         sync_icache(mmu::phys_to_virt(code_phys), size_of_val(code));
-        user_aspace_map(aspace, CODE_VA, code_phys, Flags::user_code()).expect("map code");
+        user_address_space_map(aspace, CODE_VA, code_phys, Flags::user_code()).expect("map code");
         let stack_phys = crate::untyped::retype_page(as_region).expect("stack frame");
-        user_aspace_map(aspace, STACK_VA, stack_phys, Flags::user_data()).expect("map stack");
+        user_address_space_map(aspace, STACK_VA, stack_phys, Flags::user_data())
+            .expect("map stack");
 
         let report_cap = crate::cap::rendezvous_cap(
             report,
@@ -2856,7 +2857,7 @@ fn spawn_to_reap_repeats_without_leaking() {
             "round {round}: the child was never reaped",
         );
         crate::sched::reclaim_region(thread_control_block_region).expect("reclaim tcb region");
-        crate::sched::reclaim_region(as_region).expect("reclaim aspace region");
+        crate::sched::reclaim_region(as_region).expect("reclaim address space region");
 
         assert_eq!(
             crate::memory::free_frames(),
@@ -2871,11 +2872,11 @@ fn spawn_to_reap_repeats_without_leaking() {
 /// the kernel enforces break-before-make inside the space it built. Verdict 0b111 or bust.
 #[test_case]
 fn a_process_can_build_an_address_space_from_el0() {
-    let report = aspace_service::wire(init_image());
+    let report = address_space_service::wire(init_image());
     let verdict = sched::ipc_recv(report)[0];
     assert_eq!(
         verdict, 0b111,
-        "aspace build verdict {verdict:#b}: bit0 retype, bit1 map_into, bit2 double-map refused",
+        "address space build verdict {verdict:#b}: bit0 retype, bit1 map_into, bit2 double-map refused",
     );
 }
 
