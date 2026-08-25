@@ -1,6 +1,7 @@
 # 88. `needs-architect` as a required check, rather than as a script's restraint
 
-**Status: PROPOSED.** (raised 2026-08-16, when the merge queue reduced `scripts/merge-drain.sh` to
+**Status: DECIDED.** calef, 2026-08-25, in conversation, ratifying the recommendation below as
+written: *"Ratify it."* (raised 2026-08-16, when the merge queue reduced `scripts/merge-drain.sh` to
 an admission policy and made the weakness of that policy the only thing left in it.)
 
 **Number is provisional**: §87 was in flight in an unmerged pull request when this was written, so
@@ -56,3 +57,11 @@ fails to report is indistinguishable from one that failed.
 **Blocked on nothing.** `merge-drain.sh` works as reduced. This decides whether the holding rule
 lives in a script's restraint or in the platform, which is a question about where authority is
 recorded rather than about throughput.
+
+**Not yet built.** Ratifying the decision does not itself add the required check or change this
+repository's branch protection rules. That is real, live infrastructure change with blast radius on
+every currently open pull request, several of which are mid-flight through the merge queue at the
+moment this was ratified, so it needs its own careful, deliberate rollout rather than landing as a
+side effect of a documentation change. Whoever builds it should write the check's own failure message
+first, per "the argument against" above: one sentence saying what `needs-architect` means and how to
+clear it, not a bare failure a newcomer has to go look up.
