@@ -65,15 +65,15 @@ point. This milestone is where that closing happens.
 
 Any program built via the userspace loader on x86_64 currently gets a silently-wrong `cntfrq()` (the
 hardcoded 1GHz fallback) rather than the real calibrated rate. That matters for anything doing real
-timing math over a process boundary this milestone doesn't reach — `timetable`'s own scheduling
+timing math over a process boundary this milestone doesn't reach: `timetable`'s own scheduling
 logic was the one that first found the *kernel-built* side of this gap empirically (a page fault, not
 a read of the call graph), so a userspace-loader-built consumer of real timing arithmetic is a
 plausible next place this surfaces the same way.
 
 ## What this does not decide
 
-The exact shape of the new spawn-protocol grant — a dedicated new manifest field, or reuse of an
-existing generic-capability-passthrough mechanism if one already exists — is an implementation
+The exact shape of the new spawn-protocol grant (a dedicated new manifest field, or reuse of an
+existing generic-capability-passthrough mechanism if one already exists) is an implementation
 decision for whoever picks this up. Check `grant_plan`/`spawnproto` for precedent before assuming a
 new field is needed; this milestone names the gap and the mechanism to close it with, not the wire
 shape.
