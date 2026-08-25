@@ -10,7 +10,7 @@
 //!
 //! This module is that revocation. It keeps a **mapping database, lite**: every mapping of an
 //! untyped-derived page. To revoke a page it unmaps it from *every* address space that held it and
-//! deletes every `Frame` capability to it, after which no holder maps it and no capability names
+//! deletes every `PageFrame` capability to it, after which no holder maps it and no capability names
 //! it, so the page is safe to return to the allocator. seL4 keeps a full capability-derivation
 //! tree and revokes a *subtree*; this keeps only the unmap side and revokes *all* derivatives of a
 //! page, which is precisely what reclamation wants.
@@ -162,7 +162,7 @@ pub fn record_mapping(phys: u64, root: u64, va: u64) -> bool {
 /// **Reads the space's own revocation log rather than walking page tables**, which is the same
 /// move `ps` makes over `/proc`: the kernel already keeps this record for reclamation, so
 /// answering "what is mapped" costs nothing the space did not already pay for, and the answer
-/// cannot drift out of agreement with what `revoke_frame`/`revoke_region` would find. The caller
+/// cannot drift out of agreement with what `revoke_page_frame`/`revoke_region` would find. The caller
 /// (`kernel::syscall`) turns each `va` this hands back into a `(phys, Flags)` with
 /// `arch::mmu::translate_at`, which is where the permission bits `pmap` prints come from; this
 /// function knows nothing about flags, on purpose, because the log does not record them.
@@ -258,14 +258,14 @@ fn unmap_everywhere(phys: u64, spare: u64) {
     }
 }
 
-/// **Revoke a page from everyone.** Delete every `Frame` capability to `phys` from every capability table,
+/// **Revoke a page from everyone.** Delete every `PageFrame` capability to `phys` from every capability table,
 /// then unmap it from every address space. After this no capability names the page and no address
-/// space maps it, so it is safe to return to the allocator. Caps go **first**, so a `Frame::MAP`
+/// space maps it, so it is safe to return to the allocator. Caps go **first**, so a `PageFrame::MAP`
 /// that starts after this cannot re-establish a mapping we would then miss. (The remaining window,
 /// an in-flight map on another core between the cap delete and the unmap, is the SMP race §13
 /// names; a full mapping-database lock is seL4's answer and this milestone's deferral.)
-pub fn revoke_frame(phys: u64) {
-    crate::sched::delete_frame_caps(phys);
+pub fn revoke_page_frame(phys: u64) {
+    crate::sched::delete_page_frame_caps(phys);
     unmap_everywhere(phys, 0);
 }
 
@@ -274,7 +274,7 @@ pub fn revoke_frame(phys: u64) {
 /// from every address space except the invoker's. Afterwards exactly one process can reach the
 /// device: the one that asked.
 ///
-/// The asymmetry with [`revoke_frame`] is the point, not an oversight. Revoking a *frame* exists to
+/// The asymmetry with [`revoke_page_frame`] is the point, not an oversight. Revoking a *frame* exists to
 /// make reclamation safe, so the revoker's own capability and mapping must go too: the page is about
 /// to be returned to the allocator and reused. A device page is never reclaimed; revoking it exists
 /// to make ownership **exclusive**, which is what live replacement needs between tearing one driver
@@ -323,7 +323,7 @@ pub fn revoke_region(base: u64, size: u64) {
             found
         };
         match victim {
-            Some(phys) => revoke_frame(phys),
+            Some(phys) => revoke_page_frame(phys),
             None => break,
         }
     }
@@ -337,7 +337,7 @@ mod tests {
     use crate::user::AddressSpace;
 
     /// **Revocation unmaps a shared page from every address space that held it.** Two address
-    /// spaces map one physical page; after `revoke_frame` neither maps it. This is the property
+    /// spaces map one physical page; after `revoke_page_frame` neither maps it. This is the property
     /// the whole reclamation story rests on: a page may be reused only once no holder still maps
     /// it. (The records now live in the spaces' own regions; nothing else changed here.)
     #[test_case]
@@ -363,7 +363,7 @@ mod tests {
             "B does not map the page"
         );
 
-        revoke_frame(shared);
+        revoke_page_frame(shared);
 
         assert!(
             mmu::translate_at(a.root(), va_a).is_none(),
@@ -374,7 +374,7 @@ mod tests {
             "B still maps the revoked page"
         );
 
-        crate::memory::free(page_frames::Frame::from_addr(shared));
+        crate::memory::free(page_frames::PageFrame::from_addr(shared));
     }
 
     /// **Destroying an untyped region unmaps its pages, THEN reclaims them.** A page from the
@@ -445,6 +445,6 @@ mod tests {
             crate::untyped::usage(0).map(|(_, p)| p).unwrap_or(0),
         );
 
-        crate::memory::free(page_frames::Frame::from_addr(shared));
+        crate::memory::free(page_frames::PageFrame::from_addr(shared));
     }
 }

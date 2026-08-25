@@ -6,7 +6,7 @@
 //! something with it, and moves on; the service is still there when the next test starts, and every
 //! frame it was given is spoken for until the machine stops. Measured on 2026-08-16, the suite
 //! finished a boot with **216 free frames of the 29307 it started with, and no free run longer than
-//! 106**, which is why an ordinary allocation began failing as `Unmappable(OutOfFrames)` in
+//! 106**, which is why an ordinary allocation began failing as `Unmappable(OutOfPageFrames)` in
 //! whichever test happened to spawn last, about one run in three. Three milestones were misled by
 //! that symptom, because the test that reports the failure is never the test that caused it.
 //! notes/frames.md carries the ledger.
@@ -228,7 +228,7 @@ impl Holding {
              still refuses: a service blocked on an endpoint that is not in any region this holding \
              names cannot be woken, and so cannot spend the kill (see this module's BUGS). This is \
              the leak rather than a flake. Left alone it takes the boot's free frames down until an \
-             innocent later test fails as Unmappable(OutOfFrames); notes/frames.md.",
+             innocent later test fails as Unmappable(OutOfPageFrames); notes/frames.md.",
         );
     }
 }

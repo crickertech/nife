@@ -10,7 +10,7 @@
 //! - every other op is a `CALL` (two words out, a reply word back), the socket id packed into the
 //!   request word beside the opcode.
 //!
-//! **Frame layout, pinned.** One data region, reused per operation, NOT a split TX/RX ring. The
+//! **`PageFrame` layout, pinned.** One data region, reused per operation, NOT a split TX/RX ring. The
 //! phase-one contract is one *synchronous* exchange per `CALL` (the client blocks in the CALL while
 //! the server drives the network), so a request's payload and its reply never coexist in the frame
 //! and a single region is sufficient and simpler. A split TX/RX ring becomes necessary only with
@@ -51,7 +51,7 @@
 //! So `ACCEPT` takes the socket id to install the connection at, and refuses the listener's own id.
 //! The client picks that id and must have attached a frame there first, which is the same thing an
 //! outbound `OPEN_TCP` requires. This is the tree's existing habit of splitting authority by what a
-//! holder can *do* rather than by what it names: `Frame` versus `DeviceFrame`, `WRITE` versus
+//! holder can *do* rather than by what it names: `PageFrame` versus `DeviceFrame`, `WRITE` versus
 //! `GRANT` on the same object.
 //!
 //! # Who binds the port: the listen grant
@@ -146,7 +146,7 @@
 /// Operations. The opcode is the low byte of the request word; the socket id is the next byte.
 ///
 /// `SEND_CAP`: delegate the shared frame for this socket id.
-pub const OP_ATTACH_FRAME: u64 = 1;
+pub const OP_ATTACH_PAGE_FRAME: u64 = 1;
 /// `CALL`: create a UDP socket, bind an ephemeral local port.
 pub const OP_OPEN_UDP: u64 = 2;
 /// `CALL`: create a TCP socket.
@@ -253,7 +253,7 @@ pub const fn udp_grant_allows(grant: u64, port: u16) -> bool {
     lo != 0 && port >= lo && port <= hi
 }
 
-/// Frame header offsets.
+/// `PageFrame` header offsets.
 pub const OFF_DST_IP: u64 = 0x000;
 /// The destination port, right after the destination IP.
 pub const OFF_DST_PORT: u64 = 0x004;
@@ -322,7 +322,7 @@ mod tests {
     /// milestone 107 added two more, and a list repeated per property is a list that will one day
     /// be missing an entry in exactly the property that would have caught it.
     const OPS: &[u64] = &[
-        OP_ATTACH_FRAME,
+        OP_ATTACH_PAGE_FRAME,
         OP_OPEN_UDP,
         OP_OPEN_TCP,
         OP_SENDTO,
@@ -350,7 +350,7 @@ mod tests {
     }
 
     /// Opcodes fit the byte the packing gives them. An operation numbered 256 would alias
-    /// `OP_ATTACH_FRAME` and shift the socket id, and the round-trip above would still pass for
+    /// `OP_ATTACH_PAGE_FRAME` and shift the socket id, and the round-trip above would still pass for
     /// every opcode that exists.
     #[test]
     fn every_opcode_fits_in_its_byte() {

@@ -35,12 +35,12 @@
 //! and what inside it is already spoken for.
 //!
 //! ```
-//! use page_frames::{FrameAllocator, Frame, FRAME_SIZE};
+//! use page_frames::{PageFrameAllocator, PageFrame, FRAME_SIZE};
 //!
 //! const BASE: u64 = 0x4000_0000;
 //! const TOTAL: usize = 64;                      // 64 frames of address space
-//! let mut bitmap = [0u8; FrameAllocator::bitmap_bytes(TOTAL)];
-//! let mut fa = FrameAllocator::new(BASE, TOTAL, &mut bitmap);
+//! let mut bitmap = [0u8; PageFrameAllocator::bitmap_bytes(TOTAL)];
+//! let mut fa = PageFrameAllocator::new(BASE, TOTAL, &mut bitmap);
 //!
 //! // Nothing is free until someone says so: an allocator starts owning nothing.
 //! assert_eq!(fa.stats().free(), 0);
@@ -60,15 +60,15 @@
 //! A frame is an address that is known to be aligned, which is the point of the newtype:
 //!
 //! ```
-//! use page_frames::{Frame, FRAME_SIZE};
+//! use page_frames::{PageFrame, FRAME_SIZE};
 //!
 //! // `containing` rounds down to the frame an arbitrary address falls in.
-//! assert_eq!(Frame::containing(0x4000_0FFF).addr(), 0x4000_0000);
-//! assert_eq!(Frame::containing(0x4000_1000).addr(), 0x4000_1000);
+//! assert_eq!(PageFrame::containing(0x4000_0FFF).addr(), 0x4000_0000);
+//! assert_eq!(PageFrame::containing(0x4000_1000).addr(), 0x4000_1000);
 //! ```
 //!
 //! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review). Renamed from
-//! `frames`: the same collision DECISIONS §113 already found and fixed for the kernel's `Frame`
+//! `frames`: the same collision DECISIONS §113 already found and fixed for the kernel's `PageFrame`
 //! capability type (renamed to `PageFrame`) against `crates/compositor`'s own use of "frame" for a
 //! rendered screen update. This crate is the physical-page allocator that backs those page frames.
 
@@ -85,9 +85,9 @@ pub const FRAME_SIZE: u64 = 4096;
 /// stop us confusing them. Right now, with the MMU off, they happen to be identical.
 /// That coincidence ends soon and this type is what will keep it from hurting.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Frame(u64);
+pub struct PageFrame(u64);
 
-impl Frame {
+impl PageFrame {
     /// Name the frame at `addr`.
     ///
     /// Naming a frame is not the same as owning it. This type carries one invariant
@@ -102,12 +102,12 @@ impl Frame {
             addr.is_multiple_of(FRAME_SIZE),
             "address is not frame-aligned"
         );
-        Frame(addr)
+        PageFrame(addr)
     }
 
     /// The frame containing `addr`, rounding down.
     pub const fn containing(addr: u64) -> Self {
-        Frame(addr - addr % FRAME_SIZE)
+        PageFrame(addr - addr % FRAME_SIZE)
     }
 
     /// The physical address of this frame's first byte.
@@ -116,7 +116,7 @@ impl Frame {
     }
 }
 
-/// A snapshot of an allocator's occupancy, from [`FrameAllocator::stats`].
+/// A snapshot of an allocator's occupancy, from [`PageFrameAllocator::stats`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Stats {
     /// Frames the allocator tracks in total.
@@ -138,7 +138,7 @@ impl Stats {
 /// handed out after someone has explicitly said "this address range is real RAM." A
 /// bitmap that defaulted to free would cheerfully allocate the MMIO hole at
 /// `0x0900_0000` and hand you the UART's registers as scratch space.
-pub struct FrameAllocator<'a> {
+pub struct PageFrameAllocator<'a> {
     bitmap: &'a mut [u8],
     /// Physical address of frame 0.
     base: u64,
@@ -150,14 +150,14 @@ pub struct FrameAllocator<'a> {
     hint: usize,
 }
 
-impl<'a> FrameAllocator<'a> {
+impl<'a> PageFrameAllocator<'a> {
     /// Bytes of bitmap needed to track `frames` frames.
     pub const fn bitmap_bytes(frames: usize) -> usize {
         frames.div_ceil(8)
     }
 
     /// How many frames span `[base, base + span)`.
-    pub const fn frames_in(span: u64) -> usize {
+    pub const fn page_frames_in(span: u64) -> usize {
         (span / FRAME_SIZE) as usize
     }
 
@@ -208,7 +208,7 @@ impl<'a> FrameAllocator<'a> {
     /// in practice) but is the **opposite** of what [`mark_used`](Self::mark_used) must
     /// do. See the comment there; the asymmetry is the whole ballgame.
     pub fn mark_free(&mut self, start: u64, size: u64) {
-        for i in self.frame_range(start, size) {
+        for i in self.page_frame_range(start, size) {
             if self.get(i) {
                 self.set(i, false);
                 self.used -= 1;
@@ -231,7 +231,7 @@ impl<'a> FrameAllocator<'a> {
     /// much as touches. Over-reserving wastes at most 4 KiB per region. Under-reserving
     /// corrupts the kernel.
     pub fn mark_used(&mut self, start: u64, size: u64) {
-        for i in self.frame_range(start, size) {
+        for i in self.page_frame_range(start, size) {
             if !self.get(i) {
                 self.set(i, true);
                 self.used += 1;
@@ -240,7 +240,7 @@ impl<'a> FrameAllocator<'a> {
     }
 
     /// Allocate one frame.
-    pub fn alloc(&mut self) -> Option<Frame> {
+    pub fn alloc(&mut self) -> Option<PageFrame> {
         let i = (self.hint..self.total)
             .chain(0..self.hint)
             .find(|&i| !self.get(i))?;
@@ -248,7 +248,7 @@ impl<'a> FrameAllocator<'a> {
         self.set(i, true);
         self.used += 1;
         self.hint = i + 1;
-        Some(Frame(self.base + i as u64 * FRAME_SIZE))
+        Some(PageFrame(self.base + i as u64 * FRAME_SIZE))
     }
 
     /// Allocate `count` **physically contiguous** frames, and return the first.
@@ -258,7 +258,7 @@ impl<'a> FrameAllocator<'a> {
     /// buffer, so a virtio ring at milestone 8 needs its frames genuinely adjacent.
     ///
     /// The scan is O(total) and dumb. It is called rarely and never in a hot path.
-    pub fn alloc_contiguous(&mut self, count: usize) -> Option<Frame> {
+    pub fn alloc_contiguous(&mut self, count: usize) -> Option<PageFrame> {
         if count == 0 || count > self.total {
             return None;
         }
@@ -279,7 +279,7 @@ impl<'a> FrameAllocator<'a> {
                     self.set(j, true);
                 }
                 self.used += count;
-                return Some(Frame(self.base + run_start as u64 * FRAME_SIZE));
+                return Some(PageFrame(self.base + run_start as u64 * FRAME_SIZE));
             }
         }
 
@@ -316,7 +316,7 @@ impl<'a> FrameAllocator<'a> {
     /// On a double free, and on a frame we never owned. Both are kernel bugs, and a
     /// kernel that keeps running after one is a kernel that corrupts memory somewhere
     /// far away and blames innocent code. Fail loudly and immediately.
-    pub fn free(&mut self, frame: Frame) {
+    pub fn free(&mut self, frame: PageFrame) {
         let i = self.index_of(frame).expect("freeing a frame we don't own");
         assert!(self.get(i), "double free of frame {:#x}", frame.addr());
 
@@ -326,11 +326,11 @@ impl<'a> FrameAllocator<'a> {
     }
 
     /// Is this frame currently allocated? Test-support, and useful in assertions.
-    pub fn is_used(&self, frame: Frame) -> Option<bool> {
+    pub fn is_used(&self, frame: PageFrame) -> Option<bool> {
         Some(self.get(self.index_of(frame)?))
     }
 
-    fn index_of(&self, frame: Frame) -> Option<usize> {
+    fn index_of(&self, frame: PageFrame) -> Option<usize> {
         let addr = frame.addr();
         if addr < self.base {
             return None;
@@ -342,7 +342,7 @@ impl<'a> FrameAllocator<'a> {
     /// Every frame index touched by `[start, start+size)`, clamped to what we manage.
     ///
     /// Start rounds **down**, end rounds **up**. See [`mark_used`](Self::mark_used).
-    fn frame_range(&self, start: u64, size: u64) -> core::ops::Range<usize> {
+    fn page_frame_range(&self, start: u64, size: u64) -> core::ops::Range<usize> {
         if size == 0 || start.saturating_add(size) <= self.base {
             return 0..0;
         }
@@ -388,7 +388,7 @@ mod verification {
     #[kani::proof]
     fn containing_rounds_down_within_a_frame() {
         let addr: u64 = kani::any();
-        let f = Frame::containing(addr);
+        let f = PageFrame::containing(addr);
         assert!(f.addr().is_multiple_of(FRAME_SIZE));
         assert!(f.addr() <= addr);
         assert!(addr - f.addr() < FRAME_SIZE);
@@ -400,10 +400,10 @@ mod verification {
     fn bitmap_bytes_covers_every_frame() {
         let frames: usize = kani::any();
         kani::assume(frames <= 1 << 40); // a real RAM frame count; keeps the `* 8` below in range
-        assert!(FrameAllocator::bitmap_bytes(frames) * 8 >= frames);
+        assert!(PageFrameAllocator::bitmap_bytes(frames) * 8 >= frames);
     }
 
-    /// **Frame address and bitmap index are inverses.** A frame at `base + i * FRAME_SIZE`, for any
+    /// **`PageFrame` address and bitmap index are inverses.** A frame at `base + i * FRAME_SIZE`, for any
     /// in-range `i`, maps back to index `i`. This is what makes the allocator's naming unambiguous:
     /// no two indices share an address and no address is misfiled.
     #[kani::proof]
@@ -417,14 +417,14 @@ mod verification {
         kani::assume(i < total);
 
         let mut bm = [0u8; 1]; // index_of reads only base and total, never the bitmap
-        let fa = FrameAllocator {
+        let fa = PageFrameAllocator {
             bitmap: &mut bm,
             base,
             total,
             used: 0,
             hint: 0,
         };
-        let frame = Frame(base + i as u64 * FRAME_SIZE);
+        let frame = PageFrame(base + i as u64 * FRAME_SIZE);
         assert_eq!(fa.index_of(frame), Some(i));
     }
 
@@ -435,7 +435,7 @@ mod verification {
     #[kani::unwind(9)]
     fn two_allocations_are_distinct() {
         let mut bm: [u8; 1] = kani::any(); // eight frames, arbitrary used/free pattern
-        let mut fa = FrameAllocator {
+        let mut fa = PageFrameAllocator {
             bitmap: &mut bm,
             base: 0,
             total: 8,
@@ -456,7 +456,7 @@ mod verification {
     fn an_allocated_frame_is_aligned_and_in_range() {
         let mut bm: [u8; 1] = kani::any();
         let base = 0x4000_0000u64; // an arbitrary aligned base
-        let mut fa = FrameAllocator {
+        let mut fa = PageFrameAllocator {
             bitmap: &mut bm,
             base,
             total: 8,

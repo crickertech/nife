@@ -77,7 +77,7 @@ use grant_plan::line::{self, Line, Source};
 use grant_plan::nav::{self, Cwd, Refused, Step};
 use grant_plan::{
     Action, Command, DirGrant as GrantDir, Endowment, Escalation, Refusal, RunSpec, Streams,
-    TouchArgs, jobframe, spawnproto,
+    TouchArgs, job_page_frame, spawnproto,
 };
 use line_editor::proto;
 use swish::{Route, Say, Status, Untimed, sequence};
@@ -1073,7 +1073,7 @@ fn redirecting(rights: u64) -> ! {
         // **One witness rather than a seventh**, and that is a memory decision rather than a
         // filing one: every scripted shell in this suite is a live process whose frames are never
         // reclaimed, and adding one more put `time_tests` over the frame pool intermittently
-        // (`refused to load a user program: Unmappable(OutOfFrames)`). The wiring these lines need
+        // (`refused to load a user program: Unmappable(OutOfPageFrames)`). The wiring these lines need
         // is this wiring exactly, so a second copy of it bought nothing but the failure.
         //
         // The correctness gap quoting closed: a name with a space in it, written and read back.
@@ -2805,7 +2805,7 @@ static CONSUMED: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU64::
 fn spawn_interruptible(e: Endowment) {
     // Mint the job's resources. RETYPE the shared frame first, then SPLIT the construction budget,
     // so the budget is the top of our watermark and DESTROY returns its pages cleanly (LIFO).
-    let Some(job_fr) = retype_frame() else {
+    let Some(job_fr) = retype_page_frame() else {
         failed();
         print(b"  this shell's memory budget is exhausted; nothing left to grant\n");
         return;
@@ -2819,24 +2819,24 @@ fn spawn_interruptible(e: Endowment) {
 
     // Map the shared frame into our own space so we can signal the job and read its status.
     let va = SH_JOBFRAME_NEXT.fetch_add(PAGE, core::sync::atomic::Ordering::Relaxed);
-    if !map_frame(job_fr, va) {
+    if !map_page_frame(job_fr, va) {
         cap_delete(job_fr);
         cap_delete(job_ut);
         failed();
         print(b"  could not map the job frame\n");
         return;
     }
-    // SAFETY: `map_frame` just mapped one page read/write at `va`, above, and it stays mapped for
+    // SAFETY: `map_page_frame` just mapped one page read/write at `va`, above, and it stays mapped for
     // the rest of this job's life (no unmap syscall exists), so the window's `new` asserts that
     // once here instead of at every jf_load/jf_store call site the way the two free functions
     // used to (milestone 139 round 3; "actually a *better* MappedWindow fit than the static case,
     // since `new` already takes a runtime base" is round 2's own framing for this cluster).
     let jf = unsafe { MappedWindow::new(va, PAGE) };
     // A freshly retyped frame is zeroed, but make the shared contract explicit.
-    jf.write(jobframe::INTERRUPT as u64, 0u64);
-    jf.write(jobframe::DONE as u64, 0u64);
-    jf.write(jobframe::STATUS as u64, 0u64);
-    jf.write(jobframe::HEARTBEAT as u64, 0u64);
+    jf.write(job_page_frame::INTERRUPT as u64, 0u64);
+    jf.write(job_page_frame::DONE as u64, 0u64);
+    jf.write(job_page_frame::STATUS as u64, 0u64);
+    jf.write(job_page_frame::HEARTBEAT as u64, 0u64);
 
     // Direct init: an interruptible request, then the job untyped and the job frame, both delegated
     // WRITE|GRANT (init builds from the untyped and maps the frame). We keep our own copies: the
@@ -2899,9 +2899,9 @@ fn watch(jf: MappedWindow, job_ut: u64) {
     let mut fed: u64 = 0;
     loop {
         // Finished on its own (cooperatively or naturally)?
-        if jf.read::<u64>(jobframe::DONE as u64) != 0 {
-            let status = jf.read::<u64>(jobframe::STATUS as u64);
-            let beats = jf.read::<u64>(jobframe::HEARTBEAT as u64);
+        if jf.read::<u64>(job_page_frame::DONE as u64) != 0 {
+            let status = jf.read::<u64>(job_page_frame::STATUS as u64);
+            let beats = jf.read::<u64>(job_page_frame::HEARTBEAT as u64);
             reclaim(job_ut);
             report_finished(status, beats);
             return;
@@ -2921,7 +2921,7 @@ fn watch(jf: MappedWindow, job_ut: u64) {
         }
         match action {
             Action::Cooperative => {
-                jf.write(jobframe::INTERRUPT as u64, 1u64);
+                jf.write(job_page_frame::INTERRUPT as u64, 1u64);
                 print(b"  ^C: asked the job to stop.\n");
             }
             Action::Forcible => {
@@ -2936,7 +2936,7 @@ fn watch(jf: MappedWindow, job_ut: u64) {
 
 /// Report a job that stopped on its own.
 fn report_finished(status: u64, beats: u64) {
-    if status == jobframe::STATUS_INTERRUPTED {
+    if status == job_page_frame::STATUS_INTERRUPTED {
         // Interrupted is a job that did not finish what it was asked to do, so `&&` must not carry
         // on past it. It is [`failed`] rather than [`refused`] because it ran: the shell agreed to
         // it, spawned it, and a person stopped it.
@@ -2977,17 +2977,17 @@ fn reclaim(job_ut: u64) -> bool {
     false
 }
 
-/// RETYPE one page of our budget into a Frame capability we hold. `None` when the budget is spent.
-fn retype_frame() -> Option<u64> {
+/// RETYPE one page of our budget into a `PageFrame` capability we hold. `None` when the budget is spent.
+fn retype_page_frame() -> Option<u64> {
     // SAFETY: `svc`/`ecall`; the kernel checks WRITE on the untyped.
     let r = unsafe { invoke(BUDGET, abi::untyped::RETYPE, 0, 0, 0) };
     if r < 0 { None } else { Some(r as u64) }
 }
 
 /// Map the frame in `slot` read/write at `va` in our own space; page tables come from our budget.
-fn map_frame(slot: u64, va: u64) -> bool {
+fn map_page_frame(slot: u64, va: u64) -> bool {
     // SAFETY: `svc`/`ecall`; the kernel checks the frame cap and the address.
-    unsafe { invoke(slot, abi::frame::MAP, va, 1, BUDGET) == 0 }
+    unsafe { invoke(slot, abi::page_frame::MAP, va, 1, BUDGET) == 0 }
 }
 
 /// Delegate the capability in `slot` to init over the spawn rendezvous, narrowed to WRITE|GRANT (init

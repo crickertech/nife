@@ -1000,7 +1000,7 @@ fn map_physical_maps_a_shared_frame_and_a_device_page() {
     assert!(dev_f.is_user_accessible() && dev_f.is_writable());
 
     mmu::deactivate_user();
-    crate::memory::free(Frame::from_addr(frame));
+    crate::memory::free(PageFrame::from_addr(frame));
     drop(space);
 }
 
@@ -1683,7 +1683,7 @@ fn a_reopened_socket_id_connects_again_over_tcp() {
 ///
 /// **The mDNS-shaped exchange rides in this same spawn too** (milestone 55's stack half), for the
 /// same memory reason, re-measured by the lane that built it: a twelfth net server died as
-/// `Unmappable(OutOfFrames)` in an unrelated later test. After the accept rounds, the client
+/// `Unmappable(OutOfPageFrames)` in an unrelated later test. After the accept rounds, the client
 /// proves the three things a responder needs and nothing else touches: binding UDP 5353 is an
 /// authority (a port outside the spawn's `udp_bind_grant` is refused, the granted one binds and
 /// is exclusive; and since this spawn's word carries both grants, the composed packing is what
@@ -1765,7 +1765,7 @@ fn a_host_process_connects_to_the_guest_and_is_answered() {
     }
     crate::println!(
         "    (combined boot wired: {} frames free before the net + SMB spawn)",
-        crate::memory::free_frames()
+        crate::memory::free_page_frames()
     );
     // Taken before `fs` is handed to the spawn below: the write verifier needs to know whether
     // there was a filesystem at all, and the spawn consumes the capability.
@@ -1782,7 +1782,7 @@ fn a_host_process_connects_to_the_guest_and_is_answered() {
     let cred = had_fs
         .then(super::credential_tests::provisioned)
         .flatten()
-        .map(|(w, _, _)| (w.verify, w.verify_frame));
+        .map(|(w, _, _)| (w.verify, w.verify_page_frame));
     let Some((report, smb_report, mdns_report, net)) = virtio_service::start_net_stack_with_smb(
         net_stack_image(),
         smb_server_image(),
@@ -2255,7 +2255,7 @@ fn a_dead_user_thread_frees_its_whole_address_space() {
     // move again. Latent until milestone 14 phase A.2/A.3 made spawn-to-fault fast enough
     // to lose the race about once in seven runs.
     //
-    // Pin the outlaws to THIS core (DECISIONS §28 made `spawn` scatter them). Frame accounting
+    // Pin the outlaws to THIS core (DECISIONS §28 made `spawn` scatter them). PageFrame accounting
     // must be exact to catch a leak (the milestone-6 bug this test guards), but a thread's frames
     // are freed by `finish_switch` on whatever core reaps it, *after* it leaves the thread table
     // and outside IPC_TABLES. Scattered across cores, that free is asynchronous, so `used()` fluctuates
@@ -2360,7 +2360,7 @@ fn a_dead_user_thread_frees_its_whole_address_space() {
 /// mechanism.** Retype a space out of a region, map a frame into it, and check the three
 /// things that make it real: the CPU's walker sees the mapping with the exact flags asked
 /// for; §13 revocation reaches into the user-built space (the record was paid and filed, so
-/// `revoke_frame` unmaps it there like anywhere); and destroying the pinned backing region
+/// `revoke_page_frame` unmaps it there like anywhere); and destroying the pinned backing region
 /// frees nothing while the space lives in it.
 #[test_case]
 fn a_user_built_aspace_maps_translates_and_revokes() {
@@ -2389,7 +2389,7 @@ fn a_user_built_aspace_maps_translates_and_revokes() {
     );
 
     // The reach of §13: revoking the frame unmaps it from the space nobody exec'd.
-    crate::revoke::revoke_frame(phys);
+    crate::revoke::revoke_page_frame(phys);
     assert!(
         mmu::translate_at(root, va).is_none(),
         "revocation does not reach a user-built address space",
@@ -2713,7 +2713,7 @@ fn reclaim_frees_a_started_then_exited_childs_regions() {
     // rendezvous region (never reclaimed here; rendezvous revocation is a later piece), so it must
     // not count against the frame accounting.
     let report = crate::sched::create_rendezvous();
-    let frames_before = crate::memory::free_frames();
+    let frames_before = crate::memory::free_page_frames();
 
     // The child's whole address space in one region: root, tables, code, and stack.
     let as_region = crate::untyped::create(8).expect("no address space region");
@@ -2785,7 +2785,7 @@ fn reclaim_frees_a_started_then_exited_childs_regions() {
     crate::sched::reclaim_region(as_region).expect("reclaim the address-space region after exit");
 
     assert_eq!(
-        crate::memory::free_frames(),
+        crate::memory::free_page_frames(),
         frames_before,
         "every frame the child used must come back to baseline",
     );
@@ -2806,7 +2806,7 @@ fn spawn_to_reap_repeats_without_leaking() {
     let expect_word = super::supervision_tests::REPORT_WORD;
 
     let report = crate::sched::create_rendezvous();
-    let baseline = crate::memory::free_frames();
+    let baseline = crate::memory::free_page_frames();
 
     for round in 0..6 {
         let as_region = crate::untyped::create(8).expect("address space region");
@@ -2860,7 +2860,7 @@ fn spawn_to_reap_repeats_without_leaking() {
         crate::sched::reclaim_region(as_region).expect("reclaim address space region");
 
         assert_eq!(
-            crate::memory::free_frames(),
+            crate::memory::free_page_frames(),
             baseline,
             "round {round}: spawn-to-reap leaked; the cycle does not return to baseline",
         );
@@ -2970,17 +2970,17 @@ fn a_process_revokes_a_frame_and_loses_the_capability() {
     );
 }
 
-/// **Frame capabilities, end to end.** A producer retypes a page into a `Frame`, maps it, writes
+/// **`PageFrame` capabilities, end to end.** A producer retypes a page into a `PageFrame`, maps it, writes
 /// a sentinel, and delegates a READ-only view to a consumer. Two things must hold: the consumer
 /// reads the producer's sentinel through its *own* mapping of the same physical page (the memory
 /// is genuinely shared, and the kernel copied nothing), and the consumer *cannot* map that page
 /// writable, because it was handed the frame with `READ` alone. This is §10's "shared memory
 /// carries data" done by the processes rather than wired by the kernel at spawn. See
-/// user/src/hello.rs and `user::frame_service`.
+/// user/src/hello.rs and `user::page_frame_service`.
 #[test_case]
 fn a_frame_capability_shares_a_page_and_a_read_only_view_cannot_write_it() {
     let image = init_image();
-    let report = frame_service::wire(image);
+    let report = page_frame_service::wire(image);
 
     let verdict = sched::ipc_recv(report)[0];
     assert_eq!(

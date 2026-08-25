@@ -4,7 +4,7 @@
 //! Seven programs each hand-rolled the same four to six functions: `r8`/`w8`/`r16`/`w16`/`r32`,
 //! sometimes `r16le`/`w16le` or `a_r8`/`a_w8`, every one of them `unsafe { core::ptr::read_volatile
 //! ... }` or its `write_volatile` twin, over either a DMA page a driver's wiring maps before
-//! `_start` runs or a shared IPC frame the program `Frame::MAP`s itself. `entropy.rs`, `kbd.rs`,
+//! `_start` runs or a shared IPC frame the program `PageFrame::MAP`s itself. `entropy.rs`, `kbd.rs`,
 //! `net_transport.rs`, `mdns_responder.rs`, `socket_test_client.rs`, `smb_server.rs` and `ntp.rs`
 //! all carried a copy; `ntp.rs`'s own comment named the duplication out loud ("the same shape
 //! `net_stack` and `socket_test_client` use") without anyone lifting it out.
@@ -53,7 +53,7 @@ pub const PAGE: u64 = 4096;
 
 /// A caller-owned window onto one page this process was handed at a fixed virtual address: a DMA
 /// page a driver's wiring mapped before `_start` ran, or a shared IPC frame the program mapped
-/// itself with `Frame::MAP`. Every read and write is bounds-checked against `len`, so the only
+/// itself with `PageFrame::MAP`. Every read and write is bounds-checked against `len`, so the only
 /// trust this type asks for is the one made at construction.
 #[derive(Clone, Copy)]
 pub struct MappedWindow {
@@ -66,7 +66,7 @@ impl MappedWindow {
     /// `base .. base + len` must be a range the kernel has mapped read/write-accessible into this
     /// process for as long as `self` is used. Every caller in this tree gets that from one of two
     /// places: the wiring maps it before `_start` runs (a DMA page), or the program's own
-    /// `Frame::MAP` succeeded first (a shared IPC frame) and `self` is not read or written before
+    /// `PageFrame::MAP` succeeded first (a shared IPC frame) and `self` is not read or written before
     /// that call returns. Both are the same trust every `invoke` already extends to the kernel;
     /// this type does not add a new one, it just asserts it once instead of at every access.
     pub const unsafe fn new(base: u64, len: u64) -> Self {

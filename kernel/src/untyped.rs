@@ -48,7 +48,7 @@
 //! `EMFILE`/`ENFILE` both already use) for whoever eventually has one.
 
 use memory_regions::RegionTable;
-use page_frames::{FRAME_SIZE, Frame};
+use page_frames::{FRAME_SIZE, PageFrame};
 
 use crate::memory;
 use crate::sync::{IrqSafeMutex, rank};
@@ -82,7 +82,7 @@ pub fn create(pages: u64) -> Option<u64> {
         // No free region slot: give the memory back rather than leak it. With reuse this is now a
         // genuine concurrency limit (too many live regions), not a lifetime one.
         for i in 0..pages {
-            memory::free(Frame::from_addr(base + i * FRAME_SIZE));
+            memory::free(PageFrame::from_addr(base + i * FRAME_SIZE));
         }
     }
     name
@@ -198,7 +198,7 @@ pub fn unpin(region: u64) {
 ///
 /// That precondition is now *met* rather than assumed. Before freeing anything, this revokes every
 /// mapped page in the region (revoke.rs, §13): each is unmapped from every address space that held
-/// it and every `Frame` capability to it is deleted. So "no live mapping survives" replaces
+/// it and every `PageFrame` capability to it is deleted. So "no live mapping survives" replaces
 /// "spend-only, never reused", and returning the pages to the allocator is safe. `REGIONS` is
 /// released before the revoke so revocation can take `IPC_TABLES` (a higher rank) without
 /// inverting the order.
@@ -236,7 +236,7 @@ pub fn destroy(region: u64) {
         // `destroy_outcome` guarantees only roots reach this path, which is what makes double-free
         // impossible: a page reaches the allocator only through the one root that owns it.
         for i in 0..pages {
-            memory::free(Frame::from_addr(base + i * FRAME_SIZE));
+            memory::free(PageFrame::from_addr(base + i * FRAME_SIZE));
         }
     } else {
         // A child region: its pages return to the parent, never the allocator. The LIFO test and the

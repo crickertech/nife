@@ -833,8 +833,8 @@ pub fn map_current_user_page(
     // The leaf is a fresh page from `alloc`; the page tables to reach it come from the same
     // `alloc`. This is the Untyped::MAP path: everything, page and tables, out of one source. The
     // leaf's physical address is returned so the caller can record the mapping for revocation (§13).
-    let leaf = alloc().ok_or(MapError::OutOfFrames)?;
-    map_current_user_frame(va, leaf, flags, alloc)?;
+    let leaf = alloc().ok_or(MapError::OutOfPageFrames)?;
+    map_current_user_page_frame(va, leaf, flags, alloc)?;
     Ok(leaf)
 }
 
@@ -868,11 +868,11 @@ pub fn translate_at(root: u64, va: u64) -> Option<(u64, Flags)> {
 /// Map an **already-owned** physical page `phys` at `va` in the caller's address space, drawing
 /// only the intermediate page tables from `alloc`.
 ///
-/// The `Frame::MAP` path. Unlike [`map_current_user_page`], the leaf is not freshly allocated: it
+/// The `PageFrame::MAP` path. Unlike [`map_current_user_page`], the leaf is not freshly allocated: it
 /// is the page the frame capability names, which the caller already holds and which outlives this
 /// mapping. `alloc` supplies page-table nodes only, so a caller can point them at an untyped and
 /// keep the kernel out of the allocation entirely.
-pub fn map_current_user_frame(
+pub fn map_current_user_page_frame(
     va: u64,
     phys: u64,
     flags: Flags,

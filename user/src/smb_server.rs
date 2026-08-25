@@ -196,7 +196,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use abi::{frame as fr, rendezvous, rights, untyped as ut};
+use abi::{page_frame as fr, rendezvous, rights, untyped as ut};
 use filesystem_proto::{dir, dirent, fs, xattr};
 use smb_proto::authenticator::{Attempt, Authenticator, NoIdentity, Verdict};
 use smb_proto::path::Path;
@@ -205,7 +205,7 @@ use smb_proto::share::{DirId, Entry, Error, FIXTURE, FileId, ROOT_DIR, Share, Vo
 use smb_proto::{MAX_MESSAGE, XPORT_LEN, xport_parse, xport_write};
 use socket_proto::{
     DATA_MAX, LISTEN_DENIED, LISTEN_GRANTED, LISTEN_IN_USE, OFF_LEN, OFF_PAYLOAD, OP_ACCEPT,
-    OP_ATTACH_FRAME, OP_CLOSE, OP_LISTEN, OP_RECV, OP_SEND, REP_ERR, REP_OK, req,
+    OP_ATTACH_PAGE_FRAME, OP_CLOSE, OP_LISTEN, OP_RECV, OP_SEND, REP_ERR, REP_OK, req,
 };
 use user_rt::mapped_window::MappedWindow;
 use user_rt::{call, exit, invoke, now, send};
@@ -268,7 +268,7 @@ const SHARE_FS_AUTHENTICATED: u64 = 3;
 /// [`open_durable_session_or_die`]). Small on purpose: this program never retypes an object out of
 /// it, only ever splits a child off it to stand in for derived authority, so its own bookkeeping is
 /// the whole cost, and [`UNTYPED`]'s own budget (`NET_CLIENT_BUDGET_PAGES` in
-/// `kernel/src/user/virtio_service.rs`, 16 pages) has to cover [`attach_frame`]'s frame and page
+/// `kernel/src/user/virtio_service.rs`, 16 pages) has to cover [`attach_page_frame`]'s frame and page
 /// tables first.
 const SESSION_UT_PAGES: u64 = 4;
 
@@ -282,15 +282,15 @@ const LISTEN_SID: u64 = 2;
 const CONN_SID: u64 = 3;
 
 /// Where the shared frame is mapped in this process.
-const FRAME_VA: u64 = 0x0000_0000_00A0_0000;
+const PAGE_FRAME_VA: u64 = 0x0000_0000_00A0_0000;
 
 /// The window onto that frame (milestone 139; see `user_rt::mapped_window`). A `static`, not a
-/// `const`: the range is only actually mapped once the `Frame::MAP` below succeeds, and every
+/// `const`: the range is only actually mapped once the `PageFrame::MAP` below succeeds, and every
 /// access through this window happens after that, during the exchanges that follow.
-// SAFETY: this program maps a frame writable at FRAME_VA (below) before any read or write through
+// SAFETY: this program maps a frame writable at PAGE_FRAME_VA (below) before any read or write through
 // this window runs.
 static FRAME_WINDOW: MappedWindow =
-    unsafe { MappedWindow::new(FRAME_VA, user_rt::mapped_window::PAGE) };
+    unsafe { MappedWindow::new(PAGE_FRAME_VA, user_rt::mapped_window::PAGE) };
 
 /// The success word the kernel test asserts, and the "listening" word the serve-forever boot
 /// prints on. Distinct stage codes (0xE1xx, disjoint from `socket_test_client`'s 0xE0xx) name
@@ -1046,14 +1046,14 @@ fn open_durable_session_or_die() -> DurableSession {
 }
 
 /// Mint a frame from our untyped, map it writable, and delegate it to socket `sid`.
-fn attach_frame(sid: u64) {
+fn attach_page_frame(sid: u64) {
     // SAFETY: `svc`. RETYPE returns the new frame capability's slot, or a negative error.
     let frame = unsafe { invoke(UNTYPED, ut::RETYPE, 0, 0, 0) };
     if frame < 0 {
         done(0xE101);
     }
     // SAFETY: `svc`. Map it writable; page tables come from our untyped.
-    if unsafe { invoke(frame as u64, fr::MAP, FRAME_VA, 1, UNTYPED) } < 0 {
+    if unsafe { invoke(frame as u64, fr::MAP, PAGE_FRAME_VA, 1, UNTYPED) } < 0 {
         done(0xE102);
     }
     // SAFETY: `svc`. Delegate it (narrowed to read/write) with the ATTACH request.
@@ -1063,7 +1063,7 @@ fn attach_frame(sid: u64) {
             rendezvous::SEND_CAP,
             frame as u64,
             rights::READ | rights::WRITE,
-            req(OP_ATTACH_FRAME, sid),
+            req(OP_ATTACH_PAGE_FRAME, sid),
         )
     } < 0
     {
@@ -1187,7 +1187,7 @@ pub extern "C" fn _start(rounds: u64, port: u64, fs_backed: u64) -> ! {
         LISTEN_IN_USE => done(0xE111),
         _ => done(0xE112),
     }
-    attach_frame(CONN_SID);
+    attach_page_frame(CONN_SID);
 
     // Which backing this boot wired, and in which direction (the module header's contract).
     // Dispatched once, here, so the serve loops stay monomorphic over the trait and no protocol

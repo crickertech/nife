@@ -82,9 +82,9 @@ const PRESENT: u64 = 1;
 /// The endpoint it serves. **One**, for both classes of sender; see the module note.
 const TERM: u64 = 2;
 /// The untyped it spends on the page tables its own mappings need. [`MODE_DISPLAY`] only; see the
-/// note on [`SURFACE_FRAME`].
+/// note on [`SURFACE_PAGE_FRAME`].
 const BUDGET: u64 = 3;
-/// The first of `gfx::SURFACE_FRAMES` consecutive slots holding the scanout, then one more for
+/// The first of `gfx::SURFACE_PAGE_FRAMES` consecutive slots holding the scanout, then one more for
 /// [`OUT_VA`]'s page. **[`MODE_DISPLAY`] only** (milestone 108).
 ///
 /// The two wirings do not agree about this yet, and the asymmetry is deliberate rather than
@@ -92,8 +92,8 @@ const BUDGET: u64 = 3;
 /// one of them. In [`MODE_WINDOW`] the surface, the output page and the control page still arrive as
 /// spawn-time mappings from `compositor_service`, which is why the `MAP` loop below is inside the
 /// `MODE_DISPLAY` arm.
-const SURFACE_FRAME: u64 = 4;
-const OUT_FRAME: u64 = SURFACE_FRAME + gfx::SURFACE_FRAMES as u64;
+const SURFACE_PAGE_FRAME: u64 = 4;
+const OUT_PAGE_FRAME: u64 = SURFACE_PAGE_FRAME + gfx::SURFACE_PAGE_FRAMES as u64;
 
 /// Where the scanout goes. In [`MODE_DISPLAY`] this process holds the frames and picks the address;
 /// in [`MODE_WINDOW`] the compositor's wiring maps it here.
@@ -318,15 +318,20 @@ pub extern "C" fn _start(mode: u64, _arg1: u64, _arg2: u64) -> ! {
     // wrong shape the first time anything changed.
     let (w, h, stride) = match mode {
         MODE_DISPLAY => {
-            // The scanout and the application's output page are `Frame`s this process holds, and it
+            // The scanout and the application's output page are `PageFrame`s this process holds, and it
             // maps them itself out of its own budget (milestone 108). Before the `INFO` call,
             // because a terminal with nowhere to paint has no use for the geometry.
-            for k in 0..gfx::SURFACE_FRAMES as u64 {
-                if !user_rt::map_frame(SURFACE_FRAME + k, SURFACE_VA + k * 4096, true, BUDGET) {
+            for k in 0..gfx::SURFACE_PAGE_FRAMES as u64 {
+                if !user_rt::map_page_frame(
+                    SURFACE_PAGE_FRAME + k,
+                    SURFACE_VA + k * 4096,
+                    true,
+                    BUDGET,
+                ) {
                     die(E_SURFACE);
                 }
             }
-            if !user_rt::map_frame(OUT_FRAME, OUT_VA, true, BUDGET) {
+            if !user_rt::map_page_frame(OUT_PAGE_FRAME, OUT_VA, true, BUDGET) {
                 die(E_SURFACE);
             }
             let (r0, geometry) = call(PRESENT, gfx::req(gfx::display::INFO, 0), 0);

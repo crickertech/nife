@@ -8,7 +8,7 @@
 //!
 //! # BUGS
 //!
-//! - **Only RAM and reservations cross the seam.** `memory::bring_up_frames` takes those two, and
+//! - **Only RAM and reservations cross the seam.** `memory::bring_up_page_frames` takes those two, and
 //!   the device *windows* the device-tree front end also discovers (the interrupt controller, the
 //!   RTC, the UART's interrupt line, the PCIe ECAM range) are still read from a tree by the front
 //!   end and stay `None` here. What ACPI answers is handed to `arch::x86_64::irq` **directly** by
@@ -467,7 +467,7 @@ fn print_isa_overrides(found: &Acpi) {
 // Bringing the frame allocator up from the PVH memory map.
 // ---------------------------------------------------------------------------------------------
 
-/// The most RAM regions handed to the allocator. `memory::bring_up_frames` indexes a fixed map of
+/// The most RAM regions handed to the allocator. `memory::bring_up_page_frames` indexes a fixed map of
 /// this size, so more than this cannot be described; q35 produces three.
 const MAX_RAM_REGIONS: usize = 16;
 
@@ -484,7 +484,7 @@ const LOW_MEGABYTE: u64 = 0x0010_0000;
 /// **Bring the frame allocator up from what the loader described.**
 ///
 /// The x86 counterpart of `memory::init`'s device-tree front end: it turns the PVH memory map into
-/// the two slices `memory::bring_up_frames` takes, and nothing else.
+/// the two slices `memory::bring_up_page_frames` takes, and nothing else.
 ///
 /// Returns how many RAM regions were used, which the boot print reports; a machine describing more
 /// than [`MAX_RAM_REGIONS`] gets the first that many, and saying how many were taken is what makes
@@ -527,6 +527,6 @@ pub fn bring_up_memory(info: &BootInfo) -> usize {
         size: crate::memory::image_end() - crate::memory::image_start(),
     }];
 
-    crate::memory::bring_up_frames(&ram[..count], &forbidden);
+    crate::memory::bring_up_page_frames(&ram[..count], &forbidden);
     count
 }

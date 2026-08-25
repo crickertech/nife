@@ -519,7 +519,7 @@ pub mod untyped {
     /// exhausted (the *process* is out of budget, not the kernel).
     pub const MAP: u64 = 0;
 
-    /// `invoke(cap, RETYPE, _, _, _)` -> slot. Retype one page out of the untyped into a **`Frame`
+    /// `invoke(cap, RETYPE, _, _, _)` -> slot. Retype one page out of the untyped into a **`PageFrame`
     /// capability** the caller now holds, and return the slot it landed in. Nothing is mapped: the
     /// caller decides where to map it, and may delegate it first. This is the split that makes a
     /// page a first-class, delegatable object rather than something mapped in one shot. `OutOfMemory`
@@ -555,8 +555,8 @@ pub mod untyped {
     pub const DESTROY: u64 = 4;
 }
 
-/// Methods on a `Frame` capability. **A physical page a process holds, maps, and shares.**
-pub mod frame {
+/// Methods on a `PageFrame` capability. **A physical page a process holds, maps, and shares.**
+pub mod page_frame {
     /// `invoke(cap, MAP, va, writable, untyped_slot)` -> 0. Map this frame at `va` in the caller's
     /// own address space. `writable` != 0 maps it read/write (needs `WRITE` on the frame); `0` maps
     /// it read-only (needs `READ`). Page tables to reach `va` come from the untyped named by

@@ -11,11 +11,11 @@
 //!   validates every descriptor first (notes/dma.md);
 //! - slot 3, a **display** endpoint it RECVs on: where clients ask for a flush;
 //! - slot 4, an **untyped**: the budget the page tables for its own mappings come out of;
-//! - slots 5.., its **DMA region**: [`DMA_FRAMES`] `Frame` capabilities, one per page, which it maps
+//! - slots 5.., its **DMA region**: [`DMA_PAGE_FRAMES`] `PageFrame` capabilities, one per page, which it maps
 //!   itself (milestone 108). The region's *physical* base still arrives in `x1`, because descriptors
 //!   speak physical addresses and a process only knows virtual ones.
 //!
-//! **Nine capabilities for one contiguous region** is the shape a `Frame` forces, and it is worth
+//! **Nine capabilities for one contiguous region** is the shape a `PageFrame` forces, and it is worth
 //! seeing: this driver spends nine of the fourteen usable slots in its capability table naming pages that are
 //! adjacent in physics, adjacent in its address space, and covered as a single range by the IOMMU
 //! domain the kernel programmed. See notes/frames.md's BUGS.
@@ -64,12 +64,12 @@ const VIRTIO: u64 = 2;
 const DISPLAY: u64 = 3;
 /// The untyped this driver spends on the page tables its DMA region needs.
 const BUDGET: u64 = 4;
-/// The first of [`DMA_FRAMES`] consecutive slots holding the DMA region, a `Frame` per page.
-const DMA_FRAME: u64 = 5;
+/// The first of [`DMA_PAGE_FRAMES`] consecutive slots holding the DMA region, a `PageFrame` per page.
+const DMA_PAGE_FRAME: u64 = 5;
 
 /// The DMA region, in frames: one for the rings and control buffers, then the surface. Must match
-/// `display_service::DMA_FRAMES`.
-const DMA_FRAMES: u64 = 1 + gfx::SURFACE_FRAMES as u64;
+/// `display_service::DMA_PAGE_FRAMES`.
+const DMA_PAGE_FRAMES: u64 = 1 + gfx::SURFACE_PAGE_FRAMES as u64;
 
 /// Where this driver puts its DMA region. **Its choice, not the kernel's**: it holds the frames and
 /// maps them (milestone 108). The *physical* base still arrives in `a1`, and has to: descriptors
@@ -130,7 +130,7 @@ const OFF_REQ: u64 = 0x400;
 /// The control response the device writes. `GET_DISPLAY_INFO`'s reply is 408 bytes (a header plus 16
 /// scanout descriptions), which is what sizes this and why it is the last thing in page 0.
 const OFF_RESP: u64 = 0x600;
-/// The surface: page 1 onward, `gfx::SURFACE_FRAMES` frames of it, shared with the client.
+/// The surface: page 1 onward, `gfx::SURFACE_PAGE_FRAMES` frames of it, shared with the client.
 const OFF_SURFACE: u64 = 0x1000;
 
 // --- virtio-gpu control commands and responses (virtio spec 5.7). ---
@@ -198,12 +198,12 @@ fn barrier() {
     };
 }
 
-// SAFETY: the `MAP` loop in `_start` maps `DMA_FRAMES` frames read/write at `DMA_VA` before any
+// SAFETY: the `MAP` loop in `_start` maps `DMA_PAGE_FRAMES` frames read/write at `DMA_VA` before any
 // command is written or the surface digested (milestone 139 round 4: this is the shared invariant
 // `dma_write`/`dma_read` used to assert by hand at every call site, now checked once here and
 // enforced per access rather than trusted at each of the few dozen ring/request/response/surface
 // offsets below, `surface_pixel` included). Constructing a window touches no memory.
-const WINDOW: MappedWindow = unsafe { MappedWindow::new(DMA_VA, DMA_FRAMES * 4096) };
+const WINDOW: MappedWindow = unsafe { MappedWindow::new(DMA_VA, DMA_PAGE_FRAMES * 4096) };
 
 fn dma_write<T>(off: u64, val: T) {
     WINDOW.write(off, val);
@@ -500,15 +500,15 @@ fn run_backing_escape(dma_phys: u64, victim: u64) -> ! {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(role: u64, dma_phys: u64, arg2: u64) -> ! {
-    // **The DMA region is ours to place** (milestone 108): DMA_FRAMES capabilities, one per page,
+    // **The DMA region is ours to place** (milestone 108): DMA_PAGE_FRAMES capabilities, one per page,
     // mapped read/write out of our own budget. Before either role, because the rings live in the
     // first page of it and the escape attempt writes a descriptor too.
     //
-    // One `MAP` per page is what a `Frame` costs: the object names a page, and this region is a
+    // One `MAP` per page is what a `PageFrame` costs: the object names a page, and this region is a
     // contiguous run of nine. The kernel had to reserve slots 5..13 of a sixteen-slot capability table to
     // hand it over. See notes/frames.md's BUGS.
-    for k in 0..DMA_FRAMES {
-        if !user_rt::map_frame(DMA_FRAME + k, DMA_VA + k * 4096, true, BUDGET) {
+    for k in 0..DMA_PAGE_FRAMES {
+        if !user_rt::map_page_frame(DMA_PAGE_FRAME + k, DMA_VA + k * 4096, true, BUDGET) {
             // Nothing to report: `gfx::status` has no code for "I never reached my own rings",
             // and inventing one would be a protocol change to say what the missing `UP` already
             // says. A spawner that never sees `UP` knows bring-up failed.

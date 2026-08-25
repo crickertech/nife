@@ -17,7 +17,7 @@ const REVIVER_EXTRA_STACK_PAGES: u64 = 2;
 /// A fresh, zeroed frame, returned by physical address. Matches `fs_service::frame`'s own shape
 /// (that one is private to its own module); zeroed so no stale RAM is visible in this process's
 /// extra stack pages.
-fn frame() -> u64 {
+fn page_frame() -> u64 {
     let p = crate::memory::alloc()
         .expect("no frame for session_reviver's extra stack")
         .addr();
@@ -41,7 +41,7 @@ pub const RPT_FAILED: u64 = 2;
 /// `system_initializer` (see that program's own module doc on why a new process rather than a new
 /// boot phase, and why full boot integration is out of this lane's scope).
 ///
-/// `fs_ep`/`fs_frame` are the store-read capability (the principal tree's root directory
+/// `fs_ep`/`fs_page_frame` are the store-read capability (the principal tree's root directory
 /// capability, unnarrowed, matching `login.rs`/`identity_provisioner.rs`'s own bound for the
 /// identical grant) and the page its clients share with the FS server. `budget_pages` sizes the
 /// construction budget `session_reviver` spends per identity it re-derives, the same way
@@ -51,7 +51,7 @@ pub const RPT_FAILED: u64 = 2;
 /// refuses its bytes (unvouched); `Some([w0, w1, w2])` otherwise, the report `session_reviver`
 /// sends before it exits ([`RPT_OK`]/[`RPT_FAILED`], detail, and on success whether the deletion
 /// proof held; see that program's own `_start` for the exact words).
-pub fn revive(fs_ep: RendezvousId, fs_frame: u64, budget_pages: u64) -> Option<[u64; 3]> {
+pub fn revive(fs_ep: RendezvousId, fs_page_frame: u64, budget_pages: u64) -> Option<[u64; 3]> {
     let image = program("session_reviver")?;
 
     // **The same measurement check `crates/system_initializer::boot` performs for every component
@@ -76,7 +76,7 @@ pub fn revive(fs_ep: RendezvousId, fs_frame: u64, budget_pages: u64) -> Option<[
     }; 1 + REVIVER_EXTRA_STACK_PAGES as usize];
     maps[0] = Mapping {
         va: FS_VA,
-        phys: fs_frame,
+        phys: fs_page_frame,
         flags: Flags::user_data(),
     };
     for (k, m) in maps[1..].iter_mut().enumerate() {
@@ -84,7 +84,7 @@ pub fn revive(fs_ep: RendezvousId, fs_frame: u64, budget_pages: u64) -> Option<[
         // one page `run` already maps; these land directly below it, growing the stack downward,
         // the identical shape `fs_service::spawn_fs_client`'s own `extra_stack` uses.
         m.va = USER_STACK_VA - (k as u64 + 1) * FRAME_SIZE;
-        m.phys = frame();
+        m.phys = page_frame();
     }
 
     crate::sched::spawn(move || {

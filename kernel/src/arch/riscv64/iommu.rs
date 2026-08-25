@@ -117,7 +117,7 @@ fn w64(base: u64, off: u64, v: u64) {
     unsafe { core::ptr::write_volatile(phys_to_virt(base + off) as *mut u64, v) }
 }
 
-fn zeroed_frame(what: &str) -> u64 {
+fn zeroed_page_frame(what: &str) -> u64 {
     let pa = crate::memory::alloc()
         .unwrap_or_else(|| panic!("no frame for the IOMMU {what}"))
         .addr();
@@ -173,11 +173,11 @@ pub fn init(base: u64) {
     // Little-endian, wire-signaled interrupts off (we poll both queues).
     w32(base, FCTL, 0);
 
-    let cq = zeroed_frame("command queue");
+    let cq = zeroed_page_frame("command queue");
     w64(base, CQB, queue_base(cq, CQ_LOG2));
     queue_enable(base, CQCSR, "command");
 
-    let fq = zeroed_frame("fault queue");
+    let fq = zeroed_page_frame("fault queue");
     w64(base, FQB, queue_base(fq, FQ_LOG2));
     queue_enable(base, FQCSR, "fault");
 
@@ -186,7 +186,7 @@ pub fn init(base: u64) {
     // spans all of bus 0. Installing it (mode 1LVL) is what arms translation: from this write on,
     // a transaction from an unattached device is blocked with DDT_ENTRY_INVALID in the fault
     // queue rather than reaching memory.
-    let ddt = zeroed_frame("device directory");
+    let ddt = zeroed_page_frame("device directory");
     w64(base, DDTP, DDTP_MODE_1LVL | ((ddt >> 12) << 10));
     let mut spins = 0u32;
     while r64(base, DDTP) & DDTP_BUSY != 0 {

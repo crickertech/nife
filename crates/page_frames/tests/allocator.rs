@@ -1,12 +1,12 @@
 //! Host tests for the frame allocator. No emulator, no hardware, milliseconds.
 
-use page_frames::{FRAME_SIZE, Frame, FrameAllocator};
+use page_frames::{FRAME_SIZE, PageFrame, PageFrameAllocator};
 
 const BASE: u64 = 0x4000_0000;
 
 /// 64 frames = 256 KiB of pretend RAM, 8 bytes of bitmap.
-fn allocator(bitmap: &mut [u8]) -> FrameAllocator<'_> {
-    let mut a = FrameAllocator::new(BASE, 64, bitmap);
+fn allocator(bitmap: &mut [u8]) -> PageFrameAllocator<'_> {
+    let mut a = PageFrameAllocator::new(BASE, 64, bitmap);
     a.mark_free(BASE, 64 * FRAME_SIZE);
     a
 }
@@ -14,7 +14,7 @@ fn allocator(bitmap: &mut [u8]) -> FrameAllocator<'_> {
 #[test]
 fn everything_starts_used() {
     let mut bits = [0u8; 8];
-    let a = FrameAllocator::new(BASE, 64, &mut bits);
+    let a = PageFrameAllocator::new(BASE, 64, &mut bits);
 
     // Memory is guilty until proven innocent. If this ever defaults to free, the
     // allocator will happily hand out the MMIO hole where the UART lives.
@@ -68,7 +68,7 @@ fn double_free_panics() {
 fn freeing_a_foreign_frame_panics() {
     let mut bits = [0u8; 8];
     let mut a = allocator(&mut bits);
-    a.free(Frame::from_addr(0xdead_0000));
+    a.free(PageFrame::from_addr(0xdead_0000));
 }
 
 // --- the one that actually matters ---
@@ -153,7 +153,7 @@ fn alloc_contiguous_returns_adjacent_frames() {
     assert_eq!(a.stats().used, 4);
 
     for i in 0..4u64 {
-        let f = Frame::from_addr(first.addr() + i * FRAME_SIZE);
+        let f = PageFrame::from_addr(first.addr() + i * FRAME_SIZE);
         assert_eq!(
             a.is_used(f),
             Some(true),
@@ -165,7 +165,7 @@ fn alloc_contiguous_returns_adjacent_frames() {
 #[test]
 fn alloc_contiguous_skips_a_fragmented_gap() {
     let mut bits = [0u8; 8];
-    let mut a = FrameAllocator::new(BASE, 64, &mut bits);
+    let mut a = PageFrameAllocator::new(BASE, 64, &mut bits);
     a.mark_free(BASE, 64 * FRAME_SIZE);
 
     // Punch a hole so the first plausible run is too short: frames 0-2 free, 3 used,
@@ -183,7 +183,7 @@ fn alloc_contiguous_skips_a_fragmented_gap() {
 #[test]
 fn alloc_contiguous_fails_when_no_run_is_long_enough() {
     let mut bits = [0u8; 8];
-    let mut a = FrameAllocator::new(BASE, 64, &mut bits);
+    let mut a = PageFrameAllocator::new(BASE, 64, &mut bits);
     a.mark_free(BASE, 64 * FRAME_SIZE);
 
     // Reserve every other frame. Now the longest free run is 1.
@@ -207,15 +207,15 @@ fn alloc_contiguous_of_everything_works_exactly_once() {
 
 #[test]
 fn bitmap_sizing() {
-    assert_eq!(FrameAllocator::bitmap_bytes(0), 0);
-    assert_eq!(FrameAllocator::bitmap_bytes(1), 1);
-    assert_eq!(FrameAllocator::bitmap_bytes(8), 1);
-    assert_eq!(FrameAllocator::bitmap_bytes(9), 2);
+    assert_eq!(PageFrameAllocator::bitmap_bytes(0), 0);
+    assert_eq!(PageFrameAllocator::bitmap_bytes(1), 1);
+    assert_eq!(PageFrameAllocator::bitmap_bytes(8), 1);
+    assert_eq!(PageFrameAllocator::bitmap_bytes(9), 2);
 
     // 128 MiB of RAM (what QEMU virt gives us) is 32768 frames, so 4 KiB of bitmap.
     // One frame's worth of overhead to manage 128 MiB. That's the deal.
-    assert_eq!(FrameAllocator::frames_in(0x800_0000), 32768);
-    assert_eq!(FrameAllocator::bitmap_bytes(32768), 4096);
+    assert_eq!(PageFrameAllocator::page_frames_in(0x800_0000), 32768);
+    assert_eq!(PageFrameAllocator::bitmap_bytes(32768), 4096);
 }
 
 /// Milestone 85 survivors: `is_used` could return `Some(true)` unconditionally, `index_of` could
@@ -228,14 +228,14 @@ fn the_base_frame_and_the_empty_range_are_exact() {
     let mut a = allocator(&mut bits);
 
     // The base frame is ours to answer for, free until allocated.
-    assert_eq!(a.is_used(Frame::from_addr(BASE)), Some(false));
+    assert_eq!(a.is_used(PageFrame::from_addr(BASE)), Some(false));
     // One byte below it is not ours at all: None, never a verdict.
-    assert_eq!(a.is_used(Frame::from_addr(BASE - FRAME_SIZE)), None);
+    assert_eq!(a.is_used(PageFrame::from_addr(BASE - FRAME_SIZE)), None);
 
     // A zero-size range touches no frame, wherever it starts.
     a.mark_used(BASE + 100, 0);
     a.mark_used(BASE, 0);
-    assert_eq!(a.is_used(Frame::from_addr(BASE)), Some(false));
+    assert_eq!(a.is_used(PageFrame::from_addr(BASE)), Some(false));
 
     // And an allocated frame answers true, so Some(false) above is not a stuck constant.
     let f = a.alloc().unwrap();
@@ -253,14 +253,17 @@ fn the_base_frame_and_the_empty_range_are_exact() {
 #[test]
 fn a_frame_past_the_last_one_is_not_ours() {
     let mut bits = [0u8; 8];
-    let mut a = FrameAllocator::new(BASE, 60, &mut bits);
+    let mut a = PageFrameAllocator::new(BASE, 60, &mut bits);
     a.mark_free(BASE, 60 * FRAME_SIZE);
 
     assert_eq!(
-        a.is_used(Frame::from_addr(BASE + 59 * FRAME_SIZE)),
+        a.is_used(PageFrame::from_addr(BASE + 59 * FRAME_SIZE)),
         Some(false)
     );
-    assert_eq!(a.is_used(Frame::from_addr(BASE + 60 * FRAME_SIZE)), None);
+    assert_eq!(
+        a.is_used(PageFrame::from_addr(BASE + 60 * FRAME_SIZE)),
+        None
+    );
 }
 
 /// **Free frames and the longest free run are different numbers, and it is the second that fails a
@@ -288,6 +291,6 @@ fn the_longest_free_run_is_not_the_free_count() {
 
     // Nothing free at all: a run of zero, and never a panic on an empty bitmap.
     let mut bits = [0u8; 8];
-    let a = FrameAllocator::new(BASE, 64, &mut bits);
+    let a = PageFrameAllocator::new(BASE, 64, &mut bits);
     assert_eq!(a.largest_free_run(), 0);
 }

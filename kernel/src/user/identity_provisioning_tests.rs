@@ -46,10 +46,10 @@ fn redoxfs_server_image() -> &'static [u8] {
 /// real caller of. This suite needs the store *before* anyone has sealed it, which no existing
 /// fixture offers.
 ///
-/// Both provisioning attempts happen inside this one-time setup, against `w.provision_frame`
-/// (`cs::Wiring::provision_frame`, added by this milestone: `credential_service` used to look this
+/// Both provisioning attempts happen inside this one-time setup, against `w.provision_page_frame`
+/// (`cs::Wiring::provision_page_frame`, added by this milestone: `credential_service` used to look this
 /// up through a global shared by every instance, and this suite is the first caller to need a
-/// second, independent one in the same boot). `w.verify_frame` is carried past setup too, in
+/// second, independent one in the same boot). `w.verify_page_frame` is carried past setup too, in
 /// [`Wired`]'s own `cs` field, because `credential_service::client` reads it directly.
 fn wired() -> Option<Wired> {
     use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -73,7 +73,7 @@ fn wired() -> Option<Wired> {
             let svc =
                 program("credentialer").expect("no credentialer program in the initrd archive");
             let w = cs::start(svc, e.request);
-            let (fs_ep, fs_frame) =
+            let (fs_ep, fs_page_frame) =
                 fs_service::root_directory(fs_service::blk_server_image(), redoxfs_server_image())?;
 
             let prov_image = program("identity_provisioner")
@@ -83,9 +83,9 @@ fn wired() -> Option<Wired> {
             let r_a = ips::provision(
                 prov_image,
                 w.provision,
-                w.provision_frame,
+                w.provision_page_frame,
                 fs_ep,
-                fs_frame,
+                fs_page_frame,
                 IDENTITY,
                 SECRET,
             );
@@ -95,9 +95,9 @@ fn wired() -> Option<Wired> {
             let r_b = ips::provision(
                 prov_image,
                 w.provision,
-                w.provision_frame,
+                w.provision_page_frame,
                 fs_ep,
-                fs_frame,
+                fs_page_frame,
                 IDENTITY,
                 DUPLICATE_SECRET,
             );
@@ -130,7 +130,7 @@ fn wired() -> Option<Wired> {
                 r_a[1],
                 r_b[0],
                 r_b[1],
-                w.verify_frame,
+                w.verify_page_frame,
             ]) {
                 slot.store(v, Ordering::Relaxed);
             }
@@ -149,11 +149,11 @@ fn wired() -> Option<Wired> {
             provision: v(2),
             // Carried across the memoization boundary because `credential_service::client` now
             // reads it directly (milestone 155's own fix to that module): a hardcoded 0 here once
-            // looked harmless and was not, the first time this file shipped. `provision_frame` truly
+            // looked harmless and was not, the first time this file shipped. `provision_page_frame` truly
             // is dead past setup (`ips::provision` is never called again after the seal above), so
             // it is the one field this struct does not bother carrying.
-            verify_frame: v(7),
-            provision_frame: 0,
+            verify_page_frame: v(7),
+            provision_page_frame: 0,
         },
         fresh: [v(3), v(4)],
         duplicate: [v(5), v(6)],

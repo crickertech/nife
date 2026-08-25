@@ -125,7 +125,7 @@ fn w64(base: u64, off: u64, v: u64) {
 }
 
 /// Allocate one zeroed frame and return its physical address. Queue memory, tables.
-fn zeroed_frame(what: &str) -> u64 {
+fn zeroed_page_frame(what: &str) -> u64 {
     let pa = crate::memory::alloc()
         .unwrap_or_else(|| panic!("no frame for the SMMU {what}"))
         .addr();
@@ -179,10 +179,10 @@ pub fn init(base: u64) {
         "SMMU queues smaller than expected (IDR1 {idr1:#x})"
     );
 
-    let strtab = zeroed_frame("stream table");
-    let cds = zeroed_frame("context descriptors");
-    let cmdq = zeroed_frame("command queue");
-    let evtq = zeroed_frame("event queue");
+    let strtab = zeroed_page_frame("stream table");
+    let cds = zeroed_page_frame("context descriptors");
+    let cmdq = zeroed_page_frame("command queue");
+    let evtq = zeroed_page_frame("event queue");
 
     // Linear stream table (FMT 0), 2^6 entries. An all-zero STE is invalid, and an invalid STE
     // aborts the transaction and records C_BAD_STE: the default-deny posture.

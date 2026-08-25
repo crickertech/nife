@@ -478,7 +478,7 @@ impl Drop for TlbFlush {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MapError {
     /// Ran out of frames while building intermediate tables.
-    OutOfFrames,
+    OutOfPageFrames,
     /// The virtual or physical address is not 4 KiB aligned.
     Misaligned,
     /// Something is already mapped here.
@@ -522,7 +522,7 @@ where
 {
     root: u64,
     half: Half,
-    alloc_frame: A,
+    alloc_page_frame: A,
     phys_to_ptr: P,
     _fmt: PhantomData<F>,
 }
@@ -536,11 +536,11 @@ where
     /// # Safety
     /// `root` must be a zeroed, page-aligned frame, and `phys_to_ptr` must satisfy the contract in
     /// the type's docs.
-    pub unsafe fn new(root: u64, half: Half, alloc_frame: A, phys_to_ptr: P) -> Self {
+    pub unsafe fn new(root: u64, half: Half, alloc_page_frame: A, phys_to_ptr: P) -> Self {
         Self {
             root,
             half,
-            alloc_frame,
+            alloc_page_frame,
             phys_to_ptr,
             _fmt: PhantomData,
         }
@@ -579,7 +579,7 @@ where
             let entry = unsafe { &mut (*(self.phys_to_ptr)(table_pa)).entries[i] };
 
             if !F::is_present(*entry) {
-                let new = (self.alloc_frame)().ok_or(MapError::OutOfFrames)?;
+                let new = (self.alloc_page_frame)().ok_or(MapError::OutOfPageFrames)?;
 
                 // SAFETY: a fresh frame from the allocator. Zero it before it becomes reachable by
                 // the hardware, or the walk reads whatever garbage was in RAM and follows it.

@@ -57,7 +57,7 @@ const FS_PAGE_STD: u64 = 0x0000_0000_1100_0000;
 
 /// A fresh, zeroed frame, returned by physical address. Zeroed so no stale RAM is ever visible
 /// across a share, and (for the DMA frame) so the device never reads a stale descriptor.
-fn frame() -> u64 {
+fn page_frame() -> u64 {
     let p = crate::memory::alloc()
         .expect("no frame for the fs service")
         .addr();
@@ -135,7 +135,7 @@ const FS_SERVERS: usize = 3;
 
 /// A fresh frame filled with [`STACK_POISON`], for one of the FS server's stack pages, and
 /// remembered in [`FS_STACK_PHYS`] so the depth actually reached can be read back afterwards.
-fn poisoned_stack_frame(server: usize, index: usize) -> u64 {
+fn poisoned_stack_page_frame(server: usize, index: usize) -> u64 {
     let p = crate::memory::alloc()
         .expect("no frame for the fs server's stack")
         .addr();
@@ -394,7 +394,7 @@ fn spawn_fs_server(fs_server_image: &'static [u8], cfg: FsServer) {
         crate::untyped::create(cfg.budget_pages).expect("no heap budget for the FS server");
     let mut stack = [0u64; FS_STACK_PAGES as usize];
     for (i, f) in stack.iter_mut().enumerate() {
-        *f = poisoned_stack_frame(cfg.slot, i);
+        *f = poisoned_stack_page_frame(cfg.slot, i);
     }
     crate::sched::spawn(move || {
         // Build the mapping list: the two shared channels, then the extra stack pages. The FS
@@ -609,7 +609,7 @@ pub(super) fn spawn_fs_client(
         let n = map_channel(&mut maps, FILE_VA_CLIENT, file_shared, FILE_PAGES);
         for (k, m) in maps[n..n + extra_stack].iter_mut().enumerate() {
             m.va = USER_STACK_VA - (k as u64 + 1) * FRAME_SIZE;
-            m.phys = frame();
+            m.phys = page_frame();
         }
         run(
             client_image,
@@ -1053,7 +1053,7 @@ pub fn start_granted_set(
 
     // The set, encoded into its own frame before anything can see it. `encode` refuses rather
     // than truncating, and a truncated set would be a capability nobody planned.
-    let set_phys = frame();
+    let set_phys = page_frame();
     let mut encoded = [0u8; filesystem_proto::nameset::BYTES];
     let n = filesystem_proto::nameset::encode(names, &mut encoded)
         .expect("this set does not fit one grant, so no command line could have named it");
@@ -1260,7 +1260,7 @@ pub fn start_std(
     };
     for (k, m) in maps[1..].iter_mut().enumerate() {
         m.va = USER_STACK_VA - (k as u64 + 1) * FRAME_SIZE;
-        m.phys = frame();
+        m.phys = page_frame();
     }
 
     crate::sched::spawn(move || {
@@ -1372,7 +1372,7 @@ pub fn start_granted_two_dirs(
         let n = map_channel(&mut maps, FILE_VA_CLIENT, file_shared, FILE_PAGES);
         for (k, m) in maps[n..n + stack_pages].iter_mut().enumerate() {
             m.va = USER_STACK_VA - (k as u64 + 1) * FRAME_SIZE;
-            m.phys = frame();
+            m.phys = page_frame();
         }
         run(
             client_image,

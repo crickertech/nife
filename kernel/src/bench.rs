@@ -1032,7 +1032,7 @@ fn map_el0() {
     };
 
     let report = sched::create_rendezvous();
-    use crate::cap::{Rights, address_space_cap, frame_cap, rendezvous_cap};
+    use crate::cap::{Rights, address_space_cap, page_frame_cap, rendezvous_cap};
     sched::spawn(move || {
         crate::user::run(
             image,
@@ -1043,7 +1043,7 @@ fn map_el0() {
                 grants: &[
                     rendezvous_cap(report, Rights::WRITE), // slot 0: report the result
                     address_space_cap(name, Rights::WRITE), // slot 1: the space we map into
-                    frame_cap(phys, Rights::READ),         // slot 2: the frame we alias-map
+                    page_frame_cap(phys, Rights::READ),    // slot 2: the frame we alias-map
                 ],
                 maps: &[],
             },

@@ -7,7 +7,7 @@ use crate::sched::RendezvousId;
 const REQ_VA: u64 = 0x0000_0000_00e4_0000;
 /// The page shared with the credential service. Must match the same file's `PROV_VA`, and
 /// `user/src/credentialer.rs`'s own `PROV_VA` (the physical frame behind both must be the one
-/// `credential_service::Wiring::provision_frame` names).
+/// `credential_service::Wiring::provision_page_frame` names).
 const PROV_VA: u64 = 0x0000_0000_00e0_0000;
 /// The page shared with the file service. Must match the same file's `FS_VA`.
 const FS_VA: u64 = 0x0000_0000_00e5_0000;
@@ -24,9 +24,9 @@ pub const RPT_CRED_FAILED: u64 = 4;
 /// endpoint and an already-wired file service's root directory, and wait for its report.
 ///
 /// `prov` must be the credential service's own provision endpoint, before its seal (milestone 56);
-/// `prov_frame` is the exact physical frame it maps at its own `PROV_VA`
-/// (`credential_service::Wiring::provision_frame` on the instance `prov` came from). `fs_ep`/
-/// `fs_frame` are the file service's root directory capability and the page its clients share with
+/// `prov_page_frame` is the exact physical frame it maps at its own `PROV_VA`
+/// (`credential_service::Wiring::provision_page_frame` on the instance `prov` came from). `fs_ep`/
+/// `fs_page_frame` are the file service's root directory capability and the page its clients share with
 /// it (`fs_service::root_directory`), unnarrowed: see `user/src/identity_provisioner.rs`'s own
 /// module docs on why that is this slice's bound and not a design decision.
 ///
@@ -40,9 +40,9 @@ pub const RPT_CRED_FAILED: u64 = 4;
 pub fn provision(
     image: &'static [u8],
     prov: RendezvousId,
-    prov_frame: u64,
+    prov_page_frame: u64,
     fs_ep: RendezvousId,
-    fs_frame: u64,
+    fs_page_frame: u64,
     identity: &[u8],
     secret: &[u8],
 ) -> [u64; 2] {
@@ -71,12 +71,12 @@ pub fn provision(
         },
         Mapping {
             va: PROV_VA,
-            phys: prov_frame,
+            phys: prov_page_frame,
             flags: Flags::user_data(),
         },
         Mapping {
             va: FS_VA,
-            phys: fs_frame,
+            phys: fs_page_frame,
             flags: Flags::user_data(),
         },
     ];

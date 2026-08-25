@@ -611,7 +611,7 @@ fn a_host_process_connects_to_the_guest_and_is_answered() {
     }
     crate::println!(
         "    (combined boot wired: {} frames free before the net + SMB spawn)",
-        crate::memory::free_frames()
+        crate::memory::free_page_frames()
     );
     // Taken before `fs` is handed to the spawn below: the write verifier needs to know whether
     // there was a filesystem at all, and the spawn consumes the capability.
@@ -627,7 +627,7 @@ fn a_host_process_connects_to_the_guest_and_is_answered() {
     let cred = had_fs
         .then(super::credential_tests::provisioned)
         .flatten()
-        .map(|(w, _, _)| (w.verify, w.verify_frame));
+        .map(|(w, _, _)| (w.verify, w.verify_page_frame));
     let Some((report, smb_report, mdns_report, net)) = virtio_service::start_net_stack_with_smb(
         net_stack_image(),
         smb_server_image(),

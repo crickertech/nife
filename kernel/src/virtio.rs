@@ -1025,8 +1025,8 @@ mod tests {
         (driver, shadow, page_frames::FRAME_SIZE)
     }
     fn free_regions(driver: u64, shadow: u64) {
-        crate::memory::free(page_frames::Frame::from_addr(driver));
-        crate::memory::free(page_frames::Frame::from_addr(shadow));
+        crate::memory::free(page_frames::PageFrame::from_addr(driver));
+        crate::memory::free(page_frames::PageFrame::from_addr(shadow));
     }
 
     /// Drive `validate_and_shadow` against the fake regions with the standard closures. Queue 0,

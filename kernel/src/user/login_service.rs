@@ -1,5 +1,5 @@
 use super::*;
-use crate::cap::{Rights, frame_cap, rendezvous_cap, untyped_root_cap};
+use crate::cap::{Rights, page_frame_cap, rendezvous_cap, untyped_root_cap};
 use crate::sched::{self, RendezvousId};
 
 /// Where the service maps the current client's request. Must match `user/src/login.rs`.
@@ -15,7 +15,7 @@ const CLIENT_VA: u64 = 0x0000_0000_00e2_0000;
 /// same frame at [`CLIENT_VA`] in each role it spawns. Plain atomic rather than a lock: the only
 /// writer is [`start`], once, before any client exists (`credential_service.rs`'s own `FRAMES`
 /// pattern, simplified to one frame because there is one request page here rather than two).
-static LOGIN_FRAME: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU64::new(0);
+static LOGIN_PAGE_FRAME: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU64::new(0);
 
 /// Stack pages beyond the one page `run` maps. This process parses the initrd, parses an ELF, and
 /// builds a child address space (`supervision_proto::build_child`), which is deeper than
@@ -68,14 +68,14 @@ pub struct Wiring {
 /// bytes and then blocks on [`Wiring::request`].
 ///
 /// `verify` is the credential service's verify endpoint (milestone 56), already sealed: login never
-/// provisions it and never could. `verify_frame` is the exact physical frame that instance maps at
-/// its own `VERIFY_VA` (`credential_service::Wiring::verify_frame` on the instance `verify` came
-/// from). `fs_ep`/`fs_frame` are the file service's root directory capability and the page its
+/// provisions it and never could. `verify_page_frame` is the exact physical frame that instance maps at
+/// its own `VERIFY_VA` (`credential_service::Wiring::verify_page_frame` on the instance `verify` came
+/// from). `fs_ep`/`fs_page_frame` are the file service's root directory capability and the page its
 /// clients share with it (`fs_service::root_directory`). `construction_pages` bounds how many
 /// logins this instance can serve before every further one is answered [`login_proto::DENIED`] (see
 /// `user/src/login.rs`'s BUGS: nothing reclaims a caretaker's region in this slice).
 ///
-/// **`verify_frame` is a parameter and not a lookup**, on purpose (milestone 155): a caller that
+/// **`verify_page_frame` is a parameter and not a lookup**, on purpose (milestone 155): a caller that
 /// wired more than one credential service in the same boot (as that milestone's own suite does, for
 /// a store still open to provision against) cannot ask a bare global "which one," because there is
 /// no one answer. Taking the frame from the specific `Wiring` the caller already holds is correct
@@ -83,9 +83,9 @@ pub struct Wiring {
 pub fn start(
     image: &'static [u8],
     verify: RendezvousId,
-    verify_frame: u64,
+    verify_page_frame: u64,
     fs_ep: RendezvousId,
-    fs_frame: u64,
+    fs_page_frame: u64,
     construction_pages: u64,
 ) -> Wiring {
     let (initrd_start, initrd_len) = memory::initrd_region().expect("no initrd region");
@@ -123,18 +123,18 @@ pub fn start(
     // maps**, the same way `credential_service`'s `VERIFY_VA` frame is shared with its clients:
     // this is the one page a request travels through, so a client writing into a *different* frame
     // would leave this process reading whatever was already at `LOGIN_VA` (zeros, on a fresh
-    // frame), not the request that was sent. `LOGIN_FRAME` remembers which physical frame that is,
+    // frame), not the request that was sent. `LOGIN_PAGE_FRAME` remembers which physical frame that is,
     // for [`client`] to map at its own end.
     let login_page = crate::memory::alloc()
         .expect("no frame for login's request page")
         .addr();
-    LOGIN_FRAME.store(login_page, core::sync::atomic::Ordering::Release);
+    LOGIN_PAGE_FRAME.store(login_page, core::sync::atomic::Ordering::Release);
     // The credential-relay page is a **different** frame from the one above, `credentialer.rs`'s own
     // reason (a provisioner's page and a client's page are never the same frame): it must be the
     // exact physical frame `credential_service` wired the service's own `VERIFY_VA` to, because that
     // is the only page the credential service ever reads a request from. Taken from the caller's own
     // `Wiring` (see this function's own doc) rather than looked up.
-    let cred_page = verify_frame;
+    let cred_page = verify_page_frame;
     // SAFETY: `login_page` is a fresh frame the direct map reaches; zeroing it before mapping is
     // what keeps a first request from reading whatever the allocator's last owner left there.
     // `cred_page` is not zeroed here: it is `credential_service`'s own frame, already live and
@@ -165,7 +165,7 @@ pub fn start(
     let tid =
         sched::create_thread_control_block(thread_control_block_region).expect("no tcb for login");
 
-    // In `user/src/login.rs`'s own slot order: REQUEST, RESULT, VERIFY, FS_EP, FS_FRAME,
+    // In `user/src/login.rs`'s own slot order: REQUEST, RESULT, VERIFY, FS_EP, FS_PAGE_FRAME,
     // CONSTRUCTION_UT, AUDIT. Each `assert_eq!` is that file's own doc read from the other side, the
     // same discipline `authority_tests::spawn_tree` uses for `root_supervisor`.
     let grants: [(&str, crate::cap::Cap); 7] = [
@@ -180,14 +180,14 @@ pub fn start(
             rendezvous_cap(fs_ep, Rights::WRITE.union(Rights::GRANT)),
         ),
         (
-            "fs_frame",
+            "fs_page_frame",
             // GRANT as well as READ|WRITE: `user/src/login.rs` both maps this frame into every
             // caretaker it builds (`MAP_INTO`, which only checks WRITE) and delegates it directly
             // to every authenticated client (`SEND_CAP`, which needs GRANT on the capability being
             // sent). The second use is why this differs from `credential_service.rs`'s own frames,
             // which are never delegated onward.
-            frame_cap(
-                fs_frame,
+            page_frame_cap(
+                fs_page_frame,
                 Rights::READ.union(Rights::WRITE).union(Rights::GRANT),
             ),
         ),
@@ -214,7 +214,7 @@ pub fn start(
 /// **Spawn a `login_test_client` role** against `w`, and return its report.
 pub fn client(image: &'static [u8], w: &Wiring, role: u64) -> [u64; 5] {
     let report = sched::create_rendezvous();
-    let phys = LOGIN_FRAME.load(core::sync::atomic::Ordering::Acquire);
+    let phys = LOGIN_PAGE_FRAME.load(core::sync::atomic::Ordering::Acquire);
     assert_ne!(phys, 0, "the login service was not wired before a client");
     let maps = [Mapping {
         va: CLIENT_VA,

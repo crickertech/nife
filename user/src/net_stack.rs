@@ -42,7 +42,7 @@ extern crate alloc;
 
 use alloc::vec;
 
-use abi::{frame as fr, irq};
+use abi::{irq, page_frame as fr};
 use smoltcp::iface::{Config, Interface, SocketHandle, SocketSet};
 use smoltcp::socket::{dhcpv4, tcp, udp};
 use smoltcp::time::Instant;
@@ -215,7 +215,7 @@ fn server(dma_phys: u64, grant_word: u64) -> ! {
 
     // --- Serve the socket contract. One synchronous exchange per request. ---
     let mut socks: [Option<Sock>; MAX_SOCKETS] = [None; MAX_SOCKETS];
-    // Windows onto each socket id's shared frame, once `OP_ATTACH_FRAME` maps it. `None` until
+    // Windows onto each socket id's shared frame, once `OP_ATTACH_PAGE_FRAME` maps it. `None` until
     // then, and forever on a listener, which never gets one (see [`Sock`]).
     let mut frame_window: [Option<MappedWindow>; MAX_SOCKETS] = [None; MAX_SOCKETS];
     let mut ports = PortAllocator::new();
@@ -231,7 +231,7 @@ fn server(dma_phys: u64, grant_word: u64) -> ! {
         }
 
         match op {
-            OP_ATTACH_FRAME => {
+            OP_ATTACH_PAGE_FRAME => {
                 // cap_slot holds the delegated frame. Map it writable at this socket's VA, paid for
                 // from net_stack's untyped; the mapping outlives the cap, so drop the cap after. ATTACH
                 // is a SEND_CAP, so there is no reply cap to answer on.

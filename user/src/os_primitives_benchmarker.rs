@@ -67,7 +67,7 @@ const SP_CHILD_DONE: u64 = 2;
 // Map-benchmark slots (slot 0 is always REPORT). The bench boot grants a WRITE cap on a target
 // address space and a READ cap on one frame; we map that frame at a fresh VA each iteration.
 const MAP_ADDRESS_SPACE: u64 = 1;
-const MAP_FRAME: u64 = 2;
+const MAP_PAGE_FRAME: u64 = 2;
 
 // IPC round-trip slots. The server holds two endpoints; the client holds three (report first, so
 // slot 0 stays "the endpoint I report on" across every reporting role).
@@ -260,7 +260,7 @@ fn map_bench() -> ! {
     exit();
 }
 
-/// One `MAP_INTO`: map the granted frame (slot `MAP_FRAME`) read-only into the granted space (slot
+/// One `MAP_INTO`: map the granted frame (slot `MAP_PAGE_FRAME`) read-only into the granted space (slot
 /// `MAP_ADDRESS_SPACE`) at `va`. Read-only needs only READ on the frame cap, which is all we were granted.
 /// Returns the syscall result: 0 on success, a negative error otherwise.
 #[inline(never)]
@@ -271,7 +271,7 @@ fn map_one(va: u64) -> i64 {
             MAP_ADDRESS_SPACE,
             abi::address_space::MAP_INTO,
             va,
-            MAP_FRAME,
+            MAP_PAGE_FRAME,
             abi::address_space::MAP_RO,
         )
     }
@@ -338,7 +338,15 @@ fn spawn_bench() -> ! {
     // bad slot or method; it gets an error back.
     let code_frame = unsafe { invoke(SP_UNTYPED, abi::untyped::RETYPE, 0, 0, 0) } as u64;
     // SAFETY: as above: the kernel validates the capability and the method.
-    unsafe { invoke(code_frame, abi::frame::MAP, SPAWN_SCRATCH_VA, 1, SP_UNTYPED) };
+    unsafe {
+        invoke(
+            code_frame,
+            abi::page_frame::MAP,
+            SPAWN_SCRATCH_VA,
+            1,
+            SP_UNTYPED,
+        )
+    };
     // SAFETY: SPAWN_SCRATCH_VA is a page we just mapped read/write into our own address space.
     unsafe {
         let dst = SPAWN_SCRATCH_VA as *mut u32;

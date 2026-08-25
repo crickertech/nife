@@ -8,7 +8,7 @@ const DMA_VA: u64 = 0x0000_0000_0090_0000;
 /// One page, and no more. The rings take 0x16e of it and the buffer 0x100; a device whose whole
 /// job is to write 256 bytes at a time has no business holding a larger grant, and "a device
 /// gets the grant it needs and no more" is the standing rule in both directions.
-const DMA_FRAMES: u64 = 1;
+const DMA_PAGE_FRAMES: u64 = 1;
 
 /// What `Spawn::arg0` means. Must match `user/src/entropy.rs`; the kernel's own spawn-argument
 /// convention with the one program it spawns (not a wire contract between two user programs, so
@@ -129,7 +129,7 @@ fn start(image: &'static [u8], bus: Bus) -> Option<Wiring> {
         }
     };
 
-    let dma = crate::memory::alloc_contiguous(DMA_FRAMES as usize)
+    let dma = crate::memory::alloc_contiguous(DMA_PAGE_FRAMES as usize)
         .expect("no DMA region for the entropy service")
         .addr();
     // SAFETY: a fresh frame, direct-mapped, owned by nobody else. Zeroed so no stale descriptor
@@ -139,7 +139,7 @@ fn start(image: &'static [u8], bus: Bus) -> Option<Wiring> {
         core::ptr::write_bytes(
             mmu::phys_to_virt(dma) as *mut u8,
             0,
-            (DMA_FRAMES * FRAME_SIZE) as usize,
+            (DMA_PAGE_FRAMES * FRAME_SIZE) as usize,
         );
     }
 
@@ -148,7 +148,7 @@ fn start(image: &'static [u8], bus: Bus) -> Option<Wiring> {
     crate::arch::irq::enable(intid);
 
     let confined_by_iommu = rid.is_some() && crate::iommu::active();
-    let vid = crate::virtio::register(transport, dma, DMA_FRAMES * FRAME_SIZE, rid);
+    let vid = crate::virtio::register(transport, dma, DMA_PAGE_FRAMES * FRAME_SIZE, rid);
 
     let ready = crate::sched::create_rendezvous();
     let request = crate::sched::create_rendezvous();

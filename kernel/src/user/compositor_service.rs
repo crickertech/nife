@@ -28,7 +28,7 @@ pub const ROLE_SMALL_DAMAGE: u64 = 1 << 6;
 
 /// The screen's frames, in the scanout's own geometry. The same run of frames rung one's driver
 /// scans out, because the screen *is* rung one's surface.
-const SCREEN_FRAMES: u64 = graphics_proto::SURFACE_FRAMES as u64;
+const SCREEN_PAGE_FRAMES: u64 = graphics_proto::SURFACE_PAGE_FRAMES as u64;
 
 /// What the kernel keeps after wiring a scene: the endpoints it can ring or listen on, and the
 /// physical addresses it needs to be an independent witness of what the processes did.
@@ -81,8 +81,8 @@ pub fn start(n: usize, focusable: usize, display: RendezvousId, screen: u64) -> 
     let term_image =
         program("display_terminal").expect("no display_terminal program in the initrd archive");
 
-    let wlist = zeroed_frame();
-    let ring = zeroed_frame();
+    let wlist = zeroed_page_frame();
+    let ring = zeroed_page_frame();
     let doorbell = crate::sched::create_rendezvous();
     let report = crate::sched::create_rendezvous();
 
@@ -93,7 +93,7 @@ pub fn start(n: usize, focusable: usize, display: RendezvousId, screen: u64) -> 
     let mut per_client = [0u64; compositor::MAX_WINDOWS];
     let mut total = 0u64;
     for (i, win) in SCENE.iter().take(n).enumerate() {
-        per_client[i] = 1 + win.frames() as u64; // a control page, then the surface
+        per_client[i] = 1 + win.page_frames() as u64; // a control page, then the surface
         total += per_client[i];
     }
     let run_base = crate::memory::alloc_contiguous(total as usize)
@@ -130,7 +130,7 @@ pub fn start(n: usize, focusable: usize, display: RendezvousId, screen: u64) -> 
         flags: Flags::user_data(),
     }; MAX_COMP_MAPS];
     let mut m = 0;
-    for k in 0..SCREEN_FRAMES {
+    for k in 0..SCREEN_PAGE_FRAMES {
         maps[m] = Mapping {
             va: SCREEN_VA + k * FRAME_SIZE,
             phys: screen + k * FRAME_SIZE,
@@ -205,7 +205,7 @@ impl Wiring {
     /// its own control page and surface, an input endpoint if it is focusable, and (only for
     /// [`ROLE_CAPTURE`]) a read-only mapping of the screen and the window list.
     pub fn spawn_client(&self, i: usize, role: u64) {
-        let frames = SCENE[i].frames() as u64;
+        let frames = SCENE[i].page_frames() as u64;
         let mut maps = [Mapping {
             va: 0,
             phys: 0,
@@ -230,7 +230,7 @@ impl Wiring {
             // The screenshot and enumeration grant, and it is **read-only**: a thing that may look
             // at the screen may not draw on it. `Flags::user_rodata` is the difference between a
             // screenshot tool and a second compositor.
-            for k in 0..SCREEN_FRAMES {
+            for k in 0..SCREEN_PAGE_FRAMES {
                 maps[m] = Mapping {
                     va: C_SCREEN_VA + k * FRAME_SIZE,
                     phys: self.screen + k * FRAME_SIZE,
@@ -281,13 +281,13 @@ impl Wiring {
     /// page. The attacker is handed this so the test can assert on the exact faulting address, the
     /// same way milestone 29's escape test is handed its victim frame.
     pub fn neighbour_probe_va(&self, i: usize) -> u64 {
-        SURFACE_VA + (SCENE[i].frames() as u64 + 1) * FRAME_SIZE
+        SURFACE_VA + (SCENE[i].page_frames() as u64 + 1) * FRAME_SIZE
     }
 
     /// The physical frame the probe address would reach if it were mapped. The test asserts this is
     /// the neighbour's first pixel frame, which is what makes the attack a real one.
     pub fn neighbour_probe_phys(&self, i: usize) -> u64 {
-        self.client[i] + (SCENE[i].frames() as u64 + 2) * FRAME_SIZE
+        self.client[i] + (SCENE[i].page_frames() as u64 + 2) * FRAME_SIZE
     }
 
     /// Client `i`'s surface, digested by the **kernel** through the direct map: a witness that
@@ -410,7 +410,7 @@ impl Wiring {
             core::ptr::write_bytes(mmu::phys_to_virt(out) as *mut u8, 0, FRAME_SIZE as usize);
         };
 
-        let frames = SCENE[i].frames() as u64;
+        let frames = SCENE[i].page_frames() as u64;
         let mut maps = [Mapping {
             va: 0,
             phys: 0,
@@ -487,15 +487,15 @@ impl TermClient {
 
 /// The most mappings a compositor can need: the screen, the list, the ring, and every client's
 /// control page and surface.
-const MAX_COMP_MAPS: usize = SCREEN_FRAMES as usize + 2 + compositor::MAX_WINDOWS * 4;
+const MAX_COMP_MAPS: usize = SCREEN_PAGE_FRAMES as usize + 2 + compositor::MAX_WINDOWS * 4;
 /// The most a client can need: its control page, its surface, and (capture only) the screen and
 /// the window list.
-const MAX_CLIENT_MAPS: usize = 4 + SCREEN_FRAMES as usize + 1;
+const MAX_CLIENT_MAPS: usize = 4 + SCREEN_PAGE_FRAMES as usize + 1;
 /// Report, display, doorbell, and one input endpoint per focusable client.
 const MAX_COMP_GRANTS: usize = 3 + compositor::MAX_WINDOWS;
 
 /// A fresh zeroed frame, for a page the kernel hands two processes to share.
-fn zeroed_frame() -> u64 {
+fn zeroed_page_frame() -> u64 {
     let f = crate::memory::alloc()
         .expect("no frame for the compositor's shared pages")
         .addr();

@@ -308,7 +308,7 @@ fn assert_smb_flush_reached_the_device(verdict: u64) {
 /// authenticated SMB sessions have completed through it.
 ///
 /// This is the check the adapter could not make about itself, and it is the same one milestone 65's
-/// `no_ntlm_key_material_survives_in_the_shared_frame` makes one layer down: a program can only see
+/// `no_ntlm_key_material_survives_in_the_shared_page_frame` makes one layer down: a program can only see
 /// what it was given, and the claim here is about what the service did *not* put in a page two
 /// processes map, and about what the adapter did not keep.
 ///
@@ -338,7 +338,7 @@ pub(super) fn assert_smb_held_no_key(had_fs: bool) {
         return; // consistent with `had_fs`'s own early return: nothing was wired to check
     };
     let mut page = [0u8; 4096];
-    crate::user::credential_service::peek(w.verify_frame, &mut page);
+    crate::user::credential_service::peek(w.verify_page_frame, &mut page);
     for (what, bytes) in [
         // NTOWFv2, §4.2.4.1.1: the stored key, which must never leave the credential service.
         (
@@ -355,7 +355,7 @@ pub(super) fn assert_smb_held_no_key(had_fs: bool) {
         // connection's, not §4.2.1's), so the all-zero check below is what actually catches it; this
         // literal stays because "does not contain the published key" is the property that must hold
         // if the wipe is ever narrowed, and a test that only checked for zero would go green on a
-        // change that broke it. Same argument as `the_shared_frame_holds_nothing_after_an_answer`.
+        // change that broke it. Same argument as `the_shared_page_frame_holds_nothing_after_an_answer`.
         (
             "the session key",
             [

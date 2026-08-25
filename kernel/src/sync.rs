@@ -185,7 +185,7 @@ pub mod rank {
     /// (mapping allocates intermediate page-table frames). See DECISIONS.md §11.
     pub const KERNEL_MMU: u32 = 45;
 
-    pub const FRAMES: u32 = 30;
+    pub const PAGE_FRAMES: u32 = 30;
     pub const RAM: u32 = 30;
 
     /// The ASID allocator (milestone 15). Taken alone at address-space creation and teardown;
@@ -395,7 +395,7 @@ mod tests {
         use crate::arch::interrupts;
         use crate::sync::{IrqSafeMutex, rank};
 
-        static M: IrqSafeMutex<u32> = IrqSafeMutex::new(rank::FRAMES, 7);
+        static M: IrqSafeMutex<u32> = IrqSafeMutex::new(rank::PAGE_FRAMES, 7);
 
         interrupts::enable();
         assert!(interrupts::enabled(), "test setup: IRQs should be on");
@@ -429,7 +429,7 @@ mod tests {
         use crate::arch::interrupts;
         use crate::sync::{IrqSafeMutex, rank};
 
-        static M: IrqSafeMutex<u32> = IrqSafeMutex::new(rank::FRAMES, 0);
+        static M: IrqSafeMutex<u32> = IrqSafeMutex::new(rank::PAGE_FRAMES, 0);
 
         // Pretend we are inside an interrupt handler: IRQs already masked.
         let outer = interrupts::disable();
@@ -458,7 +458,7 @@ mod tests {
         // nest any two locks in any order; now the hierarchy is part of the type's contract and
         // the test has to declare which one is the outer.
         static A: IrqSafeMutex<u32> = IrqSafeMutex::new(rank::STACK_VA, 1);
-        static B: IrqSafeMutex<u32> = IrqSafeMutex::new(rank::FRAMES, 2);
+        static B: IrqSafeMutex<u32> = IrqSafeMutex::new(rank::PAGE_FRAMES, 2);
 
         interrupts::enable();
 
@@ -498,12 +498,12 @@ mod tests {
     fn taking_a_lock_records_its_rank() {
         use crate::sync::{IrqSafeMutex, current_rank, rank};
 
-        static M: IrqSafeMutex<u32> = IrqSafeMutex::new(rank::FRAMES, 0);
+        static M: IrqSafeMutex<u32> = IrqSafeMutex::new(rank::PAGE_FRAMES, 0);
 
         assert_eq!(current_rank(), rank::NONE);
         {
             let _g = M.lock();
-            assert_eq!(current_rank(), rank::FRAMES);
+            assert_eq!(current_rank(), rank::PAGE_FRAMES);
         }
         assert_eq!(
             current_rank(),
@@ -522,7 +522,7 @@ mod tests {
     fn the_hierarchy_permits_only_strictly_decreasing_ranks() {
         use crate::sync::{IrqSafeMutex, rank, would_violate};
 
-        static FRAMES: IrqSafeMutex<u32> = IrqSafeMutex::new(rank::FRAMES, 0);
+        static FRAMES: IrqSafeMutex<u32> = IrqSafeMutex::new(rank::PAGE_FRAMES, 0);
 
         let _g = FRAMES.lock();
 
@@ -558,13 +558,13 @@ mod tests {
         use crate::sync::{IrqSafeMutex, current_rank, rank};
 
         static OUTER: IrqSafeMutex<u32> = IrqSafeMutex::new(rank::STACK_VA, 0);
-        static INNER: IrqSafeMutex<u32> = IrqSafeMutex::new(rank::FRAMES, 0);
+        static INNER: IrqSafeMutex<u32> = IrqSafeMutex::new(rank::PAGE_FRAMES, 0);
 
         let _o = OUTER.lock();
         assert_eq!(current_rank(), rank::STACK_VA);
         {
             let _i = INNER.lock();
-            assert_eq!(current_rank(), rank::FRAMES);
+            assert_eq!(current_rank(), rank::PAGE_FRAMES);
         }
         assert_eq!(
             current_rank(),

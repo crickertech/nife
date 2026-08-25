@@ -58,7 +58,7 @@ pub struct DmaRegion {
 ///   **Stated honestly, because the first draft of this comment overstated it:** this is a proof
 ///   obligation closed, not a reachable bug fixed. Reaching a wrapped address needs a low-half
 ///   page-aligned base *and* a `size` within a page or so of `2^64`, and the builder would run the
-///   frame allocator dry ([`MapError::OutOfFrames`]) after a few thousand pages, tens of orders of
+///   frame allocator dry ([`MapError::OutOfPageFrames`]) after a few thousand pages, tens of orders of
 ///   magnitude before the index at which the multiply wraps. No caller can construct such a region
 ///   anyway; every grant is frame-allocator memory bounded by RAM. What the check buys is that the
 ///   confinement property is now *total*: it holds for every `DmaRegion` value, so nobody has to
@@ -101,7 +101,7 @@ pub fn grant_page(r: DmaRegion, i: u64) -> Option<u64> {
 /// **Build a device's DMA domain: an identity map over `regions` and nothing else.**
 ///
 /// `root` is a zeroed, page-aligned frame that becomes the domain's top-level table (the value the
-/// IOMMU's STE/context descriptor will point at). `alloc_frame` supplies zeroed intermediate tables;
+/// IOMMU's STE/context descriptor will point at). `alloc_page_frame` supplies zeroed intermediate tables;
 /// `phys_to_ptr` turns a physical table address into a pointer the same way [`Mapper`] requires. The
 /// generic `F` selects the format, so one call site builds a VMSAv8-64 domain on aarch64 and an Sv39
 /// domain on riscv from the same code, which is the seam's entire point.
@@ -111,12 +111,12 @@ pub fn grant_page(r: DmaRegion, i: u64) -> Option<u64> {
 /// translated to itself and an out-of-region address faults.
 ///
 /// # Safety
-/// `root` and every frame `alloc_frame` returns must be zeroed and page-aligned, and `phys_to_ptr`
+/// `root` and every frame `alloc_page_frame` returns must be zeroed and page-aligned, and `phys_to_ptr`
 /// must satisfy [`Mapper`]'s contract (the tables are reachable through it). The caller owns `root`
 /// and must not install it anywhere until this returns `Ok`.
 pub unsafe fn build_identity_domain<A, P, F>(
     root: u64,
-    alloc_frame: A,
+    alloc_page_frame: A,
     phys_to_ptr: P,
     regions: &[DmaRegion],
 ) -> Result<(), MapError>
@@ -129,7 +129,7 @@ where
     // Mapper's WrongHalf guard then catches a region that strays into the high half rather than
     // silently building a mapping the IOMMU would never consult.
     // SAFETY: forwarded from this function's contract.
-    let mut m = unsafe { Mapper::<A, P, F>::new(root, Half::Low, alloc_frame, phys_to_ptr) };
+    let mut m = unsafe { Mapper::<A, P, F>::new(root, Half::Low, alloc_page_frame, phys_to_ptr) };
     for r in regions {
         // The page set is decided by [`grant_pages`]/[`grant_page`], the proved arithmetic, rather
         // than by `map_range`'s unchecked `va + i * PAGE_SIZE`. That is what makes "the domain maps
@@ -410,7 +410,7 @@ mod tests {
     }
 
     /// Back the synthetic physical address `pa` with a real zeroed host frame.
-    fn frame_at(pa: u64) -> u64 {
+    fn page_frame_at(pa: u64) -> u64 {
         assert!(
             pa.is_multiple_of(PAGE_SIZE),
             "a synthetic PA must be page-aligned"
@@ -424,9 +424,9 @@ mod tests {
 
     /// The next frame from the sequential pool: for roots and page tables, where the address does not
     /// matter as long as it is legal and distinct.
-    fn frame() -> u64 {
+    fn page_frame() -> u64 {
         let n = PHYS.with(|m| m.borrow().len()) as u64;
-        frame_at(POOL_BASE + n * PAGE_SIZE)
+        page_frame_at(POOL_BASE + n * PAGE_SIZE)
     }
 
     /// Resolve a synthetic PA to the host frame behind it. Panics on an unregistered address, which
@@ -446,11 +446,11 @@ mod tests {
     /// page just past the end does not. This is the confinement stated as a property of the tables.
     fn one_region_confines<F: PageFormat>() {
         let mut frames: Vec<u64> = Vec::new();
-        let root = frame();
+        let root = page_frame();
         // The device's data frame, at an address the TEST chooses so the assertions below mean what
         // they say: `base + PAGE_SIZE` must be a page the domain was not given, and with a sequential
         // pool it would have been the next frame allocated instead.
-        let base = frame_at(0x2000_0000);
+        let base = page_frame_at(0x2000_0000);
         let regions = [DmaRegion {
             base,
             size: PAGE_SIZE,
@@ -461,7 +461,7 @@ mod tests {
             build_identity_domain::<_, _, F>(
                 root,
                 || {
-                    let f = frame();
+                    let f = page_frame();
                     frames.push(f);
                     Some(f)
                 },
@@ -506,8 +506,8 @@ mod tests {
     #[test]
     fn a_multi_page_grant_maps_its_whole_pages_and_not_the_partial_tail() {
         let mut frames: Vec<u64> = Vec::new();
-        let root = frame();
-        let base = frame_at(0x2000_0000);
+        let root = page_frame();
+        let base = page_frame_at(0x2000_0000);
         let regions = [DmaRegion {
             base,
             size: 2 * PAGE_SIZE + PAGE_SIZE / 2,
@@ -517,7 +517,7 @@ mod tests {
             build_identity_domain::<_, _, Aarch64>(
                 root,
                 || {
-                    let f = frame();
+                    let f = page_frame();
                     frames.push(f);
                     Some(f)
                 },
@@ -549,12 +549,12 @@ mod tests {
     fn two_disjoint_regions_map_and_the_gap_does_not() {
         let _pool = PoolGuard;
         let mut frames: Vec<u64> = Vec::new();
-        let root = frame();
+        let root = page_frame();
         // Far apart on purpose: the point of this test is the GAP between them, and adjacent regions
         // would prove nothing about it. Sequentially-pooled frames would be adjacent, which is how
         // this assertion could have quietly stopped testing anything.
-        let a = frame_at(0x2000_0000);
-        let b = frame_at(0x3000_0000);
+        let a = page_frame_at(0x2000_0000);
+        let b = page_frame_at(0x3000_0000);
         let regions = [
             DmaRegion {
                 base: a,
@@ -570,7 +570,7 @@ mod tests {
             build_identity_domain::<_, _, Sv39>(
                 root,
                 || {
-                    let f = frame();
+                    let f = page_frame();
                     frames.push(f);
                     Some(f)
                 },
@@ -587,7 +587,7 @@ mod tests {
         assert!(m.translate(b).is_some(), "region B did not map");
         // A frame the domain was never given: unmapped, so the device faults on it. In the gap
         // between A and B, which is the strongest place to ask.
-        let c = frame_at(0x2800_0000);
+        let c = page_frame_at(0x2800_0000);
         assert_eq!(
             m.translate(c),
             None,

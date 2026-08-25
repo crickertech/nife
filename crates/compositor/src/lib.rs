@@ -341,7 +341,7 @@ impl Window {
     /// How many 4 KiB frames this surface's pixels need. Mapping is frame-granular, so a surface that
     /// does not fill its last frame leaves the tail mapped and unused; that tail is inside the
     /// client's own grant, so it is slack, not a hole.
-    pub const fn frames(&self) -> u32 {
+    pub const fn page_frames(&self) -> u32 {
         (self.w * self.h * 4).div_ceil(4096)
     }
 }
@@ -934,7 +934,7 @@ mod tests {
         // And every surface must fit the frames the kernel grants it.
         for (i, win) in SCENE.iter().enumerate() {
             assert!(
-                win.pixels() * 4 <= win.frames() as usize * 4096,
+                win.pixels() * 4 <= win.page_frames() as usize * 4096,
                 "window {i} does not fit its frames",
             );
         }

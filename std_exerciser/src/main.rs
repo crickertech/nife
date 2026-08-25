@@ -114,7 +114,7 @@ fn offline_demo() {
     );
     println!("instant monotonic ok");
 
-    // **Wall-clock time** (milestone 51). This process was granted a clock: a `Frame` capability
+    // **Wall-clock time** (milestone 51). This process was granted a clock: a `PageFrame` capability
     // naming the clock service's page in slot 5 and a read-only mapping of it, which is all
     // `SystemTime::now()` needs (the offset from the page, the monotonic counter from the ambient
     // register). Asserted rather than printed, because a real date is not a deterministic

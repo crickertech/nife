@@ -132,7 +132,7 @@
 //!   before any client of the credential service exists (`user/src/credentialer.rs`).
 //! - slot [`FS_EP`]: `WRITE | GRANT` on the file service's root directory capability. What every
 //!   minted caretaker attenuates.
-//! - slot [`FS_FRAME`]: a `Frame`, `READ | WRITE`, the page the file service shares with its
+//! - slot [`FS_PAGE_FRAME`]: a `PageFrame`, `READ | WRITE`, the page the file service shares with its
 //!   clients. Delegated on to each authenticated principal (see the module docs on why one frame
 //!   serves every hop).
 //! - slot [`CONSTRUCTION_UT`]: `WRITE | GRANT`. Everything a caretaker and a client budget are
@@ -366,8 +366,8 @@ const RESULT: u64 = 1;
 const VERIFY: u64 = 2;
 /// The file service's root directory capability, `WRITE | GRANT`.
 const FS_EP: u64 = 3;
-/// The file service's shared page, a `Frame`, `READ | WRITE`.
-const FS_FRAME: u64 = 4;
+/// The file service's shared page, a `PageFrame`, `READ | WRITE`.
+const FS_PAGE_FRAME: u64 = 4;
 /// Everything a caretaker and a client budget are built from, `WRITE | GRANT`.
 const CONSTRUCTION_UT: u64 = 5;
 /// One [`login_proto::ATTRIBUTED`] message per successful login, `WRITE`.
@@ -510,7 +510,7 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
             Some((dir_ep, budget, region)) => {
                 send(RESULT, login_proto::OK, 0, 0);
                 delegate(dir_ep, abi::rights::WRITE);
-                delegate(FS_FRAME, abi::rights::READ | abi::rights::WRITE);
+                delegate(FS_PAGE_FRAME, abi::rights::READ | abi::rights::WRITE);
                 delegate(budget, abi::rights::WRITE | abi::rights::GRANT);
                 // The logout ticket: `WRITE` is the one right `Untyped::DESTROY` needs (this
                 // program's own module docs, "Reclaiming a session"). Not `GRANT`: a client that
@@ -588,7 +588,7 @@ fn mint(own_ut: u64, care: Option<&elf::Elf>, identity: &[u8]) -> Option<(u64, u
                 (narrow_ep, abi::rights::READ),
                 (ready, abi::rights::WRITE),
             ],
-            maps: &[(CARETAKER_FS_VA, FS_FRAME, abi::address_space::MAP_RW)],
+            maps: &[(CARETAKER_FS_VA, FS_PAGE_FRAME, abi::address_space::MAP_RW)],
             stack_pages: CARETAKER_STACK_PAGES,
             ..ChildEndowment::new()
         },

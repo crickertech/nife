@@ -15,7 +15,7 @@
 //!
 //! Reading the clock is therefore an authority a program either was granted or was not:
 //!
-//! - **Slot [`rt::CLOCK_SLOT`]** holds a `Frame` capability naming the clock page, and the loader
+//! - **Slot [`rt::CLOCK_SLOT`]** holds a `PageFrame` capability naming the clock page, and the loader
 //!   maps that page read-only at [`rt::CLOCK_PAGE`]. A program given both has a real wall clock.
 //! - A program given neither **does not know what time it is**, and this file says so rather than
 //!   guessing.
@@ -64,7 +64,7 @@ fn monotonic_nanos() -> u64 {
 // the probe is an invocation of the capability in the slot, with a method number no object defines:
 //
 //   - no capability in the slot: the kernel answers `NoSuchSlot` (-1).
-//   - the clock page's Frame capability: the kernel answers `BadMethod` (-5), which is a refusal
+//   - the clock page's PageFrame capability: the kernel answers `BadMethod` (-5), which is a refusal
 //     from a real object and therefore proof that one is there.
 //
 // Cached, because the answer cannot change: a capability table slot's contents are fixed at spawn on this

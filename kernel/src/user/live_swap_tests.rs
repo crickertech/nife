@@ -234,12 +234,12 @@ fn run_swap(role: u64) -> ([[u64; 5]; MAX_REPORTS], usize) {
     // the operator retyped four endpoints and a frame out of its budget. Reclaiming a region
     // with objects in it is the §16 teardown, and it is the entry point the `Untyped::DESTROY`
     // syscall uses, so the test cannot succeed down a path userspace could not have taken.
-    let before_reclaim = memory::free_frames();
+    let before_reclaim = memory::free_page_frames();
     sched::reclaim_region(budget).expect(
         "the operator's budget would not reclaim: a child region is still carved out of it, so \
          the swap system leaked one of its components",
     );
-    let recovered = memory::free_frames() - before_reclaim;
+    let recovered = memory::free_page_frames() - before_reclaim;
     assert_eq!(
         recovered, SWAPPER_BUDGET_PAGES as usize,
         "reclaiming the operator's budget returned {recovered} of {SWAPPER_BUDGET_PAGES} pages",
@@ -599,7 +599,7 @@ fn survey_awake(w: u64) -> u64 {
 ///    say.
 /// 3. **The service is restored with no authority the operator did not already hold**, which
 ///    contradicts §32's sentence that a supervisor restarting a hung child "still needs the stronger
-///    right". The device comes back by `Frame::REVOKE` take-back, which asks the holder for nothing;
+///    right". The device comes back by `PageFrame::REVOKE` take-back, which asks the holder for nothing;
 ///    the replacement parks on the stable rendezvous and drains what queued behind the silence; the
 ///    client's stream closes over the hang. §32 is right about *reclaiming the hung component's
 ///    memory* and wrong about restarting its service, and those are different acts.

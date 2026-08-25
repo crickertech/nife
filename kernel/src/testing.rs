@@ -128,7 +128,7 @@ pub(crate) use skip;
 // The frame ledger.
 //
 // **A boot has one pool of physical frames and no test gives an account of what it took.** That is
-// how the aarch64 suite spent its way to `Unmappable(OutOfFrames)` in whatever test happened to
+// how the aarch64 suite spent its way to `Unmappable(OutOfPageFrames)` in whatever test happened to
 // spawn last, one run in three, three milestones in a row blaming the wrong code (notes/frames.md).
 // The instrument that settled it in milestone 107 was four lines in `untyped::create`, thrown away
 // after one run; this is the same idea kept, so the next person reads a number instead of building
@@ -161,7 +161,7 @@ static WORST_NAME_LEN: AtomicUsize = AtomicUsize::new(0);
 /// Report a test's frame cost once it reaches this many frames. Below it, silence: a test that
 /// spends two pages on an endpoint is not news, and a number on every line buries the ones that
 /// are. Sixteen frames is 64 KiB, about the smallest thing a service-shaped test takes.
-const FRAME_REPORT_MIN: usize = 16;
+const PAGE_FRAME_REPORT_MIN: usize = 16;
 
 /// **What the whole suite may leave unreturned, in frames**, checked once at the end of the run.
 ///
@@ -173,7 +173,7 @@ const FRAME_REPORT_MIN: usize = 16;
 ///
 /// What must not *grow* is the per-test residue, and this ceiling sits just above the measured total
 /// so that a new service-shaped test which forgets to hand its memory back fails **here**, naming
-/// itself, instead of three tests later as `OutOfFrames` in something innocent.
+/// itself, instead of three tests later as `OutOfPageFrames` in something innocent.
 ///
 /// **One number for both architectures, and it is one because they were measured separately and
 /// came out together**: 14031 on aarch64 and 13787 on riscv64 (2026-08-16, remeasured after merging
@@ -274,7 +274,7 @@ const FRAME_REPORT_MIN: usize = 16;
 ///
 /// Raising it is a decision, not a formality: read the `[that test kept N frames]` lines the run
 /// prints, find who grew, and be able to say why that growth is permanent.
-const SUITE_FRAME_BUDGET: usize = 18_632;
+const SUITE_PAGE_FRAME_BUDGET: usize = 18_632;
 
 /// **The longest run of free frames the boot must still have at the end**, in frames.
 ///
@@ -283,8 +283,8 @@ const SUITE_FRAME_BUDGET: usize = 18_632;
 /// runs out of is not memory, it is a **contiguous run**, and the two can be far apart. Milestone
 /// 107 measured 137 frames free with no run of 128; the boot this gate was written for ended with
 /// 216 free and no run longer than **117**, so any test loading a program bigger than that failed as
-/// `Unmappable(OutOfFrames)`, in whichever test happened to be next rather than in the one that
-/// spent the memory. [`SUITE_FRAME_BUDGET`] alone would not have caught that, because a suite can
+/// `Unmappable(OutOfPageFrames)`, in whichever test happened to be next rather than in the one that
+/// spent the memory. [`SUITE_PAGE_FRAME_BUDGET`] alone would not have caught that, because a suite can
 /// pass a residue ceiling and still be fragmented into uselessness.
 ///
 /// 1024 frames is 4 MiB, comfortably more than the largest program this boot loads (`redoxfs_server` and
@@ -308,7 +308,7 @@ fn charge_previous(now: usize, next: &'static str) {
     let prev_ptr = PREV_NAME_PTR.load(Ordering::Relaxed);
     if !prev_ptr.is_null() {
         let spent = FRAMES_AT_PREV.load(Ordering::Relaxed).saturating_sub(now);
-        if spent >= FRAME_REPORT_MIN {
+        if spent >= PAGE_FRAME_REPORT_MIN {
             println!("    [that test kept {spent} frames]");
         }
         if spent > WORST_SPEND.load(Ordering::Relaxed) {
@@ -335,12 +335,12 @@ fn worst_spender_name() -> Option<&'static str> {
 }
 
 /// Print the ledger, and fail the run if the boot ends with no usable contiguous run
-/// ([`SUITE_MIN_FREE_RUN`]) or with more kept than is accounted for ([`SUITE_FRAME_BUDGET`]).
-fn report_frame_ledger() {
+/// ([`SUITE_MIN_FREE_RUN`]) or with more kept than is accounted for ([`SUITE_PAGE_FRAME_BUDGET`]).
+fn report_page_frame_ledger() {
     if !FRAMES_STAMPED.load(Ordering::Relaxed) {
         return; // no test ran; nothing was spent
     }
-    let end = crate::memory::free_frames();
+    let end = crate::memory::free_page_frames();
     // Close the last test's account, so the charges partition the whole run with nothing left over.
     charge_previous(end, "");
     let start = FRAMES_AT_START.load(Ordering::Relaxed);
@@ -362,16 +362,16 @@ fn report_frame_ledger() {
             "FRAME LEDGER: the boot ends with no free run longer than {run} frames, under the \
              {SUITE_MIN_FREE_RUN} this gate requires. This is the failure rather than a warning \
              about one: loading a program takes a contiguous run, so the next test to load anything \
-             substantial would fail as Unmappable(OutOfFrames), and it would do so in whichever \
+             substantial would fail as Unmappable(OutOfPageFrames), and it would do so in whichever \
              test happened to be next rather than in the one that spent the memory. Read the \
              `[that test kept N frames]` lines above for who grew. See notes/frames.md."
         );
         semihosting::exit(semihosting::EXIT_FAILURE);
     }
-    if spent > SUITE_FRAME_BUDGET {
+    if spent > SUITE_PAGE_FRAME_BUDGET {
         println!();
         println!(
-            "FRAME LEDGER: the suite kept {spent} frames against a budget of {SUITE_FRAME_BUDGET}. \
+            "FRAME LEDGER: the suite kept {spent} frames against a budget of {SUITE_PAGE_FRAME_BUDGET}. \
              A test built a service and did not hand its memory back. Read the \
              `[that test kept N frames]` lines above for who grew; the reclaim path is \
              `kill_thread` + `sched::reclaim_region`, wrapped as `user::holding::Holding`. Do not \
@@ -611,7 +611,7 @@ impl<T: Fn()> Testable for T {
         // test's account (and prints its charge under its own `ok` line) and opens this one's. The
         // opening balance is taken at the first test rather than at boot, because what the kernel
         // spends coming up is not a test's doing and is not what this measures.
-        let frames_now = crate::memory::free_frames();
+        let frames_now = crate::memory::free_page_frames();
         if !FRAMES_STAMPED.swap(true, Ordering::Relaxed) {
             FRAMES_AT_START.store(frames_now, Ordering::Relaxed);
         }
@@ -748,7 +748,7 @@ pub fn runner(tests: &[&dyn Testable]) {
     #[cfg(test)]
     // the runner itself is compiled in every build; the instrument only exists in test
     crate::stack::report_high_water();
-    report_frame_ledger();
+    report_page_frame_ledger();
 
     println!();
     // "passed" counts only the tests that actually ran to an "ok"; a skipped test (skip!(), no

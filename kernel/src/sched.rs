@@ -1535,7 +1535,7 @@ pub(crate) fn finish_switch() {
         SwitchOutVerdict::Reap => {
             // Hoist the address space out BEFORE the in-place drop, to be torn down after the lock
             // is released: its teardown is untyped::destroy (milestone 14 phase B.4), whose §13
-            // revocation sweep takes IPC_TABLES itself to delete stray Frame capabilities. Dropping it
+            // revocation sweep takes IPC_TABLES itself to delete stray PageFrame capabilities. Dropping it
             // here would deadlock on our own lock. The rest of the Thread (stack, quota) still
             // drops under IPC_TABLES, exactly as before.
             let space = t.space.take();
@@ -2228,15 +2228,15 @@ pub fn ipc_reply(caller: ThreadId, msg: [u64; 2]) {
     }
 }
 
-/// Delete every `Frame` capability naming `phys` from every thread's capability table (§13). Part of
+/// Delete every `PageFrame` capability naming `phys` from every thread's capability table (§13). Part of
 /// revocation: once a frame is being revoked, no holder may keep a capability that could re-map it.
 /// The caller's own cap is deleted too, which is intended: a revoke destroys all access to the page.
-pub fn delete_frame_caps(phys: u64) {
+pub fn delete_page_frame_caps(phys: u64) {
     let mut guard = IPC_TABLES.lock();
     let Some(sched) = guard.as_mut() else {
         return;
     };
-    let target = crate::cap::Object::Frame(phys);
+    let target = crate::cap::Object::PageFrame(phys);
     for t in sched.threads.iter_mut() {
         for slot in 0..t.capability_table.len() as u64 {
             if t.capability_table
@@ -3485,7 +3485,7 @@ mod tests {
     /// thread, its address space, the spawn-to-reap loop) build on this one.
     #[test_case]
     fn reclaim_frees_an_embryo_thread_control_blocks_region() {
-        let frames_before = crate::memory::free_frames();
+        let frames_before = crate::memory::free_page_frames();
 
         let region = crate::untyped::create(2).expect("a fresh 2-page region");
         let tid = crate::sched::create_thread_control_block(region)
@@ -3505,7 +3505,7 @@ mod tests {
             "the embryo should be in the table before reclaim"
         );
         assert!(
-            crate::memory::free_frames() < frames_before,
+            crate::memory::free_page_frames() < frames_before,
             "creating the region should have spent frames"
         );
 
@@ -3517,7 +3517,7 @@ mod tests {
             "the TCB's table slot must be freed by reclaim"
         );
         assert_eq!(
-            crate::memory::free_frames(),
+            crate::memory::free_page_frames(),
             frames_before,
             "reclaim must return the region's memory exactly to baseline"
         );
@@ -3530,7 +3530,7 @@ mod tests {
     /// leaks" note the registry carried since 19b.
     #[test_case]
     fn reclaim_frees_an_unbound_address_spaces_region() {
-        let frames_before = crate::memory::free_frames();
+        let frames_before = crate::memory::free_page_frames();
 
         let region = crate::untyped::create(8).expect("a fresh region");
         let name = crate::user::user_address_space_create(region)
@@ -3541,7 +3541,7 @@ mod tests {
             "the space should resolve before reclaim"
         );
         assert!(
-            crate::memory::free_frames() < frames_before,
+            crate::memory::free_page_frames() < frames_before,
             "creating the space should have spent frames"
         );
 
@@ -3552,7 +3552,7 @@ mod tests {
             "the space's name must be stale after reclaim"
         );
         assert_eq!(
-            crate::memory::free_frames(),
+            crate::memory::free_page_frames(),
             frames_before,
             "reclaim must return the region's memory exactly to baseline"
         );
@@ -3566,10 +3566,10 @@ mod tests {
     /// until the parent itself, now childless, is destroyed.
     #[test_case]
     fn split_returns_child_pages_to_the_parent() {
-        let frames_before = crate::memory::free_frames();
+        let frames_before = crate::memory::free_page_frames();
         let parent = crate::untyped::create(8).expect("parent region");
         assert_eq!(
-            crate::memory::free_frames(),
+            crate::memory::free_page_frames(),
             frames_before - 8,
             "create spent the parent's pages"
         );
@@ -3591,7 +3591,7 @@ mod tests {
         // nothing to the allocator.
         crate::sched::reclaim_region(child_a).expect("reclaim child a (leaves a hole)");
         assert_eq!(
-            crate::memory::free_frames(),
+            crate::memory::free_page_frames(),
             frames_before - 8,
             "a reclaimed child returns pages to the parent, not the allocator",
         );
@@ -3610,7 +3610,7 @@ mod tests {
         // whole run, the hole included, exactly once.
         crate::sched::reclaim_region(parent).expect("destroy the now-childless root parent");
         assert_eq!(
-            crate::memory::free_frames(),
+            crate::memory::free_page_frames(),
             frames_before,
             "the root parent's pages return to the allocator",
         );
@@ -3624,7 +3624,7 @@ mod tests {
     /// that come and go without end.
     #[test_case]
     fn destroyed_region_slots_are_reused() {
-        let frames_before = crate::memory::free_frames();
+        let frames_before = crate::memory::free_page_frames();
         // Comfortably more than MAX_REGIONS (256): without reuse this exhausts the table well before
         // the end. With reuse, one freed slot serves every iteration.
         for _ in 0..320 {
@@ -3632,7 +3632,7 @@ mod tests {
             crate::untyped::destroy(r);
         }
         assert_eq!(
-            crate::memory::free_frames(),
+            crate::memory::free_page_frames(),
             frames_before,
             "each create+destroy of a region must net zero frames",
         );
@@ -3643,17 +3643,17 @@ mod tests {
     /// every Rendezvous capability to it fails), and its page returned. Frames back to baseline.
     #[test_case]
     fn reclaim_frees_a_regions_idle_rendezvous() {
-        let frames_before = crate::memory::free_frames();
+        let frames_before = crate::memory::free_page_frames();
         let region = crate::untyped::create(2).expect("region");
         let _ep = crate::sched::create_rendezvous_from(region).expect("rendezvous from region");
         assert!(
-            crate::memory::free_frames() < frames_before,
+            crate::memory::free_page_frames() < frames_before,
             "creating the rendezvous should have spent frames"
         );
         crate::sched::reclaim_region(region)
             .expect("reclaim a region with only an idle rendezvous");
         assert_eq!(
-            crate::memory::free_frames(),
+            crate::memory::free_page_frames(),
             frames_before,
             "the idle rendezvous's region must return to baseline",
         );

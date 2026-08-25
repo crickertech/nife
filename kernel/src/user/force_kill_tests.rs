@@ -19,7 +19,7 @@ const SPIN_STUB: &[u32] = super::x86_programs::SPIN;
 /// reclaim its region while it still spins, and assert the region comes back whole.
 #[test_case]
 fn destroy_force_kills_a_runaway_and_reclaims_its_region() {
-    let frames_before = crate::memory::free_frames();
+    let frames_before = crate::memory::free_page_frames();
     let threads_before = sched::thread_count();
 
     // The runaway's whole world in one region: the address space's root and tables, its code
@@ -81,7 +81,7 @@ fn destroy_force_kills_a_runaway_and_reclaims_its_region() {
         "the force-killed runaway was reclaimed but never actually reaped",
     );
     assert_eq!(
-        crate::memory::free_frames(),
+        crate::memory::free_page_frames(),
         frames_before,
         "reclaiming a force-killed runaway did not return its frames to baseline",
     );
@@ -137,7 +137,7 @@ const RECV_STUB: &[u32] = &super::x86_programs::recv();
 /// assertion, "a region holding a resident blocked in RECV never reclaimed" (checked 2026-08-16).
 #[test_case]
 fn destroy_reclaims_a_region_whose_resident_is_blocked_in_recv() {
-    let frames_before = crate::memory::free_frames();
+    let frames_before = crate::memory::free_page_frames();
 
     // The child's whole world in one region, its rendezvous included: address space, code, stack, TCB, and
     // the rendezvous it will park on.
@@ -209,7 +209,7 @@ fn destroy_reclaims_a_region_whose_resident_is_blocked_in_recv() {
         "the region reclaimed but its blocked resident was never reaped",
     );
     assert_eq!(
-        crate::memory::free_frames(),
+        crate::memory::free_page_frames(),
         frames_before,
         "reclaiming a blocked resident's region did not return its frames to baseline",
     );
@@ -241,11 +241,11 @@ fn an_address_space_never_frees_a_region_it_was_lent() {
     // left the table; reading the count while that is in flight would make this assert on somebody
     // else's arithmetic. Two agreeing samples a yield apart mean nothing is outstanding. Same
     // lesson, same shape, as `sched::tests::a_finished_thread_is_reaped_and_its_memory_returned`.
-    let mut last = crate::memory::free_frames();
+    let mut last = crate::memory::free_page_frames();
     assert!(
         super::wait_for(|| {
             sched::yield_now();
-            let prev = core::mem::replace(&mut last, crate::memory::free_frames());
+            let prev = core::mem::replace(&mut last, crate::memory::free_page_frames());
             prev == last
         }),
         "the free-frame count never settled, so this test cannot tell its own arithmetic from a \
@@ -257,7 +257,7 @@ fn an_address_space_never_frees_a_region_it_was_lent() {
     // ever asked who owns its memory.
     let region = crate::untyped::create(4).expect("no region for the lent-backing test");
     let name = user_address_space_create(region).expect("no address space from the region");
-    let allocated = frames_before - crate::memory::free_frames();
+    let allocated = frames_before - crate::memory::free_page_frames();
     assert_eq!(
         allocated, 4,
         "the region should have cost exactly its 4 pages"
@@ -272,7 +272,7 @@ fn an_address_space_never_frees_a_region_it_was_lent() {
     drop(space);
 
     assert_eq!(
-        crate::memory::free_frames(),
+        crate::memory::free_page_frames(),
         frames_before - 4,
         "dropping an address space returned a region it was only lent: the region's real owner \
          still has a name for those pages, and its `DESTROY` frees every one of them a second time",
@@ -281,7 +281,7 @@ fn an_address_space_never_frees_a_region_it_was_lent() {
     // And the owner's reclaim still works, returning the run exactly once.
     crate::untyped::destroy(region);
     assert_eq!(
-        crate::memory::free_frames(),
+        crate::memory::free_page_frames(),
         frames_before,
         "the region's owner could not return a run its borrower had let go of",
     );

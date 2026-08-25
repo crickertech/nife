@@ -57,7 +57,7 @@
 //!
 //! The UART's registers. Two processes writing one device's registers is the interleaving hazard
 //! the roadmap's step 2 exists for, so the operator takes the registers back with
-//! `Frame::REVOKE` on the device capability (DECISIONS §41) between quiescing the old instance and
+//! `PageFrame::REVOKE` on the device capability (DECISIONS §41) between quiescing the old instance and
 //! endowing the new one. The old instance is asked to touch them one more time afterwards, and the
 //! kernel's fault message is the receipt.
 //!

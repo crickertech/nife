@@ -68,8 +68,8 @@ pub(super) fn provisioned() -> Option<(cs::Wiring, [u64; 3], [u64; 3])> {
             ready[0],
             ready[1],
             ready[2],
-            w.verify_frame,
-            w.provision_frame,
+            w.verify_page_frame,
+            w.provision_page_frame,
         ]) {
             slot.store(v, Ordering::Relaxed);
         }
@@ -85,8 +85,8 @@ pub(super) fn provisioned() -> Option<(cs::Wiring, [u64; 3], [u64; 3])> {
             ready: v(0),
             verify: v(1),
             provision: v(2),
-            verify_frame: v(9),
-            provision_frame: v(10),
+            verify_page_frame: v(9),
+            provision_page_frame: v(10),
         },
         [v(3), v(4), v(5)],
         [v(6), v(7), v(8)],
@@ -362,7 +362,7 @@ fn an_smb_server_authenticates_a_session_without_ever_holding_the_key() {
 /// `NTProofStr` and the session key are what a naive service would leave lying in the page. None
 /// of the three is there.
 #[test_case]
-fn no_ntlm_key_material_survives_in_the_shared_frame() {
+fn no_ntlm_key_material_survives_in_the_shared_page_frame() {
     let Some((w, _, _)) = provisioned() else {
         crate::testing::skip!("no virtio-rng device on the mmio bus (NIFE_RNG not set?)");
     };
@@ -371,7 +371,7 @@ fn no_ntlm_key_material_survives_in_the_shared_frame() {
     let _ = cs::client(cli, &w, cs::ROLE_NTLM);
 
     let mut page = [0u8; 4096];
-    cs::peek(w.verify_frame, &mut page);
+    cs::peek(w.verify_page_frame, &mut page);
     for (what, bytes) in [
         // NTOWFv2, [MS-NLMP] §4.2.4.1.1. The one value that must never leave the service.
         (
@@ -441,7 +441,7 @@ fn the_service_survives_everything_the_attacker_did() {
 /// the wipe is ever narrowed, and a test that only checked the first would go green on a
 /// change that broke the second.
 #[test_case]
-fn the_shared_frame_holds_nothing_after_an_answer() {
+fn the_shared_page_frame_holds_nothing_after_an_answer() {
     let Some((w, _, _)) = provisioned() else {
         crate::testing::skip!("no virtio-rng device on the mmio bus (NIFE_RNG not set?)");
     };
@@ -450,7 +450,7 @@ fn the_shared_frame_holds_nothing_after_an_answer() {
     let _ = cs::client(cli, &w, cs::ROLE_HONEST);
 
     let mut page = [0u8; 4096];
-    cs::peek(w.verify_frame, &mut page);
+    cs::peek(w.verify_page_frame, &mut page);
     let secret = b"correct horse battery staple";
     assert!(
         !page.windows(secret.len()).any(|s| s == secret),

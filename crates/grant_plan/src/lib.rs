@@ -74,7 +74,7 @@
 #![allow(missing_docs)]
 
 pub mod expand;
-pub mod jobframe;
+pub mod job_page_frame;
 pub mod line;
 pub mod nav;
 pub mod spawnproto;

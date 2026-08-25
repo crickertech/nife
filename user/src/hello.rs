@@ -55,8 +55,8 @@ const UNTYPED_DEMO: u64 = 7;
 const VIRTIO_ATTACK: u64 = 8;
 const GRANTER: u64 = 9;
 const RECEIVER: u64 = 10;
-const FRAME_PRODUCER: u64 = 11;
-const FRAME_CONSUMER: u64 = 12;
+const PAGE_FRAME_PRODUCER: u64 = 11;
+const PAGE_FRAME_CONSUMER: u64 = 12;
 const VIRTIO_ATTACK_INDIRECT: u64 = 13;
 const CALL_SERVER: u64 = 14;
 const CALL_CLIENT: u64 = 15;
@@ -77,7 +77,7 @@ const VIRTIO_BLK_SERVER: u64 = 32;
 
 /// The word the frame producer writes into a shared page and the consumer reads back through its
 /// own mapping of the same physical page. One binary, so one constant serves both roles.
-const FRAME_SENTINEL: u64 = 0xF00D_CAFE_D00D_1234;
+const PAGE_FRAME_SENTINEL: u64 = 0xF00D_CAFE_D00D_1234;
 
 // --- the shared layout, known to both roles because they are the same binary ---
 
@@ -119,8 +119,8 @@ pub extern "C" fn _start(role: u64, dma_phys: u64, arg2: u64) -> ! {
         REVOKE_DEMO => revoke_demo(),
         GRANTER => granter(),
         RECEIVER => receiver(),
-        FRAME_PRODUCER => frame_producer(),
-        FRAME_CONSUMER => frame_consumer(),
+        PAGE_FRAME_PRODUCER => page_frame_producer(),
+        PAGE_FRAME_CONSUMER => page_frame_consumer(),
         EP_MAKER => ep_maker(),
         EP_USER => ep_user(),
         ADDRESS_SPACE_BUILDER => address_space_builder(),
@@ -266,22 +266,22 @@ fn revoke_demo() -> ! {
     const REPORT: u64 = 1;
     const VA: u64 = 0x0000_0000_00c0_0000;
 
-    // Retype a page into a Frame capability we hold, then map it writable.
+    // Retype a page into a PageFrame capability we hold, then map it writable.
     // SAFETY: `svc`. The result is the slot the new capability landed in.
     let frame = unsafe { invoke(UNTYPED, abi::untyped::RETYPE, 0, 0, 0) };
     check(frame >= 0);
     let frame = frame as u64;
     // SAFETY: as above: the kernel validates the capability and the method.
-    check(unsafe { invoke(frame, abi::frame::MAP, VA, 1, UNTYPED) } == 0);
+    check(unsafe { invoke(frame, abi::page_frame::MAP, VA, 1, UNTYPED) } == 0);
     // SAFETY: VA is now a mapped, writable page in our address space.
     unsafe { core::ptr::write_volatile(VA as *mut u64, 0xABCD) };
 
     // Revoke: unmap the page everywhere and delete every capability to it, ours included. The frame
     // was retyped with GRANT, so we are allowed to. SAFETY: `svc`.
-    let revoked = unsafe { invoke(frame, abi::frame::REVOKE, 0, 0, 0) };
-    // Our Frame capability is gone now: a second operation on that slot must fail (NoSuchSlot). We
+    let revoked = unsafe { invoke(frame, abi::page_frame::REVOKE, 0, 0, 0) };
+    // Our PageFrame capability is gone now: a second operation on that slot must fail (NoSuchSlot). We
     // do NOT touch VA again, which is unmapped and would fault. SAFETY: `svc`.
-    let after = unsafe { invoke(frame, abi::frame::MAP, VA, 1, UNTYPED) };
+    let after = unsafe { invoke(frame, abi::page_frame::MAP, VA, 1, UNTYPED) };
 
     send(REPORT, if revoked == 0 && after < 0 { 1 } else { 0 }, 0, 0);
     exit();
@@ -540,13 +540,13 @@ fn init_console(initrd_len: u64) -> ! {
     let Ok(reply) = retype_obj(UNTYPED, abi::objtype::RENDEZVOUS) else {
         fail_report(REPORT)
     };
-    let Ok(shared) = retype_frame(UNTYPED) else {
+    let Ok(shared) = retype_page_frame(UNTYPED) else {
         fail_report(REPORT)
     };
 
     // Map the shared page read/write in init's own space, so init (the client) can write into it.
     // SAFETY: as above: the kernel validates the capability and the method.
-    if unsafe { invoke(shared, abi::frame::MAP, SHARED_VA, 1, UNTYPED) } != 0 {
+    if unsafe { invoke(shared, abi::page_frame::MAP, SHARED_VA, 1, UNTYPED) } != 0 {
         fail_report(REPORT);
     }
 
@@ -659,7 +659,7 @@ fn child() -> ! {
 /// Build a child process from `elf`, out of `untyped`. `caps` are inserted into the child's capability table
 /// at slots 0, 1, ... in order (each `(init_slot, rights)`: the capability init holds in
 /// `init_slot`, narrowed to `rights`). `maps` are extra pages mapped into the child before it starts
-/// (each `(child_va, init_slot, mode)`: init's Frame or `DeviceFrame` cap, mapped at `child_va` with
+/// (each `(child_va, init_slot, mode)`: init's `PageFrame` or `DeviceFrame` cap, mapped at `child_va` with
 /// a `MAP_*` mode), which is how init hands a driver its registers and a shared buffer (19d.2).
 /// Returns the child's TCB slot, ready to start.
 ///
@@ -692,9 +692,9 @@ fn retype_obj(untyped: u64, objtype: u64) -> Result<u64, ()> {
     supervision_proto::retype_obj_from(untyped, objtype)
 }
 
-/// Retype a page of `untyped` into a Frame capability; returns its cap slot.
-fn retype_frame(untyped: u64) -> Result<u64, ()> {
-    supervision_proto::retype_frame_from(untyped)
+/// Retype a page of `untyped` into a `PageFrame` capability; returns its cap slot.
+fn retype_page_frame(untyped: u64) -> Result<u64, ()> {
+    supervision_proto::retype_page_frame_from(untyped)
 }
 
 /// Start a configured TCB, handing the child `arg0`, `arg1`, `arg2` as its first three registers.
@@ -851,27 +851,37 @@ fn receiver() -> ! {
     exit(); // one-shot: reported, so we leave and the kernel reaps us
 }
 
-/// **The frame demo, producer's half.** Retypes a page out of its own untyped into a `Frame`
+/// **The frame demo, producer's half.** Retypes a page out of its own untyped into a `PageFrame`
 /// capability, maps it read/write, writes a sentinel, and hands the consumer a READ-only view of
 /// the *same physical page*. The kernel never copies the data and was never told these two
 /// processes would share memory: they composed the sharing themselves out of a capability.
-fn frame_producer() -> ! {
+fn page_frame_producer() -> ! {
     const UNTYPED: u64 = 0; // retype the frame and draw page tables from here
     const CHANNEL: u64 = 1; // delegate the frame to the consumer over here
-    const FRAME_VA: u64 = 0x0000_0000_00A0_0000;
+    const PAGE_FRAME_VA: u64 = 0x0000_0000_00A0_0000;
 
-    // Retype: a page out of our budget becomes a Frame capability we hold. Nothing is mapped yet.
+    // Retype: a page out of our budget becomes a PageFrame capability we hold. Nothing is mapped yet.
     // SAFETY: `svc`. The result is the slot the new capability landed in.
     let frame = unsafe { invoke(UNTYPED, abi::untyped::RETYPE, 0, 0, 0) };
     check(frame >= 0);
 
-    // Map it read/write; the page tables to reach FRAME_VA come from the same untyped.
+    // Map it read/write; the page tables to reach PAGE_FRAME_VA come from the same untyped.
     // SAFETY: `svc`.
-    check(unsafe { invoke(frame as u64, abi::frame::MAP, FRAME_VA, 1, UNTYPED) } == 0);
+    check(
+        unsafe {
+            invoke(
+                frame as u64,
+                abi::page_frame::MAP,
+                PAGE_FRAME_VA,
+                1,
+                UNTYPED,
+            )
+        } == 0,
+    );
 
     // Write the sentinel the consumer will read back through its own mapping of this page.
-    // SAFETY: FRAME_VA is now a mapped, writable page in our address space.
-    unsafe { core::ptr::write_volatile(FRAME_VA as *mut u64, FRAME_SENTINEL) };
+    // SAFETY: PAGE_FRAME_VA is now a mapped, writable page in our address space.
+    unsafe { core::ptr::write_volatile(PAGE_FRAME_VA as *mut u64, PAGE_FRAME_SENTINEL) };
 
     // Delegate a READ-only view: drop WRITE and GRANT on the way over. The rendezvous is also the
     // synchronization edge that makes our write visible to the consumer. SAFETY: `svc`.
@@ -891,11 +901,11 @@ fn frame_producer() -> ! {
 /// **The frame demo, consumer's half.** Receives the delegated frame, maps the same physical page
 /// read-only, reads the producer's sentinel back (proof the memory is shared), and confirms it
 /// cannot map the page writable, because it was handed the frame with `READ` alone.
-fn frame_consumer() -> ! {
+fn page_frame_consumer() -> ! {
     const CHANNEL: u64 = 0; // RECV_CAP the frame here
     const UNTYPED: u64 = 1; // page tables for our own mappings come from here
     const REPORT: u64 = 2; // report the verdict here
-    const FRAME_VA: u64 = 0x0000_0000_00A0_0000;
+    const PAGE_FRAME_VA: u64 = 0x0000_0000_00A0_0000;
     const RW_VA: u64 = 0x0000_0000_00B0_0000;
 
     let (_data, frame) = recv_cap(CHANNEL);
@@ -906,16 +916,16 @@ fn frame_consumer() -> ! {
     if received {
         // Map the shared page read-only and read the producer's sentinel through it.
         // SAFETY: `svc`.
-        let mapped = unsafe { invoke(frame, abi::frame::MAP, FRAME_VA, 0, UNTYPED) } == 0;
+        let mapped = unsafe { invoke(frame, abi::page_frame::MAP, PAGE_FRAME_VA, 0, UNTYPED) } == 0;
         if mapped {
-            // SAFETY: FRAME_VA is now a mapped, readable page.
-            let seen = unsafe { core::ptr::read_volatile(FRAME_VA as *const u64) };
-            read_ok = seen == FRAME_SENTINEL;
+            // SAFETY: PAGE_FRAME_VA is now a mapped, readable page.
+            let seen = unsafe { core::ptr::read_volatile(PAGE_FRAME_VA as *const u64) };
+            read_ok = seen == PAGE_FRAME_SENTINEL;
         }
 
         // Try to map it read/write. We hold it READ only, so the kernel refuses before mapping.
         // SAFETY: `svc`.
-        let rw = unsafe { invoke(frame, abi::frame::MAP, RW_VA, 1, UNTYPED) };
+        let rw = unsafe { invoke(frame, abi::page_frame::MAP, RW_VA, 1, UNTYPED) };
         rw_refused = rw < 0;
     }
 

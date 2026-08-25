@@ -43,7 +43,7 @@ pub fn active() -> bool {
 /// intermediate table come from here. These frames are owned by the IOMMU from now on; a re-attach
 /// of the same device leaks the previous domain's tables, which is acceptable because `confine`
 /// runs once per device per boot (see notes/iommu.md).
-fn zeroed_frame() -> u64 {
+fn zeroed_page_frame() -> u64 {
     let pa = crate::memory::alloc()
         .expect("no frame for an IOMMU DMA domain")
         .addr();
@@ -67,16 +67,16 @@ fn zeroed_frame() -> u64 {
 /// board's device tree gives an identity `iommu-map`). The caller must have checked [`active`];
 /// attaching before the driver's `init` panics.
 pub fn confine(rid: u32, regions: &[DmaRegion]) {
-    let root = zeroed_frame();
+    let root = zeroed_page_frame();
     // Build the identity domain over `regions`. The frame allocator and the pointer projection are
     // the same the kernel's own `Mapper` uses; `DmaFormat` selects the format for this ISA.
-    // SAFETY: `root` is a freshly zeroed, page-aligned frame; `zeroed_frame` returns the same for
+    // SAFETY: `root` is a freshly zeroed, page-aligned frame; `zeroed_page_frame` returns the same for
     // every intermediate table; `phys_to_virt` yields a pointer the Mapper contract accepts. Nobody
     // installs `root` until `attach` below, which happens only after this returns Ok.
     unsafe {
         build_identity_domain::<_, _, DmaFormat>(
             root,
-            || Some(zeroed_frame()),
+            || Some(zeroed_page_frame()),
             |pa| phys_to_virt(pa) as *mut paging::PageTable,
             regions,
         )

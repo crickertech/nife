@@ -97,7 +97,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use abi::{frame as fr, rendezvous, rights, untyped as ut};
+use abi::{page_frame as fr, rendezvous, rights, untyped as ut};
 use clock_proto::propose;
 use ntp_proto::{Packet, Query, Reject, Short, Timestamp, leap, mode};
 // The socket contract, verbatim from the file `net_stack` compiles, so the client and the test
@@ -187,11 +187,11 @@ const SERVER_TURNAROUND_NANOS: u64 = 1_000;
 
 /// Where both roles map the shared socket frame in their own address spaces. Above the program's
 /// segments; the same address `socket_test_client` uses, and each address space is its own.
-const FRAME_VA: u64 = 0x0000_0000_00A0_0000;
+const PAGE_FRAME_VA: u64 = 0x0000_0000_00A0_0000;
 
-// SAFETY: this program's own `Frame::MAP` (both roles do it before touching the frame) mapped one
-// page read/write at FRAME_VA before any of `WINDOW`'s accessors are called (milestone 139).
-const WINDOW: MappedWindow = unsafe { MappedWindow::new(FRAME_VA, PAGE) };
+// SAFETY: this program's own `PageFrame::MAP` (both roles do it before touching the frame) mapped one
+// page read/write at PAGE_FRAME_VA before any of `WINDOW`'s accessors are called (milestone 139).
+const WINDOW: MappedWindow = unsafe { MappedWindow::new(PAGE_FRAME_VA, PAGE) };
 
 /// The one socket id this client uses.
 const SID: u64 = 0;
@@ -235,7 +235,7 @@ fn client(server_ip: u64, server_port: u64) -> ! {
         Err(word) => done(RPT_NO_ENTROPY, word, 0),
     };
 
-    attach_frame();
+    attach_page_frame();
     if call(STACK, req(OP_OPEN_UDP, SID), 0).0 != REP_OK {
         done(RPT_NET_ERROR, 2, 0);
     }
@@ -403,7 +403,7 @@ fn reject_code(r: Reject) -> u64 {
 
 /// Mint one frame from our own budget, map it, and delegate it to the socket contract's server.
 /// Exactly what `socket_test_client` does, because it is exactly the same contract.
-fn attach_frame() {
+fn attach_page_frame() {
     // SAFETY: `svc`. RETYPE answers with the new frame capability's slot, or a negative error.
     let frame = unsafe { invoke(UNTYPED, ut::RETYPE, 0, 0, 0) };
     if frame < 0 {
@@ -411,7 +411,7 @@ fn attach_frame() {
     }
     let frame = frame as u64;
     // SAFETY: `svc`. Map it writable; the page tables come from our untyped.
-    if unsafe { invoke(frame, fr::MAP, FRAME_VA, 1, UNTYPED) } < 0 {
+    if unsafe { invoke(frame, fr::MAP, PAGE_FRAME_VA, 1, UNTYPED) } < 0 {
         done(RPT_NET_ERROR, 1, 0);
     }
     // SAFETY: `svc`. Delegate it, narrowed to read/write, with the ATTACH request.
@@ -421,7 +421,7 @@ fn attach_frame() {
             rendezvous::SEND_CAP,
             frame,
             rights::READ | rights::WRITE,
-            req(OP_ATTACH_FRAME, SID),
+            req(OP_ATTACH_PAGE_FRAME, SID),
         )
     } < 0
     {
@@ -432,42 +432,42 @@ fn attach_frame() {
 // =================================================================================================
 // The shared frame. Absolute-VA volatile access through `WINDOW` (milestone 139), the same
 // abstraction mdns_responder, socket_test_client, smb_server, kbd, entropy and net_transport share.
-// `va` is always `FRAME_VA + <an offset constant>`, so subtracting FRAME_VA recovers the offset
+// `va` is always `PAGE_FRAME_VA + <an offset constant>`, so subtracting PAGE_FRAME_VA recovers the offset
 // `WINDOW` bounds-checks against.
 // =================================================================================================
 
 fn r8(va: u64) -> u8 {
-    WINDOW.r8(va - FRAME_VA)
+    WINDOW.r8(va - PAGE_FRAME_VA)
 }
 fn w8(va: u64, v: u8) {
-    WINDOW.w8(va - FRAME_VA, v);
+    WINDOW.w8(va - PAGE_FRAME_VA, v);
 }
 fn r16le(va: u64) -> u16 {
-    WINDOW.r16(va - FRAME_VA)
+    WINDOW.r16(va - PAGE_FRAME_VA)
 }
 fn w16le(va: u64, v: u16) {
-    WINDOW.w16(va - FRAME_VA, v);
+    WINDOW.w16(va - PAGE_FRAME_VA, v);
 }
 
 /// Write the destination header: the address and port the *wiring* named, not one this program
 /// chose. Which server to ask is an endowment, the same way which network to use is.
 fn write_dst(ip: u64, port: u64) {
     for i in 0..4 {
-        w8(FRAME_VA + OFF_DST_IP + i, (ip >> (24 - 8 * i)) as u8);
+        w8(PAGE_FRAME_VA + OFF_DST_IP + i, (ip >> (24 - 8 * i)) as u8);
     }
-    w16le(FRAME_VA + OFF_DST_PORT, port as u16);
+    w16le(PAGE_FRAME_VA + OFF_DST_PORT, port as u16);
 }
 
 fn write_payload(bytes: &[u8]) {
     for (i, &b) in bytes.iter().enumerate() {
-        w8(FRAME_VA + OFF_PAYLOAD + i as u64, b);
+        w8(PAGE_FRAME_VA + OFF_PAYLOAD + i as u64, b);
     }
 }
 
 fn read_payload(n: usize, out: &mut [u8]) -> usize {
     let n = n.min(out.len());
     for (i, b) in out[..n].iter_mut().enumerate() {
-        *b = r8(FRAME_VA + OFF_PAYLOAD + i as u64);
+        *b = r8(PAGE_FRAME_VA + OFF_PAYLOAD + i as u64);
     }
     n
 }
@@ -512,9 +512,9 @@ fn server(variant: u64, claimed_nanos: u64) -> ! {
         match req_op(w0) {
             // A SEND_CAP: the client's shared frame, which we map for ourselves and then drop the
             // capability for, because the mapping outlives it. No reply; nobody is waiting.
-            OP_ATTACH_FRAME => {
+            OP_ATTACH_PAGE_FRAME => {
                 // SAFETY: `svc`. The cap is the frame the client delegated.
-                let _ = unsafe { invoke(cap, fr::MAP, FRAME_VA, 1, UNTYPED) };
+                let _ = unsafe { invoke(cap, fr::MAP, PAGE_FRAME_VA, 1, UNTYPED) };
                 cap_delete(cap);
             }
             OP_OPEN_UDP | OP_OPEN_TCP => {
@@ -529,7 +529,7 @@ fn server(variant: u64, claimed_nanos: u64) -> ! {
                 reply(cap, REP_OK, 0);
                 if !reported {
                     reported = true;
-                    let dst_port = r16le(FRAME_VA + OFF_DST_PORT) as u64;
+                    let dst_port = r16le(PAGE_FRAME_VA + OFF_DST_PORT) as u64;
                     send(
                         REPORT,
                         RPT_SERVED,
@@ -540,7 +540,7 @@ fn server(variant: u64, claimed_nanos: u64) -> ! {
             }
             OP_RECV => {
                 write_payload(&pending[..pending_len]);
-                w16le(FRAME_VA + OFF_LEN, pending_len as u16);
+                w16le(PAGE_FRAME_VA + OFF_LEN, pending_len as u16);
                 reply(cap, pending_len as u64, 0);
             }
             OP_CLOSE => {
