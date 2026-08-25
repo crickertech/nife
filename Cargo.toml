@@ -19,6 +19,7 @@ members = [
     "crates/credential_proto",
     "crates/clock_proto",
     "crates/environment_proto",
+    "crates/timebase_proto",
     "crates/login_proto",
     "crates/nifefs",
     "crates/dma_validator",

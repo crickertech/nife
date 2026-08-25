@@ -522,36 +522,67 @@ pub fn now() -> u64 {
     ((hi as u64) << 32) | (lo as u64)
 }
 
-/// The counter frequency in Hz (`x86_64`). **This is the gap RISC-V's twin already documents, one
-/// architecture worse**, and it is worth stating in full because the number below is a constant
-/// where the machine's own answer exists a privilege level away.
+/// The counter frequency in Hz (`x86_64`), read from the **timebase page** the kernel maps
+/// read-only into every process at [`timebase_proto::PAGE_VA`] (milestone 161's `cntfrq`
+/// follow-up).
 ///
-/// aarch64 has `CNTFRQ_EL0`, which states the rate. RISC-V has none, but the device tree does, and
-/// the process cannot read it. x86 has **no architected rate at all**: `CPUID` leaf 0x15 gives the
-/// TSC's ratio to a crystal that leaf 0x16 may not report, and neither leaf exists on every part.
-/// So the kernel does not read the rate either, it **measures** it, against the 8254 PIT, in
-/// `arch::x86_64::timer::init_frequency`, and stores it in `TSC_HZ`.
+/// aarch64 has `CNTFRQ_EL0`, which states the rate. RISC-V has none, but the device tree does,
+/// and the process cannot read it. x86 has **no architected rate a ring-3 program can ask for
+/// directly**: `CPUID` leaf `0x15` gives the TSC's ratio to a crystal clock on the parts that
+/// implement it, but a ring-3 program cannot calibrate one for itself the way the kernel's
+/// fallback does, against the 8254 PIT: the PIT is at I/O ports `0x40..0x43`, `IOPL` is 0 and the
+/// TSS's I/O permission bitmap is empty, so `in`/`out` from a process is a general protection
+/// fault. That is not an oversight to route around, it is
+/// [DECISIONS §121](../../../design/decisions/121-port-io-capability.md), which closed port I/O
+/// to userspace **permanently**: a program that could calibrate its own clock by touching the PIT
+/// would be a program that had escaped the confinement this kernel exists to enforce.
 ///
-/// A ring-3 program cannot repeat that measurement: the PIT is at I/O ports 0x40..0x43, `IOPL` is
-/// 0 and the TSS's I/O permission bitmap is empty, so `in`/`out` from a process is a general
-/// protection fault. That is not an oversight to route around, it is
-/// [DECISIONS §121](../../../design/decisions/121-port-io-capability.md) (PROPOSED) not being
-/// decided yet, and a program that could calibrate its own clock by touching the PIT would be a
-/// program that had escaped the confinement this kernel exists to enforce.
+/// So the kernel is the only party that can ever know this number, and it publishes rather than
+/// gates: `arch::x86_64::timer::init_frequency` reads `CPUID` leaf `0x15` first and falls back to
+/// PIT calibration only if the part does not report one (see that function's own docs; under this
+/// project's QEMU invocation the leaf is unavailable and calibration is what every boot actually
+/// uses), then every kernel-side function that builds a top-level process's address space writes
+/// the result into a page and maps it, read-only, before the process ever runs: `kernel::user::load`
+/// (the generic ELF loader every ordinary test fixture calls) and the handful of functions that
+/// build one by hand for a narrower world (`spawn_init`, and the `spawn_<program>`-shaped test
+/// harnesses: `timetable_tests::spawn_timetable`, `authority_tests`' `root_supervisor` spawn,
+/// `c_seam_tests::spawn_confiner`, `login_service`, `live_swap_tests`' `swapper` spawn; see
+/// `kernel::user::map_x86_timebase_page`, which all of them call). This function is the reader: a
+/// plain load through an unsafe pointer, no syscall, the same "ambient, no capability" shape
+/// [`now`] already has.
 ///
 /// # BUGS
 ///
-/// **The number below is QEMU's, not the machine's.** QEMU's TCG TSC runs at 1 GHz; the kernel
-/// measures it as 1001 MHz across one ten-millisecond window and prints that in the boot tour. On
-/// any real part (milestone 87's Dell) the TSC runs at the CPU's base frequency instead, so this
-/// returns a wrong answer with no way for a caller to tell. The fix is the same one RISC-V's twin
-/// names and is now owed twice: **hand the frequency to a process at start**, the way Linux passes
-/// `AT_HWCAP` in the aux vector, so the one component that measured it is the one that reports it.
-/// Until that exists this returns the constant for the one machine we run, which is what makes
-/// self-timing work under QEMU and nowhere else.
+/// **A zeroed page (calibration has not run, or a process was built by the userspace ELF loader
+/// rather than by the kernel) reads as 1 GHz, not as "unknown".** This function still needs *some*
+/// `u64` to hand back rather than an `Option` (every other architecture's `cntfrq` returns a bare
+/// rate, and widening this one alone to `Option<u64>` would make every caller of the portable
+/// `monotonic_nanos` handle a case the other two architectures cannot produce), so a zeroed page
+/// falls back to the same 1 GHz constant this function used to hardcode unconditionally. Two real
+/// cases reach this, and only one of them is rare:
+///
+/// - **Calibration genuinely has not run yet.** Not observed in practice: `init_frequency` runs
+///   early in the boot tour, well before the first process is loaded.
+/// - **A process was built by `supervision_proto::build_child_space`** (the tree's one userspace
+///   ELF loader, used by `root_supervisor`, `spawner`, `system_initializer`, and every role
+///   `hello` builds, `coremark` and `timetable`'s own `worker` included), which maps a *freshly
+///   retyped, zeroed* placeholder rather than the kernel's real page: nothing in that crate holds
+///   a capability naming the kernel's specific physical frame, so it cannot forward the real
+///   number, only a page shaped enough not to fault. See that crate's own comment at the map site
+///   for why closing this gap needs more than a userspace crate can do alone (a capability the
+///   kernel would have to hand down through every generation of the supervision tree, which is
+///   real plumbing this milestone's scope did not reach). **This is where the 1 GHz constant
+///   actually still lives**, not the "always wrong on real hardware" gap the pre-fix version of
+///   this function had: a process built this way gets a syscall-free, non-faulting, honestly
+///   *approximate* answer instead of the kernel's measured one, and every process built directly
+///   by the kernel gets the real number.
 #[cfg(target_arch = "x86_64")]
 pub fn cntfrq() -> u64 {
-    1_000_000_000
+    // SAFETY: every kernel-side space-building function this crate's own docs list maps a page
+    // (real, or a zeroed placeholder; see this function's own `BUGS` section) read-only at
+    // `timebase_proto::PAGE_VA` into every x86_64 process before it ever runs.
+    let page = unsafe { timebase_proto::TimebasePage::new(timebase_proto::PAGE_VA) };
+    page.hz().unwrap_or(1_000_000_000)
 }
 
 /// **Monotonic nanoseconds since boot**, from [`now`] and [`cntfrq`].

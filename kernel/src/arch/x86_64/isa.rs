@@ -107,6 +107,38 @@ pub fn draw_rdseed() -> Option<u64> {
     None
 }
 
+/// `CPUID` leaf `0x15`'s TSC/core-crystal-clock ratio, converted to a TSC rate in Hz, on the
+/// parts that report one directly (milestone 161's `cntfrq` follow-up: the "ask the CPU first"
+/// half of `arch::x86_64::timer::init_frequency`, whose docs explain why the fallback -
+/// calibrating against the PIT - exists at all).
+///
+/// `None` in two cases, and both are real "this part does not say" answers rather than errors:
+/// the part's own maximum leaf (from [`init`]'s leaf 0 read) is below `0x15`, so reading it would
+/// misattribute a lower leaf's bits the same way an unchecked leaf-7 read would (see [`init`]'s
+/// own comment on `rdseed`); or the part implements the leaf but leaves `ECX` (the crystal
+/// clock's own frequency) at zero, which the SDM defines as "not enumerated" and which would
+/// otherwise need a vendor-specific model-to-crystal table this crate does not carry (Linux's
+/// `native_calibrate_tsc` has one; this port does not, and falls back to calibration instead).
+///
+/// Measured empirically under this project's own QEMU invocation (`-cpu max`, TCG): `max_leaf` is
+/// `0xd`, so this returns `None` on every boot this kernel currently runs, and
+/// `init_frequency`'s PIT-calibration fallback is what every test and every boot print's number
+/// actually comes from today. The leaf is read anyway, for real hardware (milestone 87's Dell)
+/// where it may be populated.
+pub fn tsc_crystal_hz() -> Option<u64> {
+    if get().max_leaf < 0x15 {
+        return None;
+    }
+    // `__cpuid` is safe (see `init`'s own comment); leaf 0x15 carries no precondition beyond the
+    // max-leaf check just above.
+    let leaf = __cpuid(0x15);
+    if leaf.eax == 0 || leaf.ebx == 0 || leaf.ecx == 0 {
+        return None;
+    }
+    // SDM Vol. 3B §19.7.3: TSC frequency = ECX (crystal Hz) * EBX (numerator) / EAX (denominator).
+    Some((leaf.ecx as u64) * (leaf.ebx as u64) / (leaf.eax as u64))
+}
+
 /// What [`init`] found.
 pub fn get() -> Isa {
     // SAFETY: written once by `init` during single-threaded boot and read-only thereafter.

@@ -44,6 +44,8 @@ fn spawn_tree() -> sched::RendezvousId {
             .map_new(USER_STACK_VA - k * FRAME_SIZE, Flags::user_data())
             .expect("could not map root_supervisor's stack");
     }
+    #[cfg(target_arch = "x86_64")]
+    map_x86_timebase_page(&mut space).expect("could not map root_supervisor's timebase page");
     for i in 0..initrd_pages {
         space
             .map_physical(

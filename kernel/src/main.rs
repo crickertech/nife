@@ -213,8 +213,9 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
 
             arch::timer::init_frequency(boot_info_pointer);
             println!(
-                "  clocks      : tsc {} MHz, apic timer {} MHz (both measured against the PIT)",
+                "  clocks      : tsc {} MHz ({}), apic timer {} MHz (measured against the PIT)",
                 arch::timer::frequency() / 1_000_000,
+                arch::timer::frequency_source(),
                 arch::timer::apic_timer_frequency() / 1_000_000,
             );
 
