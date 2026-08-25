@@ -8,7 +8,7 @@ members. Time Machine speaks SMB, Samba stores Apple's metadata as extended attr
 (`streams_xattr`), and RedoxFS has none. So this is on the critical path to hardware, not a
 feature we thought would be nice.
 
-The contract is `fs_proto::xattr`; the layer is `fs_server/src/lib.rs`; the mechanism was decided
+The contract is `fs_proto::xattr`; the layer is `redoxfs_server/src/lib.rs`; the mechanism was decided
 in DECISIONS §34's 2026-07-31 amendment.
 
 ## The shape, in one picture
@@ -296,7 +296,7 @@ Named here because a reader who meets the feature deserves to meet its edges at 
 byte slice (`fs_proto::xattr::store`), so what replaces what, which ceiling refuses, and what a
 truncated blob means are all tested without a filesystem: seven tests in `fs_proto`, including a
 sweep that cuts a blob at every byte and asserts it reads back **short rather than wrong**. Ten more
-in `fs_server` drive the real engine against a `DiskMemory` image: persistence across a mount the
+in `redoxfs_server` drive the real engine against a `DiskMemory` image: persistence across a mount the
 attribute was not written in, the rename property, the purge with a provoked node-id reuse, the
 replaced-destination purge, the store's invisibility to seven verbs and to a listing, both rights
 directions, every ceiling, and the shrink-without-a-tail.
@@ -304,7 +304,7 @@ directions, every ceiling, and the shrink-without-a-tail.
 **Crash-consistent, measured rather than argued** (milestone 57, closing what used to be a BUGS
 entry here). The old claim was sound and second-hand: every mutation runs inside one `fs.tx`, and
 milestone 37's sweep proves prefix consistency for whatever a transaction contains, so the property
-held by construction. It is now in the sweep. `fs_server/tests/crash_consistency.rs` reads each
+held by construction. It is now in the sweep. `redoxfs_server/tests/crash_consistency.rs` reads each
 name's attributes as part of the filesystem's state, and the workload grew four attribute operations
 covering the three shapes the store has: **creating** it (two node creations in one commit),
 **growing** a blob, and **shrinking** one, which is the path that must truncate afterwards. They are

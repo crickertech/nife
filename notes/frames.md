@@ -459,7 +459,7 @@ and the difference is accounted rather than shrugged at:
   One run in five faulted (2026-08-13; four green runs on this branch, one red). **The kernel binary
   was byte-identical between a run that faulted and a run that passed**: the two commits differ only
   in `.github/dependabot.yml`, `.github/workflows/toolchain-bump.yml` and `script/ci-qemu`, with
-  nothing under `kernel/`, `crates/`, `user/` or `fs_server/`. So it is depth-dependent rather than
+  nothing under `kernel/`, `crates/`, `user/` or `redoxfs_server/`. So it is depth-dependent rather than
   deterministic, and re-running until green would hide it.
 
   ```

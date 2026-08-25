@@ -129,7 +129,7 @@ fn wired() -> Option<ls::Wiring> {
         let result = (|| {
             let (cred_wiring, _, _) = credential_tests::provisioned()?;
             let (fs_ep, fs_frame) =
-                fs_service::root_directory(fs_service::blk_server_image(), fs_server_image())?;
+                fs_service::root_directory(fs_service::blk_server_image(), redoxfs_server_image())?;
             ensure_home_subtree(fs_ep, fs_frame, b"chris");
             ensure_home_subtree(fs_ep, fs_frame, b"corinne");
             let login_image = program("login").expect("no login program in the initrd archive");
@@ -162,10 +162,10 @@ fn wired() -> Option<ls::Wiring> {
     })
 }
 
-/// The name `fs_server`'s image travels under, on the same terms `dir_capability_tests` reads it:
+/// The name `redoxfs_server`'s image travels under, on the same terms `dir_capability_tests` reads it:
 /// present only when `test` built the FS server, absent for a plain interactive run.
-fn fs_server_image() -> &'static [u8] {
-    program("fs_server").expect("no fs_server program in the initrd archive")
+fn redoxfs_server_image() -> &'static [u8] {
+    program("redoxfs_server").expect("no redoxfs_server program in the initrd archive")
 }
 
 /// **The headline.** A correct identity and secret produce a directory capability and a budget

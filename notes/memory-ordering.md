@@ -37,7 +37,7 @@ argument and the atomic it belongs to are rarely on the same line. The scan behi
 out comments and string literals, then walks backwards from each `Ordering::` to the open paren of
 the call that contains it, so a multi-line call is attributed to the right atomic. Checking the
 pattern against the real shapes first is the part that matters: prose in this tree says "Release" and
-"Acquire" constantly (`kernel/src/sync.rs`'s header, `fs_server`'s "Release a handle") and a naive
+"Acquire" constantly (`kernel/src/sync.rs`'s header, `redoxfs_server`'s "Release a handle") and a naive
 grep counts every one of them.
 
 The second is that the test-code exclusion is where the first version of this scan was wrong, and it
@@ -142,7 +142,7 @@ would try to reconcile three against four.
 | Boot roster | `kernel/src/smp.rs` | `ROSTER`, `DESCRIBED`, `ONLINE`, `ONLINE_MASK`: relaxed arrays under a release flag, acquire flag then relaxed arrays. Textbook array publication, single-shot at boot |
 | IRQ routing table | `kernel/src/sched.rs` `IRQ_ROUTES` | Release store, acquire load, same array. Paired |
 | One-shot service wiring | `fs_service`, `entropy_service`, `disk_service`, `credential_service` | **Four instances of one correct idiom**: relaxed fields, then a release flag; readers acquire the flag, then read the fields relaxed |
-| Spin locks | `crates/user_rt`, `patches/std-nife` (3), `fs_server/src/bin/second_mount.rs` | Acquire CAS, release store. **The one shape that cannot be one-sided**, because the lock is both halves |
+| Spin locks | `crates/user_rt`, `patches/std-nife` (3), `redoxfs_server/src/bin/second_mount.rs` | Acquire CAS, release store. **The one shape that cannot be one-sided**, because the lock is both halves |
 | Benchmark start barrier | `kernel/src/bench.rs` `TP_GO` | Release store, acquire spin. Paired. The `SeqCst` reset is over-strong and has no reader yet, so it orders nothing and costs nothing |
 | Secret wipe | `crates/cred_proto` | `compiler_fence`, no cross-core meaning, no partner wanted |
 

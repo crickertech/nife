@@ -3,9 +3,9 @@ use session_reviver_service as srs;
 
 use super::*;
 
-/// The name `fs_server`'s image travels under; present only when `test` built it.
-fn fs_server_image() -> &'static [u8] {
-    program("fs_server").expect("no fs_server program in the initrd archive")
+/// The name `redoxfs_server`'s image travels under; present only when `test` built it.
+fn redoxfs_server_image() -> &'static [u8] {
+    program("redoxfs_server").expect("no redoxfs_server program in the initrd archive")
 }
 
 /// `user/src/fs_test_client.rs`'s own `ROLE_SCHEDULE_SEED`, matched by number the way every other
@@ -55,7 +55,7 @@ fn wired() -> Option<[u64; 3]> {
             // hardcodes a one-page stack and both `fs_test_client` roles this suite spawns need
             // more (see `SCHEDULE_ROLE_EXTRA_STACK`).
             let (fs_ep, fs_frame) =
-                fss::root_directory(fss::blk_server_image(), fs_server_image())?;
+                fss::root_directory(fss::blk_server_image(), redoxfs_server_image())?;
             let seed_report = fss::spawn_fs_client(
                 client,
                 fs_ep,
@@ -177,7 +177,7 @@ fn a_fresh_reader_confirms_the_store_holds_exactly_what_the_seed_wrote() {
         program("fs_test_client").expect("no fs_test_client program in the initrd archive");
     // `wired()` above already brought the service up; `root_directory` hands back the same
     // memoized `(fs_ep, fs_frame)` pair with its own readiness handshake already drained.
-    let (fs_ep, fs_frame) = fss::root_directory(fss::blk_server_image(), fs_server_image())
+    let (fs_ep, fs_frame) = fss::root_directory(fss::blk_server_image(), redoxfs_server_image())
         .expect("the FS service was wired a moment ago by `wired()`");
     let report = fss::spawn_fs_client(
         client,

@@ -141,7 +141,7 @@ parse correctly (including the `-template` guard: a name that merely starts with
 flag), `touch` is reserved from the program namespace like every other builtin, and both forms
 appear in `help`.
 
-`fs_server`'s host suite (`cargo test --manifest-path fs_server/Cargo.toml --features hosttest`)
+`redoxfs_server`'s host suite (`cargo test --manifest-path redoxfs_server/Cargo.toml --features hosttest`)
 covers the rights logic directly against the in-process `Server`, no emulator: `each_rung_of_the_
 ladder_gates_exactly_its_own_verb` isolates `dir::READ` (`GETMTIME`), `dir::WRITE` (`SETMTIME`) and
 `dir::SETTIME` (`SETMTIME_AT`, alongside `WRITE`) each against a handle that lacks only that one
@@ -151,7 +151,7 @@ trips_exactly_and_is_not_now` proves the caller's value comes back byte-for-byte
 following bare touch does not preserve it.
 
 `kernel::user::shell_navigation_tests`, both ISAs, over the real wire (a real `swish` binary behind
-a real `fs_subtree_caretaker` in front of a real `fs_server`):
+a real `fs_subtree_caretaker` in front of a real `redoxfs_server`):
 
 - `TOUCH_CREATED` / `TOUCH_PRESERVED` (built 2026-08-22): the create half's own pair, unchanged by
   this lane.
@@ -166,7 +166,7 @@ a real `fs_subtree_caretaker` in front of a real `fs_server`):
   mints with a raw `MKDIR` carrying `dir::ALL & !dir::SETTIME` (deliberately narrower than every
   other grant this script runs under), against which a bare `SETMTIME` succeeds and `SETMTIME_AT`
   is refused. This is what makes DECISIONS §112's split provable over the real wire rather than
-  only in `fs_server`'s in-process host tests: a wrong row in `filesystem_proto::verb::TABLE`, or a
+  only in `redoxfs_server`'s in-process host tests: a wrong row in `filesystem_proto::verb::TABLE`, or a
   caretaker that forwarded rights incorrectly, would not be caught by a test that calls
   `Server::set_mtime_at` directly.
 
@@ -189,7 +189,7 @@ mtime probes are not (yet) independently witnessed from the host, see `BUGS`.
   nothing else here to fall back to.
 - **The mtime probes' platter effect is not independently witnessed from the host** the way the
   create half's is (`xtask::shell_navigation_landed`). The kernel-boot assertions are a real proof
-  (real wire, real caretaker, real `fs_server`, real RedoxFS transaction), but nothing outside the
+  (real wire, real caretaker, real `redoxfs_server`, real RedoxFS transaction), but nothing outside the
   guest currently re-reads the image and checks a node's stored `mtime` field directly. A follow-up
   host check, reading the `NAV_TOUCH_NO_SETTIME`-prefixed directory `tools/redoxfs_host` left
   behind, would close this the same way the create half's host check already does.

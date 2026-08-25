@@ -33,7 +33,7 @@ redoxfs = { path = "../../vendor/redoxfs", default-features = false, features = 
 # writes these blobs and this tool reads them, so what the two must agree on is a crate rather than a
 # second copy of the record layout in a comment (CLAUDE.md rule 7). A change to the record header is
 # then a compile error here instead of a recovery that quietly reads garbage. `filesystem_proto` is `no_std`
-# with no dependencies of its own, so it costs this build nothing; `fs_server` already takes the same
+# with no dependencies of its own, so it costs this build nothing; `redoxfs_server` already takes the same
 # path dependency across the same workspace boundary, which is what shows cargo permits it.
 filesystem_proto = { version = "0.1.0", path = "../../crates/filesystem_proto" }
 
@@ -67,7 +67,7 @@ libc = "0.2"
 # upstream's archiver rather than our own `put`, and it is the whole reason the round trip means
 # anything. Not a runtime dependency: recovery never needs the server.
 [dev-dependencies]
-fs_server = { path = "../../fs_server" }
+redoxfs_server = { path = "../../redoxfs_server" }
 
 # cargo-machete (script/lint) reports `redox_syscall` unused here and is wrong: the crate's LIB name
 # is `syscall`, so every real use reads `use syscall::error::...` and a name-based scan cannot see

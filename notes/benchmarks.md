@@ -771,7 +771,7 @@ above; both baselines were re-saved in the commit that added it.
 the flagship: a client opens a file through a granted **directory capability** and reads a block, over
 the real confined stack (a block server driving the RedoxFS disk by DMA, the vendored RedoxFS engine
 mounting it over blk IPC on its own heap). It runs on the `--real --smp` boot, where the whole stack
-is proven by the fs_server test, and it reports:
+is proven by the redoxfs_server test, and it reports:
 
 ```
 fs_read   ~9.8M ticks / 2000 reads   ~204 us/read   (HVF, --release --smp, stable across runs)
@@ -1659,7 +1659,7 @@ four are shared by every file whose node id falls in the same 256. In the fixtur
 files and a `motd` share blocks 1 through 4 and differ only in block 5.
 
 **How it was counted.** A `Disk` implementation over an in-memory image that logs every `read_at`,
-built as a temporary probe in `fs_server`'s host tests and reverted before this note was committed
+built as a temporary probe in `redoxfs_server`'s host tests and reverted before this note was committed
 (see the reproduction below). `BlockDisk` splits a `Disk` call into whole-block transfers, one
 `fs_proto::blk` request each, exactly as `IpcDisk` does on device, so `ceil(len / 4096)` per call is
 the number of block-server round trips the request costs on the machine. The block *numbers* differ
@@ -1717,7 +1717,7 @@ cache in this server has coherency and confinement questions of its own, and mil
 out of scope on purpose. This is an argument about which milestone owns the 208 us, not a design for
 one.
 
-**Reproducing it.** The probe was a `Disk` recorder in `fs_server`'s `mod tests` plus a driver that
+**Reproducing it.** The probe was a `Disk` recorder in `redoxfs_server`'s `mod tests` plus a driver that
 clears the log per request and histograms block number against read count; it is not in the tree,
 because it is a one-question instrument and the tree already carries the two facts it produced. The
 whole of it is `read_tree_and_addr`'s five `read_block` calls, so a reader who wants the result
@@ -1966,7 +1966,7 @@ step 1 shipped and measured, that can be restated against real numbers rather th
 - **`fs_record_read` reads at multiples of 128 KiB and the record is now 8 KiB.** That is still a
   record boundary, which is the only property the phase needs, and keeping the constant is what makes
   every figure this phase has produced comparable across the whole sweep. It is no longer named after
-  the record size, and `fs_server` now asserts at compile time that the two divide; before this step
+  the record size, and `redoxfs_server` now asserts at compile time that the two divide; before this step
   `fs_proto` called the mismatch "the one soft spot in this module" and nothing checked it.
 - **Only levels 5, 1 and 0 were measured here.** The six-point sweep above is what establishes the
   line; this run confirms two points on it and one off it, and it would not have caught a
@@ -2097,7 +2097,7 @@ region the FS server and the block server share is 64 KiB of contiguous pages, `
 contiguous whole-block runs into one blk `CALL` (up to 16 blocks), and the block server issues one
 virtio descriptor for the whole batch instead of one per block. The crash injector and the
 write-verify diagnostic keep the pre-step-4, one-block-per-`CALL` path unconditionally, because
-neither tolerates a request the device completes as one indivisible unit; see `fs_server`'s
+neither tolerates a request the device completes as one indivisible unit; see `redoxfs_server`'s
 `IpcDisk::write_at` for the argument.
 
 ### Before and after, ten interleaved rounds each, on a shared and noisy machine
@@ -2151,10 +2151,10 @@ step 2, next, targets.
 
 ### Crash consistency, re-run at the new geometry
 
-`fs_server/tests/crash_consistency.rs`, unchanged pass: 0 silently wrong. It is honest to say why it
+`redoxfs_server/tests/crash_consistency.rs`, unchanged pass: 0 silently wrong. It is honest to say why it
 could not have changed, the same reason step 3's re-run gave: the host-side crash model drives
 `BlockDisk<Recording>` directly, below `IpcDisk`'s batching, so nothing this step touches is on that
-model's path. The **device-level** crash injector (`fs_server/src/bin/fs_server.rs`'s `inject`
+model's path. The **device-level** crash injector (`redoxfs_server/src/bin/redoxfs_server.rs`'s `inject`
 module) is on `IpcDisk`'s own path and is the reason `write_at` keeps an unconditional one-block-per-
 `CALL` fallback whenever it might be armed; that fallback is byte-for-byte the code this milestone's
 earlier steps already exercised, so the crash test's own coverage of the real device is unchanged by
@@ -2182,15 +2182,15 @@ Step 4's own finding said where the residual now lives: 5 of every 6 to 7 blk ca
 `Transaction::read_tree_and_addr`'s tree walk, issued fresh on **every** `Server::read`/`write`/...
 call even when the immediately preceding call resolved the identical node
 (notes/fs-server.md, "the same five blocks every time", first identified 2026-08-18 and never
-addressed until now). `fs_server::CachedDisk` (`fs_server/src/lib.rs`) wraps `IpcDisk` in a small
+addressed until now). `redoxfs_server::CachedDisk` (`redoxfs_server/src/lib.rs`) wraps `IpcDisk` in a small
 direct-mapped, write-through cache of single-block reads, 64 slots (`CACHE_SLOTS`,
-`fs_server/src/bin/fs_server.rs`), about 257 KiB. Only a `buffer.len() == BLOCK` `Disk::read_at`
+`redoxfs_server/src/bin/redoxfs_server.rs`), about 257 KiB. Only a `buffer.len() == BLOCK` `Disk::read_at`
 consults it; a record body (already the batched call step 4 built) bypasses it entirely. A write
 updates or invalidates the written block's slot, and only after the inner disk confirms the write
 landed, never before: RedoxFS's copy-on-write allocator never rewrites a live address in place, so
 the only way a cached address's content can change is through that same write path, which is what
 makes a bare write-through cache correct here with no generation counter. Six host tests
-(`fs_server/src/lib.rs`) check hit/miss, write-through freshness, short-write invalidation,
+(`redoxfs_server/src/lib.rs`) check hit/miss, write-through freshness, short-write invalidation,
 slot-collision safety and multi-block bypass in milliseconds, no emulator.
 
 ### Before and after, eight interleaved rounds each
@@ -2238,7 +2238,7 @@ of scope, deliberately", below).
 
 ### Crash consistency, re-run at the new geometry
 
-`fs_server/tests/crash_consistency.rs`, unchanged pass: 0 silently wrong, for the same structural
+`redoxfs_server/tests/crash_consistency.rs`, unchanged pass: 0 silently wrong, for the same structural
 reason step 3's and step 4's re-runs gave: the host-side model drives `BlockDisk<Recording>` below
 `CachedDisk`, so the cache is not on that model's path at all. The property that matters at the
 **device** level is different and is argued rather than merely re-run: milestone 37's recovery mount

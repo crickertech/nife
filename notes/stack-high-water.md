@@ -229,7 +229,7 @@ to explain would have been the difference. The suite grew by the two tests this 
 (aarch64 223 to 225, riscv64 224 to 226), and even that did not move the boot stack's deepest byte,
 which says those tests are nowhere near the deepest chain.
 
-The FS server's *user* stack has its own watermark already (`the_fs_servers_stack_still_has_headroom`,
+The FS server's *user* stack has its own watermark already (`the_redoxfs_servers_stack_still_has_headroom`,
 in `kernel/src/user/tests.rs` and its RISC-V twin in `riscv_virtio_tests.rs`); this instrument is the
 kernel-stack complement.
 

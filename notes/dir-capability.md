@@ -8,7 +8,7 @@ program being confined.
 
 The contract lives with its code in `crates/fs_proto` (the `dir` and `dirent` modules, and the
 `OPENDIR`/`READDIR`/`MKDIR`/`RENAME` verbs in `fs`). The engine-side implementation is
-`fs_server/src/lib.rs`; the caretaker is `user/src/fs_subtree_caretaker.rs`; the wiring and the
+`redoxfs_server/src/lib.rs`; the caretaker is `user/src/fs_subtree_caretaker.rs`; the wiring and the
 attacks are `kernel/src/user/fs_service.rs`'s `start_granted_dir` and
 `kernel/src/user/dir_capability_tests.rs`. This note is the argument around them. Read
 [fs-server.md](fs-server.md) first for the contract this extends.
@@ -237,7 +237,7 @@ POSIX made, so:
 - **Crash-atomic: yes, and measured.** The whole rename runs inside one `fs.tx`, which reaches the
   platter through one commit in RedoxFS's header ring. That is a design claim until something cuts
   the power, so the rename is now **the last operation of the workload in
-  `fs_server/tests/crash_consistency.rs`**, whose sweep cuts the device at every write the workload
+  `redoxfs_server/tests/crash_consistency.rs`**, whose sweep cuts the device at every write the workload
   makes and mounts what is left. A recovery holding the file under both names, or under neither, is
   a state that never existed and fails the sweep. Both names are in that test's `NAMES`, so a
   snapshot reads both and cannot miss either case.
@@ -439,7 +439,7 @@ Grant a subtree to a confined program, read-only, and attack it:
 // kernel/src/user/dir_capability_tests.rs
 let report = fs_service::start_granted_dir(
     blk_server_image(),
-    program("fs_server").unwrap(),
+    program("redoxfs_server").unwrap(),
     program("fs_subtree_caretaker").unwrap(),
     program("fs_test_client").unwrap(),
     fs_service::DirGrant {
@@ -480,6 +480,6 @@ Run the whole thing:
 ```sh
 script/test                         # both ISAs, plus the post-run host confinement check
 cargo test -p fs_proto              # the contract and the ladder's arithmetic
-cargo test --manifest-path fs_server/Cargo.toml   # the engine side, and the crash sweep
+cargo test --manifest-path redoxfs_server/Cargo.toml   # the engine side, and the crash sweep
 cargo kani -p fs_proto              # attenuation never widens, at any depth
 ```

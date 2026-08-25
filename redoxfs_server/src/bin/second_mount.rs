@@ -4,7 +4,7 @@
 //! the recorded hypothesis is accumulated mount state driving the FS server past its 8 MiB heap cap.
 //! This binary settles it without an emulator: it runs the real engine under the **same allocator the
 //! FS server uses** (`user_heap`, the algorithm behind `user_rt::heap::UntypedHeap`), grown incrementally
-//! and capped exactly the way `fs_server.rs` caps it, and it does the two mounts in one process:
+//! and capped exactly the way `redoxfs_server.rs` caps it, and it does the two mounts in one process:
 //!
 //! 1. create the fixture image, then mount it and write (this is what makes the image *used*),
 //! 2. drop the mount the way a dying process does (no unmount), then **mount again and write**.
@@ -16,8 +16,8 @@
 //! The cap is the experiment's dial:
 //!
 //! ```text
-//! cargo run --manifest-path fs_server/Cargo.toml --bin second_mount            # 8 MiB, the device cap
-//! NIFE_HEAP_MIB=64 cargo run --manifest-path fs_server/Cargo.toml --bin second_mount
+//! cargo run --manifest-path redoxfs_server/Cargo.toml --bin second_mount            # 8 MiB, the device cap
+//! NIFE_HEAP_MIB=64 cargo run --manifest-path redoxfs_server/Cargo.toml --bin second_mount
 //! ```
 //!
 //! If mount 2's write fails at 8 MiB and succeeds at 64, the failure is heap exhaustion and the
@@ -28,8 +28,8 @@ use std::alloc::{GlobalAlloc, Layout};
 use std::cell::UnsafeCell;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
-use fs_server::{BLOCK, BlockDisk, BlockIo, Server};
 use redoxfs::{FileSystem, Node, TreePtr};
+use redoxfs_server::{BLOCK, BlockDisk, BlockIo, Server};
 
 /// The pool the capped allocator draws from. Large enough to serve any cap we dial in; the *cap*,
 /// not the pool, is what limits the heap. BSS, so it costs nothing in the binary.
@@ -41,7 +41,7 @@ const PAGE: usize = 4096;
 const MIN_GROW_PAGES: usize = 8;
 
 /// The heap cap in bytes, from `NIFE_HEAP_MIB`, defaulting to the FS server's 8 MiB
-/// (`fs_server.rs::HEAP_MAX`, which `FS_BUDGET_PAGES` in kernel/src/user.rs matches).
+/// (`redoxfs_server.rs::HEAP_MAX`, which `FS_BUDGET_PAGES` in kernel/src/user.rs matches).
 fn heap_cap() -> usize {
     std::env::var("NIFE_HEAP_MIB")
         .ok()

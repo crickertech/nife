@@ -29,9 +29,9 @@ struct Wired {
     duplicate: [u64; 2],
 }
 
-/// The name `fs_server`'s image travels under; present only when `test` built it.
-fn fs_server_image() -> &'static [u8] {
-    program("fs_server").expect("no fs_server program in the initrd archive")
+/// The name `redoxfs_server`'s image travels under; present only when `test` built it.
+fn redoxfs_server_image() -> &'static [u8] {
+    program("redoxfs_server").expect("no redoxfs_server program in the initrd archive")
 }
 
 /// **Wire a fresh entropy service, a fresh (unsealed) credential service, and the file service, then
@@ -74,7 +74,7 @@ fn wired() -> Option<Wired> {
                 program("credentialer").expect("no credentialer program in the initrd archive");
             let w = cs::start(svc, e.request);
             let (fs_ep, fs_frame) =
-                fs_service::root_directory(fs_service::blk_server_image(), fs_server_image())?;
+                fs_service::root_directory(fs_service::blk_server_image(), redoxfs_server_image())?;
 
             let prov_image = program("identity_provisioner")
                 .expect("no identity_provisioner program in the initrd archive");
@@ -195,7 +195,7 @@ fn provisioning_creates_a_working_credential_and_a_real_subtree() {
     // panic here is the correct failure mode for this suite, matching every other filesystem test.
     let _ = fs_service::narrow_dir(
         fs_service::blk_server_image(),
-        fs_server_image(),
+        redoxfs_server_image(),
         caretaker,
         IDENTITY_STR,
         filesystem_proto::dir::ALL,

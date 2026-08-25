@@ -565,7 +565,7 @@ is now zero as far as a mechanism can see, and the mechanism's own blind spot is
 ### Five of these were bindings, not verbs, and milestone 64 bound them
 
 Ranks 5, 11, 12, 13 and 25 (`create_dir`, `read_dir`, `remove_file`, `remove_dir`, `rename`) were
-each backed by a verb the FS server **already implemented**: `fs_server/src/bin/fs_server.rs` has
+each backed by a verb the FS server **already implemented**: `redoxfs_server/src/bin/redoxfs_server.rs` has
 dispatched `MKDIR`, `OPENDIR`, `READDIR`, `UNLINK`, `RMDIR` and `RENAME` since milestones 47 and 48.
 Nothing was missing from the contract and nothing was missing from the server; the client side in
 `patches/std-nife/overlay/std/src/sys/fs/nife.rs` simply still refused, and its own comments

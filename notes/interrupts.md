@@ -413,7 +413,7 @@ computes from current state. It is the smallest possible critical section (a rea
 write) and it is off the hot path, so it costs nothing measurable.
 
 Proven the same way as the GIC: the riscv suite is green at the 4-hart boot with device sources
-spread across harts (disk read, the interrupt-driven fs_server block server, both routed to whatever
+spread across harts (disk read, the interrupt-driven redoxfs_server block server, both routed to whatever
 hart the round-robin picked, plus the SMP placement tests). As on aarch64, this distributes the
 interrupt and the wake it causes; it does not by itself parallelize the `std_net` pipeline, which
 needs the load-aware rendezvous wake (see below).
@@ -425,7 +425,7 @@ diagnosis was tempting and the right one took two agents to reach.
 
 The `std_net` test (smoltcp in `net_stack` serving a std program's `UdpSocket`/`TcpStream`) used to hang
 under the 4-core boot on **both** ISAs, watchdog-killed at 60 s, while in the same run the hand-built
-DHCP round trips (`virtio_net`, `virtio_net_pci`) passed and the interrupt-driven fs_server block
+DHCP round trips (`virtio_net`, `virtio_net_pci`) passed and the interrupt-driven redoxfs_server block
 server passed. That asymmetry was the tell: interrupt delivery under SMP was sound, and the hang was
 specific to the heavier, longer, timer-driven smoltcp pipeline.
 

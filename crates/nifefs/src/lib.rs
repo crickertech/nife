@@ -73,7 +73,7 @@
 //!   [`ENTRIES_IN_FIRST_BLOCK`] files and no more. It is used on the tiny test disk, not the
 //!   initrd, but the limit is real and nothing in the format announces it.
 //! - **No directories, no writes, no permissions.** This is a boot archive. The read-write
-//!   filesystem is the RedoxFS server in `fs_server/` (DECISIONS §34), which is a different job.
+//!   filesystem is the RedoxFS server in `redoxfs_server/` (DECISIONS §34), which is a different job.
 //!
 //! Name: ratified 2026-08-01 as `crickerfs` (calef, milestone 63): the one run-together name kept
 //! when that rule was deleted. Refused `cricker_fs` (`procfs` is the shape of a filesystem name

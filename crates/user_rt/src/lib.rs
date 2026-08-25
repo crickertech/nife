@@ -509,7 +509,7 @@ pub fn trap() -> ! {
 /// What the header got wrong, and what milestone 130 is fixing, is the clause after it: "each
 /// binary keeps its own one-line handler; it is trivial." It stopped being one line. By the time
 /// anyone counted it was fifteen, with two `unsafe` blocks and two `// SAFETY:` comments, at
-/// forty-eight sites across `user/`, `crates/` and `fs_server/`, in **seven** variants. One of
+/// forty-eight sites across `user/`, `crates/` and `redoxfs_server/`, in **seven** variants. One of
 /// them (`terminal_sink_caretaker`) called `exit` instead of trapping, which reports a clean death
 /// for a panicking program; it was latent only because that program happens to be spawned
 /// unsupervised.

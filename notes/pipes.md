@@ -921,7 +921,7 @@ the page at `FS_VA`. Nothing else in the system changed shape; the shell simply 
 capability.
 
 ```text
-  kernel  ── wires blk + fs_server, drains both readiness sentinels ──┐
+  kernel  ── wires blk + redoxfs_server, drains both readiness sentinels ──┐
                                                                      v
           ── spawns init, granting the FS endpoint and the page (GRANT on both)
                                                                      |

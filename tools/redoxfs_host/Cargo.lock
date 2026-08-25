@@ -245,18 +245,6 @@ name = "filesystem_proto"
 version = "0.1.0"
 
 [[package]]
-name = "fs_server"
-version = "0.1.0"
-dependencies = [
- "entropy_proto",
- "filesystem_proto",
- "gpt",
- "redox_syscall",
- "redoxfs",
- "user_heap",
-]
-
-[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -519,11 +507,23 @@ name = "redoxfs_host"
 version = "0.1.0"
 dependencies = [
  "filesystem_proto",
- "fs_server",
  "gpt",
  "libc",
  "redox_syscall",
  "redoxfs",
+ "redoxfs_server",
+]
+
+[[package]]
+name = "redoxfs_server"
+version = "0.1.0"
+dependencies = [
+ "entropy_proto",
+ "filesystem_proto",
+ "gpt",
+ "redox_syscall",
+ "redoxfs",
+ "user_heap",
 ]
 
 [[package]]

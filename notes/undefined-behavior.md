@@ -98,7 +98,7 @@ does not restate the exhaustive claims; those stay native-only, in `script/test`
 sweeps lose nothing Miri-specific: what they add natively is completeness of the CRC argument,
 which is not a memory property.
 
-Two test surfaces stay out entirely, deliberately. `tools/redoxfs_host` and `fs_server` are their
+Two test surfaces stay out entirely, deliberately. `tools/redoxfs_host` and `redoxfs_server` are their
 own workspaces whose runtime is spent inside the vendored RedoxFS engine, and a finding in vendored
 code lands in the vendor pin, not in a crate this tree can fix (vendor/README.md). They keep their
 native gates in `script/test`.

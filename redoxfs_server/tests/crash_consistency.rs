@@ -43,11 +43,11 @@
 
 #![cfg(feature = "hosttest")]
 
-use fs_server::crash::{
+use redoxfs::{FileSystem, HEADER_RING, Node, TreePtr};
+use redoxfs_server::crash::{
     Damage, MemIo, Recording, Write, blank_image, damaged_image, header_at, only_this_generation,
 };
-use fs_server::{BLOCK, BlockDisk, Server};
-use redoxfs::{FileSystem, HEADER_RING, Node, TreePtr};
+use redoxfs_server::{BLOCK, BlockDisk, Server};
 
 /// The image size the fixture is built at. Big enough for the record-spanning write below to
 /// copy-on-write itself several times over, small enough that cloning it once per fault point is

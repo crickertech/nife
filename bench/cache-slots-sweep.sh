@@ -6,14 +6,14 @@
 # Transaction::read_tree_and_addr's five-block tree walk untouched: it is issued as five separate
 # single-block Disk::read_at calls, one per level, fresh on every Server::read/write/... call, even
 # when the last call resolved the very same node (notes/fs-server.md, "the same five blocks every
-# time"). Step 2's CachedDisk (fs_server/src/lib.rs) answers a repeated single-block read from
+# time"). Step 2's CachedDisk (redoxfs_server/src/lib.rs) answers a repeated single-block read from
 # memory instead. Its payoff shows up ACROSS separate file-service requests to the same handle, not
 # within one large transfer, because RedoxFS only walks the tree once per Server call regardless of
 # how many records that one call's transfer spans. This sweep is the measurement that says how much,
 # the sibling of bench/record-level-sweep.sh, bench/transfer-size-sweep.sh and
 # bench/blk-transfer-sweep.sh in shape.
 #
-# WHAT IT DOES. `CACHE_SLOTS` (fs_server/src/bin/fs_server.rs) is how many single blocks
+# WHAT IT DOES. `CACHE_SLOTS` (redoxfs_server/src/bin/redoxfs_server.rs) is how many single blocks
 # `CachedDisk` holds. This script EDITS THAT CONSTANT IN PLACE, builds, measures, and puts it back.
 # It restores on any exit, including a signal, and refuses to start if that file is already dirty.
 #
@@ -61,7 +61,7 @@ set -eu
 
 cd "$(dirname "$0")/.."
 
-BIN=fs_server/src/bin/fs_server.rs
+BIN=redoxfs_server/src/bin/redoxfs_server.rs
 SAVED=$(mktemp -t cache-slots-sweep)
 
 restore() {

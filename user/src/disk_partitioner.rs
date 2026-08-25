@@ -80,7 +80,7 @@
 //! argued for it). The clearest ratification owed on this surface. The introducing commit (4db2fd7, 2026-08-03, milestone 57) says
 //! "`disk_partitioner` (provisional name) writes the map `disk_surveyor` reads" and calls its
 //! sibling "`fs_maker` (provisional name)" in the same breath. So the record does not explain the
-//! word; it records that nobody decided it. That sibling is `fs_server/src/bin/mkfs.rs` now, which
+//! word; it records that nobody decided it. That sibling is `redoxfs_server/src/bin/mkfs.rs` now, which
 //! is a second provisional name resolved by somebody mid-task on a surface this record does not
 //! cover (see notes/naming.md's BUGS). `disk_surveyor` calef approved by name the same day,
 //! and the pairing of the two (survey, partition) is visible in the tree without being written

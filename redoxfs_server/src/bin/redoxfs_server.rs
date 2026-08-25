@@ -1,10 +1,10 @@
 //! **The FS-server EL0 binary** (milestone 32 phase 2): RedoxFS, confined, served over IPC.
 //!
-//! The sans-IO core is [`fs_server::Server`]; this file is only the two IO edges it needs and the
+//! The sans-IO core is [`redoxfs_server::Server`]; this file is only the two IO edges it needs and the
 //! runtime a dedicated binary carries. Below it, the [`IpcDisk`] turns the RedoxFS `Disk` trait into
 //! a **blk-IPC client**: a `read_at`/`write_at`/`size` is one or more `CALL`s to the block server,
 //! up to `blk::TRANSFER_BLOCKS` contiguous filesystem blocks per call (milestone 138 step 4).
-//! `IpcDisk` is itself wrapped in [`fs_server::CachedDisk`] (step 2), which answers a repeated
+//! `IpcDisk` is itself wrapped in [`redoxfs_server::CachedDisk`] (step 2), which answers a repeated
 //! single-block read (the tree spine `Transaction::read_tree_and_addr` walks fresh on every
 //! `Server::read`/`write`/...) from memory instead of a second round trip. Above both, [`serve`]
 //! turns file-service requests from clients into `Server` calls and answers through the one-shot
@@ -32,8 +32,8 @@
 extern crate alloc;
 
 use filesystem_proto::{blk, fs, op, reply_err, xattr};
-use fs_server::{CachedDisk, Server};
 use redoxfs::Disk;
+use redoxfs_server::{CachedDisk, Server};
 use syscall::error::{EINVAL, EIO, Error, Result};
 use user_rt::{call, invoke, recv_cap, send};
 
@@ -66,7 +66,7 @@ const BLOCK: usize = blk::BLOCK_SIZE;
 /// kernel grants is the real ceiling.
 const HEAP_MAX: u64 = 8 * 1024 * 1024;
 
-/// **How many single blocks [`fs_server::CachedDisk`] holds** (milestone 138 step 2). One open
+/// **How many single blocks [`redoxfs_server::CachedDisk`] holds** (milestone 138 step 2). One open
 /// file's tree spine is five blocks (notes/fs-server.md, "the same five blocks every time"); 64
 /// gives more than twelve times that so several open handles stay hot at once without thrashing
 /// each other out, at `64 * (8 + BLOCK) = 262,656` bytes, about 257 KiB.
@@ -490,7 +490,7 @@ fn serve(server: &mut Server<CachedDisk<IpcDisk>>) -> ! {
             // **Extended attributes** (milestone 57). The handle field is the file or directory the
             // attribute is on rather than a parent directory, which is the one shape difference from
             // OPEN: an attribute has no name in any namespace, so there is nothing to resolve it
-            // under. The layer itself is in `fs_server`; this is only where the page is cut up.
+            // under. The layer itself is in `redoxfs_server`; this is only where the page is cut up.
             fs::GETXATTR => {
                 // The name comes in on the page and the value goes back out on it, so the name is
                 // copied to the stack before the reply is written over it. 255 bytes against a
@@ -562,7 +562,7 @@ fn serve(server: &mut Server<CachedDisk<IpcDisk>>) -> ! {
             // **The mtime verbs** (milestone 47's `touch`; DECISIONS §112). All three name-taking,
             // [`fs::UNLINK`]'s shape: the name is `len` bytes at the start of the shared page,
             // resolved under the directory `handle` names. The rights split lives in the
-            // host-tested core (`fs_server::Server::mtime`/`set_mtime_now`/`set_mtime_at`); this
+            // host-tested core (`redoxfs_server::Server::mtime`/`set_mtime_now`/`set_mtime_at`); this
             // arm is only where the page is cut up, [`fs::GETXATTR`]'s boundary.
             fs::GETMTIME => {
                 // SAFETY: the name is `len` bytes the client wrote at the start of FILE_PAGE.

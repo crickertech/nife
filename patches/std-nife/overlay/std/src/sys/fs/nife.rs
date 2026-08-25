@@ -520,7 +520,7 @@ fn open_handle(path: &Path, opts: &OpenOptions) -> io::Result<u64> {
 ///
 /// **The walk asks for `CREATE` *and* what the caller will do with the file**, and leaving the
 /// second half out is a bug the nested case finds and the flat case cannot. A file handle carries
-/// `parent & (READ | WRITE)` (`fs_server`'s `create_file_at`, the same arithmetic as `open_file_at`),
+/// `parent & (READ | WRITE)` (`redoxfs_server`'s `create_file_at`, the same arithmetic as `open_file_at`),
 /// so a descent that asked only for `CREATE` hands back a directory handle with no `WRITE` in it,
 /// which mints a file nobody can write. `std::fs::write("a/b")` created the file and then failed
 /// with `EROFS` on its own first write. Against the granted directory it never showed, because

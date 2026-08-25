@@ -230,7 +230,7 @@ const PF_NIFE: u64 = 1 << 3;
 const PF_NAMES: u64 = 1 << 4;
 const PF_UNIQUE: u64 = 1 << 5;
 
-// `mkfs`'s roles and verdicts. Must match fs_server/src/bin/mkfs.rs.
+// `mkfs`'s roles and verdicts. Must match redoxfs_server/src/bin/mkfs.rs.
 const ROLE_MAKE: u64 = 0;
 const ROLE_CHECK: u64 = 1;
 const R_MADE: u64 = 0x_4D_4B_46_53_44;

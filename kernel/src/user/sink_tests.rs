@@ -118,7 +118,7 @@ fn wc_counts(out: RendezvousId, what: &str) -> (u64, u64, u64) {
 fn one_reader_two_sources_and_the_same_answer() {
     let sink_image = program("sink").expect("no sink program in the initrd archive");
     let blk = program("init").expect("no init program in the initrd archive");
-    let Some(fs_server) = program("fs_server") else {
+    let Some(redoxfs_server) = program("redoxfs_server") else {
         crate::println!("    (no FS server in this archive; skipping)");
         return;
     };
@@ -150,7 +150,7 @@ fn one_reader_two_sources_and_the_same_answer() {
     );
 
     // Arm two: the same bytes, through a real filesystem. Write them first.
-    let Some(file_sink) = fs_service::start_file_sink(blk, fs_server, sink_image) else {
+    let Some(file_sink) = fs_service::start_file_sink(blk, redoxfs_server, sink_image) else {
         crate::println!("    (no RedoxFS disk attached; the pipe arm stands alone)");
         return;
     };
@@ -175,7 +175,8 @@ fn one_reader_two_sources_and_the_same_answer() {
     );
 
     // Then read them back into `wc`, which is `<`.
-    let Some((source, verify_report)) = fs_service::start_sink_verify(blk, fs_server, sink_image)
+    let Some((source, verify_report)) =
+        fs_service::start_sink_verify(blk, redoxfs_server, sink_image)
     else {
         panic!("the FS service vanished between the file sink and its source");
     };
@@ -225,7 +226,7 @@ fn a_program_cannot_tell_what_its_output_slot_holds() {
     let clock = program("clock").expect("no clock program in the initrd archive");
     let entropy = program("entropy").expect("no entropy program in the initrd archive");
     let sink_image = program("sink").expect("no sink program in the initrd archive");
-    let Some(fs_server) = program("fs_server") else {
+    let Some(redoxfs_server) = program("redoxfs_server") else {
         crate::println!("    (no FS server in this archive; skipping)");
         return;
     };
@@ -247,7 +248,7 @@ fn a_program_cannot_tell_what_its_output_slot_holds() {
     // `fs_service::wait_for_caretaker` records: it stages a name in the page it shares with the
     // FS server, and a client that already existed could write over it.
     let blk = program("init").expect("no init program in the initrd archive");
-    let Some(file_sink) = fs_service::start_file_sink(blk, fs_server, sink_image) else {
+    let Some(file_sink) = fs_service::start_file_sink(blk, redoxfs_server, sink_image) else {
         crate::println!("    (no RedoxFS disk attached; skipping)");
         return;
     };
@@ -274,7 +275,7 @@ fn a_program_cannot_tell_what_its_output_slot_holds() {
 
     // The read-back, in a third process with its own FS session, and only now that the sink has
     // closed the file: the two share the FS server's one file page.
-    let Some((out, verify_report)) = fs_service::start_sink_verify(blk, fs_server, sink_image)
+    let Some((out, verify_report)) = fs_service::start_sink_verify(blk, redoxfs_server, sink_image)
     else {
         panic!("the FS service vanished between the file sink and its verifier");
     };

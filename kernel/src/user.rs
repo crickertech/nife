@@ -757,8 +757,8 @@ pub fn spawn_init(
     // whole chain from here to the prompt treats it as "this boot has no filesystem" rather than as
     // a failure. The other roles are milestone 19d's tests, which wire their own worlds.
     let fs = if role == INIT_BOOT_ROLE {
-        program("fs_server").and_then(|fs_server| {
-            fs_service::root_directory(fs_service::blk_server_image(), fs_server)
+        program("redoxfs_server").and_then(|redoxfs_server| {
+            fs_service::root_directory(fs_service::blk_server_image(), redoxfs_server)
         })
     } else {
         None
@@ -941,8 +941,10 @@ pub fn smb_serve_boot() {
     // guest, guest means everyone (`smb_proto`'s BUGS), so anything reachable on the forwarded
     // port may change the image. The banner below says so where the person about to mount it
     // will read it.
-    let fs = program("fs_server")
-        .and_then(|fs_server| fs_service::root_directory(fs_service::blk_server_image(), fs_server))
+    let fs = program("redoxfs_server")
+        .and_then(|redoxfs_server| {
+            fs_service::root_directory(fs_service::blk_server_image(), redoxfs_server)
+        })
         .map(|(ep, shared)| (ep, shared, virtio_service::SMB_SHARE_FS_READ_WRITE));
     if fs.is_none() {
         println!("smb-serve: no RedoxFS disk; serving the baked-in fixture share");
@@ -1775,9 +1777,9 @@ pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), Loa
     // narrows the endpoint into the shell and maps the frame into its address space. `a2` carries
     // the rights the endpoint holds, which is also how init is told there is one at all. `None` is
     // the ordinary case for a run with no RedoxFS disk attached.
-    let fs_rights = match program("fs_server")
-        .and_then(|fs_server| fs_service::root_directory(fs_service::blk_server_image(), fs_server))
-    {
+    let fs_rights = match program("redoxfs_server").and_then(|redoxfs_server| {
+        fs_service::root_directory(fs_service::blk_server_image(), redoxfs_server)
+    }) {
         Some((file_ep, file_shared)) => {
             let s4 = crate::sched::tcb_insert_cap(
                 tid,

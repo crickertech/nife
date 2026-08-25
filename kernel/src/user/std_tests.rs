@@ -84,11 +84,11 @@ pub(super) fn drain_sink(ep: crate::sched::RendezvousId, out: &mut [u8], what: &
 /// happens to write its commit, and the claim is not about that.
 pub(super) fn assert_a_kill_mid_transaction_recovers(
     blk_image: &'static [u8],
-    fs_server_image: &'static [u8],
+    redoxfs_server_image: &'static [u8],
     client_image: &'static [u8],
 ) {
     use filesystem_proto::fixture::{READY, SUCCESS, crash};
-    let Some(run) = fs_service::start_crash(blk_image, fs_server_image, client_image) else {
+    let Some(run) = fs_service::start_crash(blk_image, redoxfs_server_image, client_image) else {
         crate::println!("    (no crash disk attached; skipping)");
         return;
     };
@@ -118,7 +118,7 @@ pub(super) fn assert_a_kill_mid_transaction_recovers(
          test, and the recovery below would be measuring the wrong thing",
     );
 
-    let (ready, report) = fs_service::recover_crash(fs_server_image, client_image);
+    let (ready, report) = fs_service::recover_crash(redoxfs_server_image, client_image);
     assert_eq!(
         crate::sched::ipc_recv(ready)[0],
         READY,
@@ -219,7 +219,7 @@ pub(super) fn assert_smb_write_landed(had_fs: bool) {
     }
     let (_, report) = fs_service::start(
         fs_service::blk_server_image(),
-        program("fs_server").expect("no fs_server program in the initrd archive"),
+        program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),
         program("fs_test_client").expect("no fs_test_client program in the initrd archive"),
         8, // ROLE_SMB_VERIFY, matching user/src/fs_test_client.rs
     )
