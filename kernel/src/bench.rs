@@ -59,6 +59,8 @@ pub fn run() -> ! {
     println!("bench: cntfrq {}", crate::arch::timer::frequency());
 
     yield_switch();
+    #[cfg(target_arch = "x86_64")]
+    tss_iomap_switch();
     ipc_rtt();
     relay_rtt();
     call_reply();
@@ -106,6 +108,56 @@ fn yield_switch() {
     timed("yield_switch", YIELD_ITERS, || {
         for _ in 0..YIELD_ITERS {
             sched::yield_now();
+        }
+    });
+    DONE.store(true, Ordering::Relaxed);
+    sched::yield_now(); // let the peer see the flag and exit
+}
+
+/// **What writing the TSS I/O permission bitmap costs on every switch-in** (`x86_64` only;
+/// DECISIONS §121's amendment, 2026-08-24, "a micro-benchmark that writes an 8 KiB bitmap into the
+/// current CPU's TSS on every switch, timed against a switch that does not").
+///
+/// The exact same two-thread yield ping-pong as [`yield_switch`] above, plus one
+/// [`crate::arch::segments::bench_write_io_bitmap`] call on every resume, in both threads (a real
+/// switch-in hook fires regardless of which thread it lands on, so writing only from the timed
+/// loop would undercount by half). Reading this bench's `ns/iter` against `yield_switch`'s from the
+/// same boot is the whole measurement: same iteration count, same two threads, same scheduler path,
+/// one call different. See the module doc on [`bench_write_io_bitmap`][crate::arch::segments::bench_write_io_bitmap]
+/// for what the write is (and is not) a stand-in for.
+#[cfg(target_arch = "x86_64")]
+fn tss_iomap_switch() {
+    use core::sync::atomic::AtomicU8;
+
+    static DONE: AtomicBool = AtomicBool::new(false);
+    // Folds every write's last byte in, so the optimizer cannot prove the bitmap writes are dead
+    // even though nothing ever reads BENCH_IOMAP back through a port instruction.
+    static SINK: AtomicU8 = AtomicU8::new(0);
+
+    fn switch_and_write(pattern: &mut u8) {
+        sched::yield_now();
+        *pattern = pattern.wrapping_add(1);
+        SINK.fetch_xor(
+            crate::arch::segments::bench_write_io_bitmap(*pattern),
+            Ordering::Relaxed,
+        );
+    }
+
+    sched::spawn(|| {
+        let mut pattern = 0u8;
+        while !DONE.load(Ordering::Relaxed) {
+            switch_and_write(&mut pattern);
+        }
+    })
+    .expect("bench: no peer thread");
+
+    let mut pattern = 0u8;
+    for _ in 0..WARMUP {
+        switch_and_write(&mut pattern);
+    }
+    timed("tss_iomap_switch", YIELD_ITERS, || {
+        for _ in 0..YIELD_ITERS {
+            switch_and_write(&mut pattern);
         }
     });
     DONE.store(true, Ordering::Relaxed);
