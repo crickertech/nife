@@ -37,13 +37,13 @@ that reach it* already having diverged, silently, in a way nobody had named unti
   Reading the wrong one gets a program with no such roles."* The real boot path,
   `riscv_shell_boot`, never touches the `init` archive entry at all: it reads `"system_initializer"`
   by its own name directly, measures it under that name in the trust root, and boots it. `builder`
-  (packed as `init`) is a narrow, standalone milestone-20 demo — parses the archive, builds one
-  hardcoded child (`worker`), starts it with a fixed input, exits — invoked only by
+  (packed as `init`) is a narrow, standalone milestone-20 demo: it parses the archive, builds one
+  hardcoded child (`worker`), starts it with a fixed input, and exits. Invoked only by
   `riscv_initrd_demo`, structurally unrelated to the real interactive boot.
 - **x86_64** (PR #476, milestone 161 item 4's hand-off, as of this writing still open/unmerged).
   Currently maps `init -> builder` too, via the same `portable_archive_entries()` table riscv64's
   `initrd_riscv` now shares. Per this milestone's own finding, that mapping was never actually
-  riscv64's real boot program to begin with — so x86_64 may be inheriting the same legacy-artifact
+  riscv64's real boot program to begin with, so x86_64 may be inheriting the same legacy-artifact
   choice riscv64 carries, rather than a deliberate one. **Read what PR #476 actually shipped before
   starting this milestone**: it may already need to change, or it may be a clean-slate opportunity
   to give the third architecture the right shape from the start, and that's worth knowing before
@@ -59,14 +59,14 @@ wrong on their own terms, all of them different.
 
 **Not a rename.** The near-miss this session was exactly that mistake: reading the surface
 inconsistency (three packers disagree on `init -> X`) and assuming the fix is picking one `X` and
-repointing the others at it. It isn't — `hello`'s `init_boot` role and `builder`'s standalone demo
+repointing the others at it. It isn't: `hello`'s `init_boot` role and `builder`'s standalone demo
 do different jobs, and neither can simply replace the other without losing something (aarch64's real
 boot device-grant table, in `hello`'s case; nothing load-bearing, in `builder`'s, which is why it's
 the one safe to retire from the `init` slot).
 
 **Not a decision this milestone makes.** What (if anything) the archive's `init` slot should hold on
 each architecture, once the real boot orchestrator has its own name everywhere, is an open design
-question for whoever builds this — not predetermined here.
+question for whoever builds this, not predetermined here.
 
 ## The direction the investigation suggested, not yet decided
 
@@ -84,13 +84,13 @@ nothing at all, or something else) without one archive slot quietly carrying two
 - `user/src/hello.rs`'s `init_boot` role (27) and its other, independently-tested roles
   (`SELF_CHECK`, `UNTYPED_DEMO`, the `VIRTIO_*` probes, `GRANTER`/`RECEIVER`,
   `FRAME_PRODUCER`/`CONSUMER`, `CALL_SERVER`/`CLIENT`, `REVOKE_DEMO`, `ASPACE_BUILDER`,
-  `EP_MAKER`/`EP_USER`) — these have solid, live coverage today through direct-by-name lookup
+  `EP_MAKER`/`EP_USER`): these have solid, live coverage today through direct-by-name lookup
   (`HELLO_ENTRY`, ~28 call sites in `kernel/src/user/tests.rs`) and are unrelated to which program
   plays `init`; whoever builds this should confirm that coverage stays intact regardless of how the
   `init` question resolves.
 - `user/src/builder.rs`, whose own role in the `init` slot (on riscv64 today, x86_64 pending #476)
   is exactly what this milestone reconsiders.
-- `crates/system_initializer`, unchanged in logic — this milestone is about the paths that reach it,
+- `crates/system_initializer`, unchanged in logic: this milestone is about the paths that reach it,
   not the orchestrator itself.
 
 ## Why it matters
@@ -108,4 +108,4 @@ by reading `kernel/src/user.rs` closely, not something the tree states once and 
 Whoever picks this up should read PR #476's actual, landed x86_64 choice first (not this milestone's
 description of it, which is current only as of 2026-08-25), decide whether aarch64's real boot should
 move to a named `system_initializer` archive entry the way riscv64's already is, and only then decide
-what — if anything — the `init` slot should mean on each architecture going forward.
+what (if anything) the `init` slot should mean on each architecture going forward.
