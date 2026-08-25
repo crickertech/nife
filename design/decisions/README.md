@@ -134,7 +134,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 73 | DECIDED | [Milestone 44's ten admin minutes, which only calef can spend](73-repository-admin-steps.md) |
 | 74 | DECIDED | [Audits run on change, not on the calendar: events first, then a count](74-audit-cadence.md) |
 | 75 | DECIDED | [Directories under `design/` and `notes/` carry provenance in their own README](75-naming-covers-directories.md) |
-| 76 | PROPOSED | [What catches a milestone status that is wrong in both places?](76-roadmap-status-versus-tree.md) |
+| 76 | DECIDED | [What catches a milestone status that is wrong in both places?](76-roadmap-status-versus-tree.md) |
 | 77 | DECIDED | [The branch-prefix list now describes the tree](77-branch-prefixes.md) |
 | 78 | PROPOSED | [Signed commits: worth doing, and not as a side effect](78-signed-commits.md) |
 | 79 | DECIDED | [Holding password-equivalent material, and what a session key release means](79-password-equivalent-material.md) |
