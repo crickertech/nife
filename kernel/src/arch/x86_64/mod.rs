@@ -67,7 +67,7 @@ global_asm!(include_str!("boot.s"));
 // The context switch and the two first-run trampolines (the asm half of context.rs).
 global_asm!(include_str!("context.s"));
 
-// The 256 trap stubs, the shared restore path, the `syscall` entry, and the two doors into ring 3
+// The 256 trap stubs, the shared restore path, the `syscall` entry, and the door into ring 3
 // (the asm half of exceptions.rs). The three constants are substituted rather than duplicated: a
 // 64-bit assembler cannot read a Rust `const`, and the alternative is two files that can drift.
 global_asm!(
@@ -75,15 +75,6 @@ global_asm!(
     USER_CODE = const segments::USER_CODE as u64,
     USER_DATA = const segments::USER_DATA as u64,
     SYSCALL_VECTOR = const exceptions::SYSCALL_VECTOR,
-);
-
-// The hand-assembled ring-3 probe `exceptions::ring3_self_test` runs, with its three syscall
-// numbers substituted from the Rust definitions that also intercept them.
-global_asm!(
-    include_str!("ring3_probe.s"),
-    ABI = const exceptions::PROBE_ABI_NR,
-    REPORT = const exceptions::PROBE_REPORT_NR,
-    ESCAPED = const exceptions::PROBE_ESCAPED_NR,
 );
 
 /// `IA32_GS_BASE`: the MSR holding the base of the `gs` segment, and this architecture's answer to

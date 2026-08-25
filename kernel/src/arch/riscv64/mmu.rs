@@ -100,6 +100,18 @@ fn current_root_pa() -> u64 {
 /// `KERNEL_VA_BASE` in link-riscv64.ld, and the kernel runs here from `boot.s`'s high-half jump on.
 pub const KERNEL_VA_BASE: u64 = 0xffff_ffc0_0000_0000;
 
+/// **Where kernel thread stacks live, virtually** (`thread.rs`'s `STACK_AREA`).
+///
+/// Deliberately far above the direct map, so a stack address can never collide with the virtual
+/// *name* of a physical one. 64 GiB up: RAM will not reach there for a while.
+///
+/// **Name provisional** (milestone 161): this was a portable expression in `thread.rs`
+/// (`KERNEL_VA_BASE | 0x10_0000_0000`) until `x86_64` arrived, where the expression is not merely
+/// wrong but a no-op -- `KERNEL_VA_BASE` there already has every bit of `0x10_0000_0000` set, so the
+/// OR yielded the kernel image's own base and every kernel thread stack would have been mapped over
+/// `.text`. Rule 1 says an architecture's addresses live under `arch/`; this is that.
+pub const THREAD_STACK_AREA: u64 = KERNEL_VA_BASE | 0x0000_0010_0000_0000;
+
 /// The boot page table: a single Sv39 root that maps the low physical range (to survive turning
 /// paging on) and its high-half alias (where the kernel is linked). Six gigapage (1 GiB) leaves are
 /// enough to run, print, and read the device tree: indices 0..=2 identity-map the UART region

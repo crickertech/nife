@@ -11,6 +11,16 @@ const BAD_ADDR: u64 = 0x00A5_0000;
 /// The word the report stub SENDs, so a test can tell "the child ran" from "the child faulted."
 pub(super) const REPORT_WORD: u64 = 0x42;
 
+/// **How far past the entry [`FAULT_STUB`]'s faulting instruction begins**, which is the length of
+/// the one instruction that precedes it. Four on both fixed-width ISAs and five on `x86_64`, where a
+/// `mov r32, imm32` is five bytes; the constant exists because a test asserting on the faulting pc
+/// used to add a literal 4 and would have been asserting aarch64's instruction width on a machine
+/// that has none.
+#[cfg(not(target_arch = "x86_64"))]
+pub(super) const FAULT_PC_OFFSET: u64 = 4;
+#[cfg(target_arch = "x86_64")]
+pub(super) const FAULT_PC_OFFSET: u64 = super::x86_programs::FAULT_PC_OFFSET;
+
 /// A child that faults on its very first memory access: load from [`BAD_ADDR`], which nothing
 /// maps. Two instructions; the faulting one is the second, so the reported pc is `CODE_VA + 4`.
 #[cfg(target_arch = "aarch64")]
@@ -23,6 +33,10 @@ pub(super) const FAULT_STUB: &[u32] = &[
     0x00A5_0537, // lui a0, 0xA50             (a0 = 0x00A5_0000)
     0x0005_3583, // ld  a1, 0(a0)             (load page fault: nothing maps BAD_ADDR)
 ];
+/// `x86_64`'s is in `user::x86_programs`, not here, because the boot tour needs the same program and
+/// this module is `#[cfg(test)]`. See that module's header.
+#[cfg(target_arch = "x86_64")]
+pub(super) const FAULT_STUB: &[u32] = &super::x86_programs::fault(BAD_ADDR as u32);
 
 /// A child that SENDs [`REPORT_WORD`] on the endpoint in slot 0, then exits cleanly. The same
 /// nine-instruction shape the region-reclaim tests use, so "it ran" is the SEND arriving.
@@ -50,6 +64,9 @@ pub(super) const REPORT_STUB: &[u32] = &[
     0x0000_0893 | ((abi::SYS_EXIT as u32) << 20),   // li a7, SYS_EXIT
     0x0000_0073,                                    // ecall               (exit)
 ];
+/// `x86_64`'s is in `user::x86_programs`; see [`FAULT_STUB`].
+#[cfg(target_arch = "x86_64")]
+pub(super) const REPORT_STUB: &[u32] = &super::x86_programs::report(REPORT_WORD as u32);
 
 /// Build a child from `stub` with its whole world in one region (aspace, code, stack, TCB), so a
 /// single `DESTROY` reclaims it. `report` goes in slot 0 (what the report stub SENDs on);
@@ -129,7 +146,7 @@ fn a_faulting_child_reports_to_its_supervisor_and_is_reaped_then_respawned() {
     assert_eq!(msg[1], child, "the fault message named the wrong thread");
     assert_eq!(
         msg[2],
-        CODE_VA + 4,
+        CODE_VA + FAULT_PC_OFFSET,
         "the faulting pc was not the load instruction"
     );
     assert_eq!(
@@ -157,7 +174,7 @@ fn a_faulting_child_reports_to_its_supervisor_and_is_reaped_then_respawned() {
     // over five days instead of failing here. See notes/stack.md, "a kernel stack freed under its
     // owner", and the `on_cpu` refusal in `reap_region_objects`.
     assert!(
-        super::tests::wait_for(|| sched::reclaim_region(region).is_ok()),
+        super::wait_for(|| sched::reclaim_region(region).is_ok()),
         "reaping the corpse's region failed",
     );
     assert_eq!(
@@ -178,7 +195,7 @@ fn a_faulting_child_reports_to_its_supervisor_and_is_reaped_then_respawned() {
     // Clock-bounded (milestone 81): 2000 yields elapse in microseconds on the physical core, which
     // would leave the region unreclaimed and this test's litter for a neighbour to trip over.
     assert!(
-        super::tests::wait_for(|| sched::reclaim_region(region2).is_ok()),
+        super::wait_for(|| sched::reclaim_region(region2).is_ok()),
         "the respawned child was never reaped, so its region could not be reclaimed",
     );
 }
@@ -213,7 +230,7 @@ fn a_clean_exit_reports_the_exit_event_not_a_fault() {
     // before the corpse leaves its kernel stack. This one has never been seen to lose the race and
     // is written the same way anyway, because "has not happened yet" is not a property of the code.
     assert!(
-        super::tests::wait_for(|| sched::reclaim_region(region).is_ok()),
+        super::wait_for(|| sched::reclaim_region(region).is_ok()),
         "reaping the exited corpse's region failed",
     );
 }

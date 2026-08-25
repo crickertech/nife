@@ -79,11 +79,11 @@ impl TrapFrame {
     /// cannot ride in the C ABI's fourth register. Every `x86_64` kernel makes the same substitution
     /// for the same reason.
     ///
-    /// **Provisional.** Nothing speaks this ABI yet: the x86 boot halts before user mode, and no
-    /// user program is built for the target. A syscall ABI is a boundary rather than a habit
-    /// (DECISIONS §10, §16) and is exactly the kind of decision the "move fast on what can be
-    /// undone" tenet calls expensive, so it is written here to be argued with rather than merged as
-    /// settled. See design/roadmap/161-x86-64-kernel-port.md.
+    /// **Ratified as DECISIONS §124** (2026-08-24). It was written here provisionally, because a
+    /// syscall ABI is a boundary rather than a habit (DECISIONS §10, §16) and is exactly the kind of
+    /// decision the "move fast on what can be undone" tenet calls expensive; it is now settled, and
+    /// it is **spoken**: every hand-assembled program in `user::x86_programs` reaches
+    /// `crate::syscall::dispatch` through these accessors, from ring 3, under the scheduler.
     pub fn syscall_nr(&self) -> u64 {
         self.rax
     }
@@ -254,7 +254,9 @@ static LAST_USER_FAULT_ADDRESS: AtomicU64 = AtomicU64::new(0);
 
 /// What the last user-mode fault was and where. `None` until one has happened.
 pub fn last_user_fault() -> Option<(UserFault, u64)> {
-    let code = LAST_USER_FAULT.load(Ordering::Relaxed);
+    // Pairs with the `Release` on `USER_FAULTS` in [`user_fault`]: a caller that has already seen
+    // the counter rise must see the record that rise was announcing, and not the previous one.
+    let code = LAST_USER_FAULT.load(Ordering::Acquire);
     UserFault::decode(code).map(|f| (f, LAST_USER_FAULT_ADDRESS.load(Ordering::Relaxed)))
 }
 
@@ -525,13 +527,6 @@ pub unsafe fn init_syscall() {
 unsafe extern "C" {
     /// The `IA32_LSTAR` target: where a ring-3 `syscall` lands. Defined in trap.s.
     fn x86_syscall_entry();
-
-    /// Resume whoever called `x86_enter_user_and_wait`, handing back `value`. Defined in trap.s;
-    /// see [`ring3_self_test`] for the one caller of the pair.
-    fn x86_leave_user(resume_rsp: u64, value: u64) -> !;
-
-    /// Enter ring 3 with `frame`, leaving a way back in `*resume_slot`. Defined in trap.s.
-    fn x86_enter_user_and_wait(frame: *mut TrapFrame, resume_slot: *mut u64) -> u64;
 }
 
 /// **The one Rust function every `syscall` reaches**, called by `x86_syscall_entry` with a pointer
@@ -559,7 +554,6 @@ pub unsafe extern "C" fn x86_syscall_handler(frame: *mut TrapFrame) {
     // other caller exists (the symbol is only referenced from trap.s).
     let frame = unsafe { &mut *frame };
     SVC_COUNT.fetch_add(1, Ordering::Relaxed);
-    ring3_probe_syscall(frame); // diverges if this is the probe's last call
     crate::syscall::dispatch(frame);
 }
 
@@ -611,16 +605,61 @@ const EXCEPTION_NAMES: [&str; 32] = [
     "reserved (31)",
 ];
 
-/// **The one Rust function every trap reaches**, called by trap.s with a pointer to the frame it
-/// just built on the current stack.
+unsafe extern "C" {
+    /// Switch to `top` (or stay put if it is 0), call [`x86_trap_body`], come back. Defined in
+    /// trap.s, because moving `rsp` is assembly and policy is not.
+    fn dispatch_on_interrupt_stack(frame: *mut TrapFrame, top: u64) -> bool;
+}
+
+/// **The outer half of the trap path, and the half that stays on the interrupted stack.**
+///
+/// The third implementation of a split the other two architectures already have, and it exists for
+/// exactly their reason: it picks the stack the handler runs on, and it runs the deferred
+/// `schedule()` afterwards. `schedule()` parks this thread's `rsp` in its `Context` and resumes it
+/// there later, so it may only be called on a stack that belongs to the thread; calling it from the
+/// per-CPU interrupt stack would park a per-CPU address in a thread and the thread would resume on
+/// bytes the next interrupt had already spent. See `kernel/src/interrupt_stack.rs`.
 ///
 /// # Safety
 /// Called only from `isr_common`, which has just constructed a complete [`TrapFrame`] at the
 /// address it passes. Nothing else may call it.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn x86_trap_handler(frame: *mut TrapFrame) {
+pub unsafe extern "C" fn x86_trap_dispatch(frame: *mut TrapFrame) {
+    // SAFETY: `isr_common` built the frame directly below the pointer it passed.
+    let from_user = unsafe { (*frame).cs } & 3 == 3;
+    let top = crate::interrupt_stack::top_for_trap(from_user);
+    let deferred_switch = if top == 0 {
+        // The common case, and it must not pay for the uncommon one: the other two ports measured
+        // 8.6 instructions per syscall for routing every trap through the trampoline to do a stack
+        // move that does not happen.
+        //
+        // SAFETY: the caller's contract; forwarded unchanged.
+        unsafe { x86_trap_body(frame) }
+    } else {
+        // SAFETY: `top` is this CPU's own interrupt-stack top, from the module that owns the
+        // region; the trampoline calls `x86_trap_body` with our own argument and restores `rsp`
+        // before returning. The frame outlives the call: it is on the stack we are standing on.
+        unsafe { dispatch_on_interrupt_stack(frame, top) }
+    };
+
+    // Back on the interrupted thread's stack, whichever branch ran. Preemption happens HERE.
+    if deferred_switch {
+        crate::sched::preempt_if_needed();
+    }
+}
+
+/// **The trap handler proper**: everything that runs on the interrupt stack when there is one.
+///
+/// Returns whether the caller owes a deferred `schedule()`, which is true for an interrupt and
+/// false for everything else.
+///
+/// # Safety
+/// Called only from [`x86_trap_dispatch`] or from `dispatch_on_interrupt_stack`, both of which pass
+/// a complete [`TrapFrame`]. Nothing else may call it.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn x86_trap_body(frame: *mut TrapFrame) -> bool {
     // SAFETY: `isr_common` built the frame directly below the pointer it passed, and no other
-    // caller exists (the symbol is only referenced from trap.s).
+    // caller exists (the symbol is only referenced from trap.s and from the function above).
     let frame = unsafe { &mut *frame };
 
     match frame.vector {
@@ -628,21 +667,83 @@ pub unsafe extern "C" fn x86_trap_handler(frame: *mut TrapFrame) {
         // advanced rip past it, so returning is enough. This is what `self_test` proves.
         3 => {
             BRK_COUNT.fetch_add(1, Ordering::Relaxed);
+            false
         }
         // The local APIC timer. Counted, then acknowledged below with every other interrupt.
+        //
+        // **Record and defer** (DECISIONS §9): `on_tick` marks a reschedule due and this function
+        // returns `true`, so the switch happens in `x86_trap_dispatch`, one frame out, on the
+        // interrupted thread's own stack. Doing it here would be doing it mid-handler with the
+        // local APIC not yet told we are done.
         v if v == super::irq::TIMER_VECTOR as u64 => {
             super::timer::tick();
+            crate::sched::on_tick();
             ROUTED_IRQS.fetch_add(1, Ordering::Relaxed);
             super::irq::end_of_interrupt();
+            true
+        }
+        // A reschedule IPI from another CPU (`irq::send_reschedule`). It carries two meanings, as
+        // aarch64's reschedule SGI does: the sender may have handed us a thread through our inbox,
+        // or an idle CPU may be asking us for work. Both are served, and the deferred `schedule()`
+        // at the caller runs whatever arrived.
+        //
+        // Unreachable today: there is one CPU, and every `send_reschedule` caller in `sched` is
+        // guarded by "the target is another core". It is here rather than under the catch-all
+        // because the catch-all would call it spurious, which it is not.
+        v if v == super::irq::RESCHEDULE_VECTOR as u64 => {
+            crate::sched::drain_inbox();
+            crate::sched::serve_steal_request();
+            ROUTED_IRQS.fetch_add(1, Ordering::Relaxed);
+            super::irq::end_of_interrupt();
+            true
+        }
+        // **A self-directed interrupt, and it becomes a message.** This is the one delivery path
+        // that is real on this architecture today, and it is aarch64's case rather than RISC-V's:
+        // the local APIC delivers a vector to its own CPU on demand, through the ICR, the IRR, the
+        // ISR and an EOI, so the interrupt is the hardware's rather than a function call wearing a
+        // handler's name. aarch64 proves the same property with a software-generated interrupt;
+        // RISC-V, which can raise nothing at all, has to assert its console UART's line instead.
+        //
+        // **The intid here is the vector number**, which is the whole of the x86 naming rule and is
+        // worth stating because `irq::enable` takes a *legacy IRQ* instead: a local APIC source is
+        // named by the vector it raises (there is no line and no controller input to name), and a
+        // device line is named by the legacy IRQ the MADT resolves to a GSI. The two domains cannot
+        // collide, because legacy IRQs are 0..15 and these vectors are 0x22 and 0x23.
+        v if v == super::irq::SELF_TEST_VECTOR as u64
+            || v == super::irq::SELF_TEST_VECTOR_B as u64 =>
+        {
+            match crate::sched::irq_route(v as u32) {
+                Some(ep) => {
+                    ROUTED_IRQS.fetch_add(1, Ordering::Relaxed);
+                    // Nothing to mask: a self-IPI is edge-delivered and one-shot, so there is no
+                    // asserted line to hold off until a driver quiets it. That is the same reason
+                    // aarch64's `quiet_test_irq` for an SGI is empty.
+                    crate::sched::irq_notify(ep);
+                }
+                None => {
+                    SPURIOUS_IRQS.fetch_add(1, Ordering::Relaxed);
+                }
+            }
+            super::irq::end_of_interrupt();
+            true
         }
         // A device line, routed by the IO APIC's redirection table onto a vector this kernel chose
-        // (irq::GSI_VECTOR_BASE plus the GSI). No device driver claims one yet, so this counts and
-        // acknowledges; when one does, the GSI is recoverable from the vector by subtraction, which
-        // is why the map is flat.
+        // (irq::GSI_VECTOR_BASE plus the GSI).
+        //
+        // # BUGS
+        // **A device line cannot yet become a message here**, unlike on the other two
+        // architectures, and the missing piece is an inversion rather than a mechanism: the arm
+        // above shows the delivery works, and what a device line needs is a vector -> intid map so
+        // `sched::irq_route` can be asked. The flat vector map makes the GSI recoverable by
+        // subtraction, but a *legacy IRQ* (which is what `irq::enable` takes, and so what a driver
+        // would have bound) is not: GSI 0 is the 8259 cascade and has no legacy owner, so an
+        // inversion that fell back to the GSI would answer 0 for both it and the PIT's IRQ 0.
+        // Nothing needs it yet: there is no userspace on this architecture to own a line.
         v if super::irq::is_device_vector(v) => {
             DEVICE_IRQS.fetch_add(1, Ordering::Relaxed);
             ROUTED_IRQS.fetch_add(1, Ordering::Relaxed);
             super::irq::end_of_interrupt();
+            true
         }
         // A spurious interrupt: the local APIC had to deliver something and had nothing real. It
         // is **not** acknowledged, and that is architecture rather than an oversight: the APIC does
@@ -650,6 +751,7 @@ pub unsafe extern "C" fn x86_trap_handler(frame: *mut TrapFrame) {
         // whatever genuinely is in service and lose it.
         v if v == super::irq::SPURIOUS_VECTOR as u64 => {
             SPURIOUS_IRQS.fetch_add(1, Ordering::Relaxed);
+            false
         }
         // Any other vector at or above 32 is a device interrupt nothing has claimed. Counted and
         // acknowledged rather than fatal: an unowned interrupt that is not acknowledged wedges the
@@ -657,36 +759,14 @@ pub unsafe extern "C" fn x86_trap_handler(frame: *mut TrapFrame) {
         v if v >= 32 => {
             SPURIOUS_IRQS.fetch_add(1, Ordering::Relaxed);
             super::irq::end_of_interrupt();
+            true
         }
         // An architectural exception taken **in ring 3**: the user program's fault, not the
         // kernel's. Recorded rather than fatal, which is the difference the whole privilege
         // boundary exists to make. Only vectors below 32 reach here; a device interrupt that
         // happened to land while a user program was running was already handled above, because an
         // interrupt is not the interrupted program's fault.
-        vector if frame.cs & 3 == 3 => {
-            USER_FAULTS.fetch_add(1, Ordering::Relaxed);
-            let (fault, address) = classify_user_fault(vector, frame.error_code);
-            LAST_USER_FAULT.store(fault.encode(), Ordering::Relaxed);
-            LAST_USER_FAULT_ADDRESS.store(address, Ordering::Relaxed);
-
-            // The boot tour's ring-3 probe, if one is running: this is how it ends, and the
-            // function does not return in that case.
-            ring3_probe_faulted();
-
-            // And otherwise there is nothing to do with the thread, because there is no scheduler
-            // on this architecture yet to kill it with (milestone 161, roadmap item 4). Fall
-            // through to the report below rather than returning to a program whose fault was not
-            // resolved, which would fault again forever.
-            crate::println!();
-            crate::println!("=== x86_64: a ring-3 program faulted and there is no scheduler ===");
-            crate::println!("  fault      : {fault:?} at {address:#018x}");
-            crate::println!(
-                "  rip        : {:#018x}   cs : {:#06x}",
-                frame.rip,
-                frame.cs
-            );
-            panic!("user fault with no thread to kill: {fault:?} at {address:#018x}");
-        }
+        vector if frame.cs & 3 == 3 => user_fault(frame, vector),
         // Everything below 32 is an architectural exception, and every one of them is fatal here.
         vector => {
             let name = EXCEPTION_NAMES
@@ -716,6 +796,57 @@ pub unsafe extern "C" fn x86_trap_handler(frame: *mut TrapFrame) {
             panic!("unhandled x86_64 exception: vector {vector} ({name})");
         }
     }
+}
+
+/// **A ring-3 thread faulted: record what happened, say so, and kill it.**
+///
+/// The third implementation of the seam that makes "a driver bug is a crashed process, not a dead
+/// machine" (DECISIONS §10) true on this architecture. Until roadmap item 4 this arm recorded the
+/// fault and then panicked, because there was no scheduler and so no thread to kill; it is what a
+/// scheduler turns into a real teardown.
+///
+/// **This never returns**, exactly as the other two ports' twins do not: `sched::fault` delivers the
+/// death to a supervisor if this thread had one and otherwise takes the unsupervised path, and
+/// either way it switches to somebody else and does not come back. `isr_restore` is never reached,
+/// the `iretq` never happens, and the user program is simply not resumed. The kernel stack we are
+/// standing on is freed by the next thread (the reaper), because a thread cannot free the stack it
+/// is standing on.
+fn user_fault(frame: &TrapFrame, vector: u64) -> ! {
+    let (fault, address) = classify_user_fault(vector, frame.error_code);
+
+    // **The record first, the counter last, and the counter's store is the release.** Every test
+    // that reads this record finds it by watching `USER_FAULTS` rise and then calling
+    // [`last_user_fault`], so the counter is the publication flag for the record and must be
+    // written after it. Both other ports carry the same fix and the same comment; this port was
+    // written with the counter first, which is a race a passing test cannot see (the reader gets
+    // either an earlier fault's record, or on the boot's first fault a zero that reads as "nothing
+    // faulted").
+    LAST_USER_FAULT_ADDRESS.store(address, Ordering::Relaxed);
+    LAST_USER_FAULT.store(fault.encode(), Ordering::Relaxed);
+    USER_FAULTS.fetch_add(1, Ordering::Release);
+
+    let name = EXCEPTION_NAMES
+        .get(vector as usize)
+        .copied()
+        .unwrap_or("reserved");
+    crate::println!();
+    crate::println!(
+        "  user thread {} killed: vector {vector} ({name})",
+        crate::sched::current(),
+    );
+    crate::println!(
+        "    rip {:#018x}   addr {:#018x}   user rsp {:#018x}   err {:#010x}",
+        frame.rip,
+        address,
+        frame.rsp,
+        frame.error_code,
+    );
+    crate::println!("  the kernel is fine.");
+
+    // Deliver the fault to a supervisor if this thread had one, and become a corpse; otherwise this
+    // is `exit`'s unsupervised path (Finished, reaped by the next thread). See DECISIONS §26 and
+    // sched::depart. `frame.rip` is the faulting pc, `address` the faulting address.
+    crate::sched::fault(frame.rip, address);
 }
 
 /// **Turn an x86 exception into the portable [`UserFault`] both other architectures already
@@ -758,259 +889,4 @@ fn classify_user_fault(vector: u64, error_code: u64) -> (UserFault, u64) {
         UserFault::Translation(access)
     };
     (fault, faulting_address())
-}
-
-// ---------------------------------------------------------------------------------------------
-// The ring-3 self test (milestone 161, roadmap item 3).
-//
-// **This is bring-up scaffolding and it is written to be deleted.** The other two architectures
-// prove ring 3 by running a compiled ELF out of the initrd under the scheduler; neither exists here
-// yet, so the boot tour proves the privilege boundary with a hand-assembled probe
-// (ring3_probe.s) entered directly from the boot thread. What it establishes is exactly the arch
-// layer: an `iretq` into CPL 3, the `syscall` ABI reaching the portable dispatcher, the return to
-// ring 3, and the page tables refusing a supervisor page. What it does NOT establish is the loader,
-// argument passing, capability grants, or anything about a process, all of which arrive with the
-// scheduler (roadmap item 4).
-//
-// It is the sibling of `self_test` above, which proves the trap path round-trips by taking an
-// `int3`, and it earns its place for the same reason: there is no other cheap moment to find out
-// that the privilege boundary does not work.
-// ---------------------------------------------------------------------------------------------
-
-/// The syscall number the probe uses to ask the **portable** dispatcher something it will refuse.
-/// Deliberately not a real one: `Error::BadSyscall` is the only answer `crate::syscall::dispatch`
-/// can give on a kernel with no scheduler, so it is the only round trip through the real dispatcher
-/// available here. Substituted into `ring3_probe.s` by `global_asm!`, so the number lives in one
-/// place.
-pub const PROBE_ABI_NR: u64 = 0x1610_0001;
-/// The probe reporting its own CS, SS, and the dispatcher's answer. Intercepted, then returned from.
-pub const PROBE_REPORT_NR: u64 = 0x1610_0002;
-/// The probe saying it **read kernel memory from ring 3**, which is the failure this test exists to
-/// catch. Reaching it at all means the confinement did not hold.
-pub const PROBE_ESCAPED_NR: u64 = 0x1610_0003;
-
-/// The value `x86_enter_user_and_wait` returns when the probe faulted, which is the expected end.
-const LEAVE_FAULTED: u64 = 1;
-/// The value it returns when the probe read kernel memory and lived: a failure, loudly.
-const LEAVE_ESCAPED: u64 = 2;
-
-/// Where to resume when the probe is finished; zero when no probe is running, which is also what
-/// makes the two interception points below no-ops in an ordinary kernel.
-static mut RING3_RESUME: u64 = 0;
-
-/// What the probe reported: its CS, its SS, and the dispatcher's answer to [`PROBE_ABI_NR`].
-static PROBE_CS: AtomicU64 = AtomicU64::new(0);
-static PROBE_SS: AtomicU64 = AtomicU64::new(0);
-static PROBE_ANSWER: AtomicU64 = AtomicU64::new(0);
-
-/// Is a ring-3 probe waiting to be resumed?
-fn ring3_resume_slot() -> u64 {
-    // SAFETY: single-CPU boot code; the probe is entered and left on this one thread.
-    unsafe { RING3_RESUME }
-}
-
-/// The probe's syscalls. Returns normally for anything else, including the probe's own
-/// [`PROBE_ABI_NR`], which is meant to reach the portable dispatcher.
-fn ring3_probe_syscall(frame: &mut TrapFrame) {
-    let resume = ring3_resume_slot();
-    if resume == 0 {
-        return;
-    }
-    match frame.syscall_nr() {
-        PROBE_REPORT_NR => {
-            PROBE_CS.store(frame.arg(0), Ordering::Relaxed);
-            PROBE_SS.store(frame.arg(1), Ordering::Relaxed);
-            PROBE_ANSWER.store(frame.arg(2), Ordering::Relaxed);
-            // Return to ring 3, which is the point: the probe's next instruction is the one that
-            // tests the page tables, and it only runs if this return path works.
-        }
-        PROBE_ESCAPED_NR => {
-            // SAFETY: `resume` is the block `x86_enter_user_and_wait` parked on the boot stack,
-            // which is still live: its frame is above ours and nothing has returned through it.
-            unsafe { x86_leave_user(resume, LEAVE_ESCAPED) }
-        }
-        _ => {}
-    }
-}
-
-/// The probe's fault, which is how it is supposed to end. Returns normally if no probe is running.
-fn ring3_probe_faulted() {
-    let resume = ring3_resume_slot();
-    if resume == 0 {
-        return;
-    }
-    // SAFETY: as in `ring3_probe_syscall`; the parked block is still live.
-    unsafe { x86_leave_user(resume, LEAVE_FAULTED) }
-}
-
-/// What a ring-3 round trip found. Every field is something the **hardware** or the **portable
-/// dispatcher** said, rather than something this kernel assumed.
-#[derive(Debug, Clone, Copy)]
-pub struct Ring3Report {
-    /// The probe's own CS, read out of the segment register in ring 3. Its low two bits are the
-    /// CPL, so `0x23` is the whole proof that this ran at ring 3 and not ring 0.
-    pub cs: u64,
-    /// The probe's own SS, likewise.
-    pub ss: u64,
-    /// What `crate::syscall::dispatch` answered [`PROBE_ABI_NR`] with, as the user program saw it.
-    pub dispatcher_answer: i64,
-    /// How many syscalls the probe made.
-    pub syscalls: usize,
-    /// The fault that ended it, and where. `None` means it did not fault, which is a failure.
-    pub fault: Option<(UserFault, u64)>,
-    /// The kernel address the probe was told to try to read.
-    pub forbidden_address: u64,
-    /// **True is a failure**: the probe read kernel memory from ring 3 and came back to say so.
-    pub escaped: bool,
-}
-
-unsafe extern "C" {
-    /// The hand-assembled probe, in `.rodata`. See `ring3_probe.s`.
-    static x86_ring3_probe_start: u8;
-    static x86_ring3_probe_end: u8;
-}
-
-/// Where the probe's code and stack are mapped in its own address space. Any two low-half pages
-/// would do; 4 MiB is where the other two architectures' first hand-assembled programs went, so a
-/// reader who has seen one of those recognises it.
-const PROBE_CODE_VA: u64 = 0x40_0000;
-const PROBE_STACK_VA: u64 = 0x41_0000;
-
-/// How far below this function's own live frames the probe's trap stack starts, so the two cannot
-/// overlap. A syscall or fault from ring 3 builds a 176-byte frame at the top of it and the handler
-/// runs beneath; the boot stack is 64 KiB and the tour is a handful of frames deep, so 8 KiB of
-/// separation is generous on both sides rather than tuned. It is not a measurement.
-const PROBE_KERNEL_STACK_GAP: u64 = 8 * 1024;
-
-/// **Prove ring 3 round-trips**, by running the hand-assembled probe at CPL 3 and reporting what it
-/// found. The privilege-boundary counterpart of [`self_test`].
-///
-/// Frames are drawn from the allocator and **not returned**, which is the boot tour's existing
-/// habit (the RISC-V tour's user-address-space step does the same) and is five frames on a machine
-/// with sixty thousand. It is called once.
-///
-/// # Safety
-/// Must be called after `mmu::init`, with the GDT and IDT installed, from the boot thread, with no
-/// other thread running. It installs a page-table root of its own and points `TSS.RSP0` into the
-/// current stack.
-pub unsafe fn ring3_self_test() -> Result<Ring3Report, &'static str> {
-    use paging::{Flags, PAGE_SIZE};
-
-    use super::mmu;
-    use crate::memory;
-
-    let kernel_root = mmu::current_root();
-
-    // A process root of its own, carrying the kernel's high half. Without the share, the `mov cr3`
-    // below would unmap the instruction after it.
-    let root = memory::alloc()
-        .ok_or("no frame for the probe's page-table root")?
-        .addr();
-    // SAFETY: a fresh frame from the allocator, reachable through the direct map. Zeroed before the
-    // hardware could ever walk it.
-    unsafe { (*mmu::phys_to_ptr(root)).entries = [0; paging::ENTRIES] };
-    mmu::share_kernel_half(root);
-
-    // Its two pages. The code frame is written through the direct map, which is the same "two names
-    // for one frame" the address-space builder uses: the kernel cannot address `PROBE_CODE_VA`,
-    // because that is a low address and means something else entirely from ring 0.
-    let code = memory::alloc()
-        .ok_or("no frame for the probe's code")?
-        .addr();
-    let stack = memory::alloc()
-        .ok_or("no frame for the probe's stack")?
-        .addr();
-
-    let from = &raw const x86_ring3_probe_start;
-    let len = (&raw const x86_ring3_probe_end as usize) - (from as usize);
-    if len == 0 || len as u64 > PAGE_SIZE {
-        return Err("the ring-3 probe does not fit in one page");
-    }
-    // SAFETY: `from` is the probe in this image's `.rodata` and `len` is the distance to the label
-    // after it; the destination is a whole frame the allocator just handed us, addressable through
-    // the direct map. The two cannot overlap: one is the image, the other is a free frame, and the
-    // image is on the allocator's forbidden list.
-    unsafe {
-        core::ptr::copy_nonoverlapping(from, mmu::phys_to_virt(code) as *mut u8, len);
-    }
-
-    // Install it, then map into it. The mapping helpers work on the *current* space, which is what
-    // makes the order matter; `share_kernel_half` above is what makes the switch survivable.
-    //
-    // SAFETY: `root` is zeroed, page-aligned, and carries the kernel's high half, so this code, its
-    // stack and the direct map all still resolve on the next instruction.
-    unsafe { mmu::switch_user_root(mmu::ttbr0_value(root, 0)) };
-
-    let result = (|| -> Result<Ring3Report, &'static str> {
-        let alloc = || memory::alloc().map(|f| f.addr());
-        mmu::map_current_user_frame(PROBE_CODE_VA, code, Flags::user_code(), alloc)
-            .map_err(|_| "could not map the probe's code")?;
-        mmu::map_current_user_frame(PROBE_STACK_VA, stack, Flags::user_data(), alloc)
-            .map_err(|_| "could not map the probe's stack")?;
-
-        // The kernel stack a ring-3 trap lands on, below this function's own live frames so the two
-        // cannot overlap. `set_kernel_stack` writes `TSS.RSP0` and the `syscall` path's own stash
-        // together, which is why there is one call here and not two.
-        let kernel_sp = (super::current_sp() - PROBE_KERNEL_STACK_GAP) & !0xf;
-        super::segments::set_kernel_stack(kernel_sp);
-
-        // The entry frame goes at the top of that region, where `enter_user` expects it.
-        let slot = kernel_sp - size_of::<TrapFrame>() as u64;
-        let forbidden = mmu::text_start();
-        // SAFETY: `slot` is 16-byte-aligned writable kernel stack well below our own frames, and
-        // `TrapFrame` is a multiple of 16.
-        unsafe {
-            (slot as *mut TrapFrame).write(TrapFrame::for_user_entry(
-                PROBE_CODE_VA,
-                PROBE_STACK_VA + PAGE_SIZE,
-                [forbidden, 0, 0],
-            ));
-        }
-
-        let before = SVC_COUNT.load(Ordering::Relaxed);
-        LAST_USER_FAULT.store(0, Ordering::Relaxed);
-
-        // And go. Everything from here until this call returns runs in ring 3 or in a trap handler
-        // serving it.
-        //
-        // SAFETY: the frame is complete and writable, the probe's address space is installed, and
-        // `TSS.RSP0` names the stack the trap will be pushed onto. The resume slot is a static this
-        // function is the only writer of, and the block it will name is parked on this stack, which
-        // stays live for exactly as long as this call does.
-        let outcome =
-            unsafe { x86_enter_user_and_wait(slot as *mut TrapFrame, &raw mut RING3_RESUME) };
-
-        Ok(Ring3Report {
-            cs: PROBE_CS.load(Ordering::Relaxed),
-            ss: PROBE_SS.load(Ordering::Relaxed),
-            dispatcher_answer: PROBE_ANSWER.load(Ordering::Relaxed) as i64,
-            syscalls: SVC_COUNT.load(Ordering::Relaxed) - before,
-            fault: last_user_fault(),
-            forbidden_address: forbidden,
-            escaped: outcome == LEAVE_ESCAPED,
-        })
-    })();
-
-    // Whatever happened, stop running on the probe's tables and stop pointing the trap path at a
-    // stack that is about to be reused.
-    //
-    // SAFETY: the resume slot is cleared first, so the interception points above are inert again
-    // before anything else can trap.
-    unsafe { RING3_RESUME = 0 };
-    mmu::deactivate_user();
-    super::segments::set_kernel_stack(0);
-    debug_assert_eq!(mmu::current_root(), kernel_root);
-
-    let report = result?;
-    if report.escaped {
-        return Err("the probe read kernel memory from ring 3: confinement did not hold");
-    }
-    // The dispatcher's answer is checked here rather than printed and left to a reader, because the
-    // interesting failure is not "no answer" but "an answer that came from somewhere else": a
-    // return register the restore path never wrote would most likely still hold the zero
-    // `for_user_entry` put there.
-    if report.dispatcher_answer != abi::Error::BadSyscall as i64 {
-        return Err("the portable dispatcher's answer did not reach the program in rdi");
-    }
-    Ok(report)
 }

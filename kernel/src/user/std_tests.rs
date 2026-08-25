@@ -548,7 +548,7 @@ fn a_whole_std_program_runs_on_the_native_abi() {
     // unsupervised thread, so the departure is the synchronisation and the fault counter is the
     // verdict.
     assert!(
-        super::tests::wait_for(|| !crate::sched::thread_present(tid)),
+        super::wait_for(|| !crate::sched::thread_present(tid)),
         "the std program never left: it is neither exited nor faulted",
     );
     assert_eq!(

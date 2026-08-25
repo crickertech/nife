@@ -593,14 +593,18 @@ pub const INIT_TEST_SGI: u32 = 3;
 #[cfg_attr(not(test), allow(dead_code))]
 #[cfg(target_arch = "riscv64")]
 pub const INIT_TEST_SGI: u32 = 10;
-/// `x86_64` (milestone 161): the same UART line, for RISC-V's reason and one more. x86 *does* have a
-/// self-directed interrupt (a local APIC IPI to self), so unlike RISC-V it is not forced into this
-/// choice; it is here because the APIC is not built, so the only interrupt this port can name is
-/// the console UART's, and naming the same line as [`UART_RX_INTID`] keeps the two consistent the
-/// way the RISC-V arm does. Revisit when the APIC lands.
+/// `x86_64` (milestone 161, updated by roadmap item 4): **the local APIC's self-IPI test vector**,
+/// which puts this ISA on aarch64's side of the split rather than RISC-V's. The local APIC will
+/// deliver a vector to its own CPU on demand through the ICR, so x86 needs no device to raise an
+/// interrupt by hand, and `arch::x86_64::irq::raise_self_interrupt` is the mechanism. The intid for
+/// such a source **is its vector**, which is why this is 0x22 and not a small number like the other
+/// two: see `arch::x86_64::exceptions::x86_trap_body`'s self-IPI arm for the naming rule.
+///
+/// It was 4 (COM1's legacy IRQ) while the APIC was unbuilt and that arm's own comment said to
+/// revisit this when it landed.
 #[cfg_attr(not(test), allow(dead_code))]
 #[cfg(target_arch = "x86_64")]
-pub const INIT_TEST_SGI: u32 = 4;
+pub const INIT_TEST_SGI: u32 = crate::arch::irq::SELF_TEST_VECTOR as u32;
 
 /// The console UART's receive interrupt on QEMU `virt`. init routes and delegates it so the input
 /// driver it builds (19d.2c) can wait on keystrokes. aarch64's PL011 is SPI 1 = INTID 33; RISC-V's
@@ -1192,6 +1196,233 @@ pub const OUTLAW_READ_KERNEL: u64 = 1;
 /// permissions, the entry point, argument passing across the `START` boundary, and the endpoint
 /// SEND, all from a program the kernel did not hand-write. `load` is arch-neutral; this is the same
 /// code aarch64 runs, now on the RISC-V address space and trap path.
+/// The hand-assembled `x86_64` programs, because no compiled one exists for this target yet.
+#[cfg(target_arch = "x86_64")]
+pub mod x86_programs;
+
+/// Where the x86 demo's children put their code and stack. Any two low-half pages would do; these
+/// are the ones the supervision fixtures use on every architecture, so a reader who has seen one
+/// recognises them.
+#[cfg(target_arch = "x86_64")]
+const X86_DEMO_CODE_VA: u64 = 0x40_0000;
+#[cfg(target_arch = "x86_64")]
+const X86_DEMO_STACK_VA: u64 = 0x50_0000;
+/// The word the reporting child SENDs, and the address the faulting one loads from. Both are
+/// distinctive so that a zero anywhere in the report is visibly a failure rather than a plausible
+/// value.
+#[cfg(target_arch = "x86_64")]
+const X86_DEMO_WORD: u32 = 0x0161_0004;
+#[cfg(target_arch = "x86_64")]
+const X86_DEMO_BAD_ADDR: u32 = 0x00A5_0000;
+
+/// What the x86 userspace demo found. Every field is something a **program in ring 3** or the
+/// **kernel's own supervision path** produced, rather than something the tour assumed.
+#[cfg(target_arch = "x86_64")]
+#[derive(Debug, Clone, Copy)]
+pub struct X86UserspaceReport {
+    /// The word the reporting child sent, as it arrived on the endpoint. Proves the child reached
+    /// ring 3, made a `syscall` that reached the portable dispatcher, and was answered.
+    pub reported: u64,
+    /// The thread id the kernel stamped on the faulting child's death message.
+    pub faulted_tid: u64,
+    /// The pc the faulting child died at, from the message. `X86_DEMO_CODE_VA + 5` if the fault
+    /// landed on the instruction it was supposed to.
+    pub fault_pc: u64,
+    /// The address it faulted on, from the message.
+    pub fault_addr: u64,
+    /// **What the first round of two children cost the frame allocator**, net of their regions
+    /// being destroyed.
+    pub first_round_frames: isize,
+    /// **What an identical second round cost.** This is the number that means something, and the
+    /// reason the demo runs twice: a first round pays first-use carves that are not leaks (the
+    /// kernel's object budget, the endpoint region, a thread stack the recycler has not seen yet),
+    /// and a system that has reached a steady state charges the second round **zero**. It is the
+    /// same distinction `thread.rs`'s stack-VA reuse test draws, and the same evidence.
+    pub second_round_frames: isize,
+}
+
+/// **Build one hand-assembled child out of `region` and start it.** The x86 boot tour's own
+/// `build_child_in`, kept beside the demo rather than shared with `supervision_tests` because that
+/// module is `#[cfg(test)]` and this runs on an ordinary boot.
+///
+/// `slot0` is the capability the program's own slot 0 will hold, if any; `fault_ep` goes in the
+/// reserved fault slot, so `START` records it as this child's supervision endpoint.
+#[cfg(target_arch = "x86_64")]
+fn x86_build_child(
+    region: u64,
+    program: &[u32],
+    slot0: Option<crate::cap::Cap>,
+    fault_ep: Option<crate::sched::RendezvousId>,
+) -> Result<u64, &'static str> {
+    let aspace = user_aspace_create(region).ok_or("no address space for the child")?;
+
+    let code_phys = crate::untyped::retype_page(region).ok_or("no code frame")?;
+    // SAFETY: a fresh frame this region owns, reachable through the direct map; the program is
+    // written there and then mapped executable. The kernel cannot address `X86_DEMO_CODE_VA`
+    // itself, which is why the frame is written through its physical name instead.
+    unsafe {
+        let dst = mmu::phys_to_virt(code_phys) as *mut u32;
+        for (i, &word) in program.iter().enumerate() {
+            dst.add(i).write(word);
+        }
+    }
+    // A no-op on this architecture (the instruction cache is architecturally coherent), and called
+    // anyway because the seam is what the other two need and skipping it here would make this code
+    // wrong to copy.
+    sync_icache(
+        mmu::phys_to_virt(code_phys),
+        core::mem::size_of_val(program),
+    );
+    user_aspace_map(aspace, X86_DEMO_CODE_VA, code_phys, Flags::user_code())
+        .map_err(|_| "could not map the child's code")?;
+
+    let stack_phys = crate::untyped::retype_page(region).ok_or("no stack frame")?;
+    user_aspace_map(aspace, X86_DEMO_STACK_VA, stack_phys, Flags::user_data())
+        .map_err(|_| "could not map the child's stack")?;
+
+    let tid = crate::sched::create_tcb(region).ok_or("no tcb")?;
+    if let Some(cap) = slot0 {
+        let slot = crate::sched::tcb_insert_cap(tid, cap, None)
+            .map_err(|_| "no room for the child's slot 0")?;
+        if slot != 0 {
+            return Err("the child's capability did not land in slot 0, which its code assumes");
+        }
+    }
+    if let Some(ep) = fault_ep {
+        // The spawn-slot convention: a supervision endpoint goes in the reserved fault slot, and
+        // the kernel consumes it at START so the child cannot forge fault messages on it.
+        let cap = crate::cap::rendezvous_cap(ep, crate::cap::Rights::READ);
+        crate::sched::tcb_insert_cap(tid, cap, Some(abi::fault::FAULT_EP_SLOT))
+            .map_err(|_| "no room for the fault endpoint")?;
+    }
+    crate::sched::configure_tcb(
+        tid,
+        X86_DEMO_CODE_VA,
+        X86_DEMO_STACK_VA + FRAME_SIZE,
+        aspace,
+    )
+    .map_err(|_| "could not configure the child")?;
+    crate::sched::start_tcb(tid, [0; 3]).map_err(|_| "could not start the child")?;
+    Ok(tid)
+}
+
+/// **Prove there is a userspace on `x86_64`**, which is the claim roadmap item 4 exists to make and
+/// is a strictly larger one than item 3's ring-3 probe.
+///
+/// Two children, because the two halves of "a process" fail differently and a single program that
+/// did both could hide one behind the other:
+///
+///   - **One reports and exits.** Its whole world (address space, code page, stack page, TCB) is
+///     carved from one untyped region, it is dispatched to ring 3 by the *scheduler* rather than by
+///     a hand-written entry path, it invokes a capability it was granted, and the word it SENDs
+///     arrives here. That is the loader-shaped path minus the ELF: every kernel object a process
+///     needs, built from a budget, in the order a real spawn builds them.
+///   - **One faults.** It loads from an address nothing maps, the page tables refuse it, and the
+///     trap path turns that into a supervision message naming the thread, the pc and the address.
+///     Until this item the same arm recorded the fault and then panicked, because there was no
+///     thread to kill.
+///
+/// And then both regions are destroyed and the frame count is compared, because a userspace that
+/// leaks its processes is not one.
+///
+/// **Name provisional** (milestone 161, roadmap item 4).
+#[cfg(target_arch = "x86_64")]
+pub fn x86_userspace_demo() -> Result<X86UserspaceReport, &'static str> {
+    let before = crate::memory::free_frames();
+    let round = x86_userspace_round()?;
+    let after_first = crate::memory::free_frames();
+    // The same two children again, from scratch. See `X86UserspaceReport::second_round_frames`.
+    x86_userspace_round()?;
+    let after_second = crate::memory::free_frames();
+
+    Ok(X86UserspaceReport {
+        first_round_frames: before as isize - after_first as isize,
+        second_round_frames: after_first as isize - after_second as isize,
+        ..round
+    })
+}
+
+/// One round of the demo: build both children, collect what each produced, and give their regions
+/// back. Called twice by [`x86_userspace_demo`], which is what turns its frame numbers into
+/// evidence.
+///
+/// **Every kernel object a child needs comes out of that child's own region**, its two endpoints
+/// included (`create_rendezvous_from`), so one `DESTROY` reclaims the whole of it and the frame
+/// count is an exact statement rather than an approximate one. The first version drew the endpoints
+/// from the kernel's shared pool and never collected the reporting child's corpse, and the tour
+/// reported sixteen frames a round going missing: correct, and exactly the kind of thing a
+/// steady-state number is for.
+#[cfg(target_arch = "x86_64")]
+fn x86_userspace_round() -> Result<X86UserspaceReport, &'static str> {
+    use abi::fault::{EVENT_EXIT, EVENT_FAULT};
+
+    // Sixteen pages is what the supervision fixtures give a child on the other two architectures:
+    // an address space's root and tables, a code page, a stack page, a TCB, and here two endpoints.
+    let report_region = crate::untyped::create(16).ok_or("no region for the reporting child")?;
+    let report_ep =
+        crate::sched::create_rendezvous_from(report_region).ok_or("no reporting endpoint")?;
+    let reporter_supervisor = crate::sched::create_rendezvous_from(report_region)
+        .ok_or("no supervision endpoint for the reporting child")?;
+    let reporter = x86_build_child(
+        report_region,
+        &x86_programs::report(X86_DEMO_WORD),
+        Some(crate::cap::rendezvous_cap(
+            report_ep,
+            crate::cap::Rights::WRITE,
+        )),
+        Some(reporter_supervisor),
+    )?;
+    let reported = crate::sched::ipc_recv(report_ep)[0];
+
+    // **Collect the corpse before reclaiming the region**, which is what a supervisor is for and
+    // what the first draft of this left out: a region still holding a live TCB is refused, and the
+    // refusal is silent because `destroy` has nowhere to report it.
+    let exit = crate::sched::ipc_recv(reporter_supervisor);
+    if exit[0] != EVENT_EXIT {
+        return Err("the reporting child's clean exit did not arrive as an EXIT event");
+    }
+    crate::sched::reap_supervised(reporter_supervisor, reporter)
+        .map_err(|_| "the reporting child's corpse refused to be reaped")?;
+
+    // The faulting child, in a region of its own.
+    let fault_region = crate::untyped::create(16).ok_or("no region for the faulting child")?;
+    let fault_ep = crate::sched::create_rendezvous_from(fault_region)
+        .ok_or("no supervision endpoint for the faulting child")?;
+    let child = x86_build_child(
+        fault_region,
+        &x86_programs::fault(X86_DEMO_BAD_ADDR),
+        None,
+        Some(fault_ep),
+    )?;
+    let msg = crate::sched::ipc_recv(fault_ep);
+    if msg[0] != EVENT_FAULT {
+        return Err("the child's death did not arrive as a FAULT event");
+    }
+    if msg[1] != child {
+        return Err("the fault message named the wrong thread");
+    }
+    if msg[2] != X86_DEMO_CODE_VA + x86_programs::FAULT_PC_OFFSET {
+        return Err("the faulting pc was not the load instruction");
+    }
+    if msg[3] != X86_DEMO_BAD_ADDR as u64 {
+        return Err("the faulting address was not carried in the message");
+    }
+    crate::sched::reap_supervised(fault_ep, child)
+        .map_err(|_| "the faulting child's corpse refused to be reaped")?;
+
+    crate::untyped::destroy(report_region);
+    crate::untyped::destroy(fault_region);
+
+    Ok(X86UserspaceReport {
+        reported,
+        faulted_tid: msg[1],
+        fault_pc: msg[2],
+        fault_addr: msg[3],
+        first_round_frames: 0,
+        second_round_frames: 0,
+    })
+}
+
 #[cfg(target_arch = "riscv64")]
 pub fn riscv_worker_demo(worker: &[u8], n: u64) -> Result<u64, LoadError> {
     // The kernel's real loader: parse, build the address space, map the W^X segments and a stack.
@@ -1652,7 +1883,7 @@ pub mod disk_service;
 /// The second is the negative control the first would be weaker without. The roster is a read-only
 /// mapping, so a program that knows exactly where it is still cannot add a device to it or turn an
 /// entry into a handle. `lsblk` plus `parted` cannot make that claim.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod disk_tests;
 
 /// **Play an application printing to a display terminal**: put `text` in its output page and
@@ -1833,7 +2064,7 @@ fn boot_clock_page() -> u64 {
 /// Arch-neutral on purpose: one portable binary carrying both RTC drivers, one host-tested
 /// contract, and the machine's own device tree choosing between them, so **both ISAs run literally
 /// these tests** rather than two copies that can drift (DECISIONS §19, parity is a gate).
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod clock_tests;
 
 /// **`date`** (milestone 51; DECISIONS §43, notes/date.md).
@@ -1848,7 +2079,7 @@ mod clock_tests;
 /// rather than 1970 or a panic**, which DECISIONS §43 listed as proven by construction only. It is
 /// proven in the guest now, on a board whose RTC works, because the page is the thing under test
 /// and a frame nobody has published to is an honest unknown clock.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod date_tests;
 
 /// **The entropy service** (milestone 56, DECISIONS §44): a virtio-rng device, its DMA page, its
@@ -1879,7 +2110,7 @@ pub mod entropy_service;
 /// through a capability that names no device, that consecutive draws are not the same bytes (a
 /// stuck source, a re-served buffer, or a driver reading a stale ring all present as repeats), and
 /// that the count in a reply is honoured so a caller cannot be handed zeros it mistakes for entropy.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod entropy_tests;
 
 /// **The credential service, its provisioner, and its clients** (milestone 56, the credential half;
@@ -1922,7 +2153,7 @@ pub mod credential_service;
 ///   reading it, cannot;
 /// - that the frame a client shares with the service holds **nothing** after the answer, which is
 ///   the strongest form of "the reply carried no data" that a test can check.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod credential_tests;
 
 /// **The login service: authentication produces capabilities, not a mutated identity** (milestone
@@ -1946,7 +2177,7 @@ pub mod login_service;
 /// checkable). See `user/src/login.rs`'s BUGS for what this slice does not attempt: a terminal,
 /// per-principal subtree scoping, and wiring into the interactive boot are all named there as
 /// follow-on rather than guessed at here.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod login_tests;
 
 /// **A provisioning tool: create an identity and its home subtree together** (milestone 155,
@@ -1967,7 +2198,7 @@ pub mod identity_provisioner_service;
 /// already exists (`EEXIST`) is recovery rather than a second failure. See
 /// `user/src/identity_provisioner.rs`'s own module docs for the ordering argument these tests hold
 /// it to.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod identity_provisioning_tests;
 
 /// **The boot-time re-deriver** (milestone 152's third piece, provisional name `session_reviver`;
@@ -2019,7 +2250,7 @@ pub mod ntp_service;
 /// the clock page kills the process.
 ///
 /// Not arch-gated: one portable binary, the same assertions on aarch64 and riscv64 (DECISIONS §19).
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod ntp_tests;
 
 /// Milestone 11: hand a process an untyped budget and let it spend it.
@@ -2036,7 +2267,7 @@ pub mod untyped_service;
 #[cfg(test)]
 pub mod alloc_service;
 
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod heap_tests;
 
 /// **The compositor: one screen, several mutually distrusting clients** (milestone 33, rung two of
@@ -2056,7 +2287,7 @@ mod heap_tests;
 /// **These tests run before `display_tests`** (`compositor_tests` sorts first), which matters for the
 /// host-side scanout check: the composed screen goes up first and rung one's pattern last, and
 /// `cargo xtask` looks for both in that order. See notes/compositor.md.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod compositor_tests;
 
 /// **The display: virtio-gpu, a confined driver, and a client that draws** (milestone 29, rung one
@@ -2066,7 +2297,7 @@ mod compositor_tests;
 /// portable binaries in both archives, the transport is the same PCIe seam on both boards, and the
 /// contract is one host-tested crate, so **both ISAs run literally this test** rather than two
 /// copies of it that can drift (DECISIONS §19: parity is a gate).
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod display_tests;
 
 /// **Rust `std` on the native ABI** (milestone 27): spawn the `std_exerciser` demo, an ordinary Rust
@@ -2084,7 +2315,7 @@ mod display_tests;
 #[cfg(test)]
 pub mod std_service;
 
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod std_tests;
 
 /// **Capability delegation: authority moves between processes at runtime.**
@@ -2173,8 +2404,34 @@ pub mod revoke_service;
 /// appear below: a property that has no RISC-V analogue at all (`el1_runs_on_sp_el1`), and a
 /// property whose RISC-V twin lives in `riscv_virtio_tests` and would be duplicated rather than
 /// gained. See notes/riscv-parity-scope.md.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod tests;
+
+#[cfg(test)]
+/// Spin the scheduler until `done()`, or give up after a wall-clock deadline. Returns whether it
+/// happened. **Time-based, not a fixed yield count** (DECISIONS §28): with work spread across
+/// cores, the test thread's own core is often idle, so a yield returns at once and a fixed count
+/// of them elapses in almost no real time, timing out before a parallel result on another core
+/// lands. A ~2 s deadline gives the other cores real time to finish while staying far under the
+/// 60 s hang watchdog, so a genuine hang still fails.
+///
+/// It lives **here** rather than in `tests` because six sibling modules use it and that one does
+/// not compile on every architecture: `user::tests` needs a real ELF program out of the initrd
+/// and is `#[cfg(all(test, initrd))]`, which would have taken this helper down with it on a
+/// target that packs none (milestone 161, roadmap item 4). A helper every module uses does not
+/// belong inside one of them. Milestone 81 needed it in two of them: running on the physical core makes the
+/// yield-count version fail for the *mirror* reason it fails on a loaded host, since a yield on an
+/// idle core costs nanoseconds there. See notes/hvf-leg.md.
+pub(crate) fn wait_for(mut done: impl FnMut() -> bool) -> bool {
+    let deadline = crate::arch::timer::now() + 2 * crate::arch::timer::frequency();
+    while crate::arch::timer::now() < deadline {
+        if done() {
+            return true;
+        }
+        crate::sched::yield_now();
+    }
+    done()
+}
 
 /// **Forcible teardown: `DESTROY` tears a runaway down** (DECISIONS §16 amendment, §24's second-`^C`
 /// tier). A child spinning at EL0, never yielding and never checking an endpoint, cannot be waited
@@ -2199,7 +2456,7 @@ mod force_kill_tests;
 /// the sub-server crashes, its supervisor hears about it, reaps it through the spawner, and asks for a
 /// replacement, which runs and exits cleanly. init could not have done any of that, and that is what
 /// these two tests prove.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod authority_tests;
 
 /// **The interactive boot's half of the same idea: a job's memory comes home** (milestone 22, the
@@ -2218,7 +2475,7 @@ mod authority_tests;
 ///
 /// Cross-ISA, because every piece is portable: `job_undertaker` is an ordinary program in both archives
 /// and the reap authorization reads two TCB fields.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod job_undertaker_tests;
 
 /// **A memory-unsafe C component, confined** (milestone 36, DECISIONS §31).
@@ -2262,7 +2519,7 @@ mod job_undertaker_tests;
 /// bugs take *different* fault paths on each (a permission fault on the read-only page, a translation
 /// fault on the unmapped one), which is more of each architecture's fault machinery than any previous
 /// test has exercised from userspace.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod c_seam_tests;
 
 /// **A running component replaced under a talking client** (milestone 23, DECISIONS §41).
@@ -2303,7 +2560,7 @@ mod c_seam_tests;
 ///
 /// The second test covers the latency ladder's opt-in rung, `broker`. Both ISAs, because a swap
 /// that only worked on one would be a finding, not a pass.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod live_swap_tests;
 
 /// **Measured boot: the kernel refuses to enter an init it was not built for** (milestone 22 phase
@@ -2321,7 +2578,7 @@ mod live_swap_tests;
 /// matches the archive in RAM), and says Err for bytes off by one bit. The boot path's only response
 /// to Err is `arch::halt()`, which is three lines up from here in `trust::require` and is the sort of
 /// thing a reader can check by looking.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod measured_boot_tests;
 
 /// **The fault endpoint: a supervisor watches a child die and reap it** (milestone 22, DECISIONS
@@ -2403,7 +2660,7 @@ mod pmap_tests;
 /// The negative control is what makes it worth having: the shipped document contains entries a Unix
 /// cron would simply have run (`date` wants a clock, `ps` wants a process view), and the timetable
 /// holds neither, so both are refused **in writing, before anything fires** and neither ever runs.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod timetable_tests;
 
 /// **The directory capability, attacked** (milestone 47, notes/dir-capability.md).
@@ -2413,7 +2670,7 @@ mod timetable_tests;
 /// bitmap, so the only difference between the legs is which binary carries the block-server role,
 /// and that is one `cfg` in [`blk_server_image`] rather than a second copy of every assertion. The
 /// parity gate (DECISIONS §19) is met by literally the same test running twice.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod dir_capability_tests;
 
 /// **One process, two directory capabilities** (milestone 154,
@@ -2426,7 +2683,7 @@ mod dir_capability_tests;
 /// the deliverable both milestone 47's `bind` and milestone 64's `File::open` fork were blocked
 /// on: `/a/x` and `/b/y` both resolve, `/a/../b` is refused, and neither caretaker can see the
 /// other's tree.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod multi_dir_namespace_tests;
 
 /// **The navigation builtins, and the property that two shells cannot name each other's files**
@@ -2439,7 +2696,7 @@ mod multi_dir_namespace_tests;
 /// holding a `fs_subtree_caretaker`'s narrowed endpoint where the interactive one holds a terminal.
 /// So the builtins under test are the builtins at the prompt rather than a reimplementation of
 /// them, and the thing being confined is a shell.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod shell_navigation_tests;
 
 /// **`rm` as a program, and a recursive removal bounded by the capability it was handed**
@@ -2458,7 +2715,7 @@ mod shell_navigation_tests;
 /// exactly where the capabilities stop**: the same command line against the same tree does the
 /// whole job through one grant and cannot begin through a narrower one, and no branch in the
 /// program decides which.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod rm_program_tests;
 
 /// **Globbing: the expansion you see is the grant** (milestone 47's globbing lane;
@@ -2471,7 +2728,7 @@ mod rm_program_tests;
 /// `READDIR`) and then the **real `rm` binary** behind a real `fs_nameset_caretaker`. The argument
 /// the two halves make together is the one Unix cannot make: the names a command displays are
 /// literally the authority it would transfer, and nothing else in the directory moves.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod glob_grant_tests;
 
 /// Parity C: the virtio-blk driver, its two attackers, and the DMA confinement, on RISC-V.
@@ -2511,7 +2768,7 @@ pub mod pipeline_service;
 /// The claim under test is one sentence: **a program holds an endpoint for its output and cannot
 /// tell what is on the other end.** So the assertions are all of the form "the same binary, two
 /// destinations, the same bytes", never "the pipeline printed something".
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod pipeline_tests;
 
 /// **`>` and `<` at a prompt that holds a filesystem** (milestone 50, notes/pipes.md).
@@ -2529,7 +2786,7 @@ mod pipeline_tests;
 ///
 /// One module for both ISAs, for [`shell_navigation_tests`]'s reason: nothing here is
 /// architecture-specific, so the parity gate (DECISIONS §19) is met by the same test running twice.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod redirection_tests;
 
 /// **`time <command>` at a real prompt** (milestone 86, notes/time-command.md).
@@ -2545,7 +2802,7 @@ mod redirection_tests;
 ///
 /// One module for both ISAs, for [`shell_navigation_tests`]'s reason: nothing here is
 /// architecture-specific, so the parity gate (DECISIONS §19) is met by the same test running twice.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod time_tests;
 
 /// **Quoting, sequencing and `$?` at a real prompt** (milestone 67, notes/swish-language.md).
@@ -2566,7 +2823,7 @@ mod time_tests;
 ///
 /// One module for both ISAs, for [`shell_navigation_tests`]'s reason: nothing here is
 /// architecture-specific, so the parity gate (DECISIONS §19) is met by the same test running twice.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod language_tests;
 
 /// **The sink contract, and the one behaviour it changed** (milestone 50, notes/sink-protocol.md).
@@ -2578,7 +2835,7 @@ mod language_tests;
 ///
 /// Both run on both ISAs (§19), because the claim is about a contract and not about an instruction
 /// set.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod sink_tests;
 
 /// **No test may leak a runnable thread** (the regression proxy for the test-thread starvation that

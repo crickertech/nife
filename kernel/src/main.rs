@@ -282,6 +282,12 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // slices (RAM, and what is already spoken for) and hands them to the half that does not
         // care where they came from.
         stack::init();
+        // Paint the boot stack's unused region for the high-water instrument (milestone 84), before
+        // anything else can push a frame into it. Both other boots do this here, in the same breath
+        // as `stack::init`; without it the instrument reads whatever the trampoline left and reports
+        // 100% of a 64 KiB stack in use, which is what the first x86 test run said.
+        #[cfg(test)]
+        stack::paint_boot_stack();
         let regions = arch::machine::bring_up_memory(&info);
         let first = memory::alloc().expect("no frame from the allocator");
         println!(
@@ -302,7 +308,10 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             arch::mmu::text_start(),
             arch::mmu::text_end(),
             arch::mmu::stack_bottom(),
-            stack_top(),
+            // `arch::mmu`'s rather than this file's `stack_top`, which is `#[cfg(not(test))]`
+            // because it belongs to the aarch64 tour. Same linker symbol, same answer, and this
+            // one exists in a test build, which is the boot this tour now has to survive.
+            arch::mmu::stack_top(),
         );
 
         // Milestone 162: RDSEED needs no ring 3, no capability, and nothing this port has not
@@ -319,51 +328,107 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             None => println!("  entropy     : rdseed not supported (cpuid leaf 7 ebx.18 clear)"),
         }
 
-        // Ring 3, which is the step this whole tour has been building toward: every line above it
-        // is about the kernel talking to the machine, and this one is about the kernel refusing a
-        // program. A hand-assembled probe is entered at CPL 3 through `iretq`, makes syscalls that
-        // reach the *portable* dispatcher, is put back, and then tries to read the kernel's own
-        // `.text` and is refused by the page tables.
+        // The per-CPU interrupt stacks go live here, for the reason both other boots arm them right
+        // after their own `mmu::init`: their guard pages are holes in the map that was just
+        // installed, and before that they are covered by the coarse boot map and are not holes yet.
+        interrupt_stack::init();
+
+        // **The scheduler** (milestone 161, roadmap item 4). Everything below this line is a
+        // process rather than a program, which is the distinction item 3 stopped at.
         //
-        // What it does NOT prove is a real process: no ELF is loaded, no capability is granted, and
-        // there is no scheduler behind it (milestone 161, roadmap item 4). The line says what it
-        // measured and nothing more.
-        //
-        // SAFETY: the MMU, the GDT, the IDT and the syscall MSRs are all up by this line, this is
-        // the boot thread, and no other thread exists on this architecture.
-        match unsafe { arch::exceptions::ring3_self_test() } {
-            Ok(report) => {
-                println!(
-                    "  ring 3      : a program ran at cpl {} (cs {:#06x}, ss {:#06x}) and made {} syscalls",
-                    report.cs & 3,
-                    report.cs,
-                    report.ss,
-                    report.syscalls,
-                );
-                println!(
-                    "                the portable dispatcher answered BadSyscall ({}) to an unknown number",
-                    report.dispatcher_answer,
-                );
-                match report.fault {
-                    Some((fault, at)) => println!(
-                        "                reading the kernel's .text at {at:#x} from ring 3: {fault:?}",
-                    ),
-                    None => println!(
-                        "                FAILED: reading the kernel's .text at {:#x} did not fault",
-                        report.forbidden_address,
-                    ),
+        // Interrupts are off here (the two measurement windows above turned them back off), which
+        // is what `sched::init` needs: a timer tick landing mid-init would run the deferred
+        // `schedule()` before the idle thread is registered and hit "nothing runnable and no idle
+        // thread". The RISC-V boot masks them explicitly at this point for the same reason.
+        sched::init();
+
+        // Re-arm the local APIC timer and let it run for good. `timer::init` rewrites the LVT
+        // unmasked, which is what undoes the `mask_timer` the PIT window needed so its count would
+        // be the PIT's alone. From here this timer is what preempts.
+        arch::timer::init();
+        arch::interrupts::enable();
+        println!(
+            "  scheduler   : up on 1 cpu, preempting at {} Hz (idle thread registered)",
+            arch::timer::TICK_HZ,
+        );
+
+        // **SMP, which on this machine is one line and a refusal**, and it is called anyway rather
+        // than skipped. `arch::can_start_secondaries` is false here (INIT-SIPI-SIPI is roadmap item
+        // 5), so this prints the mechanism and returns; what it does *first* is mark the boot core
+        // in `ONLINE_MASK`, and that is not optional. Everything that broadcasts (`online_cpus`,
+        // `nth_online`, the shootdown loops) reads that mask, so a kernel that never called this
+        // has an empty online set while `online_count` says one, and the two disagreeing is what
+        // `the_online_set_is_the_mask_and_the_sampler_stays_inside_it` caught on the first x86 test
+        // run. Both other boots call this in the same position.
+        smp::bring_up_secondaries();
+
+        // A kernel thread, which is the cheapest proof that `kmem`, `untyped` and the context
+        // switch all work on this architecture: its stack came from the kernel's own budget and
+        // running it at all is one `switch_to` out and one back.
+        {
+            use core::sync::atomic::AtomicU64;
+            static SAW: AtomicU64 = AtomicU64::new(0);
+            let captured = 0x1610_0004u64;
+            match sched::spawn(move || SAW.store(captured, core::sync::atomic::Ordering::SeqCst)) {
+                Some(_) => {
+                    for _ in 0..8 {
+                        sched::yield_now();
+                    }
+                    let saw = SAW.load(core::sync::atomic::Ordering::SeqCst);
+                    println!(
+                        "  kernel task : a spawned thread ran and carried its captured state ({saw:#x}){}",
+                        if saw == captured { "" } else { "  FAILED" },
+                    );
                 }
+                None => println!("  kernel task : FAILED: could not spawn a kernel thread"),
             }
-            Err(why) => println!("  ring 3      : FAILED: {why}"),
         }
 
-        // And that is the end of what is built. Everything the RISC-V tour does past this point
-        // (the scheduler, userspace, the device drivers) needs an arch layer this port has not
-        // written, and each of those is a loud `unimplemented!()` rather than a plausible number.
-        // Halting here is the honest stop; see the roadmap for the order the rest comes in.
+        // **Userspace**, which is the step this whole tour has been building toward: every line
+        // above it is about the kernel talking to the machine, and this one is about the kernel
+        // running a program and refusing it. Two hand-assembled children, each built out of its own
+        // untyped region the way a real spawn builds one; see `user::x86_userspace_demo`.
+        match user::x86_userspace_demo() {
+            Ok(report) => {
+                println!(
+                    "  userspace   : a process built from untyped ran at cpl 3 and sent {:#x} on a granted cap",
+                    report.reported,
+                );
+                println!(
+                    "                thread {} died at pc {:#x} on addr {:#x}, delivered to its supervisor",
+                    report.faulted_tid, report.fault_pc, report.fault_addr,
+                );
+                println!(
+                    "                two children cost {} frames the first round and {} the second{}",
+                    report.first_round_frames,
+                    report.second_round_frames,
+                    if report.second_round_frames == 0 {
+                        " (steady state)"
+                    } else {
+                        "  (LEAKED)"
+                    },
+                );
+            }
+            Err(why) => println!("  userspace   : FAILED: {why}"),
+        }
+
+        // A test build runs the kernel suite right here and exits via semihosting, instead of the
+        // rest of the tour. Everything the tests need is now up: the frame allocator, the fine page
+        // tables, the scheduler and its idle thread, the timer and interrupts. The x86 equivalent of
+        // the `#[cfg(test)] test_main()` both other boots reach.
+        #[cfg(test)]
+        {
+            test_main();
+            arch::halt();
+        }
+
+        // And that is the end of what is built. What the RISC-V tour does past this point (the
+        // device drivers, an initrd, a shell) needs user programs compiled for
+        // `x86_64-unknown-none`, and none are: `crates/user_rt` has no arms for this ISA. See the
+        // roadmap for the order the rest comes in.
         println!();
-        println!("  next        : the kernel's own test suite, and therefore a script/test leg.");
-        println!("nife x86_64: early boot complete, halting.");
+        println!("  next        : real ELF user programs (user_rt has no x86_64 arms), then SMP.");
+        println!("nife x86_64: boot complete, halting.");
         arch::halt();
     }
 
@@ -1400,9 +1465,22 @@ mod tests {
     /// begins with the magic `0xd00dfeed`, stored **big-endian** (the format predates
     /// the little-endian consensus and never changed), so we have to byte-swap on the
     /// way in. If this passes, the machine is genuinely describing itself to us.
+    /// **Not on `x86_64`**, and the reason is the whole of what that architecture's boot handoff
+    /// differs by: what arrives in `kernel_main`'s one pointer there is PVH's `hvm_start_info`,
+    /// which carries the same *kind* of thing (the memory map, the root of everything else
+    /// discoverable) in an entirely different format. `machine_discovery::x86_64` decodes it and
+    /// is host-tested against a real dump, which is the stronger place for that check to live;
+    /// this test's subject genuinely does not exist there.
     #[test_case]
     fn device_tree_has_the_right_magic() {
         use core::sync::atomic::Ordering;
+
+        if cfg!(target_arch = "x86_64") {
+            crate::testing::skip!(
+                "this machine hands over PVH hvm_start_info, not a device tree (see \
+                 machine_discovery::x86_64, host-tested)"
+            );
+        }
 
         // DTB holds the PHYSICAL address QEMU gave us in x0. Since the kernel moved to the
         // high half, TTBR0 is disabled and a low address does not exist: dereferencing it

@@ -70,7 +70,7 @@ fn reap(slot: u64, tid: u64) -> Result<i64, Error> {
 /// answer; this is only for the ones that mean "this reap succeeds".
 fn reap_when_settled(slot: u64, tid: u64) -> Result<i64, Error> {
     let mut answer = reap(slot, tid);
-    super::tests::wait_for(|| {
+    super::wait_for(|| {
         if answer != Err(Error::NotPermitted) {
             return true;
         }
@@ -412,7 +412,7 @@ fn reaping_an_uncollected_corpse_leaves_no_ghost_on_the_rendezvous() {
     // this core spends 4000 yields in microseconds while the child's core has not run it yet, and
     // the assertion fails with "the corpse never parked" about a corpse that was on its way.
     assert!(
-        super::tests::wait_for(|| sched::rendezvous_waiting_senders(fault_ep) == 1),
+        super::wait_for(|| sched::rendezvous_waiting_senders(fault_ep) == 1),
         "the corpse never parked on its supervision rendezvous",
     );
 

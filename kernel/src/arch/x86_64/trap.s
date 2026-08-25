@@ -113,13 +113,39 @@ isr_common:
     # The frame is 22 quadwords = 176 bytes, and the CPU aligned rsp to 16 before pushing its own
     # part, so rsp is 16-byte aligned here and `call` leaves it at the 8-mod-16 the ABI expects.
     mov rdi, rsp
-    call x86_trap_handler
+    call x86_trap_dispatch
 
     # Restore a TrapFrame at rsp and return from the trap. Shared by the IDT path above, by the
-    # `syscall` path below, and by the two first-entry-to-ring-3 paths after that, which is what
-    # keeps "how a frame becomes running registers" a single piece of code with a single swapgs
-    # rule. The RISC-V twin of this label is `trap_return`.
+    # `syscall` path below, and by the first-entry-to-ring-3 path after that, which is what keeps
+    # "how a frame becomes running registers" a single piece of code with a single swapgs rule. The
+    # RISC-V twin of this label is `trap_return`.
 isr_restore:
+    # ON A RETURN TO RING 3, RECORD WHERE THE NEXT TRAP FROM THIS THREAD SHOULD LAND (milestone
+    # 161, roadmap item 4). Until the scheduler existed there was one user program and one kernel
+    # stack, and `ring3_self_test` set both by hand; with threads there is one kernel stack per
+    # thread and the two doors into the kernel have to be re-pointed every time the thread that
+    # would come through them changes.
+    #
+    # THE FRAME'S OWN ADDRESS IS THE ANSWER, which is what makes this a rule rather than a
+    # bookkeeping duty somebody has to remember at each switch. Every thread's TrapFrame lives at
+    # `stack_top - 176` for the life of the thread (kernel/src/user.rs `enter_frame`, milestone 71),
+    # so the top is `rsp + 176` at this instant, computed from the frame we are about to load rather
+    # than from any record of who is running. RISC-V does exactly this, at exactly this point, in
+    # `trap_return`.
+    #
+    # Two writes, because x86 has two doors and they find their stack differently: a trap reads
+    # `TSS.rsp0` and `syscall` reads nothing at all. `segments::set_kernel_stack` keeps the same pair
+    # in step for the boot-thread case; this is the per-trap half.
+    #
+    # rax and rcx are free here: every general register is still in the frame below and is about to
+    # be popped over.
+    test byte ptr [rsp + 18*8], 3   # cs, whose low two bits are the ring we are returning to
+    jz 3f
+    lea rax, [rsp + 176]            # this thread's kernel-stack top
+    mov [rip + X86_SYSCALL_KERNEL_RSP], rax
+    mov rcx, [rip + X86_TSS_RSP0]
+    mov [rcx], rax
+3:
     pop rax
     pop rbx
     pop rcx
@@ -205,9 +231,33 @@ x86_syscall_entry:
     call x86_syscall_handler
     jmp isr_restore
 
+# RUN THE HANDLER ON THIS CPU'S INTERRUPT STACK (milestone 124, brought to this architecture by
+# milestone 161's roadmap item 4).
+#
+#   rdi = &mut TrapFrame     rsi = the stack to run on, or 0 to stay
+#
+# The twin of `dispatch_on_interrupt_stack` in the other two ports' trap assembly, and the same
+# contract: the frame stays where the stub built it, because a preempted thread's frame must survive
+# until that thread runs again and a per-CPU stack cannot promise that; everything above it moves.
+# Rust decides whether to switch, in `interrupt_stack::top_for_trap`; this only moves `rsp`.
+#
+# `rbp` holds the interrupted `rsp` across the call because it is callee-saved, so the handler cannot
+# clobber it and it needs no slot on either stack. `x86_trap_body` returns its bool in `al`, which
+# nothing here touches.
+.global dispatch_on_interrupt_stack
+dispatch_on_interrupt_stack:
+    push rbp
+    mov rbp, rsp
+    test rsi, rsi
+    jz 4f                           # 0: stay here (from ring 3, pre-init, or nesting)
+    mov rsp, rsi
+4:  call x86_trap_body
+    mov rsp, rbp                    # back to the interrupted stack BEFORE anything can switch away
+    pop rbp
+    ret
+
 # ---------------------------------------------------------------------------------------------
-# The first entry to ring 3. Two doors into `isr_restore`, because a user program is entered from
-# two different places and only one of them ever comes back.
+# The first entry to ring 3.
 # ---------------------------------------------------------------------------------------------
 
 # void user_return(TrapFrame *frame) -> !
@@ -224,48 +274,6 @@ user_return:
     cli
     mov rsp, rdi
     jmp isr_restore
-
-# u64 x86_enter_user_and_wait(TrapFrame *frame, u64 *resume_slot)
-#
-# **Bring-up scaffolding, and named so it reads as scaffolding** (provisional; milestone 161). Enter
-# ring 3 like `user_return`, but leave this caller a way back: park the six callee-saved registers
-# and this call's own return address on the current stack, record that block's address in
-# `*resume_slot`, and enter. `x86_leave_user` below resumes it, and this function then returns
-# normally with whatever value that call passed.
-#
-# It is `switch_to`'s two halves with a ring change in the middle, which is not an accident: what a
-# scheduler does with two threads is what this does with one, and when the scheduler comes up on
-# this architecture (roadmap item 4) this pair is what it replaces. Until then it is the only way a
-# boot tour can run a ring-3 program and still print what happened.
-.global x86_enter_user_and_wait
-x86_enter_user_and_wait:
-    cli
-    push rbp
-    push rbx
-    push r12
-    push r13
-    push r14
-    push r15
-    mov [rsi], rsp                  # *resume_slot = the saved block, with our return address on top
-    mov rsp, rdi
-    jmp isr_restore
-
-# void x86_leave_user(u64 resume_rsp, u64 value) -> !
-#
-# Abandon the kernel stack we are on and resume whoever called `x86_enter_user_and_wait`, handing
-# back `value` as its return value. The pop order is the mirror of the push order above, and the
-# `ret` lands on the return address the original `call` left underneath them.
-.global x86_leave_user
-x86_leave_user:
-    mov rax, rsi
-    mov rsp, rdi
-    pop r15
-    pop r14
-    pop r13
-    pop r12
-    pop rbx
-    pop rbp
-    ret
 
 # ---------------------------------------------------------------------------------------------
 # The table of stub addresses, so `exceptions::init` can fill the IDT from a loop in Rust rather

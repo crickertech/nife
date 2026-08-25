@@ -129,7 +129,7 @@ fn drain(parking: sched::RendezvousId, n: usize) {
 fn collect_all(cap: u64, tids: &[u64]) {
     for &tid in tids {
         assert!(
-            super::tests::wait_for(|| reap(cap, tid) == Ok(0)),
+            super::wait_for(|| reap(cap, tid) == Ok(0)),
             "a member the survey reported could not be collected through the rendezvous that \
              showed it",
         );
@@ -190,7 +190,7 @@ fn a_domain_is_exactly_the_children_of_the_rendezvous_that_was_granted() {
 
     // Both of mine have to have reached their send before the states below mean anything.
     assert!(
-        super::tests::wait_for(|| sched::rendezvous_waiting_senders(parking) == 3),
+        super::wait_for(|| sched::rendezvous_waiting_senders(parking) == 3),
         "the three children never reached their sends",
     );
 
@@ -271,7 +271,7 @@ fn a_viewer_without_the_domain_is_refused_rather_than_shown_an_empty_list() {
     let parking = rendezvous(rendezvous_region);
     let child = child_in(budget, REPORT_STUB, Some(parking), ep);
     assert!(
-        super::tests::wait_for(|| sched::rendezvous_waiting_senders(parking) == 1),
+        super::wait_for(|| sched::rendezvous_waiting_senders(parking) == 1),
         "the child never reached its send",
     );
 
@@ -378,7 +378,7 @@ fn a_dead_child_is_still_in_the_domain_until_it_is_reaped() {
     // The corpse parks on its supervision rendezvous's sender queue with its death message when
     // nobody is in RECV, which is how a survey can see it before anyone has collected the news.
     assert!(
-        super::tests::wait_for(|| sched::rendezvous_waiting_senders(ep) == 1),
+        super::wait_for(|| sched::rendezvous_waiting_senders(ep) == 1),
         "the child never died onto its supervision rendezvous",
     );
 
@@ -431,7 +431,7 @@ fn a_resumed_walk_reports_every_member_exactly_once() {
     let b = child_in(budget, REPORT_STUB, Some(parking), ep);
     let c = child_in(budget, REPORT_STUB, Some(parking), ep);
     assert!(
-        super::tests::wait_for(|| sched::rendezvous_waiting_senders(parking) == 3),
+        super::wait_for(|| sched::rendezvous_waiting_senders(parking) == 3),
         "the three children never reached their sends",
     );
 
@@ -497,7 +497,7 @@ fn the_survey_cursor_counts_threads_the_viewer_cannot_name() {
     let stranger = child_in(budget, REPORT_STUB, Some(parking), theirs);
     let b = child_in(budget, REPORT_STUB, Some(parking), mine);
     assert!(
-        super::tests::wait_for(|| sched::rendezvous_waiting_senders(parking) == 3),
+        super::wait_for(|| sched::rendezvous_waiting_senders(parking) == 3),
         "the three children never reached their sends",
     );
 
@@ -598,11 +598,11 @@ fn a_filter_names_members_and_tells_its_four_answers_apart() {
     let live_b = child_in(budget, REPORT_STUB, Some(parking), ep);
     let corpse = child_in(budget, FAULT_STUB, None, ep);
     assert!(
-        super::tests::wait_for(|| sched::rendezvous_waiting_senders(parking) == 2),
+        super::wait_for(|| sched::rendezvous_waiting_senders(parking) == 2),
         "the two live children never reached their sends",
     );
     assert!(
-        super::tests::wait_for(|| sched::rendezvous_waiting_senders(ep) == 1),
+        super::wait_for(|| sched::rendezvous_waiting_senders(ep) == 1),
         "the third child never died onto its supervision rendezvous",
     );
 

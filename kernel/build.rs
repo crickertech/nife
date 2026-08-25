@@ -24,7 +24,37 @@ fn main() {
     println!("cargo::rerun-if-changed={boot_asm}");
     println!("cargo::rustc-link-arg=-T{manifest_dir}/{link_script}");
 
+    declare_initrd_cfg(&arch);
     generate_trust_root(&manifest_dir, &arch);
+}
+
+/// **`cfg(initrd)`: does this target have user programs to pack into one?** (milestone 161, roadmap
+/// item 4.)
+///
+/// A great many `#[test_case]`s in `kernel/src/user/` are portable in every respect except that
+/// their fixture is a **real ELF binary read out of the initrd archive**, and `x86_64-unknown-none`
+/// has none: `crates/user_rt` has no arms for that ISA and `user/build.rs` cannot compile its C
+/// components for it, so nothing in `user/` builds and `xtask` packs no archive. See
+/// notes/x86-port.md.
+///
+/// **The cfg names the reason rather than the architecture**, which is the whole point of spending a
+/// build script on it. `#[cfg(all(test, initrd))]` on a module reads "this needs an initrd", and
+/// stays true; `#[cfg(not(target_arch = "x86_64"))]` would have said "not on x86" twenty-six times
+/// over and would be wrong the day x86 gets user programs, in twenty-six places nobody would think
+/// to look. The day this port can build them, one arm of the match below changes and every one of
+/// those modules comes back at once.
+///
+/// **Name provisional** (milestone 161): calef names things, and a `cfg` a reader meets in front of
+/// a module is as reader-facing as a crate.
+fn declare_initrd_cfg(arch: &str) {
+    // Declare it whatever the answer, so `unexpected_cfgs` stays a useful lint rather than being
+    // silenced: a typo'd `#[cfg(initd)]` should still be caught.
+    println!("cargo::rustc-check-cfg=cfg(initrd)");
+    match arch {
+        "aarch64" | "riscv64" => println!("cargo::rustc-cfg=initrd"),
+        // x86_64, and anything a fourth port adds before it can build userspace.
+        _ => {}
+    }
 }
 
 /// **Compile the boot program's measurement into the kernel image** (milestone 22 phase B.1).
