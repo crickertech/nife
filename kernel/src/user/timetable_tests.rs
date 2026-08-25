@@ -158,8 +158,9 @@ fn spawn_timetable(fires: u64) -> (RendezvousId, RendezvousId, RendezvousId) {
     .expect("insert out");
     assert_eq!(s, 0, "the timetable's output endpoint must land in slot 0");
     // Slot 1: what every instance is made of.
-    let s = crate::sched::thread_control_block_insert_cap(tid, memory_region_root_cap(budget), None)
-        .expect("insert budget");
+    let s =
+        crate::sched::thread_control_block_insert_cap(tid, memory_region_root_cap(budget), None)
+            .expect("insert budget");
     assert_eq!(s, 1, "the timetable's budget must land in slot 1");
     // Slot 2: what each instance is handed as its own slot 0. `GRANT` because handing it on is the
     // entire purpose; `WRITE` because a scheduled child reports and never listens.

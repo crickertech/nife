@@ -60,9 +60,12 @@ fn spawn_tree() -> sched::RendezvousId {
         crate::memory_region::create(ROOT_BUDGET_PAGES).expect("no budget for root_supervisor");
     let thread_control_block_region = crate::memory_region::create(2).expect("no tcb region");
     let tid = sched::create_thread_control_block(thread_control_block_region).expect("no tcb");
-    let s0 =
-        sched::thread_control_block_insert_cap(tid, crate::cap::memory_region_root_cap(budget), None)
-            .expect("insert budget");
+    let s0 = sched::thread_control_block_insert_cap(
+        tid,
+        crate::cap::memory_region_root_cap(budget),
+        None,
+    )
+    .expect("insert budget");
     assert_eq!(s0, 0, "root_supervisor's budget must land in slot 0");
     let s1 = sched::thread_control_block_insert_cap(
         tid,

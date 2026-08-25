@@ -135,9 +135,12 @@ fn spawn_swapper(role: u64) -> (sched::RendezvousId, u64, u64) {
     let budget = crate::memory_region::create(SWAPPER_BUDGET_PAGES).expect("no budget for swapper");
     let thread_control_block_region = crate::memory_region::create(2).expect("no tcb region");
     let tid = sched::create_thread_control_block(thread_control_block_region).expect("no tcb");
-    let s0 =
-        sched::thread_control_block_insert_cap(tid, crate::cap::memory_region_root_cap(budget), None)
-            .expect("insert budget");
+    let s0 = sched::thread_control_block_insert_cap(
+        tid,
+        crate::cap::memory_region_root_cap(budget),
+        None,
+    )
+    .expect("insert budget");
     assert_eq!(s0, 0, "swapper's budget must land in slot 0");
     let s1 = sched::thread_control_block_insert_cap(
         tid,
