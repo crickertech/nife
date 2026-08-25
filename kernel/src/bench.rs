@@ -1043,7 +1043,7 @@ fn map_el0() {
                 grants: &[
                     rendezvous_cap(report, Rights::WRITE), // slot 0: report the result
                     address_space_cap(name, Rights::WRITE), // slot 1: the space we map into
-                    page_frame_cap(phys, Rights::READ),     // slot 2: the frame we alias-map
+                    page_frame_cap(phys, Rights::READ),    // slot 2: the frame we alias-map
                 ],
                 maps: &[],
             },
