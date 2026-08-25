@@ -683,7 +683,7 @@ ceiling stays 94: there is nothing to cinch that round 4 had not already cinched
 is real and lower, and it is recorded as such above; the ceiling tracks density, not a raw block
 count, and density is what a growing tree's line count keeps honest.
 
-**At most 20 `unsafe impl Send`/`Sync` claims** <!--count-at-most:unsafe-thread-safety-claims-->,
+**At most 22 `unsafe impl Send`/`Sync` claims** <!--count-at-most:unsafe-thread-safety-claims-->,
 and this one has no headroom at all. Each is a hand-written assertion that the compiler is wrong
 about a type, which is the most consequential unsafe in the tree: a wrong one is a data race that
 no test reliably reproduces. The population moved twice in three weeks, so a zero-slack ceiling
@@ -706,6 +706,13 @@ protect against. `ClockPage` needs the same two impls despite carrying a seqlock
 its *writer* uses atomics too; `ConfigPage` needs them for the simpler reason that it has no writer
 at all once it is mapped (see `env_proto`'s own docs on why it needs no seqlock), which makes the
 claim, if anything, easier to justify than its precedent's.
+
+Raised from 20 to 22 by milestone 161's x86_64 timebase-page work (2026-08-25):
+`crates/timebase_proto::TimebasePage`'s `unsafe impl Send`/`Sync`, the same pair `ConfigPage`
+already carries and for the identical argument. The page is computed once by the kernel at boot
+(`kernel::user::x86_timebase_page_phys`) and mapped read-only into every x86_64 process; it has no
+writer once mapped, the same shape that makes `ConfigPage`'s claim easy to justify, restated for a
+page carrying a calibrated clock rate instead of locale strings.
 
 **No target for `kernel/src/arch/`**, which is 139 blocks and rising. Driving that number down means
 either writing assembly wrong or moving it out of `arch/`, and DECISIONS rule 1 says arch code
