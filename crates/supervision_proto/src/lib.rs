@@ -295,7 +295,7 @@ pub fn build_child_space(
     // builds (`root_supervisor`, `spawner`, `hello`'s roles, `system_initializer`, ...) without
     // every individual caller needing to know about it.
     //
-    // **This maps a freshly retyped, zeroed placeholder, not the real page.** `retype_frame_from`
+    // **This maps a freshly retyped, zeroed placeholder, not the real page.** `retype_page_frame_from`
     // gives back memory out of `build_ut` (the child's own budget, exactly like the stack pages
     // just above), which this process can always afford and which carries no capability from the
     // kernel to forward. A zeroed page fails `timebase_proto::TimebasePage`'s magic check and

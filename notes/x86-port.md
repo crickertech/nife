@@ -226,7 +226,7 @@ regions, the reservations, the interrupt controller, the RTC, the UART's interru
 window. Nothing about that is wrong on two architectures that both have a device tree. On x86 there
 is no tree, so **the frame allocator could not come up at all**.
 
-**The narrow half is now split out** (`memory::bring_up_frames`), because without it nothing below
+**The narrow half is now split out** (`memory::bring_up_page_frames`), because without it nothing below
 the allocator can exist on this architecture and the port would have stopped there. `init` is now
 explicitly a device-tree *front end*: it reads the tree, assembles a RAM slice and a forbidden slice,
 and hands them to a function that does not care where they came from.
@@ -424,7 +424,7 @@ second, **writable** alias of `.text`. W^X that a second mapping undoes is not W
 ### The hazard the roadmap flagged, and why there is no sequencing step
 
 `phys_to_virt` changes meaning the instant a new `CR3` is installed, if the old and new tables put
-the direct map in different places. That is not hypothetical: `memory::bring_up_frames` turns the
+the direct map in different places. That is not hypothetical: `memory::bring_up_page_frames` turns the
 frame bitmap's physical address into a `&'static mut [u8]` and **stores it**, and the PVH structure
 and the ACPI tables are read the same way, all before any fine map exists.
 

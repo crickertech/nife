@@ -509,10 +509,10 @@ pub fn bitmap_region() -> (u64, u64) {
 /// [`init`] reads the bounds out of `/chosen` and stores them itself, which works on the two
 /// architectures that have a device tree. `x86_64` gets them from PVH's module list instead
 /// (`arch::x86_64::machine::initrd`), so the storing has to be reachable from there. This is the
-/// same seam [`bring_up_frames`] is: the fact crosses it, the *source* of the fact does not.
+/// same seam [`bring_up_page_frames`] is: the fact crosses it, the *source* of the fact does not.
 ///
 /// **It does not reserve the region**, and the asymmetry with [`init`] is deliberate. A caller here
-/// is already building the `forbidden` slice it hands [`bring_up_frames`], so doing it in both
+/// is already building the `forbidden` slice it hands [`bring_up_page_frames`], so doing it in both
 /// places would either double-reserve or, worse, make each side assume the other did it. The x86
 /// front end passes the same region both ways, one line apart, where a reader can see it.
 /// Only a device-tree-less front end calls this, so on the two architectures that have a tree it is

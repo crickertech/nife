@@ -127,7 +127,7 @@ Ordered as it was built, because each step is what made the next one debuggable.
    EOI is a hang on this architecture, so exactly one tick would have been the failure to expect.
 
 8. **The frame allocator.** `memory::init` was split into a device-tree front end and
-   `memory::bring_up_frames`, which takes a RAM slice and a forbidden slice and does not care where
+   `memory::bring_up_page_frames`, which takes a RAM slice and a forbidden slice and does not care where
    they came from; the x86 front end builds those from the PVH map. **Verified: 254 MiB total, 254
    MiB free, first frame 0x16f000.** The whole first megabyte is clipped rather than reserved (it
    holds the IVT, the BDA, the EBDA, the boot info, and the page a STARTUP IPI's vector can name),
@@ -380,7 +380,7 @@ in files that already had two. `crates/paging` needed nothing.
 In the order it should be done, because each is a prerequisite for the next.
 
 0. **The device-discovery seam**, milestone 20's other promised abstraction. Its **narrow half is
-   built** (`memory::bring_up_frames`), because without it the frame allocator could not come up on
+   built** (`memory::bring_up_page_frames`), because without it the frame allocator could not come up on
    a machine with no device tree and the port stopped there; `memory::init` is now explicitly a
    device-tree front end and `arch::x86_64::machine::bring_up_memory` is the x86 one. **The wide
    half is still owed and should be its own milestone**: the device *windows* (interrupt controller,

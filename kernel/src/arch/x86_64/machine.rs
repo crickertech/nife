@@ -551,7 +551,7 @@ pub fn bring_up_memory(info: &BootInfo) -> usize {
     //
     // **The count is what the array is sliced to**, rather than the array being sized to the worst
     // case and passed whole: an all-zero `Region` is a reservation of nothing at address zero, and
-    // `bring_up_frames` would dutifully take it.
+    // `bring_up_page_frames` would dutifully take it.
     let mut forbidden = [dtb::Region { start: 0, size: 0 }; 2];
     forbidden[0] = dtb::Region {
         start: crate::memory::image_start(),
