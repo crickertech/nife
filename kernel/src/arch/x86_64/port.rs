@@ -50,11 +50,10 @@ pub unsafe fn in8(port: u16) -> u8 {
 }
 
 /// Write one 32-bit word to an I/O port. Used by PCI configuration access through the legacy
-/// 0xcf8/0xcfc pair, which is 32-bit only.
+/// 0xcf8/0xcfc pair, which is 32-bit only (`arch::x86_64::machine::enable_pcie_ecam`).
 ///
 /// # Safety
 /// As [`out8`].
-#[cfg_attr(not(test), allow(dead_code))]
 pub unsafe fn out32(port: u16, val: u32) {
     // SAFETY: as `out8`.
     unsafe { asm!("out dx, eax", in("dx") port, in("eax") val, options(nostack, preserves_flags)) };

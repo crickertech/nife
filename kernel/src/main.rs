@@ -180,6 +180,23 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         let acpi = arch::machine::read_acpi(info.rsdp);
         arch::machine::print_acpi_summary(&acpi);
 
+        // Turn the MCFG's ECAM window on and record it where kernel/src/pci.rs already knows to
+        // look: `memory::pci_regions()`, the same static a device-tree machine fills from its
+        // `pci-host-ecam-generic` node. No MCFG, no PCI at all, the same treatment the other two
+        // architectures give a tree with no such node. The BAR window has no ACPI or AML source
+        // (see `arch::mmu::PCI_BAR_PHYS`), so it is always the hardcoded one.
+        if let Some((base, lo, hi)) = acpi.ecam {
+            arch::machine::enable_pcie_ecam(base);
+            let ecam_size = (hi as u64 - lo as u64 + 1) * 0x10_0000;
+            memory::record_pci_regions(
+                (base, ecam_size),
+                (arch::mmu::PCI_BAR_PHYS, arch::mmu::PCI_BAR_MAPPED),
+            );
+            println!("  pci         : ecam enabled at {base:#x} (buses {lo}..={hi})");
+        } else {
+            println!("  pci         : skipped, no MCFG");
+        }
+
         // The local APIC, and then a real hardware interrupt. Until this point the only trap the
         // kernel has taken is one it raised itself with `int3`; a periodic timer proves the other
         // half, that an interrupt the CPU did not ask for arrives, is dispatched by vector, and is

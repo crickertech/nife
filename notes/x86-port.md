@@ -187,9 +187,15 @@ What q35 actually has, read on 2026-08-23:
 Three things to take from that.
 
 **The ECAM window the MCFG describes is exactly the constant `arch::mmu::PCI_ECAM_PHYS` hardcodes**,
-which is now confirmed twice over (the PVH memory map reports the same range as reserved). The
-constant should come from here rather than being checked against here, and doing that is a line of
-code once something consumes it.
+which is now confirmed twice over (the PVH memory map reports the same range as reserved). **Milestone
+165 wired the consumer**: `memory::record_pci_regions` fills `memory::pci_regions()` from this table's
+answer, the same static `kernel/src/pci.rs`'s probes already read on the other two architectures, so
+`PCI_ECAM_PHYS` is now only the print-time reference value above rather than what gets mapped. Reading
+the table alone was not enough: QEMU's ECAM decode is off until the host bridge's `PCIEXBAR` register
+is programmed, which real firmware does and PVH does not, so `arch::x86_64::machine::enable_pcie_ecam`
+does it through the legacy `0xcf8`/`0xcfc` ports before the window above is trusted. See milestone
+165's own text for the measurement that found this (a monitor `xp` on the address faults before the
+register is written, and reads the host bridge's real id after).
 
 **`8259s present (must be masked)`** is the MADT's `PCAT_COMPAT` flag, and it is a real obligation
 rather than trivia: the legacy PICs are still wired and still raise interrupts, so whoever brings the
@@ -221,17 +227,16 @@ explicitly a device-tree *front end*: it reads the tree, assembles a RAM slice a
 and hands them to a function that does not care where they came from.
 `arch::x86_64::machine::bring_up_memory` is the x86 front end doing the same job from the PVH map.
 
-**The wide half is still owed, and it is the milestone.** What crosses the seam today is RAM and
-reservations only. The device *windows* the tree front end also discovers stay in `memory.rs`'s
-statics and stay `None` on x86, so `memory::pci_regions()` reports nothing even though the ACPI MCFG
-answered a few lines earlier. Two facts now have two sources that do not know about each other,
-which is the shape this should not be left in:
+**The wide half is still partly owed.** What crosses the seam today is RAM, reservations, and (as of
+milestone 165) the PCIe ECAM window. The interrupt controller and the console UART's interrupt still
+bypass `memory.rs`'s statics or stay unwired. Three facts still have two sources that do not know
+about each other, which is the shape this should not be left in:
 
 | Fact | Device-tree machines | x86 |
 |---|---|---|
 | RAM, reservations | `memory::init` | `machine::bring_up_memory` (**shared consumer**) |
 | Interrupt controller | `memory::init` -> `GIC_REGIONS`/`PLIC_REGION` | ACPI MADT -> `machine::Acpi` -> `irq::init_{local,io}_apic` **directly**, bypassing the statics |
-| PCIe ECAM window | `memory::init` -> `PCI_REGIONS` | ACPI MCFG -> `machine::Acpi`, unwired |
+| PCIe ECAM window | `memory::init` -> `PCI_REGIONS` | ACPI MCFG -> `machine::Acpi` -> `memory::record_pci_regions` -> `PCI_REGIONS` (**shared consumer**, milestone 165). The BAR/mem32 half of the same static has no ACPI or AML source and stays a hardcoded constant (`arch::mmu::PCI_BAR_PHYS`); see that milestone for why. |
 | Console UART interrupt | `memory::init` -> `UART_IRQ` | discoverable now (`Acpi::isa_irqs[4]` is COM1's), unwired |
 
 The type at the seam is another loose end worth naming: `Region` is `dtb::Region`, which is a plain
