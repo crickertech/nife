@@ -1,6 +1,8 @@
 # 76. What catches a milestone status that is wrong in both places?
 
-**Status: PROPOSED.** (raised 2026-08-04 after nine milestones were found misrecorded in one sweep.)
+**Status: DECIDED.** calef, 2026-08-25, in conversation, ratifying the recommendation below as
+written: *"Ratify it."* (raised 2026-08-04 after nine milestones were found misrecorded in one
+sweep.)
 
 **What.** `script/roadmap --check` verifies that `design/roadmap/README.md` and the milestone's own
 file agree. That was built on 2026-08-03 to catch the split-brain defect, and it does. **It cannot
@@ -34,5 +36,30 @@ invisible to it. That is a real weakness and it is the same class of weakness as
 A check that is right most of the time is still worth more than the nothing that exists now, but it
 should be honest in its own output about what it cannot see.
 
-**Not blocked.** Nothing waits on this; the nine records are corrected. It decides whether the tenth
-is caught by a machine or by another sweep.
+**Reframed 2026-08-25: a backstop now, not the primary defense.** A practice has emerged in this
+project since 2026-08-04, discussed with calef before ratification: a lane updates its own
+milestone's roadmap status **as part of the same PR that does the work**, rather than as a separate
+step landing later. That is closer to `AGENTS.md`'s own rung 1 ("make the wrong state
+unrepresentable") than to this decision's own rung-2 check ("a gate that fails loudly"), because the
+status update is bundled into the very commit it describes rather than a fact someone has to
+remember to go add. It directly attacks the shape of the original failure: nine milestones sat
+`NOT-STARTED` because the update was a forgettable separate step, and a step that cannot be separated
+cannot be forgotten the same way.
+
+That closes most of the acute failure mode this decision was written against, but not all of it, and
+three real leaks survive the newer practice: a lane can still be briefed and simply not do the status
+update, or update the wrong milestone's file; work landing outside the "brief a lane" shape (a direct
+maintainer fix, an outside contributor, a dependabot-generated pull request) never goes through this
+treatment at all; and the check's own already-named weakness stands regardless of who lands the
+work, since it keys on a PR-title convention nothing enforces.
+
+So the CI-only check stays the right call, ratified as designed above, but its job changes: it is no
+longer the thing standing between this tree and a repeat of nine-in-one-day, because the newer
+practice is already doing most of that work at a stronger rung. It is now the cheap backstop behind
+that practice, catching the residual cases where a lane skips the bundled update or the work never
+went through a lane at all. **Not yet built.** Ratifying the decision does not itself land the check;
+whoever implements it should read this section before writing the check's own output message, since
+the honest framing for a user hitting it now is "this slipped past the practice that usually catches
+it," not "nothing else is watching."
+
+**Not otherwise blocked.** The nine original records are corrected; nothing else waits on this.
