@@ -1,8 +1,9 @@
 # 97. Six gates run on every pull request and none of them can stop one
 
-**Status: PROPOSED.** Raised 2026-08-18 by the maintainer, from a red trunk rather than from a
-worry: `main` failed `script/fastpath-footprint` for several hours and the mechanism that should
-have prevented it had been disabled by configuration since before anyone looked.
+**Status: DECIDED.** calef, 2026-08-25, in conversation: *"Ratify as written."* Raised 2026-08-18 by
+the maintainer, from a red trunk rather than from a worry: `main` failed `script/fastpath-footprint`
+for several hours and the mechanism that should have prevented it had been disabled by configuration
+since before anyone looked.
 
 **What is blocked: nothing, and that is the problem.** Merges continue either way. What is at stake
 is whether a gate this tree wrote means anything.
@@ -157,6 +158,25 @@ This is calef's because it changes **what may merge**, which is merge authority 
 It is also cheap to reverse (a ruleset edit), so it does not want a long deliberation, and the
 *move fast on what can be undone* tenet applies: the expensive part is not the configuration, it is
 the hours of trunk-red that the current arrangement will keep producing while nobody decides.
+
+## Not yet built
+
+Ratifying this does not itself change what may merge. Three separate pieces of follow-up work, none
+landed by this ratification, matching the shape §76 and §88 already used for a decided-but-unbuilt
+call:
+
+- **The ruleset edit**: adding `fastpath footprint`, `stack frames`, `cpu matrix`, and `fuzz` to the
+  repository's real GitHub branch-protection required-status-checks list. Live infrastructure with
+  blast radius on every pull request currently moving through the merge queue; wants a quiet queue,
+  the same constraint §88's own required-check proposal is waiting on.
+- **`scripts/merge-drain.sh`'s filter, narrowed to the required set**, per this section's own text
+  ("Whichever way option 1 goes, the drain's filter should be narrowed to the required set, so that
+  one list decides"). Depends on the ruleset edit landing first, or the narrowing has nothing to
+  narrow against.
+- **The aggregator-coverage `script/lint` check** (parse `.github/workflows/verify.yml`, find every
+  job that runs `script/verify`, fail if any is absent from the `verify (Kani proofs)` aggregator's
+  `needs:`). Worth building regardless of how the ruleset question resolves, per this section's own
+  words, and does not depend on the other two.
 
 ## BUGS
 
