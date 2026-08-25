@@ -235,10 +235,12 @@ already-shipped word.
 client, the std PAL and `fs_server` already agree on, and it revisits a section calef decided. Per
 AGENTS.md's own rule ("anything two programs agree on" is the expensive, deliberate-first
 category), that is his call, not a lane's, however cheap the change measures. notes/smb.md's BUGS
-entry carries the corrected writeup with the citations above. **What is blocked on the decision**:
-whether §42 should be narrowed to say the `NOREPLACE` refusal was about backend portability rather
-than about this backend specifically, and whether `fs_proto::fs::RENAME` should grow the flag. What
-is not blocked: nothing else in this milestone depends on the answer, so this is a small, isolated
+entry carries the corrected writeup with the citations above, and [DECISIONS
+§129](../decisions/129-rename-noreplace-flag.md) lays out the researched options awaiting that
+call. **What is blocked on the decision**: whether §42 should be narrowed to say the `NOREPLACE`
+refusal was about backend portability rather than about this backend specifically, and whether
+`fs_proto::fs::RENAME` should grow the flag. What is not blocked: nothing else in this milestone
+depends on the answer, so this is a small, isolated
 item rather than something holding up Steps A through C.
 
 ## The reference implementation is known, and calef supplied its exact configuration
