@@ -432,6 +432,19 @@ pub fn pci_regions() -> Option<((u64, u64), (u64, u64))> {
     *PCI_REGIONS.lock()
 }
 
+/// **Record the PCIe host bridge's windows directly**, for a machine with no device tree to read
+/// them from. `x86_64`'s counterpart of `init`'s `pci-host-ecam-generic` node parse: ACPI's MCFG
+/// names the ECAM window, and there is no `_CRS` reader for the BAR window (that needs an AML
+/// interpreter, which this kernel does not have), so `main.rs` supplies both from what it already
+/// knows and fills the same static every consumer already reads. See notes/x86-port.md.
+///
+/// Its only caller is `x86_64`'s boot tour; the other two architectures fill the same static from
+/// their device tree inside `init` instead.
+#[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
+pub fn record_pci_regions(ecam: (u64, u64), mem32: (u64, u64)) {
+    *PCI_REGIONS.lock() = Some((ecam, mem32));
+}
+
 /// The SMMUv3's register block (start, size), both **physical**, from the device tree. `None`
 /// when the machine has no SMMU (riscv, or aarch64 without `iommu=smmuv3`). Presence here is what
 /// gates the whole aarch64 IOMMU path: no node, no register reads, no faults on a machine that

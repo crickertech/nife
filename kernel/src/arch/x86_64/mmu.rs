@@ -195,9 +195,13 @@ pub const LOCAL_APIC_PHYS: u64 = 0xfee0_0000;
 #[cfg_attr(not(test), allow(dead_code))]
 pub const IO_APIC_PHYS: u64 = 0xfec0_0000;
 
-/// **Where q35 puts the PCIe ECAM window.** The same `pci-host-ecam-generic` shape both `virt`
-/// boards present through their device trees, discovered on x86 through ACPI's MCFG table instead.
-/// Hardcoded until that table is parsed, and this is QEMU's q35 default.
+/// **Where q35 puts the PCIe ECAM window**, and QEMU's q35 default. `map_everything` no longer
+/// maps this constant directly: the real window is read from `memory::pci_regions()`, which
+/// `main.rs` fills from ACPI's MCFG the same way `memory::init` fills it from a
+/// `pci-host-ecam-generic` node on the other two architectures. This stays as the value
+/// `machine::print_acpi_summary` prints the MCFG's own answer against, which is the second
+/// witness aarch64 and riscv64 also kept (their old device-tree hardcodes, held equal to the
+/// discovered value by `pci.rs`'s own test).
 #[cfg_attr(not(test), allow(dead_code))]
 pub const PCI_ECAM_PHYS: u64 = 0xb000_0000;
 
@@ -497,15 +501,23 @@ where
     let io_apic = super::irq::io_apic_phys().unwrap_or(IO_APIC_PHYS);
     direct_map(m, io_apic, io_apic + PAGE_SIZE, Flags::device())?;
 
-    // Bus 0 of the PCIe ECAM window, the same one-bus cap the other two architectures apply and for
-    // the same reason: every device QEMU puts on this machine is on bus 0, and all 256 buses would
-    // be 64K leaves describing space that reads all-ones.
-    direct_map(
-        m,
-        PCI_ECAM_PHYS,
-        PCI_ECAM_PHYS + PCI_ECAM_MAPPED,
-        Flags::device(),
-    )?;
+    // The PCIe windows: bus 0 of the ECAM config space ACPI's MCFG named, and the BAR window the
+    // kernel assigns device registers from (hardcoded; see PCI_BAR_PHYS, which has no ACPI or AML
+    // source). Same shape as the other two architectures' `memory::pci_regions()` (a device-tree
+    // node there, ACPI's MCFG here, both recorded before this function runs): no window recorded,
+    // no mapping, and every probe in `pci.rs` reports nobody home rather than touching MMIO that
+    // was never confirmed present. The one-bus cap on the ECAM side is the same as the other two
+    // architectures apply and for the same reason: everything QEMU puts on this machine is on bus
+    // 0, and all 256 buses would be 64K leaves describing space that reads all-ones.
+    if let Some(((ecam, ecam_size), (bar, bar_size))) = memory::pci_regions() {
+        direct_map(
+            m,
+            ecam,
+            ecam + PCI_ECAM_MAPPED.min(ecam_size),
+            Flags::device(),
+        )?;
+        direct_map(m, bar, bar + PCI_BAR_MAPPED.min(bar_size), Flags::device())?;
+    }
 
     Ok(())
 }
@@ -1062,6 +1074,18 @@ pub const VIRTIO_SLOTS: u64 = 0;
 /// The interrupt the first virtio-mmio slot would raise. Unreachable with no slots.
 #[cfg_attr(not(test), allow(dead_code))]
 pub const VIRTIO_IRQ_BASE: u32 = 0;
+
+/// **Where PCI BARs are placed.** Unlike the ECAM window (ACPI's MCFG names it directly) there is
+/// no table this port can read for the BAR/MMIO window: on a real ACPI machine that address lives
+/// in the PCI host bridge's `_CRS` object, which is AML, and this port has no AML interpreter (see
+/// notes/x86-port.md, "What is deliberately not decoded"). Hardcoded to q35's conventional 32-bit
+/// PCI hole, confirmed disjoint from RAM, the ECAM window, the HPET and both APICs by reading
+/// QEMU's own `info mtree` on 2026-08-24 with `-m 256M` (nothing decodes
+/// `0xc000_0000..0xfec0_0000` until a BAR is placed there). **Not yet exercised by an actual BAR
+/// write**: no PCI function that needs one is on the bus without a change to
+/// `scripts/qemu-runner-x86_64.sh`, which attaches none by default.
+#[cfg_attr(not(test), allow(dead_code))]
+pub const PCI_BAR_PHYS: u64 = 0xc000_0000;
 
 /// Bytes of PCI BAR space the kernel maps for device registers, matching what the other two
 /// architectures reserve. 2 MiB covers every BAR QEMU hands out on this machine.

@@ -46,6 +46,18 @@ confinement only after single-queue worked: the second data point tells you whic
 contract are QEMU artifacts. Option 1 is honest in the meantime because the limitation is recorded
 in notes/nvme.md's BUGS section rather than implied away.
 
+**A scoping lane has now reported on x86_64 (milestone 165, PARTIAL), and it is half an answer
+rather than a whole one.** Milestone 165 wired real PCI enumeration on x86_64 through ACPI's MCFG
+and proved it under QEMU's `q35`, which is stronger evidence than an equivalent RISC-V QEMU proof
+would be, because x86's discovery mechanism (ACPI tables naming an ECAM window) is the same one
+real x86 hardware uses, unlike RISC-V's QEMU-only fake ECAM device. That closes the *discovery*
+half of what a real data point needs. It does not close the *confinement* half this decision turns
+on: x86 has no IOMMU driver at all (VT-d, roadmap item 6 of milestone 161, unbuilt), so a real
+NVMe-behind-IOMMU controller cannot yet be brought up confined on either machine this tree targets.
+This stays PROPOSED, pending either the JH7110 board bring-up or VT-d, whichever lands first. (A
+separate lane was scoping a dedicated milestone for the JH7110 driver as this report was being
+written; check the roadmap index for its number before citing it.)
+
 If the answer is option 1 permanently, nothing is blocked, and notes/nvme.md's BUGS entry becomes
 the standing record. If it is never decided, the driver silently becomes load-bearing kernel code,
 which is how a microkernel stops being one; that is the failure this entry exists to prevent.

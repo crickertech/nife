@@ -352,6 +352,60 @@ fn read_mcfg(body: &[u8], into: &mut Acpi) {
     }
 }
 
+// ---------------------------------------------------------------------------------------------
+// Turning the MCFG's ECAM window on. Reading it is not enough: nobody has told the chipset to
+// route it yet.
+// ---------------------------------------------------------------------------------------------
+
+/// The legacy PCI configuration-mechanism ports. Present on every PC-compatible machine, reached
+/// only by `in`/`out` (see `arch::x86_64::port`), and independent of whether ECAM decode is on,
+/// which is exactly why they are the way to turn it on rather than a chicken-and-egg problem.
+const CONFIG_ADDRESS: u16 = 0xcf8;
+const CONFIG_DATA: u16 = 0xcfc;
+
+/// `CONFIG_ADDRESS` naming bus 0, device 0, function 0 (the host bridge, always present), register
+/// `0x60`: the enable bit is set (bit 31), bus/device/function are all zero, and the register
+/// offset is `0x60` (`PCIEXBAR`, the host bridge's memory-mapped-config-space base-address
+/// register on every Intel-compatible chipset this kernel has run on, q35 included).
+const PCIEXBAR_CONFIG_ADDRESS: u32 = 0x8000_0060;
+
+/// **Turn the MCFG's ECAM window on.**
+///
+/// A real BIOS or UEFI programs the host bridge's `PCIEXBAR` register (base address, enable bit)
+/// before it ever hands control to an OS, which is why a device-tree machine's port of this
+/// kernel never has to think about this: firmware already turned the decode on, `virt`'s
+/// `pci-host-ecam-generic` binding just states where. PVH is a hypervisor entry protocol, not
+/// firmware, so nothing has written this register by the time this runs, and it is not a
+/// hypothetical: measured on QEMU 2026-08-24, a read of the physical address ACPI's MCFG names,
+/// before this function runs, **faults** (the monitor's `xp` answers "Cannot access memory")
+/// rather than reading the all-ones an absent *device*'s config space would, because the address
+/// is not routed to the ECAM window at all yet. After writing `base | 1` here the same address
+/// reads the host bridge's own vendor and device id (`8086:29c0` on q35), confirmed the same way,
+/// which is the evidence this is the right register and the right bit rather than a guess that
+/// happens not to crash.
+///
+/// **This is very likely a PVH-only step**, not a general x86 fact. Milestone 87's `OptiPlex` boots
+/// through real UEFI (notes/x86-port.md's BUGS already names the gap), and real firmware
+/// programs this register as a matter of course while bringing PCIe up; calling this there should
+/// find the register already carrying the base MCFG itself reports, and rewriting it to the same
+/// value is a no-op rather than a correction. It is written here rather than assumed so this port
+/// does not depend on that being true.
+///
+/// Uses the legacy configuration mechanism rather than the ECAM window itself, which is the only
+/// way to bootstrap: nothing can read the ECAM window to turn the ECAM window on.
+pub fn enable_pcie_ecam(base: u64) {
+    // SAFETY: 0xcf8/0xcfc are the legacy PCI configuration ports, present on every PC-compatible
+    // machine independent of ECAM, and this is exactly the register sequence firmware runs before
+    // handing control to an OS. `base` is the MCFG's own base address; this port has never seen
+    // one above 4 GiB and truncating to 32 bits is the same assumption `PCI_ECAM_PHYS` already
+    // makes. The enable bit (bit 0) is set and the length field (bits 2:1) is left at 0 for
+    // "256 MiB, buses 0..255", which is what the MCFG entry itself already states.
+    unsafe {
+        super::port::out32(CONFIG_ADDRESS, PCIEXBAR_CONFIG_ADDRESS);
+        super::port::out32(CONFIG_DATA, (base as u32) | 1);
+    }
+}
+
 /// Print what the tables said, after [`read_acpi`] has walked them.
 pub fn print_acpi_summary(found: &Acpi) {
     match found.local_apic {

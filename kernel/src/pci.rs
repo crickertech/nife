@@ -8,11 +8,15 @@
 //! where BARs go, which command bits to set. See notes/pcie.md and notes/pcie-transport-scope.md.
 //!
 //! Portable: everything here except the `arch::mmu` policy/irq constants is architecture-
-//! neutral, and both `virt` boards expose the same `pci-host-ecam-generic` bridge, whose
-//! windows come from the device tree (`memory::pci_regions`). A machine whose tree has no such
-//! node (the JH7110) answers every probe here with "nobody home", no MMIO touched. On riscv the
-//! INTx lines route to the PLIC (32..35), on aarch64 to GIC SPIs (INTIDs 35..38); each arch's
-//! constants say so, and host-run witnesses hold them against the machine's own device tree.
+//! neutral, and every window this module reads comes through one seam, `memory::pci_regions()`.
+//! Both `virt` boards fill it from the `pci-host-ecam-generic` node their device tree states;
+//! `x86_64` fills the same static from ACPI's MCFG (`arch::x86_64::machine::enable_pcie_ecam`,
+//! called once from `main.rs`), since it has no device tree to read a node from. A machine that
+//! names no window at all (the JH7110's tree, or a machine with no MCFG) answers every probe
+//! here with "nobody home", no MMIO touched. On riscv the INTx lines route to the PLIC (32..35),
+//! on aarch64 to GIC SPIs (INTIDs 35..38), and on `x86_64` not at all yet (`PCI_IRQ_BASE = 0`: no
+//! AML interpreter to read `_PRT`, see notes/x86-port.md); each arch's constants say so, and
+//! host-run witnesses hold the device-tree architectures' against the machine's own tree.
 
 use core::sync::atomic::{AtomicU64, Ordering};
 
@@ -39,13 +43,13 @@ static BAR_NEXT: AtomicU64 = AtomicU64::new(0);
 /// what is addressable).
 static BAR_LIMIT: AtomicU64 = AtomicU64::new(0);
 
-/// True when the device tree described a generic-ECAM host bridge, caching its windows on first
-/// call. Every public entry point checks this before touching config space, so on a machine with
-/// no such node (the JH7110: its PLDA PCIe controller is a different device, undriven until its
-/// own milestone) every probe reports nobody home without a single MMIO access, the same
-/// degradation as an absent virtio-mmio device. Single-hart boot-path code (see `BAR_NEXT`); the
-/// store order (cursor and limit before the base that stands for "present") is documentation,
-/// not synchronization.
+/// True when `memory::pci_regions()` named a host bridge, caching its windows on first call.
+/// Every public entry point checks this before touching config space, so on a machine with
+/// nothing recorded there (the JH7110's tree has no generic-ECAM node; an x86 machine's ACPI has
+/// no MCFG) every probe reports nobody home without a single MMIO access, the same degradation
+/// as an absent virtio-mmio device. Single-hart boot-path code (see `BAR_NEXT`); the store order
+/// (cursor and limit before the base that stands for "present") is documentation, not
+/// synchronization.
 fn host_bridge_present() -> bool {
     if ECAM_BASE.load(Ordering::Relaxed) != 0 {
         return true;
@@ -457,6 +461,9 @@ pub fn init_iommu() {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(target_arch = "x86_64")]
+    use super::*;
+
     /// **The discovered PCIe windows are the machine's own, and on this machine they equal the
     /// constants they replaced.** A fresh parse of the live DTB must agree with what
     /// `memory::init` recorded, which proves the boot-path read end to end; and on QEMU `virt`
@@ -466,6 +473,11 @@ mod tests {
     /// all, so `pci_regions()` is None and no window is mapped) is witnessed on the host, where
     /// that tree exists (`crates/pci/tests/qemu_virt_dtb.rs`). Same shape as the PLIC-context
     /// test in arch/riscv64/irq.rs, for the same §43 reason.
+    ///
+    /// **Not on `x86_64`**: there is no device tree to cross-check against (`crate::DTB` stays zero
+    /// on this architecture; see [`acpi_mcfg_wires_a_real_ecam_window_that_finds_the_host_bridge`]
+    /// for the ACPI-sourced equivalent).
+    #[cfg(not(target_arch = "x86_64"))]
     #[test_case]
     fn the_discovered_pci_windows_are_the_machines_own_and_match_the_old_constants() {
         let Some((ecam, mem32)) = crate::memory::pci_regions() else {
@@ -512,5 +524,53 @@ mod tests {
             assert_eq!(ecam, (0x40_1000_0000, 0x1000_0000), "was PCI_ECAM_BASE");
             assert_eq!(mem32, (0x1000_0000, 0x2eff_0000), "was PCI_BAR_BASE");
         }
+    }
+
+    /// **`x86_64`'s version of the same claim, over ACPI instead of a device tree.** There is no
+    /// `_CRS` reader here (no AML interpreter), so this cannot cross-check a second parse the way
+    /// the device-tree test does; what it can prove, and does, is that the window ACPI's MCFG
+    /// named actually decodes real PCI configuration space once
+    /// `arch::x86_64::machine::enable_pcie_ecam` has run.
+    ///
+    /// The host bridge (bus 0, device 0, function 0) is q35's own chipset function and is on the
+    /// bus regardless of what `-device` flags `scripts/qemu-runner-x86_64.sh` does or does not
+    /// pass, which is what makes this a real read rather than a hope: before
+    /// `enable_pcie_ecam` runs, this exact physical address **faults** (measured against QEMU's
+    /// monitor, 2026-08-24: `xp` answers "Cannot access memory") rather than reading the
+    /// all-ones an absent *device*'s config space would, so a wrong address or a skipped enable
+    /// step would show up here as "nothing found," not as a false pass.
+    #[cfg(target_arch = "x86_64")]
+    #[test_case]
+    fn acpi_mcfg_wires_a_real_ecam_window_that_finds_the_host_bridge() {
+        assert!(
+            host_bridge_present(),
+            "ACPI's MCFG did not leave a usable window in memory::pci_regions()"
+        );
+
+        let mut found_host_bridge = false;
+        let mut count = 0usize;
+        pci::enumerate(
+            PCI_ECAM_BUSES,
+            &mut |b, o| cfg_read32(b, o),
+            &mut |bdf, vendor, device| {
+                count += 1;
+                if bdf.bus == 0 && bdf.dev == 0 && bdf.func == 0 {
+                    // q35's host bridge, always present, id fixed by the chipset model rather
+                    // than by any -device flag.
+                    assert_eq!(vendor, 0x8086, "q35's host bridge vendor is always Intel");
+                    assert_eq!(device, 0x29c0, "q35's own host bridge device id");
+                    found_host_bridge = true;
+                }
+            },
+        );
+        assert!(
+            found_host_bridge,
+            "bus 0 device 0 function 0 (q35's host bridge) was not found; ECAM reads are not \
+             reaching real config space"
+        );
+        assert!(
+            count >= 1,
+            "enumeration walked the bus and found nothing at all"
+        );
     }
 }
