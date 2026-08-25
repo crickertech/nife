@@ -432,6 +432,11 @@ In the order it should be done, because each is a prerequisite for the next.
 
    **This wants its own milestone**, and it is the largest single piece of x86 work left: it is what
    stands between this port and the shell, the drivers and the services, all of which are userspace.
+
+   **A second, narrower gap found once userspace could compile: `fs_server` cannot compile for
+   this target at all**, because its vendored RedoxFS engine needs `aes`, and `aes` needs SSE this
+   target disables. Tracked separately as **milestone 164**, since it is a toolchain problem rather
+   than an item in this port's own sequence.
 5. **SMP**, via INIT-SIPI-SIPI. The local APIC is up, so what remains is the Interrupt Command
    Register sequence and a real-mode trampoline copied below 1 MiB. Also needs a per-CPU TSS and a
    per-CPU GDT, since `TSS.RSP0` names a per-core stack.
