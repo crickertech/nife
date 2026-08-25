@@ -103,9 +103,10 @@ cargo clippy -p kernel -p user -p user_rt --target aarch64-unknown-none-softfloa
 # every one of those narrowings is a scope gap rather than an oversight, so they are named here,
 # where a reader checking what is covered will look.
 #
-# - **No `--all-targets`**, because the kernel's test suite does not compile for x86_64. Its
-#   userspace-exec tests hand-assemble machine code (`user/tests.rs`) and its supervision fixtures
-#   are per-ISA stubs, so bringing the suite up is downstream of ring 3 existing at all here.
+# - **No `--all-targets`** on the kernel. Its test suite DOES compile and run for x86_64 now
+#   (170 pass, 67 skip), but `--all-targets` also builds the eight boot-mode feature targets, which
+#   is the next bullet's problem rather than this one's. `user` and `user_rt` below take
+#   `--all-targets`.
 # - **No feature loop for seven of the eight boot-mode features.** They fail on x86_64, measured,
 #   because each selects a boot path that needs an arch layer this port has not written. Adding
 #   them to the loop below would fail the gate for a reason the gate cannot fix.
@@ -138,8 +139,7 @@ cargo clippy -p kernel -p user -p user_rt --target aarch64-unknown-none-softfloa
 #   address 0.
 #
 # What it does cover is every line of `arch/x86_64/` and every portable file compiled with
-# `target_arch = "x86_64"`, held to the same `-D warnings` as the other two. `user` and `user_rt`
-# are absent because no userspace is built for this target yet.
+# `target_arch = "x86_64"`, held to the same `-D warnings` as the other two.
 echo "==> clippy: kernel (x86_64, the binary only; see the note above)"
 cargo clippy -p kernel --target x86_64-unknown-none -- \
     -D warnings -A dead_code -A clippy::reversed_empty_ranges
@@ -150,6 +150,17 @@ cargo clippy -p kernel --target x86_64-unknown-none -- \
 echo "==> clippy: kernel --features bench (x86_64, the binary only; see the note above)"
 cargo clippy -p kernel --features bench --target x86_64-unknown-none -- \
     -D warnings -A dead_code -A clippy::reversed_empty_ranges
+
+# And userspace on the third architecture (milestone 161, item 4's hand-off). Held to the SAME bar
+# as the aarch64 pass above, with no `-A dead_code` and no narrowings, because there is nothing
+# partial about it: every program in `user/` compiles for this target and `crates/user_rt` has arms
+# for all three ISAs.
+#
+# This is the pass that keeps parity honest for the programs rather than for the kernel. Without
+# it, a lane could add an aarch64/riscv64 pair to a user program and never learn that x86 fell
+# through to nothing until `cargo xtask test --arch x86_64` failed to pack an archive.
+echo "==> clippy: user + user_rt (x86_64)"
+cargo clippy -p user -p user_rt --target x86_64-unknown-none --all-targets -- -D warnings
 
 # The kernel's boot-mode features (shell, bench, initboot) each compile DIFFERENT code in and out:
 # `initboot` and `shell` drop the milestone tour, `bench` diverges before the boot entirely, and
