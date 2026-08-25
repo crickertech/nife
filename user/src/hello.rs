@@ -916,7 +916,8 @@ fn page_frame_consumer() -> ! {
     if received {
         // Map the shared page read-only and read the producer's sentinel through it.
         // SAFETY: `svc`.
-        let mapped = unsafe { invoke(frame, abi::page_frame::MAP, PAGE_FRAME_VA, 0, MEMORY_REGION) } == 0;
+        let mapped =
+            unsafe { invoke(frame, abi::page_frame::MAP, PAGE_FRAME_VA, 0, MEMORY_REGION) } == 0;
         if mapped {
             // SAFETY: PAGE_FRAME_VA is now a mapped, readable page.
             let seen = unsafe { core::ptr::read_volatile(PAGE_FRAME_VA as *const u64) };
