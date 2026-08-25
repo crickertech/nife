@@ -11,6 +11,64 @@ ordering and taken in the units that ordering uses, which is packages rather tha
 real unbuilt work rather than anything waiting on calef: `top` on per-thread CPU accounting that
 does not exist; `pwdx` and `w` on a process display name this system has no design for.
 
+## Built: `watch`, 2026-08-24, and the package file list is now verified rather than remembered
+
+`watch` works on both ISAs: `ps`'s own domain walk (`abi::rendezvous::SURVEY`, `crates/ps`'s
+`collect`), redrawn a bounded number of times instead of printed once, with `CSI 2J`/`CSI H` ahead
+of each frame (`crates/watch`'s `REDRAW`) so the terminal shows the latest snapshot in place rather
+than the whole run scrolling past. **It is not upstream `watch`'s "re-run an arbitrary command"**:
+that needs a program to hold spawn authority, which in this system belongs to the shell alone
+(`grant_plan::spawnproto`) and is granted to nothing the shell spawns -- an interruptible
+(`^C`-stoppable) child is built with no capabilities in its cspace at all
+(`crates/system_initializer`'s `spawn_service`), so there is no route today from "a program is
+running" to "that program can start a second one". That is the same category of gap `top`, `pwdx`
+and `w` are blocked on, and building spawn-delegation machinery to close it is a decision for
+whoever needs it generally, not for this milestone's `watch`.
+
+**So `watch` redraws the one thing it can already reach without any of that**: the supervision
+domain it was spawned into, exactly `ps`'s own listing, and it is granted exactly `ps`'s three
+capabilities plus a required argument (the redraw count). `watch ps` is also real `watch`'s single
+most common invocation, so the narrowing is a real demonstration and not a consolation prize.
+**Bounded rather than interruptible, and that is a scope decision stated plainly rather than an
+oversight**: since an interruptible spawn gets no capabilities, `watch` cannot be both `^C`-stoppable
+and hold the domain it needs for its whole run, so a bare `watch N` redraws `N` times (clamped to
+`[1, watch::MAX_ITERATIONS]`) and exits on its own. The interval is fixed (`watch::INTERVAL_NANOS`,
+half a second) and is a **yield-spin, not a sleep**: this kernel has neither, and `watch` is the
+fifth named consumer of milestone 106's timed-wait fork (`user/src/timetable.rs`'s module docs name
+the first four). Proven with a real terminal-output test, `kernel::user::watch_tests`, on both ISAs:
+a domain member dies and is reaped through a capability `watch` itself is never granted (`READ`,
+not `ENUMERATE` alone), and the test asserts the dead member's tid is gone from the **whole**
+`video_terminal::Vt` grid after the second frame, not merely absent from wherever that frame wrote,
+which is what would still be true of a `watch` that only overwrote instead of erasing.
+
+**The real `dpkg -L procps` file list, verified rather than remembered.** Source: `podman run --rm
+ubuntu:24.04`, `apt-get update` then `dpkg -L procps` and `dpkg -s procps`, run 2026-08-24 against
+the live Ubuntu 24.04 archive (image reports `PRETTY_NAME="Ubuntu 24.04.4 LTS"`; package
+`procps 2:4.0.4-4ubuntu3.2`, architecture `arm64`, matching this project's own `ubuntu-24.04-arm`
+CI runners). The package installs eighteen names under `/usr/bin` and `/usr/sbin`, two of them
+symlinks to a third program:
+
+| name | what it is |
+|---|---|
+| `free`, `kill`, `pgrep`, `pmap`, `ps`, `pwdx`, `skill`, `slabtop`, `tload`, `top`, `uptime`, `vmstat`, `w`, `watch` | distinct binaries |
+| `pidwait` | a **distinct binary**, not a symlink (same file size as `pgrep`, evidently the same source built in a second mode) |
+| `pkill` | a symlink to `pgrep` |
+| `snice` | a symlink to `skill` |
+| `sysctl` | under `/usr/sbin`, not `/usr/bin` |
+
+**The delta against this document's memory-sourced table (the one below, until this edit): `pidwait`
+was missing.** Every other name the table already listed (`ps`, `top`, `pgrep`, `pmap`, `pwdx`, `w`,
+`kill`, `pkill`, `skill`, `snice`, `free`, `uptime`, `vmstat`, `slabtop`, `tload`, `sysctl`, `watch`)
+is confirmed present; nothing was listed that should not have been. `pidwait` waits for the matching
+processes to terminate rather than printing them once, which puts it in the same **read the process
+namespace** stratum as `pgrep` in spirit (no signal, no write), though its blocking-until-death
+behaviour is closer to a wait/reap than a snapshot and would want its own design conversation before
+anyone builds it; it is recorded here as the corrected membership fact and is **not** attempted by
+this lane, which is scoped to `watch` and the verification itself. `dpkg -s procps`'s own long
+description text ("It contains free, kill, pkill, pgrep, pmap, ps, pwdx, skill, slabtop, snice,
+sysctl, tload, top, uptime, vmstat, w, and watch") omits `pidwait` too, which is presumably why the
+earlier memory-sourced table missed it: the package's own prose is stale against its own file list.
+
 ## Built: `pmap`, 2026-08-23
 
 `pmap` works on both ISAs, over `abi::aspace::LIST`: **a new method on the address-space object,
@@ -50,12 +108,10 @@ next. The shape a fix would need -- a builder handing a narrowed, still-register
 party *before* `CONFIGURE` consumes its own copy -- is a spawn-protocol change, not a `pmap` change.
 
 **Still to build:** `top` (per-thread CPU accounting that does not exist), `pwdx` and `w` (a
-process display name this system does not have), the machine-wide statistics, `watch`, and the
-package-membership confirmation. `sysctl` is declined (DECISIONS §115) rather than blocked on
-effort.
-
-**What a lane could still take**: `watch` needs nothing (`line_editor` and the compositor exist),
-and the real `dpkg -L procps` file list is owed before anyone counts programs again.
+process display name this system does not have), and the machine-wide statistics. `sysctl` is
+declined (DECISIONS §115) rather than blocked on effort. `watch` is **built, 2026-08-24** (see
+above); the package-membership confirmation is **done, 2026-08-24** (see above), and found one
+name the memory-sourced table below had missed (`pidwait`).
 
 ## Built: the first stratum, 2026-08-16
 
@@ -118,14 +174,16 @@ pattern cannot be typed at this prompt, and the shipped `pgrep` names every memb
 deferred positional arity. Written up in notes/process-view.md, with the reason recorded where a
 reader meets the feature.
 
-**Still to build:** the rest of the view stratum (`top`, `pwdx`, `w`), the machine-wide statistics,
-`watch`, and `sysctl`'s package-coverage gap. The signalling stratum is no longer on this list; see
-the ruling below. `pmap` is **built, 2026-08-23** (DECISIONS §114; see above), though not reachable
-from the interactive shell -- a real finding that build turned up, not a caveat this block is
-glossing over; `top` on per-thread CPU accounting that does not exist; `pwdx` and `w` on a process
-display name this system does not have. `sysctl` itself is **declined (DECISIONS §115)** rather
-than blocked on effort. The package file list still wants a real `dpkg -L procps` before anyone
-counts programs; nothing built so far depended on it, and the next lane does.
+**Still to build:** the rest of the view stratum (`top`, `pwdx`, `w`) and the machine-wide
+statistics. The signalling stratum is no longer on this list; see the ruling below. `pmap` is
+**built, 2026-08-23** (DECISIONS §114; see above), though not reachable from the interactive shell
+-- a real finding that build turned up, not a caveat this block is glossing over; `top` on
+per-thread CPU accounting that does not exist; `pwdx` and `w` on a process display name this system
+does not have. `sysctl` itself is **declined (DECISIONS §115)** rather than blocked on effort.
+`watch` is **built, 2026-08-24** (see above), redrawing `ps`'s own domain walk rather than an
+arbitrary command. The package file list is **verified, 2026-08-24** (see above), against a real
+`dpkg -L procps` on Ubuntu 24.04; the one correction it found (`pidwait`, missing from the table
+below until this edit) is recorded and not attempted by this lane.
 
 ## Why this package, and why the package rather than the program
 
@@ -147,9 +205,10 @@ is the unit the distribution ships, so it is the unit that tests whether the app
 port that cherry-picked the two programs with the tidiest capability story would prove nothing about
 typical software.
 
-**Confirm the file list before building.** The table below is from memory and wants a real
-`dpkg -L procps` against a current Ubuntu; getting the membership wrong would silently change the
-scope.
+**Confirmed, 2026-08-24 (see above): a real `dpkg -L procps` / `dpkg -s procps` against Ubuntu 24.04**
+(`podman run --rm ubuntu:24.04`, package version `2:4.0.4-4ubuntu3.2`, architecture `arm64`). The
+table below was from memory when this section was first written and undercounted by one:
+`pidwait` ships in the package and was not in it. Every other name was confirmed correct.
 
 ## The strata, which are the build order
 
@@ -158,11 +217,11 @@ scope.
 
 | what it actually needs | programs | state here |
 |---|---|---|
-| **read the process namespace** | `ps`, `top`, `pgrep`, `pmap`, `pwdx`, `w` | `ps` and `pgrep` **built**; the other four each blocked on something named above |
+| **read the process namespace** | `ps`, `top`, `pgrep`, `pidwait`, `pmap`, `pwdx`, `w` | `ps`, `pgrep` **built**; `pidwait` found by the 2026-08-24 verification and not yet designed (it blocks until a match terminates, closer to a wait/reap than a snapshot); the rest each blocked on something named above |
 | **signal a process** (control, not view) | `kill`, `pkill`, `skill`, `snice` | **mostly abolished 2026-08-17**: a domain names, never acts, and a tid is not a capability. Killing stays with whoever holds the child's region |
 | **machine-wide statistics**, no process namespace | `free`, `uptime`, `vmstat`, `slabtop`, `tload` | **a different capability entirely**, and none exists |
 | **write kernel tunables** | `sysctl` | no design, and see the fork below |
-| **none of the above** | `watch` | nearly free: `line_editor` and the compositor already exist |
+| **none of the above** | `watch` | **built, 2026-08-24**: `line_editor` and the compositor turned out not to be what it needed (its output travels the same sink-and-terminal path `ps` and `date` already use), but the "needs nothing new" call was right |
 
 Build in that order. `ps` first, because it is a snapshot of the domain and needs no clock and no
 accounting, so it is the whole capability argument with none of the scheduler work. Then the rest of
@@ -303,5 +362,27 @@ is ordinary, and `line_editor` and the compositor already exist beneath it.
 - **The comparison against Linux is not apples to apples and the write-up must say so.** Ours lists a
   domain; theirs lists a machine. That is the entire point, and a table putting them side by side
   without stating it would be dishonest in the way §14's map "tie" caveat exists to prevent.
-- **The package membership above is from memory.** It needs `dpkg -L procps` on a current Ubuntu
-  before anyone counts programs or estimates from it.
+- **The package membership is verified, 2026-08-24** (`podman run --rm ubuntu:24.04`,
+  `dpkg -L procps` / `dpkg -s procps`, package `2:4.0.4-4ubuntu3.2` arm64). One name was missing
+  from the memory-sourced table this replaced: `pidwait`. It is recorded above in the strata table
+  and not designed or built here.
+- **`watch` is not upstream `watch`.** It redraws one fixed built-in view (`ps`'s own domain walk)
+  rather than re-running an arbitrary command line, because re-running a named command needs spawn
+  authority this system grants to the shell alone, and nothing here delegates that authority onward
+  to a spawned program (the same gap `top`, `pwdx` and `w` are blocked on). A reader who expects
+  `watch <any command>` will not find one; `watch <count>` is what exists. See `crates/watch`'s and
+  `user/src/watch.rs`'s own module docs for the full argument.
+- **`watch` cannot be interrupted with `^C` mid-run.** It is not spawned as an interruptible job (an
+  interruptible child in this system is built with no capabilities in its cspace at all, and this
+  program needs the domain and the output sink for its whole run), so a bare `watch N` runs its full
+  count before the prompt returns. It always terminates on its own, so this is a wait rather than a
+  hang, but there is no way to cut one short today.
+- **`watch`'s interval is fixed and is a yield-spin, not a sleep**, because this kernel has neither.
+  It is milestone 106's fifth named consumer (`user/src/timetable.rs`'s module docs name the first
+  four); a five-frame `watch` burns a core for roughly two seconds to do what a real timer would do
+  for nothing. The interval is also not settable from the command line: `ArgSpec` carries one
+  integer and it is spent on the redraw count.
+- **A domain that becomes refused partway through a `watch` run stops the loop silently**, with no
+  further complaint, because DECISIONS §67's diagnostics-before-output rule closes that stream
+  before the loop starts. In practice this needs the domain's own endpoint to be destroyed mid-run,
+  which nothing in this tree does to a live supervision endpoint today.

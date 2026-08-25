@@ -2624,6 +2624,19 @@ mod survey_tests;
 #[cfg(test)]
 mod pmap_tests;
 
+/// **`watch`: `ps`'s own walk, redrawn** (milestone 126, design/roadmap/126-who-else-is-running.md).
+///
+/// `survey_tests`'s discipline again: every survey here goes through the real dispatcher, driven by
+/// `ps::collect` (the same loop `crates/watch`'s `frame` wraps), never a description of one. What
+/// this module adds beyond `survey_tests` is the one claim that is `watch`'s alone rather than
+/// `ps`'s: that two frames of a real, changing domain, fed through a real `video_terminal::Vt`
+/// (the same engine `display_terminal.rs` renders a screen with), leave only the second frame on
+/// screen. A domain member is spawned, surveyed, reaped, and surveyed again; the first frame's tid
+/// is proven gone from the whole grid rather than merely absent from wherever the second frame wrote,
+/// which is what would still be true of a `watch` that only overwrote instead of erasing.
+#[cfg(test)]
+mod watch_tests;
+
 /// **Scheduled execution, where every entry is a grant** (milestone 129, notes/scheduled-execution.md).
 ///
 /// One module for both ISAs, like `dir_capability_tests`: nothing in it is architecture-specific, so

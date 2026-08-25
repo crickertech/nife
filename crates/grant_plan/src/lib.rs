@@ -177,13 +177,24 @@ pub enum Prog {
     /// carry until [`ArgSpec`] grows the positional arity milestone 47 deferred; see `crates/pgrep`'s
     /// `BUGS`.
     Pgrep,
+    /// **Redraw [`Prog::Ps`]'s own domain walk a bounded number of times instead of printing it
+    /// once** (milestone 126, `user/src/watch.rs`, `crates/watch`).
+    ///
+    /// [`Prog::Ps`]'s manifest with one field changed: [`ArgSpec::Required`] rather than
+    /// `Forbidden`, because this program needs a typed count to bound its loop (there is no `^C` for
+    /// it; see `crates/watch`'s module docs for why an interruptible spawn cannot also hold a
+    /// domain). It is not upstream `watch`'s "re-run an arbitrary command", which would need a
+    /// program to hold spawn authority this system grants to the shell alone; it redraws the one
+    /// thing it can already reach without that, which is also the most common real-world invocation
+    /// of the tool it is named for.
+    Watch,
 }
 
 /// The number of programs [`Prog::id`] can name, which is the size of the table init indexes with
 /// it. Init's array is `[Option<&Elf>; COUNT]`, so adding a variant without widening the array is
 /// an out-of-bounds panic in init rather than a compile error; the constant is here so both inits
 /// can be written against one number.
-pub const PROG_COUNT: usize = 10;
+pub const PROG_COUNT: usize = 11;
 
 impl Prog {
     /// Resolve a program by the name typed on the command line.
@@ -205,6 +216,7 @@ impl Prog {
             b"doc" => Some(Prog::Doc),
             b"ps" => Some(Prog::Ps),
             b"pgrep" => Some(Prog::Pgrep),
+            b"watch" => Some(Prog::Watch),
             _ => None,
         }
     }
@@ -222,6 +234,7 @@ impl Prog {
             Prog::Doc => "doc",
             Prog::Ps => "ps",
             Prog::Pgrep => "pgrep",
+            Prog::Watch => "watch",
         }
     }
 
@@ -238,6 +251,7 @@ impl Prog {
             Prog::Doc => 7,
             Prog::Ps => 8,
             Prog::Pgrep => 9,
+            Prog::Watch => 10,
         }
     }
 
@@ -254,6 +268,7 @@ impl Prog {
             7 => Some(Prog::Doc),
             8 => Some(Prog::Ps),
             9 => Some(Prog::Pgrep),
+            10 => Some(Prog::Watch),
             _ => None,
         }
     }
@@ -486,6 +501,29 @@ impl Prog {
             // for why that is a property of the boundary rather than of this program.
             Prog::Pgrep => Manifest {
                 arg: ArgSpec::Forbidden,
+                mem: MemSpec::Forbidden,
+                file: FileSpec::Forbidden,
+                dir: DirSpec::Forbidden,
+                flags: NO_FLAGS,
+                output: OutputSpec::BytesAndDiagnostics {
+                    slot: DIAGNOSTICS_SLOT,
+                },
+                input: InputSpec::Forbidden,
+                reports: true,
+                interruptible: false,
+                clock: false,
+                domain: true,
+            },
+            // **`watch`: `ps`'s manifest with one field changed.** `arg: ArgSpec::Required` is the
+            // whole difference: this program needs a typed redraw count, because it cannot be spun up
+            // as an interruptible (`^C`-stoppable) job the way `heeder` and `spinner` are (an
+            // interruptible child is built with no capabilities in its cspace at all, and this
+            // program needs the domain and the output sink for its whole run; see `crates/watch`'s
+            // module docs). Everything else is `ps`'s own reasoning verbatim: no file, no directory,
+            // no memory grant widens what this program can reach, and `domain` is the one real
+            // authority, endowed by init and not something the command line names.
+            Prog::Watch => Manifest {
+                arg: ArgSpec::Required,
                 mem: MemSpec::Forbidden,
                 file: FileSpec::Forbidden,
                 dir: DirSpec::Forbidden,
