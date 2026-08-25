@@ -63,4 +63,4 @@ real silicon, the same shape as milestone 159's "Gate: HARDWARE" framing. Not a 
 task. The driver's own logic (register layout, initialization sequence) can likely be transcribed
 from a mainline Linux driver for the same controller the way `crates/jh7110_trng` transcribed the
 JH7110 TRNG's from `drivers/char/hw_random/jh7110-trng.c`, and host-tested before any hardware is
-involved — but whether it actually enumerates real devices can only be verified on the board.
+involved, but whether it actually enumerates real devices can only be verified on the board.
