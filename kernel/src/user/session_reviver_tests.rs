@@ -16,7 +16,7 @@ const ROLE_SCHEDULE_SEED: u64 = 11;
 
 /// The construction budget `session_reviver` spends re-deriving this suite's one identity:
 /// `SESSION_UT_PAGES + JOB_UT_PAGES` (`user/src/session_reviver.rs`, 4 + 1) with margin for the
-/// page-table cost `Untyped::SPLIT` itself pays.
+/// page-table cost `MemoryRegion::SPLIT` itself pays.
 const REVIVER_BUDGET_PAGES: u64 = 32;
 
 /// Extra stack pages both `fs_test_client` roles this suite spawns need beyond `spawn_fs_client`'s

@@ -27,9 +27,9 @@
 //!
 //! # Where `malloc` comes from
 //!
-//! Milestone 27's untyped-backed [`UntypedHeap`], wired to slot 1: the
+//! Milestone 27's untyped-backed [`MemoryRegionHeap`], wired to slot 1: the
 //! region this instance was built in. So the C heap is the process's own budget, a C leak exhausts
-//! this instance and touches no other process's memory, and the single `Untyped::DESTROY` that reaps
+//! this instance and touches no other process's memory, and the single `MemoryRegion::DESTROY` that reaps
 //! the corpse reclaims the heap along with everything else.
 //!
 //! Name: ratified 2026-08-01 (calef, milestone 61), replacing `cshim`. The `c_` prefix means
@@ -49,7 +49,7 @@
 
 use core::alloc::{GlobalAlloc, Layout};
 
-use user_rt::heap::UntypedHeap;
+use user_rt::heap::MemoryRegionHeap;
 use user_rt::send;
 
 /// What the confiner endowed us with, in order.
@@ -63,7 +63,7 @@ const HEAP_MAX: u64 = 8 * c_seam::PAGE;
 
 /// The heap behind `malloc` and `free`. Not registered as `#[global_allocator]`: nothing in this
 /// program uses Rust's `alloc`, and the two C entry points below are the only callers.
-static HEAP: UntypedHeap = UntypedHeap::new();
+static HEAP: MemoryRegionHeap = MemoryRegionHeap::new();
 
 // The C component. Three functions, one ABI: a pointer, a length, and an integer result. No
 // structs, no callbacks, no ownership transfer, nothing that needs a header file to agree on.

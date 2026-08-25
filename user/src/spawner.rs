@@ -10,7 +10,7 @@
 //! return-of-pages), so a restart loop is not a leak.
 //!
 //! **It does not hold the instance regions** (DECISIONS §32). It used to keep each region capability
-//! for its whole life, because reaping meant `Untyped::DESTROY` and the supervisor could not do that
+//! for its whole life, because reaping meant `MemoryRegion::DESTROY` and the supervisor could not do that
 //! without construction authority, so the spawner had to reap on request. §32 put the reap on the
 //! supervision endpoint, so the capability's only remaining purpose was gone and it is deleted as
 //! soon as the child is started. Nothing in the tree now holds a capability to a *live* instance's
@@ -84,7 +84,7 @@ pub extern "C" fn _start(_a0: u64, image_len: u64, _a2: u64) -> ! {
 /// reap either. The supervisor collects the corpse through its supervision endpoint, and these pages
 /// come back to this budget when it does.
 fn build(elf: &elf::Elf, attempt: u64) -> bool {
-    let Ok(region) = supervision_proto::untyped_split(BUDGET, INSTANCE_PAGES) else {
+    let Ok(region) = supervision_proto::memory_region_split(BUDGET, INSTANCE_PAGES) else {
         return false;
     };
     let Ok(tcb) = supervision_proto::build_child(

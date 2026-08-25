@@ -1,5 +1,5 @@
 use super::*;
-use crate::cap::{Rights, rendezvous_cap, untyped_cap};
+use crate::cap::{Rights, memory_region_cap, rendezvous_cap};
 use crate::sched::RendezvousId;
 
 const ROLE_BUILDER: u64 = 19;
@@ -7,7 +7,7 @@ const ROLE_BUILDER: u64 = 19;
 /// Spawn the builder; returns the report endpoint carrying its verdict bits.
 pub fn wire(image: &'static [u8]) -> RendezvousId {
     let report = crate::sched::create_rendezvous();
-    let region = crate::untyped::create(8).expect("no region for the builder");
+    let region = crate::memory_region::create(8).expect("no region for the builder");
 
     crate::sched::spawn(move || {
         run(
@@ -17,7 +17,7 @@ pub fn wire(image: &'static [u8]) -> RendezvousId {
                 arg1: 0,
                 arg2: 0,
                 grants: &[
-                    untyped_cap(region),                   // slot 0: the budget
+                    memory_region_cap(region),             // slot 0: the budget
                     rendezvous_cap(report, Rights::WRITE), // slot 1: the verdict
                 ],
                 maps: &[],

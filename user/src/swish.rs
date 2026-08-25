@@ -1667,7 +1667,7 @@ fn spawn(e: Endowment) {
     // A memory grant is carved from the shell's own untyped. If our budget is spent, say so plainly
     // rather than sending init a promise we cannot keep.
     let mem_slot = if e.mem_pages > 0 {
-        match untyped_split(e.mem_pages) {
+        match memory_region_split(e.mem_pages) {
             Some(slot) => Some(slot),
             None => {
                 failed();
@@ -1939,10 +1939,10 @@ fn caps(nav: &mut Nav, tail: &[u8]) {
 
 /// Carve `pages` off our own untyped budget (slot 3) into a delegatable child untyped. `None` when
 /// the budget is exhausted.
-fn untyped_split(pages: u64) -> Option<u64> {
+fn memory_region_split(pages: u64) -> Option<u64> {
     // SAFETY: `svc`/`ecall`; the kernel checks WRITE on the untyped and returns a negative error
     // (OutOfMemory) when the budget cannot back `pages`.
-    let r = unsafe { invoke(BUDGET, abi::untyped::SPLIT, pages, 0, 0) };
+    let r = unsafe { invoke(BUDGET, abi::memory_region::SPLIT, pages, 0, 0) };
     if r < 0 { None } else { Some(r as u64) }
 }
 
@@ -2199,7 +2199,7 @@ fn run_pipeline(
 
     // One region for the whole pipeline, so a line costs one SPLIT and one DESTROY however many
     // stages it has. Each joint's rendezvous is a page retyped out of it.
-    let Some(region) = untyped_split(PIPE_REGION_PAGES) else {
+    let Some(region) = memory_region_split(PIPE_REGION_PAGES) else {
         failed();
         failed();
         print(b"  this shell's memory budget is exhausted; nothing left to grant\n");
@@ -2684,7 +2684,7 @@ fn spawn_stage(
     screen: Option<u64>,
 ) -> bool {
     let mem_slot = if e.mem_pages > 0 {
-        match untyped_split(e.mem_pages) {
+        match memory_region_split(e.mem_pages) {
             Some(slot) => Some(slot),
             None => {
                 failed();
@@ -2772,7 +2772,7 @@ fn retype_rendezvous(region: u64) -> Option<u64> {
     let r = unsafe {
         invoke(
             region,
-            abi::untyped::RETYPE_OBJ,
+            abi::memory_region::RETYPE_OBJ,
             abi::objtype::RENDEZVOUS,
             0,
             0,
@@ -2810,7 +2810,7 @@ fn spawn_interruptible(e: Endowment) {
         print(b"  this shell's memory budget is exhausted; nothing left to grant\n");
         return;
     };
-    let Some(job_ut) = untyped_split(JOB_UNTYPED_PAGES) else {
+    let Some(job_ut) = memory_region_split(JOB_UNTYPED_PAGES) else {
         cap_delete(job_fr);
         failed();
         print(b"  this shell's memory budget is exhausted; nothing left to grant\n");
@@ -2969,7 +2969,7 @@ fn forcible(job_ut: u64) {
 fn reclaim(job_ut: u64) -> bool {
     for _ in 0..256 {
         // SAFETY: `svc`/`ecall`; DESTROY reclaims the region or refuses (a live thread, pre-amendment).
-        if unsafe { invoke(job_ut, abi::untyped::DESTROY, 0, 0, 0) } == 0 {
+        if unsafe { invoke(job_ut, abi::memory_region::DESTROY, 0, 0, 0) } == 0 {
             return true;
         }
         yield_now();
@@ -2980,7 +2980,7 @@ fn reclaim(job_ut: u64) -> bool {
 /// RETYPE one page of our budget into a `PageFrame` capability we hold. `None` when the budget is spent.
 fn retype_page_frame() -> Option<u64> {
     // SAFETY: `svc`/`ecall`; the kernel checks WRITE on the untyped.
-    let r = unsafe { invoke(BUDGET, abi::untyped::RETYPE, 0, 0, 0) };
+    let r = unsafe { invoke(BUDGET, abi::memory_region::RETYPE, 0, 0, 0) };
     if r < 0 { None } else { Some(r as u64) }
 }
 

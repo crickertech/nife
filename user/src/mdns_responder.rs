@@ -84,7 +84,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use abi::{page_frame as fr, rendezvous, rights, untyped as ut};
+use abi::{memory_region as ut, page_frame as fr, rendezvous, rights};
 use mdns_config::Config;
 use mdns_proto::{GROUP_V4, PORT, QuerySource, Service, announcement, respond};
 use socket_proto::{
@@ -96,7 +96,7 @@ use user_rt::{call, exit, invoke, send};
 
 const REPORT: u64 = 0;
 const STACK: u64 = 1;
-const UNTYPED: u64 = 2;
+const MEMORY_REGION: u64 = 2;
 
 /// This program's socket id; see the module header for why it is not 0.
 const SID: u64 = 4;
@@ -172,13 +172,13 @@ fn done(code: u64) -> ! {
 /// Mint a frame from our untyped, map it, and delegate it to our socket id.
 fn attach_page_frame() {
     // SAFETY: `svc`. RETYPE returns the new frame capability's slot, or a negative error.
-    let frame = unsafe { invoke(UNTYPED, ut::RETYPE, 0, 0, 0) };
+    let frame = unsafe { invoke(MEMORY_REGION, ut::RETYPE, 0, 0, 0) };
     if frame < 0 {
         done(E_PAGE_FRAME_MINT);
     }
     let frame = frame as u64;
     // SAFETY: `svc`. Map it writable; page tables come from our untyped.
-    if unsafe { invoke(frame, fr::MAP, PAGE_FRAME_VA, 1, UNTYPED) } < 0 {
+    if unsafe { invoke(frame, fr::MAP, PAGE_FRAME_VA, 1, MEMORY_REGION) } < 0 {
         done(E_PAGE_FRAME_MAP);
     }
     // SAFETY: `svc`. Delegate it, narrowed to read/write, with the ATTACH request.

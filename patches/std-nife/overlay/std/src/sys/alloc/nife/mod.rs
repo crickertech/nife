@@ -2,9 +2,9 @@
 //!
 //! The algorithm is `crates/user_heap`, generated verbatim into `user_heap.rs` next door by
 //! `cargo xtask std-src` (so the host-tested source is the only source). This file is the same
-//! policy layer as `user_rt::heap::UntypedHeap`, re-stated for std because std cannot depend on
+//! policy layer as `user_rt::heap::MemoryRegionHeap`, re-stated for std because std cannot depend on
 //! the out-of-tree crate: a spinlock, lazy wiring to the untyped in slot 0, and grow-on-demand
-//! by `untyped::MAP` at the top of the committed range.
+//! by `memory_region::MAP` at the top of the committed range.
 //!
 //! Lazy, because std has no moment where a program says "init the heap": the first allocation
 //! (often std's own rt setup) simply finds committed == 0 and grows. A program whose slot 0 is
@@ -83,7 +83,7 @@ fn grow(inner: &mut Inner, need: u64) -> bool {
     while got < want_pages {
         let va = start + got * PAGE;
         // SAFETY: plain syscall; the kernel validates the slot, the va, and the budget.
-        if unsafe { rt::invoke(rt::UNTYPED_SLOT, abi::untyped::MAP, va, 0, 0) } != 0 {
+        if unsafe { rt::invoke(rt::MEMORY_REGION_SLOT, abi::memory_region::MAP, va, 0, 0) } != 0 {
             break;
         }
         got += 1;
@@ -115,7 +115,7 @@ pub unsafe fn alloc(layout: Layout) -> *mut u8 {
 
 #[inline]
 pub unsafe fn alloc_zeroed(layout: Layout) -> *mut u8 {
-    // Fresh pages from untyped::MAP arrive zeroed, but recycled free-list memory does not, so
+    // Fresh pages from memory_region::MAP arrive zeroed, but recycled free-list memory does not, so
     // zero unconditionally rather than track provenance.
     let p = unsafe { alloc(layout) };
     if !p.is_null() {

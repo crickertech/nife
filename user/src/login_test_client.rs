@@ -22,7 +22,7 @@
 //!   two different identities land in two different, isolated subtrees, and the same identity's two
 //!   sessions land in the *same* one.
 //! - [`ROLE_LOGOUT`] logs in as `chris`, proves the directory works exactly like [`ROLE_CHRIS`] does,
-//!   then calls `Untyped::DESTROY` on the fourth delegated capability (`login_proto`'s own logout
+//!   then calls `MemoryRegion::DESTROY` on the fourth delegated capability (`login_proto`'s own logout
 //!   ticket) and proves the *directory* came down with it: a further `READDIR` through it must fail.
 //!   This is milestone 49's caretaker-teardown fix, proven end to end rather than merely by the
 //!   syscall's own return code.
@@ -144,7 +144,7 @@ pub const F_NOT_SHARED_SUBTREE: u64 = 1 << 2;
 /// [`ROLE_CHRIS_MARK`]/[`ROLE_CORINNE_MARK`]; its absence there means the isolation proof below did
 /// not get to run at all, which the kernel test must treat as its own failure rather than silence.
 pub const F_MARKER_WRITTEN: u64 = 1 << 3;
-/// **Set when the fourth capability's `Untyped::DESTROY` returned success.** Set only by
+/// **Set when the fourth capability's `MemoryRegion::DESTROY` returned success.** Set only by
 /// [`ROLE_LOGOUT`]; retried a bounded few times on refusal (`login_proto`'s own module docs, on the
 /// fourth capability, name the transient window this covers).
 pub const F_TEARDOWN_OK: u64 = 1 << 4;
@@ -153,7 +153,7 @@ pub const F_TEARDOWN_OK: u64 = 1 << 4;
 /// `DESTROY` that returned success but left the directory answering requests would pass every check
 /// up to this one and fail only this one.
 pub const F_DEAD_AFTER_TEARDOWN: u64 = 1 << 5;
-/// **Set when `Untyped::DESTROY` on the *budget* (the third delegated capability) also returned
+/// **Set when `MemoryRegion::DESTROY` on the *budget* (the third delegated capability) also returned
 /// success.** Set only by [`ROLE_LOGOUT`], and proves the other half of `login.rs`'s BUGS: a full
 /// logout needs no capability beyond what every role already receives, because `budget` was always
 /// delegated with `WRITE`, the one right `DESTROY` needs. See the module docs.
@@ -201,7 +201,7 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
     // (>= 0) or a negative error. Done here, right after the one use of `budget` that needs it
     // alive (`map_page_frame` above), and before anything below tears it down.
     // SAFETY: `svc`/`ecall`; the kernel validates the capability and the method.
-    if unsafe { invoke(budget, abi::untyped::RETYPE, 0, 0, 0) } >= 0 {
+    if unsafe { invoke(budget, abi::memory_region::RETYPE, 0, 0, 0) } >= 0 {
         flags |= F_BUDGET_WORKS;
     }
 
@@ -212,7 +212,7 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
     // a parent's watermark for a child freed at the *top* of it (LIFO, the same rule §16's object
     // revocation and `job_undertaker`'s pool already live under); a child freed out of order leaves
     // its pages a stranded hole that does not come back until the parent itself is destroyed. Get
-    // this backwards (as an earlier version of this file did) and `Untyped::DESTROY` still succeeds
+    // this backwards (as an earlier version of this file did) and `MemoryRegion::DESTROY` still succeeds
     // on both calls, so every flag below still sets, but `CONSTRUCTION_UT`'s reusable capacity never
     // recovers: `kernel::user::login_tests::caretaker_teardown_reclaims_a_full_session_worth_of_memory`
     // starved a *later*, unrelated test in this suite of real login attempts before this ordering was
@@ -222,7 +222,7 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
     if role == ROLE_LOGOUT && destroy_with_retry(budget) {
         flags |= F_BUDGET_TEARDOWN_OK;
         // SAFETY: as above.
-        if unsafe { invoke(budget, abi::untyped::RETYPE, 0, 0, 0) } < 0 {
+        if unsafe { invoke(budget, abi::memory_region::RETYPE, 0, 0, 0) } < 0 {
             flags |= F_BUDGET_DEAD_AFTER_TEARDOWN;
         }
     }
@@ -367,7 +367,7 @@ fn read_marker(dir: u64) -> Option<u64> {
     ))
 }
 
-/// **The fourth capability, `login_proto`'s own logout ticket: `Untyped::DESTROY` reclaims the
+/// **The fourth capability, `login_proto`'s own logout ticket: `MemoryRegion::DESTROY` reclaims the
 /// caretaker `dir` names.** Sets [`F_TEARDOWN_OK`] on success and, only then, re-checks `dir` with a
 /// `READDIR`: [`F_DEAD_AFTER_TEARDOWN`] if it now fails, which is the proof that the capability, not
 /// merely the syscall, came down.
@@ -386,7 +386,7 @@ fn teardown_directory(dir: u64, region: u64) -> u64 {
     flags
 }
 
-/// **`Untyped::DESTROY` on `ut`, retried a bounded few times.** Used on both the fourth delegated
+/// **`MemoryRegion::DESTROY` on `ut`, retried a bounded few times.** Used on both the fourth delegated
 /// capability (the caretaker's construction region) and the third (the client's own budget, already
 /// held with `WRITE` by every role): `login_proto`'s own module docs, on the fourth capability, name
 /// the one transient refusal the *caretaker's* region can give (mid-`forward` to the file service,
@@ -398,7 +398,7 @@ fn destroy_with_retry(ut: u64) -> bool {
     const ATTEMPTS: usize = 64;
     for _ in 0..ATTEMPTS {
         // SAFETY: `svc`/`ecall`; the kernel checks WRITE on `ut`.
-        if unsafe { invoke(ut, abi::untyped::DESTROY, 0, 0, 0) } == 0 {
+        if unsafe { invoke(ut, abi::memory_region::DESTROY, 0, 0, 0) } == 0 {
             return true;
         }
         yield_now();

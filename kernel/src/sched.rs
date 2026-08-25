@@ -1534,7 +1534,7 @@ pub(crate) fn finish_switch() {
     match t.handshake.finish_switch() {
         SwitchOutVerdict::Reap => {
             // Hoist the address space out BEFORE the in-place drop, to be torn down after the lock
-            // is released: its teardown is untyped::destroy (milestone 14 phase B.4), whose §13
+            // is released: its teardown is memory_region::destroy (milestone 14 phase B.4), whose §13
             // revocation sweep takes IPC_TABLES itself to delete stray PageFrame capabilities. Dropping it
             // here would deadlock on our own lock. The rest of the Thread (stack, quota) still
             // drops under IPC_TABLES, exactly as before.
@@ -1654,9 +1654,10 @@ fn try_create_rendezvous_from(region: u64) -> Result<RendezvousId, RendezvousFai
         return Err(RendezvousFailure::RegistryFull);
     }
 
-    // Rank: UNTYPED (58) under IPC_TABLES (60) is a legal descent; the pin rides in the same lock
+    // Rank: MEMORY_REGION (58) under IPC_TABLES (60) is a legal descent; the pin rides in the same lock
     // hold as the carve, so no destroy can race the page away (see retype_object_page).
-    let phys = crate::untyped::retype_object_page(region).ok_or(RendezvousFailure::RegionFull)?;
+    let phys =
+        crate::memory_region::retype_object_page(region).ok_or(RendezvousFailure::RegionFull)?;
 
     // The page arrives zeroed, and an all-zero Rendezvous happens to be valid; write it explicitly
     // anyway, because "happens to be" is the kind of truth that stops being one silently.
@@ -1699,7 +1700,7 @@ pub fn create_rendezvous() -> RendezvousId {
                         "the kernel carved all {MAX_KERNEL_EP_CHUNKS} rendezvous chunks; \
                          with {MAX_RENDEZVOUS} registry slots this should be unreachable",
                     );
-                    let r = crate::untyped::create(KERNEL_EP_CHUNK_PAGES)
+                    let r = crate::memory_region::create(KERNEL_EP_CHUNK_PAGES)
                         .expect("no memory for a kernel rendezvous chunk");
                     sched.kernel_ep_chunks += 1;
                     sched.kernel_ep_region = Some(r);
@@ -2344,7 +2345,7 @@ pub fn grant_at(slot: u64, cap: crate::cap::Cap) -> Result<u64, crate::cap::Erro
 /// Returns its `ThreadId` (what an `Object::ThreadControlBlock` capability carries) or `None` if the region is out of
 /// budget or the table is full.
 pub fn create_thread_control_block(region: u64) -> Option<ThreadId> {
-    let page = crate::untyped::retype_object_page(region)?;
+    let page = crate::memory_region::retype_object_page(region)?;
     let mut guard = IPC_TABLES.lock();
     let sched = guard.as_mut()?;
     let name = sched.threads.insert_from_page(page, |tid| {
@@ -2361,7 +2362,7 @@ pub fn create_thread_control_block(region: u64) -> Option<ThreadId> {
     name
 }
 
-/// Tear down every kernel object whose backing page lies in `[base, end)`, so `untyped::destroy`
+/// Tear down every kernel object whose backing page lies in `[base, end)`, so `memory_region::destroy`
 /// can reclaim the region (object revocation). `Err` if a **live** thread (`Ready`/`Running`/
 /// `Blocked`) sits in the region, or if a dead one is still standing on its kernel stack
 /// (`handshake.on_cpu`); the region stays pinned. But the refusal is no longer passive:
@@ -2377,8 +2378,8 @@ pub fn create_thread_control_block(region: u64) -> Option<ThreadId> {
 /// boot it fixed.
 ///
 /// Takes `IPC_TABLES`, so it must run **outside** any teardown `Drop`: this is the caller-driven half of
-/// revocation, and `untyped::destroy` is the `IPC_TABLES`-free half (which is why the reaper's
-/// `Drop` -> `destroy` path cannot deadlock against it). See `untyped::unpin`.
+/// revocation, and `memory_region::destroy` is the `IPC_TABLES`-free half (which is why the reaper's
+/// `Drop` -> `destroy` path cannot deadlock against it). See `memory_region::unpin`.
 /// What the refuse phase of [`reap_region_objects`] decides about one resident thread.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RegionReap {
@@ -2519,7 +2520,7 @@ fn reap_region_objects(base: u64, end: u64) -> Result<(), ()> {
     //
     // **The pin is not what makes dropping a resident's address space safe, and saying it was cost
     // us a double free.** This comment used to argue that the region stays pinned through the reap,
-    // so a bound space dropping here is refused by `untyped::destroy`. That is true for a drop that
+    // so a bound space dropping here is refused by `memory_region::destroy`. That is true for a drop that
     // happens *inside* this function, under `IPC_TABLES`. It is false for the one that matters: the
     // reaper (`finish_switch`) hoists a dead thread's space out, releases `IPC_TABLES`, and drops it
     // afterwards, by which time `reclaim_region` may already have unpinned. What makes it safe is
@@ -2604,17 +2605,17 @@ pub fn reclaim_region(region: u64) -> Result<(), ()> {
     // A region carved into children cannot be reclaimed: its child regions own part of its run and
     // free those pages themselves. The owner must destroy the children first. Refuse before any
     // teardown, so a refused reclaim leaves the region exactly as it was.
-    if crate::untyped::has_children(region) {
+    if crate::memory_region::has_children(region) {
         return Err(());
     }
-    let (base, size) = crate::untyped::region_bounds(region).ok_or(())?;
+    let (base, size) = crate::memory_region::region_bounds(region).ok_or(())?;
     // Threads first (IPC_TABLES), then any unbound address spaces (the address space registry lock). Two
     // separate lock domains, sequenced, never nested: neither is held across the other. Bound
     // spaces need no step here, they died with their thread in the reap above.
     reap_region_objects(base, base + size)?;
     crate::user::reap_address_spaces_in_region(base, base + size);
-    crate::untyped::unpin(region);
-    crate::untyped::destroy(region);
+    crate::memory_region::unpin(region);
+    crate::memory_region::destroy(region);
     Ok(())
 }
 
@@ -2628,7 +2629,7 @@ pub fn reclaim_region(region: u64) -> Result<(), ()> {
 /// decision itself is `capability::reap_decision`, proved for every input in that crate.
 ///
 /// Then the reclaim is §16's, unchanged: `reclaim_region` on the region the TCB was retyped from,
-/// which is exactly the region name the owner would have passed to `Untyped::DESTROY`. One teardown
+/// which is exactly the region name the owner would have passed to `MemoryRegion::DESTROY`. One teardown
 /// path, so the two cannot drift. **The pages go back to the region's owner under §13**, which is
 /// the builder, not the reaper: a supervisor frees a child's memory without ever being able to spend
 /// it, because it never holds a capability to it.
@@ -3487,7 +3488,7 @@ mod tests {
     fn reclaim_frees_an_embryo_thread_control_blocks_region() {
         let frames_before = crate::memory::free_page_frames();
 
-        let region = crate::untyped::create(2).expect("a fresh 2-page region");
+        let region = crate::memory_region::create(2).expect("a fresh 2-page region");
         let tid = crate::sched::create_thread_control_block(region)
             .expect("retype a TCB from the region");
 
@@ -3532,7 +3533,7 @@ mod tests {
     fn reclaim_frees_an_unbound_address_spaces_region() {
         let frames_before = crate::memory::free_page_frames();
 
-        let region = crate::untyped::create(8).expect("a fresh region");
+        let region = crate::memory_region::create(8).expect("a fresh region");
         let name = crate::user::user_address_space_create(region)
             .expect("an address space from the region");
 
@@ -3558,7 +3559,7 @@ mod tests {
         );
     }
 
-    /// **Untyped SPLIT returns a child's pages to the parent on reclaim (LIFO), so a split parent is
+    /// **`MemoryRegion` SPLIT returns a child's pages to the parent on reclaim (LIFO), so a split parent is
     /// not committed for its lifetime.** Carve a region into two children; the parent refuses reclaim
     /// while they live. Reclaiming a child out of order (not the top of the watermark) leaves a hole;
     /// reclaiming the top child un-bumps the parent, so its budget is re-splittable. Either way a
@@ -3567,23 +3568,23 @@ mod tests {
     #[test_case]
     fn split_returns_child_pages_to_the_parent() {
         let frames_before = crate::memory::free_page_frames();
-        let parent = crate::untyped::create(8).expect("parent region");
+        let parent = crate::memory_region::create(8).expect("parent region");
         assert_eq!(
             crate::memory::free_page_frames(),
             frames_before - 8,
             "create spent the parent's pages"
         );
 
-        let child_a = crate::untyped::split(parent, 4).expect("split child a"); // [0,4)
-        let child_b = crate::untyped::split(parent, 4).expect("split child b"); // [4,8), the top
+        let child_a = crate::memory_region::split(parent, 4).expect("split child a"); // [0,4)
+        let child_b = crate::memory_region::split(parent, 4).expect("split child b"); // [4,8), the top
         assert_ne!(child_a, child_b);
-        assert!(crate::untyped::has_children(parent));
+        assert!(crate::memory_region::has_children(parent));
         assert!(
             crate::sched::reclaim_region(parent).is_err(),
             "a parent with live children refuses reclaim",
         );
         assert!(
-            crate::untyped::split(parent, 1).is_none(),
+            crate::memory_region::split(parent, 1).is_none(),
             "a fully-carved parent cannot split further",
         );
 
@@ -3596,14 +3597,18 @@ mod tests {
             "a reclaimed child returns pages to the parent, not the allocator",
         );
         assert!(
-            crate::untyped::has_children(parent),
+            crate::memory_region::has_children(parent),
             "one child still lives"
         );
 
         // Reclaim the top child: the parent un-bumps and is childless, and its budget re-splits.
         crate::sched::reclaim_region(child_b).expect("reclaim child b (the LIFO top)");
-        assert!(!crate::untyped::has_children(parent), "no children remain");
-        let child_c = crate::untyped::split(parent, 4).expect("the LIFO-returned pages re-split");
+        assert!(
+            !crate::memory_region::has_children(parent),
+            "no children remain"
+        );
+        let child_c =
+            crate::memory_region::split(parent, 4).expect("the LIFO-returned pages re-split");
         crate::sched::reclaim_region(child_c).expect("reclaim child c");
 
         // Nothing reached the allocator until now: destroying the childless root parent frees the
@@ -3628,8 +3633,9 @@ mod tests {
         // Comfortably more than MAX_REGIONS (256): without reuse this exhausts the table well before
         // the end. With reuse, one freed slot serves every iteration.
         for _ in 0..320 {
-            let r = crate::untyped::create(1).expect("a region slot must be reused, not exhausted");
-            crate::untyped::destroy(r);
+            let r = crate::memory_region::create(1)
+                .expect("a region slot must be reused, not exhausted");
+            crate::memory_region::destroy(r);
         }
         assert_eq!(
             crate::memory::free_page_frames(),
@@ -3644,7 +3650,7 @@ mod tests {
     #[test_case]
     fn reclaim_frees_a_regions_idle_rendezvous() {
         let frames_before = crate::memory::free_page_frames();
-        let region = crate::untyped::create(2).expect("region");
+        let region = crate::memory_region::create(2).expect("region");
         let _ep = crate::sched::create_rendezvous_from(region).expect("rendezvous from region");
         assert!(
             crate::memory::free_page_frames() < frames_before,
@@ -3671,7 +3677,7 @@ mod tests {
         ABORTED.store(false, Ordering::SeqCst);
         WOKE.store(false, Ordering::SeqCst);
 
-        let region = crate::untyped::create(2).expect("region");
+        let region = crate::memory_region::create(2).expect("region");
         let ep = crate::sched::create_rendezvous_from(region).expect("rendezvous from region");
 
         // A thread that blocks receiving on the rendezvous, then records whether it was aborted.
@@ -4583,7 +4589,7 @@ mod tests {
     /// **Milestone 19a: an rendezvous retyped from a region carries IPC, and pins its region.**
     /// The kernel-level half of the granular-construction story: `create_rendezvous_from` carves a
     /// page, the rendezvous lives in it, rendezvous works over it exactly as over a kernel-wired
-    /// rendezvous, and `untyped::destroy` refuses the now-pinned region, because freeing the page
+    /// rendezvous, and `memory_region::destroy` refuses the now-pinned region, because freeing the page
     /// under a live rendezvous would dangle every queued thread. The refusal is measured, not
     /// assumed: the allocator's free count must not move.
     #[test_case]
@@ -4591,7 +4597,7 @@ mod tests {
         use core::sync::atomic::{AtomicU64, Ordering};
         static GOT: AtomicU64 = AtomicU64::new(0);
 
-        let region = crate::untyped::create(2).expect("no region");
+        let region = crate::memory_region::create(2).expect("no region");
         let ep = super::create_rendezvous_from(region).expect("no rendezvous from region");
         let kernel_ep = super::create_rendezvous();
         assert_ne!(ep, kernel_ep, "registry names collide");
@@ -4609,7 +4615,7 @@ mod tests {
         );
 
         let free_before = crate::memory::stats().unwrap().free();
-        crate::untyped::destroy(region);
+        crate::memory_region::destroy(region);
         assert_eq!(
             crate::memory::stats().unwrap().free(),
             free_before,

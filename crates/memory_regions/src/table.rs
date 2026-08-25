@@ -7,9 +7,9 @@
 //!
 //! # The bug this exists to have caught
 //!
-//! `untyped::destroy` used to check the region under the `REGIONS` lock, **release** it, revoke
+//! `memory_region::destroy` used to check the region under the `REGIONS` lock, **release** it, revoke
 //! every mapping, free every page, and remove the table slot last. Two callers holding a name for
-//! one region (an owner's `Untyped::DESTROY` and a supervisor's `rendezvous::REAP`, both landing in
+//! one region (an owner's `MemoryRegion::DESTROY` and a supervisor's `rendezvous::REAP`, both landing in
 //! `sched::reclaim_region`) could each pass the refusal check inside that gap and each run the free
 //! loop over the same pages. It surfaced once in 45 loaded runs on riscv64 as
 //! `double free of frame 0x82a3e000`, and it needed two cores.
@@ -132,7 +132,7 @@ struct Region {
 ///
 /// **A claim cannot be forged.** The fields are private, so a caller cannot read the table, decide
 /// for itself, and then build its own right to free the run: that reassembled shape is exactly the
-/// pre-#316 `untyped::destroy`, whose gap double-freed.
+/// pre-#316 `memory_region::destroy`, whose gap double-freed.
 ///
 /// ```compile_fail,E0451
 /// let claim = memory_regions::DestroyClaim { base_page: 0, pages: 4, parent: u64::MAX, is_root: true };
@@ -195,7 +195,7 @@ impl DestroyClaim {
 /// **The untyped regions**, a generational table (`crates/generational_table`) plus every decision taken over it.
 ///
 /// Generational because reclamation reuses slots: removing a region bumps its slot's generation, so
-/// every `Untyped` capability minted for it stops resolving and the slot is available to the next
+/// every `MemoryRegion` capability minted for it stops resolving and the slot is available to the next
 /// create. That is also what makes [`claim_for_destroy`](Self::claim_for_destroy) single-winner: the
 /// loser's name is dead by the time it looks.
 ///
@@ -367,7 +367,7 @@ impl<const N: usize> RegionTable<N> {
             parent: r.parent,
             is_root,
         };
-        // The generation bump. Every `Untyped` capability for this region stops resolving here, and
+        // The generation bump. Every `MemoryRegion` capability for this region stops resolving here, and
         // that is what makes the claim single-winner rather than merely first.
         self.table.remove(name);
         Some(claim)
@@ -586,7 +586,7 @@ mod interleavings {
     /// **The property the whole reclamation path rests on: two callers, one winner.**
     ///
     /// The kernel reaches `destroy` for one region by two routes that can run concurrently on two
-    /// cores, an owner's `Untyped::DESTROY` and a supervisor's `rendezvous::REAP`. Each thread here
+    /// cores, an owner's `MemoryRegion::DESTROY` and a supervisor's `rendezvous::REAP`. Each thread here
     /// takes the lock, claims, and (if it won) runs the free loop, counting the run. Loom fails the
     /// model on any execution where the count reaches two.
     ///
@@ -645,7 +645,7 @@ mod interleavings {
     ///
     /// A model that cannot fail proves nothing, and this tree's standard is that an assertion nobody
     /// has watched fail is not a gate (milestone 62). So the broken protocol lives here permanently,
-    /// written against this module's private internals in exactly the shape `untyped::destroy` had
+    /// written against this module's private internals in exactly the shape `memory_region::destroy` had
     /// before the fix: check under the lock, **release it**, revoke, free every page, and remove the
     /// slot last.
     ///
@@ -656,7 +656,7 @@ mod interleavings {
     fn the_pre_fix_protocol_double_frees_and_this_model_finds_it() {
         static DOUBLE_FREE: Reached = Reached::new();
 
-        /// `untyped::destroy` as it stood before pull request #316. Kept in the test module rather
+        /// `memory_region::destroy` as it stood before pull request #316. Kept in the test module rather
         /// than in the crate's API so that nothing outside a loom run can call it.
         fn destroy_with_the_gap(table: &Mutex<RegionTable<2>>, name: u64, freed: &Mutex<usize>) {
             // 1. Decide under the lock.

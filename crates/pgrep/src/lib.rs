@@ -22,7 +22,7 @@
 //! **A domain names its members and does not act on them** (calef, 2026-08-17). So this system has
 //! `pgrep` and **cannot have `pkill`**, and the reason is in the ABI rather than in a policy: a
 //! survey returns a tid, a tid is a name, [`abi::thread_control_block`] has no `DESTROY`, and killing a live child is
-//! `abi::untyped::DESTROY` on the region it was built from, held by whoever spawned it (DECISIONS
+//! `abi::memory_region::DESTROY` on the region it was built from, held by whoever spawned it (DECISIONS
 //! §24's forcible `^C`). There is no path from the output of this program to authority over anything
 //! it printed.
 //!

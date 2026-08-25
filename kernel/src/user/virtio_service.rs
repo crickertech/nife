@@ -207,7 +207,7 @@ fn wire_net_server(
     rid: Option<u32>,
     listen_grant: u64,
 ) -> (RendezvousId, RendezvousId, Holding) {
-    use crate::cap::untyped_cap;
+    use crate::cap::memory_region_cap;
 
     let dma = crate::memory::alloc()
         .expect("no DMA frame for the net server")
@@ -225,7 +225,7 @@ fn wire_net_server(
     // waiter, and the doomed server is then schedulable enough to die. From the kernel's own
     // endpoint chunks (`create_rendezvous`) there is no such handle, and there was no way to end this
     // process short of rebooting. Four pages for three endpoints, one page each and one spare.
-    let ep_region = crate::untyped::create(4).expect("no endpoint region for net_stack");
+    let ep_region = crate::memory_region::create(4).expect("no endpoint region for net_stack");
     let irq_ep = crate::sched::create_rendezvous_from(ep_region).expect("no irq endpoint");
     crate::sched::bind_irq(intid, irq_ep);
     crate::arch::irq::enable(intid);
@@ -233,13 +233,14 @@ fn wire_net_server(
     let report = crate::sched::create_rendezvous_from(ep_region).expect("no report endpoint");
     let stack = crate::sched::create_rendezvous_from(ep_region).expect("no stack endpoint");
     let vid = crate::virtio::register(transport, dma, FRAME_SIZE, rid);
-    let budget = crate::untyped::create(NET_SERVER_BUDGET_PAGES).expect("no untyped for net_stack");
+    let budget =
+        crate::memory_region::create(NET_SERVER_BUDGET_PAGES).expect("no untyped for net_stack");
     // The extra stack pages, in a region of their own so they can be handed back **after** the
     // server is provably dead. They cannot come from `budget`: a `Spawn::maps` page is not a
     // recorded mapping, so revocation cannot pull it, and freeing a running thread's stack is a
     // use-after-free rather than a fault. See `Holding::region_after_death`.
-    let stack_region =
-        crate::untyped::create(NET_SERVER_STACK_PAGES).expect("no stack region for net_stack");
+    let stack_region = crate::memory_region::create(NET_SERVER_STACK_PAGES)
+        .expect("no stack region for net_stack");
 
     // The DMA mapping plus the extra stack pages, in one array the spawn closure owns.
     let mut maps = [Mapping {
@@ -255,7 +256,8 @@ fn wire_net_server(
     for k in 0..NET_SERVER_STACK_PAGES as usize {
         // `retype_page` hands the page back zeroed, so the process starts clean without a second
         // scrub here.
-        let phys = crate::untyped::retype_page(stack_region).expect("no frame for the net stack");
+        let phys =
+            crate::memory_region::retype_page(stack_region).expect("no frame for the net stack");
         maps[k + 1] = Mapping {
             va: USER_STACK_VA - (k as u64 + 1) * FRAME_SIZE,
             phys,
@@ -274,7 +276,7 @@ fn wire_net_server(
                     rendezvous_cap(report, Rights::WRITE), // slot 0: report the acquired address
                     irq_cap(intid),                        // slot 1: WAIT / ACK the interrupt
                     virtio_cap(vid),                       // slot 2: the confined transport
-                    untyped_cap(budget),                   // slot 3: the heap's budget
+                    memory_region_cap(budget),             // slot 3: the heap's budget
                     rendezvous_cap(stack, Rights::READ),   // slot 4: serve clients' requests
                 ],
                 maps: &maps,
@@ -433,19 +435,19 @@ fn spawn_stack_client(
     cred: Option<(RendezvousId, u64)>,
     held: &mut Holding,
 ) -> RendezvousId {
-    use crate::cap::untyped_cap;
+    use crate::cap::memory_region_cap;
 
     // The client's report endpoint and its stack pages share one region with the budget's
     // lifetime rules: the report endpoint may go while the client still exists (that is the wake),
     // the stack pages may not. A client that reports and exits needs neither, but a client that
     // wedges is exactly the case worth being able to end.
-    let cli_eps = crate::untyped::create(2).expect("no endpoint region for the net client");
+    let cli_eps = crate::memory_region::create(2).expect("no endpoint region for the net client");
     let cli_report =
         crate::sched::create_rendezvous_from(cli_eps).expect("no client report endpoint");
-    let cli_budget =
-        crate::untyped::create(NET_CLIENT_BUDGET_PAGES).expect("no untyped for the net client");
-    let cli_stack_region =
-        crate::untyped::create(NET_CLIENT_STACK_PAGES).expect("no stack region for the net client");
+    let cli_budget = crate::memory_region::create(NET_CLIENT_BUDGET_PAGES)
+        .expect("no untyped for the net client");
+    let cli_stack_region = crate::memory_region::create(NET_CLIENT_STACK_PAGES)
+        .expect("no stack region for the net client");
     // One slot per stack page, plus the shared regions an SMB adapter may also get (the whole file
     // channel it shares with the FS server, and the credential service's one page when it
     // authenticates). They are the tail slots, so they move with NET_CLIENT_STACK_PAGES rather than
@@ -461,8 +463,8 @@ fn spawn_stack_client(
         .enumerate()
     {
         // Retyped, so the pages come back with the region; `retype_page` zeroes them.
-        let phys =
-            crate::untyped::retype_page(cli_stack_region).expect("no frame for the net client");
+        let phys = crate::memory_region::retype_page(cli_stack_region)
+            .expect("no frame for the net client");
         m.va = USER_STACK_VA - (k as u64 + 1) * FRAME_SIZE;
         m.phys = phys;
     }
@@ -496,7 +498,7 @@ fn spawn_stack_client(
             // slot 1: the stack endpoint, WRITE to send requests and to delegate the
             // shared frame onto it (the frame it mints already carries GRANT).
             rendezvous_cap(stack, Rights::WRITE),
-            untyped_cap(cli_budget), // slot 2: mint and map the shared frame
+            memory_region_cap(cli_budget), // slot 2: mint and map the shared frame
             // slots 3 and 4 (sliced away below unless `fs` and `cred`): the directory capability
             // and the credential service's verify endpoint. The array needs the elements either
             // way; these placeholders are never granted.
@@ -704,7 +706,7 @@ pub fn start_net_std(
     std_image: &'static [u8],
     listen_grant: u64,
 ) -> Option<(RendezvousId, Holding)> {
-    use crate::cap::untyped_cap;
+    use crate::cap::memory_region_cap;
 
     let dev = crate::virtio::find_net_device()?;
     let transport = crate::virtio::Transport::Mmio {
@@ -713,12 +715,14 @@ pub fn start_net_std(
     let (net_stack_report, stack, mut held) =
         wire_net_server(net_stack_image, transport, dev.intid, None, listen_grant);
 
-    let std_eps = crate::untyped::create(2).expect("no endpoint region for the std net client");
+    let std_eps =
+        crate::memory_region::create(2).expect("no endpoint region for the std net client");
     let report = crate::sched::create_rendezvous_from(std_eps).expect("no std net report endpoint");
-    let heap = crate::untyped::create(STD_NET_HEAP_PAGES).expect("no untyped for the std net heap");
-    let frames =
-        crate::untyped::create(NET_CLIENT_BUDGET_PAGES).expect("no untyped for the std net frames");
-    let std_stack_region = crate::untyped::create(STD_NET_STACK_PAGES)
+    let heap =
+        crate::memory_region::create(STD_NET_HEAP_PAGES).expect("no untyped for the std net heap");
+    let frames = crate::memory_region::create(NET_CLIENT_BUDGET_PAGES)
+        .expect("no untyped for the std net frames");
+    let std_stack_region = crate::memory_region::create(STD_NET_STACK_PAGES)
         .expect("no stack region for the std net client");
 
     let mut stackmaps = [Mapping {
@@ -729,8 +733,8 @@ pub fn start_net_std(
     for (k, m) in stackmaps.iter_mut().enumerate() {
         // Retyped rather than allocated, so the stack comes back with its region once the program
         // is provably gone (`Holding::region_after_death`); `retype_page` zeroes it.
-        let phys =
-            crate::untyped::retype_page(std_stack_region).expect("no frame for the std net stack");
+        let phys = crate::memory_region::retype_page(std_stack_region)
+            .expect("no frame for the std net stack");
         m.va = USER_STACK_VA - (k as u64 + 1) * FRAME_SIZE;
         m.phys = phys;
     }
@@ -743,10 +747,10 @@ pub fn start_net_std(
                 arg1: 0,
                 arg2: 0,
                 grants: &[
-                    untyped_cap(heap),                     // slot 0: the heap's budget
+                    memory_region_cap(heap),               // slot 0: the heap's budget
                     rendezvous_cap(report, Rights::WRITE), // slot 1: stdout/stderr
                     rendezvous_cap(stack, Rights::WRITE),  // slot 2: the Stack endpoint
-                    untyped_cap(frames),                   // slot 3: mint per-socket shared frames
+                    memory_region_cap(frames),             // slot 3: mint per-socket shared frames
                 ],
                 maps: &stackmaps,
             },

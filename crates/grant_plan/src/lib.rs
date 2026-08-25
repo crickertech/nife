@@ -492,7 +492,7 @@ impl Prog {
             // is: one supervision endpoint, `ENUMERATE`, and no way to name anything outside the
             // domain. On Unix `pgrep` and `pkill` differ only in what they do with the answer, and
             // there is no such pair here: a tid is a name, and killing a live child is
-            // `Untyped::DESTROY` on its region, held by whoever spawned it (DECISIONS §24).
+            // `MemoryRegion::DESTROY` on its region, held by whoever spawned it (DECISIONS §24).
             //
             // `ArgSpec::Forbidden` is `date`'s deliberate under-declaration, not an oversight.
             // `pgrep` reads a state mask out of the integer-argument register, and a *pattern* is

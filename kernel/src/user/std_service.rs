@@ -1,5 +1,5 @@
 use super::*;
-use crate::cap::{Rights, page_frame_cap, rendezvous_cap, untyped_cap};
+use crate::cap::{Rights, memory_region_cap, page_frame_cap, rendezvous_cap};
 use crate::sched::RendezvousId;
 
 /// Where the loader maps the clock page for a std program. Must match the std PAL's
@@ -59,7 +59,7 @@ pub fn start_on(
     entropy_image: &'static [u8],
     report: RendezvousId,
 ) -> crate::thread::ThreadId {
-    let budget = crate::untyped::create(BUDGET_PAGES).expect("no untyped for std_exerciser");
+    let budget = crate::memory_region::create(BUDGET_PAGES).expect("no untyped for std_exerciser");
 
     // The entropy service, wired once per boot and shared with the milestone-56 tests. Its
     // request endpoint is the whole of a std program's randomness authority: `SystemRng` is a
@@ -160,7 +160,7 @@ pub fn start_on(
                 arg1: 0,
                 arg2: 0,
                 grants: &[
-                    untyped_cap(budget),                   // slot 0: the heap's budget
+                    memory_region_cap(budget),             // slot 0: the heap's budget
                     rendezvous_cap(report, Rights::WRITE), // slot 1: stdout/stderr
                 ],
                 maps: &maps,

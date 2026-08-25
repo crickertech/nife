@@ -621,7 +621,7 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
     // Last in the list, so a boot with no filesystem takes exactly the path it took before this
     // existed. Its slot therefore moves (4 without a disk, 5 with one), which is why the shell is
     // *told* the number in `x2`/`a2` instead of assuming one; see swish.rs's `CLOCK_SLOT`.
-    let sh_budget = must(untyped_split(ut, SH_BUDGET_PAGES));
+    let sh_budget = must(memory_region_split(ut, SH_BUDGET_PAGES));
     let with_fs = fs_rights != 0;
     let sh_caps: [(u64, u64); 6] = [
         (term_ep, abi::rights::WRITE),
@@ -737,8 +737,8 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
     // watermark must move for **jobs only**, or the LIFO return-of-pages (§16) never fires. A scratch
     // page table carved out of the same region between a job's split and its reap would sit above
     // that job's run, so the reclaim would find it is not the top and give back nothing.
-    let own_ut = must(untyped_split(ut, INIT_OWN_PAGES));
-    let jobs_ut = must(untyped_split(ut, JOBS_BUDGET_PAGES));
+    let own_ut = must(memory_region_split(ut, INIT_OWN_PAGES));
+    let jobs_ut = must(memory_region_split(ut, JOBS_BUDGET_PAGES));
     // The shell's output page, in our own space, so we can say what just happened. This mapping is
     // permanent (there is no unmap, and `PageFrame::REVOKE` would take the page from the shell too); see
     // this module's BUGS.
@@ -754,12 +754,12 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
     // *gone*, not narrowed, so there is nothing there to name. This is `root_supervisor`'s proof at
     // the interactive prompt, and `script/shell-check` reads the sentence.
     // SAFETY: as above: the kernel validates the capability and the method.
-    let frame = unsafe { invoke(ut, abi::untyped::RETYPE, 0, 0, 0) };
+    let frame = unsafe { invoke(ut, abi::memory_region::RETYPE, 0, 0, 0) };
     // SAFETY: as above: the kernel validates the capability and the method.
     let object = unsafe {
         invoke(
             ut,
-            abi::untyped::RETYPE_OBJ,
+            abi::memory_region::RETYPE_OBJ,
             abi::objtype::THREAD_CONTROL_BLOCK,
             0,
             0,
@@ -1046,7 +1046,7 @@ fn spawn_service(
             // built out of the **same** region as the program it serves. That is DECISIONS §92's
             // decision and §40's mechanism: a child's resources come from its supervisor's region,
             // so one reclaim ends both and the caretaker cannot outlive the grant it carries.
-            let region = untyped_split(
+            let region = memory_region_split(
                 jobs_ut,
                 if wiring.dir {
                     DIR_JOB_REGION_PAGES
@@ -1414,7 +1414,7 @@ fn build_caretaker(
 /// this could not reclaim costs later commands and does not end them.
 fn reclaim(region: u64) {
     for _ in 0..RECLAIM_ATTEMPTS {
-        if supervision_proto::untyped_destroy(region) {
+        if supervision_proto::memory_region_destroy(region) {
             return;
         }
         user_rt::yield_now();
@@ -1429,8 +1429,8 @@ const RECLAIM_ATTEMPTS: usize = 64;
 /// full rights on the child, including GRANT, so a memory budget can be handed on. The error code
 /// `supervision_proto` returns is for the dropped-authority proof, which this crate takes from the
 /// raw `invoke` instead, so it is dropped here.
-fn untyped_split(ut: u64, pages: u64) -> Result<u64, ()> {
-    supervision_proto::untyped_split(ut, pages).map_err(|_| ())
+fn memory_region_split(ut: u64, pages: u64) -> Result<u64, ()> {
+    supervision_proto::memory_region_split(ut, pages).map_err(|_| ())
 }
 
 /// **Say one sentence at the terminal**, through the line discipline, the way the shell does: stage

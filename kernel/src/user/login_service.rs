@@ -1,5 +1,5 @@
 use super::*;
-use crate::cap::{Rights, page_frame_cap, rendezvous_cap, untyped_root_cap};
+use crate::cap::{Rights, memory_region_root_cap, page_frame_cap, rendezvous_cap};
 use crate::sched::{self, RendezvousId};
 
 /// Where the service maps the current client's request. Must match `user/src/login.rs`.
@@ -158,10 +158,11 @@ pub fn start(
     let request = sched::create_rendezvous();
     let result = sched::create_rendezvous();
     let audit = sched::create_rendezvous();
-    let construction = crate::untyped::create(construction_pages)
+    let construction = crate::memory_region::create(construction_pages)
         .expect("no construction budget for the login service");
 
-    let thread_control_block_region = crate::untyped::create(2).expect("no tcb region for login");
+    let thread_control_block_region =
+        crate::memory_region::create(2).expect("no tcb region for login");
     let tid =
         sched::create_thread_control_block(thread_control_block_region).expect("no tcb for login");
 
@@ -191,7 +192,7 @@ pub fn start(
                 Rights::READ.union(Rights::WRITE).union(Rights::GRANT),
             ),
         ),
-        ("construction", untyped_root_cap(construction)),
+        ("construction", memory_region_root_cap(construction)),
         ("audit", rendezvous_cap(audit, Rights::WRITE)),
     ];
     for (i, (name, cap)) in grants.into_iter().enumerate() {

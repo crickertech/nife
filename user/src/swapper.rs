@@ -207,7 +207,7 @@ fn direct(fs: &nifefs::Fs, w: &Wiring) -> ! {
     // authority: `maps_without_devices` is the declaration minus what a revoke is about to take, and
     // `devices` below is the rest of it. `component_plan` sorts device mappings last so both halves
     // are slices of one plan and neither can be built by hand.
-    let Ok(b_region) = supervision_proto::untyped_split(ROOT_UT, component.pages()) else {
+    let Ok(b_region) = supervision_proto::memory_region_split(ROOT_UT, component.pages()) else {
         bail(20)
     };
     let Ok((b_tcb, b_aspace)) = supervision_proto::build_child_space(
@@ -614,7 +614,7 @@ fn hung(fs: &nifefs::Fs, w: &Wiring) -> ! {
     // syscalls, and doing it after the trigger loses the race against a conversation already in
     // flight. Here it matters more, not less: a hung component gives the operator no drain to hide
     // the build behind.
-    let Ok(b_region) = supervision_proto::untyped_split(ROOT_UT, component.pages()) else {
+    let Ok(b_region) = supervision_proto::memory_region_split(ROOT_UT, component.pages()) else {
         bail(75)
     };
     let Ok((b_tcb, b_aspace)) = supervision_proto::build_child_space(
@@ -856,7 +856,7 @@ fn start_child(
     args: [u64; 3],
     stage: u64,
 ) {
-    let Ok(region) = supervision_proto::untyped_split(ROOT_UT, plan.pages()) else {
+    let Ok(region) = supervision_proto::memory_region_split(ROOT_UT, plan.pages()) else {
         bail(stage)
     };
     let endow = ChildEndowment {

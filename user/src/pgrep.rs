@@ -20,7 +20,7 @@
 //! supervision endpoint carrying `abi::rights::ENUMERATE` and nothing else. It cannot receive a
 //! death on it, cannot reap through it, and there is no method anywhere that turns a tid into
 //! authority over the thread it names: `abi::thread_control_block` has no `DESTROY`, and killing a live child is
-//! `abi::untyped::DESTROY` on the region it was built from, which its spawner holds (DECISIONS §24).
+//! `abi::memory_region::DESTROY` on the region it was built from, which its spawner holds (DECISIONS §24).
 //!
 //! So the honest statement of what this port achieves is asymmetric: **`caps pgrep` prints a scope
 //! and there is no `caps pkill` to print beside it.** The side-by-side comparison milestone 126

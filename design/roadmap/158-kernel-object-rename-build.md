@@ -1,15 +1,12 @@
 # 158. Build the eleven kernel object and identifier renames DECISIONS §113 decided
 
-**Status: PARTIAL.** Minted 2026-08-23, from calef asking what the milestone was that renamed
+**Status: BUILT.** Minted 2026-08-23, from calef asking what the milestone was that renamed
 the kernel components and finding the answer was "none": DECISIONS §113 (eleven kernel object and
 identifier names move from contraction or borrowed jargon to the plain, standard term) was decided
 2026-08-23 and never turned into tracked build work. Checked directly before minting this:
-`kernel/src/cap.rs`'s `Object` enum still reads
-`Aspace(u64)`, not `AddressSpace(u64)` -- the decision is real, the rename is not.
-
-**Gate: NONE.** Nothing here needs deciding; §113 already settled every name. This is the mechanical
-build DECISIONS §113 itself flagged as separate, future work: "each touches a real, measured
-surface... and is left to whoever executes it, tracked as its own piece of work per name."
+`kernel/src/cap.rs`'s `Object` enum still read
+`Aspace(u64)`, not `AddressSpace(u64)` -- the decision was real, the rename was not, until each of
+the seven names below was renamed in its own lane. `Untyped` -> `MemoryRegion` was the last.
 
 ## What was built
 
@@ -158,22 +155,69 @@ Kani-proof-bearing crates that touch the renamed `abi::address_space` module
 (`crates/capability`, 12 harnesses, and `crates/component_plan`, 5 harnesses) both verify successfully
 post-rename; and the full `script/test` suite green on aarch64, riscv64 and x86_64.
 
+`Untyped` -> `MemoryRegion`, done to completion in a separate lane (milestone/158-untyped-rename).
+**This block's own table undersold it by roughly an order of magnitude on files touched**: the
+strict capitalized-token count (25 files, 60 occurrences) was the pre-rename estimate; the actual
+surface, re-measured fresh, was 88 files, 620 insertions/618 deletions, once the predicted-and-real
+lowercase identifier family was counted the same way `Endpoint`'s and `Tcb`'s were. The crate this
+block already flagged as having "independently converged on 'region' vocabulary" turned out to be
+`crates/memory_regions` (not `crates/regions` as this block's own text said -- that crate had
+*already been renamed* by an earlier, unrecorded pass, so its own doc comments citing
+`kernel/src/untyped.rs` and `crates/regions` were themselves stale and got fixed in the same lane).
+Real surface: an ABI module (`abi::untyped` -> `abi::memory_region`, the `MAP`/`RETYPE`/
+`RETYPE_OBJ`/`SPLIT`/`DESTROY` method-number namespace nearly every user program's syscall wrappers
+dispatch through), a `rank::UNTYPED` -> `rank::MEMORY_REGION` lock-rank constant (`kernel/src/sync.rs`;
+no `objtype::UNTYPED` exists, since untyped/region capabilities are not themselves a retype target),
+a kernel module file rename (`kernel/src/untyped.rs` -> `kernel/src/memory_region.rs`, and
+`kernel/src/user/untyped_service.rs` -> `kernel/src/user/memory_region_service.rs`), and a large
+family of lowercase function/field/const names spelling the same concept: `untyped_cap` ->
+`memory_region_cap`, `untyped_cap_rights` -> `memory_region_cap_rights`, `untyped_root_cap` ->
+`memory_region_root_cap` (`kernel/src/cap.rs`); `untyped_map`/`untyped_retype`/`untyped_retype_obj`/
+`untyped_split`/`untyped_destroy` -> their `memory_region_*` equivalents (`kernel/src/syscall.rs`'s
+dispatch, and repeated local wrapper fns of the same names in `crates/system_initializer`,
+`crates/supervision_proto`, and several `user/src/*.rs` programs that each define their own tiny
+syscall wrapper); `UntypedHeap` -> `MemoryRegionHeap` and `untyped_slot`/`UNTYPED_SLOT`/
+`NET_UNTYPED_SLOT` -> their `memory_region`-spelled equivalents (`crates/user_rt/src/heap.rs`,
+`crates/user_rt/src/lib.rs`, `patches/std-nife`'s std overlay); and two test names
+(`a_process_spends_untyped_and_the_kernel_never_allocates`,
+`a_process_runs_alloc_collections_on_its_own_untyped`).
+
+Scoped identically to `Endpoint`'s and `Tcb`'s own rung: identifiers, module paths, backtick-quoted
+doc-comment citations, and test names were renamed; informal lowercase "untyped" prose describing
+the concept in English (hundreds of occurrences, e.g. "spends its own untyped", "an untyped budget")
+was left alone throughout, matching how lowercase "endpoint" and "tcb" stayed after those renames.
+Three headings that read as prose rather than identifier citation were also left in the old word's
+spirit but reworded to match their sibling variants' own `A`/`An` + noun heading pattern rather than
+literally kept (`kernel/src/cap.rs`'s `Object::MemoryRegion` doc heading became "**A memory
+region**", matching `Frame`'s "**A physical page**" and `Aspace`'s "**An address space under
+construction**" rather than reading "**MemoryRegion memory**"). One historical citation in
+`crates/abi/src/lib.rs`'s own crate-naming rationale (which names `Tcb`/`Aspace`/`Untyped` as the
+abbreviations a naming review "sank") kept `Untyped` for the same reason the `Tcb` lane kept it
+there: renaming it would make the sentence describe the winning name as the one that lost.
+`notes/untyped.md` -> `notes/memory-regions.md`, rewritten throughout the same way
+`notes/ipc-naming.md` was, with a provenance line naming the old identifier.
+
+The compositor collision §113 named (`Untyped`/`Region` colliding with the compositor's own
+damaged-screen-rectangle "region") was checked directly: `crates/compositor/src/lib.rs` never
+mentions `MemoryRegion`, so there is no adjacency for a reader to misread. Verified the same four
+ways as `Endpoint` and `Tcb`: full host test suite green (including doctests), both kernel targets
+build clean, `user`/`redoxfs_server`/`xtask` build clean, `crates/ipc` (6 harnesses) and
+`crates/capability` (12 harnesses) both re-verify under Kani post-rename, `script/lint` clean
+(including two `clippy::doc_markdown` fixes the rename itself triggered: `MEMORY_REGION` and
+`MemoryRegion` need backticks where the old `UNTYPED`/`Untyped` spellings did not, since clippy's
+heuristic fires on underscored and CamelCase tokens), and full `script/test` green on both ISAs.
+
 ## What is still open
 
-One name remains, re-measured fresh rather than carried over from this block's stale table:
-
-| Was | Becomes | Fresh count (`.rs` files, occurrences) |
-|---|---|---|
-| `Untyped` | `MemoryRegion` | 25 files, 60 occurrences (capitalized token only; likely larger once `crates/regions`' own lowercase vocabulary and any `untyped::`-module ABI surface are counted, the same pattern that grew `Endpoint`'s, `Tcb`'s, `Aspace`'s and `Frame`'s real scope past their measured tables) |
-
-Given `Endpoint`, `Tcb`, `Aspace` and `Frame` (the four done so far) all turned out to touch an ABI
-module, an object-kind constant and a family of lowercase identifiers well beyond their measured
-tables (`Endpoint` 81/23 -> a real surface past 200 occurrences once `EpId` was counted; `Aspace`
-17/9 -> 391 occurrences across 37 files once every case form and compound identifier was counted;
-`Frame` 46/157 -> 97 files once the derived lowercase and companion surface was counted), the same
-should be expected of `Untyped`, whose own `crates/regions` already independently converged on
-"region" vocabulary per DECISIONS §113's own finding. It is the last of the seven and needs no
-further sequencing instruction beyond finishing it.
+Nothing. `Untyped` -> `MemoryRegion` was the last of the seven names, done to completion in its
+own lane (milestone/158-untyped-rename), the same shape as `Endpoint`, `Tcb`, `Aspace` and `Frame`
+before it: an ABI module (`abi::untyped` -> `abi::memory_region`), a lock-rank constant
+(`kernel/src/sync.rs`'s `rank::UNTYPED` -> `rank::MEMORY_REGION`), a kernel module file rename
+(`kernel/src/untyped.rs` -> `kernel/src/memory_region.rs`), and a large family of lowercase
+function/field/const names, all confirming the same pattern the other six already showed: the real
+surface is well past whatever the capitalized-token estimate said. `Untyped`'s own gap was the
+largest of the seven, 88 files against a 25-file pre-rename estimate. See "What was built" above
+and the table below for the full account.
 
 ## `Frame` -> `PageFrame`: what was built
 
@@ -244,7 +288,7 @@ as deliberately untouched rather than silently left inconsistent.
 | Was | Becomes | Measured surface (§113's own count where a lane hasn't re-measured; done names carry their real count) |
 |---|---|---|
 | `Aspace` | `AddressSpace` | **done**: 391 occurrences across 37 `.rs` files, plus `FreeVas`'s 10 across 3 |
-| `Untyped` | `MemoryRegion` | -- |
+| `Untyped` | `MemoryRegion` | **done**: 60 occurrences across 25 `.rs` files, capitalized-token pre-rename estimate; 88 files / 620 insertions / 618 deletions actually changed |
 | `Endpoint` | `Rendezvous` | **done**: 82 occurrences across 22 `.rs` files by fresh count; 216 for `EpId` across 43 files |
 | `Frame` | `PageFrame` | **done**: 51 files, 172 occurrences of the bare capitalized token alone (stale table undercounted, same pattern as `Endpoint`); real diff 97 `.rs` files plus `notes/frames.md`, 918 insertions / 899 deletions, including two file renames and an `abi::frame` -> `abi::page_frame` module rename. See "`Frame` -> `PageFrame`: what was built" below |
 | `Tcb` | `ThreadControlBlock` | **done**: 33 occurrences across 12 `.rs` files by fresh count; the lowercase identifier family well past this |
@@ -312,6 +356,6 @@ be once measured -- not decided here.
 
 Nothing else is gated on this; it closes the gap between a decision calef made and the code
 actually reflecting it, which is its own reason to exist per DECISIONS §113's whole argument: a
-name only works if a reader meets it. Ten of the eleven names are done (`Endpoint`/`EpId`/`EpFail`,
-`Tcb`/`TcbPtr`/`Tid`/`TidSet`, `Aspace`/`FreeVas`, and `Frame`); today's reader still meets only
-`Untyped`.
+name only works if a reader meets it. All eleven names are done (`Endpoint`/`EpId`/`EpFail`,
+`Tcb`/`TcbPtr`/`Tid`/`TidSet`, `Aspace`/`FreeVas`, `Frame`, and `Untyped`); no reader meets a
+contraction or borrowed abbreviation from this list anywhere in the tree anymore.

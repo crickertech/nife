@@ -41,7 +41,7 @@
 use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use super::*;
-use crate::cap::{Rights, page_frame_cap, rendezvous_cap, untyped_cap};
+use crate::cap::{Rights, memory_region_cap, page_frame_cap, rendezvous_cap};
 use crate::sched::RendezvousId;
 
 /// Which mmio block device the surveyor is given. The runners attach the GPT-partitioned image as
@@ -181,7 +181,8 @@ pub fn start(blk_image: &'static [u8], surveyor_image: &'static [u8]) -> Option<
     let (blk_ep, ready, blk_shared) = fs_service::spawn_block_server(blk_image, dev);
     let (roster_phys, devices) = roster_page();
     let report = crate::sched::create_rendezvous();
-    let budget = crate::untyped::create(MAP_BUDGET_PAGES).expect("no map budget for the surveyor");
+    let budget =
+        crate::memory_region::create(MAP_BUDGET_PAGES).expect("no map budget for the surveyor");
 
     crate::sched::spawn(move || {
         // **Only the stack is wired at spawn now** (milestone 108). A process cannot map its own
@@ -203,7 +204,7 @@ pub fn start(blk_image: &'static [u8], surveyor_image: &'static [u8]) -> Option<
         // ONE disk, and no way to name another.
         crate::sched::grant_at(SURVEY_SLOT_BLK, rendezvous_cap(blk_ep, Rights::WRITE))
             .expect("surveyor slot 1 was occupied");
-        crate::sched::grant_at(SURVEY_SLOT_BUDGET, untyped_cap(budget))
+        crate::sched::grant_at(SURVEY_SLOT_BUDGET, memory_region_cap(budget))
             .expect("surveyor slot 2 was occupied");
         // The page it shares with its block server: `WRITE` because a read is a round trip through
         // that page in both directions.
@@ -259,14 +260,15 @@ pub fn start(blk_image: &'static [u8], surveyor_image: &'static [u8]) -> Option<
 pub fn start_probe(surveyor_image: &'static [u8]) -> RendezvousId {
     let (roster_phys, _) = roster_page();
     let report = crate::sched::create_rendezvous();
-    let budget = crate::untyped::create(MAP_BUDGET_PAGES).expect("no map budget for the probe");
+    let budget =
+        crate::memory_region::create(MAP_BUDGET_PAGES).expect("no map budget for the probe");
 
     crate::sched::spawn(move || {
         // Slots 1 and 3 stay empty: no disk, and no page shared with one. The numbering is the
         // surveyor's, holes and all, so both roles read one slot map.
         crate::sched::grant_at(SURVEY_SLOT_REPORT, rendezvous_cap(report, Rights::WRITE))
             .expect("probe slot 0 was occupied");
-        crate::sched::grant_at(SURVEY_SLOT_BUDGET, untyped_cap(budget))
+        crate::sched::grant_at(SURVEY_SLOT_BUDGET, memory_region_cap(budget))
             .expect("probe slot 2 was occupied");
         crate::sched::grant_at(
             SURVEY_SLOT_ROSTER,
@@ -315,12 +317,13 @@ pub fn start_holder(surveyor_image: &'static [u8]) -> HolderWiring {
     let (roster_phys, _) = roster_page();
     let report = crate::sched::create_rendezvous();
     let resume = crate::sched::create_rendezvous();
-    let budget = crate::untyped::create(MAP_BUDGET_PAGES).expect("no map budget for the holder");
+    let budget =
+        crate::memory_region::create(MAP_BUDGET_PAGES).expect("no map budget for the holder");
 
     crate::sched::spawn(move || {
         crate::sched::grant_at(SURVEY_SLOT_REPORT, rendezvous_cap(report, Rights::WRITE))
             .expect("holder slot 0 was occupied");
-        crate::sched::grant_at(SURVEY_SLOT_BUDGET, untyped_cap(budget))
+        crate::sched::grant_at(SURVEY_SLOT_BUDGET, memory_region_cap(budget))
             .expect("holder slot 2 was occupied");
         crate::sched::grant_at(
             SURVEY_SLOT_ROSTER,
@@ -472,7 +475,7 @@ pub fn start_partitioner(
     let blk_ep = disk.blk_ep;
     let blk_shared = disk.blk_shared;
     let budget =
-        crate::untyped::create(MAP_BUDGET_PAGES).expect("no map budget for the partitioner");
+        crate::memory_region::create(MAP_BUDGET_PAGES).expect("no map budget for the partitioner");
     // Only read when `entropy` is `Some`; the endpoint id is copied out here so the closure below
     // captures a plain `u64` rather than the `Option` twice.
     let ep = entropy.unwrap_or_default();
@@ -502,7 +505,7 @@ pub fn start_partitioner(
             crate::sched::grant_at(PARTITION_SLOT_ENTROPY, rendezvous_cap(ep, Rights::WRITE))
                 .expect("partitioner slot 2 was occupied");
         }
-        crate::sched::grant_at(PARTITION_SLOT_BUDGET, untyped_cap(budget))
+        crate::sched::grant_at(PARTITION_SLOT_BUDGET, memory_region_cap(budget))
             .expect("partitioner slot 3 was occupied");
         crate::sched::grant_at(
             PARTITION_SLOT_BLK_PAGE,
@@ -546,9 +549,9 @@ pub fn start_maker(
     // region it refuses (something still pinned) is simply left alone, which is the old behaviour.
     let previous = LAST_BUDGET.swap(0, Ordering::Relaxed);
     if previous != 0 {
-        crate::untyped::destroy(previous);
+        crate::memory_region::destroy(previous);
     }
-    let budget = crate::untyped::create(MAKER_BUDGET_PAGES).expect("no heap budget for mkfs");
+    let budget = crate::memory_region::create(MAKER_BUDGET_PAGES).expect("no heap budget for mkfs");
     LAST_BUDGET.store(budget, Ordering::Relaxed);
     let blk_ep = disk.blk_ep;
     let blk_shared = disk.blk_shared;
@@ -581,7 +584,7 @@ pub fn start_maker(
         // it looked for a disk. `grant_at` leaves the slot genuinely empty, which is what the
         // program's first `CALL` there meets, and it is the same move `std_service` makes for a
         // std program that holds a directory and no network (notes/abi.md §4).
-        crate::sched::grant_at(MAKER_SLOT_BUDGET, untyped_cap(budget))
+        crate::sched::grant_at(MAKER_SLOT_BUDGET, memory_region_cap(budget))
             .expect("mkfs slot 0 was occupied");
         if with_disk {
             crate::sched::grant_at(MAKER_SLOT_BLK, rendezvous_cap(blk_ep, Rights::WRITE))

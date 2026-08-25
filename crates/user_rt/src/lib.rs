@@ -199,7 +199,7 @@ pub fn send(slot: u64, w0: u64, w1: u64, w2: u64) -> i64 {
 /// **Collect the corpse of a child this supervision endpoint supervises** (DECISIONS §32).
 /// `tid` is the thread id the kernel stamped on the death message [`recv_fault`] returned. `0` on
 /// success; a negative [`abi::Error`] otherwise, and the three that matter are worth telling apart:
-/// `StillAlive` (not dead yet, so wait or escalate to the owner's `Untyped::DESTROY`),
+/// `StillAlive` (not dead yet, so wait or escalate to the owner's `MemoryRegion::DESTROY`),
 /// `NotSupervised` (not a child of this endpoint, or already collected), and `NotPermitted` (the
 /// corpse's region is not reclaimable yet).
 ///
@@ -293,7 +293,7 @@ pub fn reply(slot: u64, r0: u64, r1: u64) -> i64 {
 }
 
 /// **Map the `PageFrame` capability in `frame_slot` at `va`**, drawing the page tables from the untyped
-/// in `untyped_slot`. `true` if the page is now there.
+/// in `memory_region_slot`. `true` if the page is now there.
 ///
 /// The verb a process that *holds* a page uses to put it in its own address space (milestone 108).
 /// It replaces a page the kernel wired into the process at spawn, and the difference is not
@@ -304,7 +304,7 @@ pub fn reply(slot: u64, r0: u64, r1: u64) -> i64 {
 /// `writable` needs `WRITE` on the frame; a read-only mapping needs `READ`. A caller handed a
 /// narrowed view that asks for more than it holds gets `false` and no mapping, which is the rights
 /// ladder doing its job rather than an error to route around.
-pub fn map_page_frame(frame_slot: u64, va: u64, writable: bool, untyped_slot: u64) -> bool {
+pub fn map_page_frame(frame_slot: u64, va: u64, writable: bool, memory_region_slot: u64) -> bool {
     // SAFETY: `svc`/`ecall`. The kernel validates the frame capability, the rights, the address and
     // the untyped before it touches a page table.
     unsafe {
@@ -313,7 +313,7 @@ pub fn map_page_frame(frame_slot: u64, va: u64, writable: bool, untyped_slot: u6
             abi::page_frame::MAP,
             va,
             writable as u64,
-            untyped_slot,
+            memory_region_slot,
         ) == 0
     }
 }

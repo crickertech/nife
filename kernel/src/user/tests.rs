@@ -1837,8 +1837,8 @@ fn a_host_process_connects_to_the_guest_and_is_answered() {
          connection arrived but no SMB message was answered on it, 0xE130 an arg2 share mode \
          nobody defined. 0xE14x is milestone 152's durable-session self-proof, run only on the \
          authenticated wiring: 0xE140 could not open a session (SPLIT off the adapter's own \
-         UNTYPED), 0xE141 could not mint the synthetic pending-job child, 0xE142 means \
-         Untyped::DESTROY succeeded on a session that still had a live child (DECISIONS §16's \
+         MEMORY_REGION), 0xE141 could not mint the synthetic pending-job child, 0xE142 means \
+         MemoryRegion::DESTROY succeeded on a session that still had a live child (DECISIONS §16's \
          refusal did not hold), 0xE143 could not destroy the synthetic child, 0xE144 means DESTROY \
          still refused a childless session, 0xE146 could not open the kept session (a distinct \
          code from 0xE140's, once the scratch session above has already proven the lifecycle rule \
@@ -2002,12 +2002,12 @@ fn a_spawned_worker_process_computes_and_reports() {
 /// allocator. A process cannot make the kernel allocate, so it cannot exhaust kernel memory;
 /// it runs out of its own budget and stops, cleanly, with the kernel untouched.
 #[test_case]
-fn a_process_spends_untyped_and_the_kernel_never_allocates() {
+fn a_process_spends_memory_region_and_the_kernel_never_allocates() {
     let used = || crate::memory::stats().expect("no allocator").used;
 
     const PAGES: u64 = 24;
-    let (region, report, demo) =
-        untyped_service::start(init_image(), PAGES).expect("could not create the untyped region");
+    let (region, report, demo) = memory_region_service::start(init_image(), PAGES)
+        .expect("could not create the untyped region");
 
     // The process sends a "ready" signal once it is fully loaded (its ELF and stack are
     // kernel-allocated, like any process). We measure the frame count THERE, so the window we
@@ -2033,7 +2033,7 @@ fn a_process_spends_untyped_and_the_kernel_never_allocates() {
     );
 
     // And the untyped is genuinely spent: the process mapped until it ran dry.
-    let (watermark, total) = crate::untyped::usage(region).expect("region vanished");
+    let (watermark, total) = crate::memory_region::usage(region).expect("region vanished");
     assert_eq!(total, PAGES);
     assert!(
         watermark >= mapped,
@@ -2364,12 +2364,12 @@ fn a_dead_user_thread_frees_its_whole_address_space() {
 /// frees nothing while the space lives in it.
 #[test_case]
 fn a_user_built_aspace_maps_translates_and_revokes() {
-    let region = crate::untyped::create(8).expect("no region");
+    let region = crate::memory_region::create(8).expect("no region");
     let name = user_address_space_create(region).expect("no address space");
     let root = user_address_space_root(name).expect("address space has no root");
 
-    let frame_region = crate::untyped::create(2).expect("no frame region");
-    let phys = crate::untyped::retype_page(frame_region).expect("no frame");
+    let frame_region = crate::memory_region::create(2).expect("no frame region");
+    let phys = crate::memory_region::retype_page(frame_region).expect("no frame");
     let va = 0x40_0000u64;
 
     user_address_space_map(name, va, phys, Flags::user_rodata()).expect("map_into failed");
@@ -2397,7 +2397,7 @@ fn a_user_built_aspace_maps_translates_and_revokes() {
 
     // The pin: the backing region hosts a live root, so destroy must free nothing.
     let free_before = crate::memory::stats().unwrap().free();
-    crate::untyped::destroy(region);
+    crate::memory_region::destroy(region);
     assert_eq!(
         crate::memory::stats().unwrap().free(),
         free_before,
@@ -2407,7 +2407,7 @@ fn a_user_built_aspace_maps_translates_and_revokes() {
     // The frame region is unpinned (it only ever produced a plain frame), so destroy
     // reclaims it whole, the already-revoked frame included. No manual free: the region
     // owns its pages, and freeing one twice is the allocator's double-free panic.
-    crate::untyped::destroy(frame_region);
+    crate::memory_region::destroy(frame_region);
 }
 
 /// **Milestone 19d.2b: init delegates an interrupt to a driver it builds.** The last
@@ -2608,11 +2608,11 @@ fn a_process_can_build_start_and_run_a_child_thread() {
     let expect_word = super::supervision_tests::REPORT_WORD;
 
     // The child's address space, and a region to carve its code and stack frames from.
-    let as_region = crate::untyped::create(8).expect("no address space region");
+    let as_region = crate::memory_region::create(8).expect("no address space region");
     let aspace = user_address_space_create(as_region).expect("no aspace");
-    let frames_region = crate::untyped::create(2).expect("no frame region");
+    let frames_region = crate::memory_region::create(2).expect("no frame region");
 
-    let code_phys = crate::untyped::retype_page(frames_region).expect("no code frame");
+    let code_phys = crate::memory_region::retype_page(frames_region).expect("no code frame");
     // Write the program through the direct map, then make it coherent for the fetcher.
     // SAFETY: a fresh frame we own, direct-mapped.
     unsafe {
@@ -2624,7 +2624,7 @@ fn a_process_can_build_start_and_run_a_child_thread() {
     sync_icache(mmu::phys_to_virt(code_phys), size_of_val(code));
     user_address_space_map(aspace, CODE_VA, code_phys, Flags::user_code()).expect("map code");
 
-    let stack_phys = crate::untyped::retype_page(frames_region).expect("no stack frame");
+    let stack_phys = crate::memory_region::retype_page(frames_region).expect("no stack frame");
     user_address_space_map(aspace, STACK_VA, stack_phys, Flags::user_data()).expect("map stack");
 
     // The child's one authority: WRITE on a report rendezvous, so it can SEND but not receive.
@@ -2635,7 +2635,7 @@ fn a_process_can_build_start_and_run_a_child_thread() {
     );
 
     // Build the thread from parts.
-    let thread_control_block_region = crate::untyped::create(2).expect("no tcb region");
+    let thread_control_block_region = crate::memory_region::create(2).expect("no tcb region");
     let tid =
         crate::sched::create_thread_control_block(thread_control_block_region).expect("no tcb");
     let slot =
@@ -2716,10 +2716,10 @@ fn reclaim_frees_a_started_then_exited_childs_regions() {
     let frames_before = crate::memory::free_page_frames();
 
     // The child's whole address space in one region: root, tables, code, and stack.
-    let as_region = crate::untyped::create(8).expect("no address space region");
+    let as_region = crate::memory_region::create(8).expect("no address space region");
     let aspace = user_address_space_create(as_region).expect("no aspace");
 
-    let code_phys = crate::untyped::retype_page(as_region).expect("no code frame");
+    let code_phys = crate::memory_region::retype_page(as_region).expect("no code frame");
     // SAFETY: a fresh frame we own, direct-mapped.
     unsafe {
         let dst = mmu::phys_to_virt(code_phys) as *mut u32;
@@ -2730,14 +2730,14 @@ fn reclaim_frees_a_started_then_exited_childs_regions() {
     sync_icache(mmu::phys_to_virt(code_phys), size_of_val(code));
     user_address_space_map(aspace, CODE_VA, code_phys, Flags::user_code()).expect("map code");
 
-    let stack_phys = crate::untyped::retype_page(as_region).expect("no stack frame");
+    let stack_phys = crate::memory_region::retype_page(as_region).expect("no stack frame");
     user_address_space_map(aspace, STACK_VA, stack_phys, Flags::user_data()).expect("map stack");
 
     let report_cap = crate::cap::rendezvous_cap(
         report,
         crate::cap::Rights::WRITE.union(crate::cap::Rights::GRANT),
     );
-    let thread_control_block_region = crate::untyped::create(2).expect("no tcb region");
+    let thread_control_block_region = crate::memory_region::create(2).expect("no tcb region");
     let tid =
         crate::sched::create_thread_control_block(thread_control_block_region).expect("no tcb");
     crate::sched::thread_control_block_insert_cap(tid, report_cap, None).expect("cap insert");
@@ -2809,9 +2809,9 @@ fn spawn_to_reap_repeats_without_leaking() {
     let baseline = crate::memory::free_page_frames();
 
     for round in 0..6 {
-        let as_region = crate::untyped::create(8).expect("address space region");
+        let as_region = crate::memory_region::create(8).expect("address space region");
         let aspace = user_address_space_create(as_region).expect("aspace");
-        let code_phys = crate::untyped::retype_page(as_region).expect("code frame");
+        let code_phys = crate::memory_region::retype_page(as_region).expect("code frame");
         // SAFETY: a fresh frame we own, direct-mapped.
         unsafe {
             let dst = mmu::phys_to_virt(code_phys) as *mut u32;
@@ -2821,7 +2821,7 @@ fn spawn_to_reap_repeats_without_leaking() {
         }
         sync_icache(mmu::phys_to_virt(code_phys), size_of_val(code));
         user_address_space_map(aspace, CODE_VA, code_phys, Flags::user_code()).expect("map code");
-        let stack_phys = crate::untyped::retype_page(as_region).expect("stack frame");
+        let stack_phys = crate::memory_region::retype_page(as_region).expect("stack frame");
         user_address_space_map(aspace, STACK_VA, stack_phys, Flags::user_data())
             .expect("map stack");
 
@@ -2829,7 +2829,7 @@ fn spawn_to_reap_repeats_without_leaking() {
             report,
             crate::cap::Rights::WRITE.union(crate::cap::Rights::GRANT),
         );
-        let thread_control_block_region = crate::untyped::create(2).expect("tcb region");
+        let thread_control_block_region = crate::memory_region::create(2).expect("tcb region");
         let tid =
             crate::sched::create_thread_control_block(thread_control_block_region).expect("tcb");
         crate::sched::thread_control_block_insert_cap(tid, report_cap, None).expect("cap insert");

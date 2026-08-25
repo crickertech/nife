@@ -437,7 +437,7 @@ pub struct Thread {
     pub(crate) thread_control_block_kmem: bool,
 
     /// **Marked for forcible teardown** (DECISIONS §16 amendment): a region's owner called
-    /// `Untyped::DESTROY` while this thread was still live in it, so the thread is doomed. The
+    /// `MemoryRegion::DESTROY` while this thread was still live in it, so the thread is doomed. The
     /// scheduler converts a killed thread to a corpse at its next preemption instead of requeueing
     /// it (see `schedule`), so a runaway that never checks its endpoint is torn down without
     /// yanking it out of a queue or stopping another core: each core reaps its own on the timer.
@@ -455,7 +455,7 @@ pub struct Thread {
     /// **The untyped region this TCB's page was retyped out of** (DECISIONS §32), or `None` for a
     /// kernel-created thread whose page came from `kmem`. Recorded at `create_thread_control_block`, which is the one
     /// place the answer is known for certain, and it is what an endpoint reap reclaims: the same
-    /// region name the region's owner would have passed to `Untyped::DESTROY`, so there is one
+    /// region name the region's owner would have passed to `MemoryRegion::DESTROY`, so there is one
     /// teardown path and not two. A supervisor never sees this number and holds no capability to it;
     /// naming the region is the kernel's job precisely because the supervisor cannot.
     ///

@@ -2,7 +2,7 @@
 //! (milestone 27).
 //!
 //! A [`GlobalAlloc`] that grows by mapping pages out of the untyped capability the process was
-//! granted, via `untyped::MAP` (one page per invoke, zeroed by the kernel, writable). The
+//! granted, via `memory_region::MAP` (one page per invoke, zeroed by the kernel, writable). The
 //! algorithm itself lives in `crates/user_heap` and is host-tested; this module is the policy and the
 //! syscall glue: a spinlock, a committed-range cursor, and grow-on-demand.
 //!
@@ -13,9 +13,9 @@
 //!
 //! ```ignore
 //! #[global_allocator]
-//! static HEAP: user_rt::heap::UntypedHeap = user_rt::heap::UntypedHeap::new();
+//! static HEAP: user_rt::heap::MemoryRegionHeap = user_rt::heap::MemoryRegionHeap::new();
 //! // first thing in _start:
-//! HEAP.init(UNTYPED_SLOT, user_rt::heap::DEFAULT_BASE, 4 * 1024 * 1024);
+//! HEAP.init(MEMORY_REGION_SLOT, user_rt::heap::DEFAULT_BASE, 4 * 1024 * 1024);
 //! ```
 //!
 //! - **Which untyped slot** feeds the heap is the program's convention with its parent, like
@@ -46,7 +46,7 @@ use core::sync::atomic::{AtomicBool, Ordering};
 /// The suggested heap base: 1 GiB, clear of every VA the userspace tree currently hardcodes.
 /// A convention, not a law; a program with its own layout passes its own base to [`init`].
 ///
-/// [`init`]: UntypedHeap::init
+/// [`init`]: MemoryRegionHeap::init
 pub const DEFAULT_BASE: u64 = 0x4000_0000;
 
 const PAGE: u64 = 4096;
@@ -58,7 +58,7 @@ const MIN_GROW_PAGES: u64 = 8;
 struct Inner {
     heap: user_heap::Heap,
     /// Which capability table slot holds the untyped that pays for pages. `u64::MAX` until `init`.
-    untyped_slot: u64,
+    memory_region_slot: u64,
     /// The heap's virtual range: `[base, base + max)`, of which `[base, base + committed)` is
     /// mapped and donated to the allocator so far.
     base: u64,
@@ -68,16 +68,16 @@ struct Inner {
 
 /// The untyped-backed global allocator. One static per program, named in its
 /// `#[global_allocator]` attribute; see the module docs for the contract.
-pub struct UntypedHeap {
+pub struct MemoryRegionHeap {
     locked: AtomicBool,
     inner: core::cell::UnsafeCell<Inner>,
 }
 
 // SAFETY: all access to `inner` goes through the `locked` spinlock (see `lock`).
-unsafe impl Sync for UntypedHeap {}
+unsafe impl Sync for MemoryRegionHeap {}
 
 /// A held lock on the heap; releases on drop. Internal only.
-struct Guard<'a>(&'a UntypedHeap);
+struct Guard<'a>(&'a MemoryRegionHeap);
 
 impl Drop for Guard<'_> {
     fn drop(&mut self) {
@@ -92,14 +92,14 @@ impl Guard<'_> {
     }
 }
 
-impl UntypedHeap {
+impl MemoryRegionHeap {
     /// An empty, un-wired heap, `const` so it can be the `#[global_allocator]` static.
     pub const fn new() -> Self {
-        UntypedHeap {
+        MemoryRegionHeap {
             locked: AtomicBool::new(false),
             inner: core::cell::UnsafeCell::new(Inner {
                 heap: user_heap::Heap::new(),
-                untyped_slot: u64::MAX,
+                memory_region_slot: u64::MAX,
                 base: 0,
                 committed: 0,
                 max: 0,
@@ -107,13 +107,13 @@ impl UntypedHeap {
         }
     }
 
-    /// Wire the heap to its budget: pages come from the untyped in `untyped_slot`, mapped at
+    /// Wire the heap to its budget: pages come from the untyped in `memory_region_slot`, mapped at
     /// `[base, base + max_bytes)`. Call once, before the first allocation, first thing in
     /// `_start`. `base` must be page-aligned and inside the user half.
-    pub fn init(&self, untyped_slot: u64, base: u64, max_bytes: u64) {
+    pub fn init(&self, memory_region_slot: u64, base: u64, max_bytes: u64) {
         let mut g = self.lock();
         let inner = g.inner();
-        inner.untyped_slot = untyped_slot;
+        inner.memory_region_slot = memory_region_slot;
         inner.base = base;
         inner.committed = 0;
         inner.max = max_bytes & !(PAGE - 1);
@@ -141,7 +141,7 @@ impl UntypedHeap {
     /// them to the allocator. Returns false when the cap or the budget refuses, in which case a
     /// retry cannot succeed and the allocation must fail.
     fn grow(inner: &mut Inner, need: u64) -> bool {
-        if inner.untyped_slot == u64::MAX {
+        if inner.memory_region_slot == u64::MAX {
             return false; // init() has not run; there is nothing to pay with.
         }
         let need_pages = need.div_ceil(PAGE);
@@ -160,7 +160,9 @@ impl UntypedHeap {
         while got < want_pages {
             let va = start + got * PAGE;
             // SAFETY: plain syscall; the kernel validates the slot, the va, and the budget.
-            if unsafe { crate::invoke(inner.untyped_slot, abi::untyped::MAP, va, 0, 0) } != 0 {
+            if unsafe { crate::invoke(inner.memory_region_slot, abi::memory_region::MAP, va, 0, 0) }
+                != 0
+            {
                 break; // budget spent (OutOfMemory); keep what we got.
             }
             got += 1;
@@ -181,7 +183,7 @@ impl UntypedHeap {
     }
 }
 
-impl Default for UntypedHeap {
+impl Default for MemoryRegionHeap {
     fn default() -> Self {
         Self::new()
     }
@@ -189,7 +191,7 @@ impl Default for UntypedHeap {
 
 // SAFETY: alloc/dealloc uphold the GlobalAlloc contract: unique live pointers, layout round-trip
 // (user_heap recomputes sizes from the same Layout), and no unwinding (there is none on this target).
-unsafe impl GlobalAlloc for UntypedHeap {
+unsafe impl GlobalAlloc for MemoryRegionHeap {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         let mut g = self.lock();
         let inner = g.inner();

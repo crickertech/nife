@@ -195,7 +195,7 @@ const _: () = assert!(proto::CHALLENGE_LEN == cred::NTLM_CHALLENGE_LEN);
 const _: () = assert!(proto::KEY_LEN == cred::NTLM_KEY_LEN);
 
 #[global_allocator]
-static HEAP: user_rt::heap::UntypedHeap = user_rt::heap::UntypedHeap::new();
+static HEAP: user_rt::heap::MemoryRegionHeap = user_rt::heap::MemoryRegionHeap::new();
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(_a0: u64, _a1: u64, _a2: u64) -> ! {

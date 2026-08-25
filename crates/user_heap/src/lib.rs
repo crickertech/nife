@@ -7,7 +7,7 @@
 //!
 //! This crate is deliberately just the algorithm: it manages address ranges someone else hands it
 //! (`add_region`) and never maps a page or makes a syscall. The syscall half (growing the heap out
-//! of the process's own untyped via `untyped::MAP`) lives in `user_rt::heap`, which wraps this in
+//! of the process's own untyped via `memory_region::MAP`) lives in `user_rt::heap`, which wraps this in
 //! a lock and a grow-on-demand policy. The split is the project's standing rule: pure logic
 //! compiles for the host, so these invariants are proven in milliseconds by `cargo test -p user_heap`,
 //! not in QEMU.

@@ -1893,7 +1893,7 @@ import re
 import sys
 
 TABLE = "crates/memory_regions/src/table.rs"
-KERNEL = "kernel/src/untyped.rs"
+KERNEL = "kernel/src/memory_region.rs"
 
 # (owner, name, receiver). Owner is the `impl` a method sits in, `-` for a free item; receiver is
 # `-` for an associated function with no self. Everything reachable from outside the crate is here,
@@ -2023,7 +2023,7 @@ if bad:
     for line in bad:
         print(f"  {line}", file=sys.stderr)
     print(
-        "\nThis surface is what `kernel/src/untyped.rs` can reach, and its narrowness is why the\n"
+        "\nThis surface is what `kernel/src/memory_region.rs` can reach, and its narrowness is why the\n"
         "kernel cannot rebuild the pre-#316 check-then-remove gap that double-freed a region\n"
         "(notes/interleaving.md, notes/object-revocation.md). Before editing the pin, answer the\n"
         "question the pin exists to force:\n"

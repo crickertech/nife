@@ -60,7 +60,7 @@ use socket_proto::*;
 
 const REPORT: u64 = 0;
 const IRQ: u64 = 1;
-const UNTYPED: u64 = 3;
+const MEMORY_REGION: u64 = 3;
 const STACK: u64 = 4;
 
 /// The heap smoltcp allocates against, capped under the granted budget.
@@ -74,7 +74,7 @@ const STACK: u64 = 4;
 const HEAP_MAX: u64 = 96 * 4096;
 
 #[global_allocator]
-static HEAP: user_rt::heap::UntypedHeap = user_rt::heap::UntypedHeap::new();
+static HEAP: user_rt::heap::MemoryRegionHeap = user_rt::heap::MemoryRegionHeap::new();
 
 /// Our MAC. Locally administered; slirp routes DHCP regardless.
 const MAC: [u8; 6] = [0x52, 0x54, 0x00, 0x12, 0x34, 0x56];
@@ -175,7 +175,7 @@ pub extern "C" fn _start(role: u64, dma_phys: u64, a2: u64) -> ! {
 
 /// The net server: bring the NIC up, run DHCP, then serve the socket contract.
 fn server(dma_phys: u64, grant_word: u64) -> ! {
-    HEAP.init(UNTYPED, user_rt::heap::DEFAULT_BASE, HEAP_MAX);
+    HEAP.init(MEMORY_REGION, user_rt::heap::DEFAULT_BASE, HEAP_MAX);
 
     let mut dev = net_transport::VirtioNet::bring_up(dma_phys);
     let mut config = Config::new(HardwareAddress::Ethernet(EthernetAddress(MAC)));
@@ -239,7 +239,7 @@ fn server(dma_phys: u64, grant_word: u64) -> ! {
                 // SAFETY: `invoke` traps to the kernel, which validates the capability and the method
                 // before acting (user_rt's contract). A caller cannot break an invariant by passing a
                 // bad slot or method; it gets an error back.
-                let r = unsafe { invoke(cap_slot, fr::MAP, va, 1, UNTYPED) };
+                let r = unsafe { invoke(cap_slot, fr::MAP, va, 1, MEMORY_REGION) };
                 cap_delete(cap_slot);
                 if r >= 0 {
                     // SAFETY: the MAP above just mapped one page read/write at `va`, and it stays
