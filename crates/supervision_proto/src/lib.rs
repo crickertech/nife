@@ -314,10 +314,10 @@ pub fn build_child_space(
         if unsafe {
             invoke(
                 aspace,
-                abi::aspace::MAP_INTO,
+                abi::address_space::MAP_INTO,
                 timebase_proto::PAGE_VA,
                 timebase_frame,
-                abi::aspace::MAP_RO,
+                abi::address_space::MAP_RO,
             )
         } != 0
         {
