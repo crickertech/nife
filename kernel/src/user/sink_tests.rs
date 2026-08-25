@@ -11,7 +11,7 @@ const ROLE_WRITER: u64 = 0;
 /// Spawn the writer against `sink`, and return the endpoint it reports its classification on.
 ///
 /// `None` is the case that has no sink, and the wiring says so by **leaving slot 0 empty**
-/// rather than by passing a flag: an empty cspace slot is how this kernel spells "you were
+/// rather than by passing a flag: an empty capability table slot is how this kernel spells "you were
 /// never given one", and it is the refusal an ungranted display client meets too (§29). The
 /// report still goes in at slot 1, placed rather than appended, so the program that holds no
 /// sink is otherwise wired identically to the one that does.

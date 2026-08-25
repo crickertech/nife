@@ -65,7 +65,7 @@ does the server invoke the parked Reply to wake the reader. A client blocked in 
 reader parked in `OP_READLINE` are both just parked callers; the server is never blocked on either
 while serving the other.
 
-The kernel makes the slot management safe: `cspace.insert` hands each incoming Reply capability a
+The kernel makes the slot management safe: `capability_table.insert` hands each incoming Reply capability a
 *fresh* free slot, so a parked read's Reply at one slot is never clobbered by the next `CALL`'s
 Reply at another. One outstanding read per terminal (the contract) bounds the parked set to one.
 

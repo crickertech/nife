@@ -47,8 +47,8 @@
 //!
 //! **The fourth delegated capability is [`mint`]'s own `region`, undropped.** A successful login
 //! used to end with this process calling `cap_delete` on its own copy of the caretaker's
-//! construction region the moment the caretaker confirmed descent (see the cspace-ceiling fix this
-//! BUGS section used to describe below `mint`'s own comment). That capability is not discarded
+//! construction region the moment the caretaker confirmed descent (see the capability-table-ceiling
+//! fix this BUGS section used to describe below `mint`'s own comment). That capability is not discarded
 //! anymore: it is delegated to the authenticated client, narrowed to `WRITE` (the one right
 //! `Untyped::DESTROY` needs, per `abi::untyped::DESTROY`'s own doc), the same "delegate, then drop
 //! our own copy" pattern already used for the directory and the budget. The client now holds its own
@@ -92,7 +92,7 @@
 //! function used to abandon on a refused descent (the caretaker had already `exit()`ed, so nothing
 //! was running in it) is now reclaimed right there, with the same bounded retry, before this
 //! function returns `None`. That removes the one case this program's own BUGS used to note as
-//! unaffected by the cspace fix.
+//! unaffected by the capability table fix.
 //!
 //! **A full logout needs no fifth capability, because the third one already carried enough right.**
 //! [`CLIENT_BUDGET_PAGES`] is delegated with `WRITE | GRANT` (every principal's own spending money),
@@ -232,7 +232,7 @@
 //! 55's actual target is real Raspberry-Pi-class hardware (`design/roadmap/55-*`), which has no
 //! virtio-rng and would need a different entropy source entirely, so "attach one in QEMU" answers
 //! the demonstrator's boot and not the target's. It also touches `BootEndowment`, which is what the
-//! kernel promises an init at spawn, on a cspace this file's own comments already call "one slot
+//! kernel promises an init at spawn, on a capability table this file's own comments already call "one slot
 //! from the wall" at peak (`crates/system_initializer::DIR_JOB_REGION_PAGES`'s neighboring comment).
 //! Getting either wrong costs a design decision to unwind, not a line of code, which is the "move
 //! fast on what can be undone" tenet's own test for when a fork is calef's rather than a lane's.
@@ -323,17 +323,17 @@
 //! need to know when a client is genuinely done, which is exactly the session concept this fix
 //! avoided building).
 //!
-//! **The cspace ceiling this shares history with is unaffected and stays fixed.** This process's own
-//! capability table has sixteen slots (`kernel::cap::CSPACE_SLOTS`) and eight are spent at rest;
+//! **The capability table ceiling this shares history with is unaffected and stays fixed.** This process's own
+//! capability table has sixteen slots (`kernel::cap::CAPABILITY_TABLE_SLOTS`) and eight are spent at rest;
 //! `mint` used to leak one of the remaining eight per successful login by keeping `region`'s
 //! capability past a confirmed descent, which left room for exactly eight logins ever before the
-//! cspace itself (not `CONSTRUCTION_UT`) answered every further attempt with `DENIED`. That was
+//! capability table itself (not `CONSTRUCTION_UT`) answered every further attempt with `DENIED`. That was
 //! fixed separately, by dropping `mint`'s own copy of `region` once the caretaker confirmed descent
 //! (a `cap_delete`, not a `DESTROY`). This slice's fix keeps that shape: `region` is delegated and
 //! then this process's own copy is deleted, the same "delegate, then drop our own copy" pattern
-//! already used for the directory and the budget, so a live login costs this process's cspace
+//! already used for the directory and the budget, so a live login costs this process's capability table
 //! nothing beyond the width of one `mint` call, regardless of how many clients are logged in at
-//! once. See `kernel::user::login_tests::the_login_service_serves_past_the_old_cspace_ceiling`.
+//! once. See `kernel::user::login_tests::the_login_service_serves_past_the_old_capability_table_ceiling`.
 //!
 //! **The audit endpoint proves establishment, not per-request attribution.** [`login_proto::ATTRIBUTED`]
 //! records which identity established which channel at the moment this process minted it. It does

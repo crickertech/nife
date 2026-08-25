@@ -41,7 +41,7 @@ at `INITRD_VA` so it can read the ELF. Its length arrives in `x1`.
    *own* scratch window to fill it (zero it, free `.bss`, then copy the segment's bytes), then
    `MAP_INTO` the child at the segment's own virtual address with the segment's permissions
    (executable code via the `MAP_CODE` mode 19d added). Then `cap_delete` the frame cap so the
-   16-slot cspace recycles the slot: a loader retypes hundreds of frames, so slot recycling is
+   16-slot capability table recycles the slot: a loader retypes hundreds of frames, so slot recycling is
    why `SYS_CAP_DELETE` exists.
 3. A stack frame, mapped read/write.
 4. `RETYPE_OBJ(TCB)`, `CAP_INSERT` the report endpoint as the child's slot 0, `CONFIGURE` (entry

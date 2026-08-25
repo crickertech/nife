@@ -34,7 +34,7 @@ fn hold_viewer(name: u64) -> u64 {
     sched::grant(crate::cap::aspace_cap(name, Rights::ENUMERATE)).expect("grant the aspace")
 }
 
-/// A fresh frame, from its own one-page region, granted into a fresh cspace slot with `rights`.
+/// A fresh frame, from its own one-page region, granted into a fresh capability table slot with `rights`.
 /// Returns the slot and the region, so [`tidy`] can give the region back.
 fn frame(rights: Rights) -> (u64, u64) {
     let region = crate::untyped::create(1).expect("no frame region");
@@ -47,7 +47,7 @@ fn frame(rights: Rights) -> (u64, u64) {
 /// every granted slot deleted first, then every region this test carved reclaimed. Skipping this
 /// is not cosmetic -- kernel tests share one running kernel across the whole suite, so a slot left
 /// occupied here is a slot `reap_tests::assert_can_only_supervise` (or any later test walking its
-/// own cspace) finds unexpectedly full, and a region left unreclaimed is budget no later test gets
+/// own capability table) finds unexpectedly full, and a region left unreclaimed is budget no later test gets
 /// back. This module's first draft omitted this entirely and cost `reap_tests` a failure two tests
 /// later in the same run, which is what this comment is here to stop recurring.
 fn tidy(slots: &[u64], regions: &[u64]) {
@@ -214,7 +214,7 @@ fn an_empty_slot_holds_no_capability_at_all() {
     // fact `abi::aspace::LIST`'s dispatch checks before it ever looks at rights. Nothing to tidy:
     // this test grants nothing and carves no region.
     let mut fr = TrapFrame::for_user_entry(0, 0, [0, 0, 0]);
-    let empty_slot = 15; // the highest cspace slot; nothing in this test has granted into it
+    let empty_slot = 15; // the highest capability table slot; nothing in this test has granted into it
     assert_eq!(
         invoke(&mut fr, empty_slot, abi::aspace::LIST, 0, 0, 0),
         Err(Error::NoSuchSlot),

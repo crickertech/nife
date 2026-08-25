@@ -2024,7 +2024,7 @@ pub mod clock_service;
 /// reads as `clock_proto::state::UNKNOWN` (`a_zeroed_page_reads_as_unknown`), so a boot with no
 /// `clock` program in its initrd hands init a page that honestly says "the machine has no clock it
 /// believes" instead of no page at all. That keeps the slot numbering the same on every boot, which
-/// matters more than it sounds: init's cspace is read positionally, and a capability whose *slot*
+/// matters more than it sounds: init's capability table is read positionally, and a capability whose *slot*
 /// depends on what the machine turned out to have is a wiring nobody can check by reading.
 ///
 /// It is also the DECISIONS §43 split, delivered: init gets `READ` on a frame. Nothing on this path
@@ -2575,16 +2575,16 @@ mod supervision_tests;
 /// something is wrong under `arch/`, not in this feature.
 ///
 /// **What shape these tests are, and why.** Every reap goes through the real syscall dispatcher
-/// (`syscall::invoke`), from a thread whose capability space holds **endpoint capabilities and
+/// (`syscall::invoke`), from a thread whose capability table holds **endpoint capabilities and
 /// nothing else**: that is what a supervisor's authority actually is, and calling `sched` directly
 /// would prove the helper rather than the boundary. The *building* is done with kernel-internal
-/// calls, which is deliberate: it keeps the builder's authority out of the supervisor's cspace, so
+/// calls, which is deliberate: it keeps the builder's authority out of the supervisor's capability table, so
 /// "structurally unable to build" is a fact about the table these tests audit rather than a promise.
 ///
 /// The accounting proof is the one that makes §32 worth having. A test that only showed the corpse
 /// gone would be satisfied by a reap that quietly handed the pages to the reaper. So the builder's
 /// region is one the test still owns and can measure, and the assertion is that its watermark comes
-/// back down and it can spend those pages again, while the supervisor's cspace does not grow.
+/// back down and it can spend those pages again, while the supervisor's capability table does not grow.
 #[cfg(test)]
 mod reap_tests;
 
@@ -2657,7 +2657,7 @@ mod dir_capability_tests;
 /// One module for both ISAs, for [`dir_capability_tests`]'s reason: nothing here is
 /// architecture-specific, so the parity gate (DECISIONS §19) is met by literally the same test
 /// running twice. It wires the same three portable programs [`dir_capability_tests`] does, twice
-/// (a second `fs_subtree_caretaker`, a second cspace slot) for one confined program, and proves
+/// (a second `fs_subtree_caretaker`, a second capability table slot) for one confined program, and proves
 /// the deliverable both milestone 47's `bind` and milestone 64's `File::open` fork were blocked
 /// on: `/a/x` and `/b/y` both resolve, `/a/../b` is refused, and neither caretaker can see the
 /// other's tree.
@@ -2755,7 +2755,7 @@ mod pipeline_tests;
 /// `fs_subtree_caretaker` to one subtree of the real RedoxFS image. Everything else is identical,
 /// which is the point of running both. The refusal in
 /// `pipeline_tests::a_redirection_a_shell_cannot_back_is_refused_rather_than_dropped` and the file
-/// written here are the same binary, and the only difference between them is one cspace slot.
+/// written here are the same binary, and the only difference between them is one capability table slot.
 ///
 /// The assertions are all of the "same producer, two destinations, the same bytes" shape, because
 /// that is the only shape that can distinguish a redirection that worked from one that wrote
@@ -2773,7 +2773,7 @@ mod redirection_tests;
 /// under test is that **the timed command needs no authority to be timed**, so the timing is the
 /// shell's own reading and the child is spawned with exactly the endowment its command line names.
 ///
-/// The three clock states are three cspaces rather than three branches, which is the shape
+/// The three clock states are three capability tables rather than three branches, which is the shape
 /// [`redirection_tests`] uses for the directory: a published page, a page nobody published to, and
 /// no capability at all. Two of those refusals are `date`'s sentences one milestone later, and the
 /// only reason they are reachable is that the wiring changed.

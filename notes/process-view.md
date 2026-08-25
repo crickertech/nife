@@ -494,7 +494,7 @@ than an assumption: there was nothing to narrow.
 `Tcb::CONFIGURE` does not only consume the caller's capability, it removes the space's entry from
 the registry `user_aspace_root` (and so `LIST`) resolves through (`take_user_aspace`). So **the
 instant a space is bound to a thread, every capability that ever named it, including one already
-sitting in some other program's cspace, reads as an empty listing rather than a live one** --
+sitting in some other program's capability table, reads as an empty listing rather than a live one** --
 `kernel::user::pmap_tests::a_capability_outliving_its_space_reads_as_empty` proves this directly by
 calling `take_user_aspace` the way `configure_tcb` does and showing `LIST` answers `DONE`.
 
@@ -502,7 +502,7 @@ Combined with the delegation-audit finding above (nothing hands an `Object::Aspa
 second program at all), the practical consequence is that **there is no address space anywhere in
 this system today that a program other than its own builder can be handed a live view of.** `ps`
 reaches the interactive shell because `Manifest::domain` tells `system_initializer` which live
-supervision endpoint to place in a child's cspace (`deaths`, which persists for a thread's whole
+supervision endpoint to place in a child's capability table (`deaths`, which persists for a thread's whole
 life). Nothing plays that role for an address space, because nothing survives long enough, held by
 anyone but its builder, to be worth wiring a manifest field to. `pmap`'s kernel mechanism and its
 program are real and proven end to end against a genuine `Object::Aspace`

@@ -264,7 +264,7 @@ pub struct MapNeed {
 
 /// **What a component declares it needs.** The capability half of a contract, beside the wire half.
 ///
-/// The order of [`caps`](Requirements::caps) is load-bearing: it **is** the component's cspace slot
+/// The order of [`caps`](Requirements::caps) is load-bearing: it **is** the component's capability table slot
 /// order, because `supervision_proto::ChildEndowment::caps` lands its entries in slots 0, 1, 2, ...
 /// Before this crate that agreement was a comment in two files. Now the component derives its own
 /// slot numbers from this list with [`slot_of`], so a reordered manifest is a compile error rather
@@ -282,7 +282,7 @@ pub struct Requirements {
     /// against anything: what makes a build substitutable is that it speaks the protocol, and a
     /// string it carries cannot prove that.
     pub contract: &'static str,
-    /// The capabilities it needs, **in cspace slot order**. See the struct docs.
+    /// The capabilities it needs, **in capability table slot order**. See the struct docs.
     pub caps: &'static [CapNeed],
     /// The pages it needs mapped, each at the address its own code reads.
     pub maps: &'static [MapNeed],
@@ -386,7 +386,7 @@ impl Requirements {
 /// requires, and refusing the surplus would make one table per child mandatory for no gain.
 #[derive(Clone, Copy, Debug)]
 pub struct Provisions<'a> {
-    /// `(role name, the supervisor's own cspace slot holding the object)`.
+    /// `(role name, the supervisor's own capability table slot holding the object)`.
     pub held: &'a [(&'a str, u64)],
 }
 
@@ -578,7 +578,7 @@ pub fn plan(reqs: &Requirements, provisions: &Provisions<'_>) -> Result<Plan, Re
     Ok(out)
 }
 
-/// **The cspace slot a component reads one of its own needs in**, derived from its declaration.
+/// **The capability table slot a component reads one of its own needs in**, derived from its declaration.
 ///
 /// This is the rung the whole crate is built to reach. The slot agreement used to be a pair of
 /// constants written twice, once as `pub const SVC: u64 = 0` in the contract and once as the position
@@ -1214,16 +1214,16 @@ mod proofs {
         },
     ];
 
-    /// **A slot a supervisor could route, bounded to the cspace that exists.**
+    /// **A slot a supervisor could route, bounded to the capability table that exists.**
     ///
-    /// `abi::CSPACE_SLOTS` is sixteen, so a slot number outside `0..16` is not a routing a supervisor
+    /// `abi::CAPABILITY_TABLE_SLOTS` is sixteen, so a slot number outside `0..16` is not a routing a supervisor
     /// could make: the kernel refuses it. Bounding it here is not a weakening of the property, which
     /// is about *which* slot a need is wired to rather than how large the number is, and it is what
     /// makes these harnesses a viable gate: unbounded `u64` slots put the solver past seventy
     /// thousand verification conditions for a fact about copying two integers through.
     fn any_slot() -> u64 {
         let s: u64 = kani::any();
-        kani::assume(s < abi::CSPACE_SLOTS);
+        kani::assume(s < abi::CAPABILITY_TABLE_SLOTS);
         s
     }
 

@@ -15,7 +15,7 @@ back off, give up, escalate) is a userspace supervisor's business, layered with 
 Three pieces, and the surface cost is zero new syscalls and zero new methods.
 
 1. **Designation, at spawn only.** A supervised thread is spawned with its supervision endpoint in a
-   reserved cspace slot (`abi::fault::FAULT_EP_SLOT`, the last one). At `START` the kernel reads that
+   reserved capability table slot (`abi::fault::FAULT_EP_SLOT`, the last one). At `START` the kernel reads that
    slot; an `Endpoint` capability there means "supervised," and the kernel records the endpoint as
    the thread's fault target (`Thread::fault_ep`) and **clears the slot**, so the child holds no
    authority to send on it. A thread spawned with an empty fault slot is unsupervised and gets the
@@ -175,7 +175,7 @@ reap" because it quantifies over rights combinations rather than sampling them.
   (design/audit-reports/), recorded-accepted.
 
   Two facts that only look alarming together. `sched::start_tcb` reads the reserved slot with
-  `cspace.get(FAULT_EP_SLOT)` rather than `get_with`, so **any** `Endpoint` capability there makes
+  `capability_table.get(FAULT_EP_SLOT)` rather than `get_with`, so **any** `Endpoint` capability there makes
   the thread supervised, `Rights::NONE` included; it is the one place in the kernel where a
   capability's *presence* authorizes something and its rights are never consulted. And
   `supervision_proto` is the only site that places one, with `abi::rights::READ`, chosen by every

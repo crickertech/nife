@@ -15,7 +15,7 @@ value, so:
 fn derive_never_widens_rights() {
     let src_rights = Rights(kani::any());   // ALL 2^32 patterns at once
     let requested  = Rights(kani::any());
-    let mut cs: CSpace<u8> = CSpace::new(2);
+    let mut cs: CapabilityTable<u8> = CapabilityTable::new(2);
     cs.put(0, Cap { object: 0u8, rights: src_rights }).unwrap();
     if cs.derive(0, 1, requested).is_ok() {
         assert!(cs.get(1).unwrap().rights.is_subset_of(src_rights));
@@ -96,7 +96,7 @@ Eight harnesses in `crates/capability/src/lib.rs`, under `#[cfg(kani)]`:
 | `subset_is_transitive` | rights cannot be laundered through a derivation chain (why a *flat* subset check suffices, with no tree walk) |
 | `from_bits_cannot_forge_a_right` | an attacker-controlled syscall register cannot conjure an undefined right |
 | `subset_matches_allows` | the two phrasings of the order agree, so a bug in one shows against the other |
-| `derive_never_widens_rights` | the central theorem, on the real `CSpace::derive` |
+| `derive_never_widens_rights` | the central theorem, on the real `CapabilityTable::derive` |
 | `split_never_widens_rights` | authority never widens at the *other* mint site: `Cap::mint_child` (the inheriting mint `Untyped::SPLIT` now uses) hands a child no more than the parent held (milestone 35, below) |
 | `a_deleted_capability_stays_deleted` | for every table state, once `delete` succeeds the slot answers `NoSuchSlot` to both `get` and a second `delete` (the consume-on-use mechanism behind the one-shot Reply) |
 | `delete_touches_only_its_slot` | deleting any slot leaves every other slot exactly as it was (consuming one caller's Reply cannot orphan another's) |
@@ -218,13 +218,13 @@ one rests on:
    the instant it is invoked; the proofs say no table state exists in which the consumed slot can
    be invoked again, and consuming one caller's Reply cannot disturb another's.
 3. **The capability cannot be duplicated or delegated**: structural, not a harness. There is no
-   syscall that copies a capability within a cspace (`CSpace::derive` is kernel-internal), and the
+   syscall that copies a capability within a capability table (`CapabilityTable::derive` is kernel-internal), and the
    only cap-moving syscall, `SEND_CAP`, requires `GRANT`, which `reply_cap` deliberately never
    mints. This leg lives in the shape of the syscall surface (§4: narrow and explicit), so it is
    an inspection argument, backed end-to-end by the QEMU test in which the call server invokes its
    Reply twice and the kernel refuses the second (`user/src/hello.rs`, `call_server`).
 
-No rewire because `capability::CSpace` and `ipc::Endpoint` already *are* the kernel's cspace and endpoint
+No rewire because `capability::CapabilityTable` and `ipc::Endpoint` already *are* the kernel's capability table and endpoint
 state; the proofs landed on code the kernel was running all along.
 
 Three in `crates/slots/src/lib.rs`, the generational thread table (milestone 14 phase A; see

@@ -92,7 +92,7 @@ fn run_rm(rights: u64, name: &str, flags: u64) -> Option<Outcome> {
 ///    whole tree, bottom-up, five names.
 ///
 /// Runs 1 and 2 are what make run 3 more than "a loop deleted some files": the *same binary*,
-/// the *same operand*, and the outcome is decided by what was in the cspace.
+/// the *same operand*, and the outcome is decided by what was in the capability table.
 #[test_case]
 fn rm_r_takes_the_subtree_it_was_granted_and_a_narrower_grant_cannot_begin() {
     let Some(refused) = run_rm(dir::REMOVE_TREE, tree::RM_DOOMED, 0) else {

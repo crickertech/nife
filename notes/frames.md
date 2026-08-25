@@ -25,7 +25,7 @@ seL4 splits "get a page" from "put it in your address space," and so do we, beca
 makes a page a first-class, delegatable object rather than something that only exists mapped.
 
 - `Untyped::RETYPE` carves one page out of the caller's untyped and mints a `Frame` capability for
-  it, full rights, into the caller's cspace. Nothing is mapped. The caller now *holds a page* and
+  it, full rights, into the caller's capability table. Nothing is mapped. The caller now *holds a page* and
   can map it, or delegate it, or delegate it and never map it.
 - `Frame::MAP(va, writable, untyped_slot)` maps the page at `va`. A read/write mapping needs `WRITE`
   on the frame; a read-only one needs `READ`. The page tables to reach `va` are drawn from the
@@ -116,7 +116,7 @@ and there is no object to attenuate, and it cannot be handed on, because there i
 ## The migration (milestone 108)
 
 The disk and display paths now hold their pages as `Frame` capabilities and map them themselves.
-Each migrated program gained two things in its cspace: the frames, and an **untyped** to draw the
+Each migrated program gained two things in its capability table: the frames, and an **untyped** to draw the
 page tables from, because `Frame::MAP` retypes intermediate tables out of a region the caller names
 and the kernel allocates nothing.
 
@@ -351,8 +351,8 @@ and the difference is accounted rather than shrugged at:
 - **A `Frame` names one page, and a DMA region is a run of them.** The virtio-gpu driver's region is
   nine contiguous pages, so it holds **nine capabilities** and issues nine `MAP` calls for memory
   that is adjacent in physics, adjacent in its address space, and covered as a single range by the
-  IOMMU domain the kernel programmed for it. That is slots 5 through 13 of a sixteen-slot cspace
-  (`cap::CSPACE_SLOTS`), one of which is reserved for the fault endpoint: it fits with **one slot
+  IOMMU domain the kernel programmed for it. That is slots 5 through 13 of a sixteen-slot capability table
+  (`cap::CAPABILITY_TABLE_SLOTS`), one of which is reserved for the fault endpoint: it fits with **one slot
   spare**, and a wider scanout would not fit at all. `display_service::DRIVER_SLOT_DMA` carries a
   `const` assertion so that someone who widens the surface fails the build rather than the boot.
 
@@ -360,8 +360,8 @@ and the difference is accounted rather than shrugged at:
   something a real driver needs, that is a finding worth recording, and it is a design fork rather
   than a quiet addition"), so it is recorded and not fixed. **The fork is whether a `Frame` should be
   able to name a run of pages** (seL4 has no answer to copy here: it retypes N frames and you hold N
-  capabilities, and its cspaces are radix trees rather than sixteen slots, so the pressure lands
-  somewhere else). Growing `CSPACE_SLOTS` is a one-number change paid in TCB size, and is the other
+  capabilities, and its capability tables are radix trees rather than sixteen slots, so the pressure lands
+  somewhere else). Growing `CAPABILITY_TABLE_SLOTS` is a one-number change paid in TCB size, and is the other
   half of the same question.
 
   **The fork stopped being hypothetical on 2026-08-19, and here is what it costs measured rather
@@ -371,15 +371,15 @@ and the difference is accounted rather than shrugged at:
   else:
 
   ```
-  error[E0080]: evaluation panicked: the display driver's DMA region no longer fits its cspace
+  error[E0080]: evaluation panicked: the display driver's DMA region no longer fits its capability table
   beside the fault slot: a Frame names one page and this region is a run of them
     --> kernel/src/user/display_service.rs:50:15
   ```
 
-  **The ceiling is nine frames, and it is the cspace rather than the memory.** The driver's DMA
+  **The ceiling is nine frames, and it is the capability table rather than the memory.** The driver's DMA
   region starts at slot 5 and must end below the fault slot at 15, so `SURFACE_FRAMES <= 9`: at most
   36,864 bytes, or 9,216 pixels. Every non-square shape that fits (128x72, 144x64, 192x48) gives
-  five text rows or fewer at 8x14. 800x600 needs **469 frames**, which no sixteen-slot cspace can
+  five text rows or fewer at 8x14. 800x600 needs **469 frames**, which no sixteen-slot capability table can
   hold under any arrangement of the other slots, and the same is true of every size a person would
   call a terminal. The other budgets on the path are all comfortable by comparison, which is the
   part that surprises: 469 frames is under one percent of the free pool, the mapping records are two
@@ -395,10 +395,10 @@ and the difference is accounted rather than shrugged at:
      range in the IOMMU domain, and it collapses 469 capabilities, 469 syscalls and 469 mapping
      records into one of each. It is also a change to the meaning of a syscall method, which is a
      boundary rather than a habit (`AGENTS.md`, DECISIONS §10 and §16).
-  2. **Grow `CSPACE_SLOTS`.** One number in `kernel/src/cap.rs` and its twin in `crates/abi`, paid
-     in TCB size: `Option<Cap<Object>>` is 24 bytes, so 512 slots is 12 KiB of cspace per thread
+  2. **Grow `CAPABILITY_TABLE_SLOTS`.** One number in `kernel/src/cap.rs` and its twin in `crates/abi`, paid
+     in TCB size: `Option<Cap<Object>>` is 24 bytes, so 512 slots is 12 KiB of capability table per thread
      against today's 384 bytes, and `MAX_THREADS` is 128. It also moves `abi::fault::FAULT_EP_SLOT`,
-     which is defined as `CSPACE_SLOTS - 1` and which every supervised program agrees on. It leaves
+     which is defined as `CAPABILITY_TABLE_SLOTS - 1` and which every supervised program agrees on. It leaves
      469 `MAP` calls and 469 mapping records in place, so it buys the pixels without buying any of
      the elegance.
   3. **Map the run into the client's space without giving it capabilities**, which `aspace::MAP_INTO`

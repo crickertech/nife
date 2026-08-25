@@ -117,7 +117,7 @@ This is the second time a distinction like this came up and it was resolved the 
 time. DECISIONS §32 deliberately makes `Endpoint::REAP` return one error for "already collected" and
 "not your child", because telling them apart would let a supervisor probe the tid space of children
 it has no relationship with. `Gone` carries no such risk: the capability is one the caller already
-holds, in its own cspace, so learning that its object died reveals nothing it was not entitled to
+holds, in its own capability table, so learning that its object died reveals nothing it was not entitled to
 know.
 
 ### SIGPIPE, arriving through std's own seam
@@ -269,10 +269,10 @@ transcript, a pipe and a file and now a terminal, and the program holds one capa
 - **The bytes bypass the shell entirely, which is the feature and also the limitation.** A shell
   cannot capture, indent, count or truncate them. `2>` is the only way to put them anywhere else, and
   it works by handing the child a *different* endpoint rather than by intercepting this one.
-- **Building it found init's sixteen-slot cspace for the third time.** One more endpoint held across
+- **Building it found init's sixteen-slot capability table for the third time.** One more endpoint held across
   the shell's `build_child` made the boot print nothing at all, so the adapter is built **after the
   shell**; see notes/pipes.md. It was written down as "built last", and merging milestone 22 proved
-  that half wrong: init now builds a `job_undertaker` after it and the cspace has room either way. The
+  that half wrong: init now builds a `job_undertaker` after it and the capability table has room either way. The
   real constraint was never the ordinal, it was the shell's build. Where the adapter does have to sit
   is **before init gives the construction budget away**, because it is a system component and that
   budget is what the system is built from; building it afterwards would spend init's scratch pool on

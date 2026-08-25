@@ -430,7 +430,7 @@ pub const INSTANCE_PAGES: u64 = 32;
 /// **The console component**: the thing that gets replaced. It serves the stable endpoint, owns a
 /// UART, writes the witness page, and holds nothing it could build anything with.
 ///
-/// The declared order of `caps` **is** the component's cspace slot order, which is why [`SVC`] and
+/// The declared order of `caps` **is** the component's capability table slot order, which is why [`SVC`] and
 /// its three siblings are derived from this value rather than written down beside it.
 pub const CONSOLE: Requirements = Requirements {
     contract: "console",
@@ -722,7 +722,7 @@ pub fn serve(version: u64, xform: fn(u64) -> u64, log_base: u64, device: bool, w
                 let (what, _) = user_rt::call(NOTE, NOTE_WEDGED, served);
                 // Reached only because the operator answered, which in a real hang it cannot do.
                 // **The caller first, then the device**, because the device read is expected to
-                // fault and a fault takes this reply capability to the grave with the cspace holding
+                // fault and a fault takes this reply capability to the grave with the capability table holding
                 // it, leaving that caller blocked for the life of the machine.
                 if what == NOTE_RELEASE {
                     user_rt::reply(slot, WEDGE_RELEASED, 0);
@@ -802,7 +802,7 @@ pub const NOTE_WEDGED: u64 = 5;
 /// a caller stranded inside a `CALL`, and it has to travel this way round.
 ///
 /// The operator cannot answer the stranded caller itself. The one-shot `Reply` capability the kernel
-/// minted names that caller, lives in the *component's* cspace, carries `WRITE` without `GRANT`, and
+/// minted names that caller, lives in the *component's* capability table, carries `WRITE` without `GRANT`, and
 /// is consumed on use (DECISIONS §12). So the operator cannot be handed it, cannot forge it, and
 /// cannot reach it by revoking anything. Freeing a stranded caller requires the cooperation of the
 /// component whose lack of cooperation is the definition of the hang, which is the finding rather

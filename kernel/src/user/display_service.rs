@@ -5,13 +5,13 @@
 //!
 //! Everything here used to arrive as `Spawn::maps`: the kernel wrote the DMA region into the
 //! driver's address space and the surface into the client's, at addresses the kernel picked, before
-//! either program's first instruction. Nothing in either cspace said the memory was there, and
+//! either program's first instruction. Nothing in either capability table said the memory was there, and
 //! nothing could narrow it, hand it on, or take it back.
 //!
 //! Each program now holds its pages as `Frame` capabilities and maps them itself, out of an untyped
 //! it also holds. **This is where the object shows its edge**, and the milestone's scope note asked
 //! for exactly this finding: a `Frame` names *one page*, so the driver's nine-page DMA region is
-//! nine capabilities in nine consecutive slots of a sixteen-slot cspace. It fits, with one slot
+//! nine capabilities in nine consecutive slots of a sixteen-slot capability table. It fits, with one slot
 //! spare, and it would not fit a larger surface. The `const` assertion on `DRIVER_SLOT_DMA` is
 //! there so that a scanout somebody widens fails the build rather than the boot.
 //!
@@ -33,7 +33,7 @@ const ROLE_BACKING_ESCAPE: u64 = 1;
 /// 2 MiB window, so the real cost is one L3 and the levels above it.
 const MAP_BUDGET_PAGES: u64 = 8;
 
-// The driver's cspace. Must match user/src/display.rs.
+// The driver's capability table. Must match user/src/display.rs.
 const DRIVER_SLOT_REPORT: u64 = 0;
 const DRIVER_SLOT_IRQ: u64 = 1;
 const DRIVER_SLOT_VIRTIO: u64 = 2;
@@ -43,24 +43,24 @@ const DRIVER_SLOT_BUDGET: u64 = 4;
 ///
 /// **This is the milestone's honest cost, and it is worth saying out loud.** A `Frame` names one
 /// page, so a nine-page DMA region is nine capabilities and nine `MAP` calls, and slots 5 through
-/// 13 of a sixteen-slot cspace (`cap::CSPACE_SLOTS`, one of which is reserved for the fault
+/// 13 of a sixteen-slot capability table (`cap::CAPABILITY_TABLE_SLOTS`, one of which is reserved for the fault
 /// endpoint) go to naming one contiguous run of memory. It fits, with one slot spare. A driver with
 /// a larger surface would not fit at all. See notes/frames.md's BUGS.
 const DRIVER_SLOT_DMA: u64 = 5;
 const _: () = assert!(
     DRIVER_SLOT_DMA + DMA_FRAMES <= abi::fault::FAULT_EP_SLOT,
-    "the display driver's DMA region no longer fits its cspace beside the fault slot: a Frame \
+    "the display driver's DMA region no longer fits its capability table beside the fault slot: a Frame \
      names one page and this region is a run of them",
 );
 
-// The painting client's cspace. Must match user/src/painter.rs.
+// The painting client's capability table. Must match user/src/painter.rs.
 const CLIENT_SLOT_REPORT: u64 = 0;
 const CLIENT_SLOT_DISPLAY: u64 = 1;
 const CLIENT_SLOT_BUDGET: u64 = 2;
 /// The first of `graphics_proto::SURFACE_FRAMES` consecutive slots holding the scanout.
 const CLIENT_SLOT_SURFACE: u64 = 3;
 
-// The display terminal's cspace. Must match user/src/display_terminal.rs.
+// The display terminal's capability table. Must match user/src/display_terminal.rs.
 const TERM_SLOT_REPORT: u64 = 0;
 const TERM_SLOT_DISPLAY: u64 = 1;
 const TERM_SLOT_TERM: u64 = 2;

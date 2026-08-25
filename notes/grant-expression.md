@@ -177,7 +177,7 @@ A refusal is a fact about what the shell holds, phrased in the capability model'
   place)." An unknown flag never reaches the file position.
 
 The `no such capability` line is the headline refusal, and it is a statement about the shell's own
-cspace: "there is nothing I hold that could grant this," never a Unix-flavored EPERM.
+capability table: "there is nothing I hold that could grant this," never a Unix-flavored EPERM.
 
 **One ordering changed with the designator, deliberately.** Phase 1 reported "you hold no such
 capability" before any manifest quibble, so `worker file:x` produced it even though worker takes no
@@ -262,7 +262,7 @@ caretaker needs nothing new: it is an ordinary FS client above and an ordinary F
 
 It is also the stronger form of the claim. The confined program holds an endpoint to the caretaker
 and **nothing that names the FS server**, so "it cannot reach a second file" is a property of its
-cspace, not of a branch it is trusted to take. The boundary is an address space. That is the same
+capability table, not of a branch it is trusted to take. The boundary is an address space. That is the same
 reason milestone 36's checker lives outside the component it checks.
 
 The grant costs no memory. The name and the direction ride in the caretaker's three `START` argument
@@ -312,7 +312,7 @@ authority is still exactly what the line says, because the program's half is fix
 
 The refusal this section used to describe is gone, and the reason it went is the point of the way it
 was written. It said "you hold no such capability: this shell was granted no directory to narrow",
-which was a **fact about the shell's cspace** rather than a release date; milestone 50 gave the
+which was a **fact about the shell's capability table** rather than a release date; milestone 50 gave the
 interactive boot a RedoxFS disk and had init narrow the file service into the shell, and the same
 sentence stopped being printed with no edit to the condition that prints it. Phase 1's first draft
 hardcoded "arrives with milestone 32", which was true when written and would have become a lie the
@@ -361,7 +361,7 @@ that makes the caretaker collectable is the same mechanism that makes the first 
 ordinary command that meets `reclaim_region`'s documented retry contract, which until now only the
 shell's `^C` escalation did.
 
-**The cspace.** Predicted at seven slots held for life plus two for the file service. That is what it
+**The capability table.** Predicted at seven slots held for life plus two for the file service. That is what it
 is: nine at rest, and a directory-granted spawn peaks at **fifteen of sixteen** (the region, the
 narrowed endpoint, the readiness endpoint, and a `build_child` retyping an address space and a TCB).
 One slot from the wall, and `crates/system_initializer`'s BUGS is right about what running out looks
@@ -479,9 +479,9 @@ notes/untracked-work-sweep.md.
 
 ## What phase 1 deliberately does not do
 
-- **No live cspace introspection.** `caps` prints the shell's own endowment (which it knows by the
+- **No live capability table introspection.** `caps` prints the shell's own endowment (which it knows by the
   boot convention) and previews a command's grant (from the manifest). Reading *another running
-  process's* cspace would need a new kernel method (a debug/reflection capability), which is a
+  process's* capability table would need a new kernel method (a debug/reflection capability), which is a
   design fork, not built here. The manifest is the userspace stand-in, and for the shell's purpose
   (what would this command grant?) it is the right answer anyway: the authority is the command, and
   the command is on the screen.

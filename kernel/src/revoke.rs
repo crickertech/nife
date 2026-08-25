@@ -258,7 +258,7 @@ fn unmap_everywhere(phys: u64, spare: u64) {
     }
 }
 
-/// **Revoke a page from everyone.** Delete every `Frame` capability to `phys` from every cspace,
+/// **Revoke a page from everyone.** Delete every `Frame` capability to `phys` from every capability table,
 /// then unmap it from every address space. After this no capability names the page and no address
 /// space maps it, so it is safe to return to the allocator. Caps go **first**, so a `Frame::MAP`
 /// that starts after this cannot re-establish a mapping we would then miss. (The remaining window,

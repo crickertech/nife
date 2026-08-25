@@ -182,7 +182,7 @@ input that also trips check A.
 ### The hand-triaged crates
 
 - **abi** (5): rights bits and the fault slot, killed by `rights_are_distinct_single_bits` and
-  `the_fault_slot_is_inside_the_cspace`; `1 << 0` equivalent as above.
+  `the_fault_slot_is_inside_the_capability_table`; `1 << 0` equivalent as above.
 - **asid** (2): both in `free`'s release-mode range guard, equivalent-under-harness
   (debug_assert shielding, above).
 - **block_roster** (3): the header-only page, killed by

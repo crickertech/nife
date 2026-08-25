@@ -60,7 +60,7 @@ records that `Untyped::DESTROY` "refuses... [while] an endpoint in it has a bloc
 and both sides act on the one object). So "a kernel object with more than one holder, and
 liveness tracking to match" is not a new category for this kernel to reason about; Option A would
 be extending a pattern that Endpoint already proves out, to AddressSpace and (if a thread also
-needs to invoke capabilities the spawning thread already holds, for IO from a worker) to CSpace.
+needs to invoke capabilities the spawning thread already holds, for IO from a worker) to CapabilityTable.
 
 **Frame sharing across address spaces is already the tree's workhorse pattern for exactly one
 of the two things Option B needs.** `notes/net.md`, `notes/framebuffer-contract.md` and
@@ -79,7 +79,7 @@ budget model works. seL4's own `TCB_Configure`/`TCB_SetSpace` binds a VSpace cap
 without uniquely consuming it: a VSpace capability can be copied like any other capability, and
 multiple TCBs can be configured against copies naming the same underlying VSpace object, which is
 exactly how seL4-based systems build a conventional multithreaded process (the seL4 tutorials'
-own threads example has a new thread explicitly "share the main thread's CSpace and VSpace").
+own threads example has a new thread explicitly "share the main thread's CapabilityTable and VSpace").
 nife's `CONFIGURE` consuming the aspace capability uniquely is a deliberate simplification made
 at milestone 19c.3 (buys automatic Rust-`Drop` teardown, costs the sharing seL4 offers for free),
 not the ceiling of what the underlying object model can support.
@@ -150,10 +150,10 @@ scratch:
   extend, not a new one to invent.
 - `kernel/src/user.rs`, `kernel/src/revoke.rs`: the reap path (§32, `reap_region_objects`) needs
   to know "still referenced" as a third state alongside live/dead.
-- Whether sibling TCBs also need a shared `CSpace` (so a worker thread can invoke a capability
+- Whether sibling TCBs also need a shared `CapabilityTable` (so a worker thread can invoke a capability
   the spawning thread already holds, e.g. do IO through an already-granted socket or directory
   slot) is the same fork one level down; seL4 answers it the same way, by letting `TCB_SetSpace`
-  bind a CSpace root capability without consuming it either.
+  bind a CapabilityTable root capability without consuming it either.
 - Plus, common to every option that yields a real OS thread: the std-side plumbing the PAL's own
   comment already names as missing regardless of the kernel side (TLS story, park/unpark on a
   kernel primitive, join).

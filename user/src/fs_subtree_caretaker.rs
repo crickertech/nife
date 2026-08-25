@@ -29,7 +29,7 @@
 //! Two consequences worth stating, because they are what the confinement rests on:
 //!
 //! - **The confined program holds an endpoint to this process and nothing that names the FS
-//!   server**, so "it cannot reach the parent directory" is a property of its cspace rather than of
+//!   server**, so "it cannot reach the parent directory" is a property of its capability table rather than of
 //!   a branch it is trusted to take. The boundary is an address space, which is why
 //!   `fs_file_caretaker`'s tests are witnesses and not assertions, and why this one's are too.
 //! - **A rights-carrying handle alone would not confine it.** The FS server's handle table is per

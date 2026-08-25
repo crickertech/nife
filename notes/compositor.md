@@ -157,7 +157,7 @@ defaults**, and that a refusal read as "you hold no such capability" rather than
 Both halves are proved, and the refusal turns out to have two forms, which is a pleasing thing to be
 able to say:
 
-- **An empty cspace slot.** A client that was not granted an input endpoint has *nothing* in slot 2.
+- **An empty capability table slot.** A client that was not granted an input endpoint has *nothing* in slot 2.
   Its `RECV` there returns `abi::Error::NoSuchSlot` (-1), whose doc comment has said the right thing
   since milestone 7: "The slot is empty. Not permission denied: there is nothing there." The test
   asserts on exactly that value, because `NotPermitted` would mean the authority existed and was
@@ -165,7 +165,7 @@ able to say:
 - **An unmapped address.** A client that was not granted the screen has no mapping where the screen
   would be. Its read faults, the kernel kills it, and the test observes the fault (and, on aarch64,
   the exact faulting address). "There is nothing there" again, in the address space's dialect instead
-  of the cspace's.
+  of the capability table's.
 
 A capture client shows the other side of the same coin: it holds a **read-only** mapping of the screen
 and of the window list, so it can screenshot and enumerate with no server involved and no verb to

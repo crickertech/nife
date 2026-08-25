@@ -12,7 +12,7 @@
 //! What the shell can grant, it grants from what it *holds*. The headline is `prog --mem N`, which
 //! endows a program N pages of untyped **split from the shell's own budget** (slot 3) and delegated
 //! to it. A bare name in a file position is the second, and whether it can be backed is a statement
-//! about this shell's cspace rather than about the calendar: a shell whose init granted it a
+//! about this shell's capability table rather than about the calendar: a shell whose init granted it a
 //! directory (slot [`DIR_TERMINAL`]) resolves the name, and one granted none says "you hold no such
 //! capability". Milestone 50 made the first case real at the interactive prompt; see [`holdings`],
 //! notes/pipes.md and notes/grant-expression.md. `caps` prints the shell's whole endowment, and
@@ -125,7 +125,7 @@ const SH_BUDGET_PAGES: u64 = 128;
 ///
 /// Being *told* is the same shape as `arg1` carrying the directory's rights, and for the same reason
 /// recorded there: nothing in this system reports what a process holds, so a shell that guessed would
-/// be guessing about its own cspace. A wrong guess here is worse than the directory's, because
+/// be guessing about its own capability table. A wrong guess here is worse than the directory's, because
 /// probing the wrong slot would find some *other* object and map a page that is not a clock.
 static CLOCK_SLOT: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU64::new(NO_CLOCK);
 
@@ -168,7 +168,7 @@ const FS_WINDOW: MappedWindow = unsafe { MappedWindow::new(FS_VA, filesystem_pro
 
 /// The directory capability's slot in the navigating wiring (`fs_service::start_granted_dir` grants
 /// it at 0). A shell that was granted none has no such slot at all, which is why [`Nav::dir`] is an
-/// `Option` rather than a constant: "this shell holds no directory" is a fact about a cspace.
+/// `Option` rather than a constant: "this shell holds no directory" is a fact about a capability table.
 const DIR: u64 = 0;
 
 /// The directory capability's slot in the **terminal** wiring, where slots 0..3 are already the
@@ -288,7 +288,7 @@ struct Walk {
 
 impl Nav {
     /// A shell holding nothing that names a filesystem. Everything below then answers
-    /// [`Say::NoDirectory`], which is a statement about this shell's cspace and not a placeholder.
+    /// [`Say::NoDirectory`], which is a statement about this shell's capability table and not a placeholder.
     fn empty() -> Self {
         Nav {
             dir: None,
@@ -1102,7 +1102,7 @@ const REDIRECT_DONE: &[u8] = b"== redirections done\n";
 /// [`piping`]'s wiring plus at most one capability, and that one capability is the whole difference
 /// between a `time` that reports a duration and a `time` that refuses. The same script runs against
 /// three clock states (a published page, a blank page, no page at all), so the refusals are reached
-/// by changing a cspace rather than by a branch anybody wrote for the test.
+/// by changing a capability table rather than by a branch anybody wrote for the test.
 ///
 /// The lines check each other rather than constants, which is [`redirecting`]'s shape:
 ///
@@ -3151,7 +3151,7 @@ fn navigate(spec: u64) -> ! {
     //
     //    Sent through the contract rather than typed as a command line, because **`rm` is a program
     //    now** (milestone 47's rmdir lane) and this witness holds no spawn channel: it is confined
-    //    to a subtree by a `fs_subtree_caretaker` and nothing in its cspace names an init. So what
+    //    to a subtree by a `fs_subtree_caretaker` and nothing in its capability table names an init. So what
     //    is under test here is the verb `rm` sends, at the far end of the same caretaker chain the
     //    program runs behind, and `user/src/rm.rs`'s own guest test is what covers the program.
     if removed(&nav, fs::UNLINK, name_of(&doomed)) {

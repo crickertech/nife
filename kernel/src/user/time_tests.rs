@@ -8,7 +8,7 @@ const DONE: &[u8] = b"== timings done\n";
 /// Run the timing script under one clock state and hand back what the shell printed.
 ///
 /// Not cached, unlike [`pipeline_tests`]'s and [`redirection_tests`]'s transcripts, because the
-/// whole point here is to run the **same script** under three different cspaces: caching would make
+/// whole point here is to run the **same script** under three different capability tables: caching would make
 /// the second and third runs the first one's answer.
 fn transcript(clock: Option<u64>, out: &mut [u8; 2048]) -> usize {
     let Some(w) = pipeline_service::start_timing(clock) else {

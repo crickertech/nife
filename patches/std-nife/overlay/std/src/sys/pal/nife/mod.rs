@@ -3,7 +3,7 @@
 //! This is the Hermit shape (a `sys` backend implemented directly on a non-POSIX ABI), not the
 //! Redox shape (a libc first): there is no errno, no fd table, no `open`, no `fork` under here,
 //! because the OS does not have them and std does not actually need them. What a nife
-//! process *does* have is a cspace populated by its parent, and this PAL binds std to the two
+//! process *does* have is a capability table populated by its parent, and this PAL binds std to the two
 //! slots the std runtime contract names (see `rt`): an untyped budget that pays for the heap,
 //! and an endpoint that stdout/stderr SEND to.
 //!
@@ -58,7 +58,7 @@ use crate::io;
 
 /// The process entry point. The kernel (or a userspace loader) enters the ELF here per the
 /// native ABI (notes/abi.md §3): three free argument registers, a mapped stack, a populated
-/// cspace, no libc and no argv. rustc's generated C `main` wraps the user's `fn main` in
+/// capability table, no libc and no argv. rustc's generated C `main` wraps the user's `fn main` in
 /// `lang_start`, which runs std's rt init and catches the exit code; all this shim does is call
 /// it and turn the return into `SYS_EXIT`.
 ///

@@ -37,7 +37,7 @@
 //! # BUGS
 //!
 //! **`Error::OutOfMemory` collapses three unrelated causes into one code** (milestone 153). `SPLIT`
-//! returns it when the caller's own untyped budget is exhausted, when the caller's cspace is full,
+//! returns it when the caller's own untyped budget is exhausted, when the caller's capability table is full,
 //! or when [`MAX_REGIONS`] itself is exhausted; `RETYPE_OBJ` collapses a different pair the same
 //! way (see each method's own doc comment in `crates/abi`). The first two are facts about the
 //! caller; the third is a fact about every other live region on the machine, which the caller had

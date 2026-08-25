@@ -9,7 +9,7 @@ Milestone 1 defined a thread as "a stack plus a set of register values"; the TCB
 kernel keeps everything needed to *manage* that thread while it is not running. Ours holds: the
 id (a generational name, notes/generational-names.md), the state, the `context` pointer naming
 where the registers are saved on the thread's own stack, ownership of that stack, the address
-space, the capability table (cspace), the IPC mailbox, the intrusive queue link
+space, the capability table (`CapabilityTable`), the IPC mailbox, the intrusive queue link
 (notes/intrusive-queues.md), and the `on_cpu`/`wake_pending` switch-out flags. "Spawn allocates
 a TCB" means allocating this struct. seL4 uses the same name for the same object.
 

@@ -159,7 +159,7 @@ fn the_line_is_refused_before_anything_is_spawned() {
 ///
 /// This is the **negative control** for [`redirection_tests`], which runs the same ELF from the
 /// same archive with one more capability in it and writes the file. Neither behaviour is a
-/// branch in the shell: the refusal is a fact about a cspace with nothing in slot 4, and that is
+/// branch in the shell: the refusal is a fact about a capability table with nothing in slot 4, and that is
 /// the sentence milestone 31 wrote and this milestone had to keep true. See notes/pipes.md.
 #[test_case]
 fn a_redirection_a_shell_cannot_back_is_refused_rather_than_dropped() {

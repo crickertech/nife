@@ -389,7 +389,7 @@ asked for.
 ### A third bug of the same shape, and the pattern is now three deep
 
 Building the terminal's sink adapter made the boot print **nothing at all** on aarch64, and it was
-init's sixteen-slot cspace for the third time. The adapter was built between the input driver and the
+init's sixteen-slot capability table for the third time. The adapter was built between the input driver and the
 shell, which looked like the natural place; at that moment init still holds the terminal endpoint,
 two shared frames, the file service and its page, so one more endpoint put `build_child` one slot
 short while it was retyping the *shell's* address space. The shell was never built, so nothing ever
@@ -398,7 +398,7 @@ printed.
 The fix is where rather than what: build it **after the shell**, once every boot capability the
 adapter does not need has gone back.
 
-This was first written down as "build it last, which is the narrowest the cspace ever is", and
+This was first written down as "build it last, which is the narrowest the capability table ever is", and
 merging milestone 22's interactive boot proved the "last" half wrong. That lane added a `job_undertaker`
 built after the adapter and a construction-budget giveaway between them, so the adapter is now the
 fifth of six boot components, and the boot is fine. The constraint was never the ordinal; it was that
@@ -414,7 +414,7 @@ terminal.
 
 The pattern worth keeping is that all three instances of this presented identically, as a boot that
 reaches userspace and then says nothing, and all three were a capability slot rather than memory.
-**A cspace that is sized in a constant and consumed in an order is a resource with no error message.**
+**A capability table that is sized in a constant and consumed in an order is a resource with no error message.**
 `build_child` returns `Err(())` and init halts, which is correct and silent.
 
 ### A correction: there are two inits, and this note said there was one
@@ -447,7 +447,7 @@ theirs, which is what the kernel put in which slot.
 What the gate proves is unchanged and is the reason it caught this: `script/shell-check` boots
 **both** ISAs, so it runs both inits, which is exactly what a single-ISA gate would have missed. It
 is still the gate, because a shared crate removes the *drift* and not the risk: init's sixteen-slot
-cspace and the shell's bounded stack are both still sized in a constant and consumed in an order,
+capability table and the shell's bounded stack are both still sized in a constant and consumed in an order,
 and both still fail by printing nothing at all.
 
 ### Where the bytes go by default, and why it is not this shell
@@ -948,7 +948,7 @@ Three things had to move to make room, and each is a fact worth keeping:
 - **The shell's terminal page moved from `0x60_0000` to `0xc0_0000`.** `0x60_0000` is
   `FILE_VA_CLIENT`, which six programs map; the terminal page is the one address only the shell and
   its init know, so it is the one that moved.
-- **init's cspace is sixteen slots and two more kernel grants overflowed it.** The console's
+- **init's capability table is sixteen slots and two more kernel grants overflowed it.** The console's
   `build_child` had no slot left to retype an address space into and returned an error, which
   presented as a boot that brought the console up and then printed nothing at all. init now retypes
   the spawn and result endpoints **after** the drivers are built, and gives the console's three
@@ -1178,7 +1178,7 @@ the real spawn path failed nothing, and the `--features shell` boot is the only 
 
 That cost this milestone three manual bisects, and **all three presented as a boot that printed
 nothing at all**: the shell's terminal page colliding with `FILE_VA_CLIENT`, init's sixteen-slot
-cspace overflowing when the kernel handed it two more grants, and four stack pages being one deep
+capability table overflowing when the kernel handed it two more grants, and four stack pages being one deep
 call short of the redirection path.
 
 **And the gap runs the other way too, which milestone 86 found.** The kernel's stand-in init put a

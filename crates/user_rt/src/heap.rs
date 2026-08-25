@@ -57,7 +57,7 @@ const MIN_GROW_PAGES: u64 = 8;
 
 struct Inner {
     heap: user_heap::Heap,
-    /// Which cspace slot holds the untyped that pays for pages. `u64::MAX` until `init`.
+    /// Which capability table slot holds the untyped that pays for pages. `u64::MAX` until `init`.
     untyped_slot: u64,
     /// The heap's virtual range: `[base, base + max)`, of which `[base, base + committed)` is
     /// mapped and donated to the allocator so far.

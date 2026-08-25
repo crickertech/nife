@@ -2,7 +2,7 @@
 //! one).
 //!
 //! The first pixels this system ever puts in a scanout, put there by an unprivileged process whose
-//! whole world is a cspace:
+//! whole world is a capability table:
 //!
 //! - slot 0, a **report** endpoint: how it tells its spawner it came up, and what it flushed;
 //! - slot 1, an **`Irq`**: the device's completion interrupt, arriving as a message;
@@ -16,7 +16,7 @@
 //!   speak physical addresses and a process only knows virtual ones.
 //!
 //! **Nine capabilities for one contiguous region** is the shape a `Frame` forces, and it is worth
-//! seeing: this driver spends nine of the fourteen usable slots in its cspace naming pages that are
+//! seeing: this driver spends nine of the fourteen usable slots in its capability table naming pages that are
 //! adjacent in physics, adjacent in its address space, and covered as a single range by the IOMMU
 //! domain the kernel programmed. See notes/frames.md's BUGS.
 //!
@@ -499,7 +499,7 @@ pub extern "C" fn _start(role: u64, dma_phys: u64, arg2: u64) -> ! {
     // first page of it and the escape attempt writes a descriptor too.
     //
     // One `MAP` per page is what a `Frame` costs: the object names a page, and this region is a
-    // contiguous run of nine. The kernel had to reserve slots 5..13 of a sixteen-slot cspace to
+    // contiguous run of nine. The kernel had to reserve slots 5..13 of a sixteen-slot capability table to
     // hand it over. See notes/frames.md's BUGS.
     for k in 0..DMA_FRAMES {
         if !user_rt::map_frame(DMA_FRAME + k, DMA_VA + k * 4096, true, BUDGET) {

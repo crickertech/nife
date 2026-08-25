@@ -605,7 +605,7 @@ fn survey_awake(w: u64) -> u64 {
 ///    parked awaiting a reply, and a caller awaiting a reply is woken by `sched::ipc_reply` and by
 ///    nothing else in the kernel: `abi::Error::Gone` reaches a caller whose *rendezvous* died and never
 ///    one whose *server is alive and silent*. The one-shot `Reply` capability naming it is `WRITE`
-///    without `GRANT`, inside the hung component's cspace, so the operator cannot answer on its
+///    without `GRANT`, inside the hung component's capability table, so the operator cannot answer on its
 ///    behalf, forge one, or revoke its way to it. In this run the wedge is deliberate and lets go
 ///    when asked. A real one does not, and `CL_WAS_RELEASED` is the bit that marks which of the two
 ///    this was.

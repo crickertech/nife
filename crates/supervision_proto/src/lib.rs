@@ -174,7 +174,7 @@ pub struct ChildEndowment<'a> {
     /// number not to move.
     ///
     /// It cannot collide with [`fault`](ChildEndowment::fault): that one lands in the last slot of the
-    /// cspace, and a manifest's diagnostics slot is one the program reads at startup, far below it.
+    /// capability table, and a manifest's diagnostics slot is one the program reads at startup, far below it.
     pub placed: &'a [(u64, u64, u64)],
     /// Pages of ours to map into the child, `(child_va, our_slot, mode)`.
     pub maps: &'a [(u64, u64, u64)],

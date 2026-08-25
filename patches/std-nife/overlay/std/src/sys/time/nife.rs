@@ -67,7 +67,7 @@ fn monotonic_nanos() -> u64 {
 //   - the clock page's Frame capability: the kernel answers `BadMethod` (-5), which is a refusal
 //     from a real object and therefore proof that one is there.
 //
-// Cached, because the answer cannot change: a cspace slot's contents are fixed at spawn on this
+// Cached, because the answer cannot change: a capability table slot's contents are fixed at spawn on this
 // ABI (0 = not yet asked, 1 = granted, 2 = not granted). Same shape as the fs PAL's probe.
 
 static GRANTED: AtomicU8 = AtomicU8::new(0);

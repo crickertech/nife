@@ -51,7 +51,7 @@ The claim this project makes is confinement: a workload it did not write, runnin
 reach past the boundaries the kernel enforces. Anything that breaks one of these is in scope.
 
 - **Capability forgery or widening.** Minting a capability that was never granted, widening rights
-  across `derive`, `Send`, or delegation, naming another process's CSpace or endpoints, or reusing a
+  across `derive`, `Send`, or delegation, naming another process's CapabilityTable or endpoints, or reusing a
   generational name after revocation (DECISIONS §10, §13, §16; `crates/capability`).
 - **MMU escape.** EL0 reading, writing, or executing kernel memory or another address space;
   breaking W^X; a stale TLB entry exposing a dead owner's data; anything reachable from userspace

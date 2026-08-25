@@ -296,7 +296,7 @@ fn interval_nanos(s: &str) -> Option<u64> {
 ///
 /// This is `grant_plan::Holdings` one level out, and it is a parameter for exactly the same reason:
 /// "this scheduler holds nothing to back that" must be a statement about a particular scheduler's
-/// cspace rather than a hardcoded era. The same document is four refusals in a scheduler granted
+/// capability table rather than a hardcoded era. The same document is four refusals in a scheduler granted
 /// nothing but a budget and four running jobs in one granted a clock, a directory and a terminal,
 /// and neither the document nor the program manifests can tell them apart.
 ///

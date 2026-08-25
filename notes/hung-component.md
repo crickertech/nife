@@ -208,7 +208,7 @@ server's endpoint exists. A hung server exists.
 **And the operator cannot answer on the component's behalf.** The one-shot `Reply` capability naming
 that caller is minted `WRITE` without `GRANT` (§12, and the syscall layer says why: "minted without
 `GRANT`, so it could not have been delegated here in the first place"), it lives in the hung
-component's cspace, and it is consumed on use. It cannot be delegated to the supervisor, forged, or
+component's capability table, and it is consumed on use. It cannot be delegated to the supervisor, forged, or
 reached by revoking anything. **Freeing a stranded caller requires the cooperation of the component
 whose lack of cooperation is the definition of the hang.**
 

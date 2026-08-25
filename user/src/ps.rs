@@ -94,7 +94,7 @@ use user_rt::{exit, invoke, send, survey};
 const REPORT: u64 = 0;
 
 /// **The process domain**: a supervision endpoint, `READ`. Everything this program can see comes
-/// through here and nothing else in the cspace names a process.
+/// through here and nothing else in the capability table names a process.
 const DOMAIN_SLOT: u64 = grant_plan::DOMAIN_SLOT;
 
 /// The declared second stream (DECISIONS §67): complaints about the run, never about the domain.

@@ -10,7 +10,7 @@ A `Cap<O>` is `Copy` (`crates/capability`). Authority spreads by **deriving** a 
 is that a derivative's rights are a **subset** of the source's:
 
 ```rust
-// CSpace::derive: "copy a capability into another slot, with rights that are no greater."
+// CapabilityTable::derive: "copy a capability into another slot, with rights that are no greater."
 if !rights.is_subset_of(src.rights) { return Err(NoRights); }
 ```
 
@@ -147,7 +147,7 @@ recorded), which is precisely why it is a first-class object there and parked he
 
 Only three ways, and none is ambient: **retype** it out of untyped you hold, be **handed** it
 (`SEND_CAP` / spawn-time grant), or **derive** a narrower copy of one you already have. There is no
-`open(path)`, no global name, no way to mint authority from who you are. A thread's cspace is empty
+`open(path)`, no global name, no way to mint authority from who you are. A thread's capability table is empty
 until something puts a capability in it. That is the whole of §10, seen from the object's side.
 
 ---

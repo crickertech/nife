@@ -496,7 +496,7 @@ fn input_reaches_only_the_focused_client_and_focus_is_the_compositors_call() {
 /// Terminal 1 receives the `B` because it **holds an input endpoint**, not because it asked and
 /// not because the compositor consulted a list (DECISIONS §33). The compositor's whole part in
 /// it is choosing *which* of the capabilities it holds to use. A client granted no input endpoint
-/// has an empty cspace slot and cannot be sent a keystroke by anyone, which the neighbouring test
+/// has an empty capability table slot and cannot be sent a keystroke by anyone, which the neighbouring test
 /// in this module proves by value (`NoSuchSlot`); this one proves the other half, that a
 /// keystroke routed to one holder does not land in another's memory.
 ///

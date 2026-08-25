@@ -31,7 +31,7 @@
 //!
 //! **This is a real, load-bearing limitation, not a caveat to skim.** `ps` reaches the shell
 //! because `Manifest::domain` tells `system_initializer` which live supervision endpoint (`deaths`)
-//! to place in its cspace. Nothing plays that role for an address space: every `Object::Aspace`
+//! to place in its capability table. Nothing plays that role for an address space: every `Object::Aspace`
 //! capability in this tree is minted and consumed **within the thread that built it**
 //! (`RETYPE_OBJ(ASPACE)` -> `MAP_INTO`* -> `Tcb::CONFIGURE`, which removes the space from the
 //! registry the instant it binds to a thread), and nothing shipped here ever delegates one to a
@@ -77,7 +77,7 @@ use user_rt::{exit, invoke, list, send};
 const REPORT: u64 = 0;
 
 /// **The address space under view**: an `Aspace` capability, `ENUMERATE`. Everything this program
-/// can see comes through here and nothing else in the cspace names a space.
+/// can see comes through here and nothing else in the capability table names a space.
 ///
 /// Not a `grant_plan` constant like `ps`'s [`grant_plan::DOMAIN_SLOT`], on purpose: `grant_plan` is
 /// the shell's command-line planning surface, and there is no command line that can grant this

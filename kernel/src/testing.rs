@@ -191,14 +191,14 @@ const FRAME_REPORT_MIN: usize = 16;
 /// shape `credential_service`'s 1656-frame credential store already is in this ledger. Measured
 /// aarch64 total: 15624 kept. notes/frames.md's held-frames list carries the itemised account.
 ///
-/// **Raised again, same day, same milestone, a cspace bug rather than a new feature.** `mint()` in
-/// `user/src/login.rs` used to leak one of `login`'s own sixteen cspace slots per successful login
+/// **Raised again, same day, same milestone, a capability table bug rather than a new feature.** `mint()` in
+/// `user/src/login.rs` used to leak one of `login`'s own sixteen capability table slots per successful login
 /// (the caretaker's construction region capability was never freed), which bounded the service to
 /// exactly eight logins ever regardless of `CONSTRUCTION_UT`'s size. The fix needed a regression
 /// test that actually crosses that old ceiling, so `login_tests.rs`'s `CONSTRUCTION_PAGES` grew from
 /// 640 to 1408 (nine real logins' worth instead of three) to cover it. Every one of those extra 768
 /// pages is permanent for the same reason the 640 above are: `user/src/login.rs`'s BUGS still names
-/// the caretaker's construction *memory* (as opposed to the cspace slot this lane fixed) as never
+/// the caretaker's construction *memory* (as opposed to the capability table slot this lane fixed) as never
 /// reclaimed. 16200 + 768 = 16968.
 ///
 /// **Raised again, 2026-08-23, milestone 155's provisioning tool.** Its own guest suite

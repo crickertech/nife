@@ -288,7 +288,7 @@ fn a_viewer_without_the_domain_is_refused_rather_than_shown_an_empty_list() {
     assert_eq!(refused.rows().len(), 0);
 
     // Nothing at all in the slot: a different refusal, and a louder one.
-    let empty_slot = abi::CSPACE_SLOTS - 1;
+    let empty_slot = abi::CAPABILITY_TABLE_SLOTS - 1;
     assert!(
         sched::current_cap(empty_slot).is_err(),
         "pick an empty slot"

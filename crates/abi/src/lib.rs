@@ -12,7 +12,7 @@
 //! ```text
 //!   exit(code)                              you always have authority over yourself
 //!   yield()                                 likewise
-//!   cap_delete(slot)                        likewise: your own cspace is your own
+//!   cap_delete(slot)                        likewise: your own capability table is your own
 //!   invoke(cap, method, a0, a1, a2)         EVERYTHING ELSE
 //! ```
 //!
@@ -22,7 +22,7 @@
 //! `exit`, `yield` and `cap_delete` are plain syscalls rather than invocations on a TCB
 //! capability, and the reason is worth stating: **a capability is authority over something
 //! *else*.** You do not need to be granted the right to stop running, or to be granted the right
-//! to make your own cspace forget something.
+//! to make your own capability table forget something.
 //!
 //! **So three of the four are authority over yourself and the fourth is everything else**, which
 //! is the shape that matters rather than the number. This header said "three calls" from
@@ -85,7 +85,7 @@
 //! // And the one that is deliberately NOT split: "gone" and "not yours" are one error, because
 //! // telling them apart would let a supervisor probe the tid space of children it has no
 //! // relationship with. `Gone` can be told apart for the opposite reason: the capability is
-//! // already in the caller's own cspace, so its death reveals nothing new.
+//! // already in the caller's own capability table, so its death reveals nothing new.
 //! assert_eq!(Error::NotSupervised as i64, -10);
 //! ```
 //!
@@ -122,9 +122,9 @@ pub const SYS_YIELD: u64 = 1;
 /// calling thread. Every capability operation in the system goes through this number.
 pub const SYS_INVOKE: u64 = 2;
 
-/// `cap_delete(slot)`: drop a capability from the caller's own cspace, freeing the slot
+/// `cap_delete(slot)`: drop a capability from the caller's own capability table, freeing the slot
 /// (milestone 19d). The one capability-management operation the surface needs beyond `invoke`:
-/// a loader (init) retypes hundreds of frames through a 16-slot cspace and must recycle slots.
+/// a loader (init) retypes hundreds of frames through a 16-slot capability table and must recycle slots.
 /// Dropping a capability is authority over your *own* table, so like `exit` and `yield` it is a
 /// bare syscall, not an invocation on some object. Deleting an empty slot is a harmless no-op.
 pub const SYS_CAP_DELETE: u64 = 3;
@@ -133,11 +133,12 @@ pub const SYS_CAP_DELETE: u64 = 3;
 /// guess.** The kernel looks in *your* table, and if the slot is empty you get `NoSuchSlot`.
 pub type CapSlot = u64;
 
-/// The number of capability slots in a thread's cspace. Mirrors the kernel's `cap::CSPACE_SLOTS`;
-/// lives here too so userspace can name the reserved [`fault::FAULT_EP_SLOT`] without reaching into
-/// the kernel. The two must agree, and a mismatch would put the fault slot in different places on
-/// the two sides of the boundary, which is exactly the drift this crate exists to prevent.
-pub const CSPACE_SLOTS: u64 = 16;
+/// The number of capability slots in a thread's capability table. Mirrors the kernel's
+/// `cap::CAPABILITY_TABLE_SLOTS`; lives here too so userspace can name the reserved
+/// [`fault::FAULT_EP_SLOT`] without reaching into the kernel. The two must agree, and a mismatch
+/// would put the fault slot in different places on the two sides of the boundary, which is
+/// exactly the drift this crate exists to prevent.
+pub const CAPABILITY_TABLE_SLOTS: u64 = 16;
 
 /// Methods on a `Console` capability. **Historical: no longer wired up.**
 ///
@@ -188,7 +189,7 @@ pub mod rendezvous {
     /// `invoke(cap, RECV_CAP, _, _, _)` -> w0, with the received capability's new slot in x1 and a
     /// second data word in x2, or [`NO_CAP`] in x1 if the message carried no capability. **Blocks
     /// until a message arrives.** The received capability lands in a free slot of the receiver's own
-    /// cspace, chosen by the kernel; x1 is where. This is also how a server receives a [`CALL`]: the
+    /// capability table, chosen by the kernel; x1 is where. This is also how a server receives a [`CALL`]: the
     /// slot in x1 holds a one-shot [`crate::reply`] capability naming the caller. Needs `READ`.
     pub const RECV_CAP: u64 = 3;
 
@@ -339,7 +340,7 @@ pub mod tcb {
     pub const CONFIGURE: u64 = 0;
 
     /// `invoke(cap, CAP_INSERT, cap_slot, rights, target)` -> `child_slot`. Copy the capability in
-    /// the caller's `cap_slot`, narrowed to `rights`, into the child's cspace, returning the slot
+    /// the caller's `cap_slot`, narrowed to `rights`, into the child's capability table, returning the slot
     /// it landed in. The child's whole initial authority is built this way, one grant at a time,
     /// before it runs. Needs `WRITE` on the TCB cap and `GRANT` on the inserted capability.
     ///
@@ -424,7 +425,7 @@ pub mod rights {
     pub const READ: u64 = 1 << 0;
     /// Modify the object's contents.
     pub const WRITE: u64 = 1 << 1;
-    /// Delegate a (possibly narrowed) copy of this capability to another cspace.
+    /// Delegate a (possibly narrowed) copy of this capability to another capability table.
     pub const GRANT: u64 = 1 << 2;
 
     /// **Learn what exists, without acting on it** (milestone 126). The kernel-level twin of
@@ -441,17 +442,17 @@ pub mod rights {
 /// convention and a spawn-slot convention. No new syscall and no new method (§26).
 pub mod fault {
     /// **The spawn-slot convention.** A supervised child is spawned with its supervision endpoint
-    /// in this reserved cspace slot (via [`crate::tcb::CAP_INSERT`] with an explicit target slot, or a
+    /// in this reserved capability table slot (via [`crate::tcb::CAP_INSERT`] with an explicit target slot, or a
     /// [`Spawn`](../user/struct.Spawn.html) grant). At `START` the kernel reads this slot: if it
     /// holds a `Rendezvous` capability the thread is supervised, and the kernel records the endpoint
     /// as the thread's fault target and clears the slot (so the child cannot forge fault messages
     /// on it, keeping §26's "the kernel is the only sender" property). An empty slot means the
     /// thread is unsupervised and gets today's behaviour: it dies and is reaped immediately.
     ///
-    /// It is the **last** cspace slot, deliberately out of the way of the low slots a child's
+    /// It is the **last** capability table slot, deliberately out of the way of the low slots a child's
     /// ordinary grants fill from zero upward, so an unsupervised child never accidentally lands a
     /// working endpoint here and gets mistaken for a supervised one.
-    pub const FAULT_EP_SLOT: u64 = super::CSPACE_SLOTS - 1;
+    pub const FAULT_EP_SLOT: u64 = super::CAPABILITY_TABLE_SLOTS - 1;
 
     /// **The message-format convention.** A fault/exit notification is five words, delivered to the
     /// supervision endpoint's holder through a plain `RECV`:
@@ -520,7 +521,7 @@ pub mod untyped {
     /// capability** the caller now holds, and return the slot it landed in. Nothing is mapped: the
     /// caller decides where to map it, and may delegate it first. This is the split that makes a
     /// page a first-class, delegatable object rather than something mapped in one shot. `OutOfMemory`
-    /// when the untyped is exhausted or the caller's cspace is full.
+    /// when the untyped is exhausted or the caller's capability table is full.
     pub const RETYPE: u64 = 1;
 
     /// `invoke(cap, RETYPE_OBJ, objtype, _, _)` -> slot. Retype one page out of the untyped into
@@ -532,7 +533,7 @@ pub mod untyped {
     /// `objtype` names what to make (see [`objtype`](super::objtype)); 19a implements
     /// `RENDEZVOUS`. A region that has produced a kernel object is **pinned**: [`DESTROY`] reclaims
     /// it (object revocation) once the objects are torn down. `BadMethod` for an unknown objtype;
-    /// `OutOfMemory` when the untyped is exhausted, the object registry is full, or the cspace is.
+    /// `OutOfMemory` when the untyped is exhausted, the object registry is full, or the capability table is.
     pub const RETYPE_OBJ: u64 = 2;
 
     /// `invoke(cap, SPLIT, pages, _, _)` -> slot. Carve `pages` off this untyped's unspent budget
@@ -540,7 +541,7 @@ pub mod untyped {
     /// seL4's untyped-retype-into-untyped: a spawner splits a child its own region so it can be
     /// reclaimed independently. This untyped is then marked as having children and can no longer be
     /// `DESTROY`ed (its pages are committed; the child frees them at its own `DESTROY`). `OutOfMemory`
-    /// when the budget or region table is exhausted or the cspace is full; `NotPermitted` without
+    /// when the budget or region table is exhausted or the capability table is full; `NotPermitted` without
     /// `WRITE`.
     pub const SPLIT: u64 = 3;
 
@@ -639,7 +640,7 @@ pub enum Error {
     ///
     /// It carries no probing risk, which is why it can be told apart here when
     /// [`Error::NotSupervised`] deliberately cannot: the capability is one the caller already
-    /// holds, in its own cspace, so learning that its object died reveals nothing it was not
+    /// holds, in its own capability table, so learning that its object died reveals nothing it was not
     /// already entitled to know.
     Gone = -11,
 }
@@ -721,16 +722,19 @@ mod tests {
         assert_eq!([READ, WRITE, GRANT, ENUMERATE], [1, 2, 4, 8]);
     }
 
-    /// The fault-endpoint slot is a valid slot index. Its value is `CSPACE_SLOTS - 1` by
+    /// The fault-endpoint slot is a valid slot index. Its value is `CAPABILITY_TABLE_SLOTS - 1` by
     /// definition; what can actually be wrong (and what a mutant made wrong invisibly) is the
-    /// arithmetic putting it outside the cspace, where `CAP_INSERT` would refuse it and every
+    /// arithmetic putting it outside the capability table, where `CAP_INSERT` would refuse it and every
     /// supervised spawn would fail.
     #[test]
     // Asserting on constants is this test's entire purpose: the constant is the thing a mutant
     // rewrites, and the assertion is what notices (milestone 85).
     #[allow(clippy::assertions_on_constants)]
-    fn the_fault_slot_is_inside_the_cspace() {
-        assert!(super::fault::FAULT_EP_SLOT < super::CSPACE_SLOTS);
-        assert_eq!(super::fault::FAULT_EP_SLOT, super::CSPACE_SLOTS - 1);
+    fn the_fault_slot_is_inside_the_capability_table() {
+        assert!(super::fault::FAULT_EP_SLOT < super::CAPABILITY_TABLE_SLOTS);
+        assert_eq!(
+            super::fault::FAULT_EP_SLOT,
+            super::CAPABILITY_TABLE_SLOTS - 1
+        );
     }
 }

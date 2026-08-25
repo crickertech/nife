@@ -113,7 +113,7 @@ The roadmap proposed that "the viewer holds a directory capability to the doc st
 and does not.
 
 `doc`'s manifest is byte-identical to `wc`'s: `InputSpec::Required`, `OutputSpec::Bytes`, and
-`Forbidden` for argument, memory, file and directory. Its cspace holds two endpoints. `doc glob.md`
+`Forbidden` for argument, memory, file and directory. Its capability table holds two endpoints. `doc glob.md`
 is the **shell** resolving that name against the directory capability *it* holds and streaming the
 bytes in; nothing in the program names a file, a directory or the filesystem, and there is no
 message it can send to find out what it is reading.
