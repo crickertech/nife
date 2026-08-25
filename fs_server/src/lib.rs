@@ -541,6 +541,85 @@ impl<D: Disk> Server<D> {
         })
     }
 
+    // --- mtime (milestone 47's `touch`, DECISIONS §112) ---
+    //
+    // Three methods, one per `filesystem_proto::fs` verb, and all three resolve `name` directly
+    // under the directory `handle` names rather than taking an already-open file handle: `touch`
+    // never opens what it acts on ([`Server::unlink`]'s shape, not [`Server::write`]'s). That also
+    // sidesteps a real constraint rather than a stylistic one: a **file** handle's `Rights` are
+    // hard-attenuated to `dir::READ | dir::WRITE` the moment [`Server::open_file_at`] or
+    // [`Server::create_file_at`] mints it, so `dir::SETTIME` could never be checked against one.
+    // Only a directory handle's rights carry the full seven-rung ladder, so these three check the
+    // *parent's* rights, exactly as [`Server::unlink`] and [`Server::rmdir`] do.
+
+    /// **The modification time of `name`, in Unix seconds** (`filesystem_proto::fs::GETMTIME`).
+    ///
+    /// Needs [`dir::READ`], and its absence is `ENOENT` rather than a mutating-right's `EROFS`:
+    /// this is a naming right, [`Server::open_file_at`]'s own rule, checked before the name is
+    /// resolved so a holder that may not read a time cannot use this to learn whether a name is
+    /// there. Works on a directory exactly as on a file, [`Server::get_xattr`]'s reason.
+    pub fn mtime(&mut self, handle: u32, name: &str) -> Result<u64> {
+        check_component(name)?;
+        let (parent, rights) = self.dir_at(handle)?;
+        if !rights.allows(dir::READ) {
+            return Err(Error::new(ENOENT));
+        }
+        let node = self.fs.tx(|tx| tx.find_node(parent, name))?;
+        Ok(node.data().mtime().0)
+    }
+
+    /// **Set `name`'s modification time to now** (`filesystem_proto::fs::SETMTIME`, bare `touch`).
+    ///
+    /// "Now" is this server's own advancing logical clock, the exact value every mutating verb
+    /// already stamps a node with ([`Server::write`], [`Server::create_file_at`],
+    /// [`Server::truncate`]), **not** a reading of a real wall clock: this server has no RTC wired
+    /// to it (the same gap the `clock` field on this struct records). A `touch` on two names in
+    /// sequence is guaranteed to
+    /// observe the second mtime greater than the first, which is what a staleness check actually
+    /// depends on; it is not guaranteed to agree with a wall-clock reading taken at the same
+    /// instant. See `filesystem_proto::fs::SETMTIME`'s doc and notes/touch.md's `BUGS`.
+    ///
+    /// Needs [`dir::WRITE`], refused with [`dir::EROFS`], checked before the name is resolved for
+    /// [`Server::unlink`]'s reason. No more than [`dir::WRITE`], because the value recorded is one
+    /// the server observed rather than one the caller asserted (DECISIONS §112).
+    pub fn set_mtime_now(&mut self, handle: u32, name: &str) -> Result<()> {
+        check_component(name)?;
+        let (parent, rights) = self.dir_at(handle)?;
+        if !rights.allows(dir::WRITE) {
+            return Err(Error::new(EROFS));
+        }
+        self.clock += 1;
+        let now = self.clock;
+        self.fs.tx(|tx| {
+            let mut node = tx.find_node(parent, name)?;
+            node.data_mut().set_mtime(now, 0);
+            tx.sync_tree(node)
+        })
+    }
+
+    /// **Set `name`'s modification time to a caller-supplied Unix-seconds value**
+    /// (`filesystem_proto::fs::SETMTIME_AT`, `touch -t`; DECISIONS §112: the ability to *lie about
+    /// history*).
+    ///
+    /// Needs [`dir::WRITE`] **and** [`dir::SETTIME`], refused with [`dir::EROFS`] for either
+    /// missing, checked before the name is resolved for [`Server::unlink`]'s reason. Unlike
+    /// [`Server::set_mtime_now`], the value here is the caller's assertion rather than anything
+    /// this server observed, which is exactly the authority DECISIONS §112 declines to fold into
+    /// plain [`dir::WRITE`]. No range check on `seconds`: any value is accepted, because asserting
+    /// an implausible history is the same authority as asserting a merely surprising one.
+    pub fn set_mtime_at(&mut self, handle: u32, name: &str, seconds: u64) -> Result<()> {
+        check_component(name)?;
+        let (parent, rights) = self.dir_at(handle)?;
+        if !rights.allows(dir::WRITE | dir::SETTIME) {
+            return Err(Error::new(EROFS));
+        }
+        self.fs.tx(|tx| {
+            let mut node = tx.find_node(parent, name)?;
+            node.data_mut().set_mtime(seconds, 0);
+            tx.sync_tree(node)
+        })
+    }
+
     // --- Extended attributes (milestone 57, DECISIONS §34's 2026-07-31 amendment) ---
     //
     // The engine has none of this. The four methods below are a **layer**: a store the server keeps
@@ -1313,6 +1392,68 @@ mod tests {
         assert_eq!(srv.sync_permitted(9999).unwrap_err().errno, EBADF);
     }
 
+    /// **`touch`'s bare form observes a value the server chose, and it moves forward** (milestone
+    /// 47, DECISIONS §112). Two `set_mtime_now` calls on the same name must not read back equal:
+    /// if they did, `touch` could not be used for a staleness check, which is the property every
+    /// caller of bare `touch` actually depends on.
+    #[test]
+    fn setting_mtime_to_now_twice_observes_two_different_times_and_neither_is_the_callers_choice() {
+        let mut srv = server_with_tree();
+        let root = filesystem_proto::fs::ROOT as u32;
+
+        let before = srv.mtime(root, "motd").expect("read the seeded mtime");
+        srv.set_mtime_now(root, "motd").expect("touch, bare");
+        let first = srv.mtime(root, "motd").expect("read back the first touch");
+        srv.set_mtime_now(root, "motd").expect("touch again");
+        let second = srv.mtime(root, "motd").expect("read back the second touch");
+
+        assert!(
+            first > before,
+            "a bare touch must move the mtime forward from what the file was seeded with"
+        );
+        assert!(
+            second > first,
+            "two bare touches in sequence must not observe the same mtime, or a make-style \
+             staleness check could not tell them apart"
+        );
+    }
+
+    /// **`touch -t`'s round trip: the value read back is exactly the value asserted, not "now"**
+    /// (milestone 47, DECISIONS §112). This is the test that makes the two-right split real rather
+    /// than declared: if `set_mtime_at` silently fell back to the server's own clock, every rights
+    /// check in [`each_rung_of_the_ladder_gates_exactly_its_own_verb`] would still pass and this is
+    /// the only thing that would catch it.
+    #[test]
+    fn setting_an_arbitrary_mtime_round_trips_exactly_and_is_not_now() {
+        let mut srv = server_with_tree();
+        let root = filesystem_proto::fs::ROOT as u32;
+
+        // The same instant the kernel-booted witness asserts with a real `touch -t` command line
+        // (`filesystem_proto::fixture::tree::NAV_TOUCH_AT_UNIX`), reused here rather than a second
+        // literal so the two round-trip checks (this one in-process, that one over the real wire)
+        // are provably checking the same claim. Nowhere near this server's own advancing clock
+        // (which starts at 1 and has moved by single digits by the time this test runs), so a
+        // fallback to "now" cannot coincidentally pass.
+        const ASSERTED: u64 = filesystem_proto::fixture::tree::NAV_TOUCH_AT_UNIX;
+        srv.set_mtime_at(root, "motd", ASSERTED)
+            .expect("write an arbitrary mtime with full rights");
+        assert_eq!(
+            srv.mtime(root, "motd").expect("read it back"),
+            ASSERTED,
+            "the round trip must return exactly the asserted value"
+        );
+
+        // And a second, ordinary touch does NOT preserve it: `set_mtime_now` is unconditional, so
+        // an arbitrary value set with -t is exactly as overwritable by a bare touch as any other
+        // mtime, which is the honest answer for "how long does a lie about history last".
+        srv.set_mtime_now(root, "motd").expect("touch, bare");
+        assert_ne!(
+            srv.mtime(root, "motd").expect("read it back again"),
+            ASSERTED,
+            "a bare touch after an arbitrary one must move the mtime again, not preserve the lie"
+        );
+    }
+
     /// **Repeat writes through the EL0 binary's exact chunking.** The device's `IpcDisk` and this
     /// `BlockDisk` split `Disk` calls the same way, so if the chunking is what breaks a repeat write
     /// (the partial-block read-modify-write is the suspicious part, and compression plus a growing
@@ -1733,9 +1874,14 @@ mod tests {
         );
     }
 
-    /// The five rungs are separable, each gating exactly its own verb. Written as a sweep rather
-    /// than five tests because the interesting failure is a verb that answers to the *wrong* right,
-    /// and that only shows up when every combination is tried against every verb.
+    /// The rungs are separable, each gating exactly its own verb. Written as a sweep rather than
+    /// one test per rung because the interesting failure is a verb that answers to the *wrong*
+    /// right, and that only shows up when every combination is tried against every verb. Grew from
+    /// five rungs to eight entries with milestone 47's `touch` (DECISIONS §112): `mtime` proves
+    /// `READ` gates the getter, `settime_now` proves `WRITE` alone is enough for "now", and
+    /// `settime_at` proves `WRITE` alone is *not* enough for "arbitrary" even though the previous
+    /// entry just showed it satisfied for "now"; the pair is what makes DECISIONS §112's "no, they
+    /// are not the same right" non-vacuous rather than asserted.
     #[test]
     fn each_rung_of_the_ladder_gates_exactly_its_own_verb() {
         // `withheld` is what the failing capability lacks and `needed` is what the passing one has.
@@ -1759,6 +1905,20 @@ mod tests {
             // `rm`'s rung. Until `unlink` existed only `rename` consulted REMOVE, and a rename
             // needs CREATE as well, so this is the first probe that isolates this one.
             (dir::REMOVE, dir::REMOVE, "unlink", EROFS),
+            // `touch`'s three rungs (milestone 47, DECISIONS §112). `mtime` is a naming right like
+            // `open`'s, so its refusal is `ENOENT` rather than `EROFS`: a holder that may not read
+            // a name's time must not learn whether the name is there.
+            (dir::READ, dir::READ, "mtime", syscall::error::ENOENT),
+            // Bare `touch`: WRITE alone, and nothing more, is what DECISIONS §112 says it should
+            // take. `settime_at` below reuses this same "without" (WRITE present, SETTIME absent)
+            // to prove the reverse: WRITE does not smuggle in the arbitrary-time authority.
+            (dir::WRITE, dir::WRITE, "settime_now", EROFS),
+            // `touch -t`: this is the rung DECISIONS §112 added, and the interesting failure this
+            // sweep exists to catch is WRITE alone being enough, which the entry above's "without"
+            // side already rules out for `settime_now`. Isolating SETTIME here (withheld is just
+            // SETTIME, so `without` still carries WRITE) proves the arbitrary half needs the extra
+            // grant even when the plain half is satisfied.
+            (dir::SETTIME, dir::WRITE | dir::SETTIME, "settime_at", EROFS),
         ] {
             let mut srv = server_with_tree();
             // Everything except the rung under test, so a verb that consults the wrong bit passes
@@ -1780,6 +1940,9 @@ mod tests {
                     "open" => srv.open_file_at(h, "inner").map(|_| ()),
                     "create" => srv.create_file_at(h, "made-by-the-sweep").map(|_| ()),
                     "unlink" => srv.unlink(h, "inner"),
+                    "mtime" => srv.mtime(h, "inner").map(|_| ()),
+                    "settime_now" => srv.set_mtime_now(h, "inner"),
+                    "settime_at" => srv.set_mtime_at(h, "inner", 1_700_000_000),
                     _ => srv.open_dir(h, "deeper", 0).map(|_| ()),
                 }
             };

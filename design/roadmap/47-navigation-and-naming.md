@@ -33,11 +33,13 @@ roadmap block never got the matching annotation, so the "rmdir and rm -r" sectio
 still-undecided years after the design it describes shipped. Recorded here rather than left for the
 next reader to rediscover in the git log.
 
-**`touch`'s create half was built 2026-08-22**: `touch <name>` makes an empty file if the name is
-not there and does nothing if it is, using `fs_proto::fs::CREATE` (already built for milestone 31
-phase 2) through the same shell-builtin shape `mkdir` already has. The mtime half (bumping an
-existing name's time, and `-t`'s ability to set an arbitrary one) is not built; see the `touch`
-section below and notes/touch.md for why that half needs a decision this one does not.
+**`touch` is fully built.** The create half landed 2026-08-22: `touch <name>` makes an empty file if
+the name is not there and does nothing if it is, using `fs_proto::fs::CREATE` (already built for
+milestone 31 phase 2) through the same shell-builtin shape `mkdir` already has. The mtime half
+landed 2026-08-24 once DECISIONS §112 settled the authority question: bare `touch` bumps to now
+(`fs::SETMTIME`, needs only `dir::WRITE`), `touch -t <RFC-3339-instant>` asserts an arbitrary one
+(`fs::SETMTIME_AT`, needs `dir::WRITE | dir::SETTIME`, the seventh rung on the directory rights
+ladder). See the `touch` section below and notes/touch.md.
 
 What remains genuinely unbuilt is completion, environment's names and secrets thirds (both answered
 elsewhere and waiting on their own machinery, `bind` and §41 respectively), a shell-facing customer
@@ -65,7 +67,8 @@ sentence cost.
 **In brief.** A navigation model for a system with no global namespace. Keep the Unix command names
 and behaviour wherever they can work honestly; diverge only where the capability model forces it, and
 say why each divergence is earned. **The keystone is built** (the directory capability and its
-six-rung rights ladder, DECISIONS §47, notes/dir-capability.md), and so are **the five commands, on
+rights ladder, six rungs at the keystone and a seventh added by DECISIONS §112 for `touch -t`,
+DECISIONS §47, notes/dir-capability.md), and so are **the five commands, on
 both ISAs**: `cd`, `pwd`, `ls`, `mkdir` and `rm` as shell builtins, `..` clamped at your root by
 popping the stack of capabilities the shell descended through, `pwd` relative to that root, and a
 name on a command line resolved against the shell's position **at the moment the grant is made**, so
@@ -398,9 +401,9 @@ prohibition is load-bearing for a verb we have already shipped the recursion for
 changes whether the target's contents are in scope, which is a real source of accidents in Unix.
 Decide it explicitly rather than letting the path parser decide by accident.
 
-## `touch`, and the reason file times were refused has expired
+## `touch`, both halves now built. See notes/touch.md.
 
-### The create half was built 2026-08-22. See notes/touch.md.
+### The create half was built 2026-08-22.
 
 It splits the way `mv` and `rm` did, and the split held: **creating an empty file if absent** needed
 nothing this milestone had not already built (`fs_proto::fs::CREATE`, milestone 31 phase 2). This
@@ -412,19 +415,23 @@ category rather than a program in `rm`'s. `rm` needed a program because `-r` is 
 recursive walk that should not run with the shell's whole endowment; `touch` recurses over nothing
 and destroys nothing, so the reason that moved `rm` out of the builtin set does not apply here.
 
-**Updating the modification time** of a name that is already there is still not built, and the open
-decision this section names below (is "set to now" the write right already held, or a separate
-authority) is exactly what stopped it, not effort: the create half took an afternoon once the
-decision to split it was made. The reason it was expressible at all: the `std` PAL records that "the
-server keeps an mtime **but the contract does not carry one**". RedoxFS tracks it; `fs_proto` does
-not expose it.
+### The mtime half was built 2026-08-24, once the authority question was decided.
 
-**The justification for that has gone stale.** `notes/std.md` refused file times partly because "there
-is no wall clock to interpret it against anyway": true when written, and false since milestone 51
-landed the clock (§43, RTC drivers on both ISAs, `date`). Same shape as §43's own untestability note,
-which milestone 47's `date` work disproved: **a scope note outlives the condition that justified it.**
+**Updating the modification time** of a name that is already there was not built for two days, and
+the open decision this section used to name (is "set to now" the write right already held, or a
+separate authority) is exactly what stopped it, not effort: the create half took an afternoon once
+the decision to split it was made, and the mtime half took about as long once DECISIONS §112 settled
+the question. The reason it was expressible at all: the `std` PAL records that "the server keeps an
+mtime **but the contract does not carry one**". RedoxFS tracks it; `fs_proto` did not expose it. It
+does now: `fs::GETMTIME`, `fs::SETMTIME`, `fs::SETMTIME_AT` (all three provisional names).
 
-**The authority question is decided** (calef, 2026-08-23, DECISIONS §112): **no, they are not the
+**The justification for the old refusal had gone stale.** `notes/std.md` refused file times partly
+because "there is no wall clock to interpret it against anyway": true when written, and false since
+milestone 51 landed the clock (§43, RTC drivers on both ISAs, `date`). Same shape as §43's own
+untestability note, which milestone 47's `date` work disproved: **a scope note outlives the condition
+that justified it.**
+
+**The authority question was decided** (calef, 2026-08-23, DECISIONS §112): **no, they are not the
 same right.** `touch` does two different things to a timestamp: set it to *now*, and `touch -t` set
 it to *whatever you say*. The second is the ability to **lie about history**, which matters for
 anything reasoning from mtime, backups included. That is §43's asymmetry again (reading harmless,
@@ -433,7 +440,27 @@ POSIX's own `utime()` requires only write permission to set the current time but
 arbitrary one, and §43 itself already separates reading the clock (broadly grantable) from setting it
 (a distinct, more tightly held authority). **Plain `WRITE` covers "now"; a new, separate right, not
 folded into `WRITE`, covers "arbitrary"**, the same separable-rights-ladder pattern this milestone
-already uses for `enumerate`/`open`/`create`/`remove`.
+already uses for `enumerate`/`open`/`create`/`remove`, now a seven-rung ladder, `dir::SETTIME`
+(provisional) the seventh, DECISIONS §47 extended by §112.
+
+**Built to that spec, exactly.** Three verbs rather than one with a flag, because
+`filesystem_proto::verb::TABLE` encodes one fixed rights requirement per opcode and the two halves
+need different ones; `GETMTIME`/`SETMTIME` need `dir::READ`/`dir::WRITE` respectively, resolved
+directly under a directory handle like `UNLINK` (neither opens what it acts on), and `SETMTIME_AT`
+needs `dir::WRITE | dir::SETTIME` with the caller's asserted seconds riding in the second word,
+`TRUNCATE`'s reason for using `w1` over the length field. `touch -t` takes an RFC 3339 instant
+(`date`'s own output format), not Unix's compact `[[CC]YY]MMDDhhmm[.ss]`, an earned divergence
+because this tree already had an RFC 3339 parser (`calendar`) and no reason to build a second date
+grammar for one flag; see notes/touch.md's `BUGS`.
+
+**Proven over the real wire, not only in `fs_server`'s host tests.** Extending
+`filesystem_proto::verb::TABLE` past `STATFS` also closed a latent gap the extension itself
+required fixing to stay contiguous: `SYNC` (milestone 55) had never been given a row, so every
+caretaker refused it with `EINVAL` and a program confined to a subtree could never `SYNC` through
+it. `kernel::user::shell_navigation_tests` now proves the two-right split against a real,
+narrower-than-`dir::ALL` grant (`TOUCH_NOW_NEEDS_ONLY_WRITE` / `TOUCH_AT_REFUSED_WITHOUT_SETTIME`)
+and the round trip against a real command line (`TOUCH_MTIME_ADVANCED` /
+`TOUCH_AT_ROUND_TRIPPED`), on both ISAs.
 
 ## Globbing, which decides how every multi-file operation grants
 

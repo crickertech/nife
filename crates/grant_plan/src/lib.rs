@@ -843,16 +843,25 @@ pub enum Command<'a> {
     /// `mkdir <path>`: make a directory and, in the same verb, obtain a capability to it
     /// (`filesystem_proto::fs::MKDIR` is descend-with-creation). Needs `CREATE` **and** `DESCEND`.
     Mkdir(&'a [u8]),
-    /// `touch <path>`: create an empty file if the name is not there; a no-op if it already is.
-    /// **A builtin, in [`Mkdir`](Command::Mkdir)'s category rather than [`Prog::Rm`]'s**: it takes
-    /// no more than the directory this shell already holds (`CREATE`, the same right `mkdir`
-    /// needs), so there is nothing to attenuate and nothing gained by confining it to a program.
-    /// `mkdir` is the model: `filesystem_proto::fs::CREATE` already mints a name, and this is the same
-    /// call with the handle it returns closed rather than kept. See notes/touch.md for what this
-    /// does **not** do: it does not update a modification time, `-t` included, because whether
-    /// "set to now" is the write right or a separate authority is design/roadmap
-    /// /47-navigation-and-naming.md's open question, not a decided one.
-    Touch(&'a [u8]),
+    /// `touch <path>` or `touch -t <RFC-3339-instant> <path>`: create an empty file if the name is
+    /// not there (a no-op if it already is), then bump its modification time. Bare `touch` sets it
+    /// to now; `-t` asserts a caller-chosen instant (DECISIONS §112: the ability to *lie about
+    /// history*). **A builtin, in [`Mkdir`](Command::Mkdir)'s category rather than [`Prog::Rm`]'s**:
+    /// even the `-t` half takes no more than this shell's own directory capability
+    /// (`filesystem_proto::dir::WRITE` for the bare form, `dir::WRITE | dir::SETTIME` for `-t`),
+    /// which `mkdir` and the create half already established as the model, so there is nothing to
+    /// attenuate and nothing gained by confining it to a program.
+    ///
+    /// **This parser does not interpret the `-t` text.** [`TouchArgs::at`] carries the token
+    /// exactly as typed; `date`'s own `FMT_RFC3339` output is a valid input to it, so
+    /// `touch -t "$(date)" name` (RFC 3339 mode) round-trips through this shell without either
+    /// side inventing a format. Converting it to a Unix-seconds value is `calendar`'s job and
+    /// happens where the grant is made (`user/src/swish.rs`'s `touch`), the same layering `date`
+    /// itself uses: this crate classifies tokens, it does not do calendar arithmetic.
+    ///
+    /// See notes/touch.md for what is still not built (Unix's compact `[[CC]YY]MMDDhhmm[.ss]`
+    /// `-t` format is not accepted, only RFC 3339) and the wire verbs this dispatches to.
+    Touch(TouchArgs<'a>),
     /// `apropos <term>`: **name the installed pages that mention a word** (milestone 40 phase 2).
     /// The operand is one word, folded the way the host builder folded the text it indexed.
     ///
@@ -874,6 +883,19 @@ pub enum Command<'a> {
     /// [`Refusal::NoSuchProgram`], which is the "there is nothing there to name" shape of
     /// no-ambient-authority applied to programs.
     Run(RunSpec<'a>),
+}
+
+/// [`Command::Touch`]'s operand: the name, and (with `-t`) the instant asserted for it.
+///
+/// `at` carries the `-t` token's bytes exactly as typed, unparsed: this crate classifies which
+/// token is which, it does not know what an RFC 3339 instant is. `None` is bare `touch`, which
+/// bumps `name`'s mtime to now with no assertion at all.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct TouchArgs<'a> {
+    /// The `-t` operand's text, unparsed. `None` for bare `touch`.
+    pub at: Option<&'a [u8]>,
+    /// The name to create-if-absent and then touch.
+    pub name: &'a [u8],
 }
 
 /// The most positional tokens a [`RunSpec`] keeps. Two would cover every manifest shape today (an
@@ -1458,7 +1480,28 @@ pub fn parse(line: &[u8]) -> Command<'_> {
         b"pwd" => Command::Pwd,
         b"ls" => Command::Ls(trim(rest)),
         b"mkdir" => Command::Mkdir(trim(rest)),
-        b"touch" => Command::Touch(trim(rest)),
+        // `touch` takes one word (`cd`/`ls`/`mkdir`'s reason: `trim` is all the classification a
+        // bare path needs) unless it starts with `-t`, DECISIONS §112's arbitrary-instant form,
+        // which is two words: the RFC 3339 text (unparsed here, see `TouchArgs`'s own doc) and then
+        // the name.
+        b"touch" => {
+            let rest = trim(rest);
+            match rest.strip_prefix(b"-t") {
+                Some(after_flag)
+                    if after_flag.is_empty() || after_flag[0].is_ascii_whitespace() =>
+                {
+                    let (at, name) = split_first_word(trim(after_flag));
+                    Command::Touch(TouchArgs {
+                        at: Some(at),
+                        name: trim(name),
+                    })
+                }
+                _ => Command::Touch(TouchArgs {
+                    at: None,
+                    name: rest,
+                }),
+            }
+        }
         // **Search the documentation store** (milestone 40 phase 2). A builtin for exactly
         // [`Command::Ls`]'s reason, stated there: a search *is* an enumeration, and a searching
         // program would have to be handed the store's directory in order to read every shard in it.
@@ -2416,11 +2459,39 @@ mod tests {
         assert_eq!(parse(b"ls"), Command::Ls(b""));
         assert_eq!(parse(b"ls  sub "), Command::Ls(b"sub"));
         assert_eq!(parse(b"mkdir logs"), Command::Mkdir(b"logs"));
-        assert_eq!(parse(b"touch logs"), Command::Touch(b"logs"));
+        assert_eq!(
+            parse(b"touch logs"),
+            Command::Touch(TouchArgs {
+                at: None,
+                name: b"logs"
+            })
+        );
         assert_eq!(
             parse(b"touch"),
-            Command::Touch(b""),
+            Command::Touch(TouchArgs {
+                at: None,
+                name: b""
+            }),
             "bare `touch` needs a name"
+        );
+        // DECISIONS §112's arbitrary-instant form: two words after the flag, the RFC 3339 text
+        // (kept exactly as typed, unparsed) and the name.
+        assert_eq!(
+            parse(b"touch -t 2030-01-01T00:00:00Z logs"),
+            Command::Touch(TouchArgs {
+                at: Some(b"2030-01-01T00:00:00Z"),
+                name: b"logs"
+            })
+        );
+        // A name that merely starts with `-t` is not the flag: the guard requires whitespace or
+        // end-of-input right after it.
+        assert_eq!(
+            parse(b"touch -template"),
+            Command::Touch(TouchArgs {
+                at: None,
+                name: b"-template"
+            }),
+            "-template must not be misread as -t plus a stray name"
         );
         assert_eq!(
             parse(b"apropos capability"),
