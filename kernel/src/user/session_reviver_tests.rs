@@ -125,6 +125,9 @@ fn wired() -> Option<[u64; 3]> {
 ///    unconditionally") demonstrated rather than merely asserted in a comment.
 #[test_case]
 fn the_schedule_store_write_path_and_the_boot_time_re_deriver_agree() {
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
     let Some(w) = wired() else {
         crate::testing::skip!("no RedoxFS disk attached");
     };
@@ -166,6 +169,9 @@ const ROLE_SCHEDULE_VERIFY: u64 = 12;
 /// failure mode an independent witness exists to rule out.
 #[test_case]
 fn a_fresh_reader_confirms_the_store_holds_exactly_what_the_seed_wrote() {
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
     // Runs `wired()` first (unused beyond that): its own seed step is what this test's fresh
     // reader depends on, and memoization means this either reuses that pass's own work or, on a
     // boot with no RedoxFS disk, skips for the identical reason `wired` itself would.
