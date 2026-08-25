@@ -110,6 +110,12 @@ pub enum Say {
     NoDirectory,
     /// The verb needs an operand and got none.
     NeedsAName,
+    /// **`touch -t`'s operand did not parse as an RFC 3339 instant, or names one this wire cannot
+    /// carry** (a pre-1970 instant: `filesystem_proto::fs::SETMTIME_AT`'s value is an unsigned
+    /// seconds count). DECISIONS §112. Not a [`Say::Failed`], deliberately: this is refused before
+    /// any wire request is made, so there is no errno the filesystem chose and `dir::explain`
+    /// would have nothing true to say about it.
+    NotAnInstant,
     /// **A designation this shell cannot back**, in `grant_plan`'s vocabulary. It arrives here
     /// because expansion happens *before* planning, so a pattern that matched nothing (or too much)
     /// is refused before there is a program to attribute it to, and [`echo`] can reach the same
@@ -743,6 +749,9 @@ pub fn write_say(s: Say, out: &mut dyn FnMut(&[u8])) {
             out(b"  this shell holds no directory capability; there is nothing here to name\n");
         }
         Say::NeedsAName => out(b"  name what you mean: this verb takes one\n"),
+        Say::NotAnInstant => {
+            out(b"  -t needs an RFC 3339 instant, e.g. 2030-01-01T00:00:00Z\n");
+        }
         Say::Cannot(r) => {
             out(b"  ");
             out(r.message().as_bytes());
@@ -773,7 +782,10 @@ pub fn write_help(out: &mut dyn FnMut(&[u8])) {
     out(b"  pwd                     where you are, relative to YOUR root\n");
     out(b"  ls [path]               list a directory you can reach\n");
     out(b"  mkdir <path>            make a directory\n");
-    out(b"  touch <path>            create an empty file if it is not there (else do nothing)\n");
+    out(b"  touch <path>            create if absent, then bump the modification time to now\n");
+    out(
+        b"  touch -t <instant> <path>   ...to an instant you assert (RFC 3339), if you hold the right\n",
+    );
     out(
         b"  apropos <word>          name the installed pages that mention it (it grants nothing)\n",
     );

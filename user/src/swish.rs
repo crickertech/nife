@@ -77,7 +77,7 @@ use grant_plan::line::{self, Line, Source};
 use grant_plan::nav::{self, Cwd, Refused, Step};
 use grant_plan::{
     Action, Command, DirGrant as GrantDir, Endowment, Escalation, Refusal, RunSpec, Streams,
-    jobframe, spawnproto,
+    TouchArgs, jobframe, spawnproto,
 };
 use line_editor::proto;
 use swish::{Route, Say, Status, Untimed, sequence};
@@ -523,37 +523,58 @@ impl Nav {
         })
     }
 
-    /// **`touch`**: create an empty file if the name is not there, and do nothing if it already
-    /// is. Same shape as `mkdir`, one right narrower: `fs::CREATE` mints a name and this builtin
-    /// gives the handle straight back, exactly as `mkdir` gives its directory handle back, because
-    /// touching a file is not opening it.
+    /// **`touch`**: create an empty file if the name is not there (a no-op if it already is), then
+    /// bump its modification time. Bare `touch` sets it to now (`fs::SETMTIME`, needs only the
+    /// `WRITE` this shell already holds); `-t` asserts a caller-chosen instant (`fs::SETMTIME_AT`,
+    /// needs `WRITE` **and** `SETTIME`, DECISIONS §112). The create half is `mkdir`'s shape, one
+    /// right narrower: `fs::CREATE` mints a name and this builtin gives the handle straight back,
+    /// because touching a file is not opening it.
     ///
-    /// **Only the "create if absent" half of Unix's `touch`.** Updating the modification time of a
-    /// name that already exists (bare `touch` on an existing file, and `touch -t`) is not built:
-    /// `filesystem_proto` carries no verb for it, and design/roadmap/47-navigation-and-naming.md leaves
-    /// open whether "set to now" is the write right already held or a separate authority (`-t`'s
-    /// ability to *lie about history*, which is a sharper question for anything reasoning from
-    /// mtime, backups included). Building the create half first and deferring the mtime half is
-    /// the same split `rm`/`RMDIR` and `ln`'s two halves already made in this milestone. See
-    /// notes/touch.md.
-    fn touch(&mut self, token: &[u8]) -> Say {
-        self.act(token, |nav, handle, name| {
+    /// **Milestone 47 built the create half first and the mtime half here**, in that order, because
+    /// the mtime half needed a decided rights question (DECISIONS §112) and the create half did
+    /// not. See notes/touch.md.
+    fn touch(&mut self, args: TouchArgs) -> Say {
+        // `-t`'s text is parsed before anything is named, so a malformed instant is refused before
+        // the create half runs: a caller should not see a file appear and then learn its `-t` text
+        // was unusable. The create half and the mtime half are still two separate wire requests
+        // (there is no combined verb), but this at least orders the local, no-wire-cost check first.
+        let at_seconds: Option<u64> = match args.at {
+            None => None,
+            Some(text) => match calendar::DateTime::parse_rfc3339_bytes(text) {
+                Ok(dt) => match u64::try_from(dt.to_unix()) {
+                    Ok(secs) => Some(secs),
+                    Err(_) => return Say::NotAnInstant,
+                },
+                Err(_) => return Say::NotAnInstant,
+            },
+        };
+
+        self.act(args.name, |nav, handle, name| {
             let r = nav.name_call(fs::CREATE, handle, name, 0);
             if r >= 0 {
                 nav.close(r as u64);
-                return Say::Nothing;
+            } else {
+                let errno = -r as i32;
+                // `CREATE` is create, not create-or-open (DECISIONS §27): an existing name answers
+                // `EEXIST`, which is exactly the outcome this half of `touch` wants for a name that
+                // is already there. Not in `filesystem_proto::dir`'s named list, for
+                // `user/src/rm.rs::ENOENT`'s reason: this contract answers it from one rung only,
+                // so there is nothing else in this program that would collide with a local name for
+                // it.
+                const EEXIST: i32 = 17;
+                if errno != EEXIST {
+                    return Say::Failed(errno);
+                }
             }
-            let errno = -r as i32;
-            // `CREATE` is create, not create-or-open (DECISIONS §27): an existing name answers
-            // `EEXIST` and touches nothing, which is exactly the outcome this half of `touch`
-            // wants for a name that is already there. Not in `filesystem_proto::dir`'s named list, for
-            // `user/src/rm.rs::ENOENT`'s reason: this contract answers it from one rung only, so
-            // there is nothing else in this program that would collide with a local name for it.
-            const EEXIST: i32 = 17;
-            if errno == EEXIST {
-                return Say::Nothing;
+
+            let r = match at_seconds {
+                None => nav.name_call(fs::SETMTIME, handle, name, 0),
+                Some(secs) => nav.name_call(fs::SETMTIME_AT, handle, name, secs),
+            };
+            if r < 0 {
+                return Say::Failed(-r as i32);
             }
-            Say::Failed(errno)
+            Say::Nothing
         })
     }
 
@@ -1186,7 +1207,7 @@ fn builtin(nav: &mut Nav, cmd: &[u8], each: &mut dyn FnMut(&[u8], bool)) -> Opti
         Command::Cd(path) => Some(nav.cd(path)),
         Command::Ls(path) => Some(nav.ls(path, each)),
         Command::Mkdir(path) => Some(nav.mkdir(path)),
-        Command::Touch(path) => Some(nav.touch(path)),
+        Command::Touch(args) => Some(nav.touch(args)),
         _ => None,
     }
 }
@@ -3216,6 +3237,18 @@ fn navigate(spec: u64) -> ! {
     let touched = run_name(tree::NAV_TOUCH, run);
     touch_twice(&mut nav, &touched, &mut cmd, &mut v);
 
+    // 11a-bis. **`touch`'s mtime half** (milestone 47's mtime lane, DECISIONS §112), on the same
+    //      name `touch_twice` just proved the create half against: a bare `touch` observed through
+    //      `GETMTIME`, then `touch -t 2030-01-01T00:00:00Z` observed to land on exactly that
+    //      instant rather than "now" again.
+    touch_mtime_probes(&mut nav, &touched, &mut v);
+
+    // 11a-ter. **`WRITE` without `SETTIME`, over the real wire.** A fresh directory this shell
+    //      mints with `MKDIR`, deliberately attenuated one bit narrower than everything else in
+    //      this script: bare `touch` must still work through it, and `touch -t` must not.
+    let narrow_dir = run_name(tree::NAV_TOUCH_NO_SETTIME, run);
+    touch_mtime_without_settime(&nav, name_of(&narrow_dir), &mut v);
+
     // 11. And neither removal can reach out of the root, for the reason `cd` cannot: `..` is a pop
     //     of a stack that has nothing above the root in it, so nothing is ever sent. The name is
     //     refused where it is parsed, which is why this goes through the path resolver rather than
@@ -3404,6 +3437,13 @@ fn created(nav: &Nav, name: &[u8]) -> Option<u64> {
     if r < 0 { None } else { Some(r as u64) }
 }
 
+/// `GETMTIME` a name where we stand (milestone 47's mtime lane, DECISIONS §112). `None` on any
+/// error, which the mtime probes below treat as "prove nothing" rather than guess a value.
+fn mtime_of(nav: &Nav, name: &[u8]) -> Option<u64> {
+    let r = nav.name_call(fs::GETMTIME, nav.here(), name, 0);
+    if r < 0 { None } else { Some(r as u64) }
+}
+
 /// `OPENDIR` a name where we stand, asking for exactly the rights this shell holds; the handle, or
 /// `None`. Used to reach *into* a directory the witness made, which is one step of the walk
 /// `user/src/rm.rs` does for a living.
@@ -3457,6 +3497,102 @@ fn touch_twice(nav: &mut Nav, touched: &([u8; 16], usize), cmd: &mut [u8; 32], v
         }
     }
     nav.close(h2);
+}
+
+/// **`touch`'s mtime half, typed as real command lines and read back through the wire**
+/// (milestone 47's mtime lane, DECISIONS §112). Runs after [`touch_twice`] and reuses `touched`,
+/// which by then names a file with a body: a bare `touch` on it and then a `touch -t`, each
+/// checked against a `GETMTIME` read rather than assumed to have worked.
+///
+/// Two claims, and they are chained deliberately (early return on the first) because the second
+/// is only meaningful once the first held: `TOUCH_MTIME_ADVANCED` establishes what "the mtime
+/// this file had a moment ago" is, and `TOUCH_AT_ROUND_TRIPPED` is checked against *that*
+/// value, not against zero (`filesystem_proto::fixture::navscape`).
+fn touch_mtime_probes(nav: &mut Nav, touched: &([u8; 16], usize), v: &mut u64) {
+    use filesystem_proto::fixture::{navscape as nb, tree};
+
+    let Some(before) = mtime_of(nav, name_of(touched)) else {
+        return;
+    };
+
+    // Bare `touch`, real command line, real dispatch through `Nav::touch` to `fs::SETMTIME`.
+    let mut cmd = [0u8; 32];
+    let Some(Say::Nothing) = run_line(nav, line(&mut cmd, b"touch ", touched)) else {
+        return;
+    };
+    let Some(after_bare) = mtime_of(nav, name_of(touched)) else {
+        return;
+    };
+    if after_bare <= before {
+        return;
+    }
+    *v |= nb::TOUCH_MTIME_ADVANCED;
+
+    // `touch -t <RFC 3339>`, a real command line the parser has to split into three tokens
+    // (`touch`, `-t`, the instant, the name) and dispatch to `fs::SETMTIME_AT` with the seconds
+    // value `calendar` decoded from it. The buffer is sized for exactly this one line: "touch -t "
+    // (9) + the RFC 3339 text (20) + " " (1) + the name (at most 16, `run_name`'s own bound).
+    const AT_PREFIX: &[u8] = b"touch -t ";
+    let mut at_cmd = [0u8; 9 + 20 + 1 + 16];
+    let mut n = 0;
+    at_cmd[n..n + AT_PREFIX.len()].copy_from_slice(AT_PREFIX);
+    n += AT_PREFIX.len();
+    let rfc = tree::NAV_TOUCH_AT_RFC3339.as_bytes();
+    at_cmd[n..n + rfc.len()].copy_from_slice(rfc);
+    n += rfc.len();
+    at_cmd[n] = b' ';
+    n += 1;
+    at_cmd[n..n + touched.1].copy_from_slice(name_of(touched));
+    n += touched.1;
+
+    let Some(Say::Nothing) = run_line(nav, &at_cmd[..n]) else {
+        return;
+    };
+    if let Some(after_at) = mtime_of(nav, name_of(touched))
+        && after_at == tree::NAV_TOUCH_AT_UNIX
+        && after_at != after_bare
+    {
+        *v |= nb::TOUCH_AT_ROUND_TRIPPED;
+    }
+}
+
+/// **`WRITE` is enough for bare `touch`; it is not enough for `touch -t`, through the real wire**
+/// (milestone 47's mtime lane, DECISIONS §112). Bypasses the `touch` builtin and the parser
+/// entirely, unlike [`touch_mtime_probes`]: what this proves is that a `verb::TABLE` row or a
+/// caretaker forwarding bug cannot smuggle the arbitrary-time authority past a handle that never
+/// carried it, which a test that only ever grants `dir::ALL` (every other probe in this script)
+/// cannot exercise. A raw `fs::MKDIR` mints a **fresh** directory attenuated to `WRITE` and not
+/// `SETTIME`, one level below the shell's own root, and both mtime verbs are sent straight to it.
+fn touch_mtime_without_settime(nav: &Nav, name: &[u8], v: &mut u64) {
+    use filesystem_proto::dir;
+    use filesystem_proto::fixture::navscape as nb;
+
+    let narrow_rights = dir::ALL & !dir::SETTIME;
+    let r = nav.name_call(fs::MKDIR, nav.here(), name, narrow_rights);
+    if r < 0 {
+        return;
+    }
+    let dir_handle = r as u64;
+
+    let inner = b"f";
+    let created = nav.name_call(fs::CREATE, dir_handle, inner, 0);
+    if created >= 0 {
+        nav.close(created as u64);
+
+        if nav.name_call(fs::SETMTIME, dir_handle, inner, 0) == 0 {
+            *v |= nb::TOUCH_NOW_NEEDS_ONLY_WRITE;
+        }
+        if nav.name_call(
+            fs::SETMTIME_AT,
+            dir_handle,
+            inner,
+            filesystem_proto::fixture::tree::NAV_TOUCH_AT_UNIX,
+        ) < 0
+        {
+            *v |= nb::TOUCH_AT_REFUSED_WITHOUT_SETTIME;
+        }
+    }
+    nav.close(dir_handle);
 }
 
 /// Send one removal (`UNLINK` or `RMDIR`) for a name where we stand, and say whether it worked.

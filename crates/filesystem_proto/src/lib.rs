@@ -699,6 +699,85 @@ pub mod fs {
     ///   backup client's own write-then-flush is sequential, which is why this has not needed one.
     pub const SYNC: u64 = 19;
 
+    /// **The modification time of `name`, in Unix seconds** (milestone 47's `touch`, the read
+    /// half; DECISIONS §112). Resolved directly under the directory handle in [`req_handle`],
+    /// [`UNLINK`]'s shape exactly: the name is [`req_len`] bytes at the start of the shared page,
+    /// second word 0. Reply `r0` = the mtime (≥ 0), or an error.
+    ///
+    /// **Name-taking rather than handle-taking, on purpose.** Every other fact this contract
+    /// answers about a file ([`FSTAT`], [`GETXATTR`]) needs an open handle first. This one does
+    /// not, because [`SETMTIME`] and [`SETMTIME_AT`] do not either: `touch` never opens what it
+    /// acts on (`user/src/swish.rs`'s `touch` builtin resolves a name straight under the
+    /// directory capability it already holds, the same shape [`CREATE`] and [`UNLINK`] use), and a
+    /// getter that needed a handle when the setters do not would be an asymmetry nothing forces.
+    ///
+    /// Needs [`super::dir::READ`], and its absence answers `ENOENT` rather than [`super::dir::EROFS`]
+    /// or [`super::dir::EPERM`]: this is a **naming right**, [`OPEN`]'s own rule (see this module's
+    /// header): a holder that may not reach a name must not learn a fact about it, timestamp
+    /// included. Checked before the name is resolved, [`UNLINK`]'s reason: a holder that may not
+    /// read a time must not use this verb to find out whether a name is there.
+    ///
+    /// Works on a directory exactly as on a file, [`GETXATTR`]'s reason: mtime is part of what a
+    /// node *is*, not a property files alone carry.
+    ///
+    /// Name provisional (milestone 47's mtime lane, 2026-08-24); calef's to ratify.
+    pub const GETMTIME: u64 = 20;
+
+    /// **Set `name`'s modification time to now** (milestone 47's bare `touch`; DECISIONS §112).
+    /// [`GETMTIME`]'s shape: the name is [`req_len`] bytes at the start of the shared page,
+    /// resolved under [`req_handle`], second word 0 (there is nothing for the caller to supply;
+    /// "now" is not the caller's to assert). Reply `r0` = 0, or an error.
+    ///
+    /// # What "now" is, honestly
+    ///
+    /// This server has no RTC wired to it (the same gap `fs_server::Server`'s `clock` field
+    /// records): "now" is this server's own advancing logical clock, the exact mechanism that
+    /// already timestamps
+    /// every [`WRITE`], [`CREATE`], [`TRUNCATE`], [`SETXATTR`] and [`REMOVEXATTR`], not a reading
+    /// of the wall clock milestone 51 landed (`clock_proto`, DECISIONS §43). A `touch` on two
+    /// files one after another is guaranteed to observe the second mtime greater than the first,
+    /// which is what every caller of `touch` actually depends on (make-style staleness checks
+    /// included); it is not guaranteed to match a wall-clock reading taken at the same instant.
+    /// Wiring this server to a real wall-clock mapping is a follow-up (see this crate's module
+    /// docs and notes/touch.md's `BUGS`), not a difference in what this verb promises today.
+    ///
+    /// # Rights, and why this needs no more than [`WRITE`]
+    ///
+    /// Needs [`super::dir::WRITE`], refused with [`super::dir::EROFS`], checked before the name is
+    /// resolved for [`UNLINK`]'s reason. **This is the half of `touch` that is not an assertion**:
+    /// the value written is one the server observed, bounded by what it already knew, the same
+    /// argument DECISIONS §112 makes from POSIX's own `utime()` split and from §43's read/set
+    /// asymmetry on the wall clock itself. A capability that may write a file may therefore also
+    /// record that it was written, without a separate grant.
+    ///
+    /// Name provisional (milestone 47's mtime lane, 2026-08-24); calef's to ratify.
+    pub const SETMTIME: u64 = 21;
+
+    /// **Set `name`'s modification time to a value the caller supplies** (`touch -t`; DECISIONS
+    /// §112: the ability to *lie about history*). [`GETMTIME`]'s shape, with one addition: the
+    /// second word carries the Unix-seconds value to write, [`TRUNCATE`]'s reason for putting an
+    /// offset-shaped quantity in `w1` rather than in the length field. Reply `r0` = 0, or an error.
+    ///
+    /// # Rights: [`super::dir::WRITE`] **and** [`super::dir::SETTIME`]
+    ///
+    /// [`SETMTIME`] needs only [`super::dir::WRITE`] because the value it writes is one the server
+    /// itself observed. This verb writes a value **the caller asserts**, nothing bounds it, and
+    /// that is exactly the authority DECISIONS §112 declines to fold into [`super::dir::WRITE`]:
+    /// "no, they are not the same right." Refused with [`super::dir::EROFS`] for either bit
+    /// missing, checked before the name is resolved for [`UNLINK`]'s reason. A capability that may
+    /// bump a file's mtime to now may not thereby assert an arbitrary one; the two are the same
+    /// asymmetry DECISIONS §43 already drew between reading the wall clock (broadly grantable) and
+    /// setting it (a distinct, more tightly held authority), one level down, from a file's clock to
+    /// the machine's.
+    ///
+    /// No range check on the seconds value: any `u64` is accepted, including one that predates the
+    /// image or postdates the machine's own clock, because asserting an impossible history is the
+    /// same authority as asserting a merely surprising one and this contract does not referee which
+    /// lies are plausible.
+    ///
+    /// Name provisional (milestone 47's mtime lane, 2026-08-24); calef's to ratify.
+    pub const SETMTIME_AT: u64 = 22;
+
     /// **How many pages the file channel spans** (milestone 138 step 3). The client and the FS
     /// server share this many *contiguous* pages, not one, and a [`READ`] or [`WRITE`] may carry
     /// up to [`TRANSFER_MAX`] bytes through them in a single request.
@@ -802,7 +881,8 @@ pub mod fs {
 ///
 /// A directory capability was one authority until this module existed, which meant that handing a
 /// program somewhere to write its logs also handed it the power to delete what was already there.
-/// Milestone 47's answer is that a directory is **six separable rights**, and the answer to "can a
+/// Milestone 47's answer is that a directory is **separable rights** (six at the keystone, a
+/// seventh added by DECISIONS §112 for `touch -t`'s arbitrary-mtime authority), and the answer to "can a
 /// child ever carry more than its parent" is *no, by construction*: [`dir::Rights::attenuate`] is a
 /// bitwise AND with the parent, it is the only way to make a non-root [`dir::Rights`], and `a & b`
 /// is a subset of `a` for every `b`. There is no code path that widens, so there is nothing to
@@ -817,8 +897,9 @@ pub mod fs {
 ///   [`fs::OPENDIR`]) answers `ENOENT`. In this scope there is no such name, which is the same
 ///   sentence `fs_file_caretaker` says for the same reason: a holder must not be able to map what
 ///   it cannot reach.
-/// - **A mutating right** ([`dir::CREATE`], [`dir::REMOVE`], and [`dir::WRITE`] on a file handle)
-///   answers [`dir::EROFS`]. Through this capability that directory is read-only. `EACCES` was
+/// - **A mutating right** ([`dir::CREATE`], [`dir::REMOVE`], [`dir::SETTIME`], and [`dir::WRITE`]
+///   on a file handle) answers [`dir::EROFS`]. Through this capability that directory is
+///   read-only. `EACCES` was
 ///   rejected here for the reason DECISIONS §27 rejected it for files: it implies a policy that
 ///   could have said yes, and there is no policy, only what the capability is.
 /// - **[`dir::ENUMERATE`]** answers [`dir::EPERM`], and it is the one that cannot use either of the
@@ -852,10 +933,31 @@ pub mod dir {
     /// decided by the shape of the tree rather than by the grant. That is ambient authority
     /// reintroduced by recursion, which is the thing this milestone exists to refuse.
     pub const DESCEND: u64 = 1 << 5;
+    /// **Assert an arbitrary modification time** ([`super::fs::SETMTIME_AT`], `touch -t`;
+    /// DECISIONS §112). The seventh rung, added for a right the first six could not express:
+    /// every other mutating right bounds what the caller may do to the *bytes* or the *names* in a
+    /// directory, and this one bounds what the caller may *claim* about when it did. `touch`'s
+    /// plain form ([`super::fs::SETMTIME`], setting a name's mtime to now) needs only [`WRITE`],
+    /// the same rung `TRUNCATE` and `SETXATTR` already use, because the value it writes is one the
+    /// server observed rather than one the caller asserts. This right gates the assertion, not the
+    /// write: a program trusted to write a file's bytes is not, by that trust alone, trusted to
+    /// backdate or postdate it, which is the same distinction POSIX's own `utime()` draws (write
+    /// permission suffices to set the current time; only the owner may set an arbitrary one) and
+    /// the one DECISIONS §43 already draws between reading the wall clock and setting it.
+    ///
+    /// Name provisional (milestone 47's mtime lane, 2026-08-24, DECISIONS §112); calef's to
+    /// ratify. Candidates considered and set aside: `BACKDATE` (the capability also permits a
+    /// *future* value, so a name for lying only backward would be narrower than what it grants),
+    /// `RETIME` (read as "change the pace of something" as readily as "reassign its recorded
+    /// time"). `SETTIME` was chosen for reading as exactly what it grants, at the cost of sitting
+    /// one letter from [`super::fs::SETMTIME`]'s name; the two are always written module-qualified
+    /// (`dir::SETTIME` against `fs::SETMTIME`), the same way [`CREATE`] already sits one identifier
+    /// from [`super::fs::CREATE`] without confusion.
+    pub const SETTIME: u64 = 1 << 6;
 
     /// Every right this contract defines. The mount binds its root with exactly this; nothing below
     /// the root can ever be constructed with more.
-    pub const ALL: u64 = ENUMERATE | READ | WRITE | CREATE | REMOVE | DESCEND;
+    pub const ALL: u64 = ENUMERATE | READ | WRITE | CREATE | REMOVE | DESCEND | SETTIME;
 
     /// **What a recursive removal needs, at every level** (milestone 47's `rm -r`): [`ENUMERATE`] to
     /// see what is there, [`DESCEND`] to walk into it, [`REMOVE`] to take names out. Named here
@@ -1162,7 +1264,7 @@ pub mod verb {
     pub const FIRST: u64 = fs::OPEN;
     /// The highest opcode in the contract, and the last row's. Raising it without adding a row is a
     /// compile error.
-    pub const LAST: u64 = fs::STATFS;
+    pub const LAST: u64 = fs::SETMTIME_AT;
 
     /// **Every verb the file-service contract carries, in opcode order.**
     ///
@@ -1297,6 +1399,51 @@ pub mod verb {
         // fills the shared page, which costs a proxy nothing because the page is the one all three
         // parties already share (see `fs_subtree_caretaker`'s `PAGE_VA`).
         row(fs::STATFS, "STATFS", Operand::None, false, false, 0),
+        // **A gap this table itself was supposed to make impossible, closed by extending it rather
+        // than pointed at.** SYNC (milestone 55) landed after `LAST` was fixed at STATFS and was
+        // never given a row, so `verb::of(fs::SYNC)` answered `None` and every caretaker refused it
+        // with EINVAL: a program confined to a subtree or nameset grant could never SYNC through it.
+        // Nothing in this crate's own tree currently reaches SYNC that way (`fs_test_client` and
+        // `smb_server` both hold the raw FS-server endpoint), so the gap was latent rather than
+        // observed, and it surfaced only because milestone 47's mtime verbs had to extend `LAST`
+        // past it and the contiguity assert below would not let the gap stand unfilled. The row
+        // matches SYNC's own doc: any handle qualifies, and it needs `dir::WRITE` for the reason
+        // given there (a sync is an action on the device, and a read-only holder has nothing
+        // outstanding to make durable).
+        row(fs::SYNC, "SYNC", Operand::None, false, false, dir::WRITE),
+        // **The mtime verbs** (milestone 47's `touch`; DECISIONS §112). All three are name-taking,
+        // resolved directly under a directory handle rather than against an open file handle,
+        // because `touch` never opens what it acts on: `fs::CREATE` and `fs::UNLINK` already take
+        // this shape for the same reason.
+        row(
+            fs::GETMTIME,
+            "GETMTIME",
+            Operand::Name,
+            false,
+            false,
+            dir::READ,
+        ),
+        row(
+            fs::SETMTIME,
+            "SETMTIME",
+            Operand::Name,
+            false,
+            false,
+            dir::WRITE,
+        ),
+        // The only one of the three that carries a second word: the caller's asserted seconds
+        // value, TRUNCATE's reason for putting an offset-shaped quantity in `w1` rather than the
+        // length field. `needs_all` carries both rights, exactly as RENAME's does for its two: a
+        // proxy that only asks "does this mutate" needs no finer answer, and the FS server is what
+        // actually checks each bit.
+        row(
+            fs::SETMTIME_AT,
+            "SETMTIME_AT",
+            Operand::Name,
+            true,
+            false,
+            dir::WRITE | dir::SETTIME,
+        ),
     ];
 
     /// **The row for an opcode, or `None` if the contract does not carry it.**
@@ -1410,6 +1557,21 @@ pub mod verb {
             // still has to know whether its next write fits. The server takes any handle it minted,
             // so the caretaker's substituted file handle answers it.
             Policy::Forward, // STATFS
+            // SYNC is forwarded for STATFS's reason (any handle qualifies, the question is about
+            // the device) and refused with EROFS through a read-only grant by `Policy::Forward`'s
+            // own rule, matching SYNC's own doc ("Rights: dir::WRITE").
+            Policy::Forward, // SYNC
+            // The mtime verbs (milestone 47, DECISIONS §112) are all name-taking, resolved under a
+            // *directory* handle, exactly like CREATE/OPENDIR/UNLINK/RENAME above: a file
+            // capability has no directory to resolve a name under, so none of the three means
+            // anything here. `dir::SETTIME` never applies to a file handle in any case, because a
+            // file entry is hard-attenuated to `READ | WRITE` the moment it is opened or created
+            // (`Server::open_file_at`, `Server::create_file_at`); the arbitrary-mtime right can
+            // only ever be checked against a directory's own rights, which is one more reason these
+            // three verbs are name-taking rather than handle-taking.
+            Policy::Refused(grant::ENOTDIR), // GETMTIME
+            Policy::Refused(grant::ENOTDIR), // SETMTIME
+            Policy::Refused(grant::ENOTDIR), // SETMTIME_AT
         ];
 
         /// `EBADF`: no such handle, and only that since 2026-08-01 (see [`POLICY`]'s BUGS).
@@ -2706,6 +2868,22 @@ pub mod fixture {
         /// that it changes nothing.
         pub const NAV_TOUCH_BODY: &[u8] = b"CRK47-TOUCH: a second touch must not disturb this\n";
 
+        /// **The instant `touch -t` asserts in the mtime probes** (milestone 47's mtime lane,
+        /// DECISIONS §112): 2030-01-01T00:00:00Z, far enough past this repository's own history
+        /// that neither this server's advancing logical clock nor a real wall-clock reading could
+        /// coincidentally produce it. The RFC 3339 text a real command line carries.
+        pub const NAV_TOUCH_AT_RFC3339: &str = "2030-01-01T00:00:00Z";
+        /// [`NAV_TOUCH_AT_RFC3339`] as the Unix-seconds value the wire and a read-back both use, so
+        /// a round-trip check compares against the same number the text names rather than a second
+        /// copy that could drift from it. Verified independently rather than derived at either end:
+        /// `date -u -d 2030-01-01T00:00:00Z +%s` and `crates/calendar`'s own `DateTime::to_unix`
+        /// both agree it is this.
+        pub const NAV_TOUCH_AT_UNIX: u64 = 1_893_456_000;
+        /// The fresh directory the navigating witness mints with `MKDIR`, attenuated to `WRITE` and
+        /// not `SETTIME`, to prove `touch -t` needs the right through the real wire and not only in
+        /// `fs_server`'s own host tests. Ten bytes plus a run digit, `run_name`'s bound.
+        pub const NAV_TOUCH_NO_SETTIME: &str = "nav-notime";
+
         /// **The directory milestone 50's redirection witness works in**, a sibling of [`SUB`] for
         /// the same reason that one has siblings: a shell that writes files needs somewhere its
         /// writes cannot be mistaken for another test's, and the root is shared with every test in
@@ -3059,6 +3237,34 @@ pub mod fixture {
         /// left it holding exactly that afterward. Without this bit, [`TOUCH_CREATED`] is equally
         /// true of a `touch` that quietly truncates whatever it finds.
         pub const TOUCH_PRESERVED: u64 = 1 << 24;
+        /// **A bare second `touch`, real command line and all, observed a strictly later mtime**
+        /// (milestone 47's mtime lane; DECISIONS §112). [`TOUCH_CREATED`] and [`TOUCH_PRESERVED`]
+        /// prove the *bytes*; this is the first bit that reads a timestamp back through the wire
+        /// (`GETMTIME`) at all, so it is also the first proof that the getter and the create-time
+        /// stamp agree on what "before" means.
+        pub const TOUCH_MTIME_ADVANCED: u64 = 1 << 25;
+        /// **`touch -t 2030-01-01T00:00:00Z`, typed as a real command line, produced a mtime that
+        /// reads back as exactly [`super::tree::NAV_TOUCH_AT_UNIX`] and not the value
+        /// [`TOUCH_MTIME_ADVANCED`] just observed.** This is DECISIONS §112 made a measurement: a
+        /// `touch -t` that silently fell back to "now" would still be a later timestamp than the
+        /// bare touch before it, so the *exact* comparison, not merely "later", is what makes this
+        /// bit mean the caller's assertion moved rather than the server's own clock.
+        pub const TOUCH_AT_ROUND_TRIPPED: u64 = 1 << 26;
+        /// **A directory handle carrying `WRITE` and not `SETTIME` still bumped a name's mtime to
+        /// now**, through the real wire and the real `fs_subtree_caretaker`, not just the
+        /// `fs_server` host tests' in-process `Server`. DECISIONS §112's "plain `WRITE` covers
+        /// 'now'" made a measurement one layer further out: a bug in `verb::TABLE`'s row for
+        /// `SETMTIME` (the wrong `needs_all`, or an off-by-one index after `SYNC`'s row was
+        /// inserted ahead of it) would show up here and would not show up in a test that calls
+        /// `Server::set_mtime_now` directly.
+        pub const TOUCH_NOW_NEEDS_ONLY_WRITE: u64 = 1 << 27;
+        /// **The same handle's `touch -t` attempt was refused.** The pair with
+        /// [`TOUCH_NOW_NEEDS_ONLY_WRITE`] is what makes DECISIONS §112's "no, they are not the same
+        /// right" non-vacuous through the real wire: both probes run against **one** handle, so a
+        /// caretaker or a table row that let `SETMTIME_AT` through on `WRITE` alone would set this
+        /// bit's sibling and clear this one, and a caretaker that refused everything would clear
+        /// both.
+        pub const TOUCH_AT_REFUSED_WITHOUT_SETTIME: u64 = 1 << 28;
     }
 
     /// **What the globbing witness reports** (milestone 47's globbing lane): a bitmap, for the same
@@ -3422,7 +3628,16 @@ mod tests {
         assert_eq!(
             filtered,
             [
-                "OPEN", "CREATE", "OPENDIR", "MKDIR", "RENAME", "UNLINK", "RMDIR"
+                "OPEN",
+                "CREATE",
+                "OPENDIR",
+                "MKDIR",
+                "RENAME",
+                "UNLINK",
+                "RMDIR",
+                "GETMTIME",
+                "SETMTIME",
+                "SETMTIME_AT",
             ],
             "a verb that resolves a name in the granted directory is missing from the filter, or a \
              verb that does not resolve one is being filtered"
@@ -3462,6 +3677,9 @@ mod tests {
                 "RMDIR",
                 "SETXATTR",
                 "REMOVEXATTR",
+                "SYNC",
+                "SETMTIME",
+                "SETMTIME_AT",
             ]
         );
         // Nothing that mutates may be answered locally: `Forward` is the only policy that consults
@@ -3894,7 +4112,11 @@ mod tests {
     #[test]
     fn undefined_rights_bits_cannot_be_smuggled_into_a_root() {
         assert_eq!(dir::Rights::root(u64::MAX).bits(), dir::ALL);
-        assert_eq!(dir::ALL.count_ones(), 6, "six rungs on the ladder");
+        assert_eq!(
+            dir::ALL.count_ones(),
+            7,
+            "seven rungs on the ladder since DECISIONS §112"
+        );
     }
 
     /// The three new verbs must not collide with the seven that were already on the wire, and
@@ -3919,6 +4141,10 @@ mod tests {
             ("SETXATTR", fs::SETXATTR),
             ("LISTXATTR", fs::LISTXATTR),
             ("REMOVEXATTR", fs::REMOVEXATTR),
+            ("SYNC", fs::SYNC),
+            ("GETMTIME", fs::GETMTIME),
+            ("SETMTIME", fs::SETMTIME),
+            ("SETMTIME_AT", fs::SETMTIME_AT),
         ];
         for (i, (na, a)) in ops.iter().enumerate() {
             assert!(*a <= 0xff, "{na} does not fit the 8-bit opcode field");
@@ -4097,6 +4323,15 @@ mod tests {
             ABSOLUTE_REACHED_INNER,
             ABSOLUTE_REACHED_SECRET,
             ABSOLUTE_CLAMPED_AT_ROOT,
+            // These six were added after this list was last touched (touch's create half on
+            // 2026-08-22, its mtime half on 2026-08-24) and neither addition updated it; adding
+            // them now rather than leaving the gap for a seventh.
+            TOUCH_CREATED,
+            TOUCH_PRESERVED,
+            TOUCH_MTIME_ADVANCED,
+            TOUCH_AT_ROUND_TRIPPED,
+            TOUCH_NOW_NEEDS_ONLY_WRITE,
+            TOUCH_AT_REFUSED_WITHOUT_SETTIME,
         ];
         let mut seen = 0u64;
         for b in bits {
@@ -4783,11 +5018,12 @@ mod tests {
                 dir::WRITE,
                 dir::CREATE,
                 dir::REMOVE,
-                dir::DESCEND
+                dir::DESCEND,
+                dir::SETTIME,
             ],
-            [1, 2, 4, 8, 16, 32]
+            [1, 2, 4, 8, 16, 32, 64]
         );
-        assert_eq!(dir::ALL, 63);
+        assert_eq!(dir::ALL, 127);
         assert_eq!(dir::REMOVE_TREE, 1 | 16 | 32);
     }
 
@@ -4805,8 +5041,11 @@ mod tests {
             "READDIR",
             "LISTXATTR",
             "STATFS",
+            "SYNC",
         ];
-        // needs_all intersects WRITE | CREATE | REMOVE.
+        // needs_all intersects WRITE | CREATE | REMOVE. SETMTIME_AT's needs_all also carries
+        // SETTIME, but it mutates because it carries WRITE too; SETTIME alone never appears
+        // without WRITE, by this table's own construction.
         let mutating = [
             "WRITE",
             "CREATE",
@@ -4817,6 +5056,9 @@ mod tests {
             "RMDIR",
             "SETXATTR",
             "REMOVEXATTR",
+            "SYNC",
+            "SETMTIME",
+            "SETMTIME_AT",
         ];
         for v in &verb::TABLE {
             assert_eq!(
@@ -4963,6 +5205,12 @@ mod tests {
             fixture::navscape::ABSOLUTE_REACHED_INNER,
             fixture::navscape::ABSOLUTE_REACHED_SECRET,
             fixture::navscape::ABSOLUTE_CLAMPED_AT_ROOT,
+            fixture::navscape::TOUCH_CREATED,
+            fixture::navscape::TOUCH_PRESERVED,
+            fixture::navscape::TOUCH_MTIME_ADVANCED,
+            fixture::navscape::TOUCH_AT_ROUND_TRIPPED,
+            fixture::navscape::TOUCH_NOW_NEEDS_ONLY_WRITE,
+            fixture::navscape::TOUCH_AT_REFUSED_WITHOUT_SETTIME,
         ]);
         all_distinct_bits(&[
             fixture::globscape::EXPANDED,

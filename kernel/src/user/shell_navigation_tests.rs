@@ -30,7 +30,16 @@ const ALWAYS: u64 = nb::PWD_IS_ROOT
     // `touch`'s two-fold contract: creates an absent name, and a second call on a name that now
     // holds a body leaves it exactly as it was.
     | nb::TOUCH_CREATED
-    | nb::TOUCH_PRESERVED;
+    | nb::TOUCH_PRESERVED
+    // `touch`'s mtime half (milestone 47's mtime lane, DECISIONS §112): a bare `touch` moves the
+    // mtime forward, and `touch -t` lands on exactly the asserted instant rather than "now" again.
+    | nb::TOUCH_MTIME_ADVANCED
+    | nb::TOUCH_AT_ROUND_TRIPPED
+    // The two-right split, proven against one freshly-minted handle rather than assumed from
+    // `fs_server`'s own host tests: `WRITE` alone is enough for bare `touch`, and it is not enough
+    // for `touch -t`.
+    | nb::TOUCH_NOW_NEEDS_ONLY_WRITE
+    | nb::TOUCH_AT_REFUSED_WITHOUT_SETTIME;
 
 /// Wire a `fs_subtree_caretaker` holding a capability to `root` and run the shell's navigation
 /// script inside it. `run` keeps the names it creates distinct across runs sharing one image.

@@ -559,6 +559,38 @@ fn serve(server: &mut Server<CachedDisk<IpcDisk>>) -> ! {
                     .map(|n| n as i64)
                     .ok_or(Error::new(EINVAL))
             }),
+            // **The mtime verbs** (milestone 47's `touch`; DECISIONS §112). All three name-taking,
+            // [`fs::UNLINK`]'s shape: the name is `len` bytes at the start of the shared page,
+            // resolved under the directory `handle` names. The rights split lives in the
+            // host-tested core (`fs_server::Server::mtime`/`set_mtime_now`/`set_mtime_at`); this
+            // arm is only where the page is cut up, [`fs::GETXATTR`]'s boundary.
+            fs::GETMTIME => {
+                // SAFETY: the name is `len` bytes the client wrote at the start of FILE_PAGE.
+                let name_bytes = unsafe { file_page(len) };
+                match core::str::from_utf8(name_bytes) {
+                    Ok(name) => server.mtime(handle, name).map(|t| t as i64),
+                    Err(_) => Err(Error::new(EINVAL)),
+                }
+            }
+            fs::SETMTIME => {
+                // SAFETY: the name is `len` bytes the client wrote at the start of FILE_PAGE.
+                let name_bytes = unsafe { file_page(len) };
+                match core::str::from_utf8(name_bytes) {
+                    Ok(name) => server.set_mtime_now(handle, name).map(|()| 0),
+                    Err(_) => Err(Error::new(EINVAL)),
+                }
+            }
+            // The asserted seconds value rides in the second word, TRUNCATE's reason: `len` is
+            // clamped to one page above, which would silently cap a caller's timestamp at a
+            // nonsensical range if it rode in the length field instead.
+            fs::SETMTIME_AT => {
+                // SAFETY: the name is `len` bytes the client wrote at the start of FILE_PAGE.
+                let name_bytes = unsafe { file_page(len) };
+                match core::str::from_utf8(name_bytes) {
+                    Ok(name) => server.set_mtime_at(handle, name, offset).map(|()| 0),
+                    Err(_) => Err(Error::new(EINVAL)),
+                }
+            }
             _ => Err(Error::new(EINVAL)),
         };
 
