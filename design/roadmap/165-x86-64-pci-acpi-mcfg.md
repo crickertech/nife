@@ -15,14 +15,14 @@ VT-d, roadmap item 6 of milestone 161, unbuilt.
 
 ## The gap, as `notes/x86-port.md` already named it
 
-Milestone 161 (the x86_64 kernel port) landed real ACPI table parsing — the RSDP scan, the root
-table walk, the MADT, and the MCFG — against real hardware evidence (the Dell OptiPlex 7050 Micro,
+Milestone 161 (the x86_64 kernel port) landed real ACPI table parsing (the RSDP scan, the root
+table walk, the MADT, and the MCFG) against real hardware evidence (the Dell OptiPlex 7050 Micro,
 milestone 87, x86_64's real target machine). `notes/x86-port.md`'s "discovery seam" section recorded
 the gap this milestone closes: "The PCIe ECAM window the MCFG describes is exactly the constant
 `arch::mmu::PCI_ECAM_PHYS` hardcodes... The constant should come from here rather than being checked
 against here, and doing that is a line of code once something consumes it." `kernel/src/pci.rs`
 itself said the same thing at its own probe: "A machine whose tree has no such node... answers every
-probe here with nobody home" — true of x86_64 unconditionally, since it has no device tree at all.
+probe here with nobody home", true of x86_64 unconditionally, since it has no device tree at all.
 
 ## What was built
 
@@ -69,7 +69,7 @@ probe here with nobody home" — true of x86_64 unconditionally, since it has no
 - **`scripts/qemu-runner-x86_64.sh` was not touched.** q35 already presents six PCI functions with
   zero `-device` flags (host bridge, VGA, a default NIC, ISA bridge, SATA/AHCI, SMBus; measured via
   QEMU's monitor `info pci`), which is what made proof possible without changing the runner's default
-  device set at all — the exact fork the brief for this lane flagged as needing to stop and report
+  device set at all, the exact fork the brief for this lane flagged as needing to stop and report
   rather than silently changing. It did not arise.
 
 - **An actual `-device nvme` attach was investigated and is NOT safe today**, which is worth
@@ -91,7 +91,7 @@ enumeration mechanism (ACPI's MCFG naming an ECAM window, a chipset register ena
 then ordinary config-space reads) is now proven under QEMU using the same mechanism real x86
 hardware uses; nothing about the mechanism itself is QEMU-specific the way the device is on RISC-V.
 Milestone 87's OptiPlex, once it boots this kernel, should need no code change here to also
-enumerate its own real PCI bus — only the values (its own MCFG base, its own BAR hole) will differ,
+enumerate its own real PCI bus; only the values (its own MCFG base, its own BAR hole) will differ,
 and if real UEFI leaves ECAM already enabled, `enable_pcie_ecam`'s rewrite should be a no-op.
 
 **What it does not establish**: §86 is about a *confined userspace NVMe driver*, and confinement is
