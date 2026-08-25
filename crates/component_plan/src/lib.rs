@@ -100,7 +100,7 @@
 //!
 //! // Rights come from the declared direction. The supervisor never spells one.
 //! assert_eq!(plan.caps(), &[(5, abi::rights::READ), (1, abi::rights::WRITE)]);
-//! assert_eq!(plan.maps(), &[(0x0300_0000, 9, abi::aspace::MAP_RW)]);
+//! assert_eq!(plan.maps(), &[(0x0300_0000, 9, abi::address_space::MAP_RW)]);
 //! assert_eq!(plan.pages(), 32);
 //! ```
 //!
@@ -242,8 +242,8 @@ impl PageKind {
     /// the conservative one rather than a claim.
     pub const fn mode(self) -> u64 {
         match self {
-            PageKind::Shared => abi::aspace::MAP_RW,
-            PageKind::DeviceRegisters => abi::aspace::MAP_RO,
+            PageKind::Shared => abi::address_space::MAP_RW,
+            PageKind::DeviceRegisters => abi::address_space::MAP_RO,
         }
     }
 }
@@ -873,9 +873,9 @@ mod tests {
         let p = plan(&CONSOLE, &everything()).unwrap();
         assert_eq!(
             p.maps_without_devices(),
-            &[(0x0300_0000, 9, abi::aspace::MAP_RW)]
+            &[(0x0300_0000, 9, abi::address_space::MAP_RW)]
         );
-        assert_eq!(p.devices(), &[(0x0310_0000, 2, abi::aspace::MAP_RO)]);
+        assert_eq!(p.devices(), &[(0x0310_0000, 2, abi::address_space::MAP_RO)]);
     }
 
     /// And it is separable whatever order the declaration used, because a plan sorts rather than
@@ -890,7 +890,7 @@ mod tests {
             depends_on: &[],
         };
         let p = plan(&DEVICE_FIRST, &everything()).unwrap();
-        assert_eq!(p.devices(), &[(0x0310_0000, 2, abi::aspace::MAP_RO)]);
+        assert_eq!(p.devices(), &[(0x0310_0000, 2, abi::address_space::MAP_RO)]);
         assert_eq!(p.maps_without_devices().len(), 1);
     }
 

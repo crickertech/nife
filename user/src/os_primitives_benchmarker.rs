@@ -66,7 +66,7 @@ const SP_CHILD_DONE: u64 = 2;
 
 // Map-benchmark slots (slot 0 is always REPORT). The bench boot grants a WRITE cap on a target
 // address space and a READ cap on one frame; we map that frame at a fresh VA each iteration.
-const MAP_ASPACE: u64 = 1;
+const MAP_ADDRESS_SPACE: u64 = 1;
 const MAP_FRAME: u64 = 2;
 
 // IPC round-trip slots. The server holds two endpoints; the client holds three (report first, so
@@ -240,7 +240,7 @@ fn ipc_client() -> ! {
 }
 
 /// **Map latency, measured from EL0 (the primitive suite).** lmbench's `lat_mmap`, in the shape our
-/// surface allows: `invoke(aspace, MAP_INTO, va, frame_slot, MAP_RO)` maps the one granted frame at a
+/// surface allows: `invoke(address space, MAP_INTO, va, frame_slot, MAP_RO)` maps the one granted frame at a
 /// fresh VA. We alias a single frame across every VA, so no data memory is consumed per iteration,
 /// only the page-table entry and the revocation record the map path must write anyway, which is
 /// exactly what we are timing. There is no unmap in the surface yet, so the loop is bounded (each VA
@@ -261,18 +261,18 @@ fn map_bench() -> ! {
 }
 
 /// One `MAP_INTO`: map the granted frame (slot `MAP_FRAME`) read-only into the granted space (slot
-/// `MAP_ASPACE`) at `va`. Read-only needs only READ on the frame cap, which is all we were granted.
+/// `MAP_ADDRESS_SPACE`) at `va`. Read-only needs only READ on the frame cap, which is all we were granted.
 /// Returns the syscall result: 0 on success, a negative error otherwise.
 #[inline(never)]
 fn map_one(va: u64) -> i64 {
-    // SAFETY: `svc`; the kernel validates the aspace and frame caps and the method before mapping.
+    // SAFETY: `svc`; the kernel validates the address space and frame caps and the method before mapping.
     unsafe {
         invoke(
-            MAP_ASPACE,
-            abi::aspace::MAP_INTO,
+            MAP_ADDRESS_SPACE,
+            abi::address_space::MAP_INTO,
             va,
             MAP_FRAME,
-            abi::aspace::MAP_RO,
+            abi::address_space::MAP_RO,
         )
     }
 }
@@ -283,7 +283,7 @@ fn map_one(va: u64) -> i64 {
 /// at a time, and the bench boot's untyped need only fund one child, not one per iteration.
 const SPAWN_ITERS: u64 = 100;
 const SPAWN_WARMUP: u64 = 8;
-const CHILD_PAGES: u64 = 10; // the child's aspace root + tables + one stack page + revoke records
+const CHILD_PAGES: u64 = 10; // the child's address space root + tables + one stack page + revoke records
 const CHILD_CODE_VA: u64 = 0x40_0000;
 const CHILD_STACK_VA: u64 = 0x50_0000;
 const SPAWN_SCRATCH_VA: u64 = 0x0100_0000; // where we map the shared code frame to write the stub
@@ -372,7 +372,7 @@ fn spawn_one(code_frame: u64) {
         invoke(
             child_ut,
             abi::untyped::RETYPE_OBJ,
-            abi::objtype::ASPACE,
+            abi::objtype::ADDRESS_SPACE,
             0,
             0,
         )
@@ -382,10 +382,10 @@ fn spawn_one(code_frame: u64) {
     unsafe {
         invoke(
             aspace,
-            abi::aspace::MAP_INTO,
+            abi::address_space::MAP_INTO,
             CHILD_CODE_VA,
             code_frame,
-            abi::aspace::MAP_CODE,
+            abi::address_space::MAP_CODE,
         )
     };
     // SAFETY: as above: the kernel validates the capability and the method.
@@ -394,16 +394,16 @@ fn spawn_one(code_frame: u64) {
     unsafe {
         invoke(
             aspace,
-            abi::aspace::MAP_INTO,
+            abi::address_space::MAP_INTO,
             CHILD_STACK_VA,
             stack,
-            abi::aspace::MAP_RW,
+            abi::address_space::MAP_RW,
         )
     };
     cap_delete(stack);
 
     // The thread: give it CHILD_DONE (narrowed to WRITE) in its slot 0, configure (which consumes
-    // the aspace cap), and start. The child drops to EL0, SENDs its done word, and exits.
+    // the address space cap), and start. The child drops to EL0, SENDs its done word, and exits.
     // SAFETY: as above: the kernel validates the capability and the method.
     let tcb = unsafe {
         invoke(
@@ -445,7 +445,7 @@ fn spawn_one(code_frame: u64) {
     while unsafe { invoke(child_ut, abi::untyped::DESTROY, 0, 0, 0) } != 0 {
         yield_now();
     }
-    // Free the slots this child used (the aspace cap was consumed by CONFIGURE) so the fixed capability table
+    // Free the slots this child used (the address space cap was consumed by CONFIGURE) so the fixed capability table
     // does not fill over the loop.
     cap_delete(tcb);
     cap_delete(child_ut);

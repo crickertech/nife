@@ -53,7 +53,7 @@ fn spawn_tree() -> sched::RendezvousId {
             )
             .expect("could not map the initrd");
     }
-    let aspace = readopt_user_aspace(space).expect("register the root_supervisor aspace");
+    let aspace = readopt_user_address_space(space).expect("register the root_supervisor aspace");
 
     let report = sched::create_rendezvous();
     let budget = crate::untyped::create(ROOT_BUDGET_PAGES).expect("no budget for root_supervisor");

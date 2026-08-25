@@ -18,7 +18,7 @@ its siblings) and it is exactly the machinery milestone 19 declined to build.
 
 nife has a different lever already in hand, and it decided the whole design:
 
-- **Objects carry generational names.** A `Tcb`, `Endpoint`, or `Aspace` capability holds a
+- **Objects carry generational names.** A `Tcb`, `Endpoint`, or `AddressSpace` capability holds a
   `(generation, slot)` name into a registry (`crates/slots`, notes/generational-names.md). Free the
   registry slot and every outstanding capability to that object stops resolving, *forever*, because
   its generation no longer matches. There is no capability to hunt down; invalidation is a side

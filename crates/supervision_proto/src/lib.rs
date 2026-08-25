@@ -226,12 +226,12 @@ pub fn build_child(
 
 /// Everything [`build_child`] does **except** the final `CONFIGURE`: lay each segment W^X at the VA
 /// it names, map a stack, copy the blobs in, map `maps`, retype a TCB, insert the endowment.
-/// Returns `(tcb, aspace)`, both still held by us.
+/// Returns `(tcb, address space)`, both still held by us.
 ///
 /// Split out for milestone 23's live replacement (DECISIONS §41), which needs to do one more thing
 /// to the child's address space *between* building it and configuring it: map in a device the
 /// operator could not hand over any earlier, because revoking it from the outgoing owner would have
-/// taken the incoming owner's copy too. `CONFIGURE` consumes the aspace capability, so once it has
+/// taken the incoming owner's copy too. `CONFIGURE` consumes the address space capability, so once it has
 /// run there is no way to reach the child's memory again; this is where that seam is.
 pub fn build_child_space(
     own_ut: u64,
@@ -239,15 +239,15 @@ pub fn build_child_space(
     elf: &elf::Elf,
     endow: &ChildEndowment,
 ) -> Result<(u64, u64), ()> {
-    let aspace = retype_obj_from(build_ut, abi::objtype::ASPACE)?;
+    let aspace = retype_obj_from(build_ut, abi::objtype::ADDRESS_SPACE)?;
 
     for seg in elf.segments() {
         let mode = if seg.is_executable() {
-            abi::aspace::MAP_CODE
+            abi::address_space::MAP_CODE
         } else if seg.is_writable() {
-            abi::aspace::MAP_RW
+            abi::address_space::MAP_RW
         } else {
-            abi::aspace::MAP_RO
+            abi::address_space::MAP_RO
         };
         let (start, end) = seg.page_range(PAGE);
         let mut va = start;
@@ -278,10 +278,10 @@ pub fn build_child_space(
         if unsafe {
             invoke(
                 aspace,
-                abi::aspace::MAP_INTO,
+                abi::address_space::MAP_INTO,
                 va,
                 stack_frame,
-                abi::aspace::MAP_RW,
+                abi::address_space::MAP_RW,
             )
         } != 0
         {
@@ -303,7 +303,7 @@ pub fn build_child_space(
                 aspace,
                 base + off as u64,
                 Some((0, &bytes[off..off + n])),
-                abi::aspace::MAP_RO,
+                abi::address_space::MAP_RO,
             )?;
             off += n;
         }
@@ -311,7 +311,7 @@ pub fn build_child_space(
 
     for &(va, our_slot, mode) in endow.maps {
         // SAFETY: as above: the kernel validates the capability and the method.
-        if unsafe { invoke(aspace, abi::aspace::MAP_INTO, va, our_slot, mode) } != 0 {
+        if unsafe { invoke(aspace, abi::address_space::MAP_INTO, va, our_slot, mode) } != 0 {
             return Err(());
         }
     }
@@ -413,7 +413,7 @@ fn fill_and_map(
         dst[at..at + bytes.len()].copy_from_slice(bytes);
     }
     // SAFETY: as above: the kernel validates the capability and the method.
-    if unsafe { invoke(aspace, abi::aspace::MAP_INTO, va, frame, mode) } != 0 {
+    if unsafe { invoke(aspace, abi::address_space::MAP_INTO, va, frame, mode) } != 0 {
         return Err(());
     }
     cap_delete(frame);

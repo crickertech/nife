@@ -2608,11 +2608,11 @@ pub fn reclaim_region(region: u64) -> Result<(), ()> {
         return Err(());
     }
     let (base, size) = crate::untyped::region_bounds(region).ok_or(())?;
-    // Threads first (IPC_TABLES), then any unbound address spaces (the aspace registry lock). Two
+    // Threads first (IPC_TABLES), then any unbound address spaces (the address space registry lock). Two
     // separate lock domains, sequenced, never nested: neither is held across the other. Bound
     // spaces need no step here, they died with their thread in the reap above.
     reap_region_objects(base, base + size)?;
-    crate::user::reap_aspaces_in_region(base, base + size);
+    crate::user::reap_address_spaces_in_region(base, base + size);
     crate::untyped::unpin(region);
     crate::untyped::destroy(region);
     Ok(())
@@ -2712,7 +2712,7 @@ const fn survey_state(state: State) -> u64 {
 }
 
 /// **Configure an embryo** (milestone 19c.3): bind the address space named by `aspace_name`
-/// (moved out of the user-aspace registry into the TCB, so it now dies with the thread) and set
+/// (moved out of the user address-space registry into the TCB, so it now dies with the thread) and set
 /// the EL0 entry and user stack. Refuses anything but an `Embryo`, so a running thread cannot be
 /// reconfigured under itself. `Ok(())` or a reason.
 pub fn configure_thread_control_block(
@@ -2721,7 +2721,7 @@ pub fn configure_thread_control_block(
     user_sp: u64,
     aspace_name: u64,
 ) -> Result<(), abi::Error> {
-    // Take the space out of the registry FIRST (outside IPC_TABLES: it takes the aspace lock, ranked
+    // Take the space out of the registry FIRST (outside IPC_TABLES: it takes the address space lock, ranked
     // above IPC_TABLES). If the TCB then turns out not to be a configurable embryo, put nothing back
     // is wrong, so check the embryo state first, under IPC_TABLES, and only take the space once the
     // bind will succeed.
@@ -2733,7 +2733,7 @@ pub fn configure_thread_control_block(
             return Err(abi::Error::WrongObject); // only an unstarted TCB may be configured
         }
     }
-    let space = crate::user::take_user_aspace(aspace_name).ok_or(abi::Error::NoSuchSlot)?;
+    let space = crate::user::take_user_address_space(aspace_name).ok_or(abi::Error::NoSuchSlot)?;
 
     let mut guard = IPC_TABLES.lock();
     let sched = guard.as_mut().ok_or(abi::Error::NoSuchSlot)?;
@@ -2741,12 +2741,12 @@ pub fn configure_thread_control_block(
         // The TCB vanished between the checks (it cannot, without a teardown path, but be
         // honest): give the space back to the registry rather than leak it.
         drop(guard);
-        crate::user::readopt_user_aspace(space);
+        crate::user::readopt_user_address_space(space);
         return Err(abi::Error::NoSuchSlot);
     };
     if t.handshake.state != State::Embryo {
         drop(guard);
-        crate::user::readopt_user_aspace(space);
+        crate::user::readopt_user_address_space(space);
         return Err(abi::Error::WrongObject);
     }
     t.space = Some(space);
@@ -3075,7 +3075,7 @@ pub fn dump_threads() {
         // processes, and 0 is a kernel thread with no user address space.
         let root = t.space.as_ref().map(|s| s.root()).unwrap_or(0);
         crate::print!(
-            "  tid={:#06x} state={:?} on_cpu={} wake_pending={} has_outgoing_cap={} pc={:#010x}{} aspace={:#010x}",
+            "  tid={:#06x} state={:?} on_cpu={} wake_pending={} has_outgoing_cap={} pc={:#010x}{} address_space={:#010x}",
             t.id,
             t.handshake.state,
             t.handshake.on_cpu,
@@ -3533,11 +3533,11 @@ mod tests {
         let frames_before = crate::memory::free_frames();
 
         let region = crate::untyped::create(8).expect("a fresh region");
-        let name =
-            crate::user::user_aspace_create(region).expect("an address space from the region");
+        let name = crate::user::user_address_space_create(region)
+            .expect("an address space from the region");
 
         assert!(
-            crate::user::user_aspace_root(name).is_some(),
+            crate::user::user_address_space_root(name).is_some(),
             "the space should resolve before reclaim"
         );
         assert!(
@@ -3548,7 +3548,7 @@ mod tests {
         crate::sched::reclaim_region(region).expect("reclaim the space's own region");
 
         assert!(
-            crate::user::user_aspace_root(name).is_none(),
+            crate::user::user_address_space_root(name).is_none(),
             "the space's name must be stale after reclaim"
         );
         assert_eq!(
@@ -4064,7 +4064,7 @@ mod tests {
         batch_of_eight();
 
         // **Reuse is asserted directly, because the frame count below cannot do it.** Measured
-        // 2026-08-17: with the `FREE_STACK_VAS` push deleted from `KernelStack::drop`, which IS the
+        // 2026-08-17: with the `FREE_STACK_ADDRESS_SPACE` push deleted from `KernelStack::drop`, which IS the
         // milestone-6 bug this test is named for, the entire aarch64 leg passed, this test included.
         // The reason is arithmetic rather than luck. A slot is `STACK_SLOT_SPAN`, 28 KiB, so eight
         // of them consume 224 KiB of fresh address space, and a leaked page table costs a *frame*

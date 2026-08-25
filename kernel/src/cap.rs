@@ -84,11 +84,11 @@ pub enum Object {
     Reply(crate::thread::ThreadId),
 
     /// **An address space under construction** (milestone 19b), by generational name in the
-    /// user-aspace registry. The object itself is its L0 root page, resident in the page
+    /// user address-space registry. The object itself is its L0 root page, resident in the page
     /// retyped from its creator's untyped; the kernel-side record (ASID, backing region) sits
     /// behind this name. `WRITE` lets the holder map frames into it; nothing can run in it
     /// until TCBs arrive (19c).
-    Aspace(u64),
+    AddressSpace(u64),
 
     /// **A thread under construction** (milestone 19c.3), by generational `ThreadId`: an embryo TCB a
     /// process is assembling. `WRITE` lets the holder configure, grant into, and start it. The
@@ -253,9 +253,9 @@ pub fn thread_control_block_cap(tid: crate::thread::ThreadId, rights: Rights) ->
 
 /// A capability naming an address space under construction (milestone 19b). Full rights at
 /// creation; delegation narrows, as everywhere.
-pub fn aspace_cap(name: u64, rights: Rights) -> Cap {
+pub fn address_space_cap(name: u64, rights: Rights) -> Cap {
     Cap {
-        object: Object::Aspace(name),
+        object: Object::AddressSpace(name),
         rights,
     }
 }

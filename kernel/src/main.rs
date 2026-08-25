@@ -719,7 +719,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // csrw satp). Then map and translate a user page in the live process space.
         {
             use paging::Flags;
-            let aspace = user::AddressSpace::new(1).expect("no process address space");
+            let aspace = user::AddressSpace::new(1).expect("no process aspace");
             let user_va = 0x40_0000u64;
             // SAFETY: aspace.ttbr0() is a well-formed Sv39 satp whose root carries the kernel half.
             unsafe { arch::mmu::activate_user(aspace.ttbr0()) };
@@ -729,9 +729,9 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             })
             .expect("user map failed");
             let mapped = arch::mmu::translate_user(user_va);
-            arch::mmu::deactivate_user(); // back to the kernel-only root before dropping the aspace
+            arch::mmu::deactivate_user(); // back to the kernel-only root before dropping the address space
             println!(
-                "  user aspace : process satp activated (kernel half shared), user {user_va:#x} -> {mapped:x?}",
+                "  user address space : process satp activated (kernel half shared), user {user_va:#x} -> {mapped:x?}",
             );
         }
 

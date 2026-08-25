@@ -317,7 +317,7 @@ pub fn warn_if_guard_page(addr: u64, interrupted_sp: u64) {
 /// report.** This function's first version derived its span from the slot geometry and read it
 /// unconditionally, on the premise that "thread.rs maps every slot whole". That premise is true of
 /// a *live* slot and false of a dead one: `KernelStack::drop` unmaps all six pages and hands the
-/// address range back to `FREE_STACK_VAS`. On 2026-08-16 (CI run 31960738448) the very first read
+/// address range back to `FREE_STACK_ADDRESS_SPACE`. On 2026-08-16 (CI run 31960738448) the very first read
 /// took a translation fault, which re-entered the fault handler and destroyed `ELR_EL1` and
 /// `FAR_EL1` before either had been printed. The report ate itself on its first real firing, and
 /// the one fact it was added to establish was the fact that killed it.
