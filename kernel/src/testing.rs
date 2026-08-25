@@ -215,9 +215,66 @@ const FRAME_REPORT_MIN: usize = 16;
 /// caretaker) = 1659. 16968 + 1659 = 18627. See notes/frames.md's held-frames list for the same
 /// account.
 ///
+/// **Raised again, 2026-08-25, milestone 139 round 4's `MappedWindow` migration.** Isolated by
+/// bisecting CI's own `build + test (host + QEMU)` logs rather than a local run (see below for
+/// why a local measurement could not be used directly): the aarch64 leg's "never returned" count
+/// held at **18621** across five independent group-build runs spanning 2026-08-21 through the
+/// commit just before this migration (`c152b752`), then moved to **18626** across two independent
+/// runs of the migration's own merge commit (`a176da29`) and stayed there through two more
+/// no-op (markdown-only) commits on top. Both populations are internally consistent (zero
+/// variance within seven and four samples respectively), so the +5 is attributed to
+/// `202831a3`/`c94f5d21` (`painter`/`window`/`display`/`display_terminal` onto
+/// `user_rt::mapped_window::MappedWindow`) with confidence, even though the exact byte-level
+/// accounting below is not.
+///
+/// The mechanism: `MappedWindow::check` panics with a **formatted** message (`"MappedWindow:
+/// offset {off:#x}, size {size}, is outside the {}-byte window"`), and pulling in Rust's
+/// `core::fmt` panic-with-arguments machinery once is enough to drag it into the whole binary.
+/// Measured directly (`llvm-size` on the four migrated programs, dev profile, before and after):
+/// `painter` grew from 11,648 to 65,320 text bytes, `window` from 13,784 to 68,268, `display`
+/// from 15,220 to 69,496, all roughly +54 KiB, while `display_terminal` (which already pulled in
+/// formatting elsewhere) grew only ~5 KiB. `display` is the standing candidate for where this
+/// becomes *permanent*: `display_tests.rs`'s own comment says outright that "the driver is a
+/// long-lived server and never exits" for the rest of that test's boot, and `user.rs::load`
+/// sizes a process's whole `AddressSpace` from its ELF segments' page count (`content = sum of
+/// every PT_LOAD segment's pages + 1`), so a bigger permanently-resident binary should cost more
+/// permanently-resident frames by construction.
+///
+/// **What this account does not claim.** The per-program arithmetic above (`display`'s own
+/// segments alone measure roughly +14 pages between the same two commits) does not cleanly sum
+/// to +5, and that specific test's own `[that test kept N frames]` line moved by only +1 across
+/// the same CI comparison. The instrument's own documented limitation
+/// (`report_frame_ledger`'s attribution is by whichever test was running, not by the code that
+/// spent it, and `#[test_case]` registration order can shift when unrelated code size changes
+/// elsewhere) means a clean per-test diff is not trustworthy evidence here, only the suite-wide
+/// total is. So: **the +5 total is established by direct, repeated CI measurement; which of the
+/// four migrated programs it comes from, in what proportion, is not.** Reopen this if `display`,
+/// `painter`, `window` or `display_terminal` gains another persistent test fixture and the total
+/// jumps again, since that would be the corroborating data point this entry does not have.
+///
+/// **A second, smaller effect rides on top, and is not this migration's.** The same code,
+/// rebuilt and rerun locally (macOS, the same pinned QEMU version, `.qemu-version` matches CI's
+/// `11.0.2`) measured **18627**, consistently, across six separate local runs with zero variance,
+/// one frame above CI's own clean 18626. And the one CI run that actually exercises this PR
+/// (`toolchain/nightly-bump`, after the bump to `nightly-2026-08-25` plus two markdown-only
+/// commits, otherwise identical code to `a176da29`) measured **18628**, one frame above that
+/// again. Ruled out directly: a `clippy`-only fix in `user/src/swish.rs` (an indexed loop
+/// rewritten to an iterator, landing alongside this budget change) made no difference when tried
+/// with and without it, and the QEMU version is identical between environments. Not ruled out:
+/// genuine cross-environment or run-to-run nondeterminism in a suite that runs real SMP guest
+/// code across four emulated cores under TCG, which is exactly the kind of variance
+/// `report_frame_ledger`'s own accompanying `BUGS` note already warns neither ceiling is a tight
+/// bound against. This entry raises the budget enough to cover the worst value actually observed
+/// (18628) plus a margin matching this ledger's own historical headroom (the 16968 -> 18627 raise
+/// carried none, and zero headroom is exactly what let 139 round 4's real cost turn a passing gate
+/// red); it does not claim to have explained the last one or two frames of it.
+///
+/// 18626 (the migration's own confirmed cost, 18621 + 5) + 6 (restored headroom, matching the gap
+/// this budget carried before it silently spent nearly all of it) = 18632.
+///
 /// Raising it is a decision, not a formality: read the `[that test kept N frames]` lines the run
 /// prints, find who grew, and be able to say why that growth is permanent.
-const SUITE_FRAME_BUDGET: usize = 18_627;
+const SUITE_FRAME_BUDGET: usize = 18_632;
 
 /// **The longest run of free frames the boot must still have at the end**, in frames.
 ///

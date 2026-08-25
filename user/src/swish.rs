@@ -419,8 +419,8 @@ impl Nav {
     /// a path only to act on it: a handle nobody closes pins a node in the server for the rest of
     /// the boot, exactly as a leaked fd does.
     fn unwind(&self, w: &Walk) {
-        for i in 0..w.n {
-            self.close(w.tmp[i]);
+        for &handle in &w.tmp[..w.n] {
+            self.close(handle);
         }
     }
 
