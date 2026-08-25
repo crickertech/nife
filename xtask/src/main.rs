@@ -31,6 +31,12 @@ const RUNNER: &str = "scripts/qemu-runner-aarch64.sh";
 /// only so `initrd-riscv` builds the userspace archive for the matching target.
 const RISCV_TARGET: &str = "riscv64imac-unknown-none-elf";
 
+/// The `x86_64` target (milestone 161). The kernel is built and run through cargo +
+/// `scripts/qemu-runner-x86_64.sh`, exactly as the RISC-V one is; unlike the other two there is no
+/// userspace archive to build for it, because `crates/user_rt` has no arms for this ISA and nothing
+/// in `user/` compiles for it. See notes/x86-port.md.
+const X86_TARGET: &str = "x86_64-unknown-none";
+
 /// Whether this run builds optimized binaries. Only `bench --release` sets it (a fair cross-OS
 /// comparison wants an optimized kernel and userspace, not the debug default). Everything else stays
 /// debug: faster builds, and the tests and the tour want debuginfo and cheap rebuilds.
@@ -185,7 +191,7 @@ fn main() -> ExitCode {
                 "       cargo xtask bench [--riscv] [--real] [--release] [--smp] [--check] [--save]"
             );
             eprintln!(
-                "       cargo xtask test [--arch aarch64|riscv64] [--cpu <qemu-cpu-model>] [--hvf]"
+                "       cargo xtask test [--arch aarch64|riscv64|x86_64] [--cpu <qemu-cpu-model>] [--hvf]"
             );
             eprintln!("       cargo xtask icount [--arch aarch64|riscv64]");
             return ExitCode::FAILURE;
@@ -5935,19 +5941,29 @@ fn flag_value(name: &str) -> Option<String> {
 /// for a CPU-model matrix that wants the riscv64 leg four times over with a different `-cpu` each
 /// time. So the flag is new here, and the default is unchanged: no `--arch` means both legs, and
 /// the parity gate cannot be weakened by forgetting to pass something.
+///
+/// **It was `Both` and is now `All`** (milestone 161, roadmap item 4), because there are three
+/// architectures. The rename is not cosmetic: the two predicates below were written as
+/// `self != the_other_one`, which is correct for exactly two variants and answers `true` for every
+/// leg the moment there is a third. That shape is the same default-arm trap `crates/elf`'s
+/// `EXPECTED_MACHINE` fell into on the same day, so both are now explicit `matches!`.
 #[derive(Clone, Copy, PartialEq)]
 enum ArchLegs {
-    Both,
+    All,
     Aarch64,
     Riscv64,
+    X86_64,
 }
 
 impl ArchLegs {
     fn aarch64(self) -> bool {
-        self != ArchLegs::Riscv64
+        matches!(self, ArchLegs::All | ArchLegs::Aarch64)
     }
     fn riscv64(self) -> bool {
-        self != ArchLegs::Aarch64
+        matches!(self, ArchLegs::All | ArchLegs::Riscv64)
+    }
+    fn x86_64(self) -> bool {
+        matches!(self, ArchLegs::All | ArchLegs::X86_64)
     }
 }
 
@@ -5959,7 +5975,8 @@ impl ArchLegs {
 ///
 /// Three flags narrow what runs, and all three default to today's behaviour:
 ///
-/// - `--arch aarch64|riscv64` runs one ISA leg instead of both (milestone 59).
+/// - `--arch aarch64|riscv64|x86_64` runs one ISA leg instead of all three (milestone 59; the
+///   third arrived with milestone 161).
 /// - `--cpu <model>` picks the emulated CPU model (`NIFE_CPU`, read by both QEMU runners).
 ///   Unset means `cortex-a72` on aarch64 and `rv64` on riscv64, exactly as before (milestone 59).
 /// - `--hvf` runs the aarch64 kernel leg on the physical Apple Silicon core (milestone 81). It is
@@ -5975,7 +5992,7 @@ fn test() -> bool {
     let hvf = std::env::args().any(|a| a == "--hvf");
     let legs = match flag_value("--arch").as_deref() {
         None if hvf => ArchLegs::Aarch64,
-        None => ArchLegs::Both,
+        None => ArchLegs::All,
         Some("aarch64") => ArchLegs::Aarch64,
         Some("riscv64") if hvf => {
             eprintln!(
@@ -5985,8 +6002,16 @@ fn test() -> bool {
             return false;
         }
         Some("riscv64") => ArchLegs::Riscv64,
+        Some("x86_64") if hvf => {
+            eprintln!(
+                "test: --hvf is aarch64 only (Hypervisor.framework runs this host's own ISA, and \
+                 this host is aarch64)"
+            );
+            return false;
+        }
+        Some("x86_64") => ArchLegs::X86_64,
         Some(other) => {
-            eprintln!("test: --arch {other} is not an architecture (aarch64 or riscv64)");
+            eprintln!("test: --arch {other} is not an architecture (aarch64, riscv64 or x86_64)");
             return false;
         }
     };
@@ -6258,10 +6283,42 @@ fn test() -> bool {
         }
     }
 
+    // **The third architecture** (milestone 161, roadmap item 4). The same booted kernel suite on
+    // x86_64's real 4-level map, scheduler and ring 3, exiting through `isa-debug-exit` where the
+    // other two use semihosting and the SiFive test finisher.
+    //
+    // **It builds nothing first, and that is the honest shape of this leg rather than an oversight.**
+    // The other two legs build a userspace archive, an FS server and five disk images before they
+    // boot, because their suites read real ELF programs and real filesystems. Nothing in `user/`
+    // compiles for `x86_64-unknown-none` (`crates/user_rt` has no arms for this ISA), so there is no
+    // archive to pack and `scripts/qemu-runner-x86_64.sh` attaches no disks. The tests that need one
+    // are behind `cfg(initrd)` and simply are not in this binary; the ones that need a *program*
+    // rather than an ELF use the hand-assembled ones in `user::x86_programs`.
+    //
+    // `run` rather than `cargo`, because the wrapper's whole job is exporting `NIFE_INITRD`,
+    // `NIFE_DISK` and `NIFE_NET` to a runner, and this runner reads none of them.
+    if legs.x86_64() {
+        eprintln!();
+        eprintln!("--- kernel tests, x86_64 (QEMU q35) ---");
+        if !run("cargo", &["test", "-p", "kernel", "--target", X86_TARGET]) {
+            return false;
+        }
+    }
+
     // FS-level consistency after the runs (milestone 32 phase 2): reopen the RedoxFS image with the
     // host tool and confirm the FS server's write persisted and the filesystem still parses. This
-    // checks the image of whichever leg ran LAST (riscv64 unless `--arch aarch64` narrowed the run),
-    // on its own fresh fixture.
+    // checks the image of whichever leg ran LAST **that touches an image**, which is riscv64 unless
+    // `--arch aarch64` narrowed the run; the x86_64 leg runs after both and attaches no disks at
+    // all, so it cannot be the one meant here. On its own fresh fixture.
+    //
+    // **Only when a leg that writes an image ran** (milestone 161). `--arch x86_64` runs a leg that
+    // attaches no disks and regenerates no fixtures, so this check would open whatever the last
+    // full run left and report "motd did not read back", which is a true statement about a stale
+    // file and a false statement about the run. A check whose subject did not happen is worse than
+    // no check, because it fails for a reason unrelated to what was tested.
+    if !legs.aarch64() && !legs.riscv64() {
+        return true;
+    }
     eprintln!();
     eprintln!("--- redoxfs image consistency after the run (host tool) ---");
     // Both images: the shared fixture (the write persisted, the filesystem still parses) and the
@@ -6588,9 +6645,10 @@ fn undefined_behavior_check() -> bool {
 /// shell, and both redirection operators.
 fn shell_check() -> bool {
     let legs = match flag_value("--arch").as_deref() {
-        None => ArchLegs::Both,
+        None => ArchLegs::All,
         Some("aarch64") => ArchLegs::Aarch64,
         Some("riscv64") => ArchLegs::Riscv64,
+        // x86_64 has no shell leg: there is no userspace on that target at all yet (milestone 161).
         Some(other) => {
             eprintln!("shell-check: --arch {other} is not an architecture (aarch64 or riscv64)");
             return false;
@@ -7637,9 +7695,10 @@ fn run_bench(
 /// prints `[PANIC]` and is a failure; so is reaching end of output with neither.
 fn icount() -> bool {
     let legs = match flag_value("--arch").as_deref() {
-        None => ArchLegs::Both,
+        None => ArchLegs::All,
         Some("aarch64") => ArchLegs::Aarch64,
         Some("riscv64") => ArchLegs::Riscv64,
+        // x86_64 has no icount leg: the instrument's boot needs a userspace this port cannot build.
         Some(other) => {
             eprintln!("icount: --arch {other} is not an architecture (aarch64 or riscv64)");
             return false;

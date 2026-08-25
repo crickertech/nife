@@ -90,24 +90,33 @@ const ET_EXEC: u16 = 2;
 /// `e_type` for a PIE / shared object. Needs relocation, which we do not do.
 const ET_DYN: u16 = 3;
 
-/// `e_machine` for the two architectures nife runs on. Any one build uses exactly one of
-/// these as `EXPECTED_MACHINE` and compiles the other's branch out, so from that build's point of
-/// view the other constant is unused; we keep both named because the crate documents both machines
-/// it knows, and the tests check rejection of the non-native one.
-#[cfg_attr(target_arch = "riscv64", allow(dead_code))]
+/// `e_machine` for the three architectures nife runs on. Any one build uses exactly one of these as
+/// `EXPECTED_MACHINE` and compiles the others' branches out, so from that build's point of view the
+/// rest are unused; we keep all three named because the crate documents every machine it knows, and
+/// the tests check rejection of the non-native ones.
+#[cfg_attr(any(target_arch = "riscv64", target_arch = "x86_64"), allow(dead_code))]
 const EM_AARCH64: u16 = 183;
 #[cfg_attr(not(target_arch = "riscv64"), allow(dead_code))]
 const EM_RISCV: u16 = 243;
+#[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
+const EM_X86_64: u16 = 62;
 
 /// The machine this build accepts. A kernel only ever loads binaries for its **own** architecture,
-/// so the expected machine is a compile-time fact, not a runtime parameter: the riscv build accepts
-/// riscv ELFs, every other build (the aarch64 kernel, and the host that runs these tests) accepts
-/// aarch64. This keeps the "catch a foreign binary" check (an aarch64 kernel refuses a riscv ELF and
-/// vice versa) without threading an expected-machine argument through every caller in the kernel and
-/// in userspace init, both of which would only ever pass their own architecture anyway.
+/// so the expected machine is a compile-time fact, not a runtime parameter: each ISA's build accepts
+/// that ISA's ELFs, and the host that runs these tests accepts aarch64. This keeps the "catch a
+/// foreign binary" check without threading an expected-machine argument through every caller in the
+/// kernel and in userspace init, both of which would only ever pass their own architecture anyway.
+///
+/// **This was a two-way split and the third architecture is why it is now three** (milestone 161,
+/// roadmap item 4). It read `#[cfg(not(target_arch = "riscv64"))] EM_AARCH64`, and `not(riscv64)`
+/// catches `x86_64`: the x86 kernel was compiled to accept **aarch64** binaries and to refuse its own.
+/// A default arm that names one architecture is a trap the moment a third exists, which is the
+/// general lesson worth taking from this line rather than the specific number.
 #[cfg(target_arch = "riscv64")]
 const EXPECTED_MACHINE: u16 = EM_RISCV;
-#[cfg(not(target_arch = "riscv64"))]
+#[cfg(target_arch = "x86_64")]
+const EXPECTED_MACHINE: u16 = EM_X86_64;
+#[cfg(not(any(target_arch = "riscv64", target_arch = "x86_64")))]
 const EXPECTED_MACHINE: u16 = EM_AARCH64;
 
 /// `EXPECTED_MACHINE`, exported. A test that forges an ELF header has to write *some* machine
@@ -145,9 +154,9 @@ pub enum Error {
     /// `e_version` is not 1.
     BadVersion,
     /// Compiled for a machine this kernel does not run (`e_machine` is neither our own architecture
-    /// nor is it the one we were built to accept). **This is the one that catches an x86 binary, or
-    /// a riscv binary handed to the aarch64 kernel**, and it catches it *here* rather than as a
-    /// mystery illegal-instruction fault the instant the program starts.
+    /// nor is it the one we were built to accept). **This is the one that catches a riscv binary
+    /// handed to the aarch64 kernel, or an aarch64 binary handed to the x86 one**, and it catches it
+    /// *here* rather than as a mystery illegal-instruction fault the instant the program starts.
     WrongMachine,
     /// A PIE or shared object. It expects a dynamic linker to relocate it. We are not one.
     NeedsRelocation,
@@ -715,22 +724,28 @@ mod tests {
         assert_eq!(Elf::parse(&bytes).err(), Some(Error::SegmentTruncated));
     }
 
-    /// **An x86 binary, caught here rather than as an illegal instruction at EL0.**
+    /// **A binary for a machine nife does not run at all, caught here rather than as an illegal
+    /// instruction at EL0.** SPARC (2), chosen because it is a real `e_machine` value that no arm of
+    /// `EXPECTED_MACHINE` will ever take: the number this test used to use was `x86_64`'s, which
+    /// stopped being foreign the day `x86_64` became a target (milestone 161).
     #[test]
     fn a_binary_for_another_machine_is_refused() {
         let mut b = Builder::new().seg(PF_R | PF_X, 0x40_0000, &[0xaa; 16], 16);
-        b.e_machine = 62; // EM_X86_64
+        b.e_machine = 2; // EM_SPARC
         assert_eq!(Elf::parse(&b.build()).err(), Some(Error::WrongMachine));
     }
 
-    /// **A binary for the *other* nife architecture is refused too.** These host tests build
-    /// with `EXPECTED_MACHINE == EM_AARCH64`, so a riscv ELF (243) is a foreign machine here, exactly
-    /// as an aarch64 ELF would be to the riscv kernel. The check is symmetric, not aarch64-privileged.
+    /// **A binary for one of the *other* nife architectures is refused too.** These host tests build
+    /// with `EXPECTED_MACHINE == EM_AARCH64`, so a riscv ELF (243) and an `x86_64` one (62) are both
+    /// foreign here, exactly as an aarch64 ELF would be to either of those kernels. The check is
+    /// symmetric, not aarch64-privileged.
     #[test]
     fn a_binary_for_the_other_supported_machine_is_refused() {
-        let mut b = Builder::new().seg(PF_R | PF_X, 0x40_0000, &[0xaa; 16], 16);
-        b.e_machine = EM_RISCV;
-        assert_eq!(Elf::parse(&b.build()).err(), Some(Error::WrongMachine));
+        for machine in [EM_RISCV, EM_X86_64] {
+            let mut b = Builder::new().seg(PF_R | PF_X, 0x40_0000, &[0xaa; 16], 16);
+            b.e_machine = machine;
+            assert_eq!(Elf::parse(&b.build()).err(), Some(Error::WrongMachine));
+        }
     }
 
     /// A PIE expects a dynamic linker to relocate it. We are not one, and loading it as if we

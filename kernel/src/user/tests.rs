@@ -27,6 +27,12 @@ use crate::sched;
 const HELLO_ENTRY: &str = "init";
 #[cfg(target_arch = "riscv64")]
 const HELLO_ENTRY: &str = "hello";
+/// **`x86_64` packs no initrd at all**, because no user program is built for
+/// `x86_64-unknown-none` (`crates/user_rt` has no arms for this ISA; see notes/x86-port.md). This
+/// names what the entry would be called rather than what is there, and every test that reaches for
+/// it skips instead: see [`init_image`].
+#[cfg(target_arch = "x86_64")]
+const HELLO_ENTRY: &str = "hello";
 
 fn init_image() -> &'static [u8] {
     program(HELLO_ENTRY).expect("no hello program in the initrd archive")
@@ -181,28 +187,6 @@ fn smb_server_image() -> &'static [u8] {
 /// not because of a defect here. Only the non-gating real-DNS check can report it.
 #[cfg(target_arch = "aarch64")]
 const NET_CLIENT_NO_ANSWER: u64 = 2;
-
-/// Spin the scheduler until `done()`, or give up after a wall-clock deadline. Returns whether it
-/// happened. **Time-based, not a fixed yield count** (DECISIONS §28): with work spread across
-/// cores, the test thread's own core is often idle, so a yield returns at once and a fixed count
-/// of them elapses in almost no real time, timing out before a parallel result on another core
-/// lands. A ~2 s deadline gives the other cores real time to finish while staying far under the
-/// 60 s hang watchdog, so a genuine hang still fails.
-///
-/// `pub(super)` so the sibling test modules under `user` can use this one rather than growing a
-/// sixth copy of it. Milestone 81 needed it in two of them: running on the physical core makes the
-/// yield-count version fail for the *mirror* reason it fails on a loaded host, since a yield on an
-/// idle core costs nanoseconds there. See notes/hvf-leg.md.
-pub(super) fn wait_for(mut done: impl FnMut() -> bool) -> bool {
-    let deadline = crate::arch::timer::now() + 2 * crate::arch::timer::frequency();
-    while crate::arch::timer::now() < deadline {
-        if done() {
-            return true;
-        }
-        sched::yield_now();
-    }
-    done()
-}
 
 /// **We are running on `SP_EL1`, and the whole trap frame depends on it.**
 ///

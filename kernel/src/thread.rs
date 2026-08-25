@@ -29,7 +29,7 @@ use core::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use page_frames::FRAME_SIZE;
 use paging::Flags;
 
-use crate::arch::mmu::{self, KERNEL_VA_BASE};
+use crate::arch::mmu;
 use crate::sync::{IrqSafeMutex, rank};
 
 pub type Tid = u64;
@@ -59,12 +59,15 @@ pub type Tid = u64;
 /// before the guard.
 pub const STACK_PAGES: usize = 6;
 
-/// Where kernel thread stacks live, virtually.
+/// Where kernel thread stacks live, virtually: **the architecture's answer**, because the address
+/// is the architecture's (rule 1).
 ///
-/// Deliberately far above the direct map (which occupies `KERNEL_VA_BASE | pa` for every real
-/// physical address), so a stack address can never collide with the virtual *name* of a
-/// physical one. 64 GiB up, and RAM will not reach there for a while.
-const STACK_AREA: u64 = KERNEL_VA_BASE | 0x0000_0010_0000_0000;
+/// It has to be far above the direct map, so a stack address can never collide with the virtual
+/// *name* of a physical one. This was `KERNEL_VA_BASE | 0x10_0000_0000` here, computed portably,
+/// which was right on two architectures whose kernel base is a half base with room above it and
+/// silently the identity on `x86_64`, where `KERNEL_VA_BASE` already carries that bit and every kernel
+/// thread stack would have landed on the kernel image. See each `arch::mmu::THREAD_STACK_AREA`.
+const STACK_AREA: u64 = mmu::THREAD_STACK_AREA;
 
 /// One thread's slot in [`STACK_AREA`]: the guard page, then [`STACK_PAGES`] of stack. Every slot
 /// is this wide and every base is a multiple of it from `STACK_AREA`, including the reused ones

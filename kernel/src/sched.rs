@@ -3351,6 +3351,22 @@ mod tests {
         crate::user::uart_irq_and_source().0
     }
 
+    /// **x86 is aarch64's case, not RISC-V's**, and this is the third answer to the question those
+    /// two comments have been circling. The local APIC will deliver any vector to its own CPU on
+    /// demand, through the ICR and a real delivery path (the IRR, the ISR, an EOI), so this ISA
+    /// needs no device to raise an interrupt by hand and gets two independent sources rather than
+    /// one shared line. The number **is the vector**, because a local APIC source has no controller
+    /// input to name; see `arch::x86_64::exceptions::x86_trap_body`.
+    #[cfg(target_arch = "x86_64")]
+    fn delivery_irq() -> u32 {
+        crate::arch::irq::SELF_TEST_VECTOR as u32
+    }
+    /// A second vector, so the two tests cannot see each other's routes. aarch64's two SGIs.
+    #[cfg(target_arch = "x86_64")]
+    fn pending_irq() -> u32 {
+        crate::arch::irq::SELF_TEST_VECTOR_B as u32
+    }
+
     /// Enable the test interrupt at the controller. Nothing is raised yet.
     #[cfg(target_arch = "aarch64")]
     fn arm_test_irq(intid: u32) {
@@ -3363,6 +3379,14 @@ mod tests {
         // exactly as it does for a real driver's line. The handler masks the source when it fires,
         // so this also re-enables it for the second of the two tests.
         crate::arch::irq::enable(intid);
+    }
+
+    /// **Nothing to arm.** An IPI is not a line: it has no mask bit at any controller, because
+    /// nothing outside the CPU asserts it. `irq::enable` here takes a *legacy IRQ* and writes an IO
+    /// APIC redirection entry, which is the wrong device entirely for this source.
+    #[cfg(target_arch = "x86_64")]
+    fn arm_test_irq(intid: u32) {
+        let _ = intid;
     }
 
     /// Raise it.
@@ -3386,6 +3410,15 @@ mod tests {
         crate::console::raise_uart_interrupt();
     }
 
+    #[cfg(target_arch = "x86_64")]
+    fn raise_test_irq(intid: u32) {
+        debug_assert!(
+            intid == delivery_irq() || intid == pending_irq(),
+            "only the two self-IPI test vectors are raisable this way; {intid} is not one"
+        );
+        crate::arch::irq::raise_self_interrupt(intid as u8);
+    }
+
     /// Lower it again, so the next test starts from a quiet line.
     #[cfg(target_arch = "aarch64")]
     fn quiet_test_irq() {
@@ -3396,6 +3429,11 @@ mod tests {
     fn quiet_test_irq() {
         crate::console::quiet_uart_interrupt();
     }
+
+    /// An IPI is edge-delivered and one-shot: there is no asserted line to lower, which is aarch64's
+    /// SGI case rather than RISC-V's held UART line.
+    #[cfg(target_arch = "x86_64")]
+    fn quiet_test_irq() {}
 
     /// A spawned thread actually runs, and its closure's captured state comes with it.
     #[test_case]

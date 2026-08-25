@@ -119,6 +119,26 @@ pub const DIRECT_MAP_BASE: u64 = 0xffff_8880_0000_0000;
 /// The top-level (PML4) index the direct map occupies, **duplicated in `boot.s`** because a 32-bit
 /// assembler cannot compute it from the constant above. This is the gate that keeps the two in
 /// agreement: change [`DIRECT_MAP_BASE`] without changing `boot.s` and the kernel does not build.
+/// **Where kernel thread stacks live, virtually** (`thread.rs`'s `STACK_AREA`).
+///
+/// `0xffff_c900_0000_0000` is **Linux's `VMALLOC_START`**, taken rather than invented for the same
+/// reason [`DIRECT_MAP_BASE`] is Linux's `page_offset_base`: a reader who has met one `x86_64` kernel
+/// has met this number, and the alternative is a constant nobody can check against anything.
+///
+/// **The portable expression the other two architectures use does not survive here**, and the way
+/// it fails is silent. `thread.rs` computed this as `KERNEL_VA_BASE | 0x10_0000_0000` ("64 GiB above
+/// the direct map"), which works where the kernel base is a *half* base with room above it.
+/// [`KERNEL_VA_BASE`] here is `0xffff_ffff_8000_0000`, which already has every bit of
+/// `0x10_0000_0000` set, so the OR was the identity: every kernel thread stack would have been
+/// mapped at the kernel image's own base, over `.text`. Caught by reading rather than by booting,
+/// because the mapper's overwrite refusal turns it into `kmem: no memory to wire one` far from the
+/// cause.
+///
+/// PML4[402], which is nothing else's: the image is PML4[511] and the direct map PML4[273].
+///
+/// **Name provisional** (milestone 161, roadmap item 4).
+pub const THREAD_STACK_AREA: u64 = 0xffff_c900_0000_0000;
+
 const DIRECT_MAP_PML4_INDEX: u64 = 273;
 
 const _: () = {
@@ -865,6 +885,62 @@ pub unsafe fn switch_user_root(cr3: u64) {
     if read_cr3() == cr3 {
         return;
     }
+    // SAFETY: this function's own `# Safety` contract is exactly the one `install` needs; it
+    // forwards, it does not weaken.
+    unsafe { install(cr3) };
+}
+
+/// Read the address-space id back out of a composed [`ttbr0_value`]. The inverse of that function,
+/// and it exists so a portable test can ask "which tag is this space wearing?" without knowing where
+/// this ISA keeps it.
+///
+/// **It answers 0 for every space, and that is the truth rather than a stub.** `CR4.PCIDE` is off
+/// (see [`ttbr0_value`]), so the hardware holds no tag at all: there is nothing in the register for
+/// this to decode. A test that asserts two live address spaces wear *different* tags is therefore
+/// asserting something this architecture does not do yet, and should say so with `skip!()` rather
+/// than read a zero as agreement. The aarch64 twin shifts bits 63:48 out and the RISC-V one
+/// `satp[59:44]`.
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn asid_of(cr3: u64) -> u16 {
+    let _ = cr3;
+    0
+}
+
+/// **Test-only: let ring 0 load and store through pages marked user-accessible**, returning whether
+/// it was already permitted so the caller can put it back.
+///
+/// A no-op here, as on aarch64, and for a closely related reason: the feature that would forbid it
+/// is **SMAP** (`CR4.SMAP`, plus `RFLAGS.AC` to punch through it per access), which this kernel does
+/// not enable, exactly as it never sets aarch64's `PSTATE.PAN`. RISC-V is the odd one out, forbidding
+/// it unless `sstatus.SUM` is set, which is why this function exists at all: without it a test that
+/// reads through a user VA to see what the TLB holds compiles on all three ISAs and faults on one.
+///
+/// Returns the previous state (always `true`) so the three arch modules have one signature.
+///
+/// # BUGS
+/// **Turning SMAP on would make this a real function and is worth doing**, for the reason RISC-V
+/// leaves `SUM` clear in a shipping build: a kernel bug that strays into the low half should fault
+/// rather than succeed quietly. It is not on because nothing has measured what it costs on the
+/// syscall path, and a protection turned on without a number is the shape of change this tree asks
+/// for evidence about.
+#[cfg(test)]
+pub fn permit_kernel_access_to_user_pages(_allowed: bool) -> bool {
+    true
+}
+
+/// Install a user address space unconditionally, by writing `CR3`.
+///
+/// The running kernel does not call this: it installs address spaces through the context switch,
+/// which goes via [`switch_user_root`] so it can skip a `mov cr3` that would change nothing. This is
+/// the unconditional install, which is what a test wants when it is asserting about a *specific*
+/// address space rather than about scheduling.
+///
+/// # Safety
+/// `cr3` must be a value [`ttbr0_value`] composed over a live root that carries the kernel's high
+/// half. Anything else unmaps the instruction after this one; see [`switch_user_root`] for what that
+/// costs on this architecture.
+#[cfg_attr(not(test), allow(dead_code))]
+pub unsafe fn activate_user(cr3: u64) {
     // SAFETY: this function's own `# Safety` contract is exactly the one `install` needs; it
     // forwards, it does not weaken.
     unsafe { install(cr3) };

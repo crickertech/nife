@@ -11,6 +11,9 @@ const STACK_VA: u64 = 0x50_0000;
 const SPIN_STUB: &[u32] = &[0x1400_0000]; // b .
 #[cfg(target_arch = "riscv64")]
 const SPIN_STUB: &[u32] = &[0x0000_006F]; // j .  (jal x0, 0)
+/// `x86_64`'s is in `user::x86_programs`, shared with the boot tour; see that module's header.
+#[cfg(target_arch = "x86_64")]
+const SPIN_STUB: &[u32] = super::x86_programs::SPIN;
 
 /// Build a runaway from parts (aspace, code, stack, TCB all in one region), start it, then
 /// reclaim its region while it still spins, and assert the region comes back whole.
@@ -112,6 +115,9 @@ const RECV_STUB: &[u32] = &[
     0x0000_0893 | ((abi::SYS_EXIT as u32) << 20),         // li a7, SYS_EXIT
     0x0000_0073,                                          // ecall               (exit)
 ];
+/// `x86_64`'s is in `user::x86_programs`; see [`SPIN_STUB`].
+#[cfg(target_arch = "x86_64")]
+const RECV_STUB: &[u32] = &super::x86_programs::recv();
 
 /// **`DESTROY` reclaims a region whose resident is `Blocked`, not just one that spins.**
 ///
@@ -177,7 +183,7 @@ fn destroy_reclaims_a_region_whose_resident_is_blocked_in_recv() {
     // the ordinary force-kill path above would carry it. See the same lesson in
     // `a_blocked_waiter_wakes_with_an_error_when_its_rendezvous_is_revoked`.
     assert!(
-        super::tests::wait_for(|| sched::rendezvous_waiting_receivers(ep) == 1),
+        super::wait_for(|| sched::rendezvous_waiting_receivers(ep) == 1),
         "the child never blocked on its rendezvous, so this test would prove the wrong thing",
     );
 
@@ -199,7 +205,7 @@ fn destroy_reclaims_a_region_whose_resident_is_blocked_in_recv() {
          the life of the boot",
     );
     assert!(
-        super::tests::wait_for(|| !sched::thread_present(tid)),
+        super::wait_for(|| !sched::thread_present(tid)),
         "the region reclaimed but its blocked resident was never reaped",
     );
     assert_eq!(
@@ -237,7 +243,7 @@ fn an_address_space_never_frees_a_region_it_was_lent() {
     // lesson, same shape, as `sched::tests::a_finished_thread_is_reaped_and_its_memory_returned`.
     let mut last = crate::memory::free_frames();
     assert!(
-        super::tests::wait_for(|| {
+        super::wait_for(|| {
             sched::yield_now();
             let prev = core::mem::replace(&mut last, crate::memory::free_frames());
             prev == last
