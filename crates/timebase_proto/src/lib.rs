@@ -157,7 +157,9 @@ impl TimebasePage {
     /// maps exactly such a page, read-only, at [`PAGE_VA`], into every `x86_64` process; see the
     /// crate's own `BUGS` section for the one spawn path that does not.
     pub const unsafe fn new(va: u64) -> Self {
-        TimebasePage { base: va as *const u8 }
+        TimebasePage {
+            base: va as *const u8,
+        }
     }
 
     /// # Safety

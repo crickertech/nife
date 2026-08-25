@@ -93,7 +93,8 @@ static TSC_HZ: AtomicU64 = AtomicU64::new(0);
 /// the calibration path's own value, which is also what every QEMU boot actually takes: see
 /// `arch::x86_64::isa::tsc_crystal_hz`'s own docs for why leaf 0x15 is empirically unavailable
 /// under `-cpu max`).
-static TSC_HZ_FROM_CPUID: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
+static TSC_HZ_FROM_CPUID: core::sync::atomic::AtomicBool =
+    core::sync::atomic::AtomicBool::new(false);
 
 /// The local APIC timer's frequency in hertz, at the divider `irq` programs. Zero until measured.
 static APIC_TIMER_HZ: AtomicU64 = AtomicU64::new(0);
