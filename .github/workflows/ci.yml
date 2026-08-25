@@ -79,7 +79,39 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Needs history to diff against the base for the scope check below.
+          fetch-depth: 0
+
+      # **The same predicate `cpu-matrix` and `verify` use, for the same reason.** This is the
+      # single most expensive required check on a docs-only pull request, and a change to a markdown
+      # file cannot alter what the kernel does under QEMU. Do NOT drop this to a bare
+      # `paths-ignore:` on the workflow trigger instead: `build + test (host + QEMU)` is a required
+      # status check in the merge queue's ruleset, and a job that never runs never posts a status, so
+      # a docs-only pull request would sit on "Expected" forever, the exact failure `merge_group:`'s
+      # own comment above already warns about for a different trigger gap. Skipping the STEPS while
+      # the JOB still runs is what keeps the required check satisfied either way.
+      #
+      # The predicate is deliberately identical to `cpu-matrix`'s rather than tuned narrower, for the
+      # same reason that job gives: one rule that is easy to believe beats two that have to be kept
+      # in agreement, and the asymmetry argument is the same: skipping a run that was needed is a
+      # broken gate, running one that was not costs minutes.
+      - name: Does this change need the build?
+        id: scope
+        run: |
+          base="${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}"
+          [ -n "$base" ] || base="$(git rev-parse HEAD~1 2>/dev/null || git rev-parse HEAD)"
+          changed="$(git diff --name-only "$base" HEAD)"
+          echo "changed files:"; echo "$changed" | sed 's/^/  /'
+          if [ -z "$(printf '%s\n' "$changed" | grep -vE '^(notes/|design/|[A-Z_]+\.md$)' || true)" ]; then
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+            echo "==> documentation only; nothing a build or a boot can catch"
+          else
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: Swatinem/rust-cache@v2
+        if: steps.scope.outputs.needed == 'true'
       # QEMU, built from source and cached. Ubuntu 24.04 ships 8.2 and `-device riscv-iommu-pci`
       # (milestone 16b) arrived later, so the runner's packaged QEMU cannot boot the riscv leg at all.
       # apt cannot fix it: it already installs the newest package for the release, and there is no
@@ -89,19 +121,23 @@ jobs:
       # script/bootstrap on purpose, because bootstrap skips its apt install when QEMU is already on
       # PATH, which is how the built one wins.
       - name: Cache QEMU
+        if: steps.scope.outputs.needed == 'true'
         uses: actions/cache@v6
         with:
           path: ~/.cache/nife-qemu
           key: qemu-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.qemu-version') }}
       - name: Build QEMU if the cache missed
+        if: steps.scope.outputs.needed == 'true'
         run: script/ci-qemu
       - name: Put it on PATH
+        if: steps.scope.outputs.needed == 'true'
         run: echo "$HOME/.cache/nife-qemu/bin" >> "$GITHUB_PATH"
 
       # script/ci-build bootstraps the toolchain and QEMU (the same script/bootstrap a developer
       # runs), then runs the host-logic crates and the kernel under QEMU (TCG), exiting through
       # semihosting.
       - run: script/ci-build
+        if: steps.scope.outputs.needed == 'true'
 
   cpu-matrix:
     name: cpu matrix (riscv64 across QEMU CPU models)
