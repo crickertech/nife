@@ -4,7 +4,8 @@
 `nvme` crate (queue mechanics, host-tested, 5 Kani harnesses), a rule-2 kernel driver confined
 through the IOMMU before enable, class-code enumeration over §18, and an end-to-end boot test on
 both ISAs. What remains of the milestone: the network half (the JH7110's GMAC), the board-side
-PLDA XpressRICH root complex that carries the NVMe driver to the real M.2 slot, and the EL0
+PLDA XpressRICH root complex that carries the NVMe driver to the real M.2 slot (now tracked as its
+own milestone, 163, NOT-STARTED), and the EL0
 question, which is §86 (PROPOSED). Scope and honest limits: notes/nvme.md, BUGS included.
 
 **Gate: HARDWARE.** In the second sense: the board is here and this needs hands on it. Bringing up

@@ -41,9 +41,11 @@ the kernel, or does the syscall surface grow whatever lets it leave?
 ## Recommendation
 
 Option 2, **but not yet**. The recommendation is to hold this PROPOSED until the board-side work
-(the JH7110's PLDA XpressRICH root complex) exists, for the same reason §23 built multi-queue
-confinement only after single-queue worked: the second data point tells you which parts of the
-contract are QEMU artifacts. Option 1 is honest in the meantime because the limitation is recorded
+(the JH7110's PLDA XpressRICH root complex, tracked as milestone 163, NOT-STARTED) exists, for the
+same reason §23 built multi-queue confinement only after single-queue worked: the second data point
+tells you which parts of the contract are QEMU artifacts. A second, possibly faster path to the same
+data point may exist through milestone 87's x86 machine instead; see milestone 163's own text for
+why that does not make 163 unnecessary. Option 1 is honest in the meantime because the limitation is recorded
 in notes/nvme.md's BUGS section rather than implied away.
 
 If the answer is option 1 permanently, nothing is blocked, and notes/nvme.md's BUGS entry becomes
