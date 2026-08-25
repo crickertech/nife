@@ -8,9 +8,9 @@ anywhere in this repository records the model as a choice.** It is what the code
 
 **Ratified as the three-step plan below, not as a deferral without a record.** Take the cheap half
 (direct process switch, under §95's Option 2/3 split) now, as a process kernel. Build the instrument
-that could actually decide the larger question — a real multi-tasking workload benchmark, since
-every instrument this project owns today is a micro-benchmark that would show approximately nothing
-— minted as [milestone 168](../roadmap/168-multitasking-benchmark.md). Re-open this section once
+that could actually decide the larger question (a real multi-tasking workload benchmark, since
+every instrument this project owns today is a micro-benchmark that would show approximately nothing),
+minted as [milestone 168](../roadmap/168-multitasking-benchmark.md). Re-open this section once
 that number exists, or sooner if a real customer-path workload starts creating threads in the
 hundreds.
 

@@ -10,7 +10,7 @@ not one word covering both. **Option 3, the fastpath itself**, is what stays und
 milestone 74's cycle counters and milestone 127's Jetson TX1 to produce the one measurement that
 would justify it, and neither exists yet, so building it now would be arguing on an estimate rather
 than measuring, exactly the move this project's benchmark discipline refuses. **Option 2, the
-eligibility predicate and its proof in `crates/ipc`, is ratified as buildable now** — it is cheap,
+eligibility predicate and its proof in `crates/ipc`, is ratified as buildable now**: it is cheap,
 touches no syscall surface, and turns "the fastpath would be correct" from an argument into a
 harness whether or not a fastpath is ever built on top of it. A lane may pursue Option 2 without
 further sign-off; Option 3 stays gated on the measurement per this decision's own text.
