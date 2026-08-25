@@ -135,7 +135,7 @@ const REPEAT_LEN: usize = fixture::WRITE_PATTERN.len();
 
 /// The payload for repeat-write pass `n`: tagged with the pass, position-dependent after that, and
 /// [`REPEAT_LEN`] bytes like every other write here, so a stale or shifted read cannot match. The
-/// twin of `fs_server`'s host-side `repeat_write_payload`.
+/// twin of `redoxfs_server`'s host-side `repeat_write_payload`.
 fn repeat_payload(pass: u8) -> [u8; REPEAT_LEN] {
     let mut p = [0u8; REPEAT_LEN];
     p[..8].copy_from_slice(b"CRKRPT__");
@@ -170,7 +170,7 @@ fn read(handle: u64, offset: u64, n: usize) -> usize {
 /// with no cache does.
 ///
 /// **It is warm now, and this time the word is accurate.** Step 2 wrapped `IpcDisk` in
-/// `fs_server::CachedDisk`, which answers a repeated single-block read (the tree walk this loop's
+/// `redoxfs_server::CachedDisk`, which answers a repeated single-block read (the tree walk this loop's
 /// every request repeats, since `motd` lives inline in its node and rides entirely on that walk)
 /// from memory. Measured (`sh bench/cache-slots-sweep.sh`): 210,490 ns to 9,474, 22.2x. This role's
 /// own report still reads correctly as "the FS-server contract's cost above a raw endpoint call",
@@ -257,7 +257,7 @@ const STAGE_MKDIR: u64 = 4;
 const STAGE_OPENDIR: u64 = 5;
 const STAGE_CREATE: u64 = 6;
 
-/// `EEXIST`: the standard value (matching `redoxfs`/`syscall`'s own, which `fs_server` returns and
+/// `EEXIST`: the standard value (matching `redoxfs`/`syscall`'s own, which `redoxfs_server` returns and
 /// nothing in `filesystem_proto` re-exports under a name), the same constant
 /// `identity_provisioner.rs` defines locally for the identical reason.
 const EEXIST: i32 = 17;

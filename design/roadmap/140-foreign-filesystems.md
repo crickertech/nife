@@ -93,6 +93,16 @@ would conflict with all of it, in the file every one of those lanes is editing. 
 and before FAT32 starts** is the window, and it is a real window rather than a preference: renaming
 into a quiet tree is an afternoon, renaming into four open branches is a week of conflicts.
 
+**Increment zero is built** (2026-08-25, milestone 138 having settled). `fs_server` is
+`redoxfs_server` everywhere: the crate directory, the package and lib name, the `redoxfs_server`
+binary (`second_mount` and `mkfs` keep their own names; they were never the misnamed one), and every
+functional reference across the tree (`xtask`'s build and initrd packaging, the kernel's `program()`
+lookups and test suites, `script/fmt`, `script/lint`, `script/supply-chain`, the crates and notes
+that cross-reference it). `fs_proto` and `kernel/src/user/fs_service.rs` were left untouched as
+names, exactly as this section argues they should be; `fs_service.rs` only had its own prose
+pointers into the renamed crate corrected. The first stratum (FAT32) can now be named without a
+second server carrying a name that disagrees about what kind of thing it is.
+
 ### Decided: one process per volume
 
 **calef, 2026-08-18.** Each mounted volume gets its own server process holding exactly one

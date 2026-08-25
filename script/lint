@@ -41,12 +41,12 @@ cargo clippy --workspace --exclude kernel --exclude user --exclude user_rt \
 echo "==> clippy: redoxfs_host (its own workspace)"
 cargo clippy --manifest-path tools/redoxfs_host/Cargo.toml --all-targets -- -D warnings
 
-# fs_server is its own workspace too (it wraps the vendored RedoxFS engine, which we keep out of our
+# redoxfs_server is its own workspace too (it wraps the vendored RedoxFS engine, which we keep out of our
 # gates). Only the rustdoc pass reached it before milestone 41, so its own code was never clippy'd,
 # and there was a real `deref_addrof` sitting in `second_mount` when this line was added. `-D warnings`
 # applies to local crates only, so the vendored engine's own warnings do not fail the run.
-echo "==> clippy: fs_server (its own workspace)"
-cargo clippy --manifest-path fs_server/Cargo.toml --all-targets -- -D warnings
+echo "==> clippy: redoxfs_server (its own workspace)"
+cargo clippy --manifest-path redoxfs_server/Cargo.toml --all-targets -- -D warnings
 
 # The fuzz workspace (milestone 42), a fourth. `cargo clippy` is `cargo check` semantics, so this
 # does NOT link libFuzzer or need a sanitizer; it type-checks four fuzz targets and the four crates
@@ -184,7 +184,7 @@ done
 #
 # `clippy::missing_safety_doc` is already on via `-D warnings` and does NOT cover this: it only fires
 # on an EXPORTED function, and the interesting ones here are private to their module (`set_ttbr0`,
-# `write_satp`). This found one violation on its first run, `fs_server`'s `file_page`, whose contract
+# `write_satp`). This found one violation on its first run, `redoxfs_server`'s `file_page`, whose contract
 # was written but spelled `SAFETY:` instead of `# Safety` and so rendered as ordinary prose.
 #
 # **Trait-impl methods are excluded, and that is correctness rather than convenience.** `GlobalAlloc`'s
@@ -541,14 +541,14 @@ echo "==> roadmap status"
 # items without a path, plus `name[24]` in a comment that markdown read as a link.
 #
 # Split three ways because the workspace is not one target: the bare crates document for aarch64
-# (riscv64 would refuse `xtask`, which needs std), `xtask` is a host tool, and fs_server is its own
-# workspace.
+# (riscv64 would refuse `xtask`, which needs std), `xtask` is a host tool, and redoxfs_server is its
+# own workspace.
 echo "==> rustdoc (broken intra-doc links)"
 DOCFLAGS="-D rustdoc::broken_intra_doc_links -D rustdoc::invalid_html_tags"
 RUSTDOCFLAGS="$DOCFLAGS" cargo doc --no-deps --quiet --workspace --exclude xtask \
     --target aarch64-unknown-none-softfloat
 RUSTDOCFLAGS="$DOCFLAGS" cargo doc --no-deps --quiet -p xtask
-RUSTDOCFLAGS="$DOCFLAGS" cargo doc --no-deps --quiet --manifest-path fs_server/Cargo.toml --lib
+RUSTDOCFLAGS="$DOCFLAGS" cargo doc --no-deps --quiet --manifest-path redoxfs_server/Cargo.toml --lib
 
 # The decision index (design/decisions/README.md and one file per decision, milestone 114): its
 # numbering, its status vocabulary, that each decision's own Status line agrees with its index row,
@@ -664,7 +664,7 @@ workspace member that reaches it cannot be built by a host `cargo test`, and `--
 package alone does NOT help: it removes the package from the test selection, not from the dependency
 graph, so cargo builds it anyway for whoever depends on it.
 
-Either exclude it from the host pass in BOTH places above, or do what fs_server/Cargo.toml does and
+Either exclude it from the host pass in BOTH places above, or do what redoxfs_server/Cargo.toml does and
 put `user_rt` behind an optional `el0` feature, which is the better fix when the crate has host logic
 worth testing.
 """)
@@ -2076,7 +2076,7 @@ if ! command -v cargo-machete >/dev/null 2>&1; then
     echo "lint: cargo-machete not found; run script/bootstrap (it installs it)." >&2
     exit 1
 fi
-cargo machete crates kernel user xtask fs_server tools/redoxfs_host >/dev/null
+cargo machete crates kernel user xtask redoxfs_server tools/redoxfs_host >/dev/null
 echo "unused dependencies: none in our packages"
 
 # A `#[test]` inside a `#[cfg(kani)]` module never runs, and nothing says so. `cargo test` does not

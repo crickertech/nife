@@ -538,8 +538,8 @@ wiring rather than `smb-serve`, and the account would be the published fixture i
   **Corrected 2026-08-22: not a fix this layer can answer, and not simply "add `NOREPLACE` to
   `fs_proto`" either.** §42 (design/decisions/42-truthful-filesystem.md) already decided not to
   offer `renameat2`'s `NOREPLACE`, and its stated reason is that emulating it with link-then-unlink
-  is racy and backend-specific. That reason does not describe this backend. `fs_server::rename`
-  (fs_server/src/lib.rs) already looks up the destination inside the same `fs.tx` that performs
+  is racy and backend-specific. That reason does not describe this backend. `redoxfs_server::rename`
+  (redoxfs_server/src/lib.rs) already looks up the destination inside the same `fs.tx` that performs
   the move, and its own doc comment states why that check needs no lock: "the serve loop runs one
   request to completion before it receives the next, so inside this server there is no concurrent
   observer at all." A `replace: bool` read there costs one branch before `tx.rename_node`, in a

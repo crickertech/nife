@@ -423,7 +423,7 @@ pub mod fs {
     /// - **Crash-atomic: yes.** The whole rename runs in one RedoxFS transaction and reaches the
     ///   platter through one commit in the header ring, so a fresh mount finds the old name or the
     ///   new one and never both or neither. This is measured, not argued: it is the last operation
-    ///   of `fs_server/tests/crash_consistency.rs`'s workload, so the sweep that cuts the device at
+    ///   of `redoxfs_server/tests/crash_consistency.rs`'s workload, so the sweep that cuts the device at
     ///   every write in that workload cuts inside this one too.
     ///
     /// The temp-file-then-rename idiom needs both, which is why §42 states them separately: saying
@@ -730,7 +730,7 @@ pub mod fs {
     ///
     /// # What "now" is, honestly
     ///
-    /// This server has no RTC wired to it (the same gap `fs_server::Server`'s `clock` field
+    /// This server has no RTC wired to it (the same gap `redoxfs_server::Server`'s `clock` field
     /// records): "now" is this server's own advancing logical clock, the exact mechanism that
     /// already timestamps
     /// every [`WRITE`], [`CREATE`], [`TRUNCATE`], [`SETXATTR`] and [`REMOVEXATTR`], not a reading
@@ -1269,7 +1269,7 @@ pub mod verb {
     /// **Every verb the file-service contract carries, in opcode order.**
     ///
     /// The rights column is the server's, copied from the doc comment on each opcode in [`fs`] and
-    /// checked against the server's behaviour by `fs_server`'s own tests. It is here because a proxy
+    /// checked against the server's behaviour by `redoxfs_server`'s own tests. It is here because a proxy
     /// that knows a verb mutates can refuse it without having to know what mutating means.
     pub const TABLE: [Verb; (LAST - FIRST + 1) as usize] = [
         // OPEN's requirement is "READ or WRITE", the one any-of in the contract, so it is the one
@@ -2453,7 +2453,7 @@ pub mod fixture {
     /// A file the image ships with (with placeholder contents) so the client can open it and write.
     pub const SCRATCH_NAME: &str = "scratch";
     /// Placeholder contents the host tool writes; overwritten by the client's write test.
-    pub const SCRATCH_INIT: &[u8] = b"(placeholder overwritten by the fs_server write test)";
+    pub const SCRATCH_INIT: &[u8] = b"(placeholder overwritten by the redoxfs_server write test)";
     /// What the client writes to `scratch` and reads back; the host tool re-reads it after the run
     /// to prove the write reached the on-disk image and the filesystem is still consistent.
     pub const WRITE_PATTERN: &[u8] =
@@ -2675,8 +2675,8 @@ pub mod fixture {
         ///
         /// **This is the store's number, not the protocol's**, and it used to say so and then add
         /// that nothing checked it, calling itself "the one soft spot in this module". It is checked
-        /// now: `fs_server` sees both this crate and the vendored engine, and asserts at compile
-        /// time that this value is a whole number of records. See `fs_server/src/lib.rs`.
+        /// now: `redoxfs_server` sees both this crate and the vendored engine, and asserts at compile
+        /// time that this value is a whole number of records. See `redoxfs_server/src/lib.rs`.
         pub const RECORD: u64 = 128 * 1024;
 
         /// **The cost of producing one page of payload**, with no filesystem in it at all.
@@ -2881,7 +2881,7 @@ pub mod fixture {
         pub const NAV_TOUCH_AT_UNIX: u64 = 1_893_456_000;
         /// The fresh directory the navigating witness mints with `MKDIR`, attenuated to `WRITE` and
         /// not `SETTIME`, to prove `touch -t` needs the right through the real wire and not only in
-        /// `fs_server`'s own host tests. Ten bytes plus a run digit, `run_name`'s bound.
+        /// `redoxfs_server`'s own host tests. Ten bytes plus a run digit, `run_name`'s bound.
         pub const NAV_TOUCH_NO_SETTIME: &str = "nav-notime";
 
         /// **The directory milestone 50's redirection witness works in**, a sibling of [`SUB`] for
@@ -3252,7 +3252,7 @@ pub mod fixture {
         pub const TOUCH_AT_ROUND_TRIPPED: u64 = 1 << 26;
         /// **A directory handle carrying `WRITE` and not `SETTIME` still bumped a name's mtime to
         /// now**, through the real wire and the real `fs_subtree_caretaker`, not just the
-        /// `fs_server` host tests' in-process `Server`. DECISIONS §112's "plain `WRITE` covers
+        /// `redoxfs_server` host tests' in-process `Server`. DECISIONS §112's "plain `WRITE` covers
         /// 'now'" made a measurement one layer further out: a bug in `verb::TABLE`'s row for
         /// `SETMTIME` (the wrong `needs_all`, or an off-by-one index after `SYNC`'s row was
         /// inserted ahead of it) would show up here and would not show up in a test that calls
@@ -3404,7 +3404,7 @@ pub mod fixture {
 
     /// **The on-device crash test's vocabulary** (milestone 37, DECISIONS §34 condition 1).
     ///
-    /// The host sweep in `fs_server/tests/crash_consistency.rs` proves the property exhaustively
+    /// The host sweep in `redoxfs_server/tests/crash_consistency.rs` proves the property exhaustively
     /// against a reconstructed platter. This is the other half: one crash driven all the way through
     /// the real stack, on its own disk, so the recovery is a real FS-server process mounting a real
     /// image that a real virtio write left half finished.

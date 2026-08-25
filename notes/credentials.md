@@ -95,7 +95,7 @@ and the amendment to §46 says depend rather than *vendor*: a vendored copy is i
 **The crate is RustCrypto's `argon2` 0.5.3**, `default-features = false`, plus `subtle` for
 constant-time comparison and `zeroize` so the library scrubs its own memory. The whole graph is
 nine crates, all RustCrypto core, and it passes `deny.toml` unchanged: advisories, licences, bans,
-sources. `argon2` was already in this tree, in the fs_server workspace, underneath RedoxFS's
+sources. `argon2` was already in this tree, in the redoxfs_server workspace, underneath RedoxFS's
 encryption path, so the licence question had an answer before the question was asked.
 
 **Argon2id specifically**, not Argon2i or Argon2d: it is RFC 9106 §4's recommendation, it is what

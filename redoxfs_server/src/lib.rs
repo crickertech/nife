@@ -2988,7 +2988,7 @@ mod tests {
             ),
             (
                 "scratch",
-                b"(placeholder overwritten by the fs_server write test)",
+                b"(placeholder overwritten by the redoxfs_server write test)",
             ),
         ]);
 
@@ -3033,7 +3033,7 @@ mod tests {
                 ),
                 (
                     "scratch",
-                    &b"(placeholder overwritten by the fs_server write test)"[..],
+                    &b"(placeholder overwritten by the redoxfs_server write test)"[..],
                 ),
             ] {
                 let ptr = tx

@@ -36,7 +36,7 @@ const ALWAYS: u64 = nb::PWD_IS_ROOT
     | nb::TOUCH_MTIME_ADVANCED
     | nb::TOUCH_AT_ROUND_TRIPPED
     // The two-right split, proven against one freshly-minted handle rather than assumed from
-    // `fs_server`'s own host tests: `WRITE` alone is enough for bare `touch`, and it is not enough
+    // `redoxfs_server`'s own host tests: `WRITE` alone is enough for bare `touch`, and it is not enough
     // for `touch -t`.
     | nb::TOUCH_NOW_NEEDS_ONLY_WRITE
     | nb::TOUCH_AT_REFUSED_WITHOUT_SETTIME;
@@ -53,7 +53,7 @@ const ALWAYS: u64 = nb::PWD_IS_ROOT
 fn navigate(root: &'static str, run: u64) -> Option<u64> {
     let report = fs_service::start_granted_dir(
         dir_capability_tests::blk_server_image(),
-        program("fs_server").expect("no fs_server program in the initrd archive"),
+        program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),
         program("fs_subtree_caretaker")
             .expect("no fs_subtree_caretaker program in the initrd archive"),
         program("swish").expect("no swish program in the initrd archive"),

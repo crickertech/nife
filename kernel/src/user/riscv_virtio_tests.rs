@@ -191,10 +191,10 @@ fn a_userspace_driver_reads_a_file_from_a_virtio_disk() {
 /// directory capability, reads it, round-trips a write, and reports. The block-server role rides
 /// the portable `blk` binary here instead of hello.
 #[test_case]
-fn the_fs_server_serves_redoxfs_over_a_capability_contract() {
+fn the_redoxfs_server_serves_redoxfs_over_a_capability_contract() {
     let Some((readiness, report)) = fs_service::start(
         blk_image(),
-        program("fs_server").expect("no fs_server program in the initrd archive"),
+        program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),
         program("fs_test_client").expect("no fs_test_client program in the initrd archive"),
         0, // the end-to-end proof role, not the benchmark loop
     ) else {
@@ -228,7 +228,7 @@ fn the_fs_server_serves_redoxfs_over_a_capability_contract() {
 fn std_fs_reads_a_file_through_a_granted_directory_capability() {
     let Some((readiness, report)) = fs_service::start_std(
         blk_image(),
-        program("fs_server").expect("no fs_server program in the initrd archive"),
+        program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),
         program("std_exerciser").expect("no std_exerciser program in the initrd archive"),
     ) else {
         crate::println!("    (no RedoxFS disk attached; skipping)");
@@ -283,7 +283,7 @@ fn a_writable_per_file_grant_writes_that_file_and_still_only_that_file() {
 fn attack_a_grant(rights: u64, writable: bool) -> Option<u64> {
     let Some(report) = fs_service::start_granted(
         blk_image(),
-        program("fs_server").expect("no fs_server program in the initrd archive"),
+        program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),
         program("fs_file_caretaker").expect("no fs_file_caretaker program in the initrd archive"),
         program("fs_test_client").expect("no fs_test_client program in the initrd archive"),
         fs_service::Grant {
@@ -321,13 +321,13 @@ fn attack_a_grant(rights: u64, writable: bool) -> Option<u64> {
 fn a_kill_mid_transaction_leaves_the_filesystem_consistent() {
     assert_a_kill_mid_transaction_recovers(
         blk_image(),
-        program("fs_server").expect("no fs_server program in the initrd archive"),
+        program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),
         program("fs_test_client").expect("no fs_test_client program in the initrd archive"),
     );
 }
 
 #[test_case]
-fn the_fs_servers_stack_still_has_headroom() {
+fn the_redoxfs_servers_stack_still_has_headroom() {
     let Some((used, total)) = fs_service::fs_stack_used() else {
         crate::println!("    (no FS service wired this boot; skipping)");
         return;
@@ -584,7 +584,7 @@ fn a_host_process_connects_to_the_guest_and_is_answered() {
     let e2_baseline_threads = sched::thread_count();
     let fs = fs_service::start(
         blk_image(),
-        program("fs_server").expect("no fs_server program in the initrd archive"),
+        program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),
         program("fs_test_client").expect("no fs_test_client program in the initrd archive"),
         7, // ROLE_SMB_SEED: write fixture::SMB_SEED at fixture::SMB_SEED_NAME, report, exit
     )
@@ -598,7 +598,7 @@ fn a_host_process_connects_to_the_guest_and_is_answered() {
         );
         let (ep, shared) = fs_service::root_directory(
             blk_image(),
-            program("fs_server").expect("no fs_server program in the initrd archive"),
+            program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),
         )
         .expect("the FS service was wired a moment ago");
         // Read-write **and authenticated**, as on the aarch64 twin: the write half of the gate

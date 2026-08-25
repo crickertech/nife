@@ -497,7 +497,7 @@ Wire a set grant and attack it:
 // kernel/src/user/glob_grant_tests.rs
 let report = fs_service::start_granted_set(
     blk_server_image(),
-    program("fs_server").unwrap(),
+    program("redoxfs_server").unwrap(),
     program("fs_nameset_caretaker").unwrap(),
     program("rm").unwrap(),
     fs_service::SetGrant {

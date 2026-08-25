@@ -19,7 +19,7 @@ pub(super) fn blk_server_image() -> &'static [u8] {
 fn attack_a_subtree(rights: u64, run: u64) -> Option<u64> {
     let Some(report) = fs_service::start_granted_dir(
         blk_server_image(),
-        program("fs_server").expect("no fs_server program in the initrd archive"),
+        program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),
         program("fs_subtree_caretaker")
             .expect("no fs_subtree_caretaker program in the initrd archive"),
         program("fs_test_client").expect("no fs_test_client program in the initrd archive"),
@@ -205,7 +205,7 @@ fn an_append_only_directory_capability_adds_and_cannot_walk_or_list() {
 fn a_name_set_capability_reads_its_attributes_and_still_names_only_its_set() {
     let Some(report) = fs_service::start_granted_set(
         blk_server_image(),
-        program("fs_server").expect("no fs_server program in the initrd archive"),
+        program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),
         program("fs_nameset_caretaker")
             .expect("no fs_nameset_caretaker program in the initrd archive"),
         program("fs_test_client").expect("no fs_test_client program in the initrd archive"),

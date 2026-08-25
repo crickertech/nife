@@ -48,7 +48,7 @@ fn what_a_shell_shows_is_what_a_set_grant_takes_away() {
 fn shell_expanded() -> Option<u64> {
     let report = fs_service::start_granted_dir(
         dir_capability_tests::blk_server_image(),
-        program("fs_server").expect("no fs_server program in the initrd archive"),
+        program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),
         program("fs_subtree_caretaker")
             .expect("no fs_subtree_caretaker program in the initrd archive"),
         program("swish").expect("no swish program in the initrd archive"),
@@ -105,7 +105,7 @@ fn run_rm(name: &str, flags: u64) -> (u64, u64) {
     let (lo, hi) = filesystem_proto::grant::pack_name(name.as_bytes());
     let report = fs_service::start_granted_set(
         dir_capability_tests::blk_server_image(),
-        program("fs_server").expect("no fs_server program in the initrd archive"),
+        program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),
         program("fs_nameset_caretaker")
             .expect("no fs_nameset_caretaker program in the initrd archive"),
         program("rm").expect("no rm program in the initrd archive"),

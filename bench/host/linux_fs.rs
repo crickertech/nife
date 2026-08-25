@@ -10,7 +10,7 @@
 //! nife's FS server holds no **data** cache: a record body is always a virtio round trip (batched
 //! since milestone 138 step 4, but never answered from memory), and every write is its own RedoxFS
 //! transaction that commits before the reply. It does hold a small **metadata** cache since step 2
-//! (`fs_server::CachedDisk`, 64 blocks, ~257 KiB): a repeated read of the same file's tree spine
+//! (`redoxfs_server::CachedDisk`, 64 blocks, ~257 KiB): a repeated read of the same file's tree spine
 //! answers from memory rather than a second round trip, which is why `fs_read` (a repeated read of
 //! one small inline file) is no longer comparable to a cold read the way it was when this file's
 //! comment last described it as cacheless. The phases this file runs are dominated by record

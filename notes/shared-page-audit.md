@@ -42,8 +42,8 @@ against one.
 
 | Contract | Server | Client(s) | Files |
 |---|---|---|---|
-| blk IPC | block server | FS server | `crates/fs_proto` (`blk`), `user/src/blk.rs`, `fs_server/src/bin/fs_server.rs` |
-| file IPC | FS server | every FS client | `crates/fs_proto` (`fs`, `xattr`), `fs_server/src/bin/fs_server.rs` |
+| blk IPC | block server | FS server | `crates/fs_proto` (`blk`), `user/src/blk.rs`, `redoxfs_server/src/bin/redoxfs_server.rs` |
+| file IPC | FS server | every FS client | `crates/fs_proto` (`fs`, `xattr`), `redoxfs_server/src/bin/redoxfs_server.rs` |
 | file IPC, narrowed | the three caretakers | one confined program each | `user/src/fs_file_caretaker.rs`, `fs_subtree_caretaker.rs`, `fs_nameset_caretaker.rs` |
 | the sink | `user/src/sink.rs` | a redirected program | `crates/sink_proto` |
 | the serial terminal | `user/src/line_editor.rs` | the shell | `crates/line_editor` |
@@ -111,7 +111,7 @@ it, read it again to size the copy) by construction rather than by care.
 Three consequences fell out of the sweep and bound the search:
 
 - **Every payload length is clamped to the page at the top of its serve loop** and the clamp is a
-  local, not a re-read. `fs_server.rs:246` `let len = fs::req_len(w0).min(BLOCK);` is the pattern,
+  local, not a re-read. `redoxfs_server.rs:246` `let len = fs::req_len(w0).min(BLOCK);` is the pattern,
   and the three caretakers, `line_editor`, `display_terminal` and `sink` all repeat it.
 - **The one contract whose decode lives in a host-testable crate is the one with a proof.**
   `cred_proto::read` takes the page and the register word, checks both lengths against their
@@ -212,7 +212,7 @@ let r = forward(fs::req(code, server_handle, n), second);  // the FS server read
 
 The caretaker copies the name into a stack buffer, decides on the copy, and then forwards a request
 carrying only the *length*. The FS server does its own read of the same page
-(`fs_server.rs:254`, `unsafe { file_page(len) }`) and resolves whatever is there then. Two reads,
+(`redoxfs_server.rs:254`, `unsafe { file_page(len) }`) and resolves whatever is there then. Two reads,
 one check, and the checked bytes are never written back.
 
 `RENAME` has the same shape twice, and the destination half is the load-bearing one: the caretaker's

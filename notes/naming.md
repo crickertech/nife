@@ -40,8 +40,8 @@ that tool.
 
 A **component** is the shippable unit: one binary in `user/src/`, one `[[bin]]` in `user/Cargo.toml`,
 one entry in the initrd archive. A **service** is what a component offers. A **contract** is the wire
-protocol it offers it over. "Server" is a fine role word inside a component (`fs_server` serves the FS
-service). "Daemon" appears nowhere.
+protocol it offers it over. "Server" is a fine role word inside a component (`redoxfs_server` serves
+the FS service). "Daemon" appears nowhere.
 
 - Lowercase, `snake_case`, no suffix. `net_stack`, `compositor`, `display`, `line_editor`,
   `fs_subtree_caretaker`. One word where one word will do, an underscore where the name is a
@@ -482,7 +482,7 @@ people learn to skip.
   the winner since, but a reader deciding how much weight the state carries should know it leans on
   one decision and that the decision partly ratified the status quo.
 - **Three surfaces, and the tree has more than three kinds of name.** Crates, programs and `script/`
-  entry points carry blocks. Directories, types, `scripts/` helpers, `kernel`, `xtask`, `fs_server`
+  entry points carry blocks. Directories, types, `scripts/` helpers, `kernel`, `xtask`, `redoxfs_server`
   and `tools/redoxfs_host` do not, and at least one ratified name has no home as a result:
   **`design/audit-reports/`** (calef, 2026-08-04), where `audit-trail` was refused because
   `design/decisions/35-scanner-findings.md` already uses that phrase for a chronological record of
@@ -492,12 +492,12 @@ people learn to skip.
   under `design/` or `notes/` now carries its provenance in its own `README.md`, applied that day
   to `design/decisions/`, `design/roadmap/` and `notes/`, with `design/audit-reports/`'s line owed
   by the milestone-92 commit that creates it. The other surfaces in this list (types, `scripts/`
-  helpers, `kernel`, `xtask`, `fs_server`, `tools/redoxfs_host`) are still uncovered.
+  helpers, `kernel`, `xtask`, `redoxfs_server`, `tools/redoxfs_host`) are still uncovered.
 
   **That blind spot has a live casualty, found while triaging.** `disk_partitioner`'s introducing
   commit (2026-08-03) named two provisional things: itself, and `fs_maker`. The first is on a
   covered surface, so it is in the worklist with the word "provisional" quoted in its block. The
-  second is at `fs_server/src/bin/mkfs.rs`, where nothing looks, so it was resolved to `mkfs` by
+  second is at `redoxfs_server/src/bin/mkfs.rs`, where nothing looks, so it was resolved to `mkfs` by
   whoever was mid-task and no record anywhere says a decision was owed. That is the exact failure
   this milestone exists to prevent, still happening one directory over.
 - **A type's name is a naming decision the mechanism does not see.** `BootEndowment` was ratified on
@@ -724,7 +724,7 @@ by mistake.
 - **Note filenames did not move**, and that is the rule rather than an oversight:
   [fs-server.md](fs-server.md), [shell.md](shell.md), [shell-navigation.md](shell-navigation.md) and
   [line-discipline.md](line-discipline.md) are markdown, so they stay lowercase-hyphenated even
-  though the things they describe are now `fs_server`, `swish` and `line_editor`.
+  though the things they describe are now `redoxfs_server`, `swish` and `line_editor`.
 
 ## The casing of `nife`, considered and settled
 

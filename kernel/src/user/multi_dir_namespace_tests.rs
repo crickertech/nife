@@ -19,7 +19,7 @@ pub(super) fn blk_server_image() -> &'static [u8] {
 fn two_dir_witness() -> Option<u64> {
     let Some(report) = fs_service::start_granted_two_dirs(
         blk_server_image(),
-        program("fs_server").expect("no fs_server program in the initrd archive"),
+        program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),
         program("fs_subtree_caretaker")
             .expect("no fs_subtree_caretaker program in the initrd archive"),
         program("fs_test_client").expect("no fs_test_client program in the initrd archive"),

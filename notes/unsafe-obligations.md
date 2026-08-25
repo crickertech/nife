@@ -307,7 +307,7 @@ comments**, and they are worth knowing before anyone trusts a count produced tha
 Two counts in the survey above are also wrong, from the same cause on the other side:
 
 - "**33 `unsafe fn`s**" is 33 in `kernel/` and `crates/`, not in the tree. The tree had **46** before
-  this milestone and **51** after it: `fs_server/` holds 9, `tools/redoxfs_host/` 2, `user/src/` 2.
+  this milestone and **51** after it: `redoxfs_server/` holds 9, `tools/redoxfs_host/` 2, `user/src/` 2.
 - "**`user/src/` has none**" is wrong. `user/src/c_shim.rs` has two, `malloc` and `free`, and a regex
   that does not allow `extern "C"` between `unsafe` and `fn` misses both. They are the C ABI's
   contract and are correctly documented; only the count was wrong.
@@ -376,7 +376,7 @@ and the rustdoc section is the only enforcement there is. Nothing was checking t
 only on an **exported** function, and the interesting ones here (`set_ttbr0`, `write_satp`) are
 private to their module.
 
-**It found one violation on its first run**, `fs_server`'s `file_page`, whose contract was written
+**It found one violation on its first run**, `redoxfs_server`'s `file_page`, whose contract was written
 but spelled `SAFETY:` in the doc comment instead of `# Safety`, so rustdoc rendered it as ordinary
 prose and no tool recognised it as the contract.
 

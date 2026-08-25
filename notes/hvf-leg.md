@@ -20,7 +20,7 @@ script/test --hvf       # just this leg
 host's own ISA, so `--arch riscv64 --hvf` is refused, and so is `--cpu`, because the guest runs the
 physical core and `-cpu host` is the only answer.
 
-It skips the host-logic crates, the vendored RedoxFS round trip and the `fs_server` core, and
+It skips the host-logic crates, the vendored RedoxFS round trip and the `redoxfs_server` core, and
 prints one line saying so. Those are host code on the host; no accelerator exists on that path, so
 re-running them costs about 30 seconds and proves nothing the TCG leg has not. What the leg does
 re-run is everything an accelerator can change: the 234 kernel tests under QEMU, the host-side

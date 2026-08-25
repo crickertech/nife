@@ -20,7 +20,7 @@ const FS_BUDGET_PAGES: u64 = 2048;
 /// server took one more level of tree recursion, ran off the bottom of its stack, and was killed
 /// by a data abort mid-request, which left every client blocked on a `CALL` that would never be
 /// answered. See [`fs_stack_used`] for the instrument that now measures this instead of guessing,
-/// and `the_fs_servers_stack_still_has_headroom` for the test that fails the day it is too small
+/// and `the_redoxfs_servers_stack_still_has_headroom` for the test that fails the day it is too small
 /// again. notes/fs-server.md carries the story.
 ///
 /// 96 is chosen against the measurement, not above it: the high-water is **135,696 bytes** (and
@@ -41,8 +41,8 @@ const STACK_POISON: u64 = 0xC71C_5E57_C71C_5E57;
 
 // The VAs each process expects its mappings at. Each MUST match that program's source.
 const DMA_VA: u64 = 0x0000_0000_0090_0000; // block server DMA region, 1 + BLK_PAGES pages (crates/virtio)
-const BLK_PAGE_FS: u64 = 0x5000_0000; // FS server's block region (fs_server.rs BLK_PAGE)
-// FS server's file region (fs_server.rs FILE_PAGE): BLK_PAGES pages above BLK_PAGE_FS, so growing
+const BLK_PAGE_FS: u64 = 0x5000_0000; // FS server's block region (redoxfs_server.rs BLK_PAGE)
+// FS server's file region (redoxfs_server.rs FILE_PAGE): BLK_PAGES pages above BLK_PAGE_FS, so growing
 // the block channel (milestone 138 step 4) cannot walk into it.
 const FILE_PAGE_FS: u64 = BLK_PAGE_FS + (BLK_PAGES as u64) * FRAME_SIZE;
 const FILE_VA_CLIENT: u64 = 0x0000_0000_0060_0000; // client's file page (fs_test_client.rs FILE_VA)
@@ -377,7 +377,7 @@ struct FsServer {
     /// Milestone 37's crash injection, straight into the process's START arguments:
     /// `(which WRITE request to die in, block writes to allow first, bytes of the last one that
     /// reach the platter)`. All zero disables it, which is every FS server but the crash test's
-    /// first one. See `fs_server/src/bin/fs_server.rs`.
+    /// first one. See `redoxfs_server/src/bin/redoxfs_server.rs`.
     crash: (u64, u64, u64),
 }
 

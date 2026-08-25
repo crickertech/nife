@@ -708,7 +708,7 @@ would have, and the next harness should keep it.
 
 **`script/test` was green on arrival, exit 0, first try, with no change to the tree:** 1312 tests
 passed and 0 failed across the host workspace, the doctests, the vendored RedoxFS round trip and its
-`no_std` core on both bare-metal targets, `fs_server`'s sans-IO core, the patched `nife-dev` std
+`no_std` core on both bare-metal targets, `redoxfs_server`'s sans-IO core, the patched `nife-dev` std
 toolchain, and the kernel under QEMU on both ISAs. About 25 minutes wall clock, most of it the two
 emulated legs.
 

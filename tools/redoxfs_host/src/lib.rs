@@ -67,7 +67,7 @@ pub enum PartitionSelector {
     /// hole in the array, so it means the same thing here as it does in every other partition tool.
     Index(u32),
     /// The partition's **type GUID**, which is how nife finds its own data partition on the
-    /// board (`fs_server/src/bin/mkfs.rs`, DECISIONS §45). A slot number is a fact about one disk's
+    /// board (`redoxfs_server/src/bin/mkfs.rs`, DECISIONS §45). A slot number is a fact about one disk's
     /// current layout; a type GUID is a fact about what the partition *is*, so a script should ask
     /// this way and a person with a listing in front of them should not have to.
     ///
@@ -121,7 +121,7 @@ impl<'a> From<&'a Path> for Volume<'a> {
 /// **The window is what keeps the engine inside the partition**, by construction rather than by the
 /// engine's good behaviour: every address it computes is relative to block zero, and `size` reports
 /// the partition's length, which is what its allocator sizes itself from. An address past the end is
-/// `EIO` rather than a read of the next partition. This is `fs_server/src/bin/mkfs.rs`'s
+/// `EIO` rather than a read of the next partition. This is `redoxfs_server/src/bin/mkfs.rs`'s
 /// `PartitionDisk` with a file underneath instead of the block-service IPC; the two are deliberately
 /// separate, because that one is `no_std` inside a `[[bin]]` on the board and this one wraps
 /// `DiskFile`.

@@ -81,7 +81,7 @@ fn main() -> ExitCode {
             // RedoxFS image because the runner attaches it only when the file exists. Both are
             // rebuilt per boot, so the prompt always meets a fresh fixture rather than whatever the
             // last session wrote.
-            fs_server_build(TARGET)
+            redoxfs_server_build(TARGET)
                 && mkredoxfs()
                 && mkdisk()
                 && user()
@@ -129,7 +129,7 @@ fn main() -> ExitCode {
             // The FS server and the RedoxFS image, exactly as `shell` builds them: with the
             // disk attached the share the Mac mounts is the real filesystem (milestone 54's
             // point); without it the boot announces its fixture fallback and serves that.
-            fs_server_build(TARGET)
+            redoxfs_server_build(TARGET)
                 && mkredoxfs()
                 && mkdisk()
                 && user()
@@ -4568,8 +4568,8 @@ fn initrd_riscv() -> bool {
     }
     // The FS server (milestone 32 phase 2), built for the riscv bare target, rides along when
     // present, exactly as std_exerciser does; `test` builds it first.
-    if let Ok(bytes) = read_stripped(&fs_server_elf(RISCV_TARGET)) {
-        blobs.push(("fs_server", bytes));
+    if let Ok(bytes) = read_stripped(&redoxfs_server_elf(RISCV_TARGET)) {
+        blobs.push(("redoxfs_server", bytes));
     }
     // And `mkfs` (milestone 57's write half), on the same terms.
     if let Ok(bytes) = read_stripped(&mkfs_elf(RISCV_TARGET)) {
@@ -4765,9 +4765,9 @@ fn mkinitrd() -> bool {
     }
     // The FS server (milestone 32 phase 2) rides along IFF built (its own workspace/target; `test`
     // builds it). Absent for a plain interactive boot, which simply skips the FS-server test.
-    let fs_server = read_stripped(&fs_server_elf(TARGET)).ok();
-    if let Some(bytes) = &fs_server {
-        files.push(("fs_server", bytes.as_slice()));
+    let redoxfs_server = read_stripped(&redoxfs_server_elf(TARGET)).ok();
+    if let Some(bytes) = &redoxfs_server {
+        files.push(("redoxfs_server", bytes.as_slice()));
     }
     // `mkfs` (milestone 57's write half) rides along on the same terms: the same package, the
     // same build, and absent from an interactive boot that never built it.
@@ -4887,18 +4887,18 @@ fn mkdisk() -> bool {
 // ===========================================================================================
 
 /// Build the FS-server ELF for `triple`. Its own workspace, so it takes `--manifest-path` and its
-/// artifacts land under `fs_server/target/`.
-fn fs_server_build(triple: &str) -> bool {
+/// artifacts land under `redoxfs_server/target/`.
+fn redoxfs_server_build(triple: &str) -> bool {
     run(
         "cargo",
         &[
             "build",
             "--manifest-path",
-            "fs_server/Cargo.toml",
+            "redoxfs_server/Cargo.toml",
             // Both binaries out of the one package: the server that opens an image and never
             // creates, and `mkfs` (milestone 57), which creates one and never serves.
             "--bin",
-            "fs_server",
+            "redoxfs_server",
             "--bin",
             "mkfs",
             "--no-default-features",
@@ -4911,10 +4911,12 @@ fn fs_server_build(triple: &str) -> bool {
     )
 }
 
-/// The FS-server ELF path for a target triple (always the release profile; see `fs_server_build`).
-fn fs_server_elf(triple: &str) -> String {
+/// The FS-server ELF path for a target triple (always the release profile; see `redoxfs_server_build`).
+fn redoxfs_server_elf(triple: &str) -> String {
     workspace_root()
-        .join(format!("fs_server/target/{triple}/release/fs_server"))
+        .join(format!(
+            "redoxfs_server/target/{triple}/release/redoxfs_server"
+        ))
         .display()
         .to_string()
 }
@@ -4922,7 +4924,7 @@ fn fs_server_elf(triple: &str) -> String {
 /// The `mkfs` ELF path for a target triple. Same package, same profile, same build.
 fn mkfs_elf(triple: &str) -> String {
     workspace_root()
-        .join(format!("fs_server/target/{triple}/release/mkfs"))
+        .join(format!("redoxfs_server/target/{triple}/release/mkfs"))
         .display()
         .to_string()
 }
@@ -6076,7 +6078,7 @@ fn test() -> bool {
     unsafe { std::env::remove_var("NIFE_ACCEL") };
     if hvf {
         eprintln!(
-            "--- host tests, the vendored redoxfs round trip and the fs_server core: SKIPPED under \
+            "--- host tests, the vendored redoxfs round trip and the redoxfs_server core: SKIPPED under \
              --hvf ---"
         );
         eprintln!(
@@ -6150,14 +6152,14 @@ fn test() -> bool {
         ) {
             return false;
         }
-        // The FS server's sans-IO core (fs_server, its own workspace): open, read, write, close against
+        // The FS server's sans-IO core (redoxfs_server, its own workspace): open, read, write, close against
         // a real RedoxFS image in memory, in milliseconds. This proves the filesystem logic for BOTH the
         // read and write paths on the host, which the on-device test can only do for reads today.
         eprintln!();
-        eprintln!("--- fs_server sans-IO core (host, its own workspace) ---");
+        eprintln!("--- redoxfs_server sans-IO core (host, its own workspace) ---");
         if !run(
             "cargo",
-            &["test", "--manifest-path", "fs_server/Cargo.toml"],
+            &["test", "--manifest-path", "redoxfs_server/Cargo.toml"],
         ) {
             return false;
         }
@@ -6228,7 +6230,7 @@ fn test() -> bool {
         eprintln!("--- kernel tests, aarch64 (QEMU) ---");
         // The FS server (milestone 32 phase 2), for the aarch64 bare target, before `user()` so
         // mkinitrd packs it; then the RedoxFS test images the runner attaches as extra mmio disks.
-        if !fs_server_build(TARGET)
+        if !redoxfs_server_build(TARGET)
             || !user()
             || !mkredoxfs()
             || !mkredoxfs_crash()
@@ -6269,7 +6271,7 @@ fn test() -> bool {
         // exports: the riscv ELF loader must never be handed aarch64 ELFs. The disk is arch-neutral
         // (a nifefs data image) and was built by mkdisk() above.
         // The riscv FS server, before the riscv archive that packs it.
-        if !fs_server_build(RISCV_TARGET) || !initrd_riscv() {
+        if !redoxfs_server_build(RISCV_TARGET) || !initrd_riscv() {
             return false;
         }
         // **A fresh RedoxFS image for this leg.** The two ISA legs share one image path, and the
@@ -6606,7 +6608,7 @@ fn kernel_test_elf() -> Option<String> {
 /// exhaustive claims; those remain native-only.
 ///
 /// The two out-of-workspace test surfaces stay out deliberately: `tools/redoxfs_host` and
-/// `fs_server` spend their runtime inside the vendored RedoxFS engine, and a finding in vendored
+/// `redoxfs_server` spend their runtime inside the vendored RedoxFS engine, and a finding in vendored
 /// code lands in the vendor pin, not in a crate this tree can fix (vendor/README.md). Extra args
 /// are forwarded to `cargo miri test`, so `cargo xtask undefined-behavior-check -p gpt` narrows the run.
 fn undefined_behavior_check() -> bool {
@@ -7070,9 +7072,9 @@ fn shell_check_leg(riscv: bool) -> bool {
     // there and `<` and `>` need one.
     let target = if riscv { RISCV_TARGET } else { TARGET };
     let built = if riscv {
-        fs_server_build(RISCV_TARGET) && mkdisk() && mkredoxfs() && initrd_riscv()
+        redoxfs_server_build(RISCV_TARGET) && mkdisk() && mkredoxfs() && initrd_riscv()
     } else {
-        fs_server_build(TARGET) && mkredoxfs() && mkdisk() && user()
+        redoxfs_server_build(TARGET) && mkredoxfs() && mkdisk() && user()
     } && run(
         "cargo",
         &[
@@ -7406,11 +7408,11 @@ fn bench() -> bool {
     // lines. Only meaningful with `--real`.
     let smp = std::env::args().any(|a| a == "--smp");
 
-    // For --smp, build the FS server (before user(), so mkinitrd packs the fs_server ELF) and the
+    // For --smp, build the FS server (before user(), so mkinitrd packs the redoxfs_server ELF) and the
     // RedoxFS test image the runner attaches as the second mmio disk. The fs_read bench opens it; on
     // any run without the image the bench finds no second disk and skips, so this stays out of the
     // icount gate's build entirely.
-    if (smp && !fs_server_build(TARGET))
+    if (smp && !redoxfs_server_build(TARGET))
         || !mkdisk()
         || !user()
         || (smp && !mkredoxfs())

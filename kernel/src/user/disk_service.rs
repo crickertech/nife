@@ -368,7 +368,7 @@ const PARTITION_SLOT_ENTROPY: u64 = 2;
 const PARTITION_SLOT_BUDGET: u64 = 3;
 const PARTITION_SLOT_BLK_PAGE: u64 = 4;
 
-// `mkfs`'s capability table. Must match fs_server/src/bin/mkfs.rs. Slots 1 and 2 are the holes; slot 0 is the
+// `mkfs`'s capability table. Must match redoxfs_server/src/bin/mkfs.rs. Slots 1 and 2 are the holes; slot 0 is the
 // heap budget, which is also what pays for the tables that map slot 4.
 const MAKER_SLOT_BUDGET: u64 = 0;
 const MAKER_SLOT_BLK: u64 = 1;

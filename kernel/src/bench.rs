@@ -1071,7 +1071,7 @@ fn coremark_compute() {
 /// own logic. Under `-icount shift=0` that path is not deterministic (interrupt timing is not part of
 /// the instruction clock), so an icount baseline for it would enshrine exactly the non-determinism the
 /// 2026-07-28 lesson warns against. So it runs only on the `--real --smp` boot (HVF, where the whole
-/// stack is proven by the `fs_server` test), self-skipping everywhere else via the same
+/// stack is proven by the `redoxfs_server` test), self-skipping everywhere else via the same
 /// `online_count() > 1` gate as the throughput bench, so `bench/baseline-aarch64.txt` never sees it.
 ///
 /// **What the number means: whole-path cost, dominated by the device.** ~204 us/read (HVF,
@@ -1098,17 +1098,17 @@ fn fs_read() {
         return;
     }
     // The three binaries the service needs. On aarch64 the block server is a role of `init` (the
-    // hello multiplexer), as in the fs_server test. Absent any of them, or the RedoxFS disk, skip.
-    let (Some(blk_image), Some(fs_server), Some(fs_test_client)) = (
+    // hello multiplexer), as in the redoxfs_server test. Absent any of them, or the RedoxFS disk, skip.
+    let (Some(blk_image), Some(redoxfs_server), Some(fs_test_client)) = (
         crate::user::program("init"),
-        crate::user::program("fs_server"),
+        crate::user::program("redoxfs_server"),
         crate::user::program("fs_test_client"),
     ) else {
         return;
     };
     // Spawn the block server, the FS server, and the client in its ROLE_BENCH (timed) role.
     let Some((readiness, report)) =
-        crate::user::fs_service::start(blk_image, fs_server, fs_test_client, 1)
+        crate::user::fs_service::start(blk_image, redoxfs_server, fs_test_client, 1)
     else {
         return; // no RedoxFS disk on this run
     };
@@ -1151,9 +1151,9 @@ fn fs_throughput() {
     if crate::smp::online_count() <= 1 {
         return;
     }
-    let (Some(blk_image), Some(fs_server), Some(fs_test_client)) = (
+    let (Some(blk_image), Some(redoxfs_server), Some(fs_test_client)) = (
         crate::user::program("init"),
-        crate::user::program("fs_server"),
+        crate::user::program("redoxfs_server"),
         crate::user::program("fs_test_client"),
     ) else {
         return;
@@ -1163,7 +1163,7 @@ fn fs_throughput() {
     // to wait for but the reports.
     let Some((readiness, report)) = crate::user::fs_service::start(
         blk_image,
-        fs_server,
+        redoxfs_server,
         fs_test_client,
         filesystem_proto::fixture::throughput::ROLE,
     ) else {

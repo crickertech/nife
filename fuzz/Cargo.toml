@@ -1,6 +1,6 @@
 # The fuzz workspace (milestone 42's second leg).
 #
-# **Its own workspace, deliberately**, the same shape as vendor/redoxfs and fs_server. A fuzz target
+# **Its own workspace, deliberately**, the same shape as vendor/redoxfs and redoxfs_server. A fuzz target
 # links libFuzzer's `main`, is built with a sanitizer and `-Zbuild-std`, and is not something
 # `cargo build --workspace` should ever try to produce. Keeping it out of the main workspace is what
 # lets `script/test`, `script/lint` and `script/coverage` stay exactly as fast as they were.
@@ -38,7 +38,7 @@
 # calef retired the prefix on the evidence: of fifty-odd package names in this tree exactly three
 # carry `nife`, and two of those are `nifefs` and `nifefs_roundtrip`, where `nifefs` is a proper noun
 # (a filesystem format, like `redoxfs`) rather than a prefix. The root-level packages are `kernel`,
-# `user`, `xtask` and `fs_server`: inside a repository called nife, prefixing a package with `nife`
+# `user`, `xtask` and `redoxfs_server`: inside a repository called nife, prefixing a package with `nife`
 # is what the context already supplies.
 #
 # **Do not "improve" this to something more distinctive.** A generic word is right here for the reason

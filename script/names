@@ -104,7 +104,7 @@ import sys
 root, mode = sys.argv[1], sys.argv[2]
 
 # The three surfaces, each with the file that holds its header. Anything else in the tree (kernel,
-# xtask, fs_server, tools/, scripts/) is out of scope on purpose; see notes/naming.md's BUGS.
+# xtask, redoxfs_server, tools/, scripts/) is out of scope on purpose; see notes/naming.md's BUGS.
 SURFACES = [
     ("crate", os.path.join(root, "crates"),
      lambda name: os.path.join(root, "crates", name, "src", "lib.rs"), "//!"),

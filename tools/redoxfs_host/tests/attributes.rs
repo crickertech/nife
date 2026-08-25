@@ -7,7 +7,7 @@
 //! out by hand. A Time Machine sparsebundle carries Apple metadata in exactly those attributes, so
 //! "by hand" was the recovery story for the part of the backup a Mac needs to make sense of the rest.
 //!
-//! **Who writes the fixture matters.** It is `fs_server::Server`, the sans-IO core that runs on the
+//! **Who writes the fixture matters.** It is `redoxfs_server::Server`, the sans-IO core that runs on the
 //! board, driven here over a `DiskFile`. Not a second writer in this crate: a reader and a writer in
 //! one crate can share a misunderstanding of the format and agree perfectly, which is exactly the
 //! trap `recovery.rs` avoids by importing through upstream's archiver. The store is written by the
@@ -94,7 +94,7 @@ fn noise(len: usize, seed: u64) -> Vec<u8> {
 }
 
 #[test]
-fn attributes_written_by_the_fs_server_come_back_onto_host_files() {
+fn attributes_written_by_the_redoxfs_server_come_back_onto_host_files() {
     let src = scratch("src");
     let img = scratch("attrs.img");
     let out = scratch("out");
@@ -110,7 +110,8 @@ fn attributes_written_by_the_fs_server_come_back_onto_host_files() {
     let finder = noise(1024, 0x1234_5678);
     {
         let disk = DiskFile::open(&img).expect("open the image read-write");
-        let mut srv = fs_server::Server::open(disk).expect("mount the image as the FS server does");
+        let mut srv =
+            redoxfs_server::Server::open(disk).expect("mount the image as the FS server does");
 
         let top = srv.open_file("top.txt").unwrap();
         srv.set_xattr(top, b"user.com.apple.FinderInfo", xattr::RAW, &finder)

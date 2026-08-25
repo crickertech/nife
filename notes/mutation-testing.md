@@ -590,9 +590,9 @@ wrong table in silicon), `machine_discovery`'s widest-wins fold (an rv32 hart bo
   `.cargo/mutants.toml`: the bare-metal crates cannot compile for the host, `supervision_proto`,
   `swap_proto` and `virtio` compile but cannot execute a line without a kernel underneath, and
   `xtask` is the build system, whose tests are the gates it runs.
-- **`fs_server` and `tools/redoxfs_host` are not mutated.** Each is its own workspace (kept out of
+- **`redoxfs_server` and `tools/redoxfs_host` are not mutated.** Each is its own workspace (kept out of
   ours so upstream RedoxFS never meets our clippy/fmt gates), and cargo-mutants works one workspace
-  at a time. `fs_server`'s pure logic is small and host-tested, but a run there mutates against a
+  at a time. `redoxfs_server`'s pure logic is small and host-tested, but a run there mutates against a
   suite whose heavy half lives under QEMU (`script/test`'s redoxfs leg), so its score would
   overstate the gap. Deferred, on the record, not forgotten.
 - **A survivor count is not a quality score across crates.** Crates differ in how much of their

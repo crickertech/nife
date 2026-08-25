@@ -270,7 +270,7 @@ $ rm logs
 Unlink, and the thing that makes it an unlink:
 
 ```rust
-// fs_server/src/lib.rs, and the test beside it
+// redoxfs_server/src/lib.rs, and the test beside it
 let h = srv.create_file_at(sub, "doomed").unwrap();
 srv.write(h, 0, b"the bytes outlive the name").unwrap();
 srv.unlink(sub, "doomed").unwrap();
@@ -292,5 +292,5 @@ Run it:
 ```sh
 script/test                  # both ISAs, plus the post-run host check on the image
 cargo test -p grant_plan          # the cwd, the clamp, and resolve-at-grant-time
-cargo test --manifest-path fs_server/Cargo.toml   # unlink, and that it is not a revoke
+cargo test --manifest-path redoxfs_server/Cargo.toml   # unlink, and that it is not a revoke
 ```

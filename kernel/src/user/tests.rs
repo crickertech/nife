@@ -1084,7 +1084,7 @@ fn a_userspace_driver_reads_a_file_from_a_virtio_disk() {
 fn std_fs_reads_a_file_through_a_granted_directory_capability() {
     let Some((readiness, report)) = fs_service::start_std(
         init_image(),
-        program("fs_server").expect("no fs_server program in the initrd archive"),
+        program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),
         std_exerciser_image(),
     ) else {
         crate::println!("    (no RedoxFS disk attached; skipping)");
@@ -1104,16 +1104,16 @@ fn std_fs_reads_a_file_through_a_granted_directory_capability() {
 /// and reads it back, then reports. The client names nothing but its directory rendezvous, so a
 /// success here is the whole capability contract holding: designation is authorization, the
 /// handle is a server-minted token, and a real CoW filesystem we did not write runs confined.
-// RISC-V twin: `riscv_virtio_tests::the_fs_server_serves_redoxfs_over_a_capability_contract`. Gated here rather than run twice: that
+// RISC-V twin: `riscv_virtio_tests::the_redoxfs_server_serves_redoxfs_over_a_capability_contract`. Gated here rather than run twice: that
 // module drives the same property through the dedicated `blk`/`net_stack` binaries, and a
 // second copy through hello's roles would double the suite's slowest tests to prove
 // nothing new. See this module's comment on the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
 #[test_case]
-fn the_fs_server_serves_redoxfs_over_a_capability_contract() {
+fn the_redoxfs_server_serves_redoxfs_over_a_capability_contract() {
     let Some((readiness, report)) = fs_service::start(
         init_image(),
-        program("fs_server").expect("no fs_server program in the initrd archive"),
+        program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),
         program("fs_test_client").expect("no fs_test_client program in the initrd archive"),
         0, // the end-to-end proof role, not the benchmark loop
     ) else {
@@ -1251,7 +1251,7 @@ fn a_writable_per_file_grant_writes_that_file_and_still_only_that_file() {
 fn attack_a_grant(rights: u64, writable: bool) -> Option<u64> {
     let Some(report) = fs_service::start_granted(
         init_image(),
-        program("fs_server").expect("no fs_server program in the initrd archive"),
+        program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),
         program("fs_file_caretaker").expect("no fs_file_caretaker program in the initrd archive"),
         program("fs_test_client").expect("no fs_test_client program in the initrd archive"),
         fs_service::Grant {
@@ -1334,18 +1334,18 @@ fn describe_escape(v: u64) -> &'static str {
 fn a_kill_mid_transaction_leaves_the_filesystem_consistent() {
     assert_a_kill_mid_transaction_recovers(
         init_image(),
-        program("fs_server").expect("no fs_server program in the initrd archive"),
+        program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),
         program("fs_test_client").expect("no fs_test_client program in the initrd archive"),
     );
 }
 
-// RISC-V twin: `riscv_virtio_tests::the_fs_servers_stack_still_has_headroom`. Gated here rather than run twice: that
+// RISC-V twin: `riscv_virtio_tests::the_redoxfs_servers_stack_still_has_headroom`. Gated here rather than run twice: that
 // module drives the same property through the dedicated `blk`/`net_stack` binaries, and a
 // second copy through hello's roles would double the suite's slowest tests to prove
 // nothing new. See this module's comment on the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
 #[test_case]
-fn the_fs_servers_stack_still_has_headroom() {
+fn the_redoxfs_servers_stack_still_has_headroom() {
     let Some((used, total)) = fs_service::fs_stack_used() else {
         crate::println!("    (no FS service wired this boot; skipping)");
         return;
@@ -1737,7 +1737,7 @@ fn a_host_process_connects_to_the_guest_and_is_answered() {
     // filesystem before the prober's first session can open it.
     let fs = fs_service::start(
         init_image(),
-        program("fs_server").expect("no fs_server program in the initrd archive"),
+        program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),
         program("fs_test_client").expect("no fs_test_client program in the initrd archive"),
         7, // ROLE_SMB_SEED: write fixture::SMB_SEED at fixture::SMB_SEED_NAME, report, exit
     )
@@ -1751,7 +1751,7 @@ fn a_host_process_connects_to_the_guest_and_is_answered() {
         );
         let (ep, shared) = fs_service::root_directory(
             init_image(),
-            program("fs_server").expect("no fs_server program in the initrd archive"),
+            program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),
         )
         .expect("the FS service was wired a moment ago");
         // Read-write **and authenticated**: the write half of the gate needs the adapter to accept

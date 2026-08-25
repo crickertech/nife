@@ -230,7 +230,7 @@ const SUITE_FRAME_BUDGET: usize = 18_627;
 /// spent the memory. [`SUITE_FRAME_BUDGET`] alone would not have caught that, because a suite can
 /// pass a residue ceiling and still be fragmented into uselessness.
 ///
-/// 1024 frames is 4 MiB, comfortably more than the largest program this boot loads (`fs_server` and
+/// 1024 frames is 4 MiB, comfortably more than the largest program this boot loads (`redoxfs_server` and
 /// `net_stack` are the big ones, a few hundred pages with their page tables) and comfortably under
 /// the 14080 measured after reclamation. It is a floor with room, not a target.
 const SUITE_MIN_FREE_RUN: usize = 1024;

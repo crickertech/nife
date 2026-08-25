@@ -32,7 +32,7 @@
 //! 3. Creates the filesystem **inside that partition**, through a [`PartitionDisk`] whose block
 //!    zero is the partition's first block and whose `size` is the partition's length, so the engine
 //!    cannot address a byte outside it even by arithmetic error.
-//! 4. Reopens it through [`fs_server::Server`] (the same code the FS server serves with) and writes
+//! 4. Reopens it through [`redoxfs_server::Server`] (the same code the FS server serves with) and writes
 //!    one file, so that what lands on the platter is a filesystem with a tree in it rather than
 //!    only a header.
 //!
@@ -80,10 +80,10 @@ extern crate alloc;
 use entropy_proto as entropy;
 use filesystem_proto::fixture::blank;
 use filesystem_proto::{blk, req};
-use fs_server::Server;
 use gpt::Gpt;
 use gpt::guid::types;
 use redoxfs::{BLOCK_SIZE, Disk, FileSystem};
+use redoxfs_server::Server;
 use syscall::error::{EIO, Error, Result};
 use user_rt::{call, send};
 

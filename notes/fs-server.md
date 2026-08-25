@@ -28,7 +28,7 @@ which is milestone 23's hot-swap claim in component form.
   brings the RedoxFS disk up, then serves read/write/size over **blk IPC** forever. The device
   confinement is unchanged from any driver (the kernel owns the transport and validates every DMA
   descriptor, notes/dma.md), so a serving block driver is as confined as a reading one.
-- **The FS server** (`fs_server/`, its own workspace because it links the vendored engine) runs the
+- **The FS server** (`redoxfs_server/`, its own workspace because it links the vendored engine) runs the
   no_std RedoxFS core behind a `Disk` trait implemented over blk IPC, allocating everything from its
   own untyped budget through the milestone-27 `GlobalAlloc`. It serves **file IPC** to clients.
 - **The client** (`user/src/fs_test_client.rs`) is the program a milestone-31 shell will be: it holds only
@@ -57,9 +57,9 @@ data.
 ## The error boundary, mapped exactly once
 
 RedoxFS speaks its own error type everywhere (`syscall::error::Error`, redox_syscall's errno). The
-sans-IO core (`fs_server::Server`) and the `Disk` impl both return `syscall::error::Result`,
+sans-IO core (`redoxfs_server::Server`) and the `Disk` impl both return `syscall::error::Result`,
 unmapped. The translation to the wire happens in **one place**, the FS server's serve loop
-(`fs_server.rs::serve`), via `fs_proto::reply_err`, which is just the negated errno. The client
+(`redoxfs_server.rs::serve`), via `fs_proto::reply_err`, which is just the negated errno. The client
 inverts it with `fs_proto::reply_errno`. Keeping the core in RedoxFS's vocabulary is what makes the
 rule enforceable: there is no ABI type below the boundary to leak. The blk IPC has the same
 convention (a negative reply is a negated errno), and the `Disk` impl maps a negative blk reply to
@@ -85,7 +85,7 @@ choices keep that inside the test's watchdog:
    `used.idx` decide when the completion is really its own (a wakeup can be stale or coalesced), the
    same loop the read driver uses. This is a **correction** (fix/irq-delivery, 2026-07-29): the
    earlier note here claimed interrupt-driven completion "overran the watchdog" and forced a poll of
-   the used ring. It does not. Booted with the WAIT path, the fs_server test passes on both ISAs at
+   the used ring. It does not. Booted with the WAIT path, the redoxfs_server test passes on both ISAs at
    the 4-core SMP boot (aarch64 141 tests, riscv64 84 tests), the mount's hundreds of WAIT-driven
    completions all landing well inside the 60 s watchdog. The completion IRQ reaches the block
    server's endpoint exactly as it reaches any milestone-9 driver's; the whole-block reads above are
@@ -151,7 +151,7 @@ reads as poison. Measured across a mount, reads, writes, a create and two trunca
 
 Both of the first pair were over the old 135,168-byte grant, so both legs were broken; the riscv leg
 needs slightly more for the same recursion, which is why the number is measured per ISA rather than
-assumed to transfer. `the_fs_servers_stack_still_has_headroom` (both ISAs) prints it every run and
+assumed to transfer. `the_redoxfs_servers_stack_still_has_headroom` (both ISAs) prints it every run and
 fails under a quarter left, so the next verb that deepens a tree walk fails with a number instead of
 a mystery.
 
@@ -194,7 +194,7 @@ consistency, and "an acknowledged write is wholly present or wholly absent" is a
 
 **How the injector works, and why it is not an approximation.** The seam is `BlockIo`, the trait the
 FS server reaches its disk through: on device it is `IpcDisk` calling the block server, on the host a
-`Vec`. `fs_server/src/crash.rs` runs the workload **once** against a recorder that applies every
+`Vec`. `redoxfs_server/src/crash.rs` runs the workload **once** against a recorder that applies every
 block write and appends it to an ordered log. That log is what the platter was asked to do, so the
 disk after a failure at point `i` is the pristine image plus the first `i` entries, optionally with
 one of them truncated. For a device that does not reorder, that is not a model of a crash, it *is*
@@ -363,7 +363,7 @@ randomness enters vendored code.** `vendor/README.md` divergence 4 records it;
 
 ### The program
 
-`mkfs` (provisional name) is `fs_server`'s opposite in the one package: that one opens an image
+`mkfs` (provisional name) is `redoxfs_server`'s opposite in the one package: that one opens an image
 and never creates, this one creates one and never serves. Its whole authority is a block-service
 endpoint for one disk and an entropy endpoint, and the kernel test withholds each in turn from the
 same binary with the same budget, stack and shared page.
@@ -392,7 +392,7 @@ it made.
 block server driving it over DMA, an FS server mounting it over blk IPC and serving from its own
 heap, and a client opening the shipped `motd` through a granted directory capability and reading it
 back byte for byte. The engine mounts, the contract holds, the confinement holds. The sans-IO core is
-host-tested for both read AND write against a `DiskMemory` image (`fs_server` lib tests), so the
+host-tested for both read AND write against a `DiskMemory` image (`redoxfs_server` lib tests), so the
 filesystem *logic* is proven on both paths independently of any device.
 
 **The write path is proven on-device too, which is a correction** (2026-07-29, milestone 27 phase
@@ -415,7 +415,7 @@ the tree rather than by reasoning:
   generated image. The image afterwards carries the pass-3 payload, so the third write really reached
   the disk. This is the reproduction the old gate could not perform: it depends on nothing left over
   from a previous invocation, so it cannot hide behind `mkredoxfs` rewriting the target first.
-- **The host does not reproduce any of it.** Four `fs_server` host tests, all green in milliseconds:
+- **The host does not reproduce any of it.** Four `redoxfs_server` host tests, all green in milliseconds:
   three writes to one block; the same through the EL0 binary's exact chunking; record-sized repeat
   writes (the multi-block and compressed-tail paths); and write, drop the mount with no unmount,
   reopen, and write again. That last one is the shape the device fails at, and on the host it passes.
@@ -438,7 +438,7 @@ panicked inside its write block. That panic, read as "the server refused the wri
 It explains every observation, including why three investigations disagreed: the symptom depended on
 what the previous boot's client happened to leave behind, and that changed as the client changed.
 
-`fs_server`'s `a_shorter_write_does_not_truncate_and_that_is_what_broke_across_boots` pins the semantics
+`redoxfs_server`'s `a_shorter_write_does_not_truncate_and_that_is_what_broke_across_boots` pins the semantics
 with those exact byte counts, so the sharp edge is now a test rather than a trap. If it ever fails, the
 contract grew a verb and that is a deliberate decision.
 
@@ -505,8 +505,8 @@ disproved guess left standing sends the next reader down a road already walked.
 
 *Heap exhaustion and accumulated mount state: dead, measured.* The note used to say a used image carries
 a higher header generation, a longer allocator log and more live tree blocks, so the second mount would
-drive the FS server past its 8 MiB cap (`HEAP_MAX` in `fs_server.rs`, matched by `FS_BUDGET_PAGES` in
-`kernel/src/user.rs`). It does not. `fs_server/src/bin/second_mount.rs` runs the real engine under the
+drive the FS server past its 8 MiB cap (`HEAP_MAX` in `redoxfs_server.rs`, matched by `FS_BUDGET_PAGES` in
+`kernel/src/user.rs`). It does not. `redoxfs_server/src/bin/second_mount.rs` runs the real engine under the
 **same allocator the FS server uses** (`user_heap`, the algorithm behind `user_rt::heap::UntypedHeap`), grown
 incrementally and capped identically, with the image in a `static` so it stays off the heap exactly as a
 real disk does. At the device's own 8 MiB cap it completes **30 mount-and-write cycles**, every one fine,
@@ -722,7 +722,7 @@ three orders of magnitude below a read, and 46.2 us per block is the same as Lin
 virtio device at the same tier (notes/benchmarks.md has that comparison).
 
 **There was no cache anywhere in this path, and the throughput numbers are how we finally proved
-it.** `fs_server`'s `IpcDisk` was a bare `Disk` with no `DiskCache` wrapped around it, so a re-read
+it.** `redoxfs_server`'s `IpcDisk` was a bare `Disk` with no `DiskCache` wrapped around it, so a re-read
 went back to the device. That had been stated and never demonstrated; milestone 38 demonstrated it
 by measuring sequential, random and record-aligned reads of the same file and getting the same
 per-request cost to within 3% (1.51, 1.48 and 1.48 ms). A path with a cache or a readahead cannot do
@@ -730,14 +730,14 @@ that. It also finally retired a comment in `fs_test_client` that had claimed `fs
 measurement.
 
 **Superseded 2026-08-19 (milestone 138 step 2).** `IpcDisk` is now wrapped in `CachedDisk`
-(`fs_server::CachedDisk`, `fs_server/src/lib.rs`), a small direct-mapped write-through cache of
+(`redoxfs_server::CachedDisk`, `redoxfs_server/src/lib.rs`), a small direct-mapped write-through cache of
 single-block reads: 64 slots, ~257 KiB. It answers exactly the repetition milestone 38 found and
 this section names above, `Transaction::read_tree_and_addr`'s five-block tree walk, from memory
 when the walk resolves the same node it last resolved. It does **not** cache a record body (any
 `Disk::read_at` wider than one block bypasses it entirely, still batched instead per step 4), and it
 never serves stale bytes: a write updates or invalidates the relevant slot only after the inner disk
 confirms the write landed, and RedoxFS's copy-on-write allocator means a live address's content can
-only ever change through that same write path (`fs_server::CachedDisk`'s own doc argues the
+only ever change through that same write path (`redoxfs_server::CachedDisk`'s own doc argues the
 invariant in full; six host tests, including a stale-read regression, check it in milliseconds with
 no emulator).
 
@@ -816,7 +816,7 @@ loop rather than a signature change. The block server's DMA region was already w
   naive 16x, because RedoxFS's own per-record tree walk (five unbatchable single-block reads) and
   an 8 KiB record (step 1, two blocks) together bound what one call can batch to a fraction of a
   64 KiB request. The write-through of what remains, mostly that tree walk, is milestone 138's
-  **step 2**, `fs_server::CachedDisk`, also built. The crash injector keeps its own one-block-per-
+  **step 2**, `redoxfs_server::CachedDisk`, also built. The crash injector keeps its own one-block-per-
   `CALL` path unconditionally (a batched virtio request cannot be torn mid-batch the way the
   injector needs), so this closure does not touch the property milestone 37 checks.
 - **A write whose bytes match what is already there is not a write.** `Transaction::write_node`

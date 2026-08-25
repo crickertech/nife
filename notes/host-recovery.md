@@ -223,7 +223,7 @@ is the Mac's own addition to a freshly written file, not something out of the im
 
 `tools/redoxfs_host/tests/attributes.rs`, and the shape of it is again the argument.
 
-- **The fixture is written by `fs_server::Server`**, the sans-IO core that runs on the board, driven
+- **The fixture is written by `redoxfs_server::Server`**, the sans-IO core that runs on the board, driven
   over a `DiskFile`. Not by a second writer in this crate: a reader and a writer in one crate can
   share a misunderstanding of the format and agree perfectly. This is the same reason `recovery.rs`
   fills its image through upstream's archiver rather than through our own `put`.
@@ -264,7 +264,7 @@ A real disk has a partition table where an image has a filesystem, so the tool n
 plus a **partition selector** and does the offset itself. `crates/gpt` reads the table, the
 partition's first LBA becomes block zero of a `PartitionDisk`, and nothing above the disk layer
 knows a partition was involved. That is the same shape the board's own `mkfs` uses
-(`fs_server/src/bin/mkfs.rs`), which is why the host reads the partition by the same rules the board
+(`redoxfs_server/src/bin/mkfs.rs`), which is why the host reads the partition by the same rules the board
 wrote it by rather than by a second implementation that could disagree.
 
 **The gap had a witness, and closing it was the acceptance test.** Milestone 57's post-run check
