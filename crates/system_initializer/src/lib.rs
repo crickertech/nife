@@ -203,7 +203,7 @@ use line_editor::proto;
 // call, because the point of the crate is that there is one of these.
 use supervision_proto::{
     ChildEndowment, build_child, retype_frame_from as retype_frame, retype_obj_from as retype_obj,
-    tcb_start,
+    thread_control_block_start,
 };
 use user_rt::{call, cap_delete, invoke, recv, recv_cap, send};
 
@@ -479,7 +479,7 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
             ..ChildEndowment::new()
         },
     ));
-    must_ok(tcb_start(con, 0, 0, 0));
+    must_ok(thread_control_block_start(con, 0, 0, 0));
     cap_delete(con);
 
     // 2. The line discipline: serves the terminal endpoint, prints through the console. It is
@@ -503,7 +503,7 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
             ..ChildEndowment::new()
         },
     ));
-    must_ok(tcb_start(line_editor, 0, 0, 0));
+    must_ok(thread_control_block_start(line_editor, 0, 0, 0));
     cap_delete(line_editor);
 
     // **Refuse the system if a required component is not the one that was measured** (milestone
@@ -567,7 +567,7 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
             ..ChildEndowment::new()
         },
     ));
-    must_ok(tcb_start(input, 0, 0, 0));
+    must_ok(thread_control_block_start(input, 0, 0, 0));
     cap_delete(input);
 
     // **The console's three capabilities go back now, before the shell is built**, and that is not
@@ -724,7 +724,7 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
         // Started here even though the shell deliberately is not: the adapter owns no page and
         // prints only what a client sends it, and it has no clients until the spawn service below
         // hands one its endpoint. It cannot write into the page the announcement below stages in.
-        must_ok(tcb_start(adapter, 0, 0, 0));
+        must_ok(thread_control_block_start(adapter, 0, 0, 0));
         cap_delete(adapter);
     }
 
@@ -756,7 +756,15 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
     // SAFETY: as above: the kernel validates the capability and the method.
     let frame = unsafe { invoke(ut, abi::untyped::RETYPE, 0, 0, 0) };
     // SAFETY: as above: the kernel validates the capability and the method.
-    let object = unsafe { invoke(ut, abi::untyped::RETYPE_OBJ, abi::objtype::TCB, 0, 0) };
+    let object = unsafe {
+        invoke(
+            ut,
+            abi::untyped::RETYPE_OBJ,
+            abi::objtype::THREAD_CONTROL_BLOCK,
+            0,
+            0,
+        )
+    };
     announce(
         term_ep,
         if frame == -1 && object == -1 {
@@ -800,14 +808,19 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
             ..ChildEndowment::new()
         },
     ));
-    must_ok(tcb_start(reaper, 0, 0, 0));
+    must_ok(thread_control_block_start(reaper, 0, 0, 0));
     cap_delete(reaper);
 
     // Role 0 (the prompt), and `arg1` is the rights its directory capability carries. A shell told 0
     // holds no directory and says so at every verb that would need one. `arg2` is the clock slot
     // (milestone 86), which moves with whether this boot had a disk, so it is told rather than
     // assumed.
-    must_ok(tcb_start(shell, 0, fs_rights, sh_clock_slot));
+    must_ok(thread_control_block_start(
+        shell,
+        0,
+        fs_rights,
+        sh_clock_slot,
+    ));
     cap_delete(shell);
 
     spawn_service(
@@ -1010,7 +1023,7 @@ fn spawn_service(
             };
             match built {
                 Some(tcb) => {
-                    let ok = tcb_start(tcb, 0, arg, 0);
+                    let ok = thread_control_block_start(tcb, 0, arg, 0);
                     send(
                         result_ep,
                         if ok {
@@ -1227,7 +1240,7 @@ fn spawn_service(
                         Some((_, child)) => child,
                         None => (0, arg, 0),
                     };
-                    let started = tcb_start(tcb, a0, a1, a2);
+                    let started = thread_control_block_start(tcb, a0, a1, a2);
                     cap_delete(tcb);
                     started
                 }
@@ -1363,7 +1376,7 @@ fn build_caretaker(
     // taken away: `job_undertaker` would then be asked to collect a tid the scheduler no longer
     // knows, which it reads as the kernel contradicting itself and traps on.
     let tcb = built.ok()?;
-    let started = tcb_start(tcb, care_words.0, care_words.1, care_words.2);
+    let started = thread_control_block_start(tcb, care_words.0, care_words.1, care_words.2);
     cap_delete(tcb);
     if !started {
         cap_delete(ready);

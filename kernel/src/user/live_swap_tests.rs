@@ -133,12 +133,13 @@ fn spawn_swapper(role: u64) -> (sched::RendezvousId, u64, u64) {
 
     let report = sched::create_rendezvous();
     let budget = crate::untyped::create(SWAPPER_BUDGET_PAGES).expect("no budget for swapper");
-    let tcb_region = crate::untyped::create(2).expect("no tcb region");
-    let tid = sched::create_tcb(tcb_region).expect("no tcb");
-    let s0 = sched::tcb_insert_cap(tid, crate::cap::untyped_root_cap(budget), None)
-        .expect("insert budget");
+    let thread_control_block_region = crate::untyped::create(2).expect("no tcb region");
+    let tid = sched::create_thread_control_block(thread_control_block_region).expect("no tcb");
+    let s0 =
+        sched::thread_control_block_insert_cap(tid, crate::cap::untyped_root_cap(budget), None)
+            .expect("insert budget");
     assert_eq!(s0, 0, "swapper's budget must land in slot 0");
-    let s1 = sched::tcb_insert_cap(
+    let s1 = sched::thread_control_block_insert_cap(
         tid,
         crate::cap::rendezvous_cap(
             report,
@@ -148,7 +149,7 @@ fn spawn_swapper(role: u64) -> (sched::RendezvousId, u64, u64) {
     )
     .expect("insert report");
     assert_eq!(s1, 1, "swapper's report rendezvous must land in slot 1");
-    let s2 = sched::tcb_insert_cap(
+    let s2 = sched::thread_control_block_insert_cap(
         tid,
         crate::cap::device_frame_cap(
             UART_PHYS,
@@ -158,9 +159,10 @@ fn spawn_swapper(role: u64) -> (sched::RendezvousId, u64, u64) {
     )
     .expect("insert device");
     assert_eq!(s2, 2, "swapper's device capability must land in slot 2");
-    sched::configure_tcb(tid, elf.entry(), USER_STACK_TOP, aspace).expect("configure");
-    sched::start_tcb(tid, [role, initrd_len, 0]).expect("start");
-    (report, budget, tcb_region)
+    sched::configure_thread_control_block(tid, elf.entry(), USER_STACK_TOP, aspace)
+        .expect("configure");
+    sched::start_thread_control_block(tid, [role, initrd_len, 0]).expect("start");
+    (report, budget, thread_control_block_region)
 }
 
 /// **Run one swap system to its own verdict**, returning every report it made.
@@ -170,7 +172,7 @@ fn spawn_swapper(role: u64) -> (sched::RendezvousId, u64, u64) {
 /// background, and a test that leaves work running is a test that fails somebody else. The
 /// operator's `RPT_LOG` is always its last word, so that is the stop condition.
 fn run_swap(role: u64) -> ([[u64; 5]; MAX_REPORTS], usize) {
-    let (report, budget, tcb_region) = spawn_swapper(role);
+    let (report, budget, thread_control_block_region) = spawn_swapper(role);
     let mut msgs = [[0u64; 5]; MAX_REPORTS];
     let mut n = 0;
     while n < MAX_REPORTS {
@@ -252,7 +254,7 @@ fn run_swap(role: u64) -> ([[u64; 5]; MAX_REPORTS], usize) {
     // sampled at the top of the run stood here until 2026-08-03 and flaked on CI, because the
     // only thing that could trip it was an *earlier* test's teardown landing mid-run, which is
     // nothing this test is responsible for. See the BUGS section of notes/live-replacement.md.
-    let _ = sched::reclaim_region(tcb_region);
+    let _ = sched::reclaim_region(thread_control_block_region);
     (msgs, n)
 }
 

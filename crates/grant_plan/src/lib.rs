@@ -648,7 +648,7 @@ pub const NO_FLAGS: &[u8] = b"";
 /// **Eight**, which is above every ordinary grant (a child's are inserted from zero and the most
 /// any manifest asks for is four) and below `abi::fault::FAULT_EP_SLOT` at fifteen. Out-of-the-way
 /// is load-bearing: how many low slots a child gets depends on the wiring, so a low number would
-/// move under the program. `abi::tcb::CAP_INSERT`'s explicit target is what puts it there, and it
+/// move under the program. `abi::thread_control_block::CAP_INSERT`'s explicit target is what puts it there, and it
 /// exists already, for the fault endpoint, for exactly this reason.
 pub const DIAGNOSTICS_SLOT: u64 = 8;
 

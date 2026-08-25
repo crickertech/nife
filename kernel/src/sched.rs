@@ -39,7 +39,7 @@ use thread_wake_handshake::{SwitchOutVerdict, WakeVerdict};
 
 use crate::cpu;
 use crate::sync::{IrqSafeMutex, rank};
-use crate::thread::{Context, QuotaToken, State, Thread, Tid, WaitRole, switch_to};
+use crate::thread::{Context, QuotaToken, State, Thread, ThreadId, WaitRole, switch_to};
 
 /// How many times we have actually taken the CPU away from a thread. The number that says
 /// preemption is real.
@@ -49,11 +49,11 @@ static PREEMPTIONS: AtomicU64 = AtomicU64::new(0);
 ///
 /// Per-CPU as of §11 step 3b (`cpu::PerCpu::current`); it used to be one field on the global
 /// `IpcTables`. Reading it is a plain atomic load and needs no lock: it is this core's own slot.
-fn current_tid() -> Tid {
+fn current_thread_id() -> ThreadId {
     cpu::current().current.load(Ordering::Relaxed)
 }
 
-fn set_current_tid(tid: Tid) {
+fn set_current_thread_id(tid: ThreadId) {
     cpu::current().current.store(tid, Ordering::Relaxed);
 }
 
@@ -69,7 +69,7 @@ fn set_current_tid(tid: Tid) {
 /// Intrusive as of milestone 14 phase A.3: a wait-queue entry is the TCB itself, threaded through
 /// the same link the run queues use, so blocking on an rendezvous cannot allocate and "a thread waits
 /// on one rendezvous at a time" is physical (one link). The safety contract for the pointers is the
-/// queue discipline at [`tcb_ptr`].
+/// queue discipline at [`thread_control_block_ptr`].
 type Rendezvous = ipc::Rendezvous<Thread>;
 
 /// The most threads that can be alive at once, whole machine (milestone 14 phase A). A documented
@@ -93,17 +93,17 @@ pub(crate) const MAX_THREADS: usize = 128;
 /// page merely coming from a different budget; kernel threads keep drawing from `kmem`.
 /// A TCB pointer that may cross cores. The pointer itself moving between cores is harmless: the
 /// `Thread` it names is touched only under `IPC_TABLES` (which serializes all table access) and, for
-/// its queue link, under the intrusive discipline at [`tcb_ptr`]. This is the same soundness the
+/// its queue link, under the intrusive discipline at [`thread_control_block_ptr`]. This is the same soundness the
 /// old static `TcbPool`'s `unsafe impl Sync` rested on, now attached to the pointer the table
 /// stores rather than a separate array.
 #[derive(Clone, Copy)]
-struct TcbPtr(*mut Thread);
+struct ThreadControlBlockPointer(*mut Thread);
 
 // SAFETY: see the type's doc; sending the pointer is sound because dereferencing it is gated.
-unsafe impl Send for TcbPtr {}
+unsafe impl Send for ThreadControlBlockPointer {}
 
 struct Threads {
-    table: generational_table::Table<TcbPtr, MAX_THREADS>,
+    table: generational_table::Table<ThreadControlBlockPointer, MAX_THREADS>,
 }
 
 impl Threads {
@@ -113,14 +113,14 @@ impl Threads {
         }
     }
 
-    fn get(&self, tid: Tid) -> Option<&Thread> {
+    fn get(&self, tid: ThreadId) -> Option<&Thread> {
         let p = self.table.get(tid)?.0;
         // SAFETY: a pointer we stored at insert, into a live kmem page not yet recycled (remove
         // kills the name before recycling); IPC_TABLES serializes access.
         Some(unsafe { &*p })
     }
 
-    fn get_mut(&mut self, tid: Tid) -> Option<&mut Thread> {
+    fn get_mut(&mut self, tid: ThreadId) -> Option<&mut Thread> {
         let p = self.table.get(tid)?.0;
         // SAFETY: as `get`, and `&mut self` carries IPC_TABLES's exclusivity.
         Some(unsafe { &mut *p })
@@ -129,7 +129,7 @@ impl Threads {
     /// Insert: claim a page from the kernel budget, build the `Thread` (carrying its own minted
     /// name) into it, and store the pointer under that name. `None` (page recycled, `f` never
     /// run) if the budget or the table is exhausted.
-    fn insert_with(&mut self, f: impl FnOnce(Tid) -> Thread) -> Option<Tid> {
+    fn insert_with(&mut self, f: impl FnOnce(ThreadId) -> Thread) -> Option<ThreadId> {
         let page = crate::kmem::page()?;
         // A kernel thread's TCB page is `kmem`'s and comes home to it at death; if the table is
         // full it never held a Thread, so recycle now.
@@ -143,7 +143,10 @@ impl Threads {
     /// `insert_with`'s place-writing twin: claim a page from the kernel budget and let `build`
     /// construct the Thread into it. Recycles the page on any failure, exactly as `insert_with`
     /// does, so a refused spawn costs nothing.
-    fn insert_in_place(&mut self, build: impl FnOnce(Tid, *mut Thread) -> bool) -> Option<Tid> {
+    fn insert_in_place(
+        &mut self,
+        build: impl FnOnce(ThreadId, *mut Thread) -> bool,
+    ) -> Option<ThreadId> {
         let page = crate::kmem::page()?;
         let name = self.insert_at_in_place(page, build);
         if name.is_none() {
@@ -155,7 +158,11 @@ impl Threads {
     /// Insert a Thread that already has a page (milestone 19c.3): a user-retyped TCB, whose page
     /// is its creator's region's, not `kmem`'s. On a full table the page is the region's to
     /// account (spend-only), so nothing is recycled here.
-    fn insert_from_page(&mut self, page: u64, f: impl FnOnce(Tid) -> Thread) -> Option<Tid> {
+    fn insert_from_page(
+        &mut self,
+        page: u64,
+        f: impl FnOnce(ThreadId) -> Thread,
+    ) -> Option<ThreadId> {
         self.insert_at(page, f)
     }
 
@@ -164,26 +171,26 @@ impl Threads {
     /// the slot is left exactly as it was found.
     ///
     /// The difference from `insert_at` is where the Thread is constructed. That one takes a
-    /// `FnOnce(Tid) -> Thread`, so the value travels through the closure's return and a temporary
+    /// `FnOnce(ThreadId) -> Thread`, so the value travels through the closure's return and a temporary
     /// before `ptr.write` puts it on the page; a `Thread` is large and a debug build copies at
     /// every hop. This hands the destination down instead. See `Thread::spawn_into`.
     fn insert_at_in_place(
         &mut self,
         page: u64,
-        build: impl FnOnce(Tid, *mut Thread) -> bool,
-    ) -> Option<Tid> {
+        build: impl FnOnce(ThreadId, *mut Thread) -> bool,
+    ) -> Option<ThreadId> {
         let ptr = crate::arch::mmu::phys_to_virt(page) as *mut Thread;
         let mut built = false;
         let name = self.table.insert_with(|tid| {
             built = build(tid, ptr);
-            TcbPtr(ptr)
+            ThreadControlBlockPointer(ptr)
         })?;
         if !built {
             // `build` declined (no kernel stack). Take the name back out: the slot never held a
             // Thread, so there is nothing to drop, and `remove` here would drop uninitialised
             // bytes. `forget_slot` bumps the generation and frees the slot without touching the
             // TCB page, which is the caller's to recycle. `Table::remove` is exactly right and
-            // not a leak: the slot holds a `TcbPtr`, and dropping that drops a pointer. The
+            // not a leak: the slot holds a `ThreadControlBlockPointer`, and dropping that drops a pointer. The
             // `Thread` drop lives in `Threads::remove`, which is not on this path because no
             // Thread was ever constructed.
             self.table.remove(name);
@@ -193,28 +200,28 @@ impl Threads {
     }
 
     /// The shared engine: write the built Thread into `page` and name it. The Thread carries its
-    /// own `tcb_kmem`, which `remove` reads to decide whether the page returns to `kmem`.
-    fn insert_at(&mut self, page: u64, f: impl FnOnce(Tid) -> Thread) -> Option<Tid> {
+    /// own `thread_control_block_kmem`, which `remove` reads to decide whether the page returns to `kmem`.
+    fn insert_at(&mut self, page: u64, f: impl FnOnce(ThreadId) -> Thread) -> Option<ThreadId> {
         let ptr = crate::arch::mmu::phys_to_virt(page) as *mut Thread;
         self.table.insert_with(|tid| {
             // SAFETY: a fresh, exclusively-ours page; `write` moves the Thread in, no drop of
             // uninitialized bytes.
             unsafe { ptr.write(f(tid)) };
-            TcbPtr(ptr)
+            ThreadControlBlockPointer(ptr)
         })
     }
 
     /// Remove and destroy: drop the TCB in place (its stack, address space, and quota token go
-    /// with it), kill the name so no copy of the Tid ever resolves again, then recycle the page.
-    fn remove(&mut self, tid: Tid) {
-        let Some(&TcbPtr(ptr)) = self.table.get(tid) else {
+    /// with it), kill the name so no copy of the `ThreadId` ever resolves again, then recycle the page.
+    fn remove(&mut self, tid: ThreadId) {
+        let Some(&ThreadControlBlockPointer(ptr)) = self.table.get(tid) else {
             return;
         };
         // Read the page's origin BEFORE the drop consumes the Thread. A kernel TCB's page goes
         // home to `kmem`; a user TCB's page belongs to its region (spend-only, reclaimed only at
         // region destroy), so the reaper leaves it.
         // SAFETY: live per the table, exclusive per `&mut self`.
-        let from_kmem = unsafe { (*ptr).tcb_kmem };
+        let from_kmem = unsafe { (*ptr).thread_control_block_kmem };
         // SAFETY: as above. Drop first (KernelStack's unmap-and-recycle, AddressSpace teardown,
         // the QuotaToken), then kill the name, then the page goes home: nothing can reach the
         // dropped Thread afterward.
@@ -234,7 +241,9 @@ impl Threads {
     fn iter_mut(&mut self) -> impl Iterator<Item = &mut Thread> + '_ {
         // SAFETY: each stored pointer is a distinct live page (one page per thread), and
         // `&mut self` carries IPC_TABLES's exclusivity across the whole sweep.
-        self.table.values().map(|&TcbPtr(p)| unsafe { &mut *p })
+        self.table
+            .values()
+            .map(|&ThreadControlBlockPointer(p)| unsafe { &mut *p })
     }
 
     /// Every live TCB from slot `from` onward, with its slot index, for a **resumable** sweep
@@ -245,7 +254,7 @@ impl Threads {
         // distinct live page, and `&self` carries IPC_TABLES for the walk.
         self.table
             .iter_from(from)
-            .map(|(slot, _, &TcbPtr(p))| (slot, unsafe { &*p }))
+            .map(|(slot, _, &ThreadControlBlockPointer(p))| (slot, unsafe { &*p }))
     }
 }
 
@@ -292,7 +301,7 @@ struct IpcTables {
 const MAX_RENDEZVOUS: usize = 512;
 
 /// An rendezvous's name: a generational `slots` name over the rendezvous registry (19a). What an
-/// `Object::Rendezvous` capability carries. `u64` like a Tid, and stale-safe the same way.
+/// `Object::Rendezvous` capability carries. `u64` like a `ThreadId`, and stale-safe the same way.
 pub type RendezvousId = u64;
 
 /// The pages in one of the kernel's rendezvous chunks. **Not a ceiling.** When a chunk fills,
@@ -338,7 +347,7 @@ fn rendezvous_of(sched: &IpcTables, ep: RendezvousId) -> Option<&'static mut Ren
 /// Mark the current thread's blocking IPC as aborted (a stale rendezvous, or one revoked while it
 /// blocked): the syscall layer reads-and-clears this after the primitive returns and hands back an
 /// error. A helper because several IPC paths set it. Caller holds `IPC_TABLES`.
-fn set_ipc_aborted(sched: &mut IpcTables, tid: Tid) {
+fn set_ipc_aborted(sched: &mut IpcTables, tid: ThreadId) {
     if let Some(t) = sched.threads.get_mut(tid) {
         t.handshake.abort();
     }
@@ -354,7 +363,7 @@ pub fn take_ipc_aborted() -> bool {
     let Some(sched) = guard.as_mut() else {
         return false;
     };
-    let tid = current_tid();
+    let tid = current_thread_id();
     sched
         .threads
         .get_mut(tid)
@@ -548,7 +557,7 @@ pub fn boot_stage() -> u32 {
 /// **A corruption tripwire over `IpcTables`'s registries** (first-silicon diagnostics,
 /// 2026-08-15; module name provisional). Armed around the initrd demo on the board tour, it
 /// re-reads the watched ranges on the timer tick and prints every byte that changed since the
-/// last look: address, tick, before and after. A legal change (a spawn writing a fresh `TcbPtr`, a
+/// last look: address, tick, before and after. A legal change (a spawn writing a fresh `ThreadControlBlockPointer`, a
 /// reap bumping a generation) prints as a recognizable delta at a table offset; a stray write
 /// prints as bytes nothing in the choreography explains. The instrument does not judge, it shows,
 /// because boots 7 through 9 proved the judging is the part that goes wrong.
@@ -590,7 +599,7 @@ mod canary {
     }
 
     const MAX_RANGES: usize = 4;
-    /// Both registries today total ~13 KiB (128 `Option<TcbPtr>` at 16 bytes, 512 `Option<u64>`
+    /// Both registries today total ~13 KiB (128 `Option<ThreadControlBlockPointer>` at 16 bytes, 512 `Option<u64>`
     /// at 16 bytes, plus generations); 24 KiB leaves room for growth and the test's scratch.
     const SHADOW_BYTES: usize = 24 * 1024;
     /// Print at most this many diverging bytes over an armed window, so a large legal rewrite
@@ -799,7 +808,7 @@ pub fn init() {
     drop(sched); // release before spawning, which takes the lock itself
 
     // This core (core 0) is running the boot thread.
-    set_current_tid(boot_tid);
+    set_current_thread_id(boot_tid);
 
     // (The run queue and inbox used to have capacity reserved here, so a push from the timer IRQ
     // could never allocate. The queues are intrusive now: a push is two pointer writes and
@@ -913,12 +922,12 @@ pub fn drain_inbox() {
 /// alerts were pointing at (milestone 45). What the type still cannot express is that the pointee
 /// outlives its time on the queue; that is the caller's rule 2, and no type available here can carry
 /// it for an intrusive structure.
-fn tcb_ptr(sched: &mut IpcTables, tid: Tid) -> core::ptr::NonNull<Thread> {
+fn thread_control_block_ptr(sched: &mut IpcTables, tid: ThreadId) -> core::ptr::NonNull<Thread> {
     core::ptr::NonNull::from(
         sched
             .threads
             .get_mut(tid)
-            .expect("tcb_ptr of a dead thread"),
+            .expect("thread_control_block_ptr of a dead thread"),
     )
 }
 
@@ -951,7 +960,7 @@ fn place_on(target: usize, thread: core::ptr::NonNull<Thread>) {
         crate::smp::online_harts_mask(),
     );
     if target == cpu::id() {
-        // SAFETY: `thread` is a live Ready thread (see tcb_ptr), on no other queue.
+        // SAFETY: `thread` is a live Ready thread (see thread_control_block_ptr), on no other queue.
         cpu::current().with_runq(|q| unsafe { q.push_back(thread) });
     } else {
         // SAFETY: as above; the inbox mutex serializes access to the link.
@@ -973,7 +982,7 @@ fn place_on(target: usize, thread: core::ptr::NonNull<Thread>) {
 /// `target`, which is what lets the machine actually spread load. A remote target is handed the
 /// thread through its inbox and then poked with the reschedule SGI. (Wiring `spawn` itself to
 /// round-robin over `target` is the trivial next step, once the mechanism is proven.)
-pub fn spawn_on<F: FnOnce() + Send + 'static>(target: usize, f: F) -> Option<Tid> {
+pub fn spawn_on<F: FnOnce() + Send + 'static>(target: usize, f: F) -> Option<ThreadId> {
     let remote = target != cpu::id();
 
     let id = {
@@ -989,7 +998,7 @@ pub fn spawn_on<F: FnOnce() + Send + 'static>(target: usize, f: F) -> Option<Tid
             // is aligned for `Thread` and holds no live one, so `write` drops nothing.
             unsafe { Thread::spawn_into(f, tid, dst) }
         })?;
-        place_on(target, tcb_ptr(sched, id));
+        place_on(target, thread_control_block_ptr(sched, id));
         id
     }; // IPC_TABLES released here, before the SGI, so the target's schedule() can take it
 
@@ -1000,7 +1009,7 @@ pub fn spawn_on<F: FnOnce() + Send + 'static>(target: usize, f: F) -> Option<Tid
     Some(id)
 }
 
-pub fn spawn<F: FnOnce() + Send + 'static>(f: F) -> Option<Tid> {
+pub fn spawn<F: FnOnce() + Send + 'static>(f: F) -> Option<ThreadId> {
     // Placement is the power of two choices (DECISIONS §28): the new thread lands on the lighter of
     // two randomly sampled cores, not always on the spawner's, so work spreads instead of piling on
     // one core beside idle ones (the FS-server starvation lesson). `spawn_on` carries the thread to
@@ -1135,7 +1144,7 @@ pub fn run_idle() -> ! {
 pub fn spawn_with_quota<F: FnOnce() + Send + 'static>(
     budget: &'static AtomicU32,
     f: F,
-) -> Option<Tid> {
+) -> Option<ThreadId> {
     // Reserve a slot: decrement only if there is one. A compare-exchange loop, so it is exactly
     // one atomic decrement and it never dips below zero (returning `None` = "quota exhausted").
     let mut remaining = budget.load(Ordering::Relaxed);
@@ -1171,7 +1180,7 @@ pub fn spawn_with_quota<F: FnOnce() + Send + 'static>(
         thread.id = tid;
         thread
     })?;
-    let ptr = tcb_ptr(sched, id);
+    let ptr = thread_control_block_ptr(sched, id);
     // SAFETY: freshly inserted, Ready, on no queue; this core's queue, IPC_TABLES held, IRQs masked.
     cpu::current().with_runq(|q| unsafe { q.push_back(ptr) });
     Some(id)
@@ -1214,7 +1223,7 @@ fn depart(event: u64, pc: u64, addr: u64) -> ! {
     {
         let mut guard = IPC_TABLES.lock();
         let sched = guard.as_mut().expect("depart before sched::init");
-        let current = current_tid();
+        let current = current_thread_id();
 
         let fault_ep = sched.threads.get(current).and_then(|t| t.fault_ep);
 
@@ -1255,8 +1264,8 @@ fn depart(event: u64, pc: u64, addr: u64) -> ! {
 /// `ipc_recv` recognises a `Dead` sender and leaves it dead after taking its message, the same way
 /// it leaves a `CALL` caller blocked. If the rendezvous itself is gone (the supervisor was torn down
 /// first), the message is simply dropped, like an interrupt with no live rendezvous.
-fn deliver_death(sched: &mut IpcTables, corpse: Tid, ep: RendezvousId, msg: [u64; 5]) {
-    let me = tcb_ptr(sched, corpse);
+fn deliver_death(sched: &mut IpcTables, corpse: ThreadId, ep: RendezvousId, msg: [u64; 5]) {
+    let me = thread_control_block_ptr(sched, corpse);
     let Some(rendezvous) = rendezvous_of(sched, ep) else {
         return;
     };
@@ -1342,7 +1351,7 @@ pub fn schedule() {
             break 'decide None;
         };
 
-        let current = current_tid();
+        let current = current_thread_id();
 
         // **Forcible teardown, before anything else** (DECISIONS §16 amendment; §28 made it
         // load-bearing). A thread `DESTROY` marked killed must never run again. Convert it to a
@@ -1370,7 +1379,7 @@ pub fn schedule() {
 
         let next = match cpu::current().with_runq(|q| q.pop_front()) {
             // SAFETY: only live Ready threads are ever queued; reading the id is the last thing
-            // that happens before the pointer is dropped in favor of the (validated) Tid.
+            // that happens before the pointer is dropped in favor of the (validated) ThreadId.
             Some(t) => unsafe { (*t.as_ptr()).id },
             None => {
                 if runnable {
@@ -1421,20 +1430,20 @@ pub fn schedule() {
             // legal overlap and the reason only this core may pop its own queue (the extracted
             // protocol's steal-vs-switch-out rule; see crates/wake_handshake).
             sched.threads.get_mut(current).unwrap().handshake.preempt();
-            let ptr = tcb_ptr(sched, current);
+            let ptr = thread_control_block_ptr(sched, current);
             // SAFETY: just marked Ready, coming off the CPU, on no queue. Round robin: the back.
             cpu::current().with_runq(|q| unsafe { q.push_back(ptr) });
         }
 
         // Running, with on_cpu set until ITS successor's finish_switch, one switch from now.
         sched.threads.get_mut(next).unwrap().handshake.switch_in();
-        set_current_tid(next);
+        set_current_thread_id(next);
         trace::record(trace::Event::SwitchTo, next, 0);
 
         // Hand the outgoing thread to the incoming one to finish up AFTER the switch, when it is
         // provably off its stack: reap it if it Finished, clear its on_cpu (and complete a
         // deferred wake) otherwise. Not here, and not by another core: we are still running on
-        // its stack this instant. `current` is the local (the outgoing tid); `set_current_tid`
+        // its stack this instant. `current` is the local (the outgoing tid); `set_current_thread_id`
         // above already moved the per-CPU current to `next`. See finish_switch.
         cpu::current()
             .switched_from
@@ -1536,7 +1545,7 @@ pub(crate) fn finish_switch() {
         }
         SwitchOutVerdict::WakeCompleted => {
             trace::record(trace::Event::WakeCompleted, prev, 0);
-            let ptr = tcb_ptr(sched, prev);
+            let ptr = thread_control_block_ptr(sched, prev);
             // SAFETY: live, just made Ready, on no queue (a deferred wake was deferred precisely
             // because the waker did NOT queue it). IRQs are still masked on both callers' paths.
             cpu::current().with_runq(|q| unsafe { q.push_back(ptr) });
@@ -1757,7 +1766,7 @@ fn pick_wake_target() -> usize {
 /// (the `std_net` lesson). So place it on [`pick_wake_target`]'s choice. Returns `Some(target)` when
 /// that is a *remote* core, so the caller sends the reschedule SGI after releasing `IPC_TABLES`; `None`
 /// when it stayed local or the wake was parked. Caller holds the lock.
-fn wake_load_aware(sched: &mut IpcTables, tid: Tid) -> Option<usize> {
+fn wake_load_aware(sched: &mut IpcTables, tid: ThreadId) -> Option<usize> {
     let t = sched.threads.get_mut(tid)?;
     // The whole decision (not-blocked, the boot-8 undelivered-wake gate, the switch-out deferral)
     // is `thread_wake_handshake::Handshake::try_wake`, the extracted protocol loom searches on the host
@@ -1810,7 +1819,7 @@ fn wake_load_aware(sched: &mut IpcTables, tid: Tid) -> Option<usize> {
 /// **the wake-before-switch-out deferral** (a thread still on its CPU has a stale saved context,
 /// so the wake parks in `wake_pending` and its own core's `finish_switch` completes it once the
 /// context is provably saved; found by a 2-in-10 flake, notes/intrusive-queues.md).
-fn wake(sched: &mut IpcTables, tid: Tid) {
+fn wake(sched: &mut IpcTables, tid: ThreadId) {
     if let Some(t) = sched.threads.get_mut(tid) {
         match t.handshake.try_wake() {
             WakeVerdict::NotBlocked => {}
@@ -1870,9 +1879,9 @@ pub fn ipc_send(ep: RendezvousId, msg: [u64; 3]) {
     let block = {
         let mut guard = IPC_TABLES.lock();
         let sched = guard.as_mut().expect("no scheduler");
-        let current = current_tid();
+        let current = current_thread_id();
 
-        let me = tcb_ptr(sched, current);
+        let me = thread_control_block_ptr(sched, current);
         // A stale rendezvous (its region was revoked): mark this send aborted and do not block. The
         // kernel-side `ipc_send` wrapper never hits this (its endpoints are never revoked); the
         // syscall layer reads the flag and returns an error.
@@ -1881,7 +1890,7 @@ pub fn ipc_send(ep: RendezvousId, msg: [u64; 3]) {
             return;
         };
         // SAFETY: `me` is the running thread (live, on no queue), and if queued it stays live:
-        // a thread queued on an rendezvous is Blocked, which the reaper never touches. See tcb_ptr.
+        // a thread queued on an rendezvous is Blocked, which the reaper never touches. See thread_control_block_ptr.
         match unsafe { rendezvous.send(me) } {
             ipc::Send::Rendezvous(receiver) => {
                 // SAFETY: wait-queue entries are live Blocked threads; the id revalidates it.
@@ -1917,9 +1926,9 @@ pub fn ipc_recv(ep: RendezvousId) -> [u64; 5] {
     let immediate = {
         let mut guard = IPC_TABLES.lock();
         let sched = guard.as_mut().expect("no scheduler");
-        let current = current_tid();
+        let current = current_thread_id();
 
-        let me = tcb_ptr(sched, current);
+        let me = thread_control_block_ptr(sched, current);
         // A stale rendezvous (revoked): mark aborted and return a placeholder; the syscall layer sees
         // the flag and errors. (A thread revoked *while blocked* below is handled the same way: the
         // reaper sets the flag and wakes it, and it returns its stale mailbox for the layer to drop.)
@@ -1981,7 +1990,7 @@ pub fn ipc_recv(ep: RendezvousId) -> [u64; 5] {
             schedule(); // blocks; a sender fills our mailbox and wakes us
             let guard = IPC_TABLES.lock();
             let sched = guard.as_ref().expect("no scheduler");
-            let t = sched.threads.get(current_tid()).unwrap();
+            let t = sched.threads.get(current_thread_id()).unwrap();
             // The boot-8 gate makes an undelivered resume unreachable; this is its tripwire,
             // loud in every QEMU test build, on the path where the strand was observed.
             debug_assert!(
@@ -2014,9 +2023,9 @@ pub fn ipc_send_cap(ep: RendezvousId, data: u64, cap: crate::cap::Cap) {
     let block = {
         let mut guard = IPC_TABLES.lock();
         let sched = guard.as_mut().expect("no scheduler");
-        let current = current_tid();
+        let current = current_thread_id();
 
-        let me = tcb_ptr(sched, current);
+        let me = thread_control_block_ptr(sched, current);
         let Some(rendezvous) = rendezvous_of(sched, ep) else {
             set_ipc_aborted(sched, current);
             return; // stale rendezvous: aborted, syscall layer errors
@@ -2061,9 +2070,9 @@ pub fn ipc_recv_cap(ep: RendezvousId) -> [u64; 3] {
     let immediate = {
         let mut guard = IPC_TABLES.lock();
         let sched = guard.as_mut().expect("no scheduler");
-        let current = current_tid();
+        let current = current_thread_id();
 
-        let me = tcb_ptr(sched, current);
+        let me = thread_control_block_ptr(sched, current);
         let Some(rendezvous) = rendezvous_of(sched, ep) else {
             set_ipc_aborted(sched, current);
             return [0, 0, 0]; // stale rendezvous: aborted, syscall layer errors
@@ -2118,7 +2127,7 @@ pub fn ipc_recv_cap(ep: RendezvousId) -> [u64; 3] {
             schedule(); // a capability-carrying sender fills our mailbox and wakes us
             let guard = IPC_TABLES.lock();
             let sched = guard.as_ref().expect("no scheduler");
-            let t = sched.threads.get(current_tid()).unwrap();
+            let t = sched.threads.get(current_thread_id()).unwrap();
             debug_assert!(
                 t.handshake.delivered(),
                 "recv_cap resumed with nothing delivered"
@@ -2142,12 +2151,12 @@ pub fn ipc_call(ep: RendezvousId, msg: [u64; 2]) -> [u64; 3] {
     {
         let mut guard = IPC_TABLES.lock();
         let sched = guard.as_mut().expect("no scheduler");
-        let current = current_tid();
+        let current = current_thread_id();
         let reply = crate::cap::reply_cap(current);
 
         // `send` decides the rendezvous exactly as a plain SEND: a waiting server, or block. The
         // difference is the caller *always* blocks awaiting the reply, whether or not it met a server.
-        let me = tcb_ptr(sched, current);
+        let me = thread_control_block_ptr(sched, current);
         let Some(rendezvous) = rendezvous_of(sched, ep) else {
             set_ipc_aborted(sched, current);
             return [0, 0, 0]; // stale rendezvous: aborted, syscall layer errors
@@ -2185,7 +2194,7 @@ pub fn ipc_call(ep: RendezvousId, msg: [u64; 2]) -> [u64; 3] {
 
     let guard = IPC_TABLES.lock();
     let sched = guard.as_ref().expect("no scheduler");
-    let t = sched.threads.get(current_tid()).unwrap();
+    let t = sched.threads.get(current_thread_id()).unwrap();
     debug_assert!(
         t.handshake.delivered(),
         "call resumed with nothing delivered"
@@ -2198,7 +2207,7 @@ pub fn ipc_call(ep: RendezvousId, msg: [u64; 2]) -> [u64; 3] {
 /// [`ipc_call`], reached by invoking the one-shot Reply capability, which carries the caller's `tid`.
 /// The caller is blocked awaiting exactly this. If it is already gone (it cannot be, while blocked,
 /// but be defensive), the reply is simply dropped.
-pub fn ipc_reply(caller: Tid, msg: [u64; 2]) {
+pub fn ipc_reply(caller: ThreadId, msg: [u64; 2]) {
     let mut guard = IPC_TABLES.lock();
     let sched = guard.as_mut().expect("no scheduler");
     if let Some(t) = sched.threads.get_mut(caller) {
@@ -2249,7 +2258,7 @@ pub fn delete_device_frame_caps_from_others(phys: u64) {
     let Some(sched) = guard.as_mut() else {
         return;
     };
-    let keeper = current_tid();
+    let keeper = current_thread_id();
     let target = crate::cap::Object::DeviceFrame(phys);
     for t in sched.threads.iter_mut() {
         if t.id == keeper {
@@ -2271,7 +2280,7 @@ pub fn delete_device_frame_caps_from_others(phys: u64) {
 pub fn delete_current_cap(slot: u64) -> Result<(), crate::cap::Error> {
     let mut guard = IPC_TABLES.lock();
     let sched = guard.as_mut().ok_or(crate::cap::Error::NoSuchSlot)?;
-    let current = current_tid();
+    let current = current_thread_id();
     sched
         .threads
         .get_mut(current)
@@ -2290,7 +2299,7 @@ pub fn current_cap(slot: u64) -> Result<crate::cap::Cap, crate::cap::Error> {
     let sched = guard.as_ref().ok_or(crate::cap::Error::NoSuchSlot)?;
     sched
         .threads
-        .get(current_tid())
+        .get(current_thread_id())
         .ok_or(crate::cap::Error::NoSuchSlot)?
         .capability_table
         .get(slot)
@@ -2300,7 +2309,7 @@ pub fn current_cap(slot: u64) -> Result<crate::cap::Cap, crate::cap::Error> {
 pub fn grant(cap: crate::cap::Cap) -> Result<u64, crate::cap::Error> {
     let mut guard = IPC_TABLES.lock();
     let sched = guard.as_mut().ok_or(crate::cap::Error::NoFreeSlot)?;
-    let current = current_tid();
+    let current = current_thread_id();
     sched
         .threads
         .get_mut(current)
@@ -2316,12 +2325,12 @@ pub fn grant(cap: crate::cap::Cap) -> Result<u64, crate::cap::Error> {
 /// conventions (notes/abi.md §4) name a *fixed* slot that a program may hold without holding the
 /// ones below it: a std program granted a directory capability but not the network holds slot 4
 /// with 2 and 3 empty, and the emptiness is load-bearing (it is how `std::net` knows it has no
-/// network). This is the same explicit-target move `Tcb::CAP_INSERT` already offers a userspace
+/// network). This is the same explicit-target move `ThreadControlBlock::CAP_INSERT` already offers a userspace
 /// loader, available to the kernel's own service wiring.
 pub fn grant_at(slot: u64, cap: crate::cap::Cap) -> Result<u64, crate::cap::Error> {
     let mut guard = IPC_TABLES.lock();
     let sched = guard.as_mut().ok_or(crate::cap::Error::NoFreeSlot)?;
-    let current = current_tid();
+    let current = current_thread_id();
     sched
         .threads
         .get_mut(current)
@@ -2332,9 +2341,9 @@ pub fn grant_at(slot: u64, cap: crate::cap::Cap) -> Result<u64, crate::cap::Erro
 
 /// **Retype a TCB out of `region`** (milestone 19c.3): an embryo thread, page-resident in a
 /// page of the creator's own untyped, in the thread table but in no queue and not runnable.
-/// Returns its Tid (what an `Object::Tcb` capability carries) or `None` if the region is out of
+/// Returns its `ThreadId` (what an `Object::ThreadControlBlock` capability carries) or `None` if the region is out of
 /// budget or the table is full.
-pub fn create_tcb(region: u64) -> Option<Tid> {
+pub fn create_thread_control_block(region: u64) -> Option<ThreadId> {
     let page = crate::untyped::retype_object_page(region)?;
     let mut guard = IPC_TABLES.lock();
     let sched = guard.as_mut()?;
@@ -2344,7 +2353,7 @@ pub fn create_tcb(region: u64) -> Option<Tid> {
         // Remember which region paid for this TCB. It is the region an rendezvous reap reclaims
         // (DECISIONS §32), and here is the only point where the answer is known rather than
         // inferred: the caller named it, and nothing afterwards can tell us as reliably.
-        t.tcb_region = Some(region);
+        t.thread_control_block_region = Some(region);
         t
     });
     // On a full table the page stays the region's (spend-only); nothing to recycle. The region
@@ -2360,7 +2369,7 @@ pub fn create_tcb(region: u64) -> Option<Tid> {
 /// scheduler tears it down at its next preemption, so an owner that retries (the shell's `^C`
 /// escalation, §24) reclaims a runaway rather than being told forever to wait for it. `Embryo` and
 /// `Finished` threads are removed here (dropped, and their generational names killed, so every
-/// outstanding `Tcb` capability to them goes stale on its next use).
+/// outstanding `ThreadControlBlock` capability to them goes stale on its next use).
 ///
 /// **The region's endpoints go first, on every pass, refusal or not**, and that ordering is
 /// load-bearing rather than tidy: it is what wakes a resident blocked in `RECV` so the armed kill
@@ -2560,7 +2569,7 @@ fn reap_region_objects(base: u64, end: u64) -> Result<(), ()> {
             .filter(|t| t.handshake.state == State::Dead)
             .and_then(|t| t.fault_ep);
         if let Some(ep) = parked {
-            let ptr = tcb_ptr(sched, tid);
+            let ptr = thread_control_block_ptr(sched, tid);
             if let Some(rendezvous) = rendezvous_of(sched, ep) {
                 // SAFETY: `ptr` is compared by pointer, never dereferenced; the other queued
                 // senders are re-pushed and are all still live (blocked threads or corpses).
@@ -2626,7 +2635,7 @@ pub fn reclaim_region(region: u64) -> Result<(), ()> {
 ///
 /// Takes and releases `IPC_TABLES` before the reclaim, which takes it again: `reap_region_objects` must
 /// run with the lock and cannot be called under it.
-pub fn reap_supervised(ep: RendezvousId, tid: Tid) -> Result<(), abi::Error> {
+pub fn reap_supervised(ep: RendezvousId, tid: ThreadId) -> Result<(), abi::Error> {
     let region = {
         let guard = IPC_TABLES.lock();
         let sched = guard.as_ref().ok_or(abi::Error::NotSupervised)?;
@@ -2640,9 +2649,9 @@ pub fn reap_supervised(ep: RendezvousId, tid: Tid) -> Result<(), abi::Error> {
             capability::Reap::StillAlive => return Err(abi::Error::StillAlive),
             capability::Reap::Permitted => {}
         }
-        // A supervised thread is always one `create_tcb` built out of a region, so this is `Some`;
+        // A supervised thread is always one `create_thread_control_block` built out of a region, so this is `Some`;
         // be honest rather than unwrap, and report "nothing here to collect" if it ever is not.
-        t.and_then(|t| t.tcb_region)
+        t.and_then(|t| t.thread_control_block_region)
             .ok_or(abi::Error::NotSupervised)?
     };
     // `NotPermitted` for the same reasons `DESTROY` gives it: the child `SPLIT` its own budget and a
@@ -2706,8 +2715,8 @@ const fn survey_state(state: State) -> u64 {
 /// (moved out of the user-aspace registry into the TCB, so it now dies with the thread) and set
 /// the EL0 entry and user stack. Refuses anything but an `Embryo`, so a running thread cannot be
 /// reconfigured under itself. `Ok(())` or a reason.
-pub fn configure_tcb(
-    tid: Tid,
+pub fn configure_thread_control_block(
+    tid: ThreadId,
     entry: u64,
     user_sp: u64,
     aspace_name: u64,
@@ -2753,8 +2762,8 @@ pub fn configure_tcb(
 /// the capability in a specific free slot, which a supervisor uses to put a child's supervision
 /// rendezvous in the reserved fault slot (milestone 22). A targeted insert into an occupied or
 /// out-of-range slot is `OutOfMemory`, so the reservation cannot be quietly overwritten.
-pub fn tcb_insert_cap(
-    tid: Tid,
+pub fn thread_control_block_insert_cap(
+    tid: ThreadId,
     cap: crate::cap::Cap,
     target: Option<u64>,
 ) -> Result<u64, abi::Error> {
@@ -2780,7 +2789,7 @@ pub fn tcb_insert_cap(
 /// Refuses a TCB that is not an embryo, or one with no bound address space or no entry set: a
 /// half-built thread must never run. On success the thread gets its kernel stack and entry
 /// context and joins this core's run queue.
-pub fn start_tcb(tid: Tid, args: [u64; 3]) -> Result<(), abi::Error> {
+pub fn start_thread_control_block(tid: ThreadId, args: [u64; 3]) -> Result<(), abi::Error> {
     let mut guard = IPC_TABLES.lock();
     let sched = guard.as_mut().ok_or(abi::Error::NoSuchSlot)?;
     let t = sched.threads.get_mut(tid).ok_or(abi::Error::NoSuchSlot)?;
@@ -2816,7 +2825,7 @@ pub fn start_tcb(tid: Tid, args: [u64; 3]) -> Result<(), abi::Error> {
     // or hands the thread to the target's inbox; the SGI that makes a remote target pick it up goes
     // out after IPC_TABLES is released.
     let target = pick_spawn_target();
-    let ptr = tcb_ptr(sched, tid);
+    let ptr = thread_control_block_ptr(sched, tid);
     place_on(target, ptr);
     drop(guard);
     if target != cpu::id() {
@@ -2835,7 +2844,7 @@ pub fn adopt_address_space(space: crate::user::AddressSpace) {
     {
         let mut guard = IPC_TABLES.lock();
         let sched = guard.as_mut().expect("no scheduler");
-        let current = current_tid();
+        let current = current_thread_id();
         sched
             .threads
             .get_mut(current)
@@ -2861,14 +2870,14 @@ pub fn current_kernel_stack_top() -> Option<u64> {
     let sched = guard.as_ref()?;
     sched
         .threads
-        .get(current_tid())?
+        .get(current_thread_id())?
         .stack
         .as_ref()
         .map(|s| s.top())
 }
 
-pub fn current() -> Tid {
-    current_tid()
+pub fn current() -> ThreadId {
+    current_thread_id()
 }
 
 /// **The user PC recorded in `tid`'s trap frame** (milestone 71, test support), read from the top of
@@ -2879,7 +2888,7 @@ pub fn current() -> Tid {
 /// rather than only a human reading a hang dump. A thread that has reached user mode reads back a
 /// user address here; a zero means nothing wrote a frame where the trap path will look for one.
 #[cfg_attr(not(test), allow(dead_code))]
-pub fn user_pc_of(tid: Tid) -> Option<u64> {
+pub fn user_pc_of(tid: ThreadId) -> Option<u64> {
     let guard = IPC_TABLES.lock();
     let sched = guard.as_ref()?;
     let t = sched.threads.get(tid)?;
@@ -2893,7 +2902,7 @@ pub fn user_pc_of(tid: Tid) -> Option<u64> {
 /// corpse's TCB still holds its fault-time state after the notification was delivered. `None` if
 /// the name does not resolve or the thread is not a corpse.
 #[cfg_attr(not(test), allow(dead_code))]
-pub fn corpse_fault_msg(tid: Tid) -> Option<[u64; 5]> {
+pub fn corpse_fault_msg(tid: ThreadId) -> Option<[u64; 5]> {
     let guard = IPC_TABLES.lock();
     let sched = guard.as_ref()?;
     let t = sched.threads.get(tid)?;
@@ -2910,10 +2919,10 @@ pub fn corpse_fault_msg(tid: Tid) -> Option<[u64; 5]> {
 /// teardown moves it, and a test waiting for the count to come back to a baseline is really waiting
 /// for the rest of the system to hold still. It need not.
 ///
-/// The name is generational, so a reaped thread's `Tid` never resolves again even if its slot is
+/// The name is generational, so a reaped thread's `ThreadId` never resolves again even if its slot is
 /// reused: `false` here means gone, not "gone or replaced".
 #[cfg_attr(not(test), allow(dead_code))]
-pub fn thread_present(tid: Tid) -> bool {
+pub fn thread_present(tid: ThreadId) -> bool {
     IPC_TABLES
         .lock()
         .as_ref()
@@ -2938,13 +2947,13 @@ pub fn thread_present(tid: Tid) -> bool {
 /// preemption, which is exactly how `DESTROY` and §24's `^C` escalation already work. Rule 3 governs
 /// the syscall boundary; this is an in-kernel function for in-kernel tests.
 ///
-/// Returns whether a live thread was found and marked. A `false` means the `Tid` did not resolve,
+/// Returns whether a live thread was found and marked. A `false` means the `ThreadId` did not resolve,
 /// which for a generational name means the thread is already gone rather than that the kill failed.
 ///
 /// The kill is **armed, not immediate**: the thread dies at its next preemption, so a caller that
 /// needs it actually gone waits for [`thread_present`] to go false rather than assuming.
 #[cfg_attr(not(test), allow(dead_code))]
-pub fn kill_thread(tid: Tid) -> bool {
+pub fn kill_thread(tid: ThreadId) -> bool {
     let mut guard = IPC_TABLES.lock();
     let Some(sched) = guard.as_mut() else {
         return false;
@@ -2971,7 +2980,7 @@ pub fn thread_count() -> usize {
 /// runnable threads a clean system has. The regression proxy for the test-thread starvation that
 /// made the RedoxFS mount overrun the hang watchdog.
 #[cfg_attr(not(test), allow(dead_code))]
-pub fn runnable_non_idle_count(&exclude: &Tid) -> usize {
+pub fn runnable_non_idle_count(&exclude: &ThreadId) -> usize {
     let mut guard = IPC_TABLES.lock();
     let Some(sched) = guard.as_mut() else {
         return 0;
@@ -3179,7 +3188,7 @@ pub fn rendezvous_waiting_receivers(ep: RendezvousId) -> usize {
 /// state poke: it exercises the real wake path, so whatever `wake()` does about an undelivered
 /// wake is what this injects.
 #[cfg(test)]
-pub fn wake_without_delivery(tid: Tid) {
+pub fn wake_without_delivery(tid: ThreadId) {
     let mut guard = IPC_TABLES.lock();
     if let Some(sched) = guard.as_mut() {
         wake(sched, tid);
@@ -3475,17 +3484,18 @@ mod tests {
     /// timing: find the object, kill it, unpin, free. The larger cases (a started-then-exited
     /// thread, its address space, the spawn-to-reap loop) build on this one.
     #[test_case]
-    fn reclaim_frees_an_embryo_tcbs_region() {
+    fn reclaim_frees_an_embryo_thread_control_blocks_region() {
         let frames_before = crate::memory::free_frames();
 
         let region = crate::untyped::create(2).expect("a fresh 2-page region");
-        let tid = crate::sched::create_tcb(region).expect("retype a TCB from the region");
+        let tid = crate::sched::create_thread_control_block(region)
+            .expect("retype a TCB from the region");
 
         // The embryo is named, not counted. This pair used to bracket `thread_count()` against a
         // baseline taken above (`threads_before + 1`, then `threads_before`), which is the reaper
         // count's defect in a different test: the headcount is the size of the whole table, so a
         // neighbouring thread exiting between the two reads lands the count BELOW what the
-        // assertion demands and blames this embryo for it. `thread_present` on the Tid this test
+        // assertion demands and blames this embryo for it. `thread_present` on the ThreadId this test
         // created is immune by construction, and it is strictly the stronger claim: the old
         // "the TCB's table slot must be freed" could pass with the embryo still in the table, as
         // long as somebody else's thread left in the same window. Fourth appearance of this fix;
@@ -3871,7 +3881,7 @@ mod tests {
         static COUNTS: [AtomicU64; 3] = [AtomicU64::new(0), AtomicU64::new(0), AtomicU64::new(0)];
         static STOP: AtomicBool = AtomicBool::new(false);
 
-        let mut tids = [0 as crate::thread::Tid; 3];
+        let mut tids = [0 as crate::thread::ThreadId; 3];
         for (t, c) in tids.iter_mut().zip(&COUNTS) {
             *t = crate::sched::spawn(move || {
                 while !STOP.load(Ordering::SeqCst) {
@@ -4034,7 +4044,7 @@ mod tests {
         static PROBE_SP: AtomicU64 = AtomicU64::new(0);
 
         fn batch_of_eight() {
-            let mut tids = [0 as crate::thread::Tid; 8];
+            let mut tids = [0 as crate::thread::ThreadId; 8];
             for t in &mut tids {
                 *t = crate::sched::spawn(|| {}).expect("spawn failed");
             }
@@ -4525,7 +4535,7 @@ mod tests {
         // loop could exit at once (a neighbour reaping first) and leave this batch's stacks in
         // flight, or never exit at all (a neighbour's thread outliving the batch) with no clock to
         // stop it, spinning until the harness's 90 s ceiling with a message about kernel stacks.
-        // `thread_present` on the Tid each spawn returned asks the narrow question, and `wait_for`
+        // `thread_present` on the ThreadId each spawn returned asks the narrow question, and `wait_for`
         // supplies the bound the yield loop never had.
         let settle = |tid| {
             assert!(

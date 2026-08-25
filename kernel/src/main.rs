@@ -362,6 +362,15 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // run. Both other boots call this in the same position.
         smp::bring_up_secondaries();
 
+        // The benchmark boot (milestone 21, `script/bench`; DECISIONS §121's amendment measuring
+        // the TSS I/O-bitmap switch cost): run the microbenchmarks and halt, instead of the rest of
+        // the tour. Everything `bench::run()` needs is up by this line (the scheduler, `sched::spawn`,
+        // the timer tick), and it diverges, so the kernel thread proof, the userspace demo and the
+        // `#[cfg(test)]` suite below are untouched by it. The same shape the other two architectures
+        // already use (see `icount`/`bench` above in this function's aarch64 half).
+        #[cfg(feature = "bench")]
+        bench::run();
+
         // A kernel thread, which is the cheapest proof that `kmem`, `untyped` and the context
         // switch all work on this architecture: its stack came from the kernel's own budget and
         // running it at all is one `switch_to` out and one back.

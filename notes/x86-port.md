@@ -798,12 +798,14 @@ per-page.
 
 Nothing uses the bitmap. `TrapFrame::for_user_entry` leaves `IOPL` at 0 and the TSS's bitmap offset
 points past the end of the structure, so a ring-3 program on this kernel may not touch a port at
-all, which is the only correct answer while there is no way to say which ports it may have. When
-there is, that bitmap is where a port grant has to be recorded, and it is a genuinely different
-shape of capability from the one the tree has. `user::UART_PHYS` is **zero** on this architecture, and that zero is the marker for
-this question rather than a value. Written up as **§121 (PROPOSED)**, because it is the first case in
-this tree where the object a capability names is not memory, and how that is answered decides the
-shape of every future capability over something that is not a frame.
+all, which is now the *permanent* answer, not a placeholder while an open question sits above it.
+`user::UART_PHYS` is **zero** on this architecture, and that zero stays the marker for the decision
+below rather than for anything still open. Written up as **§121 (DECIDED)**: legacy port I/O stays
+kernel-resident permanently (option 2), and the port-range-capability alternative this section once
+priced as future work (a real TSS-bitmap grant, a genuinely different shape of capability from the
+one the tree has) is closed, not deferred. §121 is the first case in this tree where the object a
+capability names is not memory, and the answer landing on "the kernel keeps this one" is itself a
+recorded finding worth reading if a later capability over something that is not a frame comes up.
 
 ### 3. One base cannot do both jobs, so this architecture has two
 

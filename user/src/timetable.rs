@@ -106,7 +106,7 @@
 //!   What the nesting *does* buy is the only correlation available, which is why it is still the
 //!   right shape: a refused reap names the instance that carried a grant. Nothing here can pair a
 //!   death with a grant otherwise, because a builder is never told its child's tid
-//!   (`supervision_proto::build_child` hands back a TCB capability, and `abi::tcb` has no method
+//!   (`supervision_proto::build_child` hands back a TCB capability, and `abi::thread_control_block` has no method
 //!   that reads one out), so the only fact a supervisor has about a death is the tid the kernel
 //!   stamped on it. What remains is therefore a decision rather than wiring: **how many `--mem`
 //!   instances may be outstanding at once**, since the refusal only identifies one. `crates/timetable`
@@ -347,7 +347,7 @@ fn fire(elf: &elf::Elf, arg: u64) -> bool {
         supervision_proto::untyped_destroy(region);
         return false;
     };
-    if !supervision_proto::tcb_start(tcb, 0, arg, 0) {
+    if !supervision_proto::thread_control_block_start(tcb, 0, arg, 0) {
         cap_delete(tcb);
         supervision_proto::untyped_destroy(region);
         return false;

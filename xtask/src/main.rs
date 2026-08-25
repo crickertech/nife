@@ -188,7 +188,7 @@ fn main() -> ExitCode {
                 "       cargo xtask undefined-behavior-check [extra cargo-miri-test args, e.g. -p <crate>]"
             );
             eprintln!(
-                "       cargo xtask bench [--riscv] [--real] [--release] [--smp] [--check] [--save]"
+                "       cargo xtask bench [--riscv | --x86] [--real] [--release] [--smp] [--check] [--save]"
             );
             eprintln!(
                 "       cargo xtask test [--arch aarch64|riscv64|x86_64] [--cpu <qemu-cpu-model>] [--hvf]"
@@ -7401,6 +7401,22 @@ fn bench() -> bool {
         return bench_riscv(check, save);
     }
 
+    // The third architecture (milestone 161; DECISIONS §121's amendment, the TSS I/O-bitmap
+    // switch cost). **No icount leg, full stop**: `icount()` below refuses `--arch x86_64` for
+    // the same reason ("the instrument's boot needs a userspace this port cannot build"), and
+    // this port's runner attaches no image either. So `--x86` always runs statistically, off the
+    // guest's own TSC, and never gates; `--check`/`--save` are refused up front, the same shape
+    // `--real` uses above.
+    if std::env::args().any(|a| a == "--x86") {
+        if check || save {
+            eprintln!(
+                "bench: --x86 has no icount leg (statistical TSC numbers only); no --check/--save"
+            );
+            return false;
+        }
+        return bench_x86();
+    }
+
     // `--smp`: boot the full 4-hart machine under HVF so the multi-hart throughput bench
     // (`smp_throughput`, DECISIONS §28) and the FS service-path bench (`fs_read`, DECISIONS §32) have
     // cores and, for the FS one, a filesystem to work with. Both self-skip on one hart, so without
@@ -7534,6 +7550,57 @@ fn bench_riscv(check: bool, save: bool) -> bool {
         check,
         save,
         workspace_root().join("bench/baseline-riscv64.txt"),
+    )
+}
+
+/// **The `x86_64` benchmark path** (DECISIONS §121's amendment, milestone 161 item 4). Same suite,
+/// minus everything that needs a real userspace ELF: `crates/user_rt` has no `x86_64` arms yet, so
+/// every `_el0` bench self-skips (`crate::user::program` finds nothing in the initrd this leg
+/// never builds), and it adds one x86-only bench, `tss_iomap_switch`: `bench::yield_switch` with
+/// a full I/O-permission-bitmap-sized write added on every switch-in. Reading its `ns/iter`
+/// against `yield_switch`'s from the same boot is §121's missing number, the dominant cost of
+/// option 1 (a port-range capability enforced by the TSS bitmap) that the decision names as
+/// unmeasured. See `kernel/src/arch/x86_64/segments.rs`'s `bench_write_io_bitmap`.
+///
+/// **Always statistical, never gating**, because there is no icount leg on this ISA (see the
+/// `--x86` branch above and `icount()`'s own refusal for `--arch x86_64`). `scripts/qemu-runner-x86_64.sh`
+/// attaches no disk and builds no initrd, so this needs neither `mkdisk` nor `user()`; the runner is
+/// plain TCG (no KVM on this ARM host to accelerate `x86_64`), so the numbers are real elapsed time off
+/// the guest's calibrated TSC, at whatever rate TCG's instruction-by-instruction translation runs, not
+/// a proxy for real x86 silicon. `cargo xtask bench --x86`.
+fn bench_x86() -> bool {
+    if !run(
+        "cargo",
+        &[
+            "build",
+            "-p",
+            "kernel",
+            "--features",
+            "bench",
+            "--target",
+            X86_TARGET,
+        ],
+    ) {
+        return false;
+    }
+
+    let mut cmd = Command::new("scripts/qemu-runner-x86_64.sh");
+    cmd.arg(format!("target/{X86_TARGET}/debug/kernel"));
+    eprintln!(
+        "--- bench: x86_64, single hart, plain TCG (no KVM/HVF on this host; statistical) ---"
+    );
+
+    // `real: true` only to pick run_bench's "ns are fiction" footer (never printed for a TCG+icount
+    // run); check and save are always false, since --x86 refuses both before this is ever called and
+    // there is no baseline file for this ISA to check against or save. The baseline path is
+    // therefore never touched: pass a name for it anyway so a future `--save` for this leg is one
+    // `bool` flip away rather than a new parameter.
+    run_bench(
+        cmd,
+        true,
+        false,
+        false,
+        workspace_root().join("bench/baseline-x86_64.txt"),
     )
 }
 

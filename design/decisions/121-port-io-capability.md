@@ -1,9 +1,10 @@
 # 121. What a device capability is when the device has no page: x86 port I/O
 
-**Status: PROPOSED.** Raised 2026-08-23 by milestone 161's lane, which found it while wiring the
-x86_64 console and could not decide it: what a capability *is* is the centre of this system's claim,
-not an implementation choice a lane makes on the way past. The number is **provisional**, minted by
-a lane against the current README rather than by an integrator.
+**Status: DECIDED.** calef, 2026-08-25, in conversation, after the TSS I/O-bitmap write cost was
+measured and refined below: *"Ratify option 2 permanently."* Raised 2026-08-23 by milestone 161's
+lane, which found it while wiring the x86_64 console and could not decide it: what a capability *is*
+is the centre of this system's claim, not an implementation choice a lane makes on the way past. The
+number is **provisional**, minted by a lane against the current README rather than by an integrator.
 
 **What is blocked: nothing today, and one thing soon.** Milestone 161's boot is entirely in ring 0,
 so the kernel drives COM1 directly and no grant is needed. What is blocked is a **userspace console
@@ -84,23 +85,46 @@ drivers issuing reads and writes as IPC.
   the kernel as the thing that actually touches the hardware, which is the arrangement being argued
   against.
 
-## The recommendation, and it is deliberately weak
+## The decision: option 2, permanently
 
-**Option 2 now, with the scope note written where a reader meets the feature, and option 1 kept open.**
+**x86's legacy port-I/O devices, the console included, stay kernel-resident. This is not an interim
+stance to be revisited on a schedule; it is a permanent architectural boundary.** Only memory-mapped
+devices get a userspace driver on x86 -- which is everything on the machine that actually matters to
+this project's own ranking function. Milestone 87's real target (a Dell OptiPlex 7050 Micro with the
+Dell C4PDJ serial module, already on calef's desk) almost certainly exposes its serial port through
+the traditional Super I/O / COM1 legacy interface rather than a memory-mapped UART -- true MMIO UARTs
+are rare outside embedded and server hardware. Nobody has checked the module's own datasheet to
+confirm this, so it is stated as inference from general PC architecture, not a verified fact, but it
+is the reason this reads as a permanent property of x86 legacy serial rather than a QEMU emulation
+artifact: real hardware likely has the identical shape.
 
-The reasoning is ordering rather than preference. Nothing on x86 runs in ring 3 yet, so option 1
-cannot be built or measured today, and its costs (the context-switch write, the revocation
-shootdown) are exactly the kind this tree measures rather than argues. Option 2 is the state the port
-is already in, costs nothing to keep, and is honest as long as it is *recorded* as a gap rather than
-presented as a design.
+**Nothing on the actual customer path is affected.** Every device the Time Machine backup-server
+thesis touches -- network, NVMe/disk, everything SMB needs -- is already PCI/PCIe, already
+memory-mapped, and already gets the full userspace-driver treatment identically on all three
+architectures under the existing mapping-based capability model. The gap this decision accepts is
+confined entirely to a debug/developer serial console a customer never interacts with.
 
-**What would change the recommendation**: a userspace console on x86 becoming a thing calef wants
-demonstrated, rather than a thing the other two architectures happen to have. At that point option 1
-is the only answer, and it should be built as a capability rather than bolted on.
+**The measured cost (below) supports closing this rather than leaving it open.** ~2,682 ns per
+context switch, a 423% overhead on the naive always-write implementation, refined to note a
+lazy/conditional write would cost far less but still needs real, currently unbuilt engineering with
+no present motivation to build it. That is exactly the kind of cost this tree measures rather than
+argues, and the number argues for the status quo.
 
-**This is not a lane's call** because option 1 adds an object type to the capability surface and
-option 2 declares a parity gap, and both are calef's under the tenets: the syscall surface is a
-boundary, and a parity gap needs a recorded plan rather than a silence.
+**This is the same posture DECISIONS §19 already accepts elsewhere in this tree**: a documented scope
+note is a legitimate answer to a parity gap, not a failure to work around. An honest, recorded
+exception is worth more than an overclaimed parity, which is this project's own stated culture.
+
+**The reopening trigger, named so this does not get revisited out of habit**: if a real userspace
+console on x86 ever becomes something calef actively wants demonstrated, rather than something the
+other two architectures merely happen to have, that is what justifies building option 1 for real. At
+that point the number to get first is the lazy/conditional write's actual cost (see "Refined
+2026-08-25" below), not the naive always-write number already measured here, since that number prices
+the wrong implementation.
+
+**This was not a lane's call, and still is not retroactively**: option 1 would have added an object
+type to the capability surface and option 2 permanently declares a parity gap, and both are calef's
+under the tenets -- the syscall surface is a boundary, and a parity gap needs a recorded plan rather
+than a silence, which is exactly what this decision now is.
 
 ### Amended 2026-08-24: option 2 now, but not argued blind against the alternatives
 
@@ -133,11 +157,72 @@ switching, a small follow-on benchmark (unscoped as its own milestone; whoever p
 number) measures the TSS-bitmap-write cost the same way `ipc_rtt` and `null_syscall` already measure
 theirs. That turns the next 1-vs-3 call into one made on both sides' numbers, not one side's.
 
-## What is needed to answer it
+### Measured 2026-08-24: the write costs more, not less, than the prose above guessed
 
-One question, and it is not technical: **is a userspace console driver on x86 part of what the
-demonstrator claims, or is "userspace drivers, demonstrated on two architectures, with the third's
-legacy serial port a recorded exception" enough?**
+Milestone 161 item 4 landed real two-thread context switching on `x86_64` this session, so the
+precondition above is met. `tss_iomap_switch` (`kernel/src/bench.rs`) is `yield_switch` with one
+`arch::segments::bench_write_io_bitmap` call added on every switch-in, in both threads: a real
+8192-byte write (`65536` ports `/ 8`, the exact size, not the round "8 KiB" this file used loosely),
+into a CPU-owned static, never wired to the live TSS's `iomap_base`. It measures the write option 1
+would add, not the enforcement. Full methodology and five-run medians for both a debug and a release
+kernel: `notes/benchmarks.md`, "2026-08-24: the TSS I/O-bitmap switch cost".
 
-If the first, option 1 and it should be scheduled. If the second, option 2 and this file becomes
-`DECIDED` with the scope note as its deliverable.
+**No icount leg exists on this ISA** (`icount()` already refuses `--arch x86_64`, and this port's
+runner attaches no image to pin QEMU's virtual clock to), so every number below is plain TCG on this
+Apple Silicon host: no KVM, no HVF for `x86_64`, statistical, and not a stand-in for real x86 silicon
+cycle counts. `cargo xtask bench --x86` runs it and refuses `--check`/`--save` for the same reason.
+
+| build | `yield_switch` (bare switch) | `tss_iomap_switch` (switch + write) | delta | per 8192-byte write | overhead |
+|---|---|---|---|---|---|
+| debug, median of 6 | 12,320 ns/iter | 15,360 ns/iter | 3,040 ns/iter | ~1,520 ns | +25% |
+| release, median of 5 | 1,267 ns/iter | 6,769 ns/iter | 5,363 ns/iter | ~2,682 ns | +423% |
+
+**The debug row is the reassuring one and the release row is the honest one, and they disagree by
+17x on "how bad is this."** A debug build's baseline switch carries so much fixed cost (unelided
+checks, unoptimized bookkeeping) that the write is a modest ~25% addition to a slow number. Strip
+that in release and the baseline switch itself gets **~10x faster** while the write's own cost barely
+moves, both being close to plain memory bandwidth. On the switch path option 1 would actually run on,
+the write does not add a quarter of the cost, **it is most of the cost**, which is a stronger
+statement than this file's own prose made before there was a number to check it against: "the
+dominant cost" undersold it. **Correcting the record rather than the prose that was already
+qualified**: nothing above was wrong, the amendment already named this the dominant cost from
+architecture alone; the number says the margin is wider than "dominant" implied.
+
+**This does not change the recommendation.** Option 2 still stands for the reason it always did:
+nothing today asks for a userspace console on `x86_64` specifically, and option 1's cost, now
+measured rather than assumed, is exactly as unattractive as the prose already argued, arguably more
+so. What changes is that **the next 1-vs-3 call is now made on both sides' numbers**: option 3's
+~337 ns per IPC round trip (already on record above) against option 1's ~1.5-2.7 us per switch for
+the write alone, before the capability type, the revocation shootdown, or anything else option 1
+would also cost. Whether that gap is worth paying for a userspace `x86_64` console is still calef's
+call, per this file's own closing question.
+
+### Refined 2026-08-25: the number prices the naive write, not the write option 1 would actually ship
+
+calef and the maintainer read the measured table above together and flagged a gap in what it prices.
+`tss_iomap_switch` writes the bitmap on *every* switch, unconditionally, for both threads, whether
+either one holds a port capability or not. That is not how the real OS this decision keeps citing as
+precedent, Linux, actually does it: `ioperm`/`iopl` give a thread its own I/O bitmap only if it asks
+for one, and the TSS's `iomap_base` on switch-in is set to "no bitmap" for every thread that never
+has, so the write is paid only when a thread that actually holds port permission is on either side of
+the switch. On a system where realistically one process would ever hold a port capability if option 1
+were built (the console driver), that is the overwhelming majority of switches paying nothing and one
+rare case paying the measured cost, not every switch paying it.
+
+**So the table above is a confirmed worst-case upper bound, not the number option 1 would actually
+cost in a system that implemented the lazy version.** It does not change today's call: option 2 still
+costs nothing and nothing today asks for the alternative, so there is nothing to trade the measured
+cost against yet. It changes what the *next* measurement should be if this decision is revisited
+seriously: the lazy/conditional write's real cost, which needs a per-thread "does this thread hold any
+port capability" bit checked on switch-in rather than an unconditional write, not a second run of the
+same always-write benchmark. Recorded here so a future reader prices option 1 against the write it
+would actually pay, not the one this file happened to measure first because it was the smaller thing
+to build.
+
+## What answered it
+
+The question this file closed on was never technical: **is a userspace console driver on x86 part of
+what the demonstrator claims, or is "userspace drivers, demonstrated on two architectures, with the
+third's legacy serial port a recorded exception" enough?** calef answered the second, permanently,
+once the cost of the alternative was measured rather than assumed. Option 2 is the scope note, and it
+is this decision's own deliverable.

@@ -430,7 +430,7 @@ fn init_irq(initrd_len: u64) -> ! {
     let Ok(tcb) = build_child(UNTYPED, &elf, caps, &[]) else {
         fail_report(REPORT)
     };
-    check(tcb_start(tcb, IRQ_CHILD, 0, 0));
+    check(thread_control_block_start(tcb, IRQ_CHILD, 0, 0));
     exit();
 }
 
@@ -462,7 +462,7 @@ fn init_worker(initrd_len: u64) -> ! {
     };
     // x0 is unused (a standalone binary needs no role selector); the input is in x1 (the multi-arg
     // START that 19e added).
-    check(tcb_start(tcb, 0, WORKER_INPUT, 0));
+    check(thread_control_block_start(tcb, 0, WORKER_INPUT, 0));
     exit();
 }
 
@@ -485,7 +485,7 @@ fn init_coremark(initrd_len: u64) -> ! {
     let Ok(tcb) = build_child(UNTYPED, &elf, caps, &[]) else {
         fail_report(REPORT)
     };
-    check(tcb_start(tcb, 0, 0, 0)); // no args: the workload's iteration count is fixed
+    check(thread_control_block_start(tcb, 0, 0, 0)); // no args: the workload's iteration count is fixed
     exit();
 }
 
@@ -560,7 +560,7 @@ fn init_console(initrd_len: u64) -> ! {
     let Ok(tcb) = build_child(UNTYPED, &elf, caps, maps) else {
         fail_report(REPORT)
     };
-    check(tcb_start(tcb, 0, 0, 0)); // no role selector: console is its own binary
+    check(thread_control_block_start(tcb, 0, 0, 0)); // no role selector: console is its own binary
 
     // Now init is the client. Write a line into the shared page, ask the server to print it.
     let msg = b"nife: the console server was built and started by userspace init.
@@ -612,7 +612,7 @@ fn init_build(initrd_len: u64, device: bool) -> ! {
     match build_child(UNTYPED, &elf, caps, maps) {
         Ok(child_tcb) => {
             let role = if device { DEV_CHILD } else { CHILD };
-            check(tcb_start(child_tcb, role, 0, 0));
+            check(thread_control_block_start(child_tcb, role, 0, 0));
         }
         Err(_) => {
             send(REPORT, 0, 0, 0);
@@ -699,8 +699,8 @@ fn retype_frame(untyped: u64) -> Result<u64, ()> {
 
 /// Start a configured TCB, handing the child `arg0`, `arg1`, `arg2` as its first three registers.
 /// True if the kernel started it.
-fn tcb_start(tcb: u64, arg0: u64, arg1: u64, arg2: u64) -> bool {
-    supervision_proto::tcb_start(tcb, arg0, arg1, arg2)
+fn thread_control_block_start(tcb: u64, arg0: u64, arg1: u64, arg2: u64) -> bool {
+    supervision_proto::thread_control_block_start(tcb, arg0, arg1, arg2)
 }
 
 /// **Building another address space, milestone 19b.** Holds an untyped budget (slot 0) and a

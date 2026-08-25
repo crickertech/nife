@@ -106,9 +106,15 @@ cargo clippy -p kernel -p user -p user_rt --target aarch64-unknown-none-softfloa
 # - **No `--all-targets`**, because the kernel's test suite does not compile for x86_64. Its
 #   userspace-exec tests hand-assemble machine code (`user/tests.rs`) and its supervision fixtures
 #   are per-ISA stubs, so bringing the suite up is downstream of ring 3 existing at all here.
-# - **No feature loop.** All eight boot-mode features fail on x86_64, measured, because each one
-#   selects a boot path that needs an arch layer this port has not written. Adding them to the loop
-#   below would fail the gate for a reason the gate cannot fix.
+# - **No feature loop for seven of the eight boot-mode features.** They fail on x86_64, measured,
+#   because each selects a boot path that needs an arch layer this port has not written. Adding
+#   them to the loop below would fail the gate for a reason the gate cannot fix.
+#   `bench` is the exception (DECISIONS §121's amendment, the TSS I/O-bitmap switch cost): milestone
+#   161 item 4 brought the scheduler up on this ISA, `kernel_main`'s x86_64 arm now diverges into
+#   `bench::run()` the same way the other two do, and it passes this same clippy line clean. Linted
+#   on its own line below rather than folded into the two-ISA loop above, because that loop's
+#   `--target` list is aarch64/riscv64 only and widening it would also run every OTHER feature in the
+#   list against x86_64, which is exactly what this paragraph says still fails.
 # - **`-A dead_code`, and this one deserves the argument rather than the note.** The x86 boot is a
 #   self-contained tour that halts before the scheduler and userspace, so about 85 items that are
 #   live on the other two ISAs are unreferenced here. The source-level way to say that is a
@@ -136,6 +142,13 @@ cargo clippy -p kernel -p user -p user_rt --target aarch64-unknown-none-softfloa
 # are absent because no userspace is built for this target yet.
 echo "==> clippy: kernel (x86_64, the binary only; see the note above)"
 cargo clippy -p kernel --target x86_64-unknown-none -- \
+    -D warnings -A dead_code -A clippy::reversed_empty_ranges
+
+# `bench` on x86_64, same flags, same reasoning: see the note above this block. The other six
+# boot-mode features (shell, initboot, smb_serve, icount, board, fastpath_pad) still fail on this
+# ISA and stay out of any loop until their own arch layer exists.
+echo "==> clippy: kernel --features bench (x86_64, the binary only; see the note above)"
+cargo clippy -p kernel --features bench --target x86_64-unknown-none -- \
     -D warnings -A dead_code -A clippy::reversed_empty_ranges
 
 # The kernel's boot-mode features (shell, bench, initboot) each compile DIFFERENT code in and out:

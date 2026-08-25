@@ -369,27 +369,27 @@ pub(crate) fn invoke(
 
         // A thread under construction (19c.3). WRITE on the TCB cap is the authority to shape
         // and start it. Every method refuses a thread that is not an embryo, in the scheduler.
-        Object::Tcb(tid) => match method {
-            // Body extracted (milestone 156): every `Tcb` method is process-spawn machinery a
+        Object::ThreadControlBlock(tid) => match method {
+            // Body extracted (milestone 156): every `ThreadControlBlock` method is process-spawn machinery a
             // loader runs once per child, never a step of the IPC round trip, so each moves out
             // of `invoke`'s own bytes. See `untyped_map`'s doc comment for the full reasoning.
-            abi::tcb::CONFIGURE => {
+            abi::thread_control_block::CONFIGURE => {
                 if !cap.rights.allows(Rights::WRITE) {
                     return Err(Error::NotPermitted);
                 }
-                tcb_configure(tid, a0, a1, a2)
+                thread_control_block_configure(tid, a0, a1, a2)
             }
-            abi::tcb::CAP_INSERT => {
+            abi::thread_control_block::CAP_INSERT => {
                 if !cap.rights.allows(Rights::WRITE) {
                     return Err(Error::NotPermitted);
                 }
-                tcb_cap_insert(tid, a0, a1, a2)
+                thread_control_block_cap_insert(tid, a0, a1, a2)
             }
-            abi::tcb::START => {
+            abi::thread_control_block::START => {
                 if !cap.rights.allows(Rights::WRITE) {
                     return Err(Error::NotPermitted);
                 }
-                sched::start_tcb(tid, [a0, a1, a2])?; // the child's x0, x1, x2 (19d/19e)
+                sched::start_thread_control_block(tid, [a0, a1, a2])?; // the child's x0, x1, x2 (19d/19e)
                 Ok(0)
             }
             _ => Err(Error::BadMethod),
@@ -576,9 +576,9 @@ fn untyped_retype_obj(region: u64, kind: u64) -> Result<i64, Error> {
         }
         // A thread (19c.3): the page holds an embryo TCB, born in no queue and not runnable
         // until CONFIGURE + START. The page is the creator's region's.
-        abi::objtype::TCB => {
-            let tid = sched::create_tcb(region).ok_or(Error::OutOfMemory)?;
-            let slot = sched::grant(crate::cap::tcb_cap(tid, Rights::ALL))
+        abi::objtype::THREAD_CONTROL_BLOCK => {
+            let tid = sched::create_thread_control_block(region).ok_or(Error::OutOfMemory)?;
+            let slot = sched::grant(crate::cap::thread_control_block_cap(tid, Rights::ALL))
                 .map_err(|_| Error::OutOfMemory)?;
             Ok(slot as i64)
         }
@@ -691,12 +691,12 @@ fn frame_revoke(phys: u64) -> Result<i64, Error> {
     Ok(0)
 }
 
-/// `Tcb::CONFIGURE`: bind an address space to an embryo thread and set its entry point and stack
+/// `ThreadControlBlock::CONFIGURE`: bind an address space to an embryo thread and set its entry point and stack
 /// (`a0` entry, `a1` stack, `a2` the aspace cap slot, consumed). `#[inline(never)]` for the
 /// reason `untyped_map` gives.
 #[inline(never)]
-fn tcb_configure(
-    tid: crate::thread::Tid,
+fn thread_control_block_configure(
+    tid: crate::thread::ThreadId,
     entry: u64,
     stack: u64,
     aspace_slot: u64,
@@ -709,7 +709,7 @@ fn tcb_configure(
     if !aspace.rights.allows(Rights::WRITE) {
         return Err(Error::NotPermitted);
     }
-    sched::configure_tcb(tid, entry, stack, aspace_name)?;
+    sched::configure_thread_control_block(tid, entry, stack, aspace_name)?;
     // Consume the aspace cap: it is the thread's now, and a second bind must not find it. (The
     // space already left the registry, so the cap is inert regardless; this keeps the caller's
     // capability table honest.)
@@ -717,14 +717,14 @@ fn tcb_configure(
     Ok(0)
 }
 
-/// `Tcb::CAP_INSERT`: endow the embryo with a capability (`a0` the cap to give, `a1` the rights
+/// `ThreadControlBlock::CAP_INSERT`: endow the embryo with a capability (`a0` the cap to give, `a1` the rights
 /// to narrow it to, `a2` the target slot: 0 is first-free, n is slot n - 1, a supervisor placing
 /// a fault endpoint in the reserved slot, milestone 22). GRANT-gated and narrowing-only, exactly
 /// as `SEND_CAP`: you may endow a child only with authority you were trusted to pass on, and only
 /// narrowed. `#[inline(never)]` for the reason `untyped_map` gives.
 #[inline(never)]
-fn tcb_cap_insert(
-    tid: crate::thread::Tid,
+fn thread_control_block_cap_insert(
+    tid: crate::thread::ThreadId,
     src_slot: u64,
     rights: u64,
     target: u64,
@@ -738,7 +738,7 @@ fn tcb_cap_insert(
         return Err(Error::NotPermitted);
     }
     let target = (target != 0).then(|| target - 1);
-    let child_slot = sched::tcb_insert_cap(
+    let child_slot = sched::thread_control_block_insert_cap(
         tid,
         crate::cap::Cap {
             object: src.object,
@@ -812,7 +812,7 @@ fn rendezvous_reap(ep: crate::sched::RendezvousId, tid: u64) -> Result<i64, Erro
 /// worth of bytes in `invoke` costs far less than this loop's own bytes would.
 #[inline(never)]
 fn aspace_list(frame: &mut TrapFrame, name: u64, cursor: u64) -> Result<i64, Error> {
-    // The capability names a registry entry by generation; once `Tcb::CONFIGURE` binds this space
+    // The capability names a registry entry by generation; once `ThreadControlBlock::CONFIGURE` binds this space
     // to a thread, `take_user_aspace` removes it, and `root` is `None` from here on for every
     // capability that pointed at it. That is not a refusal (the capability is real and was never
     // widened past what it always held): it reads as an empty listing, symmetric to `SURVEY`'s

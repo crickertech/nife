@@ -405,12 +405,20 @@ fn spawn_one(code_frame: u64) {
     // The thread: give it CHILD_DONE (narrowed to WRITE) in its slot 0, configure (which consumes
     // the aspace cap), and start. The child drops to EL0, SENDs its done word, and exits.
     // SAFETY: as above: the kernel validates the capability and the method.
-    let tcb = unsafe { invoke(child_ut, abi::untyped::RETYPE_OBJ, abi::objtype::TCB, 0, 0) } as u64;
+    let tcb = unsafe {
+        invoke(
+            child_ut,
+            abi::untyped::RETYPE_OBJ,
+            abi::objtype::THREAD_CONTROL_BLOCK,
+            0,
+            0,
+        )
+    } as u64;
     // SAFETY: as above: the kernel validates the capability and the method.
     unsafe {
         invoke(
             tcb,
-            abi::tcb::CAP_INSERT,
+            abi::thread_control_block::CAP_INSERT,
             SP_CHILD_DONE,
             abi::rights::WRITE,
             0,
@@ -420,14 +428,14 @@ fn spawn_one(code_frame: u64) {
     unsafe {
         invoke(
             tcb,
-            abi::tcb::CONFIGURE,
+            abi::thread_control_block::CONFIGURE,
             CHILD_CODE_VA,
             CHILD_STACK_VA + SPAWN_PAGE,
             aspace,
         )
     };
     // SAFETY: as above: the kernel validates the capability and the method.
-    unsafe { invoke(tcb, abi::tcb::START, 0, 0, 0) };
+    unsafe { invoke(tcb, abi::thread_control_block::START, 0, 0, 0) };
 
     // Wait for the child to run and signal, then reclaim its region. The retry covers the sliver
     // between the child's SEND and its SYS_EXIT: DESTROY refuses a region with a still-live thread,

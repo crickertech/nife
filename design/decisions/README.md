@@ -136,7 +136,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 75 | DECIDED | [Directories under `design/` and `notes/` carry provenance in their own README](75-naming-covers-directories.md) |
 | 76 | DECIDED | [What catches a milestone status that is wrong in both places?](76-roadmap-status-versus-tree.md) |
 | 77 | DECIDED | [The branch-prefix list now describes the tree](77-branch-prefixes.md) |
-| 78 | PROPOSED | [Signed commits: worth doing, and not as a side effect](78-signed-commits.md) |
+| 78 | DECIDED | [Signed commits: worth doing, and not as a side effect](78-signed-commits.md) |
 | 79 | DECIDED | [Holding password-equivalent material, and what a session key release means](79-password-equivalent-material.md) |
 | 80 | DECIDED | [One build for the kernel and everything that runs on it](80-one-build-for-everything.md) |
 | 81 | DECIDED | [A dependency stays upgradable; we suppress churn, never the upgrade](81-dependency-upgrades.md) |
@@ -179,7 +179,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 118 | DECIDED | [`Scheduler`/`SCHED` rename to `IpcTables`/`IPC_TABLES`](118-ipc-tables-name.md) |
 | 119 | DECIDED | [Splitting `OutOfMemory`'s three causes is declined for want of a customer](119-oom-causes-declined.md) |
 | 120 | DECIDED | [A QEMU-only virtio-rng stopgap for the interactive boot is declined for now](120-boot-entropy-stopgap-declined.md) |
-| 121 | PROPOSED | [What a device capability is when the device has no page: x86 port I/O](121-port-io-capability.md) |
+| 121 | DECIDED | [What a device capability is when the device has no page: x86 port I/O](121-port-io-capability.md) |
 | 122 | DECIDED | [The on-disk, per-user schedule store: format, write path, read-at-boot path](122-durable-schedule-store-format.md) |
 | 123 | DECIDED | [Boot-time re-derivation: what grants the privilege, and how it dies after one use](123-boot-time-rederivation-privilege.md) |
 | 124 | DECIDED | [Ratify the x86_64 syscall ABI](124-x86-64-syscall-abi.md) |

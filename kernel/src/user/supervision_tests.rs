@@ -106,13 +106,13 @@ pub(super) fn build_child_in(
     let stack_phys = crate::untyped::retype_page(region).expect("no stack frame");
     user_aspace_map(aspace, STACK_VA, stack_phys, Flags::user_data()).expect("map stack");
 
-    let tid = sched::create_tcb(region).expect("no tcb");
+    let tid = sched::create_thread_control_block(region).expect("no tcb");
     if let Some(rep) = report {
         let cap = crate::cap::rendezvous_cap(
             rep,
             crate::cap::Rights::WRITE.union(crate::cap::Rights::GRANT),
         );
-        let slot = sched::tcb_insert_cap(tid, cap, None).expect("insert report");
+        let slot = sched::thread_control_block_insert_cap(tid, cap, None).expect("insert report");
         assert_eq!(
             slot, 0,
             "the report cap must land in slot 0 (the stub assumes it)"
@@ -123,11 +123,12 @@ pub(super) fn build_child_in(
         // Rights do not matter here (the kernel reads only the endpoint name and consumes the
         // slot at START, so the child cannot forge fault messages on it); READ is the minimum.
         let cap = crate::cap::rendezvous_cap(fe, crate::cap::Rights::READ);
-        sched::tcb_insert_cap(tid, cap, Some(FAULT_EP_SLOT)).expect("insert fault ep");
+        sched::thread_control_block_insert_cap(tid, cap, Some(FAULT_EP_SLOT))
+            .expect("insert fault ep");
     }
-    sched::configure_tcb(tid, CODE_VA, STACK_VA + page_frames::FRAME_SIZE, aspace)
+    sched::configure_thread_control_block(tid, CODE_VA, STACK_VA + page_frames::FRAME_SIZE, aspace)
         .expect("configure");
-    sched::start_tcb(tid, [0; 3]).expect("start");
+    sched::start_thread_control_block(tid, [0; 3]).expect("start");
     tid
 }
 

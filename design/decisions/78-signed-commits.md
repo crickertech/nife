@@ -1,7 +1,8 @@
 # 78. Signed commits: worth doing, and not as a side effect
 
-**Status: PROPOSED.** (raised 2026-08-04 when §73 closed, so the deferral does not die with the
-section that carried it.)
+**Status: DECIDED.** calef, 2026-08-25, in conversation: *"Let's decide not to do signing with a note
+on those conditions that would cause us to reconsider."* (raised 2026-08-04 when §73 closed, so the
+deferral does not die with the section that carried it.)
 
 **What.** Require signed commits on `main`. `notes/repo-hardening.md:82` files this under **Do NOT
 enable** with a reason that is about sequencing rather than merit: "Nothing here is signed today;
@@ -32,6 +33,46 @@ backlog. Adding a second requirement that can block every merge, while the first
 being measured, stacks two novel failure modes. Do it when the merge pipeline is quiet, verify
 Dependabot's commits are accepted **before** making the rule blocking, and start with the rule in a
 non-enforcing state if the ruleset supports it.
+
+**Re-measured 2026-08-25, three weeks after the original data.** `git log --pretty='format:%G?' -100`
+on current `main` still returns a mix, 32 `E` / 68 `N`, nothing has changed. The `E` commits are
+almost entirely GitHub's own merge-queue merge commits, signed on GitHub's own infrastructure rather
+than by anything this repository does; the `N` commits are the real work, every squashed lane commit
+and direct push, still entirely unsigned. Dependabot sampled separately: 7 `E` / 2 `N`, the same shape
+the original measurement found. The operational preconditions above are all still unmet: the pipeline
+is not quiet (seven pull requests were in flight through the merge queue at the moment of this
+re-measurement), and Dependabot's acceptance under a blocking rule is still untested.
+
+## What would change this
+
+The three items above (quiet pipeline, Dependabot verified, non-enforcing rollout) are about *when*
+it would be safe to turn this on, not *why* it would be worth turning on. Absent one of the four
+conditions below, signing today would buy little beyond the ceremony this file's own text already
+warns against: a real cost (every merge blocked until every committer can satisfy the rule), for a
+property nothing here currently needs.
+
+1. **Milestone 128 lands (real per-agent identity).** Every commit on this repository pushes under
+   calef's account through the shared `gh` token today (`AGENTS.md` says this plainly: "every pull
+   request here is authored under calef's account by the `gh` token"). A signature right now would
+   only re-assert "the token holder," the same fact push access already establishes. Once agents and
+   sessions have distinct identities, a signature starts meaning the thing a signature is supposed to
+   mean.
+2. **The trust boundary widens past one operator.** This project is architect-plus-lanes today,
+   functionally one actor holding one credential. Real outside contributions -- milestone 117's
+   stranger-test thesis extended from "can a stranger read this" to "can a stranger commit to this"
+   -- would make "is this genuinely from a known, trusted party" a live question that only a
+   signature answers.
+3. **A customer requires it.** `AGENTS.md`'s own ranking-function principle: "no customer runs a
+   backup server they do not trust with the only copy." A real customer evaluating whether to trust
+   this kernel with real data is exactly the party who might reasonably want supply-chain provenance
+   on what is running. No such customer exists yet.
+4. **An actual incident or credential concern.** Evidence that the shared push credential was
+   compromised, leaked, or reused somewhere it should not have been would make this urgent rather
+   than optional, regardless of the operational cost.
+
+The point of naming these is to keep this decision from being revisited on a calendar or out of
+habit: it stays `DECIDED` until one of the four actually happens, not until enough time has passed
+that it feels overdue.
 
 **Not blocked.** Nothing waits on this. It is recorded so that a deliberate deferral stays a decision
 rather than becoming an omission.

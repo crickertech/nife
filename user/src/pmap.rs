@@ -33,7 +33,7 @@
 //! because `Manifest::domain` tells `system_initializer` which live supervision endpoint (`deaths`)
 //! to place in its capability table. Nothing plays that role for an address space: every `Object::Aspace`
 //! capability in this tree is minted and consumed **within the thread that built it**
-//! (`RETYPE_OBJ(ASPACE)` -> `MAP_INTO`* -> `Tcb::CONFIGURE`, which removes the space from the
+//! (`RETYPE_OBJ(ASPACE)` -> `MAP_INTO`* -> `ThreadControlBlock::CONFIGURE`, which removes the space from the
 //! registry the instant it binds to a thread), and nothing shipped here ever delegates one to a
 //! different program (checked: `user/src/builder.rs`, `crates/supervision_proto`, `user/src/hello.rs`,
 //! `user/src/os_primitives_benchmarker.rs`, the only sites that mint an `Object::Aspace` at all --

@@ -78,7 +78,7 @@ pub enum GuardPage {
     /// Secondary core `id`'s guard page.
     Secondary(usize),
     /// A thread kernel stack's guard page: the slot index within `thread::STACK_AREA`, counting
-    /// from zero. Not a `Tid`, deliberately, because turning a slot back into a thread needs the
+    /// from zero. Not a `ThreadId`, deliberately, because turning a slot back into a thread needs the
     /// scheduler lock and this runs in a handler that may not take one.
     Thread(u64),
     /// Core `id`'s **interrupt** stack guard page (milestone 124): the stack a trap taken on kernel
