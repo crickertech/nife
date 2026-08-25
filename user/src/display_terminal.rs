@@ -122,7 +122,7 @@ static mut TERMINAL: video_terminal::Vt = video_terminal::Vt::new(1, 1);
 /// The one terminal this process owns.
 ///
 /// # Safety
-/// This process has exactly one thread (a `Tcb` here owns its address space, DECISIONS §33), so
+/// This process has exactly one thread (a `ThreadControlBlock` here owns its address space, DECISIONS §33), so
 /// there is no second reference and no aliasing question.
 fn term() -> &'static mut video_terminal::Vt {
     // A raw pointer first, then one dereference: taking `&mut TERMINAL` directly is what

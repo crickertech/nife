@@ -1,7 +1,7 @@
 //! An intrusive FIFO queue: **the link lives inside the node.**
 //!
 //! Milestone 14 phase A.2 (design/kernel-objects-from-untyped.md, decision D1). The per-CPU run
-//! queues and migration inboxes used to be `VecDeque<Tid>`: every entry was heap-backed, pushing
+//! queues and migration inboxes used to be `VecDeque<ThreadId>`: every entry was heap-backed, pushing
 //! could allocate (which is why the scheduler pre-reserved capacity, a standing apology to the
 //! IRQ path), and every pop handed back a number that still had to be looked up.
 //!

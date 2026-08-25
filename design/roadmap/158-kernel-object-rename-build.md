@@ -45,41 +45,76 @@ to describe `Rendezvous` as the current name, with a provenance line for a reade
 `Endpoint`, and its "Family resemblance" section left untouched because it never named the old
 identifier (it compares the underlying *model* to Mach's port and QNX's channel, not the type name).
 
+`Tcb`/`Tid` -> `ThreadControlBlock`/`ThreadId`, with companions `TcbPtr` -> `ThreadControlBlockPointer`
+and `TidSet` -> `ThreadIdSet`, done to completion in a separate lane (milestone/158-tcb-rename). The
+strict PascalCase count landed close to this block's own stale table for once (`Tcb` was 12 files/33
+occurrences against an estimated 12/28; `Tid` was 13 files/82 against an estimated 12/76), but that
+comparison undersells the real surface the same way it did for `Endpoint`: neither of those counts
+saw the lowercase identifier family at all. Real surface, re-measured: an ABI module
+(`abi::tcb` -> `abi::thread_control_block`, the `CONFIGURE`/`CAP_INSERT`/`START` method-number
+namespace every spawn path in the kernel and every child-building user program dispatches through),
+an `objtype::TCB` -> `objtype::THREAD_CONTROL_BLOCK` object-kind discriminant, and a family of
+lowercase function and field names spelling the same concept (`tcb_cap` -> `thread_control_block_cap`,
+`create_tcb` -> `create_thread_control_block`, `configure_tcb` -> `configure_thread_control_block`,
+`tcb_insert_cap` -> `thread_control_block_insert_cap`, `start_tcb` -> `start_thread_control_block`,
+`tcb_ptr` -> `thread_control_block_ptr`, `tcb_configure`/`tcb_cap_insert` in `syscall.rs`'s dispatch,
+`tcb_start` in `supervision_proto` and `system_initializer`, and the `Thread` struct's own
+`tcb_kmem`/`tcb_region` fields), plus the `Tid` half's own compound names (`current_tid` ->
+`current_thread_id`, `set_current_tid` -> `set_current_thread_id`, `write_tid` -> `write_thread_id`
+in `crates/ps`, and five test names built the same way). 47 files changed, 385 insertions, 376
+deletions.
+
+Left alone, matching `Endpoint`'s own scope call: bare short local variable and parameter names
+that are exactly `tid` or `tcb` with no further word attached (the same restraint the `Endpoint`
+rename used, keeping `ep` unchanged throughout `kernel/src/sched.rs`); informal lowercase "tcb"/"TCB" prose describing
+the concept in English rather than naming the identifier (`user/src/hello.rs`'s "(endpoint | aspace
+| tcb)" list stayed lowercase, matching how "endpoint" stayed lowercase there after that rename);
+and one historical citation in `crates/abi/src/lib.rs`'s own crate-naming rationale, which names
+`Tcb`/`Aspace`/`Untyped` as the abbreviations a naming review "sank" -- renaming that citation to
+`ThreadControlBlock` would have made the sentence describe the winning name as the one that lost,
+so it was reverted to the old name it is actually citing. `notes/tcb.md` (the object's own note)
+got a provenance line the same way `notes/ipc-naming.md` did; its "acronym collision" section (TCB
+as Thread Control Block vs. Trusted Computing Base) is unaffected either way, since both senses are
+already informal usage. Verified the same four ways as `Endpoint`: full host test suite green
+(including doctests), both kernel targets build clean, `user`/`fs_server`/`xtask` build clean, and
+`crates/ipc` (6 harnesses) plus `crates/capability` (12 harnesses) both re-verify under Kani
+post-rename.
+
 ## What is still open
 
-Four names remain, re-measured fresh rather than carried over from this block's stale table:
+Three names remain, re-measured fresh rather than carried over from this block's stale table:
 
 | Was | Becomes | Fresh count (`.rs` files, occurrences) |
 |---|---|---|
-| `Untyped` | `MemoryRegion` | 25 files, 60 occurrences (capitalized token only; likely larger once `crates/regions`' own lowercase vocabulary and any `untyped::`-module ABI surface are counted, the same pattern that grew `Endpoint`'s real scope past its measured table) |
+| `Untyped` | `MemoryRegion` | 25 files, 60 occurrences (capitalized token only; likely larger once `crates/regions`' own lowercase vocabulary and any `untyped::`-module ABI surface are counted, the same pattern that grew `Endpoint`'s and `Tcb`'s real scope past their measured tables) |
 | `Aspace` | `AddressSpace` | 9 files, 17 occurrences, plus its companion `FreeVas` -> `FreeAddressSpace` (`kernel/src/thread.rs`'s `FREE_STACK_VAS` / `struct FreeVas`, unmeasured separately) |
 | `Frame` | `PageFrame` | 46 files, 157 occurrences (capitalized token only; `Frame` is also the compositor's own word for a screen update, so this rename needs the same care `Endpoint` needed distinguishing `crates/glob`'s range endpoints -- check every file before renaming, not just the capitalized-token list) |
-| `Tcb` | `ThreadControlBlock` | 12 files, 28 occurrences, plus companions `Tid` -> `ThreadId` (12 files, 76 occurrences), `TcbPtr` -> `ThreadControlBlockPointer`, `TidSet` -> `ThreadIdSet` (unmeasured separately; likely to be `Tid`'s biggest surface given how pervasively thread ids are passed around) |
 
-Given `Endpoint` alone (the biggest, most-cited name per this block's own table) turned out to touch
-an ABI module, an object-kind constant and a family of lowercase identifiers well beyond its
-measured 81/23, the same should be expected of these four, especially `Untyped` (its own `crates/regions`
-already independently converged on "region" vocabulary per DECISIONS §113's own finding) and `Tcb`/`Tid`
-(the most pervasively-passed identifiers in the scheduler). Each is its own lane per this block's
-own sequencing instruction: "an inconsistent tree where `Aspace` is renamed and `Endpoint` is not is
-a worse intermediate state than finishing one name completely and stopping" applies symmetrically --
-finish `Untyped`, or `Aspace`, or `Frame`, or `Tcb` completely in its own lane rather than partially
-touching several.
+Given `Endpoint` and `Tcb` both turned out to touch an ABI module, an object-kind constant and a
+family of lowercase identifiers well beyond their measured tables, the same should be expected of
+these three, especially `Untyped` (its own `crates/regions` already independently converged on
+"region" vocabulary per DECISIONS §113's own finding). Each is its own lane per this block's own
+sequencing instruction: "an inconsistent tree where `Aspace` is renamed and `Endpoint` is not is a
+worse intermediate state than finishing one name completely and stopping" applies symmetrically --
+finish `Untyped`, `Aspace`, or `Frame` completely in its own lane rather than partially touching
+several.
 
 ## The seven renames, and what each one actually touches
 
-| Was | Becomes | Measured surface (§113's own count, `Endpoint` only; others unmeasured) |
+| Was | Becomes | Measured surface |
 |---|---|---|
 | `Aspace` | `AddressSpace` | -- |
 | `Untyped` | `MemoryRegion` | -- |
-| `Endpoint` | `Rendezvous` | 81 occurrences across 23 `.rs` files |
+| `Endpoint` | `Rendezvous` | 82 occurrences across 22 `.rs` files (measured fresh; 216 for `EpId` across 43 files) |
 | `Frame` | `PageFrame` | -- |
-| `Tcb` | `ThreadControlBlock` | -- |
-| `EpId` | `RendezvousId` | follows `Endpoint`'s rename |
-| `Tid` | `ThreadId` | follows `Tcb`'s rename |
+| `Tcb` | `ThreadControlBlock` | 33 occurrences across 12 `.rs` files (measured fresh; the lowercase identifier family below is well past this) |
+| `EpId` | `RendezvousId` | 216 occurrences across 43 files, once the type alias's own call sites were counted |
+| `Tid` | `ThreadId` | 82 occurrences across 13 `.rs` files (measured fresh) |
 
-Plus the four companions §113 also decided in the same entry: `TcbPtr` -> `ThreadControlBlockPointer`,
-`TidSet` -> `ThreadIdSet`, `EpFail` -> `RendezvousFailure`, `FreeVas` -> `FreeAddressSpace`.
+Plus the four companions §113 also decided in the same entry: `TcbPtr` -> `ThreadControlBlockPointer`
+(11 occurrences, `kernel/src/sched.rs` only), `TidSet` -> `ThreadIdSet` (6 occurrences,
+`kernel/src/user/survey_tests.rs` only), `EpFail` -> `RendezvousFailure`, `FreeVas` ->
+`FreeAddressSpace` (still unmeasured; open with `Aspace`).
 
 **Re-measure before starting, not from this table.** §113's own count is from 2026-08-23 and this
 tree changes fast; a lane that trusts a stale number here repeats §76's own recorded mistake.

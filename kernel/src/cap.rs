@@ -23,7 +23,7 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Object {
     /// An IPC endpoint, by **generational name** (milestone 19a: an endpoint is page-resident,
-    /// and this is its `slots` name in the scheduler's registry, stale-safe like a Tid).
+    /// and this is its `slots` name in the scheduler's registry, stale-safe like a `ThreadId`).
     ///
     /// Invoking it is a `SEND` or a `RECV` (which one you may do is a matter of rights). Since
     /// milestone 8 this is how a process reaches the console: it holds a `WRITE` capability on
@@ -81,7 +81,7 @@ pub enum Object {
     /// caller and consumes the capability. "One reply, to this caller, exactly once" is therefore a
     /// kernel guarantee rather than a server convention, which is the whole point of the object.
     /// See DECISIONS §12 and notes/ipc-naming.md.
-    Reply(crate::thread::Tid),
+    Reply(crate::thread::ThreadId),
 
     /// **An address space under construction** (milestone 19b), by generational name in the
     /// user-aspace registry. The object itself is its L0 root page, resident in the page
@@ -90,11 +90,11 @@ pub enum Object {
     /// until TCBs arrive (19c).
     Aspace(u64),
 
-    /// **A thread under construction** (milestone 19c.3), by generational Tid: an embryo TCB a
+    /// **A thread under construction** (milestone 19c.3), by generational `ThreadId`: an embryo TCB a
     /// process is assembling. `WRITE` lets the holder configure, grant into, and start it. The
-    /// Tid is stale-safe like every generational name, so a capability outliving its thread
+    /// `ThreadId` is stale-safe like every generational name, so a capability outliving its thread
     /// resolves to nothing rather than to a stranger.
-    Tcb(crate::thread::Tid),
+    ThreadControlBlock(crate::thread::ThreadId),
 
     /// A virtio device's **transport**, by id (into the kernel's virtio device table).
     ///
@@ -244,9 +244,9 @@ pub fn virtio_cap(id: usize) -> Cap {
 }
 
 /// A capability naming a thread under construction (milestone 19c.3). Full rights at creation.
-pub fn tcb_cap(tid: crate::thread::Tid, rights: Rights) -> Cap {
+pub fn thread_control_block_cap(tid: crate::thread::ThreadId, rights: Rights) -> Cap {
     Cap {
-        object: Object::Tcb(tid),
+        object: Object::ThreadControlBlock(tid),
         rights,
     }
 }
@@ -263,7 +263,7 @@ pub fn aspace_cap(name: u64, rights: Rights) -> Cap {
 /// A one-shot reply capability naming the caller `tid` (milestone 12). Minted with `WRITE` (may
 /// answer) and **no `GRANT`** (cannot be delegated onward), so it is non-transferable as well as
 /// single-use. The kernel is the only minter, at a `CALL` rendezvous.
-pub fn reply_cap(tid: crate::thread::Tid) -> Cap {
+pub fn reply_cap(tid: crate::thread::ThreadId) -> Cap {
     Cap {
         object: Object::Reply(tid),
         rights: Rights::WRITE,

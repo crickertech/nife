@@ -202,7 +202,7 @@ fn a_domain_is_exactly_the_children_of_the_rendezvous_that_was_granted() {
         "a supervisor could not read its own domain"
     );
 
-    let found = TidSet::of(&seen);
+    let found = ThreadIdSet::of(&seen);
     assert_eq!(
         seen.rows().len(),
         2,
@@ -552,7 +552,7 @@ fn the_survey_cursor_counts_threads_the_viewer_cannot_name() {
     // through this capability is not even expressible (`hold_view` withholds `READ`).
     let mut buf = [ps::Row::default(); TEST_ROWS];
     let seen = walk(cap, &mut buf);
-    let found = TidSet::of(&seen);
+    let found = ThreadIdSet::of(&seen);
     assert!(
         !found.has(stranger),
         "the stranger became nameable, which is a different and much worse bug",
@@ -624,7 +624,7 @@ fn a_filter_names_members_and_tells_its_four_answers_apart() {
     let mut printed = [0u8; 64];
     let n = render(&mut printed, |o| dead.write_report(o));
     assert!(
-        is_the_one_tid(&printed[..n], corpse),
+        is_the_one_thread_id(&printed[..n], corpse),
         "`pgrep dead` printed something other than the corpse's tid",
     );
     assert_eq!(
@@ -744,7 +744,7 @@ fn contains(haystack: &[u8], needle: &[u8]) -> bool {
 
 /// Whether `printed` is exactly `tid` and a newline, which is `pgrep`'s whole output format: a name
 /// per line, no header and no padding.
-fn is_the_one_tid(printed: &[u8], tid: u64) -> bool {
+fn is_the_one_thread_id(printed: &[u8], tid: u64) -> bool {
     let mut want = [0u8; 21];
     let mut i = want.len() - 1;
     want[i] = b'\n';
@@ -762,14 +762,14 @@ fn is_the_one_tid(printed: &[u8], tid: u64) -> bool {
 
 /// A small membership check without allocating: the kernel has no heap, and these tests hold at
 /// most three tids at a time.
-struct TidSet {
+struct ThreadIdSet {
     tids: [u64; 3],
     n: usize,
 }
 
-impl TidSet {
-    fn of(s: &ps::Survey) -> TidSet {
-        let mut set = TidSet { tids: [0; 3], n: 0 };
+impl ThreadIdSet {
+    fn of(s: &ps::Survey) -> ThreadIdSet {
+        let mut set = ThreadIdSet { tids: [0; 3], n: 0 };
         for r in s.rows().iter().take(3) {
             set.tids[set.n] = r.tid;
             set.n += 1;

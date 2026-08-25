@@ -40,7 +40,7 @@ pub fn start(
     image: &'static [u8],
     clock_image: &'static [u8],
     entropy_image: &'static [u8],
-) -> (RendezvousId, crate::thread::Tid) {
+) -> (RendezvousId, crate::thread::ThreadId) {
     let report = crate::sched::create_rendezvous();
     let tid = start_on(image, clock_image, entropy_image, report);
     (report, tid)
@@ -58,7 +58,7 @@ pub fn start_on(
     clock_image: &'static [u8],
     entropy_image: &'static [u8],
     report: RendezvousId,
-) -> crate::thread::Tid {
+) -> crate::thread::ThreadId {
     let budget = crate::untyped::create(BUDGET_PAGES).expect("no untyped for std_exerciser");
 
     // The entropy service, wired once per boot and shared with the milestone-56 tests. Its

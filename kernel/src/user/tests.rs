@@ -62,7 +62,7 @@ fn a_kernel_address() -> u64 {
 
 /// Run `image` at user mode with `arg0`/`arg1` and no authority at all: no capabilities, no
 /// extra mappings. It can run its own code and touch its own memory and name nothing else.
-fn spawn_bare(image: &'static [u8], arg0: u64, arg1: u64) -> Option<crate::thread::Tid> {
+fn spawn_bare(image: &'static [u8], arg0: u64, arg1: u64) -> Option<crate::thread::ThreadId> {
     sched::spawn(move || {
         run(
             image,
@@ -92,7 +92,7 @@ fn spawn_bare(image: &'static [u8], arg0: u64, arg1: u64) -> Option<crate::threa
 /// The kill is armed rather than immediate (DECISIONS §16), so this waits for the name to stop
 /// resolving instead of assuming the thread is gone on return. Returns whether it actually went;
 /// callers assert on it, because a silent failure here restores the leak this exists to remove.
-fn reap_bare(tid: crate::thread::Tid) -> bool {
+fn reap_bare(tid: crate::thread::ThreadId) -> bool {
     if !sched::kill_thread(tid) {
         // Already gone. Nothing to wait for, and not a failure.
         return true;
@@ -2280,10 +2280,10 @@ fn a_dead_user_thread_frees_its_whole_address_space() {
         })
     };
 
-    // Each outlaw's reap is proven by `thread_present` on ITS Tid, not by `thread_count()`
+    // Each outlaw's reap is proven by `thread_present` on ITS ThreadId, not by `thread_count()`
     // returning to a baseline sampled at the top of the test. The count is the whole table, so a
     // baseline taken while an earlier test's teardown is still in flight is a number the system
-    // moves on its own; the per-Tid wait is immune to neighbours by construction. Same fix as the
+    // moves on its own; the per-ThreadId wait is immune to neighbours by construction. Same fix as the
     // reap wait in `reclaim_frees_a_started_then_exited_childs_regions`; see
     // notes/load-sensitive-assertions.md.
     let f0 = USER_FAULTS.load(Ordering::Relaxed);
@@ -2294,7 +2294,7 @@ fn a_dead_user_thread_frees_its_whole_address_space() {
     // Sample the baseline only once `used()` has STOPPED MOVING, for the same reason the
     // assertion below waits rather than reading instantly, applied to the other end. The warm-up
     // outlaw's address space is freed by `finish_switch` on whatever core actually ran it, which
-    // under §28 placement need not be this one, and that free lands a beat *after* its Tid
+    // under §28 placement need not be this one, and that free lands a beat *after* its ThreadId
     // stops resolving. Sampling `before` inside that window captures frames that are about
     // to come back, `used()` then settles BELOW `before`, and a wait for equality could never
     // succeed. The failure said so plainly when it happened: it reported "-18 frames did not come
@@ -2324,7 +2324,7 @@ fn a_dead_user_thread_frees_its_whole_address_space() {
     // Exact in the leak direction, but allow the asynchronous reap to settle. Pinning the outlaws
     // with `spawn_on` is a placement HINT, not a pin (DECISIONS §28): an idle core can steal one
     // before this core runs it, and then the frame free (finish_switch dropping the address space,
-    // after the thread leaves the table and outside IPC_TABLES) lands on that core a beat after the Tid
+    // after the thread leaves the table and outside IPC_TABLES) lands on that core a beat after the ThreadId
     // resolves to nothing. So wait for `used()` to come back to `before` rather than reading it
     // the instant the last outlaw is gone. Still a leak trap: a real leak (the milestone-6 bug)
     // never gives the frames back, so this wait times out and fails.
@@ -2635,9 +2635,11 @@ fn a_process_can_build_start_and_run_a_child_thread() {
     );
 
     // Build the thread from parts.
-    let tcb_region = crate::untyped::create(2).expect("no tcb region");
-    let tid = crate::sched::create_tcb(tcb_region).expect("no tcb");
-    let slot = crate::sched::tcb_insert_cap(tid, report_cap, None).expect("cap insert");
+    let thread_control_block_region = crate::untyped::create(2).expect("no tcb region");
+    let tid =
+        crate::sched::create_thread_control_block(thread_control_block_region).expect("no tcb");
+    let slot =
+        crate::sched::thread_control_block_insert_cap(tid, report_cap, None).expect("cap insert");
     assert_eq!(
         slot, 0,
         "the child's first cap must land in slot 0 (the code assumes it)"
@@ -2645,17 +2647,22 @@ fn a_process_can_build_start_and_run_a_child_thread() {
 
     // Not before it is whole: START must refuse an unconfigured embryo.
     assert!(
-        crate::sched::start_tcb(tid, [0; 3]).is_err(),
+        crate::sched::start_thread_control_block(tid, [0; 3]).is_err(),
         "START ran a half-built thread (no address space, no entry)",
     );
 
-    crate::sched::configure_tcb(tid, CODE_VA, STACK_VA + page_frames::FRAME_SIZE, aspace)
-        .expect("configure");
-    crate::sched::start_tcb(tid, [0; 3]).expect("start");
+    crate::sched::configure_thread_control_block(
+        tid,
+        CODE_VA,
+        STACK_VA + page_frames::FRAME_SIZE,
+        aspace,
+    )
+    .expect("configure");
+    crate::sched::start_thread_control_block(tid, [0; 3]).expect("start");
 
     // And starting twice must refuse: it is no longer an embryo.
     assert!(
-        crate::sched::start_tcb(tid, [0; 3]).is_err(),
+        crate::sched::start_thread_control_block(tid, [0; 3]).is_err(),
         "START ran a thread that was already running",
     );
 
@@ -2676,7 +2683,7 @@ fn a_process_can_build_start_and_run_a_child_thread() {
 ///
 /// # This test used to probe the refusal first, and that probe was killing its own child
 ///
-/// Milestone 72. It opened by asserting `reclaim_region(tcb_region).is_err()` while the child was
+/// Milestone 72. It opened by asserting `reclaim_region(thread_control_block_region).is_err()` while the child was
 /// still runnable, over a comment reading "the refusal leaves the region untouched". That comment
 /// went stale when DECISIONS §16 was amended: a refused reclaim is **not** passive, it *arms the
 /// kill* on every live thread in the region so the owner's retry can tear a runaway down (§24's
@@ -2730,14 +2737,20 @@ fn reclaim_frees_a_started_then_exited_childs_regions() {
         report,
         crate::cap::Rights::WRITE.union(crate::cap::Rights::GRANT),
     );
-    let tcb_region = crate::untyped::create(2).expect("no tcb region");
-    let tid = crate::sched::create_tcb(tcb_region).expect("no tcb");
-    crate::sched::tcb_insert_cap(tid, report_cap, None).expect("cap insert");
-    crate::sched::configure_tcb(tid, CODE_VA, STACK_VA + page_frames::FRAME_SIZE, aspace)
-        .expect("configure");
-    crate::sched::start_tcb(tid, [0; 3]).expect("start");
+    let thread_control_block_region = crate::untyped::create(2).expect("no tcb region");
+    let tid =
+        crate::sched::create_thread_control_block(thread_control_block_region).expect("no tcb");
+    crate::sched::thread_control_block_insert_cap(tid, report_cap, None).expect("cap insert");
+    crate::sched::configure_thread_control_block(
+        tid,
+        CODE_VA,
+        STACK_VA + page_frames::FRAME_SIZE,
+        aspace,
+    )
+    .expect("configure");
+    crate::sched::start_thread_control_block(tid, [0; 3]).expect("start");
 
-    // **Nothing may touch `tcb_region` between here and the child's report.** A refused
+    // **Nothing may touch `thread_control_block_region` between here and the child's report.** A refused
     // `reclaim_region` arms §16's kill on the child and dooms it; see this test's own note above.
 
     // Let it run: it SENDs the word and exits. Receiving proves it reached EL0.
@@ -2767,7 +2780,8 @@ fn reclaim_frees_a_started_then_exited_childs_regions() {
 
     // Both regions reclaim now: the TCB's, and the address space's (its bound space died with
     // the thread, so the region is object-free, needing only unpin and free).
-    crate::sched::reclaim_region(tcb_region).expect("reclaim the TCB region after exit");
+    crate::sched::reclaim_region(thread_control_block_region)
+        .expect("reclaim the TCB region after exit");
     crate::sched::reclaim_region(as_region).expect("reclaim the address-space region after exit");
 
     assert_eq!(
@@ -2814,12 +2828,18 @@ fn spawn_to_reap_repeats_without_leaking() {
             report,
             crate::cap::Rights::WRITE.union(crate::cap::Rights::GRANT),
         );
-        let tcb_region = crate::untyped::create(2).expect("tcb region");
-        let tid = crate::sched::create_tcb(tcb_region).expect("tcb");
-        crate::sched::tcb_insert_cap(tid, report_cap, None).expect("cap insert");
-        crate::sched::configure_tcb(tid, CODE_VA, STACK_VA + page_frames::FRAME_SIZE, aspace)
-            .expect("configure");
-        crate::sched::start_tcb(tid, [0; 3]).expect("start");
+        let thread_control_block_region = crate::untyped::create(2).expect("tcb region");
+        let tid =
+            crate::sched::create_thread_control_block(thread_control_block_region).expect("tcb");
+        crate::sched::thread_control_block_insert_cap(tid, report_cap, None).expect("cap insert");
+        crate::sched::configure_thread_control_block(
+            tid,
+            CODE_VA,
+            STACK_VA + page_frames::FRAME_SIZE,
+            aspace,
+        )
+        .expect("configure");
+        crate::sched::start_thread_control_block(tid, [0; 3]).expect("start");
 
         assert_eq!(
             crate::sched::ipc_recv(report)[0],
@@ -2835,7 +2855,7 @@ fn spawn_to_reap_repeats_without_leaking() {
             wait_for(|| !crate::sched::thread_present(tid)),
             "round {round}: the child was never reaped",
         );
-        crate::sched::reclaim_region(tcb_region).expect("reclaim tcb region");
+        crate::sched::reclaim_region(thread_control_block_region).expect("reclaim tcb region");
         crate::sched::reclaim_region(as_region).expect("reclaim aspace region");
 
         assert_eq!(

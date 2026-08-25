@@ -19,7 +19,7 @@
 //! **A domain names its members and does not act on them** (calef, 2026-08-17). This program holds a
 //! supervision endpoint carrying `abi::rights::ENUMERATE` and nothing else. It cannot receive a
 //! death on it, cannot reap through it, and there is no method anywhere that turns a tid into
-//! authority over the thread it names: `abi::tcb` has no `DESTROY`, and killing a live child is
+//! authority over the thread it names: `abi::thread_control_block` has no `DESTROY`, and killing a live child is
 //! `abi::untyped::DESTROY` on the region it was built from, which its spawner holds (DECISIONS §24).
 //!
 //! So the honest statement of what this port achieves is asymmetric: **`caps pgrep` prints a scope
@@ -98,7 +98,7 @@ const DIAG_SLOT: u64 = grant_plan::DIAGNOSTICS_SLOT;
 static HAS_DIAG: AtomicBool = AtomicBool::new(false);
 
 /// `a1` is the state mask, in `grant_plan::spawnproto`'s integer-argument position: init starts every
-/// child `tcb_start(tcb, 0, arg, 0)`, so the endowment's `arg` is the second register and the first
+/// child `thread_control_block_start(tcb, 0, arg, 0)`, so the endowment's `arg` is the second register and the first
 /// is always zero. Zero means every state (`pgrep::Selector::from_wire`), which is what a shell that
 /// cannot spell a selector sends and is why an unfiltered `pgrep` prints the whole domain rather than
 /// nothing.

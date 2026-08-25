@@ -411,7 +411,7 @@ fn init_service(spawn_ep: RendezvousId, result: RendezvousId) -> ! {
                 // Slot 1 is the input source when there is one. That is the whole difference.
                 let out = sink.unwrap_or(result);
                 // **The argument goes in `arg1`, not `arg0`**, which is where both real inits put
-                // it (`tcb_start(tcb, 0, arg, 0)`) and where `user/src/worker.rs` reads it. This
+                // it (`thread_control_block_start(tcb, 0, arg, 0)`) and where `user/src/worker.rs` reads it. This
                 // said `arg0` until milestone 86, and nothing failed, because no line in the
                 // pipeline or redirection scripts ever spawned a program that takes one: `date`,
                 // `wc` and `echo` all take none, and `worker 9 | wc` is refused at the prompt. The
