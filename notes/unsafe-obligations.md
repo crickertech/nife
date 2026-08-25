@@ -464,7 +464,7 @@ invariant **96 times** and now asserts it once.
 
 ### What each number is held to, and why the answers differ
 
-**At most 95** <!--count-at-most:unsafe-density-outside-arch--> unsafe blocks per 10,000 lines
+**At most 94** <!--count-at-most:unsafe-density-outside-arch--> unsafe blocks per 10,000 lines
 outside `kernel/src/arch/`. The direction is down, because unsafe outside `arch/` is not paying
 for hardware access: it is a raw syscall, a shared page, or a hand-rolled data structure, and each
 of those has a safe wrapper somebody could write. The ceiling is written at a threshold the tree
@@ -605,6 +605,55 @@ windows), so the denominator barely moved this round, unlike round 2's `asm!`-co
 
 **The ratchet, cinched again**: ceiling lowered from 96 to 95, keeping the same 7-point headroom the
 100-vs-93, 97-vs-90 and 96-vs-89 ceilings all carried, now above the 88 this round reached.
+
+**Lowered again, 95 to 94, by milestone 139 round 4 (2026-08-24).** Round 3's own handoff named the
+question precisely: does `MappedWindow`'s bounds check cost enough at the bounded volumes the
+framebuffer/graphics code actually sees (2,048-8,192 accesses per one-shot test, or a
+keystroke-driven repaint) to matter, measured rather than reasoned about. `script/bench` (icount,
+both ISAs), a temporary comparison loop over a page-sized buffer, one raw `write_volatile` against
+one loop performing `MappedWindow::check`'s own arithmetic first: the check costs **4 icount
+ticks/access on aarch64** (8 to 12) and **~0.6 on riscv64** (1.4 to 2.0), flat across 56, 2,048 and
+8,192 accesses. Total overhead at the largest volume, 8,192, is ~29,000 aarch64 ticks -- under 30
+`ipc_rtt` round trips (1,017 ticks each), inside a one-shot test that already pays several of those
+round trips plus, for `display.rs`, a real device DMA completion at ~200 us wall clock. Negligible on
+both ISAs; full readings in design/roadmap/139-drive-down-unsafe.md. The comparison itself was not
+kept in the tree: it settled a one-time question rather than an ongoing primitive, and keeping it
+would have cost this ceiling two more `unsafe {` blocks (one per loop) for a diagnostic that does not
+need to be regression-gated forever, working directly against the number it was written to inform.
+
+So, measured negligible, all four remaining sites migrated onto `MappedWindow`: `painter.rs`'s
+`px_write`/`px_read` (a `const` window, `SURFACE_VA` sized to `gfx::SURFACE_BYTES`, the same shape
+round 1 used), `window.rs`'s `px_write`/`px_read` (a window sized to `bytes`, the client's own
+`w * h * 4` computed and bound-checked in `_start` before any pixel is painted, since the compositor
+maps a different frame count per client and only that runtime value is trustworthy -- the "genuinely
+per-caller, not a `const`" case round 3's `net_stack.rs` cluster was), `display.rs`'s `dma_write`/
+`dma_read` (a `const` window over the whole DMA region, which `surface_pixel` calls into along with
+every virtqueue-field write in the file, so this migration is broader than the one call site it was
+scoped to: round 3 named `surface_pixel`'s own `dma_read` call as the target, and migrating only that
+call while leaving `dma_read`/`dma_write` on raw pointers would have *duplicated* the region's
+invariant rather than collapsed it, the wrong direction; migrating the two shared functions instead
+covers `surface_pixel` for free and bounds-checks the few dozen other offsets too), and
+`display_terminal.rs`'s `paint` (a window sized to `gfx::SURFACE_BYTES` in `MODE_DISPLAY`, to
+`stride * h` off the compositor's own published geometry in `MODE_WINDOW`, constructed once in
+`_start` and threaded through `Wiring` rather than declared as a `const`, for the same per-client
+reason as `window.rs`).
+
+**Measured precisely from the diff against this round's own base commit (`757562a3`)**: `painter.rs`
+2 removed, 1 added (net -1); `window.rs` 2 removed, 1 added (net -1); `display.rs` 2 removed, 1 added
+(net -1); `display_terminal.rs` 1 removed, 1 added (net 0, still a real reduction by criterion 2, the
+same "typed abstraction replaces raw pointer arithmetic" case `swish.rs`'s terminal pair and
+`smb_server.rs` were). **Combined: 7 `unsafe {` blocks removed, 4 added, net -3.** Uncontaminated:
+nothing else landed on this branch between the base commit and this reduction, so the tree-wide
+census confirms it exactly: 782 blocks outside `arch/` at the base commit (88 per 10,000, matching
+round 3's own final reading despite 12 blocks of unrelated tree growth landing in between, 770 to
+782 -- density absorbed it the same way round 1 and round 2's readings did), 779 in the
+working tree after, exactly -3. Density moved 88 to 87 (truncated); the line count moved by +19 net
+(mostly the new `SAFETY` comments explaining each window's invariant), so the denominator barely
+moved this round, like round 3's.
+
+**The ratchet, cinched a fourth time**: ceiling lowered from 95 to 94, keeping the same 7-point
+headroom the 100-vs-93, 97-vs-90, 96-vs-89 and 95-vs-88 ceilings all carried, now above the 87 this
+round reached.
 
 **At most 20 `unsafe impl Send`/`Sync` claims** <!--count-at-most:unsafe-thread-safety-claims-->,
 and this one has no headroom at all. Each is a hand-written assertion that the compiler is wrong

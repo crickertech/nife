@@ -36,6 +36,7 @@
 #![no_main]
 
 use graphics_proto as gfx;
+use user_rt::mapped_window::MappedWindow;
 use user_rt::{call, exit, send};
 
 /// Capability slots, by convention with `kernel/src/user/display_service.rs`.
@@ -58,15 +59,20 @@ const E_PARTIAL_FLUSH: u64 = 0x04;
 /// A surface frame would not map: this program was handed the pixels it could not put anywhere.
 const E_SURFACE: u64 = 0x05;
 
+// SAFETY: the `MAP` loop in `_start` maps `gfx::SURFACE_FRAMES` frames (`gfx::SURFACE_BYTES` bytes)
+// read/write at `SURFACE_VA` before any pixel is touched, shared only with the driver (milestone 139
+// round 4: this collapsed the two hand-rolled `read_volatile`/`write_volatile` functions below into
+// one window construction, the same shape round 1's `MappedWindow` cluster used). Constructing a
+// window touches no memory, so declaring it before the loop that maps the frames is fine; nothing
+// reads or writes through it until after that loop succeeds.
+const SURFACE: MappedWindow = unsafe { MappedWindow::new(SURFACE_VA, gfx::SURFACE_BYTES as u64) };
+
 fn px_write(i: usize, v: u32) {
-    // SAFETY: `i` is below `gfx::PIXELS`, so this is inside the mapped surface; it is mapped
-    // read/write and shared only with the driver.
-    unsafe { core::ptr::write_volatile((SURFACE_VA + (i * 4) as u64) as *mut u32, v) };
+    SURFACE.w32((i * 4) as u64, v);
 }
 
 fn px_read(i: usize) -> u32 {
-    // SAFETY: as above.
-    unsafe { core::ptr::read_volatile((SURFACE_VA + (i * 4) as u64) as *const u32) }
+    SURFACE.r32((i * 4) as u64)
 }
 
 fn die(code: u64) -> ! {
