@@ -159,3 +159,42 @@ Eleven renames the tree can now execute without re-litigating the name each time
 `Tcb` -> `ThreadControlBlock`, `EpId` -> `RendezvousId`, `Tid` -> `ThreadId`, `TcbPtr` ->
 `ThreadControlBlockPointer`, `TidSet` -> `ThreadIdSet`, `EpFail` -> `RendezvousFailure`, `FreeVas`
 -> `FreeAddressSpace`.
+
+## Amended 2026-08-25: a twelfth name, checked ad hoc rather than by the promised `crates/` sweep
+
+**`CSpace` -> `CapabilitySpace`. calef, 2026-08-25, in conversation: "Rename it to
+CapabilitySpace."** `capability::CSpace<Object, CSPACE_SLOTS>` (`crates/capability`, aliased as
+`kernel/src/cap.rs`'s `CSpace`) sits in `crates/`, which "The sweep's first pass" section above
+says explicitly has "not yet been swept." This name did not wait for that sweep: the architect
+raised it directly, it was checked against this decision's own test on the spot, and he ratified
+it before the systematic pass reached it. That is the honest shape of what happened -- one name
+decided out of band, not a finding from a completed `crates/` sweep -- and it is recorded as such
+rather than folded silently into "the eleven" above, whose count and table stay exactly as they
+were decided on 2026-08-23.
+
+**Why it passes the same test.** `CSpace` is seL4's own contraction (a tree of `CNode`s, in seL4's
+own vocabulary; this tree uses a flat sixteen-slot array instead, `crates/capability/src/lib.rs`'s
+own module doc explains the divergence), so it fails the same question every one of the eleven
+above failed: nothing external -- no wire format, no hardware spec -- constrains what this tree
+calls its own capability table, which is exactly "the second kind" the general principle above
+names as the one this decision reaches for. It is closer in shape to `Tcb` than to `Aspace`:
+seL4 itself abbreviates "Capability Space" to `CSpace`, the same way OS textbooks abbreviate
+"Thread Control Block" to `TCB`, so a reader who already knows the term loses nothing recognizing
+the spelled-out form, and one who doesn't gets two ordinary words instead of a letter and a word.
+Notably, `CSpace` was not among the four names calef's original complaint named (`Aspace`,
+`Endpoint`, `Untyped`, `Tcb`) -- it had not come up yet, not because it was judged and kept.
+
+**The cost this one carries that the original eleven did not.** Those eleven were scoped to the
+identifier surface; this tree's own descriptive prose about "an address space" or "a thread" was
+deliberately left alone. `cspace`, lowercase, is different: it is not a generic English phrase
+with an ambiguous descriptive use elsewhere, it is shorthand for this specific object everywhere
+it appears, including in this project's own governance document. `cspace` (case-insensitive)
+appears in roughly 74 markdown files across this tree, and once in `AGENTS.md` itself (the
+Steward section: "the sixteen-slot cspace"). **Whoever merges the build lane's rename needs to
+update that line by hand** -- a developer lane may not edit `AGENTS.md` under this project's own
+rules, so that one file is a maintainer follow-up, not part of the lane's own diff.
+
+**What this does not decide.** The mechanical rename itself, same as the original eleven: a
+separate lane carries it out, touching `crates/capability`, `kernel/src/cap.rs`'s alias, and
+prose throughout the tree. The rest of the `crates/` sweep remains separate, ongoing, and
+unstarted by this amendment.
