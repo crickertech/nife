@@ -173,6 +173,28 @@ the write alone, before the capability type, the revocation shootdown, or anythi
 would also cost. Whether that gap is worth paying for a userspace `x86_64` console is still calef's
 call, per this file's own closing question.
 
+### Refined 2026-08-25: the number prices the naive write, not the write option 1 would actually ship
+
+calef and the maintainer read the measured table above together and flagged a gap in what it prices.
+`tss_iomap_switch` writes the bitmap on *every* switch, unconditionally, for both threads, whether
+either one holds a port capability or not. That is not how the real OS this decision keeps citing as
+precedent, Linux, actually does it: `ioperm`/`iopl` give a thread its own I/O bitmap only if it asks
+for one, and the TSS's `iomap_base` on switch-in is set to "no bitmap" for every thread that never
+has, so the write is paid only when a thread that actually holds port permission is on either side of
+the switch. On a system where realistically one process would ever hold a port capability if option 1
+were built (the console driver), that is the overwhelming majority of switches paying nothing and one
+rare case paying the measured cost, not every switch paying it.
+
+**So the table above is a confirmed worst-case upper bound, not the number option 1 would actually
+cost in a system that implemented the lazy version.** It does not change today's call: option 2 still
+costs nothing and nothing today asks for the alternative, so there is nothing to trade the measured
+cost against yet. It changes what the *next* measurement should be if this decision is revisited
+seriously: the lazy/conditional write's real cost, which needs a per-thread "does this thread hold any
+port capability" bit checked on switch-in rather than an unconditional write, not a second run of the
+same always-write benchmark. Recorded here so a future reader prices option 1 against the write it
+would actually pay, not the one this file happened to measure first because it was the smaller thing
+to build.
+
 ## What is needed to answer it
 
 One question, and it is not technical: **is a userspace console driver on x86 part of what the
