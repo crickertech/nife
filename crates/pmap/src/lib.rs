@@ -12,13 +12,13 @@
 //! after the fact (`yama`'s `ptrace_scope`, `hidepid`): the file exists ambiently and the checks are a
 //! later patch over a design that assumed none were needed. Here the listing is a **capability**.
 //! What this crate is handed is a function that reads one entry of an address space's mappings, and
-//! that function is backed by `abi::aspace::LIST` on an address-space capability the program was
+//! that function is backed by `abi::address_space::LIST` on an address-space capability the program was
 //! endowed. It cannot widen the space, cannot ask about a `va` in a space it was not shown, and
 //! cannot discover that any other space exists.
 //!
 //! # `ENUMERATE`, not `WRITE`, is `ps`'s split one object type over
 //!
-//! `abi::aspace::MAP_INTO` needs `WRITE`: the authority to shape a space. `abi::aspace::LIST` needs
+//! `abi::address_space::MAP_INTO` needs `WRITE`: the authority to shape a space. `abi::address_space::LIST` needs
 //! `ENUMERATE`: the authority to look. A capability holding `ENUMERATE` alone can list every mapping
 //! and change none of them, exactly the split `Rendezvous::SURVEY` drew between naming a domain's
 //! members and reaping one (DECISIONS §114, `notes/process-view.md`).
@@ -45,7 +45,7 @@
 //!
 //! // A space of one mapping: cursor 0 yields it, cursor 1 says done.
 //! let mut reader = |cursor: u64| match cursor {
-//!     0 => (1, 0x0040_0000, abi::aspace::MAP_CODE),
+//!     0 => (1, 0x0040_0000, abi::address_space::MAP_CODE),
 //!     _ => (abi::survey::DONE as i64, 0, 0),
 //! };
 //! let mut rows = [Row::default(); MAX_ROWS];
@@ -60,7 +60,7 @@
 //!
 //! # BUGS
 //!
-//! - **There is no VA range column, only one row per page.** `abi::aspace::LIST` walks the space's
+//! - **There is no VA range column, only one row per page.** `abi::address_space::LIST` walks the space's
 //!   revocation log, which records one entry per mapped page and nothing about adjacency; upstream
 //!   `pmap` coalesces contiguous same-permission pages into a range. Doing that here would need this
 //!   crate to know the pages are contiguous, and the log does not promise an order that makes that
@@ -69,21 +69,21 @@
 //! - **A `DeviceFrame` mapping reads as `rw-`**, the same as an ordinary read/write page: `kind` is
 //!   derived from `paging::Flags`, and a device mapping's flags do not carry a bit for "this is
 //!   device memory" as far as this crate can see. `pmap` cannot tell a driver's MMIO window from an
-//!   ordinary heap page. See `abi::aspace::LIST`'s doc.
+//!   ordinary heap page. See `abi::address_space::LIST`'s doc.
 //! - **A resumed cursor can land on a slot the space's own log recycled for an unrelated mapping**,
 //!   if a tombstoned entry was reused between two calls. Unlike `ps`'s slot table, a log entry
 //!   carries no generation to detect this. See `kernel::revoke::list_mapping`'s doc for the mechanism
 //!   and why it is accepted rather than fixed here.
 //! - **There is no address space this program can be granted at the interactive prompt.** Every
-//!   `Object::Aspace` capability in this tree today is minted and consumed within the same thread
-//!   (`RETYPE_OBJ(ASPACE)` -> `MAP_INTO`* -> `ThreadControlBlock::CONFIGURE`, which removes the space from the
+//!   `Object::AddressSpace` capability in this tree today is minted and consumed within the same thread
+//!   (`RETYPE_OBJ(ADDRESS_SPACE)` -> `MAP_INTO`* -> `ThreadControlBlock::CONFIGURE`, which removes the space from the
 //!   registry the moment it binds to a thread), and nothing in the shipped tree ever delegates one to
 //!   a different program. So unlike `ps`, which the shell endows a live supervision endpoint (
 //!   `Manifest::domain`), `pmap` has no analogous manifest field and no wiring in
 //!   `system_initializer`, because there is no source it could plumb through: no address space
 //!   anywhere in this system survives long enough, held by anyone other than its own builder, for a
 //!   second program to be handed a view of it. The kernel method and this program are real and
-//!   proven end to end against a real `Object::Aspace` (`kernel::user::pmap_tests`), the same way
+//!   proven end to end against a real `Object::AddressSpace` (`kernel::user::pmap_tests`), the same way
 //!   `ps`'s kernel tests prove `Rendezvous::SURVEY` without going through the shell. What is missing is
 //!   a design for a builder to hand a narrowed, still-live view to a third party before it consumes
 //!   its own capability at `CONFIGURE` -- a real gap this milestone found rather than one it created,
@@ -113,7 +113,7 @@ pub const MAX_ROWS: usize = 256;
 pub struct Row {
     /// The virtual address this page is mapped at, in the space the capability names.
     pub va: u64,
-    /// One of `abi::aspace`'s `MAP_RO`/`MAP_RW`/`MAP_CODE` codes.
+    /// One of `abi::address_space`'s `MAP_RO`/`MAP_RW`/`MAP_CODE` codes.
     pub kind: u64,
 }
 
@@ -130,7 +130,7 @@ pub struct Listing<'a> {
 
 /// **Walk an address space to its end and keep what it says.**
 ///
-/// `read(cursor)` is one `abi::aspace::LIST`: it answers `(next_cursor, va, kind)`, where a negative
+/// `read(cursor)` is one `abi::address_space::LIST`: it answers `(next_cursor, va, kind)`, where a negative
 /// first word is a refusal and `abi::survey::DONE` means the walk is over. `ps::collect`'s shape
 /// verbatim, including its termination guarantee for a cursor that does not advance: this function
 /// is total for every reader, which is what makes every case here reachable from a host test.
@@ -235,15 +235,15 @@ impl Listing<'_> {
     }
 }
 
-/// What an `abi::aspace` kind code is called in the listing: the three permission letters a reader
+/// What an `abi::address_space` kind code is called in the listing: the three permission letters a reader
 /// of any Unix `pmap`/`/proc/pid/maps` already knows, `r--`/`rw-`/`r-x`. An unknown code prints as
 /// `???` rather than panicking, the same defensiveness `ps::state_name` has for a kernel newer than
 /// this program.
 pub const fn kind_name(kind: u64) -> &'static str {
     match kind {
-        abi::aspace::MAP_RO => "r--",
-        abi::aspace::MAP_RW => "rw-",
-        abi::aspace::MAP_CODE => "r-x",
+        abi::address_space::MAP_RO => "r--",
+        abi::address_space::MAP_RW => "rw-",
+        abi::address_space::MAP_CODE => "r-x",
         _ => "???",
     }
 }
@@ -310,9 +310,9 @@ mod tests {
         let l = collect(
             &mut rows,
             &mut space(&[
-                (0x0040_0000, abi::aspace::MAP_CODE),
-                (0x0050_0000, abi::aspace::MAP_RW),
-                (0x0060_0000, abi::aspace::MAP_RO),
+                (0x0040_0000, abi::address_space::MAP_CODE),
+                (0x0050_0000, abi::address_space::MAP_RW),
+                (0x0060_0000, abi::address_space::MAP_RO),
             ]),
         );
         assert!(!l.refused());
@@ -321,7 +321,7 @@ mod tests {
             l.rows()[2],
             Row {
                 va: 0x0060_0000,
-                kind: abi::aspace::MAP_RO
+                kind: abi::address_space::MAP_RO
             }
         );
     }
@@ -354,7 +354,7 @@ mod tests {
     fn a_refusal_halfway_through_discards_the_partial_table() {
         let mut rows = [Row::default(); MAX_ROWS];
         let l = collect(&mut rows, &mut |cursor| match cursor {
-            0 => (1, 0x0040_0000, abi::aspace::MAP_CODE),
+            0 => (1, 0x0040_0000, abi::address_space::MAP_CODE),
             _ => (abi::Error::Gone as i64, 0, 0),
         });
         assert!(l.refused());
@@ -366,7 +366,9 @@ mod tests {
     #[test]
     fn a_cursor_that_does_not_advance_ends_the_walk() {
         let mut rows = [Row::default(); MAX_ROWS];
-        let l = collect(&mut rows, &mut |_| (1, 0x0040_0000, abi::aspace::MAP_RO));
+        let l = collect(&mut rows, &mut |_| {
+            (1, 0x0040_0000, abi::address_space::MAP_RO)
+        });
         assert!(l.refused());
         assert!(shown(|o| l.write_diagnostics(o)).contains("did not advance"));
     }
@@ -378,7 +380,7 @@ mod tests {
             (
                 cursor as i64 + 1,
                 0x0040_0000 + cursor * 0x1000,
-                abi::aspace::MAP_RW,
+                abi::address_space::MAP_RW,
             )
         });
         assert_eq!(l.rows().len(), 2);
@@ -394,8 +396,8 @@ mod tests {
         let l = collect(
             &mut rows,
             &mut space(&[
-                (0x0040_0000, abi::aspace::MAP_CODE),
-                (0x0050_0000, abi::aspace::MAP_RW),
+                (0x0040_0000, abi::address_space::MAP_CODE),
+                (0x0050_0000, abi::address_space::MAP_RW),
             ]),
         );
         let out = shown(|o| l.write_report(o));
@@ -439,7 +441,7 @@ mod tests {
         let mut rows = [Row::default(); MAX_ROWS];
         let l = collect(
             &mut rows,
-            &mut space(&[(0x0000_7fff_ffff_f000, abi::aspace::MAP_RW)]),
+            &mut space(&[(0x0000_7fff_ffff_f000, abi::address_space::MAP_RW)]),
         );
         let out = shown(|o| l.write_report(o));
         assert!(out.contains("0x7ffffffff000"), "{out}");

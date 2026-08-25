@@ -86,8 +86,8 @@ pub struct AddressSpace {
 ///
 /// A space is built two ways, and they differ in exactly this. [`AddressSpace::new`] carves its
 /// own region out of the frame allocator, so nobody else has a name for it and its `Drop` is the
-/// only thing that can ever free it. [`user_aspace_create`] is handed a region that the caller
-/// already holds an `Untyped` capability to (the `RETYPE_OBJ(ASPACE)` engine, milestone 19b), and
+/// only thing that can ever free it. [`user_address_space_create`] is handed a region that the caller
+/// already holds an `Untyped` capability to (the `RETYPE_OBJ(ADDRESS_SPACE)` engine, milestone 19b), and
 /// that caller reclaims it with `Untyped::DESTROY`. **A lent region has two names for one run of
 /// memory, and only one of them may free it.**
 ///
@@ -116,7 +116,7 @@ enum Backing {
 
 impl Backing {
     /// The region to retype from. Spending a lent region is correct and is the whole point of
-    /// `RETYPE_OBJ(ASPACE)`: the space runs on the caller's budget. Only *freeing* is restricted.
+    /// `RETYPE_OBJ(ADDRESS_SPACE)`: the space runs on the caller's budget. Only *freeing* is restricted.
     fn region(self) -> u64 {
         match self {
             Backing::Owned(region) | Backing::Lent(region) => region,
@@ -253,21 +253,24 @@ static ASIDS: crate::sync::IrqSafeMutex<asid::Allocator> =
 /// `MAX_SPACES` (160) leaves room for all of them beside the exec-built spaces.
 const MAX_USER_SPACES: usize = 32;
 
-/// **The user-aspace registry** (milestone 19b): the kernel-side records behind
-/// `Object::Aspace` capabilities, named generationally like everything since milestone 14. The
+/// **The user address-space registry** (milestone 19b): the kernel-side records behind
+/// `Object::AddressSpace` capabilities, named generationally like everything since milestone 14. The
 /// `AddressSpace` in the slot is the same type exec builds, so every mechanism that works on a
 /// process's space (region-paid tables, revocation logs, ASID tagging) works on a user-built
 /// one identically. Entries are never removed in 19b; their `Drop` (which would destroy a
 /// region the creator still holds a capability to) stays dormant until 19c designs teardown.
 static USER_SPACES: crate::sync::IrqSafeMutex<
     generational_table::Table<AddressSpace, MAX_USER_SPACES>,
-> = crate::sync::IrqSafeMutex::new(crate::sync::rank::ASPACES, generational_table::Table::new());
+> = crate::sync::IrqSafeMutex::new(
+    crate::sync::rank::ADDRESS_SPACES,
+    generational_table::Table::new(),
+);
 
-/// Create an address space **in and backed by** `region` (the `RETYPE_OBJ(ASPACE)` engine): the
+/// Create an address space **in and backed by** `region` (the `RETYPE_OBJ(ADDRESS_SPACE)` engine): the
 /// root page is retyped from it (pinning it, atomically with the carve), and the region becomes
 /// the space's table-and-record budget, exactly as for an exec-built space. `None` on an
 /// exhausted region, a full registry, or ASID exhaustion (unreachable; the type is honest).
-pub fn user_aspace_create(region: u64) -> Option<u64> {
+pub fn user_address_space_create(region: u64) -> Option<u64> {
     let root = crate::untyped::retype_object_page(region)?;
     mmu::share_kernel_half(root); // RISC-V single-satp: the process root carries the kernel high half
 
@@ -299,7 +302,7 @@ pub fn user_aspace_create(region: u64) -> Option<u64> {
 /// §13 record come from the space's own backing region; an unrecordable mapping is unmapped and
 /// refused, exactly as at the `frame::MAP` syscall, because a mapping revocation cannot see is
 /// the §13 use-after-free.
-pub fn user_aspace_map(name: u64, va: u64, phys: u64, flags: Flags) -> Result<(), MapError> {
+pub fn user_address_space_map(name: u64, va: u64, phys: u64, flags: Flags) -> Result<(), MapError> {
     let mut spaces = USER_SPACES.lock();
     let space = spaces.get_mut(name).ok_or(MapError::NotMapped)?;
 
@@ -322,14 +325,14 @@ pub fn user_aspace_map(name: u64, va: u64, phys: u64, flags: Flags) -> Result<()
 /// The root table of a user-built space, named generationally like the registry it reads.
 ///
 /// Built for tests (so a walker can ask what a space really maps) and now also
-/// `abi::aspace::LIST`'s way in (milestone 126's `pmap`, DECISIONS §114): the syscall handler
+/// `abi::address_space::LIST`'s way in (milestone 126's `pmap`, DECISIONS §114): the syscall handler
 /// resolves the capability's `name` to a root here before consulting `revoke::list_mapping` and
 /// `arch::mmu::translate_at`. `None` once the name is gone from the registry, which is
-/// `ThreadControlBlock::CONFIGURE`'s doing the moment a space is bound to a thread (`take_user_aspace` removes
+/// `ThreadControlBlock::CONFIGURE`'s doing the moment a space is bound to a thread (`take_user_address_space` removes
 /// the entry): a `LIST` against a capability that outlived its space's registry membership reads
 /// as "nothing to report," the same as an empty space, because the capability itself was never
 /// refused and the kernel has nothing left to say about where it used to point.
-pub fn user_aspace_root(name: u64) -> Option<u64> {
+pub fn user_address_space_root(name: u64) -> Option<u64> {
     USER_SPACES.lock().get(name).map(|s| s.root())
 }
 
@@ -338,7 +341,7 @@ pub fn user_aspace_root(name: u64) -> Option<u64> {
 /// thread. `None` if the name does not resolve. This is what retires 19b's "immortal until 19c"
 /// note: a bound space is reaped, an unbound one still leaks until teardown wiring, which is the
 /// half-built audit's job.
-pub fn take_user_aspace(name: u64) -> Option<AddressSpace> {
+pub fn take_user_address_space(name: u64) -> Option<AddressSpace> {
     USER_SPACES.lock().remove(name)
 }
 
@@ -346,12 +349,12 @@ pub fn take_user_aspace(name: u64) -> Option<AddressSpace> {
 /// the address-space case): each removed `AddressSpace` drops here, and its `Drop` forgets its
 /// revocation records and frees its ASID (its region's memory comes back at the enclosing
 /// `reclaim_region`, which unpins after this). This retires the "an unbound one still leaks" note on
-/// `take_user_aspace`: a space created but never bound into a TCB is reclaimed with its region.
+/// `take_user_address_space`: a space created but never bound into a TCB is reclaimed with its region.
 ///
 /// Bound spaces are **not** here: `CONFIGURE` moved them out of this registry into a TCB, so they
-/// die with the thread (`Thread`'s drop), not through this sweep. Takes only the aspace-registry
+/// die with the thread (`Thread`'s drop), not through this sweep. Takes only the address-space registry
 /// lock, no `IPC_TABLES`, so `sched::reclaim_region` runs it as a step separate from the thread reap.
-pub fn reap_aspaces_in_region(base: u64, end: u64) {
+pub fn reap_address_spaces_in_region(base: u64, end: u64) {
     // Find-then-remove one at a time, never dropping an `AddressSpace` while holding the registry
     // lock: its `Drop` takes the revocation, region, and ASID locks, and must not do so under ours.
     loop {
@@ -370,9 +373,9 @@ pub fn reap_aspaces_in_region(base: u64, end: u64) {
 }
 
 /// Put a space back into the registry (milestone 19c.3): the unwind path if `CONFIGURE` took a
-/// space and then could not bind it. It gets a fresh name; the caller's stale aspace cap will no
+/// space and then could not bind it. It gets a fresh name; the caller's stale address space cap will no
 /// longer resolve, which is correct (the operation failed, but the space is not lost).
-pub fn readopt_user_aspace(space: AddressSpace) -> Option<u64> {
+pub fn readopt_user_address_space(space: AddressSpace) -> Option<u64> {
     USER_SPACES.lock().insert_with(|_| space)
 }
 
@@ -398,7 +401,7 @@ impl Drop for AddressSpace {
         // run, root and tables and leaves alike, to the allocator. This is the
         // "reclaim-on-process-death" wiring §13 deferred; the frame list it replaced is gone.
         //
-        // **Only for a region we own.** A lent one (`user_aspace_create`) belongs to whoever
+        // **Only for a region we own.** A lent one (`user_address_space_create`) belongs to whoever
         // holds its `Untyped` capability, and freeing it here is a double free of the whole run
         // the moment `sched::reclaim_region` has already unpinned it. `Backing` carries the
         // whole argument.
@@ -776,7 +779,7 @@ pub fn spawn_init(
     };
 
     // **init's building budget is carved here, not inside the thread**, so the caller has a name for
-    // it and can reclaim it. A large untyped init retypes the child's aspace, frames and TCB from,
+    // it and can reclaim it. A large untyped init retypes the child's address space, frames and TCB from,
     // sized for a full copy of the initrd program plus its tables and init's scratch. Carving it out
     // here changes nothing about what init gets; it changes who can name it afterwards, which is the
     // whole difference between 8 MiB spent and 8 MiB lent. See notes/frames.md.
@@ -1256,7 +1259,7 @@ fn x86_build_child(
     slot0: Option<crate::cap::Cap>,
     fault_ep: Option<crate::sched::RendezvousId>,
 ) -> Result<u64, &'static str> {
-    let aspace = user_aspace_create(region).ok_or("no address space for the child")?;
+    let aspace = user_address_space_create(region).ok_or("no aspace for the child")?;
 
     let code_phys = crate::untyped::retype_page(region).ok_or("no code frame")?;
     // SAFETY: a fresh frame this region owns, reachable through the direct map; the program is
@@ -1275,11 +1278,11 @@ fn x86_build_child(
         mmu::phys_to_virt(code_phys),
         core::mem::size_of_val(program),
     );
-    user_aspace_map(aspace, X86_DEMO_CODE_VA, code_phys, Flags::user_code())
+    user_address_space_map(aspace, X86_DEMO_CODE_VA, code_phys, Flags::user_code())
         .map_err(|_| "could not map the child's code")?;
 
     let stack_phys = crate::untyped::retype_page(region).ok_or("no stack frame")?;
-    user_aspace_map(aspace, X86_DEMO_STACK_VA, stack_phys, Flags::user_data())
+    user_address_space_map(aspace, X86_DEMO_STACK_VA, stack_phys, Flags::user_data())
         .map_err(|_| "could not map the child's stack")?;
 
     let tid = crate::sched::create_thread_control_block(region).ok_or("no tcb")?;
@@ -1431,7 +1434,7 @@ pub fn riscv_worker_demo(worker: &[u8], n: u64) -> Result<u64, LoadError> {
     // The kernel's real loader: parse, build the address space, map the W^X segments and a stack.
     let (space, entry) = load(worker)?;
     // `load` returns an owned AddressSpace; the TCB path binds one by registry name, so register it.
-    let aspace_name = readopt_user_aspace(space).expect("register the loaded aspace");
+    let aspace_name = readopt_user_address_space(space).expect("register the loaded address space");
 
     // The worker's one authority: WRITE on a report endpoint, which it will hold as slot 0.
     let result = crate::sched::create_rendezvous();
@@ -1518,7 +1521,7 @@ pub fn riscv_initrd_demo(archive: &'static [u8]) -> Result<u64, LoadError> {
 
     // Register the space, then build init's TCB with its two capabilities: budget (slot 0), report
     // endpoint WRITE|GRANT (slot 1, so init may delegate a narrowed view to the child it builds).
-    let aspace_name = readopt_user_aspace(space).expect("register init aspace");
+    let aspace_name = readopt_user_address_space(space).expect("register init address space");
     let report = crate::sched::create_rendezvous();
     let build_region = crate::untyped::create(2048).expect("no building budget for init");
 
@@ -1643,7 +1646,7 @@ pub fn riscv_uart_driver_demo(
         .map_physical(DRIVER_UART_VA, UART_PHYS, Flags::user_device())
         .map_err(LoadError::Unmappable)?;
 
-    let aspace_name = readopt_user_aspace(space).expect("register driver aspace");
+    let aspace_name = readopt_user_address_space(space).expect("register driver address space");
 
     // Route the UART interrupt to an endpoint; the Irq cap's WAIT blocks on it. The report endpoint
     // is where the driver SENDs each byte, and where the caller's receiver waits.
@@ -1743,7 +1746,8 @@ pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), Loa
             )
             .map_err(LoadError::Unmappable)?;
     }
-    let aspace_name = readopt_user_aspace(space).expect("register system_initializer aspace");
+    let aspace_name =
+        readopt_user_address_space(space).expect("register system_initializer address space");
 
     // Route the UART receive interrupt to an endpoint; the input driver's Irq cap will WAIT on it.
     let irq_ep = crate::sched::create_rendezvous();
@@ -2387,12 +2391,12 @@ pub mod delegation_service;
 pub mod retype_ep_service;
 
 /// **Milestone 19b: a process builds an address space, at EL0.** One role: an untyped budget
-/// and a report line; everything else it constructs. See user/src/hello.rs `aspace_builder()`.
+/// and a report line; everything else it constructs. See user/src/hello.rs `address_space_builder()`.
 // Test scaffolding: the `tests` module below is the only caller, and it runs on both ISAs now
 // (milestone 19's user-test port). This wiring was already portable; it was compiled out on riscv64
 // only because its consumer was.
 #[cfg(test)]
-pub mod aspace_service;
+pub mod address_space_service;
 
 /// **Milestone 12: Call/Reply, at EL0.** One request endpoint, a server that answers a caller it was
 /// never wired to, and the one-shot reply capability proven across the boundary. See
@@ -2663,7 +2667,7 @@ mod reap_tests;
 #[cfg(test)]
 mod survey_tests;
 
-/// **`pmap`'s split, one object type over `survey_tests`** (milestone 126, `aspace::LIST`,
+/// **`pmap`'s split, one object type over `survey_tests`** (milestone 126, `address_space::LIST`,
 /// DECISIONS §114). Cross-ISA for `survey_tests`'s reason: the method reads `Flags` through
 /// `arch::mmu::translate_at`, so a divergence here means something is wrong under `arch/`.
 ///

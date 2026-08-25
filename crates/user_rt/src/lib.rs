@@ -227,7 +227,7 @@ pub fn survey(slot: u64, cursor: u64) -> (i64, u64, u64) {
 }
 
 /// **Read one entry of what this address space has mapped** (milestone 126, `pmap`,
-/// `aspace::LIST`, DECISIONS §114). Returns `(next_cursor, va, kind)`: start at `cursor = 0`, feed
+/// `address_space::LIST`, DECISIONS §114). Returns `(next_cursor, va, kind)`: start at `cursor = 0`, feed
 /// each `next_cursor` back, and stop when [`abi::survey::DONE`] comes back. [`survey`]'s twin,
 /// same three-word-out-of-one-`invoke` shape, one object type over.
 ///
@@ -236,7 +236,7 @@ pub fn survey(slot: u64, cursor: u64) -> (i64, u64, u64) {
 /// **That is a refusal and not an empty listing**, and a caller must print it as one.
 pub fn list(slot: u64, cursor: u64) -> (i64, u64, u64) {
     // SAFETY: forwarded from `invoke5`'s contract; LIST reads no more than the three words used.
-    let (r0, w1, w2, ..) = unsafe { invoke5(slot, abi::aspace::LIST, cursor, 0, 0) };
+    let (r0, w1, w2, ..) = unsafe { invoke5(slot, abi::address_space::LIST, cursor, 0, 0) };
     (r0 as i64, w1, w2)
 }
 

@@ -80,41 +80,121 @@ already informal usage. Verified the same four ways as `Endpoint`: full host tes
 `crates/ipc` (6 harnesses) plus `crates/capability` (12 harnesses) both re-verify under Kani
 post-rename.
 
+`Aspace`/`AddressSpace`, plus its decided companion `FreeVas`/`FreeAddressSpace`
+(`kernel/src/thread.rs`), done to completion in its own lane per this block's sequencing rule. This
+block's own table estimated 9 files, 17 occurrences for the bare `Aspace` type token; a fresh count
+against the same measure (case-sensitive `Aspace` alone, before starting) found 18 occurrences across
+9 files, confirming the table's narrow count was accurate for what it measured. **The real surface,
+once every case form and every compound identifier was counted, was far larger**, the same pattern
+`Endpoint` set: 391 case-insensitive occurrences of "aspace" across 37 `.rs` files, not 17 across 9,
+because the type name was the smallest part of the surface. It touched: a whole `abi::aspace` ->
+`abi::address_space` ABI module (`MAP_INTO`/`MAP_RO`/`MAP_RW`/`MAP_CODE`/`LIST`, the method-number
+namespace every user program and `kernel/src/syscall.rs`'s dispatch use); `objtype::ASPACE` ->
+`objtype::ADDRESS_SPACE`; the `Object::Aspace` capability variant -> `Object::AddressSpace`; a family
+of lowercase kernel functions (`aspace_cap` -> `address_space_cap`, `user_aspace_create` ->
+`user_address_space_create`, `user_aspace_map` -> `user_address_space_map`, `user_aspace_root` ->
+`user_address_space_root`, `take_user_aspace` -> `take_user_address_space`,
+`reap_aspaces_in_region` -> `reap_address_spaces_in_region`, `readopt_user_aspace` ->
+`readopt_user_address_space`, `aspace_list` -> `address_space_list`); a whole kernel test-infra module
+file (`kernel/src/user/aspace_service.rs` -> `kernel/src/user/address_space_service.rs`, with its
+`aspace_builder`/`ASPACE_BUILDER` sibling in `user/src/hello.rs` renamed to
+`address_space_builder`/`ADDRESS_SPACE_BUILDER` to match); a lock-rank constant
+(`kernel/src/sync.rs`'s `ASPACES` -> `ADDRESS_SPACES`); and per-program constants
+(`user/src/pmap.rs`'s `ASPACE_SLOT` -> `ADDRESS_SPACE_SLOT`,
+`user/src/os_primitives_benchmarker.rs`'s `MAP_ASPACE` -> `MAP_ADDRESS_SPACE`). The `FreeVas`
+companion (`kernel/src/thread.rs`'s stack-VA-range free list, an unrelated subsystem reached by the
+same abbreviation per DECISIONS §113) was 10 occurrences across 3 files (`thread.rs`, `stack.rs`,
+`sched.rs`); renamed `struct FreeVas` -> `struct FreeAddressSpace` and
+`static FREE_STACK_VAS` -> `FREE_STACK_ADDRESS_SPACE`, and left the struct's private `vas: [u64; 128]`
+field alone (it holds individual freed stack virtual addresses, not address-space objects, and §113
+named only the struct and the static, not this field).
+
+**A real near-collision, not previously recorded, checked and resolved rather than a blocker**:
+`kernel/src/user.rs` already defines `pub struct AddressSpace` (the kernel-internal page-table object
+a process's memory actually is, with its own `Drop`, `map_physical`, etc.), predating this rename.
+Renaming `Object::Aspace` to `Object::AddressSpace` gives the capability variant the same name as the
+object it names -- but that is not a collision, it is the same pattern this tree already uses for
+`Object::Rendezvous(RendezvousId)` naming `struct Rendezvous` in `sched.rs`: a capability variant and
+the kernel struct it points at sharing a name, in different modules, is how this tree already reads
+"a capability that names one of these." No import collision results (the variant holds a `u64`, not
+the struct), and the pairing is arguably more consistent post-rename than `Aspace`/`AddressSpace`
+were pre-rename.
+
+Scoped the same way `Endpoint` was: identifier surface (types, functions, constants, module paths,
+struct fields, module file names, backtick-quoted doc-comment citations of those identifiers) renamed
+throughout; local variable and parameter names that merely *spell* the concept (`aspace`,
+`aspace_name`, `aspace_slot`, `b_aspace`, `as_region`) were left alone, matching the precedent's own
+treatment of `ep` (never renamed to `rdv` when `Endpoint` became `Rendezvous`) -- a local binding is
+not in the milestone's own listed scope, however it happens to be spelled. Prose (comments, panic and
+`.expect` message strings) was converted from "aspace" to "address space" throughout, a broader sweep
+than `Endpoint`'s (which left much of `kernel/src/user.rs`'s and the test files' prose alone): "aspace"
+is not standard English the way "endpoint" is, so leaving it anywhere the rename touched would have
+left the exact contraction DECISIONS §113 is retiring sitting in prose next to its own renamed
+identifier. `notes/abi.md`, `notes/frames.md`, `notes/object-revocation.md`, `notes/process-view.md`
+and `notes/thread-spawn-fork.md` updated for the same reason `notes/ipc-naming.md` was; two genuinely
+historical citations were deliberately left alone: `crates/abi/src/lib.rs`'s crate-naming-ratification
+note ("...the actual test (does the architect have to ask what this means, which sank `Tcb`/`Aspace`/
+`Untyped`)...", 2026-08-23, describing the state of the tree at the moment that test was applied), and
+`design/decisions/114-aspace-enumerate.md`, a DECIDED record whose own text already parenthetically
+notes the pending rename and was left as the point-in-time record it is, matching how the `Endpoint`
+rename left `26-fault-endpoint.md`/`41-endpoint-as-broker.md`/`91-endpoints-before-the-refusal.md`
+untouched.
+
+**One self-inflicted bug during the build, caught by the crate's own build and fixed before any commit
+existed to hide it**: a first attempt at the prose sweep used a single blanket word-boundary
+substitution that did not distinguish comments and string literals from live code, and briefly turned
+every local `aspace` binding (`let aspace = ...`, `aspace_slot` parameters, `aspace.rights` field
+access) into the syntactically invalid `let address space = ...`. `cargo check` on every touched crate
+caught all of it before anything was committed; recorded here because it is exactly the kind of mistake
+the ladder in this file's own conventions expects a gate to catch rather than a person to have avoided,
+and it did.
+
+Verified the same way `Endpoint` was: `script/lint` clean; `cargo test --workspace` (excluding the
+bare-metal `kernel`/`user`/`fs_server` targets) green, 142 test-suite runs including every doctest;
+the kernel builds clean for `aarch64-unknown-none-softfloat`, `riscv64imac-unknown-none-elf` and
+`x86_64-unknown-none` (the last is new since `Endpoint`'s rename: milestone 161 item 4 gave x86_64 a
+real kernel test leg); `cargo xtask shell-check` green on both aarch64 and riscv64; the two
+Kani-proof-bearing crates that touch the renamed `abi::address_space` module
+(`crates/capability`, 12 harnesses, and `crates/component_plan`, 5 harnesses) both verify successfully
+post-rename; and the full `script/test` suite green on aarch64, riscv64 and x86_64.
+
 ## What is still open
 
-Three names remain, re-measured fresh rather than carried over from this block's stale table:
+Two names remain, re-measured fresh rather than carried over from this block's stale table:
 
 | Was | Becomes | Fresh count (`.rs` files, occurrences) |
 |---|---|---|
-| `Untyped` | `MemoryRegion` | 25 files, 60 occurrences (capitalized token only; likely larger once `crates/regions`' own lowercase vocabulary and any `untyped::`-module ABI surface are counted, the same pattern that grew `Endpoint`'s and `Tcb`'s real scope past their measured tables) |
-| `Aspace` | `AddressSpace` | 9 files, 17 occurrences, plus its companion `FreeVas` -> `FreeAddressSpace` (`kernel/src/thread.rs`'s `FREE_STACK_VAS` / `struct FreeVas`, unmeasured separately) |
+| `Untyped` | `MemoryRegion` | 25 files, 60 occurrences (capitalized token only; likely larger once `crates/regions`' own lowercase vocabulary and any `untyped::`-module ABI surface are counted, the same pattern that grew `Endpoint`'s, `Tcb`'s and `Aspace`'s real scope past their measured tables) |
 | `Frame` | `PageFrame` | 46 files, 157 occurrences (capitalized token only; `Frame` is also the compositor's own word for a screen update, so this rename needs the same care `Endpoint` needed distinguishing `crates/glob`'s range endpoints -- check every file before renaming, not just the capitalized-token list) |
 
-Given `Endpoint` and `Tcb` both turned out to touch an ABI module, an object-kind constant and a
-family of lowercase identifiers well beyond their measured tables, the same should be expected of
-these three, especially `Untyped` (its own `crates/regions` already independently converged on
-"region" vocabulary per DECISIONS §113's own finding). Each is its own lane per this block's own
-sequencing instruction: "an inconsistent tree where `Aspace` is renamed and `Endpoint` is not is a
-worse intermediate state than finishing one name completely and stopping" applies symmetrically --
-finish `Untyped`, `Aspace`, or `Frame` completely in its own lane rather than partially touching
-several.
+Given `Endpoint`, `Tcb` and `Aspace` (the three done so far) all turned out to touch an ABI module,
+an object-kind constant and a family of lowercase identifiers well beyond their measured tables
+(`Endpoint` 81/23 -> a real surface past 200 occurrences once `EpId` was counted; `Aspace` 17/9 ->
+391 occurrences across 37 files once every case form and compound identifier was counted), the same
+should be expected of the two that remain, especially `Untyped` (its own `crates/regions` already
+independently converged on "region" vocabulary per DECISIONS §113's own finding). Each is its own
+lane per this block's own sequencing instruction: "an inconsistent tree where one name is renamed
+and another is not is a worse intermediate state than finishing one name completely and stopping"
+applies symmetrically -- finish `Untyped` or `Frame` completely in its own lane rather than
+partially touching both.
 
 ## The seven renames, and what each one actually touches
 
-| Was | Becomes | Measured surface |
+| Was | Becomes | Measured surface (§113's own count where a lane hasn't re-measured; done names carry their real count) |
 |---|---|---|
-| `Aspace` | `AddressSpace` | -- |
+| `Aspace` | `AddressSpace` | **done**: 391 occurrences across 37 `.rs` files, plus `FreeVas`'s 10 across 3 |
 | `Untyped` | `MemoryRegion` | -- |
-| `Endpoint` | `Rendezvous` | 82 occurrences across 22 `.rs` files (measured fresh; 216 for `EpId` across 43 files) |
+| `Endpoint` | `Rendezvous` | **done**: 81 occurrences across 23 `.rs` files by §113's own count; larger once `EpId` and the ABI module were counted (see "What was built") |
 | `Frame` | `PageFrame` | -- |
-| `Tcb` | `ThreadControlBlock` | 33 occurrences across 12 `.rs` files (measured fresh; the lowercase identifier family below is well past this) |
-| `EpId` | `RendezvousId` | 216 occurrences across 43 files, once the type alias's own call sites were counted |
-| `Tid` | `ThreadId` | 82 occurrences across 13 `.rs` files (measured fresh) |
+| `Tcb` | `ThreadControlBlock` | **done**: 33 occurrences across 12 `.rs` files (measured fresh; the lowercase identifier family well past this) |
+| `EpId` | `RendezvousId` | **done**, with `Endpoint`: 216 occurrences across 43 files, once the type alias's own call sites were counted |
+| `Tid` | `ThreadId` | **done**, with `Tcb`: 82 occurrences across 13 `.rs` files (measured fresh) |
 
 Plus the four companions §113 also decided in the same entry: `TcbPtr` -> `ThreadControlBlockPointer`
-(11 occurrences, `kernel/src/sched.rs` only), `TidSet` -> `ThreadIdSet` (6 occurrences,
-`kernel/src/user/survey_tests.rs` only), `EpFail` -> `RendezvousFailure`, `FreeVas` ->
-`FreeAddressSpace` (still unmeasured; open with `Aspace`).
+(**done**, with `Tcb`; 11 occurrences, `kernel/src/sched.rs` only), `TidSet` -> `ThreadIdSet`
+(**done**, with `Tcb`; 6 occurrences, `kernel/src/user/survey_tests.rs` only), `EpFail` ->
+`RendezvousFailure` (**done**, with `Endpoint`), `FreeVas` -> `FreeAddressSpace` (**done**, with
+`Aspace`).
 
 **Re-measure before starting, not from this table.** §113's own count is from 2026-08-23 and this
 tree changes fast; a lane that trusts a stale number here repeats §76's own recorded mistake.
@@ -133,6 +213,14 @@ not have to re-derive them:**
   approvingly; a rename should not silently rewrite a historical citation that correctly described
   what the tree used to be called. Read `notes/ipc-naming.md` before touching it -- §113 cites it
   directly and it may need updating rather than blind search-and-replace.
+- `Aspace`/`AddressSpace` had no collision of this shape (checked directly: `crates/compositor`, the
+  file that collided with both `Frame` and `Untyped`/`Region`, has no "aspace" or "address space"
+  vocabulary of its own), but it did have a real near-collision nobody had recorded:
+  `kernel/src/user.rs` already defines `pub struct AddressSpace`, the kernel-internal page-table
+  object, predating the rename. Not a blocker in the end -- it is the same pattern
+  `Object::Rendezvous(RendezvousId)` already uses naming `struct Rendezvous`, a capability variant
+  sharing its name with the object it names, in different modules -- but worth recording so the next
+  reader doesn't have to re-derive that it's fine. See "What was built" above.
 
 ## Scope and sequencing
 
@@ -163,4 +251,5 @@ be once measured -- not decided here.
 
 Nothing else is gated on this; it closes the gap between a decision calef made and the code
 actually reflecting it, which is its own reason to exist per DECISIONS §113's whole argument: a
-name only works if a reader meets it, and today's reader still meets `Aspace`.
+name only works if a reader meets it. Two of the eleven names are done (`Endpoint`/`EpId`/`EpFail`
+and `Aspace`/`FreeVas`); today's reader still meets `Untyped`, `Frame`, and `Tcb`/`Tid`.

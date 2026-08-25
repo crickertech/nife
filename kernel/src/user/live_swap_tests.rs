@@ -129,7 +129,7 @@ fn spawn_swapper(role: u64) -> (sched::RendezvousId, u64, u64) {
             )
             .expect("could not map the initrd");
     }
-    let aspace = readopt_user_aspace(space).expect("register the swapper aspace");
+    let aspace = readopt_user_address_space(space).expect("register the swapper aspace");
 
     let report = sched::create_rendezvous();
     let budget = crate::untyped::create(SWAPPER_BUDGET_PAGES).expect("no budget for swapper");

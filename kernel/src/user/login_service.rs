@@ -153,7 +153,7 @@ pub fn start(
         .map_physical(CRED_VA, cred_page, Flags::user_data())
         .expect("could not map login's credential-relay page");
 
-    let aspace = readopt_user_aspace(space).expect("register the login aspace");
+    let aspace = readopt_user_address_space(space).expect("register the login aspace");
 
     let request = sched::create_rendezvous();
     let result = sched::create_rendezvous();

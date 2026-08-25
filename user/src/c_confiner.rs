@@ -142,8 +142,8 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
                 // right behind it is read-only, which is what turns an off-by-one into a fault
                 // instead of a corruption. Nothing maps WITNESS_FAR here, deliberately.
                 maps: &[
-                    (c_seam::GRANT_VA, grant, abi::aspace::MAP_RW),
-                    (c_seam::WITNESS_RO_VA, wit_ro, abi::aspace::MAP_RO),
+                    (c_seam::GRANT_VA, grant, abi::address_space::MAP_RW),
+                    (c_seam::WITNESS_RO_VA, wit_ro, abi::address_space::MAP_RO),
                 ],
                 blobs: &[],
                 fault: Some(faultep),

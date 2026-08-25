@@ -2782,7 +2782,7 @@ fn retype_rendezvous(region: u64) -> Option<u64> {
 }
 
 const PAGE: u64 = 4096;
-/// Pages the construction untyped for a supervised child holds: its aspace, code, stack, and TCB.
+/// Pages the construction untyped for a supervised child holds: its address space, code, stack, and TCB.
 /// The heeder and spinner are tiny; this is generous. DESTROY returns these pages to our budget.
 const JOB_UNTYPED_PAGES: u64 = 32;
 /// Where we map a supervised job's shared frame in our own space. It advances per job, because there

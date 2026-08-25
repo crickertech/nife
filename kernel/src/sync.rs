@@ -74,7 +74,7 @@ use crate::arch::interrupts;
 /// ## The hierarchy
 ///
 /// ```text
-///   61  ASPACES         user-built address spaces
+///   61  ADDRESS_SPACES         user-built address spaces
 ///        |
 ///   60  IPC_TABLES      the thread table and endpoints
 ///        |
@@ -112,11 +112,11 @@ use crate::arch::interrupts;
 /// would have held RAM (30) while taking FRAMES (30), and `30 < 30` is false. The ranking
 /// would have failed it on the spot. (We happened to fix it for other reasons first.)
 pub mod rank {
-    /// The user-built address spaces (milestone 19b): the registry behind `Object::Aspace`
+    /// The user-built address spaces (milestone 19b): the registry behind `Object::AddressSpace`
     /// capabilities. **Top of the order**: a `MAP_INTO` holds this while drawing page tables
     /// from the space's region (UNTYPED, 58) and writing the revocation record (MAPPINGS, 59),
     /// and it never touches `IPC_TABLES` (capability grants happen after release).
-    pub const ASPACES: u32 = 61;
+    pub const ADDRESS_SPACES: u32 = 61;
 
     /// The thread table and the endpoints.
     ///
