@@ -3,8 +3,8 @@
 //!
 //! This is the client half of the contract std sees. A std program given the network holds a
 //! `Stack` endpoint at slot 2 and an untyped budget at slot 3 (the slot convention in
-//! `pal/nife/rt.rs`). Opening a socket mints a shared `Frame` from the untyped, maps it, and
-//! delegates it to net_stack (`SEND_CAP`, `OP_ATTACH_FRAME`); every later operation is one `CALL`
+//! `pal/nife/rt.rs`). Opening a socket mints a shared `PageFrame` from the untyped, maps it, and
+//! delegates it to net_stack (`SEND_CAP`, `OP_ATTACH_PAGE_FRAME`); every later operation is one `CALL`
 //! carrying a **socket id** and control words, with the payload already sitting in the shared
 //! frame. net_stack drives smoltcp over the confined NIC and replies. Bytes never cross a message.
 //!
@@ -86,10 +86,10 @@ const NET_UNTYPED: u64 = rt::NET_UNTYPED_SLOT;
 /// Where each socket's shared frame maps in this process. One page per id, well clear of the
 /// program image (0x40_0000), its stack (below 0x50_0000), and the heap (0x4000_0000). net_stack maps
 /// the same frame at its own address; the two are the one shared page the contract grants.
-const FRAME_BASE: u64 = 0x0000_0000_1000_0000;
+const PAGE_FRAME_BASE: u64 = 0x0000_0000_1000_0000;
 
-fn frame_va(id: u64) -> u64 {
-    FRAME_BASE + id * 0x1000
+fn page_frame_va(id: u64) -> u64 {
+    PAGE_FRAME_BASE + id * 0x1000
 }
 
 // --- The socket registry ---------------------------------------------------------------------
@@ -219,7 +219,7 @@ fn fr8(va: u64) -> u8 {
 }
 
 fn set_dst(id: u64, ip: Ipv4Addr, port: u16) {
-    let base = frame_va(id);
+    let base = page_frame_va(id);
     for (i, b) in ip.octets().iter().enumerate() {
         fw8(base + OFF_DST_IP + i as u64, *b);
     }
@@ -229,14 +229,14 @@ fn set_dst(id: u64, ip: Ipv4Addr, port: u16) {
 }
 
 fn write_payload(id: u64, buf: &[u8]) {
-    let base = frame_va(id) + OFF_PAYLOAD;
+    let base = page_frame_va(id) + OFF_PAYLOAD;
     for (i, b) in buf.iter().enumerate() {
         fw8(base + i as u64, *b);
     }
 }
 
 fn read_payload(id: u64, off: usize, out: &mut [u8]) {
-    let base = frame_va(id) + OFF_PAYLOAD + off as u64;
+    let base = page_frame_va(id) + OFF_PAYLOAD + off as u64;
     for (i, b) in out.iter_mut().enumerate() {
         *b = fr8(base + i as u64);
     }
@@ -267,7 +267,7 @@ fn ensure_attached(id: u64) -> io::Result<()> {
         }
     }
 
-    let va = frame_va(id);
+    let va = page_frame_va(id);
     // Mint a fresh frame from the net untyped. A negative result means no untyped in slot 3, i.e.
     // this program was not endowed with the network: honestly Unsupported.
     // SAFETY: plain syscall; the kernel validates the slot and the budget.
@@ -279,7 +279,7 @@ fn ensure_attached(id: u64) -> io::Result<()> {
 
     // Map it writable at this socket's VA; its page table comes from the same untyped.
     // SAFETY: plain syscall; the frame was just minted and is ours to map.
-    if unsafe { rt::invoke(frame, abi::frame::MAP, va, 1, NET_UNTYPED) } < 0 {
+    if unsafe { rt::invoke(frame, abi::page_frame::MAP, va, 1, NET_UNTYPED) } < 0 {
         return Err(io::const_error!(io::ErrorKind::Other, "mapping the socket frame failed"));
     }
 
@@ -292,7 +292,7 @@ fn ensure_attached(id: u64) -> io::Result<()> {
             abi::rendezvous::SEND_CAP,
             frame,
             abi::rights::READ | abi::rights::WRITE,
-            req(OP_ATTACH_FRAME, id),
+            req(OP_ATTACH_PAGE_FRAME, id),
         )
     } < 0
     {

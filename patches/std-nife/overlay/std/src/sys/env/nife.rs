@@ -145,7 +145,7 @@ pub unsafe fn unsetenv(k: &OsStr) -> io::Result<()> {
 // capability in the slot, with a method number no object defines:
 //
 //   - no capability in the slot: the kernel answers `NoSuchSlot` (-1).
-//   - the config page's Frame capability: the kernel answers `BadMethod` (-5), a refusal from a
+//   - the config page's PageFrame capability: the kernel answers `BadMethod` (-5), a refusal from a
 //     real object and therefore proof one is there.
 //
 // Cached, because the answer cannot change: a capability table slot's contents are fixed at spawn on this

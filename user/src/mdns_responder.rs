@@ -84,12 +84,12 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use abi::{frame as fr, rendezvous, rights, untyped as ut};
+use abi::{page_frame as fr, rendezvous, rights, untyped as ut};
 use mdns_config::Config;
 use mdns_proto::{GROUP_V4, PORT, QuerySource, Service, announcement, respond};
 use socket_proto::{
     DATA_MAX, LISTEN_DENIED, LISTEN_GRANTED, LISTEN_IN_USE, OFF_DST_IP, OFF_DST_PORT, OFF_PAYLOAD,
-    OP_ATTACH_FRAME, OP_BIND_UDP, OP_RECV, OP_SENDTO, REP_ERR, req,
+    OP_ATTACH_PAGE_FRAME, OP_BIND_UDP, OP_RECV, OP_SENDTO, REP_ERR, req,
 };
 use user_rt::mapped_window::{MappedWindow, PAGE};
 use user_rt::{call, exit, invoke, send};
@@ -103,11 +103,11 @@ const SID: u64 = 4;
 
 /// Where the shared frame is mapped. Every program in this tree picks its own VA and the kernel's
 /// spawn service must agree; this one matches nothing else because nothing else maps it.
-const FRAME_VA: u64 = 0x0000_0000_00A0_0000;
+const PAGE_FRAME_VA: u64 = 0x0000_0000_00A0_0000;
 
-// SAFETY: this program's own `Frame::MAP` (below) mapped one page read/write at FRAME_VA before
+// SAFETY: this program's own `PageFrame::MAP` (below) mapped one page read/write at PAGE_FRAME_VA before
 // any of `WINDOW`'s accessors are called (milestone 139).
-const WINDOW: MappedWindow = unsafe { MappedWindow::new(FRAME_VA, PAGE) };
+const WINDOW: MappedWindow = unsafe { MappedWindow::new(PAGE_FRAME_VA, PAGE) };
 
 /// **The advertisement, as a document rather than as constants.** See `mdns_config`: the values are
 /// measured off a working Time Machine server, and they are data every step of the way from that
@@ -135,9 +135,9 @@ const OK: u64 = 1;
 // Failure codes. 0xE2xx is this program's range: `socket_test_client` owns 0xE0xx and `smb_server`
 // 0xE1xx, and a verdict has to name which program refused.
 const E_CONFIG: u64 = 0xE200; // the configuration document; the low byte is the line number
-const E_FRAME_MINT: u64 = 0xE210;
-const E_FRAME_MAP: u64 = 0xE211;
-const E_FRAME_DELEGATE: u64 = 0xE212;
+const E_PAGE_FRAME_MINT: u64 = 0xE210;
+const E_PAGE_FRAME_MAP: u64 = 0xE211;
+const E_PAGE_FRAME_DELEGATE: u64 = 0xE212;
 const E_BIND_DENIED: u64 = 0xE220; // spawned without the UDP bind grant this needs
 const E_BIND_IN_USE: u64 = 0xE221;
 const E_BIND_FAILED: u64 = 0xE222;
@@ -146,20 +146,20 @@ const E_ANNOUNCE_SEND: u64 = 0xE231;
 const E_NO_QUERY: u64 = 0xE240; // nothing ever asked: the group join, or the host side
 const E_ANSWER_SEND: u64 = 0xE241;
 
-// `va` is always `FRAME_VA + <an offset constant>` at every call site, so subtracting FRAME_VA
+// `va` is always `PAGE_FRAME_VA + <an offset constant>` at every call site, so subtracting PAGE_FRAME_VA
 // recovers the offset `WINDOW` bounds-checks against (milestone 139; see `user_rt::mapped_window`,
 // the same abstraction socket_test_client, smb_server, ntp, kbd, entropy and net_transport share).
 fn w8(va: u64, v: u8) {
-    WINDOW.w8(va - FRAME_VA, v);
+    WINDOW.w8(va - PAGE_FRAME_VA, v);
 }
 fn r8(va: u64) -> u8 {
-    WINDOW.r8(va - FRAME_VA)
+    WINDOW.r8(va - PAGE_FRAME_VA)
 }
 fn w16le(va: u64, v: u16) {
-    WINDOW.w16(va - FRAME_VA, v);
+    WINDOW.w16(va - PAGE_FRAME_VA, v);
 }
 fn r16le(va: u64) -> u16 {
-    WINDOW.r16(va - FRAME_VA)
+    WINDOW.r16(va - PAGE_FRAME_VA)
 }
 
 /// Report `code` and stop. A one-shot role must exit rather than spin: a leaked spinner starves
@@ -170,16 +170,16 @@ fn done(code: u64) -> ! {
 }
 
 /// Mint a frame from our untyped, map it, and delegate it to our socket id.
-fn attach_frame() {
+fn attach_page_frame() {
     // SAFETY: `svc`. RETYPE returns the new frame capability's slot, or a negative error.
     let frame = unsafe { invoke(UNTYPED, ut::RETYPE, 0, 0, 0) };
     if frame < 0 {
-        done(E_FRAME_MINT);
+        done(E_PAGE_FRAME_MINT);
     }
     let frame = frame as u64;
     // SAFETY: `svc`. Map it writable; page tables come from our untyped.
-    if unsafe { invoke(frame, fr::MAP, FRAME_VA, 1, UNTYPED) } < 0 {
-        done(E_FRAME_MAP);
+    if unsafe { invoke(frame, fr::MAP, PAGE_FRAME_VA, 1, UNTYPED) } < 0 {
+        done(E_PAGE_FRAME_MAP);
     }
     // SAFETY: `svc`. Delegate it, narrowed to read/write, with the ATTACH request.
     if unsafe {
@@ -188,20 +188,20 @@ fn attach_frame() {
             rendezvous::SEND_CAP,
             frame,
             rights::READ | rights::WRITE,
-            req(OP_ATTACH_FRAME, SID),
+            req(OP_ATTACH_PAGE_FRAME, SID),
         )
     } < 0
     {
-        done(E_FRAME_DELEGATE);
+        done(E_PAGE_FRAME_DELEGATE);
     }
 }
 
 /// Set the shared frame's destination header, which is where the next `SENDTO` sends.
 fn set_dst(ip: [u8; 4], port: u16) {
     for (i, &b) in ip.iter().enumerate() {
-        w8(FRAME_VA + OFF_DST_IP + i as u64, b);
+        w8(PAGE_FRAME_VA + OFF_DST_IP + i as u64, b);
     }
-    w16le(FRAME_VA + OFF_DST_PORT, port);
+    w16le(PAGE_FRAME_VA + OFF_DST_PORT, port);
 }
 
 /// The source endpoint a UDP `RECV` reply left in the frame header. **The whole reason mDNS needs
@@ -210,9 +210,9 @@ fn set_dst(ip: [u8; 4], port: u16) {
 fn recv_source() -> ([u8; 4], u16) {
     let mut ip = [0u8; 4];
     for (i, b) in ip.iter_mut().enumerate() {
-        *b = r8(FRAME_VA + OFF_DST_IP + i as u64);
+        *b = r8(PAGE_FRAME_VA + OFF_DST_IP + i as u64);
     }
-    (ip, r16le(FRAME_VA + OFF_DST_PORT))
+    (ip, r16le(PAGE_FRAME_VA + OFF_DST_PORT))
 }
 
 /// Copy `msg` into the frame's payload and send it to `(ip, port)`.
@@ -221,7 +221,7 @@ fn send_to(msg: &[u8], ip: [u8; 4], port: u16) -> bool {
         return false;
     }
     for (i, &b) in msg.iter().enumerate() {
-        w8(FRAME_VA + OFF_PAYLOAD + i as u64, b);
+        w8(PAGE_FRAME_VA + OFF_PAYLOAD + i as u64, b);
     }
     set_dst(ip, port);
     call(STACK, req(OP_SENDTO, SID), msg.len() as u64).0 != REP_ERR
@@ -272,7 +272,7 @@ fn serve_one(adv: &mdns_proto::Advertisement<'_>) -> Received {
 
     let mut query = [0u8; RESPONSE_MAX];
     for (i, b) in query.iter_mut().take(len as usize).enumerate() {
-        *b = r8(FRAME_VA + OFF_PAYLOAD + i as u64);
+        *b = r8(PAGE_FRAME_VA + OFF_PAYLOAD + i as u64);
     }
 
     // RFC 6762 §6.7: a querier whose source port is not 5353 cannot receive our multicast, so it
@@ -317,7 +317,7 @@ pub extern "C" fn _start(rounds: u64, ipv4: u64, _a2: u64) -> ! {
     };
     let adv = config.advertisement(addr);
 
-    attach_frame();
+    attach_page_frame();
     match call(STACK, req(OP_BIND_UDP, SID), PORT as u64).0 {
         LISTEN_GRANTED => {}
         // Not a retry: no port but this one will do, and nothing this program can do wins it. The

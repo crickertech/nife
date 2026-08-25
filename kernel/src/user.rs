@@ -38,7 +38,7 @@
 //! piece, on purpose. Not accreted here because it was convenient.
 
 use elf::Elf;
-use page_frames::{FRAME_SIZE, Frame};
+use page_frames::{FRAME_SIZE, PageFrame};
 use paging::{Flags, Half, MapError, Mapper};
 
 use crate::arch::exceptions::{TrapFrame, enter_user};
@@ -63,7 +63,7 @@ pub const USER_STACK_TOP: u64 = USER_STACK_VA + FRAME_SIZE;
 /// an address space dies all at once, so we do not need `unmap` at all. We free the frames and
 /// throw the whole table away.
 pub struct AddressSpace {
-    root: Frame,
+    root: PageFrame,
     /// **This address space's TLB tag, for life** (milestone 15; crates/asid). Every user
     /// mapping is `nG`, so its TLB entries carry this number, and a context switch flushes
     /// nothing: the other spaces' entries just stop matching. Freed at drop, after
@@ -132,7 +132,7 @@ const AS_OVERHEAD: u64 = 16;
 impl AddressSpace {
     /// Carve this address space's budget: `content_pages` of expected leaves plus the
     /// page-table overhead. Everything the address space ever owns comes out of this region,
-    /// and running out is a clean `OutOfFrames` at map time, spending nobody's memory but its
+    /// and running out is a clean `OutOfPageFrames` at map time, spending nobody's memory but its
     /// own. The region's pages are retyped zeroed, so the root needs no separate scrub.
     pub fn new(content_pages: u64) -> Option<Self> {
         let region = crate::untyped::create(content_pages + AS_OVERHEAD)?;
@@ -160,7 +160,7 @@ impl AddressSpace {
         };
 
         Some(AddressSpace {
-            root: Frame::from_addr(root),
+            root: PageFrame::from_addr(root),
             asid,
             backing: Backing::Owned(region),
         })
@@ -177,7 +177,7 @@ impl AddressSpace {
         // there is nothing to push anywhere. `retype_page` hands the page back zeroed, which is
         // what keeps `.bss` free for the loader.
         let frame =
-            crate::untyped::retype_page(self.backing.region()).ok_or(MapError::OutOfFrames)?;
+            crate::untyped::retype_page(self.backing.region()).ok_or(MapError::OutOfPageFrames)?;
         self.map_at(va, frame, flags)?;
 
         // SAFETY: the frame is ours (retyped from our region), and the direct map is valid for
@@ -283,7 +283,7 @@ pub fn user_address_space_create(region: u64) -> Option<u64> {
     };
 
     let space = AddressSpace {
-        root: Frame::from_addr(root),
+        root: PageFrame::from_addr(root),
         asid,
         // Lent, not owned: the caller holds the `Untyped` capability to this region and reclaims
         // it with `DESTROY`. See `Backing` for the double free that taught us to say so.
@@ -300,7 +300,7 @@ pub fn user_address_space_create(region: u64) -> Option<u64> {
 
 /// Map `phys` into the user-built space `name` at `va` (the `MAP_INTO` engine). Tables and the
 /// §13 record come from the space's own backing region; an unrecordable mapping is unmapped and
-/// refused, exactly as at the `frame::MAP` syscall, because a mapping revocation cannot see is
+/// refused, exactly as at the `page_frame::MAP` syscall, because a mapping revocation cannot see is
 /// the §13 use-after-free.
 pub fn user_address_space_map(name: u64, va: u64, phys: u64, flags: Flags) -> Result<(), MapError> {
     let mut spaces = USER_SPACES.lock();
@@ -309,7 +309,7 @@ pub fn user_address_space_map(name: u64, va: u64, phys: u64, flags: Flags) -> Re
     space.map_physical(va, phys, flags)?;
     if !crate::revoke::record_mapping(phys, space.root(), va) {
         mmu::unmap_user_at(space.root(), va);
-        return Err(MapError::OutOfFrames);
+        return Err(MapError::OutOfPageFrames);
     }
     // A code page a loader just filled via data writes (milestone 19d): the instruction fetcher
     // has its own cache and has never heard of those bytes. On aarch64 the I-cache is not
@@ -455,7 +455,7 @@ pub fn load(image: &[u8]) -> Result<(AddressSpace, u64), LoadError> {
         + 1;
 
     let mut space =
-        AddressSpace::new(content).ok_or(LoadError::Unmappable(MapError::OutOfFrames))?;
+        AddressSpace::new(content).ok_or(LoadError::Unmappable(MapError::OutOfPageFrames))?;
 
     map_segments(&mut space, &elf)?;
 
@@ -865,7 +865,7 @@ pub fn spawn_init(
         // this boundary: init can hand a child a reader and has nothing that could set the time.
         // `GRANT` so it can hand one on at all.
         if let Some(phys) = clock_page {
-            crate::sched::grant(crate::cap::frame_cap(
+            crate::sched::grant(crate::cap::page_frame_cap(
                 phys,
                 crate::cap::Rights::READ.union(crate::cap::Rights::GRANT),
             ))
@@ -882,7 +882,7 @@ pub fn spawn_init(
                     crate::cap::Rights::WRITE.union(crate::cap::Rights::GRANT),
                 ))
                 .expect("grant the file service");
-                crate::sched::grant(crate::cap::frame_cap(
+                crate::sched::grant(crate::cap::page_frame_cap(
                     file_shared,
                     crate::cap::Rights::WRITE.union(crate::cap::Rights::GRANT),
                 ))
@@ -1334,12 +1334,12 @@ fn x86_build_child(
 /// **Name provisional** (milestone 161, roadmap item 4).
 #[cfg(target_arch = "x86_64")]
 pub fn x86_userspace_demo() -> Result<X86UserspaceReport, &'static str> {
-    let before = crate::memory::free_frames();
+    let before = crate::memory::free_page_frames();
     let round = x86_userspace_round()?;
-    let after_first = crate::memory::free_frames();
+    let after_first = crate::memory::free_page_frames();
     // The same two children again, from scratch. See `X86UserspaceReport::second_round_frames`.
     x86_userspace_round()?;
-    let after_second = crate::memory::free_frames();
+    let after_second = crate::memory::free_page_frames();
 
     Ok(X86UserspaceReport {
         first_round_frames: before as isize - after_first as isize,
@@ -1502,7 +1502,7 @@ pub fn riscv_initrd_demo(archive: &'static [u8]) -> Result<u64, LoadError> {
         + INIT_STACK_PAGES
         + 8;
     let mut space =
-        AddressSpace::new(content).ok_or(LoadError::Unmappable(MapError::OutOfFrames))?;
+        AddressSpace::new(content).ok_or(LoadError::Unmappable(MapError::OutOfPageFrames))?;
     map_segments(&mut space, &elf)?;
     for k in 0..INIT_STACK_PAGES {
         space
@@ -1634,7 +1634,7 @@ pub fn riscv_uart_driver_demo(
         + INIT_STACK_PAGES
         + 8;
     let mut space =
-        AddressSpace::new(content).ok_or(LoadError::Unmappable(MapError::OutOfFrames))?;
+        AddressSpace::new(content).ok_or(LoadError::Unmappable(MapError::OutOfPageFrames))?;
     map_segments(&mut space, &elf)?;
     for k in 0..INIT_STACK_PAGES {
         space
@@ -1730,7 +1730,7 @@ pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), Loa
         + INIT_STACK_PAGES
         + 8;
     let mut space =
-        AddressSpace::new(content).ok_or(LoadError::Unmappable(MapError::OutOfFrames))?;
+        AddressSpace::new(content).ok_or(LoadError::Unmappable(MapError::OutOfPageFrames))?;
     map_segments(&mut space, &elf)?;
     for k in 0..INIT_STACK_PAGES {
         space
@@ -1788,7 +1788,7 @@ pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), Loa
     // nothing that could set the time. See [`boot_clock_page`].
     let s3 = crate::sched::thread_control_block_insert_cap(
         tid,
-        crate::cap::frame_cap(boot_clock_page(), Rights::READ.union(Rights::GRANT)),
+        crate::cap::page_frame_cap(boot_clock_page(), Rights::READ.union(Rights::GRANT)),
         None,
     )
     .expect("insert the clock page");
@@ -1811,7 +1811,7 @@ pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), Loa
             assert_eq!(s4, 4);
             let s5 = crate::sched::thread_control_block_insert_cap(
                 tid,
-                crate::cap::frame_cap(file_shared, Rights::WRITE.union(Rights::GRANT)),
+                crate::cap::page_frame_cap(file_shared, Rights::WRITE.union(Rights::GRANT)),
                 None,
             )
             .expect("insert the shared file page");
@@ -1961,7 +1961,7 @@ fn term_print(out: u64, ep: crate::sched::RendezvousId, text: &[u8]) {
 /// `Spawn` literal, and know nothing about what they do. It never sees a virtio-gpu command, a
 /// pixel, or a rectangle. What is new is the **size** of the DMA region, and that is the whole
 /// memory story: a framebuffer does not fit in the single page the disk and NIC drivers get, so the
-/// region is `1 + graphics_proto::SURFACE_FRAMES` **contiguous** frames, page 0 for the rings and the
+/// region is `1 + graphics_proto::SURFACE_PAGE_FRAMES` **contiguous** frames, page 0 for the rings and the
 /// control buffers and the rest for the surface. Registering the whole run as the driver's DMA region
 /// is what keeps the framebuffer inside the grant: the shadow-ring validator bounds every descriptor
 /// to it, and `iommu::confine` maps exactly it, so the device can reach the pixels and nothing else.
@@ -2342,7 +2342,7 @@ mod display_tests;
 /// aarch64 and the riscv64 ELF on riscv, out of each arch's own initrd.
 ///
 /// **Since milestone 51 it is also granted a wall clock**: a clock service is started first, and
-/// the program gets that service's page as a `Frame` capability with `READ` in slot 5 plus a
+/// the program gets that service's page as a `PageFrame` capability with `READ` in slot 5 plus a
 /// read-only mapping of it. That is the whole of a std program's wall-clock authority, and it is
 /// what turns `SystemTime::now()` from "1970 plus uptime" into a real answer (DECISIONS §43).
 #[cfg(test)]
@@ -2360,19 +2360,19 @@ mod std_tests;
 /// to (`GRANT`). This wires the smallest scenario that exercises all three: a *granter* delegates a
 /// resource capability to a *receiver* over a channel, narrowed to `WRITE` (no `GRANT`); the
 /// receiver uses it and then cannot pass it on. See user/src/hello.rs `granter()/receiver()`.
-/// **Frame capabilities: shared memory a process holds, maps, and delegates.**
+/// **`PageFrame` capabilities: shared memory a process holds, maps, and delegates.**
 ///
 /// The payoff of delegation applied to memory. A *producer* retypes a page out of its own untyped
-/// into a `Frame` capability, maps it, writes into it, and delegates a READ-only view to a
+/// into a `PageFrame` capability, maps it, writes into it, and delegates a READ-only view to a
 /// *consumer*, which maps the same physical page and reads what the producer wrote. The kernel
 /// copies nothing and pre-arranges nothing: the two processes compose the sharing themselves, and
 /// the read-only narrowing means the consumer can look but not write. See user/src/hello.rs
-/// `frame_producer()/frame_consumer()`.
+/// `page_frame_producer()/page_frame_consumer()`.
 // Test scaffolding: the `tests` module below is the only caller, and it runs on both ISAs now
 // (milestone 19's user-test port). This wiring was already portable; it was compiled out on riscv64
 // only because its consumer was.
 #[cfg(test)]
-pub mod frame_service;
+pub mod page_frame_service;
 
 // Test scaffolding: the `tests` module below is the only caller, and it runs on both ISAs now
 // (milestone 19's user-test port). This wiring was already portable; it was compiled out on riscv64
@@ -2562,7 +2562,7 @@ mod c_seam_tests;
 /// lifecycle-aware anything: `swapper` is an unprivileged process with a budget, one device
 /// capability and four endpoints, and the swap is the composition of mechanisms that already
 /// existed for their own reasons. What milestone 23 needed the kernel to grow is exactly one thing:
-/// `Frame::REVOKE` now answers on a `DeviceFrame`, with take-back semantics (§41).
+/// `PageFrame::REVOKE` now answers on a `DeviceFrame`, with take-back semantics (§41).
 ///
 /// **The claim is not that a swap completes. It is that a client does not notice.** So the shape is
 /// the one milestones 29, 33 and 36 used: two witnesses in two address spaces, an attacker with
@@ -2856,7 +2856,7 @@ mod time_tests;
 /// The **same run** of the same script [`redirection_tests`] asserts about, whose tail milestone 67
 /// added: one shell, once. A seventh scripted shell would have been a seventh live process whose
 /// frames nothing reclaims, and wiring one put [`time_tests`] over the frame pool intermittently
-/// (`refused to load a user program: Unmappable(OutOfFrames)`). The wiring these lines need is
+/// (`refused to load a user program: Unmappable(OutOfPageFrames)`). The wiring these lines need is
 /// [`redirection_tests`]'s exactly, so a second copy bought nothing but the failure.
 ///
 /// It is still its own module, because what it claims is its own: the redirection tests are about

@@ -8,9 +8,9 @@
 //! either program's first instruction. Nothing in either capability table said the memory was there, and
 //! nothing could narrow it, hand it on, or take it back.
 //!
-//! Each program now holds its pages as `Frame` capabilities and maps them itself, out of an untyped
+//! Each program now holds its pages as `PageFrame` capabilities and maps them itself, out of an untyped
 //! it also holds. **This is where the object shows its edge**, and the milestone's scope note asked
-//! for exactly this finding: a `Frame` names *one page*, so the driver's nine-page DMA region is
+//! for exactly this finding: a `PageFrame` names *one page*, so the driver's nine-page DMA region is
 //! nine capabilities in nine consecutive slots of a sixteen-slot capability table. It fits, with one slot
 //! spare, and it would not fit a larger surface. The `const` assertion on `DRIVER_SLOT_DMA` is
 //! there so that a scanout somebody widens fails the build rather than the boot.
@@ -19,11 +19,11 @@
 //! the only page the kernel still places is the one `load` gives every process.
 
 use super::*;
-use crate::cap::{Rights, frame_cap, irq_cap, rendezvous_cap, untyped_cap, virtio_cap};
+use crate::cap::{Rights, irq_cap, page_frame_cap, rendezvous_cap, untyped_cap, virtio_cap};
 use crate::sched::RendezvousId;
 
 /// The DMA region, in frames: one for the rings and control buffers, then the surface.
-const DMA_FRAMES: u64 = 1 + graphics_proto::SURFACE_FRAMES as u64;
+const DMA_PAGE_FRAMES: u64 = 1 + graphics_proto::SURFACE_PAGE_FRAMES as u64;
 
 /// The driver binary's escape-attempt role; must match user/src/display.rs `ROLE_BACKING_ESCAPE`.
 const ROLE_BACKING_ESCAPE: u64 = 1;
@@ -39,17 +39,17 @@ const DRIVER_SLOT_IRQ: u64 = 1;
 const DRIVER_SLOT_VIRTIO: u64 = 2;
 const DRIVER_SLOT_DISPLAY: u64 = 3;
 const DRIVER_SLOT_BUDGET: u64 = 4;
-/// The first of [`DMA_FRAMES`] consecutive slots holding the DMA region, frame by frame.
+/// The first of [`DMA_PAGE_FRAMES`] consecutive slots holding the DMA region, frame by frame.
 ///
-/// **This is the milestone's honest cost, and it is worth saying out loud.** A `Frame` names one
+/// **This is the milestone's honest cost, and it is worth saying out loud.** A `PageFrame` names one
 /// page, so a nine-page DMA region is nine capabilities and nine `MAP` calls, and slots 5 through
 /// 13 of a sixteen-slot capability table (`cap::CAPABILITY_TABLE_SLOTS`, one of which is reserved for the fault
 /// endpoint) go to naming one contiguous run of memory. It fits, with one slot spare. A driver with
 /// a larger surface would not fit at all. See notes/frames.md's BUGS.
 const DRIVER_SLOT_DMA: u64 = 5;
 const _: () = assert!(
-    DRIVER_SLOT_DMA + DMA_FRAMES <= abi::fault::FAULT_EP_SLOT,
-    "the display driver's DMA region no longer fits its capability table beside the fault slot: a Frame \
+    DRIVER_SLOT_DMA + DMA_PAGE_FRAMES <= abi::fault::FAULT_EP_SLOT,
+    "the display driver's DMA region no longer fits its capability table beside the fault slot: a PageFrame \
      names one page and this region is a run of them",
 );
 
@@ -57,7 +57,7 @@ const _: () = assert!(
 const CLIENT_SLOT_REPORT: u64 = 0;
 const CLIENT_SLOT_DISPLAY: u64 = 1;
 const CLIENT_SLOT_BUDGET: u64 = 2;
-/// The first of `graphics_proto::SURFACE_FRAMES` consecutive slots holding the scanout.
+/// The first of `graphics_proto::SURFACE_PAGE_FRAMES` consecutive slots holding the scanout.
 const CLIENT_SLOT_SURFACE: u64 = 3;
 
 // The display terminal's capability table. Must match user/src/display_terminal.rs.
@@ -65,10 +65,10 @@ const TERM_SLOT_REPORT: u64 = 0;
 const TERM_SLOT_DISPLAY: u64 = 1;
 const TERM_SLOT_TERM: u64 = 2;
 const TERM_SLOT_BUDGET: u64 = 3;
-/// The first of `graphics_proto::SURFACE_FRAMES` consecutive slots holding the scanout, then one more
+/// The first of `graphics_proto::SURFACE_PAGE_FRAMES` consecutive slots holding the scanout, then one more
 /// for the page an application writes text into.
 const TERM_SLOT_SURFACE: u64 = 4;
-const TERM_SLOT_OUT: u64 = TERM_SLOT_SURFACE + graphics_proto::SURFACE_FRAMES as u64;
+const TERM_SLOT_OUT: u64 = TERM_SLOT_SURFACE + graphics_proto::SURFACE_PAGE_FRAMES as u64;
 
 /// Grant `count` frames of the contiguous run at `base` into consecutive slots from `first`,
 /// read/write. The counterpart of the `MAP` loop each of these programs runs at startup.
@@ -76,7 +76,7 @@ fn grant_run(first: u64, base: u64, count: u64, what: &str) {
     for k in 0..count {
         crate::sched::grant_at(
             first + k,
-            frame_cap(base + k * FRAME_SIZE, Rights::READ.union(Rights::WRITE)),
+            page_frame_cap(base + k * FRAME_SIZE, Rights::READ.union(Rights::WRITE)),
         )
         .unwrap_or_else(|_| panic!("{what}: slot {} was occupied", first + k));
     }
@@ -114,7 +114,7 @@ pub fn start(
         grant_run(
             CLIENT_SLOT_SURFACE,
             surface,
-            graphics_proto::SURFACE_FRAMES as u64,
+            graphics_proto::SURFACE_PAGE_FRAMES as u64,
             "the painting client",
         );
         run(
@@ -169,7 +169,7 @@ fn wire_driver(
     // device's backing to be a single memory entry and for the IOMMU domain to cover it as one
     // range. Zeroed, so neither a stale descriptor nor a stale pixel is ever visible to the
     // device or to the client.
-    let dma = crate::memory::alloc_contiguous(DMA_FRAMES as usize)
+    let dma = crate::memory::alloc_contiguous(DMA_PAGE_FRAMES as usize)
         .expect("no contiguous DMA region for the display driver")
         .addr();
     // SAFETY: a fresh contiguous run of frames, reachable through the direct map, owned by
@@ -178,7 +178,7 @@ fn wire_driver(
         core::ptr::write_bytes(
             mmu::phys_to_virt(dma) as *mut u8,
             0,
-            (DMA_FRAMES * FRAME_SIZE) as usize,
+            (DMA_PAGE_FRAMES * FRAME_SIZE) as usize,
         );
     }
     let surface = dma + FRAME_SIZE; // page 1 onward: the frames the client also maps
@@ -194,7 +194,7 @@ fn wire_driver(
     let vid = crate::virtio::register(
         crate::virtio::Transport::pci(&d),
         dma,
-        DMA_FRAMES * FRAME_SIZE,
+        DMA_PAGE_FRAMES * FRAME_SIZE,
         Some(d.rid), // the PCIe requester id the IOMMU keys its tables on
     );
 
@@ -202,7 +202,7 @@ fn wire_driver(
     let driver_report = crate::sched::create_rendezvous();
 
     // --- the driver: the confined transport, the interrupt, the whole DMA region, and the
-    // display endpoint's serving half. The region is DMA_FRAMES separate `Frame` capabilities, one
+    // display endpoint's serving half. The region is DMA_PAGE_FRAMES separate `PageFrame` capabilities, one
     // per page, because that is the granularity the object has (see [`DRIVER_SLOT_DMA`]). ---
     let budget = crate::untyped::create(MAP_BUDGET_PAGES).expect("no map budget for the driver");
     let intid = d.intid;
@@ -226,7 +226,7 @@ fn wire_driver(
         .expect("driver slot 3 was occupied");
         crate::sched::grant_at(DRIVER_SLOT_BUDGET, untyped_cap(budget))
             .expect("driver slot 4 was occupied");
-        grant_run(DRIVER_SLOT_DMA, dma, DMA_FRAMES, "the display driver");
+        grant_run(DRIVER_SLOT_DMA, dma, DMA_PAGE_FRAMES, "the display driver");
         run(
             driver_image,
             Spawn {
@@ -332,7 +332,7 @@ pub fn start_terminal(
         grant_run(
             TERM_SLOT_SURFACE,
             surface,
-            graphics_proto::SURFACE_FRAMES as u64,
+            graphics_proto::SURFACE_PAGE_FRAMES as u64,
             "the display terminal",
         );
         // The page an application writes text into.

@@ -32,7 +32,7 @@
 //!
 //! The roadmap flagged one hazard here and it is real: `phys_to_virt` must not change meaning under
 //! anything that already used it. The frame allocator's bitmap is the sharp case, because
-//! `memory::bring_up_frames` turns a physical address into a `&'static mut [u8]` and **stores it**,
+//! `memory::bring_up_page_frames` turns a physical address into a `&'static mut [u8]` and **stores it**,
 //! long before there is a fine map; the PVH structure and the ACPI tables are read the same way.
 //!
 //! Rather than sequence around that (map the old alias too, switch, then drop it), `boot.s` gives
@@ -293,7 +293,7 @@ static KERNEL_MMU: crate::sync::IrqSafeMutex<()> =
 /// a real convenience while debugging and it is also the reason a port capability is an open
 /// question (DECISIONS §121).
 pub fn init() {
-    let free_before = memory::free_frames();
+    let free_before = memory::free_page_frames();
     let root = memory::alloc()
         .expect("no frame for the root page table")
         .addr();
@@ -318,7 +318,7 @@ pub fn init() {
     map_everything(&mut mapper).expect("failed to build the kernel page tables");
     verify(&mapper);
     TABLE_FRAMES.store(
-        (free_before - memory::free_frames()) as u64,
+        (free_before - memory::free_page_frames()) as u64,
         Ordering::Relaxed,
     );
 
@@ -984,8 +984,8 @@ pub fn map_current_user_page(
     flags: paging::Flags,
     mut alloc: impl FnMut() -> Option<u64>,
 ) -> Result<u64, paging::MapError> {
-    let leaf = alloc().ok_or(paging::MapError::OutOfFrames)?;
-    map_current_user_frame(va, leaf, flags, alloc)?;
+    let leaf = alloc().ok_or(paging::MapError::OutOfPageFrames)?;
+    map_current_user_page_frame(va, leaf, flags, alloc)?;
     Ok(leaf)
 }
 
@@ -997,7 +997,7 @@ pub fn map_current_user_page(
 /// was mapped and unmapped inside one address space would otherwise keep the old translation, and
 /// distinguishing the two cases here would be a foot gun for one `invlpg`.
 #[allow(dead_code)]
-pub fn map_current_user_frame(
+pub fn map_current_user_page_frame(
     va: u64,
     phys: u64,
     flags: paging::Flags,

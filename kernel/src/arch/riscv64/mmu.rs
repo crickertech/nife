@@ -746,8 +746,8 @@ pub fn map_current_user_page(
     flags: Flags,
     mut alloc: impl FnMut() -> Option<u64>,
 ) -> Result<u64, MapError> {
-    let leaf = alloc().ok_or(MapError::OutOfFrames)?;
-    map_current_user_frame(va, leaf, flags, alloc)?;
+    let leaf = alloc().ok_or(MapError::OutOfPageFrames)?;
+    map_current_user_page_frame(va, leaf, flags, alloc)?;
     Ok(leaf)
 }
 
@@ -772,7 +772,7 @@ pub fn translate_at(root: u64, va: u64) -> Option<(u64, Flags)> {
 /// Map one user page at `va` onto the already-owned physical frame `phys` in the current address
 /// space, drawing any intermediate tables from `alloc`, then flush the TLB for `va` (RISC-V may
 /// require an `sfence.vma` to make a freshly-valid leaf visible, unlike aarch64).
-pub fn map_current_user_frame(
+pub fn map_current_user_page_frame(
     va: u64,
     phys: u64,
     flags: Flags,

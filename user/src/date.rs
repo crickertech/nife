@@ -109,7 +109,7 @@ use user_rt::{exit, invoke, monotonic_nanos, send};
 /// so a reader that can already reassemble a std program's stdout can read this too.
 const REPORT: u64 = 0;
 
-/// Slot 1: the clock page's `Frame` capability, with `READ` and nothing else. Its *presence* is
+/// Slot 1: the clock page's `PageFrame` capability, with `READ` and nothing else. Its *presence* is
 /// what [`clock_page`] probes for; its rights are what stop this program setting the clock.
 const CLOCK_SLOT: u64 = 1;
 
@@ -323,7 +323,7 @@ fn granted(slot: u64) -> bool {
 /// The probe has to answer **without touching the page**, because a process that was granted no
 /// clock has nothing mapped at [`CLOCK_VA`] and a read there would fault instead of returning an
 /// answer. So it invokes the capability in the slot with a method number no object type defines:
-/// an empty slot answers `NoSuchSlot`, and a real `Frame` answers `BadMethod`, which is a refusal
+/// an empty slot answers `NoSuchSlot`, and a real `PageFrame` answers `BadMethod`, which is a refusal
 /// from an object that exists and is therefore proof one is there. Same shape as the std PAL's
 /// `granted()`; the two are the same problem.
 fn clock_page() -> Option<ClockPage> {

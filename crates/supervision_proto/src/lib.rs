@@ -270,7 +270,7 @@ pub fn build_child_space(
     }
 
     for k in 0..endow.stack_pages {
-        let stack_frame = retype_frame_from(build_ut)?;
+        let stack_frame = retype_page_frame_from(build_ut)?;
         let va = CHILD_STACK_VA - k * PAGE;
         // SAFETY: `invoke` traps to the kernel, which validates the capability and the method
         // before acting (user_rt's contract). A caller cannot break an invariant by passing a
@@ -400,10 +400,10 @@ fn fill_and_map(
     src: Option<(usize, &[u8])>,
     mode: u64,
 ) -> Result<(), ()> {
-    let frame = retype_frame_from(build_ut)?;
+    let frame = retype_page_frame_from(build_ut)?;
     let scratch = SCRATCH_NEXT.fetch_add(PAGE, core::sync::atomic::Ordering::Relaxed);
     // SAFETY: as above: the kernel validates the capability and the method.
-    if unsafe { invoke(frame, abi::frame::MAP, scratch, 1, own_ut) } != 0 {
+    if unsafe { invoke(frame, abi::page_frame::MAP, scratch, 1, own_ut) } != 0 {
         return Err(());
     }
     // SAFETY: `scratch` is a page we just mapped read/write in our own address space.
@@ -428,9 +428,9 @@ pub fn retype_obj_from(ut: u64, objtype: u64) -> Result<u64, ()> {
     if r < 0 { Err(()) } else { Ok(r as u64) }
 }
 
-/// Retype one page of `ut` into a plain `Frame` capability, unmapped, returning the slot it
+/// Retype one page of `ut` into a plain `PageFrame` capability, unmapped, returning the slot it
 /// landed in.
-pub fn retype_frame_from(ut: u64) -> Result<u64, ()> {
+pub fn retype_page_frame_from(ut: u64) -> Result<u64, ()> {
     // SAFETY: as above: the kernel validates the capability and the method.
     let r = unsafe { invoke(ut, abi::untyped::RETYPE, 0, 0, 0) };
     if r < 0 { Err(()) } else { Ok(r as u64) }

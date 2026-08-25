@@ -632,7 +632,7 @@ mod tests {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     enum Obj {
         Console,
-        Frame(u64),
+        PageFrame(u64),
     }
 
     /// **A new process holds nothing.** The decision, as an assertion.
@@ -676,7 +676,7 @@ mod tests {
         cs.put(
             0,
             Cap {
-                object: Obj::Frame(0x1000),
+                object: Obj::PageFrame(0x1000),
                 rights: Rights::READ,
             },
         )
@@ -705,7 +705,7 @@ mod tests {
         cs.put(
             0,
             Cap {
-                object: Obj::Frame(0x4000),
+                object: Obj::PageFrame(0x4000),
                 rights: Rights::READ.union(Rights::WRITE).union(Rights::GRANT),
             },
         )
@@ -846,11 +846,11 @@ mod tests {
     fn insert_at_fills_exactly_the_named_slot() {
         let mut cs: CapabilityTable<Obj, 4> = CapabilityTable::new();
         let cap = Cap {
-            object: Obj::Frame(7),
+            object: Obj::PageFrame(7),
             rights: Rights::READ,
         };
         assert_eq!(cs.insert_at(2, cap), Ok(2));
-        assert_eq!(cs.get(2).unwrap().object, Obj::Frame(7));
+        assert_eq!(cs.get(2).unwrap().object, Obj::PageFrame(7));
         assert!(!cs.is_empty());
         // The other slots are still empty, so it did not spray.
         assert_eq!(cs.get(0).err(), Some(Error::NoSuchSlot));

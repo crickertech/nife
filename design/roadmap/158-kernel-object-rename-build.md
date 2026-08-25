@@ -160,23 +160,84 @@ post-rename; and the full `script/test` suite green on aarch64, riscv64 and x86_
 
 ## What is still open
 
-Two names remain, re-measured fresh rather than carried over from this block's stale table:
+One name remains, re-measured fresh rather than carried over from this block's stale table:
 
 | Was | Becomes | Fresh count (`.rs` files, occurrences) |
 |---|---|---|
-| `Untyped` | `MemoryRegion` | 25 files, 60 occurrences (capitalized token only; likely larger once `crates/regions`' own lowercase vocabulary and any `untyped::`-module ABI surface are counted, the same pattern that grew `Endpoint`'s, `Tcb`'s and `Aspace`'s real scope past their measured tables) |
-| `Frame` | `PageFrame` | 46 files, 157 occurrences (capitalized token only; `Frame` is also the compositor's own word for a screen update, so this rename needs the same care `Endpoint` needed distinguishing `crates/glob`'s range endpoints -- check every file before renaming, not just the capitalized-token list) |
+| `Untyped` | `MemoryRegion` | 25 files, 60 occurrences (capitalized token only; likely larger once `crates/regions`' own lowercase vocabulary and any `untyped::`-module ABI surface are counted, the same pattern that grew `Endpoint`'s, `Tcb`'s, `Aspace`'s and `Frame`'s real scope past their measured tables) |
 
-Given `Endpoint`, `Tcb` and `Aspace` (the three done so far) all turned out to touch an ABI module,
-an object-kind constant and a family of lowercase identifiers well beyond their measured tables
-(`Endpoint` 81/23 -> a real surface past 200 occurrences once `EpId` was counted; `Aspace` 17/9 ->
-391 occurrences across 37 files once every case form and compound identifier was counted), the same
-should be expected of the two that remain, especially `Untyped` (its own `crates/regions` already
-independently converged on "region" vocabulary per DECISIONS §113's own finding). Each is its own
-lane per this block's own sequencing instruction: "an inconsistent tree where one name is renamed
-and another is not is a worse intermediate state than finishing one name completely and stopping"
-applies symmetrically -- finish `Untyped` or `Frame` completely in its own lane rather than
-partially touching both.
+Given `Endpoint`, `Tcb`, `Aspace` and `Frame` (the four done so far) all turned out to touch an ABI
+module, an object-kind constant and a family of lowercase identifiers well beyond their measured
+tables (`Endpoint` 81/23 -> a real surface past 200 occurrences once `EpId` was counted; `Aspace`
+17/9 -> 391 occurrences across 37 files once every case form and compound identifier was counted;
+`Frame` 46/157 -> 97 files once the derived lowercase and companion surface was counted), the same
+should be expected of `Untyped`, whose own `crates/regions` already independently converged on
+"region" vocabulary per DECISIONS §113's own finding. It is the last of the seven and needs no
+further sequencing instruction beyond finishing it.
+
+## `Frame` -> `PageFrame`: what was built
+
+Built 2026-08-24. The compositor collision named above is real and was checked file by file rather
+than trusted from a capitalized-token grep, because "frame" (lowercase) is a common English word with
+several genuinely distinct in-tree senses that all had to be told apart before touching anything:
+
+- **`crates/compositor`'s own sense, a rendered screen update** (the collision §113 named). Left
+  untouched throughout `crates/compositor/src/lib.rs`, `kernel/src/user/compositor_service.rs`,
+  `user/src/compositor.rs` (`serve_frame`, "Serve one frame. Read every client's control page,
+  composite whatever changed"), and `crates/watch`/`kernel/src/user/watch_tests.rs`
+  (`a_second_frame_erases_the_first_rather_than_leaving_it_on_screen`, a terminal redraw, the same
+  sense). Two of these instances sit on lines immediately adjacent to genuine `PageFrame` renames in
+  the same file (`kernel/src/user/compositor_service.rs`'s `zeroed_page_frame()` helper beside its
+  own "the compositor has processed the frame" prose two functions over), which is exactly the
+  fine-grained case the milestone doc's own warning anticipated.
+- **A CPU call frame (`TrapFrame`, compiler stack-size accounting), not named or anticipated by
+  §113.** `kernel/src/user.rs`'s `enter_frame`/`enter_at` (builds the trap frame a thread's first
+  `eret`/`sret` restores from), every architecture's `exceptions.rs`, and `notes/frames.md`'s own
+  stack-overflow postmortem section all use "frame" for this unrelated concept and were left alone.
+- **A raw network frame (Ethernet/ARP/mDNS), also not anticipated by §113.** `crates/virtio::send_frame`
+  (a virtio-net transmit), `user/src/net_transport.rs`'s `VnetRxToken { frame: Vec<u8> }`, and
+  `xtask/src/main.rs`'s `arp_request_frame`/`mdns_query_frame` packet builders. None renamed.
+- **Arbitrary example text, unrelated to any of the above.** `crates/manual/src/index.rs`'s search-
+  index tokenizer test used the literal string `` `Frame` `` as stand-in content to exercise a
+  generic tokenizer, not as a citation of the kernel object; the initial blanket capitalized-token
+  pass touched it by accident (it broke a test), and it was reverted to `Frame` once the test failure
+  traced it back. Recorded because it is the one miss this lane's own build caught rather than caught
+  in review.
+
+What did rename, once the four collisions above were excluded: the type (`Frame` -> `PageFrame`,
+`FrameAllocator` -> `PageFrameAllocator` in `crates/page_frames`, the crate that is this object's own
+underlying physical-page allocator and was swept at the same identifier-only rung as `crates/page_frames`
+itself, not full prose), the `abi::frame` -> `abi::page_frame` ABI module (methods `MAP`/`REVOKE` keep
+their own names, unchanged, matching how `Endpoint`'s `SEND`/`RECV` were left alone), and a long tail
+of lowercase functions, constants, fields and module paths that spell the concept out: `frame_cap` ->
+`page_frame_cap`, `delete_frame_caps` -> `delete_page_frame_caps`, `revoke_frame` ->
+`revoke_page_frame`, `frame_map`/`frame_revoke` -> `page_frame_map`/`page_frame_revoke`,
+`is_frame_used`/`bring_up_frames`/`free_frames` -> their `page_frame` equivalents,
+`map_current_user_frame` (all three architectures) -> `map_current_user_page_frame`, `OutOfFrames` ->
+`OutOfPageFrames` (`crates/paging`), `zeroed_frame` -> `zeroed_page_frame` (three IOMMU files plus
+`compositor_service.rs`'s own, unrelated to that file's screen-frame prose), the `FRAME_REPORT_MIN`/
+`SUITE_FRAME_BUDGET`/`rank::FRAMES` test-ledger and lock-rank constants, `SURFACE_FRAMES`/`SCREEN_FRAMES`/
+`DMA_FRAMES` (`graphics_proto`, `compositor_service.rs`, `display_service.rs`) -> their
+`_PAGE_FRAMES` forms, `OP_ATTACH_FRAME` (`socket_proto`, a shared-memory attach opcode, not a network
+frame) -> `OP_ATTACH_PAGE_FRAME`, the `grant_plan::jobframe` module -> `job_page_frame`, and the
+`kernel/src/user/frame_service.rs` module (a kernel-side Frame-producer/consumer test wiring) ->
+`page_frame_service.rs`. `FRAME_SIZE` was checked and left alone deliberately: every use names the
+size of one physical page frame, which is the correct, unambiguous sense already.
+
+**`DeviceFrame` was left unrenamed**, a judgment call rather than something §113 decided: its own doc
+comment already disambiguates it from the compositor ("a device's MMIO page"), it was not among
+§113's eleven names or the `CSpace` amendment, and companion-renaming an unlisted sibling is the kind
+of scope creep `AGENTS.md`'s naming section asks a lane not to do on its own initiative. `DeviceFrame`'s
+own doc citations of bare `` `Frame` `` were updated to `` `PageFrame` ``, since those are citations of
+the type that did rename.
+
+Verified: `script/lint` clean; the full host test suite (`script/test`, all three architectures --
+aarch64, riscv64, x86_64) green; both Kani-proof-bearing crates that reference the renamed type
+(`crates/capability` and `crates/page_frames`) verify successfully post-rename, satisfying milestone
+69's proof obligation. `notes/frames.md` rewritten with a provenance note for a reader who remembers
+`Frame`, following `notes/ipc-naming.md`'s precedent from the `Endpoint` rename; its stack-frame
+postmortem section (a CPU call frame investigation, unrelated to this object) is called out explicitly
+as deliberately untouched rather than silently left inconsistent.
 
 ## The seven renames, and what each one actually touches
 
@@ -184,11 +245,11 @@ partially touching both.
 |---|---|---|
 | `Aspace` | `AddressSpace` | **done**: 391 occurrences across 37 `.rs` files, plus `FreeVas`'s 10 across 3 |
 | `Untyped` | `MemoryRegion` | -- |
-| `Endpoint` | `Rendezvous` | **done**: 81 occurrences across 23 `.rs` files by §113's own count; larger once `EpId` and the ABI module were counted (see "What was built") |
-| `Frame` | `PageFrame` | -- |
-| `Tcb` | `ThreadControlBlock` | **done**: 33 occurrences across 12 `.rs` files (measured fresh; the lowercase identifier family well past this) |
+| `Endpoint` | `Rendezvous` | **done**: 82 occurrences across 22 `.rs` files by fresh count; 216 for `EpId` across 43 files |
+| `Frame` | `PageFrame` | **done**: 51 files, 172 occurrences of the bare capitalized token alone (stale table undercounted, same pattern as `Endpoint`); real diff 97 `.rs` files plus `notes/frames.md`, 918 insertions / 899 deletions, including two file renames and an `abi::frame` -> `abi::page_frame` module rename. See "`Frame` -> `PageFrame`: what was built" below |
+| `Tcb` | `ThreadControlBlock` | **done**: 33 occurrences across 12 `.rs` files by fresh count; the lowercase identifier family well past this |
 | `EpId` | `RendezvousId` | **done**, with `Endpoint`: 216 occurrences across 43 files, once the type alias's own call sites were counted |
-| `Tid` | `ThreadId` | **done**, with `Tcb`: 82 occurrences across 13 `.rs` files (measured fresh) |
+| `Tid` | `ThreadId` | **done**, with `Tcb`: 82 occurrences across 13 `.rs` files by fresh count |
 
 Plus the four companions §113 also decided in the same entry: `TcbPtr` -> `ThreadControlBlockPointer`
 (**done**, with `Tcb`; 11 occurrences, `kernel/src/sched.rs` only), `TidSet` -> `ThreadIdSet`
@@ -251,5 +312,6 @@ be once measured -- not decided here.
 
 Nothing else is gated on this; it closes the gap between a decision calef made and the code
 actually reflecting it, which is its own reason to exist per DECISIONS §113's whole argument: a
-name only works if a reader meets it. Two of the eleven names are done (`Endpoint`/`EpId`/`EpFail`
-and `Aspace`/`FreeVas`); today's reader still meets `Untyped`, `Frame`, and `Tcb`/`Tid`.
+name only works if a reader meets it. Ten of the eleven names are done (`Endpoint`/`EpId`/`EpFail`,
+`Tcb`/`TcbPtr`/`Tid`/`TidSet`, `Aspace`/`FreeVas`, and `Frame`); today's reader still meets only
+`Untyped`.

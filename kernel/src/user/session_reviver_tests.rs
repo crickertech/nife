@@ -54,12 +54,12 @@ fn wired() -> Option<[u64; 3]> {
             // service is fully up). Called directly, rather than through `start`, because `start`
             // hardcodes a one-page stack and both `fs_test_client` roles this suite spawns need
             // more (see `SCHEDULE_ROLE_EXTRA_STACK`).
-            let (fs_ep, fs_frame) =
+            let (fs_ep, fs_page_frame) =
                 fss::root_directory(fss::blk_server_image(), redoxfs_server_image())?;
             let seed_report = fss::spawn_fs_client(
                 client,
                 fs_ep,
-                fs_frame,
+                fs_page_frame,
                 ROLE_SCHEDULE_SEED,
                 0,
                 0,
@@ -75,10 +75,10 @@ fn wired() -> Option<[u64; 3]> {
             );
 
             // The same store, read the other way: `session_reviver` gets its own grant of the
-            // identical `(fs_ep, fs_frame)` pair the seed just wrote through, matching
+            // identical `(fs_ep, fs_page_frame)` pair the seed just wrote through, matching
             // `login.rs`/`identity_provisioner.rs`'s own unnarrowed grant for the identical
             // directory.
-            let revived = srs::revive(fs_ep, fs_frame, REVIVER_BUDGET_PAGES).expect(
+            let revived = srs::revive(fs_ep, fs_page_frame, REVIVER_BUDGET_PAGES).expect(
                 "session_reviver was either not packed into the archive or refused by its own \
                  measured-boot check (DECISIONS §123's second hardening refinement); both are \
                  build problems, not a property this suite is testing",
@@ -176,13 +176,14 @@ fn a_fresh_reader_confirms_the_store_holds_exactly_what_the_seed_wrote() {
     let client =
         program("fs_test_client").expect("no fs_test_client program in the initrd archive");
     // `wired()` above already brought the service up; `root_directory` hands back the same
-    // memoized `(fs_ep, fs_frame)` pair with its own readiness handshake already drained.
-    let (fs_ep, fs_frame) = fss::root_directory(fss::blk_server_image(), redoxfs_server_image())
-        .expect("the FS service was wired a moment ago by `wired()`");
+    // memoized `(fs_ep, fs_page_frame)` pair with its own readiness handshake already drained.
+    let (fs_ep, fs_page_frame) =
+        fss::root_directory(fss::blk_server_image(), redoxfs_server_image())
+            .expect("the FS service was wired a moment ago by `wired()`");
     let report = fss::spawn_fs_client(
         client,
         fs_ep,
-        fs_frame,
+        fs_page_frame,
         ROLE_SCHEDULE_VERIFY,
         0,
         0,

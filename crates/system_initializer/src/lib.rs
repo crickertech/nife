@@ -171,7 +171,7 @@
 //! page.
 //!
 //! Printing the negative control costs one more of those: the shell's output frame stays mapped here
-//! for life, because there is no unmap and `Frame::REVOKE` would take it from the shell too.
+//! for life, because there is no unmap and `PageFrame::REVOKE` would take it from the shell too.
 //!
 //! **Init's capability table has sixteen slots, and running out of them prints nothing at all.** Every
 //! capability held across a `build_child` is one the child's address space, frames and TCB cannot
@@ -202,8 +202,8 @@ use line_editor::proto;
 // The loader, and the tree's only one since milestone 96. Named here rather than qualified at every
 // call, because the point of the crate is that there is one of these.
 use supervision_proto::{
-    ChildEndowment, build_child, retype_frame_from as retype_frame, retype_obj_from as retype_obj,
-    thread_control_block_start,
+    ChildEndowment, build_child, retype_obj_from as retype_obj,
+    retype_page_frame_from as retype_page_frame, thread_control_block_start,
 };
 use user_rt::{call, cap_delete, invoke, recv, recv_cap, send};
 
@@ -221,7 +221,7 @@ pub struct BootEndowment {
     pub uart_dev: u64,
     /// The UART receive interrupt, an `Irq` capability to delegate into the input driver.
     pub uart_irq: u64,
-    /// **The wall clock** (milestone 51's wiring): a `Frame` capability with `READ` and nothing
+    /// **The wall clock** (milestone 51's wiring): a `PageFrame` capability with `READ` and nothing
     /// else, granted ahead of the filesystem pair so its slot is the same on every boot, whether or
     /// not a disk was attached, and granted **unconditionally**: a boot with no clock service hands
     /// us a zeroed page, which reads as `clock_proto::state::UNKNOWN` and is the honest answer for a
@@ -277,8 +277,8 @@ pub const CHILD_STACK_PAGES: u64 = 12;
 const CHILD_CLOCK_VA: u64 = 0x00c0_0000;
 
 /// Where a supervised (interruptible) child maps its shared job frame (DECISIONS §24). Below the ELF
-/// load address (`0x40_0000`) and the stack; must match heeder.rs / spinner.rs's `JOB_FRAME_VA`.
-const CHILD_JOBFRAME_VA: u64 = 0x0030_0000;
+/// load address (`0x40_0000`) and the stack; must match heeder.rs / spinner.rs's `JOB_PAGE_FRAME_VA`.
+const CHILD_JOB_PAGE_FRAME_VA: u64 = 0x0030_0000;
 
 /// Pages of untyped split off our own budget and handed the shell (milestone 31), so the shell can
 /// in turn endow the programs it spawns (`run --mem N`) out of a budget that is genuinely *its own*.
@@ -460,9 +460,9 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
     let request = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
     let reply = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
     let term_ep = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
-    let con_shared = must(retype_frame(ut)); // line_editor -> console text
-    let term_out = must(retype_frame(ut)); // shell -> line_editor text and prompts
-    let term_in = must(retype_frame(ut)); // line_editor -> shell completed lines
+    let con_shared = must(retype_page_frame(ut)); // line_editor -> console text
+    let term_out = must(retype_page_frame(ut)); // shell -> line_editor text and prompts
+    let term_in = must(retype_page_frame(ut)); // line_editor -> shell completed lines
 
     // 1. Console server: reads text from the shared page, writes it to the UART.
     let con = must(build_child(
@@ -530,7 +530,7 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
         // can see is most of what this milestone was written to fix.
         // SAFETY: `invoke` traps to the kernel, which validates the capability and the method before
         // acting (user_rt's contract).
-        if unsafe { invoke(term_out, abi::frame::MAP, INIT_OUT_VA, 1, ut) } == 0 {
+        if unsafe { invoke(term_out, abi::page_frame::MAP, INIT_OUT_VA, 1, ut) } == 0 {
             let mut buf = [0u8; SENTENCE];
             announce(
                 term_ep,
@@ -740,11 +740,11 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
     let own_ut = must(untyped_split(ut, INIT_OWN_PAGES));
     let jobs_ut = must(untyped_split(ut, JOBS_BUDGET_PAGES));
     // The shell's output page, in our own space, so we can say what just happened. This mapping is
-    // permanent (there is no unmap, and `Frame::REVOKE` would take the page from the shell too); see
+    // permanent (there is no unmap, and `PageFrame::REVOKE` would take the page from the shell too); see
     // this module's BUGS.
     // SAFETY: `invoke` traps to the kernel, which validates the capability and the method before
     // acting (user_rt's contract).
-    if unsafe { invoke(term_out, abi::frame::MAP, INIT_OUT_VA, 1, ut) } != 0 {
+    if unsafe { invoke(term_out, abi::page_frame::MAP, INIT_OUT_VA, 1, ut) } != 0 {
         fail()
     }
     cap_delete(ut);
@@ -1013,7 +1013,7 @@ fn spawn_service(
                     job,
                     e,
                     &ChildEndowment {
-                        maps: &[(CHILD_JOBFRAME_VA, fr, abi::address_space::MAP_RW)],
+                        maps: &[(CHILD_JOB_PAGE_FRAME_VA, fr, abi::address_space::MAP_RW)],
                         stack_pages: CHILD_STACK_PAGES,
                         ..ChildEndowment::new()
                     },

@@ -1,7 +1,7 @@
 use core::sync::atomic::{AtomicUsize, Ordering};
 
 use super::*;
-use crate::cap::{Rights, frame_cap, rendezvous_cap, untyped_cap};
+use crate::cap::{Rights, page_frame_cap, rendezvous_cap, untyped_cap};
 use crate::sched::RendezvousId;
 
 /// The `swish` binary's pipeline role (`user/src/swish.rs`).
@@ -61,7 +61,7 @@ pub fn start() -> Option<Wiring> {
 }
 
 /// **The same shell, told to time what it runs** (milestone 86): [`start`]'s four slots plus, when
-/// `clock` is `Some`, a `Frame` with **`READ`** at slot 4 and a read-only mapping of it.
+/// `clock` is `Some`, a `PageFrame` with **`READ`** at slot 4 and a read-only mapping of it.
 ///
 /// The three states this can be started in are the three the shell has to answer for, and they are
 /// three capability tables rather than three code paths:
@@ -224,7 +224,7 @@ fn start_with(
         // Zero means none, and zero can never be a clock because slot 0 is the terminal everywhere.
         let mut clock_slot = 0u64;
         if let Some(phys) = clock {
-            grants[g] = frame_cap(phys, Rights::READ);
+            grants[g] = page_frame_cap(phys, Rights::READ);
             clock_slot = g as u64;
             g += 1;
         }

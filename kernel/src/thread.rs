@@ -161,7 +161,7 @@ pub struct KernelStack {
     bottom: u64,
     top: u64,
     /// The physical pages backing the stack, from the kernel's own budget (`kmem`, milestone
-    /// 19c.1). Physical addresses, not `Frame`s, because they belong to the kernel object
+    /// 19c.1). Physical addresses, not `PageFrame`s, because they belong to the kernel object
     /// region and return to it (recycled) rather than to the frame allocator: the kernel's
     /// stack spending is bounded by a boot carve now, not open-ended. `0` marks a page that was
     /// never mapped (a partial-build failure path).

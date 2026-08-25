@@ -39,7 +39,7 @@
 //! And one more, granted only to a std program that is given a **wall clock** (milestone 51; the
 //! time PAL in `sys/time` binds it, DECISIONS §43):
 //!
-//! - **slot 5**: a `Frame` capability naming the clock page, with `READ`. The loader maps that
+//! - **slot 5**: a `PageFrame` capability naming the clock page, with `READ`. The loader maps that
 //!   same page **read-only** at [`CLOCK_PAGE`], and `SystemTime::now()` is then the ambient
 //!   monotonic counter plus the offset the clock service published there: two loads and an add,
 //!   no server round trip, and nothing this program can write. A program left this slot empty
@@ -60,7 +60,7 @@
 //! And one more, granted only to a std program that is given **inert configuration** (milestone
 //! 47's environment-variable fork, DECISIONS §111; `sys/env` binds it):
 //!
-//! - **slot 7**: a `Frame` capability naming the inert-configuration page, with `READ`. The
+//! - **slot 7**: a `PageFrame` capability naming the inert-configuration page, with `READ`. The
 //!   loader maps that same page **read-only** at [`CONFIG_PAGE`], and `sys/env`'s `seed`
 //!   populates `std::env`'s `TZ`, `LANG` and `TERM` from it once, at process startup, before
 //!   `main` runs (`pal::nife::init`). A program left this slot empty is seeded with nothing,

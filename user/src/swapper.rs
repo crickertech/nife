@@ -30,7 +30,7 @@
 //!   2 DRAINED  CALL OP_QUIESCE on the service endpoint itself. The endpoint's sender queue is
 //!              FIFO, so by the time this arrives the incumbent has answered every request queued
 //!              ahead of it. It replies and stops receiving.
-//!   3 REVOKED  Frame::REVOKE the device capability: gone from every holder but us.
+//!   3 REVOKED  PageFrame::REVOKE the device capability: gone from every holder but us.
 //!   4 STARTED  map the registers into the replacement, CONFIGURE, START. The down window ends.
 //!   5 REAPED   the incumbent is told to touch the device it no longer has; it faults, its death
 //!              arrives on the supervision endpoint, and Rendezvous::REAP collects the corpse.
@@ -87,7 +87,7 @@ struct Wiring {
     /// How we speak to a component that has quiesced, and so is no longer listening on `svc`.
     poke: u64,
     /// The witness page, mapped read/write into us and into every component.
-    logframe: u64,
+    log_page_frame: u64,
 }
 
 #[unsafe(no_mangle)]
@@ -104,10 +104,19 @@ pub extern "C" fn _start(role: u64, initrd_len: u64, _a2: u64) -> ! {
         faultep: obj(abi::objtype::RENDEZVOUS, 6),
         note: obj(abi::objtype::RENDEZVOUS, 7),
         poke: obj(abi::objtype::RENDEZVOUS, 8),
-        logframe: frame(9),
+        log_page_frame: page_frame(9),
     };
     // SAFETY: plain syscall; the kernel validates the frame, the va and the budget.
-    if unsafe { invoke(w.logframe, abi::frame::MAP, swap_proto::LOG_VA, 1, ROOT_UT) } != 0 {
+    if unsafe {
+        invoke(
+            w.log_page_frame,
+            abi::page_frame::MAP,
+            swap_proto::LOG_VA,
+            1,
+            ROOT_UT,
+        )
+    } != 0
+    {
         bail(10)
     }
     for i in 0..swap_proto::PAGE {
@@ -148,7 +157,7 @@ fn direct(fs: &nifefs::Fs, w: &Wiring) -> ! {
             ("report", REPORT),
             ("operator", w.note),
             ("control", w.poke),
-            ("witness", w.logframe),
+            ("witness", w.log_page_frame),
             ("uart", DEVICE),
         ],
     };
@@ -285,7 +294,7 @@ fn direct(fs: &nifefs::Fs, w: &Wiring) -> ! {
     // ------------------------------------------------------------------------------------------
 
     // SAFETY: plain syscall on the device capability the kernel granted us at spawn.
-    if unsafe { invoke(DEVICE, abi::frame::REVOKE, 0, 0, 0) } != 0 {
+    if unsafe { invoke(DEVICE, abi::page_frame::REVOKE, 0, 0, 0) } != 0 {
         bail(23)
     }
     send(REPORT, swap_proto::RPT_STEP, swap_proto::step::REVOKED, 0);
@@ -396,7 +405,7 @@ fn queued(fs: &nifefs::Fs, w: &Wiring) -> ! {
             ("report", REPORT),
             ("operator", w.note),
             ("control", w.poke),
-            ("witness", w.logframe),
+            ("witness", w.log_page_frame),
         ],
     };
     let to_broker = Provisions {
@@ -577,7 +586,7 @@ fn hung(fs: &nifefs::Fs, w: &Wiring) -> ! {
             ("report", REPORT),
             ("operator", w.note),
             ("control", w.poke),
-            ("witness", w.logframe),
+            ("witness", w.log_page_frame),
             ("uart", DEVICE),
         ],
     };
@@ -674,7 +683,7 @@ fn hung(fs: &nifefs::Fs, w: &Wiring) -> ! {
     // construction authority reaping was moved off. For restarting the **service**, that is not so,
     // and these four syscalls are the argument:
     //
-    //   - The device comes back with `Frame::REVOKE`, which is `GRANT`-gated take-back (§41) and
+    //   - The device comes back with `PageFrame::REVOKE`, which is `GRANT`-gated take-back (§41) and
     //     asks the current holder for nothing. It works on a live, wedged, wholly uncooperative
     //     holder exactly as it works on a quiesced one.
     //   - There is nothing to drain, and nothing to drain it *for*: a component that is not
@@ -690,7 +699,7 @@ fn hung(fs: &nifefs::Fs, w: &Wiring) -> ! {
     // ------------------------------------------------------------------------------------------
 
     // SAFETY: plain syscall on the device capability the kernel granted us at spawn.
-    if unsafe { invoke(DEVICE, abi::frame::REVOKE, 0, 0, 0) } != 0 {
+    if unsafe { invoke(DEVICE, abi::page_frame::REVOKE, 0, 0, 0) } != 0 {
         bail(82)
     }
     send(REPORT, swap_proto::RPT_STEP, swap_proto::step::REVOKED, 0);
@@ -950,8 +959,8 @@ fn obj(objtype: u64, stage: u64) -> u64 {
     }
 }
 
-fn frame(stage: u64) -> u64 {
-    match supervision_proto::retype_frame_from(ROOT_UT) {
+fn page_frame(stage: u64) -> u64 {
+    match supervision_proto::retype_page_frame_from(ROOT_UT) {
         Ok(s) => s,
         Err(()) => bail(stage),
     }

@@ -83,13 +83,13 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
 
     // The three pages the whole proof rests on. All from our own budget, all ours to start with; the
     // C component's process will see two of them and never the third.
-    let Ok(grant) = supervision_proto::retype_frame_from(ROOT_UT) else {
+    let Ok(grant) = supervision_proto::retype_page_frame_from(ROOT_UT) else {
         bail(3)
     };
-    let Ok(wit_ro) = supervision_proto::retype_frame_from(ROOT_UT) else {
+    let Ok(wit_ro) = supervision_proto::retype_page_frame_from(ROOT_UT) else {
         bail(4)
     };
-    let Ok(wit_far) = supervision_proto::retype_frame_from(ROOT_UT) else {
+    let Ok(wit_far) = supervision_proto::retype_page_frame_from(ROOT_UT) else {
         bail(5)
     };
 
@@ -102,7 +102,7 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
         (wit_far, c_seam::WITNESS_FAR_VA),
     ] {
         // SAFETY: plain syscall; the kernel validates the frame, the va, and the budget.
-        if unsafe { invoke(frame, abi::frame::MAP, va, 1, ROOT_UT) } != 0 {
+        if unsafe { invoke(frame, abi::page_frame::MAP, va, 1, ROOT_UT) } != 0 {
             bail(6)
         }
     }

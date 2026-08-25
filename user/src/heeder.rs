@@ -8,12 +8,12 @@
 //! Why a shared word and not an endpoint: a running computation cannot poll an endpoint (there is
 //! no non-blocking receive) and cannot block on one without stalling the work the user wants to
 //! interrupt. So the signal is memory the heeder reads with a plain load between units. See
-//! `grant_plan::jobframe` and notes/grant-expression.md.
+//! `grant_plan::job_page_frame` and notes/grant-expression.md.
 //!
 //! # The heeder's world
 //!
-//! - the shared job frame, mapped read/write at [`JOB_FRAME_VA`] (init maps it; the shell holds the
-//!   other view). The heeder reads [`jobframe::INTERRUPT`] and writes the rest. No capabilities: it
+//! - the shared job frame, mapped read/write at [`JOB_PAGE_FRAME_VA`] (init maps it; the shell holds the
+//!   other view). The heeder reads [`job_page_frame::INTERRUPT`] and writes the rest. No capabilities: it
 //!   touches only this page and exits. Its whole authority is one shared page.
 //!
 //! Name: unrecorded. Introduced 2026-07-28 with the cooperative interrupt tier: the program that
@@ -27,18 +27,19 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use grant_plan::jobframe;
+use grant_plan::job_page_frame;
 use user_rt::exit;
 use user_rt::mapped_window::{self, MappedWindow};
 
 /// Where init maps the shared job frame in the child's address space. Must match the shell/init
 /// wiring (below the ELF load address `0x40_0000` and the stack).
-const JOB_FRAME_VA: usize = 0x0030_0000;
+const JOB_PAGE_FRAME_VA: usize = 0x0030_0000;
 
-// SAFETY: init mapped one page read/write at JOB_FRAME_VA before this program runs (milestone 139
+// SAFETY: init mapped one page read/write at JOB_PAGE_FRAME_VA before this program runs (milestone 139
 // round 2; see `user_rt::mapped_window`, which is what collapsed the hand-rolled read_volatile/
 // write_volatile pair below).
-const WINDOW: MappedWindow = unsafe { MappedWindow::new(JOB_FRAME_VA as u64, mapped_window::PAGE) };
+const WINDOW: MappedWindow =
+    unsafe { MappedWindow::new(JOB_PAGE_FRAME_VA as u64, mapped_window::PAGE) };
 
 fn load(off: usize) -> u64 {
     WINDOW.read(off as u64)
@@ -55,14 +56,14 @@ pub extern "C" fn _start(_x0: u64, _x1: u64, _x2: u64) -> ! {
         // One unit of work. The heartbeat is liveness the shell can show; the spin makes a unit
         // take long enough that the interrupt is noticed promptly, not after a million iterations.
         beats = beats.wrapping_add(1);
-        store(jobframe::HEARTBEAT, beats);
+        store(job_page_frame::HEARTBEAT, beats);
         for _ in 0..4096 {
             core::hint::spin_loop();
         }
         // Notice the cooperative interrupt between units.
-        if load(jobframe::INTERRUPT) != 0 {
-            store(jobframe::STATUS, jobframe::STATUS_INTERRUPTED);
-            store(jobframe::DONE, 1); // tell the shell we are stopping cleanly, then leave
+        if load(job_page_frame::INTERRUPT) != 0 {
+            store(job_page_frame::STATUS, job_page_frame::STATUS_INTERRUPTED);
+            store(job_page_frame::DONE, 1); // tell the shell we are stopping cleanly, then leave
             exit();
         }
     }

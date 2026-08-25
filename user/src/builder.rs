@@ -103,12 +103,12 @@ fn build_and_start(elf: &elf::Elf, n: u64) -> Result<(), ()> {
         let (start, end) = seg.page_range(PAGE);
         let mut va = start;
         while va < end {
-            let frame = retype_frame()?;
+            let frame = retype_page_frame()?;
             // Map the frame writable in our own space at `scratch`, fill it, then hand it over.
             // SAFETY: `invoke` traps to the kernel, which validates the capability and the method
             // before acting (user_rt's contract). A caller cannot break an invariant by passing a
             // bad slot or method; it gets an error back.
-            if unsafe { invoke(frame, abi::frame::MAP, scratch, 1, UNTYPED) } != 0 {
+            if unsafe { invoke(frame, abi::page_frame::MAP, scratch, 1, UNTYPED) } != 0 {
                 return Err(());
             }
             // SAFETY: `scratch` is a page we just mapped read/write in our own space.
@@ -136,7 +136,7 @@ fn build_and_start(elf: &elf::Elf, n: u64) -> Result<(), ()> {
     }
 
     // A one-page stack for the child, mapped just below CHILD_STACK_TOP.
-    let stack_frame = retype_frame()?;
+    let stack_frame = retype_page_frame()?;
     // SAFETY: as above: the kernel validates the capability and the method.
     if unsafe {
         invoke(
@@ -197,8 +197,8 @@ fn retype_obj(objtype: u64) -> Result<u64, ()> {
     if r < 0 { Err(()) } else { Ok(r as u64) }
 }
 
-/// Retype a page of our budget into a Frame capability; returns its cap slot.
-fn retype_frame() -> Result<u64, ()> {
+/// Retype a page of our budget into a `PageFrame` capability; returns its cap slot.
+fn retype_page_frame() -> Result<u64, ()> {
     // SAFETY: as above: the kernel validates the capability and the method.
     let r = unsafe { invoke(UNTYPED, abi::untyped::RETYPE, 0, 0, 0) };
     if r < 0 { Err(()) } else { Ok(r as u64) }

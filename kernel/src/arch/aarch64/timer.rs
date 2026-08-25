@@ -600,7 +600,7 @@ mod tests {
         use crate::arch::timer;
         use crate::sync::{IrqSafeMutex, rank};
 
-        static M: IrqSafeMutex<u32> = IrqSafeMutex::new(rank::FRAMES, 0);
+        static M: IrqSafeMutex<u32> = IrqSafeMutex::new(rank::PAGE_FRAMES, 0);
 
         // `before` is read **inside** the critical section, and it names its core. Interrupts are
         // masked in there, so this thread can neither be preempted nor migrated and the measured
@@ -669,7 +669,7 @@ mod tests {
         use crate::arch::{interrupts, timer};
         use crate::sync::{IrqSafeMutex, rank};
 
-        static M: IrqSafeMutex<u32> = IrqSafeMutex::new(rank::FRAMES, 0);
+        static M: IrqSafeMutex<u32> = IrqSafeMutex::new(rank::PAGE_FRAMES, 0);
 
         assert!(interrupts::enabled(), "test setup: interrupts should be on");
 

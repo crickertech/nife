@@ -143,8 +143,8 @@ fn the_roster_is_a_listing_and_not_a_lever() {
     assert_eq!(tag, R_PROBING, "the probe never reached its write");
     assert_eq!(va, disk_service::ROSTER_VA);
 
-    // **The rung the migration added** (milestone 108). The probe holds the roster as a `Frame`
-    // with `READ` alone, so it asked `Frame::MAP` for a writable window first and was refused
+    // **The rung the migration added** (milestone 108). The probe holds the roster as a `PageFrame`
+    // with `READ` alone, so it asked `PageFrame::MAP` for a writable window first and was refused
     // before a page-table entry was written. When the roster was a spawn-time mapping there was
     // nothing to refuse: the only boundary was the permission bit the fault below trips.
     assert!(
@@ -169,8 +169,8 @@ fn the_roster_is_a_listing_and_not_a_lever() {
 /// This is milestone 108's claim, and it is the one assertion in the disk suite that fails on the
 /// code as it stood the day before. The surveyor's roster used to arrive through `Spawn::maps`: the
 /// kernel wrote it into the new address space before the first instruction, and recorded nothing.
-/// `revoke::revoke_frame` works off the mapping database, so it walked straight past that page.
-/// There was no `Frame` capability to delete either. **A spawn-time mapping is permanent by
+/// `revoke::revoke_page_frame` works off the mapping database, so it walked straight past that page.
+/// There was no `PageFrame` capability to delete either. **A spawn-time mapping is permanent by
 /// construction**, and "the driver's buffer is revocable" was a property the system could not have.
 ///
 /// So: the program maps the frame it holds, reads the first word and reports it, and parks. The
@@ -198,7 +198,7 @@ fn the_roster_can_be_revoked_out_from_under_its_holder() {
 
     // Take the page back. Every capability to it is deleted and it is unmapped from every address
     // space that recorded a mapping of it, the holder's included.
-    crate::revoke::revoke_frame(w.roster_phys);
+    crate::revoke::revoke_page_frame(w.roster_phys);
     crate::sched::ipc_send(w.resume, [0, 0, 0]);
 
     assert!(

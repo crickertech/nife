@@ -10,7 +10,7 @@
 //! **bootstrap**.
 
 use dtb::{Dtb, Region};
-use page_frames::{FRAME_SIZE, Frame, FrameAllocator, Stats};
+use page_frames::{FRAME_SIZE, PageFrame, PageFrameAllocator, Stats};
 
 use crate::arch::mmu::{phys_to_virt, virt_to_phys};
 use crate::println;
@@ -25,8 +25,8 @@ use crate::sync::{IrqSafeMutex, rank};
 /// The discipline that goes with it: **interrupt handlers do not allocate.** They record
 /// what happened and defer the work. The lock being interrupt-safe is the belt; that rule
 /// is the braces.
-static ALLOCATOR: IrqSafeMutex<Option<FrameAllocator<'static>>> =
-    IrqSafeMutex::new(rank::FRAMES, None);
+static ALLOCATOR: IrqSafeMutex<Option<PageFrameAllocator<'static>>> =
+    IrqSafeMutex::new(rank::PAGE_FRAMES, None);
 
 /// The most `/memory` nodes and `/memreserve` entries we'll cope with.
 ///
@@ -203,7 +203,7 @@ pub fn init(dtb_ptr: usize) {
 
     let forbidden = &forbidden[..n];
 
-    bring_up_frames(ram, forbidden);
+    bring_up_page_frames(ram, forbidden);
 }
 
 /// **Bring the frame allocator up over a described machine**, given RAM and everything already
@@ -236,7 +236,7 @@ pub fn init(dtb_ptr: usize) {
 /// - **At most `MAX_REGIONS` RAM regions.** More than that indexes past the map below. Both `virt`
 ///   boards describe one; q35 describes three. A caller with more must decide what to drop, because
 ///   this cannot.
-pub fn bring_up_frames(ram: &[Region], forbidden: &[Region]) {
+pub fn bring_up_page_frames(ram: &[Region], forbidden: &[Region]) {
     assert!(!ram.is_empty(), "the machine describes no RAM at all");
 
     // The whole span we have to be able to describe. Note this is the *span*, not the
@@ -253,7 +253,7 @@ pub fn bring_up_frames(ram: &[Region], forbidden: &[Region]) {
 
     let base = ram.iter().map(|r| r.start).min().unwrap();
     let top = ram.iter().map(|r| r.end()).max().unwrap();
-    let total_frames = FrameAllocator::frames_in(top - base);
+    let total_frames = PageFrameAllocator::page_frames_in(top - base);
 
     // --- the bootstrap problem ---
     //
@@ -272,7 +272,7 @@ pub fn bring_up_frames(ram: &[Region], forbidden: &[Region]) {
     // So instead: scan RAM for the first frame-aligned run that clears everything above.
     // Same answer in practice, but now it's proven rather than lucky, and it will keep
     // being right on hardware we haven't met.
-    let bitmap_bytes = FrameAllocator::bitmap_bytes(total_frames);
+    let bitmap_bytes = PageFrameAllocator::bitmap_bytes(total_frames);
     let bitmap_start = place_bitmap(bitmap_bytes as u64, ram, forbidden);
     BITMAP_START.store(bitmap_start as usize, core::sync::atomic::Ordering::Relaxed);
     BITMAP_BYTES.store(bitmap_bytes, core::sync::atomic::Ordering::Relaxed);
@@ -290,7 +290,7 @@ pub fn bring_up_frames(ram: &[Region], forbidden: &[Region]) {
     // Everything starts USED. Memory is guilty until proven innocent: a frame is only
     // handed out once someone has said "this is real RAM." Default-free would cheerfully
     // allocate the MMIO hole and hand out the UART's registers as scratch space.
-    let mut allocator = FrameAllocator::new(base, total_frames, bitmap);
+    let mut allocator = PageFrameAllocator::new(base, total_frames, bitmap);
 
     // Now prove innocence, region by region.
     for r in ram {
@@ -336,17 +336,17 @@ fn overlaps(a: u64, alen: u64, b: u64, blen: u64) -> bool {
     a < b.saturating_add(blen) && b < a.saturating_add(alen)
 }
 
-pub fn alloc() -> Option<Frame> {
+pub fn alloc() -> Option<PageFrame> {
     ALLOCATOR.lock().as_mut()?.alloc()
 }
 
 /// Physically contiguous frames, for hardware that does DMA and has no MMU to hide a
 /// scattered buffer behind. Milestone 8 needs this.
-pub fn alloc_contiguous(count: usize) -> Option<Frame> {
+pub fn alloc_contiguous(count: usize) -> Option<PageFrame> {
     ALLOCATOR.lock().as_mut()?.alloc_contiguous(count)
 }
 
-pub fn free(frame: Frame) {
+pub fn free(frame: PageFrame) {
     ALLOCATOR
         .lock()
         .as_mut()
@@ -362,13 +362,13 @@ pub fn stats() -> Option<Stats> {
 /// flat-frame-count property, notes/untyped.md): a region reclaimed by object revocation should
 /// bring this exactly back to where it stood before the region was created.
 #[cfg_attr(not(test), allow(dead_code))] // the reclamation tests in sched.rs and user/tests.rs
-pub fn free_frames() -> usize {
+pub fn free_page_frames() -> usize {
     ALLOCATOR.lock().as_ref().map_or(0, |a| a.stats().free())
 }
 
 /// **The longest run of free frames**, in frames: what `alloc_contiguous` could still satisfy.
 ///
-/// The companion to [`free_frames`], and the one the test boot actually runs out of. A boot can hold
+/// The companion to [`free_page_frames`], and the one the test boot actually runs out of. A boot can hold
 /// a comfortable free total and still refuse a 128-page request because the free frames are in
 /// pieces, which is exactly what milestone 107 measured (137 free, no run of 128) and read as
 /// exhaustion. The frame ledger prints both, so the next person meets the distinction rather than
@@ -395,7 +395,7 @@ pub fn image_bounds() -> (u64, u64) {
 
 /// Is this frame currently marked used?
 #[cfg_attr(not(test), allow(dead_code))] // this file's bootstrap tests are the callers
-pub fn is_frame_used(frame: Frame) -> Option<bool> {
+pub fn is_page_frame_used(frame: PageFrame) -> Option<bool> {
     ALLOCATOR.lock().as_ref()?.is_used(frame)
 }
 
@@ -662,14 +662,14 @@ mod tests {
     /// allocator: it covers *every* frame of the image, and it allocates nothing.
     #[test_case]
     fn every_frame_of_the_kernel_image_is_reserved() {
-        use page_frames::{FRAME_SIZE, Frame};
+        use page_frames::{FRAME_SIZE, PageFrame};
 
         let (start, end) = crate::memory::image_bounds();
         let mut addr = start - start % FRAME_SIZE; // round DOWN to the containing frame
 
         while addr < end {
             assert_eq!(
-                crate::memory::is_frame_used(Frame::from_addr(addr)),
+                crate::memory::is_page_frame_used(PageFrame::from_addr(addr)),
                 Some(true),
                 "frame {addr:#x} overlaps the kernel image but is marked FREE"
             );
@@ -679,7 +679,7 @@ mod tests {
 
     /// And prove `alloc` actually respects that bitmap.
     ///
-    /// Keep this array SMALL. It was `[Option<Frame>; 1024]` (16 KiB) on a 64 KiB stack,
+    /// Keep this array SMALL. It was `[Option<PageFrame>; 1024]` (16 KiB) on a 64 KiB stack,
     /// and it silently overflowed into .bss, .data, and .text, and hung the machine while
     /// printing something unrelated. See notes/stack.md. The canary catches that now, but
     /// the right move is to not do it.
@@ -702,8 +702,8 @@ mod tests {
         // `iter_mut().take()` and not `into_iter()`, which is the same lesson as the array size
         // above one step further on. `into_iter` on an array consumes it BY VALUE, and a debug
         // build gives that move its own stack temporary: `script/stack-frame-check` measured
-        // `<[Option<Frame>; 64] as IntoIterator>::into_iter` at **4224 bytes**, over the 4096-byte
-        // guard page, on both ISAs. Taking each slot in place copies one `Option<Frame>` instead.
+        // `<[Option<PageFrame>; 64] as IntoIterator>::into_iter` at **4224 bytes**, over the 4096-byte
+        // guard page, on both ISAs. Taking each slot in place copies one `Option<PageFrame>` instead.
         for slot in taken.iter_mut() {
             if let Some(frame) = slot.take() {
                 crate::memory::free(frame);
@@ -784,7 +784,7 @@ mod tests {
     /// to the runner, this catches it rather than milestone 10 catching it.
     #[test_case]
     fn initrd_is_reserved_if_present() {
-        use page_frames::{FRAME_SIZE, Frame};
+        use page_frames::{FRAME_SIZE, PageFrame};
 
         let Some((start, size)) = crate::memory::initrd_region() else {
             return;
@@ -793,7 +793,7 @@ mod tests {
         let mut addr = start - start % FRAME_SIZE;
         while addr < start + size {
             assert_eq!(
-                crate::memory::is_frame_used(Frame::from_addr(addr)),
+                crate::memory::is_page_frame_used(PageFrame::from_addr(addr)),
                 Some(true),
                 "frame {addr:#x} is part of the initrd but is marked FREE"
             );
@@ -813,7 +813,7 @@ mod tests {
 
         crate::memory::free(a);
         for i in 0..8u64 {
-            crate::memory::free(page_frames::Frame::from_addr(
+            crate::memory::free(page_frames::PageFrame::from_addr(
                 b.addr() + i * page_frames::FRAME_SIZE,
             ));
         }

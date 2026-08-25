@@ -24,11 +24,11 @@
 //! address space before the program's first instruction, at an address the kernel picked, with
 //! permissions the kernel picked. Nothing in the program's capability table said they were there.
 //!
-//! They are `Frame` capabilities now, and the program maps them itself with `Frame::MAP`, spending
+//! They are `PageFrame` capabilities now, and the program maps them itself with `PageFrame::MAP`, spending
 //! page tables out of an untyped it also holds. Four things change and none of them are cosmetic:
 //! the rights are **attenuable** (`READ` on the roster is refused a writable mapping before a page
 //! table is touched, rather than being caught by a permission bit afterwards), the frame is
-//! **delegable** onward, the mapping is **recorded** so `Frame::REVOKE` can pull it back
+//! **delegable** onward, the mapping is **recorded** so `PageFrame::REVOKE` can pull it back
 //! (`disk_tests::the_roster_can_be_revoked_out_from_under_its_holder` is that claim), and the
 //! authority is **legible**: reading this file's `grant_at` calls tells you the whole of what the
 //! surveyor can reach, which is what CLAUDE.md means by a process's authority being readable in its
@@ -41,7 +41,7 @@
 use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use super::*;
-use crate::cap::{Rights, frame_cap, rendezvous_cap, untyped_cap};
+use crate::cap::{Rights, page_frame_cap, rendezvous_cap, untyped_cap};
 use crate::sched::RendezvousId;
 
 /// Which mmio block device the surveyor is given. The runners attach the GPT-partitioned image as
@@ -57,7 +57,7 @@ const BLANK_DISK: usize = 4;
 
 /// Where the surveyor puts the roster in its own address space.
 ///
-/// **The kernel does not decide this any more** (milestone 108). It hands over a `Frame` and the
+/// **The kernel does not decide this any more** (milestone 108). It hands over a `PageFrame` and the
 /// program maps it where it likes; this constant exists only because the negative-control probe
 /// reports the address back and then writes to it, and the test asserts the fault landed exactly
 /// here. An attack on an address nobody uses would prove nothing. The address the surveyor uses for
@@ -67,10 +67,10 @@ pub const ROSTER_VA: u64 = 0x5001_0000;
 
 /// **The budget every program on this path draws its page tables from** (milestone 108).
 ///
-/// A `Frame` the process maps itself costs it the tables to reach the address, because
-/// `Frame::MAP` retypes them out of an untyped the caller names and the kernel allocates nothing.
+/// A `PageFrame` the process maps itself costs it the tables to reach the address, because
+/// `PageFrame::MAP` retypes them out of an untyped the caller names and the kernel allocates nothing.
 /// Two mappings 64 KiB apart share an L3, so the real cost here is one L3 plus the levels above it;
-/// eight pages is the same generous number `frame_service` uses for one frame and its tables, and
+/// eight pages is the same generous number `page_frame_service` uses for one frame and its tables, and
 /// 32 KiB is nothing beside the 1.5 MiB budget `mkfs` already takes.
 ///
 /// It is a **reservation**, not a spend: see [`MAKER_BUDGET_PAGES`] for what happens on this
@@ -186,7 +186,7 @@ pub fn start(blk_image: &'static [u8], surveyor_image: &'static [u8]) -> Option<
     crate::sched::spawn(move || {
         // **Only the stack is wired at spawn now** (milestone 108). A process cannot map its own
         // stack, because it needs one before it can make the syscall that would map it; everything
-        // else it uses is a `Frame` it holds and maps for itself, out of the budget in slot 2.
+        // else it uses is a `PageFrame` it holds and maps for itself, out of the budget in slot 2.
         let mut stack = [Mapping {
             va: 0,
             phys: 0,
@@ -209,17 +209,20 @@ pub fn start(blk_image: &'static [u8], surveyor_image: &'static [u8]) -> Option<
         // that page in both directions.
         crate::sched::grant_at(
             SURVEY_SLOT_BLK_PAGE,
-            frame_cap(blk_shared, Rights::READ.union(Rights::WRITE)),
+            page_frame_cap(blk_shared, Rights::READ.union(Rights::WRITE)),
         )
         .expect("surveyor slot 3 was occupied");
         // **`READ` alone, and that is the enumeration authority.** The surveyor may see what
         // devices exist and may not change the list, add itself a device, or turn an entry into a
         // handle. Under milestone 108 the confinement is in the *capability* rather than in a page
-        // permission the kernel chose: `Frame::MAP` refuses a writable mapping of a frame held
+        // permission the kernel chose: `PageFrame::MAP` refuses a writable mapping of a frame held
         // `READ`, so the surveyor cannot even ask for a window it could scribble through.
         // `start_probe` is the proof.
-        crate::sched::grant_at(SURVEY_SLOT_ROSTER, frame_cap(roster_phys, Rights::READ))
-            .expect("surveyor slot 4 was occupied");
+        crate::sched::grant_at(
+            SURVEY_SLOT_ROSTER,
+            page_frame_cap(roster_phys, Rights::READ),
+        )
+        .expect("surveyor slot 4 was occupied");
         run(
             surveyor_image,
             Spawn {
@@ -265,8 +268,11 @@ pub fn start_probe(surveyor_image: &'static [u8]) -> RendezvousId {
             .expect("probe slot 0 was occupied");
         crate::sched::grant_at(SURVEY_SLOT_BUDGET, untyped_cap(budget))
             .expect("probe slot 2 was occupied");
-        crate::sched::grant_at(SURVEY_SLOT_ROSTER, frame_cap(roster_phys, Rights::READ))
-            .expect("probe slot 4 was occupied");
+        crate::sched::grant_at(
+            SURVEY_SLOT_ROSTER,
+            page_frame_cap(roster_phys, Rights::READ),
+        )
+        .expect("probe slot 4 was occupied");
         run(
             surveyor_image,
             Spawn {
@@ -294,10 +300,10 @@ pub struct HolderWiring {
     pub roster_phys: u64,
 }
 
-/// **Wire a program that holds the roster as a `Frame` and is about to lose it** (milestone 108).
+/// **Wire a program that holds the roster as a `PageFrame` and is about to lose it** (milestone 108).
 ///
 /// The point of the whole migration in one spawn: this program's roster page is a capability, so
-/// `Frame::REVOKE` reaches it. Before the migration the same page arrived through `Spawn::maps`,
+/// `PageFrame::REVOKE` reaches it. Before the migration the same page arrived through `Spawn::maps`,
 /// which records nothing in the mapping database (`user::run` maps and moves on), so a revoke
 /// walked straight past it and the page stayed mapped forever. **There was no way to un-share a
 /// page a program was handed at birth.**
@@ -316,8 +322,11 @@ pub fn start_holder(surveyor_image: &'static [u8]) -> HolderWiring {
             .expect("holder slot 0 was occupied");
         crate::sched::grant_at(SURVEY_SLOT_BUDGET, untyped_cap(budget))
             .expect("holder slot 2 was occupied");
-        crate::sched::grant_at(SURVEY_SLOT_ROSTER, frame_cap(roster_phys, Rights::READ))
-            .expect("holder slot 4 was occupied");
+        crate::sched::grant_at(
+            SURVEY_SLOT_ROSTER,
+            page_frame_cap(roster_phys, Rights::READ),
+        )
+        .expect("holder slot 4 was occupied");
         crate::sched::grant_at(SURVEY_SLOT_RESUME, rendezvous_cap(resume, Rights::READ))
             .expect("holder slot 5 was occupied");
         run(
@@ -497,7 +506,7 @@ pub fn start_partitioner(
             .expect("partitioner slot 3 was occupied");
         crate::sched::grant_at(
             PARTITION_SLOT_BLK_PAGE,
-            frame_cap(blk_shared, Rights::READ.union(Rights::WRITE)),
+            page_frame_cap(blk_shared, Rights::READ.union(Rights::WRITE)),
         )
         .expect("partitioner slot 4 was occupied");
         run(
@@ -591,7 +600,7 @@ pub fn start_maker(
         // this program's own heap budget, so mapping its shared page costs it its own memory.
         crate::sched::grant_at(
             MAKER_SLOT_BLK_PAGE,
-            frame_cap(blk_shared, Rights::READ.union(Rights::WRITE)),
+            page_frame_cap(blk_shared, Rights::READ.union(Rights::WRITE)),
         )
         .expect("mkfs slot 4 was occupied");
         run(

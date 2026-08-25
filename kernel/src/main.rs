@@ -724,7 +724,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             // SAFETY: aspace.ttbr0() is a well-formed Sv39 satp whose root carries the kernel half.
             unsafe { arch::mmu::activate_user(aspace.ttbr0()) };
             let frame = memory::alloc().expect("no user frame").addr();
-            arch::mmu::map_current_user_frame(user_va, frame, Flags::user_data(), || {
+            arch::mmu::map_current_user_page_frame(user_va, frame, Flags::user_data(), || {
                 memory::alloc().map(|f| f.addr())
             })
             .expect("user map failed");

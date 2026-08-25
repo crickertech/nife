@@ -290,9 +290,9 @@ pub(crate) fn invoke(
                     return Err(Error::BadPointer);
                 }
                 let frame = sched::current_cap(a1).map_err(|_| Error::NoSuchSlot)?;
-                // The mappable object is a Frame (normal memory) or a DeviceFrame (a device's
+                // The mappable object is a PageFrame (normal memory) or a DeviceFrame (a device's
                 // MMIO, device-typed): the driver a userspace init builds gets its registers this
-                // way (19d.2). a2 chooses the shape for a Frame; a DeviceFrame is always
+                // way (19d.2). a2 chooses the shape for a PageFrame; a DeviceFrame is always
                 // device-typed read/write and needs WRITE on the cap.
                 let (phys, flags) = match frame.object {
                     Object::DeviceFrame(phys) => {
@@ -301,7 +301,7 @@ pub(crate) fn invoke(
                         }
                         (phys, paging::Flags::user_device())
                     }
-                    Object::Frame(phys) => {
+                    Object::PageFrame(phys) => {
                         // 0 read-only, 1 read/write, 2 executable code (a loader's child .text).
                         // Code is W^X: user_code is RX, never writable, so it needs only READ.
                         let flags = match a2 {
@@ -346,7 +346,7 @@ pub(crate) fn invoke(
                         }
                         Ok(0)
                     }
-                    Err(paging::MapError::OutOfFrames) => Err(Error::OutOfMemory),
+                    Err(paging::MapError::OutOfPageFrames) => Err(Error::OutOfMemory),
                     Err(_) => Err(Error::BadPointer), // misaligned, already mapped, unknown space
                 }
             }
@@ -433,18 +433,18 @@ pub(crate) fn invoke(
             _ => Err(Error::BadMethod),
         },
 
-        Object::Frame(phys) => match method {
+        Object::PageFrame(phys) => match method {
             // Body extracted (milestone 156), the same reason as `Untyped`'s five methods:
             // neither `MAP` nor `REVOKE` is a step of the IPC round trip, so both move out of
             // `invoke`'s own bytes. `MAP`'s rights check is data-dependent (branches on `a1`), so
-            // it lives inside `frame_map` rather than at the call site here, unlike the fixed
+            // it lives inside `page_frame_map` rather than at the call site here, unlike the fixed
             // single-right checks the other extractions keep in `invoke`.
-            abi::frame::MAP => frame_map(cap, phys, a0, a1, a2),
-            abi::frame::REVOKE => {
+            abi::page_frame::MAP => page_frame_map(cap, phys, a0, a1, a2),
+            abi::page_frame::REVOKE => {
                 if !cap.rights.allows(Rights::GRANT) {
                     return Err(Error::NotPermitted);
                 }
-                frame_revoke(phys)
+                page_frame_revoke(phys)
             }
             _ => Err(Error::BadMethod),
         },
@@ -454,14 +454,14 @@ pub(crate) fn invoke(
         Object::DeviceFrame(phys) => match method {
             // **Take the registers back from everyone else** (DECISIONS §41). The step live
             // replacement needs between tearing one driver down and endowing the next, so that a
-            // device never has two owners. Needs `GRANT`, the same rule `Frame::REVOKE` uses: you
+            // device never has two owners. Needs `GRANT`, the same rule `PageFrame::REVOKE` uses: you
             // were trusted to lend the device on, so you may take it back.
             //
             // Unlike a frame revoke this **spares the invoker's own** capability and mapping, and
             // it must: only the kernel mints a `DeviceFrame`, and it does so once at boot, so a
             // symmetric revoke would make the device unreachable for the rest of the machine's
             // life. `revoke::revoke_device_from_others` carries the full argument.
-            abi::frame::REVOKE => {
+            abi::page_frame::REVOKE => {
                 if !cap.rights.allows(Rights::GRANT) {
                     return Err(Error::NotPermitted);
                 }
@@ -535,7 +535,7 @@ fn untyped_map(region: u64, va: u64) -> Result<i64, Error> {
             }
             Ok(0)
         }
-        Err(paging::MapError::OutOfFrames) => Err(Error::OutOfMemory),
+        Err(paging::MapError::OutOfPageFrames) => Err(Error::OutOfMemory),
         Err(_) => Err(Error::BadPointer), // misaligned, already mapped, or wrong half
     }
 }
@@ -586,7 +586,7 @@ fn untyped_retype_obj(region: u64, kind: u64) -> Result<i64, Error> {
     }
 }
 
-/// `Untyped::RETYPE`: retype a page into a Frame capability the caller now holds, instead of
+/// `Untyped::RETYPE`: retype a page into a `PageFrame` capability the caller now holds, instead of
 /// mapping it in one shot. The caller gets full rights on its own frame (read, write, and the
 /// right to pass it on); delegation is where those narrow. Nothing is mapped yet.
 /// `#[inline(never)]` for the reason `untyped_map` gives.
@@ -594,8 +594,8 @@ fn untyped_retype_obj(region: u64, kind: u64) -> Result<i64, Error> {
 fn untyped_retype(region: u64) -> Result<i64, Error> {
     let phys = crate::untyped::retype_page(region).ok_or(Error::OutOfMemory)?;
     // capability table full
-    let slot =
-        sched::grant(crate::cap::frame_cap(phys, Rights::ALL)).map_err(|_| Error::OutOfMemory)?;
+    let slot = sched::grant(crate::cap::page_frame_cap(phys, Rights::ALL))
+        .map_err(|_| Error::OutOfMemory)?;
     Ok(slot as i64)
 }
 
@@ -629,11 +629,11 @@ fn untyped_destroy(region: u64) -> Result<i64, Error> {
     Ok(0)
 }
 
-/// `Frame::MAP`: map an existing frame at `va` in the caller's own address space (`a1` writable
-/// 0/1, `a2` an untyped slot the page tables come from). Un-share is `frame_revoke`; this is the
+/// `PageFrame::MAP`: map an existing frame at `va` in the caller's own address space (`a1` writable
+/// 0/1, `a2` an untyped slot the page tables come from). Un-share is `page_frame_revoke`; this is the
 /// other half. `#[inline(never)]` for the reason `untyped_map` gives.
 #[inline(never)]
-fn frame_map(
+fn page_frame_map(
     cap: crate::cap::Cap,
     phys: u64,
     va: u64,
@@ -666,7 +666,8 @@ fn frame_map(
     if !ut.rights.allows(Rights::WRITE) {
         return Err(Error::NotPermitted);
     }
-    match mmu::map_current_user_frame(va, phys, flags, || crate::untyped::retype_page(region)) {
+    match mmu::map_current_user_page_frame(va, phys, flags, || crate::untyped::retype_page(region))
+    {
         Ok(()) => {
             // Record the mapping so a later REVOKE (or untyped::destroy) can pull this page out
             // of every holder before it is reused (§13). Unrecordable means unmappable, at the
@@ -677,17 +678,17 @@ fn frame_map(
             }
             Ok(0)
         }
-        Err(paging::MapError::OutOfFrames) => Err(Error::OutOfMemory),
+        Err(paging::MapError::OutOfPageFrames) => Err(Error::OutOfMemory),
         Err(_) => Err(Error::BadPointer), // misaligned, already mapped, or wrong half
     }
 }
 
-/// `Frame::REVOKE`: un-share this page from every holder and delete every capability to it,
+/// `PageFrame::REVOKE`: un-share this page from every holder and delete every capability to it,
 /// including the caller's own. Does not reclaim the page (untyped is spend-only); that is
 /// `Untyped::DESTROY`. §13. `#[inline(never)]` for the reason `untyped_map` gives.
 #[inline(never)]
-fn frame_revoke(phys: u64) -> Result<i64, Error> {
-    crate::revoke::revoke_frame(phys);
+fn page_frame_revoke(phys: u64) -> Result<i64, Error> {
+    crate::revoke::revoke_page_frame(phys);
     Ok(0)
 }
 

@@ -292,25 +292,25 @@ pub fn reply(slot: u64, r0: u64, r1: u64) -> i64 {
     unsafe { invoke(slot, abi::reply::REPLY, r0, r1, 0) }
 }
 
-/// **Map the `Frame` capability in `frame_slot` at `va`**, drawing the page tables from the untyped
+/// **Map the `PageFrame` capability in `frame_slot` at `va`**, drawing the page tables from the untyped
 /// in `untyped_slot`. `true` if the page is now there.
 ///
 /// The verb a process that *holds* a page uses to put it in its own address space (milestone 108).
 /// It replaces a page the kernel wired into the process at spawn, and the difference is not
 /// cosmetic: a spawn-time mapping has no capability behind it, so nobody can narrow it, hand it on,
 /// or take it back, while a frame the process mapped itself is recorded in the revocation database
-/// and can be pulled out from under it by `Frame::REVOKE`. See notes/frames.md.
+/// and can be pulled out from under it by `PageFrame::REVOKE`. See notes/frames.md.
 ///
 /// `writable` needs `WRITE` on the frame; a read-only mapping needs `READ`. A caller handed a
 /// narrowed view that asks for more than it holds gets `false` and no mapping, which is the rights
 /// ladder doing its job rather than an error to route around.
-pub fn map_frame(frame_slot: u64, va: u64, writable: bool, untyped_slot: u64) -> bool {
+pub fn map_page_frame(frame_slot: u64, va: u64, writable: bool, untyped_slot: u64) -> bool {
     // SAFETY: `svc`/`ecall`. The kernel validates the frame capability, the rights, the address and
     // the untyped before it touches a page table.
     unsafe {
         invoke(
             frame_slot,
-            abi::frame::MAP,
+            abi::page_frame::MAP,
             va,
             writable as u64,
             untyped_slot,

@@ -99,7 +99,7 @@ fn screen() -> &'static mut [u32] {
 
 /// Client `i`'s surface, as a slice. The pixels the client writes and this process only reads.
 fn source(i: usize) -> &'static [u32] {
-    // SAFETY: the kernel maps `SCENE[i].frames()` frames at `surface_va(i)`, which is at least
+    // SAFETY: the kernel maps `SCENE[i].page_frames()` frames at `surface_va(i)`, which is at least
     // `pixels()` words. Read-only use here by discipline: the client owns these pixels.
     unsafe { core::slice::from_raw_parts(surface_va(i) as *const u32, SCENE[i].pixels()) }
 }

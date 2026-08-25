@@ -9,7 +9,7 @@
 //! - a **block-service endpoint**, which lets it read and write the blocks of **one** device
 //!   (`filesystem_proto::blk`).
 //!
-//! Since milestone 108 the roster is a `Frame` this program holds and maps itself, rather than a
+//! Since milestone 108 the roster is a `PageFrame` this program holds and maps itself, rather than a
 //! page the kernel wired into its address space before it started. The practical difference is at
 //! the top of [`probe`]: `READ` on the capability means a writable mapping cannot be *obtained*,
 //! where a read-only mapping only meant a write could not *land*.
@@ -98,9 +98,9 @@ const BLK: u64 = 1;
 const BUDGET: u64 = 2;
 /// Slot 3: the page shared with the block server, `READ|WRITE` (a transfer goes both ways). Empty
 /// in [`ROLE_PROBE`].
-const BLK_FRAME: u64 = 3;
+const BLK_PAGE_FRAME: u64 = 3;
 /// Slot 4: the roster page, **`READ` and nothing else**. See [`ROLE_PROBE`].
-const ROSTER_FRAME: u64 = 4;
+const ROSTER_PAGE_FRAME: u64 = 4;
 /// Slot 5: the go-ahead endpoint, `READ`. Only [`ROLE_HOLDER`] has one.
 const RESUME: u64 = 5;
 
@@ -157,7 +157,7 @@ pub const F_NAMES: u64 = 1 << 6;
 /// write being refused. Must match `kernel/src/user/disk_tests.rs`.
 pub const R_PROBING: u64 = 0x50_0B_11_46;
 
-/// The probe's second word: `Frame::MAP` refused it a writable window on the roster, one rung
+/// The probe's second word: `PageFrame::MAP` refused it a writable window on the roster, one rung
 /// before the page permissions would have. Must match `kernel/src/user/disk_tests.rs`.
 pub const P_RW_REFUSED: u64 = 1 << 0;
 
@@ -183,15 +183,15 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
 /// second read faults.
 ///
 /// **This role could not have existed before the migration.** A page wired in at spawn is in no
-/// mapping record, so `Frame::REVOKE` walks past it and the second read returns the same word as
+/// mapping record, so `PageFrame::REVOKE` walks past it and the second read returns the same word as
 /// the first. There is no way to un-share a page a program was handed at birth, which is the cost
 /// the milestone was raised to pay off.
 fn holder() -> ! {
-    if !user_rt::map_frame(ROSTER_FRAME, ROSTER_VA, false, BUDGET) {
+    if !user_rt::map_page_frame(ROSTER_PAGE_FRAME, ROSTER_VA, false, BUDGET) {
         user_rt::exit()
     }
     // SAFETY: ROSTER_VA is mapped read-only from the frame in slot 4, on the line above: the
-    // program's own `Frame::MAP` succeeded first, which is exactly the case
+    // program's own `PageFrame::MAP` succeeded first, which is exactly the case
     // `user_rt::mapped_window::MappedWindow::new`'s own doc names (milestone 139 round 3).
     let roster = unsafe { MappedWindow::new(ROSTER_VA, filesystem_proto::PAGE as u64) };
     let word = roster.read::<u64>(0);
@@ -219,8 +219,8 @@ fn survey() -> ! {
     // hold; the tables to reach them come out of our own budget. A failure here is fatal and
     // silent on purpose: this program's only channel is `REPORT`, and reporting through a page we
     // failed to map is not a thing it can do.
-    if !user_rt::map_frame(BLK_FRAME, BLK_PAGE, true, BUDGET)
-        || !user_rt::map_frame(ROSTER_FRAME, ROSTER_VA, false, BUDGET)
+    if !user_rt::map_page_frame(BLK_PAGE_FRAME, BLK_PAGE, true, BUDGET)
+        || !user_rt::map_page_frame(ROSTER_PAGE_FRAME, ROSTER_VA, false, BUDGET)
     {
         user_rt::exit()
     }
@@ -354,7 +354,7 @@ fn read_span(span: Span, into: &mut [u8]) -> bool {
 
 /// **The negative control**, and since milestone 108 it attacks two rungs instead of one.
 ///
-/// First it asks `Frame::MAP` for a **writable** window on the roster. It holds the frame with
+/// First it asks `PageFrame::MAP` for a **writable** window on the roster. It holds the frame with
 /// `READ` alone, so the kernel refuses before it writes a page-table entry: there is no writable
 /// mapping of the roster anywhere in this address space to be found, because the capability could
 /// not produce one. Then it maps the page read-only, which it may, announces the address, and
@@ -366,10 +366,10 @@ fn read_span(span: Span, into: &mut [u8]) -> bool {
 /// program could be persuaded to skip.
 fn probe() -> ! {
     // Rung one: a writable mapping, refused by the rights on the capability itself.
-    let rw_refused = !user_rt::map_frame(ROSTER_FRAME, ROSTER_VA, true, BUDGET);
+    let rw_refused = !user_rt::map_page_frame(ROSTER_PAGE_FRAME, ROSTER_VA, true, BUDGET);
 
     // Rung two: the read-only mapping we are entitled to, and a write through it.
-    if !user_rt::map_frame(ROSTER_FRAME, ROSTER_VA, false, BUDGET) {
+    if !user_rt::map_page_frame(ROSTER_PAGE_FRAME, ROSTER_VA, false, BUDGET) {
         user_rt::exit()
     }
     send(
@@ -379,7 +379,7 @@ fn probe() -> ! {
         if rw_refused { P_RW_REFUSED } else { 0 },
     );
     // SAFETY: ROSTER_VA is mapped read-only from the frame in slot 4, above (the program's own
-    // `Frame::MAP` succeeded). Not safe to write through, and that is the test: as in `holder`'s
+    // `PageFrame::MAP` succeeded). Not safe to write through, and that is the test: as in `holder`'s
     // second read, `MappedWindow`'s bounds check passes (offset 0 is inside the window) and the
     // kernel refuses the write itself, at the same volatile access the hand-written version made.
     let roster = unsafe { MappedWindow::new(ROSTER_VA, filesystem_proto::PAGE as u64) };

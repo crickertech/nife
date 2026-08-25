@@ -57,7 +57,7 @@ fn index(va: u64, level: usize) -> usize {
 /// A pretend physical frame allocator backed by the host heap. The tables outlive the mapper
 /// (they are freed by the test's `TableGuard`, not here), which is the ownership shape the real
 /// kernel has too: the mapper borrows tables, the frame allocator owns them.
-fn frame_source(budget: &Cell<usize>) -> impl FnMut() -> Option<u64> + '_ {
+fn page_frame_source(budget: &Cell<usize>) -> impl FnMut() -> Option<u64> + '_ {
     move || {
         if budget.get() == 0 {
             return None;
@@ -83,7 +83,7 @@ fn mapper_in(
         Mapper::new(
             root,
             half,
-            frame_source(budget),
+            page_frame_source(budget),
             phys_to_ptr as fn(u64) -> *mut PageTable,
         )
     }
@@ -262,14 +262,14 @@ fn nearby_pages_share_their_intermediate_tables() {
 }
 
 #[test]
-fn running_out_of_frames_is_an_error_not_a_panic() {
+fn running_out_of_page_frames_is_an_error_not_a_panic() {
     let _tables = TableGuard;
     let budget = Cell::new(0);
     let mut m = mapper(&budget);
 
     assert_eq!(
         m.map(0x1000, 0x1000, Flags::kernel_data()),
-        Err(MapError::OutOfFrames)
+        Err(MapError::OutOfPageFrames)
     );
 }
 
@@ -380,7 +380,7 @@ fn device_memory_is_typed_as_device_and_is_never_executable() {
 // --- unmap, and the TLB obligation you cannot forget ---
 
 #[test]
-fn unmap_removes_the_mapping_and_returns_the_frame() {
+fn unmap_removes_the_mapping_and_returns_the_page_frame() {
     let _tables = TableGuard;
     let budget = Cell::new(16);
     let mut m = mapper(&budget);

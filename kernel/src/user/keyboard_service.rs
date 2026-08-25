@@ -9,7 +9,7 @@ const RING_VA: u64 = 0x0000_0000_0082_0000;
 /// One page, like every other driver here except the display's. A keyboard's event queue is
 /// eight eight-byte records; there is nothing bulk about it, so the standing rule holds in the
 /// other direction too: **a device gets the grant it needs and no more.**
-const DMA_FRAMES: u64 = 1;
+const DMA_PAGE_FRAMES: u64 = 1;
 
 pub struct Wiring {
     /// The driver's status endpoint.
@@ -29,7 +29,7 @@ pub struct Wiring {
 pub fn start(image: &'static [u8]) -> Option<Wiring> {
     let d = crate::pci::find_input_device()?;
 
-    let dma = crate::memory::alloc_contiguous(DMA_FRAMES as usize)
+    let dma = crate::memory::alloc_contiguous(DMA_PAGE_FRAMES as usize)
         .expect("no DMA region for the keyboard driver")
         .addr();
     // SAFETY: a fresh frame, direct-mapped, owned by nobody else. Zeroed so no stale descriptor
@@ -38,7 +38,7 @@ pub fn start(image: &'static [u8]) -> Option<Wiring> {
         core::ptr::write_bytes(
             mmu::phys_to_virt(dma) as *mut u8,
             0,
-            (DMA_FRAMES * FRAME_SIZE) as usize,
+            (DMA_PAGE_FRAMES * FRAME_SIZE) as usize,
         );
     }
     let ring = crate::memory::alloc()
@@ -56,7 +56,7 @@ pub fn start(image: &'static [u8]) -> Option<Wiring> {
     let vid = crate::virtio::register(
         crate::virtio::Transport::pci(&d),
         dma,
-        DMA_FRAMES * FRAME_SIZE,
+        DMA_PAGE_FRAMES * FRAME_SIZE,
         Some(d.rid),
     );
 

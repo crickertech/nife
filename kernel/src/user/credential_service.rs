@@ -64,11 +64,11 @@ pub struct Wiring {
     /// fresh, unsealed one to provision against, alongside the suite's one shared, already-sealed
     /// fixture), and a global that assumed exactly one instance for the life of the test binary
     /// could not tell the two apart. Every caller in this module now reads this field, or
-    /// [`provision_frame`](Wiring::provision_frame), instead.
-    pub verify_frame: u64,
+    /// [`provision_page_frame`](Wiring::provision_page_frame), instead.
+    pub verify_page_frame: u64,
     /// The physical frame behind the provision page, for this instance. Same reason as
-    /// [`verify_frame`](Wiring::verify_frame).
-    pub provision_frame: u64,
+    /// [`verify_page_frame`](Wiring::verify_page_frame).
+    pub provision_page_frame: u64,
 }
 
 /// **Wire and spawn the credential service.** It blocks on its provision endpoint immediately,
@@ -92,18 +92,18 @@ pub fn start(image: &'static [u8], entropy: RendezvousId) -> Wiring {
     }; CRED_STACK_PAGES as usize + 2];
     maps[0] = Mapping {
         va: PROV_VA,
-        phys: frame(),
+        phys: page_frame(),
         flags: Flags::user_data(),
     };
     maps[1] = Mapping {
         va: VERIFY_VA,
-        phys: frame(),
+        phys: page_frame(),
         flags: Flags::user_data(),
     };
-    // Captured locally for `Wiring::provision_frame`/`Wiring::verify_frame`, which is what every
+    // Captured locally for `Wiring::provision_page_frame`/`Wiring::verify_page_frame`, which is what every
     // caller elsewhere in this module now reads instead of a shared global (see those fields' own
     // docs): correct for *this* instance no matter how many others are wired in the same boot.
-    let (provision_frame, verify_frame) = (maps[0].phys, maps[1].phys);
+    let (provision_page_frame, verify_page_frame) = (maps[0].phys, maps[1].phys);
     for k in 0..CRED_STACK_PAGES as usize {
         let phys = crate::memory::alloc()
             .expect("no frame for the credential service's stack")
@@ -144,8 +144,8 @@ pub fn start(image: &'static [u8], entropy: RendezvousId) -> Wiring {
         ready,
         verify,
         provision,
-        verify_frame,
-        provision_frame,
+        verify_page_frame,
+        provision_page_frame,
     }
 }
 
@@ -161,20 +161,20 @@ pub fn provisioner(image: &'static [u8], w: &Wiring) -> [u64; 5] {
         ROLE_PROVISIONER,
         w.provision,
         PROV_VA,
-        w.provision_frame,
+        w.provision_page_frame,
     )
 }
 
 /// **Spawn a client** in `role` against the verify endpoint, and wait for its report.
 pub fn client(image: &'static [u8], w: &Wiring, role: u64) -> [u64; 5] {
-    spawn_cli(image, role, w.verify, VERIFY_VA, w.verify_frame)
+    spawn_cli(image, role, w.verify, VERIFY_VA, w.verify_page_frame)
 }
 
 /// The one spawn site the three `credentialer_test_client` roles share, because the whole claim is that they
 /// differ in their endowment and not in their code. Changing `endpoint` and `va` here is the
 /// entire difference between a provisioner and an attacker.
 ///
-/// `phys` is taken from the caller's own `Wiring` (`w.verify_frame`/`w.provision_frame`) rather than
+/// `phys` is taken from the caller's own `Wiring` (`w.verify_page_frame`/`w.provision_page_frame`) rather than
 /// from a shared global: milestone 155 wired a second, independent credential service instance in
 /// the same boot, so nothing here can assume there is only one to ask about. A caller with its own
 /// `Wiring` in hand always knows which frame is correct.
@@ -215,7 +215,7 @@ fn spawn_cli(
 /// behalf: milestone 155's own fix removed the global that used to do that (`FRAMES`), because a
 /// global keyed on nothing but "the credential service" cannot distinguish two independently wired
 /// instances in the same boot, and after that milestone there can be more than one.
-fn frame() -> u64 {
+fn page_frame() -> u64 {
     let phys = crate::memory::alloc()
         .expect("no frame for a credential page")
         .addr();
@@ -231,7 +231,7 @@ fn frame() -> u64 {
 /// Read a shared frame directly, which is a thing only the kernel can do and is how a test checks
 /// a claim about what is *not* in a page.
 ///
-/// **Takes the physical frame directly** (`w.verify_frame` on the `Wiring` a caller already holds),
+/// **Takes the physical frame directly** (`w.verify_page_frame` on the `Wiring` a caller already holds),
 /// not a virtual address to look up: milestone 155 wired a second, independent credential service
 /// instance in the same boot, so a lookup keyed only on a virtual address (which reused the global
 /// `FRAMES` every instance's `start()` overwrites) could not tell one instance's frame from

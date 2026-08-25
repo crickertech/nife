@@ -39,7 +39,7 @@ static FLUSH_COUNT: AtomicUsize = AtomicUsize::new(0);
 /// nothing about it; here the flush *is* the observation, so a compositor that quietly repainted the
 /// screen every frame would fail a test rather than merely be slow.
 fn kernel_display() -> (sched::RendezvousId, u64) {
-    let frames = graphics_proto::SURFACE_FRAMES as u64;
+    let frames = graphics_proto::SURFACE_PAGE_FRAMES as u64;
     let screen = crate::memory::alloc_contiguous(frames as usize)
         .expect("no contiguous screen frames for the compositor")
         .addr();

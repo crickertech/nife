@@ -38,10 +38,10 @@ fn hold_viewer(name: u64) -> u64 {
 
 /// A fresh frame, from its own one-page region, granted into a fresh capability table slot with `rights`.
 /// Returns the slot and the region, so [`tidy`] can give the region back.
-fn frame(rights: Rights) -> (u64, u64) {
+fn page_frame(rights: Rights) -> (u64, u64) {
     let region = crate::untyped::create(1).expect("no frame region");
     let phys = crate::untyped::retype_page(region).expect("no frame");
-    let slot = sched::grant(crate::cap::frame_cap(phys, rights)).expect("grant the frame");
+    let slot = sched::grant(crate::cap::page_frame_cap(phys, rights)).expect("grant the frame");
     (slot, region)
 }
 
@@ -113,17 +113,17 @@ fn a_viewer_sees_every_mapping_and_can_touch_none_of_it() {
     const RW_VA: u64 = 0x0050_0000;
     const RO_VA: u64 = 0x0060_0000;
 
-    let (code_frame, code_region) = frame(Rights::READ);
+    let (code_frame, code_region) = page_frame(Rights::READ);
     assert_eq!(
         map_into(builder, CODE_VA, code_frame, abi::address_space::MAP_CODE),
         Ok(0)
     );
-    let (rw_frame, rw_region) = frame(Rights::WRITE);
+    let (rw_frame, rw_region) = page_frame(Rights::WRITE);
     assert_eq!(
         map_into(builder, RW_VA, rw_frame, abi::address_space::MAP_RW),
         Ok(0)
     );
-    let (ro_frame, ro_region) = frame(Rights::READ);
+    let (ro_frame, ro_region) = page_frame(Rights::READ);
     assert_eq!(
         map_into(builder, RO_VA, ro_frame, abi::address_space::MAP_RO),
         Ok(0)
@@ -160,7 +160,7 @@ fn a_viewer_sees_every_mapping_and_can_touch_none_of_it() {
 
     // **The other half of the claim.** The same capability that just listed every mapping is
     // refused the one thing this test's builder capability can do: change one.
-    let (spare, spare_region) = frame(Rights::READ);
+    let (spare, spare_region) = page_frame(Rights::READ);
     assert_eq!(
         map_into(viewer, 0x0070_0000, spare, abi::address_space::MAP_RO),
         Err(Error::NotPermitted),
@@ -239,7 +239,7 @@ fn a_capability_outliving_its_space_reads_as_empty() {
     // Map one page first, so a bug that kept reading the (freed) log would show a row here rather
     // than accidentally passing.
     let builder = hold_builder(name);
-    let (f, frame_region) = frame(Rights::READ);
+    let (f, frame_region) = page_frame(Rights::READ);
     assert_eq!(
         map_into(builder, 0x0040_0000, f, abi::address_space::MAP_RO),
         Ok(0)

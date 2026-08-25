@@ -119,7 +119,7 @@ pub const SURFACE_BYTES: u32 = STRIDE * HEIGHT;
 /// than a special case: those frames sit inside the driver's registered DMA region, so the same
 /// validator and the same IOMMU domain that confine a disk's descriptors confine the GPU's pixel
 /// reads. See notes/framebuffer-contract.md, "The memory story".
-pub const SURFACE_FRAMES: u32 = SURFACE_BYTES.div_ceil(4096);
+pub const SURFACE_PAGE_FRAMES: u32 = SURFACE_BYTES.div_ceil(4096);
 
 /// `VIRTIO_GPU_FORMAT_B8G8R8X8_UNORM`, the virtio-gpu 2D format code for this surface.
 ///
@@ -354,7 +354,7 @@ mod tests {
             0,
             "the surface should fill its frames"
         );
-        assert_eq!(SURFACE_FRAMES, 8);
+        assert_eq!(SURFACE_PAGE_FRAMES, 8);
         assert_eq!(PIXELS, 8192);
         assert_eq!(
             offset_of(0, 1),

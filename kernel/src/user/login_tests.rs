@@ -6,7 +6,7 @@ use crate::sched;
 /// The login service's construction budget (`user/src/login.rs`'s `CONSTRUCTION_UT`), sized for
 /// this suite's exact needs rather than guessed generously: `crate::untyped::create` reserves this
 /// many frames from the boot's free pool the moment `ls::start` runs, and this number is a direct,
-/// permanent charge against `kernel::testing::SUITE_FRAME_BUDGET` **for the logins this suite never
+/// permanent charge against `kernel::testing::SUITE_PAGE_FRAME_BUDGET` **for the logins this suite never
 /// tears down**. The first version of this constant (2048) blew that budget by itself; this is the
 /// account the ledger's own message asks for.
 ///
@@ -28,9 +28,9 @@ use crate::sched;
 /// by needing far more than that headroom would allow if it did not. 1856 - 1664 = 192, still more
 /// than the 128 that test (or `mint`'s own scratch bookkeeping) ever needs live at once, so this
 /// number is unchanged by this milestone's fix rather than lowered to the new, tighter 1664 + 128 =
-/// 1792 minimum: the margin costs nothing further against `SUITE_FRAME_BUDGET` and a lane six months
+/// 1792 minimum: the margin costs nothing further against `SUITE_PAGE_FRAME_BUDGET` and a lane six months
 /// from now adding one more permanent login to this suite should not have to touch this constant to
-/// do it. Raising this past 640 raised `kernel::testing::SUITE_FRAME_BUDGET` too; that comment
+/// do it. Raising this past 640 raised `kernel::testing::SUITE_PAGE_FRAME_BUDGET` too; that comment
 /// carries the account.
 const CONSTRUCTION_PAGES: u64 = 1856;
 
@@ -52,14 +52,14 @@ const EEXIST: i32 = 17;
 /// subtree of their own at all: `login.rs` no longer creates one (DECISIONS §117: provision-time
 /// creation, never auto-vivified at login), so something upstream of it must, exactly as a real
 /// deployment's `identity_provisioner` would before anyone logs in.
-fn ensure_home_subtree(fs_ep: sched::RendezvousId, fs_frame: u64, name: &[u8]) {
-    // SAFETY: `fs_frame` is the file service's own shared page, already wired and idle (no client
+fn ensure_home_subtree(fs_ep: sched::RendezvousId, fs_page_frame: u64, name: &[u8]) {
+    // SAFETY: `fs_page_frame` is the file service's own shared page, already wired and idle (no client
     // exists yet at the point `wired` calls this, before the login service or any test client is
     // spawned), so writing into it directly and then calling through `fs_ep` is the same shape
     // `identity_provisioner_service.rs`'s own `provision` uses for its request pages.
     let page = unsafe {
         core::slice::from_raw_parts_mut(
-            mmu::phys_to_virt(fs_frame) as *mut u8,
+            mmu::phys_to_virt(fs_page_frame) as *mut u8,
             filesystem_proto::PAGE,
         )
     };
@@ -128,17 +128,17 @@ fn wired() -> Option<ls::Wiring> {
     if !DONE.load(Ordering::Acquire) {
         let result = (|| {
             let (cred_wiring, _, _) = credential_tests::provisioned()?;
-            let (fs_ep, fs_frame) =
+            let (fs_ep, fs_page_frame) =
                 fs_service::root_directory(fs_service::blk_server_image(), redoxfs_server_image())?;
-            ensure_home_subtree(fs_ep, fs_frame, b"chris");
-            ensure_home_subtree(fs_ep, fs_frame, b"corinne");
+            ensure_home_subtree(fs_ep, fs_page_frame, b"chris");
+            ensure_home_subtree(fs_ep, fs_page_frame, b"corinne");
             let login_image = program("login").expect("no login program in the initrd archive");
             let w = ls::start(
                 login_image,
                 cred_wiring.verify,
-                cred_wiring.verify_frame,
+                cred_wiring.verify_page_frame,
                 fs_ep,
-                fs_frame,
+                fs_page_frame,
                 CONSTRUCTION_PAGES,
             );
             Some(w)
@@ -312,7 +312,7 @@ fn two_different_identities_get_independently_working_channels_and_correct_attri
 ///
 /// Six rather than nine performed here directly: a real login's `CARETAKER_REGION_PAGES` and
 /// `CLIENT_BUDGET_PAGES` are permanently unreclaimable memory (see `user/src/login.rs`'s BUGS), so
-/// every attempt this test adds is a permanent charge against `kernel::testing::SUITE_FRAME_BUDGET`
+/// every attempt this test adds is a permanent charge against `kernel::testing::SUITE_PAGE_FRAME_BUDGET`
 /// and not merely against `CONSTRUCTION_PAGES`. Reusing the other two tests' three logins rather
 /// than repeating them here is what keeps that charge to what actually proves the fix.
 #[test_case]

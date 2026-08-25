@@ -24,7 +24,7 @@
 //!     through QEMU's `hostfwd` twice, which proves the listener re-arms.
 //!     The same spawn then carries **the UDP bind grant's refusals** (milestone 55), because a
 //!     second net server does not fit the aarch64 boot (the memory receipt in notes/net.md; that
-//!     lane re-measured it: an eleventh spawn died as `Unmappable(OutOfFrames)` in an unrelated
+//!     lane re-measured it: an eleventh spawn died as `Unmappable(OutOfPageFrames)` in an unrelated
 //!     later test). A fixed port outside the grant is refused as authority, a granted one binds
 //!     and is exclusive, which incidentally proves the two grant halves compose in one word on the
 //!     machine. The traffic that used to ride here belongs to `mdns_responder` now: it is a third
@@ -47,7 +47,7 @@
 //! and `socket_client`, which belongs to the real clients milestone 54 will need. This file is a
 //! single-consumer `#[path]` module rather than a `[[bin]]`.
 
-use abi::{frame as fr, rendezvous, rights, untyped as ut};
+use abi::{page_frame as fr, rendezvous, rights, untyped as ut};
 use socket_proto::*;
 use user_rt::mapped_window::{MappedWindow, PAGE};
 use user_rt::{call, exit, invoke, send};
@@ -70,15 +70,15 @@ const OK: u64 = 1;
 const NO_ANSWER: u64 = 2;
 
 /// Where the client maps its shared frame.
-const FRAME_VA: u64 = 0x0000_0000_00A0_0000;
+const PAGE_FRAME_VA: u64 = 0x0000_0000_00A0_0000;
 
 /// The window onto that frame (milestone 139; see `user_rt::mapped_window`). A `static`, not a
 /// `const`, for the same reason the type's own doc names as its second valid case: the range is
-/// only actually mapped once `attach_frame`'s `Frame::MAP` succeeds, and every `r8`/`w8`/`r16le`/
-/// `w16le` call in this file happens after that, during the protocol exchanges `attach_frame` is
+/// only actually mapped once `attach_page_frame`'s `PageFrame::MAP` succeeds, and every `r8`/`w8`/`r16le`/
+/// `w16le` call in this file happens after that, during the protocol exchanges `attach_page_frame` is
 /// called to set up.
-// SAFETY: `attach_frame` maps this frame writable at FRAME_VA before any read or write below runs.
-static WINDOW: MappedWindow = unsafe { MappedWindow::new(FRAME_VA, PAGE) };
+// SAFETY: `attach_page_frame` maps this frame writable at PAGE_FRAME_VA before any read or write below runs.
+static WINDOW: MappedWindow = unsafe { MappedWindow::new(PAGE_FRAME_VA, PAGE) };
 
 /// slirp's guest-visible nameserver address (a NAT to the *host's* resolver, not a resolver), the
 /// gateway that hosts slirp's own TFTP server, and the guestfwd echo peer the runners attach.
@@ -141,37 +141,37 @@ const MDNS_GRANTED_PORT: u64 = 5354;
 /// resolver behaviour, not a widened timeout.
 const DNS_ATTEMPTS: u32 = 3;
 
-// `va` is an absolute address, `FRAME_VA + <some offset>`, computed at every call site; `WINDOW`
+// `va` is an absolute address, `PAGE_FRAME_VA + <some offset>`, computed at every call site; `WINDOW`
 // wants an offset, so these subtract the base back out and let its own bounds check (milestone
 // 139) stand in for the hand-written "va is inside the frame" this used to assert only in prose.
 fn w8(va: u64, v: u8) {
-    WINDOW.w8(va - FRAME_VA, v);
+    WINDOW.w8(va - PAGE_FRAME_VA, v);
 }
 fn w16le(va: u64, v: u16) {
-    WINDOW.w16(va - FRAME_VA, v);
+    WINDOW.w16(va - PAGE_FRAME_VA, v);
 }
 fn r8(va: u64) -> u8 {
-    WINDOW.r8(va - FRAME_VA)
+    WINDOW.r8(va - PAGE_FRAME_VA)
 }
 fn r16le(va: u64) -> u16 {
-    WINDOW.r16(va - FRAME_VA)
+    WINDOW.r16(va - PAGE_FRAME_VA)
 }
 
 /// The source endpoint a UDP RECV reply left in the frame header (`socket_proto`'s layout note).
 fn recv_source() -> ([u8; 4], u16) {
     let mut ip = [0u8; 4];
     for (i, b) in ip.iter_mut().enumerate() {
-        *b = r8(FRAME_VA + OFF_DST_IP + i as u64);
+        *b = r8(PAGE_FRAME_VA + OFF_DST_IP + i as u64);
     }
-    (ip, r16le(FRAME_VA + OFF_DST_PORT))
+    (ip, r16le(PAGE_FRAME_VA + OFF_DST_PORT))
 }
 
 /// Set the shared frame's destination header.
 fn set_dst(ip: [u8; 4], port: u16) {
     for (i, &b) in ip.iter().enumerate() {
-        w8(FRAME_VA + OFF_DST_IP + i as u64, b);
+        w8(PAGE_FRAME_VA + OFF_DST_IP + i as u64, b);
     }
-    w16le(FRAME_VA + OFF_DST_PORT, port);
+    w16le(PAGE_FRAME_VA + OFF_DST_PORT, port);
 }
 
 /// Report `code` and stop.
@@ -186,7 +186,7 @@ fn done(code: u64) -> ! {
 }
 
 /// Mint a frame from our untyped, map it writable, and delegate it to socket `sid`.
-fn attach_frame(sid: u64) {
+fn attach_page_frame(sid: u64) {
     // SAFETY: `svc`. RETYPE returns the new frame capability's slot, or a negative error.
     let frame = unsafe { invoke(UNTYPED, ut::RETYPE, 0, 0, 0) };
     if frame < 0 {
@@ -194,7 +194,7 @@ fn attach_frame(sid: u64) {
     }
     let frame = frame as u64;
     // SAFETY: `svc`. Map it writable; page tables come from our untyped.
-    if unsafe { invoke(frame, fr::MAP, FRAME_VA, 1, UNTYPED) } < 0 {
+    if unsafe { invoke(frame, fr::MAP, PAGE_FRAME_VA, 1, UNTYPED) } < 0 {
         done(0xE002);
     }
     // Delegate it (narrowed to read/write) with the ATTACH request. SAFETY: `svc`.
@@ -204,7 +204,7 @@ fn attach_frame(sid: u64) {
             rendezvous::SEND_CAP,
             frame,
             rights::READ | rights::WRITE,
-            req(OP_ATTACH_FRAME, sid),
+            req(OP_ATTACH_PAGE_FRAME, sid),
         )
     } < 0
     {
@@ -220,7 +220,7 @@ fn put8(v: u8, at: &mut u64) {
 
 /// Build a DNS A-record query for "example.com" into the frame payload. Returns its length.
 fn build_dns_query() -> u64 {
-    let mut p = FRAME_VA + OFF_PAYLOAD;
+    let mut p = PAGE_FRAME_VA + OFF_PAYLOAD;
     // header: id, flags(0x0100 recursion desired), qd=1, an=ns=ar=0
     put8((DNS_TXID >> 8) as u8, &mut p);
     put8(DNS_TXID as u8, &mut p);
@@ -243,7 +243,7 @@ fn build_dns_query() -> u64 {
     put8(0x01, &mut p);
     put8(0x00, &mut p); // qclass IN = 0x0001
     put8(0x01, &mut p);
-    p - (FRAME_VA + OFF_PAYLOAD)
+    p - (PAGE_FRAME_VA + OFF_PAYLOAD)
 }
 
 /// **Real DNS resolution, and therefore NOT a gate.** The query goes to 10.0.2.3, which libslirp
@@ -252,7 +252,7 @@ fn build_dns_query() -> u64 {
 /// which the kernel test turns into a loud skip. A response that arrives but is not ours, or is not
 /// a response, still fails: that would be a defect in the socket contract, not in the network.
 fn udp_dns() -> ! {
-    attach_frame(0);
+    attach_page_frame(0);
     if call(STACK, req(OP_OPEN_UDP, 0), 0).0 != REP_OK {
         done(0xE010);
     }
@@ -276,8 +276,9 @@ fn udp_dns() -> ! {
     }
 
     // Verify it is a response to our query: transaction id matches, and the QR bit is set.
-    let rid = ((r8(FRAME_VA + OFF_PAYLOAD) as u16) << 8) | r8(FRAME_VA + OFF_PAYLOAD + 1) as u16;
-    let qr = r8(FRAME_VA + OFF_PAYLOAD + 2) & 0x80;
+    let rid = ((r8(PAGE_FRAME_VA + OFF_PAYLOAD) as u16) << 8)
+        | r8(PAGE_FRAME_VA + OFF_PAYLOAD + 1) as u16;
+    let qr = r8(PAGE_FRAME_VA + OFF_PAYLOAD + 2) & 0x80;
     if rid != DNS_TXID {
         done(0xE013);
     }
@@ -299,13 +300,13 @@ fn udp_dns() -> ! {
 /// Send a read request (opcode 1, `octet` mode) for the fixture the runners planted, and require the
 /// first data packet back: opcode 3, block 1, and the fixture's bytes exactly.
 fn udp_tftp() -> ! {
-    attach_frame(0);
+    attach_page_frame(0);
     if call(STACK, req(OP_OPEN_UDP, 0), 0).0 != REP_OK {
         done(0xE040);
     }
 
     // RRQ: { u16 opcode = 1 } filename 0 "octet" 0
-    let mut p = FRAME_VA + OFF_PAYLOAD;
+    let mut p = PAGE_FRAME_VA + OFF_PAYLOAD;
     put8(0x00, &mut p);
     put8(0x01, &mut p);
     for &c in TFTP_NAME {
@@ -316,7 +317,7 @@ fn udp_tftp() -> ! {
         put8(c, &mut p);
     }
     put8(0x00, &mut p);
-    let qlen = p - (FRAME_VA + OFF_PAYLOAD);
+    let qlen = p - (PAGE_FRAME_VA + OFF_PAYLOAD);
 
     set_dst(GW_IP, TFTP_PORT);
     if call(STACK, req(OP_SENDTO, 0), qlen).0 != REP_OK {
@@ -329,9 +330,10 @@ fn udp_tftp() -> ! {
     if rlen == REP_ERR || rlen < 4 + TFTP_BODY.len() as u64 {
         done(0xE042);
     }
-    let opcode = ((r8(FRAME_VA + OFF_PAYLOAD) as u16) << 8) | r8(FRAME_VA + OFF_PAYLOAD + 1) as u16;
-    let block =
-        ((r8(FRAME_VA + OFF_PAYLOAD + 2) as u16) << 8) | r8(FRAME_VA + OFF_PAYLOAD + 3) as u16;
+    let opcode = ((r8(PAGE_FRAME_VA + OFF_PAYLOAD) as u16) << 8)
+        | r8(PAGE_FRAME_VA + OFF_PAYLOAD + 1) as u16;
+    let block = ((r8(PAGE_FRAME_VA + OFF_PAYLOAD + 2) as u16) << 8)
+        | r8(PAGE_FRAME_VA + OFF_PAYLOAD + 3) as u16;
     if opcode != 3 {
         done(0xE043); // an ERROR packet (opcode 5) means the fixture is missing: see the runners
     }
@@ -339,7 +341,7 @@ fn udp_tftp() -> ! {
         done(0xE044);
     }
     for (i, &b) in TFTP_BODY.iter().enumerate() {
-        if r8(FRAME_VA + OFF_PAYLOAD + 4 + i as u64) != b {
+        if r8(PAGE_FRAME_VA + OFF_PAYLOAD + 4 + i as u64) != b {
             done(0xE045); // the bytes came back changed
         }
     }
@@ -365,13 +367,13 @@ fn udp_tftp() -> ! {
     // Addressed to the DATA's reported source rather than to :69, which is what TFTP's TID scheme
     // asks for and is the first real consumer of the source endpoint: replying to the querier is
     // exactly the move an mDNS legacy-unicast responder makes.
-    let mut a = FRAME_VA + OFF_PAYLOAD;
+    let mut a = PAGE_FRAME_VA + OFF_PAYLOAD;
     put8(0x00, &mut a);
     put8(0x04, &mut a);
     put8(0x00, &mut a);
     put8(0x01, &mut a);
     set_dst(src_ip, src_port);
-    let _ = call(STACK, req(OP_SENDTO, 0), a - (FRAME_VA + OFF_PAYLOAD));
+    let _ = call(STACK, req(OP_SENDTO, 0), a - (PAGE_FRAME_VA + OFF_PAYLOAD));
 
     let _ = call(STACK, req(OP_CLOSE, 0), 0);
     done(OK);
@@ -380,7 +382,7 @@ fn udp_tftp() -> ! {
 fn tcp_echo() -> ! {
     const MSG: &[u8] = b"nife-net!";
 
-    attach_frame(0);
+    attach_page_frame(0);
     if call(STACK, req(OP_OPEN_TCP, 0), 0).0 != REP_OK {
         done(0xE020);
     }
@@ -392,7 +394,7 @@ fn tcp_echo() -> ! {
     }
 
     for (i, &b) in MSG.iter().enumerate() {
-        w8(FRAME_VA + OFF_PAYLOAD + i as u64, b);
+        w8(PAGE_FRAME_VA + OFF_PAYLOAD + i as u64, b);
     }
     let (sent, _) = call(STACK, req(OP_SEND, 0), MSG.len() as u64);
     if sent != MSG.len() as u64 {
@@ -404,7 +406,7 @@ fn tcp_echo() -> ! {
         done(0xE023); // the echo did not come back whole
     }
     for (i, &b) in MSG.iter().enumerate() {
-        if r8(FRAME_VA + OFF_PAYLOAD + i as u64) != b {
+        if r8(PAGE_FRAME_VA + OFF_PAYLOAD + i as u64) != b {
             done(0xE024); // the echoed bytes differ
         }
     }
@@ -420,7 +422,7 @@ fn tcp_echo() -> ! {
 /// `std::net` PAL, notes/net.md). With the rotating allocator the reopen gets a fresh port, so both
 /// connects complete.
 fn tcp_reopen() -> ! {
-    attach_frame(0);
+    attach_page_frame(0);
     set_dst(ECHO_IP, ECHO_PORT);
 
     // First connection on socket id 0.
@@ -490,7 +492,7 @@ fn tcp_accept_inbound() -> ! {
     }
 
     // Only now a frame, and only for the connection.
-    attach_frame(CONN_SID);
+    attach_page_frame(CONN_SID);
 
     // Two connections in a row, each with its own stage codes so a failure names which one.
     serve_one_inbound(0xE060);
@@ -500,7 +502,7 @@ fn tcp_accept_inbound() -> ! {
 
     // The mDNS half rides in this same spawn (milestone 55's stack half), because a second net
     // server does not fit the aarch64 boot: the spawn is ~154 frames nothing ever reclaims, and
-    // this lane measured the eleventh one dying as `Unmappable(OutOfFrames)` in an unrelated later
+    // this lane measured the eleventh one dying as `Unmappable(OutOfPageFrames)` in an unrelated later
     // test, the exact failure notes/net.md's memory receipt predicted. Milestone 107 folded its
     // grant half for the same reason; the stage codes stand in for the separate test's name.
     udp_mdns_half();
@@ -519,13 +521,13 @@ fn serve_one_inbound(base: u64) {
         done(base + 1);
     }
     for (i, &b) in IN_MSG.iter().enumerate() {
-        if r8(FRAME_VA + OFF_PAYLOAD + i as u64) != b {
+        if r8(PAGE_FRAME_VA + OFF_PAYLOAD + i as u64) != b {
             done(base + 2); // something connected and said something else
         }
     }
 
     for (i, &b) in OUT_MSG.iter().enumerate() {
-        w8(FRAME_VA + OFF_PAYLOAD + i as u64, b);
+        w8(PAGE_FRAME_VA + OFF_PAYLOAD + i as u64, b);
     }
     let (sent, _) = call(STACK, req(OP_SEND, CONN_SID), OUT_MSG.len() as u64);
     if sent != OUT_MSG.len() as u64 {

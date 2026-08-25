@@ -11,7 +11,7 @@
 //! inert configuration (`TZ`, `LANG`, `TERM`, genuinely just data), names (`PATH`, `HOME`,
 //! already answered by the namespace half), and secrets (already answered, an endpoint, §41).
 //! DECISIONS §111 decided the inert third's wire encoding: a read-only page a process is either
-//! granted or is not (the same rights ladder the clock page uses: no capability, or a `Frame`
+//! granted or is not (the same rights ladder the clock page uses: no capability, or a `PageFrame`
 //! with `READ`), because a config value is never something a person designates on a command
 //! line and there is nothing to propose or set from inside the process that holds it.
 //!
@@ -353,7 +353,7 @@ impl ConfigPage {
     /// `va` must be a mapped, byte-aligned buffer of at least [`PAGE_BYTES`] bytes (either an
     /// assembled page, or a zeroed frame, which reads as "no configuration"), and it must stay
     /// mapped and unwritten by this process for as long as this value is used. The page is
-    /// read-only by construction on the kernel side (the same `Frame` `READ`-only shape the
+    /// read-only by construction on the kernel side (the same `PageFrame` `READ`-only shape the
     /// clock page uses), so a caller with a correctly typed capability cannot violate this by
     /// accident.
     pub const unsafe fn new(va: u64) -> Self {

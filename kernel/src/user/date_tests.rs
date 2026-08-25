@@ -1,5 +1,5 @@
 use super::*;
-use crate::cap::{Rights, frame_cap, rendezvous_cap};
+use crate::cap::{Rights, page_frame_cap, rendezvous_cap};
 use crate::sched::RendezvousId;
 
 /// Where `date` expects the clock page, read-only. Must match user/src/date.rs's `CLOCK_VA`.
@@ -29,7 +29,7 @@ fn spawn_date(page: Option<u64>, fmt: u64, offset_minutes: i64, provenance: u64)
                 arg2: provenance,
                 grants: &[
                     rendezvous_cap(out, Rights::WRITE), // slot 0: stdout
-                    frame_cap(phys, Rights::READ),      // slot 1: a READER, and nothing more
+                    page_frame_cap(phys, Rights::READ), // slot 1: a READER, and nothing more
                 ],
                 maps: &[Mapping {
                     va: CLOCK_VA,

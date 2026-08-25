@@ -15,8 +15,8 @@
 ///
 /// The list grows deliberately, and each addition is a decision:
 ///
-/// - `Frame` is now here, because **IPC carries control and shared memory carries data** (§10). A
-///   shared buffer used to be mapped in at spawn, wired once by the kernel; a `Frame` makes
+/// - `PageFrame` is now here, because **IPC carries control and shared memory carries data** (§10). A
+///   shared buffer used to be mapped in at spawn, wired once by the kernel; a `PageFrame` makes
 ///   delegating memory a runtime operation a process does itself. See notes/frames.md.
 /// - `Untyped` at milestone 11, if we take §10's deferred axis, at which point the kernel stops
 ///   allocating and this enum stops being the interesting part of the system.
@@ -50,13 +50,13 @@ pub enum Object {
     ///
     /// The object §10 named as the shared-memory capability: *IPC carries control, shared memory
     /// carries data*. A shared buffer used to be a page the kernel mapped into both parties at
-    /// spawn, wired once and never movable. A `Frame` makes it a runtime object instead: a process
-    /// retypes one out of its own untyped (`Untyped::RETYPE`), maps it (`Frame::MAP`), and hands it
+    /// spawn, wired once and never movable. A `PageFrame` makes it a runtime object instead: a process
+    /// retypes one out of its own untyped (`Untyped::RETYPE`), maps it (`PageFrame::MAP`), and hands it
     /// (or a read-only view of it, since delegation narrows) to a peer over an endpoint. The peer
     /// maps the *same physical page* and the two share memory, composed by the processes rather
     /// than arranged for them. The address is the identity: a process can never forge one, because
-    /// the only ways to get a `Frame` are to retype it or be handed it, and both keep the object.
-    Frame(u64),
+    /// the only ways to get a `PageFrame` are to retype it or be handed it, and both keep the object.
+    PageFrame(u64),
 
     /// **A device's MMIO page**, by physical address (milestone 19d.2): a delegatable authority
     /// to map a *specific* device's registers, **device-typed** (nGnRnE, uncacheable, unreordered
@@ -64,7 +64,7 @@ pub enum Object {
     /// knows device physical addresses) and hands it to init; init delegates it to the driver it
     /// builds and maps it into that driver's space. This is what turns "the kernel maps the UART
     /// at spawn" into "device access is a capability", so a userspace init can bring up drivers.
-    /// Distinct from `Frame` precisely because a `Frame` maps *normal cacheable* memory, which for
+    /// Distinct from `PageFrame` precisely because a `PageFrame` maps *normal cacheable* memory, which for
     /// MMIO would let the CPU cache and reorder register accesses: catastrophic for a device.
     ///
     /// Constructed by the aarch64 boot (`spawn_init`, and its tests) and by riscv's
@@ -285,16 +285,16 @@ pub fn device_frame_cap(phys: u64, rights: Rights) -> Cap {
 /// map it read/write, `GRANT` lets it pass the page on. A freshly retyped frame gets all three;
 /// delegation narrows them (a read-only, non-lendable view is `READ` alone).
 ///
-/// (This doc comment was attached to [`device_frame_cap`] until milestone 108, so `frame_cap` had
+/// (This doc comment was attached to [`device_frame_cap`] until milestone 108, so `page_frame_cap` had
 /// none and the device one appeared to have two. A correction, not a rewrite.)
 ///
 /// The kernel mints one directly when it owns a page a program should hold: a driver's DMA region,
 /// a shared buffer, the clock page. Since milestone 108 that is how the disk and display paths hand
 /// a driver its memory, in place of a `Spawn::maps` entry that no capability stood behind. See
 /// notes/frames.md.
-pub fn frame_cap(phys: u64, rights: Rights) -> Cap {
+pub fn page_frame_cap(phys: u64, rights: Rights) -> Cap {
     Cap {
-        object: Object::Frame(phys),
+        object: Object::PageFrame(phys),
         rights,
     }
 }

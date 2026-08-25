@@ -53,7 +53,7 @@
 #![no_main]
 
 use user_rt::mapped_window::MappedWindow;
-use user_rt::{call, exit, invoke, map_frame, recv, recv_cap, send, yield_now};
+use user_rt::{call, exit, invoke, map_page_frame, recv, recv_cap, send, yield_now};
 
 /// The login service's request endpoint (slot 0), `WRITE`.
 const SERVICE: u64 = 0;
@@ -71,7 +71,7 @@ const PAGE_VA: u64 = 0x0000_0000_00e2_0000;
 const FS_VA: u64 = 0x0000_0000_00f0_0000;
 
 // SAFETY: constructing the window touches no memory; only `put_page`/`get_page` do, and every
-// caller of those runs behind `if mapped { .. }` (this process's own `map_frame(fs_frame, FS_VA,
+// caller of those runs behind `if mapped { .. }` (this process's own `map_page_frame(fs_page_frame, FS_VA,
 // ..)` having already returned true), the same condition the hand-rolled comment this replaces
 // relied on (milestone 139 round 2; see `user_rt::mapped_window`).
 const FS_WINDOW: MappedWindow = unsafe { MappedWindow::new(FS_VA, filesystem_proto::PAGE as u64) };
@@ -184,7 +184,7 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
 
     // Four capabilities, in login_proto's fixed order.
     let (_, dir_ep, _) = recv_cap(RESULT);
-    let (_, fs_frame, _) = recv_cap(RESULT);
+    let (_, fs_page_frame, _) = recv_cap(RESULT);
     let (_, budget, _) = recv_cap(RESULT);
     let (_, region, _) = recv_cap(RESULT);
 
@@ -192,14 +192,14 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
     let mut hint = 0u64;
 
     // Prove the directory capability works: map the delegated frame (which needs `budget` alive, to
-    // supply page-table pages for the mapping: `user_rt::map_frame`'s own contract), then read the
+    // supply page-table pages for the mapping: `user_rt::map_page_frame`'s own contract), then read the
     // granted subtree's listing through the delegated caretaker endpoint. A capability that merely
     // arrived would pass every check up to this line and fail only this one.
-    let mapped = map_frame(fs_frame, FS_VA, true, budget);
+    let mapped = map_page_frame(fs_page_frame, FS_VA, true, budget);
 
     // Prove the budget works: retype one page from it. `RETYPE`'s reply is the new frame's slot
     // (>= 0) or a negative error. Done here, right after the one use of `budget` that needs it
-    // alive (`map_frame` above), and before anything below tears it down.
+    // alive (`map_page_frame` above), and before anything below tears it down.
     // SAFETY: `svc`/`ecall`; the kernel validates the capability and the method.
     if unsafe { invoke(budget, abi::untyped::RETYPE, 0, 0, 0) } >= 0 {
         flags |= F_BUDGET_WORKS;

@@ -26,8 +26,8 @@
 //! service's BUGS):
 //!
 //! 1. the **directory** capability: a freshly built `fs_subtree_caretaker`'s endpoint, `WRITE`;
-//! 2. the **filesystem's shared page**, a `Frame`, `READ | WRITE`: the client maps it itself
-//!    (`user_rt::map_frame`) at whatever address it chooses, and uses it for both the request it
+//! 2. the **filesystem's shared page**, a `PageFrame`, `READ | WRITE`: the client maps it itself
+//!    (`user_rt::map_page_frame`) at whatever address it chooses, and uses it for both the request it
 //!    stages to the directory endpoint and the caretaker's own hop to the file service, which is
 //!    sound for the reason `crates/system_initializer` gives (`fs_subtree_caretaker` and its client
 //!    share one frame because every request on both hops is a blocking `CALL`);

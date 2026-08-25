@@ -1,5 +1,5 @@
 use super::*;
-use crate::cap::{Rights, frame_cap, rendezvous_cap, untyped_cap};
+use crate::cap::{Rights, page_frame_cap, rendezvous_cap, untyped_cap};
 use crate::sched::RendezvousId;
 
 /// Where the loader maps the clock page for a std program. Must match the std PAL's
@@ -147,9 +147,9 @@ pub fn start_on(
         // grants in order, so `run`'s two grants land at 0 and 1 and slots 2 to 4 stay empty.
         // The clock and config pages are `READ` only: the whole point of each is that a reader
         // cannot write it. See `grant_at`.
-        crate::sched::grant_at(CLOCK_SLOT, frame_cap(clock.page_phys, Rights::READ))
+        crate::sched::grant_at(CLOCK_SLOT, page_frame_cap(clock.page_phys, Rights::READ))
             .expect("the std clock slot was already occupied");
-        crate::sched::grant_at(CONFIG_SLOT, frame_cap(config_phys, Rights::READ))
+        crate::sched::grant_at(CONFIG_SLOT, page_frame_cap(config_phys, Rights::READ))
             .expect("the std config slot was already occupied");
         crate::sched::grant_at(ENTROPY_SLOT, rendezvous_cap(entropy.request, Rights::WRITE))
             .expect("the std entropy slot was already occupied");

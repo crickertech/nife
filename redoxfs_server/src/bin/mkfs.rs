@@ -97,7 +97,7 @@ const ENTROPY: u64 = 2;
 const REPORT: u64 = 3;
 /// The page shared with the block server, `READ|WRITE`. Granted in **every** wiring, the two
 /// controls included, so a refusal can only be explained by the capability that is missing.
-const BLK_FRAME: u64 = 4;
+const BLK_PAGE_FRAME: u64 = 4;
 
 /// Where this program puts the page it shares with the block server. **Its choice**: it holds the
 /// frame and maps it (milestone 108). Clear of the heap, which runs from
@@ -159,7 +159,7 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
 
     // The shared page, mapped out of the same budget the heap draws on (milestone 108). It is
     // granted in all three wirings, so a failure here is a broken kernel rather than a control.
-    if !user_rt::map_frame(BLK_FRAME, BLK_PAGE, true, UNTYPED) {
+    if !user_rt::map_page_frame(BLK_PAGE_FRAME, BLK_PAGE, true, UNTYPED) {
         user_rt::exit()
     }
 
