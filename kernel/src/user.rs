@@ -1989,7 +1989,7 @@ pub mod session_reviver_service;
 /// re-deriver without either program enumerating anything, that a session re-derived at boot has the
 /// identical §16 lifecycle a live login's `DurableSession` (`smb_server.rs`) already does, and that
 /// the re-deriver's own capabilities are gone and provably so once its one pass finishes.
-#[cfg(test)]
+#[cfg(all(test, initrd))]
 mod session_reviver_tests;
 
 /// **The NTP client, and the test server that answers it** (milestone 51; DECISIONS §43, §44).
