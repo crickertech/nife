@@ -75,6 +75,10 @@ IDentifier = "IDentifier"
 # Valid variant spellings, not errors. British/American and -able/-eable splits are style, and this
 # tree already chose; a checker should not relitigate that.
 Writeable = "Writeable"
+# tock_registers' read-modify-write trait (milestone 139 round 5, input.rs's IMSC register): the
+# checker splits the camelCase compound into "Read" + "Writeable" and only the bare word was
+# allowlisted before, so the compound slipped through until this driver needed `.modify()`.
+ReadWriteable = "ReadWriteable"
 requeueing = "requeueing"
 unparseable = "unparseable"
 # Proper nouns: a chip vendor and a Rust TUI crate.

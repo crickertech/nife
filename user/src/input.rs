@@ -44,36 +44,73 @@ const IRQ: u64 = 1; // WAIT / ACK the receive interrupt
 /// IMSC, an explicit interrupt-clear register ICR). RISC-V's has an NS16550 (byte registers,
 /// data-ready and transmit-holding-empty in the Line Status Register, RX interrupt enabled in IER,
 /// and the RX interrupt is cleared by *reading* the received byte, so there is nothing to clear).
+// Migrated onto `tock_registers` (milestone 139 round 5): every register offset checked at
+// compile time instead of asserted by a hand-written comment, matching
+// `kernel/src/drivers/pl011.rs`'s own idiom for the identical hardware. The RISC-V module below
+// stays on plain volatile access, for the reason `kernel/src/drivers/ns16550.rs`'s own module doc
+// gives: the NS16550's register *stride* is a runtime value (QEMU spaces its emulated registers
+// one byte apart; the JH7110's real hardware spaces them four bytes apart, `reg-shift = <2>`),
+// which `register_structs!`'s compile-time-fixed layout cannot express. The PL011 has no such
+// knob, so it is the one half of this file the macro actually fits.
 #[cfg(target_arch = "aarch64")]
 mod uart {
-    use super::UART_VA;
-    const DR: u64 = 0x00;
-    const FR: u64 = 0x18;
-    const IMSC: u64 = 0x38;
-    const ICR: u64 = 0x44;
-    const FR_RXFE: u32 = 1 << 4;
-    const RXIM: u32 = 1 << 4;
+    use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
+    use tock_registers::registers::{ReadOnly, ReadWrite, WriteOnly};
+    use tock_registers::{register_bitfields, register_structs};
 
-    fn rd(off: u64) -> u32 {
-        // SAFETY: UART_VA is our device mapping of the PL011.
-        unsafe { core::ptr::read_volatile((UART_VA + off) as *const u32) }
+    use super::UART_VA;
+
+    register_bitfields! {
+        u32,
+        /// Flag register.
+        FR [
+            /// Receive FIFO empty.
+            RXFE OFFSET(4) NUMBITS(1) [],
+        ],
+        /// Interrupt mask set/clear register.
+        IMSC [
+            /// Receive interrupt mask.
+            RXIM OFFSET(4) NUMBITS(1) [],
+        ],
     }
-    fn wr(off: u64, v: u32) {
-        // SAFETY: as above.
-        unsafe { core::ptr::write_volatile((UART_VA + off) as *mut u32, v) }
+
+    register_structs! {
+        /// The PL011's memory-mapped register block, the same layout
+        /// `kernel/src/drivers/pl011.rs` verifies at compile time for the identical hardware,
+        /// extended with IMSC and ICR (the receive-interrupt registers the kernel's own driver
+        /// does not touch, but this driver does).
+        #[allow(non_snake_case)]
+        RegisterBlock {
+            (0x00 => DR: ReadOnly<u32>),
+            (0x04 => _reserved0),
+            (0x18 => FR: ReadOnly<u32, FR::Register>),
+            (0x1c => _reserved1),
+            (0x38 => IMSC: ReadWrite<u32, IMSC::Register>),
+            (0x3c => _reserved2),
+            (0x44 => ICR: WriteOnly<u32>),
+            (0x48 => @END),
+        }
+    }
+
+    fn regs() -> &'static RegisterBlock {
+        // SAFETY: UART_VA is our device mapping of the PL011, handed to us at spawn, for the
+        // whole lifetime of this process. This is the same invariant the hand-written rd/wr calls
+        // used to assert by comment; register_structs! now checks every offset above at compile
+        // time instead.
+        unsafe { &*(UART_VA as *const RegisterBlock) }
     }
 
     pub fn rx_pending() -> bool {
-        rd(FR) & FR_RXFE == 0
+        !regs().FR.is_set(FR::RXFE)
     }
     pub fn rx_get() -> u8 {
-        rd(DR) as u8
+        regs().DR.get() as u8
     }
     pub fn arm_rx_interrupt() {
-        wr(IMSC, rd(IMSC) | RXIM);
+        regs().IMSC.modify(IMSC::RXIM::SET);
     }
     pub fn clear_interrupt() {
-        wr(ICR, 0x7ff);
+        regs().ICR.set(0x7ff);
     }
 }
 
