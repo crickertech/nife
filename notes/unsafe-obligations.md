@@ -671,10 +671,17 @@ per-file reasoning in `design/roadmap/139-drive-down-unsafe.md`'s round 5 sectio
 from), independently of round 4: 5 `unsafe {` blocks removed, 3 added, net -2** (`console.rs` flat,
 1 before and 1 after, still real by criterion 2; `input.rs` 2 removed 1 added, net -1;
 `jh7110_trng.rs` 2 removed 1 added, net -1). Round 4 landed first, so this section's own arithmetic
-is restated here from the merged tree rather than the stale shared base: PLACEHOLDER_CENSUS
+is restated here from the merged tree rather than the stale shared base: 779 blocks (round 4's own
+landed count) to 777, in 88,853 lines. Density: 87 per 10,000, unchanged from round 4's own final
+reading, truncated -- the two fewer blocks are offset by the lines the compile-time-checked layout's
+doc comments and macro invocations cost over the hand-written offsets and `SAFETY` comments they
+replaced, the same denominator effect this round's own base-commit measurement already showed in
+isolation.
 
-**The ratchet, cinched a fifth time**: ceiling lowered from 94 to PLACEHOLDER_CEILING, keeping the
-same 7-point headroom every ceiling in this milestone has carried.
+**The ratchet does not move a fifth time.** With density unchanged at 87, the 7-point-headroom
+ceiling stays 94: there is nothing to cinch that round 4 had not already cinched. The block count
+is real and lower, and it is recorded as such above; the ceiling tracks density, not a raw block
+count, and density is what a growing tree's line count keeps honest.
 
 **At most 20 `unsafe impl Send`/`Sync` claims** <!--count-at-most:unsafe-thread-safety-claims-->,
 and this one has no headroom at all. Each is a hand-written assertion that the compiler is wrong
