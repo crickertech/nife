@@ -1,8 +1,19 @@
 # 95. A hand-written IPC fastpath, and whether it can stay proven
 
-**Status: PROPOSED.** Raised 2026-08-18 by calef, in one question: *"Can we do the fast path and
+**Status: DECIDED.** calef, 2026-08-25, in conversation, on the recommendation below as written:
+*"Don't decide yet."* Raised 2026-08-18 by calef, in one question: *"Can we do the fast path and
 still make it proven?"* It follows milestone 132, whose gate measured the gap and deliberately did
 not close it.
+
+**What "don't decide yet" ratifies, precisely.** This decision has two tiers, and calef's answer is
+not one word covering both. **Option 3, the fastpath itself**, is what stays undecided: it needs
+milestone 74's cycle counters and milestone 127's Jetson TX1 to produce the one measurement that
+would justify it, and neither exists yet, so building it now would be arguing on an estimate rather
+than measuring, exactly the move this project's benchmark discipline refuses. **Option 2, the
+eligibility predicate and its proof in `crates/ipc`, is ratified as buildable now** — it is cheap,
+touches no syscall surface, and turns "the fastpath would be correct" from an argument into a
+harness whether or not a fastpath is ever built on top of it. A lane may pursue Option 2 without
+further sign-off; Option 3 stays gated on the measurement per this decision's own text.
 
 **What is blocked until this is answered:** nothing is blocked. The gate holds the number still, and
 `ipc_fastpath` at 5.6 KiB against a 4 KiB target is a gap that is not widening. This is a decision

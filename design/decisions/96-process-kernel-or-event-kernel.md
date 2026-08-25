@@ -1,9 +1,18 @@
 # 96. Process kernel or event kernel, and how to decide it
 
-**Status: PROPOSED.** Raised 2026-08-18 by calef, asking how to *think about* this as a decision
+**Status: DECIDED.** calef, 2026-08-25, in conversation, on the recommendation below as written:
+*"Don't decide yet."* Raised 2026-08-18 by calef, asking how to *think about* this as a decision
 rather than asking for the answer. It exists because notes/l4-lessons.md found that this tree has a
 process kernel, that seL4, OKL4 and NOVA all replaced theirs with event kernels, and that **nothing
 anywhere in this repository records the model as a choice.** It is what the code grew into.
+
+**Ratified as the three-step plan below, not as a deferral without a record.** Take the cheap half
+(direct process switch, under §95's Option 2/3 split) now, as a process kernel. Build the instrument
+that could actually decide the larger question — a real multi-tasking workload benchmark, since
+every instrument this project owns today is a micro-benchmark that would show approximately nothing
+— minted as [milestone 168](../roadmap/168-multitasking-benchmark.md). Re-open this section once
+that number exists, or sooner if a real customer-path workload starts creating threads in the
+hundreds.
 
 **What is blocked: nothing.** The system runs. This is a decision about whether to spend, and the
 useful output of writing it down is that the question stops being invisible.
