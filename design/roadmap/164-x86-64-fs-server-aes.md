@@ -47,7 +47,7 @@ against vendored dependencies this tree needs on a bare-metal target (`redoxfs-n
 a third entry of the same shape.
 
 The patch itself would need to give `aes` a scalar (non-SIMD) fallback implementation for whatever
-operation currently has none — `aes`'s own upstream likely already has a portable/software
+operation currently has none: `aes`'s own upstream likely already has a portable/software
 backend selectable by feature flag or `cfg`, since SIMD-less targets are not unique to this project;
 sizing that precisely (is it a feature flag this tree isn't enabling, or a genuine gap in the
 crate's own portable path) is the first thing whoever picks this up should check, before assuming a
@@ -57,22 +57,22 @@ patch is needed at all.
 
 **This is a materially bigger change than it might look, because of the shared-target fact above.**
 Simply flipping `x86_64-unknown-none`'s features to re-enable SSE would affect the kernel build
-too, not just `fs_server` and other userspace programs — LLVM would then be free to use SSE/vector
+too, not just `fs_server` and other userspace programs: LLVM would then be free to use SSE/vector
 instructions anywhere in kernel code (codegen for `memcpy`/`memset` is the usual culprit), which is
 unsafe without SSE properly enabled and saved/restored, kernel-side, from the earliest boot code
 onward.
 
 The safer shape, matching precedent already in this tree: a **separate** target, distinct from the
 kernel's own `x86_64-unknown-none`, for EL0 programs specifically. This tree already has exactly
-this kind of custom target for two other architectures — `targets/aarch64-unknown-nife.json` and
+this kind of custom target for two other architectures: `targets/aarch64-unknown-nife.json` and
 its riscv64 twin, both minted for milestone 27/64's `std`-support farm ("nife-os userspace,
-aarch64 (softfloat EL0, native capability ABI)", `"std": true`) — though those are for the
+aarch64 (softfloat EL0, native capability ABI)", `"std": true`), though those are for the
 crates.io-crate-compatibility farm specifically, not for `user/`'s own programs, so a new
 `x86_64-unknown-nife.json` (or similarly named) target for `fs_server` and friends would be a new
 use of an existing mechanism, not a copy of an existing target.
 
 **The real, currently-unbuilt cost this route needs, checked rather than assumed**: nothing in
-`kernel/src/arch/x86_64/` saves or restores FPU/SSE register state anywhere — no `FXSAVE`/`XSAVE`,
+`kernel/src/arch/x86_64/` saves or restores FPU/SSE register state anywhere: no `FXSAVE`/`XSAVE`,
 no `CR0.TS`/`CR4.OSFXSR` handling, nothing in `kernel/src/sched.rs` or `kernel/src/thread.rs`'s
 context-switch path. The other two architectures' own float/vector state handling was not checked
 by this milestone (out of scope; note only that x86 currently has none). Enabling SSE for even one
@@ -84,7 +84,7 @@ change alone; it is new scheduler-adjacent kernel work.
 ## Why it matters, and what it unblocks
 
 Directly: 21 of PR #476's 67 skips, and, in that lane's own words, "there is no point attaching a
-disk to the x86 runner" until this is solved — no real filesystem testing is possible on the
+disk to the x86 runner" until this is solved: no real filesystem testing is possible on the
 x86_64 leg at all today. Indirectly: any future x86_64 work that needs `fs_server` blocks on this
 the same way, which is most real storage or network-service work on that architecture once ported,
 matching what milestones 53 and 55 already need on the other two.
