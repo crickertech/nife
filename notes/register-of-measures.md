@@ -77,8 +77,9 @@ floor.
 The ceilings are rows 2 through 5 and 7 and 8, and reading their thresholds together is the
 useful part, because they are six different kinds of number. 5% is a tolerance. 4,096 is a hardware
 fact. 24,576 is a configuration constant. The high-water limits are margins over an observed
-maximum. 17 is today's tree exactly. And 94 per 10,000 (lowered from 100, then 97, then 96, then 95,
-by milestone 139) is a **claim about the tree that was false until shortly before it was written**, which makes it the
+maximum. 17 is today's tree exactly. And PLACEHOLDER_CEILING per 10,000 (lowered from 100, then 97,
+then 96, then 95, then 94, then PLACEHOLDER_CEILING, by milestone 139) is a **claim about the tree
+that was false until shortly before it was written**, which makes it the
 only one that expresses a direction rather than a limit. That distinction is what `count-at-most`
 exists for; see notes/unsafe-obligations.md for the measurement behind it.
 

@@ -655,6 +655,27 @@ moved this round, like round 3's.
 headroom the 100-vs-93, 97-vs-90, 96-vs-89 and 95-vs-88 ceilings all carried, now above the 87 this
 round reached.
 
+**Lowered a fifth time, by milestone 139 round 5 (2026-08-24).** `console.rs`'s and `input.rs`'s
+aarch64 (PL011) halves and `jh7110_trng.rs` migrated onto `tock_registers::register_structs!`/
+`register_bitfields!`, matching `kernel/src/drivers/pl011.rs`'s own idiom (calef, in conversation:
+"Take the dependency for user, launch the lane," taking `tock-registers` as a `user` crate
+dependency for the first time). `console.rs`'s and `input.rs`'s riscv64 (NS16550) halves were
+deliberately left unmigrated: round 3's premise that `kernel/src/drivers/ns16550.rs` already used
+this idiom "for the identical hardware" was checked and found false (that driver uses plain
+volatile access on purpose, because the NS16550's register stride is a runtime value no
+compile-time layout macro can express, per its own module doc), and the same fact holds for these
+two files' riscv64 halves, which hard-code QEMU's one-byte stride with no way to vary it. Full
+per-file reasoning in `design/roadmap/139-drive-down-unsafe.md`'s round 5 section.
+
+**Round 5 was measured against its own base commit (`757562a3`, the same one round 4 branched
+from), independently of round 4: 5 `unsafe {` blocks removed, 3 added, net -2** (`console.rs` flat,
+1 before and 1 after, still real by criterion 2; `input.rs` 2 removed 1 added, net -1;
+`jh7110_trng.rs` 2 removed 1 added, net -1). Round 4 landed first, so this section's own arithmetic
+is restated here from the merged tree rather than the stale shared base: PLACEHOLDER_CENSUS
+
+**The ratchet, cinched a fifth time**: ceiling lowered from 94 to PLACEHOLDER_CEILING, keeping the
+same 7-point headroom every ceiling in this milestone has carried.
+
 **At most 20 `unsafe impl Send`/`Sync` claims** <!--count-at-most:unsafe-thread-safety-claims-->,
 and this one has no headroom at all. Each is a hand-written assertion that the compiler is wrong
 about a type, which is the most consequential unsafe in the tree: a wrong one is a data race that
