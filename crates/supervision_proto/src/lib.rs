@@ -309,7 +309,7 @@ pub fn build_child_space(
     // is handed one).
     #[cfg(target_arch = "x86_64")]
     {
-        let timebase_frame = retype_frame_from(build_ut)?;
+        let timebase_frame = retype_page_frame_from(build_ut)?;
         // SAFETY: as above: the kernel validates the capability and the method.
         if unsafe {
             invoke(
