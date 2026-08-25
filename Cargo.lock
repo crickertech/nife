@@ -647,6 +647,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
 
 [[package]]
+name = "schedule_store"
+version = "0.1.0"
+
+[[package]]
 name = "scoped-tls"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -926,6 +930,7 @@ dependencies = [
  "pgrep",
  "pmap",
  "ps",
+ "schedule_store",
  "smb_proto",
  "smoltcp",
  "socket_proto",

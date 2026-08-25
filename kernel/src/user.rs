@@ -2201,6 +2201,28 @@ pub mod identity_provisioner_service;
 #[cfg(all(test, initrd))]
 mod identity_provisioning_tests;
 
+/// **The boot-time re-deriver** (milestone 152's third piece, provisional name `session_reviver`;
+/// DECISIONS §123). Spawned once, holding exactly a construction budget and the store-read
+/// capability, checked against the boot's measurement table before it is granted either
+/// (DECISIONS §123's second hardening refinement). See `user/src/session_reviver.rs`'s own module
+/// docs for what it does with them and why it is a new process rather than a phase of an existing
+/// boot component.
+#[cfg_attr(not(test), allow(dead_code))] // the milestone-152 durable-schedule tests are its callers
+pub mod session_reviver_service;
+
+/// **The schedule store's write path and read-at-boot path prove each other** (milestone 152's
+/// first and third pieces; DECISIONS §122, §123, §125).
+///
+/// What these prove that nothing else would: that a schedule entry `fs_test_client`'s
+/// `ROLE_SCHEDULE_SEED` writes through ordinary `filesystem_proto` verbs is the same document
+/// `session_reviver` reads back and `timetable::parse` accepts, that the manifest (§125's own answer
+/// to "which identities", read by name rather than by `READDIR`) carries that identity to the
+/// re-deriver without either program enumerating anything, that a session re-derived at boot has the
+/// identical §16 lifecycle a live login's `DurableSession` (`smb_server.rs`) already does, and that
+/// the re-deriver's own capabilities are gone and provably so once its one pass finishes.
+#[cfg(all(test, initrd))]
+mod session_reviver_tests;
+
 /// **The NTP client, and the test server that answers it** (milestone 51; DECISIONS §43, §44).
 ///
 /// The kernel's part is the wiring, and the wiring *is* the argument. An NTP client here gets five
