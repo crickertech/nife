@@ -935,7 +935,7 @@ fn done(code: u64) -> ! {
 
 /// Carve `pages` off `parent`'s unspent budget into a new child untyped (`Untyped::SPLIT`,
 /// DECISIONS §16), returning the child's slot. `Err` carries the kernel's negative error code
-/// (`OutOfMemory` if the parent's budget or this cspace is exhausted, `NotPermitted` without
+/// (`OutOfMemory` if the parent's budget or this capability table is exhausted, `NotPermitted` without
 /// `WRITE` on `parent`, neither of which this program's own capabilities should ever hit).
 fn untyped_split(parent: u64, pages: u64) -> Result<u64, i64> {
     // SAFETY: `svc`. `parent` is an untyped capability this process holds with WRITE (every one

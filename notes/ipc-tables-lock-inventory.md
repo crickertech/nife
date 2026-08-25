@@ -11,7 +11,7 @@ paragraph is the historical pointer for a reader who remembers the old name.*
 
 The scheduler's per-CPU migration (DECISIONS §28) already moved run queues, `current`, and
 held-rank out of shared state. What still lives under the one `IPC_TABLES` lock is the **thread
-table** (and with it every thread's CSpace) and the **endpoint array**. Milestone 17's question is
+table** (and with it every thread's CapabilityTable) and the **endpoint array**. Milestone 17's question is
 whether that remainder ever costs enough to justify partitioning it; this note is the denominator
 for that question.
 
@@ -21,7 +21,7 @@ for that question.
 |---|---|---|
 | **Hot: every IPC, every core** | `ipc_send`, `ipc_recv`, `ipc_call`, `ipc_reply`, `ipc_send_cap`, `ipc_recv_cap`, `irq_notify` | The `call_reply` fast path this project benchmarks and wins on takes `IPC_TABLES` at least once per operation. At 4 harts the hold times are short enough not to show; whether that survives 64 harts is THE milestone 17 question |
 | **Hot: every reschedule** | `schedule` (twice), `depart` | Runs on the core's own queue, but takes the global lock to touch the thread table |
-| **Warm: per capability operation** | `grant`, `grant_at`, `current_cap`, `delete_current_cap`, `take_ipc_aborted` | CSpaces live inside thread-table entries, so a purely thread-local capability lookup pays for the global lock. If partitioning ever happens, this is the piece that partitions for free (a CSpace has exactly one owner) |
+| **Warm: per capability operation** | `grant`, `grant_at`, `current_cap`, `delete_current_cap`, `take_ipc_aborted` | CapabilityTables live inside thread-table entries, so a purely thread-local capability lookup pays for the global lock. If partitioning ever happens, this is the piece that partitions for free (a CapabilityTable has exactly one owner) |
 | **Cold: lifecycle** | `create_tcb`, `configure_tcb`, `start_tcb`, `tcb_insert_cap`, `spawn_on`, `spawn_with_quota`, `kill_thread`, `reap_supervised`, `reap_region_objects`, `create_endpoint`, `try_create_endpoint_from`, `adopt_address_space`, `adopt_secondary_idle`, `init` | Dozens per boot, not thousands per second. No plausible contention at any scale this project names |
 | **Sweeps: revocation** | `delete_frame_caps`, `delete_device_frame_caps_from_others` | Whole-table scans by design (§13 revokes by physical page). Rare, but they hold the lock for a table-length walk, which is a latency spike every other core eats |
 | **Observability, test builds** | `thread_count`, `thread_present`, `dump_threads`, `user_pc_of`, `corpse_fault_msg`, `endpoint_waiting_senders`, `runnable_non_idle_count`, `is_running`, `current_kernel_stack_top` | Test and diagnostic surface. Never a reason to partition, and several are the same functions milestone 78 rescoped tests away from |
@@ -34,12 +34,12 @@ Three structural observations survive even before the curve exists:
    as harts increase while per-op latency holds. That is precisely what `bench --smp`'s
    `smp_throughput` measures, so the instrument mostly exists; what is missing is a machine with
    enough harts for the curve to bend (milestone 88's Graviton stages, up to 64).
-2. **CSpace operations are the free win if anything is.** They are logically per-thread already;
-   they share the lock only because CSpaces are stored in the table. A partition that moved
+2. **CapabilityTable operations are the free win if anything is.** They are logically per-thread already;
+   they share the lock only because CapabilityTables are stored in the table. A partition that moved
    nothing else would still take them off the global lock. Any milestone 17 design should price
    this piece separately from the thread table proper.
 3. **The revocation sweeps are the awkward customers.** Revoke-by-physical-page wants to visit
-   every CSpace, which is exactly the operation partitioning makes expensive (visit every shard,
+   every CapabilityTable, which is exactly the operation partitioning makes expensive (visit every shard,
    or broadcast). A partitioned design pays here to win on IPC; the trade should be measured, not
    assumed, and §13's semantics are not negotiable to make a scheduler faster.
 

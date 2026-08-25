@@ -218,7 +218,7 @@ fn print(bytes: &[u8]) -> Result<(), Error> {
 // The IPC primitives (send/recv/invoke/exit) come from the shared `user_rt` crate (19f.6).
 
 /// Receive a data word and, if the sender delegated one, a capability. Returns `(w0, slot)`, where
-/// `slot` is where the received capability landed in our cspace, or `rendezvous::NO_CAP` if none came.
+/// `slot` is where the received capability landed in our capability table, or `rendezvous::NO_CAP` if none came.
 ///
 /// A thin shape over `user_rt::recv_cap`, which returns the third word this caller does not want.
 fn recv_cap(slot: u64) -> (u64, u64) {
@@ -656,7 +656,7 @@ fn child() -> ! {
     exit();
 }
 
-/// Build a child process from `elf`, out of `untyped`. `caps` are inserted into the child's cspace
+/// Build a child process from `elf`, out of `untyped`. `caps` are inserted into the child's capability table
 /// at slots 0, 1, ... in order (each `(init_slot, rights)`: the capability init holds in
 /// `init_slot`, narrowed to `rights`). `maps` are extra pages mapped into the child before it starts
 /// (each `(child_va, init_slot, mode)`: init's Frame or `DeviceFrame` cap, mapped at `child_va` with
@@ -827,7 +827,7 @@ fn receiver() -> ! {
     const LOOPBACK: u64 = 2;
     const USED_WORD: u64 = 0x5A; // must match USED_WORD in kernel/src/user/delegation_service.rs
 
-    // Receive the delegated capability. It lands in a fresh slot of our own cspace; RECV_CAP tells
+    // Receive the delegated capability. It lands in a fresh slot of our own capability table; RECV_CAP tells
     // us which one. We were never told the slot in advance: the kernel chose it and named it to us.
     let (_data, got) = recv_cap(CHANNEL);
     let received = got != rendezvous::NO_CAP;

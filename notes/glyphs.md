@@ -64,7 +64,7 @@ and row 7 is the one-row descender. Caps and digits fill rows 0 to 6, x-height l
 16, on the same 128x64 scanout, at the same 1024-byte table. Milestone 29's other candidate,
 `gohufont-14`, has better letterforms and gives four rows of text, and four rows is not a terminal.
 No larger scanout is reachable today (a `Frame` names one page and the display driver has nine
-cspace slots left), so a narrower cell is the only lever there is.
+capability table slots left), so a narrower cell is the only lever there is.
 
 The division has a remainder, and it is handled rather than avoided: 18 cells of 7 is 126, so two
 pixels on the right of a full-width surface belong to no cell. `Vt::pixel` already answered for
@@ -233,7 +233,7 @@ in `crates/bitmap_font` that three parties read.
 
 **Growing the scanout is blocked, and it is blocked on the capability model rather than on memory**
 (measured 2026-08-19, when a lane tried to build the chosen font onto a terminal-sized surface). A
-`Frame` capability names exactly one page and each one occupies a cspace slot, the cspace has
+`Frame` capability names exactly one page and each one occupies a capability table slot, the capability table has
 sixteen slots, and the virtio-gpu driver's DMA region already uses nine of them. The hard ceiling is
 `SURFACE_FRAMES <= 9`, which is 36,864 bytes: every non-square shape inside it (128x72, 144x64,
 192x48) gives five text rows or fewer at 8x14, so **there is no scanout reachable today on which
@@ -510,7 +510,7 @@ That split is DECISIONS §33 seen from the producing side:
   not produce one character.
 - **The power to decide who receives is the compositor's**, expressed as which of the per-client
   input endpoints *it* holds it uses. The driver cannot influence it. A client receives a keystroke
-  because it **holds an input endpoint**, and a client granted none has an empty cspace slot and is
+  because it **holds an input endpoint**, and a client granted none has an empty capability table slot and is
   refused with `NoSuchSlot`, "there is nothing there".
 
 So focus never becomes ambient: there is no verb that grabs the keyboard, no message that names a

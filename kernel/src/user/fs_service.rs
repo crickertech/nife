@@ -663,7 +663,7 @@ pub fn start(
 ///
 /// The caretaker holds the directory capability. The program holds an endpoint to the caretaker
 /// and **nothing that names the FS server**, so "it cannot reach a second file" is a statement
-/// about its cspace, not about a check it is trusted to pass. The narrowing is an address
+/// about its capability table, not about a check it is trusted to pass. The narrowing is an address
 /// space, which is why the attacker test below is a witness rather than an assertion.
 ///
 /// One frame is shared by all three. Every request on both hops is a blocking `CALL`, so the
@@ -821,7 +821,7 @@ pub fn start_granted(
 ///
 /// The caretaker holds the root directory capability and the confined program holds an endpoint
 /// to the caretaker and **nothing that names the FS server**, which is what makes "it cannot
-/// reach the parent directory or a sibling" a statement about its cspace rather than about a
+/// reach the parent directory or a sibling" a statement about its capability table rather than about a
 /// branch. That argument is `fs_file_caretaker`'s, and it is load-bearing here for an extra
 /// reason: the FS server's handle table is per *server*, so a rights-carrying handle on its own
 /// would not confine a program that could still name [`filesystem_proto::fs::ROOT`].
@@ -1232,7 +1232,7 @@ const STD_FS_STACK_PAGES: u64 = 32;
 /// network, and `std::net` must be able to tell.
 ///
 /// The same binary spawned without slot 4 gets `Unsupported` from every `std::fs` call. That is
-/// the whole point: the code never chose to have a filesystem, its cspace did.
+/// the whole point: the code never chose to have a filesystem, its capability table did.
 ///
 /// Returns `(readiness, stdout)`: the readiness endpoints if this call wired the service, and
 /// the program's stdout endpoint for the test to reassemble.
@@ -1301,7 +1301,7 @@ pub fn start_std(
 ///                                                                                   slot 2: report)
 /// ```
 ///
-/// **The spawn-protocol position that says which directory is which is the cspace slot**: the
+/// **The spawn-protocol position that says which directory is which is the capability table slot**: the
 /// confined program's slot 0 is always [`TwoDirGrant::a`], slot 1 always [`TwoDirGrant::b`].
 /// That is the whole of what this milestone decides about the wire, deliberately: a shell-to-init
 /// encoding for a *second* `DIR_BIT` grant (extending `grant_plan::spawnproto`'s `GRANT_WORDS`
@@ -1318,7 +1318,7 @@ pub fn start_std(
 #[cfg_attr(not(test), allow(dead_code))]
 pub struct TwoDirGrant {
     /// The first grant: the directory (one component under the image root) and the
-    /// [`filesystem_proto::dir`] rights, delivered at the confined program's cspace slot 0.
+    /// [`filesystem_proto::dir`] rights, delivered at the confined program's capability table slot 0.
     pub a: (&'static str, u64),
     /// The second grant, at slot 1.
     pub b: (&'static str, u64),

@@ -14,7 +14,7 @@
 //!
 //! So `> report.txt` grants strictly less than Unix's fd 1 does, and it is structural rather than
 //! policy: the confined program cannot seek, cannot truncate, cannot re-read and cannot stat,
-//! because there is no message that says any of those things and nothing in its cspace that names
+//! because there is no message that says any of those things and nothing in its capability table that names
 //! the FS server. That is milestone 50's claim, and this file is where it is either true or not.
 //!
 //! # `ROLE_WRITER`: a program that does not know what it is writing to

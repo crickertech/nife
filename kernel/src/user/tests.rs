@@ -2590,7 +2590,7 @@ fn init_runs_the_coremark_workload_and_it_checks_out() {
 /// **Milestone 19c.3, the whole point: one process builds and starts another, and it runs.**
 /// The kernel drives the four verbs the way init eventually will: retype an address space and
 /// a TCB, map a code page (containing a hand-assembled EL0 stub) and a stack into the space,
-/// insert a report rendezvous into the child's cspace, configure the TCB (entry, stack, space),
+/// insert a report rendezvous into the child's capability table, configure the TCB (entry, stack, space),
 /// and START it. The child, code no wiring wrote and a thread no `spawn` created, drops to
 /// EL0, invokes the capability it was granted to SEND a word home, and exits. Receiving that
 /// word proves every verb: the retype, the maps, the cap insert, the configure, the start,

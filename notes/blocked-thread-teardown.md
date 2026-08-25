@@ -116,7 +116,7 @@ server holds an unconsumed `Reply(tid)` at the end of any of them**:
   "so a second reply is `NoSuchSlot`". The cap is gone whether or not the delivery landed.
 - **The caller is drained off a sender queue.** A `CALL` that met no receiver leaves the caller
   *both* Reply-parked and queued as a sender, with the reply cap riding in `outgoing_cap` rather than
-  in anyone's cspace, so `drain_waiters` reaches it and `Gone` does resolve. **No server ever held
+  in anyone's capability table, so `drain_waiters` reaches it and `Gone` does resolve. **No server ever held
   that cap**, because no server ever collected the message.
 - **The caller dies.** The `slots` generation bumps and every `Reply(tid)` naming it goes stale on its
   next use.
@@ -145,10 +145,10 @@ strongest corroboration available that it is real rather than theoretical:
 
 Two fixes exist, and both have prior art below:
 
-- **Delete the outstanding reply capability at abort**, sweeping every cspace for `Object::Reply(tid)`
+- **Delete the outstanding reply capability at abort**, sweeping every capability table for `Object::Reply(tid)`
   the way `sched::delete_frame_caps` sweeps for `Object::Frame(phys)`. This is seL4 non-MCS's
   `cteDeleteOne(callerCap)`, reached from `cancelIPC`. Cost is O(threads x 16 slots) on a teardown
-  path, which is 2048 comparisons at `MAX_THREADS = 128` and `CSPACE_SLOTS = 16`.
+  path, which is 2048 comparisons at `MAX_THREADS = 128` and `CAPABILITY_TABLE_SLOTS = 16`.
 - **Do not wake the caller at all**, so no second call can exist. This is seL4's `ThreadState_Inactive`
   and is discussed under proposal A.
 
@@ -489,7 +489,7 @@ same deferral, and that is a constraint to write into 106 rather than a reason t
 ### The reply capability's semantics are the sharp edge
 
 One-shot, `WRITE` without `GRANT`, minted at the rendezvous, consumed on use, living in the callee's
-cspace. Three consequences:
+capability table. Three consequences:
 
 - **The operator cannot answer on the component's behalf**, and this is by construction rather than
   by omission: the cap is minted without `GRANT` "so it could not have been delegated here in the
@@ -497,7 +497,7 @@ cspace. Three consequences:
 - **The cap carries a thread name, not a call name.** See the hazard section above. Any proposal that
   wakes a reply-parked caller and lets it call again must either delete the outstanding `Reply(tid)`
   caps or refuse to let the caller run.
-- **Deleting them is a whole-cspace sweep**, and `sched::delete_frame_caps` is the existing pattern
+- **Deleting them is a sweep of the whole capability table**, and `sched::delete_frame_caps` is the existing pattern
   for exactly that. It is not free but it is a teardown path.
 
 ### §16's revocation model and the `killed` flag
@@ -589,7 +589,7 @@ ranked, and none is recommended.** They are ordered from smallest surface to lar
 **Mechanism.** In `reap_region_objects`'s refuse phase, a resident thread that is `Blocked` is not
 merely marked `killed`. It is unlinked from whatever holds it (`remove_sender`, a new
 `remove_receiver`, or nothing at all for `WaitRole::Reply`), every `Object::Reply(tid)` naming it is
-swept out of every cspace, and its state is written straight to `Finished` without ever waking it.
+swept out of every capability table, and its state is written straight to `Finished` without ever waking it.
 The next pass, which the owner's existing retry loop already performs, finds a reapable corpse and
 reclaims the region. `RegionReap` grows a fourth verdict; `region_reap_verdict` already exists as a
 lifted, testable function precisely so a rule like this can be stated and proved without staging a
@@ -848,7 +848,7 @@ unblocks a REPLY-blocked client (rather than the client discovering the death la
 documentation's word and not verified.
 
 **No number in this note was measured.** The line counts ("about thirty lines") are estimates from
-reading, the sweep cost is arithmetic from `MAX_THREADS` and `CSPACE_SLOTS`, and no benchmark was run.
+reading, the sweep cost is arithmetic from `MAX_THREADS` and `CAPABILITY_TABLE_SLOTS`, and no benchmark was run.
 
 **The milestone number in the roadmap block this lane proposes is provisional** and belongs to the
 integrator to mint, per the rule that anything global to the tree is assigned at merge.

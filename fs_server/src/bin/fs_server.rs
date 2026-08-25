@@ -37,7 +37,7 @@ use redoxfs::Disk;
 use syscall::error::{EINVAL, EIO, Error, Result};
 use user_rt::{call, invoke, recv_cap, send};
 
-/// Cspace slots, by convention with the kernel-side wiring (`kernel/src/user/fs_service.rs`).
+/// Capability table slots, by convention with the kernel-side wiring (`kernel/src/user/fs_service.rs`).
 const UNTYPED: u64 = 0;
 const BLK: u64 = 1;
 const FILE: u64 = 2;

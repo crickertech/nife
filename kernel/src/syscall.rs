@@ -9,7 +9,7 @@
 //! ```text
 //!   exit(code)                          authority over yourself
 //!   yield()                             likewise
-//!   cap_delete(slot)                    likewise: your own cspace is your own
+//!   cap_delete(slot)                    likewise: your own capability table is your own
 //!   invoke(cap, method, a0, a1, a2)     EVERYTHING ELSE
 //! ```
 //!
@@ -61,7 +61,7 @@ pub fn dispatch(frame: &mut TrapFrame) {
             sched::yield_now();
             Ok(0)
         }
-        // Drop a capability from the caller's own cspace (milestone 19d). Deleting an empty slot
+        // Drop a capability from the caller's own capability table (milestone 19d). Deleting an empty slot
         // is a no-op, not an error: a loader recycling slots should not have to track emptiness.
         abi::SYS_CAP_DELETE => {
             let _ = sched::delete_current_cap(frame.arg(0));
@@ -593,8 +593,9 @@ fn untyped_retype_obj(region: u64, kind: u64) -> Result<i64, Error> {
 #[inline(never)]
 fn untyped_retype(region: u64) -> Result<i64, Error> {
     let phys = crate::untyped::retype_page(region).ok_or(Error::OutOfMemory)?;
+    // capability table full
     let slot =
-        sched::grant(crate::cap::frame_cap(phys, Rights::ALL)).map_err(|_| Error::OutOfMemory)?; // cspace full
+        sched::grant(crate::cap::frame_cap(phys, Rights::ALL)).map_err(|_| Error::OutOfMemory)?;
     Ok(slot as i64)
 }
 
@@ -613,7 +614,7 @@ fn untyped_split(cap: crate::cap::Cap, region: u64, count: u64) -> Result<i64, E
     // narrow monotonically from the delegable root budget down; init holds that root with GRANT
     // and hands narrowed budgets on. See DECISIONS §16.
     let slot = sched::grant(cap.mint_child(crate::cap::Object::Untyped(child)))
-        .map_err(|_| Error::OutOfMemory)?; // cspace full
+        .map_err(|_| Error::OutOfMemory)?; // capability table full
     Ok(slot as i64)
 }
 
@@ -711,7 +712,7 @@ fn tcb_configure(
     sched::configure_tcb(tid, entry, stack, aspace_name)?;
     // Consume the aspace cap: it is the thread's now, and a second bind must not find it. (The
     // space already left the registry, so the cap is inert regardless; this keeps the caller's
-    // cspace honest.)
+    // capability table honest.)
     let _ = sched::delete_current_cap(aspace_slot);
     Ok(0)
 }
@@ -911,7 +912,7 @@ mod tests {
         };
 
         // Clean up: reclaim children (LIFO top of each parent) then parents, and drop the cap slots,
-        // so the test returns every frame it borrowed and leaves the test thread's cspace as it found
+        // so the test returns every frame it borrowed and leaves the test thread's capability table as it found
         // it (the free-frame baseline that later tests measure against).
         sched::reclaim_region(child_region).expect("reclaim the spend-only child");
         sched::reclaim_region(spend_only_region).expect("reclaim the spend-only parent");

@@ -1999,15 +1999,15 @@ const NO_CAP: u64 = u64::MAX;
 
 /// **Delegate a capability plus one data word to an rendezvous.** The sender's half of a
 /// capability-carrying rendezvous, mirroring [`ipc_send`]. The one thing it adds: at the moment
-/// sender and receiver meet, `cap` moves out of the sender and into the receiver's cspace.
+/// sender and receiver meet, `cap` moves out of the sender and into the receiver's capability table.
 ///
-/// - **A receiver is already waiting.** Insert the capability into its cspace right now, record the
+/// - **A receiver is already waiting.** Insert the capability into its capability table right now, record the
 ///   slot in its mailbox alongside the data word, and wake it.
 /// - **Nobody is waiting.** Park the data word in our mailbox and the capability in `outgoing_cap`,
 ///   join the sender queue, and block. A future receiver reaches in, takes the capability, and
-///   files it in its own cspace.
+///   files it in its own capability table.
 ///
-/// If the receiver's cspace is full the capability is dropped and the receiver sees `NO_CAP`; the
+/// If the receiver's capability table is full the capability is dropped and the receiver sees `NO_CAP`; the
 /// data word still arrives. The syscall layer has already checked the sender may delegate this
 /// capability (it holds `GRANT`) and that the rights only narrow.
 pub fn ipc_send_cap(ep: RendezvousId, data: u64, cap: crate::cap::Cap) {
@@ -2027,7 +2027,7 @@ pub fn ipc_send_cap(ep: RendezvousId, data: u64, cap: crate::cap::Cap) {
                 // SAFETY: wait-queue entries are live Blocked threads; the id revalidates it.
                 let receiver = unsafe { (*receiver.as_ptr()).id };
                 let r = sched.threads.get_mut(receiver).unwrap();
-                let slot = r.cspace.insert(cap).unwrap_or(NO_CAP);
+                let slot = r.capability_table.insert(cap).unwrap_or(NO_CAP);
                 r.mailbox = [data, slot, 0, 0, 0];
                 r.handshake.serve(); // delivered: this wake passes the boot-8 gate
                 trace::record(trace::Event::Served, receiver, 3);
@@ -2053,7 +2053,7 @@ pub fn ipc_send_cap(ep: RendezvousId, data: u64, cap: crate::cap::Cap) {
 
 /// **Receive a data word and, if one was sent, a capability.** The mirror of [`ipc_send_cap`], and
 /// the receiver's half of delegation. Returns `[data, received_slot, 0]`, where `received_slot` is
-/// where an incoming capability landed in *our* cspace, or [`NO_CAP`] if the message carried none.
+/// where an incoming capability landed in *our* capability table, or [`NO_CAP`] if the message carried none.
 ///
 /// A capability-carrying send and this share the ordinary sender/receiver queues, so either side
 /// may arrive first, exactly as with the plain path.
@@ -2088,7 +2088,7 @@ pub fn ipc_recv_cap(ep: RendezvousId) -> [u64; 3] {
                         .threads
                         .get_mut(current)
                         .unwrap()
-                        .cspace
+                        .capability_table
                         .insert(c)
                         .unwrap_or(NO_CAP),
                     None => NO_CAP,
@@ -2135,7 +2135,7 @@ pub fn ipc_recv_cap(ep: RendezvousId) -> [u64; 3] {
 /// discoverable **only** through that capability, until the server invokes it. Returns the reply
 /// words. See DECISIONS §12 and notes/ipc-naming.md.
 ///
-/// If the server's cspace is full the reply cap is dropped (the server sees `NO_CAP`, exactly as a
+/// If the server's capability table is full the reply cap is dropped (the server sees `NO_CAP`, exactly as a
 /// delegated cap would be) and, having no way to answer, the caller blocks until torn down: the same
 /// no-timeout limitation as a reply that never comes, and self-inflicted by the server.
 pub fn ipc_call(ep: RendezvousId, msg: [u64; 2]) -> [u64; 3] {
@@ -2159,7 +2159,7 @@ pub fn ipc_call(ep: RendezvousId, msg: [u64; 2]) -> [u64; 3] {
                 let receiver = unsafe { (*receiver.as_ptr()).id };
                 // A server is parked in RECV_CAP: hand it the reply cap and the two words now.
                 let r = sched.threads.get_mut(receiver).unwrap();
-                let slot = r.cspace.insert(reply).unwrap_or(NO_CAP);
+                let slot = r.capability_table.insert(reply).unwrap_or(NO_CAP);
                 r.mailbox = [msg[0], slot, msg[1], 0, 0];
                 r.handshake.serve(); // delivered: this wake passes the boot-8 gate
                 trace::record(trace::Event::Served, receiver, 5);
@@ -2219,7 +2219,7 @@ pub fn ipc_reply(caller: Tid, msg: [u64; 2]) {
     }
 }
 
-/// Delete every `Frame` capability naming `phys` from every thread's cspace (§13). Part of
+/// Delete every `Frame` capability naming `phys` from every thread's capability table (§13). Part of
 /// revocation: once a frame is being revoked, no holder may keep a capability that could re-map it.
 /// The caller's own cap is deleted too, which is intended: a revoke destroys all access to the page.
 pub fn delete_frame_caps(phys: u64) {
@@ -2229,15 +2229,18 @@ pub fn delete_frame_caps(phys: u64) {
     };
     let target = crate::cap::Object::Frame(phys);
     for t in sched.threads.iter_mut() {
-        for slot in 0..t.cspace.len() as u64 {
-            if t.cspace.get(slot).is_ok_and(|c| c.object == target) {
-                let _ = t.cspace.delete(slot);
+        for slot in 0..t.capability_table.len() as u64 {
+            if t.capability_table
+                .get(slot)
+                .is_ok_and(|c| c.object == target)
+            {
+                let _ = t.capability_table.delete(slot);
             }
         }
     }
 }
 
-/// Delete every `DeviceFrame` capability naming `phys` from every cspace **except the calling
+/// Delete every `DeviceFrame` capability naming `phys` from every capability table **except the calling
 /// thread's** (milestone 23, DECISIONS §41). The caller keeps its own, which is the difference
 /// between reclaiming a page and taking a device back to hand on; [`crate::revoke::
 /// revoke_device_from_others`] has the reasoning.
@@ -2252,9 +2255,12 @@ pub fn delete_device_frame_caps_from_others(phys: u64) {
         if t.id == keeper {
             continue;
         }
-        for slot in 0..t.cspace.len() as u64 {
-            if t.cspace.get(slot).is_ok_and(|c| c.object == target) {
-                let _ = t.cspace.delete(slot);
+        for slot in 0..t.capability_table.len() as u64 {
+            if t.capability_table
+                .get(slot)
+                .is_ok_and(|c| c.object == target)
+            {
+                let _ = t.capability_table.delete(slot);
             }
         }
     }
@@ -2270,7 +2276,7 @@ pub fn delete_current_cap(slot: u64) -> Result<(), crate::cap::Error> {
         .threads
         .get_mut(current)
         .ok_or(crate::cap::Error::NoSuchSlot)?
-        .cspace
+        .capability_table
         .delete(slot)
 }
 
@@ -2286,7 +2292,7 @@ pub fn current_cap(slot: u64) -> Result<crate::cap::Cap, crate::cap::Error> {
         .threads
         .get(current_tid())
         .ok_or(crate::cap::Error::NoSuchSlot)?
-        .cspace
+        .capability_table
         .get(slot)
 }
 
@@ -2299,7 +2305,7 @@ pub fn grant(cap: crate::cap::Cap) -> Result<u64, crate::cap::Error> {
         .threads
         .get_mut(current)
         .ok_or(crate::cap::Error::NoFreeSlot)?
-        .cspace
+        .capability_table
         .insert(cap)
 }
 
@@ -2320,7 +2326,7 @@ pub fn grant_at(slot: u64, cap: crate::cap::Cap) -> Result<u64, crate::cap::Erro
         .threads
         .get_mut(current)
         .ok_or(crate::cap::Error::NoFreeSlot)?
-        .cspace
+        .capability_table
         .insert_at(slot, cap)
 }
 
@@ -2739,7 +2745,7 @@ pub fn configure_tcb(
     Ok(())
 }
 
-/// **Install a capability into an embryo's cspace** (milestone 19c.3): the child's initial
+/// **Install a capability into an embryo's capability table** (milestone 19c.3): the child's initial
 /// authority, granted one slot at a time before it runs. Refuses a non-embryo. Returns the child
 /// slot the capability landed in.
 ///
@@ -2759,9 +2765,12 @@ pub fn tcb_insert_cap(
         return Err(abi::Error::WrongObject);
     }
     match target {
-        None => t.cspace.insert(cap).map_err(|_| abi::Error::OutOfMemory),
+        None => t
+            .capability_table
+            .insert(cap)
+            .map_err(|_| abi::Error::OutOfMemory),
         Some(slot) => t
-            .cspace
+            .capability_table
             .insert_at(slot, cap)
             .map_err(|_| abi::Error::OutOfMemory),
     }
@@ -2789,11 +2798,11 @@ pub fn start_tcb(tid: Tid, args: [u64; 3]) -> Result<(), abi::Error> {
     // a Rendezvous capability, this thread is supervised: record it as the fault target
     // and consume the slot, so the child cannot forge fault messages on it (the kernel stays the
     // only sender on this path, §26.5). Supervision is fixed here, at spawn, and never changes.
-    if let Ok(fault_cap) = t.cspace.get(abi::fault::FAULT_EP_SLOT)
+    if let Ok(fault_cap) = t.capability_table.get(abi::fault::FAULT_EP_SLOT)
         && let crate::cap::Object::Rendezvous(ep) = fault_cap.object
     {
         t.fault_ep = Some(ep);
-        let _ = t.cspace.delete(abi::fault::FAULT_EP_SLOT);
+        let _ = t.capability_table.delete(abi::fault::FAULT_EP_SLOT);
     }
 
     t.start_args = args; // the child's x0, x1, x2 (19d/19e)

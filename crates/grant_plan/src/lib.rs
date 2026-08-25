@@ -157,7 +157,7 @@ pub enum Prog {
     /// The reason [`Manifest::domain`] exists, and the same asymmetry [`Prog::Date`] made for the
     /// clock: the grant is real and it is not something a person designates on the line. There is
     /// no `/proc` here to name and no pid space to scan, so what `ps` can see is decided entirely
-    /// by which supervision endpoint init put in its cspace, and `caps ps` prints that.
+    /// by which supervision endpoint init put in its capability table, and `caps ps` prints that.
     Ps,
     /// **Name the members of that same domain that match, and do nothing to them** (milestone 126,
     /// `user/src/pgrep.rs`, notes/process-view.md).
@@ -520,7 +520,7 @@ pub enum OutputSpec {
     /// not depend on who is reading it.
     Bytes,
     /// [`Bytes`](OutputSpec::Bytes) **and a second byte stream** for this program's own
-    /// diagnostics, in the cspace slot named here (DECISIONS §67).
+    /// diagnostics, in the capability table slot named here (DECISIONS §67).
     ///
     /// This is what `2>` binds to, and the slot number is why it is a declaration rather than
     /// Unix's fd 2 with a capability underneath. Nothing in this system agrees in advance that any
@@ -533,7 +533,7 @@ pub enum OutputSpec {
     /// harness), so a low number would move under the program and it would probe the wrong slot. A
     /// number nothing else can reach is the same number in every wiring.
     BytesAndDiagnostics {
-        /// The cspace slot the diagnostic endpoint is inserted into.
+        /// The capability table slot the diagnostic endpoint is inserted into.
         slot: u64,
     },
 }
@@ -549,7 +549,7 @@ impl OutputSpec {
         )
     }
 
-    /// The cspace slot this program's declared second stream lands in, or `None` for a program that
+    /// The capability table slot this program's declared second stream lands in, or `None` for a program that
     /// declares none. `Some` is the whole of what makes `2>` legal on a command line.
     pub fn diagnostics_slot(self) -> Option<u64> {
         match self {
@@ -599,7 +599,7 @@ pub enum InputSpec {
 /// than as an empty literal repeated six times.
 pub const NO_FLAGS: &[u8] = b"";
 
-/// **The cspace slot a declared diagnostic stream lands in** (DECISIONS §67), for the programs that
+/// **The capability table slot a declared diagnostic stream lands in** (DECISIONS §67), for the programs that
 /// declare one at all.
 ///
 /// It is a constant here rather than a number each manifest picks, and that is not a retreat to an
@@ -614,7 +614,7 @@ pub const NO_FLAGS: &[u8] = b"";
 /// exists already, for the fault endpoint, for exactly this reason.
 pub const DIAGNOSTICS_SLOT: u64 = 8;
 
-/// **The cspace slot a process-domain capability lands in** (milestone 126), for the programs that
+/// **The capability table slot a process-domain capability lands in** (milestone 126), for the programs that
 /// declare [`Manifest::domain`].
 ///
 /// Placed rather than taken from the next free slot, for exactly the reason above: how many low
@@ -1095,7 +1095,7 @@ pub mod rmopt {
 /// **What the shell itself holds**, which is what decides whether a designation can be backed at all.
 ///
 /// This is why it is a parameter rather than a constant. "You hold no such capability" must be a
-/// statement about the shell's actual cspace, not a hardcoded era: the same command line is a
+/// statement about the shell's actual capability table, not a hardcoded era: the same command line is a
 /// refusal in a shell that was granted no directory and a real grant in one that was, and neither
 /// the parser nor the manifest can tell them apart. Phase 1 hardcoded the refusal, which was true
 /// then and would have quietly become a lie.
@@ -3129,7 +3129,7 @@ mod tests {
             "this is a stream, not the per-file capability FileSpec describes",
         );
         // The same line against a shell that holds no directory is the milestone's headline
-        // refusal, and it is a statement about a cspace rather than about the calendar.
+        // refusal, and it is a statement about a capability table rather than about the calendar.
         assert_eq!(
             plan_line(b"wc report.txt", Holdings::default()),
             Err((0, Refusal::NoSuchCapability(CapKind::File))),

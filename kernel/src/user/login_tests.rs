@@ -13,7 +13,7 @@ use crate::sched;
 /// 128 for `login`'s own scratch (`OWN_UT_PAGES`), plus 128 per successful login that this suite
 /// leaves logged in (that program's `CARETAKER_REGION_PAGES` 64 + `CLIENT_BUDGET_PAGES` 64) for the
 /// twelve it performs in total: one in the headline test, two in the two-identity test, six in
-/// `the_login_service_serves_past_the_old_cspace_ceiling`, and three in
+/// `the_login_service_serves_past_the_old_capability_table_ceiling`, and three in
 /// `login_scopes_each_identity_to_its_own_provisioned_subtree` (DECISIONS §117's per-identity
 /// scoping: `chris`'s mark, `corinne`'s mark, and `chris`'s second, independent session). 128 +
 /// 12*128 = 1664. `login_denies_an_authenticated_identity_with_no_provisioned_subtree`'s own login
@@ -294,7 +294,7 @@ fn two_different_identities_get_independently_working_channels_and_correct_attri
 }
 
 /// **Nothing else would have caught this**: `login`'s own capability table has sixteen slots
-/// (`kernel::cap::CSPACE_SLOTS`), eight are spent at rest (`REQUEST`..`AUDIT` plus its own scratch
+/// (`kernel::cap::CAPABILITY_TABLE_SLOTS`), eight are spent at rest (`REQUEST`..`AUDIT` plus its own scratch
 /// untyped), and before `user/src/login.rs`'s `mint` learned to drop its own copy of the
 /// caretaker's construction region, that region's capability was never freed on a successful
 /// login. That left room for exactly eight successful logins ever; a ninth, correctly
@@ -316,7 +316,7 @@ fn two_different_identities_get_independently_working_channels_and_correct_attri
 /// and not merely against `CONSTRUCTION_PAGES`. Reusing the other two tests' three logins rather
 /// than repeating them here is what keeps that charge to what actually proves the fix.
 #[test_case]
-fn the_login_service_serves_past_the_old_cspace_ceiling() {
+fn the_login_service_serves_past_the_old_capability_table_ceiling() {
     let Some(w) = wired() else {
         crate::testing::skip!("no virtio-rng device or no RedoxFS disk attached");
     };
@@ -335,7 +335,7 @@ fn the_login_service_serves_past_the_old_cspace_ceiling() {
             r[0],
             ls::RPT_OK,
             "login {i} of {ATTEMPTS} in this test (the 4th through 9th against this shared \
-             instance, past the old eight-login cspace ceiling) was not authenticated; a real \
+             instance, past the old eight-login capability table ceiling) was not authenticated; a real \
              password was answered as though it were wrong",
         );
         assert_eq!(

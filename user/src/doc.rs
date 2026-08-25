@@ -15,7 +15,7 @@
 //!
 //! A Unix `man` opens the file it prints, which means it can open any file its caller can. This one
 //! is handed bytes. `doc notes/glob.md` is the *shell* resolving that name against the directory
-//! capability it holds and streaming what it finds; nothing in this program's cspace names a file, a
+//! capability it holds and streaming what it finds; nothing in this program's capability table names a file, a
 //! directory or the filesystem, and there is no message it can send to find out what it is reading.
 //!
 //! That is the same claim `wc` makes (notes/pipes.md) and it lands harder here, because a

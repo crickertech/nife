@@ -127,7 +127,7 @@ const PAGE: usize = fsproto::PAGE;
 //   - a real server: it answers `-EBADF` (-9) for the impossible handle, which is a *reply*, so a
 //     filesystem is reachable.
 //
-// Cached, because the answer cannot change: a cspace slot's contents are fixed at spawn on this
+// Cached, because the answer cannot change: a capability table slot's contents are fixed at spawn on this
 // ABI (0 = not yet asked, 1 = granted, 2 = not granted).
 
 static REACHABLE: AtomicU8 = AtomicU8::new(0);

@@ -1,4 +1,4 @@
-//! Capability spaces. **A file descriptor table that can point at anything.**
+//! Capability tables. **A file descriptor table that can point at anything.**
 //!
 //! See notes/capabilities.md and DECISIONS.md §10. The one sentence:
 //!
@@ -13,7 +13,7 @@
 //! Nothing in here knows what a console is; the kernel supplies the object type.
 //!
 //! Allocation-free since milestone 14 phase B.1: the table is a const-generic array, so a
-//! cspace's size is part of its type and creating one cannot touch a heap. The kernel picks the
+//! capability table's size is part of its type and creating one cannot touch a heap. The kernel picks the
 //! size once (16, in kernel/src/cap.rs); the tests and proofs pick small ones.
 //!
 //! # Examples
@@ -49,14 +49,16 @@
 //!
 //! Name: ratified 2026-08-01 (calef, milestone 63), replacing `caps`. Refused `caps` (a container's
 //! name for what is the capability model: it exports `Cap`, `Rights`, `Object`, `Reap` and
-//! `CSpace`) and `cap_space` (names one of five exports, and stutters as `cap_space::CSpace`).
-//! `CSpace` itself stays, because it is seL4's own spelling.
+//! `CapabilityTable`) and `cap_space` (names one of five exports, and stutters as `cap_space::CapabilityTable`).
+//! The exported type was originally kept as `CSpace`, seL4's own spelling; DECISIONS §113's
+//! amendment (calef, 2026-08-25) renamed it to `CapabilityTable`, the plain term this crate's own
+//! prose already reached for ("A thread's capability table," above).
 
 #![no_std]
 
 /// What you may do with a capability.
 ///
-/// **Rights only ever narrow.** [`CSpace::derive`] will not widen them, and that is not a policy
+/// **Rights only ever narrow.** [`CapabilityTable::derive`] will not widen them, and that is not a policy
 /// we remembered to enforce, it is the only operation the type offers. If delegation could
 /// widen authority, the whole model is theatre: anyone could hand themselves the rights they
 /// were denied by passing a capability to themselves.
@@ -136,7 +138,7 @@ impl Rights {
         self.0 & needed.0 == needed.0
     }
 
-    /// Is `self` no more than `other`? The subset test that [`CSpace::derive`] turns on.
+    /// Is `self` no more than `other`? The subset test that [`CapabilityTable::derive`] turns on.
     pub const fn is_subset_of(self, other: Rights) -> bool {
         self.0 & !other.0 == 0
     }
@@ -153,7 +155,7 @@ pub struct Cap<O> {
 
 impl<O> Cap<O> {
     /// **Mint a fresh capability to `object` carrying no more authority than this one.** The rule a
-    /// fresh mint site *outside* [`CSpace::derive`] must honor by hand so that authority never
+    /// fresh mint site *outside* [`CapabilityTable::derive`] must honor by hand so that authority never
     /// widens: the child inherits the parent's rights, never a superset.
     ///
     /// `Untyped::SPLIT` is such a site (kernel/src/cap.rs, milestone 31): it carves a child budget
@@ -226,7 +228,7 @@ pub const fn survey_includes(fault_ep: Option<u64>, invoked_ep: u64) -> bool {
     matches!(fault_ep, Some(ep) if ep == invoked_ep)
 }
 
-/// Why a cspace operation was refused.
+/// Why a capability table operation was refused.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Error {
     /// **The slot is empty.** Note what this is *not*: it is not "permission denied." There is
@@ -244,29 +246,29 @@ pub enum Error {
 /// capability spaces and costs a great deal of explanation. We do not need it, and a flat array
 /// is honest: it is an fd table with a type tag on each entry, which is exactly what a capability
 /// space *is*. If we ever need the sparse version, it is a change to this file and nothing else.
-pub struct CSpace<O, const N: usize> {
+pub struct CapabilityTable<O, const N: usize> {
     slots: [Option<Cap<O>>; N],
 }
 
-impl<O: Copy, const N: usize> Default for CSpace<O, N> {
+impl<O: Copy, const N: usize> Default for CapabilityTable<O, N> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<O: Copy, const N: usize> CSpace<O, N> {
+impl<O: Copy, const N: usize> CapabilityTable<O, N> {
     /// **A brand-new process holds nothing.**
     ///
     /// This is the whole decision, expressed as a constructor. Under Unix a fresh process
     /// inherits every fd its parent had and can `open()` anything its uid permits. Here it can
     /// name nothing at all until somebody hands it something.
     pub const fn new() -> Self {
-        CSpace {
+        CapabilityTable {
             slots: [const { None }; N],
         }
     }
 
-    /// The table's fixed capacity, `N`. Never changes; a cspace's size is part of its type.
+    /// The table's fixed capacity, `N`. Never changes; a capability table's size is part of its type.
     pub const fn len(&self) -> usize {
         N
     }
@@ -418,8 +420,8 @@ mod verification {
     /// A small table in an arbitrary state: every slot independently empty or holding a capability
     /// with symbolic object and rights. Three slots is enough to exhibit "the slot in question, a
     /// different slot, and an empty one" in every combination.
-    fn any_small_cspace() -> CSpace<u8, 3> {
-        let mut cs: CSpace<u8, 3> = CSpace::new();
+    fn any_small_capability_table() -> CapabilityTable<u8, 3> {
+        let mut cs: CapabilityTable<u8, 3> = CapabilityTable::new();
         for slot in 0..3u64 {
             if kani::any() {
                 cs.put(
@@ -442,7 +444,7 @@ mod verification {
     /// in which the deleted slot can be invoked again.
     #[kani::proof]
     fn a_deleted_capability_stays_deleted() {
-        let mut cs = any_small_cspace();
+        let mut cs = any_small_capability_table();
         let slot: u64 = kani::any();
         if cs.delete(slot).is_ok() {
             assert_eq!(cs.get(slot).err(), Some(Error::NoSuchSlot));
@@ -455,7 +457,7 @@ mod verification {
     /// one and must still hold the other, or answering caller A would silently orphan caller B.
     #[kani::proof]
     fn delete_touches_only_its_slot() {
-        let mut cs = any_small_cspace();
+        let mut cs = any_small_capability_table();
         let victim: u64 = kani::any();
         let other: u64 = kani::any();
         kani::assume(victim != other);
@@ -466,7 +468,7 @@ mod verification {
         assert_eq!(cs.get(other), before);
     }
 
-    /// **The central theorem, on the real `CSpace::derive`.** For any source rights and any request,
+    /// **The central theorem, on the real `CapabilityTable::derive`.** For any source rights and any request,
     /// if the derive succeeds then the capability it stored holds no more than the source did, and
     /// holds exactly what was asked (no silent grant of more). There is no reachable input that
     /// widens authority.
@@ -475,7 +477,7 @@ mod verification {
         let src_rights = Rights(kani::any());
         let requested = Rights(kani::any());
 
-        let mut cs: CSpace<u8, 2> = CSpace::new();
+        let mut cs: CapabilityTable<u8, 2> = CapabilityTable::new();
         cs.put(
             0,
             Cap {
@@ -493,7 +495,7 @@ mod verification {
     }
 
     /// **Authority never widens at the other mint site either: `split` inherits, it does not grant.**
-    /// `Untyped::SPLIT` mints a child budget outside [`CSpace::derive`] (kernel/src/cap.rs), so
+    /// `Untyped::SPLIT` mints a child budget outside [`CapabilityTable::derive`] (kernel/src/cap.rs), so
     /// `derive_never_widens_rights` does not reach it; the kernel routes that mint through
     /// [`Cap::mint_child`], and this proves the theorem there. Milestone 35.
     ///
@@ -635,8 +637,8 @@ mod tests {
 
     /// **A new process holds nothing.** The decision, as an assertion.
     #[test]
-    fn a_new_cspace_can_name_nothing() {
-        let cs: CSpace<Obj, 16> = CSpace::new();
+    fn a_new_capability_table_can_name_nothing() {
+        let cs: CapabilityTable<Obj, 16> = CapabilityTable::new();
 
         assert!(cs.is_empty());
         for slot in 0..cs.len() as u64 {
@@ -647,7 +649,7 @@ mod tests {
     /// You cannot fabricate a capability. There is nothing to guess.
     #[test]
     fn an_unheld_slot_is_not_permission_denied_it_is_nothing() {
-        let mut cs: CSpace<Obj, 16> = CSpace::new();
+        let mut cs: CapabilityTable<Obj, 16> = CapabilityTable::new();
         cs.put(
             0,
             Cap {
@@ -670,7 +672,7 @@ mod tests {
     /// simply derive yourself a better capability from the one you have.
     #[test]
     fn derive_cannot_widen_rights() {
-        let mut cs: CSpace<Obj, 16> = CSpace::new();
+        let mut cs: CapabilityTable<Obj, 16> = CapabilityTable::new();
         cs.put(
             0,
             Cap {
@@ -699,7 +701,7 @@ mod tests {
     /// A narrowed capability names the **same object**. Delegation moves authority, not identity.
     #[test]
     fn a_derived_capability_names_the_same_object_with_less_authority() {
-        let mut cs: CSpace<Obj, 16> = CSpace::new();
+        let mut cs: CapabilityTable<Obj, 16> = CapabilityTable::new();
         cs.put(
             0,
             Cap {
@@ -722,13 +724,13 @@ mod tests {
     /// Deriving from an empty slot fails. You cannot lend what you do not hold.
     #[test]
     fn you_cannot_delegate_what_you_do_not_hold() {
-        let mut cs: CSpace<Obj, 16> = CSpace::new();
+        let mut cs: CapabilityTable<Obj, 16> = CapabilityTable::new();
         assert_eq!(cs.derive(3, 4, Rights::READ).err(), Some(Error::NoSuchSlot));
     }
 
     #[test]
     fn get_with_refuses_rights_you_do_not_have() {
-        let mut cs: CSpace<Obj, 16> = CSpace::new();
+        let mut cs: CapabilityTable<Obj, 16> = CapabilityTable::new();
         cs.put(
             0,
             Cap {
@@ -748,7 +750,7 @@ mod tests {
 
     #[test]
     fn deleting_a_capability_makes_the_object_unnameable() {
-        let mut cs: CSpace<Obj, 16> = CSpace::new();
+        let mut cs: CapabilityTable<Obj, 16> = CapabilityTable::new();
         cs.put(
             0,
             Cap {
@@ -787,7 +789,7 @@ mod tests {
 
     #[test]
     fn a_full_table_says_so() {
-        let mut cs: CSpace<Obj, 2> = CSpace::new();
+        let mut cs: CapabilityTable<Obj, 2> = CapabilityTable::new();
         let cap = Cap {
             object: Obj::Console,
             rights: Rights::ALL,
@@ -842,7 +844,7 @@ mod tests {
     /// START).
     #[test]
     fn insert_at_fills_exactly_the_named_slot() {
-        let mut cs: CSpace<Obj, 4> = CSpace::new();
+        let mut cs: CapabilityTable<Obj, 4> = CapabilityTable::new();
         let cap = Cap {
             object: Obj::Frame(7),
             rights: Rights::READ,

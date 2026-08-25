@@ -437,7 +437,7 @@ fn spawn_one(code_frame: u64) {
     while unsafe { invoke(child_ut, abi::untyped::DESTROY, 0, 0, 0) } != 0 {
         yield_now();
     }
-    // Free the slots this child used (the aspace cap was consumed by CONFIGURE) so the fixed cspace
+    // Free the slots this child used (the aspace cap was consumed by CONFIGURE) so the fixed capability table
     // does not fill over the loop.
     cap_delete(tcb);
     cap_delete(child_ut);

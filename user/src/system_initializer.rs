@@ -9,7 +9,7 @@
 //!
 //! **All of that is `crates/system_initializer` now** (milestone 96), and so is the reasoning: what init
 //! gives away once the system is up, why the job pool is bounded, and the honest limits (LIFO
-//! recovery, the retained scratch mappings, the sixteen-slot cspace). This file is the boot entry
+//! recovery, the retained scratch mappings, the sixteen-slot capability table). This file is the boot entry
 //! and the one thing the two boards genuinely disagree about, which is the order their kernels grant
 //! capabilities in.
 //!
@@ -38,7 +38,7 @@
 use system_initializer::BootEndowment;
 
 /// **What `kernel::user::riscv_shell_boot` grants, in order.** The kernel inserts these into this
-/// process's cspace before it starts, and the numbers below are that call's `assert_eq!`s read from
+/// process's capability table before it starts, and the numbers below are that call's `assert_eq!`s read from
 /// the other side. Slots 4 and 5 hold nothing when this boot attached no RedoxFS disk, which is what
 /// `a2` (the endpoint's `filesystem_proto::dir` rights, 0 for no disk) says.
 ///

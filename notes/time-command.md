@@ -148,7 +148,7 @@ spaces may agree on an address; one may not.
 - all three refusal sentences, and that each is attributed to `time` rather than reading as the
   command's own complaint.
 
-**Guest** (`kernel::user::time_tests`), one script run three times against three cspaces:
+**Guest** (`kernel::user::time_tests`), one script run three times against three capability tables:
 
 - with a **published** clock page: `worker 3` and `time worker 3` answer the same thing, and the
   duration parses back to a positive number under ten seconds. `worker`'s manifest declares no

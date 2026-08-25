@@ -34,11 +34,11 @@ mechanics and why which-end-you-are is a matter of rights (SEND needs WRITE, REC
 ## Two levels of naming, and the unforgeable part
 
 Userspace never touches the raw rendezvous index. A process names a rendezvous through a
-**capability** in its cspace, the same mechanism as a Unix file descriptor:
+**capability** in its capability table, the same mechanism as a Unix file descriptor:
 
 | Level | The "name" | Who can forge it |
 |---|---|---|
-| Userspace-visible | a cspace **slot** ("send on slot 7") | nobody: the cspace is in kernel memory |
+| Userspace-visible | a capability table **slot** ("send on slot 7") | nobody: the capability table is in kernel memory |
 | Kernel-internal | the rendezvous's index, inside the `Object::Rendezvous` capability the slot holds | only the kernel, which mints caps |
 
 So the honest answer to "who does IPC name" is: **a capability the caller holds, which the

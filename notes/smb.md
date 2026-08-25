@@ -5,7 +5,7 @@ The head of the customer path. macOS speaks SMB natively and the Time Machine ta
 records why NFS and 9P were refused. What milestone 54 builds is the **adapter**: a program
 holding one network endpoint and one share, translating SMB2 on the wire into the share seam on
 the other side. Its only storage authority is the one directory capability it is granted, so
-"what can the network reach" is a statement about its cspace, not about a check it passes.
+"what can the network reach" is a statement about its capability table, not about a check it passes.
 
 **A real Mac has mounted it** (2026-08-15, macOS 26 `mount_smbfs` against the QEMU guest): the
 share mounts, `ls` lists it, both fixture files read back byte-correct, the volume arrives

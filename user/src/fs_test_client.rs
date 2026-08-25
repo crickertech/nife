@@ -210,7 +210,7 @@ const ROLE_SMB_VERIFY: u64 = 8;
 /// the kernel passes it and this program matches on it, which is rule 7's case exactly.
 const ROLE_THROUGHPUT: u64 = fixture::throughput::ROLE;
 /// Milestone 154: the confined program that holds **two** directory capabilities at once, one at
-/// cspace slot 0 and one at slot 1 (`kernel/src/user/fs_service.rs`'s `start_granted_two_dirs`
+/// capability table slot 0 and one at slot 1 (`kernel/src/user/fs_service.rs`'s `start_granted_two_dirs`
 /// convention). It
 /// proves the roadmap block's own deliverable: `/a/x` and `/b/y` both resolve to the grant their
 /// label names, `/a/../b` is refused before it ever reaches a caretaker, and neither caretaker's
@@ -1111,7 +1111,7 @@ fn dir_attacker(run: u64) -> ! {
 /// **The two-directory witness** (milestone 154,
 /// design/roadmap/154-multi-directory-namespace.md).
 ///
-/// It holds two `fs_subtree_caretaker`s at once, one at cspace slot 0 and one at slot 1
+/// It holds two `fs_subtree_caretaker`s at once, one at capability table slot 0 and one at slot 1
 /// (`kernel/src/user/fs_service.rs`'s `start_granted_two_dirs` convention, which the kernel test wiring this role
 /// follows). It is told nothing about either grant beyond that ordering; the kernel test wires
 /// slot 0 to the fixture's `sub` (labeled `a`) and slot 1 to `other` (labeled `b`), and this

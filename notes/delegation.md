@@ -18,7 +18,7 @@ The delegation path reuses the endpoints we already had. Two new methods:
 - `SEND_CAP(channel, cap_slot, rights, data)`: pass the capability in `cap_slot`, narrowed to
   `rights`, plus one data word, over `channel`. Blocks until a receiver takes it, like `SEND`.
 - `RECV_CAP(channel)`: receive a data word and, if one was delegated, a capability. The capability
-  lands in a free slot of the *receiver's own* cspace, chosen by the kernel, and `RECV_CAP` returns
+  lands in a free slot of the *receiver's own* capability table, chosen by the kernel, and `RECV_CAP` returns
   that slot number (or `NO_CAP` if the message carried none).
 
 This is the seL4 model: capabilities move as part of IPC, not through a side channel. It fits what we
@@ -45,15 +45,15 @@ exactly what the demo does.
 ## The mechanism, and where the capability actually moves
 
 The transfer happens at the rendezvous, under the scheduler lock, because that is the one moment both
-processes' cspaces are reachable at once:
+processes' capability tables are reachable at once:
 
 - **Receiver waiting when the sender arrives.** The sender inserts the capability into the receiver's
-  cspace right then, records the slot in the receiver's mailbox, and wakes it.
+  capability table right then, records the slot in the receiver's mailbox, and wakes it.
 - **Sender waiting when the receiver arrives.** The sender parked the capability in a new
   `Thread.outgoing_cap` field (the capability analogue of the mailbox that parks the data words). The
-  receiver `take()`s it and files it in its own cspace.
+  receiver `take()`s it and files it in its own capability table.
 
-If the receiver's cspace is full the capability is dropped and the receiver sees `NO_CAP`; the data
+If the receiver's capability table is full the capability is dropped and the receiver sees `NO_CAP`; the data
 word still arrives. One honest wart: `SEND_CAP` and plain `RECV` (or `SEND` and `RECV_CAP`) share the
 same endpoint queues and do not check that both sides agree to carry a capability. A correct protocol
 uses the matching pair. Mixing them does not corrupt anything, it just delivers a capability nobody

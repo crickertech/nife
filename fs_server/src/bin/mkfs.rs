@@ -87,7 +87,7 @@ use redoxfs::{BLOCK_SIZE, Disk, FileSystem};
 use syscall::error::{EIO, Error, Result};
 use user_rt::{call, send};
 
-/// Cspace slots, by convention with `kernel/src/user/disk_service.rs`.
+/// Capability table slots, by convention with `kernel/src/user/disk_service.rs`.
 const UNTYPED: u64 = 0;
 /// The block service for the one disk. **Empty in the no-disk control.**
 const BLK: u64 = 1;

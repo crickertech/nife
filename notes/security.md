@@ -18,9 +18,9 @@ The core boundaries are sound, and the review confirmed each with reasoning rath
 
 - **The capability boundary.** No method is invocable without its rights (SEND needs WRITE, RECV
   needs READ, `Untyped MAP` needs WRITE, `Irq` needs READ). Userspace only ever names a capability
-  *slot*, which `CSpace::get` bounds-checks; the object index inside (endpoint id, untyped region,
+  *slot*, which `CapabilityTable::get` bounds-checks; the object index inside (endpoint id, untyped region,
   intid) always comes from a kernel-minted capability, never a user register. Rights cannot widen,
-  and delegation is not even exposed to userspace yet. No process can reach another's CSpace,
+  and delegation is not even exposed to userspace yet. No process can reach another's CapabilityTable,
   mailbox, or endpoints.
 - **The MMU.** Every `user_*` page-flag has correct AP/PXN/UXN bits; W^X holds as a *type
   invariant* (there is no writable-and-executable constructor, proved over all of them by a test).

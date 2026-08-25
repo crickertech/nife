@@ -98,7 +98,7 @@ fn recv_death(slot: u64) -> [u64; 5] {
 /// a reap that handed authority back would have to put it somewhere, and every path that gives a
 /// process a capability lands it in a slot.
 fn occupied_slots() -> usize {
-    (0..abi::CSPACE_SLOTS)
+    (0..abi::CAPABILITY_TABLE_SLOTS)
         .filter(|&s| sched::current_cap(s).is_ok())
         .count()
 }
@@ -115,7 +115,7 @@ fn occupied_slots() -> usize {
 /// is `SEND_CAP`'s on an rendezvous.
 fn assert_can_only_supervise(expected: &[u64]) {
     let mut frame = TrapFrame::for_user_entry(0, 0, [0, 0, 0]);
-    for slot in 0..abi::CSPACE_SLOTS {
+    for slot in 0..abi::CAPABILITY_TABLE_SLOTS {
         match sched::current_cap(slot) {
             Err(_) => {
                 for objtype in [abi::objtype::TCB, abi::objtype::ASPACE] {
@@ -131,7 +131,7 @@ fn assert_can_only_supervise(expected: &[u64]) {
                 assert!(
                     expected.contains(&slot),
                     "the supervisor holds an unexpected capability in slot {slot}: this test's \
-                     confinement claim is only about a cspace it fully accounts for",
+                     confinement claim is only about a capability table it fully accounts for",
                 );
                 assert!(
                     matches!(cap.object, Object::Rendezvous(_)),

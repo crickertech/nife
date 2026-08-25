@@ -128,7 +128,7 @@ roadmap block's own framing without independent confirmation.
 tree already have a way for the shell to learn a child has exited, independent of reading its
 output stream? **Yes, mostly unused today.** DECISIONS §26 built a kernel-delivered fault/exit
 endpoint in milestone 22: "when a thread faults or exits, the kernel delivers a message to the
-supervision endpoint its spawner designated," with a reserved cspace slot
+supervision endpoint its spawner designated," with a reserved capability table slot
 (`abi::fault::FAULT_EP_SLOT`) and a kernel-stamped `(event code, tid, ...)` message, already proved
 and already in the tree. Today `user/src/swish.rs` wires this **only for supervised (interruptible)
 foreground jobs** (`spawn_interruptible`, watching a cooperative job-frame `DONE` flag, which is a

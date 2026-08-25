@@ -97,7 +97,7 @@ vocabulary to discuss.
 
 `timetable::Held` is `grant_plan::Holdings` one level out, and it exists for exactly the reason that
 one does. "This scheduler holds nothing to back that" has to be a statement about a particular
-process's cspace. The same document is four refusals in a scheduler granted nothing but a budget and
+process's capability table. The same document is four refusals in a scheduler granted nothing but a budget and
 four running jobs in one granted a clock, a directory and a terminal, and neither the document nor
 the program manifests can tell those two apart.
 

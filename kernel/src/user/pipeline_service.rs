@@ -64,7 +64,7 @@ pub fn start() -> Option<Wiring> {
 /// `clock` is `Some`, a `Frame` with **`READ`** at slot 4 and a read-only mapping of it.
 ///
 /// The three states this can be started in are the three the shell has to answer for, and they are
-/// three cspaces rather than three code paths:
+/// three capability tables rather than three code paths:
 ///
 /// - `Some(a published page)`: `time` reports a duration.
 /// - `Some(a blank page)`: the frame is there and reads `UNKNOWN`, which is what a reader on a
@@ -92,7 +92,7 @@ const SH_CLOCK_VA: u64 = 0x0000_0000_00d0_0000;
 /// This is what makes the pair of witnesses worth having. [`start`] and this call spawn the same
 /// ELF from the same archive with the same four slots, and the only difference between a
 /// `date > report.txt` that is refused and one that writes a file is whether slot 4 is
-/// occupied. Neither behaviour is a branch in the program; both are facts about a cspace.
+/// occupied. Neither behaviour is a branch in the program; both are facts about a capability table.
 ///
 /// `dir` is `(the narrowed directory rendezvous, the physical frame it shares with the FS server)`,
 /// which is what `fs_service::narrow_dir` hands back.
@@ -206,7 +206,7 @@ fn start_with(
             n += 1;
         }
 
-        // Filled in the order the shell's own constants name, because a `Spawn` fills a cspace from
+        // Filled in the order the shell's own constants name, because a `Spawn` fills a capability table from
         // zero: slot 0 the terminal, 1 the spawn channel, 2 the result channel, 3 the budget, then
         // whichever of the directory and the clock this wiring has.
         let mut grants = [rendezvous_cap(term, Rights::WRITE); 6];
@@ -469,7 +469,7 @@ fn init_service(spawn_ep: RendezvousId, result: RendezvousId) -> ! {
 
 /// Take one delegated capability and read the rendezvous out of it. The slot is dropped straight
 /// away: what init needs is the *name* of the rendezvous, and holding the capability afterwards
-/// would fill a cspace over a long session for nothing.
+/// would fill a capability table over a long session for nothing.
 fn take_rendezvous(ep: RendezvousId) -> Option<RendezvousId> {
     let m = crate::sched::ipc_recv_cap(ep);
     let slot = m[1];

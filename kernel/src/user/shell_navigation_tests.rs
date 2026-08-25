@@ -144,7 +144,7 @@ fn a_shell_navigates_its_own_subtree_and_clamps_at_its_root() {
 ///
 /// Not by policy. The FS server can reach both directories on any request it likes, and the
 /// caretakers one hop up hold the whole image root. What stops each shell is that **no
-/// capability reaching the other subtree exists in its cspace**, which is why the two runs are
+/// capability reaching the other subtree exists in its capability table**, which is why the two runs are
 /// sequential and it costs nothing: they are separate processes with separate roots, and being
 /// alive at the same instant would prove no more than this does (they share one page with the
 /// FS server, so the harness runs them in turn).

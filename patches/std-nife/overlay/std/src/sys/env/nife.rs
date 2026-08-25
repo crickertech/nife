@@ -148,7 +148,7 @@ pub unsafe fn unsetenv(k: &OsStr) -> io::Result<()> {
 //   - the config page's Frame capability: the kernel answers `BadMethod` (-5), a refusal from a
 //     real object and therefore proof one is there.
 //
-// Cached, because the answer cannot change: a cspace slot's contents are fixed at spawn on this
+// Cached, because the answer cannot change: a capability table slot's contents are fixed at spawn on this
 // ABI (0 = not yet asked, 1 = granted, 2 = not granted).
 
 static CONFIG_GRANTED: AtomicU8 = AtomicU8::new(0);

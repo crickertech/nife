@@ -556,7 +556,7 @@ in the code or the conversation doesn't make sense, it belongs here.
   per-client memory and every privileged answer travels through privileged memory, which leaves a
   compositor with no authorization code in it at all. Also: how a client is *proved* unable to touch
   its neighbour's pixels (an attacker handed the exact address, adjacent frames, and four witnesses),
-  the two dialects of "you hold no such capability" (an empty cspace slot and an unmapped page),
+  the two dialects of "you hold no such capability" (an empty capability table slot and an unmapped page),
   enumeration and screenshots as read-only mappings rather than verbs, focus as a capability, and the
   wait-any primitive whose absence shaped the whole design.
 - [Glyphs, the VT engine, and input](glyphs.md): milestone 29's remaining increment: the piece that
@@ -814,7 +814,7 @@ in the code or the conversation doesn't make sense, it belongs here.
 - [init, and loading a program from userspace](init-and-loading.md): milestone 19d: the ELF
   parser leaves the kernel for init, an ordinary confined program. How init loads a child through
   the granular verbs (retype, copy-and-map each segment, endow, configure, start), why
-  SYS_CAP_DELETE exists (a loader recycles a 16-slot cspace over hundreds of frames), and the two
+  SYS_CAP_DELETE exists (a loader recycles a 16-slot capability table over hundreds of frames), and the two
   hardware details a userspace loader must respect (I-cache coherency, cross-space W^X).
 - [The kernel's own budget](kernel-budget.md): milestone 19c.1: kernel stacks stop drawing
   open-endedly from the frame allocator and draw from one boot-carved region (`kmem`) with

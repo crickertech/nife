@@ -165,7 +165,7 @@ impl<T, const N: usize> Table<T, N> {
         self.live == 0
     }
 
-    /// Every live entry, in slot order. For whole-table sweeps (revocation walks every cspace);
+    /// Every live entry, in slot order. For whole-table sweeps (revocation walks every capability table);
     /// nothing on a hot path iterates.
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
         self.slots.iter_mut().filter_map(|s| s.as_mut())

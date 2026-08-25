@@ -379,7 +379,7 @@ pub struct Thread {
     ///
     /// It lives in kernel memory and userspace never sees a byte of it. Userspace sees an
     /// integer. That is the entire unforgeability mechanism, and it is a bounds check.
-    pub cspace: crate::cap::CSpace,
+    pub capability_table: crate::cap::CapabilityTable,
 
     /// **The IPC message this thread most recently sent or received.** Five words.
     ///
@@ -407,7 +407,7 @@ pub struct Thread {
     /// **A capability parked here mid-delegation.** When a thread does a capability-carrying send
     /// (`SEND_CAP`) and no receiver is waiting, it blocks with the capability stashed here, exactly
     /// as `mailbox` stashes the data words. The receiver, running later, reaches in, `take()`s it,
-    /// and inserts it into its own cspace. `None` for every ordinary send. See sched.rs.
+    /// and inserts it into its own capability table. `None` for every ordinary send. See sched.rs.
     pub outgoing_cap: Option<crate::cap::Cap>,
 
     /// **The intrusive queue link** (milestone 14 phases A.2/A.3; notes/intrusive-queues.md).
@@ -496,7 +496,7 @@ impl Thread {
             context: core::ptr::null_mut(),
             stack: None,
             space: None,
-            cspace: crate::cap::CSpace::new(),
+            capability_table: crate::cap::CapabilityTable::new(),
             mailbox: [0; 5],
             quota: None,
             outgoing_cap: None,
@@ -525,7 +525,7 @@ impl Thread {
             context: core::ptr::null_mut(),
             stack: None,
             space: None,
-            cspace: crate::cap::CSpace::new(),
+            capability_table: crate::cap::CapabilityTable::new(),
             mailbox: [0; 5],
             quota: None,
             outgoing_cap: None,
@@ -550,7 +550,7 @@ impl Thread {
     /// and the memory is freed by being the thread's stack.
     /// **Build a thread directly into `dst`, rather than returning one by value** (milestone 124).
     ///
-    /// A `Thread` is a large value: `CSpace<Object, 16>` alone is 384 bytes, and a debug build
+    /// A `Thread` is a large value: `CapabilityTable<Object, 16>` alone is 384 bytes, and a debug build
     /// copies rather than elides at every move. Returning one travelled through
     /// `Thread::spawn`'s frame, `spawn_on`'s local, a closure capture, that closure's return, and
     /// finally `ptr.write`, and each hop was a real memcpy through a stack temporary. The
@@ -627,7 +627,8 @@ impl Thread {
                 context,
                 stack: Some(stack),
                 space: None, // a kernel thread until it calls `user::exec`
-                cspace: crate::cap::CSpace::new(), // and it can name nothing until it is handed something
+                // and it can name nothing until it is handed something
+                capability_table: crate::cap::CapabilityTable::new(),
                 mailbox: [0; 5],
                 quota: None,
                 outgoing_cap: None,
@@ -670,7 +671,7 @@ impl Thread {
             context: core::ptr::null_mut(),
             stack: None,
             space: None,
-            cspace: crate::cap::CSpace::new(),
+            capability_table: crate::cap::CapabilityTable::new(),
             mailbox: [0; 5],
             quota: None,
             outgoing_cap: None,

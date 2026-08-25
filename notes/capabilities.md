@@ -41,7 +41,7 @@ And it lets a process **mint** a capability out of thin air. Say the name, get t
 
 No cryptography. No unguessable number. The unforgeability is boring, and that is the point.
 
-Each process has a **capability space** (a CSpace): a table of slots living **in kernel
+Each process has a **capability table** (a `CapabilityTable`): a table of slots living **in kernel
 memory**. Userspace never sees a single byte of it. Userspace sees **an integer**.
 
 ```
@@ -53,14 +53,14 @@ memory**. Userspace never sees a single byte of it. Userspace sees **an integer*
       cap 3            ────────►    { empty }
 ```
 
-You call `send(3, msg)`. The kernel looks in **your** CSpace at slot 3, finds it empty, and
+You call `send(3, msg)`. The kernel looks in **your** CapabilityTable at slot 3, finds it empty, and
 returns an error.
 
 **You cannot forge a capability for exactly the same reason you cannot forge a file
 descriptor: the table is not yours to write.** That is it. That is the entire security
 mechanism, and it is one array bounds-check away from what we already know how to do.
 
-> "But could I not just write to my own CSpace?"
+> "But could I not just write to my own CapabilityTable?"
 >
 > Only if you hold a capability to your CNode. Which someone would have had to hand you.
 
@@ -246,7 +246,7 @@ and there is one verb: invoke it.
 **One call has been added since, and it did not widen the boundary** (added by the 2026-08-17
 documentation sweep, which found this heading claiming three in the present tense). `SYS_CAP_DELETE`
 arrived on 2026-07-24 with milestone 19d: a loader retyping hundreds of frames through a 16-slot
-cspace has to recycle slots, and forgetting something in your *own* table needs no capability for
+capability table has to recycle slots, and forgetting something in your *own* table needs no capability for
 the same reason `exit` does not. So the property this section is really about survives the count
 going up: **three of the four calls are authority over yourself, and the fourth is everything
 else.** `notes/abi.md` is the current contract and has the full table.
@@ -290,7 +290,7 @@ composes between processes at runtime instead of being wired by the kernel once.
 
 ## A new process holds nothing
 
-`CSpace::empty()`, and every thread starts with one. That constructor **is** the decision. A Unix
+`CapabilityTable::empty()`, and every thread starts with one. That constructor **is** the decision. A Unix
 process inherits its parent's descriptors and can `open()` anything its uid allows. A nife
 thread can name nothing until `sched::grant` puts something in its table, and the only thing
 `user::exec_elf` grants is a `Console` with `WRITE`.

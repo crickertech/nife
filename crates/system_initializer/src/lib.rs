@@ -173,7 +173,7 @@
 //! Printing the negative control costs one more of those: the shell's output frame stays mapped here
 //! for life, because there is no unmap and `Frame::REVOKE` would take it from the shell too.
 //!
-//! **Init's cspace has sixteen slots, and running out of them prints nothing at all.** Every
+//! **Init's capability table has sixteen slots, and running out of them prints nothing at all.** Every
 //! capability held across a `build_child` is one the child's address space, frames and TCB cannot
 //! have, and `build_child` answering `Err(())` is a silent halt. Two of the three evenings this file
 //! has cost were that, once when the kernel grew two grants and once when a boot component was built
@@ -571,7 +571,7 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
     cap_delete(input);
 
     // **The console's three capabilities go back now, before the shell is built**, and that is not
-    // tidiness: this cspace has sixteen slots, and milestone 50 added two more kernel grants (the
+    // tidiness: this capability table has sixteen slots, and milestone 50 added two more kernel grants (the
     // file service and its page). With them held, the shell's `build_child` had no slot left to
     // retype an address space into and failed silently, which presented as a boot that brought up
     // the console and then printed nothing. Nothing below needs these: line_editor is the console's
@@ -591,7 +591,7 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
     }
 
     // **The spawn channel is retyped here, not with the rest**, and the reason is the same sixteen
-    // slots: holding two more endpoints through the three builds above is what pushed this cspace
+    // slots: holding two more endpoints through the three builds above is what pushed this capability table
     // over. They are the shell's and the service's, so this is also where they belong.
     let spawn_ep = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
     let result_ep = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
@@ -643,7 +643,7 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
     let no_fs_caps: [(u64, u64); 5] = [sh_caps[0], sh_caps[1], sh_caps[2], sh_caps[3], sh_caps[5]];
     let no_fs_maps: [(u64, u64, u64); 3] = [sh_maps[0], sh_maps[1], sh_maps[3]];
     // Which slot the clock landed in, for the shell's `x2`. It is the count of what went before it,
-    // which is the same arithmetic `build_child` does when it fills the cspace from zero.
+    // which is the same arithmetic `build_child` does when it fills the capability table from zero.
     let sh_clock_slot: u64 = if with_fs { 5 } else { 4 };
     // **Built but not started**, because the drop below has to happen while the shell's output page
     // is still ours alone to write: the negative control is printed through it, and a running shell
@@ -661,7 +661,7 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
     ));
     cap_delete(sh_budget); // our copy; the shell holds its own now
 
-    // Free every boot cap the spawn service does not need, so init's 16-slot cspace has room to
+    // Free every boot cap the spawn service does not need, so init's 16-slot capability table has room to
     // build a supervised child (which holds a job untyped and a job frame while the loader retypes
     // an aspace, frames, and a TCB). The drivers and the shell hold the narrowed copies that matter.
     //
@@ -678,7 +678,7 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
     // what they cost. They buy the only delivery mechanism a directory grant has: the caretaker must
     // hold the file service to attenuate it, the shell's copy carries no `GRANT`, and a program
     // spawned without the capability its command line named would be the worst failure this model
-    // has. They cost two of init's sixteen cspace slots, permanently, which takes the spawn service's
+    // has. They cost two of init's sixteen capability table slots, permanently, which takes the spawn service's
     // resting endowment from seven capabilities to nine and its peak from thirteen to fifteen. That
     // peak is the number to watch: it is a directory-granted spawn, and it is one slot from the wall.
     // See `spawn_dir_grant`, which counts it.
@@ -694,12 +694,12 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
     //
     // **After the shell and before the giveaway, and both halves of that are load-bearing.**
     //
-    // After the shell, because of this cspace's sixteen slots: building the adapter earlier put init
+    // After the shell, because of this capability table's sixteen slots: building the adapter earlier put init
     // one slot over while the loader was retyping the shell's address space, and the symptom was
     // the one this system has already seen, a boot that reaches userspace and then prints nothing at
     // all. That constraint is about the shell's build, not about being the last thing built, and
     // milestone 22 is what made the difference visible: the adapter is now the fifth of six boot
-    // components rather than the last of five, and the cspace has room either way.
+    // components rather than the last of five, and the capability table has room either way.
     //
     // Before the giveaway, because this is a **system** component and the root untyped is what the
     // system is built from. Everything below hands that budget away and proves it is gone, so an
@@ -987,12 +987,12 @@ fn spawn_service(
         let wants_clock = prog.is_some_and(|p| p.manifest().clock);
         // Same reasoning, one authority over (milestone 126): a **process domain** is not something
         // a person designates either. There is no /proc to name and no pid space to scan, so what a
-        // program may see is decided here, by which supervision endpoint init puts in its cspace.
+        // program may see is decided here, by which supervision endpoint init puts in its capability table.
         let wants_domain = prog.is_some_and(|p| p.manifest().domain);
 
         if interruptible {
             // Build the whole child from the shell's job untyped, mapping the shared job frame; no
-            // capabilities in its cspace (it reports through the frame and exits). SPAWN_OK is the
+            // capabilities in its capability table (it reports through the frame and exits). SPAWN_OK is the
             // go-ahead the shell waits for before it starts watching the frame.
             let built = match (elf, job_ut, job_fr) {
                 (Some(e), Some(job), Some(fr)) => build_child(
@@ -1235,7 +1235,7 @@ fn spawn_service(
             };
             // The narrowed endpoint was only ever the means of wiring: the child holds its own copy
             // and the caretaker holds the other end. Dropped whether or not the build worked, so a
-            // failed spawn does not cost this cspace a slot for the rest of the boot.
+            // failed spawn does not cost this capability table a slot for the rest of the boot.
             if let Some(dir_ep) = narrowed {
                 cap_delete(dir_ep);
             }
@@ -1284,7 +1284,7 @@ fn spawn_service(
 
         // Drop our copies of every delegated cap: the child holds what it needs (the job frame is
         // mapped, the budget and the streams inserted), and the shell holds the originals it kept
-        // (the job untyped for teardown, the pipe it minted). This keeps init's 16-slot cspace from
+        // (the job untyped for teardown, the pipe it minted). This keeps init's 16-slot capability table from
         // filling across a long session.
         for s in [job_ut, job_fr, sink, source, diagnostics, screen, budget]
             .into_iter()
@@ -1308,7 +1308,7 @@ fn spawn_service(
 /// so the narrowing is a **caretaker**: a process that holds the file service, descends once into the
 /// granted directory asking for exactly the granted rights, and serves the same contract on an
 /// endpoint of its own. The program then holds that endpoint and **nothing that names the FS
-/// server**, so "it cannot reach a sibling directory" is a property of its cspace rather than of a
+/// server**, so "it cannot reach a sibling directory" is a property of its capability table rather than of a
 /// branch it is trusted to take.
 ///
 /// `region` is the client's region, and everything here comes out of it; see

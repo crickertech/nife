@@ -118,7 +118,7 @@ That is what makes a component's **peer** substitutable and not only the compone
 
 | declared | not declared |
 |---|---|
-| capabilities, by role name and direction, **in cspace slot order** | supervision: a component does not choose whether it is watched (§32) |
+| capabilities, by role name and direction, **in capability table slot order** | supervision: a component does not choose whether it is watched (§32) |
 | pages, by role name and the virtual address its own code reads | start arguments: which log entries this instance writes, which of `chatty`'s three roles it is |
 | how many pages of budget one instance is built out of | stack size, and everything else `ChildEndowment` defaults |
 

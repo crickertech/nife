@@ -36,7 +36,7 @@ Four syscall numbers, and that is the whole width of the trap:
 | 0 | `SYS_EXIT` | terminate this thread; the kernel reaps it and frees its address space. Never returns. |
 | 1 | `SYS_YIELD` | give up the CPU voluntarily. |
 | 2 | `SYS_INVOKE` | invoke a capability. **This one carries the entire capability world** (see §2). |
-| 3 | `SYS_CAP_DELETE` | drop the capability in a cspace slot, so the slot can be reused. |
+| 3 | `SYS_CAP_DELETE` | drop the capability in a capability table slot, so the slot can be reused. |
 
 That narrowness is deliberate (DECISIONS rule 3: the syscall surface stays a boundary, not a habit).
 Everything a program can do to another object goes through the single `SYS_INVOKE` door; adding a
@@ -46,7 +46,7 @@ on it.
 
 ## 2. The object surface, reached through `SYS_INVOKE`
 
-`invoke(cap, method, a0, a1, a2)`: `cap` names a capability in the calling thread's cspace (a small
+`invoke(cap, method, a0, a1, a2)`: `cap` names a capability in the calling thread's capability table (a small
 integer, like a file descriptor), `method` selects an operation on the object that capability points
 at, and `a0..a2` are the operation's arguments. The kernel checks that the slot holds a capability,
 that its *rights* permit the method, and that the object's type understands it. The method numbers
@@ -59,7 +59,7 @@ live per object type in `crates/abi`:
 - **Untyped / objects** (`objtype::`): `RETYPE` an untyped region into an `ENDPOINT`, `ASPACE`, or
   `TCB`. This is how a process builds new kernel objects out of a raw memory budget it holds.
 - **TCB** (`tcb::`): `CONFIGURE` (entry, stack, address space), `CAP_INSERT` (place a capability into
-  the child's cspace), `START` (see §3).
+  the child's capability table), `START` (see §3).
 - **Aspace** (`aspace::MAP_INTO`, with modes `MAP_RO` / `MAP_RW` / `MAP_CODE`): map a frame into an
   address space at a chosen virtual address with chosen permissions.
 - **Irq** (`irq::WAIT` / `ACK`): block until an interrupt the capability names fires, then
@@ -73,7 +73,7 @@ only thing that can turn that number into the object. That is the §10 thesis in
 ## 3. The entry contract
 
 A program is an ordinary aarch64 **ELF**, linked in the low half (TTBR0, at `0x40_0000`; see
-notes/linker-scripts.md). The loader lays out its segments, gives it a stack, populates its cspace
+notes/linker-scripts.md). The loader lays out its segments, gives it a stack, populates its capability table
 (§4), and enters it at the ELF's `e_entry` with three register arguments:
 
 ```
@@ -104,7 +104,7 @@ frame).
 ## 4. How a program meets its capabilities
 
 Before `START`, the program's loader (init, or the kernel's own service wiring) has placed the
-capabilities the program needs into low cspace slots, and mapped any shared pages it needs at agreed
+capabilities the program needs into low capability table slots, and mapped any shared pages it needs at agreed
 virtual addresses. The program hardcodes which slot holds what and which VA is which. That agreement
 is the contract, and it is **per program**, published in that program's own source:
 
@@ -155,7 +155,7 @@ conventions make it work, and neither adds a syscall or a method: a spawn-slot c
 message-format convention (both in `crates/abi`, module `fault`).
 
 **The spawn-slot convention.** A supervised child is spawned with its supervision endpoint in the
-**reserved fault slot**, `abi::fault::FAULT_EP_SLOT` (the last cspace slot, `CSPACE_SLOTS - 1 = 15`).
+**reserved fault slot**, `abi::fault::FAULT_EP_SLOT` (the last capability table slot, `CAPABILITY_TABLE_SLOTS - 1 = 15`).
 A supervisor building a child through the TCB surface places it there with `Tcb::CAP_INSERT`'s
 explicit target argument (`invoke(tcb, CAP_INSERT, cap_slot, rights, target)`, where `target` is
 `slot + 1` and `0` keeps the original first-free behaviour). At `START` the kernel reads the fault

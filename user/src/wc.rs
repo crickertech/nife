@@ -11,7 +11,7 @@
 //! Behind that endpoint there is either another program (`date | wc`), a file the shell opened and
 //! streamed (`wc < report.txt`, and `wc report.txt`, which is the same thing with the operator left
 //! out), or the shell itself typing bytes into it (`echo hello | wc`). There is no message this
-//! program can send to ask which, no field in a message that says, and no capability in its cspace
+//! program can send to ask which, no field in a message that says, and no capability in its capability table
 //! that names anything but the two endpoints. **The same binary, three sources, one behaviour.**
 //!
 //! `wc report.txt` is worth a second look for exactly that reason. It reads like Unix's `wc`, where

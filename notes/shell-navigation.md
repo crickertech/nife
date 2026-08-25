@@ -165,7 +165,7 @@ escape even though nothing was opened.
 
 Not by policy. The FS server can reach both directories on any request it likes, and each caretaker
 one hop up holds the whole image root. What stops each shell is that **no capability reaching the
-other subtree exists in its cspace.**
+other subtree exists in its capability table.**
 
 The falsification is cheap and was run: point the second shell at `sub` as well, and
 `two_shells_with_different_roots_cannot_name_each_others_files` fails with "it opened a file that
@@ -217,7 +217,7 @@ should be able to answer for every capability rather than a flag on one verb.
 - **No revocation**, and the reason is the per-server handle table. Argued above.
 - **The interactive prompt still holds no directory**, so at a real keyboard every one of these five
   answers "this shell holds no directory capability; there is nothing here to name". That sentence is
-  **true rather than a placeholder** (it is a fact about that shell's cspace, §27's amendment; the
+  **true rather than a placeholder** (it is a fact about that shell's capability table, §27's amendment; the
   interactive boot has held a directory since milestone 50), and
   it is the same state the per-file grant has been in since milestone 31. The builtins are gated in
   the navigating role on both ISAs; what is missing is a boot that wires an FS service into the

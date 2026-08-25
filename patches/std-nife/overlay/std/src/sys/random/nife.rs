@@ -56,7 +56,7 @@ const ENTROPY: u64 = rt::ENTROPY_SLOT;
 // separates "the service answered" from "there is no service" with no extra syscall and no
 // collision to reason about (contrast the errno/kernel-error overlap notes/std.md records for fs).
 //
-// Cached, because the answer cannot change: a cspace slot's contents are fixed at spawn on this
+// Cached, because the answer cannot change: a capability table slot's contents are fixed at spawn on this
 // ABI (0 = not yet asked, 1 = granted, 2 = not granted). Same shape as the fs and time PALs.
 
 static GRANTED: AtomicU8 = AtomicU8::new(0);

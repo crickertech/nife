@@ -62,7 +62,7 @@ fn pool_came_back(pool: u64) -> bool {
 }
 
 /// **Start the real `job_undertaker` binary** the way the interactive init starts it: an ordinary user
-/// process whose entire capability space is one endpoint with `READ`.
+/// process whose entire capability table is one endpoint with `READ`.
 ///
 /// Deliberately the real program out of the initrd rather than a stub, because what is under test is
 /// a *program's* behaviour, and a stub would be this test's opinion of it.

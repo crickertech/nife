@@ -3935,7 +3935,7 @@ fn smb_throughput_leg(
 /// **This function deliberately does not read the file back.** A client believing its own write
 /// is exactly what the gate must not accept, so the read-back is a different process on the other
 /// side of the machine: `fs_test_client`'s verify role, spawned by the kernel test once the
-/// adapter has stopped serving, reading through the FS server with no network in its cspace.
+/// adapter has stopped serving, reading through the FS server with no network in its capability table.
 fn smb_write_leg(
     s: &mut std::net::TcpStream,
     stop: &std::sync::atomic::AtomicBool,
@@ -6629,7 +6629,7 @@ fn undefined_behavior_check() -> bool {
 ///
 /// It bit milestone 50 three times in one session and **all three presented as a boot that printed
 /// nothing at all**: a virtual-address collision between the shell's terminal page and the page six
-/// FS clients map, init's sixteen-slot cspace overflowing when the kernel handed it two more grants,
+/// FS clients map, init's sixteen-slot capability table overflowing when the kernel handed it two more grants,
 /// and four stack pages being one deep call short of the redirection path. Each cost a manual bisect
 /// against a live prompt. Each is caught here in one boot.
 ///
@@ -6842,7 +6842,7 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 55] = [
     ),
     // **`2>`, at the one interface a human touches** (DECISIONS §67). The four lines below are the
     // whole of the decision, and only this gate runs them through the real init: the guest tests
-    // wire the shell from the kernel, whose `Spawn` fills a cspace from zero and cannot place a
+    // wire the shell from the kernel, whose `Spawn` fills a capability table from zero and cannot place a
     // capability at the slot a manifest names, so `date` there never receives a second stream.
     //
     // `date` is the declarer, and at *this* prompt it has a clock and nothing to complain about. So

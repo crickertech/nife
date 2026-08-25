@@ -179,7 +179,7 @@ unsafe fn invoke5(cap: u64, method: u64, a0: u64, a1: u64, a2: u64) -> (u64, u64
 }
 
 /// Invoke a capability: the one syscall a userspace program makes. `cap` names a capability in the
-/// process's cspace, `method` selects the operation, and `a0..a2` are its arguments; the return is
+/// process's capability table, `method` selects the operation, and `a0..a2` are its arguments; the return is
 /// the kernel's `i64` result. Everything else in this crate is built on this.
 ///
 /// # Safety
@@ -266,7 +266,7 @@ pub fn recv_fault(slot: u64) -> (u64, u64, u64, u64, u64) {
 
 /// `RECV_CAP` on the endpoint capability in `slot`: receive a message that may carry a
 /// capability. Blocks until one arrives; returns `(w0, cap_slot, w1)`, where `cap_slot` is where
-/// the incoming capability landed in this thread's cspace, or [`abi::rendezvous::NO_CAP`] if the
+/// the incoming capability landed in this thread's capability table, or [`abi::rendezvous::NO_CAP`] if the
 /// message carried none. This is how a server receives a [`call`]: the delivered capability is
 /// the one-shot Reply naming the caller (milestone 12, DECISIONS §12).
 pub fn recv_cap(slot: u64) -> (u64, u64, u64) {
@@ -337,12 +337,12 @@ pub fn yield_now() {
     }
 }
 
-/// Drop the capability in `slot` from this thread's cspace (`SYS_CAP_DELETE`). Deleting an empty
+/// Drop the capability in `slot` from this thread's capability table (`SYS_CAP_DELETE`). Deleting an empty
 /// slot is a no-op. A program that retypes many objects (a loader, a spawner) frees each slot as
-/// soon as it is done with it, so its fixed cspace does not fill.
+/// soon as it is done with it, so its fixed capability table does not fill.
 #[cfg(target_arch = "aarch64")]
 pub fn cap_delete(slot: u64) {
-    // SAFETY: `svc`; SYS_CAP_DELETE frees a slot in the caller's own cspace, nothing to clean up.
+    // SAFETY: `svc`; SYS_CAP_DELETE frees a slot in the caller's own capability table, nothing to clean up.
     unsafe {
         core::arch::asm!(
             "svc #0",
@@ -356,7 +356,7 @@ pub fn cap_delete(slot: u64) {
 /// Drop the capability in `slot` (RISC-V). `ecall`, `SYS_CAP_DELETE` in `a7`, slot in `a0`.
 #[cfg(target_arch = "riscv64")]
 pub fn cap_delete(slot: u64) {
-    // SAFETY: `ecall`; SYS_CAP_DELETE frees a slot in the caller's own cspace, nothing to clean up.
+    // SAFETY: `ecall`; SYS_CAP_DELETE frees a slot in the caller's own capability table, nothing to clean up.
     unsafe {
         core::arch::asm!(
             "ecall",

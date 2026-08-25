@@ -16,7 +16,7 @@ crates.io, without smuggling in the POSIX assumptions the ABI deliberately exclu
 ## What a std program is given
 
 A std program is an ordinary nife ELF (notes/abi.md §3): entered at `_start`, linked at
-`0x40_0000`, cspace populated by its parent. std's runtime contract needs two things, and the ABI's
+`0x40_0000`, capability table populated by its parent. std's runtime contract needs two things, and the ABI's
 out-of-band convention (notes/abi.md §4) grants them at fixed slots:
 
 - **slot 0: an untyped budget.** The global allocator draws heap pages from it lazily via
@@ -279,7 +279,7 @@ and it is an `FSTAT` on a handle number the server's table can never contain:
 - **a real server:** it answers `-EBADF` (-9) for the impossible handle, which is a *reply*, so a
   filesystem is reachable.
 
-The answer is cached, because a cspace slot's contents are fixed at spawn on this ABI.
+The answer is cached, because a capability table slot's contents are fixed at spawn on this ABI.
 
 **A wart of the contract, and this paragraph used to be wrong about it.** The wire's error space (a
 negated errno) overlaps the kernel's invoke-error space (-1..-8), so `-2` is both `ENOENT` and
@@ -860,7 +860,7 @@ a directory capability (`File::open` on the fixture name) and then for the netwo
   spawns it this way.
 
 The same binary doing three things by its grants alone is the point of "no ambient authority": the
-code never chose to have a network or a filesystem, its cspace did. All three tests reassemble the
+code never chose to have a network or a filesystem, its capability table did. All three tests reassemble the
 byte stream off the endpoint and compare it byte for byte, on **both** ISAs out of each arch's own
 initrd (the parity gate, DECISIONS §19). The fs transcript splices the file's own bytes into the
 expected buffer from the shared fixture, so that one comparison covers the whole path: disk,

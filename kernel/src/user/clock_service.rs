@@ -48,7 +48,7 @@ pub fn start(image: &'static [u8]) -> Wiring {
     // Two mappings, or one on a machine with no RTC. The device page is mapped and no
     // `DeviceFrame` capability is granted, exactly as the console server's UART is: the service
     // drives the registers and never delegates them onward, and §41's take-back revocation
-    // reaches an address-space mapping whether or not a cspace slot names it too.
+    // reaches an address-space mapping whether or not a capability table slot names it too.
     let mut maps = [
         Mapping {
             va: CLOCK_VA,

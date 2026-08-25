@@ -22,7 +22,7 @@
 //!
 //! Both of those pages used to arrive as `Spawn::maps` entries: the kernel wrote them into the new
 //! address space before the program's first instruction, at an address the kernel picked, with
-//! permissions the kernel picked. Nothing in the program's cspace said they were there.
+//! permissions the kernel picked. Nothing in the program's capability table said they were there.
 //!
 //! They are `Frame` capabilities now, and the program maps them itself with `Frame::MAP`, spending
 //! page tables out of an untyped it also holds. Four things change and none of them are cosmetic:
@@ -82,7 +82,7 @@ const ROLE_SURVEY: u64 = 0;
 const ROLE_PROBE: u64 = 1;
 const ROLE_HOLDER: u64 = 2;
 
-// The surveyor's cspace, **one layout for both roles**. Must match user/src/disk_surveyor.rs.
+// The surveyor's capability table, **one layout for both roles**. Must match user/src/disk_surveyor.rs.
 //
 // The probe holds neither a disk nor the page that goes with one, and those are holes rather than a
 // shorter list: `grant_at` places each capability at its own number, so the roster is slot 4 in both
@@ -360,7 +360,7 @@ impl HolderWiring {
 /// scratch on top of that.
 const PARTITION_EXTRA_STACK: usize = 4;
 
-// The partitioner's cspace. Must match user/src/disk_partitioner.rs. Slot 2 is the hole the
+// The partitioner's capability table. Must match user/src/disk_partitioner.rs. Slot 2 is the hole the
 // entropy experiment turns on; see [`start_partitioner`].
 const PARTITION_SLOT_REPORT: u64 = 0;
 const PARTITION_SLOT_BLK: u64 = 1;
@@ -368,7 +368,7 @@ const PARTITION_SLOT_ENTROPY: u64 = 2;
 const PARTITION_SLOT_BUDGET: u64 = 3;
 const PARTITION_SLOT_BLK_PAGE: u64 = 4;
 
-// `mkfs`'s cspace. Must match fs_server/src/bin/mkfs.rs. Slots 1 and 2 are the holes; slot 0 is the
+// `mkfs`'s capability table. Must match fs_server/src/bin/mkfs.rs. Slots 1 and 2 are the holes; slot 0 is the
 // heap budget, which is also what pays for the tables that map slot 4.
 const MAKER_SLOT_BUDGET: u64 = 0;
 const MAKER_SLOT_BLK: u64 = 1;
@@ -480,7 +480,7 @@ pub fn start_partitioner(
                 .expect("no frame for the partitioner's stack")
                 .addr();
         }
-        // **The cspace IS the experiment**: slot 2 is filled or it is empty, and nothing else
+        // **The capability table IS the experiment**: slot 2 is filled or it is empty, and nothing else
         // differs. It used to be the last of a shorter list, which said the same thing as long as
         // nothing was ever added after it; milestone 108 added two things, so the hole is explicit
         // now and the entropy run and the entropy-less run stay the same program.
