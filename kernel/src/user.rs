@@ -659,6 +659,28 @@ pub const UART_PHYS: u64 = 0x1000_0000;
 #[cfg(target_arch = "x86_64")]
 pub const UART_PHYS: u64 = 0;
 
+/// **Is there a UART a device capability can be a mapping of on this machine?** (milestone 161.)
+///
+/// [`UART_PHYS`] is zero on `x86_64` and that zero is the marker for
+/// [DECISIONS §121](../../design/decisions/121-port-io-capability.md) (PROPOSED). Several fixtures
+/// need to ask, so they ask here rather than each testing a constant against zero and each writing
+/// its own sentence about why.
+///
+/// **The trap this exists to prevent is a green test rather than a red one.** A fixture that went
+/// ahead anyway would grant a device capability over *physical page zero*, map it, and read
+/// real-mode interrupt-vector bytes; the read would succeed, a revoke would still fault, and a
+/// suite would report that x86 has a userspace device story. It does not.
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn machine_has_no_device_page_for_the_console() -> bool {
+    UART_PHYS == 0
+}
+
+/// The reason a fixture gives when [`machine_has_no_device_page_for_the_console`] is true.
+#[cfg_attr(not(test), allow(dead_code))]
+pub const NO_UART_PAGE: &str = "this machine's console UART is in the I/O port space, so there is \
+                                no page for a device capability to be a mapping of and no \
+                                capability shape for a port yet (DECISIONS \u{a7}121)";
+
 /// The archive entry holding the milestone 7-19 **role catalogue**: the one binary the kernel
 /// re-enters at a chosen role to play a client, a server, or init itself.
 ///
@@ -671,8 +693,10 @@ pub const INIT_ROLES_ENTRY: &str = "init";
 #[cfg_attr(not(test), allow(dead_code))]
 #[cfg(target_arch = "riscv64")]
 pub const INIT_ROLES_ENTRY: &str = "hello";
-/// `x86_64` packs no initrd yet (no user programs are built for this target), so this names what it
-/// would be rather than what is there. Nothing reads it: the x86 boot tour halts before userspace.
+/// `x86_64` packs RISC-V's archive (milestone 161, item 4's hand-off), so it gets RISC-V's answer:
+/// its `init` is the portable `builder` demo and hello is packed under its own name. This constant
+/// said the same thing before there was an archive, and it turned out to be right; the reason it
+/// was right is that the archive was going to be RISC-V's rather than that the name was a guess.
 #[cfg_attr(not(test), allow(dead_code))]
 #[cfg(target_arch = "x86_64")]
 pub const INIT_ROLES_ENTRY: &str = "hello";
@@ -839,6 +863,15 @@ pub fn spawn_init(
         .expect("grant report");
         // A device capability for the UART (slot 2), so init can build a driver and hand it the
         // registers (19d.2). WRITE (device access) | GRANT (init delegates it to the driver).
+        //
+        // **On x86_64 `UART_PHYS` is zero and this grants a device capability over physical page
+        // zero**, which is a foot gun and is marked as one rather than designed away (AGENTS.md's
+        // ladder: an exception must say it is an exception). The slot is positional, so declining
+        // to grant here would renumber the interrupt capability below and every role that names
+        // it; and there is nothing better to put in the slot until DECISIONS §121 decides what a
+        // port capability is. Nothing reaches it today: every fixture that would map it asks
+        // `machine_has_no_device_page_for_the_console()` first and skips. A role that maps it
+        // anyway gets the real-mode interrupt vector table and will look like it works.
         crate::sched::grant(crate::cap::device_frame_cap(
             UART_PHYS,
             crate::cap::Rights::WRITE.union(crate::cap::Rights::GRANT),
@@ -1201,7 +1234,9 @@ pub const OUTLAW_READ_KERNEL: u64 = 1;
 /// permissions, the entry point, argument passing across the `START` boundary, and the endpoint
 /// SEND, all from a program the kernel did not hand-write. `load` is arch-neutral; this is the same
 /// code aarch64 runs, now on the RISC-V address space and trap path.
-/// The hand-assembled `x86_64` programs, because no compiled one exists for this target yet.
+/// The hand-assembled `x86_64` programs. Compiled ones now exist (item 4's hand-off), but these
+/// stay: the boot tour runs before any archive is parsed, and a fixture that needs no initrd is
+/// what lets the userspace demo run on a `cargo run` with no `-initrd` at all.
 #[cfg(target_arch = "x86_64")]
 pub mod x86_programs;
 

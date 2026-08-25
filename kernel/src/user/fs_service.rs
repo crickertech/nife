@@ -849,6 +849,44 @@ pub struct DirGrant {
     pub stack_pages: usize,
 }
 
+/// **The FS server's binary, or `None` because this target could not build one** (milestone 161).
+///
+/// Every other missing fixture in this tree is a *machine* fact: no disk attached, no virtio-rng on
+/// the bus, no second core. This one is a **toolchain** fact, which is why it gets a named helper
+/// rather than an `.expect` somebody reads once. `fs_server` links the vendored RedoxFS engine,
+/// which pulls in the `aes` crate unconditionally (its encrypted-volume support is not behind a
+/// feature), and building `aes` for `x86_64-unknown-none` ends in
+/// `rustc-LLVM ERROR: Do not know how to split the result of this operator!` at every optimisation
+/// level including zero. The target spec is the cause: it is `-mmx,-sse,+soft-float`, so there is
+/// no 128-bit vector register for LLVM to legalise an AES block into and no scalar fallback for
+/// that operator. Nothing on this side fixes it; see `xtask`'s `initrd_x86` and notes/x86-port.md.
+///
+/// So on `x86_64` the archive carries no `fs_server`, and every test that needs a filesystem skips
+/// with [`NO_FS_SERVER`] rather than panicking on a lookup.
+pub fn fs_server_image() -> Option<&'static [u8]> {
+    program("fs_server")
+}
+
+/// The reason a test gives when [`fs_server_image`] is `None`. One string, because a dozen files
+/// share one cause and a reader comparing two runs should not have to decide whether two wordings
+/// mean the same thing.
+pub const NO_FS_SERVER: &str = "no fs_server in this archive: it links the vendored RedoxFS \
+                                engine, whose unconditional `aes` dependency does not compile for \
+                                x86_64-unknown-none (LLVM cannot legalise an AES block with SSE \
+                                disabled)";
+
+/// **`mkfs`'s binary, or `None`** (milestone 161). Same package as [`fs_server_image`], same
+/// vendored engine underneath it, so it is absent for exactly the same reason and on exactly the
+/// same targets; a separate accessor only so a skipped test names the program it actually wanted.
+pub fn mkfs_image() -> Option<&'static [u8]> {
+    program("mkfs")
+}
+
+/// The reason a test gives when [`mkfs_image`] is `None`. [`NO_FS_SERVER`]'s cause, one binary over.
+pub const NO_MKFS: &str = "no mkfs in this archive: it is built from the same package as \
+                           fs_server, which does not compile for x86_64-unknown-none (the \
+                           vendored RedoxFS engine's `aes` dependency)";
+
 /// **The binary carrying the block server's role**, which is the one thing the two ISAs
 /// disagree about here: on aarch64 it is a role of the `init`/hello binary, on riscv the
 /// dedicated `blk` one. Every caller goes through this so the disagreement is one `cfg` rather
@@ -861,11 +899,12 @@ pub fn blk_server_image() -> &'static [u8] {
     return program("init").expect("no init program in the initrd archive");
     #[cfg(target_arch = "riscv64")]
     return program("blk").expect("no blk program in the initrd archive");
-    // x86_64 (milestone 161) builds no user programs at all yet, so there is no archive to look in
-    // and no third answer to give. The panic is the same shape as the other two arms': a boot
-    // archive without the block server is a build that did not finish.
+    // x86_64 (milestone 161) packs RISC-V's archive, so it gets RISC-V's answer: the dedicated
+    // `blk` program. This arm used to panic outright, because nothing in `user/` compiled for this
+    // target at all; item 4's hand-off changed that and the arm became a third copy of the same
+    // line rather than a special case.
     #[cfg(target_arch = "x86_64")]
-    panic!("x86_64 has no block-server program: userspace is not built for this target");
+    return program("blk").expect("no blk program in the initrd archive");
 }
 
 /// **Wire the filesystem and hand back the root directory capability**, for a boot rather than

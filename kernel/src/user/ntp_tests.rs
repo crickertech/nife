@@ -103,6 +103,9 @@ fn exchange(
 /// `SYNCED`, which nothing but the service can produce.
 #[test_case]
 fn an_ntp_exchange_reaches_the_clock_as_a_proposal() {
+    if clock_service::machine_has_no_rtc() {
+        crate::testing::skip!(clock_service::NO_RTC);
+    }
     let clock = clock();
     let before = clock.page().read();
     let step = NANOS_PER_SEC / 2;
@@ -182,6 +185,9 @@ fn an_ntp_exchange_reaches_the_clock_as_a_proposal() {
 /// is the abusive behaviour the packet exists to stop.
 #[test_case]
 fn a_reply_that_fails_validation_never_becomes_a_proposal() {
+    if clock_service::machine_has_no_rtc() {
+        crate::testing::skip!(clock_service::NO_RTC);
+    }
     let clock = clock();
     let before = clock.page().read();
     let claimed = clock.wall_nanos() + NANOS_PER_SEC / 2;
@@ -236,6 +242,9 @@ fn a_reply_that_fails_validation_never_becomes_a_proposal() {
 /// asserted.
 #[test_case]
 fn a_proposal_outside_the_policy_is_refused_by_the_service() {
+    if clock_service::machine_has_no_rtc() {
+        crate::testing::skip!(clock_service::NO_RTC);
+    }
     let clock = clock();
     let before = clock.page().read();
 
@@ -282,6 +291,9 @@ fn a_proposal_outside_the_policy_is_refused_by_the_service() {
 /// its `settimeofday` cannot reach.
 #[test_case]
 fn an_ntp_client_holds_no_writable_clock_page() {
+    if clock_service::machine_has_no_rtc() {
+        crate::testing::skip!(clock_service::NO_RTC);
+    }
     let clock = clock();
     let before = clock.page().read();
     // An endpoint nobody serves: the probe never sends a request, and giving it a real server
@@ -341,6 +353,9 @@ fn an_ntp_client_holds_no_writable_clock_page() {
 /// counter, which notes/entropy.md calls predictable to anyone who can guess boot-relative time.
 #[test_case]
 fn the_nonce_on_the_wire_is_random_and_is_not_the_clock() {
+    if clock_service::machine_has_no_rtc() {
+        crate::testing::skip!(clock_service::NO_RTC);
+    }
     let clock = clock();
     let claimed = clock.wall_nanos() + NANOS_PER_SEC / 2;
 
@@ -379,6 +394,9 @@ fn the_nonce_on_the_wire_is_random_and_is_not_the_clock() {
 /// nothing in the report would say so. It is the call `SystemRng` makes when it panics.
 #[test_case]
 fn without_entropy_the_client_refuses_rather_than_guessing() {
+    if clock_service::machine_has_no_rtc() {
+        crate::testing::skip!(clock_service::NO_RTC);
+    }
     let clock = clock();
     let before = clock.page().read();
     let server = ntp_service::start_server(ntp_image(), srv::GOOD, clock.wall_nanos());

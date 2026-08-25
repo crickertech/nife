@@ -37,6 +37,20 @@ use crate::sched;
 #[test_case]
 fn a_confined_userspace_driver_puts_a_known_pattern_in_a_framebuffer() {
     let display = program("display").expect("no display program in the initrd archive");
+    // **A machine with no enumerated PCI bus cannot be missing a GPU**, and telling those two
+    // apart is what keeps the loud failure below loud. `memory::pci_regions()` is the device
+    // tree's ECAM window; both QEMU `virt` boards describe one, so on either of those legs an
+    // absent GPU really is the build-order mistake this test is written to catch. q35 has an ECAM
+    // window too, and ACPI's MCFG names it, but nothing has plumbed that answer into the discovery
+    // seam's device windows yet (milestone 161's roadmap item 0), so this kernel can find no
+    // virtio-pci function of any kind here.
+    if crate::memory::pci_regions().is_none() {
+        crate::testing::skip!(
+            "this kernel has enumerated no PCI bus on this machine (memory::pci_regions() is \
+             empty), so no virtio-pci function can be found at all"
+        );
+    }
+
     let painter = program("painter").expect("no painter program in the initrd archive");
     let threads_before = sched::thread_count();
 

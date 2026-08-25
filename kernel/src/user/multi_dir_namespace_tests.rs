@@ -56,6 +56,9 @@ fn two_dir_witness() -> Option<u64> {
 /// equally consistent with two caretakers that answer no to everything.
 #[test_case]
 fn a_process_holding_two_directory_capabilities_reaches_both_and_crosses_neither() {
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
     let Some(v) = two_dir_witness() else {
         return;
     };

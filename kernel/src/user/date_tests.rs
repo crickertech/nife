@@ -140,6 +140,9 @@ fn clock() -> clock_service::Wiring {
 /// enough that the failures above miss it by decades.
 #[test_case]
 fn date_prints_the_wall_clock_it_was_granted() {
+    if clock_service::machine_has_no_rtc() {
+        crate::testing::skip!(clock_service::NO_RTC);
+    }
     let w = clock();
     let mut buf = [0u8; 128];
 
@@ -341,6 +344,9 @@ fn without_a_second_stream_the_complaint_stays_in_band() {
 /// `synced, generation 2`, and a `date` that had cached or invented either would not follow.
 #[test_case]
 fn date_reports_where_the_time_came_from() {
+    if clock_service::machine_has_no_rtc() {
+        crate::testing::skip!(clock_service::NO_RTC);
+    }
     let w = clock();
     let mut buf = [0u8; 128];
 

@@ -514,6 +514,24 @@ fn asid_tagging_keeps_address_spaces_apart_without_flushes() {
     let mut b = AddressSpace::new(2).expect("no space B");
 
     let (asid_a, asid_b) = (mmu::asid_of(a.ttbr0()), mmu::asid_of(b.ttbr0()));
+
+    // **An architecture that does not tag at all cannot be tested for tagging**, and this is the
+    // same refusal the doc comment above records about RISC-V before milestone 58: a test that
+    // cannot fail for its stated reason is worse than no test.
+    //
+    // x86_64 is that architecture today. A PCID lives in `CR3[11:0]`, and with `CR4.PCIDE` clear
+    // those bits are reserved-zero, so `arch::x86_64::mmu::ttbr0_value` drops the number and every
+    // `mov cr3` flushes the whole TLB. B's read would then return B's byte because nothing was
+    // cached, not because the tagging works. Turning `PCIDE` on is worth a measurement and is
+    // recorded as calef's call (milestone 161's roadmap item 3); the day it is on, both spaces get
+    // real tags and this skip stops firing with nothing else edited.
+    if asid_a == 0 && asid_b == 0 {
+        crate::testing::skip!(
+            "this machine does not tag address spaces (x86 runs with CR4.PCIDE clear, so every \
+             root switch flushes the whole TLB and this test could not fail for its stated reason)"
+        );
+    }
+
     assert_ne!(asid_a, asid_b, "two live spaces share an ASID");
     assert_ne!(asid_a, 0, "a user space got the kernel's ASID 0");
     assert_ne!(asid_b, 0, "a user space got the kernel's ASID 0");
@@ -629,11 +647,14 @@ fn an_asid_flush_reaches_the_other_cores() {
     PROBE_CORE.store(usize::MAX, Ordering::SeqCst);
     PROBE_GAVE_UP.store(false, Ordering::SeqCst);
 
-    let cores = crate::smp::online_count();
-    assert!(
-        cores >= 2,
-        "a cross-core TLB shootdown test needs two online cores; this machine has {cores}",
-    );
+    // **A skip rather than an assert** (milestone 161). Both `virt` boards run this leg at `-smp 4`,
+    // so two cores was a fact rather than a hope for as long as there were two architectures; q35
+    // runs at one, because x86 SMP is INIT-SIPI-SIPI and that is roadmap item 5. `smp.rs`'s
+    // cross-core placement test already says this in these words, and one machine fact should not
+    // read as a bug in one file and as a missing fixture in another.
+    if crate::smp::online_count() < 2 {
+        crate::testing::skip!("a cross-core TLB shootdown test needs at least two online cores");
+    }
     let here = crate::cpu::id();
     // Any ONLINE core but this one, from the set rather than `0..count` (first-silicon sweep,
     // 2026-08-14): on a non-contiguous online set the range picks a parked core, the probe never
@@ -1082,6 +1103,12 @@ fn a_userspace_driver_reads_a_file_from_a_virtio_disk() {
 #[cfg(target_arch = "aarch64")]
 #[test_case]
 fn std_fs_reads_a_file_through_a_granted_directory_capability() {
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
+    if std_service::std_exerciser_image().is_none() {
+        crate::testing::skip!(std_service::NO_STD_EXERCISER);
+    }
     let Some((readiness, report)) = fs_service::start_std(
         init_image(),
         program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),
@@ -1111,6 +1138,9 @@ fn std_fs_reads_a_file_through_a_granted_directory_capability() {
 #[cfg(target_arch = "aarch64")]
 #[test_case]
 fn the_redoxfs_server_serves_redoxfs_over_a_capability_contract() {
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
     let Some((readiness, report)) = fs_service::start(
         init_image(),
         program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),
@@ -1164,6 +1194,9 @@ fn the_redoxfs_server_serves_redoxfs_over_a_capability_contract() {
 #[cfg(target_arch = "aarch64")]
 #[test_case]
 fn a_read_only_per_file_grant_survives_an_attacker() {
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
     let Some(verdict) = attack_a_grant(filesystem_proto::grant::READ, false) else {
         return;
     };
@@ -1190,6 +1223,9 @@ fn a_read_only_per_file_grant_survives_an_attacker() {
 #[cfg(target_arch = "aarch64")]
 #[test_case]
 fn a_read_only_per_file_grant_reads_its_files_attributes_and_writes_none() {
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
     use filesystem_proto::fixture::escape;
     let Some(verdict) = attack_a_grant(filesystem_proto::grant::READ, false) else {
         return;
@@ -1225,6 +1261,9 @@ fn a_read_only_per_file_grant_reads_its_files_attributes_and_writes_none() {
 #[cfg(target_arch = "aarch64")]
 #[test_case]
 fn a_writable_per_file_grant_writes_that_file_and_still_only_that_file() {
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
     use filesystem_proto::fixture::escape;
     let Some(verdict) = attack_a_grant(
         filesystem_proto::grant::READ | filesystem_proto::grant::WRITE,
@@ -1332,6 +1371,9 @@ fn describe_escape(v: u64) -> &'static str {
 #[cfg(target_arch = "aarch64")]
 #[test_case]
 fn a_kill_mid_transaction_leaves_the_filesystem_consistent() {
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
     assert_a_kill_mid_transaction_recovers(
         init_image(),
         program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),
@@ -1726,6 +1768,9 @@ fn a_reopened_socket_id_connects_again_over_tcp() {
 #[cfg(target_arch = "aarch64")]
 #[test_case]
 fn a_host_process_connects_to_the_guest_and_is_answered() {
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
     // E2's baseline (milestone 134): `sched::thread_count()` counts every live thread in the
     // WHOLE boot, and the full suite runs 279 `#[test_case]`s in one continuous boot rather than
     // one per test, so an absolute reading taken here would include whatever earlier tests left
@@ -1904,6 +1949,9 @@ const STD_LISTEN_EXPECTED: &[u8] =
 #[cfg(target_arch = "aarch64")]
 #[test_case]
 fn std_net_runs_over_the_socket_contract() {
+    if std_service::std_exerciser_image().is_none() {
+        crate::testing::skip!(std_service::NO_STD_EXERCISER);
+    }
     let Some((report, net)) = virtio_service::start_net_std(
         net_stack_image(),
         std_exerciser_image(),
@@ -1945,6 +1993,9 @@ fn std_net_runs_over_the_socket_contract() {
 #[cfg(target_arch = "aarch64")]
 #[test_case]
 fn a_std_program_serves_a_granted_listening_port() {
+    if std_service::std_exerciser_image().is_none() {
+        crate::testing::skip!(std_service::NO_STD_EXERCISER);
+    }
     let Some((report, net)) = virtio_service::start_net_std(
         net_stack_image(),
         std_exerciser_image(),
@@ -2460,6 +2511,9 @@ fn userspace_init_delegates_an_interrupt_to_a_child() {
 /// init delegated. This is the shape the real boot path (19d.2c) uses.
 #[test_case]
 fn userspace_init_brings_up_the_console_server() {
+    if crate::user::machine_has_no_device_page_for_the_console() {
+        crate::testing::skip!(crate::user::NO_UART_PAGE);
+    }
     // The message length the init_console role prints and the server acks. Kept in sync with
     // user/src/hello.rs init_console (the b"..." there); a mismatch fails loudly, not silently.
     const MSG_LEN: u64 = 66;

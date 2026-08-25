@@ -66,10 +66,25 @@ const DEV_VA: u64 = 0x0310_0000;
 
 /// The console UART's physical address, matching `crate::console`. This is the device the
 /// operator lends, takes back, and lends again.
-#[cfg(target_arch = "aarch64")]
-const UART_PHYS: u64 = 0x0900_0000; // PL011
-#[cfg(target_arch = "riscv64")]
-const UART_PHYS: u64 = 0x1000_0000; // NS16550
+///
+/// **Taken from `user::UART_PHYS` rather than spelled again here** (milestone 161). It was a
+/// file-local pair of `cfg` arms, aarch64 and riscv64, which is a copy of a constant that already
+/// existed one module up and which therefore did not compile the day a third architecture arrived.
+/// The module-level one has three arms, and the third is **zero**: x86's COM1 is in the I/O port
+/// space, so there is no page for a device capability to be a mapping of
+/// ([DECISIONS §121](../../../design/decisions/121-port-io-capability.md), PROPOSED). That zero is
+/// what [`NO_DEVICE_PAGE`] tests for.
+use crate::user::UART_PHYS;
+/// **This whole file needs a device that is a page**, and on one architecture there is not one.
+///
+/// The operator lends the console UART, revokes it, and the test's strongest assertion is that the
+/// outgoing instance then **faults inside [`DEV_VA`]**. On x86 there is no UART page to lend, and
+/// the trap worth naming is that lending physical page zero instead would still produce a green
+/// test: the read would return a real-mode interrupt-vector byte and the revoke would still fault.
+/// That is a passing test about nothing. See `swap_proto::probe_device`'s x86 arm, which refuses
+/// for the same reason, and `user::machine_has_no_device_page_for_the_console`, which is the one
+/// definition of the question.
+use crate::user::{NO_UART_PAGE, machine_has_no_device_page_for_the_console};
 
 /// The operator's budget: five instance regions of forty pages plus its own scratch mappings and
 /// their page tables.
@@ -343,6 +358,9 @@ fn the_dependency_graph_matches_what_this_channel_ran(
 /// what it saw.
 #[test_case]
 fn a_client_keeps_talking_while_the_server_underneath_it_is_replaced() {
+    if machine_has_no_device_page_for_the_console() {
+        crate::testing::skip!(NO_UART_PAGE);
+    }
     let (msgs, n) = run_swap(ROLE_DIRECT);
     let msgs = &msgs[..n];
 
@@ -477,6 +495,9 @@ fn a_client_keeps_talking_while_the_server_underneath_it_is_replaced() {
 /// wiring.
 #[test_case]
 fn a_client_of_the_stable_rendezvous_cannot_become_its_server() {
+    if machine_has_no_device_page_for_the_console() {
+        crate::testing::skip!(NO_UART_PAGE);
+    }
     let (msgs, n) = run_swap(ROLE_DIRECT);
     let attack = of_kind(&msgs[..n], RPT_ATTACK)
         .next()
@@ -505,6 +526,9 @@ fn a_client_of_the_stable_rendezvous_cannot_become_its_server() {
 /// turns up in the new backend's log, in order.
 #[test_case]
 fn a_producer_never_blocks_on_an_absent_consumer_and_loses_nothing() {
+    if machine_has_no_device_page_for_the_console() {
+        crate::testing::skip!(NO_UART_PAGE);
+    }
     let (msgs, n) = run_swap(ROLE_QUEUED);
     let msgs = &msgs[..n];
 
@@ -619,6 +643,9 @@ fn survey_awake(w: u64) -> u64 {
 /// decided, and a *test* that did would be the next load-sensitive assertion (milestone 62, 78).
 #[test_case]
 fn a_component_that_stops_answering_without_dying_is_invisible_to_its_supervisor() {
+    if machine_has_no_device_page_for_the_console() {
+        crate::testing::skip!(NO_UART_PAGE);
+    }
     let (msgs, n) = run_swap(ROLE_HUNG);
     let msgs = &msgs[..n];
 

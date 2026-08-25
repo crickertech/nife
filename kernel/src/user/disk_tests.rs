@@ -288,6 +288,9 @@ fn entropy_rendezvous() -> Option<crate::sched::RendezvousId> {
 /// and what is under test is that they say so rather than making a value up.
 #[test_case]
 fn the_write_half_needs_a_disk_and_an_entropy_rendezvous_and_holds_nothing_else() {
+    if fs_service::mkfs_image().is_none() {
+        crate::testing::skip!(fs_service::NO_MKFS);
+    }
     let Some(disk) = disk_service::blank_disk(fs_service::blk_server_image()) else {
         // No fifth mmio block device: this boot did not build the blank image. A fact about the
         // machine, not a failure (milestone 145: reported as skipped rather than a silent "ok").

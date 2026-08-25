@@ -525,6 +525,9 @@ pub(super) const EXPECTED: &[u8] = b"hello from std on nife\n\
 /// `cargo xtask std-aborts` is the mechanism that replaces that reading.
 #[test_case]
 fn a_whole_std_program_runs_on_the_native_abi() {
+    if std_service::std_exerciser_image().is_none() {
+        crate::testing::skip!(std_service::NO_STD_EXERCISER);
+    }
     use core::sync::atomic::Ordering;
 
     use crate::arch::exceptions::USER_FAULTS;

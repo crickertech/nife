@@ -24,6 +24,9 @@ fn start() -> (clock_service::Wiring, [u64; 5]) {
 /// exactly what the previous behaviour (1970 plus uptime) fails.
 #[test_case]
 fn the_clock_service_reads_a_plausible_wall_clock_from_the_rtc() {
+    if clock_service::machine_has_no_rtc() {
+        crate::testing::skip!(clock_service::NO_RTC);
+    }
     let (w, report) = start();
 
     assert_ne!(
@@ -66,6 +69,9 @@ fn the_clock_service_reads_a_plausible_wall_clock_from_the_rtc() {
 /// root and may set the clock to anything.
 #[test_case]
 fn a_proposer_can_ask_and_cannot_tell() {
+    if clock_service::machine_has_no_rtc() {
+        crate::testing::skip!(clock_service::NO_RTC);
+    }
     let (w, _) = start();
     let before = w.page().read();
     assert!(state::known(before.state), "needs a running clock to step");
@@ -118,6 +124,9 @@ fn a_proposer_can_ask_and_cannot_tell() {
 /// far less than that, which no implementation that fed the offset into the counter could pass.
 #[test_case]
 fn adjusting_the_wall_clock_leaves_the_monotonic_counter_alone() {
+    if clock_service::machine_has_no_rtc() {
+        crate::testing::skip!(clock_service::NO_RTC);
+    }
     let (w, _) = start();
     let step = clock_proto::NANOS_PER_SEC / 2;
 
@@ -146,6 +155,9 @@ fn adjusting_the_wall_clock_leaves_the_monotonic_counter_alone() {
 /// or a wedge: the second, well-formed call proves the service is still there.
 #[test_case]
 fn an_unknown_opcode_is_answered_rather_than_fatal() {
+    if clock_service::machine_has_no_rtc() {
+        crate::testing::skip!(clock_service::NO_RTC);
+    }
     let (w, _) = start();
     let r = crate::sched::ipc_call(w.propose, [propose::req(0xff), 0]);
     assert_eq!(r[0], status::BAD_REQUEST);

@@ -29,6 +29,9 @@ const MATCHED: [(&[u8], bool); 2] = [
 /// which is exactly the order-coupled fixture DECISIONS §27 spent a day on.
 #[test_case]
 fn what_a_shell_shows_is_what_a_set_grant_takes_away() {
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
     let Some(shown) = shell_expanded() else {
         crate::println!("    (no RedoxFS disk attached; skipping)");
         return;

@@ -625,6 +625,20 @@ fn focus_routes_a_keystroke_to_one_terminals_grid_and_not_its_neighbours() {
 /// on it.
 #[test_case]
 fn three_clients_compose_into_one_scanout_and_the_host_sees_it() {
+    // **A machine with no enumerated PCI bus cannot be missing a GPU**, and telling those two
+    // apart is what keeps the loud failure below loud. `memory::pci_regions()` is the device
+    // tree's ECAM window; both QEMU `virt` boards describe one, so on either of those legs an
+    // absent GPU really is the build-order mistake this test is written to catch. q35 has an ECAM
+    // window too, and ACPI's MCFG names it, but nothing has plumbed that answer into the discovery
+    // seam's device windows yet (milestone 161's roadmap item 0), so this kernel can find no
+    // virtio-pci function of any kind here.
+    if crate::memory::pci_regions().is_none() {
+        crate::testing::skip!(
+            "this kernel has enumerated no PCI bus on this machine (memory::pci_regions() is \
+             empty), so no virtio-pci function can be found at all"
+        );
+    }
+
     let display = program("display").expect("no display program in the initrd archive");
     let (driver_report, display, screen) = display_service::start_driver(display).expect(
         "no virtio-gpu-pci function on the bus: is NIFE_GPU missing from the test leg, or \
