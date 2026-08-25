@@ -464,7 +464,7 @@ invariant **96 times** and now asserts it once.
 
 ### What each number is held to, and why the answers differ
 
-**At most 97** <!--count-at-most:unsafe-density-outside-arch--> unsafe blocks per 10,000 lines
+**At most 95** <!--count-at-most:unsafe-density-outside-arch--> unsafe blocks per 10,000 lines
 outside `kernel/src/arch/`. The direction is down, because unsafe outside `arch/` is not paying
 for hardware access: it is a raw syscall, a shared page, or a hand-rolled data structure, and each
 of those has a safe wrapper somebody could write. The ceiling is written at a threshold the tree
@@ -509,6 +509,102 @@ block anywhere outside `arch/` without growing the tree's line count to match, w
 Headroom here is not slack given back: the ceiling fell by the same 3 points the density fell from
 its pre-reduction reading (100 to 97, against 93.4 to 90.8), so the full gain this lane won is
 locked in and nobody can silently spend it back up to 100.
+
+**Lowered again, 97 to 96, by milestone 139 round 2 (2026-08-24).** Two further reductions, both
+measured the same way (from the diff, bracketed by the exact base commit this round branched from,
+`a269403e`, rather than a stale baseline): the round found no unrelated tree growth in between, so
+this is the cleanest paired measurement this ceiling has had.
+
+*`crates/user_rt`'s `SYS_INVOKE` round trip.* Six methods (`recv`, `recv_cap`, `recv_fault`, `call`,
+`survey`, `list`), each duplicated once per architecture, had each hand-rolled its own `asm!` block
+asserting the identical invariant ("`svc`/`ecall` traps to the kernel, which validates before
+acting") at a register layout that differed only in which of the five return words the caller
+happened to read: twelve hand-written copies of one assertion, the exact §94 shape. `invoke5` (new,
+private to the crate) holds the trap once per architecture; every caller above it, including
+`invoke` itself, is now a safe wrapper with no `asm!` of its own. **14 `unsafe {` blocks removed, 9
+added, net -5**, in `crates/user_rt/src/lib.rs` alone.
+
+*The broader `read_volatile`/`write_volatile` sweep round 1's BUGS section asked for.* Grepping
+directly for `read_volatile`/`write_volatile` (rather than by the `r8`/`w8`/`r16` naming convention
+round 1 searched by name) found a second cluster the name-based search could not have seen: eight
+programs (`rm`, `fs_file_caretaker`, `sink`, `fs_subtree_caretaker`, `fs_nameset_caretaker`,
+`login_test_client`, `fs_test_client`, `swish`) each hand-rolled a `put_page`/`get_page` byte-copy
+loop over the page shared with the FS server (`fs_nameset_caretaker` carries a second, read-only
+window for its name set; `fs_test_client` carries five such helpers over one window sized to
+`fs::TRANSFER_MAX`), every one asserting "this VA is a mapped page of this size" by hand, near
+word-for-word the same comment. Migrated onto the existing `user_rt::mapped_window::MappedWindow`
+(round 1's type, reused rather than duplicated) the same way the DMA-page cluster was. **21 removed,
+10 added, net -11** across the nine files. `fs_subtree_caretaker.rs` alone is flat (1 before, 1
+after: one hand-rolled function traded for one window construction), the same "still real by
+criterion 2" case `smb_server.rs` was in round 1.
+
+**Combined: 35 `unsafe {` blocks removed, 19 added, net -16**, all measured from the diff against
+base commit `a269403e`. The tree-wide census confirms it cleanly for once, because nothing else
+landed on this branch in between: 792 blocks outside `arch/` at the base commit, 776 in the working
+tree after, exactly -16. Density moved only 90 to 89 (truncated), because the reduction also removed
+lines (duplicated `asm!` blocks and doc comments along with the blocks themselves), which is the
+first time this ceiling's headroom math has had to account for the denominator moving with the
+numerator. Ceiling set to 96, keeping the same 7-point headroom the 100-vs-93 and 97-vs-90 ceilings
+both carried, above the 89 this round reached.
+
+**Lowered again, 96 to 95, by milestone 139 round 3 (2026-08-24).** Round 2's own handoff list
+named the targets precisely, so this round took three of them rather than re-deriving a net.
+
+*`swish.rs`'s other two windows.* `OUT_VA`/`LINE_VA` (`stage`/`read_line`, the shell's terminal
+pages) and the job frame `spawn_interruptible`/`watch` signal through (`jf_load`/`jf_store`,
+parametrized by a runtime `va` -- round 2's own framing that this is "actually a *better*
+`MappedWindow` fit than the FS cluster, since `new` already takes a runtime base"). The terminal
+pair is flat by block count (2 removed in `stage`/`read_line`, 2 added at the two `const` window
+declarations) and still a real reduction by criterion 2, the same "typed abstraction replaces raw
+pointer arithmetic" case `smb_server.rs` and `fs_subtree_caretaker.rs` were. The job frame collapses
+for real: `jf_load`/`jf_store` were two functions, each with its own `// SAFETY:` comment, called
+eight times combined across `spawn_interruptible` and `watch`; one `MappedWindow` constructed once,
+right after the frame is mapped, replaced both. **4 `unsafe {` blocks removed, 3 added, net -1**, in
+`user/src/swish.rs` alone.
+
+*`disk_surveyor.rs`'s `ROSTER_VA`.* A single shared `u64` flag at a fixed VA the program maps
+itself at runtime (`Frame::MAP`, not a boot-time wiring), read once in [`ROLE_HOLDER`], read again
+after the kernel deliberately revokes the mapping (the module's own negative-control test: the
+second read must fault), and written once in [`ROLE_PROBE`] (refused by the kernel: the mapping is
+read-only). The two deliberate-fault sites are the one honest exception recorded at the call site:
+`MappedWindow`'s own bounds check cannot catch either fault (offset 0 is inside the declared
+window both times), so the real hardware fault happens inside `read`/`write` exactly where the
+hand-written version made it, and the test's behaviour is unchanged. **3 `unsafe {` blocks removed,
+2 added, net -1**, in `user/src/disk_surveyor.rs` alone.
+
+*`net_stack.rs`'s `a_r8`/`a_r16`/`a_w16`/`a_w8` cluster.* The exact naming variant
+`user_rt::mapped_window`'s own doc comment already named as a shape round 1's search should have
+caught and did not (a different file, not one of round 1's seven). Harder than the FS cluster
+because it is genuinely harder, not because the milestone's own text says so: the VA is not a fixed
+constant but `socket_va(sid) = 0x00A0_0000 + sid * 0x1000`, a different page per open socket, and
+every caller computed an absolute VA (`sk.va + OFF_X`) rather than holding a `(window, offset)`
+pair. Migrating cleanly meant restructuring the socket-lifecycle state itself: `Sock.va: u64` (0
+meaning "no frame") became `Sock.window: Option<MappedWindow>` (`None` meaning the same thing), and
+the parallel `frame_va: [u64; MAX_SOCKETS]` array became `frame_window: [Option<MappedWindow>;
+MAX_SOCKETS]`, constructed once in `OP_ATTACH_FRAME` right after the kernel maps the frame -- the
+one place in the whole socket lifecycle that needs to assert the invariant, instead of every one of
+the four functions' bodies. Every call site downstream (`read_dst`, `udp_sendto`, `sock_recv`,
+`tcp_connect`, `tcp_accept`, `udp_bind`, `tcp_send`) now takes or holds a `MappedWindow` rather than
+a raw VA, so the restructuring reaches the caller side rather than stopping at a wrapper that still
+took an absolute address. One further site collapsed for the same reason though it was never named
+`a_w8`: `sock_recv`'s payload-write loop had its own hand-rolled `write_volatile`, identical in
+shape, folded into the same window. **5 `unsafe {` blocks removed (the four functions' bodies plus
+the one hand-rolled loop), 1 added (the window construction in `OP_ATTACH_FRAME`), net -4**, in
+`user/src/net_stack.rs` alone. `script/test`'s aarch64 and riscv64 net suites (DHCP, UDP, TCP
+connect/accept/listen, the mDNS responder) are the load-bearing evidence for this one: the
+restructuring touches per-socket lifecycle state, exactly the kind of change where a mistake shows
+up as a flaky network test rather than a compile error.
+
+**Combined round 3: 12 `unsafe {` blocks removed, 6 added, net -6**, measured from the diff against
+this round's own base commit (`f731894d`), the same discipline every round has used. Uncontaminated
+this time as well: nothing else landed on this branch between the base commit and this reduction, so
+the tree-wide census confirms it exactly: 776 blocks outside `arch/` at the base commit (89 per
+10,000, matching round 2's own final reading), 770 in the working tree after, exactly -6. Density
+moved 89 to 88 (truncated); the line count moved by only 15 (net, mostly comments explaining the new
+windows), so the denominator barely moved this round, unlike round 2's `asm!`-collapse.
+
+**The ratchet, cinched again**: ceiling lowered from 96 to 95, keeping the same 7-point headroom the
+100-vs-93, 97-vs-90 and 96-vs-89 ceilings all carried, now above the 88 this round reached.
 
 **At most 20 `unsafe impl Send`/`Sync` claims** <!--count-at-most:unsafe-thread-safety-claims-->,
 and this one has no headroom at all. Each is a hand-written assertion that the compiler is wrong

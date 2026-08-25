@@ -57,13 +57,15 @@ sudo apt-get install -y libslirp0 >/dev/null
 
 # The warm-cache path. `--version` prints "QEMU emulator version X.Y.Z"; match the whole token so
 # 11.0.2 never satisfies a request for 11.0.20.
-if [ -x "$prefix/bin/qemu-system-riscv64" ]; then
+if [ -x "$prefix/bin/qemu-system-riscv64" ] && [ -x "$prefix/bin/qemu-system-x86_64" ]; then
     have="$("$prefix/bin/qemu-system-riscv64" --version | head -1 | awk '{print $4}')"
     if [ "$have" = "$want" ]; then
         echo "==> QEMU $want already built at $prefix (cache hit)"
         exit 0
     fi
     echo "==> QEMU at $prefix is $have, want $want; rebuilding"
+elif [ -x "$prefix/bin/qemu-system-riscv64" ]; then
+    echo "==> QEMU at $prefix has no qemu-system-x86_64 (stale target-list); rebuilding"
 fi
 
 echo "==> Building QEMU $want (cold cache; this is the slow path)"
@@ -87,7 +89,7 @@ cd "$work/qemu-$want"
 # ON because the net tests depend on it.
 ./configure \
     --prefix="$prefix" \
-    --target-list=aarch64-softmmu,riscv64-softmmu \
+    --target-list=aarch64-softmmu,riscv64-softmmu,x86_64-softmmu \
     --enable-slirp \
     --disable-docs \
     --disable-gtk \

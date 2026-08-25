@@ -81,6 +81,7 @@ use grant_plan::{
 };
 use line_editor::proto;
 use swish::{Route, Say, Status, Untimed, sequence};
+use user_rt::mapped_window::MappedWindow;
 use user_rt::{
     call, cap_delete, exit, invoke, monotonic_nanos, reap, recv, recv_fault, send, yield_now,
 };
@@ -94,6 +95,17 @@ use user_rt::{
 // init know.
 const OUT_VA: u64 = 0x0000_0000_00c0_0000; // we write; the terminal reads
 const LINE_VA: u64 = 0x0000_0000_00b0_0000; // the terminal writes; we read
+
+// SAFETY: the wiring (`crates/system_initializer`'s `SH_OUT_VA` grant) maps one page read/write at
+// OUT_VA before this shell runs, in every wiring that has a terminal at all (milestone 139 round
+// 3; see `user_rt::mapped_window`, which is what collapsed the hand-rolled
+// read_volatile/write_volatile loop in `stage` below, the same way [`FS_WINDOW`] collapsed the FS
+// cluster's in round 2). Constructing a window touches no memory.
+const OUT_WINDOW: MappedWindow = unsafe { MappedWindow::new(OUT_VA, user_rt::mapped_window::PAGE) };
+// SAFETY: as `OUT_WINDOW`'s, but the wiring's `LINE_VA` grant, mapped read-only, and this is what
+// collapsed the hand-rolled loop in `read_line` below.
+const LINE_WINDOW: MappedWindow =
+    unsafe { MappedWindow::new(LINE_VA, user_rt::mapped_window::PAGE) };
 
 // Capability slots.
 const TERM: u64 = 0; // CALL requests on the terminal
@@ -146,6 +158,13 @@ fn holdings(nav: &Nav) -> grant_plan::Holdings {
 /// It is `fs_service`'s `FILE_VA_CLIENT`, the address every FS client in this system maps its half
 /// of the contract at, which is why [`OUT_VA`] moved out of the way rather than this.
 const FS_VA: u64 = 0x0000_0000_0060_0000;
+
+// SAFETY: the navigating wiring maps one page read/write at FS_VA before this shell runs, when it
+// has an FS_VA at all (milestone 139 round 2; see `user_rt::mapped_window`, which is what
+// collapsed the hand-rolled read_volatile/write_volatile loops below). Constructing the window
+// touches no memory; every caller of `put_page`/`get_page` already runs behind a `dir.is_some()`
+// check, which is only true in that wiring, matching the comment this replaces.
+const FS_WINDOW: MappedWindow = unsafe { MappedWindow::new(FS_VA, filesystem_proto::PAGE as u64) };
 
 /// The directory capability's slot in the navigating wiring (`fs_service::start_granted_dir` grants
 /// it at 0). A shell that was granted none has no such slot at all, which is why [`Nav::dir`] is an
@@ -686,17 +705,14 @@ const ROUNDS: usize = 16;
 /// Copy a name into the page shared with the FS server.
 fn put_page(bytes: &[u8]) {
     for (i, &b) in bytes.iter().take(filesystem_proto::PAGE).enumerate() {
-        // SAFETY: FS_VA is a mapped, writable page of filesystem_proto::PAGE bytes in the navigating wiring,
-        // and every caller is behind a `dir.is_some()` check, which is only true in that wiring.
-        unsafe { core::ptr::write_volatile((FS_VA + i as u64) as *mut u8, b) };
+        FS_WINDOW.w8(i as u64, b);
     }
 }
 
 /// Copy `n` bytes out of that page (a listing landed there).
 fn get_page(n: usize, out: &mut [u8]) {
     for (i, b) in out.iter_mut().take(n).enumerate() {
-        // SAFETY: as above; `n` is bounded by the page and by `out`.
-        *b = unsafe { core::ptr::read_volatile((FS_VA + i as u64) as *const u8) };
+        *b = FS_WINDOW.r8(i as u64);
     }
 }
 
@@ -859,10 +875,8 @@ fn print(s: &[u8]) {
 
 /// Copy `n` bytes into the outgoing shared page.
 fn stage(s: &[u8], n: usize) {
-    let out = OUT_VA as *mut u8;
     for (i, &b) in s[..n].iter().enumerate() {
-        // SAFETY: the terminal's output page is mapped read/write at OUT_VA.
-        unsafe { core::ptr::write_volatile(out.add(i), b) };
+        OUT_WINDOW.w8(i as u64, b);
     }
 }
 
@@ -878,10 +892,8 @@ fn read_line(prompt: &[u8], out: &mut [u8]) -> (usize, u64) {
     stage(prompt, prompt.len());
     let (len, flags) = call(TERM, proto::req(proto::OP_READLINE, prompt.len() as u64), 0);
     let len = (len as usize).min(out.len());
-    let src = LINE_VA as *const u8;
     for (i, b) in out[..len].iter_mut().enumerate() {
-        // SAFETY: the line page is mapped read-only and holds at least `len` bytes.
-        *b = unsafe { core::ptr::read_volatile(src.add(i)) };
+        *b = LINE_WINDOW.r8(i as u64);
     }
     (len, flags)
 }
@@ -2793,11 +2805,17 @@ fn spawn_interruptible(e: Endowment) {
         print(b"  could not map the job frame\n");
         return;
     }
+    // SAFETY: `map_frame` just mapped one page read/write at `va`, above, and it stays mapped for
+    // the rest of this job's life (no unmap syscall exists), so the window's `new` asserts that
+    // once here instead of at every jf_load/jf_store call site the way the two free functions
+    // used to (milestone 139 round 3; "actually a *better* MappedWindow fit than the static case,
+    // since `new` already takes a runtime base" is round 2's own framing for this cluster).
+    let jf = unsafe { MappedWindow::new(va, PAGE) };
     // A freshly retyped frame is zeroed, but make the shared contract explicit.
-    jf_store(va, jobframe::INTERRUPT, 0);
-    jf_store(va, jobframe::DONE, 0);
-    jf_store(va, jobframe::STATUS, 0);
-    jf_store(va, jobframe::HEARTBEAT, 0);
+    jf.write(jobframe::INTERRUPT as u64, 0u64);
+    jf.write(jobframe::DONE as u64, 0u64);
+    jf.write(jobframe::STATUS as u64, 0u64);
+    jf.write(jobframe::HEARTBEAT as u64, 0u64);
 
     // Direct init: an interruptible request, then the job untyped and the job frame, both delegated
     // WRITE|GRANT (init builds from the untyped and maps the frame). We keep our own copies: the
@@ -2839,7 +2857,7 @@ fn spawn_interruptible(e: Endowment) {
     print(e.prog.name().as_bytes());
     print(b" in the foreground. ^C interrupts it.\n");
 
-    watch(va, job_ut);
+    watch(jf, job_ut);
 
     // Account for every ^C up to now, so the job's interrupts do not leak into the next one.
     CONSUMED.store(intr_count(), core::sync::atomic::Ordering::Relaxed);
@@ -2852,7 +2870,7 @@ fn spawn_interruptible(e: Endowment) {
 /// Watch a running supervised job: poll its done flag and the terminal's `^C` count, drive the
 /// escalation policy, and act. The busy-poll with `yield` is how one thread watches two things (the
 /// job and `^C`) with only blocking primitives and no non-blocking receive (DECISIONS §24, wait A).
-fn watch(va: u64, job_ut: u64) {
+fn watch(jf: MappedWindow, job_ut: u64) {
     // The baseline is the session watermark, not a fresh read: a ^C counted during the spawn is
     // already reflected in intr_count but not yet in CONSUMED, so diffing against CONSUMED sees it.
     let base = CONSUMED.load(core::sync::atomic::Ordering::Relaxed);
@@ -2860,9 +2878,9 @@ fn watch(va: u64, job_ut: u64) {
     let mut fed: u64 = 0;
     loop {
         // Finished on its own (cooperatively or naturally)?
-        if jf_load(va, jobframe::DONE) != 0 {
-            let status = jf_load(va, jobframe::STATUS);
-            let beats = jf_load(va, jobframe::HEARTBEAT);
+        if jf.read::<u64>(jobframe::DONE as u64) != 0 {
+            let status = jf.read::<u64>(jobframe::STATUS as u64);
+            let beats = jf.read::<u64>(jobframe::HEARTBEAT as u64);
             reclaim(job_ut);
             report_finished(status, beats);
             return;
@@ -2882,7 +2900,7 @@ fn watch(va: u64, job_ut: u64) {
         }
         match action {
             Action::Cooperative => {
-                jf_store(va, jobframe::INTERRUPT, 1);
+                jf.write(jobframe::INTERRUPT as u64, 1u64);
                 print(b"  ^C: asked the job to stop.\n");
             }
             Action::Forcible => {
@@ -2980,18 +2998,6 @@ fn delegate(slot: u64, rights: u64) {
 /// Ask the terminal how many `^C` it has seen (a non-blocking poll; see `proto::OP_INTRCOUNT`).
 fn intr_count() -> u64 {
     call(TERM, proto::req(proto::OP_INTRCOUNT, 0), 0).0
-}
-
-/// Read a word from the mapped job frame.
-fn jf_load(va: u64, off: usize) -> u64 {
-    // SAFETY: the job frame is mapped read/write at `va`; `off` is a valid word offset.
-    unsafe { core::ptr::read_volatile((va as usize + off) as *const u64) }
-}
-
-/// Write a word to the mapped job frame.
-fn jf_store(va: u64, off: usize, v: u64) {
-    // SAFETY: as above; this word is the shell's to write (one writer per word, see jobframe).
-    unsafe { core::ptr::write_volatile((va as usize + off) as *mut u64, v) }
 }
 
 // ---- the navigating witness (milestone 47) ----

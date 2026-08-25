@@ -108,6 +108,76 @@
 pub mod heap;
 pub mod mapped_window;
 
+/// The raw five-register round trip through `SYS_INVOKE` (milestone 139 round 2). `cap`, `method`
+/// and two more arguments go in `x0..x3`/`a0..a3` (the fifth, `x4`/`a4`, is spare and always zero on
+/// input); the kernel's reply comes back in the same five registers, `x0..x4`/`a0..a4`. This is now
+/// the one place the actual trap instruction and register file appear for a `SYS_INVOKE` call:
+/// [`invoke`] and every multi-word method below ([`recv`], [`recv_cap`], [`recv_fault`], [`call`],
+/// [`survey`], [`list`]) used to each hand-roll their own `asm!` block asserting the identical
+/// invariant ("`svc`/`ecall` traps to the kernel, which validates before acting") at a register
+/// layout that differed only in which of the five words the caller happened to read back. Six
+/// functions, two architectures, twelve hand-written copies of one assertion: the §94 shape this
+/// milestone names as the reduction worth making. Now there are two, one per architecture, and
+/// every caller above is a safe wrapper that just picks which return words it wants.
+///
+/// One behavioural note for a reader diffing this against the asm the individual functions used to
+/// carry: a few of them ([`recv`], [`recv_cap`], [`recv_fault`]) left `x2`/`a2` with no `in`
+/// operand at all, so the kernel received whatever value happened to already be in that register
+/// (harmless, since `RECV`/`RECV_CAP` read no input words). Routing them through this shared
+/// primitive means they now pass an explicit `0` there instead, which is a strict tightening, not a
+/// behaviour change: the kernel still ignores it.
+///
+/// # Safety
+/// `svc`/`ecall` traps to the kernel. The kernel validates the capability and the method before
+/// acting; that is its whole job. The caller is trusting the kernel, not the other way around.
+#[cfg(target_arch = "aarch64")]
+unsafe fn invoke5(cap: u64, method: u64, a0: u64, a1: u64, a2: u64) -> (u64, u64, u64, u64, u64) {
+    let (mut w0, mut w1, mut w2, mut w3, mut w4): (u64, u64, u64, u64, u64);
+    // SAFETY: see the function doc; `x8` selects SYS_INVOKE (DECISIONS §10), `x0..x4` carry the
+    // five-word ABI in both directions. `asm!` is unsafe because the compiler cannot check that,
+    // not because a caller can get it wrong.
+    unsafe {
+        core::arch::asm!(
+            "svc #0",
+            in("x8") abi::SYS_INVOKE,
+            inlateout("x0") cap => w0,
+            inlateout("x1") method => w1,
+            inlateout("x2") a0 => w2,
+            inlateout("x3") a1 => w3,
+            inlateout("x4") a2 => w4,
+            options(nostack),
+        );
+    }
+    (w0, w1, w2, w3, w4)
+}
+
+/// The raw five-register round trip (RISC-V). See the aarch64 twin's doc for the contract this
+/// collapses; only the trap instruction and register file differ: `ecall`, number in `a7`, the five
+/// words in `a0..a4`.
+///
+/// # Safety
+/// `ecall` traps to the kernel, which validates the capability and method before acting. Same
+/// contract as the aarch64 twin: the caller trusts the kernel, not the other way around.
+#[cfg(target_arch = "riscv64")]
+unsafe fn invoke5(cap: u64, method: u64, a0: u64, a1: u64, a2: u64) -> (u64, u64, u64, u64, u64) {
+    let (mut w0, mut w1, mut w2, mut w3, mut w4): (u64, u64, u64, u64, u64);
+    // SAFETY: see the function doc; `a7` selects SYS_INVOKE (DECISIONS §10), `a0..a4` carry the
+    // five-word ABI in both directions.
+    unsafe {
+        core::arch::asm!(
+            "ecall",
+            in("a7") abi::SYS_INVOKE,
+            inlateout("a0") cap => w0,
+            inlateout("a1") method => w1,
+            inlateout("a2") a0 => w2,
+            inlateout("a3") a1 => w3,
+            inlateout("a4") a2 => w4,
+            options(nostack),
+        );
+    }
+    (w0, w1, w2, w3, w4)
+}
+
 /// Invoke a capability: the one syscall a userspace program makes. `cap` names a capability in the
 /// process's cspace, `method` selects the operation, and `a0..a2` are its arguments; the return is
 /// the kernel's `i64` result. Everything else in this crate is built on this.
@@ -115,48 +185,9 @@ pub mod mapped_window;
 /// # Safety
 /// `svc`/`ecall` traps to the kernel. The kernel validates the capability and the method before
 /// acting; that is its whole job. The caller is trusting the kernel, not the other way around.
-#[cfg(target_arch = "aarch64")]
 pub unsafe fn invoke(cap: u64, method: u64, a0: u64, a1: u64, a2: u64) -> i64 {
-    let ret: i64;
-    // SAFETY: the `svc` traps to the kernel. The register constraints name the ABI (DECISIONS §10): `x8` the syscall number, `x0..x3` the arguments, `x0` the result. `asm!` is unsafe because the compiler cannot check that, not because a caller can get it wrong.
-    unsafe {
-        core::arch::asm!(
-            "svc #0",
-            in("x8") abi::SYS_INVOKE,
-            inlateout("x0") cap => ret,
-            in("x1") method,
-            in("x2") a0,
-            in("x3") a1,
-            in("x4") a2,
-            options(nostack),
-        );
-    }
-    ret
-}
-
-/// Invoke a capability (RISC-V). See the aarch64 twin above for the contract; only the trap
-/// instruction and register file differ: `ecall`, number in `a7`, args in `a0..a4`, result in `a0`.
-///
-/// # Safety
-/// `ecall` traps to the kernel, which validates the capability and method before acting. Same
-/// contract as the aarch64 twin: the caller trusts the kernel, not the other way around.
-#[cfg(target_arch = "riscv64")]
-pub unsafe fn invoke(cap: u64, method: u64, a0: u64, a1: u64, a2: u64) -> i64 {
-    let ret: i64;
-    // SAFETY: the `ecall` traps to the kernel. The register constraints name the ABI (DECISIONS §10): `a7` the syscall number, `a0..a4` the arguments, `a0` the result. `asm!` is unsafe because the compiler cannot check that, not because a caller can get it wrong.
-    unsafe {
-        core::arch::asm!(
-            "ecall",
-            in("a7") abi::SYS_INVOKE,
-            inlateout("a0") cap => ret,
-            in("a1") method,
-            in("a2") a0,
-            in("a3") a1,
-            in("a4") a2,
-            options(nostack),
-        );
-    }
-    ret
+    // SAFETY: forwarded from this function's own contract, which is `invoke5`'s contract exactly.
+    unsafe { invoke5(cap, method, a0, a1, a2).0 as i64 }
 }
 
 /// `SEND` three words on the endpoint capability in `slot`. Blocks until a receiver takes them.
@@ -189,45 +220,10 @@ pub fn reap(slot: u64, tid: u64) -> i64 {
 ///
 /// Three words out of one `invoke`, so it is written like [`recv`] rather than through the
 /// single-value helper.
-#[cfg(target_arch = "aarch64")]
 pub fn survey(slot: u64, cursor: u64) -> (i64, u64, u64) {
-    let (mut r0, mut w1, mut w2): (i64, u64, u64);
-    // SAFETY: `svc`. SURVEY returns three words in x0/x1/x2.
-    unsafe {
-        core::arch::asm!(
-            "svc #0",
-            in("x8") abi::SYS_INVOKE,
-            inlateout("x0") slot => r0,
-            in("x1") abi::rendezvous::SURVEY,
-            lateout("x1") w1,
-            inlateout("x2") cursor => w2,
-            in("x3") 0u64,
-            in("x4") 0u64,
-            options(nostack),
-        );
-    }
-    (r0, w1, w2)
-}
-
-/// `SURVEY` one entry (RISC-V). See the aarch64 twin; `ecall`, slot in `a0`, `SURVEY` in `a1`, the
-/// cursor in `a2`, the three returned words in `a0`/`a1`/`a2`.
-#[cfg(target_arch = "riscv64")]
-pub fn survey(slot: u64, cursor: u64) -> (i64, u64, u64) {
-    let (mut r0, mut w1, mut w2): (i64, u64, u64);
-    // SAFETY: `ecall`. SURVEY returns three words in a0/a1/a2.
-    unsafe {
-        core::arch::asm!(
-            "ecall",
-            in("a7") abi::SYS_INVOKE,
-            inlateout("a0") slot => r0,
-            inlateout("a1") abi::rendezvous::SURVEY => w1,
-            inlateout("a2") cursor => w2,
-            in("a3") 0u64,
-            in("a4") 0u64,
-            options(nostack),
-        );
-    }
-    (r0, w1, w2)
+    // SAFETY: forwarded from `invoke5`'s contract; SURVEY reads no more than the three words used.
+    let (r0, w1, w2, ..) = unsafe { invoke5(slot, abi::rendezvous::SURVEY, cursor, 0, 0) };
+    (r0 as i64, w1, w2)
 }
 
 /// **Read one entry of what this address space has mapped** (milestone 126, `pmap`,
@@ -238,87 +234,17 @@ pub fn survey(slot: u64, cursor: u64) -> (i64, u64, u64) {
 /// A negative first word is an [`abi::Error`], and the one that matters is `NotPermitted`: this
 /// capability does not carry `ENUMERATE`, so the holder may map into the space but not list it.
 /// **That is a refusal and not an empty listing**, and a caller must print it as one.
-#[cfg(target_arch = "aarch64")]
 pub fn list(slot: u64, cursor: u64) -> (i64, u64, u64) {
-    let (mut r0, mut w1, mut w2): (i64, u64, u64);
-    // SAFETY: `svc`. LIST returns three words in x0/x1/x2.
-    unsafe {
-        core::arch::asm!(
-            "svc #0",
-            in("x8") abi::SYS_INVOKE,
-            inlateout("x0") slot => r0,
-            in("x1") abi::aspace::LIST,
-            lateout("x1") w1,
-            inlateout("x2") cursor => w2,
-            in("x3") 0u64,
-            in("x4") 0u64,
-            options(nostack),
-        );
-    }
-    (r0, w1, w2)
-}
-
-/// `LIST` one entry (RISC-V). See the aarch64 twin; `ecall`, slot in `a0`, `LIST` in `a1`, the
-/// cursor in `a2`, the three returned words in `a0`/`a1`/`a2`.
-#[cfg(target_arch = "riscv64")]
-pub fn list(slot: u64, cursor: u64) -> (i64, u64, u64) {
-    let (mut r0, mut w1, mut w2): (i64, u64, u64);
-    // SAFETY: `ecall`. LIST returns three words in a0/a1/a2.
-    unsafe {
-        core::arch::asm!(
-            "ecall",
-            in("a7") abi::SYS_INVOKE,
-            inlateout("a0") slot => r0,
-            inlateout("a1") abi::aspace::LIST => w1,
-            inlateout("a2") cursor => w2,
-            in("a3") 0u64,
-            in("a4") 0u64,
-            options(nostack),
-        );
-    }
-    (r0, w1, w2)
+    // SAFETY: forwarded from `invoke5`'s contract; LIST reads no more than the three words used.
+    let (r0, w1, w2, ..) = unsafe { invoke5(slot, abi::aspace::LIST, cursor, 0, 0) };
+    (r0 as i64, w1, w2)
 }
 
 /// `RECV` three words on the endpoint capability in `slot`. Blocks until a sender arrives; returns
 /// the three words the sender passed in `x0`, `x1`, `x2`.
-#[cfg(target_arch = "aarch64")]
 pub fn recv(slot: u64) -> (u64, u64, u64) {
-    let (mut w0, mut w1, mut w2): (u64, u64, u64);
-    // SAFETY: `svc`. RECV returns three words in x0/x1/x2.
-    unsafe {
-        core::arch::asm!(
-            "svc #0",
-            in("x8") abi::SYS_INVOKE,
-            inlateout("x0") slot => w0,
-            in("x1") abi::rendezvous::RECV,
-            lateout("x1") w1,
-            lateout("x2") w2,
-            in("x3") 0u64,
-            in("x4") 0u64,
-            options(nostack),
-        );
-    }
-    (w0, w1, w2)
-}
-
-/// `RECV` three words (RISC-V). See the aarch64 twin; `ecall`, slot in `a0`, `RECV` in `a1`, the
-/// three returned words in `a0`/`a1`/`a2`.
-#[cfg(target_arch = "riscv64")]
-pub fn recv(slot: u64) -> (u64, u64, u64) {
-    let (mut w0, mut w1, mut w2): (u64, u64, u64);
-    // SAFETY: `ecall`. RECV returns three words in a0/a1/a2.
-    unsafe {
-        core::arch::asm!(
-            "ecall",
-            in("a7") abi::SYS_INVOKE,
-            inlateout("a0") slot => w0,
-            inlateout("a1") abi::rendezvous::RECV => w1,
-            lateout("a2") w2,
-            in("a3") 0u64,
-            in("a4") 0u64,
-            options(nostack),
-        );
-    }
+    // SAFETY: forwarded from `invoke5`'s contract; RECV reads no more than the three words used.
+    let (w0, w1, w2, ..) = unsafe { invoke5(slot, abi::rendezvous::RECV, 0, 0, 0) };
     (w0, w1, w2)
 }
 
@@ -333,46 +259,9 @@ pub fn recv(slot: u64) -> (u64, u64, u64) {
 /// restart policy needs the event and the tid, but a *checker* needs the faulting address, which is
 /// the only word that says where the dead thread actually pointed. No new syscall and no new method
 /// (§26's whole surface claim): just the rest of a result that was already being returned.
-#[cfg(target_arch = "aarch64")]
 pub fn recv_fault(slot: u64) -> (u64, u64, u64, u64, u64) {
-    let (mut w0, mut w1, mut w2, mut w3, mut w4): (u64, u64, u64, u64, u64);
-    // SAFETY: `svc`. RECV returns five words in x0..x4.
-    unsafe {
-        core::arch::asm!(
-            "svc #0",
-            in("x8") abi::SYS_INVOKE,
-            inlateout("x0") slot => w0,
-            in("x1") abi::rendezvous::RECV,
-            lateout("x1") w1,
-            lateout("x2") w2,
-            in("x3") 0u64,
-            lateout("x3") w3,
-            in("x4") 0u64,
-            lateout("x4") w4,
-            options(nostack),
-        );
-    }
-    (w0, w1, w2, w3, w4)
-}
-
-/// `RECV` all five words (RISC-V). See the aarch64 twin; `ecall`, the five words in `a0`..`a4`.
-#[cfg(target_arch = "riscv64")]
-pub fn recv_fault(slot: u64) -> (u64, u64, u64, u64, u64) {
-    let (mut w0, mut w1, mut w2, mut w3, mut w4): (u64, u64, u64, u64, u64);
-    // SAFETY: `ecall`. RECV returns five words in a0..a4.
-    unsafe {
-        core::arch::asm!(
-            "ecall",
-            in("a7") abi::SYS_INVOKE,
-            inlateout("a0") slot => w0,
-            inlateout("a1") abi::rendezvous::RECV => w1,
-            lateout("a2") w2,
-            inlateout("a3") 0u64 => w3,
-            inlateout("a4") 0u64 => w4,
-            options(nostack),
-        );
-    }
-    (w0, w1, w2, w3, w4)
+    // SAFETY: forwarded from `invoke5`'s contract.
+    unsafe { invoke5(slot, abi::rendezvous::RECV, 0, 0, 0) }
 }
 
 /// `RECV_CAP` on the endpoint capability in `slot`: receive a message that may carry a
@@ -380,86 +269,18 @@ pub fn recv_fault(slot: u64) -> (u64, u64, u64, u64, u64) {
 /// the incoming capability landed in this thread's cspace, or [`abi::rendezvous::NO_CAP`] if the
 /// message carried none. This is how a server receives a [`call`]: the delivered capability is
 /// the one-shot Reply naming the caller (milestone 12, DECISIONS §12).
-#[cfg(target_arch = "aarch64")]
 pub fn recv_cap(slot: u64) -> (u64, u64, u64) {
-    let (mut w0, mut w1, mut w2): (u64, u64, u64);
-    // SAFETY: `svc`. RECV_CAP returns three words in x0/x1/x2.
-    unsafe {
-        core::arch::asm!(
-            "svc #0",
-            in("x8") abi::SYS_INVOKE,
-            inlateout("x0") slot => w0,
-            in("x1") abi::rendezvous::RECV_CAP,
-            lateout("x1") w1,
-            lateout("x2") w2,
-            in("x3") 0u64,
-            in("x4") 0u64,
-            options(nostack),
-        );
-    }
-    (w0, w1, w2)
-}
-
-/// `RECV_CAP` (RISC-V). See the aarch64 twin; `ecall`, the three returned words in `a0`/`a1`/`a2`.
-#[cfg(target_arch = "riscv64")]
-pub fn recv_cap(slot: u64) -> (u64, u64, u64) {
-    let (mut w0, mut w1, mut w2): (u64, u64, u64);
-    // SAFETY: `ecall`. RECV_CAP returns three words in a0/a1/a2.
-    unsafe {
-        core::arch::asm!(
-            "ecall",
-            in("a7") abi::SYS_INVOKE,
-            inlateout("a0") slot => w0,
-            inlateout("a1") abi::rendezvous::RECV_CAP => w1,
-            lateout("a2") w2,
-            in("a3") 0u64,
-            in("a4") 0u64,
-            options(nostack),
-        );
-    }
+    // SAFETY: forwarded from `invoke5`'s contract; RECV_CAP reads no more than the three words used.
+    let (w0, w1, w2, ..) = unsafe { invoke5(slot, abi::rendezvous::RECV_CAP, 0, 0, 0) };
     (w0, w1, w2)
 }
 
 /// `CALL` on the endpoint capability in `slot`: send two words and block until the server
 /// replies through the one-shot Reply capability the kernel mints (milestone 12). Returns the
 /// two reply words. The atomic send-and-wait that makes a request unmistakably answerable.
-#[cfg(target_arch = "aarch64")]
 pub fn call(slot: u64, w0: u64, w1: u64) -> (u64, u64) {
-    let (mut r0, mut r1): (u64, u64);
-    // SAFETY: `svc`. CALL returns the two reply words in x0/x1.
-    unsafe {
-        core::arch::asm!(
-            "svc #0",
-            in("x8") abi::SYS_INVOKE,
-            inlateout("x0") slot => r0,
-            in("x1") abi::rendezvous::CALL,
-            lateout("x1") r1,
-            in("x2") w0,
-            in("x3") w1,
-            in("x4") 0u64,
-            options(nostack),
-        );
-    }
-    (r0, r1)
-}
-
-/// `CALL` (RISC-V). See the aarch64 twin; `ecall`, the two reply words in `a0`/`a1`.
-#[cfg(target_arch = "riscv64")]
-pub fn call(slot: u64, w0: u64, w1: u64) -> (u64, u64) {
-    let (mut r0, mut r1): (u64, u64);
-    // SAFETY: `ecall`. CALL returns the two reply words in a0/a1.
-    unsafe {
-        core::arch::asm!(
-            "ecall",
-            in("a7") abi::SYS_INVOKE,
-            inlateout("a0") slot => r0,
-            inlateout("a1") abi::rendezvous::CALL => r1,
-            in("a2") w0,
-            in("a3") w1,
-            in("a4") 0u64,
-            options(nostack),
-        );
-    }
+    // SAFETY: forwarded from `invoke5`'s contract; CALL reads no more than the two words used.
+    let (r0, r1, ..) = unsafe { invoke5(slot, abi::rendezvous::CALL, w0, w1, 0) };
     (r0, r1)
 }
 

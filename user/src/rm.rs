@@ -54,6 +54,7 @@
 #![no_main]
 
 use filesystem_proto::{dir, dirent, fixture, fs, grant};
+use user_rt::mapped_window::MappedWindow;
 use user_rt::{call, exit, send};
 
 /// The granted directory capability: this program's whole authority.
@@ -62,6 +63,11 @@ const DIR: u64 = 0;
 const REPORT: u64 = 1;
 /// The page shared with the FS server.
 const PAGE_VA: u64 = 0x0000_0000_0060_0000;
+
+// SAFETY: the wiring maps one page read/write at PAGE_VA before this program runs (milestone 139
+// round 2; see `user_rt::mapped_window`, which is what collapsed the hand-rolled read_volatile/
+// write_volatile loops below).
+const WINDOW: MappedWindow = unsafe { MappedWindow::new(PAGE_VA, filesystem_proto::PAGE as u64) };
 
 /// `ENOENT`. Not in [`dir`]'s list because it is POSIX's oldest number and this contract answers it
 /// from three different rungs; `-f` cares about exactly one of them (see [`remove`]).
@@ -99,16 +105,14 @@ const MAX_ROUNDS: usize = 64;
 /// Copy `bytes` into the shared page.
 fn put_page(bytes: &[u8]) {
     for (i, &b) in bytes.iter().take(filesystem_proto::PAGE).enumerate() {
-        // SAFETY: PAGE_VA is a mapped, writable page of filesystem_proto::PAGE bytes.
-        unsafe { core::ptr::write_volatile((PAGE_VA + i as u64) as *mut u8, b) };
+        WINDOW.w8(i as u64, b);
     }
 }
 
 /// Copy `n` bytes out of it (a listing landed there).
 fn get_page(n: usize, out: &mut [u8]) {
     for (i, b) in out.iter_mut().take(n).enumerate() {
-        // SAFETY: as above; `n` is bounded by the page and by `out`.
-        *b = unsafe { core::ptr::read_volatile((PAGE_VA + i as u64) as *const u8) };
+        *b = WINDOW.r8(i as u64);
     }
 }
 

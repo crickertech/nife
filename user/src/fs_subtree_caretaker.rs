@@ -69,6 +69,7 @@
 #![no_main]
 
 use filesystem_proto::{fs, grant, op, reply_err, reply_errno, verb};
+use user_rt::mapped_window::MappedWindow;
 use user_rt::{call, exit, invoke, recv_cap, send};
 
 /// The FS-service endpoint: the directory capability this process attenuates.
@@ -82,6 +83,11 @@ const REPORT: u64 = 2;
 const PAGE_VA: u64 = 0x0000_0000_0060_0000;
 /// Its size, the contract's transfer unit.
 const PAGE: usize = filesystem_proto::PAGE;
+
+// SAFETY: the wiring maps one page read/write at PAGE_VA before this program runs (milestone 139
+// round 2; see `user_rt::mapped_window`, which is what collapsed the hand-rolled write_volatile
+// loop below).
+const WINDOW: MappedWindow = unsafe { MappedWindow::new(PAGE_VA, PAGE as u64) };
 
 /// How many handles a confined program may hold open at once through this caretaker, including the
 /// granted directory itself at index 0.
@@ -103,8 +109,7 @@ const EBADF: i32 = 9;
 /// Copy `bytes` into the shared page.
 fn put(bytes: &[u8]) {
     for (i, &b) in bytes.iter().take(PAGE).enumerate() {
-        // SAFETY: PAGE_VA is a mapped, writable page of PAGE bytes; the loop is clamped to it.
-        unsafe { core::ptr::write_volatile((PAGE_VA + i as u64) as *mut u8, b) };
+        WINDOW.w8(i as u64, b);
     }
 }
 
