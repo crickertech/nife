@@ -44,10 +44,10 @@ fn destroy_force_kills_a_runaway_and_reclaims_its_region() {
     let stack_phys = crate::untyped::retype_page(region).expect("no stack frame");
     user_aspace_map(aspace, STACK_VA, stack_phys, Flags::user_data()).expect("map stack");
 
-    let tid = sched::create_tcb(region).expect("no tcb");
-    sched::configure_tcb(tid, CODE_VA, STACK_VA + page_frames::FRAME_SIZE, aspace)
+    let tid = sched::create_thread_control_block(region).expect("no tcb");
+    sched::configure_thread_control_block(tid, CODE_VA, STACK_VA + page_frames::FRAME_SIZE, aspace)
         .expect("configure");
-    sched::start_tcb(tid, [0; 3]).expect("start");
+    sched::start_thread_control_block(tid, [0; 3]).expect("start");
 
     // Let the runaway actually reach EL0 and start spinning, so we tear down a running thread,
     // not an embryo. A few yields is plenty; it is preemptible the instant it lands.
@@ -161,10 +161,10 @@ fn destroy_reclaims_a_region_whose_resident_is_blocked_in_recv() {
     let stack_phys = crate::untyped::retype_page(region).expect("no stack frame");
     user_aspace_map(aspace, STACK_VA, stack_phys, Flags::user_data()).expect("map stack");
 
-    let tid = sched::create_tcb(region).expect("no tcb");
+    let tid = sched::create_thread_control_block(region).expect("no tcb");
     // READ, because the child receives on it. The rights are the point of not reusing
     // `supervision_tests::build_child_in`, which inserts a WRITE report cap.
-    let slot = sched::tcb_insert_cap(
+    let slot = sched::thread_control_block_insert_cap(
         tid,
         crate::cap::rendezvous_cap(ep, crate::cap::Rights::READ),
         None,
@@ -174,9 +174,9 @@ fn destroy_reclaims_a_region_whose_resident_is_blocked_in_recv() {
         slot, 0,
         "the rendezvous must land in slot 0 (the stub assumes it)"
     );
-    sched::configure_tcb(tid, CODE_VA, STACK_VA + page_frames::FRAME_SIZE, aspace)
+    sched::configure_thread_control_block(tid, CODE_VA, STACK_VA + page_frames::FRAME_SIZE, aspace)
         .expect("configure");
-    sched::start_tcb(tid, [0; 3]).expect("start");
+    sched::start_thread_control_block(tid, [0; 3]).expect("start");
 
     // **Wait for it to be queued on the rendezvous, not for "probably scheduled by now."** A test that
     // reclaims before the child has parked proves nothing at all: the child would still be Ready, and
@@ -263,7 +263,7 @@ fn an_address_space_never_frees_a_region_it_was_lent() {
         "the region should have cost exactly its 4 pages"
     );
 
-    // Out of the registry, exactly as `Tcb::CONFIGURE` does: from here the space is an owned value
+    // Out of the registry, exactly as `ThreadControlBlock::CONFIGURE` does: from here the space is an owned value
     // whose `Drop` is the thing under test, which is the shape the reaper holds it in.
     let space = take_user_aspace(name).expect("the space was not in the registry");
 

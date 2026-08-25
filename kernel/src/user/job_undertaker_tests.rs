@@ -71,16 +71,23 @@ fn spawn_job_undertaker(deaths: sched::RendezvousId) -> u64 {
     let (space, entry) = load(bytes).expect("job_undertaker is not loadable");
     let aspace = readopt_user_aspace(space).expect("register the job_undertaker aspace");
 
-    let tcb_region = crate::untyped::create(2).expect("no tcb region for job_undertaker");
-    let tid = sched::create_tcb(tcb_region).expect("no tcb for job_undertaker");
-    let slot = sched::tcb_insert_cap(tid, crate::cap::rendezvous_cap(deaths, Rights::READ), None)
-        .expect("insert the supervision endpoint");
+    let thread_control_block_region =
+        crate::untyped::create(2).expect("no tcb region for job_undertaker");
+    let tid = sched::create_thread_control_block(thread_control_block_region)
+        .expect("no tcb for job_undertaker");
+    let slot = sched::thread_control_block_insert_cap(
+        tid,
+        crate::cap::rendezvous_cap(deaths, Rights::READ),
+        None,
+    )
+    .expect("insert the supervision endpoint");
     assert_eq!(
         slot, 0,
         "job_undertaker reads its supervision endpoint from slot 0",
     );
-    sched::configure_tcb(tid, entry, USER_STACK_TOP, aspace).expect("configure job_undertaker");
-    sched::start_tcb(tid, [0; 3]).expect("start job_undertaker");
+    sched::configure_thread_control_block(tid, entry, USER_STACK_TOP, aspace)
+        .expect("configure job_undertaker");
+    sched::start_thread_control_block(tid, [0; 3]).expect("start job_undertaker");
     tid
 }
 

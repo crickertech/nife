@@ -154,16 +154,25 @@ fn build_and_start(elf: &elf::Elf, n: u64) -> Result<(), ()> {
 
     // The thread, its one capability (the report endpoint, narrowed to WRITE, lands as slot 0),
     // configured at the ELF's entry with the stack top, then started with `n` in its second arg.
-    let tcb = retype_obj(abi::objtype::TCB)?;
+    let tcb = retype_obj(abi::objtype::THREAD_CONTROL_BLOCK)?;
     // SAFETY: as above: the kernel validates the capability and the method.
-    if unsafe { invoke(tcb, abi::tcb::CAP_INSERT, REPORT, abi::rights::WRITE, 0) } < 0 {
+    if unsafe {
+        invoke(
+            tcb,
+            abi::thread_control_block::CAP_INSERT,
+            REPORT,
+            abi::rights::WRITE,
+            0,
+        )
+    } < 0
+    {
         return Err(());
     }
     // SAFETY: as above: the kernel validates the capability and the method.
     if unsafe {
         invoke(
             tcb,
-            abi::tcb::CONFIGURE,
+            abi::thread_control_block::CONFIGURE,
             elf.entry(),
             CHILD_STACK_TOP,
             aspace,
@@ -174,7 +183,7 @@ fn build_and_start(elf: &elf::Elf, n: u64) -> Result<(), ()> {
     }
     // START's arguments become the child's a0/a1/a2; the worker reads its input from a1.
     // SAFETY: as above: the kernel validates the capability and the method.
-    if unsafe { invoke(tcb, abi::tcb::START, 0, n, 0) } != 0 {
+    if unsafe { invoke(tcb, abi::thread_control_block::START, 0, n, 0) } != 0 {
         return Err(());
     }
     cap_delete(tcb); // our TCB cap; the worker keeps running until it exits

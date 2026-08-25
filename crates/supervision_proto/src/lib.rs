@@ -72,7 +72,7 @@
 //! pass in the wrong order, so it is worth stating what each one is for:
 //!
 //! ```no_run
-//! # use supervision_proto::{ChildEndowment, build_child, tcb_start};
+//! # use supervision_proto::{ChildEndowment, build_child, thread_control_block_start};
 //! # fn demo(own: u64, per_child: u64, elf: &elf::Elf) -> Result<(), ()> {
 //! let endow = ChildEndowment { fault: Some(7), ..ChildEndowment::new() };
 //!
@@ -80,7 +80,7 @@
 //! // per-child region as the second argument is what makes a single `DESTROY` reap the whole
 //! // instance, and passing our own would free our page tables under the child.
 //! let tcb = build_child(own, per_child, elf, &endow)?;
-//! tcb_start(tcb, 0, 0, 0);
+//! thread_control_block_start(tcb, 0, 0, 0);
 //! # Ok(())
 //! # }
 //! ```
@@ -206,7 +206,7 @@ impl<'a> ChildEndowment<'a> {
     }
 }
 
-/// Build a child from `elf` and configure it, ready for [`tcb_start`]. The whole job in one call,
+/// Build a child from `elf` and configure it, ready for [`thread_control_block_start`]. The whole job in one call,
 /// which is what every caller but the hot-swap operator wants.
 ///
 /// `own_ut` pays for **our** scratch mappings (they are ours, and a child's region must not have our
@@ -316,10 +316,19 @@ pub fn build_child_space(
         }
     }
 
-    let tcb = retype_obj_from(build_ut, abi::objtype::TCB)?;
+    let tcb = retype_obj_from(build_ut, abi::objtype::THREAD_CONTROL_BLOCK)?;
     for &(our_slot, rights) in endow.caps {
         // SAFETY: as above: the kernel validates the capability and the method.
-        if unsafe { invoke(tcb, abi::tcb::CAP_INSERT, our_slot, rights, 0) } < 0 {
+        if unsafe {
+            invoke(
+                tcb,
+                abi::thread_control_block::CAP_INSERT,
+                our_slot,
+                rights,
+                0,
+            )
+        } < 0
+        {
             return Err(());
         }
     }
@@ -327,7 +336,16 @@ pub fn build_child_space(
         // `target = n` lands the capability in slot `n - 1`; 0 would mean "first free", which is the
         // behaviour this call exists to avoid.
         // SAFETY: as above: the kernel validates the capability and the method.
-        if unsafe { invoke(tcb, abi::tcb::CAP_INSERT, our_slot, rights, child_slot + 1) } < 0 {
+        if unsafe {
+            invoke(
+                tcb,
+                abi::thread_control_block::CAP_INSERT,
+                our_slot,
+                rights,
+                child_slot + 1,
+            )
+        } < 0
+        {
             return Err(());
         }
     }
@@ -338,7 +356,7 @@ pub fn build_child_space(
         if unsafe {
             invoke(
                 tcb,
-                abi::tcb::CAP_INSERT,
+                abi::thread_control_block::CAP_INSERT,
                 fault,
                 abi::rights::READ,
                 abi::fault::FAULT_EP_SLOT + 1,
@@ -351,7 +369,7 @@ pub fn build_child_space(
     Ok((tcb, aspace))
 }
 
-/// Bind the address space and set the entry point: the last step before [`tcb_start`]. The `aspace`
+/// Bind the address space and set the entry point: the last step before [`thread_control_block_start`]. The `aspace`
 /// capability is **consumed** by the kernel here, so this is the moment after which the builder can
 /// no longer shape the child's memory.
 pub fn configure_child(tcb: u64, aspace: u64, entry: u64) -> Result<(), ()> {
@@ -359,7 +377,7 @@ pub fn configure_child(tcb: u64, aspace: u64, entry: u64) -> Result<(), ()> {
     if unsafe {
         invoke(
             tcb,
-            abi::tcb::CONFIGURE,
+            abi::thread_control_block::CONFIGURE,
             entry,
             CHILD_STACK_VA + PAGE,
             aspace,
@@ -438,9 +456,9 @@ pub fn untyped_destroy(ut: u64) -> bool {
 
 /// Make `tcb` runnable, with `a0`, `a1`, `a2` in its entry registers. `false` if the thread was
 /// not fully configured (no bound address space or no entry point) and the kernel refused.
-pub fn tcb_start(tcb: u64, a0: u64, a1: u64, a2: u64) -> bool {
+pub fn thread_control_block_start(tcb: u64, a0: u64, a1: u64, a2: u64) -> bool {
     // SAFETY: as above: the kernel validates the capability and the method.
-    unsafe { invoke(tcb, abi::tcb::START, a0, a1, a2) == 0 }
+    unsafe { invoke(tcb, abi::thread_control_block::START, a0, a1, a2) == 0 }
 }
 
 /// Trap. A half-built system is not worth limping along, and a fault is legible: the kernel prints

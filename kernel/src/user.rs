@@ -325,7 +325,7 @@ pub fn user_aspace_map(name: u64, va: u64, phys: u64, flags: Flags) -> Result<()
 /// `abi::aspace::LIST`'s way in (milestone 126's `pmap`, DECISIONS §114): the syscall handler
 /// resolves the capability's `name` to a root here before consulting `revoke::list_mapping` and
 /// `arch::mmu::translate_at`. `None` once the name is gone from the registry, which is
-/// `Tcb::CONFIGURE`'s doing the moment a space is bound to a thread (`take_user_aspace` removes
+/// `ThreadControlBlock::CONFIGURE`'s doing the moment a space is bound to a thread (`take_user_aspace` removes
 /// the entry): a `LIST` against a capability that outlived its space's registry membership reads
 /// as "nothing to report," the same as an empty space, because the capability itself was never
 /// refused and the kernel has nothing left to say about where it used to point.
@@ -333,7 +333,7 @@ pub fn user_aspace_root(name: u64) -> Option<u64> {
     USER_SPACES.lock().get(name).map(|s| s.root())
 }
 
-/// **Take a user-built address space out of the registry** (milestone 19c.3): `Tcb::CONFIGURE`
+/// **Take a user-built address space out of the registry** (milestone 19c.3): `ThreadControlBlock::CONFIGURE`
 /// moves it into the TCB, so it stops being a standalone object and starts dying with the
 /// thread. `None` if the name does not resolve. This is what retires 19b's "immortal until 19c"
 /// note: a bound space is reaped, an unbound one still leaks until teardown wiring, which is the
@@ -1282,9 +1282,9 @@ fn x86_build_child(
     user_aspace_map(aspace, X86_DEMO_STACK_VA, stack_phys, Flags::user_data())
         .map_err(|_| "could not map the child's stack")?;
 
-    let tid = crate::sched::create_tcb(region).ok_or("no tcb")?;
+    let tid = crate::sched::create_thread_control_block(region).ok_or("no tcb")?;
     if let Some(cap) = slot0 {
-        let slot = crate::sched::tcb_insert_cap(tid, cap, None)
+        let slot = crate::sched::thread_control_block_insert_cap(tid, cap, None)
             .map_err(|_| "no room for the child's slot 0")?;
         if slot != 0 {
             return Err("the child's capability did not land in slot 0, which its code assumes");
@@ -1294,17 +1294,18 @@ fn x86_build_child(
         // The spawn-slot convention: a supervision endpoint goes in the reserved fault slot, and
         // the kernel consumes it at START so the child cannot forge fault messages on it.
         let cap = crate::cap::rendezvous_cap(ep, crate::cap::Rights::READ);
-        crate::sched::tcb_insert_cap(tid, cap, Some(abi::fault::FAULT_EP_SLOT))
+        crate::sched::thread_control_block_insert_cap(tid, cap, Some(abi::fault::FAULT_EP_SLOT))
             .map_err(|_| "no room for the fault endpoint")?;
     }
-    crate::sched::configure_tcb(
+    crate::sched::configure_thread_control_block(
         tid,
         X86_DEMO_CODE_VA,
         X86_DEMO_STACK_VA + FRAME_SIZE,
         aspace,
     )
     .map_err(|_| "could not configure the child")?;
-    crate::sched::start_tcb(tid, [0; 3]).map_err(|_| "could not start the child")?;
+    crate::sched::start_thread_control_block(tid, [0; 3])
+        .map_err(|_| "could not start the child")?;
     Ok(tid)
 }
 
@@ -1437,13 +1438,16 @@ pub fn riscv_worker_demo(worker: &[u8], n: u64) -> Result<u64, LoadError> {
     let result_cap = crate::cap::rendezvous_cap(result, crate::cap::Rights::WRITE);
 
     // Build the thread from parts: a TCB, the cap in slot 0, configure at the ELF's entry, start.
-    let tcb_region = crate::untyped::create(2).expect("no tcb region");
-    let tid = crate::sched::create_tcb(tcb_region).expect("no tcb");
-    let slot = crate::sched::tcb_insert_cap(tid, result_cap, None).expect("cap insert");
+    let thread_control_block_region = crate::untyped::create(2).expect("no tcb region");
+    let tid =
+        crate::sched::create_thread_control_block(thread_control_block_region).expect("no tcb");
+    let slot =
+        crate::sched::thread_control_block_insert_cap(tid, result_cap, None).expect("cap insert");
     assert_eq!(slot, 0, "the worker's report cap must land in slot 0");
-    crate::sched::configure_tcb(tid, entry, USER_STACK_TOP, aspace_name).expect("configure");
+    crate::sched::configure_thread_control_block(tid, entry, USER_STACK_TOP, aspace_name)
+        .expect("configure");
     // The worker reads its input from a1 (the second argument); a0 and a2 are unused.
-    crate::sched::start_tcb(tid, [0, n, 0]).expect("start");
+    crate::sched::start_thread_control_block(tid, [0, n, 0]).expect("start");
 
     Ok(crate::sched::ipc_recv(result)[0])
 }
@@ -1518,14 +1522,19 @@ pub fn riscv_initrd_demo(archive: &'static [u8]) -> Result<u64, LoadError> {
     let report = crate::sched::create_rendezvous();
     let build_region = crate::untyped::create(2048).expect("no building budget for init");
 
-    let tcb_region = crate::untyped::create(2).expect("no tcb region");
-    let tid = crate::sched::create_tcb(tcb_region).expect("no tcb");
+    let thread_control_block_region = crate::untyped::create(2).expect("no tcb region");
+    let tid =
+        crate::sched::create_thread_control_block(thread_control_block_region).expect("no tcb");
     // The delegable root budget (milestone 31): init hands narrowed budgets to its children, so the
     // root carries GRANT; rights only narrow downward from here.
-    let s0 = crate::sched::tcb_insert_cap(tid, crate::cap::untyped_root_cap(build_region), None)
-        .expect("insert budget");
+    let s0 = crate::sched::thread_control_block_insert_cap(
+        tid,
+        crate::cap::untyped_root_cap(build_region),
+        None,
+    )
+    .expect("insert budget");
     assert_eq!(s0, 0, "init's budget must land in slot 0");
-    let s1 = crate::sched::tcb_insert_cap(
+    let s1 = crate::sched::thread_control_block_insert_cap(
         tid,
         crate::cap::rendezvous_cap(
             report,
@@ -1535,9 +1544,10 @@ pub fn riscv_initrd_demo(archive: &'static [u8]) -> Result<u64, LoadError> {
     )
     .expect("insert report");
     assert_eq!(s1, 1, "init's report endpoint must land in slot 1");
-    crate::sched::configure_tcb(tid, elf.entry(), USER_STACK_TOP, aspace_name).expect("configure");
+    crate::sched::configure_thread_control_block(tid, elf.entry(), USER_STACK_TOP, aspace_name)
+        .expect("configure");
     // init reads the archive length from its second argument (a1), as the worker reads its input.
-    crate::sched::start_tcb(tid, [0, initrd_len, 0]).expect("start");
+    crate::sched::start_thread_control_block(tid, [0, initrd_len, 0]).expect("start");
 
     // Bench diagnostics (2026-08-14, first-silicon session): the tour hung inside this demo on the
     // VisionFive 2 with nothing on the wire, because the recv below blocks silently. Narrate the
@@ -1641,25 +1651,27 @@ pub fn riscv_uart_driver_demo(
     crate::sched::bind_irq(uart_irq, irq_ep);
     let report = crate::sched::create_rendezvous();
 
-    let tcb_region = crate::untyped::create(2).expect("no tcb region");
-    let tid = crate::sched::create_tcb(tcb_region).expect("no tcb");
+    let thread_control_block_region = crate::untyped::create(2).expect("no tcb region");
+    let tid =
+        crate::sched::create_thread_control_block(thread_control_block_region).expect("no tcb");
     // slot 0: the Irq capability (READ permits WAIT/ACK). slot 1: the report endpoint (WRITE).
-    let s0 = crate::sched::tcb_insert_cap(
+    let s0 = crate::sched::thread_control_block_insert_cap(
         tid,
         crate::cap::irq_cap_rights(uart_irq, crate::cap::Rights::READ),
         None,
     )
     .expect("insert irq cap");
     assert_eq!(s0, 0, "the Irq cap must land in slot 0");
-    let s1 = crate::sched::tcb_insert_cap(
+    let s1 = crate::sched::thread_control_block_insert_cap(
         tid,
         crate::cap::rendezvous_cap(report, crate::cap::Rights::WRITE),
         None,
     )
     .expect("insert report");
     assert_eq!(s1, 1, "the report endpoint must land in slot 1");
-    crate::sched::configure_tcb(tid, elf.entry(), USER_STACK_TOP, aspace_name).expect("configure");
-    crate::sched::start_tcb(tid, [0, 0, 0]).expect("start");
+    crate::sched::configure_thread_control_block(tid, elf.entry(), USER_STACK_TOP, aspace_name)
+        .expect("configure");
+    crate::sched::start_thread_control_block(tid, [0, 0, 0]).expect("start");
 
     // Arm the whole chain, now that the driver is running and routed: the source at the PLIC, the
     // receive interrupt at the UART, and supervisor external interrupts in `sie`.
@@ -1739,23 +1751,28 @@ pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), Loa
     let build_region =
         crate::untyped::create(2048).expect("no building budget for system_initializer");
 
-    let tcb_region = crate::untyped::create(2).expect("no tcb region");
-    let tid = crate::sched::create_tcb(tcb_region).expect("no tcb");
+    let thread_control_block_region = crate::untyped::create(2).expect("no tcb region");
+    let tid =
+        crate::sched::create_thread_control_block(thread_control_block_region).expect("no tcb");
     // slot 0: the delegable root budget (milestone 31), GRANT included so system_initializer can split off a
     // budget for the shell and hand it on; rights only narrow downward. slot 1: the NS16550
     // registers, WRITE|GRANT so system_initializer maps them into the console and input drivers. slot 2: the
     // UART Irq, READ|GRANT so it can delegate it to input.
-    let s0 = crate::sched::tcb_insert_cap(tid, crate::cap::untyped_root_cap(build_region), None)
-        .expect("insert budget");
+    let s0 = crate::sched::thread_control_block_insert_cap(
+        tid,
+        crate::cap::untyped_root_cap(build_region),
+        None,
+    )
+    .expect("insert budget");
     assert_eq!(s0, 0);
-    let s1 = crate::sched::tcb_insert_cap(
+    let s1 = crate::sched::thread_control_block_insert_cap(
         tid,
         crate::cap::device_frame_cap(UART_PHYS, Rights::WRITE.union(Rights::GRANT)),
         None,
     )
     .expect("insert uart device");
     assert_eq!(s1, 1);
-    let s2 = crate::sched::tcb_insert_cap(
+    let s2 = crate::sched::thread_control_block_insert_cap(
         tid,
         crate::cap::irq_cap_rights(uart_irq, Rights::READ.union(Rights::GRANT)),
         None,
@@ -1765,7 +1782,7 @@ pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), Loa
     // The clock page (slot 3), read-only, ahead of the filesystem pair so its number is the same on
     // every boot. `READ` is DECISIONS §43's split at this boundary: init can endow a reader and holds
     // nothing that could set the time. See [`boot_clock_page`].
-    let s3 = crate::sched::tcb_insert_cap(
+    let s3 = crate::sched::thread_control_block_insert_cap(
         tid,
         crate::cap::frame_cap(boot_clock_page(), Rights::READ.union(Rights::GRANT)),
         None,
@@ -1781,14 +1798,14 @@ pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), Loa
         fs_service::root_directory(fs_service::blk_server_image(), redoxfs_server)
     }) {
         Some((file_ep, file_shared)) => {
-            let s4 = crate::sched::tcb_insert_cap(
+            let s4 = crate::sched::thread_control_block_insert_cap(
                 tid,
                 crate::cap::rendezvous_cap(file_ep, Rights::WRITE.union(Rights::GRANT)),
                 None,
             )
             .expect("insert the file service");
             assert_eq!(s4, 4);
-            let s5 = crate::sched::tcb_insert_cap(
+            let s5 = crate::sched::thread_control_block_insert_cap(
                 tid,
                 crate::cap::frame_cap(file_shared, Rights::WRITE.union(Rights::GRANT)),
                 None,
@@ -1799,8 +1816,9 @@ pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), Loa
         }
         None => 0,
     };
-    crate::sched::configure_tcb(tid, elf.entry(), USER_STACK_TOP, aspace_name).expect("configure");
-    crate::sched::start_tcb(tid, [0, initrd_len, fs_rights]).expect("start"); // a1 = archive length
+    crate::sched::configure_thread_control_block(tid, elf.entry(), USER_STACK_TOP, aspace_name)
+        .expect("configure");
+    crate::sched::start_thread_control_block(tid, [0, initrd_len, fs_rights]).expect("start"); // a1 = archive length
 
     // Arm the interrupt chain so the input driver's keystrokes flow: the source at the PLIC and
     // supervisor external interrupts in `sie`. The input driver arms the NS16550's own RX interrupt

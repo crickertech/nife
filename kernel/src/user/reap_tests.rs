@@ -118,7 +118,7 @@ fn assert_can_only_supervise(expected: &[u64]) {
     for slot in 0..abi::CAPABILITY_TABLE_SLOTS {
         match sched::current_cap(slot) {
             Err(_) => {
-                for objtype in [abi::objtype::TCB, abi::objtype::ASPACE] {
+                for objtype in [abi::objtype::THREAD_CONTROL_BLOCK, abi::objtype::ASPACE] {
                     assert_eq!(
                         invoke(&mut frame, slot, abi::untyped::RETYPE_OBJ, objtype, 0, 0),
                         Err(Error::NoSuchSlot),
@@ -340,7 +340,7 @@ fn reap_refuses_another_supervisors_child() {
 /// the test: without it, the replay would be of a name nothing has reused and would prove
 /// nothing.
 #[test_case]
-fn reap_refuses_a_recycled_tid_rather_than_the_wrong_thread() {
+fn reap_refuses_a_recycled_thread_id_rather_than_the_wrong_thread() {
     let (budget, rendezvous_region) = arena();
     let fault_ep = rendezvous(rendezvous_region);
     let report = rendezvous(rendezvous_region);

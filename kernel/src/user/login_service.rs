@@ -161,8 +161,9 @@ pub fn start(
     let construction = crate::untyped::create(construction_pages)
         .expect("no construction budget for the login service");
 
-    let tcb_region = crate::untyped::create(2).expect("no tcb region for login");
-    let tid = sched::create_tcb(tcb_region).expect("no tcb for login");
+    let thread_control_block_region = crate::untyped::create(2).expect("no tcb region for login");
+    let tid =
+        sched::create_thread_control_block(thread_control_block_region).expect("no tcb for login");
 
     // In `user/src/login.rs`'s own slot order: REQUEST, RESULT, VERIFY, FS_EP, FS_FRAME,
     // CONSTRUCTION_UT, AUDIT. Each `assert_eq!` is that file's own doc read from the other side, the
@@ -194,13 +195,14 @@ pub fn start(
         ("audit", rendezvous_cap(audit, Rights::WRITE)),
     ];
     for (i, (name, cap)) in grants.into_iter().enumerate() {
-        let slot =
-            sched::tcb_insert_cap(tid, cap, None).unwrap_or_else(|_| panic!("insert {name}"));
+        let slot = sched::thread_control_block_insert_cap(tid, cap, None)
+            .unwrap_or_else(|_| panic!("insert {name}"));
         assert_eq!(slot, i as u64, "login's {name} must land in slot {i}");
     }
 
-    sched::configure_tcb(tid, elf.entry(), USER_STACK_TOP, aspace).expect("configure");
-    sched::start_tcb(tid, [0, initrd_len, 0]).expect("start");
+    sched::configure_thread_control_block(tid, elf.entry(), USER_STACK_TOP, aspace)
+        .expect("configure");
+    sched::start_thread_control_block(tid, [0, initrd_len, 0]).expect("start");
 
     Wiring {
         request,

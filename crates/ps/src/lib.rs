@@ -281,7 +281,7 @@ impl Survey<'_> {
         }
         out(b"         TID  STATE\n");
         for row in self.rows() {
-            write_tid(row.tid, out);
+            write_thread_id(row.tid, out);
             out(b"  ");
             out(state_name(row.state).as_bytes());
             out(b"\n");
@@ -328,7 +328,7 @@ pub fn refusal(code: i64) -> &'static str {
 /// generation has moved (`(1 << 32) | 6` is ten digits). A wider one is not truncated, it just
 /// pushes the column; losing digits from a name that `REAP` has to accept would be worse than an
 /// uneven table.
-fn write_tid(tid: u64, out: &mut dyn FnMut(&[u8])) {
+fn write_thread_id(tid: u64, out: &mut dyn FnMut(&[u8])) {
     let mut buf = [0u8; 20];
     let mut i = buf.len();
     let mut v = tid;
@@ -512,7 +512,7 @@ mod tests {
     /// A generational tid is a ten-digit number and must survive the column intact: it is the name
     /// `REAP` accepts, so a truncated one would be a name that no longer works.
     #[test]
-    fn a_wide_tid_keeps_every_digit() {
+    fn a_wide_thread_id_keeps_every_digit() {
         let mut rows = [Row::default(); MAX_ROWS];
         let s = collect(
             &mut rows,

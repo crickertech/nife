@@ -56,7 +56,7 @@ fn spawn_date(page: Option<u64>, fmt: u64, offset_minutes: i64, provenance: u64)
 /// **Spawn a `date` that holds a second stream**, and hand back both endpoints (output, diagnostic).
 ///
 /// The diagnostic endpoint goes in at the slot `date`'s manifest declares, through `grant_at`, which
-/// is what the real init does through `abi::tcb::CAP_INSERT`'s explicit target. That is the whole
+/// is what the real init does through `abi::thread_control_block::CAP_INSERT`'s explicit target. That is the whole
 /// mechanism of DECISIONS §67 on the wiring side: a **named** slot rather than the next free one,
 /// because how many low slots a child gets depends on what else it was granted and a program that
 /// probes one number needs that number not to move.
