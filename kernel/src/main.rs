@@ -438,6 +438,28 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             Err(why) => println!("  userspace   : FAILED: {why}"),
         }
 
+        // **The initrd** (milestone 161, item 4's hand-off). Not a demo but a report, and the two
+        // facts it carries are the ones every `cfg(initrd)` test depends on: that the PVH module
+        // list reached the kernel at all, and that what it points at parses as an archive. A boot
+        // where the first is true and the second is not looks identical to a boot with no initrd
+        // from any test's point of view, which is why they are printed apart.
+        match user::initrd() {
+            None => println!("  initrd      : none (no -initrd passed to QEMU)"),
+            Some(image) => match nifefs::Fs::parse(image) {
+                Ok(fs) => println!(
+                    "  initrd      : {} bytes at {:#x}, {} programs, from the PVH module list",
+                    image.len(),
+                    memory::initrd_region().unwrap().0,
+                    fs.len(),
+                ),
+                Err(e) => println!(
+                    "  initrd      : {} bytes at {:#x}, but it does not parse: {e:?}",
+                    image.len(),
+                    memory::initrd_region().unwrap().0,
+                ),
+            },
+        }
+
         // A test build runs the kernel suite right here and exits via semihosting, instead of the
         // rest of the tour. Everything the tests need is now up: the frame allocator, the fine page
         // tables, the scheduler and its idle thread, the timer and interrupts. The x86 equivalent of
@@ -449,11 +471,13 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         }
 
         // And that is the end of what is built. What the RISC-V tour does past this point (the
-        // device drivers, an initrd, a shell) needs user programs compiled for
-        // `x86_64-unknown-none`, and none are: `crates/user_rt` has no arms for this ISA. See the
-        // roadmap for the order the rest comes in.
+        // device drivers and a shell) needs devices a ring-3 process can reach, which on this
+        // architecture is DECISIONS §121 and the discovery seam's wide half rather than more
+        // userspace. See the roadmap for the order the rest comes in.
         println!();
-        println!("  next        : real ELF user programs (user_rt has no x86_64 arms), then SMP.");
+        println!(
+            "  next        : SMP (INIT-SIPI-SIPI), then the device seam and port I/O (\u{a7}121)."
+        );
         println!("nife x86_64: boot complete, halting.");
         arch::halt();
     }

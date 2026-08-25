@@ -32,9 +32,9 @@ const RUNNER: &str = "scripts/qemu-runner-aarch64.sh";
 const RISCV_TARGET: &str = "riscv64imac-unknown-none-elf";
 
 /// The `x86_64` target (milestone 161). The kernel is built and run through cargo +
-/// `scripts/qemu-runner-x86_64.sh`, exactly as the RISC-V one is; unlike the other two there is no
-/// userspace archive to build for it, because `crates/user_rt` has no arms for this ISA and nothing
-/// in `user/` compiles for it. See notes/x86-port.md.
+/// `scripts/qemu-runner-x86_64.sh`, exactly as the RISC-V one is, and since item 4's hand-off this
+/// const also builds the third userspace archive: `initrd-x86` compiles `user` for it and
+/// [`initrd_x86`] packs the same programs RISC-V's archive carries. See notes/x86-port.md.
 const X86_TARGET: &str = "x86_64-unknown-none";
 
 /// Whether this run builds optimized binaries. Only `bench --release` sets it (a fair cross-OS
@@ -144,6 +144,8 @@ fn main() -> ExitCode {
                 ])
         }
         "initrd-riscv" => initrd_riscv(),
+        // The third archive (milestone 161). Same programs, built for x86_64.
+        "initrd-x86" => initrd_x86(),
         // The documentation store (milestone 40): build it, print what it costs, and optionally
         // answer a query against it with the same reader the guest uses.
         "manual" => manual_store(std::env::args().nth(2)),
@@ -181,7 +183,7 @@ fn main() -> ExitCode {
                 eprintln!("unknown command: {other}\n");
             }
             eprintln!(
-                "usage: cargo xtask <build|run|shell|shell-check|initboot|smb-serve|initrd-riscv|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image> [--hvf]"
+                "usage: cargo xtask <build|run|shell|shell-check|initboot|smb-serve|initrd-riscv|initrd-x86|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image> [--hvf]"
             );
             eprintln!("       cargo xtask shell-check [--arch aarch64|riscv64]");
             eprintln!(
@@ -1234,9 +1236,14 @@ fn std_relative(p: &Path) -> String {
 /// enters it directly for the userspace-init tests, and `trust::require` refuses any entry the trust
 /// root does not name. A kernel that could enter a program it never measured would be the hole
 /// measured boot exists to close, so the entry is here rather than the check being relaxed there.
+/// `x86_64` (milestone 161) packs RISC-V's archive, so it needs RISC-V's list: its `init` is the
+/// portable `builder`, and `hello` is a separate entry `spawn_init` enters directly for the
+/// userspace-init tests. The `_` arm used to catch this architecture, which was correct only while
+/// there was no x86 archive at all; leaving it would have measured `init` and refused `hello` as
+/// `Unmeasured` the first time a test reached for it.
 fn boot_programs(arch: &str) -> &'static [&'static str] {
     match arch {
-        "riscv64" => &["init", "system_initializer", "hello"],
+        "riscv64" | "x86_64" => &["init", "system_initializer", "hello"],
         _ => &["init"],
     }
 }
@@ -4226,6 +4233,176 @@ fn riscv_initrd_path() -> String {
         .to_string()
 }
 
+/// **The archive both non-aarch64 ports pack**, one table shared by two callers (milestone 161).
+///
+/// RISC-V's archive and `x86_64`'s are the same list of programs, and that is a claim rather than a
+/// convenience: every entry here is portable, so a test that passes on one instruction set and not
+/// the other has found a bug rather than a fixture gap. Duplicating the list would have made the
+/// two drift the first time somebody added a program to one of them, which is CLAUDE.md rule 7's
+/// argument (what two things must agree on gets one definition) applied to a table instead of a
+/// wire format.
+///
+/// `(archive_name, bin_name)`, because the two differ exactly once: the kernel loads the entry
+/// called **`init`**, and on both these architectures that is the portable `builder` demo rather
+/// than `hello`. aarch64 packs hello as `init` and so keeps its own table in [`mkinitrd`]; that is
+/// the one asymmetry, and it is why `hello` appears here under its own name.
+///
+/// **Not filtered per architecture, deliberately.** Several of these programs cannot do their job
+/// on `x86_64` (`console`, `input`, `kbd` and `display` all need a device a ring-3 process cannot
+/// reach, DECISIONS §121). They are packed anyway: an archive entry costs a directory slot and some
+/// bytes, nothing spawns a program by accident, and the tests that would spawn them `skip!()` with
+/// the reason. A per-architecture filter here would put the same fact in two places and let them
+/// disagree.
+///
+/// Order is preserved from the hand-written table this was lifted out of. It is not load-bearing
+/// (init looks entries up by name) but the measurement table is computed over this sequence, so
+/// reordering would churn two manifests for nothing.
+///
+/// Name provisional (milestone 161): calef names things, and this one is read by anyone adding a
+/// program to the second and third architectures.
+fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
+    &[
+        ("init", "builder"),
+        ("worker", "worker"),
+        ("driver", "driver"),
+        ("os_primitives_benchmarker", "os_primitives_benchmarker"),
+        ("coremark", "coremark"),
+        ("system_initializer", "system_initializer"),
+        ("console", "console"),
+        ("input", "input"),
+        ("swish", "swish"),
+        ("line_editor", "line_editor"),
+        ("terminal_sink_caretaker", "terminal_sink_caretaker"),
+        ("blk", "blk"),
+        ("allocator_exerciser", "allocator_exerciser"),
+        ("net_stack", "net_stack"),
+        ("smb_server", "smb_server"),
+        // The mDNS responder (milestone 55): the discovery half of the Time Machine target.
+        // Portable, so both archives carry it and both ISAs answer the same injected query.
+        ("mdns_responder", "mdns_responder"),
+        ("budgeter", "budgeter"),
+        ("fs_test_client", "fs_test_client"),
+        ("fs_file_caretaker", "fs_file_caretaker"),
+        ("fs_subtree_caretaker", "fs_subtree_caretaker"),
+        ("fs_nameset_caretaker", "fs_nameset_caretaker"),
+        ("heeder", "heeder"),
+        ("spinner", "spinner"),
+        // The authority-shrinking supervision tree (milestone 22 phase B.2): an init that hands its
+        // construction authority to a spawner and its restart policy to a supervisor, then drops the
+        // budget. Portable, so both archives carry all four.
+        ("root_supervisor", "root_supervisor"),
+        ("spawner", "spawner"),
+        ("sub_server_supervisor", "sub_server_supervisor"),
+        ("flaky", "flaky"),
+        // The interactive boot's undertaker (milestone 22, the interactive increment): init
+        // endows every job it builds with one supervision endpoint and this collects the corpses, so
+        // a job's region comes back to init's budget. Portable, so both archives carry it.
+        ("job_undertaker", "job_undertaker"),
+        // The display pair (milestone 29): the confined virtio-gpu driver and the client that draws
+        // into the surface it serves. Portable, so both archives carry both.
+        ("display", "display"),
+        ("painter", "painter"),
+        // The C seam (milestone 36): the confiner and the Rust shell that links user/c/c_seam.c.
+        // The C is compiled for this ISA by user/build.rs, so the riscv shell carries riscv C.
+        ("c_confiner", "c_confiner"),
+        ("c_shim", "c_shim"),
+        // The compositor and a window client (milestone 33, rung two). Portable, so both archives
+        // carry both: the isolation this rung proves is a property of the kernel's mappings, and it
+        // has to hold on either ISA or it is not a property.
+        ("compositor", "compositor"),
+        ("window", "window"),
+        // The display terminal (milestone 29's text increment): one binary, two wirings. Portable,
+        // so both archives carry it and both ISAs run literally the same test.
+        ("display_terminal", "display_terminal"),
+        // The keyboard driver (milestone 29's input). Portable, so both archives carry it.
+        ("kbd", "kbd"),
+        // Live component replacement (milestone 23): the operator, the two instances of the
+        // swappable component (the second computes its answers in C), the client that talks across
+        // the swap, and the queue broker for the opt-in rung. Portable, so both archives carry all
+        // five and both ISAs run literally the same swap.
+        ("swapper", "swapper"),
+        ("rust_swappable", "rust_swappable"),
+        ("c_swappable", "c_swappable"),
+        ("chatty", "chatty"),
+        ("broker", "broker"),
+        // The clock service (milestone 51). Portable, so both archives carry it: it holds both RTC
+        // drivers and the kernel tells it which one the machine has.
+        ("clock", "clock"),
+        // `date` (milestone 51). Portable for the same reason the service is: it reads a page and
+        // formats it, and neither half knows which instruction set it is on.
+        ("date", "date"),
+        ("rm", "rm"),
+        // The disk surveyor (milestone 57): reads the block-device roster it was granted and the
+        // partition table of the one disk it holds. Portable, so both archives carry it and both
+        // ISAs read literally the same table off literally the same image.
+        ("disk_surveyor", "disk_surveyor"),
+        // The disk partitioner (milestone 57's write half): writes the table the surveyor reads,
+        // and refuses to without an entropy endpoint. Portable, so both archives carry it.
+        ("disk_partitioner", "disk_partitioner"),
+        // The entropy service (milestone 56). Portable, so both archives carry it: it holds the
+        // virtio-rng driver, and the wiring tells it which bus the device came off.
+        ("entropy", "entropy"),
+        // The credential service and its clients (milestone 56, the credential half). Portable, so
+        // both archives carry both: the claim is that holding the verify endpoint does not let you
+        // read or write the store, and that has to hold on either instruction set or it is not a
+        // claim.
+        ("credentialer", "credentialer"),
+        ("credentialer_test_client", "credentialer_test_client"),
+        // The login service (milestone 49): authenticates against the credential service and mints
+        // a fresh directory capability and budget rather than mutating an identity. Portable, so
+        // both archives carry both, and the claim (a capability set produced rather than an
+        // identity mutated) holds on either instruction set or it is not a claim.
+        ("login", "login"),
+        ("login_test_client", "login_test_client"),
+        // The provisioning tool (milestone 155): a `useradd`-equivalent that PUTs an identity and
+        // secret into the credential store and MKDIRs its home subtree as one act. Portable, so
+        // both archives carry it and the same guest tests run against either ISA.
+        ("identity_provisioner", "identity_provisioner"),
+        // The boot-time re-deriver (milestone 152's third piece, provisional name). Portable, so
+        // both archives carry it and the same guest tests run against either ISA.
+        ("session_reviver", "session_reviver"),
+        // The NTP client (milestone 51), with its test server and its clock-page probe as roles of
+        // the same binary. Portable, so both archives carry it and both ISAs run the same tests.
+        ("ntp", "ntp"),
+        // The outlaw (milestone 19's user-test port): the privilege-boundary programs
+        // kernel::user::tests used to hand-assemble as aarch64 machine code.
+        ("outlaw", "outlaw"),
+        // **`hello` under its own name.** On aarch64 the archive's "init" IS hello, and the whole
+        // milestone 7-19 role catalogue (the printing client, the untyped demo, the granter and
+        // receiver, the call server, the init roles) lives in it. riscv's "init" is the `builder`
+        // demo instead, so the roles need their own entry here for the test suite to reach them.
+        // The stale claim this replaces read "hello/console/input/shell are aarch64-wired and do not
+        // build here"; three of the four are in the list above, and hello only ever needed its
+        // hand-rolled syscalls routed through user_rt.
+        ("hello", "hello"),
+        // The sink contract's ends (milestone 50). Portable, so both archives carry it: the claim
+        // is that a program cannot tell what its output slot holds, and that has to hold on either
+        // instruction set or it is not a claim.
+        ("sink", "sink"),
+        // The consumer (milestone 50). Both archives, for the sink's reason: `date | wc` has to
+        // compose on either instruction set or it is not a claim about the system.
+        ("wc", "wc"),
+        // The viewer (milestone 40). Both archives for the sink's reason: `doc page.md | wc` is a
+        // claim about how the streams compose, and a claim that holds on one instruction set is not
+        // one.
+        ("doc", "doc"),
+        // The process listing (milestone 126). Both archives: "a program cannot enumerate the
+        // machine" is a claim about this system, not about an instruction set.
+        ("ps", "ps"),
+        // The filter over that listing (milestone 126). Same reason, and one more: "naming a member
+        // confers nothing over it" is a property of the rights model and holds on both.
+        ("pgrep", "pgrep"),
+        // `ps`'s domain walk, redrawn (milestone 126). Same reason as `ps`: the redraw claim (a
+        // capability model plus a terminal contract, neither instruction-set-specific) has to hold
+        // on both archives or it is not a claim about the system.
+        ("watch", "watch"),
+        // The scheduler (milestone 129). Both archives: "a scheduled entry can do exactly what it
+        // was granted" is a claim about the capability model, and one that held on one instruction
+        // set would not be one.
+        ("timetable", "timetable"),
+    ]
+}
+
 /// **Build the RISC-V userspace archive** (milestone 20, the richer-initrd step). Compiles the two
 /// portable programs the second architecture runs (`builder`, the minimal init, and `worker`, the
 /// child it loads) for the riscv target, and packs them into a nifefs archive: `builder` under
@@ -4407,146 +4584,7 @@ fn initrd_riscv() -> bool {
     // Read each bin's ELF into an owned buffer, then pack. The archive name comes first, the bin
     // name second: `builder` is packed as `init` (the entry the kernel loads); the rest keep their
     // names. `system_initializer`/`console`/`input`/`shell` are the interactive-shell system (parity D).
-    let entries: &[(&str, &str)] = &[
-        ("init", "builder"),
-        ("worker", "worker"),
-        ("driver", "driver"),
-        ("os_primitives_benchmarker", "os_primitives_benchmarker"),
-        ("coremark", "coremark"),
-        ("system_initializer", "system_initializer"),
-        ("console", "console"),
-        ("input", "input"),
-        ("swish", "swish"),
-        ("line_editor", "line_editor"),
-        ("terminal_sink_caretaker", "terminal_sink_caretaker"),
-        ("blk", "blk"),
-        ("allocator_exerciser", "allocator_exerciser"),
-        ("net_stack", "net_stack"),
-        ("smb_server", "smb_server"),
-        // The mDNS responder (milestone 55): the discovery half of the Time Machine target.
-        // Portable, so both archives carry it and both ISAs answer the same injected query.
-        ("mdns_responder", "mdns_responder"),
-        ("budgeter", "budgeter"),
-        ("fs_test_client", "fs_test_client"),
-        ("fs_file_caretaker", "fs_file_caretaker"),
-        ("fs_subtree_caretaker", "fs_subtree_caretaker"),
-        ("fs_nameset_caretaker", "fs_nameset_caretaker"),
-        ("heeder", "heeder"),
-        ("spinner", "spinner"),
-        // The authority-shrinking supervision tree (milestone 22 phase B.2): an init that hands its
-        // construction authority to a spawner and its restart policy to a supervisor, then drops the
-        // budget. Portable, so both archives carry all four.
-        ("root_supervisor", "root_supervisor"),
-        ("spawner", "spawner"),
-        ("sub_server_supervisor", "sub_server_supervisor"),
-        ("flaky", "flaky"),
-        // The interactive boot's undertaker (milestone 22, the interactive increment): init
-        // endows every job it builds with one supervision endpoint and this collects the corpses, so
-        // a job's region comes back to init's budget. Portable, so both archives carry it.
-        ("job_undertaker", "job_undertaker"),
-        // The display pair (milestone 29): the confined virtio-gpu driver and the client that draws
-        // into the surface it serves. Portable, so both archives carry both.
-        ("display", "display"),
-        ("painter", "painter"),
-        // The C seam (milestone 36): the confiner and the Rust shell that links user/c/c_seam.c.
-        // The C is compiled for this ISA by user/build.rs, so the riscv shell carries riscv C.
-        ("c_confiner", "c_confiner"),
-        ("c_shim", "c_shim"),
-        // The compositor and a window client (milestone 33, rung two). Portable, so both archives
-        // carry both: the isolation this rung proves is a property of the kernel's mappings, and it
-        // has to hold on either ISA or it is not a property.
-        ("compositor", "compositor"),
-        ("window", "window"),
-        // The display terminal (milestone 29's text increment): one binary, two wirings. Portable,
-        // so both archives carry it and both ISAs run literally the same test.
-        ("display_terminal", "display_terminal"),
-        // The keyboard driver (milestone 29's input). Portable, so both archives carry it.
-        ("kbd", "kbd"),
-        // Live component replacement (milestone 23): the operator, the two instances of the
-        // swappable component (the second computes its answers in C), the client that talks across
-        // the swap, and the queue broker for the opt-in rung. Portable, so both archives carry all
-        // five and both ISAs run literally the same swap.
-        ("swapper", "swapper"),
-        ("rust_swappable", "rust_swappable"),
-        ("c_swappable", "c_swappable"),
-        ("chatty", "chatty"),
-        ("broker", "broker"),
-        // The clock service (milestone 51). Portable, so both archives carry it: it holds both RTC
-        // drivers and the kernel tells it which one the machine has.
-        ("clock", "clock"),
-        // `date` (milestone 51). Portable for the same reason the service is: it reads a page and
-        // formats it, and neither half knows which instruction set it is on.
-        ("date", "date"),
-        ("rm", "rm"),
-        // The disk surveyor (milestone 57): reads the block-device roster it was granted and the
-        // partition table of the one disk it holds. Portable, so both archives carry it and both
-        // ISAs read literally the same table off literally the same image.
-        ("disk_surveyor", "disk_surveyor"),
-        // The disk partitioner (milestone 57's write half): writes the table the surveyor reads,
-        // and refuses to without an entropy endpoint. Portable, so both archives carry it.
-        ("disk_partitioner", "disk_partitioner"),
-        // The entropy service (milestone 56). Portable, so both archives carry it: it holds the
-        // virtio-rng driver, and the wiring tells it which bus the device came off.
-        ("entropy", "entropy"),
-        // The credential service and its clients (milestone 56, the credential half). Portable, so
-        // both archives carry both: the claim is that holding the verify endpoint does not let you
-        // read or write the store, and that has to hold on either instruction set or it is not a
-        // claim.
-        ("credentialer", "credentialer"),
-        ("credentialer_test_client", "credentialer_test_client"),
-        // The login service (milestone 49): authenticates against the credential service and mints
-        // a fresh directory capability and budget rather than mutating an identity. Portable, so
-        // both archives carry both, and the claim (a capability set produced rather than an
-        // identity mutated) holds on either instruction set or it is not a claim.
-        ("login", "login"),
-        ("login_test_client", "login_test_client"),
-        // The provisioning tool (milestone 155): a `useradd`-equivalent that PUTs an identity and
-        // secret into the credential store and MKDIRs its home subtree as one act. Portable, so
-        // both archives carry it and the same guest tests run against either ISA.
-        ("identity_provisioner", "identity_provisioner"),
-        // The boot-time re-deriver (milestone 152's third piece, provisional name). Portable, so
-        // both archives carry it and the same guest tests run against either ISA.
-        ("session_reviver", "session_reviver"),
-        // The NTP client (milestone 51), with its test server and its clock-page probe as roles of
-        // the same binary. Portable, so both archives carry it and both ISAs run the same tests.
-        ("ntp", "ntp"),
-        // The outlaw (milestone 19's user-test port): the privilege-boundary programs
-        // kernel::user::tests used to hand-assemble as aarch64 machine code.
-        ("outlaw", "outlaw"),
-        // **`hello` under its own name.** On aarch64 the archive's "init" IS hello, and the whole
-        // milestone 7-19 role catalogue (the printing client, the untyped demo, the granter and
-        // receiver, the call server, the init roles) lives in it. riscv's "init" is the `builder`
-        // demo instead, so the roles need their own entry here for the test suite to reach them.
-        // The stale claim this replaces read "hello/console/input/shell are aarch64-wired and do not
-        // build here"; three of the four are in the list above, and hello only ever needed its
-        // hand-rolled syscalls routed through user_rt.
-        ("hello", "hello"),
-        // The sink contract's ends (milestone 50). Portable, so both archives carry it: the claim
-        // is that a program cannot tell what its output slot holds, and that has to hold on either
-        // instruction set or it is not a claim.
-        ("sink", "sink"),
-        // The consumer (milestone 50). Both archives, for the sink's reason: `date | wc` has to
-        // compose on either instruction set or it is not a claim about the system.
-        ("wc", "wc"),
-        // The viewer (milestone 40). Both archives for the sink's reason: `doc page.md | wc` is a
-        // claim about how the streams compose, and a claim that holds on one instruction set is not
-        // one.
-        ("doc", "doc"),
-        // The process listing (milestone 126). Both archives: "a program cannot enumerate the
-        // machine" is a claim about this system, not about an instruction set.
-        ("ps", "ps"),
-        // The filter over that listing (milestone 126). Same reason, and one more: "naming a member
-        // confers nothing over it" is a property of the rights model and holds on both.
-        ("pgrep", "pgrep"),
-        // `ps`'s domain walk, redrawn (milestone 126). Same reason as `ps`: the redraw claim (a
-        // capability model plus a terminal contract, neither instruction-set-specific) has to hold
-        // on both archives or it is not a claim about the system.
-        ("watch", "watch"),
-        // The scheduler (milestone 129). Both archives: "a scheduled entry can do exactly what it
-        // was granted" is a claim about the capability model, and one that held on one instruction
-        // set would not be one.
-        ("timetable", "timetable"),
-    ];
+    let entries = portable_archive_entries();
     let mut blobs: Vec<(&str, Vec<u8>)> = Vec::new();
     for &(archive_name, bin_name) in entries {
         match read_stripped(&bin(bin_name)) {
@@ -4604,6 +4642,117 @@ fn initrd_riscv() -> bool {
     eprintln!(
         "wrote {} ({size} bytes): init=builder, worker=worker",
         riscv_initrd_path()
+    );
+    true
+}
+
+/// Where the `x86_64` initrd archive is written (milestone 161). Separate from the other two for the
+/// reason they are separate from each other: it holds `x86_64` ELFs, and the kernel's loader refuses
+/// anything whose `e_machine` is not its own (`crates/elf`'s `EXPECTED_MACHINE`, which was itself
+/// wrong for this architecture until item 4 found it).
+fn x86_initrd_path() -> String {
+    workspace_root()
+        .join("target/initrd-x86_64.img")
+        .display()
+        .to_string()
+}
+
+/// **Build the `x86_64` userspace archive** (milestone 161, item 4's hand-off). The third archive,
+/// packing the same programs RISC-V's does out of [`portable_archive_entries`], built for
+/// `x86_64-unknown-none`.
+///
+/// **It builds the whole package rather than naming binaries**, which is the one structural
+/// difference from [`initrd_riscv`] and is worth the sentence. That function's `--bin` list predates
+/// every program in `user/` compiling for its target and has to be kept in step with the table by
+/// hand; here everything compiles, so `cargo build -p user` is both shorter and self-maintaining.
+/// A program added to `user/Cargo.toml` and to the shared table is packed here with no third edit.
+///
+/// ```text
+/// cargo xtask initrd-x86
+/// NIFE_INITRD=target/initrd-x86_64.img cargo run -p kernel --target x86_64-unknown-none
+/// ```
+///
+/// # BUGS
+///
+/// Three things both other archives carry are absent, and the third is a real toolchain failure
+/// rather than work not yet done.
+///
+/// **`std_exerciser`** needs an `x86_64-unknown-nife` custom target and a `std` PAL built through
+/// the `nife-dev` toolchain. Milestone 27's work, not this one's.
+///
+/// **No disk fixture is generated**, so even a packed `fs_server` would have nothing to open. The
+/// runner attaches no drive; attaching one is a smaller piece of work here than it looks (q35's
+/// virtio is PCI, and the PCIe transport of DECISIONS §18 is already built and is x86's native bus)
+/// and is not this milestone's.
+///
+/// **`fs_server` and `mkfs` do not compile for `x86_64-unknown-none` at all**, and this one is
+/// worth writing down because it will surprise whoever tries next. The vendored RedoxFS engine
+/// pulls in the `aes` crate for its encrypted-volume support, and building `aes` for this target
+/// ends in `rustc-LLVM ERROR: Do not know how to split the result of this operator!`, at **every**
+/// optimisation level including zero. The cause is the target spec rather than the crate: this
+/// target is `-mmx,-sse,+soft-float`, so LLVM has no 128-bit vector register to legalise `aes`'s
+/// block operations into and no scalar fallback for that operator. It is not a nife bug and there
+/// is no flag on this side that fixes it; the routes out are a RedoxFS built without its crypto
+/// feature, or an x86 target spec that keeps SSE for userspace. Both are their own work.
+/// See notes/x86-port.md.
+///
+/// Name provisional (milestone 161), and it does not match its two siblings: `mkinitrd` for
+/// aarch64, `initrd_riscv` for RISC-V, `initrd_x86` here. Three functions doing one job under three
+/// naming schemes is a small mess that predates this lane, and unifying them is a rename of a
+/// subcommand a reader may have typed, so it is flagged rather than taken.
+fn initrd_x86() -> bool {
+    if !cargo_profiled(&["build", "-p", "user", "--target", X86_TARGET]) {
+        return false;
+    }
+
+    let bin = |name: &str| {
+        workspace_root()
+            .join(format!("target/{X86_TARGET}/{}/{name}", profile_dir()))
+            .display()
+            .to_string()
+    };
+    let entries = portable_archive_entries();
+    let mut blobs: Vec<(&str, Vec<u8>)> = Vec::new();
+    for &(archive_name, bin_name) in entries {
+        match read_stripped(&bin(bin_name)) {
+            Ok(b) => blobs.push((archive_name, b)),
+            Err(e) => {
+                eprintln!("initrd-x86: cannot read {}: {e}", bin(bin_name));
+                return false;
+            }
+        }
+    }
+    let mut files: Vec<(&str, &[u8])> = blobs.iter().map(|(n, b)| (*n, b.as_slice())).collect();
+    // The measurement table (milestone 104), on the same terms as the other two: last, so it
+    // measures everything above it, and vouched for by the kernel's trust root so init's refusals
+    // mean something. Parity is the point (§19): the same table, the same parser, the same policy.
+    let table = measurement_table(&files);
+    files.push((measured_boot::PROGRAM_MEASUREMENTS, table.as_bytes()));
+    let size = nifefs::image_size(&files);
+    let mut img = std::vec![0u8; size];
+    if let Err(e) = nifefs::write_image(&files, &mut img) {
+        eprintln!(
+            "initrd-x86: could not build the archive: {e:?} ({} files, {} bytes)",
+            files.len(),
+            size
+        );
+        return false;
+    }
+    if let Err(e) = std::fs::write(x86_initrd_path(), &img) {
+        eprintln!("initrd-x86: could not write {}: {e}", x86_initrd_path());
+        return false;
+    }
+    // **Measure the boot programs before the x86 kernel is built** (milestone 22 phase B.1), and on
+    // this architecture that is not a nicety: with no manifest the generated `TRUST_ROOT` is empty
+    // and `trust::require` refuses every boot program as `Unmeasured`, so the kernel would come up
+    // and refuse to start init with an error about measurement rather than about the archive.
+    if !write_measure_manifest("x86_64", &img) {
+        return false;
+    }
+    eprintln!(
+        "wrote {} ({size} bytes): init=builder, {} entries",
+        x86_initrd_path(),
+        files.len()
     );
     true
 }
@@ -6312,19 +6461,28 @@ fn test() -> bool {
     // x86_64's real 4-level map, scheduler and ring 3, exiting through `isa-debug-exit` where the
     // other two use semihosting and the SiFive test finisher.
     //
-    // **It builds nothing first, and that is the honest shape of this leg rather than an oversight.**
-    // The other two legs build a userspace archive, an FS server and five disk images before they
-    // boot, because their suites read real ELF programs and real filesystems. Nothing in `user/`
-    // compiles for `x86_64-unknown-none` (`crates/user_rt` has no arms for this ISA), so there is no
-    // archive to pack and `scripts/qemu-runner-x86_64.sh` attaches no disks. The tests that need one
-    // are behind `cfg(initrd)` and simply are not in this binary; the ones that need a *program*
-    // rather than an ELF use the hand-assembled ones in `user::x86_programs`.
+    // **It builds a userspace archive and nothing else**, which is where it now sits between the
+    // other two rather than below both. `initrd_x86` compiles every program in `user/` for this
+    // target and packs the same table RISC-V's archive uses, so the thirty `cfg(initrd)` test
+    // modules are in this binary; what it still does not build is an FS server, a `std` farm or any
+    // disk image, so the runner attaches no drives and the tests wanting one `skip!()`.
     //
-    // `run` rather than `cargo`, because the wrapper's whole job is exporting `NIFE_INITRD`,
-    // `NIFE_DISK` and `NIFE_NET` to a runner, and this runner reads none of them.
+    // **`NIFE_INITRD` is set here rather than left to `cargo()`**, and it has to be: this leg runs
+    // last, so whatever the aarch64 or riscv64 leg left in that variable is still there, and an x86
+    // kernel handed an aarch64 archive refuses every program in it with a `machine` error that
+    // names neither the archive nor the leg. `run` rather than `cargo` because that wrapper also
+    // exports `NIFE_DISK` and `NIFE_NET`, and this runner attaches neither.
     if legs.x86_64() {
         eprintln!();
         eprintln!("--- kernel tests, x86_64 (QEMU q35) ---");
+        if !initrd_x86() {
+            return false;
+        }
+        // SAFETY: `set_var` became unsafe in edition 2024 because it races other threads. xtask is
+        // single-threaded here: this runs on the main thread before the child that reads it is
+        // spawned, and the only thread xtask ever starts (the transcript reader in shell_check_leg)
+        // copies pipe bytes into a String and never touches the environment.
+        unsafe { std::env::set_var("NIFE_INITRD", x86_initrd_path()) };
         if !run("cargo", &["test", "-p", "kernel", "--target", X86_TARGET]) {
             return false;
         }
@@ -8104,10 +8262,24 @@ fn read_stripped(path: &str) -> std::io::Result<Vec<u8>> {
         .file_name()
         .and_then(|s| s.to_str())
         .unwrap_or("program");
-    // Namespaced by the target directory the binary came from, so the aarch64 and riscv builds of a
+    // Namespaced by the target directory the binary came from, so two architectures' builds of a
     // program cannot overwrite each other's stripped copy.
+    //
+    // **x86_64 needs its own arm and the bug was latent rather than absent** (milestone 161). Before
+    // this port packed an archive, an `x86_64-unknown-none` path fell through to `"host"` and so
+    // shared a filename with every aarch64 build of the same program. Nothing noticed, because
+    // nothing ever asked for both; the moment an x86 archive is packed in the same run as an aarch64
+    // one, whichever ran second would silently read the other's bytes back out of `target/stripped`
+    // and measure them. That is the worst shape a bug can have here: the digest in a trust root
+    // would be a real digest of a real program, and the wrong one.
+    //
+    // The order matters too. `X86_TARGET` is `x86_64-unknown-none`, and a *host* path on an x86
+    // Linux CI runner contains `x86_64-unknown-linux-gnu`, which the naive `contains` would also
+    // match. The check is anchored on the full triple, so the two cannot be confused.
     let tag = if path.contains(RISCV_TARGET) {
         "riscv"
+    } else if path.contains(X86_TARGET) {
+        "x86"
     } else if path.contains("nife") {
         "std"
     } else {

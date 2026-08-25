@@ -8,10 +8,10 @@
 # RISC-V's OpenSBI): QEMU's `q35` reads the PVH note in our ELF, loads the segments at their
 # physical addresses and enters the 32-bit trampoline directly. See kernel/src/arch/x86_64/boot.s.
 #
-# WHAT IS NOT HERE YET, and it is most of what the other two runners do: no initrd, no virtio
-# disks, no NIC, no GPU, no RNG, no NVMe, no IOMMU. Those are wired one at a time as the port
-# reaches them, and adding a device to this file before the kernel can drive it only produces a
-# boot that looks richer than it is. See design/roadmap/161-x86-64-kernel-port.md.
+# WHAT IS NOT HERE YET, and it is still most of what the other two runners do: no virtio disks, no
+# NIC, no GPU, no RNG, no NVMe, no IOMMU. Those are wired one at a time as the port reaches them,
+# and adding a device to this file before the kernel can drive it only produces a boot that looks
+# richer than it is. See design/roadmap/161-x86-64-kernel-port.md.
 #
 # The kernel halts with `hlt` (arch::halt), so QEMU does not exit on its own. Bound any interactive
 # run with scripts/qemu-bounded.sh (see CLAUDE.md, "Never leave QEMU running").
@@ -33,6 +33,24 @@ SMP="${NIFE_SMP:-1}"
 # applies as on the RISC-V side (notes/cpu-models.md): a kernel that has only ever run here has
 # never been told no. NIFE_CPU narrows it; `qemu64` is the conservative baseline.
 CPU="${NIFE_CPU:-max}"
+
+# The userspace archive rides in as an initrd (milestone 161), the same knob both other runners
+# take. The mechanism underneath differs and is worth one line: there is no device tree here, so
+# QEMU's PVH loader puts the file in RAM and describes it in the `hvm_start_info` module list,
+# which arch::x86_64::machine::initrd reads. Unset, the kernel finds no module and says so.
+#
+# A SET NIFE_INITRD naming a missing file is an error rather than a silent no-op, matching the
+# check both other runners make about NIFE_DISK: `cargo xtask test` exports this variable
+# unconditionally, so a typo or a stale path would otherwise boot a kernel with no userspace and
+# report thirty test failures that name the tests rather than the cause.
+INITRD=""
+if [ -n "$NIFE_INITRD" ]; then
+    if [ ! -f "$NIFE_INITRD" ]; then
+        echo "qemu-runner-x86_64: NIFE_INITRD=$NIFE_INITRD does not exist (run cargo xtask initrd-x86)" >&2
+        exit 1
+    fi
+    INITRD="-initrd $NIFE_INITRD"
+fi
 
 # isa-debug-exit is x86's answer to the semihosting exit the other two use: a write to this port
 # terminates QEMU with status (value << 1) | 1, so the guest can report pass/fail to the harness.
@@ -57,6 +75,7 @@ qemu-system-x86_64 \
     -no-reboot \
     $DEBUG_EXIT \
     -kernel "$ELF" \
+    $INITRD \
     "$@"
 STATUS=$?
 

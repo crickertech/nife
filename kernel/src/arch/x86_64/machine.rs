@@ -19,7 +19,9 @@
 //!   legacy IRQs, so `isa_irqs[4]` is the console UART's line and could be routed the way the PIT's
 //!   is; the x86 console is polled, so nothing asks.
 
-use machine_discovery::x86_64::{BootInfo, MEMMAP_ENTRY_LEN, MemoryEntry, memory_entry};
+use machine_discovery::x86_64::{
+    BootInfo, MEMMAP_ENTRY_LEN, MODULE_ENTRY_LEN, MemoryEntry, Module, memory_entry, module,
+};
 
 use super::mmu::phys_to_virt;
 
@@ -56,6 +58,27 @@ pub fn memory_map_entry(info: &BootInfo, index: usize) -> Option<MemoryEntry> {
     // one entry's worth of bytes. The index is bounded by the count the loader stated above.
     let bytes = unsafe { core::slice::from_raw_parts(at as *const u8, MEMMAP_ENTRY_LEN) };
     memory_entry(bytes, 0)
+}
+
+/// **The initrd, if the loader put one in RAM** (milestone 161): x86's answer to the device tree's
+/// `/chosen/linux,initrd-start`, which is what both other architectures read.
+///
+/// QEMU's PVH loader turns `-initrd FILE` into one entry in the module list `hvm_start_info` points
+/// at. **The first module is taken and any others ignored**, which is a decision rather than an
+/// oversight: PVH permits several, this kernel wants exactly one archive, and inventing a policy
+/// for a case the machine never produces would be code nobody could test. A second module would be
+/// left in RAM, unreserved and unread; if one ever appears, this is where it has to be handled.
+pub fn initrd(info: &BootInfo) -> Option<Module> {
+    if info.modules == 0 || info.module_count == 0 {
+        return None;
+    }
+    let at = phys_to_virt(info.modules);
+    // SAFETY: a physical address the loader gave us, reached through the direct map, for exactly one
+    // entry's worth of bytes. The count was checked above, so entry 0 exists.
+    let bytes = unsafe { core::slice::from_raw_parts(at as *const u8, MODULE_ENTRY_LEN) };
+    // A module with no bytes is not an archive, and reporting it as one would have the kernel parse
+    // an empty slice and report a corrupt filesystem rather than an absent one.
+    module(bytes, 0).filter(|m| m.size > 0)
 }
 
 /// Print the memory map, one line per entry plus a usable total. The x86 stand-in for the device
@@ -518,15 +541,32 @@ pub fn bring_up_memory(info: &BootInfo) -> usize {
         count += 1;
     }
 
-    // Two reservations, and both would be catastrophic to miss. The kernel image is the code
-    // running right now, plus the boot page tables the CPU is walking (they live in `.boot_scratch`,
-    // which the linker script puts inside the image bounds precisely so that this one entry covers
-    // them). The low megabyte is clipped above rather than listed here.
-    let forbidden = [dtb::Region {
+    // Three reservations now, and all three would be catastrophic to miss. The kernel image is the
+    // code running right now, plus the boot page tables the CPU is walking (they live in
+    // `.boot_scratch`, which the linker script puts inside the image bounds precisely so that this
+    // one entry covers them). The initrd is the archive every user program is read out of, sitting
+    // in ordinary RAM the loader did not mark reserved, so without this entry the first process
+    // built would very likely be built on top of its own ELF. The low megabyte is clipped above
+    // rather than listed here.
+    //
+    // **The count is what the array is sliced to**, rather than the array being sized to the worst
+    // case and passed whole: an all-zero `Region` is a reservation of nothing at address zero, and
+    // `bring_up_frames` would dutifully take it.
+    let mut forbidden = [dtb::Region { start: 0, size: 0 }; 2];
+    forbidden[0] = dtb::Region {
         start: crate::memory::image_start(),
         size: crate::memory::image_end() - crate::memory::image_start(),
-    }];
+    };
+    let mut forbidden_count = 1;
+    if let Some(m) = initrd(info) {
+        forbidden[forbidden_count] = dtb::Region {
+            start: m.addr,
+            size: m.size,
+        };
+        forbidden_count += 1;
+        crate::memory::record_initrd(m.addr, m.size);
+    }
 
-    crate::memory::bring_up_page_frames(&ram[..count], &forbidden);
+    crate::memory::bring_up_page_frames(&ram[..count], &forbidden[..forbidden_count]);
     count
 }
