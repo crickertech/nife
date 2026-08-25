@@ -194,14 +194,20 @@ fn instruction_backend_available() -> bool {
     crate::arch::isa::get().rndr
 }
 
-/// `x86_64`: `RDSEED` exists on real hardware (checked via `CPUID` leaf 7's `EBX` bit 18), but this
-/// port has no ring 3 yet (milestone 161, item 3): there is no way to schedule a userspace `entropy`
-/// process onto it, so wiring one here would spawn a process nothing could ever run. This is the
-/// gap milestone 162's own report names for the lane that builds ring 3.
-///
+/// `x86_64`: ring 3 (milestone 161, item 3) and a real userspace on this port both landed on
+/// `main` after this function's x86_64 arm was first written unconditionally `false`; that gap is
+/// closed. Same shape as the aarch64 arm above: `CPUID` leaf 7's `EBX` bit 18 is read once at boot
+/// (`kernel/src/arch/x86_64/isa.rs::init`) and cached in `Isa`, because `entropy.rs` in userspace
+/// has no way to execute `CPUID` and trust the answer the way ring 0 does; it trusts what it was
+/// spawned with, same as aarch64's `entropy.rs` trusts `FEAT_RNG`.
+#[cfg(target_arch = "x86_64")]
+fn instruction_backend_available() -> bool {
+    crate::arch::isa::get().rdseed
+}
+
 /// riscv64: neither `RDSEED` nor `RNDR`/`RNDRRS` exists on this ISA. Milestone 159's JH7110 TRNG is
 /// the real hardware source there, wired through the JH7110 driver rather than through this file.
-#[cfg(not(target_arch = "aarch64"))]
+#[cfg(not(any(target_arch = "aarch64", target_arch = "x86_64")))]
 fn instruction_backend_available() -> bool {
     false
 }
