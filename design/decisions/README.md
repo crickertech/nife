@@ -155,7 +155,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 94 | DECIDED | [What may live in a userspace library, and what must be per-binary](94-what-may-live-in-a-library.md) |
 | 95 | PROPOSED | [A hand-written IPC fastpath, and whether it can stay proven](95-a-proven-ipc-fastpath.md) |
 | 96 | PROPOSED | [Process kernel or event kernel, and how to decide it](96-process-kernel-or-event-kernel.md) |
-| 97 | PROPOSED | [Six gates run on every pull request and none of them can stop one](97-advisory-checks.md) |
+| 97 | DECIDED | [Six gates run on every pull request and none of them can stop one](97-advisory-checks.md) |
 | 98 | PROPOSED | [`OPENDIR` cannot be asked to attenuate, so a held directory probes for its own rights](98-opendir-cannot-attenuate.md) |
 | 99 | DECIDED | [Where Apple's metadata lands: stream or sidecar](99-apple-metadata-at-rest.md) |
 | 100 | AMENDED | [The terminal font](100-the-terminal-font.md) |
