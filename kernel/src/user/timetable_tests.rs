@@ -145,20 +145,25 @@ fn spawn_timetable(fires: u64) -> (RendezvousId, RendezvousId, RendezvousId) {
     let child_report = crate::sched::create_rendezvous();
     let deaths = crate::sched::create_rendezvous();
     let budget = crate::untyped::create(TIMETABLE_BUDGET_PAGES).expect("no budget");
-    let tcb_region = crate::untyped::create(2).expect("no tcb region");
-    let tid = crate::sched::create_tcb(tcb_region).expect("no tcb");
+    let thread_control_block_region = crate::untyped::create(2).expect("no tcb region");
+    let tid =
+        crate::sched::create_thread_control_block(thread_control_block_region).expect("no tcb");
 
     // Slot 0: where its own text goes. WRITE, so it can say things and cannot listen.
-    let s = crate::sched::tcb_insert_cap(tid, rendezvous_cap(out, Rights::WRITE), None)
-        .expect("insert out");
+    let s = crate::sched::thread_control_block_insert_cap(
+        tid,
+        rendezvous_cap(out, Rights::WRITE),
+        None,
+    )
+    .expect("insert out");
     assert_eq!(s, 0, "the timetable's output endpoint must land in slot 0");
     // Slot 1: what every instance is made of.
-    let s =
-        crate::sched::tcb_insert_cap(tid, untyped_root_cap(budget), None).expect("insert budget");
+    let s = crate::sched::thread_control_block_insert_cap(tid, untyped_root_cap(budget), None)
+        .expect("insert budget");
     assert_eq!(s, 1, "the timetable's budget must land in slot 1");
     // Slot 2: what each instance is handed as its own slot 0. `GRANT` because handing it on is the
     // entire purpose; `WRITE` because a scheduled child reports and never listens.
-    let s = crate::sched::tcb_insert_cap(
+    let s = crate::sched::thread_control_block_insert_cap(
         tid,
         rendezvous_cap(child_report, Rights::WRITE.union(Rights::GRANT)),
         None,
@@ -167,7 +172,7 @@ fn spawn_timetable(fires: u64) -> (RendezvousId, RendezvousId, RendezvousId) {
     assert_eq!(s, 2, "the child report endpoint must land in slot 2");
     // Slot 3: the supervision endpoint. `READ` is what `RECV` and `Rendezvous::REAP` take (§32);
     // `GRANT` is what lets it be placed in each child's reserved fault slot.
-    let s = crate::sched::tcb_insert_cap(
+    let s = crate::sched::thread_control_block_insert_cap(
         tid,
         rendezvous_cap(deaths, Rights::READ.union(Rights::GRANT)),
         None,
@@ -175,8 +180,9 @@ fn spawn_timetable(fires: u64) -> (RendezvousId, RendezvousId, RendezvousId) {
     .expect("insert deaths");
     assert_eq!(s, 3, "the supervision endpoint must land in slot 3");
 
-    crate::sched::configure_tcb(tid, elf.entry(), USER_STACK_TOP, aspace).expect("configure");
-    crate::sched::start_tcb(tid, [fires, archive_len, 0]).expect("start");
+    crate::sched::configure_thread_control_block(tid, elf.entry(), USER_STACK_TOP, aspace)
+        .expect("configure");
+    crate::sched::start_thread_control_block(tid, [fires, archive_len, 0]).expect("start");
     (out, child_report, deaths)
 }
 

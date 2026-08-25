@@ -32,7 +32,7 @@ use paging::Flags;
 use crate::arch::mmu;
 use crate::sync::{IrqSafeMutex, rank};
 
-pub type Tid = u64;
+pub type ThreadId = u64;
 
 /// 24 KiB. Six pages.
 ///
@@ -92,7 +92,7 @@ pub fn stack_area_span() -> (u64, u64) {
 /// `u64::MAX` (= `cpu::NO_TID`), which the generational table can never mint, so a thread that
 /// somehow escaped naming resolves to nothing instead of to slot 0. Every insert path overwrites
 /// it via `Table::insert_with` (milestone 14 phase A; design/kernel-objects-from-untyped.md).
-pub const UNNAMED: Tid = u64::MAX;
+pub const UNNAMED: ThreadId = u64::MAX;
 
 /// Stack address ranges from threads that have exited.
 ///
@@ -328,7 +328,7 @@ impl Drop for QuotaToken {
 pub type Wait = (crate::sched::RendezvousId, WaitRole);
 
 pub struct Thread {
-    pub id: Tid,
+    pub id: ThreadId,
 
     /// **The block/wake handshake**: `state` plus the `on_cpu`/`wake_pending`/`wait_on`/
     /// `ipc_served`/`ipc_aborted` protocol that used to be five loose fields here. Lifted into
@@ -419,7 +419,7 @@ pub struct Thread {
     /// the thread, under that queue's synchronization.
     pub(crate) next: Option<core::ptr::NonNull<Thread>>,
 
-    /// **Where this thread's EL0 execution begins** (milestone 19c.3), set by `Tcb::CONFIGURE`
+    /// **Where this thread's EL0 execution begins** (milestone 19c.3), set by `ThreadControlBlock::CONFIGURE`
     /// on an embryo, consumed by `START` to build the entry context. `(0, 0)` for a kernel
     /// thread, which never drops to EL0 and runs its closure instead.
     pub(crate) entry: (u64, u64), // (entry_va, user_sp)
@@ -433,7 +433,7 @@ pub struct Thread {
     /// process's own region (leave it; the region reclaims it at destroy)? True for every
     /// kernel-created thread; false for a user-retyped TCB (19c.3). The page-origin half of the
     /// same owned-vs-borrowed question kernel stacks answered with "one owner" (notes/tcb.md).
-    pub(crate) tcb_kmem: bool,
+    pub(crate) thread_control_block_kmem: bool,
 
     /// **Marked for forcible teardown** (DECISIONS §16 amendment): a region's owner called
     /// `Untyped::DESTROY` while this thread was still live in it, so the thread is doomed. The
@@ -452,7 +452,7 @@ pub struct Thread {
     pub(crate) fault_ep: Option<crate::sched::RendezvousId>,
 
     /// **The untyped region this TCB's page was retyped out of** (DECISIONS §32), or `None` for a
-    /// kernel-created thread whose page came from `kmem`. Recorded at `create_tcb`, which is the one
+    /// kernel-created thread whose page came from `kmem`. Recorded at `create_thread_control_block`, which is the one
     /// place the answer is known for certain, and it is what an endpoint reap reclaims: the same
     /// region name the region's owner would have passed to `Untyped::DESTROY`, so there is one
     /// teardown path and not two. A supervisor never sees this number and holds no capability to it;
@@ -460,7 +460,7 @@ pub struct Thread {
     ///
     /// It goes stale like any other region name (the slot's generation bumps at destroy), so a
     /// second reap of the same corpse finds nothing to reclaim rather than somebody else's region.
-    pub(crate) tcb_region: Option<u64>,
+    pub(crate) thread_control_block_region: Option<u64>,
 
     /// **The fault/exit message this thread's corpse carries** (milestone 22), retained after death
     /// so a test can prove a `Dead` TCB still holds its fault-time state. Set when the thread dies
@@ -503,10 +503,10 @@ impl Thread {
             next: None,
             entry: (0, 0), // a kernel thread; never enters EL0 by this path
             start_args: [0; 3],
-            tcb_kmem: true,
+            thread_control_block_kmem: true,
             killed: false,
             fault_ep: None,
-            tcb_region: None,
+            thread_control_block_region: None,
             fault_msg: None,
         }
     }
@@ -532,10 +532,10 @@ impl Thread {
             next: None,
             entry: (0, 0), // a kernel thread; never enters EL0 by this path
             start_args: [0; 3],
-            tcb_kmem: true,
+            thread_control_block_kmem: true,
             killed: false,
             fault_ep: None,
-            tcb_region: None,
+            thread_control_block_region: None,
             fault_msg: None,
         }
     }
@@ -571,7 +571,7 @@ impl Thread {
     /// fresh page it exclusively owns.
     pub unsafe fn spawn_into<F: FnOnce() + Send + 'static>(
         f: F,
-        id: Tid,
+        id: ThreadId,
         dst: *mut Thread,
     ) -> bool {
         // Bounds at compile time, per monomorphization: a capture that does not comfortably fit
@@ -635,10 +635,10 @@ impl Thread {
                 next: None,
                 entry: (0, 0), // a kernel thread; becomes a user process via exec, not this path
                 start_args: [0; 3],
-                tcb_kmem: true,
+                thread_control_block_kmem: true,
                 killed: false,
                 fault_ep: None,
-                tcb_region: None,
+                thread_control_block_region: None,
                 fault_msg: None,
             });
         }
@@ -662,7 +662,7 @@ impl Thread {
 
     /// **A TCB object, retyped but not started** (milestone 19c.3). No stack, no saved context,
     /// no address space, no entry: `Embryo`. `CONFIGURE` fills in the space and entry, `START`
-    /// builds the stack and context and makes it `Ready`. `tcb_kmem` records that this TCB's
+    /// builds the stack and context and makes it `Ready`. `thread_control_block_kmem` records that this TCB's
     /// page is a user region's, not `kmem`'s, so the reaper leaves it for the region.
     pub fn embryo() -> Self {
         Thread {
@@ -678,10 +678,10 @@ impl Thread {
             next: None,
             entry: (0, 0),
             start_args: [0; 3],
-            tcb_kmem: false, // a user-retyped TCB page; the region owns it
+            thread_control_block_kmem: false, // a user-retyped TCB page; the region owns it
             killed: false,
             fault_ep: None,
-            tcb_region: None,
+            thread_control_block_region: None,
             fault_msg: None,
         }
     }

@@ -58,10 +58,42 @@
 
 use abi::rendezvous;
 use entropy_proto as proto;
-use jh7110_trng::{
-    CTRL_EXEC_RANDRESEED, CTRL_GENE_RANDNUM, ISTAT_SEED_DONE, Outcome, interpret, regs,
-};
+use jh7110_trng::{CTRL_EXEC_RANDRESEED, CTRL_GENE_RANDNUM, ISTAT_SEED_DONE, Outcome, interpret};
+use tock_registers::interfaces::{Readable, Writeable};
+use tock_registers::register_structs;
+use tock_registers::registers::{ReadOnly, WriteOnly};
 use user_rt::{recv_cap, reply, send};
+
+register_structs! {
+    /// The JH7110 TRNG's register block, migrated onto `tock_registers` (milestone 139 round 5):
+    /// offsets transcribed from `jh7110_trng::regs` (itself transcribed from the Linux driver, see
+    /// `crates/jh7110_trng`'s module doc), now checked at compile time instead of asserted by a
+    /// hand-written comment. Unlike the NS16550 (`kernel/src/drivers/ns16550.rs`'s own module
+    /// doc), this device's layout has no runtime-variable stride or width: [binding] gives one
+    /// `reg` window (`reg = <0x1600C000 0x4000>`) with no `reg-shift`/`reg-io-width` knob, so there
+    /// is nothing here `register_structs!`'s compile-time-fixed layout cannot express. Only the
+    /// registers this driver touches are named (`CTRL`, `ISTAT`, `RAND0..RAND7`); `STAT`, `MODE`,
+    /// `SMODE`, `IE`, `AUTO_RQSTS` and `AUTO_AGE` are reserved padding here, the same "not
+    /// otherwise used" status `jh7110_trng::regs`'s own doc gives several of them.
+    ///
+    /// [binding]: https://github.com/torvalds/linux/blob/master/Documentation/devicetree/bindings/rng/starfive%2Cjh7110-trng.yaml
+    #[allow(non_snake_case)]
+    RegisterBlock {
+        (0x00 => CTRL: WriteOnly<u32>),
+        (0x04 => _reserved_stat_mode_smode_ie),
+        (0x14 => ISTAT: ReadOnly<u32>),
+        (0x18 => _reserved_pad),
+        (0x20 => RAND0: ReadOnly<u32>),
+        (0x24 => RAND1: ReadOnly<u32>),
+        (0x28 => RAND2: ReadOnly<u32>),
+        (0x2c => RAND3: ReadOnly<u32>),
+        (0x30 => RAND4: ReadOnly<u32>),
+        (0x34 => RAND5: ReadOnly<u32>),
+        (0x38 => RAND6: ReadOnly<u32>),
+        (0x3c => RAND7: ReadOnly<u32>),
+        (0x40 => @END),
+    }
+}
 
 /// Capability slots, by convention with whatever kernel-side wiring eventually spawns this (see
 /// the module doc: none does yet).
@@ -86,29 +118,25 @@ const POLL_TRIES: usize = 100_000;
 /// spin on forever.
 const LOCKUP_RETRIES: usize = 4;
 
-fn r32(off: u64) -> u32 {
+fn regs() -> &'static RegisterBlock {
     // SAFETY: TRNG_VA is our device mapping of the JH7110 TRNG's register window, handed to us at
     // spawn (rule 2: this driver is told the address, never told to look), for the whole lifetime
-    // of this process. `off` is one of `jh7110_trng::regs`' offsets, all inside the 0x4000-byte
-    // window `jh7110_trng`'s DTB fixture pins.
-    unsafe { core::ptr::read_volatile((TRNG_VA + off) as *const u32) }
-}
-
-fn w32(off: u64, v: u32) {
-    // SAFETY: as above.
-    unsafe { core::ptr::write_volatile((TRNG_VA + off) as *mut u32, v) }
+    // of this process. This is the same invariant the hand-written r32/w32 calls used to assert by
+    // comment; register_structs! now checks every offset above at compile time instead.
+    unsafe { &*(TRNG_VA as *const RegisterBlock) }
 }
 
 fn rand_words() -> [u32; 8] {
+    let r = regs();
     [
-        r32(regs::RAND0),
-        r32(regs::RAND1),
-        r32(regs::RAND2),
-        r32(regs::RAND3),
-        r32(regs::RAND4),
-        r32(regs::RAND5),
-        r32(regs::RAND6),
-        r32(regs::RAND7),
+        r.RAND0.get(),
+        r.RAND1.get(),
+        r.RAND2.get(),
+        r.RAND3.get(),
+        r.RAND4.get(),
+        r.RAND5.get(),
+        r.RAND6.get(),
+        r.RAND7.get(),
     ]
 }
 
@@ -116,9 +144,9 @@ fn rand_words() -> [u32; 8] {
 /// `jh7110-trng.c`'s own init sequence, and again whenever [`generate`] sees
 /// [`jh7110_trng::Outcome::Lockup`]. `false` on a bound-out: the caller decides what that means.
 fn reseed_and_wait() -> bool {
-    w32(regs::CTRL, CTRL_EXEC_RANDRESEED);
+    regs().CTRL.set(CTRL_EXEC_RANDRESEED);
     for _ in 0..POLL_TRIES {
-        if r32(regs::ISTAT) & ISTAT_SEED_DONE != 0 {
+        if regs().ISTAT.get() & ISTAT_SEED_DONE != 0 {
             return true;
         }
     }
@@ -130,9 +158,9 @@ fn reseed_and_wait() -> bool {
 /// driver's whole failure mode, reported to callers as [`proto::NO_ENTROPY`] rather than a hang.
 fn generate() -> Option<[u8; 32]> {
     for _ in 0..=LOCKUP_RETRIES {
-        w32(regs::CTRL, CTRL_GENE_RANDNUM);
+        regs().CTRL.set(CTRL_GENE_RANDNUM);
         for _ in 0..POLL_TRIES {
-            match interpret(r32(regs::ISTAT), rand_words()) {
+            match interpret(regs().ISTAT.get(), rand_words()) {
                 Outcome::Ready(bytes) => return Some(bytes),
                 Outcome::Lockup => {
                     reseed_and_wait();

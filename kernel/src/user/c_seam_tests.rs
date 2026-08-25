@@ -76,12 +76,13 @@ fn spawn_confiner() -> sched::RendezvousId {
 
     let report = sched::create_rendezvous();
     let budget = crate::untyped::create(CONFINER_BUDGET_PAGES).expect("no budget for c_confiner");
-    let tcb_region = crate::untyped::create(2).expect("no tcb region");
-    let tid = sched::create_tcb(tcb_region).expect("no tcb");
-    let s0 = sched::tcb_insert_cap(tid, crate::cap::untyped_root_cap(budget), None)
-        .expect("insert budget");
+    let thread_control_block_region = crate::untyped::create(2).expect("no tcb region");
+    let tid = sched::create_thread_control_block(thread_control_block_region).expect("no tcb");
+    let s0 =
+        sched::thread_control_block_insert_cap(tid, crate::cap::untyped_root_cap(budget), None)
+            .expect("insert budget");
     assert_eq!(s0, 0, "c_confiner's budget must land in slot 0");
-    let s1 = sched::tcb_insert_cap(
+    let s1 = sched::thread_control_block_insert_cap(
         tid,
         crate::cap::rendezvous_cap(
             report,
@@ -91,8 +92,9 @@ fn spawn_confiner() -> sched::RendezvousId {
     )
     .expect("insert report");
     assert_eq!(s1, 1, "c_confiner's report endpoint must land in slot 1");
-    sched::configure_tcb(tid, elf.entry(), USER_STACK_TOP, aspace).expect("configure");
-    sched::start_tcb(tid, [0, initrd_len, 0]).expect("start");
+    sched::configure_thread_control_block(tid, elf.entry(), USER_STACK_TOP, aspace)
+        .expect("configure");
+    sched::start_thread_control_block(tid, [0, initrd_len, 0]).expect("start");
     report
 }
 

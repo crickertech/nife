@@ -940,6 +940,7 @@ dependencies = [
  "swish",
  "system_initializer",
  "timetable",
+ "tock-registers",
  "user_rt",
  "video_terminal",
  "virtio",

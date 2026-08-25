@@ -9,11 +9,14 @@ const ROLE_UNTYPED_DEMO: u64 = 7;
 /// allocation is the untyped itself; everything the process maps afterward spends that, not the
 /// allocator.
 ///
-/// **The `Tid` is returned because this process does not exit.** It reports its result and then
+/// **The `ThreadId` is returned because this process does not exit.** It reports its result and then
 /// spins, deliberately, so that the free-frame count its caller reads is the measurement's
 /// rather than a teardown's. That makes it a thread only the caller can end, and a caller that
 /// drops the name has leaked a spinning thread onto every test that runs after it.
-pub fn start(image: &'static [u8], pages: u64) -> Option<(u64, RendezvousId, crate::thread::Tid)> {
+pub fn start(
+    image: &'static [u8],
+    pages: u64,
+) -> Option<(u64, RendezvousId, crate::thread::ThreadId)> {
     let region = crate::untyped::create(pages)?;
     let report = crate::sched::create_rendezvous();
 

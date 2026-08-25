@@ -12,7 +12,7 @@
 //! means one queue, so "a blocked thread waits on exactly one rendezvous" is a property of there
 //! being one field, not a rule anyone keeps. The queues are the kernel's real rendezvous state, not
 //! a model kept in sync; what changed at A.3 is only what a queue entry is (a TCB pointer, no
-//! longer a Tid to be looked up) and that queueing can no longer allocate.
+//! longer a `ThreadId` to be looked up) and that queueing can no longer allocate.
 //!
 //! The load-bearing invariant, unchanged since the original `Rendezvous`: **"at most one wait
 //! queue is ever non-empty."** A sender that finds a receiver rendezvouses instead of joining a
@@ -31,12 +31,12 @@
 //! use intrusive_fifo::Node;
 //! use ipc::{Rendezvous, Recv, Send};
 //!
-//! struct Tcb {
-//!     next: Option<NonNull<Tcb>>,
+//! struct ThreadControlBlock {
+//!     next: Option<NonNull<ThreadControlBlock>>,
 //! }
 //!
 //! // SAFETY: plain field storage, which is the whole of the `Node` contract.
-//! unsafe impl Node for Tcb {
+//! unsafe impl Node for ThreadControlBlock {
 //!     fn next(&self) -> Option<NonNull<Self>> {
 //!         self.next
 //!     }
@@ -46,9 +46,9 @@
 //! }
 //!
 //! // Declared before the rendezvous, so they outlive it.
-//! let mut server = Tcb { next: None };
-//! let mut client = Tcb { next: None };
-//! let mut ep: Rendezvous<Tcb> = Rendezvous::new();
+//! let mut server = ThreadControlBlock { next: None };
+//! let mut client = ThreadControlBlock { next: None };
+//! let mut ep: Rendezvous<ThreadControlBlock> = Rendezvous::new();
 //! assert!(ep.is_idle());
 //!
 //! // The server calls recv with nobody sending, so it queues. The caller blocks it.
@@ -74,13 +74,13 @@
 //! # use core::ptr::NonNull;
 //! # use intrusive_fifo::Node;
 //! # use ipc::{Rendezvous, Recv};
-//! # struct Tcb { next: Option<NonNull<Tcb>> }
-//! # unsafe impl Node for Tcb {
+//! # struct ThreadControlBlock { next: Option<NonNull<ThreadControlBlock>> }
+//! # unsafe impl Node for ThreadControlBlock {
 //! #     fn next(&self) -> Option<NonNull<Self>> { self.next }
 //! #     fn set_next(&mut self, next: Option<NonNull<Self>>) { self.next = next; }
 //! # }
-//! let mut driver = Tcb { next: None };
-//! let mut ep: Rendezvous<Tcb> = Rendezvous::new();
+//! let mut driver = ThreadControlBlock { next: None };
+//! let mut ep: Rendezvous<ThreadControlBlock> = Rendezvous::new();
 //!
 //! // Two interrupts arrive with nobody in recv. Neither is dropped; both are counted.
 //! assert!(ep.signal().is_none());

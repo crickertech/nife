@@ -1,7 +1,7 @@
 //! A fixed-capacity generational table: **names that die with what they named.**
 //!
 //! Milestone 14 phase A (design/kernel-objects-from-untyped.md, decision D2). The scheduler's
-//! thread table used to be a `BTreeMap<Tid, Box<Thread>>` fed by a global counter: every spawn
+//! thread table used to be a `BTreeMap<ThreadId, Box<Thread>>` fed by a global counter: every spawn
 //! allocated map nodes, and the map was unbounded. This replaces it with an array, and it
 //! replaces the counter with something better than a counter.
 //!
@@ -258,7 +258,7 @@ mod verification {
     use super::*;
 
     /// **A removed name never resolves again**, even after its slot is reused. This is the
-    /// stale-Tid safety the kernel currently gets from map-lookup-fails, kept under reuse: the
+    /// stale-`ThreadId` safety the kernel currently gets from map-lookup-fails, kept under reuse: the
     /// old name and the new occupant's name differ (the generation moved), so `get`, `get_mut`,
     /// and `remove` all refuse the old one. The one stated precondition: the slot's generation
     /// has not wrapped all the way around (see the crate doc on 2^32).
@@ -321,7 +321,7 @@ mod tests {
         assert_eq!(t.get(0), Some(&"boot"));
     }
 
-    /// The entry can carry its own name, which is how a Thread learns its Tid.
+    /// The entry can carry its own name, which is how a Thread learns its `ThreadId`.
     #[test]
     fn the_entry_is_handed_its_name() {
         let mut t: Table<u64, 8> = Table::new();

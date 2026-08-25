@@ -304,7 +304,7 @@ fn direct(fs: &nifefs::Fs, w: &Wiring) -> ! {
     if supervision_proto::configure_child(b_tcb, b_aspace, v2.entry()).is_err() {
         bail(25)
     }
-    if !supervision_proto::tcb_start(b_tcb, 1, 0, 0) {
+    if !supervision_proto::thread_control_block_start(b_tcb, 1, 0, 0) {
         bail(26)
     }
     cap_delete(b_tcb);
@@ -704,7 +704,7 @@ fn hung(fs: &nifefs::Fs, w: &Wiring) -> ! {
     if supervision_proto::configure_child(b_tcb, b_aspace, v2.entry()).is_err() {
         bail(84)
     }
-    if !supervision_proto::tcb_start(b_tcb, 1, 0, 0) {
+    if !supervision_proto::thread_control_block_start(b_tcb, 1, 0, 0) {
         bail(85)
     }
     cap_delete(b_tcb);
@@ -860,7 +860,7 @@ fn start_child(
     let Ok(tcb) = supervision_proto::build_child(ROOT_UT, region, elf, &endow) else {
         bail(stage + 1)
     };
-    if !supervision_proto::tcb_start(tcb, args[0], args[1], args[2]) {
+    if !supervision_proto::thread_control_block_start(tcb, args[0], args[1], args[2]) {
         bail(stage + 2)
     }
     cap_delete(tcb);

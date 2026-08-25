@@ -101,7 +101,7 @@ fn build(elf: &elf::Elf, attempt: u64) -> bool {
     ) else {
         return false;
     };
-    if !supervision_proto::tcb_start(tcb, 0, attempt, 0) {
+    if !supervision_proto::thread_control_block_start(tcb, 0, attempt, 0) {
         return false;
     }
     cap_delete(tcb);

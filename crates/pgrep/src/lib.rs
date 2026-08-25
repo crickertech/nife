@@ -21,7 +21,7 @@
 //!
 //! **A domain names its members and does not act on them** (calef, 2026-08-17). So this system has
 //! `pgrep` and **cannot have `pkill`**, and the reason is in the ABI rather than in a policy: a
-//! survey returns a tid, a tid is a name, [`abi::tcb`] has no `DESTROY`, and killing a live child is
+//! survey returns a tid, a tid is a name, [`abi::thread_control_block`] has no `DESTROY`, and killing a live child is
 //! `abi::untyped::DESTROY` on the region it was built from, held by whoever spawned it (DECISIONS
 //! §24's forcible `^C`). There is no path from the output of this program to authority over anything
 //! it printed.
@@ -202,7 +202,7 @@ impl Selector {
     ///
     /// This is the one place zero is generous, and the asymmetry with [`of`](Selector::of) is
     /// deliberate. A program is started with its registers zeroed by whoever did not think about
-    /// them (`system_initializer` starts every child `tcb_start(tcb, 0, arg, 0)` and the shell
+    /// them (`system_initializer` starts every child `thread_control_block_start(tcb, 0, arg, 0)` and the shell
     /// leaves `arg` at zero for a program whose `ArgSpec` is `Forbidden`), so "nobody said" has to
     /// mean "no filter" or `pgrep` would print nothing at the prompt and look broken.
     ///
@@ -482,7 +482,7 @@ mod tests {
     }
 
     #[test]
-    fn the_report_is_the_matching_tids_one_per_line() {
+    fn the_report_is_the_matching_thread_ids_one_per_line() {
         let mut rows = [Row::default(); MAX_ROWS];
         let survey = ps::collect(&mut rows, &mut domain(MIXED));
         let found = select(&survey, Selector::from_pattern(b"dead"));
@@ -628,7 +628,7 @@ mod tests {
     /// because it is the name `abi::rendezvous::REAP` accepts and the next program in a pipeline
     /// should not have to strip spaces off it.
     #[test]
-    fn a_wide_tid_is_printed_whole_and_unpadded() {
+    fn a_wide_thread_id_is_printed_whole_and_unpadded() {
         let big = (1u64 << 32) | 6;
         let mut rows = [Row::default(); MAX_ROWS];
         let survey = ps::collect(&mut rows, &mut |cursor| match cursor {
