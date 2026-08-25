@@ -1,9 +1,10 @@
 # 121. What a device capability is when the device has no page: x86 port I/O
 
-**Status: PROPOSED.** Raised 2026-08-23 by milestone 161's lane, which found it while wiring the
-x86_64 console and could not decide it: what a capability *is* is the centre of this system's claim,
-not an implementation choice a lane makes on the way past. The number is **provisional**, minted by
-a lane against the current README rather than by an integrator.
+**Status: DECIDED.** calef, 2026-08-25, in conversation, after the TSS I/O-bitmap write cost was
+measured and refined below: *"Ratify option 2 permanently."* Raised 2026-08-23 by milestone 161's
+lane, which found it while wiring the x86_64 console and could not decide it: what a capability *is*
+is the centre of this system's claim, not an implementation choice a lane makes on the way past. The
+number is **provisional**, minted by a lane against the current README rather than by an integrator.
 
 **What is blocked: nothing today, and one thing soon.** Milestone 161's boot is entirely in ring 0,
 so the kernel drives COM1 directly and no grant is needed. What is blocked is a **userspace console
@@ -84,23 +85,46 @@ drivers issuing reads and writes as IPC.
   the kernel as the thing that actually touches the hardware, which is the arrangement being argued
   against.
 
-## The recommendation, and it is deliberately weak
+## The decision: option 2, permanently
 
-**Option 2 now, with the scope note written where a reader meets the feature, and option 1 kept open.**
+**x86's legacy port-I/O devices, the console included, stay kernel-resident. This is not an interim
+stance to be revisited on a schedule; it is a permanent architectural boundary.** Only memory-mapped
+devices get a userspace driver on x86 -- which is everything on the machine that actually matters to
+this project's own ranking function. Milestone 87's real target (a Dell OptiPlex 7050 Micro with the
+Dell C4PDJ serial module, already on calef's desk) almost certainly exposes its serial port through
+the traditional Super I/O / COM1 legacy interface rather than a memory-mapped UART -- true MMIO UARTs
+are rare outside embedded and server hardware. Nobody has checked the module's own datasheet to
+confirm this, so it is stated as inference from general PC architecture, not a verified fact, but it
+is the reason this reads as a permanent property of x86 legacy serial rather than a QEMU emulation
+artifact: real hardware likely has the identical shape.
 
-The reasoning is ordering rather than preference. Nothing on x86 runs in ring 3 yet, so option 1
-cannot be built or measured today, and its costs (the context-switch write, the revocation
-shootdown) are exactly the kind this tree measures rather than argues. Option 2 is the state the port
-is already in, costs nothing to keep, and is honest as long as it is *recorded* as a gap rather than
-presented as a design.
+**Nothing on the actual customer path is affected.** Every device the Time Machine backup-server
+thesis touches -- network, NVMe/disk, everything SMB needs -- is already PCI/PCIe, already
+memory-mapped, and already gets the full userspace-driver treatment identically on all three
+architectures under the existing mapping-based capability model. The gap this decision accepts is
+confined entirely to a debug/developer serial console a customer never interacts with.
 
-**What would change the recommendation**: a userspace console on x86 becoming a thing calef wants
-demonstrated, rather than a thing the other two architectures happen to have. At that point option 1
-is the only answer, and it should be built as a capability rather than bolted on.
+**The measured cost (below) supports closing this rather than leaving it open.** ~2,682 ns per
+context switch, a 423% overhead on the naive always-write implementation, refined to note a
+lazy/conditional write would cost far less but still needs real, currently unbuilt engineering with
+no present motivation to build it. That is exactly the kind of cost this tree measures rather than
+argues, and the number argues for the status quo.
 
-**This is not a lane's call** because option 1 adds an object type to the capability surface and
-option 2 declares a parity gap, and both are calef's under the tenets: the syscall surface is a
-boundary, and a parity gap needs a recorded plan rather than a silence.
+**This is the same posture DECISIONS §19 already accepts elsewhere in this tree**: a documented scope
+note is a legitimate answer to a parity gap, not a failure to work around. An honest, recorded
+exception is worth more than an overclaimed parity, which is this project's own stated culture.
+
+**The reopening trigger, named so this does not get revisited out of habit**: if a real userspace
+console on x86 ever becomes something calef actively wants demonstrated, rather than something the
+other two architectures merely happen to have, that is what justifies building option 1 for real. At
+that point the number to get first is the lazy/conditional write's actual cost (see "Refined
+2026-08-25" below), not the naive always-write number already measured here, since that number prices
+the wrong implementation.
+
+**This was not a lane's call, and still is not retroactively**: option 1 would have added an object
+type to the capability surface and option 2 permanently declares a parity gap, and both are calef's
+under the tenets -- the syscall surface is a boundary, and a parity gap needs a recorded plan rather
+than a silence, which is exactly what this decision now is.
 
 ### Amended 2026-08-24: option 2 now, but not argued blind against the alternatives
 
@@ -195,11 +219,10 @@ same always-write benchmark. Recorded here so a future reader prices option 1 ag
 would actually pay, not the one this file happened to measure first because it was the smaller thing
 to build.
 
-## What is needed to answer it
+## What answered it
 
-One question, and it is not technical: **is a userspace console driver on x86 part of what the
-demonstrator claims, or is "userspace drivers, demonstrated on two architectures, with the third's
-legacy serial port a recorded exception" enough?**
-
-If the first, option 1 and it should be scheduled. If the second, option 2 and this file becomes
-`DECIDED` with the scope note as its deliverable.
+The question this file closed on was never technical: **is a userspace console driver on x86 part of
+what the demonstrator claims, or is "userspace drivers, demonstrated on two architectures, with the
+third's legacy serial port a recorded exception" enough?** calef answered the second, permanently,
+once the cost of the alternative was measured rather than assumed. Option 2 is the scope note, and it
+is this decision's own deliverable.
