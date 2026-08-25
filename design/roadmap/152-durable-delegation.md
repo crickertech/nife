@@ -1,10 +1,15 @@
 # 152. Durable delegation: authority that outlives the session that requested it
 
-**Status: NOT-STARTED.** Minted 2026-08-22, from a milestone 129 discussion: calef wants nife to
-support multiple users, and wants the jobs a user schedules to carry capabilities that reflect that
-user's own authority. Working through what that requires surfaced a gap this tree has not needed to
-close before, and #387 (milestone 129's `--mem` grant, held pending this) is where it was found. The
-design below was worked out the same day, in conversation; nothing here is built.
+**Status: PARTIAL**, updated 2026-08-24. Minted 2026-08-22, from a milestone 129 discussion: calef
+wants nife to support multiple users, and wants the jobs a user schedules to carry capabilities that
+reflect that user's own authority. Working through what that requires surfaced a gap this tree has
+not needed to close before, and #387 (milestone 129's `--mem` grant, held pending this) is where it
+was found. The design below was worked out the same day, in conversation; three of its four design
+pieces are now built and tested (the durable session itself, the on-disk schedule store, and
+boot-time re-derivation; see "What was built" below, both entries), and moved from `NOT-STARTED`
+because the milestone is no longer nothing but a design: what remains is wiring a real registrar
+against the pieces already proven (#387), which is real, separate work rather than a detail of what
+is already built.
 
 **Gate: MILESTONE 49.** The design fork (what durably represents a user) is answered below; what
 remains is that the answer needs a real identity to attach to, and milestone 49 (users, login, and
@@ -161,20 +166,80 @@ does not reattach to an existing session (there is only ever one, built once at 
 milestone's second and third design pieces plus the runtime-registrar wiring (#387), all still open;
 see the two entries below for what has changed about them.
 
+## What was built (2026-08-24, the schedule store and the boot-time re-deriver)
+
+The second and third BUGS items below (the on-disk schedule store, and boot-time re-derivation's own
+mechanism) are closed, once [DECISIONS §122](../decisions/122-durable-schedule-store-format.md) and
+[§123](../decisions/123-boot-time-rederivation-privilege.md) were ratified (option 1 and option (a)
+respectively) and this lane built what they recommended, plus the manifest question neither decision
+fully specified ([DECISIONS §125](../decisions/125-durable-schedule-manifest.md), PROPOSED,
+provisional number, this lane's own finding).
+
+- **`crates/schedule_store`** (provisional name) holds the shared names two programs agree on: the
+  schedule file's own filename inside an identity's subtree (§122), the manifest's filename and
+  document format (§125, this lane's own answer to "which identities"), and the render/parse
+  functions for the manifest. It depends on nothing and reuses `timetable::parse` for the schedule
+  document itself unchanged, exactly §122's recommendation.
+- **The write path**: `user/src/fs_test_client.rs`'s new `ROLE_SCHEDULE_SEED` (this lane's own
+  demonstration writer, not a real registrar; #387 remains that) `MKDIR`s one identity's subtree,
+  writes its `schedule` file through ordinary `filesystem_proto::fs::CREATE`/`WRITE`, and records
+  that identity in the manifest at the store's own root. `ROLE_SCHEDULE_VERIFY` reads both back
+  through a **fresh** descent, independent of the re-deriver's own read, and confirms the bytes match
+  exactly (the `smb_seed`/`smb_verify` shape, one level over).
+- **`user/src/session_reviver.rs`** (provisional name; §123 itself floated this placeholder) is the
+  boot-only re-deriver: granted a construction budget and the store-read capability, checked against
+  the boot's measurement table before either is handed over
+  (`kernel/src/user/session_reviver_service.rs`, §123's second hardening refinement), it reads the
+  manifest by name (never `READDIR`, milestone 126's rule honored throughout), reads and parses each
+  named identity's `schedule` file with the real `timetable::parse`, mints and tears down a synthetic
+  per-identity session in `smb_server.rs`'s own `DurableSession` shape (proving a boot-derived
+  session has the identical §16 lifecycle a live login's already does), then `cap_delete`s its own
+  store-read capability and construction budget and proves both gone by attempting the now-forbidden
+  operations and asserting they fail, `root_supervisor`'s own idiom.
+- **This lane picked a new, dedicated process over a phase of `system_initializer`**, the smaller
+  fork §123 left open: see `session_reviver.rs`'s own module doc for the reasoning (a new binary
+  touches nothing else in the tree; growing `system_initializer::boot`, already the kernel's largest
+  function, with a second privileged phase is real surgery on a component every boot depends on).
+- **Proven on every boot with a RedoxFS disk attached**, on both aarch64 and riscv64 (no
+  network/virtio dependency, so no ISA-specific wiring was needed):
+  `kernel::user::session_reviver_tests::the_schedule_store_write_path_and_the_boot_time_re_deriver_agree`
+  checks three properties against the re-deriver's own report (success rather than a stage-coded
+  failure, the manifest's one identity actually re-derived, and the deletion proof holding), and
+  `a_fresh_reader_confirms_the_store_holds_exactly_what_the_seed_wrote` is the independent witness
+  that the store itself, not merely the re-deriver's reading of it, holds the right bytes.
+
+**What this does not build, on purpose.** No real scheduled-job registrar against `DurableSession`
+(#387/milestone 129's own question, explicitly out of this lane's scope: the write path above is a
+kernel-test fixture, not a live session's real registration flow). No per-identity narrowing of the
+re-deriver's own `FS_EP` (it holds one unnarrowed capability for its whole pass, the same bound
+`login.rs`/`identity_provisioner.rs` already carry for the identical grant; see `session_reviver.rs`'s
+own BUGS). No liveness watchdog for a re-deriver that hangs before its deletion pass runs (§123's
+hardening addendum names this gap and explicitly declines to design it; this lane does not either).
+Wiring `session_reviver` into a real boot (`crates/system_initializer::boot` or an interactive
+`cargo xtask shell-check`) rather than the kernel test harness that spawns it here remains open, the
+same "not wired into the interactive boot" bound several of this milestone's own dependencies already
+carry.
+
 ## BUGS
 
 - ~~`smb_server` has no session/connection separation to build this against.~~ **Built 2026-08-24**;
   see "What was built" above and `user/src/smb_server.rs`'s own module header and BUGS entry for the
   live version of this record (a limitation belongs where a reader meets the feature, not only here).
-- **The on-disk, per-user schedule store has no format, no write path, and no read-at-boot path.**
-  Investigated rather than guessed at: [DECISIONS §122](../decisions/122-durable-schedule-store-format.md)
-  (PROPOSED, provisional number pending merge) lays out the options against the tree's own precedent
-  (today's compile-time `timetable.conf`, milestone 56's sealed credential store) and recommends a
-  shape. Not built by this lane; the decision needs calef's answer before any of the three parts is
-  written.
-- **Boot-time re-derivation's own mechanism was asserted, not designed.** Investigated rather than
-  guessed at: [DECISIONS §123](../decisions/123-boot-time-rederivation-privilege.md) (PROPOSED,
-  provisional number pending merge) proposes `root_supervisor`'s own shape (a boot-only process that
-  builds what it needs, then deletes its own capabilities, so the privilege is scoped by local
-  deletion rather than a runtime flag) and argues why that needs no new kernel primitive. Not built
-  by this lane; the decision needs calef's answer before it is.
+- ~~The on-disk, per-user schedule store has no format, no write path, and no read-at-boot path.~~
+  **Built 2026-08-24**; see "What was built" above, [DECISIONS §122](../decisions/122-durable-schedule-store-format.md)
+  (ratified) and [§125](../decisions/125-durable-schedule-manifest.md) (this lane's own manifest
+  question, PROPOSED), and `crates/schedule_store`'s own module doc for the live version of this
+  record.
+- ~~Boot-time re-derivation's own mechanism was asserted, not designed.~~ **Built 2026-08-24**; see
+  "What was built" above, [DECISIONS §123](../decisions/123-boot-time-rederivation-privilege.md)
+  (ratified, option (a), plus its four hardening refinements), and `user/src/session_reviver.rs`'s
+  own module doc and BUGS entry for the live version of this record, including the two hardening
+  refinements this lane did not build (per-identity `FS_EP` narrowing, the liveness watchdog).
+- **#387 (milestone 129's `--mem` grant) is still not answerable.** This lane built what #387 was
+  waiting on (a durable session that outlives a connection, `smb_server.rs`'s `DurableSession`; a
+  durable, on-disk schedule store; and boot-time re-derivation of it), not #387 itself: no scheduled
+  job is ever registered against a real `DurableSession` anywhere in this tree, and
+  `ROLE_SCHEDULE_SEED` is a kernel-test fixture standing in for that registration, not a live
+  session's own act. Wiring a real registrar (`timetable::Registry::register` called against a
+  `DurableSession`'s own `mint_pending_job`, on a live session's authority, writing through
+  `crates/schedule_store`'s format on registration) is the milestone's remaining piece.
