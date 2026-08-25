@@ -1,7 +1,7 @@
 //! The allocator workload (milestone 27): `alloc` collections on the untyped-backed heap.
 //!
 //! The first program in the tree that links `extern crate alloc`. It wires
-//! `user_rt::heap::UntypedHeap` as its global allocator, then does the things a heap exists for
+//! `user_rt::heap::MemoryRegionHeap` as its global allocator, then does the things a heap exists for
 //! and a bump pointer cannot do: interleaved allocation and free in arbitrary order (`Vec`,
 //! `String`, `BTreeMap`), drop-and-reuse, and a final large allocation that must fit in the pages
 //! already committed (proving freed memory is actually reusable, not leaked).
@@ -36,7 +36,7 @@ use alloc::vec::Vec;
 
 use user_rt::{exit, send};
 
-const UNTYPED: u64 = 0;
+const MEMORY_REGION: u64 = 0;
 const REPORT: u64 = 1;
 
 /// "The heap held": sent as w0 on success. Any other value (or silence) fails the test.
@@ -47,11 +47,11 @@ const MAGIC: u64 = 0xA110_C0DE;
 const HEAP_MAX: u64 = 64 * 4096;
 
 #[global_allocator]
-static HEAP: user_rt::heap::UntypedHeap = user_rt::heap::UntypedHeap::new();
+static HEAP: user_rt::heap::MemoryRegionHeap = user_rt::heap::MemoryRegionHeap::new();
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(_x0: u64, _x1: u64, _x2: u64) -> ! {
-    HEAP.init(UNTYPED, user_rt::heap::DEFAULT_BASE, HEAP_MAX);
+    HEAP.init(MEMORY_REGION, user_rt::heap::DEFAULT_BASE, HEAP_MAX);
 
     // 1. A Vec big enough to force several growth reallocations (and each grow frees the old
     //    buffer, so this also churns the free list).

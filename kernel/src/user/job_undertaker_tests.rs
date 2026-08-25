@@ -47,7 +47,9 @@ fn recv_death(slot: u64) -> [u64; 5] {
 
 /// The pages the pool has spent and not got back.
 fn spent(pool: u64) -> u64 {
-    crate::untyped::usage(pool).expect("the pool exists").0
+    crate::memory_region::usage(pool)
+        .expect("the pool exists")
+        .0
 }
 
 /// Wait for the collector to bring the pool all the way back. `false` if it never does.
@@ -72,7 +74,7 @@ fn spawn_job_undertaker(deaths: sched::RendezvousId) -> u64 {
     let aspace = readopt_user_address_space(space).expect("register the job_undertaker aspace");
 
     let thread_control_block_region =
-        crate::untyped::create(2).expect("no tcb region for job_undertaker");
+        crate::memory_region::create(2).expect("no tcb region for job_undertaker");
     let tid = sched::create_thread_control_block(thread_control_block_region)
         .expect("no tcb for job_undertaker");
     let slot = sched::thread_control_block_insert_cap(
@@ -103,13 +105,13 @@ fn spawn_job_undertaker(deaths: sched::RendezvousId) -> u64 {
 /// out would pass that test whether or not anything was ever collected.
 #[test_case]
 fn without_a_collector_a_bounded_job_pool_runs_out() {
-    let pool = crate::untyped::create(POOL_PAGES).expect("no job pool");
+    let pool = crate::memory_region::create(POOL_PAGES).expect("no job pool");
     let deaths = sched::create_rendezvous();
     let report = sched::create_rendezvous();
 
     let mut corpses = [0u64; ROOM as usize];
     for (i, slot) in corpses.iter_mut().enumerate() {
-        let region = crate::untyped::split(pool, JOB_REGION_PAGES)
+        let region = crate::memory_region::split(pool, JOB_REGION_PAGES)
             .unwrap_or_else(|| panic!("the pool had no room for job {i}, and it should have"));
         *slot = build_child_in(region, REPORT_STUB, Some(report), Some(deaths));
         assert_eq!(
@@ -125,7 +127,7 @@ fn without_a_collector_a_bounded_job_pool_runs_out() {
         "the pool should be fully committed after {ROOM} jobs",
     );
     assert!(
-        crate::untyped::split(pool, JOB_REGION_PAGES).is_none(),
+        crate::memory_region::split(pool, JOB_REGION_PAGES).is_none(),
         "a {ROOM}-job pool built a fourth job: this control proves nothing if the pool cannot run \
          out, and the renewal test below leans on it",
     );
@@ -155,7 +157,7 @@ fn without_a_collector_a_bounded_job_pool_runs_out() {
 /// half: the returned pages are genuinely spendable again rather than un-bumped bookkeeping.
 #[test_case]
 fn job_undertaker_returns_every_finished_job_to_the_pool() {
-    let pool = crate::untyped::create(POOL_PAGES).expect("no job pool");
+    let pool = crate::memory_region::create(POOL_PAGES).expect("no job pool");
     let deaths = sched::create_rendezvous();
     let report = sched::create_rendezvous();
     spawn_job_undertaker(deaths);
@@ -167,7 +169,7 @@ fn job_undertaker_returns_every_finished_job_to_the_pool() {
              previous job's region, so a bounded budget is not enough after all",
             spent(pool),
         );
-        let region = crate::untyped::split(pool, JOB_REGION_PAGES).unwrap_or_else(|| {
+        let region = crate::memory_region::split(pool, JOB_REGION_PAGES).unwrap_or_else(|| {
             panic!(
                 "job {i} could not be carved out of a pool that just \
                                        reported itself empty"
@@ -182,11 +184,11 @@ fn job_undertaker_returns_every_finished_job_to_the_pool() {
         "the last job's region never came back",
     );
     assert!(
-        !crate::untyped::has_children(pool),
+        !crate::memory_region::has_children(pool),
         "a job region outlived its corpse, so the pool is still committed to it",
     );
     // Spendable, not merely counted: the whole pool carves again in one piece.
-    let again = crate::untyped::split(pool, POOL_PAGES)
+    let again = crate::memory_region::split(pool, POOL_PAGES)
         .expect("the pool would not spend the pages the collector returned");
     sched::reclaim_region(again).expect("reclaim the re-split region");
     sched::reclaim_region(pool).expect("the job pool did not come back");

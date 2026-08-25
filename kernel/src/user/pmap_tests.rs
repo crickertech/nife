@@ -17,7 +17,7 @@ const SPACE_PAGES: u64 = 24;
 /// directly rather than through a spawned builder thread: this kernel test *is* the builder.
 /// Returns the space's `name` and the region backing it, so [`tidy`] can give the region back.
 fn arena_space() -> (u64, u64) {
-    let region = crate::untyped::create(SPACE_PAGES).expect("no space region");
+    let region = crate::memory_region::create(SPACE_PAGES).expect("no space region");
     let name = crate::user::user_address_space_create(region).expect("no address space");
     (name, region)
 }
@@ -39,8 +39,8 @@ fn hold_viewer(name: u64) -> u64 {
 /// A fresh frame, from its own one-page region, granted into a fresh capability table slot with `rights`.
 /// Returns the slot and the region, so [`tidy`] can give the region back.
 fn page_frame(rights: Rights) -> (u64, u64) {
-    let region = crate::untyped::create(1).expect("no frame region");
-    let phys = crate::untyped::retype_page(region).expect("no frame");
+    let region = crate::memory_region::create(1).expect("no frame region");
+    let phys = crate::memory_region::retype_page(region).expect("no frame");
     let slot = sched::grant(crate::cap::page_frame_cap(phys, rights)).expect("grant the frame");
     (slot, region)
 }

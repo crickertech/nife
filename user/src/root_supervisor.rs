@@ -97,7 +97,7 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
     else {
         bail(8)
     };
-    let Ok(sp_ut) = supervision_proto::untyped_split(ROOT_UT, SPAWNER_BUDGET_PAGES) else {
+    let Ok(sp_ut) = supervision_proto::memory_region_split(ROOT_UT, SPAWNER_BUDGET_PAGES) else {
         bail(9)
     };
 
@@ -171,12 +171,12 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
     // SAFETY: `invoke` traps to the kernel, which validates the capability and the method
     // before acting (user_rt's contract). A caller cannot break an invariant by passing a
     // bad slot or method; it gets an error back.
-    let frame = unsafe { invoke(ROOT_UT, abi::untyped::RETYPE, 0, 0, 0) };
+    let frame = unsafe { invoke(ROOT_UT, abi::memory_region::RETYPE, 0, 0, 0) };
     // SAFETY: as above: the kernel validates the capability and the method.
     let object = unsafe {
         invoke(
             ROOT_UT,
-            abi::untyped::RETYPE_OBJ,
+            abi::memory_region::RETYPE_OBJ,
             abi::objtype::THREAD_CONTROL_BLOCK,
             0,
             0,

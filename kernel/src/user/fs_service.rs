@@ -1,5 +1,5 @@
 use super::*;
-use crate::cap::{Rights, irq_cap, rendezvous_cap, untyped_cap, virtio_cap};
+use crate::cap::{Rights, irq_cap, memory_region_cap, rendezvous_cap, virtio_cap};
 use crate::sched::RendezvousId;
 
 /// The block server's role in the driver binary (must match user/src/{hello,blk}.rs and virtio.rs).
@@ -391,7 +391,7 @@ struct FsServer {
 /// death), a one-time cost per FS server a boot starts.
 fn spawn_fs_server(fs_server_image: &'static [u8], cfg: FsServer) {
     let budget =
-        crate::untyped::create(cfg.budget_pages).expect("no heap budget for the FS server");
+        crate::memory_region::create(cfg.budget_pages).expect("no heap budget for the FS server");
     let mut stack = [0u64; FS_STACK_PAGES as usize];
     for (i, f) in stack.iter_mut().enumerate() {
         *f = poisoned_stack_page_frame(cfg.slot, i);
@@ -424,10 +424,10 @@ fn spawn_fs_server(fs_server_image: &'static [u8], cfg: FsServer) {
                 arg1: cfg.crash.1,
                 arg2: cfg.crash.2,
                 grants: &[
-                    untyped_cap(budget),                       // slot 0: the heap's untyped budget
+                    memory_region_cap(budget), // slot 0: the heap's untyped budget
                     rendezvous_cap(cfg.blk_ep, Rights::WRITE), // slot 1: CALL the block server
                     rendezvous_cap(cfg.file_ep, Rights::READ), // slot 2: RECV file requests
-                    rendezvous_cap(cfg.ready, Rights::WRITE),  // slot 3: signal readiness once
+                    rendezvous_cap(cfg.ready, Rights::WRITE), // slot 3: signal readiness once
                 ],
                 maps: &maps,
             },
@@ -1243,7 +1243,8 @@ pub fn start_std(
 ) -> Option<(Option<(RendezvousId, RendezvousId)>, RendezvousId)> {
     let (file_ep, file_shared, readiness) = ensure(blk_image, fs_server_image)?;
     let report = crate::sched::create_rendezvous();
-    let heap = crate::untyped::create(STD_FS_HEAP_PAGES).expect("no untyped for the std fs heap");
+    let heap =
+        crate::memory_region::create(STD_FS_HEAP_PAGES).expect("no untyped for the std fs heap");
 
     // The shared file page, then the deep stack std needs. `run` maps one stack page; std's
     // startup and formatting overflow it immediately, the same reason the other std spawns map
@@ -1275,7 +1276,7 @@ pub fn start_std(
                 arg1: 0,
                 arg2: 0,
                 grants: &[
-                    untyped_cap(heap),                     // slot 0: the heap's budget
+                    memory_region_cap(heap),               // slot 0: the heap's budget
                     rendezvous_cap(report, Rights::WRITE), // slot 1: stdout/stderr
                 ],
                 maps: &maps,

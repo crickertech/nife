@@ -11,7 +11,7 @@
 //! A std program's loader owes it, per the out-of-band-contract rule of notes/abi.md §4:
 //!
 //! - **slot 0**: an untyped budget. The global allocator draws heap pages from it lazily via
-//!   `untyped::MAP`, at [`HEAP_BASE`], capped at [`HEAP_MAX`].
+//!   `memory_region::MAP`, at [`HEAP_BASE`], capped at [`HEAP_MAX`].
 //! - **slot 1**: an endpoint with WRITE. `stdout` and `stderr` SEND here, 16 bytes per message
 //!   (w0 = byte count, w1|w2 = the bytes, little-endian). Interleaving of out and err is the
 //!   phase-one price of one endpoint; milestone 28's terminal contract owns fixing it.
@@ -72,10 +72,10 @@
 //! Programs that never allocate, print, open a socket, or open a file never touch the slots they
 //! do not use.
 
-pub const UNTYPED_SLOT: u64 = 0;
+pub const MEMORY_REGION_SLOT: u64 = 0;
 pub const STDOUT_SLOT: u64 = 1;
 pub const STACK_SLOT: u64 = 2;
-pub const NET_UNTYPED_SLOT: u64 = 3;
+pub const NET_MEMORY_REGION_SLOT: u64 = 3;
 pub const FS_DIR_SLOT: u64 = 4;
 pub const CLOCK_SLOT: u64 = 5;
 pub const ENTROPY_SLOT: u64 = 6;
@@ -107,7 +107,7 @@ pub const FS_PAGE: u64 = 0x1100_0000;
 pub const HEAP_BASE: u64 = 0x4000_0000;
 
 /// The heap's growth cap. Generous because the untyped budget is the real, per-program limit
-/// (`untyped::MAP` returns OutOfMemory when it is spent); this only bounds the VA range.
+/// (`memory_region::MAP` returns OutOfMemory when it is spent); this only bounds the VA range.
 pub const HEAP_MAX: u64 = 256 * 1024 * 1024;
 
 use super::abi;

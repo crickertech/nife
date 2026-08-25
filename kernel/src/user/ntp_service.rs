@@ -1,5 +1,5 @@
 use super::*;
-use crate::cap::{Rights, rendezvous_cap, untyped_cap};
+use crate::cap::{Rights, memory_region_cap, rendezvous_cap};
 use crate::sched::RendezvousId;
 
 /// The roles of the `ntp` binary. Must match user/src/ntp.rs.
@@ -90,7 +90,7 @@ fn stack_pages() -> [Mapping; STACK_PAGES as usize] {
 pub fn start_server(image: &'static [u8], variant: u64, claimed_nanos: u64) -> Server {
     let stack = crate::sched::create_rendezvous();
     let report = crate::sched::create_rendezvous();
-    let budget = crate::untyped::create(BUDGET_PAGES).expect("no untyped for the ntp server");
+    let budget = crate::memory_region::create(BUDGET_PAGES).expect("no untyped for the ntp server");
     let maps = stack_pages();
 
     crate::sched::spawn(move || {
@@ -103,7 +103,7 @@ pub fn start_server(image: &'static [u8], variant: u64, claimed_nanos: u64) -> S
                 grants: &[
                     rendezvous_cap(report, Rights::WRITE), // slot 0: the one report
                     rendezvous_cap(stack, Rights::READ),   // slot 1: serve the socket contract
-                    untyped_cap(budget),                   // slot 2: map the client's frame
+                    memory_region_cap(budget),             // slot 2: map the client's frame
                 ],
                 maps: &maps,
             },
@@ -131,7 +131,7 @@ fn spawn_role(
     entropy: Option<RendezvousId>,
 ) -> RendezvousId {
     let report = crate::sched::create_rendezvous();
-    let budget = crate::untyped::create(BUDGET_PAGES).expect("no untyped for the ntp client");
+    let budget = crate::memory_region::create(BUDGET_PAGES).expect("no untyped for the ntp client");
     let maps = stack_pages();
     // Slot 4 is granted or it is not; there is no third state and no flag inside it. An
     // ungranted slot answers a `CALL` with `NoSuchSlot`, which is how the client tells "there
@@ -149,7 +149,7 @@ fn spawn_role(
                 grants: &[
                     rendezvous_cap(report, Rights::WRITE),  // slot 0: the verdict
                     rendezvous_cap(stack, Rights::WRITE),   // slot 1: the network
-                    untyped_cap(budget),                    // slot 2: the shared frame
+                    memory_region_cap(budget),              // slot 2: the shared frame
                     rendezvous_cap(propose, Rights::WRITE), // slot 3: ask, never tell
                     rendezvous_cap(entropy, Rights::WRITE), // slot 4: the nonce
                 ][..n_grants],

@@ -345,7 +345,7 @@ fn a_destroyed_sink_ends_the_writer_and_an_absent_one_does_not() {
     // 2. A sink destroyed under a writer blocked in a send. The endpoint is retyped out of a
     // region this test owns, because destroying the region is how an endpoint dies (§16) and
     // the kernel's own endpoints are not in one.
-    let region = crate::untyped::create(4).expect("no untyped for the doomed sink");
+    let region = crate::memory_region::create(4).expect("no untyped for the doomed sink");
     let doomed = crate::sched::create_rendezvous_from(region).expect("no endpoint in the region");
     let report = spawn_writer(image, Some(doomed), 0);
     // Take a few messages first, so the writer is demonstrably running and parked in the next

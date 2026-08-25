@@ -18,7 +18,7 @@
 /// - `PageFrame` is now here, because **IPC carries control and shared memory carries data** (§10). A
 ///   shared buffer used to be mapped in at spawn, wired once by the kernel; a `PageFrame` makes
 ///   delegating memory a runtime operation a process does itself. See notes/frames.md.
-/// - `Untyped` at milestone 11, if we take §10's deferred axis, at which point the kernel stops
+/// - `MemoryRegion` at milestone 11, if we take §10's deferred axis, at which point the kernel stops
 ///   allocating and this enum stops being the interesting part of the system.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Object {
@@ -30,10 +30,10 @@ pub enum Object {
     /// the console server's endpoint, and printing is sending.
     Rendezvous(crate::sched::RendezvousId),
 
-    /// **Untyped memory** (milestone 11): a capability to a chunk of raw physical memory the
+    /// **A memory region** (milestone 11): a capability to a chunk of raw physical memory the
     /// process may retype into pages. Invoking it grows the process's address space out of its
-    /// own budget, and the kernel allocates nothing to do it. See kernel/src/untyped.rs.
-    Untyped(u64),
+    /// own budget, and the kernel allocates nothing to do it. See `kernel/src/memory_region.rs`.
+    MemoryRegion(u64),
 
     /// A hardware interrupt, by INTID.
     ///
@@ -51,7 +51,7 @@ pub enum Object {
     /// The object §10 named as the shared-memory capability: *IPC carries control, shared memory
     /// carries data*. A shared buffer used to be a page the kernel mapped into both parties at
     /// spawn, wired once and never movable. A `PageFrame` makes it a runtime object instead: a process
-    /// retypes one out of its own untyped (`Untyped::RETYPE`), maps it (`PageFrame::MAP`), and hands it
+    /// retypes one out of its own untyped (`MemoryRegion::RETYPE`), maps it (`PageFrame::MAP`), and hands it
     /// (or a read-only view of it, since delegation narrows) to a peer over an endpoint. The peer
     /// maps the *same physical page* and the two share memory, composed by the processes rather
     /// than arranged for them. The address is the identity: a process can never forge one, because
@@ -200,24 +200,24 @@ pub fn irq_cap_rights(intid: u32, rights: Rights) -> Cap {
 /// and objects, `SPLIT`, `MAP`, `DESTROY`) but **not delegate it**, because `SEND_CAP` and
 /// `CAP_INSERT` both gate on `GRANT`. This is the spend-only budget a leaf child is handed: least
 /// authority for a process that consumes memory and passes none on.
-pub fn untyped_cap(region: u64) -> Cap {
+pub fn memory_region_cap(region: u64) -> Cap {
     Cap {
-        object: Object::Untyped(region),
+        object: Object::MemoryRegion(region),
         rights: Rights::WRITE,
     }
 }
 
 /// A capability to an untyped region with explicit rights (milestone 31). Its one caller is
-/// [`untyped_root_cap`], which builds the delegable root from `READ|WRITE|GRANT`. `Untyped::SPLIT`
+/// [`memory_region_root_cap`], which builds the delegable root from `READ|WRITE|GRANT`. `MemoryRegion::SPLIT`
 /// used to build its child here too; since milestone 35 it mints through `Cap::mint_child` instead
 /// (the inheriting mint the `split_never_widens_rights` proof covers), so the child's rights are
 /// pinned to the parent's by proved code rather than by passing `cap.rights` here.
 ///
 /// The rights an untyped carries are therefore set once at the root and only ever narrow downward:
 /// root (`GRANT`) -> init's `SPLIT` (inherits `GRANT`) -> `CAP_INSERT` into a child (narrowed).
-pub fn untyped_cap_rights(region: u64, rights: Rights) -> Cap {
+pub fn memory_region_cap_rights(region: u64, rights: Rights) -> Cap {
     Cap {
-        object: Object::Untyped(region),
+        object: Object::MemoryRegion(region),
         rights,
     }
 }
@@ -226,10 +226,10 @@ pub fn untyped_cap_rights(region: u64, rights: Rights) -> Cap {
 /// included, because handing memory budgets to the children it builds is init's whole job: the root
 /// of the budget tree must carry the right to pass budgets on. Rights narrow monotonically from
 /// here (a `SPLIT` child inherits its parent's rights; `CAP_INSERT` narrows again), so `GRANT` never
-/// appears anywhere it was not present at the root. Contrast [`untyped_cap`], the `WRITE`-only
+/// appears anywhere it was not present at the root. Contrast [`memory_region_cap`], the `WRITE`-only
 /// spend-only budget a leaf child receives.
-pub fn untyped_root_cap(region: u64) -> Cap {
-    untyped_cap_rights(
+pub fn memory_region_root_cap(region: u64) -> Cap {
+    memory_region_cap_rights(
         region,
         Rights::READ.union(Rights::WRITE).union(Rights::GRANT),
     )

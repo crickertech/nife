@@ -80,7 +80,7 @@ use crate::arch::interrupts;
 ///        |
 ///   59  INBOX, MAPPINGS, KMEM   inboxes; the revocation registry; the kernel object budget
 ///        |
-///   58  UNTYPED         the untyped regions
+///   58  MEMORY_REGION         the untyped regions
 ///        |
 ///   55  STACK_VA        free thread-stack addresses
 ///        |
@@ -100,7 +100,7 @@ use crate::arch::interrupts;
 ///
 /// The nestings this permits, and they are the ones that actually happen:
 ///
-/// - **MAPPINGS (59) → UNTYPED (58)**: recording a mapping retypes a log page from the paying
+/// - **MAPPINGS (59) → `MEMORY_REGION` (58)**: recording a mapping retypes a log page from the paying
 ///   process's own region, while holding the registry lock (milestone 14 phase C).
 /// - **anything → CONSOLE (10)**: a panic prints while holding a lock. Which is why the
 ///   console must be the leaf, and why it takes nothing itself.
@@ -114,7 +114,7 @@ use crate::arch::interrupts;
 pub mod rank {
     /// The user-built address spaces (milestone 19b): the registry behind `Object::AddressSpace`
     /// capabilities. **Top of the order**: a `MAP_INTO` holds this while drawing page tables
-    /// from the space's region (UNTYPED, 58) and writing the revocation record (MAPPINGS, 59),
+    /// from the space's region (`MEMORY_REGION`, 58) and writing the revocation record (MAPPINGS, 59),
     /// and it never touches `IPC_TABLES` (capability grants happen after release).
     pub const ADDRESS_SPACES: u32 = 61;
 
@@ -136,15 +136,15 @@ pub mod rank {
     /// nested (inbox traffic is scheduling; the registry is syscalls and revocation).
     pub const INBOX: u32 = 59;
 
-    /// Untyped memory regions (milestone 11; fixed table since 14 B.1). **Below MAPPINGS**, so
+    /// Memory regions (milestone 11; fixed table since 14 B.1). **Below MAPPINGS**, so
     /// recording a mapping may retype a log page from the payer's region while the registry is
     /// held (phase C). Below `IPC_TABLES`, so it may be taken from a syscall that has no
     /// thread-table-or-endpoint business.
-    pub const UNTYPED: u32 = 58;
+    pub const MEMORY_REGION: u32 = 58;
 
     /// The kernel's own object budget (milestone 19c.1): `kmem`, the region kernel stacks draw
-    /// from. **Above UNTYPED** (it carves and retypes from its region while holding this lock,
-    /// so KMEM -> UNTYPED must strictly decrease) and **below `IPC_TABLES`** (a stack's `new`/`Drop`
+    /// from. **Above `MEMORY_REGION`** (it carves and retypes from its region while holding this lock,
+    /// so KMEM -> `MEMORY_REGION` must strictly decrease) and **below `IPC_TABLES`** (a stack's `new`/`Drop`
     /// runs from spawn and the reaper, which hold `IPC_TABLES`). Shares rank 59 with INBOX and
     /// MAPPINGS, never nested with either: inbox traffic is scheduling, the mapping registry is
     /// user bookkeeping, and this is the kernel buying its own pages.
@@ -170,7 +170,7 @@ pub mod rank {
     pub const STACK_VA: u32 = 55;
 
     /// The revocation registry (§13; reworked at 14 phase C): which address spaces live, and
-    /// where their mapping logs are. **Above UNTYPED**, because recording a mapping retypes a
+    /// where their mapping logs are. **Above `MEMORY_REGION`**, because recording a mapping retypes a
     /// log page from the paying space's region under this lock. Never held together with `IPC_TABLES`
     /// in either order: the capability sweep (`IPC_TABLES`) and the unmap sweep (this) run one after
     /// the other, and the reaper drops address spaces outside `IPC_TABLES` (see `finish_switch`).

@@ -1,5 +1,5 @@
 use super::*;
-use crate::cap::{Rights, rendezvous_cap, untyped_cap};
+use crate::cap::{Rights, memory_region_cap, rendezvous_cap};
 use crate::sched::RendezvousId;
 
 /// Where `session_reviver` expects its FS channel; must match `user/src/session_reviver.rs`'s own
@@ -66,7 +66,7 @@ pub fn revive(fs_ep: RendezvousId, fs_page_frame: u64, budget_pages: u64) -> Opt
     }
 
     let report = crate::sched::create_rendezvous();
-    let ut = crate::untyped::create(budget_pages)
+    let ut = crate::memory_region::create(budget_pages)
         .expect("no untyped for session_reviver's construction budget");
 
     let mut maps = [Mapping {
@@ -96,7 +96,7 @@ pub fn revive(fs_ep: RendezvousId, fs_page_frame: u64, budget_pages: u64) -> Opt
                 arg2: 0,
                 grants: &[
                     rendezvous_cap(report, Rights::WRITE), // slot 0: REPORT
-                    untyped_cap(ut),                       // slot 1: UT
+                    memory_region_cap(ut),                 // slot 1: UT
                     rendezvous_cap(fs_ep, Rights::WRITE),  // slot 2: FS_EP
                 ],
                 maps: &maps,

@@ -1,7 +1,7 @@
 use core::sync::atomic::{AtomicUsize, Ordering};
 
 use super::*;
-use crate::cap::{Rights, page_frame_cap, rendezvous_cap, untyped_cap};
+use crate::cap::{Rights, memory_region_cap, page_frame_cap, rendezvous_cap};
 use crate::sched::RendezvousId;
 
 /// The `swish` binary's pipeline role (`user/src/swish.rs`).
@@ -120,8 +120,8 @@ fn start_with(
     let term = crate::sched::create_rendezvous();
     let spawn_ep = crate::sched::create_rendezvous();
     let result = crate::sched::create_rendezvous();
-    let Some(budget) = crate::untyped::create(SH_BUDGET_PAGES) else {
-        crate::println!("start_with: untyped::create({SH_BUDGET_PAGES}) refused");
+    let Some(budget) = crate::memory_region::create(SH_BUDGET_PAGES) else {
+        crate::println!("start_with: memory_region::create({SH_BUDGET_PAGES}) refused");
         return None;
     };
     let out_phys = match crate::memory::alloc() {
@@ -212,7 +212,7 @@ fn start_with(
         let mut grants = [rendezvous_cap(term, Rights::WRITE); 6];
         grants[1] = rendezvous_cap(spawn_ep, Rights::WRITE);
         grants[2] = rendezvous_cap(result, Rights::READ);
-        grants[3] = untyped_cap(budget);
+        grants[3] = memory_region_cap(budget);
         let mut g = 4;
         if let Some((dir_ep, _)) = dir {
             grants[g] = rendezvous_cap(dir_ep, Rights::WRITE);

@@ -74,7 +74,7 @@ const UART_PHYS: u64 = 0x1000_0000; // NS16550
 /// The operator's budget: five instance regions of forty pages plus its own scratch mappings and
 /// their page tables.
 ///
-/// Kept tight on purpose, and it is not merely tidiness. `untyped::create` takes a **contiguous**
+/// Kept tight on purpose, and it is not merely tidiness. `memory_region::create` takes a **contiguous**
 /// run of frames and the suite runs three of these systems, on top of a dozen earlier tests that
 /// each park an init holding an eight-megabyte region. An over-generous budget here fragments
 /// the frame allocator enough that a *later, unrelated* test cannot get init's region, which is
@@ -132,11 +132,11 @@ fn spawn_swapper(role: u64) -> (sched::RendezvousId, u64, u64) {
     let aspace = readopt_user_address_space(space).expect("register the swapper aspace");
 
     let report = sched::create_rendezvous();
-    let budget = crate::untyped::create(SWAPPER_BUDGET_PAGES).expect("no budget for swapper");
-    let thread_control_block_region = crate::untyped::create(2).expect("no tcb region");
+    let budget = crate::memory_region::create(SWAPPER_BUDGET_PAGES).expect("no budget for swapper");
+    let thread_control_block_region = crate::memory_region::create(2).expect("no tcb region");
     let tid = sched::create_thread_control_block(thread_control_block_region).expect("no tcb");
     let s0 =
-        sched::thread_control_block_insert_cap(tid, crate::cap::untyped_root_cap(budget), None)
+        sched::thread_control_block_insert_cap(tid, crate::cap::memory_region_root_cap(budget), None)
             .expect("insert budget");
     assert_eq!(s0, 0, "swapper's budget must land in slot 0");
     let s1 = sched::thread_control_block_insert_cap(
@@ -225,14 +225,14 @@ fn run_swap(role: u64) -> ([[u64; 5]; MAX_REPORTS], usize) {
     // refuses a region whose children are still carved out of it. Success is the statement that
     // nothing leaked; the frame delta is the statement that the whole run came back.
     //
-    // It also has to work, for a reason that has nothing to do with tidiness. `untyped::create`
+    // It also has to work, for a reason that has nothing to do with tidiness. `memory_region::create`
     // takes a **contiguous** run of frames, these tests run three systems, and the first version
     // of this leaked all three, which fragmented the allocator badly enough that a *later* test
     // could not get init's own eight-megabyte region.
     //
-    // `sched::reclaim_region` rather than `untyped::destroy` because these regions are *pinned*:
+    // `sched::reclaim_region` rather than `memory_region::destroy` because these regions are *pinned*:
     // the operator retyped four endpoints and a frame out of its budget. Reclaiming a region
-    // with objects in it is the §16 teardown, and it is the entry point the `Untyped::DESTROY`
+    // with objects in it is the §16 teardown, and it is the entry point the `MemoryRegion::DESTROY`
     // syscall uses, so the test cannot succeed down a path userspace could not have taken.
     let before_reclaim = memory::free_page_frames();
     sched::reclaim_region(budget).expect(

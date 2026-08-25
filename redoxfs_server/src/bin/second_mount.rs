@@ -3,7 +3,7 @@
 //! A second mount of a *used* RedoxFS image fails its write on device. The open question is why, and
 //! the recorded hypothesis is accumulated mount state driving the FS server past its 8 MiB heap cap.
 //! This binary settles it without an emulator: it runs the real engine under the **same allocator the
-//! FS server uses** (`user_heap`, the algorithm behind `user_rt::heap::UntypedHeap`), grown incrementally
+//! FS server uses** (`user_heap`, the algorithm behind `user_rt::heap::MemoryRegionHeap`), grown incrementally
 //! and capped exactly the way `redoxfs_server.rs` caps it, and it does the two mounts in one process:
 //!
 //! 1. create the fixture image, then mount it and write (this is what makes the image *used*),
@@ -66,7 +66,7 @@ struct Inner {
 
 impl Inner {
     /// Grow by at least `need` bytes, geometrically, bounded by the cap. A faithful copy of
-    /// `user_rt::heap::UntypedHeap::grow`, so exhaustion happens here for the same reasons.
+    /// `user_rt::heap::MemoryRegionHeap::grow`, so exhaustion happens here for the same reasons.
     fn grow(&mut self, need: usize) -> bool {
         if self.base == 0 {
             // user_heap requires 16-aligned donations; a static [u8; N] is only byte-aligned.

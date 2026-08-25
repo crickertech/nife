@@ -15,7 +15,7 @@
 //!
 //! Everything here is DECISIONS §16 object revocation, already built and already proved:
 //!
-//! - [`crate::sched::kill_thread`] arms §16's kill on a thread by name (what `Untyped::DESTROY`
+//! - [`crate::sched::kill_thread`] arms §16's kill on a thread by name (what `MemoryRegion::DESTROY`
 //!   does to a whole region, for one thread).
 //! - [`crate::sched::reclaim_region`] tears every kernel object out of an untyped region, unpins it,
 //!   and returns the memory. A first call that finds a live thread in the region **arms the kill on

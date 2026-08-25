@@ -19,7 +19,7 @@
 //! the only page the kernel still places is the one `load` gives every process.
 
 use super::*;
-use crate::cap::{Rights, irq_cap, page_frame_cap, rendezvous_cap, untyped_cap, virtio_cap};
+use crate::cap::{Rights, irq_cap, memory_region_cap, page_frame_cap, rendezvous_cap, virtio_cap};
 use crate::sched::RendezvousId;
 
 /// The DMA region, in frames: one for the rings and control buffers, then the surface.
@@ -97,7 +97,8 @@ pub fn start(
 
     // --- the client: an endpoint and the pixels. Nothing else, which is the point. ---
     let client_report = crate::sched::create_rendezvous();
-    let budget = crate::untyped::create(MAP_BUDGET_PAGES).expect("no map budget for the client");
+    let budget =
+        crate::memory_region::create(MAP_BUDGET_PAGES).expect("no map budget for the client");
     crate::sched::spawn(move || {
         crate::sched::grant_at(
             CLIENT_SLOT_REPORT,
@@ -109,7 +110,7 @@ pub fn start(
             rendezvous_cap(display_ep, Rights::WRITE),
         )
         .expect("client slot 1 was occupied");
-        crate::sched::grant_at(CLIENT_SLOT_BUDGET, untyped_cap(budget))
+        crate::sched::grant_at(CLIENT_SLOT_BUDGET, memory_region_cap(budget))
             .expect("client slot 2 was occupied");
         grant_run(
             CLIENT_SLOT_SURFACE,
@@ -204,7 +205,8 @@ fn wire_driver(
     // --- the driver: the confined transport, the interrupt, the whole DMA region, and the
     // display endpoint's serving half. The region is DMA_PAGE_FRAMES separate `PageFrame` capabilities, one
     // per page, because that is the granularity the object has (see [`DRIVER_SLOT_DMA`]). ---
-    let budget = crate::untyped::create(MAP_BUDGET_PAGES).expect("no map budget for the driver");
+    let budget =
+        crate::memory_region::create(MAP_BUDGET_PAGES).expect("no map budget for the driver");
     let intid = d.intid;
     crate::sched::spawn(move || {
         crate::sched::grant_at(
@@ -224,7 +226,7 @@ fn wire_driver(
             rendezvous_cap(display_ep, Rights::READ),
         )
         .expect("driver slot 3 was occupied");
-        crate::sched::grant_at(DRIVER_SLOT_BUDGET, untyped_cap(budget))
+        crate::sched::grant_at(DRIVER_SLOT_BUDGET, memory_region_cap(budget))
             .expect("driver slot 4 was occupied");
         grant_run(DRIVER_SLOT_DMA, dma, DMA_PAGE_FRAMES, "the display driver");
         run(
@@ -316,7 +318,8 @@ pub fn start_terminal(
 
     let term_report = crate::sched::create_rendezvous();
     let term = crate::sched::create_rendezvous();
-    let budget = crate::untyped::create(MAP_BUDGET_PAGES).expect("no map budget for the terminal");
+    let budget =
+        crate::memory_region::create(MAP_BUDGET_PAGES).expect("no map budget for the terminal");
 
     crate::sched::spawn(move || {
         crate::sched::grant_at(TERM_SLOT_REPORT, rendezvous_cap(term_report, Rights::WRITE))
@@ -327,7 +330,7 @@ pub fn start_terminal(
         // Serve the terminal.
         crate::sched::grant_at(TERM_SLOT_TERM, rendezvous_cap(term, Rights::READ))
             .expect("terminal slot 2 was occupied");
-        crate::sched::grant_at(TERM_SLOT_BUDGET, untyped_cap(budget))
+        crate::sched::grant_at(TERM_SLOT_BUDGET, memory_region_cap(budget))
             .expect("terminal slot 3 was occupied");
         grant_run(
             TERM_SLOT_SURFACE,

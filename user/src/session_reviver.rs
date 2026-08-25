@@ -4,7 +4,7 @@
 //!
 //! # What it is given, and what it does with it
 //!
-//! Two capabilities and nothing else: a construction budget ([`UT`], an `Untyped`) and read access
+//! Two capabilities and nothing else: a construction budget ([`UT`], a `MemoryRegion`) and read access
 //! to the durable schedule store ([`FS_EP`], the principal tree's root directory capability, the
 //! same unnarrowed shape `login.rs` and `identity_provisioner.rs` already hold theirs in). It:
 //!
@@ -19,16 +19,16 @@
 //!    same bytes through a real filesystem round trip, not a fixture.
 //! 3. Mints and tears down one synthetic per-identity session, in `smb_server.rs`'s
 //!    `DurableSession`'s own two-step shape (split a session region off [`UT`], split a pending-job
-//!    region off *that*, prove `Untyped::DESTROY` on the session refuses while the job lives and
+//!    region off *that*, prove `MemoryRegion::DESTROY` on the session refuses while the job lives and
 //!    succeeds once it does not): the demonstration that boot-time re-derivation produces something
 //!    with the identical §16 lifecycle a live login's `DurableSession` already has, without wiring a
 //!    real registrar (#387, explicitly out of this lane's scope; see the roadmap doc).
-//! 4. Deletes its own copies of [`FS_EP`] and [`UT`] (`cap_delete`, not `Untyped::DESTROY`: this
+//! 4. Deletes its own copies of [`FS_EP`] and [`UT`] (`cap_delete`, not `MemoryRegion::DESTROY`: this
 //!    process is giving up its own *name* for the store and the budget, not tearing either down),
 //!    then attempts a further store read and a further construction and asserts both now fail,
 //!    reporting the proof over [`REPORT`] rather than merely asserting it in a comment
 //!    (`root_supervisor.rs`'s own idiom, lines 168-182, applied here to a directory endpoint and an
-//!    `Untyped` instead of `ROOT_UT` alone).
+//!    `MemoryRegion` instead of `ROOT_UT` alone).
 //!
 //! # Why this is a boot-only process rather than a phase of an existing one
 //!
@@ -67,8 +67,8 @@
 //!
 //! # Capability contract
 //! - slot [`REPORT`]: `WRITE`. One report, then this process exits; it does not loop.
-//! - slot [`UT`]: `WRITE` on a fresh `Untyped`, the construction budget every synthetic per-identity
-//!   session (step 3 above) is `Untyped::SPLIT` from, sized by whoever spawns this process the way
+//! - slot [`UT`]: `WRITE` on a fresh `MemoryRegion`, the construction budget every synthetic per-identity
+//!   session (step 3 above) is `MemoryRegion::SPLIT` from, sized by whoever spawns this process the way
 //!   `login.rs`'s own `mint()` sizes a caretaker's construction budget (DECISIONS §123: "a
 //!   construction budget... sized for however many durable sessions the store names").
 //! - slot [`FS_EP`]: `WRITE` on the principal tree's root directory capability, the store-read
@@ -90,7 +90,7 @@
 //!
 //! **[`FS_EP`] is unnarrowed for this process's whole run, identically to `identity_provisioner.rs`'s
 //! own recorded bound for the same capability.** DECISIONS §123's first hardening refinement asks for
-//! the window to shrink *per identity* using `Untyped::SPLIT`, and this process does that for the
+//! the window to shrink *per identity* using `MemoryRegion::SPLIT`, and this process does that for the
 //! *construction budget* (step 3: one session's worth of [`UT`] is split off, used, and destroyed
 //! before the next identity's), but not for the *directory* capability: every `OPENDIR`/`OPEN` this
 //! process issues goes through the one [`FS_EP`] it was granted at spawn, held for the whole pass
@@ -123,9 +123,9 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use abi::untyped as ut;
+use abi::memory_region as ut;
 use filesystem_proto::{dir, fs};
-use supervision_proto::{untyped_destroy, untyped_split};
+use supervision_proto::{memory_region_destroy, memory_region_split};
 use user_rt::{call, cap_delete, invoke, send};
 
 /// The report endpoint, `WRITE`. One report, then this process exits.
@@ -139,7 +139,7 @@ const FS_EP: u64 = 2;
 /// highest (`FS_VA`, `0xe5_0000`).
 const FS_VA: u64 = 0x0000_0000_00e6_0000;
 
-/// Each synthetic session's own construction, `Untyped::SPLIT` off [`UT`]. One page is enough:
+/// Each synthetic session's own construction, `MemoryRegion::SPLIT` off [`UT`]. One page is enough:
 /// nothing is ever retyped from it, matching `smb_server.rs`'s own `SESSION_UT_PAGES`.
 const SESSION_UT_PAGES: u64 = 4;
 /// The synthetic pending-job child of one synthetic session, matching `smb_server.rs`'s own
@@ -206,17 +206,17 @@ pub extern "C" fn _start(_a0: u64, _a1: u64, _a2: u64) -> ! {
     }
 
     // **The scoping mechanism**: delete this process's own name for the store-read capability and
-    // the construction budget (DECISIONS §123's own words). Not `Untyped::DESTROY` on either: this
+    // the construction budget (DECISIONS §123's own words). Not `MemoryRegion::DESTROY` on either: this
     // process is giving up its own copy, not tearing down objects other capabilities may still
     // name (there are none here, but the distinction is the same one `login.rs`'s own module docs
-    // draw between `cap_delete` and `Untyped::DESTROY`).
+    // draw between `cap_delete` and `MemoryRegion::DESTROY`).
     cap_delete(FS_EP);
     cap_delete(UT);
 
     // And prove it, `root_supervisor`'s own idiom (lines 168-182): attempt the operations the
     // deleted capabilities would have permitted, and assert both now fail. `NoSuchSlot` is what the
     // kernel returns to any invocation against a deleted capability, unconditionally, whether the
-    // slot held an `Untyped` or a directory endpoint.
+    // slot held a `MemoryRegion` or a directory endpoint.
     let (store_try, _) = call(FS_EP, fs::req(fs::OPEN, fs::ROOT, 1), 0);
     let store_gone = (store_try as i64) < 0;
     // SAFETY: `svc`/`ecall`; the kernel validates the capability and the method before acting
@@ -278,25 +278,25 @@ fn rederive_one(identity: &[u8]) -> bool {
     // exactly (`open_durable_session_or_die`'s scratch-session steps), because a session re-derived
     // at boot is supposed to have the identical §16 lifecycle a live login's already does, and this
     // is how that claim is checked rather than assumed.
-    let Ok(session) = untyped_split(UT, SESSION_UT_PAGES) else {
+    let Ok(session) = memory_region_split(UT, SESSION_UT_PAGES) else {
         return false;
     };
-    let Ok(job) = untyped_split(session, JOB_UT_PAGES) else {
+    let Ok(job) = memory_region_split(session, JOB_UT_PAGES) else {
         return false;
     };
-    if untyped_destroy(session) {
-        // A parent with a live child must refuse `Untyped::DESTROY` (DECISIONS §16). If this
+    if memory_region_destroy(session) {
+        // A parent with a live child must refuse `MemoryRegion::DESTROY` (DECISIONS §16). If this
         // succeeded, the property this whole design leans on does not hold for a boot-derived
         // session, which is worth failing loudly on rather than continuing to the next identity.
         return false;
     }
-    if !untyped_destroy(job) {
+    if !memory_region_destroy(job) {
         return false;
     }
     // And the other half: once the child is gone, the session is destroyable again, which is what
     // returns this identity's slice of [`UT`] to reusable capacity before the next identity's turn
     // (DECISIONS §123's first hardening refinement: shrink the window per identity).
-    untyped_destroy(session)
+    memory_region_destroy(session)
 }
 
 /// Read a name directly under the store's root ([`fs::ROOT`]) into the shared page, returning how

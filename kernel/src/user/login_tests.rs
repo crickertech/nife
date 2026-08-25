@@ -4,7 +4,7 @@ use super::*;
 use crate::sched;
 
 /// The login service's construction budget (`user/src/login.rs`'s `CONSTRUCTION_UT`), sized for
-/// this suite's exact needs rather than guessed generously: `crate::untyped::create` reserves this
+/// this suite's exact needs rather than guessed generously: `crate::memory_region::create` reserves this
 /// many frames from the boot's free pool the moment `ls::start` runs, and this number is a direct,
 /// permanent charge against `kernel::testing::SUITE_PAGE_FRAME_BUDGET` **for the logins this suite never
 /// tears down**. The first version of this constant (2048) blew that budget by itself; this is the
@@ -551,7 +551,7 @@ fn logins_caretaker_measurement_matches_the_real_table_and_a_tampered_one_would_
 /// above (this file's own accounting comment on that constant); the 192 pages left would not survive
 /// a *second* leaked session at the old 128-pages-per-login rate, let alone the ten this test
 /// performs (2560 pages, thirteen times the headroom). Every one of the ten logs fully back out
-/// (both delegated `Untyped`s destroyed, `login_test_client.rs`'s `ROLE_LOGOUT`) before the next
+/// (both delegated `MemoryRegion`s destroyed, `login_test_client.rs`'s `ROLE_LOGOUT`) before the next
 /// begins, so this test could only pass by the memory genuinely coming home each time.
 ///
 /// Each iteration asserts the whole chain, not merely that the final `DESTROY` returned success: a

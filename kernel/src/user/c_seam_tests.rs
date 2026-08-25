@@ -75,11 +75,12 @@ fn spawn_confiner() -> sched::RendezvousId {
     let aspace = readopt_user_address_space(space).expect("register the c_confiner aspace");
 
     let report = sched::create_rendezvous();
-    let budget = crate::untyped::create(CONFINER_BUDGET_PAGES).expect("no budget for c_confiner");
-    let thread_control_block_region = crate::untyped::create(2).expect("no tcb region");
+    let budget =
+        crate::memory_region::create(CONFINER_BUDGET_PAGES).expect("no budget for c_confiner");
+    let thread_control_block_region = crate::memory_region::create(2).expect("no tcb region");
     let tid = sched::create_thread_control_block(thread_control_block_region).expect("no tcb");
     let s0 =
-        sched::thread_control_block_insert_cap(tid, crate::cap::untyped_root_cap(budget), None)
+        sched::thread_control_block_insert_cap(tid, crate::cap::memory_region_root_cap(budget), None)
             .expect("insert budget");
     assert_eq!(s0, 0, "c_confiner's budget must land in slot 0");
     let s1 = sched::thread_control_block_insert_cap(

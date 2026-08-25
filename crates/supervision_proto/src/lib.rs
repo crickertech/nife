@@ -121,7 +121,7 @@ pub const REPORT_FAILED: u64 = 9;
 // spawner holds a budget and exactly one program image, so it cannot build anything else.
 //
 // **Building is all that is asked here now** (DECISIONS §32). There used to be a `REQ_REAP` too,
-// because reaping was `Untyped::DESTROY` and only the spawner held the region capability, so the
+// because reaping was `MemoryRegion::DESTROY` and only the spawner held the region capability, so the
 // supervisor had to proxy the reap through the process that could. §32 put the reap on the
 // supervision endpoint the supervisor already holds, so the hop is gone and with it the handle the
 // spawner had to invent to name an instance the kernel names by tid.
@@ -424,7 +424,7 @@ fn fill_and_map(
 /// capability slot it landed in.
 pub fn retype_obj_from(ut: u64, objtype: u64) -> Result<u64, ()> {
     // SAFETY: as above: the kernel validates the capability and the method.
-    let r = unsafe { invoke(ut, abi::untyped::RETYPE_OBJ, objtype, 0, 0) };
+    let r = unsafe { invoke(ut, abi::memory_region::RETYPE_OBJ, objtype, 0, 0) };
     if r < 0 { Err(()) } else { Ok(r as u64) }
 }
 
@@ -432,16 +432,16 @@ pub fn retype_obj_from(ut: u64, objtype: u64) -> Result<u64, ()> {
 /// landed in.
 pub fn retype_page_frame_from(ut: u64) -> Result<u64, ()> {
     // SAFETY: as above: the kernel validates the capability and the method.
-    let r = unsafe { invoke(ut, abi::untyped::RETYPE, 0, 0, 0) };
+    let r = unsafe { invoke(ut, abi::memory_region::RETYPE, 0, 0, 0) };
     if r < 0 { Err(()) } else { Ok(r as u64) }
 }
 
 /// Carve `pages` off `ut` into a new child untyped we hold in full: the region a single `DESTROY`
 /// reclaims. `Err` carries the negated error code, which is how the dropped-authority proof reports
 /// *why* a retype from a deleted budget failed.
-pub fn untyped_split(ut: u64, pages: u64) -> Result<u64, i64> {
+pub fn memory_region_split(ut: u64, pages: u64) -> Result<u64, i64> {
     // SAFETY: as above: the kernel validates the capability and the method.
-    let r = unsafe { invoke(ut, abi::untyped::SPLIT, pages, 0, 0) };
+    let r = unsafe { invoke(ut, abi::memory_region::SPLIT, pages, 0, 0) };
     if r < 0 { Err(r) } else { Ok(r as u64) }
 }
 
@@ -449,9 +449,9 @@ pub fn untyped_split(ut: u64, pages: u64) -> Result<u64, i64> {
 /// stronger of the two reaps, because `WRITE` on a region is also what builds a process out of it,
 /// and the only one that can tear down a *live* thread (§16's amendment arms the kill). A supervisor
 /// collecting a dead child wants `user_rt::reap` instead (§32).
-pub fn untyped_destroy(ut: u64) -> bool {
+pub fn memory_region_destroy(ut: u64) -> bool {
     // SAFETY: as above: the kernel validates the capability and the method.
-    unsafe { invoke(ut, abi::untyped::DESTROY, 0, 0, 0) == 0 }
+    unsafe { invoke(ut, abi::memory_region::DESTROY, 0, 0, 0) == 0 }
 }
 
 /// Make `tcb` runnable, with `a0`, `a1`, `a2` in its entry registers. `false` if the thread was

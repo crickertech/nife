@@ -81,7 +81,7 @@ use crate::time::Duration;
 
 /// The slots the loader owes a networked std program (see `pal/nife/rt.rs`).
 const STACK: u64 = rt::STACK_SLOT;
-const NET_UNTYPED: u64 = rt::NET_UNTYPED_SLOT;
+const NET_MEMORY_REGION: u64 = rt::NET_MEMORY_REGION_SLOT;
 
 /// Where each socket's shared frame maps in this process. One page per id, well clear of the
 /// program image (0x40_0000), its stack (below 0x50_0000), and the heap (0x4000_0000). net_stack maps
@@ -271,7 +271,7 @@ fn ensure_attached(id: u64) -> io::Result<()> {
     // Mint a fresh frame from the net untyped. A negative result means no untyped in slot 3, i.e.
     // this program was not endowed with the network: honestly Unsupported.
     // SAFETY: plain syscall; the kernel validates the slot and the budget.
-    let frame = unsafe { rt::invoke(NET_UNTYPED, abi::untyped::RETYPE, 0, 0, 0) };
+    let frame = unsafe { rt::invoke(NET_MEMORY_REGION, abi::memory_region::RETYPE, 0, 0, 0) };
     if frame < 0 {
         return Err(io::Error::UNSUPPORTED_PLATFORM);
     }
@@ -279,7 +279,7 @@ fn ensure_attached(id: u64) -> io::Result<()> {
 
     // Map it writable at this socket's VA; its page table comes from the same untyped.
     // SAFETY: plain syscall; the frame was just minted and is ours to map.
-    if unsafe { rt::invoke(frame, abi::page_frame::MAP, va, 1, NET_UNTYPED) } < 0 {
+    if unsafe { rt::invoke(frame, abi::page_frame::MAP, va, 1, NET_MEMORY_REGION) } < 0 {
         return Err(io::const_error!(io::ErrorKind::Other, "mapping the socket frame failed"));
     }
 

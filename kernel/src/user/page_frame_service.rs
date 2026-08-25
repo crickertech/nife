@@ -1,5 +1,5 @@
 use super::*;
-use crate::cap::{Rights, rendezvous_cap, untyped_cap};
+use crate::cap::{Rights, memory_region_cap, rendezvous_cap};
 use crate::sched::RendezvousId;
 
 const ROLE_PRODUCER: u64 = 11;
@@ -11,8 +11,8 @@ const ROLE_CONSUMER: u64 = 12;
 pub fn wire(image: &'static [u8]) -> RendezvousId {
     let channel = crate::sched::create_rendezvous();
     let report = crate::sched::create_rendezvous();
-    let prod_ut = crate::untyped::create(8).expect("no untyped for the frame producer");
-    let cons_ut = crate::untyped::create(8).expect("no untyped for the frame consumer");
+    let prod_ut = crate::memory_region::create(8).expect("no untyped for the frame producer");
+    let cons_ut = crate::memory_region::create(8).expect("no untyped for the frame consumer");
 
     crate::sched::spawn(move || {
         run(
@@ -22,7 +22,7 @@ pub fn wire(image: &'static [u8]) -> RendezvousId {
                 arg1: 0,
                 arg2: 0,
                 grants: &[
-                    untyped_cap(prod_ut),                   // slot 0: retype the frame + page tables
+                    memory_region_cap(prod_ut), // slot 0: retype the frame + page tables
                     rendezvous_cap(channel, Rights::WRITE), // slot 1: delegate the frame
                 ],
                 maps: &[],
@@ -40,7 +40,7 @@ pub fn wire(image: &'static [u8]) -> RendezvousId {
                 arg2: 0,
                 grants: &[
                     rendezvous_cap(channel, Rights::READ), // slot 0: receive the frame
-                    untyped_cap(cons_ut),                  // slot 1: page tables for its mappings
+                    memory_region_cap(cons_ut),            // slot 1: page tables for its mappings
                     rendezvous_cap(report, Rights::WRITE), // slot 2: report the verdict
                 ],
                 maps: &[],

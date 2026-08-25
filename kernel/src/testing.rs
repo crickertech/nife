@@ -130,7 +130,7 @@ pub(crate) use skip;
 // **A boot has one pool of physical frames and no test gives an account of what it took.** That is
 // how the aarch64 suite spent its way to `Unmappable(OutOfPageFrames)` in whatever test happened to
 // spawn last, one run in three, three milestones in a row blaming the wrong code (notes/frames.md).
-// The instrument that settled it in milestone 107 was four lines in `untyped::create`, thrown away
+// The instrument that settled it in milestone 107 was four lines in `memory_region::create`, thrown away
 // after one run; this is the same idea kept, so the next person reads a number instead of building
 // one.
 //
@@ -184,7 +184,7 @@ const PAGE_FRAME_REPORT_MIN: usize = 16;
 ///
 /// **Raised again, 2026-08-22, milestone 49's login service.** `login`'s test suite wires one
 /// instance of the service (a memoized `DONE` flag, `credential_service`'s and `fs_service`'s own
-/// shape) with a 640-frame construction budget: `crate::untyped::create` reserves that whole amount
+/// shape) with a 640-frame construction budget: `crate::memory_region::create` reserves that whole amount
 /// the moment the service is spawned, whether or not every page is later split into an object, which
 /// is this ledger's own documented property (a reservation costs what it reserves). It never gives
 /// the budget back, on purpose: the service keeps serving logins for the life of the boot, the same
@@ -279,7 +279,7 @@ const SUITE_PAGE_FRAME_BUDGET: usize = 18_632;
 /// **The longest run of free frames the boot must still have at the end**, in frames.
 ///
 /// The other half of the gate, and the half that names the actual failure. Loading any program calls
-/// `AddressSpace::new`, which calls `untyped::create`, which calls `alloc_contiguous`: what a boot
+/// `AddressSpace::new`, which calls `memory_region::create`, which calls `alloc_contiguous`: what a boot
 /// runs out of is not memory, it is a **contiguous run**, and the two can be far apart. Milestone
 /// 107 measured 137 frames free with no run of 128; the boot this gate was written for ended with
 /// 216 free and no run longer than **117**, so any test loading a program bigger than that failed as

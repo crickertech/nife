@@ -216,7 +216,7 @@ pub(crate) fn invoke(
 
             // **Collect a corpse this endpoint supervises** (DECISIONS §32). The method that lets a
             // supervisor reap without holding the authority to *build*: reaping used to mean
-            // `Untyped::DESTROY`, which needs WRITE on the region, and WRITE on a region is also what
+            // `MemoryRegion::DESTROY`, which needs WRITE on the region, and WRITE on a region is also what
             // retypes a thread and an address space out of it.
             //
             // READ, not WRITE: the authority to collect a death is the authority to *receive* deaths
@@ -372,7 +372,7 @@ pub(crate) fn invoke(
         Object::ThreadControlBlock(tid) => match method {
             // Body extracted (milestone 156): every `ThreadControlBlock` method is process-spawn machinery a
             // loader runs once per child, never a step of the IPC round trip, so each moves out
-            // of `invoke`'s own bytes. See `untyped_map`'s doc comment for the full reasoning.
+            // of `invoke`'s own bytes. See `memory_region_map`'s doc comment for the full reasoning.
             abi::thread_control_block::CONFIGURE => {
                 if !cap.rights.allows(Rights::WRITE) {
                     return Err(Error::NotPermitted);
@@ -395,46 +395,46 @@ pub(crate) fn invoke(
             _ => Err(Error::BadMethod),
         },
 
-        Object::Untyped(region) => match method {
-            // Body extracted (milestone 156): all five `Untyped` methods are memory-management
+        Object::MemoryRegion(region) => match method {
+            // Body extracted (milestone 156): all five `MemoryRegion` methods are memory-management
             // administration a spawner runs while building a process, never a step of the IPC
             // round trip `script/fastpath-footprint` bounds, so each stays out of `invoke`'s own
             // bytes and `#[inline(never)]` on purpose. See `address_space_list`, the pattern this copies.
-            abi::untyped::MAP => {
+            abi::memory_region::MAP => {
                 if !cap.rights.allows(Rights::WRITE) {
                     return Err(Error::NotPermitted);
                 }
-                untyped_map(region, a0)
+                memory_region_map(region, a0)
             }
-            abi::untyped::RETYPE_OBJ => {
+            abi::memory_region::RETYPE_OBJ => {
                 if !cap.rights.allows(Rights::WRITE) {
                     return Err(Error::NotPermitted);
                 }
-                untyped_retype_obj(region, a0)
+                memory_region_retype_obj(region, a0)
             }
-            abi::untyped::RETYPE => {
+            abi::memory_region::RETYPE => {
                 if !cap.rights.allows(Rights::WRITE) {
                     return Err(Error::NotPermitted);
                 }
-                untyped_retype(region)
+                memory_region_retype(region)
             }
-            abi::untyped::SPLIT => {
+            abi::memory_region::SPLIT => {
                 if !cap.rights.allows(Rights::WRITE) {
                     return Err(Error::NotPermitted);
                 }
-                untyped_split(cap, region, a0)
+                memory_region_split(cap, region, a0)
             }
-            abi::untyped::DESTROY => {
+            abi::memory_region::DESTROY => {
                 if !cap.rights.allows(Rights::WRITE) {
                     return Err(Error::NotPermitted);
                 }
-                untyped_destroy(region)
+                memory_region_destroy(region)
             }
             _ => Err(Error::BadMethod),
         },
 
         Object::PageFrame(phys) => match method {
-            // Body extracted (milestone 156), the same reason as `Untyped`'s five methods:
+            // Body extracted (milestone 156), the same reason as `MemoryRegion`'s five methods:
             // neither `MAP` nor `REVOKE` is a step of the IPC round trip, so both move out of
             // `invoke`'s own bytes. `MAP`'s rights check is data-dependent (branches on `a1`), so
             // it lives inside `page_frame_map` rather than at the call site here, unlike the fixed
@@ -482,7 +482,7 @@ pub(crate) fn invoke(
             // Body extracted (milestone 156). `WAIT` does block on the same `sched::ipc_recv`
             // the `Rendezvous` fastpath uses, but the caller here is a driver waiting on a device
             // interrupt, not the IPC round trip this gate bounds, so it moves out of `invoke`'s
-            // own bytes with the rest. See `untyped_map`'s doc comment for the full reasoning.
+            // own bytes with the rest. See `memory_region_map`'s doc comment for the full reasoning.
             abi::irq::WAIT => {
                 if !cap.rights.allows(Rights::READ) {
                     return Err(Error::NotPermitted);
@@ -500,7 +500,7 @@ pub(crate) fn invoke(
     }
 }
 
-/// `Untyped::MAP`: retype a page out of the untyped and map it, writable, at `va` in the caller's
+/// `MemoryRegion::MAP`: retype a page out of the untyped and map it, writable, at `va` in the caller's
 /// own address space. Both the page and any page tables come from the untyped, so the KERNEL
 /// ALLOCATES NOTHING: `mmu::map_current_user_page`'s only source of memory is the closure below,
 /// which bumps the untyped's watermark.
@@ -510,7 +510,7 @@ pub(crate) fn invoke(
 /// administrative arm inlined into the hot dispatcher grows every syscall's footprint for a
 /// method that never runs on an IPC round trip.
 #[inline(never)]
-fn untyped_map(region: u64, va: u64) -> Result<i64, Error> {
+fn memory_region_map(region: u64, va: u64) -> Result<i64, Error> {
     // Reject the cheap failures BEFORE retyping a page for them: a non-page-aligned or
     // non-low-half address can never be mapped, and without this pre-check each such attempt
     // would silently spend a page of the process's own untyped (a self-inflicted budget leak the
@@ -521,12 +521,12 @@ fn untyped_map(region: u64, va: u64) -> Result<i64, Error> {
         return Err(Error::BadPointer);
     }
     match mmu::map_current_user_page(va, paging::Flags::user_data(), || {
-        crate::untyped::retype_page(region)
+        crate::memory_region::retype_page(region)
     }) {
         Ok(phys) => {
             // Record the mapping so it can be revoked before the region is ever reclaimed (§13).
-            // Untyped::MAP pages are process-private, but they still must be unmapped before
-            // untyped::destroy frees the region under them. The record is paid from the caller's
+            // MemoryRegion::MAP pages are process-private, but they still must be unmapped before
+            // memory_region::destroy frees the region under them. The record is paid from the caller's
             // own address-space budget (phase C); if it cannot afford the record, it cannot keep
             // the mapping: an unrecorded mapping is invisible to revocation, the §13 hole.
             if !crate::revoke::record_mapping(phys, mmu::current_user_root(), va) {
@@ -540,12 +540,12 @@ fn untyped_map(region: u64, va: u64) -> Result<i64, Error> {
     }
 }
 
-/// `Untyped::RETYPE_OBJ`: retype a page into a page-resident KERNEL OBJECT the caller now owns
+/// `MemoryRegion::RETYPE_OBJ`: retype a page into a page-resident KERNEL OBJECT the caller now owns
 /// (19a). The object lives in the carved page, the region is pinned (a live endpoint's page must
 /// never be freed under a blocked thread), and the caller gets full rights on its own object,
-/// delegation narrowing them as ever. `#[inline(never)]` for the reason `untyped_map` gives.
+/// delegation narrowing them as ever. `#[inline(never)]` for the reason `memory_region_map` gives.
 #[inline(never)]
-fn untyped_retype_obj(region: u64, kind: u64) -> Result<i64, Error> {
+fn memory_region_retype_obj(region: u64, kind: u64) -> Result<i64, Error> {
     match kind {
         abi::objtype::RENDEZVOUS => {
             let ep = sched::create_rendezvous_from(region).ok_or(Error::OutOfMemory)?;
@@ -586,25 +586,25 @@ fn untyped_retype_obj(region: u64, kind: u64) -> Result<i64, Error> {
     }
 }
 
-/// `Untyped::RETYPE`: retype a page into a `PageFrame` capability the caller now holds, instead of
+/// `MemoryRegion::RETYPE`: retype a page into a `PageFrame` capability the caller now holds, instead of
 /// mapping it in one shot. The caller gets full rights on its own frame (read, write, and the
 /// right to pass it on); delegation is where those narrow. Nothing is mapped yet.
-/// `#[inline(never)]` for the reason `untyped_map` gives.
+/// `#[inline(never)]` for the reason `memory_region_map` gives.
 #[inline(never)]
-fn untyped_retype(region: u64) -> Result<i64, Error> {
-    let phys = crate::untyped::retype_page(region).ok_or(Error::OutOfMemory)?;
+fn memory_region_retype(region: u64) -> Result<i64, Error> {
+    let phys = crate::memory_region::retype_page(region).ok_or(Error::OutOfMemory)?;
     // capability table full
     let slot = sched::grant(crate::cap::page_frame_cap(phys, Rights::ALL))
         .map_err(|_| Error::OutOfMemory)?;
     Ok(slot as i64)
 }
 
-/// `Untyped::SPLIT`: carve a child untyped off this one (subdivision), so a spawner can give each
+/// `MemoryRegion::SPLIT`: carve a child untyped off this one (subdivision), so a spawner can give each
 /// child its own reclaimable region. `count` is the child's page count. `#[inline(never)]` for
-/// the reason `untyped_map` gives.
+/// the reason `memory_region_map` gives.
 #[inline(never)]
-fn untyped_split(cap: crate::cap::Cap, region: u64, count: u64) -> Result<i64, Error> {
-    let child = crate::untyped::split(region, count).ok_or(Error::OutOfMemory)?;
+fn memory_region_split(cap: crate::cap::Cap, region: u64, count: u64) -> Result<i64, Error> {
+    let child = crate::memory_region::split(region, count).ok_or(Error::OutOfMemory)?;
     // The child inherits THIS capability's rights, never more (milestone 31). SPLIT is a fresh
     // mint, so it must honor the derive-never-widens invariant by hand: a process holding a
     // spend-only (GRANT-less) untyped must not SPLIT itself a GRANT-bearing child over the same
@@ -613,25 +613,25 @@ fn untyped_split(cap: crate::cap::Cap, region: u64, count: u64) -> Result<i64, E
     // at the one mint site outside `derive` the caps proofs otherwise miss (milestone 35). Rights
     // narrow monotonically from the delegable root budget down; init holds that root with GRANT
     // and hands narrowed budgets on. See DECISIONS §16.
-    let slot = sched::grant(cap.mint_child(crate::cap::Object::Untyped(child)))
+    let slot = sched::grant(cap.mint_child(crate::cap::Object::MemoryRegion(child)))
         .map_err(|_| Error::OutOfMemory)?; // capability table full
     Ok(slot as i64)
 }
 
-/// `Untyped::DESTROY`: reclaim this region and every object retyped from it (object revocation):
+/// `MemoryRegion::DESTROY`: reclaim this region and every object retyped from it (object revocation):
 /// tear the objects down and return the memory. Refused (`NotPermitted`) while a live thread still
 /// occupies it, or if it has been split into children (destroy those first). Generational names
 /// make every capability to the reclaimed objects stale on next use. `#[inline(never)]` for the
-/// reason `untyped_map` gives.
+/// reason `memory_region_map` gives.
 #[inline(never)]
-fn untyped_destroy(region: u64) -> Result<i64, Error> {
+fn memory_region_destroy(region: u64) -> Result<i64, Error> {
     sched::reclaim_region(region).map_err(|_| Error::NotPermitted)?;
     Ok(0)
 }
 
 /// `PageFrame::MAP`: map an existing frame at `va` in the caller's own address space (`a1` writable
 /// 0/1, `a2` an untyped slot the page tables come from). Un-share is `page_frame_revoke`; this is the
-/// other half. `#[inline(never)]` for the reason `untyped_map` gives.
+/// other half. `#[inline(never)]` for the reason `memory_region_map` gives.
 #[inline(never)]
 fn page_frame_map(
     cap: crate::cap::Cap,
@@ -660,18 +660,19 @@ fn page_frame_map(
     // Page tables come from an untyped the caller holds, so mapping a frame, like everything a
     // process spends, comes out of its own budget and not the kernel's.
     let ut = sched::current_cap(ut_slot).map_err(|_| Error::NoSuchSlot)?;
-    let Object::Untyped(region) = ut.object else {
+    let Object::MemoryRegion(region) = ut.object else {
         return Err(Error::WrongObject);
     };
     if !ut.rights.allows(Rights::WRITE) {
         return Err(Error::NotPermitted);
     }
-    match mmu::map_current_user_page_frame(va, phys, flags, || crate::untyped::retype_page(region))
-    {
+    match mmu::map_current_user_page_frame(va, phys, flags, || {
+        crate::memory_region::retype_page(region)
+    }) {
         Ok(()) => {
-            // Record the mapping so a later REVOKE (or untyped::destroy) can pull this page out
+            // Record the mapping so a later REVOKE (or memory_region::destroy) can pull this page out
             // of every holder before it is reused (§13). Unrecordable means unmappable, at the
-            // mapper's own expense (phase C): see Untyped::MAP.
+            // mapper's own expense (phase C): see MemoryRegion::MAP.
             if !crate::revoke::record_mapping(phys, mmu::current_user_root(), va) {
                 mmu::unmap_user_at(mmu::current_user_root(), va);
                 return Err(Error::OutOfMemory);
@@ -685,7 +686,7 @@ fn page_frame_map(
 
 /// `PageFrame::REVOKE`: un-share this page from every holder and delete every capability to it,
 /// including the caller's own. Does not reclaim the page (untyped is spend-only); that is
-/// `Untyped::DESTROY`. §13. `#[inline(never)]` for the reason `untyped_map` gives.
+/// `MemoryRegion::DESTROY`. §13. `#[inline(never)]` for the reason `memory_region_map` gives.
 #[inline(never)]
 fn page_frame_revoke(phys: u64) -> Result<i64, Error> {
     crate::revoke::revoke_page_frame(phys);
@@ -694,7 +695,7 @@ fn page_frame_revoke(phys: u64) -> Result<i64, Error> {
 
 /// `ThreadControlBlock::CONFIGURE`: bind an address space to an embryo thread and set its entry point and stack
 /// (`a0` entry, `a1` stack, `a2` the address space cap slot, consumed). `#[inline(never)]` for the
-/// reason `untyped_map` gives.
+/// reason `memory_region_map` gives.
 #[inline(never)]
 fn thread_control_block_configure(
     tid: crate::thread::ThreadId,
@@ -722,7 +723,7 @@ fn thread_control_block_configure(
 /// to narrow it to, `a2` the target slot: 0 is first-free, n is slot n - 1, a supervisor placing
 /// a fault endpoint in the reserved slot, milestone 22). GRANT-gated and narrowing-only, exactly
 /// as `SEND_CAP`: you may endow a child only with authority you were trusted to pass on, and only
-/// narrowed. `#[inline(never)]` for the reason `untyped_map` gives.
+/// narrowed. `#[inline(never)]` for the reason `memory_region_map` gives.
 #[inline(never)]
 fn thread_control_block_cap_insert(
     tid: crate::thread::ThreadId,
@@ -752,7 +753,7 @@ fn thread_control_block_cap_insert(
 
 /// `Irq::WAIT`: block on the endpoint the kernel routed this interrupt to. The interrupt arrives
 /// as a message (`sched::irq_notify`), exactly like any other. `#[inline(never)]` for the reason
-/// `untyped_map` gives.
+/// `memory_region_map` gives.
 #[inline(never)]
 fn irq_wait(intid: u32) -> Result<i64, Error> {
     let ep = sched::irq_route(intid).ok_or(Error::WrongObject)?;
@@ -763,7 +764,7 @@ fn irq_wait(intid: u32) -> Result<i64, Error> {
 /// `Irq::ACK`: re-enable the interrupt at the controller. The kernel masked it when it fired; now
 /// that the driver has serviced the device, it is safe to let it fire again. This names
 /// `arch::irq`, not a specific controller: the GIC on aarch64, the PLIC on RISC-V.
-/// `#[inline(never)]` for the reason `untyped_map` gives.
+/// `#[inline(never)]` for the reason `memory_region_map` gives.
 #[inline(never)]
 fn irq_ack(intid: u32) -> Result<i64, Error> {
     crate::arch::irq::enable(intid);
@@ -772,7 +773,7 @@ fn irq_ack(intid: u32) -> Result<i64, Error> {
 
 /// `Virtio`'s four register-level methods (`READ_REG`, `WRITE_REG`, `SETUP_QUEUE`, `NOTIFY`): a
 /// driver's transport-level plumbing, not a step of the IPC round trip. `#[inline(never)]` for
-/// the reason `untyped_map` gives.
+/// the reason `memory_region_map` gives.
 #[inline(never)]
 fn virtio_invoke(id: usize, method: u64, a0: u64, a1: u64) -> Result<i64, Error> {
     use crate::virtio::TransportError;
@@ -799,7 +800,7 @@ fn virtio_invoke(id: usize, method: u64, a0: u64, a1: u64) -> Result<i64, Error>
 /// half `rendezvous::SURVEY` is the view half of. Administrative, not the IPC round trip: rare
 /// enough (one call per child death, not per message) that it moves out of `invoke`'s own bytes
 /// with the rest of this arm's non-fastpath methods. `#[inline(never)]` for the reason
-/// `untyped_map` gives.
+/// `memory_region_map` gives.
 #[inline(never)]
 fn rendezvous_reap(ep: crate::sched::RendezvousId, tid: u64) -> Result<i64, Error> {
     sched::reap_supervised(ep, tid)?;
@@ -858,7 +859,7 @@ mod tests {
     /// derive-never-widens invariant by hand or a process could manufacture authority it was denied:
     /// hold a deliberately `GRANT`-less untyped, `SPLIT` it, and receive a `GRANT`-bearing child over
     /// the same memory, then delegate what its own capability could not. This drives the real syscall
-    /// path (not the region-level `untyped::split`, which carries no rights) and pins the child's
+    /// path (not the region-level `memory_region::split`, which carries no rights) and pins the child's
     /// rights to the parent capability's, at the mint site the Kani proofs do not cover. The contrast
     /// arm shows the delegable root does pass `GRANT` down, so the inheritance is real, not a blanket
     /// deny. Milestone 31; see DECISIONS §16 amendment.
@@ -868,9 +869,9 @@ mod tests {
         let mut frame = TrapFrame::for_user_entry(0, 0, [0, 0, 0]);
 
         // A spend-only (WRITE, no GRANT) untyped, exactly what a leaf child is handed.
-        let spend_only_region = crate::untyped::create(8).expect("a region to split");
+        let spend_only_region = crate::memory_region::create(8).expect("a region to split");
         let parent =
-            sched::grant(crate::cap::untyped_cap(spend_only_region)).expect("grant parent");
+            sched::grant(crate::cap::memory_region_cap(spend_only_region)).expect("grant parent");
         assert!(
             !sched::current_cap(parent)
                 .unwrap()
@@ -880,7 +881,7 @@ mod tests {
         );
 
         // SPLIT through the real handler. WRITE permits it; the child must inherit WRITE only.
-        let child_slot = invoke(&mut frame, parent, abi::untyped::SPLIT, 2, 0, 0)
+        let child_slot = invoke(&mut frame, parent, abi::memory_region::SPLIT, 2, 0, 0)
             .expect("split succeeds: the parent holds WRITE") as u64;
         let child = sched::current_cap(child_slot).expect("the child capability exists");
         assert!(
@@ -893,22 +894,23 @@ mod tests {
             !child.rights.allows(Rights::GRANT),
             "a spend-only child must be un-delegatable",
         );
-        let Object::Untyped(child_region) = child.object else {
+        let Object::MemoryRegion(child_region) = child.object else {
             panic!("SPLIT must mint an untyped");
         };
 
         // Contrast: the delegable root (READ|WRITE|GRANT, what init holds) passes GRANT to its
         // children, so a spawner can hand a budget on. Inheritance, not a blanket deny.
-        let root_region = crate::untyped::create(8).expect("a root region");
-        let root = sched::grant(crate::cap::untyped_root_cap(root_region)).expect("grant root");
-        let root_child_slot =
-            invoke(&mut frame, root, abi::untyped::SPLIT, 2, 0, 0).expect("split the root") as u64;
+        let root_region = crate::memory_region::create(8).expect("a root region");
+        let root =
+            sched::grant(crate::cap::memory_region_root_cap(root_region)).expect("grant root");
+        let root_child_slot = invoke(&mut frame, root, abi::memory_region::SPLIT, 2, 0, 0)
+            .expect("split the root") as u64;
         let root_child = sched::current_cap(root_child_slot).expect("root child exists");
         assert!(
             root_child.rights.allows(Rights::GRANT),
             "a delegable root must split into delegable children",
         );
-        let Object::Untyped(root_child_region) = root_child.object else {
+        let Object::MemoryRegion(root_child_region) = root_child.object else {
             panic!("SPLIT must mint an untyped");
         };
 
