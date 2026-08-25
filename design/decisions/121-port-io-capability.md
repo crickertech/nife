@@ -133,6 +133,46 @@ switching, a small follow-on benchmark (unscoped as its own milestone; whoever p
 number) measures the TSS-bitmap-write cost the same way `ipc_rtt` and `null_syscall` already measure
 theirs. That turns the next 1-vs-3 call into one made on both sides' numbers, not one side's.
 
+### Measured 2026-08-24: the write costs more, not less, than the prose above guessed
+
+Milestone 161 item 4 landed real two-thread context switching on `x86_64` this session, so the
+precondition above is met. `tss_iomap_switch` (`kernel/src/bench.rs`) is `yield_switch` with one
+`arch::segments::bench_write_io_bitmap` call added on every switch-in, in both threads: a real
+8192-byte write (`65536` ports `/ 8`, the exact size, not the round "8 KiB" this file used loosely),
+into a CPU-owned static, never wired to the live TSS's `iomap_base`. It measures the write option 1
+would add, not the enforcement. Full methodology and five-run medians for both a debug and a release
+kernel: `notes/benchmarks.md`, "2026-08-24: the TSS I/O-bitmap switch cost".
+
+**No icount leg exists on this ISA** (`icount()` already refuses `--arch x86_64`, and this port's
+runner attaches no image to pin QEMU's virtual clock to), so every number below is plain TCG on this
+Apple Silicon host: no KVM, no HVF for `x86_64`, statistical, and not a stand-in for real x86 silicon
+cycle counts. `cargo xtask bench --x86` runs it and refuses `--check`/`--save` for the same reason.
+
+| build | `yield_switch` (bare switch) | `tss_iomap_switch` (switch + write) | delta | per 8192-byte write | overhead |
+|---|---|---|---|---|---|
+| debug, median of 6 | 12,320 ns/iter | 15,360 ns/iter | 3,040 ns/iter | ~1,520 ns | +25% |
+| release, median of 5 | 1,267 ns/iter | 6,769 ns/iter | 5,363 ns/iter | ~2,682 ns | +423% |
+
+**The debug row is the reassuring one and the release row is the honest one, and they disagree by
+17x on "how bad is this."** A debug build's baseline switch carries so much fixed cost (unelided
+checks, unoptimized bookkeeping) that the write is a modest ~25% addition to a slow number. Strip
+that in release and the baseline switch itself gets **~10x faster** while the write's own cost barely
+moves, both being close to plain memory bandwidth. On the switch path option 1 would actually run on,
+the write does not add a quarter of the cost, **it is most of the cost**, which is a stronger
+statement than this file's own prose made before there was a number to check it against: "the
+dominant cost" undersold it. **Correcting the record rather than the prose that was already
+qualified**: nothing above was wrong, the amendment already named this the dominant cost from
+architecture alone; the number says the margin is wider than "dominant" implied.
+
+**This does not change the recommendation.** Option 2 still stands for the reason it always did:
+nothing today asks for a userspace console on `x86_64` specifically, and option 1's cost, now
+measured rather than assumed, is exactly as unattractive as the prose already argued, arguably more
+so. What changes is that **the next 1-vs-3 call is now made on both sides' numbers**: option 3's
+~337 ns per IPC round trip (already on record above) against option 1's ~1.5-2.7 us per switch for
+the write alone, before the capability type, the revocation shootdown, or anything else option 1
+would also cost. Whether that gap is worth paying for a userspace `x86_64` console is still calef's
+call, per this file's own closing question.
+
 ## What is needed to answer it
 
 One question, and it is not technical: **is a userspace console driver on x86 part of what the
