@@ -35,7 +35,7 @@ Dependabot's commits are accepted **before** making the rule blocking, and start
 non-enforcing state if the ruleset supports it.
 
 **Re-measured 2026-08-25, three weeks after the original data.** `git log --pretty='format:%G?' -100`
-on current `main` still returns a mix, 32 `E` / 68 `N` — nothing has changed. The `E` commits are
+on current `main` still returns a mix, 32 `E` / 68 `N`, nothing has changed. The `E` commits are
 almost entirely GitHub's own merge-queue merge commits, signed on GitHub's own infrastructure rather
 than by anything this repository does; the `N` commits are the real work, every squashed lane commit
 and direct push, still entirely unsigned. Dependabot sampled separately: 7 `E` / 2 `N`, the same shape
