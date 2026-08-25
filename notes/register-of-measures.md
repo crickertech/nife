@@ -70,15 +70,15 @@ floor.
 | the deepest reachable kernel-thread chain | `script/stack-depth-check` | a chain over the 24,576-byte stack |
 | kernel stack high-water, at runtime | `script/test`, `report_high_water` | boot 61,440, secondary 16,384, thread 18,432 |
 | eleven counted claims (harnesses, syscalls, rights bits, ...) | `script/lint` | a marked number disagreeing with the tree |
-| unsafe density outside `kernel/src/arch/` | `script/lint` | over 95 blocks per 10,000 lines of code |
+| unsafe density outside `kernel/src/arch/` | `script/lint` | over 94 blocks per 10,000 lines of code |
 | `unsafe impl Send`/`Sync` claims | `script/lint` | over 17, which is today's tree exactly |
 | per-file line coverage | `script/coverage` | any file under the 80% floor |
 
 The ceilings are rows 2 through 5 and 7 and 8, and reading their thresholds together is the
 useful part, because they are six different kinds of number. 5% is a tolerance. 4,096 is a hardware
 fact. 24,576 is a configuration constant. The high-water limits are margins over an observed
-maximum. 17 is today's tree exactly. And 95 per 10,000 (lowered from 100, then 97, then 96, by
-milestone 139) is a **claim about the tree that was false until shortly before it was written**, which makes it the
+maximum. 17 is today's tree exactly. And 94 per 10,000 (lowered from 100, then 97, then 96, then 95,
+by milestone 139) is a **claim about the tree that was false until shortly before it was written**, which makes it the
 only one that expresses a direction rather than a limit. That distinction is what `count-at-most`
 exists for; see notes/unsafe-obligations.md for the measurement behind it.
 

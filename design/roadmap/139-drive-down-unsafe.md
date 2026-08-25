@@ -249,6 +249,102 @@ on a guess: the question a next lane needs to answer is no longer "does a bounds
 2,048-8,192 accesses per one-shot run, or per keystroke-driven repaint, to matter" -- a much smaller
 question, worth `script/icount` or `script/bench` rather than reasoning about it further.
 
+## Round 4 (2026-08-24): measuring `MappedWindow`'s bounds-check cost, then migrating the
+framebuffer/graphics cluster round 3 narrowed to
+
+Round 3's own conclusion set this round's exact scope: `painter.rs`'s and `window.rs`'s
+`px_write`/`px_read`, `display.rs`'s `surface_pixel`, and `display_terminal.rs`'s `paint`, all
+bounded (2,048-8,192 accesses per one-shot test run, or a keystroke-driven repaint far smaller than
+that), none of them the sustained 60fps path the milestone's original framing worried about. The
+open question was no longer structural, it was a number: does `MappedWindow`'s bounds check cost
+enough at these volumes to matter, "worth `script/icount` or `script/bench` rather than reasoning
+about it further" in round 3's own words. This round got that number, then migrated on it.
+
+**The measurement.** A temporary comparison loop over a page-sized buffer, one raw `write_volatile`
+against one loop performing `MappedWindow::check`'s own arithmetic first
+(`off.checked_add(size).is_some_and(|end| end <= len)`), at three volumes: 56 (one glyph cell,
+`bitmap_font::GLYPH_W * GLYPH_H`, `display_terminal.rs`'s smallest keystroke-driven repaint), 2,048
+(`window.rs`'s largest `compositor::SCENE` surface) and 8,192 (`graphics_proto::PIXELS`, the
+one-shot digest volume `painter.rs`, `display.rs` and `window.rs`'s own largest surface all share).
+Run via `script/bench` (icount, deterministic instruction counts, the right instrument for a
+path-length question rather than a magnitude one; notes/benchmarks.md's own table names icount for
+exactly this job), both ISAs:
+
+| | aarch64 (ticks/access) | riscv64 (ticks/access) |
+|---|---|---|
+| raw `write_volatile` | 8 | ~1.4 |
+| `MappedWindow`-checked | 12 | ~2.0 |
+| delta | 4 | ~0.6 |
+
+Flat across all three volumes on both ISAs (the check's cost does not depend on how many accesses
+follow it, only on the arithmetic itself), so the total overhead scales linearly and stays small in
+absolute terms even at the largest bounded volume: 8,192 accesses costs ~29,000 extra aarch64 ticks,
+under 30 `ipc_rtt` round trips (1,017 ticks each) -- inside a test that already pays several real
+round trips (at least one `CALL` to a driver or the compositor) and, for `display.rs`, a real device
+DMA completion at ~200 us wall clock (`fs_read`'s own reading of what a completion-interrupt wait
+costs). **Negligible on both ISAs, settling round 3's open question**: the bounds check is not worth
+avoiding at any volume this cluster actually sees.
+
+The comparison itself was not kept in the tree. It answered a one-time design question rather than
+measuring an ongoing primitive worth regression-gating forever (the same reasoning `bench.rs`'s
+`map_new` shootdown probe uses for staying a `bench-probe:` line rather than a baseline row), and
+keeping it would have cost this milestone's own ceiling two more `unsafe {` blocks (one per
+comparison loop) for a question that is now closed -- working directly against the number this round
+exists to lower. The numbers above are the reproducible record instead.
+
+**The migration, on that number.** All four sites round 3 named, migrated onto `MappedWindow`:
+
+- `painter.rs`'s `px_write`/`px_read`: a `const WINDOW` at `SURFACE_VA`, sized to
+  `gfx::SURFACE_BYTES`, the same shape round 1's cluster used. **2 `unsafe {` blocks removed, 1
+  added, net -1.**
+- `window.rs`'s `px_write`/`px_read`: **not** a `const`, unlike `painter.rs`'s twin. The compositor's
+  `spawn_client` maps a different frame count per client (`SCENE[i].frames()`,
+  `kernel/src/user/compositor_service.rs`), not knowable at this program's compile time, so the
+  window is constructed once in `_start`, sized to `bytes` (this client's own `w * h * 4`, already
+  computed and bound-checked against `compositor::MAX_SURFACE_BYTES` before any pixel is painted --
+  milestone 43, notes/shared-page-audit.md finding 4), and threaded through both call sites
+  (`px_write`, and `px_read` via a closure into `compositor::surface_checksum`). The genuinely
+  per-client, runtime-sized case `net_stack.rs`'s socket cluster was in round 3. **2 removed, 1
+  added, net -1.**
+- `display.rs`'s `dma_write`/`dma_read`: round 3 scoped this to `surface_pixel` alone, but
+  `surface_pixel` is one of dozens of callers of a shared pair of functions that already collapse the
+  DMA region's invariant into one hand-written assertion apiece; migrating only `surface_pixel`'s own
+  call would have **duplicated** that invariant (a second `MappedWindow` beside the untouched
+  `dma_write`/`dma_read`) rather than collapsed it, the wrong direction for this milestone. Migrating
+  the two shared functions instead -- a `const WINDOW` over the whole DMA region
+  (`DMA_FRAMES * 4096` bytes), with `dma_write`/`dma_read`'s bodies becoming `WINDOW.write`/
+  `WINDOW.read` -- covers `surface_pixel` for free and bounds-checks every one of the few dozen
+  virtqueue-field one-off writes in the file too, which round 3's own text flagged as "not the
+  performance question and could be migrated independently": here it came along for free rather than
+  as separate scope. **2 removed, 1 added, net -1.**
+- `display_terminal.rs`'s `paint`: a window constructed once in `_start`, sized to
+  `gfx::SURFACE_BYTES` in `MODE_DISPLAY` (this process maps that many bytes itself) or to
+  `stride * h` in `MODE_WINDOW` (the compositor's own published geometry, the same per-client
+  reasoning as `window.rs`'s), held in the `Wiring` struct rather than declared as a file-level
+  `const` for the same reason `window.rs`'s is not one. **1 removed, 1 added, net 0** -- flat by
+  block count, still a real reduction by criterion 2 (raw pointer arithmetic replaced by a typed,
+  bounds-checked abstraction), the same case `swish.rs`'s terminal pair and `smb_server.rs` were.
+
+**Combined round 4: 7 `unsafe {` blocks removed, 4 added, net -3.** Measured from the diff against
+this round's own base commit (`757562a3`), uncontaminated: nothing else landed on this branch between
+the base commit and this reduction, so the tree-wide census confirms it exactly: 782 blocks outside
+`arch/` at the base commit (88 per 10,000, matching round 3's own final reading despite 12 blocks of
+unrelated tree growth landing in between, 770 to 782 -- density absorbed it the same way round 1 and
+round 2's readings did), 779 after, exactly -3. Density moved 88 to 87 (truncated);
+the line count moved by +19 net (mostly the new `SAFETY` comments explaining each window's
+invariant), so the denominator barely moved this round, like round 3's.
+
+**The ratchet, cinched a fourth time**: `<!--count-at-most:unsafe-density-outside-arch-->` lowered
+from 95 to 94 in the same commit (`notes/unsafe-obligations.md`, `notes/counted-claims.md`,
+`notes/register-of-measures.md`), keeping the same 7-point headroom every ceiling in this milestone
+has carried, now above the 87 this round reached.
+
+**The framebuffer/graphics investigation is now settled, not just narrowed.** `compositor.rs`'s
+per-frame hot path still carries no per-pixel `unsafe` at all (round 3's finding, unchanged); the
+five genuinely per-pixel sites round 2 and round 3 identified are now four migrations and one
+structural non-issue (`compositor.rs` itself needed nothing). Nothing about this cluster remains
+open.
+
 ## What is still open
 
 **`crates/ipc`'s unsafe is settled**: read in full, genuinely per-call-site distinct, no further work
@@ -262,6 +358,10 @@ sorted the non-FS hits into rough categories a follow-on lane can use rather tha
 - **`swish.rs`'s other two windows, `disk_surveyor.rs`'s `ROSTER_VA`, and `net_stack.rs`'s
   `a_r8`/`a_r16`/`a_w16`/`a_w8` cluster are all done** (round 3, see above). Nothing else in these
   three files' shape remains outstanding.
+- **Framebuffer/graphics code is done** (round 4, see above): `painter.rs`, `window.rs`,
+  `display.rs` and `display_terminal.rs` are all migrated, and the measured bounds-check cost that
+  round 3 left open (negligible at every volume this cluster sees, on both ISAs) is recorded there.
+  Nothing else in this cluster remains outstanding.
 - **`heeder.rs` is done** (round 2); nothing else in that shape remains outstanding there.
 - **Device register blocks, investigated rather than migrated (round 3)**: `console.rs`, `input.rs`,
   `clock.rs` and `jh7110_trng.rs` are genuinely per-driver distinct at the invariant level, so
@@ -274,18 +374,6 @@ sorted the non-FS hits into rough categories a follow-on lane can use rather tha
   round's scope because it is a new dependency for the `user` crate (a decision, not a lane's call)
   touching files that gate boot output and keyboard input. See the investigation above for the full
   reasoning and the `ipc`-round-2 precedent it rests on.
-- **Framebuffer/graphics code, narrowed rather than settled (round 3)**: the compositor's actual
-  per-frame hot path (`compositor::composite`) carries no per-pixel `unsafe` today, migrated or not,
-  which answers most of round 2's performance worry directly. What remains is `painter.rs`'s and
-  `window.rs`'s `px_write`/`px_read` (one-shot test paint-then-digest, 2,048-8,192 accesses per run),
-  `display.rs`'s `surface_pixel` (the driver's own one-shot digest, sharing `dma_read`/`dma_write`
-  with a few dozen one-off virtqueue-field writes that are not the performance question and could be
-  migrated independently), and `display_terminal.rs`'s `paint` (the one live, keystroke-driven path
-  among the five, bounded by typing/paste speed rather than by a fixed frame rate). None of these is
-  the sustained 60fps path the original framing named. The follow-on question is now small and
-  concrete: measure (`script/icount` or `script/bench`) whether `MappedWindow`'s bounds check costs
-  enough at these bounded volumes to matter, rather than the much harder question this round started
-  with. See the investigation above.
 - **Deliberately not migration candidates, named so nobody re-derives them and wastes a look**:
   `hello.rs` (tests `.bss` zeroing and `.data` writability on purpose; the raw access *is* the test),
   `flaky.rs` and `outlaw.rs` (deliberately touch a bad/unauthorized address to provoke a fault; a
