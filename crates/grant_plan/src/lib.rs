@@ -188,13 +188,23 @@ pub enum Prog {
     /// thing it can already reach without that, which is also the most common real-world invocation
     /// of the tool it is named for.
     Watch,
+    /// **Print how long the ambient monotonic counter has been running** (milestone 126,
+    /// `user/src/uptime.rs`, `crates/uptime`).
+    ///
+    /// [`Prog::Worker`]'s manifest, not [`Prog::Date`]'s: `user_rt::monotonic_nanos` is granted to
+    /// **every** process unconditionally (`kernel/src/arch/*/timer.rs`'s documented, deliberate
+    /// exception to DECISIONS §10's no-ambient-authority rule), so this program needed no clock
+    /// capability, no domain, no memory, no file, nothing beyond the report channel every spawn
+    /// carries. The one member of milestone 126's "machine-wide statistics" row that turned out to
+    /// be pure wiring rather than a design fork; see design/roadmap/126-who-else-is-running.md.
+    Uptime,
 }
 
 /// The number of programs [`Prog::id`] can name, which is the size of the table init indexes with
 /// it. Init's array is `[Option<&Elf>; COUNT]`, so adding a variant without widening the array is
 /// an out-of-bounds panic in init rather than a compile error; the constant is here so both inits
 /// can be written against one number.
-pub const PROG_COUNT: usize = 11;
+pub const PROG_COUNT: usize = 12;
 
 impl Prog {
     /// Resolve a program by the name typed on the command line.
@@ -217,6 +227,7 @@ impl Prog {
             b"ps" => Some(Prog::Ps),
             b"pgrep" => Some(Prog::Pgrep),
             b"watch" => Some(Prog::Watch),
+            b"uptime" => Some(Prog::Uptime),
             _ => None,
         }
     }
@@ -235,6 +246,7 @@ impl Prog {
             Prog::Ps => "ps",
             Prog::Pgrep => "pgrep",
             Prog::Watch => "watch",
+            Prog::Uptime => "uptime",
         }
     }
 
@@ -252,6 +264,7 @@ impl Prog {
             Prog::Ps => 8,
             Prog::Pgrep => 9,
             Prog::Watch => 10,
+            Prog::Uptime => 11,
         }
     }
 
@@ -269,6 +282,7 @@ impl Prog {
             8 => Some(Prog::Ps),
             9 => Some(Prog::Pgrep),
             10 => Some(Prog::Watch),
+            11 => Some(Prog::Uptime),
             _ => None,
         }
     }
@@ -536,6 +550,25 @@ impl Prog {
                 interruptible: false,
                 clock: false,
                 domain: true,
+            },
+            // **`worker`'s manifest, not `date`'s.** `uptime` reads `user_rt::monotonic_nanos`,
+            // which is granted to every process unconditionally, so there is no capability here to
+            // declare: no clock, no domain, no memory, no file. `OutputSpec::Bytes` rather than
+            // `BytesAndDiagnostics` because the program cannot fail (the counter is always there to
+            // read), so there is nothing a second stream would ever carry; `wc`'s manifest makes the
+            // same call for the same reason.
+            Prog::Uptime => Manifest {
+                arg: ArgSpec::Forbidden,
+                mem: MemSpec::Forbidden,
+                file: FileSpec::Forbidden,
+                dir: DirSpec::Forbidden,
+                flags: NO_FLAGS,
+                output: OutputSpec::Bytes,
+                input: InputSpec::Forbidden,
+                reports: true,
+                interruptible: false,
+                clock: false,
+                domain: false,
             },
         }
     }

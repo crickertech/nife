@@ -8,8 +8,47 @@ ordering and taken in the units that ordering uses, which is packages rather tha
 **Gate: NONE.** As of 2026-08-23, both forks this gate pointed at are decided: `pmap`'s
 `ENUMERATE`-on-address-space extension is **yes** (DECISIONS §114), and `sysctl` is **declined**
 (DECISIONS §115), each subsystem's own service carrying its own tuning instead. What remains is
-real unbuilt work rather than anything waiting on calef: `top` on per-thread CPU accounting that
-does not exist; `pwdx` and `w` on a process display name this system has no design for.
+real unbuilt work rather than anything waiting on calef, except where this lane (2026-08-26)
+found the opposite is true: `top` on per-thread CPU accounting that does not exist turns out to
+need a real decision about what "CPU accounting" means here and how it crosses the wire (**Fork:
+`top`'s per-thread CPU accounting**, below), and `pwdx` and `w` on a process display name this
+system has no design for turn out to have a clean answer on the authority half and none yet on
+the mechanism half (**Fork: a process display name**, below). `uptime` is **built, 2026-08-26**
+(see below) and needed neither a design decision nor calef's time.
+
+## Built: `uptime`, 2026-08-26, needing no capability at all
+
+`uptime` works on both ISAs and needed no new capability, no manifest field beyond what `worker`
+already declares, and no kernel change. It reads `user_rt::monotonic_nanos`, the same ambient
+counter `date` already reads to compute the wall clock, and formats the elapsed time as
+`up [D day[s], ]HH:MM:SS\n`. The formatting is `crates/uptime`, host-tested (five tests: the zero
+case, second/minute/hour rendering, the day rollover with its singular/plural, and the
+sub-second-truncates-rather-than-rounds case); `user/src/uptime.rs` is the syscall and nothing
+else, `wc`'s shape (a sink write, no input).
+
+**Why this one member of "machine-wide statistics" turned out to be pure wiring.** The BUGS entry
+that grouped `free`, `uptime` and `vmstat` together as needing "machine statistics rather than
+process enumeration" was right about the first and third and wrong about the second, and the
+difference is worth stating because it is not obvious from the grouping: `monotonic_nanos` is
+granted to **every** EL0 process unconditionally, by `kernel/src/arch/*/timer.rs`'s `init`
+(`CNTKCTL_EL1`'s `EL0VCTEN` bit on aarch64, the RISC-V and `x86_64` equivalents), which documents
+the grant as **a deliberate, eyes-open exception to DECISIONS §10's no-ambient-authority rule**: a
+monotonic counter grants no authority to *affect* anything, only to observe the passage of time,
+and every OS that offers userspace self-timing accepts the same side channel. That exception
+already existed and already covered every process before this lane started, so there was nothing
+here to design: `uptime` is `worker`'s manifest with the arithmetic swapped out. `free` and
+`vmstat` read physical-memory accounting the kernel keeps for itself
+(`kernel/src/memory.rs::stats`) with no path to userspace today, which is a different body of work
+and a real fork; see below.
+
+**BUGS**, in full in `crates/uptime`'s and `user/src/uptime.rs`'s own module docs: no load average
+(no decaying figure this scheduler maintains) and no logged-in-user count (no login registry
+exists); the counter's own zero predates this kernel's init by an unmeasured amount, the same
+caveat `date` already carries for the same counter; one-second resolution, for the same reason
+`date` has it. **Provisional name**: `uptime` is upstream `procps`'s own name for this program,
+which the naming tenet calls the best name available for a standard term a reader already knows,
+flagged anyway because this program prints only elapsed time, none of upstream's load average or
+user count.
 
 ## Built: `watch`, 2026-08-24, and the package file list is now verified rather than remembered
 
@@ -107,11 +146,13 @@ it is recorded here and in `crates/pmap`'s and notes/process-view.md's `BUGS` fo
 next. The shape a fix would need -- a builder handing a narrowed, still-registered view to a third
 party *before* `CONFIGURE` consumes its own copy -- is a spawn-protocol change, not a `pmap` change.
 
-**Still to build:** `top` (per-thread CPU accounting that does not exist), `pwdx` and `w` (a
-process display name this system does not have), and the machine-wide statistics. `sysctl` is
-declined (DECISIONS §115) rather than blocked on effort. `watch` is **built, 2026-08-24** (see
-above); the package-membership confirmation is **done, 2026-08-24** (see above), and found one
-name the memory-sourced table below had missed (`pidwait`).
+**Still to build:** `top`, `pwdx` and `w`, each blocked on a fork proposed 2026-08-26 (see the
+`Fork:` sections below) rather than on unbuilt-but-clear work; and `free`/`vmstat`, blocked on a
+third fork of the same kind. `uptime` is **built, 2026-08-26** (see above): the one member of
+"machine-wide statistics" that turned out to need no fork at all. `sysctl` is declined (DECISIONS
+§115) rather than blocked on effort. `watch` is **built, 2026-08-24** (see above); the
+package-membership confirmation is **done, 2026-08-24** (see above), and found one name the
+memory-sourced table below had missed (`pidwait`).
 
 ## Built: the first stratum, 2026-08-16
 
@@ -174,15 +215,16 @@ pattern cannot be typed at this prompt, and the shipped `pgrep` names every memb
 deferred positional arity. Written up in notes/process-view.md, with the reason recorded where a
 reader meets the feature.
 
-**Still to build:** the rest of the view stratum (`top`, `pwdx`, `w`) and the machine-wide
-statistics. The signalling stratum is no longer on this list; see the ruling below. `pmap` is
-**built, 2026-08-23** (DECISIONS §114; see above), though not reachable from the interactive shell
--- a real finding that build turned up, not a caveat this block is glossing over; `top` on
-per-thread CPU accounting that does not exist; `pwdx` and `w` on a process display name this system
-does not have. `sysctl` itself is **declined (DECISIONS §115)** rather than blocked on effort.
-`watch` is **built, 2026-08-24** (see above), redrawing `ps`'s own domain walk rather than an
-arbitrary command. The package file list is **verified, 2026-08-24** (see above), against a real
-`dpkg -L procps` on Ubuntu 24.04; the one correction it found (`pidwait`, missing from the table
+**Still to build:** the rest of the view stratum (`top`, `pwdx`, `w`), each now blocked on a
+2026-08-26 fork rather than on unbuilt-but-clear work (see the `Fork:` sections below). The
+signalling stratum is no longer on this list; see the ruling below. `pmap` is **built, 2026-08-23**
+(DECISIONS §114; see above), though not reachable from the interactive shell -- a real finding
+that build turned up, not a caveat this block is glossing over. `sysctl` itself is **declined
+(DECISIONS §115)** rather than blocked on effort. `watch` is **built, 2026-08-24** (see above),
+redrawing `ps`'s own domain walk rather than an arbitrary command. `uptime` is **built,
+2026-08-26** (see above), needing no capability at all. The package file list is **verified,
+2026-08-24** (see above), against a real `dpkg -L procps` on Ubuntu 24.04; the one correction it
+found (`pidwait`, missing from the table
 below until this edit) is recorded and not attempted by this lane.
 
 ## Why this package, and why the package rather than the program
@@ -219,7 +261,7 @@ table below was from memory when this section was first written and undercounted
 |---|---|---|
 | **read the process namespace** | `ps`, `top`, `pgrep`, `pidwait`, `pmap`, `pwdx`, `w` | `ps`, `pgrep` **built**; `pidwait` found by the 2026-08-24 verification and not yet designed (it blocks until a match terminates, closer to a wait/reap than a snapshot); the rest each blocked on something named above |
 | **signal a process** (control, not view) | `kill`, `pkill`, `skill`, `snice` | **mostly abolished 2026-08-17**: a domain names, never acts, and a tid is not a capability. Killing stays with whoever holds the child's region |
-| **machine-wide statistics**, no process namespace | `free`, `uptime`, `vmstat`, `slabtop`, `tload` | **a different capability entirely**, and none exists |
+| **machine-wide statistics**, no process namespace | `free`, `uptime`, `vmstat`, `slabtop`, `tload` | `uptime` **built, 2026-08-26**, needing no capability at all (an existing ambient exception, not a new one); `free`/`vmstat` blocked on a 2026-08-26 fork, see below |
 | **write kernel tunables** | `sysctl` | no design, and see the fork below |
 | **none of the above** | `watch` | **built, 2026-08-24**: `line_editor` and the compositor turned out not to be what it needed (its output travels the same sink-and-terminal path `ps` and `date` already use), but the "needs nothing new" call was right |
 
@@ -294,6 +336,210 @@ tool -- and the same shape `notes/net.md` already built favorably (`announce 80`
 `/net/tcp/clone`, Plan 9's per-resource `ctl` file over a global panel). `procps` ships without
 `sysctl`; the coverage gap is recorded rather than glossed over, same as `pkill`'s absence.
 
+## Fork: `top`'s per-thread CPU accounting
+
+**Status: PROPOSED, 2026-08-26 (this lane).** Investigated rather than built, because the
+mechanism it needs crosses the syscall surface, which AGENTS.md reserves for calef.
+
+**The premise this milestone's own BUGS section stated turned out to be false, and the correction
+matters before the design question does.** The entry read: *"`top` needs per-thread CPU
+accounting that does not exist at all: `QuotaToken` is dead code whose own comment says
+`spawn_with_quota` 'has no caller of its own today'."* `QuotaToken` and `spawn_with_quota` are
+real and are exactly as dead as quoted (`kernel/src/thread.rs:301-324`,
+`kernel/src/sched.rs:1122-1187`), but they have nothing to do with CPU time: a `QuotaToken` is a
+reserved slot in a **spawn-count budget** ("at most `budget` of these may be alive at once"),
+returned to the counter when the thread is reaped. It bounds how many *children* a spawner may
+have alive, the same job §28/milestone 41 moved to per-process untyped retyping (the budget *is*
+the quota now, enforced by retyping rather than a counter), and it has never measured a single
+tick of anyone's CPU time. Wiring `top` through it would not produce CPU accounting; it would
+produce a child-count limiter wearing `top`'s name.
+
+**So the honest finding is stronger than the BUGS entry: there is no per-thread CPU accounting
+anywhere in this kernel, dead or live, and no partial mechanism to wire.** Checked directly:
+`Thread` (`kernel/src/thread.rs`) carries no time-on-CPU field of any kind. The timer IRQ handler,
+`sched::on_tick()`, does exactly one thing: `cpu::current().need_resched.store(true, ...)`, plus
+the corruption-canary check, and touches no per-thread state. `sched.rs` has a **global**
+`preemptions()` counter (how many preemptions have happened machine-wide, used by the
+`a_thread_that_never_yields_is_preempted_anyway` test) and nothing per-thread. `abi::rendezvous::SURVEY`,
+the mechanism `ps`/`pgrep`/`watch` already use, reports a state (`READY`/`RUNNING`/`BLOCKED`/`DEAD`)
+per snapshot and nothing cumulative. Building `top` therefore means adding new kernel state, not
+wiring existing state, and the state has to cross the syscall boundary to reach userspace, which
+is why this is a fork rather than a build.
+
+**What "CPU accounting" could mean here, and the tree does not already answer this the way it
+answers most of the other five questions.**
+
+1. **Wall-clock age (time since spawn).** Cheapest possible: one `spawn_instant: u64` field on
+   `Thread`, set once at `START` from the ambient counter (`uptime`'s own primitive, see above),
+   read back as `now - spawn_instant`. Trivial to implement, but it is not what `top`'s `%CPU`
+   column means anywhere else: a thread that has been alive five minutes and a thread that has
+   run continuously for five minutes look identical. Naming this "CPU accounting" would mislead a
+   reader who knows Unix `top`.
+2. **Scheduled (on-CPU) time, accumulated.** What Linux's `utime`/`stime` and Fuchsia's
+   `zx_object_get_info` runtime both are: a counter incremented by the scheduler itself at every
+   switch-out (`schedule()`'s dispatch point already touches the outgoing and incoming `Thread`,
+   so the hook point exists) or, cheaper and coarser, sampled once per tick by charging
+   `on_tick()`'s currently-running thread one tick (the 100 Hz `TICK_HZ` this kernel already
+   runs). This is real CPU accounting and is the one a reader expecting `top` would recognize.
+   It is also genuinely new kernel state (a `u64` per `Thread`, written on the hottest paths in
+   the scheduler) and needs cross-core correctness worth stating plainly: each core's tick and
+   switch touch only the thread on that core, so no cross-core synchronization is needed for the
+   write, but a **reader** on one core observing a counter another core is actively incrementing
+   is an ordinary relaxed-load race, the same shape `TICKS`'s per-CPU array already accepts.
+3. **Sampling over `SURVEY`, no new kernel state at all.** A monitor could poll
+   `abi::rendezvous::SURVEY` repeatedly (as `watch` already does) and estimate `%CPU` statistically
+   from how often a tid's `state` reads `RUNNING` versus `READY`/`BLOCKED` across samples. This is
+   the only option that needs **zero** new kernel state and zero new syscall surface: it is pure
+   wiring against what `ps`/`watch` already ship. It is also not accounting in any real sense: a
+   thread that runs in the gaps between samples is invisible, short bursts are systematically
+   under- or over-counted depending on phase, and the number a reader sees would not match what
+   the kernel itself could report exactly if asked. Named for completeness and because option 5 of
+   the six questions (measure, don't assert) requires naming the zero-cost option even when it is
+   not the recommendation.
+
+**What every option that produces a real number needs, regardless of which semantics is chosen:
+a way to get it out of the kernel, and that is itself a wire decision.** `abi::rendezvous::SURVEY`
+already returns three words (`next_cursor`, `tid`, `state`) and a fourth (a CPU figure) would
+widen an existing method's return shape rather than add a new syscall number, mirroring how
+`pmap` added a method to a different object type instead of a syscall (DECISIONS §114). Whether
+that fourth word rides on `SURVEY` itself, or arrives through a second method the same
+`ENUMERATE` right gates, is exactly the kind of thing AGENTS.md calls out by name: "Anything two
+programs agree on... The syscall surface... which every future program is written against."
+Cheap to prototype, expensive to un-ship.
+
+**Recommendation: option 2 (scheduled time, tick-sampled rather than switch-accumulated), exposed
+as a widened `SURVEY` return, per-thread rather than per-process.** Reasons, briefly: tick-sampling
+costs one branch and one increment inside code that already runs every tick on every core, versus
+touching two `Thread`s on every voluntary yield in `schedule()`'s hot path; per-thread rather than
+per-process because **this kernel's native unit is the thread**, exactly as `ps` and `pgrep`
+already report it: this system has no process/thread-group construct to aggregate into, and
+inventing one only for `top` would be new state with no other consumer, the same speculative
+abstraction §46 and this milestone's own ENUMERATE rustdoc already decline elsewhere. Prior art
+for the recommendation, not just the alternatives it rejects: Linux's `jiffies`-based `utime`
+accumulates at the scheduler tick for exactly this reason (cheap, coarse, good enough), and no
+mainstream `top` implementation ships the pure-sampling approach (option 3) as its primary source,
+which is some evidence it does not hold up as a real number even where it is available for free.
+
+**This is a fork rather than a recommendation-only decision** because unlike milestone 54's demo
+share (recommended and moved on), this one touches the syscall surface and a wire format two
+programs (kernel and every SURVEY reader) would agree on forever; AGENTS.md's own rule is
+"recommend on reversible forks; give options only on irreversible ones," and this is the second kind.
+**What is blocked on this:** `top` itself, entirely; nothing else in the milestone depends on it.
+
+## Fork: a process display name (`pwdx`, `w`)
+
+**Status: PROPOSED, 2026-08-26 (this lane).** Split into two questions on purpose, because they
+turned out to have different answers.
+
+**The authority question has a clean answer, and it falls out of work this milestone already
+did.** The BUGS entry worried that "a name is information rather than authority, but a confined
+viewer may still not be entitled to it." But `Rights::ENUMERATE` was defined, in this same
+milestone, as exactly "the right to **learn what exists**, as distinct from acting on it"
+(`crates/capability/src/lib.rs`), and its own rustdoc already names the two objects expected to
+grow it (`AddressSpace`, built, `pmap`; `MemoryRegion`, not yet, `free`), on the same "ask
+what exists, not what it is doing" argument a name would need. A display name is *more
+information about a thing already named*, not a new kind of access to it: a viewer that already
+holds `ENUMERATE` on a supervision endpoint can already learn a member's tid and run state, both
+of which are more operationally sensitive than a static program name (a state transition can leak
+timing; a tid is already the handle every other SURVEY-gated operation keys on). There is no
+principled reason a name would need a *stronger* right than the one that already unlocks
+"everything else about this member except acting on it." **Recommendation: a display name, if
+built, is gated by the same `ENUMERATE` right `SURVEY` already checks: no new right, no widened
+manifest field beyond what `ps` already declares.**
+
+**The mechanism question does not have a clean answer, because the thing being gated does not
+exist anywhere in the tree to be gated.** Checked directly: `Spawn::arg0` (`kernel/src/user.rs`)
+is one `u64` register, used today for role selection and integer arguments (`worker`'s multiplier,
+`date`'s format selector), never a string. `grant_plan::Prog` *does* know a program's name at the
+moment the shell resolves it (`Prog::from_name`/`Prog::name`), and `system_initializer`'s
+`spawn_service` *does* read that `Prog` to find the ELF to load, but nothing persists the
+association past that one spawn call. No `Thread` field, no per-tid table in init, no table in
+any supervisor (checked `root_supervisor.rs`, `sub_server_supervisor.rs`,
+`crates/component_plan`, none of which keep a live tid-to-name map either; `component_plan`'s
+"role name" is a build-time label on a static declaration, not a runtime lookup). So even granting
+every viewer `ENUMERATE` today would answer nothing, because there is nothing on the other end of
+the lookup.
+
+**Two shapes close that gap, and they are not equally invasive:**
+
+1. **Kernel-resident name.** `Thread` grows a fixed-size byte field (bounded, `nifefs`'s
+   `NAME_LEN = 32` is the precedent for what this tree considers a reasonable cap), set once at
+   `START` from bytes the spawner supplies. This is symmetric with how `arg0` already works and
+   would let a widened `SURVEY` (or a new method, same question `top`'s fork raises) report a name
+   the same way it reports state, but it is a **wire commitment**: `START`'s signature changes
+   (today `invoke(cap, START, _, _, _)` takes nothing), or a new `CAP_INSERT`-shaped call carries
+   the bytes before `START`, and either way it is new syscall surface two programs agree on
+   forever, the same category `top`'s fork is in.
+2. **Userspace-resident name, kept by whoever already knows it.** `system_initializer` already
+   knows the `Prog` at spawn time and already is the one process every supervised child's fault
+   endpoint (`deaths`) routes through. It could keep its own tid-to-name table and answer a lookup
+   itself, but "answer a lookup" means a new RPC surface *to init*, since `deaths` today is a
+   fault endpoint with a kernel-fixed method set (`RECV`/`REAP`/`SURVEY`), not a channel init reads
+   requests from. This avoids touching the syscall surface but invents a new userspace protocol
+   with its own authority question (is holding `ENUMERATE` on `deaths` sufficient to also query
+   init's table, or does init need to re-derive the same check SURVEY's kernel code already does)
+   that this tree has no precedent for solving cleanly, since every other cross-process query here
+   (`SURVEY`, `aspace::LIST`) is a kernel-adjudicated method on the object itself, not a request to
+   a third process holding a side table.
+
+**No recommendation between the two**, per AGENTS.md's own limit ("recommend on reversible forks;
+give options only on irreversible ones"): both are syscall-surface-adjacent decisions (one
+literally is one; the other invents a new inter-process protocol shape this tree has not used
+before), and a wrong pick here is expensive to unwind either way. **What is blocked on this:**
+`pwdx` and `w`, both of which are otherwise small (`pwdx` is "print a name for a tid"; `w` is
+`ps` with an idle-time column, itself downstream of the CPU-accounting fork above). Once a
+mechanism is chosen, the authority answer above already applies without further discussion.
+
+## Fork: `free` and `vmstat`'s machine-wide memory statistics
+
+**Status: PROPOSED, 2026-08-26 (this lane).** The third member of "machine-wide statistics," and
+the one that confirms `uptime` (built, see above) was the exception rather than the rule for that
+row: `free` and `vmstat` both want physical-memory accounting, and unlike the monotonic counter,
+nothing makes that accounting ambient today.
+
+**What the kernel already tracks, checked directly in `kernel/src/memory.rs`.** A page-frame
+bitmap allocator with `stats() -> Option<Stats>`, `free_page_frames() -> usize`, and
+`largest_free_run() -> usize`, used today only for the boot-time `print_summary()` diagnostic
+printed to the kernel console before any userspace exists. This is real, already-maintained data,
+the same "already keeps it for its own reasons" property that made `ps`'s supervision-subtree
+scope and `pmap`'s revocation-log read free rides, but it is **kernel-internal state with no
+existing path to userspace**, unlike the monotonic counter (`uptime`'s fork), which is a hardware
+register the kernel explicitly opened to EL0 (`CNTKCTL_EL1`'s `EL0VCTEN`, a documented exception
+to DECISIONS §10). There is no analogous exception for physical-memory statistics, and inventing
+one is squarely a new-syscall-surface question, the same category as both forks above: the number
+lives only in kernel data structures, and the only way out is a trap.
+
+**This is also where `capability::Rights::ENUMERATE`'s own rustdoc already puts the next question,
+which this lane did not have to invent.** It names `MemoryRegion` (DECISIONS §113's rename of
+`Untyped`) as the second of the two objects "expected to grow it," for `free`'s benefit: "ask what
+is committed without being able to `SPLIT` or `DESTROY`." That is a **per-capability** query (how
+much of *this* region, which someone already holds, is committed), not a **machine-wide** one (how
+much RAM does the whole box have free), and `free`/`vmstat` upstream ask the second question, not
+the first. The two are genuinely different asks with different confinement stories:
+
+1. **Per-region `ENUMERATE`, following the pattern already named.** Exactly the `pmap` shape: a
+   new method on `MemoryRegion`, gated by `ENUMERATE`, answering "how much of the region behind
+   *this capability* is committed." No ambient machine total, consistent with this system's
+   region-ownership model (DECISIONS §13: memory belongs to whoever's budget it came from, not to
+   a global pool anyone can ask about). This is *not* what upstream `free` reports, and a `free`
+   built this way would need to say so plainly, the same honesty `pmap`'s BUGS section already
+   models for a narrower-than-upstream program.
+2. **A machine-wide figure, ambient or capability-gated.** Closer to what a reader expects from
+   `free`, and further from this system's design: nothing today lets a program learn a fact about
+   memory it does not hold a capability to, and a global free-memory total is exactly that. If
+   built, the clock page's shape is the closest existing precedent worth reusing rather than
+   inventing a new one from scratch: a service publishes into a page it owns, readers hold a
+   capability to a read-only mapping of it, but *unlike* the clock page, nothing today computes
+   this figure in userspace: the data starts out kernel-internal, so some new kernel-to-userspace
+   channel (a syscall, or the kernel writing into a page it hands to a stats-publishing service)
+   is unavoidable regardless of which shape the read side takes.
+
+**No recommendation**, for the same reason as the name fork above: this is a confinement-model
+question (does "how much memory is free" carry the same region-scoped authority everything else
+in this system carries, or is it the one machine-wide ambient fact besides monotonic time), not
+an implementation-cost one, and it is calef's to make. **What is blocked on this:** `free` and
+`vmstat` entirely. Nothing else in the milestone depends on either.
+
 ## The other fork: where the process view comes from
 
 **Derive it from the supervision tree** (recommended), or **give processes a separate namespace with
@@ -344,18 +590,33 @@ is ordinary, and `line_editor` and the compositor already exist beneath it.
   states.** A reader who expects to retune the kernel through one program, the way `apt install
   procps` provides on Linux, will not find one here. Each subsystem that grows a runtime tunable
   carries its own control surface instead; there is no unifying admin tool by design.
-- **Estimating the package from the `ps` half gets it wrong twice.** `top` needs per-thread CPU
-  accounting that does not exist at all: `QuotaToken` is dead code whose own comment says
-  `spawn_with_quota` "has no caller of its own today". And `free`, `uptime` and `vmstat` want machine
-  statistics rather than process enumeration, so **building `top` does not give you `free`**. Three
-  separate bodies of work wear one package name.
+- **Estimating the package from the `ps` half gets it wrong twice, and one of the two ways was
+  itself a misreading, corrected 2026-08-26.** `top` needs per-thread CPU accounting that does not
+  exist at all, but not because of `QuotaToken`: that dead code (its own comment says
+  `spawn_with_quota` "has no caller of its own today") is a spawn-**count** budget, unrelated to
+  CPU time, and wiring `top` through it would produce a child-count limiter rather than an
+  accounting mechanism. There is no partial CPU-accounting machinery anywhere in this kernel to
+  wire, dead or otherwise; see **Fork: `top`'s per-thread CPU accounting**, above, which also
+  found that a real answer needs new syscall surface, not just new kernel state. And `free`,
+  `uptime` and `vmstat` want machine statistics rather than process enumeration, so **building
+  `top` does not give you `free`**, except `uptime` turned out not to need machine statistics at
+  all (**built, 2026-08-26**, see above): it reads the same ambient monotonic counter `date`
+  already does, needing no capability and no design decision. `free` and `vmstat` still do; see
+  **Fork: `free` and `vmstat`'s machine-wide memory statistics**, above. Three separate bodies of
+  work wear one package name, and now one of the three is finished.
 - **Aggregate statistics are a side channel, and capabilities do not close it.** CPU time per process
   leaks information about work the viewer was never shown, even with names withheld. A capability
   bounds *who* may ask; it says nothing about what the numbers reveal to whoever may. A real limit of
   the model, recorded next to the feature rather than in a threat model nobody reads.
 - **A process has no name here.** `ps` shows command lines; this system has `arg0` in `Spawn` and no
-  display name. A name is information rather than authority, but a confined viewer may still not be
-  entitled to it, and there is no design for that today.
+  display name. **The authority half of this is now answered (2026-08-26): a confined viewer that
+  already holds `ENUMERATE` is entitled to a name for the same reason it is entitled to a tid and a
+  state, since a name is more information about a member already named rather than a new kind of
+  access.** What has no design is the mechanism: nothing in this tree persists a tid-to-name
+  association past the one spawn call that briefly has both, so before an authority question can
+  even apply, something has to decide where a name would live and how it crosses a process
+  boundary, which is squarely the syscall-surface question the "move fast on what can be undone"
+  tenet reserves for calef. See **Fork: a process display name**, above.
 - **A supervision-derived view cannot express a non-subtree set**, if that fork lands that way. The
   workaround is a supervisor existing only to be a common parent, and it should be recorded when the
   fork is decided rather than found by whoever first needs it.

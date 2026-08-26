@@ -67,6 +67,7 @@ members = [
     "crates/video_terminal",
     "crates/swish",
     "crates/timetable",
+    "crates/uptime",
     "crates/watch",
 ]
 
