@@ -208,13 +208,15 @@ feature (`user/src/login.rs`'s own BUGS, more precisely worded per item).
   shape the *move fast on what can be undone* tenet reserves for calef: a kernel-to-init grant and a
   claim about what hardware the interactive boot represents.
 
-  **Decided (calef, 2026-08-23, DECISIONS §120): the QEMU-only stopgap is declined for now**, for
-  want of a customer -- no interactive login needs to work before real hardware entropy is sorted.
-  Milestone 159, a real hardware entropy source: the JH7110's TRNG (minted alongside §120), tracks
-  the real answer, already named as the candidate in `notes/entropy.md` and milestone 56's own doc
-  but never given a home. Replacing the shell's build-time endowment with a real login prompt remains this milestone's
-  largest piece and stays blocked until either §120 is revisited with a real customer or milestone
-  159 lands.
+  **Decided, then reversed (DECISIONS §120, AMENDED 2026-08-26): grant the QEMU-only stopgap.**
+  Originally declined 2026-08-23 for want of a customer; calef is that customer, for a reason
+  specific to this project's own method rather than a change of mind: a QEMU boot is reachable by a
+  lane or an agent unattended, and a real board (milestone 159's actual target) needs his own hands,
+  so gating every future login-dependent milestone on real hardware would gate them on him being
+  available. §120's own text has the full reasoning and the costs checked before the reversal, not
+  waved past (the cspace is still one slot from the wall of sixteen; fitting the grant is still a
+  restructuring). Replacing the shell's build-time endowment with a real login prompt is unblocked:
+  this milestone's largest remaining piece, not this milestone's own design fork.
 - **Resolved, 2026-08-24.** `login` used to load `fs_subtree_caretaker` by name with no check at all,
   inconsistent with milestone 104's discipline (init refuses to load a program whose bytes do not
   match the archive's measurement table). Investigating "how a loader outside the boot chain joins
