@@ -1,9 +1,8 @@
 # 130. How the kernel-resident CMOS RTC reaches the userspace clock service
 
-**Status: PROPOSED.** [Milestone 176](../roadmap/176-x86-64-discovery-seam-wide-half.md)'s own
-lane sized this while building the milestone's second piece and found a real design fork rather
-than a shape to build, correctly declining to invent an answer. This entry lays out what it found,
-verbatim from its own research, for that call.
+**Status: DECIDED.** calef, 2026-08-26: "Ratify option 3." [Milestone 176](../roadmap/176-x86-64-discovery-seam-wide-half.md)'s
+own lane sized this while building the milestone's second piece and found a real design fork rather
+than a shape to build, correctly declining to invent an answer.
 
 ## What §121 leaves open, and does not reopen here
 
@@ -76,20 +75,26 @@ either way.
    over it: a value that changes once a boot has no reason to be re-queried instead of handed over
    once.
 
-## Recommendation
+## Decision
 
-**Option 3, given §121's current recommendation.** No new capability type, no new syscall, matches
-real prior art, and the cost is genuinely just the protocol question, not an implementation cost
-dressed up as one (this tree's own "would I still choose this if both options were the same amount
-of work" test: yes, option 3 is also the least code of the four). But it changes a wire format two
-programs already agree on and changes who is trusted to set the clock's first value on one
-architecture, both calef's calls under this tree's own "move fast on what can be undone" tenet, not
-a lane's.
+**Option 3, given §121's current recommendation.** The kernel reads CMOS once at boot and hands the
+seed to the clock service as a `Spawn` argument, the same way `kind` already crosses that boundary.
+No new capability type, no new syscall, matches real prior art, and the cost is genuinely just the
+protocol question, not an implementation cost dressed up as one. It does change a wire format two
+programs already agree on (`clock_proto` grows a new `rtc` kind, or an equivalent addition) and it
+makes the kernel a writer of the clock's initial value where only the userspace service is today;
+both are now decided, not open.
 
 If §121 is later decided toward option 1 (the port-range capability), for the console or for any
 other reason, option 2 above becomes available on the same terms and should be re-priced against
-option 3 at that point; nothing here forecloses that.
+option 3 at that point; this decision does not foreclose that, and does not need to be revisited
+for it, since option 3 stands on its own regardless of which way §121 goes.
 
-## What is blocked until this is answered
+## What this does not decide
+
+The exact shape of the new `clock_proto::rtc` kind or `Spawn` argument, which is implementation, not
+a naming or wire-format call reserved above. Milestone 176's piece 2 is now unblocked to build.
+
+## What was blocked until this was answered
 
 All of milestone 176's piece 2. Piece 1 (COM1's IRQ) is complete and independent of this.
