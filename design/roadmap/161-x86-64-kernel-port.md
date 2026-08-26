@@ -503,21 +503,59 @@ In the order it should be done, because each is a prerequisite for the next.
    `CR4.PCIDE` (item 3's measurement), and 1 wants an `x86_64-unknown-nife` target and a `std` farm
    (milestone 27).
 
-5. **SMP**, via INIT-SIPI-SIPI. The local APIC is up, so what remains is the Interrupt Command
-   Register sequence and a real-mode trampoline copied below 1 MiB. Also needs a per-CPU TSS and a
-   per-CPU GDT, since `TSS.RSP0` names a per-core stack.
+5. **SMP, via INIT-SIPI-SIPI. PARTIALLY BUILT 2026-08-25**: a second core comes up and joins the
+   scheduler, reliably; a third does not, reliably, and the reason is not yet known. Both of this
+   item's own two named bugs are fixed, not inherited.
 
-   **Item 4 did three of these without meaning to**, which is worth knowing before this is scoped:
-   the ICR is written and tested (`irq::send_ipi` and `irq::raise_self_interrupt`, the latter driving
-   the scheduler's interrupt-delivery tests on every x86 run), `irq::send_reschedule` is real, and
-   the reschedule vector has a handler arm that drains the inbox and serves a steal request. So the
-   *cross-CPU scheduler plumbing* is built and only its second CPU is missing. What item 4 also
-   found, and what this item has to fix rather than inherit: `smp::bring_up_secondaries` converts the
-   secondary entry with `arch::mmu::virt_to_phys`, and that is the wrong conversion here, because
-   `secondary_boot` is in `.boot` and the linker already places it at its physical address. And
-   `send_reschedule` uses the logical cpu id as the destination local APIC id, which is true on one
-   CPU and not in general; the MADT states the mapping and nothing reads it into a roster yet, which
-   is also why three `smp` tests skip on this architecture.
+   **What landed.** The Interrupt Command Register sequence (`arch::x86_64::irq::send_init`/
+   `send_startup`) and a real-mode trampoline (`boot.s`'s `secondary_boot`, now real code rather than
+   a `hlt` stub) linked at a fixed low virtual address (`AP_TRAMPOLINE_PHYS = 0x8000`, `link-x86_64.ld`'s
+   `.ap_trampoline`) so its own address already is the physical page a `STARTUP` IPI has to name, and
+   copied there at runtime from an ordinary spot in the loaded image (`arch::x86_64::ap_boot::prepare`)
+   because its two natural-looking homes, `.boot_scratch` and the secondary stacks, are both
+   runtime-mutated and would hand back corrupted bytes. The trampoline replays `_start`'s own
+   16→32→64-bit transition against the same boot page tables, reads its own local APIC id via
+   `CPUID` (the same "Initial APIC ID" `arch::boot_cpu_id` now reads on the boot core, fixed from a
+   hardcoded 0, so the roster's seating and the boot core's own logical id agree), and jumps to the
+   portable `secondary_main` already used by the other two architectures. A per-CPU TSS and GDT
+   (`segments.rs`, indexed by `cpu::id()`) replace the single boot-CPU pair item 4 left behind, and
+   the three words `trap.s`'s `isr_restore`/`x86_syscall_entry` reach per CPU (the syscall path's
+   kernel stack, its scratch for the interrupted user `rsp`, and a pointer to this core's own
+   `TSS.rsp0`) moved into `cpu::PerCpu::x86_trap`, reached through a `gs`-relative offset the same
+   way every other per-CPU write on this architecture already is. The ACPI MADT's local-APIC-id
+   roster is read into the same `HWID`/`STARTABLE` arrays `smp::read_cpu_list` fills from a device
+   tree (`smp::seat_cpus_from_acpi`), seating each core, boot core included, at the slot its own
+   local APIC id names.
+
+   **Both named bugs are fixed.** `smp::bring_up_secondaries` no longer calls `arch::mmu::virt_to_phys`
+   on `secondary_boot`'s address on this architecture (that address is already physical, by
+   construction of the linker script above; `arch::secondary_boot_entry` is the identity function
+   here and says why). `irq::send_reschedule` no longer uses the logical cpu id as a local APIC id
+   directly; it looks the real one up in the roster (`smp::hwid`) the same MADT read above built.
+
+   **What did not land: reliable bring-up past two cores.** `-smp 2` (one secondary) starts
+   correctly and reliably, measured across dozens of runs. From `-smp 3` on, exactly one secondary
+   fails to reach `secondary_main`'s online mark, intermittently and non-deterministically (which
+   one varies run to run), every time this was tried. Instrumented with raw port-I/O checkpoints
+   inside the trampoline, the failing core reaches 64-bit long mode but not the last checkpoint
+   before jumping to `secondary_main`, across five ordinary instructions that do nothing unusual and
+   are identical to what the succeeding core(s) just ran. Two direct hypotheses were tested and
+   neither held up: routing `arch::x86_64::cpu_start`'s wait through `hlt` instead of a busy spin (in
+   case CPU 0's own loop was starving the target vCPU thread of host scheduling time under QEMU TCG)
+   turned an occasional full hang into a reliable clean give-up but did not fix the underlying
+   failure; sending the MP spec's second `STARTUP` IPI only when the first evidently has not worked
+   (in case an accepted second SIPI was re-vectoring an already-running core mid-execution) made no
+   measurable difference either. Both changes are kept, on their own independent merits, but neither
+   is the fix. Full account and the exact instructions where the trail goes cold:
+   `arch::x86_64::ap_boot`'s own `BUGS`. Until this is understood, `scripts/qemu-runner-x86_64.sh`
+   defaults `NIFE_SMP` to 2 rather than matching the other two runners' 4, so the standard suite
+   exercises real (if capped) multi-core bring-up rather than either a no-op or an unreliable one;
+   the three `smp` tests this item's own roster work unblocks (`the_roster_is_the_machines_own_core_list`,
+   `every_core_the_tree_described_is_running`, `all_secondaries_came_online`, each needing only
+   `>= 2` cores by their own assertion) run and pass at that count. Whether the deeper failure is a
+   QEMU TCG emulation quirk or a real bug in this sequence is exactly the kind of question milestone
+   87's real hardware would settle, and is worth a lane of its own once that machine is further
+   along.
 6. **VT-d.** No longer blocked on table parsing: `machine_discovery::acpi` walks the root table
    generically, so finding the DMAR is adding a signature arm. What remains is the device itself.
 

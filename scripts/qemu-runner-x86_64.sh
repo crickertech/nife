@@ -21,9 +21,12 @@ set -e
 ELF="$1"
 shift
 
-# One CPU for now: SMP bring-up on x86 is INIT-SIPI-SIPI through the local APIC, which this port has
-# not reached. NIFE_SMP moves it once it has, matching the other two runners' knob.
-SMP="${NIFE_SMP:-1}"
+# Two by default, NOT four like the other two runners (SMP bring-up is INIT-SIPI-SIPI through the
+# local APIC, milestone 161's SMP item, and NIFE_SMP moves it the same way there). A lone secondary
+# starts reliably; from a third core on, bring-up is intermittently unreliable under QEMU TCG for a
+# reason not yet root-caused (see arch::x86_64::ap_boot's own BUGS). Two is the largest count this
+# port can promise today, and it is still real multi-core bring-up, not the no-op it used to be.
+SMP="${NIFE_SMP:-2}"
 
 # `q35` rather than the older `pc` because it is what the physical target looks like: a PCIe root
 # complex with an ECAM window, an AHCI controller, and the legacy 16550 COM1 at port 0x3f8 that

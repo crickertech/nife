@@ -296,25 +296,162 @@ boot_pd:
     .space 4 * 4096
 
 # ---------------------------------------------------------------------------------------------
-# The secondary-CPU entry, which on this architecture does not yet exist.
+# The secondary-CPU entry (milestone 161's SMP item): a real-mode trampoline, linked at the fixed
+# low physical address AP_TRAMPOLINE_PHYS (link-x86_64.ld) rather than at this file's usual high
+# addresses, because a STARTUP IPI's vector can only name a physical PAGE below 1 MiB and the target
+# CPU begins executing there in 16-bit real mode (cs = vector << 8, ip = 0, so the physical address
+# is exactly vector << 12).
 #
-# `smp::bring_up_secondaries` takes this symbol's address and hands it to `arch::psci_cpu_on`, so
-# the symbol has to resolve or the kernel does not link. It cannot be the real thing yet, and the
-# reason is worth writing down rather than leaving as an empty stub: an x86 secondary is started by
-# INIT followed by two STARTUP inter-processor interrupts through the local APIC, and a STARTUP IPI
-# carries an 8-bit vector naming a page **below 1 MiB** that the CPU begins executing **in 16-bit
-# real mode**. So the entry point cannot be a label in this image at all: it has to be a copy of a
-# real-mode trampoline placed in low memory at run time, which then repeats the whole protected-mode
-# and long-mode transition above before it can reach any of this.
+# `secondary_boot`'s VIRTUAL address (VMA) IS its final execution address: link-x86_64.ld gives
+# `.ap_trampoline` an explicit low VMA but leaves its LOAD address (LMA) wherever the image
+# naturally places its bytes, so at boot they sit somewhere ordinary (beside `.rodata`) and
+# `arch::x86_64::ap_boot::prepare` copies them here, to AP_TRAMPOLINE_PHYS, before the first
+# `STARTUP` IPI ever fires. Because the VMA already matches, every absolute address the assembler
+# baked into this code (this file's OWN tiny GDT pointer below, and both far-jump targets) is
+# already correct the instant the copy lands; only the one genuinely dynamic value
+# (`ap_trampoline_stack_top`) needs writing at runtime, and `prepare` writes it.
 #
-# `psci_cpu_on` returns an error on this architecture, so nothing ever jumps here. If something
-# does, halting is the only safe thing: a CPU that runs on into the wrong mode corrupts memory
-# rather than stopping.
+# THE SHAPE, THREE MODES IN ONE FUNCTION, no stack used anywhere in it (matching `_start`'s own
+# steps 3-4, which this deliberately mirrors rather than jumps into: `_start`'s continuation is
+# `_start_high`, which zeroes `.bss` and calls `kernel_main`, and neither is what a second core
+# should do):
+#
+#   1. 16-bit real mode: `cli`, zero the segment registers (their post-SIPI value is UNDEFINED, and
+#      every memory operand below is `[disp16]`, i.e. DS-relative, so DS must be exactly 0 for a
+#      disp16 equal to this trampoline's own low VMA to name the right byte), load THIS file's own
+#      tiny 32-bit-flat GDT (a 16-bit real-mode `lgdt` cannot reach `_start`'s `boot_gdt`, which is
+#      linked near 1 MiB, well past what a zero-based 16-bit displacement can address), set
+#      `CR0.PE`, and far-jump into 32-bit protected mode. The far jump is hand-encoded, as
+#      `_start`'s is, and for the same reason (assembler Intel-syntax quirks); it is the 16-bit
+#      *ptr16:16* form here (`EA iw iw`), not `_start`'s 32-bit *ptr16:32* form, because the default
+#      operand size is still 16 here.
+#   2. 32-bit protected mode: **from here, ordinary flat 32-bit addressing reaches every low-physical
+#      symbol in this image**, including `_start`'s own `boot_pml4` and `boot_gdt_pointer` (already
+#      built once by the boot core and never freed: `.boot_scratch` is on the frame allocator's
+#      forbidden list for the whole life of the machine). Replays `_start`'s own PAE/CR3/LME/NXE/
+#      PG/WP sequence verbatim, against the SAME page tables, then `lgdt`s `_start`'s real
+#      `boot_gdt` (which has the 64-bit code descriptor this trampoline's own tiny GDT does not) and
+#      far-jumps into long mode, exactly as `_start` does.
+#   3. 64-bit long mode: reload the flat data selectors, set `rsp` from `ap_trampoline_stack_top`
+#      (read RIP-relative: still executing at the low VMA here, referencing another symbol in the
+#      same low blob), read this CPU's own local APIC id via `CPUID` leaf 1 `EBX[31:24]` (the same
+#      "Initial APIC ID" `arch::boot_cpu_id` reads on the boot core, so the logical id this hands to
+#      `secondary_main` agrees with the roster's own seating), and jump to `secondary_main`'s HIGH
+#      virtual address. That address is reachable through `boot_pml4` because `_start`'s own high
+#      alias (`boot_pdpt_high[510]`) covers the whole kernel image, which is well under the 1 GiB it
+#      spans.
 # ---------------------------------------------------------------------------------------------
-.section .text.boot, "ax"
+.section .ap_trampoline, "ax"
+# NOT `.text.ap_trampoline`: link-x86_64.ld's `.text` output section greedily matches every input
+# section named `.text.*` (`*(.text .text.*)`), which runs *before* this file's own `.ap_trampoline`
+# output section is reached, so a `.text.ap_trampoline` input section would be silently swallowed
+# into the ordinary high `.text` output section instead of landing at AP_TRAMPOLINE_PHYS. Found by
+# building: every symbol in this trampoline resolved to a `KERNEL_VA_BASE`-relative address instead
+# of a low one, and every absolute reference to it then overflowed its relocation width.
 .code16
 .global secondary_boot
 secondary_boot:
     cli
-1:  hlt
-    jmp 1b
+    cld
+    xor ax, ax
+    mov ds, ax
+    mov es, ax
+    mov ss, ax
+
+    lgdt [ap_gdt_pointer]
+
+    mov eax, cr0
+    or eax, 1                          # CR0.PE: protected mode enable
+    mov cr0, eax
+
+    # Far jump, hand-encoded (ptr16:16, since the default operand size here is still 16 bits): the
+    # opcode, a 16-bit offset (fits: this whole trampoline is far under 64 KiB from its own base, so
+    # a plain disp16 names it), then the selector.
+    .byte 0xEA
+    .word ap_pmode32
+    .word 0x08                          # ap_gdt entry 1: 32-bit flat code, DPL 0
+
+.code32
+ap_pmode32:
+    mov ax, 0x10                        # ap_gdt entry 2: 32-bit flat data, DPL 0
+    mov ds, ax
+    mov es, ax
+    mov ss, ax
+    mov fs, ax
+    mov gs, ax
+
+    # From here, ordinary 32-bit absolute addressing reaches any low-physical symbol, `_start`'s
+    # own included. Replays `_start`'s step 3 verbatim, against the SAME boot page tables.
+    mov eax, cr4
+    or eax, 1 << 5                      # CR4.PAE
+    mov cr4, eax
+
+    mov eax, offset boot_pml4
+    mov cr3, eax
+
+    mov ecx, 0xC0000080                 # IA32_EFER
+    rdmsr
+    or eax, 1 << 8                      # LME
+    or eax, 1 << 11                     # NXE
+    wrmsr
+
+    mov eax, cr0
+    or eax, 1 << 31                     # PG
+    or eax, 1 << 16                     # WP
+    mov cr0, eax
+
+    # `_start`'s REAL boot GDT, which (unlike this file's own tiny one above) carries the 64-bit
+    # code descriptor long mode needs. Reachable now: flat 32-bit addressing, no 16-bit range limit.
+    lgdt [boot_gdt_pointer]
+    .byte 0xEA
+    .long ap_long_mode_entry
+    .word 0x08                          # boot_gdt entry 1: 64-bit code, DPL 0, L=1
+
+.code64
+ap_long_mode_entry:
+    mov ax, 0x10                        # boot_gdt entry 2: flat data
+    mov ds, ax
+    mov es, ax
+    mov ss, ax
+    mov fs, ax
+    mov gs, ax
+
+    # Still executing at the low VMA: RIP-relative addressing names another symbol in this same
+    # trampoline blob correctly, the one value `ap_boot::prepare` had to write at runtime because
+    # nothing else could have known it ahead of time.
+    mov rsp, [rip + ap_trampoline_stack_top]
+
+    # This core's own local APIC id, the same "Initial APIC ID" `arch::boot_cpu_id` reads on the
+    # boot core, so the id handed to `secondary_main` agrees with the roster's seating
+    # (`smp::seat_cpus_from_acpi`, which seats every core at the slot its own local APIC id names).
+    mov eax, 1
+    cpuid
+    shr ebx, 24
+    movzx edi, bl                       # secondary_main(cpu_id: usize) -> rdi, the SysV first arg
+
+    push rdi
+    pop rdi
+
+    movabs rax, offset secondary_main
+    jmp rax
+
+# ---------------------------------------------------------------------------------------------
+# This trampoline's own data: a tiny GDT good only for the 16->32 step (this file's real one,
+# `boot_gdt`, carries the 64-bit descriptor the second step needs and is reused directly), and the
+# one word `ap_boot::prepare` writes before every `STARTUP` IPI.
+# ---------------------------------------------------------------------------------------------
+.align 16
+ap_gdt:
+    .quad 0x0000000000000000            # 0x00: the mandatory null descriptor
+    .quad 0x00CF9A000000FFFF            # 0x08: 32-bit flat code, DPL 0, D/B=1, present
+    .quad 0x00CF92000000FFFF            # 0x10: 32-bit flat data, DPL 0, present
+ap_gdt_end:
+
+ap_gdt_pointer:
+    .word ap_gdt_end - ap_gdt - 1
+    .long ap_gdt
+
+.align 8
+.global ap_trampoline_stack_top
+ap_trampoline_stack_top:
+    .quad 0

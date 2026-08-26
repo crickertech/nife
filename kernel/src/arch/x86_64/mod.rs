@@ -39,6 +39,9 @@
 
 use core::arch::{asm, global_asm};
 
+// The AP real-mode trampoline's copy-and-prepare step (milestone 161's SMP item). See its own
+// header, and `boot.s`'s `secondary_boot` for what it prepares.
+pub mod ap_boot;
 pub mod context;
 pub mod exceptions;
 pub mod interrupts;
@@ -68,13 +71,21 @@ global_asm!(include_str!("boot.s"));
 global_asm!(include_str!("context.s"));
 
 // The 256 trap stubs, the shared restore path, the `syscall` entry, and the door into ring 3
-// (the asm half of exceptions.rs). The three constants are substituted rather than duplicated: a
-// 64-bit assembler cannot read a Rust `const`, and the alternative is two files that can drift.
+// (the asm half of exceptions.rs). The constants are substituted rather than duplicated: a 64-bit
+// assembler cannot read a Rust `const`, and the alternative is two files that can drift. The three
+// `*_OFF` ones are `gs`-relative byte offsets into `cpu::PerCpu::x86_trap` (milestone 161's SMP
+// item), computed by `core::mem::offset_of!` rather than hand-counted, so a field added or reordered
+// in `cpu.rs` cannot silently desynchronize the assembly that reaches through them.
 global_asm!(
     include_str!("trap.s"),
     USER_CODE = const segments::USER_CODE as u64,
     USER_DATA = const segments::USER_DATA as u64,
     SYSCALL_VECTOR = const exceptions::SYSCALL_VECTOR,
+    TSS_RSP0_PTR_OFF = const core::mem::offset_of!(crate::cpu::PerCpu, x86_trap.tss_rsp0_ptr),
+    SYSCALL_KERNEL_RSP_OFF =
+        const core::mem::offset_of!(crate::cpu::PerCpu, x86_trap.syscall_kernel_rsp),
+    SYSCALL_USER_RSP_OFF =
+        const core::mem::offset_of!(crate::cpu::PerCpu, x86_trap.syscall_user_rsp),
 );
 
 /// `IA32_GS_BASE`: the MSR holding the base of the `gs` segment, and this architecture's answer to
@@ -136,12 +147,27 @@ pub unsafe fn write_msr(msr: u32, value: u64) {
     }
 }
 
-/// The logical id of the CPU the kernel boots on. Always 0 on x86: unlike RISC-V, where firmware
-/// picks a boot hart and the spec does not require it to be hart 0, the x86 boot processor is
-/// selected by hardware and is the one running when the kernel is entered. Its *APIC* id need not be
-/// 0, and that is a separate number this port does not yet read (it is in the MADT).
+/// The logical id of the CPU the kernel boots on.
+///
+/// **Read from `CPUID`, not hardcoded** (milestone 161's SMP item). This used to return the
+/// constant 0, on the reasoning that the boot processor is selected by hardware rather than by
+/// firmware choice the way RISC-V's boot hart is. That is true and beside the point: the number
+/// this returns has to agree with the *roster's* seating (`smp::seat_cpus_from_acpi`, which seats
+/// every core, boot core included, at the slot its own local APIC id names, the same
+/// logical-id-equals-hardware-id invariant `read_cpu_list` gives the other two architectures), and
+/// nothing guarantees the boot CPU's local APIC id is 0 in general, only that it usually is on
+/// QEMU.
+///
+/// `CPUID` leaf 1, `EBX[31:24]` ("Initial APIC ID") is the same local APIC id the MADT's
+/// `LocalApic` entries report, and unlike the local APIC's own ID register it needs no MMIO and no
+/// prior bring-up: it is available from the very first instruction, which is exactly why
+/// `cpu::init_this_cpu(arch::boot_cpu_id())` can call this before the console, the GDT, or ACPI
+/// exist.
 pub fn boot_cpu_id() -> usize {
-    0
+    // `__cpuid` is a safe function (see `isa::init`'s own comment); leaf 1 is architected on every
+    // CPU this kernel runs on, so no maximum-leaf check is needed the way leaf 7 wants one.
+    let leaf1 = core::arch::x86_64::__cpuid(1);
+    ((leaf1.ebx >> 24) & 0xff) as usize
 }
 
 /// Set this CPU's per-CPU pointer, by writing the `gs` segment base.
@@ -169,28 +195,144 @@ pub fn percpu_matches_hart() -> bool {
     true
 }
 
-/// Start a secondary CPU.
+/// Start a secondary CPU via INIT-SIPI-SIPI (milestone 161's SMP item). `target_cpu` is a local
+/// APIC id (the arch contract's "hardware id", `smp::bring_up_secondaries` reads it out of the
+/// roster `smp::seat_cpus_from_acpi` built), `entry` is the trampoline's own physical page
+/// (`ap_boot::trampoline_phys()`, handed back through `secondary_boot_entry`, see below), and
+/// `context` is the stack top the trampoline hands to `secondary_main`.
+///
+/// **Blocks until the core it started is fully online, or has been given up on**, which is not
+/// `smp::bring_up_secondaries`'s usual contract (aarch64 and RISC-V return as soon as the firmware
+/// call is accepted) but is required here: there is exactly one trampoline scratch page, shared by
+/// every `STARTUP` IPI this kernel ever sends, and `bring_up_secondaries` starts one core per call
+/// with nothing else serializing them. Waiting for `online_count()` to move is what makes the next
+/// call's `ap_boot::prepare` safe to overwrite that page.
 ///
 /// # BUGS
-/// **Unimplemented, and the name is wrong.** See this module's header: the mechanism here is
-/// INIT-SIPI-SIPI through the local APIC, which is neither PSCI nor anything resembling it, and the
-/// arch contract's name for this operation is aarch64's firmware interface. Returns a nonzero error
-/// rather than panicking, because that is what `smp::bring_up_secondaries` already expects from a
-/// CPU that will not start, and this port genuinely cannot start one.
+/// **`entry` must equal `ap_boot::trampoline_phys()`.** The arch contract passes whatever
+/// `smp::bring_up_secondaries` computed for `secondary_boot`'s address, which on this architecture
+/// *is* that trampoline page (see `secondary_boot_entry`'s own doc), so this holds by construction
+/// today; it is not re-derived here because there is nowhere else it could sensibly come from.
 pub fn cpu_start(target_cpu: u64, entry: u64, context: u64) -> i64 {
-    let _ = (target_cpu, entry, context);
-    -1
+    if !irq::local_apic_ready() {
+        return -1;
+    }
+    debug_assert_eq!(
+        entry,
+        ap_boot::trampoline_phys(),
+        "cpu_start's entry is not the AP trampoline's own page"
+    );
+    // SAFETY: this function does not return until the core it is about to start has either come
+    // fully online or been given up on (see the wait loop below), which is what keeps two calls
+    // from ever overwriting the shared trampoline page while an earlier one is still in use.
+    unsafe { ap_boot::prepare(context) };
+
+    let dest = target_cpu as u8;
+    let before = crate::smp::online_count();
+
+    // The universal INIT-SIPI-SIPI startup algorithm (Intel MP spec, appendix B.4): INIT, a settle
+    // delay, then a STARTUP IPI.
+    irq::send_init(dest);
+    busy_wait_us(10_000);
+    let vector = (entry >> 12) as u8;
+    irq::send_startup(dest, vector);
+    busy_wait_us(200);
+
+    // **The second STARTUP IPI is conditional, not unconditional.** The MP spec calls for two, "the
+    // second is a no-op on a core that already started", meaning a core that has already left the
+    // wait-for-SIPI state is defined to ignore a further one. This port does not fully trust that on
+    // QEMU TCG (see `ap_boot`'s own `BUGS`: a real, unexplained intermittent failure exists when a
+    // third or later secondary starts while an earlier one is already running, and an accepted
+    // second SIPI re-vectoring an already-running core back to the trampoline mid-execution was one
+    // hypothesis for it). Sending the second IPI only when the first evidently has not worked yet
+    // (`online_count` has not moved in the 200 us the spec allows for it to) costs nothing when the
+    // first succeeds and is strictly more conservative than sending it unconditionally, so it is
+    // kept even though a direct test did not show it fixing the deeper issue on its own.
+    if crate::smp::online_count() == before {
+        irq::send_startup(dest, vector);
+        busy_wait_us(200);
+    }
+
+    // Bounded: a core the firmware silently declines to start must not hang bring-up.
+    //
+    // **Ten seconds, not one.** The delays above are the real thing's timing, sub-millisecond on
+    // real hardware; the budget below is not that, it is how long CPU 0 waits for the SIPI'd core to
+    // run its own trampoline, adopt the fine map, and reach `secondary_main`'s online mark, all of
+    // it QEMU TCG instructions on whatever host thread the emulator's own scheduler gets around to
+    // next. Measured too short once already, at one second: the target core's own vCPU thread had
+    // simply not been scheduled by the host yet, and `cpu_start` gave up and reported "did not
+    // start" for a core that came up perfectly well a moment later, arriving too late to be counted
+    // and permanently invisible to the roster. This is exactly the host-contention shape
+    // `smp::tests::wait_for`'s own sixty-second budget exists for, one level earlier: bring-up
+    // itself can be starved the same way a test's own wait can.
+    //
+    // **`hlt` between checks, not a tight spin.** TCG runs each vCPU as one host thread, and
+    // `spin_loop`'s `pause` hint does nothing for *host* scheduling; a CPU 0 that never stops
+    // consuming its host thread's time slice can only make it harder for the vCPU thread whose
+    // progress this loop is waiting on to get scheduled, on a busy host (this project's own recorded
+    // condition; AGENTS.md, "other lanes running in parallel"). `wait_for_interrupt` parks CPU 0 on
+    // `hlt` until its own local APIC timer (armed at `TICK_HZ`, already ticking: interrupts are
+    // enabled before `bring_up_secondaries` runs) wakes it, which costs at most one tick of latency
+    // per check and, unlike the spin, actually yields host CPU time. Measured to turn an occasional
+    // full hang (waiting past even a sixty-second budget) into a reliable, clean give-up within the
+    // stated budget when a core does not come up; it did not, on its own, fix the deeper reason a
+    // core sometimes does not come up (`ap_boot`'s own `BUGS`), so it is kept for the failure mode it
+    // does fix rather than claimed as a fix for the one it does not.
+    let before = crate::smp::online_count();
+    let budget = 10 * crate::arch::timer::frequency();
+    let start = crate::arch::timer::now();
+    while crate::smp::online_count() == before {
+        if crate::arch::timer::now().wrapping_sub(start) >= budget {
+            return -1;
+        }
+        wait_for_interrupt();
+    }
+    0
 }
 
-/// Can this machine start a secondary CPU at all? **No**, and saying so plainly is what keeps
-/// `smp::bring_up_secondaries` from trying and hanging.
+/// Busy-wait roughly `us` microseconds, against the calibrated TSC. No `wfi`/`hlt` equivalent
+/// here: INIT-SIPI-SIPI's delays are a handful of instructions on real hardware, and parking this
+/// core for them would need an interrupt to wake it that nothing is going to send.
+fn busy_wait_us(us: u64) {
+    let ticks = crate::arch::timer::frequency() / 1_000_000 * us;
+    let start = crate::arch::timer::now();
+    while crate::arch::timer::now().wrapping_sub(start) < ticks {
+        core::hint::spin_loop();
+    }
+}
+
+/// Can this machine start a secondary CPU at all? Yes, once the local APIC is up: INIT-SIPI-SIPI is
+/// sent *through* it, unlike PSCI or SBI, which need no device at all before the first call.
 pub fn can_start_secondaries() -> bool {
-    false
+    irq::local_apic_ready()
 }
 
 /// Print how this machine starts a CPU. One line, on every boot, beside the SMP count.
 pub fn print_bring_up_mechanism() {
-    crate::println!("  smp: none yet (x86 uses INIT-SIPI-SIPI via the local APIC; milestone 161)");
+    if irq::local_apic_ready() {
+        crate::println!(
+            "  smp: init-sipi-sipi via the local apic, trampoline at {:#x}",
+            ap_boot::trampoline_phys()
+        );
+    } else {
+        crate::println!(
+            "  smp: the local apic is not up, so no core can be started here (init-sipi-sipi needs it)"
+        );
+    }
+}
+
+/// **The physical address `smp::bring_up_secondaries` hands `cpu_start` as `entry`.**
+///
+/// On aarch64 and RISC-V this is `virt_to_phys(secondary_boot)`: their `secondary_boot` is an
+/// ordinary high-linked label, and firmware wants its physical address. Here `secondary_boot` is
+/// **already** physical: link-x86_64.ld gives it the fixed low virtual address
+/// (`AP_TRAMPOLINE_PHYS`) it has to execute from, because a `STARTUP` IPI can only name a page
+/// below 1 MiB, so its own address *is* that page and converting it again would be wrong (this was
+/// milestone 161's first named bug: `smp::bring_up_secondaries` used to call `virt_to_phys` on it
+/// unconditionally, computing `secondary_boot's address - DIRECT_MAP_BASE`, an underflow, since
+/// `secondary_boot`'s address is nowhere near the direct map).
+pub fn secondary_boot_entry(secondary_boot_addr: u64) -> u64 {
+    secondary_boot_addr
 }
 
 /// Bring this CPU's architecture state up: the GDT and TSS, then the IDT. The order is forced, and

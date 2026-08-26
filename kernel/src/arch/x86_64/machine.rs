@@ -150,6 +150,13 @@ const MAX_TABLES: usize = 64;
 /// The most MADT entries the walk will report, for the same reason.
 const MAX_MADT_ENTRIES: usize = 256;
 
+/// The most `LocalApic` entries [`Acpi::cpus`] records (milestone 161's SMP item). Bounded well
+/// past `cpu::MAX_CPUS` on purpose: a MADT can list more processor entries than this kernel can
+/// seat (disabled sockets, a bigger machine than this build is sized for), and `smp::
+/// seat_cpus_from_acpi` needs the true count to report "N described, only M startable" honestly,
+/// the same distinction `read_cpu_list` draws on the device-tree architectures.
+const MAX_ACPI_CPUS: usize = 32;
+
 /// What the tables said, kept so the APIC and PCI bring-up can read it rather than re-walking.
 ///
 /// Every field is `Option` because a machine is allowed not to have the table it comes from, and
@@ -172,6 +179,14 @@ pub struct Acpi {
     pub enabled_cpus: usize,
     /// How many it lists as present but not enabled.
     pub disabled_cpus: usize,
+    /// **Every `LocalApic` entry the MADT listed**: `(local_apic_id, enabled)`, in the table's own
+    /// order, past `cpu_count`. Fed to `smp::seat_cpus_from_acpi` (milestone 161's SMP item), the
+    /// ACPI analog of `read_cpu_list`'s device-tree walk.
+    pub cpus: [(u8, bool); MAX_ACPI_CPUS],
+    /// How many entries of [`Acpi::cpus`] are real. May exceed `MAX_ACPI_CPUS` conceptually (the
+    /// table can list more than that), in which case this saturates at `MAX_ACPI_CPUS` and
+    /// `enabled_cpus`/`disabled_cpus` above are still the true totals.
+    pub cpu_count: usize,
     /// True when the machine also has 8259 PICs, which must be masked before the APICs are used.
     pub has_8259: bool,
     /// The PCIe ECAM window, from the MCFG: base, first bus, last bus.
@@ -186,6 +201,8 @@ impl Default for Acpi {
             isa_irqs: core::array::from_fn(|irq| IsaIrqRouting::isa_default(irq as u8)),
             enabled_cpus: 0,
             disabled_cpus: 0,
+            cpus: [(0, false); MAX_ACPI_CPUS],
+            cpu_count: 0,
             has_8259: false,
             ecam: None,
         }
@@ -345,11 +362,17 @@ fn read_madt(body: &[u8], into: &mut Acpi) {
 
     for entry in madt_entries(body).take(MAX_MADT_ENTRIES) {
         match entry {
-            MadtEntry::LocalApic { enabled, .. } => {
+            MadtEntry::LocalApic {
+                apic_id, enabled, ..
+            } => {
                 if enabled {
                     into.enabled_cpus += 1;
                 } else {
                     into.disabled_cpus += 1;
+                }
+                if into.cpu_count < MAX_ACPI_CPUS {
+                    into.cpus[into.cpu_count] = (apic_id, enabled);
+                    into.cpu_count += 1;
                 }
             }
             MadtEntry::IoApic {

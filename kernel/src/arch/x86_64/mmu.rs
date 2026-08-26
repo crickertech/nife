@@ -350,13 +350,11 @@ unsafe fn install(root: u64) {
     }
 }
 
-/// Adopt the kernel map on a secondary CPU. Every CPU shares one kernel root, so there is nothing
-/// per-CPU to build.
-///
-/// Unreachable today: `arch::cpu_start` returns an error on this architecture, so no secondary is
-/// ever started (roadmap item 5). It is written because the shape is fixed by the other two ports
-/// and guessing at it later is how a bring-up sequence acquires an ordering bug.
-#[allow(dead_code)]
+/// Adopt the kernel map on a secondary CPU. Every CPU shares one kernel root (`CR3` names the whole
+/// address space, unlike `TTBR0`/`TTBR1`'s split), so there is nothing per-CPU to build: the
+/// trampoline (`boot.s`'s `secondary_boot`) already installed `boot_pml4`, and this just switches
+/// to the same fine root the boot core is already running on. Called from `secondary_main`'s step
+/// 3, same as the other two architectures.
 pub fn init_secondary() {
     let root = KERNEL_ROOT.load(Ordering::Relaxed);
     assert_ne!(
@@ -457,6 +455,21 @@ where
         direct_map(m, start, image_lo.min(end), Flags::kernel_data())?;
         direct_map(m, image_hi.max(start), end, Flags::kernel_data())?;
     }
+
+    // 1b. **One deliberate hole inside the excluded image range** (milestone 161's SMP item): the
+    //     AP trampoline's LMA, the gap link-x86_64.ld opens between `.rodata` and `.data` so the
+    //     trampoline's *source* bytes are not `.boot_scratch` or the secondary stacks (both
+    //     runtime-mutated; see that file's comment). It is inside `image_lo..image_hi`, so step 1's
+    //     loop skips it same as `.text`, and it is *between* two mapped sections rather than inside
+    //     either, so neither section's own mapping (step 3, below) reaches it either. Nobody's
+    //     mapping covers it unless this does. `ap_boot::prepare` is the one reader, through the
+    //     direct map; see `ap_boot::trampoline_lma`'s own doc for the full account.
+    direct_map(
+        m,
+        super::ap_boot::trampoline_lma(),
+        super::ap_boot::trampoline_lma() + super::ap_boot::trampoline_size(),
+        Flags::kernel_data(),
+    )?;
 
     // 2. Memory the loader did not call usable RAM but which is still *memory*: the first megabyte
     //    (IVT, BDA, EBDA, the BIOS area the ACPI RSDP is scanned out of, and the page below 1 MiB a

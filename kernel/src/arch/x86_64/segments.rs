@@ -90,27 +90,22 @@ impl Tss {
 
 const _: () = assert!(size_of::<Tss>() == 104);
 
-/// The boot CPU's TSS. One for now, because SMP bring-up (INIT-SIPI-SIPI) is not built; every core
-/// needs its own, since `rsp0` names a per-core stack.
-static mut TSS: Tss = Tss::new();
+/// **One TSS per core** (milestone 161's SMP item, fixing exactly the limitation this static's own
+/// doc used to name: "every core needs its own, since `rsp0` names a per-core stack"). Indexed by
+/// `cpu::id()`, the same way every other per-core array in this kernel is; `TSS.rsp0` is what makes
+/// this matter, since sharing one across cores would let two cores race on the same ring-0 stack
+/// pointer the instant both took a trap from ring 3.
+static mut TSS: [Tss; crate::cpu::MAX_CPUS] = [const { Tss::new() }; crate::cpu::MAX_CPUS];
 
-/// **Where `TSS.rsp0` is, for trap.s.**
-///
-/// The `isr_restore` path writes the outgoing thread's kernel-stack top here on every return to
-/// ring 3, so the *next* trap from that thread lands on its own stack rather than on whoever was
-/// running last. It is a pointer rather than the field's symbol because `TSS` is an ordinary Rust
-/// static and giving it a `no_mangle` name to let assembly index into a `packed` struct by hand
-/// would put the layout in two places.
-///
-/// Zero until [`init`] runs, which is before the IDT exists, so nothing can reach the write through
-/// it earlier. [`init`] asserts that ordering rather than leaving it to be noticed.
-///
-/// **Name provisional** (milestone 161, roadmap item 4).
-#[unsafe(no_mangle)]
-static mut X86_TSS_RSP0: u64 = 0;
+/// The GDT: seven 8-byte slots, the last two of which are one 16-byte TSS descriptor. **One per
+/// core**, for the same reason as [`TSS`]: the TSS descriptor's base address is this core's own
+/// `TSS[cpu::id()]`, so sharing one GDT would mean every core's `ltr` loaded the SAME task
+/// register, aliasing every core's ring-0 stack onto whichever one initialized last.
+static mut GDT: [[u64; 7]; crate::cpu::MAX_CPUS] = [BASE_GDT; crate::cpu::MAX_CPUS];
 
-/// The GDT: seven 8-byte slots, the last two of which are one 16-byte TSS descriptor.
-static mut GDT: [u64; 7] = [
+/// Every core's GDT starts identical: only the TSS descriptor (slots 5 and 6) differs per core, and
+/// [`init`] fills those in from this core's own [`TSS`] entry.
+const BASE_GDT: [u64; 7] = [
     0,                     // 0x00: the mandatory null descriptor
     0x00AF_9A00_0000_FFFF, // 0x08: kernel code, DPL 0, L=1
     0x00CF_9200_0000_FFFF, // 0x10: kernel data, DPL 0
@@ -140,20 +135,32 @@ pub struct DescriptorTablePointer {
 /// stack is already there.
 ///
 /// # Safety
-/// Must be called once per CPU, with a valid stack, before anything depends on the GDT: it replaces
-/// the boot GDT that `boot.s` installed, and the old one goes away.
+/// Must be called once per CPU, with a valid stack and `cpu::init_this_cpu` already run on it
+/// (this fills `TSS`/`GDT` at `cpu::id()`'s own slot, and restores this core's per-CPU pointer
+/// afterward; see below), before anything depends on the GDT: it replaces the boot GDT that
+/// `boot.s` installed, and the old one goes away.
 pub unsafe fn init() {
+    let id = crate::cpu::id();
+
     // The TSS descriptor cannot be a constant: it holds the TSS's own address, which is only known
     // once the image is linked and loaded. A 64-bit system descriptor spreads that address across
     // three disjoint fields, which is a layout inherited from the 16-bit 286 and is why this looks
     // the way it does rather than being a single store.
-    let base = (&raw const TSS) as u64;
+    // SAFETY: indexing this core's own slot with `id` in bounds (`cpu::id()` cannot exceed
+    // `MAX_CPUS`, which is exactly how big `TSS` is); reading only the address, not the (possibly
+    // concurrently-written-by-another-core-at-a-different-index) contents.
+    let base = unsafe { (&raw const TSS[id]) as u64 };
     let limit = (size_of::<Tss>() - 1) as u64;
 
-    // Hand trap.s the address of the one field it writes. Before the IDT exists, so no trap can
-    // have taken the path that reads it. See `X86_TSS_RSP0`.
-    // SAFETY: single-threaded boot, writing a static this CPU owns, before any trap can be taken.
-    unsafe { X86_TSS_RSP0 = (&raw const TSS.rsp0) as u64 };
+    // Hand trap.s the address of the one field it writes: this core's OWN `TSS[id].rsp0`, through
+    // the per-CPU block `gs` already names, so there is nowhere a second core's write could land.
+    // Before the IDT exists, so no trap can have taken the path that reads it. See
+    // `cpu::PerCpu::x86_trap` / `cpu::X86TrapPerCpu::tss_rsp0_ptr`.
+    // SAFETY: writes this core's own `PerCpu` slot, reached the same way every per-CPU write on
+    // this architecture is, before any trap can be taken on this core.
+    unsafe {
+        *crate::cpu::current().x86_trap.tss_rsp0_ptr.get() = (&raw const TSS[id].rsp0) as u64;
+    }
     let low = (limit & 0xffff)
         | ((base & 0x00ff_ffff) << 16)
         | (0x89 << 40)                    // present, type 9 = available 64-bit TSS
@@ -161,16 +168,18 @@ pub unsafe fn init() {
         | (((base >> 24) & 0xff) << 56);
     let high = base >> 32;
 
-    // SAFETY: single-threaded boot code, before any other CPU exists and before anything else reads
-    // the GDT. The two slots written are the ones `TSS_SELECTOR` names.
+    // SAFETY: this core writes only its OWN slot (`id`), before anything else on this core reads
+    // its GDT; a different core's `init` writes a different slot.
     unsafe {
-        GDT[5] = low;
-        GDT[6] = high;
+        GDT[id][5] = low;
+        GDT[id][6] = high;
     }
 
+    // SAFETY: as `base` above, this core's own slot only.
+    let gdt_base = unsafe { (&raw const GDT[id]) as u64 };
     let gdtr = DescriptorTablePointer {
         limit: (size_of::<[u64; 7]>() - 1) as u16,
-        base: (&raw const GDT) as u64,
+        base: gdt_base,
     };
 
     // **Loading a segment register in long mode DESTROYS that segment's base MSR**, and `gs`'s base
@@ -232,15 +241,16 @@ pub unsafe fn init() {
 /// Two writes behind one function is what stops the two ever naming different stacks; the wrong
 /// state is not representable rather than merely documented.
 pub fn set_kernel_stack(top: u64) {
-    // SAFETY: writes this CPU's own TSS field. The CPU reads it only on a privilege transition,
-    // which cannot happen while this runs with interrupts masked by the caller. `write_unaligned`
-    // because the TSS is `packed`: rsp0 sits at byte 4 and a plain store would assume alignment the
-    // layout does not promise.
-    unsafe { (&raw mut TSS.rsp0).write_unaligned(top) };
+    let id = crate::cpu::id();
+    // SAFETY: writes this CPU's own TSS field, indexed by its own `cpu::id()`. The CPU reads it
+    // only on a privilege transition, which cannot happen while this runs with interrupts masked by
+    // the caller. `write_unaligned` because the TSS is `packed`: rsp0 sits at byte 4 and a plain
+    // store would assume alignment the layout does not promise.
+    unsafe { (&raw mut TSS[id].rsp0).write_unaligned(top) };
     super::exceptions::set_syscall_kernel_stack(top);
 }
 
-/// Point an IST slot (1-based, as the IDT encodes it) at `top`.
+/// Point an IST slot (1-based, as the IDT encodes it) at `top`, on this core.
 ///
 /// # Safety
 /// `top` must be the top of a stack no other IST vector shares. Two vectors on one stack means a
@@ -248,10 +258,11 @@ pub fn set_kernel_stack(top: u64) {
 /// exists to survive.
 pub unsafe fn set_interrupt_stack(slot: u8, top: u64) {
     assert!((1..=7).contains(&slot), "IST slots are 1..=7, not {slot}");
+    let id = crate::cpu::id();
     // SAFETY: writes this CPU's own TSS `ist[slot - 1]`, in bounds by the assertion above. Through
     // a raw pointer because the TSS is `packed` and a reference to a field would be misaligned.
     unsafe {
-        (&raw mut TSS.ist)
+        (&raw mut TSS[id].ist)
             .cast::<u64>()
             .add(slot as usize - 1)
             .write_unaligned(top);
