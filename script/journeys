@@ -17,10 +17,11 @@
 # number nobody re-derives drifts the moment reality moves under it). Everything printed here is
 # computed fresh from the two indices, every run.
 #
-# With no arguments, lists every journey with a one-line rollup. Given a journey's filename (with or
-# without `.md`), prints that journey's full step-by-step detail. `--check` validates that every
-# journey file's table rows parse and that every milestone and decision they cite exists in its
-# index, and exits non-zero on a problem, which is what a gate wants.
+# With no arguments, lists every journey with a one-line rollup. Given a journey's number, slug, or
+# filename (with or without `.md`), prints that journey's full step-by-step detail. `--check`
+# validates that every journey file's table rows parse, that every filename's number agrees with its
+# own H1, and that every milestone and decision a step cites exists in its index, and exits non-zero
+# on a problem, which is what a gate wants.
 #
 # Name: unrecorded, like script/roadmap and script/decisions, whose pattern this script is
 # deliberately a third instance of.
@@ -68,17 +69,34 @@ STEP_ROW = re.compile(
     r"^\| *(\d+) *\| *(\d+) *\| *(\d*) *\| *(.+?) *\|$"
 )
 
-journeys = {}  # slug -> (title, [ (step, milestone, decision_or_None, need) ])
+FNAME = re.compile(r"(\d+)-[a-z0-9][a-z0-9-]*\.md")
+
+journeys = {}  # number -> (slug, title, [ (step, milestone, decision_or_None, need) ])
+slugs = {}     # slug -> number, for lookup by either
 for fname in sorted(os.listdir(jd)):
     if fname == "README.md" or not fname.endswith(".md"):
         continue
-    slug = fname[:-3]
+    m = FNAME.fullmatch(fname)
+    if not m:
+        problems.append(f"{fname}: not named NN-slug.md (single digits zero-padded)")
+        continue
+    num = int(m.group(1))
+    slug = fname[:-3].split("-", 1)[1] if "-" in fname[:-3] else fname[:-3]
+    if num in journeys:
+        problems.append(f"journey {num} has two files")
     text = open(os.path.join(jd, fname)).read()
     lines = text.split("\n")
     title = None
     for line in lines:
         if line.startswith("# "):
             title = line[2:].strip()
+            # A numbered H1 ("# N. Title") carries the number redundantly with the filename; both
+            # must agree, the same rule script/roadmap enforces one directory over.
+            hm = re.match(r"(\d+)\. (.+)", title)
+            if hm:
+                if int(hm.group(1)) != num:
+                    problems.append(f"{fname}: H1 says {hm.group(1)}, filename says {num}")
+                title = hm.group(2)
             break
     if title is None:
         problems.append(f"{fname}: no H1 title on its own line")
@@ -87,10 +105,10 @@ for fname in sorted(os.listdir(jd)):
     for i, line in enumerate(lines, start=1):
         if not line.startswith("| ") or line.startswith("| step") or line.startswith("|---"):
             continue
-        m = STEP_ROW.match(line)
-        if not m:
+        sm = STEP_ROW.match(line)
+        if not sm:
             continue
-        step, ms, dec, need = m.groups()
+        step, ms, dec, need = sm.groups()
         step, ms = int(step), int(ms)
         dec = int(dec) if dec else None
         if ms not in milestones:
@@ -100,14 +118,15 @@ for fname in sorted(os.listdir(jd)):
         steps.append((step, ms, dec, need))
     if not steps:
         problems.append(f"{fname}: no parseable step rows (| step | milestone | decision | need |)")
-    journeys[slug] = (title, steps)
+    journeys[num] = (slug, title, steps)
+    slugs[slug] = num
 
 if mode == "--check":
     for p in sorted(set(problems)):
         print(f"journeys: {p}", file=sys.stderr)
     if problems:
         sys.exit(1)
-    print(f"journeys: {len(journeys)} journeys, {sum(len(s) for _, s in journeys.values())} steps, "
+    print(f"journeys: {len(journeys)} journeys, {sum(len(s) for _, _, s in journeys.values())} steps, "
           f"every cited milestone and decision resolves")
     sys.exit(0)
 
@@ -122,14 +141,23 @@ def rollup(steps):
 
 
 if mode and mode != "--check":
+    # Accepted forms: a bare number, a slug, or a filename (with or without .md) -- whichever a
+    # reader has in hand.
     key = mode[:-3] if mode.endswith(".md") else mode
-    if key not in journeys:
-        print(f"journeys: no journey named {mode!r}. Known: {', '.join(sorted(journeys))}",
-              file=sys.stderr)
+    m = re.match(r"(\d+)(?:-.*)?$", key)
+    if m:
+        num = int(m.group(1))
+    elif key in slugs:
+        num = slugs[key]
+    else:
+        num = None
+    if num is None or num not in journeys:
+        known = ", ".join(f"{n} ({s})" for n, (s, _, _) in sorted(journeys.items()))
+        print(f"journeys: no journey matching {mode!r}. Known: {known}", file=sys.stderr)
         sys.exit(2)
-    title, steps = journeys[key]
+    slug, title, steps = journeys[num]
     built, total = rollup(steps)
-    print(f"{title}\n")
+    print(f"journey {num}: {title}\n")
     for step, ms, dec, need in steps:
         mstatus = milestones.get(ms, "?")
         line = f"  {step}. milestone {ms:<4} {mstatus:<11} {need}"
@@ -139,9 +167,9 @@ if mode and mode != "--check":
     print(f"\n{built}/{total} steps on a BUILT milestone")
     sys.exit(0)
 
-for slug in sorted(journeys):
-    title, steps = journeys[slug]
+for num in sorted(journeys):
+    slug, title, steps = journeys[num]
     built, total = rollup(steps)
-    print(f"  {slug:<24} {built}/{total} built   {title}")
-print(f"\n{len(journeys)} journeys. `script/journeys <name>` for detail.")
+    print(f"  {num:>2}  {slug:<24} {built}/{total} built   {title}")
+print(f"\n{len(journeys)} journeys. `script/journeys <number|slug>` for detail.")
 PY
