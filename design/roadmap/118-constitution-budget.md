@@ -413,7 +413,7 @@ fires when the tree exceeds it and stays silent when the tree falls below. `scri
 `agents-md-lines` registry entry (the file's own `wc -l`-equivalent line count) and the claim lives
 here, since a developer lane may not edit `AGENTS.md` to carry its own marker:
 
-**`AGENTS.md` carries at most 957 lines** <!--count-at-most:agents-md-lines-->, written at the
+**`AGENTS.md` carries at most 965 lines** <!--count-at-most:agents-md-lines-->, written at the
 tree's exact value with **zero headroom**, deliberately: the point, per this section's own words
 above, is that every line added should replace one removed, or be a considered act that says why the
 growth was worth it. That is the same choice `unsafe-thread-safety-claims` made for a different
@@ -434,6 +434,13 @@ milestone 161 two-core-crash lane's `git stash` collided with another session's 
 stash stack is per-`.git` rather than per-worktree) was recorded beside the existing
 squash-against-`origin/main` trap it shares a family with, so the next lane to reach for `git stash`
 in a worktree finds the warning before it needs it.
+
+**Raised from 957 to 965, 2026-08-26**: "a lane continues until it needs a human or it is done"
+(calef, launching milestone 47's and 49's second-round lanes the same day) moved from a per-brief
+instruction, typed into every lane's prompt by hand, into the Developer role's own standing default,
+beside the sibling rule it now sits next to ("a developer polls its own background work to
+completion"). The same shape of fix as both entries above it: a rule a maintainer had to remember to
+restate every time is now a rule every brief inherits without anyone retyping it.
 
 **Targets the whole file, not "the core", because the core does not exist yet.** Once the split
 happens, this ceiling should move to whatever the core becomes and stop counting the linked

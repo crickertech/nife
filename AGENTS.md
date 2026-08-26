@@ -301,6 +301,14 @@ are new.
   notification" while your own gate is running is the failure mode, not patience (calef,
   2026-08-14, after five lanes in one day stopped mid-gate and each needed a manual resume). The
   report comes after the gate, and nothing about a gate is finished until you have read its exit.
+  **A lane continues until it needs a human or it is done** (calef, 2026-08-26), the standing
+  default for every brief rather than a per-brief instruction: finishing one item on a milestone's
+  own list is not a stopping condition when the list has more on it, and "ran out of easy things"
+  is not the same as "ran out of things a lane can make progress on." The one genuine stop is
+  hitting something that is calef's own call (a design fork, a wire format, a naming decision) --
+  write that up as a proposal, the same shape this file already asks for elsewhere, and stop there,
+  rather than either inventing an answer or ending the turn early because the next item looked
+  harder than the last one.
 - **Every pull request and comment an agent writes opens by saying so.** One line, first thing
   in the body: `**Lane:** <branch or milestone>, written by an agent; calef's account is the
   author GitHub shows.` Until milestone 128 gives the automation a real identity, every artifact
