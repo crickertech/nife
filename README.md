@@ -203,6 +203,7 @@ xtask/                 build orchestration (build, run, test, bench, gdb, objdum
 notes/                 a concept glossary, written as questions came up
 design/                the roadmap and worked designs
 design/decisions/      what we chose, what we rejected, and why
+design/journeys/       end-to-end user stories, tracked as a bundle of the milestones they need
 design/audit-reports/  every audit, its lens, and when the next one is due
 ```
 
