@@ -252,8 +252,36 @@ pub fn bring_up_page_frames(ram: &[Region], forbidden: &[Region]) {
     }
 
     let base = ram.iter().map(|r| r.start).min().unwrap();
-    let top = ram.iter().map(|r| r.end()).max().unwrap();
-    let total_frames = PageFrameAllocator::page_frames_in(top - base);
+
+    // The span the bitmap must cover is RAM's, **widened by whatever `forbidden` reaches
+    // past it**, not RAM's alone. Found on x86_64 (decisions §86's VT-d/NVMe data point,
+    // 2026-08-25): QEMU's PVH loader places the initrd at a fixed offset below the top of
+    // guest memory, sized for a smaller device set than this boot's VT-d-plus-NVMe ACPI
+    // tables need. Attaching the NVMe controller grows those tables enough that the e820
+    // map's "usable RAM" boundary moves down past the initrd's last few hundred bytes,
+    // which land in the newly-`reserved` region instead. `bring_up_memory` (the x86_64
+    // front end) correctly still claims that whole initrd region as `forbidden`, physical
+    // bytes and all; what was missing is that `top` here was computed from `ram` alone, so
+    // the bitmap never grew far enough to represent those last frames at all, and
+    // `is_used` on them answered `None` (out of range) rather than the `Some(true)` a
+    // frame the kernel has explicitly claimed should always give. Widening `top` to the
+    // max of both closes that: the extra frames start (correctly) all-used by
+    // `PageFrameAllocator::new`, no `mark_free` ever runs on them because they are not in
+    // `ram`, and the `mark_used` below for `forbidden` now lands inside `total_frames`
+    // instead of being silently clamped away. A forbidden region entirely inside RAM (the
+    // common case, and every case on the other two architectures today) leaves `top`
+    // unchanged.
+    let top = ram
+        .iter()
+        .map(|r| r.end())
+        .chain(forbidden.iter().map(|r| r.end()))
+        .max()
+        .unwrap();
+    // Round up to a whole frame before sizing the bitmap: RAM regions are frame-aligned in
+    // practice, but a `forbidden` region need not be (the initrd above is 4629504 bytes,
+    // not a multiple of 4096), and `page_frames_in` truncates. Rounding down here would
+    // silently drop the very last partial frame `top` was just widened to reach.
+    let total_frames = PageFrameAllocator::page_frames_in(top.next_multiple_of(FRAME_SIZE) - base);
 
     // --- the bootstrap problem ---
     //
