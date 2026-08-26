@@ -89,12 +89,71 @@ fi
 # The unheld queue, lowest number first. Drafts are excluded: a draft is not asking to be merged.
 queue() {
 	gh pr list --repo "$REPO" --state open \
-		--json number,mergeStateStatus,labels,isDraft,title,body 2>/dev/null |
+		--json number,mergeStateStatus,labels,isDraft,title,body,headRefName 2>/dev/null |
 		jq -r --arg L "$HELD_LABEL" '
 			[ .[]
 			  | select(.isDraft == false)
 			  | select((.labels | map(.name) | index($L)) | not) ]
 			| sort_by(.number)' 2>/dev/null || echo '[]'
+}
+
+# **A report only this script's own stdout can see is not a report calef will find in time.**
+#
+# # Why this exists
+#
+# On 2026-08-26 three armed pull requests (#530, #531, #532) sat "3 armed, 0 stalled" for hours
+# while the queue drained nothing, because each carried a GitHub Actions run stuck `queued` with
+# no job ever started. Once that stall shape was named (`stuck_checks` below), calef asked the
+# obvious next question: could the script itself tell him, instead of a log file on patagonia that
+# nothing prompts anyone to open. It can: `gh pr comment` is one API call, same shape as
+# `gh pr merge --auto`.
+#
+# **The one real risk is spam, not correctness.** A stall that persists gets re-detected every
+# five-minute pass, and posting a fresh comment every pass would bury the one useful comment under
+# duplicates within the hour. So `notify` checks the pull request's own comments for a marker
+# (an HTML comment, invisible when rendered) before posting, and posts once per marker per pull
+# request, ever, not once per stall *episode*. A stall that clears and recurs later does not get a
+# second comment. That is a real, accepted limitation rather than a solved problem: closing it needs
+# either a timestamp-based cooldown or deleting the marker comment when a stall clears, and neither
+# was worth building for a first cut. The five-minute log line still fires every pass regardless;
+# only the PR comment is deduplicated.
+notify() {
+	num="$1"
+	marker="$2"
+	message="$3"
+	existing=$(gh pr view "$num" --repo "$REPO" --json comments 2>/dev/null |
+		jq -r --arg m "$marker" '[.comments[] | select(.body | contains($m))] | length' 2>/dev/null)
+	if [ "${existing:-0}" = "0" ]; then
+		gh pr comment "$num" --repo "$REPO" --body "$message
+
+<!-- $marker -->" >/dev/null 2>&1
+	fi
+}
+
+# A workflow run stuck at `queued`, no job ever started, no conclusion: the third stall shape, and
+# neither DIRTY nor a FAILURE conclusion catches it, because both read false while a run sits in
+# this state. `gh pr merge --auto` on a pull request in this state is not wrong, only useless: it
+# re-arms a check that was never going to move, silently, forever.
+#
+# The threshold is generous for the same reason `STALE_DRAFT_MINUTES` is: this repository's own
+# check suite (Kani proofs, fuzz targets, a full three-architecture boot) legitimately takes
+# `in_progress` a long time. `queued` with zero jobs started for this long is a different thing:
+# GitHub Actions ordinarily assigns a runner within seconds to low minutes, not tens of minutes.
+STUCK_CHECK_MINUTES=${STUCK_CHECK_MINUTES:-20}
+
+stuck_checks() {
+	num="$1"
+	head="$2"
+	gh run list --repo "$REPO" --branch "$head" --json status,conclusion,createdAt --limit 5 2>/dev/null |
+		jq -r --argjson mins "$STUCK_CHECK_MINUTES" --arg n "$num" '
+			(now - ($mins * 60)) as $cut
+			| .[]
+			| select(.status == "queued")
+			| select((.createdAt | fromdateiso8601) < $cut)
+			| "merge-drain: STALLED. #\($n) has a workflow run stuck queued for over " +
+			  "\($mins) minutes with no job ever starting (GitHub infra, not this pull " +
+			  "request). Push an empty commit to retrigger, or check the Actions tab."
+		' 2>/dev/null || true
 }
 
 # A draft that has stopped moving is probably a finished lane that forgot to mark it ready.
@@ -132,9 +191,15 @@ stale_drafts() {
 			| select(.isDraft == true)
 			| select((.commits | length) > 0)
 			| select((.commits[-1].committedDate | fromdateiso8601) < $cut)
-			| "merge-drain: STALE DRAFT. #\(.number) has not committed in over \($mins) minutes " +
-			  "(\(.title[0:60])). If its lane is finished: gh pr ready \(.number)"
-		' 2>/dev/null || true
+			| [.number, ("merge-drain: STALE DRAFT. #\(.number) has not committed in over " +
+			  "\($mins) minutes (\(.title[0:60])). If its lane is finished: gh pr ready \(.number)")]
+			| @tsv
+		' 2>/dev/null |
+		while IFS="$(printf '\t')" read -r num msg; do
+			[ -z "$num" ] && continue
+			echo "$msg"
+			notify "$num" "merge-drain:stale-draft" "$msg"
+		done
 }
 
 # `Blocked-by: #N` in a pull request body: a SELF-RELEASING hold for a mechanical ordering
@@ -198,7 +263,9 @@ pass() {
 			case "$bstate" in
 			MERGED) ;;  # released, and nobody had to do anything
 			CLOSED)
-				echo "merge-drain: STALLED. #$num is blocked by #$blocker, which was CLOSED without merging ($title)"
+				msg="merge-drain: STALLED. #$num is blocked by #$blocker, which was CLOSED without merging ($title)"
+				echo "$msg"
+				notify "$num" "merge-drain:blocker-closed" "$msg"
 				stalled=$((stalled + 1))
 				continue
 				;;
@@ -213,7 +280,9 @@ pass() {
 		# neither will another pass. Say which pull request it is and move on to the rest, because
 		# one conflict must not stop the others being armed.
 		if [ "$state" = "DIRTY" ]; then
-			echo "merge-drain: STALLED. #$num has conflicts a person must resolve ($title)"
+			msg="merge-drain: STALLED. #$num has conflicts a person must resolve ($title)"
+			echo "$msg"
+			notify "$num" "merge-drain:conflict" "$msg"
 			stalled=$((stalled + 1))
 			continue
 		fi
@@ -224,7 +293,20 @@ pass() {
 		failed=$(gh pr view "$num" --repo "$REPO" --json statusCheckRollup \
 			-q '[.statusCheckRollup[] | select(.conclusion == "FAILURE") | .name] | join(", ")' 2>/dev/null)
 		if [ -n "$failed" ]; then
-			echo "merge-drain: STALLED. #$num is failing $failed ($title)"
+			msg="merge-drain: STALLED. #$num is failing $failed ($title)"
+			echo "$msg"
+			notify "$num" "merge-drain:check-failure" "$msg"
+			stalled=$((stalled + 1))
+			continue
+		fi
+
+		# A third stall shape: neither DIRTY nor FAILURE, a run just never started. See
+		# `stuck_checks`'s own comment for why this needs a person rather than a retry.
+		head=$(printf '%s' "$q" | jq -r --arg n "$num" '.[] | select(.number == ($n | tonumber)) | .headRefName')
+		stuck=$(stuck_checks "$num" "$head")
+		if [ -n "$stuck" ]; then
+			echo "$stuck"
+			notify "$num" "merge-drain:stuck-check" "$stuck"
 			stalled=$((stalled + 1))
 			continue
 		fi
@@ -241,7 +323,9 @@ pass() {
 		# to /dev/null and `|| true` swallowed the exit code. A count of ATTEMPTS was being
 		# printed as a count of RESULTS.
 		if ! gh pr merge "$num" --repo "$REPO" --auto --merge >/dev/null 2>&1; then
-			echo "merge-drain: STALLED. #$num would not enqueue ($title)"
+			msg="merge-drain: STALLED. #$num would not enqueue ($title)"
+			echo "$msg"
+			notify "$num" "merge-drain:would-not-enqueue" "$msg"
 			stalled=$((stalled + 1))
 			continue
 		fi
@@ -269,7 +353,9 @@ pass() {
 			-q '.autoMergeRequest != null' 2>/dev/null)" = "true" ]; then
 			armed=$((armed + 1))
 		else
-			echo "merge-drain: STALLED. #$num took the call but is neither queued nor armed"
+			msg="merge-drain: STALLED. #$num took the call but is neither queued nor armed"
+			echo "$msg"
+			notify "$num" "merge-drain:not-armed" "$msg"
 			stalled=$((stalled + 1))
 		fi
 	done
