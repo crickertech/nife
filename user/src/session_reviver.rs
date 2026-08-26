@@ -123,11 +123,10 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use abi::memory_region as ut;
 use filesystem_proto::{dir, fs};
 use supervision_proto::{memory_region_destroy, memory_region_split};
 use user_rt::mapped_window::MappedWindow;
-use user_rt::{call, cap_delete, invoke, send};
+use user_rt::{call, cap_delete, retype_page_frame, send};
 
 /// The report endpoint, `WRITE`. One report, then this process exits.
 const REPORT: u64 = 0;
@@ -223,11 +222,10 @@ pub extern "C" fn _start(_a0: u64, _a1: u64, _a2: u64) -> ! {
     // slot held a `MemoryRegion` or a directory endpoint.
     let (store_try, _) = call(FS_EP, fs::req(fs::OPEN, fs::ROOT, 1), 0);
     let store_gone = (store_try as i64) < 0;
-    // SAFETY: `svc`/`ecall`; the kernel validates the capability and the method before acting
-    // (`user_rt::invoke`'s own contract). `UT` names an empty slot by this point, so this either
-    // faults on nothing (the kernel checks the slot first) or returns a negative code; it cannot
-    // build anything, because there is nothing left to build from.
-    let ut_try = unsafe { invoke(UT, ut::RETYPE, 0, 0, 0) };
+    // `UT` names an empty slot by this point, so this either faults on nothing (the kernel checks
+    // the slot first) or returns a negative code; it cannot build anything, because there is
+    // nothing left to build from.
+    let ut_try = retype_page_frame(UT);
     let ut_gone = ut_try < 0;
 
     send(REPORT, OK, rederived, (store_gone && ut_gone) as u64);

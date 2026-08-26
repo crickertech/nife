@@ -70,7 +70,7 @@
 
 use filesystem_proto::{fs, grant, op, reply_err, reply_errno, verb};
 use user_rt::mapped_window::MappedWindow;
-use user_rt::{call, exit, invoke, recv_cap, send};
+use user_rt::{call, exit, recv_cap, send};
 
 /// The FS-service endpoint: the directory capability this process attenuates.
 const FS: u64 = 0;
@@ -121,8 +121,7 @@ fn forward(w0: u64, w1: u64) -> i64 {
 
 /// Answer the blocked caller through the one-shot Reply the kernel minted.
 fn reply(slot: u64, r0: i64) {
-    // SAFETY: the kernel minted this Reply naming the blocked caller; REPLY consumes it.
-    unsafe { invoke(slot, abi::reply::REPLY, r0 as u64, 0, 0) };
+    user_rt::reply(slot, r0 as u64, 0);
 }
 
 /// The client's handle namespace: `table[i]` is the FS server's handle for the client's handle `i`,

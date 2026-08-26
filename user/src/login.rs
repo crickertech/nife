@@ -460,7 +460,7 @@ use supervision_proto::{
     ChildEndowment, build_child, memory_region_destroy, memory_region_split,
     retype_obj_from as retype_obj, retype_page_frame_from, thread_control_block_start,
 };
-use user_rt::{call, cap_delete, invoke, map_page_frame, recv, send, yield_now};
+use user_rt::{call, cap_delete, map_page_frame, recv, send, send_cap, yield_now};
 
 /// The front door: a bare [`login_proto::CONNECT`], `RECV` (milestone 49).
 const REQUEST: u64 = 0;
@@ -1062,10 +1062,7 @@ fn discard(region: u64) {
 /// [`RESULT`] for a [`login_proto::CONNECTED`] answer and a channel's own private `result` for a
 /// [`login_proto::OK`] one; both are this process's own copy, always held with `GRANT`.
 fn delegate(ep: u64, slot: u64, rights: u64) {
-    // SAFETY: `svc`/`ecall`; the kernel checks WRITE on `ep` and GRANT on the delegated capability.
-    unsafe {
-        invoke(ep, abi::rendezvous::SEND_CAP, slot, rights, 0);
-    }
+    send_cap(ep, slot, rights, 0);
 }
 
 /// Zero the identity/secret staged at `va`, on every path: a malformed request, a denial, and a

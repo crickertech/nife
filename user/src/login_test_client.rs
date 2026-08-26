@@ -59,7 +59,9 @@
 #![no_main]
 
 use user_rt::mapped_window::MappedWindow;
-use user_rt::{call, exit, invoke, map_page_frame, recv, recv_cap, send, yield_now};
+use user_rt::{
+    call, destroy_region, exit, map_page_frame, recv, recv_cap, retype_page_frame, send, yield_now,
+};
 
 /// The login service's front-door request endpoint (slot 0), `WRITE`.
 const SERVICE: u64 = 0;
@@ -202,7 +204,7 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
     // SAFETY: `priv_page` was just mapped read/write at PAGE_VA, private to this process and to the
     // login service's own copy; no other client holds a capability to it. Not `PAGE_WINDOW`
     // (round 6's collapse): that type's contract assumes the wiring maps this page before the
-    // process runs, which milestone 49's channel-per-client update made false here specifically —
+    // process runs, which milestone 49's channel-per-client update made false here specifically:
     // the page is now mapped dynamically, per connection, from a capability CONNECT hands back at
     // runtime, so there is nothing for a compile-time-constant window to be a window onto yet.
     let page = unsafe { core::slice::from_raw_parts_mut(PAGE_VA as *mut u8, login_proto::PAGE) };
@@ -239,8 +241,7 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
     // Prove the budget works: retype one page from it. `RETYPE`'s reply is the new frame's slot
     // (>= 0) or a negative error. Done here, right after the one use of `budget` that needs it
     // alive (`map_page_frame` above), and before anything below tears it down.
-    // SAFETY: `svc`/`ecall`; the kernel validates the capability and the method.
-    if unsafe { invoke(budget, abi::memory_region::RETYPE, 0, 0, 0) } >= 0 {
+    if retype_page_frame(budget) >= 0 {
         flags |= F_BUDGET_WORKS;
     }
 
@@ -260,8 +261,7 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
     // module docs on the fourth capability for the client-facing version of this note.
     if role == ROLE_LOGOUT && destroy_with_retry(budget) {
         flags |= F_BUDGET_TEARDOWN_OK;
-        // SAFETY: as above.
-        if unsafe { invoke(budget, abi::memory_region::RETYPE, 0, 0, 0) } < 0 {
+        if retype_page_frame(budget) < 0 {
             flags |= F_BUDGET_DEAD_AFTER_TEARDOWN;
         }
     }
@@ -436,8 +436,7 @@ fn teardown_directory(dir: u64, region: u64) -> u64 {
 fn destroy_with_retry(ut: u64) -> bool {
     const ATTEMPTS: usize = 64;
     for _ in 0..ATTEMPTS {
-        // SAFETY: `svc`/`ecall`; the kernel checks WRITE on `ut`.
-        if unsafe { invoke(ut, abi::memory_region::DESTROY, 0, 0, 0) } == 0 {
+        if destroy_region(ut) == 0 {
             return true;
         }
         yield_now();

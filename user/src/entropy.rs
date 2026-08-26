@@ -99,10 +99,11 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use abi::{irq, rendezvous, virtio};
+use abi::rendezvous;
 use entropy_proto as proto;
 use user_rt::mapped_window::{MappedWindow, PAGE};
-use user_rt::{exit, invoke, recv_cap, reply, send};
+use user_rt::virtio::{virtio_notify, virtio_read_reg, virtio_setup_queue, virtio_write_reg};
+use user_rt::{exit, irq_ack, irq_wait, recv_cap, reply, send};
 
 /// Capability slots for the virtio backend, by convention with `kernel/src/user/entropy_service.rs`.
 const REQ: u64 = 0;
@@ -210,15 +211,11 @@ fn r32(off: u64) -> u32 {
 }
 
 fn mr(off: u64) -> u32 {
-    // SAFETY: `svc`/`ecall`; the kernel validates the `Virtio` capability and the register offset.
-    unsafe { invoke(VIRTIO, virtio::READ_REG, off, 0, 0) as u32 }
+    virtio_read_reg(VIRTIO, off) as u32
 }
 
 fn mw(off: u64, v: u32) {
-    // SAFETY: as above.
-    unsafe {
-        invoke(VIRTIO, virtio::WRITE_REG, off, v as u64, 0);
-    }
+    virtio_write_reg(VIRTIO, off, v as u64);
 }
 
 fn barrier() {
@@ -279,9 +276,9 @@ impl Pool {
         w16(Q_AVAIL + 2, self.avail);
         barrier(); // and the index before the doorbell
 
-        // SAFETY: `svc`/`ecall`. The kernel walks the descriptor we just published, refuses it if
-        // it leaves our region, and only then rings the device.
-        if unsafe { invoke(VIRTIO, virtio::NOTIFY, RNG_Q, 0, 0) } < 0 {
+        // The kernel walks the descriptor we just published, refuses it if it leaves our region,
+        // and only then rings the device.
+        if virtio_notify(VIRTIO, RNG_Q) < 0 {
             return 0; // the kernel refused our own in-region descriptor: a bug here, not a dry device
         }
 
@@ -312,9 +309,7 @@ impl Pool {
                 self.seen = self.seen.wrapping_add(1);
                 break;
             }
-            // SAFETY: `svc`/`ecall`; the kernel validates the `Irq` capability in slot 1 and blocks
-            // us until the device raises its line.
-            unsafe { invoke(IRQ, irq::WAIT, 0, 0, 0) };
+            irq_wait(IRQ);
             self.quiet();
         }
         // Quiet the device and re-enable the line even on the path that never waited: the device
@@ -330,8 +325,7 @@ impl Pool {
     fn quiet(&self) {
         let istatus = mr(INTERRUPT_STATUS);
         mw(INTERRUPT_ACK, istatus);
-        // SAFETY: `svc`/`ecall`; re-enable the line the kernel masked when it fired.
-        unsafe { invoke(IRQ, irq::ACK, 0, 0, 0) };
+        irq_ack(IRQ); // re-enable the line the kernel masked when it fired
     }
 
     /// Refill the buffer, retrying a device that returned nothing. `false` when the device gave us
@@ -424,8 +418,7 @@ pub extern "C" fn _start(mode: u64, dma_phys: u64, _arg2: u64) -> ! {
 
     // The kernel programs the queue's ring addresses; this service never writes a queue-address
     // register, which is the §18 seam and the reason the shadow ring can be trusted.
-    // SAFETY: `svc`/`ecall`; the kernel validates the capability and the queue index.
-    if unsafe { invoke(VIRTIO, virtio::SETUP_QUEUE, QSIZE as u64, RNG_Q, 0) } != 0 {
+    if virtio_setup_queue(VIRTIO, QSIZE as u64, RNG_Q) != 0 {
         die(E_QUEUE);
     }
     mw(

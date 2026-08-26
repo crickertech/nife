@@ -49,7 +49,7 @@
 use compositor::proto::{ctl, ring, wlist};
 use compositor::{Rect, SCENE};
 use graphics_proto as gfx;
-use user_rt::{call, invoke, recv_cap, send};
+use user_rt::{call, recv_cap, reply, send};
 
 /// Capability slots, by convention with `kernel/src/user/compositor_service.rs`.
 const REPORT: u64 = 0;
@@ -345,8 +345,7 @@ pub extern "C" fn _start(windows: u64, focusable: u64, _arg2: u64) -> ! {
             }
             _ => compositor::proto::EBADOP,
         };
-        // SAFETY: `svc`/`ecall`; the kernel validated the Reply capability and consumes it here.
-        unsafe { invoke(reply_slot, abi::reply::REPLY, r0 as u64, 0, 0) };
+        reply(reply_slot, r0 as u64, 0);
     }
 }
 

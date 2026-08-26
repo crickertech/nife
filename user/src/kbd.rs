@@ -46,9 +46,9 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use abi::{irq, virtio};
 use user_rt::mapped_window::{MappedWindow, PAGE};
-use user_rt::{call, invoke, send};
+use user_rt::virtio::{virtio_notify, virtio_read_reg, virtio_setup_queue, virtio_write_reg};
+use user_rt::{call, irq_ack, irq_wait, send};
 
 /// Capability slots, by convention with `kernel/src/user/keyboard_service.rs`.
 const REPORT: u64 = 0;
@@ -134,15 +134,11 @@ fn w16(off: u64, v: u16) {
 }
 
 fn mr(off: u64) -> u32 {
-    // SAFETY: `svc`/`ecall`; the kernel validates the `Virtio` capability and the register offset.
-    unsafe { invoke(VIRTIO, virtio::READ_REG, off, 0, 0) as u32 }
+    virtio_read_reg(VIRTIO, off) as u32
 }
 
 fn mw(off: u64, v: u32) {
-    // SAFETY: as above.
-    unsafe {
-        invoke(VIRTIO, virtio::WRITE_REG, off, v as u64, 0);
-    }
+    virtio_write_reg(VIRTIO, off, v as u64);
 }
 
 fn barrier() {
@@ -234,8 +230,7 @@ pub extern "C" fn _start(_arg0: u64, dma_phys: u64, _arg2: u64) -> ! {
 
     // The kernel programs the queue's ring addresses; this driver never writes a queue address
     // register, which is the §18 seam and the reason the shadow ring can be trusted.
-    // SAFETY: `svc`/`ecall`; the kernel validates the capability and the queue index.
-    if unsafe { invoke(VIRTIO, virtio::SETUP_QUEUE, QSIZE as u64, EVENT_Q, 0) } != 0 {
+    if virtio_setup_queue(VIRTIO, QSIZE as u64, EVENT_Q) != 0 {
         die(E_QUEUE);
     }
     mw(
@@ -262,11 +257,9 @@ pub extern "C" fn _start(_arg0: u64, dma_phys: u64, _arg2: u64) -> ! {
     barrier();
     w16(EQ_AVAIL + 2, avail);
     barrier();
-    // SAFETY: `svc`/`ecall`; the kernel validates the newly published descriptors and copies them
-    // into the shadow ring the device actually reads.
-    unsafe {
-        invoke(VIRTIO, virtio::NOTIFY, EVENT_Q, 0, 0);
-    }
+    // The kernel validates the newly published descriptors and copies them into the shadow ring
+    // the device actually reads.
+    virtio_notify(VIRTIO, EVENT_Q);
 
     send(REPORT, video_terminal::status::KBD_UP, EVENTS as u64, 0);
 
@@ -274,8 +267,7 @@ pub extern "C" fn _start(_arg0: u64, dma_phys: u64, _arg2: u64) -> ! {
     let mut seen: u16 = 0; // used-ring index already drained
     let mut tail: u32 = 0; // our end of the compositor's input ring
     loop {
-        // SAFETY: `svc`/`ecall`; the kernel validates the `Irq` capability in slot 1.
-        unsafe { invoke(IRQ, irq::WAIT, 0, 0, 0) };
+        irq_wait(IRQ);
 
         let mut typed = false;
         loop {
@@ -315,18 +307,14 @@ pub extern "C" fn _start(_arg0: u64, dma_phys: u64, _arg2: u64) -> ! {
             avail = avail.wrapping_add(1);
             w16(EQ_AVAIL + 2, avail);
             barrier();
-            // SAFETY: `svc`/`ecall`; as above.
-            unsafe {
-                invoke(VIRTIO, virtio::NOTIFY, EVENT_Q, 0, 0);
-            }
+            virtio_notify(VIRTIO, EVENT_Q);
         }
 
         // Quiet the device, then re-enable the line at the controller. In that order: the disk
         // driver's discipline, and the reason an interrupt does not immediately re-fire.
         let istatus = mr(INTERRUPT_STATUS);
         mw(INTERRUPT_ACK, istatus);
-        // SAFETY: `svc`/`ecall`; re-enable the interrupt the kernel masked when it fired.
-        unsafe { invoke(IRQ, irq::ACK, 0, 0, 0) };
+        irq_ack(IRQ); // re-enable the interrupt the kernel masked when it fired
 
         if typed {
             // Publish the tail, then ring. **The doorbell carries nothing**, and that is the design:

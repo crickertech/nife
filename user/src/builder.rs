@@ -35,7 +35,9 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use user_rt::{cap_delete, exit, invoke, send};
+use user_rt::{
+    cap_delete, exit, map_into, map_page_frame, send, tcb_cap_insert, tcb_configure, tcb_start,
+};
 
 /// The capabilities the kernel grants this program before it runs.
 const MEMORY_REGION: u64 = 0; // a budget to retype the child's address space, frames, and TCB from
@@ -101,10 +103,7 @@ fn build_and_start(elf: &elf::Elf, n: u64) -> Result<(), ()> {
         while va < end {
             let frame = retype_page_frame()?;
             // Map the frame writable in our own space at `scratch`, fill it, then hand it over.
-            // SAFETY: `invoke` traps to the kernel, which validates the capability and the method
-            // before acting (user_rt's contract). A caller cannot break an invariant by passing a
-            // bad slot or method; it gets an error back.
-            if unsafe { invoke(frame, abi::page_frame::MAP, scratch, 1, MEMORY_REGION) } != 0 {
+            if !map_page_frame(frame, scratch, true, MEMORY_REGION) {
                 return Err(());
             }
             // SAFETY: `scratch` is a page we just mapped read/write in our own space.
@@ -121,8 +120,7 @@ fn build_and_start(elf: &elf::Elf, n: u64) -> Result<(), ()> {
                 dst[d..d + len].copy_from_slice(&seg.data[s..s + len]);
             }
             // Into the child at the segment's own VA, with the segment's permissions.
-            // SAFETY: as above: the kernel validates the capability and the method.
-            if unsafe { invoke(aspace, abi::address_space::MAP_INTO, va, frame, mode) } != 0 {
+            if map_into(aspace, va, frame, mode) != 0 {
                 return Err(());
             }
             cap_delete(frame); // done with this frame's cap; free the slot for reuse
@@ -133,16 +131,12 @@ fn build_and_start(elf: &elf::Elf, n: u64) -> Result<(), ()> {
 
     // A one-page stack for the child, mapped just below CHILD_STACK_TOP.
     let stack_frame = retype_page_frame()?;
-    // SAFETY: as above: the kernel validates the capability and the method.
-    if unsafe {
-        invoke(
-            aspace,
-            abi::address_space::MAP_INTO,
-            CHILD_STACK_TOP - PAGE,
-            stack_frame,
-            abi::address_space::MAP_RW,
-        )
-    } != 0
+    if map_into(
+        aspace,
+        CHILD_STACK_TOP - PAGE,
+        stack_frame,
+        abi::address_space::MAP_RW,
+    ) != 0
     {
         return Err(());
     }
@@ -151,35 +145,14 @@ fn build_and_start(elf: &elf::Elf, n: u64) -> Result<(), ()> {
     // The thread, its one capability (the report endpoint, narrowed to WRITE, lands as slot 0),
     // configured at the ELF's entry with the stack top, then started with `n` in its second arg.
     let tcb = retype_obj(abi::objtype::THREAD_CONTROL_BLOCK)?;
-    // SAFETY: as above: the kernel validates the capability and the method.
-    if unsafe {
-        invoke(
-            tcb,
-            abi::thread_control_block::CAP_INSERT,
-            REPORT,
-            abi::rights::WRITE,
-            0,
-        )
-    } < 0
-    {
+    if tcb_cap_insert(tcb, REPORT, abi::rights::WRITE, 0) < 0 {
         return Err(());
     }
-    // SAFETY: as above: the kernel validates the capability and the method.
-    if unsafe {
-        invoke(
-            tcb,
-            abi::thread_control_block::CONFIGURE,
-            elf.entry(),
-            CHILD_STACK_TOP,
-            aspace,
-        )
-    } != 0
-    {
+    if tcb_configure(tcb, elf.entry(), CHILD_STACK_TOP, aspace) != 0 {
         return Err(());
     }
     // START's arguments become the child's a0/a1/a2; the worker reads its input from a1.
-    // SAFETY: as above: the kernel validates the capability and the method.
-    if unsafe { invoke(tcb, abi::thread_control_block::START, 0, n, 0) } != 0 {
+    if tcb_start(tcb, 0, n, 0) != 0 {
         return Err(());
     }
     cap_delete(tcb); // our TCB cap; the worker keeps running until it exits
@@ -188,15 +161,13 @@ fn build_and_start(elf: &elf::Elf, n: u64) -> Result<(), ()> {
 
 /// Retype a kernel object out of our untyped budget; returns the slot its capability landed in.
 fn retype_obj(objtype: u64) -> Result<u64, ()> {
-    // SAFETY: as above: the kernel validates the capability and the method.
-    let r = unsafe { invoke(MEMORY_REGION, abi::memory_region::RETYPE_OBJ, objtype, 0, 0) };
+    let r = user_rt::retype_object(MEMORY_REGION, objtype);
     if r < 0 { Err(()) } else { Ok(r as u64) }
 }
 
 /// Retype a page of our budget into a `PageFrame` capability; returns its cap slot.
 fn retype_page_frame() -> Result<u64, ()> {
-    // SAFETY: as above: the kernel validates the capability and the method.
-    let r = unsafe { invoke(MEMORY_REGION, abi::memory_region::RETYPE, 0, 0, 0) };
+    let r = user_rt::retype_page_frame(MEMORY_REGION);
     if r < 0 { Err(()) } else { Ok(r as u64) }
 }
 

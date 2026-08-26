@@ -20,11 +20,11 @@
 use alloc::vec;
 use alloc::vec::Vec;
 
-use abi::{irq, virtio};
 use smoltcp::phy::{self, Device, DeviceCapabilities, Medium};
 use smoltcp::time::Instant;
-use user_rt::invoke;
+use user_rt::irq_ack;
 use user_rt::mapped_window::{MappedWindow, PAGE};
+use user_rt::virtio::{virtio_notify, virtio_read_reg, virtio_setup_queue, virtio_write_reg};
 
 /// The DMA page's virtual address, matching the kernel's `net_server` mapping.
 const DMA_VA: u64 = 0x0000_0000_0090_0000;
@@ -113,14 +113,10 @@ fn w16(off: u64, v: u16) {
 }
 
 fn mr(off: u64) -> u32 {
-    // SAFETY: as above: the kernel validates the capability and the method.
-    unsafe { invoke(VIRTIO, virtio::READ_REG, off, 0, 0) as u32 }
+    virtio_read_reg(VIRTIO, off) as u32
 }
 fn mw(off: u64, v: u32) {
-    // SAFETY: as above: the kernel validates the capability and the method.
-    unsafe {
-        invoke(VIRTIO, virtio::WRITE_REG, off, v as u64, 0);
-    }
+    virtio_write_reg(VIRTIO, off, v as u64);
 }
 
 fn barrier() {
@@ -183,16 +179,8 @@ impl VirtioNet {
         assert!(mr(STATUS) & S_FEATURES_OK != 0, "FEATURES_OK stuck off");
 
         // Set up both queues through the kernel; it programs each queue's ring addresses.
-        assert_eq!(
-            // SAFETY: as above: the kernel validates the capability and the method.
-            unsafe { invoke(VIRTIO, virtio::SETUP_QUEUE, QSIZE as u64, RX_Q, 0) },
-            0,
-        );
-        assert_eq!(
-            // SAFETY: as above: the kernel validates the capability and the method.
-            unsafe { invoke(VIRTIO, virtio::SETUP_QUEUE, QSIZE as u64, TX_Q, 0) },
-            0,
-        );
+        assert_eq!(virtio_setup_queue(VIRTIO, QSIZE as u64, RX_Q), 0);
+        assert_eq!(virtio_setup_queue(VIRTIO, QSIZE as u64, TX_Q), 0);
 
         mw(
             STATUS,
@@ -231,10 +219,7 @@ impl VirtioNet {
     }
 
     fn notify(&self, q: u64) {
-        // SAFETY: `svc`; the kernel validates the queue's newly-published descriptors.
-        unsafe {
-            invoke(VIRTIO, virtio::NOTIFY, q, 0, 0);
-        }
+        virtio_notify(VIRTIO, q);
     }
 
     /// Quiet the device's interrupt and re-enable the line at the controller, after a `WAIT`
@@ -242,10 +227,7 @@ impl VirtioNet {
     pub fn ack_irq(&self) {
         let istatus = mr(INTERRUPT_STATUS);
         mw(INTERRUPT_ACK, istatus);
-        // SAFETY: `svc`; re-enable the interrupt the kernel masked when it fired.
-        unsafe {
-            invoke(IRQ, irq::ACK, 0, 0, 0);
-        }
+        irq_ack(IRQ); // re-enable the interrupt the kernel masked when it fired
     }
 
     /// Take one received frame, if the receive used ring has advanced. Copies the frame out (minus

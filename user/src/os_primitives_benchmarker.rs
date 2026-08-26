@@ -28,7 +28,10 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use user_rt::{cap_delete, exit, invoke, now, recv, send, yield_now};
+use user_rt::{
+    cap_delete, destroy_region, exit, map_into, map_page_frame, now, recv, retype_object,
+    retype_page_frame, send, split_region, tcb_cap_insert, tcb_configure, tcb_start, yield_now,
+};
 
 /// The endpoint the bench boot grants us (slot 0): we SEND `[ticks, iters, 0]` here per primitive.
 const REPORT: u64 = 0;
@@ -265,16 +268,12 @@ fn map_bench() -> ! {
 /// Returns the syscall result: 0 on success, a negative error otherwise.
 #[inline(never)]
 fn map_one(va: u64) -> i64 {
-    // SAFETY: `svc`; the kernel validates the address space and frame caps and the method before mapping.
-    unsafe {
-        invoke(
-            MAP_ADDRESS_SPACE,
-            abi::address_space::MAP_INTO,
-            va,
-            MAP_PAGE_FRAME,
-            abi::address_space::MAP_RO,
-        )
-    }
+    map_into(
+        MAP_ADDRESS_SPACE,
+        va,
+        MAP_PAGE_FRAME,
+        abi::address_space::MAP_RO,
+    )
 }
 
 /// Spawn benchmark tuning. Each iteration builds a whole child from EL0 and reclaims it, so the
@@ -372,20 +371,8 @@ fn spawn_bench() -> ! {
     // One shared code frame, retyped from our OWN untyped so destroying a child never frees it. Map
     // it writable in our own space, write the child stub once, and keep the cap to alias into every
     // child. The kernel makes the icache coherent when we later map it as CODE into a child.
-    // SAFETY: `invoke` traps to the kernel, which validates the capability and the method
-    // before acting (user_rt's contract). A caller cannot break an invariant by passing a
-    // bad slot or method; it gets an error back.
-    let code_frame = unsafe { invoke(SP_UNTYPED, abi::memory_region::RETYPE, 0, 0, 0) } as u64;
-    // SAFETY: as above: the kernel validates the capability and the method.
-    unsafe {
-        invoke(
-            code_frame,
-            abi::page_frame::MAP,
-            SPAWN_SCRATCH_VA,
-            1,
-            SP_UNTYPED,
-        )
-    };
+    let code_frame = retype_page_frame(SP_UNTYPED) as u64;
+    map_page_frame(code_frame, SPAWN_SCRATCH_VA, true, SP_UNTYPED);
     // Copied as **bytes**, not as elements, because the stub's element type differs by
     // architecture: two fixed-width ISAs spell it as `[u32; 9]` and x86_64 has to spell it as
     // `[u8; 43]`. One `copy_nonoverlapping` over `size_of_val` serves all three and reads the same
@@ -421,85 +408,31 @@ fn spawn_bench() -> ! {
 #[inline(never)]
 fn spawn_one(code_frame: u64) {
     // The child's own region, so it is independently reclaimable.
-    // SAFETY: as above: the kernel validates the capability and the method.
-    let child_ut =
-        unsafe { invoke(SP_UNTYPED, abi::memory_region::SPLIT, CHILD_PAGES, 0, 0) } as u64;
-    // SAFETY: as above: the kernel validates the capability and the method.
-    let aspace = unsafe {
-        invoke(
-            child_ut,
-            abi::memory_region::RETYPE_OBJ,
-            abi::objtype::ADDRESS_SPACE,
-            0,
-            0,
-        )
-    } as u64;
+    let child_ut = split_region(SP_UNTYPED, CHILD_PAGES) as u64;
+    let aspace = retype_object(child_ut, abi::objtype::ADDRESS_SPACE) as u64;
     // Alias the shared code frame as the child's code; a stack from the child's own region.
-    // SAFETY: as above: the kernel validates the capability and the method.
-    unsafe {
-        invoke(
-            aspace,
-            abi::address_space::MAP_INTO,
-            CHILD_CODE_VA,
-            code_frame,
-            abi::address_space::MAP_CODE,
-        )
-    };
-    // SAFETY: as above: the kernel validates the capability and the method.
-    let stack = unsafe { invoke(child_ut, abi::memory_region::RETYPE, 0, 0, 0) } as u64;
-    // SAFETY: as above: the kernel validates the capability and the method.
-    unsafe {
-        invoke(
-            aspace,
-            abi::address_space::MAP_INTO,
-            CHILD_STACK_VA,
-            stack,
-            abi::address_space::MAP_RW,
-        )
-    };
+    map_into(
+        aspace,
+        CHILD_CODE_VA,
+        code_frame,
+        abi::address_space::MAP_CODE,
+    );
+    let stack = retype_page_frame(child_ut) as u64;
+    map_into(aspace, CHILD_STACK_VA, stack, abi::address_space::MAP_RW);
     cap_delete(stack);
 
     // The thread: give it CHILD_DONE (narrowed to WRITE) in its slot 0, configure (which consumes
     // the address space cap), and start. The child drops to EL0, SENDs its done word, and exits.
-    // SAFETY: as above: the kernel validates the capability and the method.
-    let tcb = unsafe {
-        invoke(
-            child_ut,
-            abi::memory_region::RETYPE_OBJ,
-            abi::objtype::THREAD_CONTROL_BLOCK,
-            0,
-            0,
-        )
-    } as u64;
-    // SAFETY: as above: the kernel validates the capability and the method.
-    unsafe {
-        invoke(
-            tcb,
-            abi::thread_control_block::CAP_INSERT,
-            SP_CHILD_DONE,
-            abi::rights::WRITE,
-            0,
-        )
-    };
-    // SAFETY: as above: the kernel validates the capability and the method.
-    unsafe {
-        invoke(
-            tcb,
-            abi::thread_control_block::CONFIGURE,
-            CHILD_CODE_VA,
-            CHILD_STACK_VA + SPAWN_PAGE,
-            aspace,
-        )
-    };
-    // SAFETY: as above: the kernel validates the capability and the method.
-    unsafe { invoke(tcb, abi::thread_control_block::START, 0, 0, 0) };
+    let tcb = retype_object(child_ut, abi::objtype::THREAD_CONTROL_BLOCK) as u64;
+    tcb_cap_insert(tcb, SP_CHILD_DONE, abi::rights::WRITE, 0);
+    tcb_configure(tcb, CHILD_CODE_VA, CHILD_STACK_VA + SPAWN_PAGE, aspace);
+    tcb_start(tcb, 0, 0, 0);
 
     // Wait for the child to run and signal, then reclaim its region. The retry covers the sliver
     // between the child's SEND and its SYS_EXIT: DESTROY refuses a region with a still-live thread,
     // so yield until the child has finished exiting.
     let _ = recv(SP_CHILD_DONE);
-    // SAFETY: as above: the kernel validates the capability and the method.
-    while unsafe { invoke(child_ut, abi::memory_region::DESTROY, 0, 0, 0) } != 0 {
+    while destroy_region(child_ut) != 0 {
         yield_now();
     }
     // Free the slots this child used (the address space cap was consumed by CONFIGURE) so the fixed capability table

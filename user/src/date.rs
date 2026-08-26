@@ -102,7 +102,7 @@ use core::sync::atomic::{AtomicBool, Ordering};
 
 use calendar::{DateTime, Format, UtcOffset};
 use clock_proto::{ClockPage, state};
-use user_rt::{exit, invoke, monotonic_nanos, send};
+use user_rt::{exit, granted, monotonic_nanos, send};
 
 /// Slot 0: where the output goes. An endpoint with `WRITE`, and the same 16-bytes-per-message
 /// framing the std PAL's stdout uses (`w0` = the byte count, `w1`|`w2` = the bytes, little-endian),
@@ -302,20 +302,6 @@ fn diag_end() {
     if HAS_DIAG.load(Ordering::Relaxed) {
         send(DIAG_SLOT, byte_sink_proto::eof(), 0, 0);
     }
-}
-
-/// Whether a capability is in `slot`, without touching whatever it names.
-///
-/// [`clock_page`]'s probe, lifted, because §67 gave this program a second slot to ask about. Invoke
-/// a method number no object type defines, so the call can only be refused, and read *which* refusal
-/// came back: an empty slot answers `NoSuchSlot`, and a real object answers `BadMethod`, which is a
-/// refusal from something that exists.
-fn granted(slot: u64) -> bool {
-    /// A method number no object type defines, so the invocation can only ever be refused.
-    const NO_SUCH_METHOD: u64 = 0xffff;
-    // SAFETY: a syscall that cannot succeed; the kernel validates the slot before the method.
-    let r = unsafe { invoke(slot, NO_SUCH_METHOD, 0, 0, 0) };
-    r != abi::Error::NoSuchSlot as i64
 }
 
 /// The clock page, or `None` when this process was granted no clock.

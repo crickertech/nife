@@ -30,9 +30,8 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use abi::irq;
 use line_editor::proto;
-use user_rt::{call, invoke};
+use user_rt::{call, irq_ack, irq_wait};
 
 // Unused on x86_64: there is no page for it to name (`user::UART_PHYS` is zero, DECISIONS §121),
 // so the arm below traps instead of reading. Kept unconditional rather than cfg'd out because the
@@ -194,12 +193,10 @@ pub extern "C" fn _start(_x0: u64, _x1: u64, _x2: u64) -> ! {
     uart::arm_rx_interrupt();
 
     loop {
-        // SAFETY: the trap validates the Irq capability in slot 1.
-        unsafe { invoke(IRQ, irq::WAIT, 0, 0, 0) };
+        irq_wait(IRQ);
         drain();
         uart::clear_interrupt(); // quiet the device (PL011: ICR; NS16550: reading RBR already did)
-        // SAFETY: re-enable the line at the controller now that the device is quiet.
-        unsafe { invoke(IRQ, irq::ACK, 0, 0, 0) };
+        irq_ack(IRQ); // re-enable the line at the controller now that the device is quiet
     }
 }
 

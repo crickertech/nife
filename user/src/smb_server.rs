@@ -196,7 +196,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use abi::{memory_region as ut, page_frame as fr, rendezvous, rights};
+use abi::rights;
 use filesystem_proto::{dir, dirent, fs, xattr};
 use smb_proto::authenticator::{Attempt, Authenticator, NoIdentity, Verdict};
 use smb_proto::path::Path;
@@ -208,7 +208,10 @@ use socket_proto::{
     OP_ATTACH_PAGE_FRAME, OP_CLOSE, OP_LISTEN, OP_RECV, OP_SEND, REP_ERR, REP_OK, req,
 };
 use user_rt::mapped_window::MappedWindow;
-use user_rt::{call, exit, invoke, now, send};
+use user_rt::{
+    call, destroy_region, exit, map_page_frame, now, retype_page_frame, send, send_cap,
+    split_region,
+};
 
 const REPORT: u64 = 0;
 const STACK: u64 = 1;
@@ -940,9 +943,7 @@ fn done(code: u64) -> ! {
 /// (`OutOfMemory` if the parent's budget or this capability table is exhausted, `NotPermitted` without
 /// `WRITE` on `parent`, neither of which this program's own capabilities should ever hit).
 fn memory_region_split(parent: u64, pages: u64) -> Result<u64, i64> {
-    // SAFETY: `svc`. `parent` is an untyped capability this process holds with WRITE (every one
-    // granted to it is; see the capability contract above), which is what `SPLIT` requires.
-    let r = unsafe { invoke(parent, ut::SPLIT, pages, 0, 0) };
+    let r = split_region(parent, pages);
     if r < 0 { Err(r) } else { Ok(r as u64) }
 }
 
@@ -951,8 +952,7 @@ fn memory_region_split(parent: u64, pages: u64) -> Result<u64, i64> {
 /// occupies it or while it has been [`memory_region_split`] into children not yet themselves destroyed;
 /// this is the whole of the rule [`DurableSession`] leans on.
 fn memory_region_destroy(region: u64) -> Result<(), i64> {
-    // SAFETY: `svc`.
-    let r = unsafe { invoke(region, ut::DESTROY, 0, 0, 0) };
+    let r = destroy_region(region);
     if r < 0 { Err(r) } else { Ok(()) }
 }
 
@@ -1049,25 +1049,22 @@ fn open_durable_session_or_die() -> DurableSession {
 
 /// Mint a frame from our untyped, map it writable, and delegate it to socket `sid`.
 fn attach_page_frame(sid: u64) {
-    // SAFETY: `svc`. RETYPE returns the new frame capability's slot, or a negative error.
-    let frame = unsafe { invoke(MEMORY_REGION, ut::RETYPE, 0, 0, 0) };
+    // RETYPE returns the new frame capability's slot, or a negative error.
+    let frame = retype_page_frame(MEMORY_REGION);
     if frame < 0 {
         done(0xE101);
     }
-    // SAFETY: `svc`. Map it writable; page tables come from our untyped.
-    if unsafe { invoke(frame as u64, fr::MAP, PAGE_FRAME_VA, 1, MEMORY_REGION) } < 0 {
+    // Map it writable; page tables come from our untyped.
+    if !map_page_frame(frame as u64, PAGE_FRAME_VA, true, MEMORY_REGION) {
         done(0xE102);
     }
-    // SAFETY: `svc`. Delegate it (narrowed to read/write) with the ATTACH request.
-    if unsafe {
-        invoke(
-            STACK,
-            rendezvous::SEND_CAP,
-            frame as u64,
-            rights::READ | rights::WRITE,
-            req(OP_ATTACH_PAGE_FRAME, sid),
-        )
-    } < 0
+    // Delegate it (narrowed to read/write) with the ATTACH request.
+    if send_cap(
+        STACK,
+        frame as u64,
+        rights::READ | rights::WRITE,
+        req(OP_ATTACH_PAGE_FRAME, sid),
+    ) < 0
     {
         done(0xE103);
     }

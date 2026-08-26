@@ -83,7 +83,8 @@ use line_editor::proto;
 use swish::{Route, Say, Status, Untimed, sequence};
 use user_rt::mapped_window::MappedWindow;
 use user_rt::{
-    call, cap_delete, exit, invoke, monotonic_nanos, reap, recv, recv_fault, send, yield_now,
+    call, cap_delete, destroy_region, exit, monotonic_nanos, reap, recv, recv_fault, retype_object,
+    send, split_region, yield_now,
 };
 
 // Pages shared with the terminal (must match the wiring in init).
@@ -2065,9 +2066,7 @@ fn caps(nav: &mut Nav, tail: &[u8]) {
 /// Carve `pages` off our own untyped budget (slot 3) into a delegatable child untyped. `None` when
 /// the budget is exhausted.
 fn memory_region_split(pages: u64) -> Option<u64> {
-    // SAFETY: `svc`/`ecall`; the kernel checks WRITE on the untyped and returns a negative error
-    // (OutOfMemory) when the budget cannot back `pages`.
-    let r = unsafe { invoke(BUDGET, abi::memory_region::SPLIT, pages, 0, 0) };
+    let r = split_region(BUDGET, pages);
     if r < 0 { None } else { Some(r as u64) }
 }
 
@@ -2893,17 +2892,7 @@ fn release_pipeline(region: u64, pipes: &[u64]) {
 /// RETYPE one page of `region` into an `Rendezvous` we hold with full rights, which is what lets us
 /// delegate a narrowed view of it to each end of a pipe.
 fn retype_rendezvous(region: u64) -> Option<u64> {
-    // SAFETY: `svc`/`ecall`; the kernel checks WRITE on the untyped and returns a negative error
-    // when the region cannot back another page.
-    let r = unsafe {
-        invoke(
-            region,
-            abi::memory_region::RETYPE_OBJ,
-            abi::objtype::RENDEZVOUS,
-            0,
-            0,
-        )
-    };
+    let r = retype_object(region, abi::objtype::RENDEZVOUS);
     if r < 0 { None } else { Some(r as u64) }
 }
 
@@ -3095,8 +3084,8 @@ fn forcible(job_ut: u64) {
 /// its last instruction (DESTROY refuses while a thread is live). Returns whether it succeeded.
 fn reclaim(job_ut: u64) -> bool {
     for _ in 0..256 {
-        // SAFETY: `svc`/`ecall`; DESTROY reclaims the region or refuses (a live thread, pre-amendment).
-        if unsafe { invoke(job_ut, abi::memory_region::DESTROY, 0, 0, 0) } == 0 {
+        // DESTROY reclaims the region or refuses (a live thread, pre-amendment).
+        if destroy_region(job_ut) == 0 {
             return true;
         }
         yield_now();
@@ -3106,15 +3095,13 @@ fn reclaim(job_ut: u64) -> bool {
 
 /// RETYPE one page of our budget into a `PageFrame` capability we hold. `None` when the budget is spent.
 fn retype_page_frame() -> Option<u64> {
-    // SAFETY: `svc`/`ecall`; the kernel checks WRITE on the untyped.
-    let r = unsafe { invoke(BUDGET, abi::memory_region::RETYPE, 0, 0, 0) };
+    let r = user_rt::retype_page_frame(BUDGET);
     if r < 0 { None } else { Some(r as u64) }
 }
 
 /// Map the frame in `slot` read/write at `va` in our own space; page tables come from our budget.
 fn map_page_frame(slot: u64, va: u64) -> bool {
-    // SAFETY: `svc`/`ecall`; the kernel checks the frame cap and the address.
-    unsafe { invoke(slot, abi::page_frame::MAP, va, 1, BUDGET) == 0 }
+    user_rt::map_page_frame(slot, va, true, BUDGET)
 }
 
 /// Delegate the capability in `slot` to init over the spawn rendezvous, narrowed to WRITE|GRANT (init
@@ -3131,16 +3118,7 @@ fn send_cap(slot: u64) {
 /// input**. A pipeline that granted both directions would be a two-way channel nobody asked for, and
 /// the narrowing is what stops it rather than a convention the programs are trusted to keep.
 fn delegate(slot: u64, rights: u64) {
-    // SAFETY: `svc`/`ecall`; the kernel checks WRITE on the rendezvous and GRANT on the delegated cap.
-    unsafe {
-        invoke(
-            SPAWN,
-            abi::rendezvous::SEND_CAP,
-            slot,
-            rights,
-            spawnproto::CAP_TAG,
-        )
-    };
+    user_rt::send_cap(SPAWN, slot, rights, spawnproto::CAP_TAG);
 }
 
 /// Ask the terminal how many `^C` it has seen (a non-blocking poll; see `proto::OP_INTRCOUNT`).
