@@ -33,18 +33,30 @@ use crate::sched;
 /// do it. Raising this past 640 raised `kernel::testing::SUITE_PAGE_FRAME_BUDGET` too; that comment
 /// carries the account.
 ///
-/// **Raised again, milestone 49's channel-per-client update: +2240, to cover `login::OWN_UT_PAGES`
-/// being raised from 128 to 1024** (that raise is `CONSTRUCTION_UT`'s bill too, since `OWN_UT_PAGES`
-/// is split directly from it at `login`'s own startup, one time, regardless of how many logins or
-/// connects follow). `connect`'s own channel objects no longer spend this budget permanently at all
-/// (`user/src/login.rs`'s own BUGS: each channel is retyped from its own small, dedicated region and
-/// that region is destroyed once the channel is served), so this raise is smaller than an earlier,
-/// now-superseded version of this comment assumed. **This suite currently does not pass reliably**;
-/// see `user/src/login.rs`'s own BUGS for a real, reproducible, not-yet-root-caused failure in
-/// `caretaker_teardown_reclaims_a_full_session_worth_of_memory` below, checked directly against this
-/// constant (raising it as far as 16384 does not change the outcome) and against `OWN_UT_PAGES`
-/// (raising it as far as 8192 does not either): this is not a sizing problem.
-const CONSTRUCTION_PAGES: u64 = 4096;
+/// **Raised, milestone 49's channel-per-client update: 1856 -> 2176, and the account is two lines
+/// rather than the four figures an earlier version of this comment carried.** That version set this
+/// to 4096 while chasing this suite's second-login failure, on the theory that the failure was a
+/// sizing problem. It was not (it was `login`'s own sixteen-slot capability table; see that file's
+/// BUGS), and neither 16384 here nor 8192 for `OWN_UT_PAGES` ever changed the outcome. Both are back
+/// to sizes with a measurement behind them:
+///
+/// - **+256, two more permanently-logged-in sessions.** This update adds
+///   `two_clients_connecting_together_get_independent_channels_and_neither_observes_the_others_secret`,
+///   whose two roles both log in and neither logs out, at the same 128 pages a live session costs
+///   every other test above. Fourteen, not twelve.
+/// - **+32, `login::CHANNEL_UT_PAGES`**, split from this budget once at that process's startup, the
+///   same one-time shape `OWN_UT_PAGES` already has. See that constant's own doc for why a channel's
+///   region must come from a budget with exactly one spender.
+///
+/// `connect`'s own channel objects spend nothing permanent: each channel is retyped from a small,
+/// dedicated region that is destroyed once the channel is served, and because that region is carved
+/// from `CHANNEL_UT_PAGES` rather than from here, it is always the LIFO top when it is destroyed, so
+/// its pages actually come home (`crates/regions`' `return_to_parent`). The earlier arrangement,
+/// carving it from this budget, stranded **368 pages of holes** in one run, measured.
+///
+/// 128 (`OWN_UT_PAGES`) + 32 (`CHANNEL_UT_PAGES`) + 14 * 128 = 1952 permanently resident; 2176 is
+/// that with the same margin 1856 carried over 1664.
+const CONSTRUCTION_PAGES: u64 = 2176;
 
 /// `EEXIST`, matching `identity_provisioner.rs`'s own local constant: `fs_proto` does not re-export
 /// it under a name (that file's own comment), so every direct caller of `fs::MKDIR` names it again.
@@ -665,10 +677,11 @@ fn logins_caretaker_measurement_matches_the_real_table_and_a_tampered_one_would_
 /// **Nothing else would have caught this**: the caretaker-teardown fix (this milestone; see
 /// `user/src/login.rs`'s own BUGS, "Resolved"), proven by needing more memory than could possibly
 /// fit if a session's pages did not actually come back. `wired()`'s shared instance holds
-/// `CONSTRUCTION_PAGES` (1856) in total, and 1664 of that is already permanently spent by the tests
-/// above (this file's own accounting comment on that constant); the 192 pages left would not survive
-/// a *second* leaked session at the old 128-pages-per-login rate, let alone the ten this test
-/// performs (2560 pages, thirteen times the headroom). Every one of the ten logs fully back out
+/// `CONSTRUCTION_PAGES` in total, and all but a few hundred pages of that is already permanently
+/// spent by the tests above (this file's own accounting comment on that constant); what is left
+/// would not survive a *second* leaked session at the old 128-pages-per-login rate, let alone the
+/// ten this test performs (2560 pages, an order of magnitude past the headroom). Every one of the
+/// ten logs fully back out
 /// (both delegated `MemoryRegion`s destroyed, `login_test_client.rs`'s `ROLE_LOGOUT`) before the next
 /// begins, so this test could only pass by the memory genuinely coming home each time.
 ///
@@ -677,9 +690,12 @@ fn logins_caretaker_measurement_matches_the_real_table_and_a_tampered_one_would_
 /// test in this file asks for), both `DESTROY` calls succeeding, and both capabilities answering
 /// nothing afterward (`login_test_client.rs`'s own re-check, not merely the syscalls' return codes).
 ///
-/// **Currently fails, reproducibly, on its second iteration**, milestone 49's channel-per-client
-/// update having surfaced it: see `user/src/login.rs`'s own BUGS for the full diagnostic record
-/// (what was checked and ruled out) before spending further time re-deriving it.
+/// **It also caught a second bug, and this is the one worth knowing about**: for two days this test
+/// failed reproducibly on its *second* iteration, refusing a correct password. Ten cycles in a row
+/// is what made it visible at all, because the cause was a two-slot-per-connect leak of `login`'s
+/// own sixteen-slot capability table, and a service that never serves two logins in a row cannot
+/// show it. See `user/src/login.rs`'s BUGS ("Resolved, 2026-08-26") for the mechanism and for the
+/// four memory hypotheses that were measured and ruled out before it was found.
 #[test_case]
 fn caretaker_teardown_reclaims_a_full_session_worth_of_memory() {
     if fs_service::fs_server_image().is_none() {

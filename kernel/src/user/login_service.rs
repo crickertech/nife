@@ -12,6 +12,18 @@ const CRED_VA: u64 = 0x0000_0000_00e3_0000;
 /// role holds no budget yet at the point it must map its own connect channel). Margin over the one
 /// page a fresh mapping ever strictly needs, on this file's own existing style for every other
 /// region here.
+///
+/// # BUGS
+///
+/// **Nothing reclaims one of these when its role exits**, so a full aarch64 suite leaves twenty-six
+/// of them (104 frames) held for the rest of the boot, which is a measured line item in
+/// `kernel::testing::SUITE_PAGE_FRAME_BUDGET`'s own account. This is scaffolding rather than a
+/// property under test, and `kernel::user::holding::Holding` is the mechanism that would give it
+/// back; what stops it being a two-line change is that a role's scratch pays for **page tables** in
+/// that role's own address space rather than for anything the role holds a capability to, so
+/// destroying the region frees tables the dying process is still walking. Doing this properly means
+/// reclaiming the role's whole address space first (`Holding::add_region_after_death`), which needs
+/// [`spawn_client`] to hand its caller the thread id it currently drops.
 const CLIENT_SCRATCH_UT_PAGES: u64 = 4;
 
 /// Stack pages beyond the one page `run` maps. This process parses the initrd, parses an ELF, and

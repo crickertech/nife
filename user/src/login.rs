@@ -204,29 +204,59 @@
 //! party to trigger the destroy, so its region's pages are abandoned in the same way this program's
 //! other unreclaimed resources are (see `CONSTRUCTION_UT`'s exhaustion, below).
 //!
-//! **An unresolved, reproducible failure surfaced by this update's own test suite, not yet
-//! root-caused.** `kernel::user::login_tests::caretaker_teardown_reclaims_a_full_session_worth_of_memory`
-//! performs ten back-to-back connect-login-logout cycles against the identity `chris`, fully logging
-//! out (destroying both delegated `MemoryRegion`s) before each next cycle begins. Across every run
-//! this update's own testing produced, the **first** cycle always succeeds and the **second** is
-//! refused with [`login_proto::DENIED`] as though `chris`'s password were wrong, which it is not:
-//! every later cycle in the same run, when reached, succeeds again (this is not a ratchet toward
-//! total failure). The following were checked and ruled out, each by direct measurement rather than
-//! by argument: `CONSTRUCTION_UT` exhaustion (reproduces identically at `CONSTRUCTION_PAGES` raised
-//! from 1856 to 16384); [`OWN_UT_PAGES`] exhaustion, including `supervision_proto::fill_and_map`'s
-//! own accumulating `SCRATCH_NEXT` mechanism (reproduces identically at 128 and at 8192); this
-//! process's own sixteen-slot capability table (margin was tightened and then restored without
-//! changing the outcome); `kernel::sched::MAX_RENDEZVOUS` and `kernel::memory_region::MAX_REGIONS`
-//! exhaustion (both ruled out directly: `connect`'s own channel region is destroyed, and no "out of
-//! rendezvous points" or region-table message appears in a failing run). The failure was absent from
-//! a baseline run of the same ten-cycle test against the pre-channel-per-client code on the same
-//! machine. The leading, unconfirmed hypothesis is a timing-sensitive interaction between the
-//! caretaker-teardown-via-`DESTROY` mechanism (this milestone's own earlier, "Resolved 2026-08-23"
-//! piece) and an immediate second descent into the same identity's subtree, made more likely by the
-//! extra IPC round trip [`login_proto::CONNECT`] adds ahead of every login; nothing in this program's
-//! own code has been found to explain it directly. This needs a fresh investigation before this
-//! program's test suite can be trusted to gate a merge; see the milestone's own roadmap entry for the
-//! disposition.
+//! **Resolved, 2026-08-26: `MemoryRegion::DESTROY` does not free the destroyer's own capability
+//! table slot, and this process leaked two slots per connect.** The symptom was
+//! `kernel::user::login_tests::caretaker_teardown_reclaims_a_full_session_worth_of_memory` refusing
+//! its **second** of ten back-to-back connect-login-logout cycles with [`login_proto::DENIED`], as
+//! though `chris`'s password were wrong, which it is not. The first cycle always succeeded, and an
+//! earlier version of this entry recorded that later cycles succeed too; **that was wrong**, and
+//! finding out cost nothing but letting the test run past its first failed assertion: cycles two
+//! through nine all fail, the second inside [`mint`] and the rest earlier still, in [`connect`].
+//!
+//! The cause was found by instrumenting rather than by reasoning, in four steps, each narrowing the
+//! previous one: which branch answers `DENIED` (`mint` returning `None`), which step of `mint`
+//! (`supervision_proto::build_child`), which step of `build_child_space` (`fill_and_map`'s own
+//! `RETYPE`), and finally which half of the kernel's `memory_region_retype` refused it. That last
+//! step is the one that mattered, because the syscall collapses two unrelated causes into one
+//! `Error::OutOfMemory` (`kernel::memory_region`'s own BUGS says so): the region was **not**
+//! exhausted, `sched::grant` had nowhere to put the capability. This process's capability table has
+//! sixteen slots (`kernel::cap::CAPABILITY_TABLE_SLOTS`).
+//!
+//! What filled it: `_start` destroyed each served channel's region and never `cap_delete`d its own
+//! `channel.result` or `channel.region`. A comment here claimed the `DESTROY` covered them, and it
+//! does not and cannot. `MemoryRegion::DESTROY` tears down the objects retyped from a region and
+//! returns its pages, and `revoke_region` deletes every `PageFrame` capability naming a page it just
+//! freed (which is why `channel.page` needed nothing). Neither touches a `Rendezvous` capability, and
+//! nothing anywhere deletes the `MemoryRegion` capability *naming the region being destroyed*: both
+//! stay as live table entries, now stale, until their holder clears them. Eight of sixteen slots are
+//! spent at rest here, and a login at its peak needs six more, so two leaked slots per connect is
+//! exactly one login's worth of headroom: the second login after this process starts gets through
+//! `build_child`'s address space and fails on the next page.
+//!
+//! **The fix is [`discard`]** (destroy *and* `cap_delete`), used at every site in this program that
+//! stops wanting a region, plus a `cap_delete` for the channel's own result endpoint. It also closes
+//! the same leak on six failure paths that had it silently, including the one `mint`'s own comment
+//! used to describe as unfixable ("this process has no `DESTROY` capability on its own construction
+//! budget's children today", which was never true).
+//!
+//! **The general fact worth carrying away, since nothing about it is specific to this program**: a
+//! long-lived server that destroys a region per request runs out of *capability table slots* while
+//! its memory budget still looks healthy, and the failure surfaces as whatever that server says when
+//! it cannot serve. Every one of the four things ruled out before this was found (`CONSTRUCTION_UT`
+//! sizing to 16384, [`OWN_UT_PAGES`] to 8192, `kernel::sched::MAX_RENDEZVOUS`,
+//! `kernel::memory_region::MAX_REGIONS`) was a *memory* hypothesis, and the sixteen-slot table was
+//! looked at and passed over because tightening and restoring one slot of margin changed nothing:
+//! it would not, against a leak that spends two slots per request.
+//!
+//! **A second, unrelated cost was measured while sizing the fix, and it is fixed too.** A channel's
+//! region is minted before the login it carries and destroyed after it, so a channel region split
+//! from [`CONSTRUCTION_UT`] is never the LIFO top when it is destroyed (`crates/regions`'
+//! `return_to_parent` only un-bumps a parent's watermark for a child freed at the top; the same rule
+//! this program's module docs already name for the logout ticket's destroy order). Every connect
+//! therefore stranded [`CHANNEL_REGION_PAGES`] of `CONSTRUCTION_UT` permanently: **368 pages of
+//! holes** in one suite run, against 1664 pages of real residents. [`CHANNEL_UT_PAGES`] is a budget
+//! with exactly one spender, so a channel region is always its only live child and always comes home
+//! whole. See that constant's own doc.
 //!
 //! **No terminal.** The roadmap's own text names three things a login hands back: a root directory,
 //! a budget, a terminal. This program hands back the first two. A terminal in this system is a
@@ -401,6 +431,13 @@
 //! nothing beyond the width of one `mint` call, regardless of how many clients are logged in at
 //! once. See `kernel::user::login_tests::the_login_service_serves_past_the_old_capability_table_ceiling`.
 //!
+//! **This update reopened that ceiling from a different direction and closed it again**, which is
+//! worth saying here rather than only under the resolved entry above: a per-connect channel is three
+//! more objects and a region, and two of those four capabilities were never given back. The lesson
+//! this file now states in two places is the one that generalizes: `MemoryRegion::DESTROY` frees the
+//! region, never the destroyer's own table slot naming it, so every abandon site here goes through
+//! [`discard`].
+//!
 //! **The audit endpoint proves establishment, not per-request attribution.** [`login_proto::ATTRIBUTED`]
 //! records which identity established which channel at the moment this process minted it. It does
 //! not prove that a *downstream* server, later, can say which channel one of its own requests
@@ -453,6 +490,32 @@ const CONNECT_VA_BASE: u64 = 0x0000_0000_00e4_0000;
 /// with margin over a tight count for the same reason [`CARETAKER_REGION_PAGES`] is (a region too
 /// small fails as `Err(())`, which [`connect`] can only answer with `login_proto::DENIED`).
 const CHANNEL_REGION_PAGES: u64 = 8;
+
+/// **A budget of its own that only [`connect`] ever spends, so a served channel's pages actually
+/// come home.** Four channels' worth, though only one is ever live at a time (see below).
+///
+/// This is a `crates/regions` LIFO consequence, measured rather than reasoned about, and it is the
+/// same rule this program's module docs already name for the logout ticket's own destroy order.
+/// `MemoryRegion::DESTROY` returns a child's pages to its parent's watermark **only when the child
+/// sits at the top of it**; a child freed out of order leaves a hole that does not come back until
+/// the parent itself is destroyed. A channel is minted before the login it carries and destroyed
+/// after it, so a channel region split from [`CONSTRUCTION_UT`] is *never* the top when it is
+/// destroyed: the caretaker region and the client budget that login minted sit above it, and both
+/// outlive it whenever the client stays logged in. Every connect therefore stranded
+/// [`CHANNEL_REGION_PAGES`] of `CONSTRUCTION_UT`, permanently, for the life of this process, which
+/// this suite measured directly as **368 pages of holes** in a `CONSTRUCTION_UT` whose real
+/// residents accounted for 1664 (`kernel::user::login_tests::CONSTRUCTION_PAGES`' own account).
+///
+/// A budget with exactly one spender fixes it outright rather than sizing around it. This process
+/// has one thread and serves one channel at a time ([`connect`] answers one caller, [`_start`]
+/// destroys that channel before it receives the next `CONNECT`), so a channel region carved from
+/// here is always this region's **only** live child, therefore always the LIFO top, therefore
+/// always fully returned. Nothing else may ever be split or retyped from this region, or that
+/// property quietly stops holding; that is why it is its own constant rather than a share of
+/// [`OWN_UT_PAGES`], whose spender ([`mint`]'s `build_child`) allocates *during* a login, with the
+/// channel still live.
+const CHANNEL_UT_PAGES: u64 = 32;
+
 /// Where the archive is mapped read-only. Must match `kernel::user::INITRD_VA`.
 const INITRD_VA: u64 = 0x2000_0000;
 /// Where a built caretaker and the file service's shared page meet. Must match
@@ -461,9 +524,8 @@ const INITRD_VA: u64 = 0x2000_0000;
 const CARETAKER_FS_VA: u64 = 0x0000_0000_0060_0000;
 
 /// This process's own scratch: page tables for [`build_child`]'s own temporary mappings (never a
-/// child's). [`connect`] draws its own page-table cost from each channel's own region instead (see
-/// that function's doc), not from here, so this budget's only spender is [`mint`]'s own
-/// `build_child` calls.
+/// child's). [`connect`] draws from [`CHANNEL_UT_PAGES`] instead, for the LIFO reason that
+/// constant's own doc gives, so this budget's only spender is [`mint`]'s own `build_child` calls.
 ///
 /// **Not "one build's worth," corrected.** An earlier version of this comment claimed only one
 /// caretaker is ever mid-construction, so this budget never holds more than one build's worth of
@@ -472,13 +534,17 @@ const CARETAKER_FS_VA: u64 = 0x0000_0000_0060_0000;
 /// is **never reused or unmapped** between calls, so every segment and blob page of every caretaker
 /// this process has ever built (successfully or not: `mint` calls `build_child` before it knows
 /// whether the caretaker's own descent will be refused) spends a little more of this region's
-/// watermark, permanently, for as long as this process runs. This was raised from 128 to 1024 while
-/// chasing a different, transient failure (a correct password once refused after this file's own
-/// suite had already built eleven caretakers ahead of it) that turned out to have a different cause
-/// entirely (`CHANNEL_REGION_PAGES`'s own doc); the raise is kept anyway; on this program's own
-/// existing precedent of preferring margin to a tight count, since 128 pages were *closer* to this
-/// suite's own real accumulation than comfortable margin should ever be.
-const OWN_UT_PAGES: u64 = 1024;
+/// watermark, permanently, for as long as this process runs.
+///
+/// **The real accumulation is one page, measured** (2026-08-26, over a whole aarch64 suite run: the
+/// twenty-six caretakers this file's tests build between them spend `usage() == (1, 128)` of this
+/// region). An earlier version of this comment raised it from 128 to 1024 and justified the raise by
+/// asserting 128 was "closer to this suite's own real accumulation than comfortable margin should
+/// ever be"; that assertion was never measured and is wrong by three orders of magnitude. It was
+/// raised while chasing this program's second-login failure, whose cause turned out to be this
+/// process's own sixteen-slot capability table (see BUGS), and it is back at 128, which is 128 times
+/// the observed high-water rather than a tight count.
+const OWN_UT_PAGES: u64 = 128;
 
 /// One caretaker's whole construction: its address space, TCB, and stack.
 /// `crates/system_initializer::DIR_JOB_REGION_PAGES` (96) covers a caretaker **and** the program
@@ -542,6 +608,11 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
     let Ok(own_ut) = memory_region_split(CONSTRUCTION_UT, OWN_UT_PAGES) else {
         fail(4)
     };
+    // Split once, here, and never anywhere else: [`CHANNEL_UT_PAGES`]' own doc explains why a
+    // channel's region must come from a budget nothing else spends.
+    let Ok(channel_ut) = memory_region_split(CONSTRUCTION_UT, CHANNEL_UT_PAGES) else {
+        fail(5)
+    };
 
     // How many logins this process has established, in order. The audit trail's sequence number,
     // not a capacity: `CONSTRUCTION_UT` is what actually bounds how many logins this process can
@@ -560,7 +631,7 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
             send(RESULT, login_proto::MALFORMED, 0, 0);
             continue;
         }
-        let Some(channel) = connect(connect_seq) else {
+        let Some(channel) = connect(channel_ut, connect_seq) else {
             // The construction budget is spent (see BUGS); folded into `DENIED` for
             // `login_proto::DENIED`'s own stated reason, even though no identity is in play yet:
             // this program has exactly one code for "authenticated or not, I could not serve you".
@@ -589,14 +660,29 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
         // permanently spent per connect, and this suite's own tests found it: a later, unrelated
         // test failed with "out of rendezvous points" after this file's ~29 connects had quietly
         // spent 58 of the 512 the whole machine shares. `channel.region` is destroyed here instead,
-        // which reclaims the request and result rendezvous, the staging page frame, and this
-        // process's own capability-table slots for all three, in one call. No thread ever runs in
-        // this region (only `RETYPE_OBJ`/`RETYPE`, never a `THREAD_CONTROL_BLOCK`), so `DESTROY`
-        // has nothing to wait on and cannot be transiently refused, so [`reclaim`]'s bounded retry
-        // (shared with every other `MemoryRegion::DESTROY` in this program) is expected to return on
-        // its first attempt here; reused anyway rather than a bare call, so an assumption this
-        // comment states does not have to also be a correctness dependency if it is ever wrong.
-        reclaim(channel.region);
+        // which reclaims the request and result rendezvous and the staging page frame in one call.
+        // No thread ever runs in this region (only `RETYPE_OBJ`/`RETYPE`, never a
+        // `THREAD_CONTROL_BLOCK`), so `DESTROY` has nothing to wait on and cannot be transiently
+        // refused, so [`reclaim`]'s bounded retry (shared with every other
+        // `MemoryRegion::DESTROY` in this program) is expected to return on its first attempt here;
+        // reused anyway rather than a bare call, so an assumption this comment states does not have
+        // to also be a correctness dependency if it is ever wrong.
+        //
+        // **The two `cap_delete`s are the other half, and an earlier version of this comment was
+        // wrong to say the `DESTROY` covered them.** It claimed destroying the region reclaimed
+        // "this process's own capability-table slots for all three"; it does not, and cannot.
+        // `MemoryRegion::DESTROY` tears down the objects inside the region and gives its pages back,
+        // and `revoke_region` deletes every `PageFrame` capability naming a page it just freed
+        // (which is why `channel.page` needs nothing here). Neither touches a `Rendezvous`
+        // capability, and nothing anywhere deletes the `MemoryRegion` capability *naming the region
+        // being destroyed*: both stay as live entries in this process's sixteen-slot table, now
+        // stale, until this process clears them itself. So every served connect used to spend two of
+        // those sixteen slots permanently, which is exactly two logins' worth of headroom: the
+        // second login after this process started would reach `mint`, get through `build_child`'s
+        // address space, and fail on the next `RETYPE` with the table full, and the caller reads
+        // that as `login_proto::DENIED` on a correct password. See this program's BUGS.
+        cap_delete(channel.result);
+        discard(channel.region);
     }
 }
 
@@ -730,7 +816,7 @@ struct Channel {
 /// already-mapped `va`, so `_start`'s own counter bumps by one page per successful call rather than
 /// reusing one). `None` on any failure, which the caller answers with [`login_proto::DENIED`].
 ///
-/// **Retyped from their own region, not from [`CONSTRUCTION_UT`] directly, and that choice is the
+/// **Retyped from their own region, not from a shared budget directly, and that choice is the
 /// whole reason this channel is reclaimable at all.** An earlier version of this function retyped
 /// `request`/`result`/`page` straight out of `CONSTRUCTION_UT`, which this process's `_start` could
 /// only ever answer with `cap_delete` (removing this process's own reference) and never with
@@ -743,11 +829,32 @@ struct Channel {
 /// the whole machine shares. Splitting a small region here, and destroying it in `_start` once
 /// [`serve_login`] is done with it, is what makes the channel's objects, not merely this process's
 /// own capabilities to them, actually go away.
-fn connect(connect_seq: u64) -> Option<Channel> {
-    let region = memory_region_split(CONSTRUCTION_UT, CHANNEL_REGION_PAGES).ok()?;
-    let request = retype_obj(region, abi::objtype::RENDEZVOUS).ok()?;
-    let result = retype_obj(region, abi::objtype::RENDEZVOUS).ok()?;
-    let page = retype_page_frame_from(region).ok()?;
+///
+/// **`channel_ut` is [`CHANNEL_UT_PAGES`], not [`CONSTRUCTION_UT`]**, and that is the second half of
+/// the same story: a region carved here is destroyed while the login it carried may still be alive,
+/// so carving it from the budget that also holds live sessions left one LIFO hole per connect. See
+/// that constant's own doc for the measurement.
+fn connect(channel_ut: u64, connect_seq: u64) -> Option<Channel> {
+    let region = memory_region_split(channel_ut, CHANNEL_REGION_PAGES).ok()?;
+    // **Every abandoned step below gives back its capability slots as well as its memory**
+    // ([`discard`], and `cap_delete` for what was retyped before the step that failed). A partial
+    // connect that left them behind would spend this process's sixteen-slot table down exactly the
+    // way the served path used to; see this program's BUGS.
+    let Ok(request) = retype_obj(region, abi::objtype::RENDEZVOUS) else {
+        discard(region);
+        return None;
+    };
+    let Ok(result) = retype_obj(region, abi::objtype::RENDEZVOUS) else {
+        cap_delete(request);
+        discard(region);
+        return None;
+    };
+    let Ok(page) = retype_page_frame_from(region) else {
+        cap_delete(result);
+        cap_delete(request);
+        discard(region);
+        return None;
+    };
     let va = CONNECT_VA_BASE + connect_seq * login_proto::PAGE as u64;
     // Page tables for this new mapping come from `region` itself: the channel's whole cost, objects
     // and page tables alike, lives in one place and comes home in one `DESTROY`.
@@ -756,7 +863,10 @@ fn connect(connect_seq: u64) -> Option<Channel> {
         // thread (only `RETYPE_OBJ`/`RETYPE`, never a `THREAD_CONTROL_BLOCK`), so `reclaim` is
         // expected to succeed on its first attempt, the same assumption `_start`'s own call after a
         // *successful* connect makes.
-        reclaim(region);
+        cap_delete(page);
+        cap_delete(result);
+        cap_delete(request);
+        discard(region);
         return None;
     }
     // SAFETY: `va` was just mapped, read/write, by this process and by no one else yet (the frame
@@ -806,8 +916,17 @@ fn mint(own_ut: u64, care: Option<&elf::Elf>, identity: &[u8]) -> Option<(u64, u
     }
 
     let region = memory_region_split(CONSTRUCTION_UT, CARETAKER_REGION_PAGES).ok()?;
-    let narrow_ep = retype_obj(region, abi::objtype::RENDEZVOUS).ok()?;
-    let ready = retype_obj(region, abi::objtype::RENDEZVOUS).ok()?;
+    // As in [`connect`]: an abandoned step gives back its capability slots as well as its memory
+    // ([`discard`]). See this program's BUGS for what leaving them behind cost.
+    let Ok(narrow_ep) = retype_obj(region, abi::objtype::RENDEZVOUS) else {
+        discard(region);
+        return None;
+    };
+    let Ok(ready) = retype_obj(region, abi::objtype::RENDEZVOUS) else {
+        cap_delete(narrow_ep);
+        discard(region);
+        return None;
+    };
 
     let (lo, hi) = filesystem_proto::grant::pack_name(identity);
     let spec = filesystem_proto::grant::spec(identity.len(), filesystem_proto::dir::ALL);
@@ -831,15 +950,28 @@ fn mint(own_ut: u64, care: Option<&elf::Elf>, identity: &[u8]) -> Option<(u64, u
             ..ChildEndowment::new()
         },
     );
-    let tcb = built.ok()?;
+    let Ok(tcb) = built else {
+        cap_delete(ready);
+        cap_delete(narrow_ep);
+        // **`build_child` leaks its own capability slots on failure**, which this cannot reach: it
+        // returns `Err(())` with nothing named, so the address space it retyped and the frame it
+        // was mid-way through stay in this process's table. Recorded in
+        // `supervision_proto::build_child_space`'s own BUGS rather than worked around here, since
+        // every caller of that function has the same problem and none of them can fix it.
+        discard(region);
+        return None;
+    };
     let started = thread_control_block_start(tcb, lo, hi, spec);
     cap_delete(tcb);
     if !started {
         cap_delete(ready);
         cap_delete(narrow_ep);
-        // `region` is not reclaimed here: a caretaker that failed to start left nothing running in
-        // it, but this process has no `DESTROY` capability on its own construction budget's
-        // children today. See BUGS.
+        // **`region` used to be abandoned here**, on a comment claiming this process had no
+        // `DESTROY` capability on its own construction budget's children. That was never true (the
+        // descent-refused path below already destroyed it, with the same capability), and it is the
+        // same leak the served path had; see BUGS. A caretaker that failed to start left nothing
+        // running in the region, so `DESTROY` has nothing to wait on.
+        discard(region);
         return None;
     }
     // The one bounded wait: the caretaker's descent against the file service, exactly the
@@ -866,7 +998,9 @@ fn mint(own_ut: u64, care: Option<&elf::Elf>, identity: &[u8]) -> Option<(u64, u
         // it here, rather than leaving it for a client that will never receive this `region` (a
         // failed mint hands back nothing), is what keeps this failure path from being a second,
         // silent leak alongside the one this function's caller already answers with `DENIED`.
-        reclaim(region);
+        // [`discard`] rather than [`reclaim`]: the capability naming the region is a table slot of
+        // its own and `DESTROY` does not free it (BUGS).
+        discard(region);
         return None;
     }
 
@@ -877,7 +1011,14 @@ fn mint(own_ut: u64, care: Option<&elf::Elf>, identity: &[u8]) -> Option<(u64, u
     // budget below. Dropping it here, the way an earlier version of this function did, was what
     // made the caretaker's construction memory permanently unreclaimable: nobody downstream ever
     // held a capability that could `DESTROY` it.
-    let budget = memory_region_split(CONSTRUCTION_UT, CLIENT_BUDGET_PAGES).ok()?;
+    let Ok(budget) = memory_region_split(CONSTRUCTION_UT, CLIENT_BUDGET_PAGES) else {
+        // The caretaker is already running and parked on `narrow_ep`, which was retyped from
+        // `region`, so this is the same case (b) the module docs describe: destroying `region`
+        // drains that wait queue and the armed kill lands at the caretaker's next scheduling.
+        cap_delete(narrow_ep);
+        discard(region);
+        return None;
+    };
     Some((narrow_ep, budget, region))
 }
 
@@ -899,6 +1040,23 @@ fn reclaim(region: u64) {
 
 /// How many times [`reclaim`] retries, matching `crates/system_initializer::RECLAIM_ATTEMPTS`.
 const RECLAIM_ATTEMPTS: usize = 64;
+
+/// **Give a region back completely: the memory *and* this process's own capability-table slot.**
+///
+/// [`reclaim`] alone does the first half only, and the difference is what made this program's own
+/// second login fail on a correct password (see BUGS). `MemoryRegion::DESTROY` tears down the
+/// objects retyped from the region and returns its pages; it leaves the `MemoryRegion` capability
+/// that named it sitting in the caller's table, stale but still occupying one of
+/// `kernel::cap::CAPABILITY_TABLE_SLOTS` (sixteen). A long-lived server that destroys a region per
+/// request therefore runs out of *slots* while its budget still looks healthy, and the failure
+/// arrives as whatever that server says when it cannot serve.
+///
+/// Every site in this program that stops wanting a region calls this rather than [`reclaim`],
+/// because there is no case here where keeping the stale capability is useful.
+fn discard(region: u64) {
+    reclaim(region);
+    cap_delete(region);
+}
 
 /// Delegate our own copy of `slot`, narrowed to `rights`, over `ep`. `GRANT` must already be on our
 /// own copy for the kernel to allow this at all (`abi::rendezvous::SEND_CAP`'s contract); every

@@ -29,6 +29,27 @@ before and is blocked on the same thing (DECISIONS §120: no interactive login n
 real hardware entropy is sorted, milestone 159); this update does not move the status line, and says
 so per this file's own convention for a piece that lands without changing it.
 
+**Two resource leaks that piece introduced were found and fixed before it landed**, both of the same
+shape and both worth reading past this milestone, because neither is specific to `login`:
+
+- **`MemoryRegion::DESTROY` does not free the destroyer's own capability-table slot.** It tears down
+  the objects retyped from a region and returns its pages, and `revoke_region` deletes every
+  `PageFrame` capability naming a freed page; it touches no `Rendezvous` capability and never the
+  `MemoryRegion` capability *naming the region being destroyed*. So a server that destroys a region
+  per request runs out of sixteen-slot capability table while its memory budget still looks
+  healthy, and the failure arrives as whatever that server says when it cannot serve. Here that was
+  `login_proto::DENIED` on a correct password, on the second login after start-up, for two days.
+  The kernel's `Error::OutOfMemory` collapsing "your budget is empty" and "your table is full" into
+  one code (milestone 153) is what made it expensive to find: four separate memory hypotheses were
+  measured and ruled out first.
+- **A region destroyed out of LIFO order strands its pages** until its parent dies (`crates/regions`'
+  `return_to_parent`, DECISIONS §16's documented half-answer). A channel is minted before the login
+  it carries and destroyed after it, so a channel region carved from the same budget as that login's
+  caretaker and client budget is never the top when it goes: 368 pages of holes in one suite run.
+  The fix is a budget with exactly one spender, which makes the channel region always its only live
+  child; the general form is that **a short-lived region wants a parent nothing long-lived is carved
+  from.**
+
 **A named prerequisite for milestone 152 (durable delegation)**, minted 2026-08-22: a scheduled job
 registered by a specific user (milestone 129's #387) needs a durable principal to be supervised by,
 and login-produces-capabilities is where that principal would first exist. 152 gates on this
