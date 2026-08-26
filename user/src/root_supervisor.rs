@@ -44,9 +44,6 @@
 use supervision_proto::{ChildEndowment, REPORT_FAILED, REPORT_INIT_DROPPED, REPORT_SUP_SAW_DEATH};
 use user_rt::{cap_delete, invoke, recv, send};
 
-/// Where the kernel maps the initrd archive, read-only. Must match the kernel's spawn path.
-const INITRD_VA: u64 = 0x2000_0000;
-
 /// What the kernel grants us, and nothing else.
 const ROOT_UT: u64 = 0; // the construction budget: ours briefly, then deleted
 const REPORT: u64 = 1; // WRITE|GRANT, so we can endow the servers with a narrowed view
@@ -60,9 +57,8 @@ const SPAWNER_IMAGE_VA: u64 = 0x3000_0000;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
-    // SAFETY: the kernel mapped `initrd_len` bytes of reserved RAM read-only at INITRD_VA.
-    let archive =
-        unsafe { core::slice::from_raw_parts(INITRD_VA as *const u8, initrd_len as usize) };
+    // SAFETY: forwarded from user_rt::initrd::initrd_bytes's own contract.
+    let archive = unsafe { user_rt::initrd::initrd_bytes(initrd_len) };
     let Ok(fs) = nifefs::Fs::parse(archive) else {
         bail(1)
     };

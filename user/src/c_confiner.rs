@@ -57,9 +57,6 @@ use c_seam::checks;
 use supervision_proto::ChildEndowment;
 use user_rt::{cap_delete, invoke, recv_fault, send};
 
-/// Where the kernel maps the initrd archive, read-only. Must match the kernel's spawn path.
-const INITRD_VA: u64 = 0x2000_0000;
-
 /// What the kernel grants us, and nothing else.
 const ROOT_UT: u64 = 0; // the construction budget: what we build each instance out of
 const REPORT: u64 = 1; // WRITE|GRANT, so each instance gets its own narrowed view
@@ -71,9 +68,8 @@ const INSTANCE_PAGES: u64 = 96;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
-    // SAFETY: the kernel mapped `initrd_len` bytes of reserved RAM read-only at INITRD_VA.
-    let archive =
-        unsafe { core::slice::from_raw_parts(INITRD_VA as *const u8, initrd_len as usize) };
+    // SAFETY: forwarded from user_rt::initrd::initrd_bytes's own contract.
+    let archive = unsafe { user_rt::initrd::initrd_bytes(initrd_len) };
     let Ok(fs) = nifefs::Fs::parse(archive) else {
         bail(1)
     };

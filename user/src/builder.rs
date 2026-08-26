@@ -37,9 +37,6 @@
 
 use user_rt::{cap_delete, exit, invoke, send};
 
-/// Where the kernel maps the initrd archive, read-only. Must match the kernel's `riscv_initrd_demo`.
-const INITRD_VA: u64 = 0x2000_0000;
-
 /// The capabilities the kernel grants this program before it runs.
 const MEMORY_REGION: u64 = 0; // a budget to retype the child's address space, frames, and TCB from
 const REPORT: u64 = 1; // the report endpoint; we hand the child a narrowed WRITE view of it
@@ -54,9 +51,8 @@ const CHILD_STACK_TOP: u64 = 0x0050_0000; // one page of stack is plenty for the
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(_x0: u64, initrd_len: u64, _x2: u64) -> ! {
     // The archive the kernel mapped read-only at INITRD_VA; its length arrived in a1.
-    // SAFETY: the kernel mapped `initrd_len` bytes of reserved RAM, read-only, at INITRD_VA.
-    let archive =
-        unsafe { core::slice::from_raw_parts(INITRD_VA as *const u8, initrd_len as usize) };
+    // SAFETY: forwarded from user_rt::initrd::initrd_bytes's own contract.
+    let archive = unsafe { user_rt::initrd::initrd_bytes(initrd_len) };
 
     let Ok(fs) = nifefs::Fs::parse(archive) else {
         fail(0xE1);

@@ -161,9 +161,10 @@
 //!   whom) is checkable rather than merely claimed. See this program's BUGS on the scope of what
 //!   this endpoint proves.
 //! - mapped [`CRED_VA`]: the page shared with the credential service, for the relayed `VERIFY`.
-//! - mapped [`INITRD_VA`]: the archive, read-only, so this process can find `fs_subtree_caretaker`'s
-//!   own bytes and [`measured_boot::PROGRAM_MEASUREMENTS`], the exact way `crates/system_initializer`
-//!   does, and verify the first against the second before ever building a caretaker from it.
+//! - mapped [`user_rt::initrd::INITRD_VA`]: the archive, read-only, so this process can find
+//!   `fs_subtree_caretaker`'s own bytes and [`measured_boot::PROGRAM_MEASUREMENTS`], the exact way
+//!   `crates/system_initializer` does, and verify the first against the second before ever
+//!   building a caretaker from it.
 //! - mapped, dynamically, starting at [`CONNECT_VA_BASE`]: one page per channel [`connect`] mints,
 //!   for as long as this process runs (see BUGS: never unmapped or reused in this slice).
 //!
@@ -516,8 +517,6 @@ const CHANNEL_REGION_PAGES: u64 = 8;
 /// channel still live.
 const CHANNEL_UT_PAGES: u64 = 32;
 
-/// Where the archive is mapped read-only. Must match `kernel::user::INITRD_VA`.
-const INITRD_VA: u64 = 0x2000_0000;
 /// Where a built caretaker and the file service's shared page meet. Must match
 /// `user/src/fs_subtree_caretaker.rs`'s `PAGE_VA` (the same address every caretaker in this tree
 /// uses, since the caretaker itself hardcodes it and this process copies its ELF, not its address).
@@ -566,9 +565,8 @@ const CLIENT_BUDGET_PAGES: u64 = 64;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
-    // SAFETY: the wiring mapped `initrd_len` bytes of reserved RAM read-only at INITRD_VA.
-    let archive =
-        unsafe { core::slice::from_raw_parts(INITRD_VA as *const u8, initrd_len as usize) };
+    // SAFETY: forwarded from user_rt::initrd::initrd_bytes's own contract.
+    let archive = unsafe { user_rt::initrd::initrd_bytes(initrd_len) };
     let Ok(fs) = nifefs::Fs::parse(archive) else {
         fail(1)
     };

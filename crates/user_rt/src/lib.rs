@@ -17,6 +17,11 @@
 //! panic handler above: the invariant was one thing asserted N times by hand, and only the
 //! declaration needed to be per-caller.
 //!
+//! And a fourth, in the same round: [`initrd`], the `INITRD_VA` slice seven `init`-shaped programs
+//! each reconstructed by hand with `core::slice::from_raw_parts`. A different pattern from
+//! `mapped_window` (a whole `'static` slice, not a bounds-checked per-offset accessor), but the
+//! same §94 shape underneath: one invariant, copied verbatim into seven declarations.
+//!
 //! The `#[panic_handler]` is **still not an item here, and now the trap underneath it is**
 //! (milestone 130). A panic handler is per-final-binary: exactly one may exist in a linked program,
 //! so an item in this library would force it on every program that links the crate and collide with
@@ -114,6 +119,7 @@
 #![no_std]
 
 pub mod heap;
+pub mod initrd;
 pub mod mapped_window;
 
 /// The raw five-register round trip through `SYS_INVOKE` (milestone 139 round 2). `cap`, `method`

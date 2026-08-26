@@ -287,22 +287,17 @@ fn revoke_demo() -> ! {
     exit();
 }
 
-/// Where the kernel maps the initrd into init (must match user.rs `INITRD_VA`).
-const INITRD_VA: u64 = 0x2000_0000;
-
 /// The bytes of the program named `name` in the initrd (milestone 19f). The initrd is a nifefs
-/// archive the kernel maps read-only at [`INITRD_VA`]; init indexes it by name rather than treating
-/// the whole blob as a single ELF. `initrd_len` (the archive length) arrives in `x1` at entry.
-/// Returns `None` if the archive will not parse or holds no such program.
+/// archive the kernel maps read-only at [`user_rt::initrd::INITRD_VA`]; init indexes it by name
+/// rather than treating the whole blob as a single ELF. `initrd_len` (the archive length) arrives
+/// in `x1` at entry. Returns `None` if the archive will not parse or holds no such program.
 ///
 /// Through 19f.1 every program is still a role of *this* binary, so callers look up `"init"` (the
 /// binary the kernel loaded) and enter it at a different role; 19f.2 adds distinct entries a caller
 /// can name directly (`"worker"` and so on).
 fn program(initrd_len: u64, name: &str) -> Option<&'static [u8]> {
-    // SAFETY: the kernel mapped `initrd_len` bytes of the initrd, read-only, at INITRD_VA. It is
-    // reserved RAM that outlives every process, so the 'static lifetime is honest.
-    let archive =
-        unsafe { core::slice::from_raw_parts(INITRD_VA as *const u8, initrd_len as usize) };
+    // SAFETY: forwarded from user_rt::initrd::initrd_bytes's own contract.
+    let archive = unsafe { user_rt::initrd::initrd_bytes(initrd_len) };
     nifefs::Fs::parse(archive).ok()?.read(name)
 }
 
@@ -351,7 +346,7 @@ const CHILD_WORD: u64 = 0xC0FFEE;
 /// **The init task, milestone 19d.** The first program the kernel starts, and the one that
 /// starts the others: the ELF parser lives here, in userspace, not in the kernel. init holds a
 /// building untyped (slot 0) and a report endpoint (slot 1, `WRITE|GRANT`); the initrd is mapped
-/// read-only at [`INITRD_VA`], and its length arrives in `x1`.
+/// read-only at [`user_rt::initrd::INITRD_VA`], and its length arrives in `x1`.
 ///
 /// It parses that ELF (the `elf` crate, linked into userspace) and loads it as a **child**: a
 /// second instance of this same program, entered at role [`CHILD`], built entirely by init out
