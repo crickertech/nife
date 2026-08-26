@@ -759,6 +759,26 @@ where
         }
         fill(m, start, end)?;
     }
+
+    // **The initrd, explicitly, regardless of how the memmap classified the bytes it occupies.**
+    // Found 2026-08-25 (decisions §86's VT-d/NVMe data point): attaching an NVMe controller grows
+    // the ACPI tables enough that the memmap's reserved entry immediately above `top_of_ram`
+    // widens to swallow the initrd's last few hundred bytes (PVH's loader places it at a fixed
+    // offset below the top of guest memory, sized for a smaller device set than this boot's
+    // tables need). The `top_of_ram` clamp above exists to keep this loop from identity-mapping
+    // the enormous, genuinely-bogus reserved entries elsewhere in the map (some span terabytes,
+    // nowhere near real RAM), so narrowing it is not the fix; it would also have to stop
+    // excluding the one legitimate sliver we need. Mapping the initrd's own recorded bounds
+    // directly sidesteps the question of which reserved entry is real backing memory and which
+    // is not: `bring_up_memory` already claimed this exact range as `forbidden` before this runs,
+    // so nothing else can be relying on it staying unmapped, and `fill` is idempotent over
+    // anything the loop above already covered.
+    if let Some((istart, isize)) = memory::initrd_region() {
+        let start = istart & !(PAGE_SIZE - 1);
+        let end = (istart + isize).next_multiple_of(PAGE_SIZE);
+        fill(m, start, end)?;
+    }
+
     Ok(())
 }
 
