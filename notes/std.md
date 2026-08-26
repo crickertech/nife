@@ -472,6 +472,30 @@ rights are now known. **That probe is a workaround, not a design.** The fix is a
 `OPENDIR`'s rights word meaning "the parent's, whatever they are", which is a wire-format change and
 therefore not a lane's to make.
 
+#### The `dirfd` surface grew: `open_for_traversal`, `create_dir`, `open_dir`, `remove_dir`
+
+`nightly-2026-08-26` added four more inherent methods to upstream `std::fs::Dir` under the same
+`#![feature(dirfd)]` (rust-lang/rust#120426): `Dir::open_for_traversal` (an associated function,
+the minimum-permission open) and three `&self` methods, `create_dir`, `open_dir` and `remove_dir`,
+each a `self`-relative twin of a path-shaped free function this PAL already had (`DirBuilder::mkdir`,
+`Dir::open`/`walk`, and `rmdir`). None of the four needed a new verb; each is the existing `MKDIR`,
+`OPENDIR`+descend-loop, or `RMDIR` call, walked from `self.at` instead of `proto::ROOT`.
+
+**`open_for_traversal` is `Dir::open` under another name here**, and that is not a shortcut, it is
+the same fact the section above already states: this contract has no bit meaning "enough to
+descend, not necessarily to enumerate", so the traversal-minimum open and the full open ask for the
+same thing.
+
+**`open_dir("", opts)` (or `"."`) is the one shape the walk cannot answer**, and it is a real gap
+rather than an oversight. Reopening `self` needs a second handle to the same server-side node, and
+nothing on the wire mints one (`File::duplicate` documents the identical gap for files). Under the
+granted directory itself it costs nothing, because `Dir::root()` is the `ROOT` sentinel and any
+number of `Dir`s may hold it (its `Drop` never closes it); `Dir::open_dir(".")` on any other held
+directory returns `Unsupported`. Nothing in this tree calls it today: `dirfd` is unstable and
+`remove_dir_all`'s own implementation goes through the path-shaped free functions, not through
+`Dir`. The fix, if a caller ever needs it, is a wire addition: a `DUP` verb, or an `OPENDIR` name
+meaning "this node again".
+
 #### `remove_dir_all` needed no code
 
 It had been refused with a note saying the recursion has to descend, a nested path is refused, and
