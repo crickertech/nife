@@ -23,28 +23,36 @@ pub struct Wiring {
     pub kind: u64,
 }
 
-/// **Does this machine have an RTC at all?** (milestone 161.)
+/// **Does this machine have an RTC at all?** (milestone 161; `x86_64`'s CMOS answer is milestone
+/// 176/DECISIONS §130.)
 ///
 /// `memory::rtc_region()` is the device tree's answer, and both QEMU `virt` boards give one (a
-/// PL031 on aarch64, a Goldfish on riscv64). q35 does not, and the reason is structural rather than
-/// a missing binding: x86's real-time clock is the CMOS at I/O ports `0x70`/`0x71`, which has no
-/// page for a device capability to be a mapping of, and nothing has read it into the
-/// device-discovery seam's device windows either (milestone 161's roadmap item 0, the seam's wide
-/// half).
+/// PL031 on aarch64, a Goldfish on riscv64). `x86_64` never populates it (its RTC is the CMOS at I/O
+/// ports `0x70`/`0x71`, which has no page for a device capability to be a mapping of, and
+/// DECISIONS §121 keeps that port range kernel-resident rather than granted), so this asks the
+/// kernel's own CMOS reader instead of the device tree there: a `None` means the machine gave a
+/// reading this kernel could not make into a real calendar date, not that nobody looked.
 ///
 /// Here rather than in a test module because four of them ask the same question, and it is asked
 /// **before** [`start`] rather than of the [`Wiring::kind`] it returns: a test that skipped after
 /// spawning the service would leave its frames charged to a run that did not happen.
 pub fn machine_has_no_rtc() -> bool {
-    crate::memory::rtc_region().is_none()
+    #[cfg(target_arch = "x86_64")]
+    {
+        crate::arch::rtc::read_unix_nanos().is_none()
+    }
+    #[cfg(not(target_arch = "x86_64"))]
+    {
+        crate::memory::rtc_region().is_none()
+    }
 }
 
 /// The reason every RTC-dependent test gives when it skips. One string, because four files share
 /// one cause and a reader comparing two runs should not have to decide whether two wordings mean
 /// the same thing.
-pub const NO_RTC: &str = "this machine has no RTC binding (x86's CMOS clock is in the I/O port \
-                          space, and the device-discovery seam does not answer for device windows \
-                          here)";
+pub const NO_RTC: &str = "this machine has no working real-time clock (no RTC binding in its \
+                          device tree, or on x86_64 a CMOS reading this kernel could not make \
+                          into a real calendar date)";
 
 /// Wire and spawn the clock service.
 pub fn start(image: &'static [u8]) -> Wiring {
@@ -66,7 +74,20 @@ pub fn start(image: &'static [u8]) -> Wiring {
     let propose = crate::sched::create_rendezvous();
 
     let rtc = crate::memory::rtc_region();
-    let kind = rtc.map_or(clock_proto::rtc::NONE, |(_, _, k)| k);
+
+    // `kind`/`seed`: which RTC (if any) the machine has, and, on x86_64 only, the wall clock the
+    // kernel already read from it. Everywhere else the driver in `user/src/clock.rs` maps and
+    // polls its own register, so `seed` there is unused and stays 0. On x86_64 there is no
+    // register to map (`rtc_region()` is always `None`: DECISIONS §121 keeps CMOS's ports
+    // kernel-resident, never a capability), so the *kernel* reads it here, once, and hands the
+    // answer across as data instead (DECISIONS §130, option 3; milestone 176's piece 2).
+    #[cfg(target_arch = "x86_64")]
+    let (kind, seed) = match crate::arch::rtc::read_unix_nanos() {
+        Some(nanos) => (clock_proto::rtc::CMOS, nanos),
+        None => (clock_proto::rtc::NONE, 0u64),
+    };
+    #[cfg(not(target_arch = "x86_64"))]
+    let (kind, seed) = (rtc.map_or(clock_proto::rtc::NONE, |(_, _, k)| k), 0u64);
 
     // Two mappings, or one on a machine with no RTC. The device page is mapped and no
     // `DeviceFrame` capability is granted, exactly as the console server's UART is: the service
@@ -97,7 +118,7 @@ pub fn start(image: &'static [u8]) -> Wiring {
             image,
             Spawn {
                 arg0: kind, // which register layout the MACHINE has, not which ISA we are
-                arg1: 0,
+                arg1: seed, // x86_64/CMOS only: the wall clock the kernel already read; 0 elsewhere
                 arg2: 0,
                 grants: &[
                     rendezvous_cap(propose, Rights::READ), // slot 0: serve proposals

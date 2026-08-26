@@ -52,6 +52,7 @@ pub mod isa;
 pub mod machine;
 pub mod mmu;
 pub mod port;
+pub mod rtc;
 pub mod segments;
 pub mod semihosting;
 pub mod timer;
