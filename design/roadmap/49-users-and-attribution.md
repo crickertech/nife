@@ -10,12 +10,24 @@ BUGS for the full remainder and where each piece is headed.
 channel, not capability. What remained was a real component to build (login); a first slice of it now
 exists.
 
-**Per-identity subtree scoping, this update's own piece, is resolved.** `login` used to attenuate
-every principal to the same fixed subtree; it now attenuates each identity to a subtree named by
-the identity string itself (DECISIONS §117), created beforehand at provisioning time by milestone
-155's `identity_provisioner`. What remains open (interactive boot wiring, the terminal) is exactly
-what it was before; this update does not move the status line, and says so per this file's own
-convention for a piece that lands without changing it.
+**Per-identity subtree scoping, an earlier update's own piece, is resolved.** `login` used to
+attenuate every principal to the same fixed subtree; it now attenuates each identity to a subtree
+named by the identity string itself (DECISIONS §117), created beforehand at provisioning time by
+milestone 155's `identity_provisioner`.
+
+**Channel-per-client, this update's own piece, is resolved.** `login`'s front door
+(`REQUEST`/`RESULT`) used to be a single endpoint pair sharing one staging page across every client
+this process would ever serve, for its whole life: the structural "one client at a time" limit this
+file's BUGS named. It now accepts exactly one word there, [`login_proto::CONNECT`], and mints a
+fresh, private request/result pair and staging page per caller before any identity or secret is ever
+staged, `filesystem_proto`'s own "a fresh object per client" answer copied here. Two callers reaching
+the front door together can now only contend for service order, never for each other's secret; see
+`user/src/login.rs`'s own BUGS for the full design and
+`kernel::user::login_tests::two_clients_connecting_together_get_independent_channels_and_neither_observes_the_others_secret`
+for the proof. What remains open (interactive boot wiring, the terminal) is exactly what it was
+before and is blocked on the same thing (DECISIONS §120: no interactive login needs to work before
+real hardware entropy is sorted, milestone 159); this update does not move the status line, and says
+so per this file's own convention for a piece that lands without changing it.
 
 **A named prerequisite for milestone 152 (durable delegation)**, minted 2026-08-22: a scheduled job
 registered by a specific user (milestone 129's #387) needs a durable principal to be supervised by,
@@ -260,6 +272,13 @@ feature (`user/src/login.rs`'s own BUGS, more precisely worded per item).
   existing multi-client server either serves exactly one principal by construction
   (`fs_subtree_caretaker`) or is anonymous by design (the credential service). Wiring the second half
   into a real multi-tenant consumer is follow-on for whenever such a consumer exists.
-- **One client at a time.** `login`'s request and result endpoints are each a single endpoint, the same
-  structural limit `credentialer.rs` documents for its own verify page. A second concurrent caller
-  needs a channel per client, `fs_proto`'s answer, copied here when a second concurrent caller exists.
+- **Resolved.** `login`'s request and result endpoints used to be a single endpoint pair sharing one
+  staging page across every client, the same structural limit `credentialer.rs` still documents for
+  its own verify page. The front door now accepts exactly one word, `login_proto::CONNECT`, and mints
+  a fresh, private request/result pair and staging page per caller before any identity or secret is
+  staged: `filesystem_proto`'s "a fresh object per client" answer, copied here. See
+  `user/src/login.rs`'s own BUGS for the full design and its cost (a channel, answered or not, is
+  never reclaimed in this slice), and
+  `kernel::user::login_tests::two_clients_connecting_together_get_independent_channels_and_neither_observes_the_others_secret`
+  for the proof that two callers reaching the front door together can no longer observe or corrupt
+  each other's secret.
