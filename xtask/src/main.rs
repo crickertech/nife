@@ -4400,6 +4400,11 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         // was granted" is a claim about the capability model, and one that held on one instruction
         // set would not be one.
         ("timetable", "timetable"),
+        // Elapsed time on the ambient monotonic counter (milestone 126). Both archives: the
+        // counter it reads is granted unconditionally on every ISA
+        // (kernel/src/arch/*/timer.rs), so the "needed no new capability" claim is about the
+        // capability model and has to hold on both or it is not one.
+        ("uptime", "uptime"),
     ]
 }
 
@@ -4538,6 +4543,10 @@ fn initrd_riscv() -> bool {
             "watch",
             "--bin",
             "timetable",
+            // `uptime` (milestone 126): elapsed time on the ambient monotonic counter, granted to
+            // every process unconditionally. Both archives, same reason as `ps`.
+            "--bin",
+            "uptime",
             // The credential pair (milestone 56). These were listed in the riscv initrd tables below
             // but never added HERE, so a clean tree could not build them and `mkinitrd` failed on a
             // file the build was never asked to produce. The lane's own riscv leg went green on a
@@ -4888,6 +4897,9 @@ fn mkinitrd() -> bool {
         ("watch", "watch"),
         // `timetable` (milestone 129): scheduled execution whose every entry is a grant.
         ("timetable", "timetable"),
+        // `uptime` (milestone 126): elapsed time on the ambient monotonic counter, granted to
+        // every process unconditionally.
+        ("uptime", "uptime"),
     ];
     let mut blobs: Vec<(&str, Vec<u8>)> = Vec::new();
     for &(archive_name, bin_name) in entries {
@@ -6863,7 +6875,7 @@ fn shell_check() -> bool {
 /// `hello world` plus the newline `echo` adds is twelve bytes; the append arm is exactly twice
 /// that. The numbers are spelled out here rather than derived because this is a **boot** gate: if
 /// the arithmetic and the boot were both wrong, deriving one from the other would hide it.
-const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 57] = [
+const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 58] = [
     ("echo hello world | wc", &["1 2 12"]),
     ("echo hello world > gate.txt", &[]),
     ("wc < gate.txt", &["1 2 12"]),
@@ -7027,6 +7039,12 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 57] = [
     // before anything is spawned, on the one manifest field that differs from `ps`'s own (a required
     // argument, since this program has no `^C` and bounds itself by a typed count instead).
     ("caps watch 3", &["cap 7  endpoint  domain"]),
+    // **`uptime`, at the real prompt** (milestone 126). No domain, no clock: the manifest is
+    // `worker`'s, because `monotonic_nanos` is granted to every process unconditionally
+    // (kernel/src/arch/*/timer.rs's exception to DECISIONS §10). A green line here proves the
+    // program was loaded, measured, granted its report endpoint and actually ran at EL0; the exact
+    // elapsed time is not asserted because a real boot's timing is not this check's business.
+    ("uptime", &["up "]),
     // **`2>`, at the one interface a human touches** (DECISIONS §67). The four lines below are the
     // whole of the decision, and only this gate runs them through the real init: the guest tests
     // wire the shell from the kernel, whose `Spawn` fills a capability table from zero and cannot place a

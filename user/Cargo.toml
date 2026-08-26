@@ -605,6 +605,18 @@ path = "src/watch.rs"
 test = false
 bench = false
 
+# `uptime` (milestone 126): how long the ambient monotonic counter has been running. Needed no
+# new capability at all: `monotonic_nanos` is granted to every process unconditionally
+# (kernel/src/arch/*/timer.rs's documented exception to DECISIONS §10), so this program's manifest
+# is `worker`'s, not `date`'s. The formatting is crates/uptime, host-tested. Portable, so both
+# ISAs' archives carry it. **Provisional name**: the same word upstream `procps` uses; see the
+# crate's module docs for why it is flagged anyway.
+[[bin]]
+name = "uptime"
+path = "src/uptime.rs"
+test = false
+bench = false
+
 [lints]
 workspace = true
 
@@ -650,6 +662,7 @@ pgrep = { version = "0.1.0", path = "../crates/pgrep" }
 pmap = { version = "0.1.0", path = "../crates/pmap" }
 ps = { version = "0.1.0", path = "../crates/ps" }
 watch = { version = "0.1.0", path = "../crates/watch" }
+uptime = { version = "0.1.0", path = "../crates/uptime" }
 elf = { version = "0.1.0", path = "../crates/elf" }
 entropy_proto = { version = "0.1.0", path = "../crates/entropy_proto" }
 # The JH7110 TRNG's register logic and DTB discovery (milestone 159), host-tested in the crate
