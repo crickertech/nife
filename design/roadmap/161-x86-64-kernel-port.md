@@ -503,9 +503,11 @@ In the order it should be done, because each is a prerequisite for the next.
    `CR4.PCIDE` (item 3's measurement), and 1 wants an `x86_64-unknown-nife` target and a `std` farm
    (milestone 27).
 
-5. **SMP, via INIT-SIPI-SIPI. PARTIALLY BUILT 2026-08-25**: a second core comes up and joins the
-   scheduler, reliably; a third does not, reliably, and the reason is not yet known. Both of this
-   item's own two named bugs are fixed, not inherited.
+5. **SMP, via INIT-SIPI-SIPI. PARTIALLY BUILT 2026-08-25**: the mechanism that starts a second
+   logical CPU is built and does what it says; nothing downstream of "a second core exists" has
+   been shown safe yet, and the standard test suite does not exercise it by default because of
+   that, not because the mechanism itself is unfinished. Both of this item's own two named bugs
+   are fixed, not inherited.
 
    **What landed.** The Interrupt Command Register sequence (`arch::x86_64::irq::send_init`/
    `send_startup`) and a real-mode trampoline (`boot.s`'s `secondary_boot`, now real code rather than
@@ -525,7 +527,8 @@ In the order it should be done, because each is a prerequisite for the next.
    way every other per-CPU write on this architecture already is. The ACPI MADT's local-APIC-id
    roster is read into the same `HWID`/`STARTABLE` arrays `smp::read_cpu_list` fills from a device
    tree (`smp::seat_cpus_from_acpi`), seating each core, boot core included, at the slot its own
-   local APIC id names.
+   local APIC id names. A single secondary, started this way, reaches `secondary_main` and its own
+   idle loop reliably, measured across dozens of boots.
 
    **Both named bugs are fixed.** `smp::bring_up_secondaries` no longer calls `arch::mmu::virt_to_phys`
    on `secondary_boot`'s address on this architecture (that address is already physical, by
@@ -533,29 +536,49 @@ In the order it should be done, because each is a prerequisite for the next.
    here and says why). `irq::send_reschedule` no longer uses the logical cpu id as a local APIC id
    directly; it looks the real one up in the roster (`smp::hwid`) the same MADT read above built.
 
-   **What did not land: reliable bring-up past two cores.** `-smp 2` (one secondary) starts
-   correctly and reliably, measured across dozens of runs. From `-smp 3` on, exactly one secondary
-   fails to reach `secondary_main`'s online mark, intermittently and non-deterministically (which
-   one varies run to run), every time this was tried. Instrumented with raw port-I/O checkpoints
-   inside the trampoline, the failing core reaches 64-bit long mode but not the last checkpoint
-   before jumping to `secondary_main`, across five ordinary instructions that do nothing unusual and
-   are identical to what the succeeding core(s) just ran. Two direct hypotheses were tested and
-   neither held up: routing `arch::x86_64::cpu_start`'s wait through `hlt` instead of a busy spin (in
-   case CPU 0's own loop was starving the target vCPU thread of host scheduling time under QEMU TCG)
-   turned an occasional full hang into a reliable clean give-up but did not fix the underlying
-   failure; sending the MP spec's second `STARTUP` IPI only when the first evidently has not worked
-   (in case an accepted second SIPI was re-vectoring an already-running core mid-execution) made no
-   measurable difference either. Both changes are kept, on their own independent merits, but neither
-   is the fix. Full account and the exact instructions where the trail goes cold:
-   `arch::x86_64::ap_boot`'s own `BUGS`. Until this is understood, `scripts/qemu-runner-x86_64.sh`
-   defaults `NIFE_SMP` to 2 rather than matching the other two runners' 4, so the standard suite
-   exercises real (if capped) multi-core bring-up rather than either a no-op or an unreliable one;
-   the three `smp` tests this item's own roster work unblocks (`the_roster_is_the_machines_own_core_list`,
+   **What did not land: anything past "a second core idles". Two separate, unresolved failures.**
+
+   **(1) A third or later secondary fails intermittently.** Brought up while an earlier one is
+   already online and running, exactly one secondary typically fails to reach `secondary_main`'s
+   online mark, and *which* one varies run to run. Instrumented with raw port-I/O checkpoints, the
+   failing core reaches 64-bit long mode but not the last checkpoint before jumping to
+   `secondary_main`, across five ordinary instructions identical to what the succeeding core(s)
+   just ran. Two direct hypotheses were tested and neither held up: routing `cpu_start`'s wait
+   through `hlt` instead of a busy spin (in case CPU 0's own loop was starving the target vCPU
+   thread of host scheduling time under QEMU TCG) turned an occasional full hang into a reliable
+   clean give-up but did not fix the underlying failure; sending the MP spec's second `STARTUP` IPI
+   only when the first evidently has not worked (in case an accepted second SIPI was re-vectoring
+   an already-running core mid-execution) made no measurable difference either. Both changes are
+   kept, on their own independent merits, but neither is the fix.
+
+   **(2) Exactly two cores, idling correctly, crash under the kernel's own test suite's real
+   scheduler workload, and this is the more serious of the two.** `script/test` at `NIFE_SMP=2`
+   reliably reaches `sched::tests::a_finished_thread_is_reaped_and_its_memory_returned` (eight bare
+   kernel threads, scattered across cores by §28's own placement, waited on for the reaper) and
+   then faults: one run at `rip 0x0`, another at `rip 0x5afe57ac5afe57ac`, which is not garbage, it
+   is `stack::PAINT`, the exact pattern this kernel writes into a fresh kernel stack before
+   anything real occupies it. Something is reading a saved `Context` back from a stack location
+   that was never written with a real one, under genuine cross-core placement and reaping that
+   nothing on this architecture has ever exercised before (there was never a second core to place
+   work on). This implicates this port's own arch layer, most plausibly stack allocation, mapping,
+   or the context switch, rather than the portable `sched`/`thread` machinery itself, which
+   aarch64 and RISC-V already run at `-smp 4` without issue, and rather than the INIT-SIPI-SIPI
+   mechanism above, which had already finished its job by the time either crash occurred.
+
+   Full account of both, and the exact instructions where the trail goes cold on the first:
+   `arch::x86_64::ap_boot`'s own `BUGS`. Neither is root-caused. Until at least the second is,
+   `scripts/qemu-runner-x86_64.sh` keeps `NIFE_SMP` at 1, this port's prior default, rather than
+   moving it to 2 (which starts exactly one secondary reliably) or to the other two runners' 4:
+   the mechanism is real, but nothing has shown that using it is safe yet, and the standard suite
+   should not routinely exercise a path known to crash. The three `smp` tests this item's own
+   roster work would otherwise unblock (`the_roster_is_the_machines_own_core_list`,
    `every_core_the_tree_described_is_running`, `all_secondaries_came_online`, each needing only
-   `>= 2` cores by their own assertion) run and pass at that count. Whether the deeper failure is a
-   QEMU TCG emulation quirk or a real bug in this sequence is exactly the kind of question milestone
-   87's real hardware would settle, and is worth a lane of its own once that machine is further
-   along.
+   `>= 2` cores by their own assertion) therefore keep skipping, honestly, until finding (2) is
+   understood. Whether either failure is a QEMU TCG emulation quirk or a real bug in this port's
+   own code is exactly the kind of question milestone 87's real hardware would settle, and each is
+   worth a lane of its own: (2) especially, since it is a correctness question about portable
+   scheduler machinery meeting this architecture's arch layer for the first time under real
+   concurrency, not a detail of this item's own IPI sequence.
 6. **VT-d.** No longer blocked on table parsing: `machine_discovery::acpi` walks the root table
    generically, so finding the DMAR is adding a signature arm. What remains is the device itself.
 

@@ -14,29 +14,57 @@
 //!
 //! # BUGS
 //!
-//! **A third or later secondary, brought up while an earlier one is already online and running,
-//! fails intermittently and non-deterministically** (measured extensively on QEMU TCG, this
-//! milestone). A lone secondary (`-smp 2`) starts reliably every time, across dozens of runs. From
-//! `-smp 3` on, exactly one secondary typically fails to reach `secondary_main`'s online mark, and
-//! *which* one varies run to run (not always the last-attempted, not always a fixed id); the total
-//! online count then falls one short and stays there. Instrumented with raw port-I/O checkpoints
-//! inside the trampoline (bypassing the console lock entirely), the failing core is seen to reach
-//! 64-bit long mode (`ap_long_mode_entry`, past the GDT loads and the `CR3`/`EFER`/`CR0` sequence)
-//! but never reach the checkpoint immediately before `jmp secondary_main`, a five-instruction gap
-//! (`mov rsp, [rip+...]`, `cpuid`, `shr`, `movzx`) that does nothing unusual and is identical to
-//! what the succeeding core(s) just executed. Neither of this port's two working hypotheses
-//! survived a direct test: routing `cpu_start`'s wait through `hlt` instead of a tight spin (in
-//! case CPU 0's own busy-loop was starving the target vCPU thread of host time under TCG) changed
-//! the failure from an occasional full hang to a reliable "gives up cleanly, boot continues", but
-//! did not stop the underlying core from failing to start; and copying the trampoline's code bytes
-//! only once instead of once per `STARTUP` IPI (in case QEMU's self-modifying-code detection was
-//! mishandling a rewrite-and-re-execute of a page another vCPU might be concurrently running from)
-//! made no measurable difference either. The failure is reproducible enough to characterize but not
-//! yet explained; it may be specific to QEMU TCG's local-APIC or multi-vCPU emulation rather than a
-//! bug in this sequence, which is exactly the kind of thing milestone 87's real hardware would
-//! settle. Until it is understood, `scripts/qemu-runner-x86_64.sh` defaults `NIFE_SMP` to 2 rather
-//! than matching the other two runners' 4, so the standard suite exercises real multi-core
-//! bring-up (not a no-op) without depending on the part that is not yet reliable.
+//! **Two separate, unresolved failures were found bringing this up, and neither is root-caused.**
+//! Both are why `scripts/qemu-runner-x86_64.sh` still defaults `NIFE_SMP` to 1 rather than to a
+//! count that actually starts anything: the mechanism in this file is built and does what it
+//! says, but nothing downstream of "a second core exists" has been shown safe yet.
+//!
+//! **1. A third or later secondary, brought up while an earlier one is already online and
+//! running, fails intermittently and non-deterministically** (measured extensively on QEMU TCG).
+//! At `-smp 3` and above, exactly one secondary typically fails to reach `secondary_main`'s online
+//! mark, and *which* one varies run to run (not always the last-attempted, not always a fixed id);
+//! the total online count then falls one short and stays there. Instrumented with raw port-I/O
+//! checkpoints inside the trampoline (bypassing the console lock entirely), the failing core is
+//! seen to reach 64-bit long mode (`ap_long_mode_entry`, past the GDT loads and the
+//! `CR3`/`EFER`/`CR0` sequence) but never reach the checkpoint immediately before
+//! `jmp secondary_main`, a five-instruction gap (`mov rsp, [rip+...]`, `cpuid`, `shr`, `movzx`)
+//! that does nothing unusual and is identical to what the succeeding core(s) just executed.
+//! Neither of this port's two working hypotheses survived a direct test: routing `cpu_start`'s
+//! wait through `hlt` instead of a tight spin (in case CPU 0's own busy-loop was starving the
+//! target vCPU thread of host time under TCG) changed the failure from an occasional full hang to
+//! a reliable "gives up cleanly, boot continues", but did not stop the underlying core from
+//! failing to start; and copying the trampoline's code bytes only once instead of once per
+//! `STARTUP` IPI (in case QEMU's self-modifying-code detection was mishandling a
+//! rewrite-and-re-execute of a page another vCPU might be concurrently running from) made no
+//! measurable difference either.
+//!
+//! **2. Exactly two cores (`-smp 2`, the case #1 above does not touch) start and idle correctly,
+//! but crash under the kernel's own test suite's real scheduler workload**, which is a more
+//! serious finding than #1: this is not AP bring-up racing, it is ordinary cross-core thread
+//! placement and reaping, the same portable `sched`/`thread` machinery aarch64 and RISC-V already
+//! run at `-smp 4` without issue. `script/test`, run at `NIFE_SMP=2`, reliably reaches
+//! `sched::tests::a_finished_thread_is_reaped_and_its_memory_returned` (a test that spawns eight
+//! bare kernel threads, lets `§28`'s placement scatter them across cores, and waits for the
+//! reaper) and then faults: one run reported a page fault at `rip 0x0`, another a general
+//! protection fault at `rip 0x5afe57ac5afe57ac`. **That second value is not garbage; it is
+//! `stack::PAINT`, the exact bit pattern this kernel writes into a fresh kernel stack before
+//! anything real occupies it** (`stack.rs`, milestone 84's high-water instrument). A `ret` (or an
+//! equivalent read of a saved return address) landing on that value can only mean something read
+//! a `Context` back from a stack location that was never written with a real one: a new thread's
+//! first switch-to finding paint instead of `Context::for_kernel_thread`'s `thread_trampoline`
+//! address, or a reaped thread's freed range being reused before whatever wrote to it synchronized
+//! with whatever is about to read it. Not chased further than this characterization: it implicates
+//! the interaction between real cross-core thread placement/reaping and something in this port's
+//! own arch layer (most plausibly stack allocation, mapping, or the context switch itself, none of
+//! which were ever exercised under genuine concurrency before this milestone, since nothing on
+//! this architecture had a second core to place work on), rather than the INIT-SIPI-SIPI mechanism
+//! this file owns, which had already finished its job by the time either crash occurred.
+//!
+//! Whether either failure is specific to QEMU TCG's emulation or a real bug in this port's own
+//! code is exactly the kind of question milestone 87's real hardware would settle, and each is
+//! worth a lane of its own: #2 especially, since it is a correctness question about portable
+//! scheduler machinery meeting this architecture's own arch layer for the first time under real
+//! concurrency, not a detail of this file's own IPI sequence.
 
 use super::mmu::phys_to_virt;
 

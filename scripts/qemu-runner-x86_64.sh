@@ -21,12 +21,17 @@ set -e
 ELF="$1"
 shift
 
-# Two by default, NOT four like the other two runners (SMP bring-up is INIT-SIPI-SIPI through the
-# local APIC, milestone 161's SMP item, and NIFE_SMP moves it the same way there). A lone secondary
-# starts reliably; from a third core on, bring-up is intermittently unreliable under QEMU TCG for a
-# reason not yet root-caused (see arch::x86_64::ap_boot's own BUGS). Two is the largest count this
-# port can promise today, and it is still real multi-core bring-up, not the no-op it used to be.
-SMP="${NIFE_SMP:-2}"
+# One by default, NOT four like the other two runners. SMP bring-up (INIT-SIPI-SIPI through the
+# local APIC, milestone 161's SMP item) is built and NIFE_SMP moves this the same way it does on
+# the other two runners, but it is not the default here: bringing up a second core and giving it
+# real scheduler work crashed the kernel test suite itself (a page fault at RIP 0 partway through
+# ordinary thread reaping, `sched::tests::a_finished_thread_is_reaped_and_its_memory_returned`),
+# which is a different and more serious finding than the AP-bring-up-only issue
+# `arch::x86_64::ap_boot`'s own BUGS records. Neither is root-caused. Until at least the scheduler
+# one is, this default stays 1, matching this port's prior behaviour, so the standard suite does
+# not routinely exercise a path known to crash. See design/roadmap/161-x86-64-kernel-port.md's
+# item 5 for the full account.
+SMP="${NIFE_SMP:-1}"
 
 # `q35` rather than the older `pc` because it is what the physical target looks like: a PCIe root
 # complex with an ECAM window, an AHCI controller, and the legacy 16550 COM1 at port 0x3f8 that

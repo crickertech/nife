@@ -719,15 +719,24 @@ mod tests {
     /// id says, on the machine every merge boots.
     #[test_case]
     fn the_roster_is_the_machines_own_core_list() {
-        // **No roster, no claim.** `read_cpu_list` is the only thing that fills this in, and it
-        // reads a device tree; x86_64 has none, and its own roster (the ACPI MADT's processor
-        // entries, seated by local APIC id rather than by index) arrives with SMP bring-up on that
-        // architecture, milestone 161's item 5. Zero here means "nobody has said", which is a third
+        // **No roster, no claim** (device-tree architectures): `read_cpu_list` is the only thing
+        // that fills `described_count()` in there, and zero means "nobody has said", a third
         // answer from "this machine has no cores".
-        if super::described_count() == 0 {
+        //
+        // **x86_64 always skips here, not just when its roster is empty.** Its own roster
+        // (`smp::seat_cpus_from_acpi`, milestone 161's SMP item) is real and `described_count()`
+        // is nonzero on it from boot (`every_core_the_tree_described_is_running` and
+        // `all_secondaries_came_online` below both run and pass there), but *this* test's
+        // independent re-read is device-tree-specific (`dtb::Dtb::from_ptr` on `crate::DTB`), and
+        // `crate::DTB` on x86 holds PVH's `hvm_start_info` pointer, not an FDT blob: parsing it as
+        // one would not skip, it would panic. An ACPI-based independent re-read (walking the MADT
+        // again and comparing) would give this test the same power there; nobody has written it
+        // yet, so this fixture genuinely is not on that boot.
+        if super::described_count() == 0 || cfg!(target_arch = "x86_64") {
             crate::testing::skip!(
-                "nothing has read this machine's core roster (no device tree; the x86 ACPI roster \
-                 is milestone 161's SMP item)"
+                "nothing has read this machine's core roster from a device tree (either \
+                 described_count() is 0, or this is x86_64, whose roster is ACPI-based and has no \
+                 independent device-tree re-read to check it against yet)"
             );
         }
         let ptr = crate::DTB.load(Ordering::Relaxed);
@@ -793,15 +802,17 @@ mod tests {
     /// bring-up worked from was a constant and could only ever agree with itself.
     #[test_case]
     fn every_core_the_tree_described_is_running() {
-        // **No roster, no claim.** `read_cpu_list` is the only thing that fills this in, and it
-        // reads a device tree; x86_64 has none, and its own roster (the ACPI MADT's processor
-        // entries, seated by local APIC id rather than by index) arrives with SMP bring-up on that
-        // architecture, milestone 161's item 5. Zero here means "nobody has said", which is a third
-        // answer from "this machine has no cores".
+        // **No roster, no claim.** `read_cpu_list` (device-tree architectures) or
+        // `smp::seat_cpus_from_acpi` (x86_64, milestone 161's SMP item) is what fills this in,
+        // and neither has a device-tree dependency in what follows (unlike
+        // `the_roster_is_the_machines_own_core_list`, which does and skips x86 outright), so this
+        // one genuinely runs and passes there too, from `described_count() == 1` (a lone boot
+        // core, this port's default) on up. Zero here means "nobody has said", a third answer
+        // from "this machine has no cores".
         if super::described_count() == 0 {
             crate::testing::skip!(
-                "nothing has read this machine's core roster (no device tree; the x86 ACPI roster \
-                 is milestone 161's SMP item)"
+                "nothing has read this machine's core roster yet (neither read_cpu_list nor \
+                 seat_cpus_from_acpi has run)"
             );
         }
         assert_eq!(
@@ -859,15 +870,14 @@ mod tests {
     /// on an eight-slot kernel has four secondaries, honestly.
     #[test_case]
     fn all_secondaries_came_online() {
-        // **No roster, no claim.** `read_cpu_list` is the only thing that fills this in, and it
-        // reads a device tree; x86_64 has none, and its own roster (the ACPI MADT's processor
-        // entries, seated by local APIC id rather than by index) arrives with SMP bring-up on that
-        // architecture, milestone 161's item 5. Zero here means "nobody has said", which is a third
-        // answer from "this machine has no cores".
+        // **No roster, no claim**, same reasoning as `every_core_the_tree_described_is_running`
+        // just above: no device-tree dependency here either, so this runs and passes on x86_64
+        // too, including at `described_count() == 1` (`ONLINE` and `described_count() - 1` are
+        // both 0 for a lone boot core with no secondaries started, this port's default).
         if super::described_count() == 0 {
             crate::testing::skip!(
-                "nothing has read this machine's core roster (no device tree; the x86 ACPI roster \
-                 is milestone 161's SMP item)"
+                "nothing has read this machine's core roster yet (neither read_cpu_list nor \
+                 seat_cpus_from_acpi has run)"
             );
         }
         assert_eq!(
