@@ -378,11 +378,13 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // VT-d (milestone 161, roadmap item 6), if the DMAR named a DRHD. The same position the
         // SMMUv3 and the RISC-V IOMMU come up in on the other two boots: after the fine page
         // tables (a DRHD's register file is device-typed MMIO, reachable only through the map
-        // `mmu::init` just installed) and before anything that could attach a device. No PCI
-        // device is confined through it yet (no virtio-pci or NVMe driver exists on this
-        // architecture; roadmap item 4's hand-off), so this proves the driver against real
-        // hardware rather than a downstream escape: root table installed, translation enabled,
-        // read back from the register the hardware itself reports status through.
+        // `mmu::init` just installed) and before anything that could attach a device. The
+        // kernel-resident NVMe driver (`kernel/src/nvme.rs`, decisions §86) is the first PCI
+        // device this architecture confines through it, on the same terms as the aarch64/riscv64
+        // legs' SMMUv3/riscv-iommu confinement; a boot with no NVMe controller attached (no
+        // NIFE_NVME on this leg) still proves the driver stands up against real hardware: root
+        // table installed, translation enabled, read back from the register the hardware itself
+        // reports status through.
         if let Some(base) = acpi.vtd_base {
             // `init` polls GSTS.RTPS then GSTS.TES itself and panics rather than returning if
             // either write never takes, so reaching this line already is the confirmation: the

@@ -6461,11 +6461,15 @@ fn test() -> bool {
     // x86_64's real 4-level map, scheduler and ring 3, exiting through `isa-debug-exit` where the
     // other two use semihosting and the SiFive test finisher.
     //
-    // **It builds a userspace archive and nothing else**, which is where it now sits between the
+    // **It builds a userspace archive and one disk image**, which is where it now sits between the
     // other two rather than below both. `initrd_x86` compiles every program in `user/` for this
     // target and packs the same table RISC-V's archive uses, so the thirty `cfg(initrd)` test
-    // modules are in this binary; what it still does not build is an FS server, a `std` farm or any
-    // disk image, so the runner attaches no drives and the tests wanting one `skip!()`.
+    // modules are in this binary; what it still does not build is an FS server or a `std` farm, so
+    // the runner attaches no virtio drives and the tests wanting one `skip!()`. The one exception
+    // is the NVMe image (decisions §86's x86_64/VT-d data point, milestone 161's VT-d having
+    // landed): `mknvmedisk` writes it here the same way the aarch64 and riscv64 legs do, since
+    // NIFE_NVME names this leg's image too (set unconditionally above) and the runner now attaches
+    // a controller behind it.
     //
     // **`NIFE_INITRD` is set here rather than left to `cargo()`**, and it has to be: this leg runs
     // last, so whatever the aarch64 or riscv64 leg left in that variable is still there, and an x86
@@ -6475,7 +6479,7 @@ fn test() -> bool {
     if legs.x86_64() {
         eprintln!();
         eprintln!("--- kernel tests, x86_64 (QEMU q35) ---");
-        if !initrd_x86() {
+        if !initrd_x86() || !mknvmedisk() {
             return false;
         }
         // SAFETY: `set_var` became unsafe in edition 2024 because it races other threads. xtask is

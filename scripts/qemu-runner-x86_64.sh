@@ -9,9 +9,11 @@
 # physical addresses and enters the 32-bit trampoline directly. See kernel/src/arch/x86_64/boot.s.
 #
 # WHAT IS NOT HERE YET, and it is still most of what the other two runners do: no virtio disks, no
-# NIC, no GPU, no RNG, no NVMe. Those are wired one at a time as the port reaches them, and adding
-# a device to this file before the kernel can drive it only produces a boot that looks richer than
-# it is. See design/roadmap/161-x86-64-kernel-port.md.
+# NIC, no GPU, no RNG. NVMe is wired (below, decisions §86's x86_64/VT-d data point), because the
+# kernel-resident NVMe driver is arch-neutral and VT-d confinement landed this session; the rest
+# are wired one at a time as the port reaches them, and adding a device to this file before the
+# kernel can drive it only produces a boot that looks richer than it is. See
+# design/roadmap/161-x86-64-kernel-port.md.
 #
 # The kernel halts with `hlt` (arch::halt), so QEMU does not exit on its own. Bound any interactive
 # run with scripts/qemu-bounded.sh (see CLAUDE.md, "Never leave QEMU running").
@@ -68,14 +70,31 @@ DEBUG_EXIT="-device isa-debug-exit,iobase=0xf4,iosize=0x04"
 
 # VT-d (milestone 161, roadmap item 6), unconditional, the same posture the other two runners take
 # for their own IOMMU (`iommu=smmuv3` on aarch64, `-device riscv-iommu-pci` on riscv): idle when
-# nothing attaches, and this runner attaches no PCI device yet (no `-device virtio-blk-pci`, no
-# NIC, no NVMe), so adding it changes nothing about what any existing test exercises. What it
-# changes is that `arch::x86_64::machine::read_acpi` now finds a DMAR with one DRHD, so
-# `kernel_main`'s x86 tour brings VT-d up and prints so, which is what proves the driver against
-# real (emulated) hardware rather than only against its own host-side unit tests. `intel-iommu` is
-# a q35-only device (it attaches to the host bridge, not to a PCI slot), which is one more reason
-# this runner and the aarch64/riscv ones cannot share a code path.
+# nothing attaches. `intel-iommu` is a q35-only device (it attaches to the host bridge, not to a
+# PCI slot), which is one more reason this runner and the aarch64/riscv ones cannot share a code
+# path. What proves the driver against real (emulated) hardware rather than only its own
+# host-side unit tests is `arch::x86_64::machine::read_acpi` finding a DMAR with one DRHD, so
+# `kernel_main`'s x86 tour brings VT-d up and prints so; the NVMe attachment below (§86's data
+# point) is the first PCI device this runner confines behind it.
 IOMMU="-device intel-iommu"
+
+# An NVMe controller when NIFE_NVME names an image (milestone 53's storage half; decisions §86's
+# x86_64/VT-d data point), the twin of the aarch64 and riscv64 runners' blocks. No
+# `iommu_platform` flag, same reason as the other two: that knob is virtio's opt-in, and a real
+# PCI device model's DMA always goes through the PCI address space, so with `-device intel-iommu`
+# on the machine the controller sits behind VT-d with no flag to forget, and the kernel must
+# confine its requester id before the controller can fetch a single command
+# (kernel/src/nvme.rs). serial= is mandatory (QEMU refuses the device without one). A set
+# NIFE_NVME naming a missing file is an error, the same NIFE_INITRD lesson above: a silently
+# absent controller would read as a machine fact when it is a build-order mistake.
+NVME=""
+if [ -n "$NIFE_NVME" ]; then
+    if [ ! -f "$NIFE_NVME" ]; then
+        echo "qemu-runner-x86_64: NIFE_NVME=$NIFE_NVME does not exist (xtask's mknvmedisk writes it)" >&2
+        exit 1
+    fi
+    NVME="-drive file=$NIFE_NVME,if=none,format=raw,id=nvme0 -device nvme,serial=nife-nvme,drive=nvme0"
+fi
 
 # `-no-reboot` turns a triple fault into an exit instead of a silent reset loop, which is the
 # difference between seeing that early boot died and watching a blank terminal. Every failure in
@@ -94,6 +113,7 @@ qemu-system-x86_64 \
     -no-reboot \
     $DEBUG_EXIT \
     $IOMMU \
+    $NVME \
     -kernel "$ELF" \
     $INITRD \
     "$@"
