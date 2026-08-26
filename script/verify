@@ -64,12 +64,18 @@ needed, inert, todo = [], [], []
 for f in changed:
     if DOC.match(f):
         inert.append((f, "documentation"))
-    elif f.startswith("script/"):
+    elif f.startswith("script/") or f.startswith("scripts/"):
         # A script/ entry point is not an input to `cargo kani`, by exactly the argument the
         # workflow-file case below already makes: the proofs are a function of the harness crates
         # and their dependency closure, and `cargo kani` never invokes script/lint, script/test or
         # any other front door. script/verify itself is the exception, because it *is* the wiring,
         # so a change to it should be exercised by it.
+        #
+        # `scripts/` (plural, the maintainer-only tools AGENTS.md keeps out of `script/`'s normalized
+        # front door) is exactly the same case, with no exception to carry: nothing under it is ever
+        # `cargo kani`'s own wiring the way `script/verify` is. Found 2026-08-26 when a `merge-drain.sh`
+        # change, pure `gh`/`git`/`jq` merge-queue tooling with no path to any harness crate, ran the
+        # full sharded Kani suite anyway, because this check only recognized the singular directory.
         #
         # Measured cost of not having this: on 2026-08-04 a one-line comment added to
         # script/citations ran the full 40-minute suite, because a script/ file belongs to no crate
@@ -80,7 +86,7 @@ for f in changed:
         if f == "script/verify":
             needed.append((f, "the proofs' own wiring"))
         else:
-            inert.append((f, "a script/ entry point; not an input to cargo kani"))
+            inert.append((f, "a script/ or scripts/ entry point; not an input to cargo kani"))
     elif f.startswith(".github/"):
         if f == ".github/workflows/verify.yml":
             needed.append((f, "the proofs' own wiring"))
