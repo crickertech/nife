@@ -75,7 +75,7 @@
 
 use core::sync::atomic::{AtomicU64, Ordering};
 
-use paging::x86_64::Ia32e;
+use paging::x86_64::{Ia32e, Vtd};
 use paging::{Flags, Half, MapError, Mapper, PAGE_SIZE, PageTable};
 
 use crate::memory;
@@ -83,12 +83,15 @@ use crate::memory;
 /// This architecture's page-table format. Portable code names it as `arch::mmu::Format`.
 pub type Format = Ia32e;
 
-/// The format used to build IOMMU (VT-d) translation domains. The same four-level format the CPU
-/// uses, which is not a coincidence: VT-d's second-level tables were designed to be walked by the
-/// same hardware logic. Kept as a separate name because the two are separate decisions on other
-/// architectures and one day may be here.
+/// The format used to build IOMMU (VT-d) translation domains: [`Vtd`], not [`Ia32e`] (milestone
+/// 161, roadmap item 6). Both share the CPU's four-level, 9-bit-per-level, 4 KiB-leaf shape, which
+/// is not a coincidence: VT-d's second-level tables were designed to be walked by the same
+/// hardware logic. **They are not the same leaf encoding**, and `Vtd`'s own doc says why reusing
+/// `Ia32e` here would be a real bug rather than an approximation: a second-level leaf has exactly
+/// two meaningful bits (`R`, `W`), and everything `Ia32e` sets beyond those (`US`, `XD`, the
+/// software bits) is reserved-must-be-zero on this hardware.
 #[cfg_attr(not(test), allow(dead_code))]
-pub type DmaFormat = Ia32e;
+pub type DmaFormat = Vtd;
 
 /// The base of the kernel **image**'s virtual addresses.
 ///
@@ -530,6 +533,16 @@ where
             Flags::device(),
         )?;
         direct_map(m, bar, bar + PCI_BAR_MAPPED.min(bar_size), Flags::device())?;
+    }
+
+    // VT-d's register file (milestone 161, roadmap item 6), one page, device-typed, at the
+    // address ACPI's DMAR named (`memory::record_vtd_region`, called from `main.rs` before this
+    // function runs). Same shape as the local APIC and IO APIC windows above: no DRHD, no
+    // mapping, and `arch::iommu::init` is simply never called. Without this a DRHD's register
+    // reads fault the instant the fine map replaces the coarse boot map that covered every
+    // physical address indiscriminately; the first version of this driver found that by faulting.
+    if let Some((base, _)) = memory::vtd_region() {
+        direct_map(m, base, base + PAGE_SIZE, Flags::device())?;
     }
 
     Ok(())

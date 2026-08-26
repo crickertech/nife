@@ -450,6 +450,20 @@ In the order it should be done, because each is a prerequisite for the next.
    other architecture precisely because PGE is off). Turning either bit on is calef's call and wants
    a number rather than an argument: `script/icount` has no x86 leg, so producing one is its own
    small piece of work rather than a line in item 4's diff.
+
+   **The tooling half is now done (2026-08-25), the decision is not.** `cargo xtask bench --x86`
+   gates on a deterministic instruction count the same way the other two ISAs already do
+   (`bench/baseline-x86_64.txt`, `-icount shift=0,sleep=off`; see notes/benchmarks.md's
+   2026-08-25 section for the measurement that established `rdtsc` tracks icount's virtual clock
+   on `q35`). This is a leg of `cargo xtask bench`, not of `script/icount` itself: milestone 78's
+   instrument (`kernel/src/icount.rs`) still refuses `--arch x86_64` and correctly so, since its
+   claims need a re-armed deadline timer to compare against and this port's LAPIC timer is
+   periodic hardware reload with no deadline to read. What exists now is `yield_switch`'s
+   deterministic baseline (9,132 instructions/switch, a bare kernel-thread switch with no `CR3`
+   write). **The CR4 question itself is still unmeasured**: nothing yet exercises
+   `switch_user_root`'s address-space-switch path under load, so this baseline is not yet the
+   number the two bits would be judged against, only the tooling that would report it once such a
+   workload exists. This item's status does not move.
 4. **The scheduler, real processes, and the kernel test suite. BUILT 2026-08-24**; see step 12 of
    "What was built" for what landed, what it cost, and the four portable-code bugs it found. The
    number is kept in place rather than struck out because the items around it cite each other by it.

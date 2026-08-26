@@ -97,3 +97,7 @@ hlep = "hlep"
 # Deliberate wordplay in a gpt test comment: "it is just what everybody does, and here are two
 # everybodies".
 everybodies = "everybodies"
+# ACPI Namespace Device Declaration, one of the DMAR's remapping-structure type codes named beside
+# RMRR/ATSR/RHSA/SATC in acpi.rs's `DmarEntry::Other` doc. The checker reads it as "AND" plus a
+# stray D.
+ANDD = "ANDD"

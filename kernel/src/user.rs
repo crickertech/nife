@@ -730,14 +730,15 @@ pub const UART_RX_INTID: u32 = 10;
 #[cfg(target_arch = "x86_64")]
 pub const UART_RX_INTID: u32 = 4;
 
-/// The console UART's interrupt line and which source decided it: the device tree's answer when
-/// it gave one (`memory::uart_irq`), else [`UART_RX_INTID`], QEMU `virt`'s constant. The source
-/// string exists to be printed: a bench transcript that names the number's origin is diagnosable,
-/// and the one that did not already cost a boot (notes/visionfive2.md).
+/// The console UART's interrupt line and which source decided it: the machine's own answer when
+/// it gave one (`memory::uart_irq`, a device tree on aarch64/riscv64 or ACPI on `x86_64`), else
+/// [`UART_RX_INTID`], QEMU `virt`'s constant. The source string exists to be printed: a bench
+/// transcript that names the number's origin is diagnosable, and the one that did not already
+/// cost a boot (notes/visionfive2.md).
 pub fn uart_irq_and_source() -> (u32, &'static str) {
     match crate::memory::uart_irq() {
-        Some(n) => (n, "device tree"),
-        None => (UART_RX_INTID, "QEMU-virt fallback; the tree did not say"),
+        Some(n) => (n, "machine description"),
+        None => (UART_RX_INTID, "QEMU-virt fallback; the machine did not say"),
     }
 }
 

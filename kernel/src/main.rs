@@ -186,6 +186,16 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // every core the MADT lists, boot core included, at the slot its own local APIC id names.
         smp::seat_cpus_from_acpi(&acpi.cpus[..acpi.cpu_count]);
 
+        // COM1's interrupt line, from ACPI's ISA IRQ table (milestone 176). `isa_irqs[4]` is the
+        // legacy UART line, resolved through any MADT override the same way the PIT's IRQ 0 is
+        // below; a machine with no override leaves it at the ISA default (gsi 4), which is what
+        // `user::UART_RX_INTID` already assumes. `Acpi::isa_irqs` is never absent (it is not an
+        // `Option`, unlike the fields around it), so this is unconditional, filling the same
+        // static `memory::uart_irq()` the other two architectures fill from their device tree.
+        // The x86 console is polled, so nothing reads this yet; recording it means a future
+        // interrupt-driven driver, or a test, finds a real answer instead of `None`.
+        memory::record_uart_irq(acpi.isa_irqs[4].gsi);
+
         // Turn the MCFG's ECAM window on and record it where kernel/src/pci.rs already knows to
         // look: `memory::pci_regions()`, the same static a device-tree machine fills from its
         // `pci-host-ecam-generic` node. No MCFG, no PCI at all, the same treatment the other two
@@ -201,6 +211,14 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             println!("  pci         : ecam enabled at {base:#x} (buses {lo}..={hi})");
         } else {
             println!("  pci         : skipped, no MCFG");
+        }
+
+        // VT-d's register window, recorded now (before `arch::mmu::init()` a few lines down)
+        // rather than where it is actually brought up. `mmu::map_everything` reads
+        // `memory::vtd_region()` to decide what to map device-typed, and it has to know before it
+        // runs; `arch::iommu::init` itself is called later, once the fine map it needs exists.
+        if let Some(base) = acpi.vtd_base {
+            memory::record_vtd_region(base, page_frames::FRAME_SIZE);
         }
 
         // The local APIC, and then a real hardware interrupt. Until this point the only trap the
@@ -356,6 +374,24 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // after their own `mmu::init`: their guard pages are holes in the map that was just
         // installed, and before that they are covered by the coarse boot map and are not holes yet.
         interrupt_stack::init();
+
+        // VT-d (milestone 161, roadmap item 6), if the DMAR named a DRHD. The same position the
+        // SMMUv3 and the RISC-V IOMMU come up in on the other two boots: after the fine page
+        // tables (a DRHD's register file is device-typed MMIO, reachable only through the map
+        // `mmu::init` just installed) and before anything that could attach a device. No PCI
+        // device is confined through it yet (no virtio-pci or NVMe driver exists on this
+        // architecture; roadmap item 4's hand-off), so this proves the driver against real
+        // hardware rather than a downstream escape: root table installed, translation enabled,
+        // read back from the register the hardware itself reports status through.
+        if let Some(base) = acpi.vtd_base {
+            // `init` polls GSTS.RTPS then GSTS.TES itself and panics rather than returning if
+            // either write never takes, so reaching this line already is the confirmation: the
+            // hardware's own status register, not an assumption that the write succeeded.
+            arch::iommu::init(base);
+            println!("  vt-d        : drhd {base:#x} up, translation enabled (gsts.tes confirmed)");
+        } else {
+            println!("  vt-d        : skipped, no DMAR");
+        }
 
         // **The scheduler** (milestone 161, roadmap item 4). Everything below this line is a
         // process rather than a program, which is the distinction item 3 stopped at.

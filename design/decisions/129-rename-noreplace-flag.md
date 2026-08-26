@@ -1,11 +1,12 @@
 # 129. Whether `filesystem_proto::fs::RENAME` grows a `NOREPLACE` flag, revisiting §42
 
-**Status: PROPOSED.** [DECISIONS §42](42-truthful-filesystem.md) declined `renameat2`-shaped
-`NOREPLACE`/`EXCHANGE` rename flags, giving two reasons: they are not portable (native support is
-Linux-only), and emulating `NOREPLACE` via separate `link`+`unlink` calls is racy. Milestone 55's
-own SMB work found that the second reason does not describe `redoxfs_server`'s actual
-implementation, and named revisiting §42 as calef's call rather than a lane's, "however cheap the
-change measures." This entry is that revisit.
+**Status: DECIDED.** calef, 2026-08-25, in conversation: "Build it when we have a customer."
+[DECISIONS §42](42-truthful-filesystem.md) declined `renameat2`-shaped `NOREPLACE`/`EXCHANGE`
+rename flags, giving two reasons: they are not portable (native support is Linux-only), and
+emulating `NOREPLACE` via separate `link`+`unlink` calls is racy. Milestone 55's own SMB work found
+that the second reason does not describe `redoxfs_server`'s actual implementation, and named
+revisiting §42 as calef's call rather than a lane's, "however cheap the change measures." This
+entry is that revisit, and §42 itself is amended in place to carry the correction.
 
 ## What changed since §42
 
@@ -50,21 +51,20 @@ customer-path work above general completeness. Building protocol conformance not
 customer path currently needs is exactly the shape of speculative work this project's own
 elegance-over-convenience tenet warns against building ahead of a real requirement.
 
-## Recommendation
+## The decision
 
-**Correct §42's text to note its racy-emulation reason does not describe `redoxfs_server`, without
-reopening its declined conclusion.** The record should not keep citing a reason that turned out to
-be factually inapplicable to this backend; that is a correction owed regardless of which way the
-feature question goes. Leave the feature itself declined, for the corrected reason (not
-demonstrated as necessary for this milestone's customer path, not "would be racy to build") rather
-than the original one.
+**§42's text is corrected to note its racy-emulation reason does not describe `redoxfs_server`,
+without reopening its declined conclusion.** The record should not keep citing a reason that turned
+out to be factually inapplicable to this backend; that correction is owed regardless of which way
+the feature question goes, and §42 is marked `AMENDED` to carry it in place. The feature itself
+stays declined, for the corrected reason (not demonstrated as necessary for this milestone's
+customer path, not "would be racy to build") rather than the original one.
 
-**Build the flag only if or when a specific client failure is observed on the actual customer
-path** (a real macOS Time Machine or general SMB client operation that needs it), matching this
-tree's own "wait for the customer" pattern elsewhere (DECISIONS §105's `std::thread::spawn`, "we
-will likely do A when there is such a customer"). Recorded here as a known, named, cheap-to-close
-gap rather than a silent one, so the next reader who hits it does not have to re-derive that it is
-easy.
+**Build the flag only when a specific client failure is observed on the actual customer path** (a
+real macOS Time Machine or general SMB client operation that needs it), matching this tree's own
+"wait for the customer" pattern elsewhere (DECISIONS §105's `std::thread::spawn`, "we will likely
+do A when there is such a customer"). Recorded here as a known, named, cheap-to-close gap rather
+than a silent one, so the next reader who hits it does not have to re-derive that it is easy.
 
 ## What this does not decide
 
