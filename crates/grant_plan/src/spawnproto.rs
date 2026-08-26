@@ -92,6 +92,24 @@ const SCREEN_BIT: u64 = 1 << 37;
 /// See [`GRANT_WORDS`] for what the two messages carry and why they are opaque to this module.
 const DIR_BIT: u64 = 1 << 36;
 
+/// **A second directory grant follows, for the same confined program** (milestone 154,
+/// design/roadmap/154-multi-directory-namespace.md). Set only alongside [`DIR_BIT`]: a second
+/// grant is meaningless without a first, the same way the kernel's `fs_service::TwoDirGrant`
+/// (slot 0 grant A, slot 1 grant B) only exists in pairs.
+///
+/// **Following [`DIR_BIT`]'s own precedent rather than inventing a new shape**, as milestone
+/// 154's roadmap block names as the open question this closes: another two [`GRANT_WORDS`]
+/// messages follow the first pair, carrying the second caretaker's `START` words. Unlike
+/// [`DIR_BIT`], the confined program's own `START` words are **not** repeated a second time: one
+/// program is still being started, holding two narrowed endpoints (slot 0 grant A, slot 1 grant
+/// B), the same delivery `fs_service::start_granted_two_dirs` already proved.
+///
+/// **Nothing on the shell side sets this bit yet.** No verb in `grant_plan` constructs a
+/// two-directory `Endowment`: that is milestone 47's `bind`, still unbuilt. This is the wire
+/// format and init's decode side, built ahead of an emitter the way [`DIR_BIT`] itself once
+/// stated a grant nothing could construct yet.
+const DIR2_BIT: u64 = 1 << 38;
+
 /// **The two messages a [`Wiring::dir`] request is followed by**, in order, each three words:
 ///
 /// 1. **the caretaker's `START` words**, which init passes to `fs_subtree_caretaker` verbatim: the
@@ -130,6 +148,11 @@ pub struct Wiring {
     /// `fs_subtree_caretaker` for it before it builds the child. The only entry here that announces
     /// data instead of a capability; see `DIR_BIT`.
     pub dir: bool,
+    /// **A second directory grant follows, as two more data messages** (milestone 154). See
+    /// `DIR2_BIT`. Meaningless unless `dir` is also set; nothing here enforces that on its own
+    /// (the wire is one word, and a caller that set this without `dir` sent a request that was
+    /// wrong before it left the shell).
+    pub dir2: bool,
     /// **This stage's primary output defaults to `terminal_sink_caretaker`, and a fresh completion
     /// endpoint follows** (DECISIONS §106). See `SCREEN_BIT`. Mutually exclusive with `sink` in
     /// practice (a stage the shell delegated an explicit sink for has somewhere else to write), but
@@ -155,6 +178,9 @@ pub fn request(prog_id: u64, arg: u64, mem_pages: u64, w: Wiring) -> (u64, u64, 
     if w.dir {
         w2 |= DIR_BIT;
     }
+    if w.dir2 {
+        w2 |= DIR2_BIT;
+    }
     if w.screen {
         w2 |= SCREEN_BIT;
     }
@@ -170,6 +196,7 @@ pub fn wiring(w2: u64) -> Wiring {
         source: w2 & SOURCE_BIT != 0,
         diagnostics: w2 & DIAG_BIT != 0,
         dir: w2 & DIR_BIT != 0,
+        dir2: w2 & DIR2_BIT != 0,
         screen: w2 & SCREEN_BIT != 0,
     }
 }
@@ -250,10 +277,11 @@ mod tests {
         assert_eq!(mem_pages(w2), 0);
     }
 
-    /// **The six flags are independent of each other and of the page count** (milestone 50, §67's
-    /// fourth, milestone 31 phase 3's fifth, and DECISIONS §106's sixth). They share one word, and
-    /// what init reads next off the endpoint depends on all of them, so a bit that bled into another
-    /// would make init take a capability for a data word (or the reverse) and hang rather than fail.
+    /// **The seven flags are independent of each other and of the page count** (milestone 50,
+    /// §67's fourth, milestone 31 phase 3's fifth, DECISIONS §106's sixth, and milestone 154's
+    /// seventh). They share one word, and what init reads next off the endpoint depends on all of
+    /// them, so a bit that bled into another would make init take a capability for a data word
+    /// (or the reverse) and hang rather than fail.
     #[test]
     fn the_wiring_flags_do_not_collide() {
         for &interruptible in &[false, true] {
@@ -261,23 +289,47 @@ mod tests {
                 for &source in &[false, true] {
                     for &diagnostics in &[false, true] {
                         for &dir in &[false, true] {
-                            for &screen in &[false, true] {
-                                let w = Wiring {
-                                    interruptible,
-                                    sink,
-                                    source,
-                                    diagnostics,
-                                    dir,
-                                    screen,
-                                };
-                                let (_, _, w2) = request(3, 0, 64, w);
-                                assert_eq!(wiring(w2), w, "{w:?}");
-                                assert_eq!(mem_pages(w2), 64, "{w:?}");
+                            for &dir2 in &[false, true] {
+                                for &screen in &[false, true] {
+                                    let w = Wiring {
+                                        interruptible,
+                                        sink,
+                                        source,
+                                        diagnostics,
+                                        dir,
+                                        dir2,
+                                        screen,
+                                    };
+                                    let (_, _, w2) = request(3, 0, 64, w);
+                                    assert_eq!(wiring(w2), w, "{w:?}");
+                                    assert_eq!(mem_pages(w2), 64, "{w:?}");
+                                }
                             }
                         }
                     }
                 }
             }
         }
+    }
+
+    /// **`DIR2_BIT` follows [`DIR_BIT`]'s own precedent**: it is a second bit, not a count, and it
+    /// round-trips independent of whether `dir` itself is set (nothing here enforces the "meaningless
+    /// without `dir`" rule from the wire alone; that is the emitter's obligation, stated in
+    /// [`Wiring::dir2`]'s own doc).
+    #[test]
+    fn a_second_directory_grant_is_a_second_bit_not_a_count() {
+        let (_, _, w2) = request(
+            0,
+            0,
+            0,
+            Wiring {
+                dir: true,
+                dir2: true,
+                ..Wiring::default()
+            },
+        );
+        let w = wiring(w2);
+        assert!(w.dir);
+        assert!(w.dir2);
     }
 }

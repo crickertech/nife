@@ -438,6 +438,12 @@ impl<'a> TwoRoots<'a> {
         if !p.from_root() {
             return Err(Refused::NotAName);
         }
+        self.resolve_absolute(&p)
+    }
+
+    /// [`TwoRoots::resolve`]'s absolute-path half, split out so [`TwoRoots::resolve_from`] can
+    /// reach it without reparsing the token a second time.
+    fn resolve_absolute(&self, p: &Path<'_>) -> Result<(Which, Cwd), Refused> {
         let (label, rest) = match p.steps().split_first() {
             Some((Step::Down(name), rest)) => (*name, rest),
             _ => return Err(Refused::NotAName),
@@ -452,6 +458,50 @@ impl<'a> TwoRoots<'a> {
         let mut cwd = Cwd::root();
         cwd.apply(rest)?;
         Ok((which, cwd))
+    }
+
+    /// **A two-grant shell's real, single, moving position** (DECISIONS §126,
+    /// design/decisions/126-two-directory-cwd.md), built on [`TwoRoots::resolve`] and
+    /// [`Cwd::resolve`] rather than reimplementing either.
+    ///
+    /// A bare relative `token` resolves against `pos` inside whichever tree `which` currently
+    /// names, identical to today's one-grant behavior, parameterized by which tree the holder is
+    /// standing in. An absolute token (`/a/...` or `/b/...`) resolves the same way
+    /// [`TwoRoots::resolve`] always has, picking the tree by label and resolving the rest from
+    /// that tree's own root; that is also how a two-grant holder moves between trees, with no new
+    /// verb (`cd /b/somewhere` while standing in `a` just works).
+    ///
+    /// **The boundary**: `..` at either tree's own root refuses with [`Refused::AtYourRoot`], the
+    /// same refusal a one-grant [`Cwd::apply`] already gives at its own root, applied per-tree
+    /// rather than newly invented. That falls out for free here: a relative token is resolved by
+    /// `pos.resolve`, which is exactly [`Cwd::apply`]'s existing clamp; there is no third,
+    /// unheld "namespace root" above both labels for `..` to reach.
+    pub fn resolve_from(
+        &self,
+        which: Which,
+        pos: Cwd,
+        token: &[u8],
+    ) -> Result<(Which, Cwd), Refused> {
+        let p = path(token)?;
+        if p.from_root() {
+            self.resolve_absolute(&p)
+        } else {
+            Ok((which, pos.resolve(&p)?))
+        }
+    }
+
+    /// [`TwoRoots::resolve_from`], applied: move `(which, pos)` by `token`. All-or-nothing, the
+    /// same rule [`Cwd::apply`] already has: a refused move leaves both untouched.
+    pub fn apply_from(
+        &self,
+        which: &mut Which,
+        pos: &mut Cwd,
+        token: &[u8],
+    ) -> Result<(), Refused> {
+        let (w, p) = self.resolve_from(*which, *pos, token)?;
+        *which = w;
+        *pos = p;
+        Ok(())
     }
 }
 
@@ -795,5 +845,85 @@ mod tests {
         assert_eq!(which, Which::A);
         assert_eq!(cwd.depth(), 1);
         assert_eq!(cwd.component(0), b"y");
+    }
+
+    // ---- DECISIONS §126: the real, single, moving `(which, pos)` cwd ----
+
+    /// **A bare relative name resolves against `pos` inside whichever tree `which` currently
+    /// names**, identical to a one-grant [`Cwd::resolve`], parameterized by which tree.
+    #[test]
+    fn a_relative_token_resolves_inside_the_current_tree() {
+        let ns = TwoRoots::new(b"a", b"b");
+        let mut pos = Cwd::root();
+        pos.descend(b"here");
+        let (which, next) = ns.resolve_from(Which::B, pos, b"deeper").unwrap();
+        assert_eq!(which, Which::B, "a relative token never switches trees");
+        assert_pwd(&next, b"/here/deeper");
+    }
+
+    /// **An absolute path both resolves and moves between trees**: `cd /b/somewhere` from
+    /// anywhere works with no new verb, exactly as §126 describes.
+    #[test]
+    fn an_absolute_token_moves_to_the_tree_it_names() {
+        let ns = TwoRoots::new(b"a", b"b");
+        let pos = Cwd::root();
+        let (which, next) = ns.resolve_from(Which::A, pos, b"/b/elsewhere").unwrap();
+        assert_eq!(which, Which::B);
+        assert_pwd(&next, b"/elsewhere");
+    }
+
+    /// **`..` at either tree's own root refuses**, the same [`Refused::AtYourRoot`] a one-grant
+    /// [`Cwd::apply`] already gives, applied per-tree: standing at `b`'s own root, `..` does not
+    /// silently land in `a` or anywhere else.
+    #[test]
+    fn dot_dot_refuses_at_either_trees_own_root_rather_than_crossing() {
+        let ns = TwoRoots::new(b"a", b"b");
+        assert_eq!(
+            ns.resolve_from(Which::B, Cwd::root(), b".."),
+            Err(Refused::AtYourRoot),
+        );
+        // One level down and back up composes normally, same as a single grant.
+        let mut which = Which::A;
+        let mut pos = Cwd::root();
+        ns.apply_from(&mut which, &mut pos, b"/a/sub").unwrap();
+        ns.apply_from(&mut which, &mut pos, b"..").unwrap();
+        assert_eq!(which, Which::A);
+        assert_pwd(&pos, b"/");
+    }
+
+    /// **The starting position is the first-listed grant's own root** (`which = A`), matching the
+    /// "slot 0 is always the first grant" precedent milestone 154 already established: a relative
+    /// token typed from the start resolves inside `a`, with nothing special about the start
+    /// beyond being where a fresh two-grant holder stands.
+    #[test]
+    fn the_starting_position_is_grant_as_own_root() {
+        let ns = TwoRoots::new(b"a", b"b");
+        let start = (Which::A, Cwd::root());
+        let (which, pos) = ns.resolve_from(start.0, start.1, b"x").unwrap();
+        assert_eq!(which, Which::A);
+        assert_eq!(pos.component(0), b"x");
+    }
+
+    /// [`TwoRoots::apply_from`] is all-or-nothing, [`Cwd::apply`]'s own rule composed rather than
+    /// reimplemented: a refused move leaves both `which` and `pos` exactly where they were.
+    #[test]
+    fn apply_from_moves_nothing_on_a_refusal() {
+        let ns = TwoRoots::new(b"a", b"b");
+        let mut which = Which::A;
+        let mut pos = Cwd::root();
+        pos.descend(b"sub");
+        assert_eq!(
+            ns.apply_from(&mut which, &mut pos, b".."),
+            Ok(()),
+            "one legal ascent",
+        );
+        assert_eq!(which, Which::A);
+        assert_pwd(&pos, b"/");
+        assert_eq!(
+            ns.apply_from(&mut which, &mut pos, b".."),
+            Err(Refused::AtYourRoot),
+        );
+        assert_eq!(which, Which::A, "a refusal moved nothing");
+        assert_pwd(&pos, b"/");
     }
 }

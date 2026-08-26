@@ -147,6 +147,16 @@ const NO_CLOCK: u64 = 0;
 fn holdings(nav: &Nav) -> grant_plan::Holdings {
     grant_plan::Holdings {
         dir: nav.dir.is_some(),
+        // **Always `None` from this shell today** (milestone 154's boot-wiring mechanism,
+        // `system_initializer::boot`'s `second_dir` parameter, is not enabled at any real entry
+        // point, since DECISIONS §126 reserves that policy call for calef). Even where it were, this
+        // shell has no way yet to *learn* of a second grant's label and cspace slot: `Nav` is
+        // built from `_start`'s three `START` words (role, argument, clock slot), all already
+        // spoken for, so wiring a second grant into `Nav` needs its own wire-format decision
+        // (`grant_plan`'s `SecondDir` type and `caps`'s display already exist and are ready for
+        // whichever mechanism tells the shell). Tracked in
+        // design/roadmap/154-multi-directory-namespace.md.
+        second: None,
         cwd: nav.cwd,
     }
 }
@@ -1695,6 +1705,10 @@ fn spawn(e: Endowment) {
             source: false,
             diagnostics: false,
             dir: dir_words.is_some(),
+            // **Always false from this shell**: nothing here constructs a two-directory grant
+            // for a spawned program (milestone 47's `bind`, still unbuilt); see
+            // `spawnproto::DIR2_BIT`'s own doc.
+            dir2: false,
             // **Also always false here** (DECISIONS §106), and for the same shape of reason as
             // `diagnostics`: a program only reaches this path (no file operand, no pipe, no
             // redirection at all) when `plan` put nothing in its source slot, and every program
@@ -2708,6 +2722,7 @@ fn spawn_stage(
         // that it is not delivered and `spawn` is where a directory grant is met. See this file's
         // `dir_grant` and notes/dir-capability.md's BUGS.
         dir: false,
+        dir2: false,
         screen: screen.is_some(),
     };
     let (w0, w1, w2) = spawnproto::request(e.prog.id(), e.arg, e.mem_pages, wiring);
@@ -2857,6 +2872,7 @@ fn spawn_interruptible(e: Endowment) {
             // *this shell's* untyped rather than init's pool, so there is no region a caretaker
             // could share with it (DECISIONS §92).
             dir: false,
+            dir2: false,
             // A supervised job's completion signal is already the shared job frame's `DONE` flag,
             // not `result_ep`, so there is nothing here for DECISIONS §106's narrowing to replace.
             screen: false,

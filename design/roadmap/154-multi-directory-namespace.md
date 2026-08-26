@@ -8,9 +8,13 @@ instead of two. **Built 2026-08-23**: the core mechanism (a process holding and 
 two directory capabilities at once), proven end to end on both ISAs. **[DECISIONS
 §126](../decisions/126-two-directory-cwd.md) decided 2026-08-25** how a two-grant process moves
 between them: a real, single, moving `cwd`, not the shadowed-union ambiguity 47's own questions
-still leave open. **Still open**, named below: extending `caps`'s display and `Holdings` to the
-now-decided shape, wiring a second grant into the real interactive boot, and the shell-to-init
-spawn-protocol encoding for a second grant.
+still leave open. **All three of §126's "still open" items now have a first increment, 2026-08-25**
+(see "What is now decided, and what is still open" below for what each does and does not yet
+cover): `grant_plan::Holdings`/`caps` display the `(which, pos)` shape; `crates/system_initializer::boot`
+can construct and deliver a second, disjoint directory capability at boot; and
+`grant_plan::spawnproto` carries a second directory grant on the wire. None of the three is wired
+end to end into a live, real, second-grant interactive shell yet; each increment's own caveats
+say exactly why.
 
 **Gate: NONE.** Nothing here is a design fork; §50 already decided namespace composition over
 stored paths, and 47's absolute-paths work already proved the resolver lives in the client's
@@ -102,19 +106,61 @@ sources, enumeration, the compile-time-set-to-runtime-lookup gap, whether `$PATH
 string): those stay exactly as open as they were, since this decision only ever concerned two
 disjoint, individually-labeled trees with one position at a time.
 
-- **`caps` was not extended, but the design question it was waiting on is answered.** The shell's
-  own endowment display (`grant_plan::Holdings`, `crates/swish::write_holdings`) models "a
-  directory capability" as one `bool` plus one `Cwd`, and that pair also drives
-  `plan_stage`/`redirect_target`'s decision about what a child gets when a command names a file.
-  Extending it to `§126`'s `(which, pos)` shape is now implementation, not a design fork: nothing
-  left to decide before `caps` can show two labeled rows and a real current position inside one of
-  them.
-- **The interactive shell still holds at most one directory capability.** Wiring a second grant
-  into the real boot still needs a boot-time decision about what the second subtree even *is*,
-  which is policy rather than mechanism and remains calef's to make, not a lane's. `§126` answered
-  how a second grant behaves once held; it does not answer what that second grant should be on a
-  real boot.
-- **The shell-to-init spawn-protocol encoding remains unbuilt**, as this block already said before
-  anything here was built: `grant_plan::spawnproto`'s `DIR_BIT`/`GRANT_WORDS` carry exactly one
-  directory grant today, and a second would need either a second bit or a count, following the
-  existing precedent rather than inventing a new shape.
+- **`caps`'s display and `Holdings` are extended, host-tested, to §126's shape (2026-08-25).**
+  `grant_plan::Holdings` gains `second: Option<SecondDir>` (provisional name), carrying both
+  labels and `which` beside the existing `cwd`/`pos`; a one-grant `Holdings` (`second: None`)
+  resolves and prints exactly as it always has, byte for byte (pinned by
+  `a_one_grant_holdings_resolves_exactly_as_before` and
+  `holding_a_directory_changes_exactly_one_line_of_the_endowment`). `Holdings::resolve` is the
+  `(which, pos)` combinator itself, built on a new `nav::TwoRoots::resolve_from`/`apply_from` pair
+  (relative stays in the current tree, absolute crosses by label, `..` refuses at either tree's own
+  root; each a host test in `crates/grant_plan/src/nav.rs`). `crates/swish::write_holdings` prints
+  two directory rows and a namespace section with both labels when `second` is `Some`, marking
+  which tree `cwd` currently stands in and printing the other at its own root (there is only one
+  remembered position, per §126's "real, single, moving" cwd): this is milestone 154's own line,
+  "`caps` gains a namespace section with more than one row", made real and tested
+  (`a_second_grant_prints_two_rows_and_a_namespace_section`).
+
+  **What this increment does not reach.** `designate`/`plan_stage`/`redirect_target` (what backs a
+  per-command file or directory grant, e.g. `wc`'s operand or a `>` redirection) are unchanged and
+  still resolve against `Holdings.cwd` alone, oblivious to `second`: `FileGrant`/`DirGrant` have no
+  `which` field, so even if a live two-grant shell existed, a command naming grant B's tree would
+  not yet deliver a capability against the right one. That is deliberately scoped out rather than
+  half-built: it needs `FileGrant`/`DirGrant` to carry `which`, the caretaker selection at spawn
+  time to read it, and (per the next bullet) a real two-grant `Nav` to resolve against in the first
+  place: genuinely milestone 47 `bind` territory, not this milestone's three named items.
+
+- **`crates/system_initializer::boot` can construct and deliver a second, disjoint directory
+  capability to the shell at boot, mechanically, for real (2026-08-25).** `boot` takes a new
+  `second_dir: Option<SecondDirGrant>` parameter; `Some` builds a second `fs_subtree_caretaker`
+  (`build_caretaker`, the same function `spawn_service`'s dynamic `rm`-style grants already use)
+  narrowed to `SecondDirGrant::name`, and delivers its endpoint into the shell's capability table
+  at the slot after the filesystem pair, pushing the clock (already told to the shell numerically
+  rather than assumed, per its own existing convention) one slot further out. This is the real init
+  both boards run (`user/src/system_initializer.rs`, `user/src/hello.rs`'s `init_boot` role), not a
+  kernel-side test harness.
+
+  **Both real entry points pass `None`.** What the second subtree should *be* remains calef's
+  boot-time policy call (DECISIONS §126), unanswered by this increment on purpose. **Two further
+  gaps, recorded rather than hidden.** First, this exact path is unverified against a real boot:
+  `script/shell-check` is the only thing that runs a real init, nothing types a second grant
+  through it, and the capability-table headroom at the point this builds a caretaker is the same
+  spot a past bug already found tight (`boot`'s own `# BUGS` note says so; watch for "reaches
+  userspace and prints nothing" first). Second, and this is the sharper gap: **nothing tells the
+  shell process it has a second grant at all.** `_start`'s three `START` words (role, argument,
+  clock slot) are already fully spoken for, so a shell built with a second grant today would hold
+  a capability its own `Nav` has no way to learn the label or slot of. `user/src/swish.rs`'s
+  `holdings()` therefore still always reports `second: None`. Closing that gap is a real
+  shell-to-init wire question of its own (a fourth `START` word, or packing the clock slot and a
+  second-dir slot into the same word) and deserves its own decision rather than a quick encoding
+  chosen under this lane's time pressure.
+
+- **The shell-to-init spawn-protocol encoding is built (2026-08-25), following `DIR_BIT`'s own
+  precedent exactly as this block said it should**: `grant_plan::spawnproto` gains `DIR2_BIT` and
+  `Wiring::dir2`, a second bit rather than a count, round-tripping independent of the other six
+  flags (host-tested, `the_wiring_flags_do_not_collide` extended and
+  `a_second_directory_grant_is_a_second_bit_not_a_count` added). `crates/system_initializer::spawn_service`'s
+  init-side decode is *not yet* extended to build a second caretaker when `dir2` is set: nothing on
+  the shell side ever constructs a two-directory `Endowment` to set the bit with (that is milestone
+  47's `bind`, still unbuilt), so this is the wire format alone, ahead of an emitter, in exactly the
+  shape `DIR_BIT` itself was built in before anything could construct a one-directory grant either.
