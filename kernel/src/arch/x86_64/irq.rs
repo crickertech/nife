@@ -661,6 +661,13 @@ const ICR_FIXED: u32 = 0b000 << 8;
 /// SMP item). Resets the target CPU into a wait-for-SIPI state; the vector field is unused (left
 /// zero) because INIT does not say where to start, only that the target should stop and wait.
 const ICR_INIT: u32 = 0b101 << 8;
+/// **ICR delivery mode `NMI`**, bits 10:8 = 100: deliver a non-maskable interrupt (vector 2) to the
+/// destination. The vector field is unused, as it is for INIT, because the vector is architectural.
+///
+/// **This is the only message on this architecture that `cli` cannot suppress**, which is the whole
+/// reason the TLB shootdown uses it: see `mmu::shoot_down_others`, whose target is routinely a core
+/// spinning for `KERNEL_MMU` with interrupts masked.
+const ICR_NMI: u32 = 0b100 << 8;
 /// **ICR delivery mode `Startup`** (a STARTUP inter-processor interrupt, "SIPI"), bits 10:8 = 110:
 /// the vector field names a *physical page below 1 MiB* the target begins executing at, in 16-bit
 /// real mode, with `cs` = the vector and `ip` = 0 (so the physical address is `vector << 12`).
@@ -744,6 +751,22 @@ pub fn send_reschedule(target_cpu: usize) {
         panic!("send_reschedule: cpu {target_cpu} is not in the roster (no local apic id)")
     });
     send_ipi(apic_id as u8, RESCHEDULE_VECTOR);
+}
+
+/// **Send a non-maskable interrupt to the local APIC whose id is `dest_apic_id`.**
+///
+/// The target takes vector 2 at its next instruction boundary **whether or not its interrupts are
+/// enabled**, which is the property `mmu::shoot_down_others` is built on and the reason this exists
+/// beside [`send_ipi`] rather than being one more vector through it.
+///
+/// No acknowledgement is written by the receiver's local APIC: an NMI sets no in-service bit, so
+/// there is no EOI to owe, unlike every vector [`send_ipi`] delivers.
+///
+/// **Name provisional** (milestone 161's SMP item): calef names public items.
+pub fn send_nmi(dest_apic_id: u8) {
+    wait_for_ipi_delivery();
+    write(reg::ICR_HIGH, (dest_apic_id as u32) << 24);
+    write(reg::ICR_LOW, ICR_NMI | ICR_ASSERT);
 }
 
 /// **Send an INIT inter-processor interrupt** to the local APIC whose id is `dest_apic_id`: the

@@ -230,6 +230,12 @@ pub static ROUTED_IRQS: AtomicUsize = AtomicUsize::new(0);
 /// between assertion and acknowledgement, and the local APIC has a dedicated spurious vector.
 pub static SPURIOUS_IRQS: AtomicUsize = AtomicUsize::new(0);
 
+/// **How many NMIs arrived that the TLB shootdown did not claim.** Vector 2 is this kernel's
+/// shootdown message (`mmu::shoot_down_others`) and nothing else on this machine sends one, so this
+/// should stay at zero; it is counted rather than assumed away because an NMI from a source we do
+/// not know about is exactly the kind of fact that is invisible until someone looks.
+pub static NMIS_UNCLAIMED: AtomicUsize = AtomicUsize::new(0);
+
 /// **How many *device* interrupts arrived through the IO APIC**, as distinct from the local APIC's
 /// own timer. Counted separately because the two prove different things: the timer proves the local
 /// APIC delivers and the trap path returns, and this proves a line outside the CPU reached it.
@@ -639,6 +645,28 @@ unsafe extern "C" {
 /// address it passes. Nothing else may call it.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn x86_trap_dispatch(frame: *mut TrapFrame) {
+    // **An NMI is served here and returns from here**, before either of the two things below can
+    // happen to it, and both would be wrong for it.
+    //
+    // It may not move to the interrupt stack. An NMI arrives at an arbitrary instruction boundary,
+    // including one inside a handler already running on that stack, and `top_for_trap` would hand
+    // it the same top and let it overwrite the frames underneath it.
+    //
+    // It may not owe a deferred `schedule()`. The whole point of an NMI shootdown is that its
+    // target is often mid-critical-section with interrupts masked; switching threads out from under
+    // that would be a far larger surprise than the interrupt itself.
+    //
+    // Serving it costs an `invlpg` and one atomic (`mmu::serve_shootdown_nmi`), so the frame it is
+    // charged to, wherever it landed, is the trap frame plus a shallow call.
+    // SAFETY: `isr_common` built the frame directly below the pointer it passed; reading the vector
+    // it manufactured, before anything else looks at the frame.
+    if unsafe { (*frame).vector } == 2 {
+        if !super::mmu::serve_shootdown_nmi() {
+            NMIS_UNCLAIMED.fetch_add(1, Ordering::Relaxed);
+        }
+        return;
+    }
+
     // SAFETY: `isr_common` built the frame directly below the pointer it passed.
     let from_user = unsafe { (*frame).cs } & 3 == 3;
     let top = crate::interrupt_stack::top_for_trap(from_user);
