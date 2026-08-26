@@ -33,14 +33,18 @@ use crate::sched;
 /// do it. Raising this past 640 raised `kernel::testing::SUITE_PAGE_FRAME_BUDGET` too; that comment
 /// carries the account.
 ///
-/// **+200, milestone 49's channel-per-client update.** Every `CONNECT`, answered or not, now
-/// permanently spends three pages of this budget too (`user/src/login.rs`'s own BUGS): two
-/// rendezvous objects and a staging page frame, never reclaimed in this slice. This suite performs
-/// roughly twenty-six connects in total (one per `ls::client`/`ls::spawn_client` call, including the
-/// two `two_clients_connecting_together_get_independent_channels_and_neither_observes_the_others_secret`
-/// makes below), for an added cost of roughly 78 pages; +200 is margin over a tight count for the
-/// same reason the rest of this constant is generous rather than exact.
-const CONSTRUCTION_PAGES: u64 = 2056;
+/// **Raised again, milestone 49's channel-per-client update: +2240, to cover `login::OWN_UT_PAGES`
+/// being raised from 128 to 1024** (that raise is `CONSTRUCTION_UT`'s bill too, since `OWN_UT_PAGES`
+/// is split directly from it at `login`'s own startup, one time, regardless of how many logins or
+/// connects follow). `connect`'s own channel objects no longer spend this budget permanently at all
+/// (`user/src/login.rs`'s own BUGS: each channel is retyped from its own small, dedicated region and
+/// that region is destroyed once the channel is served), so this raise is smaller than an earlier,
+/// now-superseded version of this comment assumed. **This suite currently does not pass reliably**;
+/// see `user/src/login.rs`'s own BUGS for a real, reproducible, not-yet-root-caused failure in
+/// `caretaker_teardown_reclaims_a_full_session_worth_of_memory` below, checked directly against this
+/// constant (raising it as far as 16384 does not change the outcome) and against `OWN_UT_PAGES`
+/// (raising it as far as 8192 does not either): this is not a sizing problem.
+const CONSTRUCTION_PAGES: u64 = 4096;
 
 /// `EEXIST`, matching `identity_provisioner.rs`'s own local constant: `fs_proto` does not re-export
 /// it under a name (that file's own comment), so every direct caller of `fs::MKDIR` names it again.
@@ -672,6 +676,10 @@ fn logins_caretaker_measurement_matches_the_real_table_and_a_tampered_one_would_
 /// real `READDIR` and a real `RETYPE` before teardown (the same proof every other successful-login
 /// test in this file asks for), both `DESTROY` calls succeeding, and both capabilities answering
 /// nothing afterward (`login_test_client.rs`'s own re-check, not merely the syscalls' return codes).
+///
+/// **Currently fails, reproducibly, on its second iteration**, milestone 49's channel-per-client
+/// update having surfaced it: see `user/src/login.rs`'s own BUGS for the full diagnostic record
+/// (what was checked and ruled out) before spending further time re-deriving it.
 #[test_case]
 fn caretaker_teardown_reclaims_a_full_session_worth_of_memory() {
     if fs_service::fs_server_image().is_none() {

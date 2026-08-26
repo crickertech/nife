@@ -187,16 +187,46 @@
 //! process, and no other client, ever holds a capability to it. Proven by
 //! `kernel::user::login_tests::two_clients_connecting_together_get_independent_channels_and_neither_observes_the_others_secret`.
 //!
-//! **The fix costs a resource this slice does not reclaim.** Each [`login_proto::CONNECT`], answered
-//! or not, permanently spends three pages of [`CONSTRUCTION_UT`] (two rendezvous objects, one page
-//! frame) and one page of virtual address space at a bump-allocated slot past
-//! [`CONNECT_VA_BASE`] (`page_frame::MAP` refuses a second mapping at an already-mapped `va`, so a
-//! fresh one is picked every time rather than one reused). This is the same shape `CONSTRUCTION_UT`
-//! already had for a successful login that never logs out (see below): a client that connects and
-//! never follows up with an actual `LOGIN` still costs this process the width of one channel,
-//! forever. A deployment that wants that bounded relies on clients actually finishing what they
-//! start, the same reliance the rest of this program's BUGS already names for the resources
-//! downstream of a connect.
+//! **Each channel is retyped from its own dedicated region and reclaimed by destroying it, not by
+//! `cap_delete`.** An earlier version of [`connect`] retyped the request/result rendezvous and the
+//! staging page directly from [`CONSTRUCTION_UT`], and `_start` answered a finished channel with
+//! `cap_delete` on this process's own three capabilities. That removes this process's own
+//! *reference*, not the underlying kernel objects: a rendezvous retyped by `RETYPE_OBJ` lives in the
+//! kernel's own global registry (`kernel::sched::MAX_RENDEZVOUS`, 512 slots, shared by every process
+//! the machine is running) until the *region* it came from is destroyed, so every connect leaked two
+//! of those slots, permanently, machine-wide. This suite's own tests caught it (a later, unrelated
+//! test failed with "out of rendezvous points" after this program's test-suite connects had quietly
+//! spent 58 of the 512 the whole machine shares): `connect` now splits a small, dedicated region per
+//! channel, retypes everything from it, and `_start` destroys that region once [`serve_login`]
+//! returns, which reclaims the rendezvous objects, the page frame, and this process's own
+//! capability-table slots for all three in one call. The one cost this still cannot avoid: a channel
+//! nobody finishes connecting (`connect` succeeds but the caller never follows up) has no second
+//! party to trigger the destroy, so its region's pages are abandoned in the same way this program's
+//! other unreclaimed resources are (see `CONSTRUCTION_UT`'s exhaustion, below).
+//!
+//! **An unresolved, reproducible failure surfaced by this update's own test suite, not yet
+//! root-caused.** `kernel::user::login_tests::caretaker_teardown_reclaims_a_full_session_worth_of_memory`
+//! performs ten back-to-back connect-login-logout cycles against the identity `chris`, fully logging
+//! out (destroying both delegated `MemoryRegion`s) before each next cycle begins. Across every run
+//! this update's own testing produced, the **first** cycle always succeeds and the **second** is
+//! refused with [`login_proto::DENIED`] as though `chris`'s password were wrong, which it is not:
+//! every later cycle in the same run, when reached, succeeds again (this is not a ratchet toward
+//! total failure). The following were checked and ruled out, each by direct measurement rather than
+//! by argument: `CONSTRUCTION_UT` exhaustion (reproduces identically at `CONSTRUCTION_PAGES` raised
+//! from 1856 to 16384); [`OWN_UT_PAGES`] exhaustion, including `supervision_proto::fill_and_map`'s
+//! own accumulating `SCRATCH_NEXT` mechanism (reproduces identically at 128 and at 8192); this
+//! process's own sixteen-slot capability table (margin was tightened and then restored without
+//! changing the outcome); `kernel::sched::MAX_RENDEZVOUS` and `kernel::memory_region::MAX_REGIONS`
+//! exhaustion (both ruled out directly: `connect`'s own channel region is destroyed, and no "out of
+//! rendezvous points" or region-table message appears in a failing run). The failure was absent from
+//! a baseline run of the same ten-cycle test against the pre-channel-per-client code on the same
+//! machine. The leading, unconfirmed hypothesis is a timing-sensitive interaction between the
+//! caretaker-teardown-via-`DESTROY` mechanism (this milestone's own earlier, "Resolved 2026-08-23"
+//! piece) and an immediate second descent into the same identity's subtree, made more likely by the
+//! extra IPC round trip [`login_proto::CONNECT`] adds ahead of every login; nothing in this program's
+//! own code has been found to explain it directly. This needs a fresh investigation before this
+//! program's test suite can be trusted to gate a merge; see the milestone's own roadmap entry for the
+//! disposition.
 //!
 //! **No terminal.** The roadmap's own text names three things a login hands back: a root directory,
 //! a budget, a terminal. This program hands back the first two. A terminal in this system is a
@@ -418,6 +448,11 @@ const CRED_VA: u64 = 0x0000_0000_00e3_0000;
 /// recognises the shape of the other's. Nothing before milestone 49's channel-per-client update
 /// mapped anything at or past this address.
 const CONNECT_VA_BASE: u64 = 0x0000_0000_00e4_0000;
+/// One channel's whole cost: two `RETYPE_OBJ`s (request, result), one `RETYPE` (the staging page),
+/// and the page tables `page_frame::MAP` needs for that page's own mapping. Three pages minimum,
+/// with margin over a tight count for the same reason [`CARETAKER_REGION_PAGES`] is (a region too
+/// small fails as `Err(())`, which [`connect`] can only answer with `login_proto::DENIED`).
+const CHANNEL_REGION_PAGES: u64 = 8;
 /// Where the archive is mapped read-only. Must match `kernel::user::INITRD_VA`.
 const INITRD_VA: u64 = 0x2000_0000;
 /// Where a built caretaker and the file service's shared page meet. Must match
@@ -425,11 +460,25 @@ const INITRD_VA: u64 = 0x2000_0000;
 /// uses, since the caretaker itself hardcodes it and this process copies its ELF, not its address).
 const CARETAKER_FS_VA: u64 = 0x0000_0000_0060_0000;
 
-/// This process's own scratch mappings for `build_child` (its page tables, never a child's).
-/// Small: one caretaker at a time is ever mid-construction, so this never needs to hold more than
-/// one build's worth of intermediate page tables. Sized generously against `INIT_OWN_PAGES` (128
-/// in `crates/system_initializer`, which builds six boot components against the same budget).
-const OWN_UT_PAGES: u64 = 128;
+/// This process's own scratch: page tables for [`build_child`]'s own temporary mappings (never a
+/// child's). [`connect`] draws its own page-table cost from each channel's own region instead (see
+/// that function's doc), not from here, so this budget's only spender is [`mint`]'s own
+/// `build_child` calls.
+///
+/// **Not "one build's worth," corrected.** An earlier version of this comment claimed only one
+/// caretaker is ever mid-construction, so this budget never holds more than one build's worth of
+/// intermediate page tables. That is wrong about `supervision_proto::fill_and_map`'s own mechanism:
+/// its `SCRATCH_NEXT` counter is a single, process-wide, monotonically increasing VA allocator that
+/// is **never reused or unmapped** between calls, so every segment and blob page of every caretaker
+/// this process has ever built (successfully or not: `mint` calls `build_child` before it knows
+/// whether the caretaker's own descent will be refused) spends a little more of this region's
+/// watermark, permanently, for as long as this process runs. This was raised from 128 to 1024 while
+/// chasing a different, transient failure (a correct password once refused after this file's own
+/// suite had already built eleven caretakers ahead of it) that turned out to have a different cause
+/// entirely (`CHANNEL_REGION_PAGES`'s own doc); the raise is kept anyway; on this program's own
+/// existing precedent of preferring margin to a tight count, since 128 pages were *closer* to this
+/// suite's own real accumulation than comfortable margin should ever be.
+const OWN_UT_PAGES: u64 = 1024;
 
 /// One caretaker's whole construction: its address space, TCB, and stack.
 /// `crates/system_initializer::DIR_JOB_REGION_PAGES` (96) covers a caretaker **and** the program
@@ -511,7 +560,7 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
             send(RESULT, login_proto::MALFORMED, 0, 0);
             continue;
         }
-        let Some(channel) = connect(own_ut, connect_seq) else {
+        let Some(channel) = connect(connect_seq) else {
             // The construction budget is spent (see BUGS); folded into `DENIED` for
             // `login_proto::DENIED`'s own stated reason, even though no identity is in play yet:
             // this program has exactly one code for "authenticated or not, I could not serve you".
@@ -522,21 +571,32 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
         send(RESULT, login_proto::CONNECTED, 0, 0);
         // Delegate narrowed copies and **keep our own for the width of this one exchange**: unlike
         // `FS_PAGE_FRAME` (shared with every future client, forever), this channel is this process's
-        // for exactly as long as `serve_login` is running and no longer, so its three capabilities
-        // are deleted the moment it returns (below), the same "delegate, then drop our own copy"
-        // pattern `mint`'s three capabilities already use. **This is load-bearing, not tidiness**:
-        // this process's own capability table has sixteen slots (`kernel::cap::CAPABILITY_TABLE_SLOTS`)
-        // and eight are spent at rest; keeping a channel's slots past the login they served would
-        // leak three of the remaining eight per connect, the exact shape `mint`'s own history
-        // already warns about for its three.
+        // for exactly as long as `serve_login` is running and no longer, so its objects are reclaimed
+        // the moment it returns (below).
         delegate(RESULT, channel.request, abi::rights::WRITE);
         delegate(RESULT, channel.result, abi::rights::READ);
         delegate(RESULT, channel.page, abi::rights::READ | abi::rights::WRITE);
 
         serve_login(&channel, own_ut, care_elf.as_ref(), &mut seq);
-        cap_delete(channel.request);
-        cap_delete(channel.result);
-        cap_delete(channel.page);
+        // **Reclaim the whole channel by destroying the region it was built from, not by deleting
+        // our own capabilities to its pieces.** An earlier version of this loop only called
+        // `cap_delete` on `channel.request`/`channel.result`/`channel.page`, which removes *this
+        // process's own reference* but does nothing to the underlying kernel objects: a rendezvous
+        // retyped by `RETYPE_OBJ` lives in the kernel's own global rendezvous registry
+        // (`kernel::sched`'s `MAX_RENDEZVOUS`, 512 slots, shared by *every* process in the machine,
+        // not this one's own capability table or `CONSTRUCTION_UT`'s own page count) until the
+        // *region* it was retyped from is destroyed. `cap_delete` alone left two of those slots
+        // permanently spent per connect, and this suite's own tests found it: a later, unrelated
+        // test failed with "out of rendezvous points" after this file's ~29 connects had quietly
+        // spent 58 of the 512 the whole machine shares. `channel.region` is destroyed here instead,
+        // which reclaims the request and result rendezvous, the staging page frame, and this
+        // process's own capability-table slots for all three, in one call. No thread ever runs in
+        // this region (only `RETYPE_OBJ`/`RETYPE`, never a `THREAD_CONTROL_BLOCK`), so `DESTROY`
+        // has nothing to wait on and cannot be transiently refused, so [`reclaim`]'s bounded retry
+        // (shared with every other `MemoryRegion::DESTROY` in this program) is expected to return on
+        // its first attempt here; reused anyway rather than a bare call, so an assumption this
+        // comment states does not have to also be a correctness dependency if it is ever wrong.
+        reclaim(channel.region);
     }
 }
 
@@ -546,13 +606,25 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
 /// is the audit trail's own counter, shared across every channel this process ever serves (not
 /// `channel`'s own connect-sequence number, which is a different count with a different purpose: see
 /// `CONNECT_VA_BASE`'s doc).
+///
+/// **Drops `channel.request` and `channel.page` itself, as early as each stops being needed, rather
+/// than leaving both live for `_start` to drop after this returns.** This process's own capability
+/// table has sixteen slots (`kernel::cap::CAPABILITY_TABLE_SLOTS`) and eight are spent at rest; at
+/// this function's peak, [`mint`] is itself mid-construction holding up to four of its own
+/// (`region`, `narrow_ep`, `ready`, and briefly `tcb`), which left only one slot of headroom if this
+/// channel's three stayed live for the whole call, down from `mint`'s own four-slot margin before
+/// this channel existed at all. `channel.request` is done being useful the instant its one expected
+/// message has been received (below); `channel.page` is done the instant it has been read and wiped.
+/// Freeing both before `mint` ever runs restores the margin `mint`'s own four slots already assumed.
 fn serve_login(channel: &Channel, own_ut: u64, care: Option<&elf::Elf>, seq: &mut u64) {
     let (w0, _w1, _w2) = recv(channel.request);
+    cap_delete(channel.request);
     // SAFETY: `connect` mapped one page read/write at `channel.va` before delegating `channel.page`
     // to the same client this request now arrives from.
     let page = unsafe { core::slice::from_raw_parts(channel.va as *const u8, login_proto::PAGE) };
     let Some((identity, secret)) = login_proto::read(page, w0) else {
         wipe_page(channel.va);
+        cap_delete(channel.page);
         send(channel.result, login_proto::MALFORMED, 0, 0);
         return;
     };
@@ -581,6 +653,7 @@ fn serve_login(channel: &Channel, own_ut: u64, care: Option<&elf::Elf>, seq: &mu
     // The presented secret has now been copied to CRED_VA (or the placement failed and never will
     // be); either way `channel.va`'s copy is done being read.
     wipe_page(channel.va);
+    cap_delete(channel.page);
     let Some(cw0) = placed else {
         send(channel.result, login_proto::MALFORMED, 0, 0);
         return;
@@ -630,8 +703,11 @@ fn serve_login(channel: &Channel, own_ut: u64, care: Option<&elf::Elf>, seq: &mu
 }
 
 /// One connecting client's own private channel: this process's own copies of the request/result
-/// endpoints [`connect`] minted (narrowed copies went to the client; see `_start`), and where the
-/// staging page they share landed in this process's own address space.
+/// endpoints [`connect`] minted (narrowed copies went to the client; see `_start`), where the
+/// staging page they share landed in this process's own address space, and the region every one of
+/// those objects was retyped from (`region`, never delegated: this process's own means of reclaiming
+/// the whole channel in one call once it is done with it, `_start`'s own [`reclaim`] after
+/// [`serve_login`] returns).
 struct Channel {
     /// `RECV`, this process's own copy (the client's is `WRITE`).
     request: u64,
@@ -643,28 +719,44 @@ struct Channel {
     page: u64,
     /// Where `page` is mapped in this process's own address space.
     va: u64,
+    /// The `MemoryRegion` `request`, `result` and `page` were all retyped from, and the page tables
+    /// for `page`'s own mapping were drawn from too. This process's own, never delegated.
+    region: u64,
 }
 
-/// **Mint one connecting client's own private channel**: a fresh request/result rendezvous pair and
-/// a fresh staging page, all retyped from [`CONSTRUCTION_UT`] and never reclaimed in this slice (see
-/// BUGS). `connect_seq` picks a scratch VA this process has never mapped before
-/// (`page_frame::MAP` refuses a second mapping at an already-mapped `va`, so `_start`'s own counter
-/// bumps by one page per successful call rather than reusing one). `None` on any failure, which the
-/// caller answers with [`login_proto::DENIED`].
-fn connect(own_ut: u64, connect_seq: u64) -> Option<Channel> {
-    let request = retype_obj(CONSTRUCTION_UT, abi::objtype::RENDEZVOUS).ok()?;
-    let result = retype_obj(CONSTRUCTION_UT, abi::objtype::RENDEZVOUS).ok()?;
-    let page = retype_page_frame_from(CONSTRUCTION_UT).ok()?;
+/// **Mint one connecting client's own private channel**: a fresh, dedicated region, and a
+/// request/result rendezvous pair and a staging page retyped from it. `connect_seq` picks a scratch
+/// VA this process has never mapped before (`page_frame::MAP` refuses a second mapping at an
+/// already-mapped `va`, so `_start`'s own counter bumps by one page per successful call rather than
+/// reusing one). `None` on any failure, which the caller answers with [`login_proto::DENIED`].
+///
+/// **Retyped from their own region, not from [`CONSTRUCTION_UT`] directly, and that choice is the
+/// whole reason this channel is reclaimable at all.** An earlier version of this function retyped
+/// `request`/`result`/`page` straight out of `CONSTRUCTION_UT`, which this process's `_start` could
+/// only ever answer with `cap_delete` (removing this process's own reference) and never with
+/// `MemoryRegion::DESTROY` (which needs a region, not a bare object, to act on). A rendezvous
+/// retyped by `RETYPE_OBJ` lives in the kernel's own global registry (`kernel::sched::MAX_RENDEZVOUS`,
+/// 512 slots, shared by every process the machine is running, not this one's own budget) until the
+/// region it came from is destroyed, so `cap_delete` alone leaked two of those slots, permanently,
+/// per connect. This suite's own tests caught it: a later, unrelated test failed with "out of
+/// rendezvous points" after this program's ~29 test-suite connects had quietly spent 58 of the 512
+/// the whole machine shares. Splitting a small region here, and destroying it in `_start` once
+/// [`serve_login`] is done with it, is what makes the channel's objects, not merely this process's
+/// own capabilities to them, actually go away.
+fn connect(connect_seq: u64) -> Option<Channel> {
+    let region = memory_region_split(CONSTRUCTION_UT, CHANNEL_REGION_PAGES).ok()?;
+    let request = retype_obj(region, abi::objtype::RENDEZVOUS).ok()?;
+    let result = retype_obj(region, abi::objtype::RENDEZVOUS).ok()?;
+    let page = retype_page_frame_from(region).ok()?;
     let va = CONNECT_VA_BASE + connect_seq * login_proto::PAGE as u64;
-    // Page tables for this new mapping come from `own_ut`, this process's own address-space scratch
-    // (the same budget `build_child` already draws its own page-table cost from), not from
-    // `CONSTRUCTION_UT`: a page table is this process's own bookkeeping, not part of what it hands a
-    // client.
-    if !map_page_frame(page, va, true, own_ut) {
-        // `request`/`result`/`page` are abandoned here (this process has no `DESTROY` on
-        // `CONSTRUCTION_UT` itself, only on regions split from it, and none of these three came from
-        // a region): the same accepted, documented cost this program's BUGS already names for a
-        // channel nobody ever finishes connecting.
+    // Page tables for this new mapping come from `region` itself: the channel's whole cost, objects
+    // and page tables alike, lives in one place and comes home in one `DESTROY`.
+    if !map_page_frame(page, va, true, region) {
+        // The whole region is abandoned here rather than picked apart: nothing in it has a live
+        // thread (only `RETYPE_OBJ`/`RETYPE`, never a `THREAD_CONTROL_BLOCK`), so `reclaim` is
+        // expected to succeed on its first attempt, the same assumption `_start`'s own call after a
+        // *successful* connect makes.
+        reclaim(region);
         return None;
     }
     // SAFETY: `va` was just mapped, read/write, by this process and by no one else yet (the frame
@@ -677,6 +769,7 @@ fn connect(own_ut: u64, connect_seq: u64) -> Option<Channel> {
         result,
         page,
         va,
+        region,
     })
 }
 
