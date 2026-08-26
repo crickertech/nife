@@ -76,5 +76,9 @@ answered on purpose.
 
 Governance, stated now so it is not smuggled later: rungs one and two are demonstrator work.
 Rungs three and four reopen the parked competitor question ([competitor-question.md](competitor-question.md)), which is the architect's call
-to make consciously when rung two is real. **Rung two is now real, so that call is live**, and
-milestone 33 deliberately stopped at its edge: no iced, no cosmic-text, no application work.
+to make consciously when rung two is real. **Rung two is now real, and the call is made**: hold at
+rung two ([DECISIONS §131](decisions/131-hold-at-rung-two.md), calef, 2026-08-26). Rungs three and
+four stay unstarted; milestone 33 deliberately stopped at its edge (no iced, no cosmic-text, no
+application work), and that edge holds until something useful is built and proven on text mode.
+Text-mode work that is not GUI-toolkit work (a kick-ass shell and editor experience, the 169-174
+self-hosting line, milestone 142's typography) is exactly the direction §131 asks for instead.

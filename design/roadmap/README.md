@@ -217,7 +217,7 @@ besides, being built for dated release grouping; these are capability-shaped and
 | 31 | BUILT | [A capability shell: designation is authorization](31-capability-shell.md) | no-ambient-authority made user-visible, at the one interface a human touches | 2026-08-17 |
 | 32 | BUILT | [A real filesystem: RedoxFS behind a capability FS server](32-redoxfs-fs-server.md) | the flagship userspace-reuse story: a real filesystem we did not write, confined | 2026-07-29 |
 | 33 | BUILT | [A compositor: one screen, mutually distrusting clients](33-compositor.md) | the canonical multiplexer of one device among mutually distrusting clients | 2026-07-29 |
-| 34 | NOT-STARTED | [GPU acceleration via virtio-gpu 3D (the display ladder's rung four)](34-gpu-acceleration.md) | how every VM gets a GPU without a hardware driver | |
+| 34 | NOT-STARTED | [GPU acceleration via virtio-gpu 3D (the display ladder's rung four)](34-gpu-acceleration.md) | how every VM gets a GPU without a hardware driver. **Held by DECISIONS §131**: text mode first. | |
 | 35 | BUILT | [Prove the DMA-confinement boundary (extends 18)](35-dma-confinement-proof.md) | closes the one isolation boundary we test instead of prove | 2026-07-29 |
 | 36 | BUILT | [A foreign-language component, seam first (spike; feeds 29 and 23)](36-foreign-component.md) | the thesis in one assertion: unverified foreign code, confined and restarted | 2026-07-29 |
 | 37 | BUILT | [Prove RedoxFS's crash consistency (DECISIONS §34, condition 1)](37-redoxfs-crash-consistency.md) | decides whether §34's "primary filesystem" label is earned | 2026-07-30 |
