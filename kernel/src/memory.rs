@@ -453,6 +453,25 @@ pub fn smmu_region() -> Option<(u64, u64)> {
     *SMMU_REGION.lock()
 }
 
+/// VT-d's register block (start, size), both **physical**, from the DMAR's first DRHD. `None` on
+/// a machine with no VT-d unit, or before [`record_vtd_region`] has run. Presence here is what
+/// gates `mmu::map_everything` mapping the window, the same role [`smmu_region`] plays for the
+/// SMMU.
+#[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
+pub fn vtd_region() -> Option<(u64, u64)> {
+    *VTD_REGION.lock()
+}
+
+/// **Record VT-d's register block directly**, for a machine with no device tree to read it from.
+/// `x86_64`'s counterpart of [`record_pci_regions`]: ACPI's DMAR names the DRHD, and `main.rs`
+/// calls this before `arch::mmu::init()` runs, so the window is recorded before
+/// `mmu::map_everything` decides what to map. Must run before `mmu::init`; calling it after would
+/// record a fact the fine map can no longer act on.
+#[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
+pub fn record_vtd_region(base: u64, size: u64) {
+    *VTD_REGION.lock() = Some((base, size));
+}
+
 /// The real-time clock's register block and which binding it is: `(start, size, kind)`, the
 /// address **physical** and the kind one of `clock_proto::rtc`. `None` on a machine whose device
 /// tree describes no RTC we can drive, which is a state the clock service has an answer for rather
@@ -470,13 +489,30 @@ pub fn rtc_region() -> Option<(u64, u64, u64)> {
     *RTC_REGION.lock()
 }
 
-/// The console UART's interrupt line, as the device tree states it: PLIC source 10 on QEMU's
-/// riscv64 `virt`, 32 on the JH7110, GIC INTID 33 on QEMU's aarch64 `virt`. `None` before `init`
-/// and on a tree that does not say (no `interrupts`, no resolvable parent, or an entry shape the
-/// decoder refuses; see `machine_discovery::interrupt_id`). The callers own the fallback (`user::UART_RX_INTID`,
-/// the QEMU constant) and print which source won, so a bench transcript is diagnosable.
+/// The console UART's interrupt line, as the machine states it: PLIC source 10 on QEMU's
+/// riscv64 `virt`, 32 on the JH7110, GIC INTID 33 on QEMU's aarch64 `virt`, and on `x86_64` the
+/// global system interrupt COM1's legacy ISA IRQ 4 resolves to (milestone 176), filled by
+/// [`record_uart_irq`] rather than by [`init`] since there is no tree to read. `None` before
+/// either has run, and on a device-tree machine whose tree does not say (no `interrupts`, no
+/// resolvable parent, or an entry shape the decoder refuses; see
+/// `machine_discovery::interrupt_id`). The callers own the fallback (`user::UART_RX_INTID`, the
+/// QEMU constant) and print which source won, so a bench transcript is diagnosable.
 pub fn uart_irq() -> Option<u32> {
     *UART_IRQ.lock()
+}
+
+/// **Record the console UART's interrupt line directly**, for a machine with no device tree to
+/// read it from. `x86_64`'s counterpart of `init`'s [`machine_discovery::interrupt_id::of_node`]
+/// call: ACPI's ISA IRQ table (`Acpi::isa_irqs`) already resolves COM1's legacy line (ISA IRQ 4)
+/// through any MADT override, so `main.rs` supplies it directly and fills the same static every
+/// consumer already reads (`user::uart_irq_and_source`). The x86 console is polled today, so
+/// nothing calls that consumer yet; this fills the seam so the answer is real once something does.
+///
+/// Its only caller is `x86_64`'s boot tour; the other two architectures fill the same static from
+/// their device tree inside `init` instead.
+#[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
+pub fn record_uart_irq(irq: u32) {
+    *UART_IRQ.lock() = Some(irq);
 }
 
 /// The RAM regions the device tree told us about.
@@ -575,6 +611,15 @@ static PCI_REGIONS: IrqSafeMutex<Option<PciWindows>> = IrqSafeMutex::new(rank::R
 /// started with `-machine virt,iommu=smmuv3` (and always on riscv, whose IOMMU is a PCI function
 /// found by enumeration, not a platform device with a node).
 static SMMU_REGION: IrqSafeMutex<Option<(u64, u64)>> = IrqSafeMutex::new(rank::RAM, None);
+
+/// VT-d's register block (base, size), from the DMAR's first DRHD (milestone 161, roadmap item
+/// 6). `None` on a machine with no `-device intel-iommu`, or before it is recorded. `x86_64`'s
+/// counterpart of `SMMU_REGION`: filled by `main.rs`'s boot tour rather than by `init`, for the
+/// same reason [`record_pci_regions`] is, and read by `mmu::map_everything` so the register file
+/// is a mapped device window before `arch::iommu::init` ever reads it (`arch::x86_64::iommu`'s
+/// own accessors go through `phys_to_virt`, which is arithmetic, not a promise the address is
+/// mapped).
+static VTD_REGION: IrqSafeMutex<Option<(u64, u64)>> = IrqSafeMutex::new(rank::RAM, None);
 
 /// The RTC's register block and binding kind (milestone 51). `None` until `init` has run, and on a
 /// machine whose device tree describes neither RTC we can drive.

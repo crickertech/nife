@@ -146,7 +146,7 @@ pub mod x86_64;
 pub use aarch64::Aarch64;
 pub use domain::{DmaRegion, build_identity_domain};
 pub use sv39::Sv39;
-pub use x86_64::Ia32e;
+pub use x86_64::{Ia32e, Vtd};
 
 /// 4 KiB, the page size every format here maps in.
 pub const PAGE_SIZE: u64 = 4096;

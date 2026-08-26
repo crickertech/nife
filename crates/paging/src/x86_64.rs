@@ -159,6 +159,81 @@ impl PageFormat for Ia32e {
     }
 }
 
+/// **VT-d's second-level page-table format** (milestone 161, roadmap item 6): what an Intel IOMMU
+/// walks to translate a device's DMA address, not what the CPU walks. Same level count, same
+/// 9-bit-per-level, 4 KiB-leaf shape as [`Ia32e`] (VT-d's second-level tables were designed for
+/// the same walking hardware), which is why this lives beside it rather than in its own module.
+/// **The leaf encoding is not the same, and reusing `Ia32e` here would be wrong rather than
+/// merely imprecise**: verified against QEMU's `hw/i386/intel_iommu_internal.h`, a second-level
+/// leaf has exactly two meaningful bits, Read (0) and Write (1); bits 2 through 10 are
+/// reserved-must-be-zero (`VTD_SPTE_PAGE_L1_RSVD_MASK`), which QEMU's model actually checks and
+/// faults on. `Ia32e::leaf_entry` sets `US` (bit 2) for every user-accessible mapping and `XD`
+/// (bit 63) for every non-executable one, both of which a DMA domain's `Flags::user_data()`
+/// triggers on every leaf it builds; run through VT-d hardware, every one of those leaves would be
+/// a reserved-bits-set fault rather than a working translation. A device has no privilege level to
+/// gate (there is no `US` bit to set) and no separate execute permission in this mode (there is no
+/// `XD` to clear), so this format does not attempt to carry either: [`leaf_flags`](Vtd::leaf_flags)
+/// reports only what the two real bits mean.
+pub struct Vtd;
+
+/// Read: the transaction may read through this entry. Bit 0, same position as `Ia32e`'s `P`,
+/// which is a coincidence worth naming: VT-d has no separate present bit, an entry with both `R`
+/// and `W` clear is simply not present.
+const VTD_R: u64 = 1 << 0;
+/// Write: the transaction may write through this entry.
+const VTD_W: u64 = 1 << 1;
+/// Bits 51:12: the physical address of the next table or, at a leaf, the mapped frame. The same
+/// width `Ia32e::ADDR_MASK` uses, because nothing this kernel runs names a wider physical address
+/// yet; VT-d's actual width is `CAP_REG.MGAW`-defined and this driver has not needed to narrow to
+/// it (`kernel/src/arch/x86_64/iommu.rs`'s BUGS says why).
+const VTD_ADDR_MASK: u64 = 0x000f_ffff_ffff_f000;
+
+impl PageFormat for Vtd {
+    const LEVELS: usize = 4;
+
+    /// Not a real VT-d concept (IOVAs are not split into a low and a high half the way CPU
+    /// virtual addresses are); kept at the same value `Ia32e` uses so [`in_half`](PageFormat::in_half)
+    /// admits exactly the addresses this driver ever asks it about, every physical address the
+    /// frame allocator hands out on a machine with less than 128 TiB of RAM.
+    const SPLIT_SHIFT: u32 = 47;
+
+    fn is_present(entry: u64) -> bool {
+        entry & (VTD_R | VTD_W) != 0
+    }
+
+    fn entry_pa(entry: u64) -> u64 {
+        entry & VTD_ADDR_MASK
+    }
+
+    /// Both bits set: VT-d ANDs permissions down the walk exactly as the CPU's own tables do (an
+    /// intermediate entry's `R`/`W` gate every leaf beneath it), so an intermediate must grant
+    /// everything and let the leaf decide, the same reasoning `Ia32e::table_entry` documents.
+    fn table_entry(pa: u64) -> u64 {
+        (pa & VTD_ADDR_MASK) | VTD_R | VTD_W
+    }
+
+    /// Read is unconditional (every domain this seam builds is at least readable) and write
+    /// follows `flags.is_writable()`. Nothing else: see this type's own doc for why `US` and `XD`
+    /// would be reserved-bit violations here rather than the extra permissiveness they are on the
+    /// CPU's own format.
+    fn leaf_entry(pa: u64, flags: Flags) -> u64 {
+        let mut bits = VTD_R;
+        if flags.is_writable() {
+            bits |= VTD_W;
+        }
+        (pa & VTD_ADDR_MASK) | bits
+    }
+
+    /// The only two facts a second-level leaf carries: read (always, once present) and write.
+    fn leaf_flags(entry: u64) -> Flags {
+        let mut caps = 0;
+        if entry & VTD_W != 0 {
+            caps |= CAP_WRITE;
+        }
+        Flags::from_caps(caps)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -279,6 +354,69 @@ mod tests {
             assert_ne!(leaf & PCD, 0, "cacheable device page: {flags:?}");
         }
     }
+
+    /// **A leaf's only bits are R, W and the address.** This is the property that matters most for
+    /// [`Vtd`]: verified against QEMU's `VTD_SPTE_PAGE_L1_RSVD_MASK`, any bit outside `R`/`W`/the
+    /// address field is reserved-must-be-zero at a second-level leaf, and QEMU's model checks it.
+    /// Every `Flags` constructor is tried, including the ones (`user_code`, `kernel_data`, ...)
+    /// that would set `US` or `XD` on `Ia32e`'s encoding of the same flags.
+    #[test]
+    fn a_vtd_leaf_sets_no_bit_outside_read_write_and_address() {
+        for flags in [
+            Flags::kernel_code(),
+            Flags::kernel_rodata(),
+            Flags::kernel_data(),
+            Flags::device(),
+            Flags::user_code(),
+            Flags::user_rodata(),
+            Flags::user_data(),
+            Flags::user_device(),
+        ] {
+            let leaf = Vtd::leaf_entry(0x10_0000, flags);
+            assert_eq!(
+                leaf & !(VTD_ADDR_MASK | VTD_R | VTD_W),
+                0,
+                "a reserved bit was set for {flags:?}: {leaf:#x}"
+            );
+        }
+    }
+
+    /// **The domain builder's only flags, `Flags::user_data`, round-trips on what VT-d actually
+    /// has to say: writable.** `CAP_USER` has no VT-d encoding (see [`Vtd`]'s own doc) and is not
+    /// expected back.
+    #[test]
+    fn a_vtd_leaf_is_present_and_writable_for_user_data() {
+        let leaf = Vtd::leaf_entry(0x10_0000, Flags::user_data());
+        assert!(Vtd::is_present(leaf));
+        assert_eq!(Vtd::entry_pa(leaf), 0x10_0000);
+        assert!(Vtd::leaf_flags(leaf).is_writable());
+    }
+
+    /// A read-only mapping is present (R alone means present) but not writable, and an entry with
+    /// neither bit is not present at all: VT-d has no separate present bit, so this is the whole
+    /// present/absent story.
+    #[test]
+    fn read_alone_is_present_but_not_writable_and_zero_is_absent() {
+        let ro = Vtd::leaf_entry(0x10_0000, Flags::kernel_rodata());
+        assert!(Vtd::is_present(ro));
+        assert!(!Vtd::leaf_flags(ro).is_writable());
+        assert!(!Vtd::is_present(0), "R and W both clear: not present");
+    }
+
+    /// **A VT-d intermediate entry grants everything**, the same reasoning as `Ia32e`'s table
+    /// entries and for the same reason: VT-d ANDs `R`/`W` down the walk, so a restrictive
+    /// intermediate would veto a writable leaf beneath it.
+    #[test]
+    fn a_vtd_table_entry_grants_everything() {
+        let e = Vtd::table_entry(0x20_0000);
+        assert_eq!(e & (VTD_R | VTD_W), VTD_R | VTD_W);
+        assert_eq!(Vtd::entry_pa(e), 0x20_0000);
+        assert_eq!(
+            e & !(VTD_ADDR_MASK | VTD_R | VTD_W),
+            0,
+            "no reserved bit in a table entry either"
+        );
+    }
 }
 
 /// Machine-checked proofs of the `x86_64` format, mirroring the other two modules'. The shared
@@ -391,5 +529,37 @@ mod verification {
 
         let leaf = Ia32e::leaf_entry(pa, all[i]);
         assert!(leaf & XD != 0 || leaf & RW == 0);
+    }
+
+    /// **No `Vtd` leaf or table entry ever sets a bit VT-d treats as reserved**, over every
+    /// physical address and every portable `Flags` constructor. This is the property
+    /// `a_vtd_leaf_sets_no_bit_outside_read_write_and_address` checks by example; Kani closes it
+    /// for every address and every flag combination the type accepts, which matters here more than
+    /// on `Ia32e` because QEMU's model (and real silicon) faults a transaction over a reserved bit
+    /// rather than merely ignoring it.
+    #[kani::proof]
+    fn no_vtd_entry_ever_sets_a_reserved_bit() {
+        let pa: u64 = kani::any();
+        kani::assume(pa & !VTD_ADDR_MASK == 0);
+
+        let all = [
+            Flags::kernel_code(),
+            Flags::kernel_rodata(),
+            Flags::kernel_data(),
+            Flags::device(),
+            Flags::user_code(),
+            Flags::user_rodata(),
+            Flags::user_data(),
+            Flags::user_device(),
+        ];
+        let i: usize = kani::any();
+        kani::assume(i < all.len());
+
+        let leaf = Vtd::leaf_entry(pa, all[i]);
+        assert_eq!(leaf & !(VTD_ADDR_MASK | VTD_R | VTD_W), 0);
+        assert_eq!(Vtd::entry_pa(leaf), pa);
+
+        let table = Vtd::table_entry(pa);
+        assert_eq!(table & !(VTD_ADDR_MASK | VTD_R | VTD_W), 0);
     }
 }

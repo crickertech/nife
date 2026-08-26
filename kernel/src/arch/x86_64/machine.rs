@@ -8,16 +8,16 @@
 //!
 //! # BUGS
 //!
-//! - **Only RAM and reservations cross the seam.** `memory::bring_up_page_frames` takes those two, and
-//!   the device *windows* the device-tree front end also discovers (the interrupt controller, the
-//!   RTC, the UART's interrupt line, the PCIe ECAM range) are still read from a tree by the front
-//!   end and stay `None` here. What ACPI answers is handed to `arch::x86_64::irq` **directly** by
-//!   the boot tour rather than through `memory.rs`'s statics, so `memory::pci_regions()` and
-//!   friends still report nothing on x86 even though the MCFG answered a few lines earlier.
-//!   Widening the seam is its own milestone; see notes/x86-port.md.
-//! - **COM1's interrupt is discovered and not used.** [`Acpi::isa_irqs`] resolves all sixteen
-//!   legacy IRQs, so `isa_irqs[4]` is the console UART's line and could be routed the way the PIT's
-//!   is; the x86 console is polled, so nothing asks.
+//! - **Only RAM and reservations cross the seam** through [`crate::memory::bring_up_page_frames`].
+//!   The device *windows* the device-tree front end also discovers on the other two architectures
+//!   have their own, narrower seams instead of that one: the interrupt controller (IO APIC) is
+//!   reached directly by `arch::x86_64::irq` rather than through `memory.rs`'s statics (milestone
+//!   161 item 2), and PCI and the UART's interrupt line are wired into `memory.rs`'s own statics
+//!   from `main.rs`'s boot tour (`memory::record_pci_regions`, `memory::record_uart_irq`;
+//!   milestones 165 and 176). **The only device window with no seam at all is the CMOS RTC**: it
+//!   is not memory-mapped (two fixed I/O ports, not a page), so `memory::RTC_REGION`'s
+//!   `Option<(u64, u64, u64)>` shape has nowhere to put it. See notes/x86-port.md and
+//!   `kernel/src/arch/x86_64/port.rs`'s own doc comment.
 
 use machine_discovery::x86_64::{
     BootInfo, MEMMAP_ENTRY_LEN, MODULE_ENTRY_LEN, MemoryEntry, Module, memory_entry, module,
@@ -130,9 +130,9 @@ pub fn print_memory_map(info: &BootInfo) {
 // ---------------------------------------------------------------------------------------------
 
 use machine_discovery::acpi::{
-    self, ISA_IRQ_COUNT, IsaIrqRouting, MADT_PCAT_COMPAT, MadtEntry, Rsdp, SdtHeader,
-    isa_irq_table, madt_entries, mcfg_entry, parse_madt, parse_rsdp, parse_sdt_header, root_entry,
-    root_entry_count,
+    self, ISA_IRQ_COUNT, IsaIrqRouting, MADT_PCAT_COMPAT, MadtEntry, Rsdp, SdtHeader, first_drhd,
+    isa_irq_table, madt_entries, mcfg_entry, parse_dmar, parse_madt, parse_rsdp, parse_sdt_header,
+    root_entry, root_entry_count,
 };
 
 /// The BIOS area the RSDP is required to be in when it is not in the EBDA: `0xe0000..0x100000`,
@@ -176,6 +176,11 @@ pub struct Acpi {
     pub has_8259: bool,
     /// The PCIe ECAM window, from the MCFG: base, first bus, last bus.
     pub ecam: Option<(u64, u8, u8)>,
+    /// **VT-d's register base, from the DMAR's first DRHD** (milestone 161, roadmap item 6).
+    /// `machine_discovery::acpi::first_drhd`'s own doc says why "first" rather than "every": one
+    /// DRHD is what QEMU's `-device intel-iommu` presents, and this driver does not yet route a
+    /// device to one of several.
+    pub vtd_base: Option<u64>,
 }
 
 impl Default for Acpi {
@@ -188,6 +193,7 @@ impl Default for Acpi {
             disabled_cpus: 0,
             has_8259: false,
             ecam: None,
+            vtd_base: None,
         }
     }
 }
@@ -325,6 +331,7 @@ pub fn read_acpi(hint: u64) -> Acpi {
         match &header.signature {
             b"APIC" => read_madt(body, &mut found),
             b"MCFG" => read_mcfg(body, &mut found),
+            b"DMAR" => read_dmar(body, &mut found),
             _ => {}
         }
     }
@@ -373,6 +380,18 @@ fn read_mcfg(body: &[u8], into: &mut Acpi) {
     if let Some(e) = mcfg_entry(body, 0) {
         into.ecam = Some((e.base, e.start_bus, e.end_bus));
     }
+}
+
+fn read_dmar(body: &[u8], into: &mut Acpi) {
+    // The fixed part (host address width, interrupt-remapping flags) is decoded and not kept:
+    // nothing here reads either yet, and `arch::x86_64::iommu::init` reads `CAP_REG` itself for
+    // the one fact it needs (48-bit/4-level second-level translation support) rather than trusting
+    // a value carried this far. Parsing it anyway is what proves the table is well-formed before
+    // the structure list is trusted.
+    if parse_dmar(body).is_err() {
+        return;
+    }
+    into.vtd_base = first_drhd(body).map(|d| d.register_base);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -454,6 +473,10 @@ pub fn print_acpi_summary(found: &Acpi) {
             super::mmu::PCI_ECAM_PHYS,
         ),
         None => crate::println!("                no MCFG: the PCIe window is not described"),
+    }
+    match found.vtd_base {
+        Some(base) => crate::println!("                vt-d drhd at {base:#x}"),
+        None => crate::println!("                no DMAR: no VT-d unit described"),
     }
 }
 

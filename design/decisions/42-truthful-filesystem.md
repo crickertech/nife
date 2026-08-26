@@ -1,6 +1,7 @@
 # 42. A filesystem declares what it offers and must be truthful; it is not required to be capable
 
-**Status: DECIDED.**
+**Status: AMENDED.** (the `NOREPLACE`-emulation-is-racy reason, corrected for `redoxfs_server`
+specifically by [DECISIONS §129](129-rename-noreplace-flag.md), 2026-08-25, recorded in place.)
 
 **Decided 2026-07-30, not yet built.** The rule that governs every filesystem backend behind the
 §27 contract, arrived at by calef over two corrections of mine. Milestone 47 (navigation and naming)
@@ -91,7 +92,14 @@ introspectable, which is what `caps` prints. No feature-query verb, no capabilit
   FAT cannot do and what ext4 only approximates.
 - **Do not require** the extended operations. Linux's `renameat2` flags (`RENAME_EXCHANGE`,
   `RENAME_NOREPLACE`) work on ext4, btrfs, XFS, f2fs and tmpfs and nowhere else, and emulating
-  `NOREPLACE` with `link`+`unlink` is racy. Add a swap primitive later if a use appears.
+  `NOREPLACE` against a generic backend, a POSIX host filesystem reached through separate `link`
+  and `unlink` syscalls with another writer free to run between them, is racy. **Corrected,
+  [DECISIONS §129](129-rename-noreplace-flag.md), 2026-08-25**: that reason does not describe
+  `redoxfs_server` specifically, whose serve loop runs one request to completion before the next,
+  so there is no concurrent observer inside that backend for the emulation to race against. The
+  requirement stays not-required (no backend is obligated to offer it), and `NOREPLACE` joins
+  `EXCHANGE` under the same standing answer: add it, for a specific backend, when a real customer
+  needs it.
 
 **Cross-filesystem move is a different verb, and this constraint is what forces it.** No amount of
 contract discipline can make an operation spanning two filesystems behave like one inside a single
