@@ -450,13 +450,13 @@ that keeps a row from re-triggering once a rule has already been addressed. `--c
 **Seeded from the incidents this milestone and `AGENTS.md` already recorded against themselves**, not
 invented for the occasion: the squash-against-`origin/main` scar (`AGENTS.md`, "Commits"), the
 `pkill`/mid-test-emulator incident and the reset-`--hard`/`checkout`/`stash` clobbers this section's
-own "What it costs, measured 2026-08-05" already quotes. **The git-clobber rule is already at four
-open strikes**, one past the threshold, which is exactly the finding this ledger exists to surface:
-`AGENTS.md` carries substantial prose about it and no mechanism, and deciding what mechanism
-replaces the prose is calef's or the integrator's call, not this lane's; [DECISIONS
-§128](../decisions/128-git-clobber-enforcement.md) lays out the researched options awaiting that
-call. See notes/rule-violations.md, including its own honest limits (self-reporting only,
-exact-text matching, not wired into any mandatory gate).
+own "What it costs, measured 2026-08-05" already quotes. **The git-clobber rule crossed the
+threshold at four open strikes**, one past three, exactly the finding this ledger exists to
+surface. [DECISIONS §128](../decisions/128-git-clobber-enforcement.md) priced the real enforcement
+options and calef's own call, on the evidence of zero repeats in the three weeks since, was to
+accept rather than add a mechanism: the existing `AGENTS.md` prose already appears to be doing the
+job. The ledger row is marked `resolved` on that basis. See notes/rule-violations.md, including its
+own honest limits (self-reporting only, exact-text matching, not wired into any mandatory gate).
 
 **Deliberately not wired into `script/lint` or CI.** The git-clobber rule's threshold was already
 crossed by history this lane did not create; wiring `--check` into the mandatory suite today would
