@@ -39,6 +39,17 @@ KERNEL_VA_BASE = 0xffffffff80000000;
  * program headers' p_paddr, so this is where the bytes actually land. */
 PHYS_START = 0x00100000;
 
+/* Where the AP real-mode trampoline executes from (milestone 161's SMP item): a STARTUP IPI names
+ * a physical PAGE below 1 MiB (`vector << 12`), so this has to be low, page-aligned, and fixed at
+ * link time so `secondary_boot`'s own address IS that physical page with no conversion needed. See
+ * `.ap_trampoline` below and arch/x86_64/boot.s's header comment on `secondary_boot`.
+ *
+ * 0x8000 (32 KiB): conventional real-mode-trampoline territory (the same page Linux's own uses),
+ * clear of the IVT (0..0x400), the BIOS Data Area (0x400..0x500), and every EBDA this kernel has
+ * measured on QEMU (typically ~0x9fc00). The frame allocator never hands out anything below 1 MiB
+ * regardless (`machine::LOW_MEGABYTE`), so this page is never anyone else's to collide with. */
+AP_TRAMPOLINE_PHYS = 0x8000;
+
 SECTIONS
 {
     . = PHYS_START;
@@ -96,6 +107,38 @@ SECTIONS
         . = ALIGN(4096);
         __rodata_end = .;
     }
+
+    /* The AP real-mode trampoline (milestone 161's SMP item): linked at the fixed LOW physical
+     * address it is copied to and executed from (AP_TRAMPOLINE_PHYS, above), rather than at the
+     * high address everything else in this file uses. Because its virtual address (VMA) already
+     * equals its final execution address, every absolute address the assembler bakes into it (its
+     * own tiny GDT pointer, both far-jump targets) is already correct the moment
+     * `arch::x86_64::ap_boot::prepare` finishes copying it there; nothing needs runtime patching
+     * beyond the one genuinely dynamic value, the target core's stack top
+     * (`ap_trampoline_stack_top`, written by that same call).
+     *
+     * ITS LOAD ADDRESS (LMA) IS DELIBERATELY NOT THE NEXT FREE LOW-PHYSICAL BYTE. `.boot_scratch`
+     * and `.secondary_stacks` both look like free space below the high image but are runtime-
+     * mutated (the first zeroed and filled with page-table entries by boot.s before any Rust runs,
+     * the second written into as threads use their stacks), so a trampoline whose *source* bytes
+     * landed there would read back corrupted the moment `prepare` tries to copy them, on every boot
+     * after the first `CPU_ON`-equivalent call. Placed instead right after `.rodata`: ordinary,
+     * file-backed, and never written by anything at runtime. */
+    __ap_trampoline_lma = ADDR(.rodata) - KERNEL_VA_BASE + SIZEOF(.rodata);
+    __resume_after_ap_trampoline = .;
+    .ap_trampoline AP_TRAMPOLINE_PHYS : AT(__ap_trampoline_lma) ALIGN(16) {
+        __ap_trampoline_start = .;
+        KEEP(*(.ap_trampoline))
+        . = ALIGN(16);
+        __ap_trampoline_end = .;
+    }
+    /* Resume the high image's own layout, ADVANCED by the trampoline's own size: `.ap_trampoline`'s
+     * explicit low VMA above left `.` at AP_TRAMPOLINE_PHYS-ish, which is not where `.data` belongs,
+     * so it is not simply restored to where `.rodata` left it either. `.data`'s LMA is DERIVED from
+     * its VMA (`AT(ADDR(.data) - KERNEL_VA_BASE)`, a fixed subtraction), so the only way to make its
+     * LMA start after the trampoline's own LMA range, rather than overlapping it, is to advance the
+     * VMA `.` by the same amount: both march forward together. */
+    . = __resume_after_ap_trampoline + SIZEOF(.ap_trampoline);
 
     .data : AT(ADDR(.data) - KERNEL_VA_BASE) ALIGN(4096) {
         __data_start = .;

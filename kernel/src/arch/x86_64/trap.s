@@ -139,11 +139,19 @@ isr_restore:
     #
     # rax and rcx are free here: every general register is still in the frame below and is about to
     # be popped over.
+    #
+    # BOTH TARGETS ARE THIS CORE'S OWN, reached through `gs` (milestone 161's SMP item): `gs` names
+    # this core's `PerCpu` block throughout this window (the guard above only swaps it back to the
+    # interrupted ring's value further down, at label 2), so a `gs`-relative store can only ever
+    # land on the running core's own slot. `SYSCALL_KERNEL_RSP_OFF` is a direct value (the syscall
+    # path's own scratch, inside `PerCpu`); `TSS_RSP0_PTR_OFF` is a POINTER `segments::init` wrote
+    # once, to this core's own `TSS[cpu::id()].rsp0`, because the TSS array itself is not reachable
+    # through `gs` the way `PerCpu` is.
     test byte ptr [rsp + 18*8], 3   # cs, whose low two bits are the ring we are returning to
     jz 3f
     lea rax, [rsp + 176]            # this thread's kernel-stack top
-    mov [rip + X86_SYSCALL_KERNEL_RSP], rax
-    mov rcx, [rip + X86_TSS_RSP0]
+    mov gs:[{SYSCALL_KERNEL_RSP_OFF}], rax
+    mov rcx, gs:[{TSS_RSP0_PTR_OFF}]
     mov [rcx], rax
 3:
     pop rax
@@ -188,22 +196,23 @@ isr_restore:
 # forced: nothing may touch a lock (which reads the per-CPU block through `gs`) before the `swapgs`,
 # and nothing may push before `rsp` names a kernel stack.
 #
-# THE KERNEL STACK COMES FROM A STATIC, WHICH IS A SINGLE-CPU ANSWER. `segments::set_kernel_stack`
-# writes `X86_SYSCALL_KERNEL_RSP` and `TSS.RSP0` together, so the two mechanisms cannot name
-# different stacks; see its BUGS for what SMP will need instead.
+# THE KERNEL STACK COMES FROM THIS CORE'S `PerCpu` BLOCK, reached through `gs` (milestone 161's SMP
+# item; `gs` has just been swapped to the kernel's, so it names THIS core's own block, no other
+# core's). `segments::set_kernel_stack` writes the same slot (`SYSCALL_KERNEL_RSP_OFF`) and
+# `TSS.RSP0` together, so the two mechanisms cannot name different stacks.
 # ---------------------------------------------------------------------------------------------
 .global x86_syscall_entry
 x86_syscall_entry:
     swapgs
-    mov [rip + X86_SYSCALL_USER_RSP], rsp
-    mov rsp, [rip + X86_SYSCALL_KERNEL_RSP]
+    mov gs:[{SYSCALL_USER_RSP_OFF}], rsp
+    mov rsp, gs:[{SYSCALL_KERNEL_RSP_OFF}]
 
     # Build the same 22-quadword TrapFrame the IDT stubs build, so `isr_restore` above serves this
     # path unchanged and `crate::syscall::dispatch` reads one layout. The five words at the top are
     # the ones a real trap's hardware would have pushed, reconstructed from where `syscall` put
     # them.
     push {USER_DATA}                 # ss
-    push [rip + X86_SYSCALL_USER_RSP]       # rsp, as it was in ring 3
+    push gs:[{SYSCALL_USER_RSP_OFF}]        # rsp, as it was in ring 3 (this core's own scratch slot)
     push r11                                # rflags, as `syscall` saved them
     push {USER_CODE}                 # cs, whose low two bits make the exit `swapgs` fire
     push rcx                                # rip: the instruction after the `syscall`
