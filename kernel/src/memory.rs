@@ -470,13 +470,30 @@ pub fn rtc_region() -> Option<(u64, u64, u64)> {
     *RTC_REGION.lock()
 }
 
-/// The console UART's interrupt line, as the device tree states it: PLIC source 10 on QEMU's
-/// riscv64 `virt`, 32 on the JH7110, GIC INTID 33 on QEMU's aarch64 `virt`. `None` before `init`
-/// and on a tree that does not say (no `interrupts`, no resolvable parent, or an entry shape the
-/// decoder refuses; see `machine_discovery::interrupt_id`). The callers own the fallback (`user::UART_RX_INTID`,
-/// the QEMU constant) and print which source won, so a bench transcript is diagnosable.
+/// The console UART's interrupt line, as the machine states it: PLIC source 10 on QEMU's
+/// riscv64 `virt`, 32 on the JH7110, GIC INTID 33 on QEMU's aarch64 `virt`, and on `x86_64` the
+/// global system interrupt COM1's legacy ISA IRQ 4 resolves to (milestone 176), filled by
+/// [`record_uart_irq`] rather than by [`init`] since there is no tree to read. `None` before
+/// either has run, and on a device-tree machine whose tree does not say (no `interrupts`, no
+/// resolvable parent, or an entry shape the decoder refuses; see
+/// `machine_discovery::interrupt_id`). The callers own the fallback (`user::UART_RX_INTID`, the
+/// QEMU constant) and print which source won, so a bench transcript is diagnosable.
 pub fn uart_irq() -> Option<u32> {
     *UART_IRQ.lock()
+}
+
+/// **Record the console UART's interrupt line directly**, for a machine with no device tree to
+/// read it from. `x86_64`'s counterpart of `init`'s [`machine_discovery::interrupt_id::of_node`]
+/// call: ACPI's ISA IRQ table (`Acpi::isa_irqs`) already resolves COM1's legacy line (ISA IRQ 4)
+/// through any MADT override, so `main.rs` supplies it directly and fills the same static every
+/// consumer already reads (`user::uart_irq_and_source`). The x86 console is polled today, so
+/// nothing calls that consumer yet; this fills the seam so the answer is real once something does.
+///
+/// Its only caller is `x86_64`'s boot tour; the other two architectures fill the same static from
+/// their device tree inside `init` instead.
+#[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
+pub fn record_uart_irq(irq: u32) {
+    *UART_IRQ.lock() = Some(irq);
 }
 
 /// The RAM regions the device tree told us about.
