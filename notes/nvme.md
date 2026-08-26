@@ -59,16 +59,43 @@ driver-written memory, and nothing kernel-side parses commands on their way past
 
 What bounds the device instead is the **IOMMU alone** (milestone 16b): `bring_up` confines the
 controller's requester id to its six-page DMA region *before* the controller is enabled, so there
-is no instant at which an enabled controller could reach other memory. Both `virt` test boots have
-an IOMMU denying unlisted requester ids by default, which cuts two ways: the confinement is real
-(an address outside the region faults in hardware), and it is *mandatory* (an unconfined NVMe
-controller on these machines cannot fetch its first command, so a boot where someone forgets the
-confine call fails loudly rather than running unconfined).
+is no instant at which an enabled controller could reach other memory. All three test boots have
+an IOMMU denying unlisted requester ids by default (aarch64's SMMUv3, riscv64's ratified RISC-V
+IOMMU, x86_64's VT-d, confirmed behind this driver 2026-08-25 per decisions §86's evidence
+section), which cuts two ways: the confinement is real (an address outside the region faults in
+hardware), and it is *mandatory* (an unconfined NVMe controller on these machines cannot fetch its
+first command, so a boot where someone forgets the confine call fails loudly rather than running
+unconfined).
 
 Note the flag difference in the runners: the virtio PCI devices need `iommu_platform=on` or QEMU
 silently routes their DMA around the IOMMU; the NVMe device model needs **no flag**, because a real
 PCI device's DMA always goes through the PCI address space. One less thing to forget, and the
 reason the runner comment says so at the attach line.
+
+### What x86_64 needed that the other two did not
+
+Wiring the same driver onto `q35` (2026-08-25, decisions §86's evidence section) surfaced two bugs
+that only a real (non-virtio) DMA device with a real PVH boot could have found, both fixed rather
+than worked around:
+
+- **`kernel/src/pci.rs::place_bars`** used to trust any nonzero BAR as "already placed, already
+  mapped." True on the two device-tree architectures, where nothing runs before this kernel to
+  place one; false on `x86_64`'s PVH boot, where QEMU resets `-device nvme`'s BAR0 to a live
+  address of its own choosing (attached directly to the root complex, no firmware in between to
+  reprogram it), unrelated to `PCI_BAR_PHYS`, the window `mmu::map_everything` actually mapped.
+  `place_bars` now checks the existing address against that window rather than against zero.
+- **`kernel/src/memory.rs::bring_up_page_frames`** and **`kernel/src/arch/x86_64/mmu.rs`'s
+  `map_firmware_regions`** both sized themselves from `ram_regions()` alone (the e820 map's
+  `usable` entries). Attaching VT-d and NVMe together grows the ACPI tables QEMU parks just above
+  the top of guest memory enough that the `reserved` entry above them swallows the initrd's last
+  few hundred bytes, which the PVH loader placed at a fixed offset below the top of memory sized
+  for a smaller device set. The frame allocator's bitmap now widens to cover whatever `forbidden`
+  reaches past RAM's own end, and the direct map now covers the initrd's recorded bounds
+  explicitly, regardless of how the memmap classified the bytes.
+
+Neither is `x86_64`-only in principle (a real UEFI machine, milestone 87, picks its own BAR
+addresses too), which is why both fixes check against what is actually true rather than against
+which architecture is running.
 
 ## EXAMPLES
 
@@ -86,10 +113,10 @@ disk.read_block(37)?;
 assert!(disk.buffer().iter().all(|b| *b == 0x5a));
 ```
 
-Run the proof of all of it on both ISAs:
+Run the proof of all of it on all three architectures:
 
 ```sh
-script/test            # the boot test runs in both legs; xtask attaches the controller
+script/test            # the boot test runs in every leg; xtask attaches the controller
 cargo test -p nvme     # the queue mechanics alone, on the host, in milliseconds
 cargo kani -p nvme     # the five harnesses, ~seconds
 ```
@@ -103,17 +130,19 @@ cargo xtask build && NIFE_NVME=target/nife-nvme.img cargo xtask run
 
 ## What the test proves, and where
 
-`kernel/src/nvme.rs::tests::the_nvme_disk_serves_the_block_interface_end_to_end`, on **both**
-ISAs (§19): the controller enumerates over ECAM, comes up confined behind the SMMU (aarch64) or
-the RISC-V IOMMU (riscv64), answers IDENTIFY with the attached image's exact size, and serves
-WRITE, READ-back with byte-exact verification, and a read of an untouched block that must still be
-zeros (the write landed where it said, not everywhere).
+`kernel/src/nvme.rs::tests::the_nvme_disk_serves_the_block_interface_end_to_end`, on **all three**
+architectures (§19; x86_64 joined 2026-08-25, decisions §86's evidence section): the controller
+enumerates over ECAM, comes up confined behind the SMMU (aarch64), the RISC-V IOMMU (riscv64), or
+VT-d (x86_64), answers IDENTIFY with the attached image's exact size, and serves WRITE, READ-back
+with byte-exact verification, and a read of an untouched block that must still be zeros (the write
+landed where it said, not everywhere).
 
-**The parity note milestone 53 requires**: what ships on both architectures is this driver against
-QEMU's `-device nvme` on the two `virt` machines. The VisionFive 2's PLDA XpressRICH root complex
-is a different host bridge (no `pci-host-ecam-generic` node, so `find_nvme_device` truthfully
-reports nobody home on the board today); driving it is the board-side follow-up, and this driver
-is written to need only a working enumeration and a BAR from it.
+**The parity note milestone 53 requires**: what ships on all three architectures is this driver
+against QEMU's `-device nvme`, on the two `virt` machines and on `q35`. The VisionFive 2's PLDA
+XpressRICH root complex is a different host bridge (no `pci-host-ecam-generic` node, so
+`find_nvme_device` truthfully reports nobody home on the board today); driving it is the
+board-side follow-up, and this driver is written to need only a working enumeration and a BAR from
+it.
 
 ## BUGS
 

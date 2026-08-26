@@ -60,6 +60,49 @@ This stays PROPOSED, pending either the JH7110 board bring-up or VT-d, whichever
 separate lane was scoping a dedicated milestone for the JH7110 driver as this report was being
 written; check the roadmap index for its number before citing it.)
 
+**The VT-d half has now landed and been exercised against this driver (2026-08-25), and the
+*confinement* gap this section named is closed on x86_64.** VT-d itself landed earlier this
+session (milestone 161 item 6, `kernel/src/arch/x86_64/iommu.rs`) but had confined no real PCI
+device; this is that exercise. `scripts/qemu-runner-x86_64.sh` now attaches `-device nvme` the same
+way the aarch64 and riscv64 runners do (no `iommu_platform` flag, same as the other two, since a
+real PCI device's DMA is not virtio's opt-in), and
+`kernel/src/nvme.rs::tests::the_nvme_disk_serves_the_block_interface_end_to_end` now runs for real
+on all three architectures instead of skipping on x86_64. The result: **the confinement claim
+holds under VT-d exactly as it does under SMMUv3 and the RISC-V IOMMU.** The existing driver,
+unmodified in shape, enumerates the controller over ACPI's real MCFG, confines its requester id to
+its six-page DMA region before enabling it, and serves SIZE/WRITE/READ over the blk-IPC verbs, on
+QEMU's `q35` with `-device intel-iommu`.
+
+Getting there took two fixes, neither of which is a confinement-contract difference between VT-d
+and the other two IOMMUs, and both recorded in full in `notes/nvme.md`'s new "What x86_64 needed
+that the other two did not" section:
+
+- `kernel/src/pci.rs::place_bars` trusted any nonzero BAR as already placed and already mapped,
+  true on the two device-tree architectures (nothing runs before this kernel to place one) and
+  false on x86_64's PVH boot, where QEMU resets the NVMe device's BAR0 to a live address of its own
+  choosing, unrelated to the kernel's own mapped BAR window. Fixed to check the existing address
+  against the window this kernel actually mapped rather than against zero.
+- The frame allocator (`memory::bring_up_page_frames`) and the direct map
+  (`arch::x86_64::mmu::map_firmware_regions`) both sized themselves from the e820 map's `usable`
+  RAM entries alone. Attaching VT-d and NVMe together grows the ACPI tables QEMU parks above the
+  top of guest memory enough that the adjacent `reserved` entry swallows the last few hundred bytes
+  of the initrd (placed by the PVH loader at a fixed offset below the top of memory, sized for a
+  smaller device set). Fixed to size the bitmap from whatever `forbidden` reaches past RAM's own
+  end, and to map the initrd's recorded bounds explicitly regardless of how the memmap classified
+  them.
+
+Both are the kind of gap only a real, non-virtio DMA device on a real PVH boot could have found
+(virtio's BARs and a bare boot's initrd never got close to either edge), and both would in
+principle also bite a real UEFI x86 machine (milestone 87), which is why neither fix is
+architecture-conditional: they check against what is actually true (which window is mapped, which
+bytes the kernel has claimed) rather than against which architecture is running. Neither changed
+the driver's shape, the syscall surface, or the confinement contract itself.
+
+**With this data point in, the two data points §86 was waiting on are the JH7110 board and the
+VT-d/NVMe exercise; the second is now done.** This section still does not decide option 1 versus
+option 2; it reports that the confinement claim itself has now been checked, not merely built, on
+all three of this tree's targeted architectures.
+
 If the answer is option 1 permanently, nothing is blocked, and notes/nvme.md's BUGS entry becomes
 the standing record. If it is never decided, the driver silently becomes load-bearing kernel code,
 which is how a microkernel stops being one; that is the failure this entry exists to prevent.
