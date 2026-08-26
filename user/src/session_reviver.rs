@@ -126,6 +126,7 @@
 use abi::memory_region as ut;
 use filesystem_proto::{dir, fs};
 use supervision_proto::{memory_region_destroy, memory_region_split};
+use user_rt::mapped_window::MappedWindow;
 use user_rt::{call, cap_delete, invoke, send};
 
 /// The report endpoint, `WRITE`. One report, then this process exits.
@@ -138,6 +139,9 @@ const FS_EP: u64 = 2;
 /// `login.rs` and `identity_provisioner.rs` already use, one past `identity_provisioner.rs`'s
 /// highest (`FS_VA`, `0xe5_0000`).
 const FS_VA: u64 = 0x0000_0000_00e6_0000;
+// SAFETY: the wiring maps one page read/write at FS_VA before this process runs, shared with the
+// FS server and with nothing else.
+const FS_WINDOW: MappedWindow = unsafe { MappedWindow::new(FS_VA, filesystem_proto::PAGE as u64) };
 
 /// Each synthetic session's own construction, `MemoryRegion::SPLIT` off [`UT`]. One page is enough:
 /// nothing is ever retyped from it, matching `smb_server.rs`'s own `SESSION_UT_PAGES`.
@@ -350,16 +354,15 @@ fn put_page(bytes: &[u8]) {
 
 /// The shared page, immutable: what a completed read landed there.
 fn fs_page() -> &'static [u8] {
-    // SAFETY: the wiring mapped one page read/write at FS_VA before this process ran, shared with
-    // the FS server and with nothing else. One thread per address space (DECISIONS §33), so there
-    // is no concurrent writer.
-    unsafe { core::slice::from_raw_parts(FS_VA as *const u8, filesystem_proto::PAGE) }
+    // SAFETY: forwarded from FS_WINDOW's own contract. One thread per address space (DECISIONS
+    // §33), so there is no concurrent writer.
+    unsafe { FS_WINDOW.as_slice() }
 }
 
 /// The shared page, mutable: where a name to resolve is staged.
 fn fs_page_mut() -> &'static mut [u8] {
     // SAFETY: as `fs_page`'s.
-    unsafe { core::slice::from_raw_parts_mut(FS_VA as *mut u8, filesystem_proto::PAGE) }
+    unsafe { FS_WINDOW.as_mut_slice() }
 }
 
 /// Report [`FAILED`] with `stage` as its detail word, and stop. One-shot roles must exit, not spin

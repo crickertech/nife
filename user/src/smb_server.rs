@@ -250,6 +250,10 @@ const FS_WINDOW: MappedWindow = unsafe { MappedWindow::new(FS_VA, fs::TRANSFER_M
 /// [`FS_VA`]'s and from the network one, because it is shared with a different process; must match
 /// the kernel-side wiring like every VA here.
 const CRED_VA: u64 = 0x0000_0000_00C0_0000;
+// SAFETY: the wiring maps one page read/write at CRED_VA before this program runs, shared with the
+// credential service and with nothing else (milestone 139 round 6).
+const CRED_WINDOW: MappedWindow =
+    unsafe { MappedWindow::new(CRED_VA, credential_proto::PAGE as u64) };
 
 /// **What `arg2` says the share is.** Four values rather than a flag: the write path made "which
 /// backing" and "which direction" two separate questions, and identity made "who may connect" a
@@ -884,11 +888,9 @@ impl Authenticator for CredentialAuthenticator {
         if a.blob.len() > credential_proto::MAX_BLOB {
             return Verdict::Refused;
         }
-        // SAFETY: the wiring mapped one page read/write at CRED_VA before this program ran, shared
-        // with the credential service and with nothing else. One thread per address space
+        // SAFETY: forwarded from CRED_WINDOW's own contract. One thread per address space
         // (DECISIONS §33), so there is no second borrow.
-        let page =
-            unsafe { core::slice::from_raw_parts_mut(CRED_VA as *mut u8, credential_proto::PAGE) };
+        let page = unsafe { CRED_WINDOW.as_mut_slice() };
         let Some(w0) = credential_proto::place_ntlm_proof(
             page,
             Self::resource(),

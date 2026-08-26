@@ -95,6 +95,7 @@
 #![no_main]
 
 use filesystem_proto::fs;
+use user_rt::mapped_window::MappedWindow;
 use user_rt::call;
 
 /// The credential service's provision endpoint (slot 0), `WRITE`, before its seal.
@@ -108,10 +109,21 @@ const REPORT: u64 = 2;
 /// the `0x...00eN_0000` family `credentialer.rs` and `login.rs` already use, one past `login.rs`'s
 /// highest (`CRED_VA`, `0xe3_0000`).
 const REQ_VA: u64 = 0x0000_0000_00e4_0000;
+// SAFETY: the wiring maps one page read/write at REQ_VA before this process runs (milestone 139
+// round 6).
+const REQ_WINDOW: MappedWindow =
+    unsafe { MappedWindow::new(REQ_VA, credential_proto::PAGE as u64) };
 /// The page shared with the credential service. Must match `user/src/credentialer.rs`'s `PROV_VA`.
 const PROV_VA: u64 = 0x0000_0000_00e0_0000;
+// SAFETY: the wiring maps one page read/write at PROV_VA before this process runs, the same
+// physical frame `credentialer.rs` maps at its own PROV_VA.
+const PROV_WINDOW: MappedWindow =
+    unsafe { MappedWindow::new(PROV_VA, credential_proto::PAGE as u64) };
 /// The page shared with the file service, for the one `MKDIR` request this process ever sends.
 const FS_VA: u64 = 0x0000_0000_00e5_0000;
+// SAFETY: the wiring maps one page read/write at FS_VA before this process runs, shared with the
+// file service and with nothing else.
+const FS_WINDOW: MappedWindow = unsafe { MappedWindow::new(FS_VA, filesystem_proto::PAGE as u64) };
 
 /// **Success**: the subtree exists (freshly made or already there) and the credential was stored.
 pub const RPT_OK: u64 = 1;
@@ -134,10 +146,9 @@ const EEXIST: i32 = 17;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(id_len: u64, secret_len: u64, _a2: u64) -> ! {
-    // SAFETY: the wiring mapped one page read/write at REQ_VA before this process ran, staged by
-    // the caller with the identity and secret this run provisions.
-    let req_page =
-        unsafe { core::slice::from_raw_parts(REQ_VA as *const u8, credential_proto::PAGE) };
+    // SAFETY: forwarded from REQ_WINDOW's own contract; staged by the caller with the identity and
+    // secret this run provisions.
+    let req_page = unsafe { REQ_WINDOW.as_slice() };
     let w0 = credential_proto::req(
         credential_proto::provision::PUT,
         id_len as usize,
@@ -161,10 +172,8 @@ pub extern "C" fn _start(id_len: u64, secret_len: u64, _a2: u64) -> ! {
         report(RPT_SUBTREE_FAILED, errno as i64 as u64);
     }
 
-    // SAFETY: the wiring mapped one page read/write at PROV_VA before this process ran, the same
-    // physical frame `credentialer.rs` maps at its own PROV_VA.
-    let prov_page =
-        unsafe { core::slice::from_raw_parts_mut(PROV_VA as *mut u8, credential_proto::PAGE) };
+    // SAFETY: forwarded from PROV_WINDOW's own contract.
+    let prov_page = unsafe { PROV_WINDOW.as_mut_slice() };
     let Some(cw0) = credential_proto::place(
         prov_page,
         identity,
@@ -197,9 +206,8 @@ pub extern "C" fn _start(id_len: u64, secret_len: u64, _a2: u64) -> ! {
 /// fixture subtree today. `None` on success (the handle this process minted is closed immediately;
 /// it has no further use for it), `Some(errno)` otherwise.
 fn mkdir_home(identity: &[u8]) -> Option<i32> {
-    // SAFETY: the wiring mapped one page read/write at FS_VA before this process ran, shared with
-    // the file service and with nothing else.
-    let page = unsafe { core::slice::from_raw_parts_mut(FS_VA as *mut u8, filesystem_proto::PAGE) };
+    // SAFETY: forwarded from FS_WINDOW's own contract.
+    let page = unsafe { FS_WINDOW.as_mut_slice() };
     let n = identity.len().min(page.len());
     page[..n].copy_from_slice(&identity[..n]);
     let (r0, _) = call(
@@ -223,9 +231,8 @@ fn mkdir_home(identity: &[u8]) -> Option<i32> {
 /// Zero the staged request. The caller must not reuse [`REQ_VA`] after this returns; this process
 /// is the only one that ever maps it.
 fn wipe_req() {
-    // SAFETY: the wiring mapped one page read/write here, and this process is the only writer.
-    let page =
-        unsafe { core::slice::from_raw_parts_mut(REQ_VA as *mut u8, credential_proto::PAGE) };
+    // SAFETY: forwarded from REQ_WINDOW's own contract, and this process is the only writer.
+    let page = unsafe { REQ_WINDOW.as_mut_slice() };
     credential_proto::wipe(page);
 }
 

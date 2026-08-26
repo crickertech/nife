@@ -71,7 +71,10 @@ const REPORT: u64 = 2;
 /// own page-table cost when this program self-maps the page [`login_proto::CONNECTED`] delegates.
 const SCRATCH: u64 = 3;
 
-/// Where this program maps the private staging page [`login_proto::CONNECTED`] delegates.
+/// Where this program maps the private staging page [`login_proto::CONNECTED`] delegates, at
+/// runtime, once `CONNECT` hands back the capability naming it (milestone 49's channel-per-client
+/// update; see `_start`'s own `map_page_frame` call). Not a `MappedWindow` (round 6's usual
+/// collapse for a statically pre-mapped page): nothing is mapped here before this process runs.
 const PAGE_VA: u64 = 0x0000_0000_00e2_0000;
 /// Where this process maps the delegated file-service frame, once it has one. Distinct from
 /// [`PAGE_VA`]: they are two different pages (this process's login request, and the filesystem
@@ -197,7 +200,11 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
     }
 
     // SAFETY: `priv_page` was just mapped read/write at PAGE_VA, private to this process and to the
-    // login service's own copy; no other client holds a capability to it.
+    // login service's own copy; no other client holds a capability to it. Not `PAGE_WINDOW`
+    // (round 6's collapse): that type's contract assumes the wiring maps this page before the
+    // process runs, which milestone 49's channel-per-client update made false here specifically —
+    // the page is now mapped dynamically, per connection, from a capability CONNECT hands back at
+    // runtime, so there is nothing for a compile-time-constant window to be a window onto yet.
     let page = unsafe { core::slice::from_raw_parts_mut(PAGE_VA as *mut u8, login_proto::PAGE) };
     let Some(w0) = login_proto::place(page, identity, secret, login_proto::LOGIN) else {
         done(RPT_MALFORMED, 0, 0);

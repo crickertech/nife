@@ -20,6 +20,14 @@
 //! that gets an offset wrong now panics at the access instead of reading or writing past the page
 //! silently: this is a real reduction in what can go wrong, not a relocation of the same risk.
 //!
+//! Round 6 added [`MappedWindow::as_slice`]/[`as_mut_slice`](MappedWindow::as_mut_slice), for a
+//! different call shape: a caller that hands the whole page to a parsing or serialization routine
+//! rather than reading or writing named fields. Six files (`credentialer.rs`,
+//! `credentialer_test_client.rs`, `identity_provisioner.rs`, `login_test_client.rs`,
+//! `session_reviver.rs`, `smb_server.rs`) each hand-rolled `core::slice::from_raw_parts[_mut]` over
+//! their own shared page, the exact same duplicated-invariant shape as the `r8`/`w8` cluster above,
+//! just returning a slice instead of one field.
+//!
 //! # Examples
 //!
 //! Bare-metal only, like the rest of this crate (see the crate-level doc for why the examples below
@@ -129,5 +137,39 @@ impl MappedWindow {
     /// Write a `u32` at `off`.
     pub fn w32(&self, off: u64, v: u32) {
         self.write(off, v);
+    }
+
+    /// The whole window as an ordinary byte slice, for a caller that hands it wholesale to a
+    /// parsing or serialization routine rather than reading or writing individual fields (round 6:
+    /// `credentialer.rs`, `credentialer_test_client.rs`, `identity_provisioner.rs`,
+    /// `login_test_client.rs`, `session_reviver.rs` and `smb_server.rs` each hand-rolled
+    /// `core::slice::from_raw_parts(VA as *const u8, proto::PAGE)` over their own shared
+    /// credential/filesystem/login page, one hand-written `// SAFETY:` comment per site asserting
+    /// the same invariant this type already exists to hold once). **Not volatile**: this returns
+    /// an ordinary Rust reference the compiler may assume nothing else touches while it is alive,
+    /// unlike [`read`](Self::read)/[`write`](Self::write)'s volatile access. Every migrated call
+    /// site already used an ordinary (non-volatile) slice this way, so this changes nothing about
+    /// that risk; it only collapses where the assertion is written.
+    ///
+    /// # Safety
+    /// As [`new`](Self::new)'s (the window is mapped into this process for as long as the
+    /// returned reference is used), plus one more: nothing else, no peer process and no other
+    /// reference in this process, reads or writes this range while the returned slice is alive.
+    /// Every migrated call site gets that from the IPC protocol's own turn-taking (the shared page
+    /// is staged by one side, then handed off by a `SEND`/`recv`, one side touching it at a time)
+    /// rather than from a lock, the same "one thread per address space (DECISIONS §33), so there
+    /// is no concurrent writer" argument each hand-written copy stated for itself.
+    pub unsafe fn as_slice(self) -> &'static [u8] {
+        // SAFETY: forwarded from this function's own contract, verbatim.
+        unsafe { core::slice::from_raw_parts(self.base as *const u8, self.len as usize) }
+    }
+
+    /// The mutable twin of [`as_slice`](Self::as_slice); same contract, exclusive access besides.
+    ///
+    /// # Safety
+    /// As [`as_slice`](Self::as_slice)'s.
+    pub unsafe fn as_mut_slice(self) -> &'static mut [u8] {
+        // SAFETY: forwarded from this function's own contract, verbatim.
+        unsafe { core::slice::from_raw_parts_mut(self.base as *mut u8, self.len as usize) }
     }
 }
