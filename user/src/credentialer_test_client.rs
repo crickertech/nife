@@ -184,7 +184,12 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
 fn provisioner() -> ! {
     let mut codes = Codes::new();
     for (identity, secret) in PEOPLE {
-        codes.push(request(PROV_WINDOW, identity, secret, proto::provision::PUT));
+        codes.push(request(
+            PROV_WINDOW,
+            identity,
+            secret,
+            proto::provision::PUT,
+        ));
     }
     // Then the three shares, each bound to its own account and domain. A share's secret is scoped
     // to the resource, so these are six independent secrets in one store rather than three people
@@ -201,7 +206,12 @@ fn provisioner() -> ! {
     ));
     // Seal. `place` needs a non-empty identity and secret even for an opcode that reads neither;
     // the words carry the opcode and the page is wiped by the service either way.
-    codes.push(request(PROV_WINDOW, b"seal", b"seal", proto::provision::SEAL));
+    codes.push(request(
+        PROV_WINDOW,
+        b"seal",
+        b"seal",
+        proto::provision::SEAL,
+    ));
     done(codes, u64::from(page_is_clean(PROV_WINDOW)))
 }
 
@@ -237,7 +247,12 @@ fn ntlm() -> ! {
     // One password, two derivations: the share also answers an ordinary verify. Deliberately last,
     // because its reply leaves the page wiped, which is what makes the cleanliness check below say
     // something rather than measuring a wipe this program did itself.
-    codes.push(request(PAGE_WINDOW, SHARE, SHARES[0].1, proto::verify::VERIFY));
+    codes.push(request(
+        PAGE_WINDOW,
+        SHARE,
+        SHARES[0].1,
+        proto::verify::VERIFY,
+    ));
     if page_is_clean(PAGE_WINDOW) {
         flags |= F_CLEAN;
     }
@@ -280,7 +295,12 @@ fn session_key() -> [u8; proto::KEY_LEN] {
 fn honest() -> ! {
     let mut codes = Codes::new();
     let (identity, secret) = PEOPLE[0];
-    codes.push(request(PAGE_WINDOW, identity, secret, proto::verify::VERIFY));
+    codes.push(request(
+        PAGE_WINDOW,
+        identity,
+        secret,
+        proto::verify::VERIFY,
+    ));
     codes.push(request(
         PAGE_WINDOW,
         identity,

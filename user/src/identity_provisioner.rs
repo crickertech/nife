@@ -95,8 +95,8 @@
 #![no_main]
 
 use filesystem_proto::fs;
-use user_rt::mapped_window::MappedWindow;
 use user_rt::call;
+use user_rt::mapped_window::MappedWindow;
 
 /// The credential service's provision endpoint (slot 0), `WRITE`, before its seal.
 const PROV: u64 = 0;
