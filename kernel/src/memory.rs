@@ -453,6 +453,25 @@ pub fn smmu_region() -> Option<(u64, u64)> {
     *SMMU_REGION.lock()
 }
 
+/// VT-d's register block (start, size), both **physical**, from the DMAR's first DRHD. `None` on
+/// a machine with no VT-d unit, or before [`record_vtd_region`] has run. Presence here is what
+/// gates `mmu::map_everything` mapping the window, the same role [`smmu_region`] plays for the
+/// SMMU.
+#[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
+pub fn vtd_region() -> Option<(u64, u64)> {
+    *VTD_REGION.lock()
+}
+
+/// **Record VT-d's register block directly**, for a machine with no device tree to read it from.
+/// `x86_64`'s counterpart of [`record_pci_regions`]: ACPI's DMAR names the DRHD, and `main.rs`
+/// calls this before `arch::mmu::init()` runs, so the window is recorded before
+/// `mmu::map_everything` decides what to map. Must run before `mmu::init`; calling it after would
+/// record a fact the fine map can no longer act on.
+#[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
+pub fn record_vtd_region(base: u64, size: u64) {
+    *VTD_REGION.lock() = Some((base, size));
+}
+
 /// The real-time clock's register block and which binding it is: `(start, size, kind)`, the
 /// address **physical** and the kind one of `clock_proto::rtc`. `None` on a machine whose device
 /// tree describes no RTC we can drive, which is a state the clock service has an answer for rather
@@ -575,6 +594,15 @@ static PCI_REGIONS: IrqSafeMutex<Option<PciWindows>> = IrqSafeMutex::new(rank::R
 /// started with `-machine virt,iommu=smmuv3` (and always on riscv, whose IOMMU is a PCI function
 /// found by enumeration, not a platform device with a node).
 static SMMU_REGION: IrqSafeMutex<Option<(u64, u64)>> = IrqSafeMutex::new(rank::RAM, None);
+
+/// VT-d's register block (base, size), from the DMAR's first DRHD (milestone 161, roadmap item
+/// 6). `None` on a machine with no `-device intel-iommu`, or before it is recorded. `x86_64`'s
+/// counterpart of `SMMU_REGION`: filled by `main.rs`'s boot tour rather than by `init`, for the
+/// same reason [`record_pci_regions`] is, and read by `mmu::map_everything` so the register file
+/// is a mapped device window before `arch::iommu::init` ever reads it (`arch::x86_64::iommu`'s
+/// own accessors go through `phys_to_virt`, which is arithmetic, not a promise the address is
+/// mapped).
+static VTD_REGION: IrqSafeMutex<Option<(u64, u64)>> = IrqSafeMutex::new(rank::RAM, None);
 
 /// The RTC's register block and binding kind (milestone 51). `None` until `init` has run, and on a
 /// machine whose device tree describes neither RTC we can drive.

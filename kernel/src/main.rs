@@ -197,6 +197,14 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             println!("  pci         : skipped, no MCFG");
         }
 
+        // VT-d's register window, recorded now (before `arch::mmu::init()` a few lines down)
+        // rather than where it is actually brought up. `mmu::map_everything` reads
+        // `memory::vtd_region()` to decide what to map device-typed, and it has to know before it
+        // runs; `arch::iommu::init` itself is called later, once the fine map it needs exists.
+        if let Some(base) = acpi.vtd_base {
+            memory::record_vtd_region(base, page_frames::FRAME_SIZE);
+        }
+
         // The local APIC, and then a real hardware interrupt. Until this point the only trap the
         // kernel has taken is one it raised itself with `int3`; a periodic timer proves the other
         // half, that an interrupt the CPU did not ask for arrives, is dispatched by vector, and is
@@ -350,6 +358,24 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // after their own `mmu::init`: their guard pages are holes in the map that was just
         // installed, and before that they are covered by the coarse boot map and are not holes yet.
         interrupt_stack::init();
+
+        // VT-d (milestone 161, roadmap item 6), if the DMAR named a DRHD. The same position the
+        // SMMUv3 and the RISC-V IOMMU come up in on the other two boots: after the fine page
+        // tables (a DRHD's register file is device-typed MMIO, reachable only through the map
+        // `mmu::init` just installed) and before anything that could attach a device. No PCI
+        // device is confined through it yet (no virtio-pci or NVMe driver exists on this
+        // architecture; roadmap item 4's hand-off), so this proves the driver against real
+        // hardware rather than a downstream escape: root table installed, translation enabled,
+        // read back from the register the hardware itself reports status through.
+        if let Some(base) = acpi.vtd_base {
+            // `init` polls GSTS.RTPS then GSTS.TES itself and panics rather than returning if
+            // either write never takes, so reaching this line already is the confirmation: the
+            // hardware's own status register, not an assumption that the write succeeded.
+            arch::iommu::init(base);
+            println!("  vt-d        : drhd {base:#x} up, translation enabled (gsts.tes confirmed)");
+        } else {
+            println!("  vt-d        : skipped, no DMAR");
+        }
 
         // **The scheduler** (milestone 161, roadmap item 4). Everything below this line is a
         // process rather than a program, which is the distinction item 3 stopped at.

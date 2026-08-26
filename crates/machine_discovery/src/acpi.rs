@@ -44,6 +44,13 @@
 //! - **The MADT's `flags` bit 0 (`PCAT_COMPAT`) is reported and not acted on.** It means the machine
 //!   also has 8259 PICs that must be masked before the APICs are used. Whoever brings the APIC up
 //!   has to mask them; this only says whether they are there.
+//! - **A DRHD's device-scope list is not decoded**, only skipped over by [`DmarStructures`]' length
+//!   field. On a machine with one DRHD covering the whole segment (QEMU's `-device intel-iommu`)
+//!   that list decides nothing this driver needs; on a machine with more than one unit it decides
+//!   which DRHD owns which device, and [`first_drhd`] taking the first one is exactly the corner
+//!   this parser cuts. See `kernel/src/arch/x86_64/iommu.rs`'s own header for what that costs.
+//! - **`Dmar::flags`' `INTR_REMAP` bit is read and never used.** Interrupt remapping is a real VT-d
+//!   feature this parser can report the presence of and this kernel does not build.
 
 /// The eight bytes that begin an RSDP. Note the trailing space; it is part of the signature.
 pub const RSDP_SIGNATURE: &[u8; 8] = b"RSD PTR ";
@@ -492,6 +499,126 @@ pub fn mcfg_entry(body: &[u8], index: usize) -> Option<McfgEntry> {
     })
 }
 
+// ---------------------------------------------------------------------------------------------
+// The DMAR: where VT-d is.
+// ---------------------------------------------------------------------------------------------
+
+/// The DMAR's fixed part, before its list of remapping structures: the machine's physical
+/// address width and a flags byte, then ten reserved bytes. Verified against QEMU's own table
+/// builder (`build_dmar_q35` in `hw/i386/acpi-build.c`), which is the ground truth for what this
+/// parser has to read, the same way the MADT and MCFG sections above were checked against q35.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Dmar {
+    /// The machine's physical address width in bits, decoded from the table's
+    /// `HostAddressWidth - 1` field (so a table saying 38 means a 39-bit width).
+    pub host_address_width: u8,
+    /// Bit 0 is `INTR_REMAP`: the platform also supports interrupt remapping. Reported and not
+    /// acted on, the same posture the MADT's `PCAT_COMPAT` bit takes; interrupt remapping is not
+    /// built here (milestone 161 roadmap item 6 names it a follow-on, not this item).
+    pub flags: u8,
+}
+
+/// One byte of host address width, one byte of flags, ten reserved bytes.
+const DMAR_FIXED_LEN: usize = 12;
+
+/// Decode the DMAR's fixed part. `body` begins after the SDT header.
+pub fn parse_dmar(body: &[u8]) -> Result<Dmar, AcpiError> {
+    if body.len() < DMAR_FIXED_LEN {
+        return Err(AcpiError::Truncated);
+    }
+    Ok(Dmar {
+        host_address_width: body[0] + 1,
+        flags: body[1],
+    })
+}
+
+/// **One DRHD: one VT-d hardware unit's register file.** A machine can have more than one (one
+/// per PCI segment, sometimes one per root port group); this driver brings up exactly one, which
+/// is what QEMU's `-device intel-iommu` on `q35` presents. Carrying more than one over is future
+/// work and is named where the kernel side decides which to use.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Drhd {
+    /// Remapping-structure flags bit 0: this unit is the catch-all for every PCI device no other
+    /// DRHD's device-scope list names. **Not read by anything here today**: with a single DRHD,
+    /// every device on the segment is this unit's, whether the bit is set or the device is named
+    /// explicitly in a scope list this parser does not decode (see this module's BUGS).
+    pub include_pci_all: bool,
+    /// The PCI segment group this unit covers. Always 0 on a single-segment machine, which QEMU's
+    /// `q35` is.
+    pub segment: u16,
+    /// The physical address of this unit's MMIO register file (`kernel/src/arch/x86_64/iommu.rs`
+    /// reads it as the SMMUv3 driver reads its device-tree base and the RISC-V driver reads its
+    /// BAR).
+    pub register_base: u64,
+}
+
+/// How many bytes a DRHD's fixed part occupies before its (unparsed) device-scope list: the
+/// 4-byte type/length header shared by every remapping structure, plus flags, reserved, segment
+/// and register base.
+const DRHD_FIXED_LEN: usize = 16;
+
+/// One entry of the DMAR's remapping-structure list. Only DRHD (type 0, the piece this kernel
+/// drives) is decoded; the rest keep their type code so a boot print can say what it skipped
+/// rather than pretending the list was shorter than it is. The same shape as [`MadtEntry`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DmarEntry {
+    Drhd(Drhd),
+    /// A remapping-structure type this decoder does not act on (RMRR, ATSR, RHSA, ANDD, SATC,
+    /// ...), with its type code.
+    Other(u16),
+}
+
+/// Walks a DMAR's remapping-structure list. Each entry is `[type: u16, length: u16, ...]`, the
+/// same self-describing shape the MADT's entries use, and a length of zero is refused the same
+/// way: it would never advance and the walk would loop forever.
+pub struct DmarStructures<'a> {
+    body: &'a [u8],
+    at: usize,
+}
+
+/// Iterate the DMAR's remapping structures. `body` begins after the SDT header.
+pub fn dmar_structures(body: &[u8]) -> DmarStructures<'_> {
+    DmarStructures {
+        body,
+        at: DMAR_FIXED_LEN,
+    }
+}
+
+impl Iterator for DmarStructures<'_> {
+    type Item = DmarEntry;
+
+    fn next(&mut self) -> Option<DmarEntry> {
+        if self.at + 4 > self.body.len() {
+            return None;
+        }
+        let kind = u16(self.body, self.at);
+        let len = u16(self.body, self.at + 2) as usize;
+        if len < 4 || self.at + len > self.body.len() {
+            return None;
+        }
+        let e = &self.body[self.at..self.at + len];
+        self.at += len;
+
+        Some(match kind {
+            0 if len >= DRHD_FIXED_LEN => DmarEntry::Drhd(Drhd {
+                include_pci_all: e[4] & 1 != 0,
+                segment: u16(e, 6),
+                register_base: u64(e, 8),
+            }),
+            other => DmarEntry::Other(other),
+        })
+    }
+}
+
+/// The first DRHD in the list, if any. The one this driver brings up: see [`Drhd`]'s own doc for
+/// why a single unit is today's whole claim.
+pub fn first_drhd(body: &[u8]) -> Option<Drhd> {
+    dmar_structures(body).find_map(|e| match e {
+        DmarEntry::Drhd(d) => Some(d),
+        DmarEntry::Other(_) => None,
+    })
+}
+
 fn u16(bytes: &[u8], at: usize) -> u16 {
     u16::from_le_bytes([bytes[at], bytes[at + 1]])
 }
@@ -867,5 +994,88 @@ mod tests {
         assert_eq!(e.end_bus, 255);
         assert_eq!(e.size(), 256 * 0x10_0000, "256 buses of 1 MiB each");
         assert_eq!(mcfg_entry(&body, 1), None);
+    }
+
+    /// The DMAR `-device intel-iommu` produces on `q35`: 39-bit host address width, interrupt
+    /// remapping off, one DRHD (not the catch-all, QEMU names devices explicitly) at the address
+    /// `Q35_HOST_BRIDGE_IOMMU_ADDR` names, `0xfed90000`.
+    fn q35_dmar_body() -> [u8; DMAR_FIXED_LEN + DRHD_FIXED_LEN] {
+        let mut b = [0u8; DMAR_FIXED_LEN + DRHD_FIXED_LEN];
+        b[0] = 38; // host address width - 1: 39-bit
+        b[1] = 0; // flags: no interrupt remapping
+        // reserved[2..12] stays zero
+        let d = DMAR_FIXED_LEN;
+        b[d..d + 2].copy_from_slice(&0u16.to_le_bytes()); // type 0: DRHD
+        b[d + 2..d + 4].copy_from_slice(&(DRHD_FIXED_LEN as u16).to_le_bytes());
+        b[d + 4] = 0; // flags: not INCLUDE_PCI_ALL
+        b[d + 5] = 0; // reserved
+        b[d + 6..d + 8].copy_from_slice(&0u16.to_le_bytes()); // segment 0
+        b[d + 8..d + 16].copy_from_slice(&0xfed9_0000u64.to_le_bytes());
+        b
+    }
+
+    /// The fixed part decodes: the address width is the table's field plus one, and the flags
+    /// byte round-trips unexamined.
+    #[test]
+    fn the_dmar_reports_the_address_width_and_flags() {
+        let d = parse_dmar(&q35_dmar_body()).expect("well-formed");
+        assert_eq!(
+            d.host_address_width, 39,
+            "the table stores width - 1; q35 reports 38 for a 39-bit width"
+        );
+        assert_eq!(d.flags, 0, "no interrupt remapping on this machine");
+    }
+
+    /// **The whole reason this table gets read**: a DRHD names where VT-d's register file is,
+    /// and `first_drhd` is what `kernel/src/arch/x86_64/machine.rs` calls to find it.
+    #[test]
+    fn the_drhd_gives_the_register_base() {
+        let body = q35_dmar_body();
+        let d = first_drhd(&body).expect("one DRHD in this table");
+        assert_eq!(d.register_base, 0xfed9_0000);
+        assert_eq!(d.segment, 0);
+        assert!(
+            !d.include_pci_all,
+            "q35 names its devices explicitly rather than using the catch-all"
+        );
+    }
+
+    /// The iterator sees the DRHD by type code, alongside whatever else the list might hold, the
+    /// same shape [`madt_entries`] proves for the MADT.
+    #[test]
+    fn dmar_structures_decodes_a_drhd_and_stops_at_the_end() {
+        let body = q35_dmar_body();
+        let mut it = dmar_structures(&body);
+        assert_eq!(
+            it.next(),
+            Some(DmarEntry::Drhd(Drhd {
+                include_pci_all: false,
+                segment: 0,
+                register_base: 0xfed9_0000,
+            }))
+        );
+        assert_eq!(it.next(), None);
+    }
+
+    /// A remapping-structure type this decoder does not act on is reported by its type code
+    /// rather than silently dropped, so a boot print can say what it skipped.
+    #[test]
+    fn an_unrecognized_remapping_structure_is_reported_by_type() {
+        let mut body = [0u8; DMAR_FIXED_LEN + 8].to_vec();
+        body[DMAR_FIXED_LEN..DMAR_FIXED_LEN + 2].copy_from_slice(&1u16.to_le_bytes()); // RMRR
+        body[DMAR_FIXED_LEN + 2..DMAR_FIXED_LEN + 4].copy_from_slice(&8u16.to_le_bytes());
+        let mut it = dmar_structures(&body);
+        assert_eq!(it.next(), Some(DmarEntry::Other(1)));
+        assert_eq!(it.next(), None);
+    }
+
+    /// **A malformed structure length ends the walk rather than looping forever**, the same
+    /// refusal [`madt_entries`] makes for the same reason: a zero length would never advance.
+    #[test]
+    fn a_zero_length_remapping_structure_ends_the_walk() {
+        let mut body = q35_dmar_body().to_vec();
+        body[DMAR_FIXED_LEN + 2] = 0;
+        body[DMAR_FIXED_LEN + 3] = 0;
+        assert_eq!(dmar_structures(&body).count(), 0);
     }
 }

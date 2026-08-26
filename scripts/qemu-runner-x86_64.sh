@@ -9,9 +9,9 @@
 # physical addresses and enters the 32-bit trampoline directly. See kernel/src/arch/x86_64/boot.s.
 #
 # WHAT IS NOT HERE YET, and it is still most of what the other two runners do: no virtio disks, no
-# NIC, no GPU, no RNG, no NVMe, no IOMMU. Those are wired one at a time as the port reaches them,
-# and adding a device to this file before the kernel can drive it only produces a boot that looks
-# richer than it is. See design/roadmap/161-x86-64-kernel-port.md.
+# NIC, no GPU, no RNG, no NVMe. Those are wired one at a time as the port reaches them, and adding
+# a device to this file before the kernel can drive it only produces a boot that looks richer than
+# it is. See design/roadmap/161-x86-64-kernel-port.md.
 #
 # The kernel halts with `hlt` (arch::halt), so QEMU does not exit on its own. Bound any interactive
 # run with scripts/qemu-bounded.sh (see CLAUDE.md, "Never leave QEMU running").
@@ -58,6 +58,17 @@ fi
 # See kernel/src/arch/x86_64/semihosting.rs.
 DEBUG_EXIT="-device isa-debug-exit,iobase=0xf4,iosize=0x04"
 
+# VT-d (milestone 161, roadmap item 6), unconditional, the same posture the other two runners take
+# for their own IOMMU (`iommu=smmuv3` on aarch64, `-device riscv-iommu-pci` on riscv): idle when
+# nothing attaches, and this runner attaches no PCI device yet (no `-device virtio-blk-pci`, no
+# NIC, no NVMe), so adding it changes nothing about what any existing test exercises. What it
+# changes is that `arch::x86_64::machine::read_acpi` now finds a DMAR with one DRHD, so
+# `kernel_main`'s x86 tour brings VT-d up and prints so, which is what proves the driver against
+# real (emulated) hardware rather than only against its own host-side unit tests. `intel-iommu` is
+# a q35-only device (it attaches to the host bridge, not to a PCI slot), which is one more reason
+# this runner and the aarch64/riscv ones cannot share a code path.
+IOMMU="-device intel-iommu"
+
 # `-no-reboot` turns a triple fault into an exit instead of a silent reset loop, which is the
 # difference between seeing that early boot died and watching a blank terminal. Every failure in
 # this port's bring-up so far has been a triple fault; add `-d int,cpu_reset` to see the state.
@@ -74,6 +85,7 @@ qemu-system-x86_64 \
     -serial stdio \
     -no-reboot \
     $DEBUG_EXIT \
+    $IOMMU \
     -kernel "$ELF" \
     $INITRD \
     "$@"
