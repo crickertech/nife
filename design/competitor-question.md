@@ -2,11 +2,17 @@
 
 §14 resolved the verification-endgame fork (verification *is* the goal) and converted the old "POSIX
 posture" question into milestone 19's real-workload sub-decision (reach binds now that "real
-workloads" is committed). What remains open:
+workloads" is committed). What remains open, and what was decided about it once its trigger fired:
 
 - **When the demonstrator becomes a competitor, if ever.** §14 keeps a general-purpose competitor as
   an explicit *later optionality*, parked until the demonstrator earns it. The trigger to reopen it is
-  concrete: a verified core that actually runs a real workload (milestone 19), plus a reason the
+  concrete: a verified core that actually runs a real workload (milestone 19, BUILT), plus a reason the
   world needs another OS that the demonstrator has by then proved. Until both hold, competitor-shaped
   work (broad driver coverage, a full Linux ABI, a package ecosystem) is out of scope, and saying so
   keeps the demonstrator from sliding into a second, unfinished Linux.
+
+  **The first half fired 2026-08-26** (the display ladder's rung two, milestone 33, landed), and
+  [DECISIONS §131](decisions/131-hold-at-rung-two.md) is that call, made: hold at rung two, prove
+  something useful on text mode first, rather than proceed to rungs three and four (real
+  applications, GPU acceleration) on the strength of the technical trigger alone. The second half of
+  this question is still open, on purpose, until that proof exists.
