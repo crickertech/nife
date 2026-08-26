@@ -543,17 +543,20 @@ pub mod policy {
 }
 
 // ================================================================================================
-// The two RTC bindings, named so the driver picks a register layout from what the machine said.
+// The RTC bindings, named so the driver picks a register layout (or, for CMOS, takes a value
+// straight from the kernel) from what the machine said.
 // ================================================================================================
 
-/// **Which RTC the machine has**, discovered from the device tree's `compatible` and passed to the
-/// clock service at spawn.
+/// **Which RTC the machine has**, discovered from the device tree's `compatible` (or, on `x86_64`,
+/// read by the kernel itself) and passed to the clock service at spawn.
 ///
 /// The service could have keyed the register layout off `target_arch`, which is what the console
 /// driver does for its UART. It does not, because the RTC is where that shortcut runs out: the
 /// VisionFive 2 is riscv64 and has neither of these devices, so an ISA-keyed driver would compile
 /// clean and read garbage on the first real board. The binding is what the driver actually knows
-/// how to drive, so the binding is what it is told.
+/// how to drive, so the binding is what it is told. `CMOS` stretches this a little further still:
+/// there the "binding" names not a register layout but the fact that the value has already been
+/// read, by the kernel, and arrives as data rather than as an address to poll.
 pub mod rtc {
     /// No RTC in the device tree. The clock service still runs and still serves proposals; it just
     /// starts out not knowing what time it is, which is a state the contract has (DECISIONS §42).
@@ -567,6 +570,17 @@ pub mod rtc {
     /// correct except across the low word's wrap, which is a bug that shows up once every four
     /// seconds and looks like a 4-second jump.
     pub const GOLDFISH: u64 = 2;
+    /// **The `x86_64` CMOS RTC, and a categorically different kind from the two above** (milestone
+    /// 176; DECISIONS §121, §130). `PL031` and `GOLDFISH` name a register layout `user/src/clock.rs`
+    /// polls itself, through a mapping the service holds; CMOS is two fixed I/O ports with no page,
+    /// so no such mapping can ever exist under §121's current recommendation. The kernel reads the
+    /// device once (`arch::x86_64::rtc::read_unix_nanos`) and hands the already-converted result
+    /// straight through as the wall clock's second `Spawn` argument, **nanoseconds since the Unix
+    /// epoch, ready to publish**. `user/src/clock.rs` takes it as data for this kind: `Some(a1)`,
+    /// no register read, no base address, nothing to poll.
+    ///
+    /// Name and value provisional (milestone 176's lane; calef names public items, AGENTS.md).
+    pub const CMOS: u64 = 3;
 }
 
 #[cfg(all(test, not(loom)))]

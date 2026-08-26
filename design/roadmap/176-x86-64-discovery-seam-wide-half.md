@@ -1,14 +1,11 @@
 # 176. The x86_64 discovery seam's wide half: COM1's IRQ and a CMOS RTC
 
-**Status: PARTIAL.** Minted 2026-08-25, from milestone 161's own item 0, "the wide half is
+**Status: BUILT.** Minted 2026-08-25, from milestone 161's own item 0, "the wide half is
 still owed and should be its own milestone." Re-scoped fresh against the current tree rather than
 carried over from 161's own text, which turned out to describe a partly stale state. Piece 1 built
-the same day (below); piece 2 was sized and turned out to need a decision this lane could not make,
-so it is unbuilt and the finding is written up in full under "Piece 2" below.
-
-**Gate: NONE.** Piece 1 is done. Piece 2's design fork is resolved:
-[DECISIONS §130](../decisions/130-cmos-rtc-delegation.md), decided 2026-08-26 ("Ratify option 3").
-Piece 2 is unbuilt but unblocked; whoever picks it up builds against §130 directly.
+the same day (below); piece 2 was sized, found to need a decision
+([DECISIONS §130](../decisions/130-cmos-rtc-delegation.md), ratified 2026-08-26), and built against
+it (below).
 
 ## What 161's own text got right, and what it no longer does
 
@@ -46,24 +43,40 @@ since milestone 165 and the interrupt controller since milestone 161 item 2, nei
 today, and the `BUGS` section now names only the CMOS RTC (piece 2, below) as the device window
 with no seam at all.
 
-## Piece 2: a CMOS RTC, decided, not yet built
+## Built: piece 2, a CMOS RTC read by the kernel, 2026-08-25
 
 Sizing this found a real design fork, not a shape to build: the other two architectures' RTCs are
 memory-mapped, so their `RTC_REGION` seam is a physical page a driver maps and pokes directly. The
 PC-compatible CMOS RTC is two fixed I/O ports, and [DECISIONS §121](../decisions/121-port-io-capability.md)'s
 current (still-PROPOSED) recommendation keeps all x86 legacy port I/O kernel-resident, so the
-existing "map the device, let userspace drive it" pattern has no CMOS equivalent today. Full writeup,
-four options considered, and the decision itself now live in
+existing "map the device, let userspace drive it" pattern has no CMOS equivalent. Full writeup, four
+options considered, and the decision itself in
 [DECISIONS §130](../decisions/130-cmos-rtc-delegation.md): **option 3**, the kernel reads CMOS once
 at boot and hands the seed to the clock service as a `Spawn` argument, the same way `kind` already
 crosses that boundary.
 
-This blocks real functionality today, not just a test count: `clock_service::start` already spawns
-with `kind = clock_proto::rtc::NONE` on `x86_64`, so `date_tests.rs`, `time_tests.rs`,
-`clock_tests.rs` and `ntp_tests.rs` all skip via `clock_service::machine_has_no_rtc()`. §130 details
-why.
+Built exactly against that decision. `kernel/src/arch/x86_64/rtc.rs` (new) is the kernel-side
+reader: a dozen `in8`/`out8` pairs against ports `0x70`/`0x71`, the same shape as
+`arch::x86_64::timer`'s PIT calibration, with the CMOS update-in-progress flag polled and a
+double-read-and-compare so a read never lands mid-update, BCD-to-binary and 12h/24h decoded per
+status register B, and the six raw fields turned into a Unix timestamp through the `calendar` crate
+this tree already depends on rather than a second copy of that arithmetic.
+`clock_proto::rtc::CMOS` (provisional; a new kind, `= 3`) is the wire-format addition: unlike
+`PL031`/`GOLDFISH`, which name a register layout the service polls itself, `CMOS`'s reading has
+already been taken by the kernel and arrives as data on the wall clock's second `Spawn` argument
+(`arg1`), which `clock_service::start` fills only on `x86_64` (`rtc_region()` stays `None` there
+forever; §121 forecloses the alternative). `user/src/clock.rs`'s `read_rtc` takes the new kind as
+`Some(seed)`, no register, no base address.
 
-**What is left:** building against §130. A new `clock_proto::rtc` kind (or equivalent `Spawn`
-argument), a boot-time CMOS read in the kernel, and wiring `user/src/clock.rs` to use the handed-in
-seed instead of polling a mapped register on this one architecture. Piece 1 is complete and
-independent of this.
+`date_tests.rs`, `time_tests.rs`, `clock_tests.rs` and `ntp_tests.rs` all run on `x86_64` now
+instead of skipping via `clock_service::machine_has_no_rtc()`, which itself now asks the kernel's
+CMOS reader on this architecture rather than the device tree. Four of `ntp_tests.rs`'s six tests
+still skip there, but for an unrelated, pre-existing reason found while wiring this up: the test
+runner attaches no virtio-rng function on any bus for `x86_64` yet (notes/x86-port.md), so the NTP
+client correctly refuses to reach the network without a nonce source, the same refusal
+`without_entropy_the_client_refuses_rather_than_guessing` tests on purpose. `ntp_tests.rs` gained a
+`machine_has_no_entropy` guard, the same convention `disk_tests`, `credential_tests` and
+`entropy_tests` already use for that cause, so the four skip with a reason rather than panic; giving
+`x86_64` a network entropy device is its own, unstarted piece of work.
+
+Piece 1 is complete and independent of this.

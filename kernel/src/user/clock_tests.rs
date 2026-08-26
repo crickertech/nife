@@ -10,13 +10,16 @@ fn start() -> (clock_service::Wiring, [u64; 5]) {
     (w, report)
 }
 
-/// **The machine finds out what time it is, from its own device tree.**
+/// **The machine finds out what time it is.**
 ///
-/// Two ISAs, two entirely different RTCs (a PL031 counting seconds at `0x9010000`, a Goldfish
-/// counting nanoseconds at `0x101000`), one binary, and the choice between them made from the
-/// `compatible` string rather than from `target_arch`. What the assertion actually catches:
-/// a wrong base address, a wrong register offset, the Goldfish halves swapped, and the
-/// seconds/nanoseconds unit confusion, all of which land outside a 74-year window.
+/// Three ISAs, three entirely different RTCs: a PL031 counting seconds at `0x9010000` on aarch64,
+/// a Goldfish counting nanoseconds at `0x101000` on riscv64, and on `x86_64` a CMOS the *kernel*
+/// reads and hands over already converted (DECISIONS §130), because DECISIONS §121 keeps its ports
+/// out of any capability userspace could hold. One binary, and on the first two the choice between
+/// drivers is made from the `compatible` string rather than from `target_arch`. What the assertion
+/// actually catches: a wrong base address, a wrong register offset, the Goldfish halves swapped,
+/// the seconds/nanoseconds unit confusion, a CMOS BCD/binary or 12h/24h decode mistake, and a
+/// missing century adjustment, all of which land outside a 74-year window.
 ///
 /// It is a **plausibility** check, not an accuracy one, and deliberately so. Nothing in the
 /// guest knows the host's clock to compare against, so the honest claim is "this is a time a
@@ -32,7 +35,8 @@ fn the_clock_service_reads_a_plausible_wall_clock_from_the_rtc() {
     assert_ne!(
         w.kind,
         clock_proto::rtc::NONE,
-        "both QEMU virt boards have an RTC; finding none means the compatible match broke",
+        "every machine this suite runs on has an RTC; finding none means the compatible match \
+         (or, on x86_64, the CMOS read) broke",
     );
     assert_eq!(
         report[1],
