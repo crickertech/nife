@@ -53,7 +53,11 @@
 //!
 //!     // `fs_rights` of 0 means this boot attached no RedoxFS disk, in which case `fs_ep` and
 //!     // `fs_page` hold nothing at all and the system comes up without a filesystem.
-//!     boot(&endowment, initrd_len, fs_rights)
+//!     //
+//!     // The fourth argument is milestone 154's second directory grant: `None` here, as at every
+//!     // real entry point today, because what the second subtree should *be* is a boot-time
+//!     // policy decision, not something this call site decides for itself.
+//!     boot(&endowment, initrd_len, fs_rights, None)
 //! }
 //! ```
 //!
@@ -254,6 +258,31 @@ pub struct BootEndowment {
     pub for_test_roles: &'static [u64],
 }
 
+/// **A second, disjoint directory capability for the shell** (milestone 154's "wiring a second
+/// grant into the real boot", design/roadmap/154-multi-directory-namespace.md), passed to [`boot`]
+/// alongside [`BootEndowment`] rather than folded into it: this is not a kernel grant like every
+/// field above, it is something [`boot`] itself constructs (a second `fs_subtree_caretaker`,
+/// narrowing the same file service [`BootEndowment::fs_ep`] already names) out of capabilities the
+/// kernel already granted.
+///
+/// **`None` at every real entry point today.** The mechanism here is real and reachable through
+/// the one function both boards' real inits call (`user/src/system_initializer.rs`,
+/// `user/src/hello.rs`'s `init_boot` role), not a synthetic kernel-side test harness. What it does
+/// not decide is *what* the second subtree should be: [DECISIONS
+/// §126](../../../design/decisions/126-two-directory-cwd.md) named that a boot-time policy
+/// question reserved for calef, so no shipped boot enables it. A second, separate gap: nothing
+/// yet tells the shell process *which* label and cspace slot this landed at (the `START` ABI's
+/// three words are already spoken for by the role, the argument, and the clock slot), so a shell
+/// built with one of these today would hold a capability its own `Nav` has no way to learn about.
+/// Provisional shape.
+#[derive(Clone, Copy)]
+pub struct SecondDirGrant {
+    /// One component under the image root, the same shape a `DirGrant`'s `name` already takes.
+    pub name: &'static str,
+    /// The `filesystem_proto::dir` rights the caretaker asks for on its descent.
+    pub rights: u64,
+}
+
 /// Where the kernel maps the initrd archive, read-only. Must match `kernel::user::INITRD_VA`.
 const INITRD_VA: u64 = 0x2000_0000;
 
@@ -337,6 +366,15 @@ const CARETAKER_STACK_PAGES: u64 = 4;
 /// second VA would only be a second name for the same page.
 const FS_CLIENT_PAGE_VA: u64 = 0x0060_0000;
 
+/// **One shell-boot second-directory caretaker's region** (milestone 154's "wiring a second
+/// grant into the real boot"). Sized for one caretaker alone, the way [`CARETAKER_STACK_PAGES`]
+/// already is: unlike [`DIR_JOB_REGION_PAGES`], nothing else is built out of this region, because
+/// the confined program here is the shell itself, already built directly out of `ut` rather than
+/// out of a region of its own. Conservative rather than tight (the same headroom
+/// [`JOB_REGION_PAGES`] carries for one child), since this is spent once per boot rather than
+/// once per command.
+const SECOND_DIR_CARETAKER_PAGES: u64 = JOB_REGION_PAGES;
+
 /// **The job pool.** Six live jobs at once, which is far more than a prompt has ever needed and is
 /// deliberately small: the whole claim of this increment is that a *bounded* budget is enough once
 /// the regions come back, so a budget nobody could exhaust would prove nothing. `script/shell-check`
@@ -368,8 +406,16 @@ const SH_CLOCK_VA: u64 = 0x00d0_0000;
 /// does is park in `RECV` on the shell's spawn channel for the life of the boot.
 ///
 /// `initrd_len` is the archive length the kernel passed at entry; `fs_rights` is the `filesystem_proto::dir`
-/// rights the file-service endpoint carries, and 0 means this boot attached no disk.
-pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
+/// rights the file-service endpoint carries, and 0 means this boot attached no disk. `second_dir`
+/// is milestone 154's addition: `Some` hands the shell a second, disjoint directory capability
+/// (see [`SecondDirGrant`] for what this does and does not decide); every real entry point passes
+/// `None` today.
+pub fn boot(
+    g: &BootEndowment,
+    initrd_len: u64,
+    fs_rights: u64,
+    second_dir: Option<SecondDirGrant>,
+) -> ! {
     // The archive the kernel mapped read-only; its length arrived at entry.
     // SAFETY: the kernel mapped `initrd_len` bytes of reserved RAM, read-only, at INITRD_VA. It is
     // reserved memory that outlives every process, so the borrow is honest for the whole boot.
@@ -623,28 +669,106 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
     // *told* the number in `x2`/`a2` instead of assuming one; see swish.rs's `CLOCK_SLOT`.
     let sh_budget = must(memory_region_split(ut, SH_BUDGET_PAGES));
     let with_fs = fs_rights != 0;
-    let sh_caps: [(u64, u64); 6] = [
-        (term_ep, abi::rights::WRITE),
-        (spawn_ep, abi::rights::WRITE),
-        (result_ep, abi::rights::READ),
-        (sh_budget, abi::rights::WRITE | abi::rights::GRANT),
-        (g.fs_ep, abi::rights::WRITE),
-        (g.clock_page, abi::rights::READ),
-    ];
-    let sh_maps: [(u64, u64, u64); 4] = [
-        (SH_OUT_VA, term_out, abi::address_space::MAP_RW), // shell writes text and prompts here
-        (LINE_VA, term_in, abi::address_space::MAP_RO),    // shell reads completed lines
-        (SH_FS_VA, g.fs_page, abi::address_space::MAP_RW), // and its half of the FS contract
-        (SH_CLOCK_VA, g.clock_page, abi::address_space::MAP_RO), // and the clock it times with
-    ];
-    // A boot with no disk gets the same lists with the FS pair taken out of the middle, which is a
-    // second pair of arrays rather than a slice: the clock is granted either way, and "the last
-    // entry stays" is not something a range can say.
-    let no_fs_caps: [(u64, u64); 5] = [sh_caps[0], sh_caps[1], sh_caps[2], sh_caps[3], sh_caps[5]];
-    let no_fs_maps: [(u64, u64, u64); 3] = [sh_maps[0], sh_maps[1], sh_maps[3]];
-    // Which slot the clock landed in, for the shell's `x2`. It is the count of what went before it,
-    // which is the same arithmetic `build_child` does when it fills the capability table from zero.
-    let sh_clock_slot: u64 = if with_fs { 5 } else { 4 };
+
+    // **The second grant, when this boot was configured with one** (milestone 154's "wiring a
+    // second grant into the real boot"). Built here, before the shell, for the same reason
+    // `build_caretaker` is always called before the process that will hold its endpoint: the
+    // caretaker must exist and answer ready before anything could `CALL` it.
+    //
+    // Meaningless without a first directory ([`SecondDirGrant`]'s own doc), so this is `None`
+    // whenever the boot has no filesystem at all, and it degrades to "no second grant" rather
+    // than a boot failure whenever the caretaker cannot be built, the same posture this file
+    // already takes toward a missing `sink_elf` or `care_elf`: a component the archive did not
+    // pack or the table would not vouch for costs a feature, not a boot.
+    //
+    // # BUGS
+    //
+    // **Unverified against a real boot.** `second_dir` is `None` at every shipped entry point
+    // (DECISIONS §126: what the subtree should be is calef's call), so this branch has never run
+    // under `script/shell-check`, which is the only thing in the tree that runs a real init.
+    // `build_caretaker` retypes two more objects into *this process's* capability table right
+    // where the comment two screens up already documents this table as tight ("the shell's
+    // `build_child` had no slot left ... and failed silently"). The failure mode if this pushes
+    // init over sixteen slots is exactly that one: a boot that reaches userspace and prints
+    // nothing. Whoever first passes `Some` here should watch for it and run `script/shell-check`
+    // before trusting this path.
+    let second_dir_ep: Option<u64> = second_dir.filter(|_| with_fs).and_then(|sd| {
+        assert!(
+            filesystem_proto::grant::fits(sd.name.as_bytes()),
+            "a granted directory's name rides in two argument words; this one does not fit",
+        );
+        let region = memory_region_split(ut, SECOND_DIR_CARETAKER_PAGES).ok()?;
+        let care = care_elf.as_ref()?;
+        let (lo, hi) = filesystem_proto::grant::pack_name(sd.name.as_bytes());
+        let spec = filesystem_proto::grant::spec(sd.name.len(), sd.rights);
+        build_caretaker(
+            ut,
+            region,
+            care,
+            Fs {
+                ep: g.fs_ep,
+                page: g.fs_page,
+            },
+            (lo, hi, spec),
+        )
+    });
+
+    // Slot 4 is the filesystem when this boot has one, which is the whole of what `>` and `<` need
+    // (milestone 50, notes/pipes.md): the shell resolves a redirection against it and writes the
+    // file itself. Narrowed to WRITE, which on an endpoint is the right to CALL, and without GRANT,
+    // so the shell can hand it to nobody.
+    //
+    // **Slot 5, when this boot also has a second grant**, is [`second_dir_ep`]: the narrowed
+    // caretaker endpoint built above. It shares [`SH_FS_VA`] rather than needing a map of its own,
+    // for `narrow_dir`'s own reason one level narrower: caretaker and client both map the *same*
+    // physical frame the FS server shares with everything downstream of it, and the shell is one
+    // thread of control with at most one `CALL` in flight, so it is never mid-request on both
+    // endpoints at once.
+    //
+    // **And a read-only clock last, always** (milestone 86), which is what `time <command>`
+    // measures with. It is [`BootEndowment::clock_page`], the same frame this init was granted and
+    // hands to a child whose manifest declares a clock; the shell is simply another holder of a
+    // narrowed view. `READ` and no `GRANT`, deliberately: the shell can read the wall clock and
+    // can hand one to nothing it spawns, so which processes can read the time is still decided by
+    // the manifests this crate reads (DECISIONS §43) rather than by anything typed at a prompt.
+    //
+    // Clock last in the list whatever else is granted, which is why the shell is *told* its slot
+    // in `x2`/`a2` instead of assuming one; see swish.rs's `CLOCK_SLOT`. That was already true
+    // before this milestone (4 without a disk, 5 with one); it now also moves to 6 when a second
+    // grant lands, and the mechanism that keeps the shell honest about the number is unchanged.
+    let mut sh_caps = [(0u64, 0u64); 7];
+    let mut sh_maps = [(0u64, 0u64, 0u64); 4];
+    let mut n_caps = 0usize;
+    let mut n_maps = 0usize;
+    sh_caps[n_caps] = (term_ep, abi::rights::WRITE);
+    n_caps += 1;
+    sh_caps[n_caps] = (spawn_ep, abi::rights::WRITE);
+    n_caps += 1;
+    sh_caps[n_caps] = (result_ep, abi::rights::READ);
+    n_caps += 1;
+    sh_caps[n_caps] = (sh_budget, abi::rights::WRITE | abi::rights::GRANT);
+    n_caps += 1;
+    sh_maps[n_maps] = (SH_OUT_VA, term_out, abi::address_space::MAP_RW); // text and prompts
+    n_maps += 1;
+    sh_maps[n_maps] = (LINE_VA, term_in, abi::address_space::MAP_RO); // completed lines
+    n_maps += 1;
+    if with_fs {
+        sh_caps[n_caps] = (g.fs_ep, abi::rights::WRITE);
+        n_caps += 1;
+        sh_maps[n_maps] = (SH_FS_VA, g.fs_page, abi::address_space::MAP_RW);
+        n_maps += 1;
+    }
+    if let Some(ep) = second_dir_ep {
+        sh_caps[n_caps] = (ep, abi::rights::WRITE);
+        n_caps += 1;
+    }
+    sh_caps[n_caps] = (g.clock_page, abi::rights::READ);
+    n_caps += 1;
+    sh_maps[n_maps] = (SH_CLOCK_VA, g.clock_page, abi::address_space::MAP_RO);
+    n_maps += 1;
+    // Which slot the clock landed in, for the shell's `x2`: the count of what went before it, the
+    // same arithmetic `build_child` does when it fills the capability table from zero.
+    let sh_clock_slot: u64 = n_caps as u64 - 1;
     // **Built but not started**, because the drop below has to happen while the shell's output page
     // is still ours alone to write: the negative control is printed through it, and a running shell
     // would be printing its banner into the same page.
@@ -653,13 +777,19 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
         ut,
         &sh_elf,
         &ChildEndowment {
-            caps: if with_fs { &sh_caps } else { &no_fs_caps },
-            maps: if with_fs { &sh_maps } else { &no_fs_maps },
+            caps: &sh_caps[..n_caps],
+            maps: &sh_maps[..n_maps],
             stack_pages: CHILD_STACK_PAGES,
             ..ChildEndowment::new()
         },
     ));
     cap_delete(sh_budget); // our copy; the shell holds its own now
+    // The caretaker's endpoint was only ever the means of wiring: the shell holds its own copy and
+    // the caretaker holds the other end, the same disposal `spawn_service`'s dynamic directory
+    // grants already give their own narrowed endpoint below.
+    if let Some(ep) = second_dir_ep {
+        cap_delete(ep);
+    }
 
     // Free every boot cap the spawn service does not need, so init's 16-slot capability table has room to
     // build a supervised child (which holds a job untyped and a job frame while the loader retypes

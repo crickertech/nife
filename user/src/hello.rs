@@ -406,7 +406,9 @@ fn init_boot(initrd_len: u64, fs_rights: u64) -> ! {
         for_test_roles: &[REPORT, TEST_IRQ],
     };
 
-    system_initializer::boot(&GRANTS, initrd_len, fs_rights)
+    // `None`: see `user/src/system_initializer.rs`'s matching call for why (DECISIONS §126, the
+    // second-grant subtree is a boot-time policy decision this call site does not make).
+    system_initializer::boot(&GRANTS, initrd_len, fs_rights, None)
 }
 
 /// **init delegates an interrupt to a driver it builds, milestone 19d.2b.** The third and last

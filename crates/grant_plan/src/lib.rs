@@ -1163,11 +1163,101 @@ pub mod rmopt {
 pub struct Holdings {
     /// The shell holds a directory capability it can narrow into a per-file grant.
     pub dir: bool,
-    /// **Where in that capability it currently is**, which is the other half of what it holds: a
-    /// working directory is a directory capability used as the default base for resolving names, so
-    /// it belongs here beside the fact that there is one. Defaults to the root, which is also the
-    /// only position a shell holding no directory can be in.
+    /// **A second, disjoint directory capability, when this shell holds two** (milestone 154,
+    /// design/roadmap/154-multi-directory-namespace.md; [DECISIONS
+    /// §126](../../../design/decisions/126-two-directory-cwd.md)). `None` for a one-grant shell,
+    /// which resolves and prints exactly as it always has. Provisional name and shape.
+    pub second: Option<SecondDir>,
+    /// **Where in the currently-selected tree it stands**, which is the other half of what it
+    /// holds: a working directory is a directory capability used as the default base for
+    /// resolving names, so it belongs here beside the fact that there is one. For a one-grant
+    /// shell this is the one tree; for a two-grant shell it is whichever tree
+    /// [`SecondDir::which`] currently names. Defaults to the root, which is also the only
+    /// position a shell holding no directory can be in.
     pub cwd: nav::Cwd,
+}
+
+/// **A two-grant shell's second label and which tree [`Holdings::cwd`] is standing in**
+/// (DECISIONS §126's `(which, pos)`, `pos` being [`Holdings::cwd`]). Provisional name and shape
+/// (milestone 154).
+///
+/// Both labels are carried here, not just the second one, because interpreting an absolute token
+/// (`/a/...` vs `/b/...`) needs both: [`nav::TwoRoots`] matches a path's first component against
+/// either label, and a two-grant shell that only remembered one of them could not tell "the other
+/// grant" from "no such capability" apart.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct SecondDir {
+    label_a: [u8; nav::MAX_NAME],
+    label_a_len: u8,
+    label_b: [u8; nav::MAX_NAME],
+    label_b_len: u8,
+    /// Which tree [`Holdings::cwd`] is inside right now. A fresh two-grant holder starts at `A`
+    /// (DECISIONS §126: "the first-listed grant's own root", the same "slot 0 is always the
+    /// first grant" precedent milestone 154 already established for cspace ordering).
+    pub which: nav::Which,
+}
+
+impl SecondDir {
+    /// Compose two labels, standing in `A`. `None` if either is not a nameable component
+    /// ([`nav::component_fits`]), the same bound [`nav::TwoRoots`] matches against.
+    pub fn new(label_a: &[u8], label_b: &[u8]) -> Option<Self> {
+        let (label_a, label_a_len) = pack_label(label_a)?;
+        let (label_b, label_b_len) = pack_label(label_b)?;
+        Some(SecondDir {
+            label_a,
+            label_a_len,
+            label_b,
+            label_b_len,
+            which: nav::Which::A,
+        })
+    }
+
+    /// Grant A's label: an absolute path's first component that selects it.
+    pub fn label_a(&self) -> &[u8] {
+        &self.label_a[..self.label_a_len as usize]
+    }
+
+    /// Grant B's label.
+    pub fn label_b(&self) -> &[u8] {
+        &self.label_b[..self.label_b_len as usize]
+    }
+
+    /// The two labels, composed the way [`nav::TwoRoots::resolve_from`] needs them.
+    fn roots(&self) -> nav::TwoRoots<'_> {
+        nav::TwoRoots::new(self.label_a(), self.label_b())
+    }
+}
+
+fn pack_label(label: &[u8]) -> Option<([u8; nav::MAX_NAME], u8)> {
+    // A label is matched against a parsed path's first *component* ([`nav::TwoRoots::resolve`]),
+    // and `nav::path` never produces a component `nav::component_fits` would refuse. A label that
+    // failed that same check could never match anything a real token parses to, so this rejects it
+    // at construction rather than building a namespace half of which is unreachable.
+    if !nav::component_fits(label) {
+        return None;
+    }
+    let mut bytes = [0u8; nav::MAX_NAME];
+    bytes[..label.len()].copy_from_slice(label);
+    Some((bytes, label.len() as u8))
+}
+
+impl Holdings {
+    /// **`(which, pos)` resolution** (DECISIONS §126): where `token` lands, without moving.
+    ///
+    /// A one-grant shell (`second: None`) resolves exactly as it always has, against
+    /// [`Holdings::cwd`] alone and with `A` the only answer `which` could ever be. A two-grant
+    /// shell resolves through [`nav::TwoRoots::resolve_from`], which is the whole of what §126
+    /// decided: a relative token stays inside the current tree, an absolute one picks a tree by
+    /// label and can move between them, and `..` refuses at either tree's own root.
+    pub fn resolve(&self, token: &[u8]) -> Result<(nav::Which, nav::Cwd), nav::Refused> {
+        match &self.second {
+            None => {
+                let p = nav::path(token)?;
+                Ok((nav::Which::A, self.cwd.resolve(&p)?))
+            }
+            Some(sd) => sd.roots().resolve_from(sd.which, self.cwd, token),
+        }
+    }
 }
 
 /// Why an invocation was refused, decided at the prompt before any spawn. Each variant maps to one
@@ -2797,8 +2887,62 @@ mod tests {
     /// A shell that WAS granted a directory to narrow, standing at its root.
     const WITH_DIR: Holdings = Holdings {
         dir: true,
+        second: None,
         cwd: nav::Cwd::root(),
     };
+
+    // ---- milestone 154 / DECISIONS §126: Holdings' `(which, pos)` shape ----
+
+    /// A one-grant [`Holdings`] resolves exactly as it always has, and `which` can only ever come
+    /// back `A`: there is no second tree for it to mean anything else.
+    #[test]
+    fn a_one_grant_holdings_resolves_exactly_as_before() {
+        assert_eq!(
+            WITH_DIR.resolve(b"logs"),
+            Ok((nav::Which::A, {
+                let mut c = nav::Cwd::root();
+                c.descend(b"logs");
+                c
+            })),
+        );
+        assert_eq!(WITH_DIR.resolve(b".."), Err(nav::Refused::AtYourRoot));
+    }
+
+    /// A two-grant [`Holdings`] resolves through [`SecondDir`]: a relative token stays in the
+    /// current tree, and an absolute one crosses by label, which is `caps`'s namespace section
+    /// and a two-grant shell's `cd` both reading the same primitive.
+    #[test]
+    fn a_two_grant_holdings_resolves_relative_and_absolute_tokens() {
+        let holds = Holdings {
+            dir: true,
+            second: Some(SecondDir::new(b"a", b"b").unwrap()),
+            cwd: nav::Cwd::root(),
+        };
+        // Relative: stays in A, the starting tree.
+        let (which, pos) = holds.resolve(b"x").unwrap();
+        assert_eq!(which, nav::Which::A);
+        assert_eq!(pos.component(0), b"x");
+        // Absolute: crosses into B.
+        let (which, pos) = holds.resolve(b"/b/y").unwrap();
+        assert_eq!(which, nav::Which::B);
+        assert_eq!(pos.component(0), b"y");
+        // The negative control this milestone is named for: `/a/../b` is refused rather than
+        // crossing, because selecting `a` leaves nothing above `a`'s own root to pop.
+        assert_eq!(holds.resolve(b"/a/../b"), Err(nav::Refused::AtYourRoot));
+    }
+
+    /// [`SecondDir::new`] refuses a label that is not a nameable component, the same bound
+    /// [`nav::TwoRoots`] matches against, so a caller cannot build a `Holdings` whose absolute
+    /// paths could never resolve to what it claims to hold.
+    #[test]
+    fn second_dir_refuses_an_unnameable_label() {
+        assert!(SecondDir::new(b"", b"b").is_none());
+        assert!(SecondDir::new(b"a", b"").is_none());
+        assert!(SecondDir::new(b"a/b", b"c").is_none());
+        let too_long = [b'x'; nav::MAX_NAME + 1];
+        assert!(SecondDir::new(&too_long, b"b").is_none());
+        assert!(SecondDir::new(b"a", b"b").is_some());
+    }
 
     /// The combination milestone 117's fifth stranger found no program declares: an integer
     /// argument **and** an input stream. Unlike [`STAMPS_A_FILE`]'s pairing with `FileSpec`, this
@@ -3462,6 +3606,7 @@ mod tests {
         deeper.apply(nav::path(b"logs").unwrap().steps()).unwrap();
         let holds = Holdings {
             dir: true,
+            second: None,
             cwd: deeper,
         };
         let (p, _) = plan_line(b"date > old/report.txt", holds).unwrap();

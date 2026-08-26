@@ -927,10 +927,39 @@ pub fn write_holdings(
     out(b"    cap 3  untyped   ");
     write_num(budget_pages, out);
     out(b" pages  the memory it grants with --mem (initial)\n");
-    if holdings.dir {
-        out(b"    cap 4  endpoint  directory  the files it can narrow into per-file grants\n");
-    } else {
-        out(b"    (no directory capability: a name on the line has nothing to narrow)\n");
+    match (&holdings.second, holdings.dir) {
+        (Some(sd), _) => {
+            // **Two rows, not one**, and a namespace section beneath them: milestone 154's own
+            // roadmap block names this exactly, "`caps` gains a namespace section with more than
+            // one row", because one root has one row and two disjoint roots need two.
+            out(b"    cap 4  endpoint  directory  the first of two disjoint trees, labeled '");
+            out(sd.label_a());
+            out(b"'\n");
+            out(b"    cap 5  endpoint  directory  the second, labeled '");
+            out(sd.label_b());
+            out(b"'\n");
+            out(b"    namespace: two disjoint trees, standing in one at a time (milestone 154)\n");
+            // **One position, not one per tree**: DECISIONS §126 decided a real, single, moving
+            // cwd, so only the tree `sd.which` names has a remembered place inside it; the other
+            // is printed at its own root, which is honest rather than a guess (nothing here
+            // remembers where the shell last stood in a tree it is not currently in).
+            write_namespace_row(
+                sd.label_a(),
+                (sd.which == nav::Which::A).then_some(holdings.cwd),
+                out,
+            );
+            write_namespace_row(
+                sd.label_b(),
+                (sd.which == nav::Which::B).then_some(holdings.cwd),
+                out,
+            );
+        }
+        (None, true) => {
+            out(b"    cap 4  endpoint  directory  the files it can narrow into per-file grants\n");
+        }
+        (None, false) => {
+            out(b"    (no directory capability: a name on the line has nothing to narrow)\n");
+        }
     }
     // **The clock, and the rights row is the whole of it** (milestone 86). This shell reads the page
     // and holds no `GRANT` on it, so `time` can measure a command and nothing typed here can hand a
@@ -953,6 +982,24 @@ pub fn write_holdings(
         }
     }
     out(b"  it can name no devices and no other process. authority is what it holds.\n");
+}
+
+/// One row of the two-grant namespace section: the label, a `*` marking the tree
+/// [`Holdings::cwd`] currently stands in (`pos: Some`), and the position within it or a bare
+/// root for the tree not currently standing in.
+fn write_namespace_row(label: &[u8], pos: Option<Cwd>, out: &mut dyn FnMut(&[u8])) {
+    out(if pos.is_some() {
+        b"      * "
+    } else {
+        b"        "
+    });
+    out(label);
+    out(b"  ");
+    let mut buf = [0u8; nav::RENDER_MAX];
+    let cwd = pos.unwrap_or(Cwd::root());
+    let n = cwd.render(&mut buf);
+    out(&buf[..n]);
+    out(b"\n");
 }
 
 /// **Preview what a command line would grant**, which is the whole of `caps <command>`.
@@ -1214,6 +1261,8 @@ pub fn write_preview(e: &Endowment, out: &mut dyn FnMut(&[u8])) {
 
 #[cfg(test)]
 mod tests {
+    use grant_plan::SecondDir;
+
     use super::*;
     extern crate std;
     use std::string::String;
@@ -1857,6 +1906,7 @@ mod tests {
                 128,
                 Holdings {
                     dir: true,
+                    second: None,
                     cwd: Cwd::root(),
                 },
                 None,
@@ -1874,6 +1924,61 @@ mod tests {
         assert!(without.contains("no directory capability"));
         // The budget row is the one number the shell cannot query, so it must be the caller's.
         assert!(with.contains("128 pages"));
+    }
+
+    /// **Milestone 154's own words, made real**: "`caps` gains a namespace section with more than
+    /// one row". Two directory rows instead of one, and a namespace section beneath them naming
+    /// both labels; the current one is marked, the other prints its own root because a two-grant
+    /// shell remembers exactly one position (DECISIONS §126).
+    #[test]
+    fn a_second_grant_prints_two_rows_and_a_namespace_section() {
+        let mut cwd = Cwd::root();
+        cwd.descend(b"inner");
+        let holdings = Holdings {
+            dir: true,
+            second: Some(SecondDir::new(b"a", b"b").unwrap()),
+            cwd,
+        };
+        let s = shown(|o| write_holdings(128, holdings, None, o));
+        assert!(s.contains("cap 4  endpoint  directory"), "{s}");
+        assert!(s.contains("cap 5  endpoint  directory"), "{s}");
+        assert!(s.contains("labeled 'a'"), "{s}");
+        assert!(s.contains("labeled 'b'"), "{s}");
+        assert!(s.contains("namespace:"), "{s}");
+        // Standing in `a`, at `/inner`: that row is marked, and `b` prints its own root.
+        assert!(s.contains("* a  /inner"), "{s}");
+        assert!(s.contains("  b  /\n"), "{s}");
+        // A one-grant shell still prints exactly the old single row: this is additive, not a
+        // format change for the case every existing wiring is in today.
+        let one_grant = shown(|o| {
+            write_holdings(
+                128,
+                Holdings {
+                    dir: true,
+                    second: None,
+                    cwd: Cwd::root(),
+                },
+                None,
+                o,
+            );
+        });
+        assert!(!one_grant.contains("namespace:"), "{one_grant}");
+    }
+
+    /// The row marked with `*` follows `which` when it moves, not always the first label: this is
+    /// what makes the display a *reading* of `Holdings` rather than a hardcoded shape.
+    #[test]
+    fn the_marked_row_follows_which_the_shell_is_standing_in() {
+        let mut sd = SecondDir::new(b"a", b"b").unwrap();
+        sd.which = nav::Which::B;
+        let holdings = Holdings {
+            dir: true,
+            second: Some(sd),
+            cwd: Cwd::root(),
+        };
+        let s = shown(|o| write_holdings(128, holdings, None, o));
+        assert!(s.contains("* b  /"), "{s}");
+        assert!(s.contains("  a  /\n"), "{s}");
     }
 
     /// **A clock in the endowment is one row, and the row says it cannot be handed on** (milestone
@@ -2190,6 +2295,7 @@ mod tests {
                 128,
                 Holdings {
                     dir: true,
+                    second: None,
                     cwd: Cwd::root(),
                 },
                 None,
