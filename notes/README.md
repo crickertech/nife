@@ -811,6 +811,12 @@ in the code or the conversation doesn't make sense, it belongs here.
   instruction, why removing the flush is gated on a *measurement* of `satp.ASID`'s width rather than
   on the specification, the test that fails without the shootdown, and the honest benchmark: the win
   is invisible under icount and needs the board.
+- [The x86_64 TLB shootdown](x86-tlb-shootdown.md): milestone 161: a two-core kernel test suite
+  crashed with `rip` = `stack::PAINT`, because `invlpg` is local to one CPU and this port had no
+  remote half. How a stale entry on a recycled kernel-stack address becomes a `ret` into paint, why
+  an ordinary IPI deadlocks here (the sender holds `KERNEL_MMU`, which masks interrupts, and so does
+  every core it is waiting for), and why the NMI is therefore forced rather than chosen. The test
+  that already existed and fails without it.
 - [init, and loading a program from userspace](init-and-loading.md): milestone 19d: the ELF
   parser leaves the kernel for init, an ordinary confined program. How init loads a child through
   the granular verbs (retype, copy-and-map each segment, endow, configure, start), why

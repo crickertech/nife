@@ -38,33 +38,63 @@
 //! rewrite-and-re-execute of a page another vCPU might be concurrently running from) made no
 //! measurable difference either.
 //!
-//! **2. Exactly two cores (`-smp 2`, the case #1 above does not touch) start and idle correctly,
-//! but crash under the kernel's own test suite's real scheduler workload**, which is a more
-//! serious finding than #1: this is not AP bring-up racing, it is ordinary cross-core thread
-//! placement and reaping, the same portable `sched`/`thread` machinery aarch64 and RISC-V already
-//! run at `-smp 4` without issue. `script/test`, run at `NIFE_SMP=2`, reliably reaches
-//! `sched::tests::a_finished_thread_is_reaped_and_its_memory_returned` (a test that spawns eight
-//! bare kernel threads, lets `§28`'s placement scatter them across cores, and waits for the
-//! reaper) and then faults: one run reported a page fault at `rip 0x0`, another a general
-//! protection fault at `rip 0x5afe57ac5afe57ac`. **That second value is not garbage; it is
-//! `stack::PAINT`, the exact bit pattern this kernel writes into a fresh kernel stack before
-//! anything real occupies it** (`stack.rs`, milestone 84's high-water instrument). A `ret` (or an
-//! equivalent read of a saved return address) landing on that value can only mean something read
-//! a `Context` back from a stack location that was never written with a real one: a new thread's
-//! first switch-to finding paint instead of `Context::for_kernel_thread`'s `thread_trampoline`
-//! address, or a reaped thread's freed range being reused before whatever wrote to it synchronized
-//! with whatever is about to read it. Not chased further than this characterization: it implicates
-//! the interaction between real cross-core thread placement/reaping and something in this port's
-//! own arch layer (most plausibly stack allocation, mapping, or the context switch itself, none of
-//! which were ever exercised under genuine concurrency before this milestone, since nothing on
-//! this architecture had a second core to place work on), rather than the INIT-SIPI-SIPI mechanism
-//! this file owns, which had already finished its job by the time either crash occurred.
+//! **2. Two cores crashed under the kernel's own test suite's real scheduler workload. FIXED
+//! 2026-08-25 (milestone 161's SMP-crash lane); root cause was a missing cross-core TLB
+//! shootdown**, recorded here because this is where the symptom was found and where a reader
+//! meets it.
 //!
-//! Whether either failure is specific to QEMU TCG's emulation or a real bug in this port's own
-//! code is exactly the kind of question milestone 87's real hardware would settle, and each is
-//! worth a lane of its own: #2 especially, since it is a correctness question about portable
-//! scheduler machinery meeting this architecture's own arch layer for the first time under real
-//! concurrency, not a detail of this file's own IPI sequence.
+//! The symptom was a `script/test` run at `NIFE_SMP=2` faulting with `rip` = `stack::PAINT`
+//! (`0x5afe57ac5afe57ac`), the pattern this kernel writes into a fresh kernel stack, or with
+//! `rip` = 0. It reproduced on 10 of 10 runs.
+//!
+//! The cause was not in this file, and not in the portable scheduler either. `arch::x86_64::mmu`'s
+//! `flush_tlb` was **local to the calling CPU**: `invlpg` invalidates one core's TLB and says
+//! nothing about any other, and its own doc comment said so and predicted this
+//! (*"a multi-CPU kernel needs a software shootdown protocol (an IPI) ... this is the line that
+//! will need company"*). SMP arrived and the line never got its company. aarch64 needs none
+//! (`tlbi ..., is` is broadcast by the hardware) and RISC-V already had one (an SBI RFENCE), which
+//! is why the same portable `sched`/`thread` code runs clean at `-smp 4` on both.
+//!
+//! The failure that produced is exact rather than vague. `thread::KernelStack::drop` unmaps a dead
+//! thread's stack and hands the address range back for reuse; a core that had cached a translation
+//! for that range kept it, so when the range was remapped onto **different** physical frames the
+//! stale core read the old frame instead. A `Context` read back that way is whatever the old frame
+//! now holds, and since a freshly recycled stack page is painted, the `ret` at the end of
+//! `switch_to` jumped to the paint. Confirmed by making a stale entry harmless (never reusing stack
+//! address space, so no VA is ever remapped onto a new frame): the fault vanished, 8 runs of 8,
+//! leaving only that test's own reuse assertion.
+//!
+//! The fix is `mmu::shoot_down_others`, and the one part of it worth knowing here is **why it is an
+//! NMI**: `unmap_page` runs inside `KERNEL_MMU`, an `IrqSafeMutex`, so both the sender and every
+//! other core running the same code have interrupts masked, and a maskable IPI would deadlock the
+//! first time two cores spawned and reaped concurrently. notes/riscv-tlb-shootdown.md already
+//! names that property as load-bearing for RISC-V, which gets it from M-mode; on x86 the NMI is the
+//! only delivery `cli` cannot suppress. See that function's own doc comment.
+//!
+//! **3. A secondary is brought up and idles, but the suite cannot agree on which core booted**
+//! (found by this lane while verifying #2, and **not fixed**: it is a separate bug in a different
+//! subsystem). `arch::x86_64::boot_cpu_id` reads CPUID leaf 1's initial local APIC id, which is
+//! *"which core am I"* and not *"which core booted"*. aarch64 answers a constant `0` and RISC-V
+//! returns the hart id recorded at boot; only this port recomputes it per caller. So any test body
+//! that §28's placement has migrated onto a secondary gets that secondary's id as "the boot core",
+//! and `smp::tests::every_secondary_runs_scheduled_work` then waits for a `RAN_ON` mark the real
+//! boot core never sets ("secondary core 0 never ran scheduled work"). `stack.rs`'s high-water
+//! report skips a slot chosen the same way, so it scans a never-painted slot and reports a
+//! secondary stack at 65536/65536. One cause, both symptoms, roughly half of runs at `NIFE_SMP=2`.
+//! It reproduces with **no shootdown code present at all** (checked against the pre-fix tree), so
+//! it predates #2's fix rather than following from it. The likely shape of the answer is a boot-time
+//! record, as RISC-V's `boot_hartid` already is.
+//!
+//! **`NIFE_SMP` still defaults to 1**, because #1 and #3 are both open and either can fail a run.
+//! #2's fix is verified rather than gated: `user::tests::an_asid_flush_reaches_the_other_cores`,
+//! the portable test milestone 58 wrote for exactly this property, **fails on this port without
+//! the shootdown and passes with it**, and the whole suite reaches `test result: ok. 177 passed` at
+//! two cores once #3 is stepped over. It cannot be a CI gate until the default moves, and the
+//! default cannot move until #1 and #3 are answered.
+//!
+//! Whether #1 is specific to QEMU TCG's emulation or a real bug in this port's own code is exactly
+//! the kind of question milestone 87's real hardware would settle. #3 wants no hardware and is
+//! small; #1 is the one that wants a lane.
 
 use super::mmu::phys_to_virt;
 

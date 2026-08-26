@@ -23,14 +23,18 @@ shift
 
 # One by default, NOT four like the other two runners. SMP bring-up (INIT-SIPI-SIPI through the
 # local APIC, milestone 161's SMP item) is built and NIFE_SMP moves this the same way it does on
-# the other two runners, but it is not the default here: bringing up a second core and giving it
-# real scheduler work crashed the kernel test suite itself (a page fault at RIP 0 partway through
-# ordinary thread reaping, `sched::tests::a_finished_thread_is_reaped_and_its_memory_returned`),
-# which is a different and more serious finding than the AP-bring-up-only issue
-# `arch::x86_64::ap_boot`'s own BUGS records. Neither is root-caused. Until at least the scheduler
-# one is, this default stays 1, matching this port's prior behaviour, so the standard suite does
-# not routinely exercise a path known to crash. See design/roadmap/161-x86-64-kernel-port.md's
-# item 5 for the full account.
+# the other two runners, but it is not the default here, and the reason changed on 2026-08-25
+# without the number changing.
+#
+# The crash that first held it at 1 (a fault partway through ordinary thread reaping, at RIP 0 or
+# at `stack::PAINT`) is FIXED: it was a missing cross-core TLB shootdown, since `invlpg` is local
+# to one CPU and this port had no remote half. See `arch::x86_64::mmu::shoot_down_others`.
+#
+# Two other failures are still open and either can fail a two-core run, so the default stays where
+# it was: the AP-bring-up flakiness at three or more cores, and a boot-core-identity bug that makes
+# `smp::tests::every_secondary_runs_scheduled_work` fail about half the time at two. Both are
+# recorded, with what is known about each, in `arch::x86_64::ap_boot`'s own BUGS section (#1 and
+# #3), which is the authoritative account; see also design/roadmap/161-x86-64-kernel-port.md item 5.
 SMP="${NIFE_SMP:-1}"
 
 # `q35` rather than the older `pc` because it is what the physical target looks like: a PCIe root

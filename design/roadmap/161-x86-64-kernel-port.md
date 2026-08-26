@@ -592,34 +592,54 @@ In the order it should be done, because each is a prerequisite for the next.
    made no measurable difference either. Both changes are kept, on their own independent merits, but
    neither is the fix.
 
-   **(2) Exactly two cores, idling correctly, crash under the kernel's own test suite's real
-   scheduler workload, and this is the more serious of the two.** `script/test` at `NIFE_SMP=2`
-   reliably reaches `sched::tests::a_finished_thread_is_reaped_and_its_memory_returned` (eight bare
-   kernel threads, scattered across cores by §28's own placement, waited on for the reaper) and
-   then faults: one run at `rip 0x0`, another at `rip 0x5afe57ac5afe57ac`, which is not garbage, it
-   is `stack::PAINT`, the exact pattern this kernel writes into a fresh kernel stack before
-   anything real occupies it. Something is reading a saved `Context` back from a stack location
-   that was never written with a real one, under genuine cross-core placement and reaping that
-   nothing on this architecture has ever exercised before (there was never a second core to place
-   work on). This implicates this port's own arch layer, most plausibly stack allocation, mapping,
-   or the context switch, rather than the portable `sched`/`thread` machinery itself, which
-   aarch64 and RISC-V already run at `-smp 4` without issue, and rather than the INIT-SIPI-SIPI
-   mechanism above, which had already finished its job by the time either crash occurred.
+   **(2) Two cores crashed under the kernel's own test suite's real scheduler workload. FIXED
+   2026-08-25**, by the lane that took this finding. The symptom was a `script/test` run at
+   `NIFE_SMP=2` faulting at `rip 0x0` or at `rip 0x5afe57ac5afe57ac`, which is `stack::PAINT`, the
+   pattern this kernel writes into a fresh kernel stack. It reproduced 10 times in 10.
 
-   Full account of both, and the exact instructions where the trail goes cold on the first:
-   `arch::x86_64::ap_boot`'s own `BUGS`. Neither is root-caused. Until at least the second is,
-   `scripts/qemu-runner-x86_64.sh` keeps `NIFE_SMP` at 1, this port's prior default, rather than
-   moving it to 2 (which starts exactly one secondary reliably) or to the other two runners' 4:
-   the mechanism is real, but nothing has shown that using it is safe yet, and the standard suite
-   should not routinely exercise a path known to crash. The three `smp` tests this item's own
-   roster work would otherwise unblock (`the_roster_is_the_machines_own_core_list`,
-   `every_core_the_tree_described_is_running`, `all_secondaries_came_online`, each needing only
-   `>= 2` cores by their own assertion) therefore keep skipping, honestly, until finding (2) is
-   understood. Whether either failure is a QEMU TCG emulation quirk or a real bug in this port's
-   own code is exactly the kind of question milestone 87's real hardware would settle, and each is
-   worth a lane of its own: (2) especially, since it is a correctness question about portable
-   scheduler machinery meeting this architecture's arch layer for the first time under real
-   concurrency, not a detail of this item's own IPI sequence.
+   The cause was a **missing cross-core TLB shootdown**, and it was neither in the INIT-SIPI-SIPI
+   mechanism above nor in the portable scheduler. `mmu::flush_tlb` on this port was local to the
+   calling CPU, because `invlpg` is; its own doc comment said exactly that and predicted exactly
+   this ("this is the line that will need company"). aarch64 needs no remote half at all (`tlbi
+   ..., is` is broadcast in hardware) and RISC-V has had one since milestone 58's RISC-V TLB shootdown,
+   which is why the same `sched`/`thread` code runs clean at `-smp 4` on both. So a dead thread's
+   kernel-stack address range, handed back by `KernelStack::drop` and remapped onto *different*
+   frames for the next thread, was still translated by the other core to the old frame; a `Context`
+   read back through that stale entry is whatever the recycled frame now holds, and a freshly
+   recycled stack page is painted. Confirmed before any fix was written, by making a stale entry
+   harmless (never reusing stack address space): the fault vanished, 8 runs of 8.
+
+   The fix is `mmu::shoot_down_others`, **and it is an NMI rather than an ordinary IPI**, which is
+   the one design point worth carrying up here. `unmap_page` runs inside `KERNEL_MMU`, an
+   `IrqSafeMutex`, so the sender and every other core running the same code have interrupts masked;
+   a maskable IPI would deadlock the first time two cores spawned and reaped at once. That is the
+   property notes/riscv-tlb-shootdown.md already names as load-bearing there ("a hart with S-mode
+   interrupts masked still services it"), which RISC-V gets from M-mode and aarch64 does not need.
+   On x86 the NMI is the only delivery `cli` cannot suppress.
+
+   Verified rather than gated: `user::tests::an_asid_flush_reaches_the_other_cores`, the portable
+   test milestone 58 wrote for this exact property, **fails on this port without the shootdown and
+   passes with it**, and the suite reaches `test result: ok. 177 passed` at two cores once (3) below
+   is stepped over. 20 further runs produced no paint fault.
+
+   **(3) The suite cannot agree on which core booted** (found by the same lane while verifying (2),
+   **not fixed**, and a different subsystem's bug). `arch::x86_64::boot_cpu_id` reads CPUID leaf 1's
+   initial local APIC id, which answers *"which core am I"* rather than *"which core booted"*;
+   aarch64 answers a constant `0` and RISC-V returns the hart id recorded at boot. So a test body
+   that §28's placement has migrated onto a secondary reads that secondary's id as "the boot core",
+   and `smp::tests::every_secondary_runs_scheduled_work` waits for a `RAN_ON` mark the real boot
+   core never sets. `stack.rs`'s high-water report picks the slot to skip the same way, scans a
+   never-painted one, and reports a secondary stack at 65536/65536. One cause, both symptoms, about
+   half of two-core runs. It reproduces with no shootdown code present at all, checked against the
+   pre-fix tree, so it predates (2)'s fix. The likely answer is a boot-time record, which is what
+   RISC-V's `boot_hartid` already is. Small, wants no hardware, and wants a lane.
+
+   Full account of all three: `arch::x86_64::ap_boot`'s own `BUGS`, which stays the authoritative
+   record. `scripts/qemu-runner-x86_64.sh` keeps `NIFE_SMP` at 1 because (1) and (3) are open and
+   either can fail a run, so the `smp` tests this item's roster work would otherwise unblock keep
+   skipping, honestly, until those two are answered. Whether (1) is a QEMU TCG emulation quirk or a
+   real bug in this port's own code is exactly the kind of question milestone 87's real hardware
+   would settle, and it is the one still worth a lane of its own.
 6. **VT-d, x86_64's IOMMU. BUILT 2026-08-25.** The same milestone-16b role the SMMUv3 and RISC-V
    IOMMU drivers already fill, this time over an interface that is register-driven rather than
    memory-queue-driven: VT-d has no command or fault queue in memory, so invalidation is a register
