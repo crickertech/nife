@@ -121,6 +121,14 @@ pub enum Say {
     /// is refused before there is a program to attribute it to, and [`echo`] can reach the same
     /// refusals with no program on the line at all.
     Cannot(Refusal),
+    /// **`bind` refused**, in [`nav::BindRefused`]'s vocabulary: the name is already bound, the
+    /// table is full, or (a two-grant shell only, not reachable from any real boot yet) the name
+    /// collides with one of this shell's own grant labels. Distinct from
+    /// [`Refused`](Say::Refused): that is a fact about the *path* being navigated, this is a fact
+    /// about the *name being filed*, and the two vocabularies stay separate for the same reason
+    /// [`nav::Refused`] and [`nav::BindRefused`] are separate types rather than one enum with two
+    /// unrelated halves.
+    CannotBind(nav::BindRefused),
 }
 
 /// **What a command did**, which is what `$?` reports and what `&&` reads (milestone 67,
@@ -757,6 +765,11 @@ pub fn write_say(s: Say, out: &mut dyn FnMut(&[u8])) {
             out(r.message().as_bytes());
             out(b"\n");
         }
+        Say::CannotBind(r) => {
+            out(b"  ");
+            out(r.message().as_bytes());
+            out(b"\n");
+        }
     }
 }
 
@@ -785,6 +798,9 @@ pub fn write_help(out: &mut dyn FnMut(&[u8])) {
     out(b"  touch <path>            create if absent, then bump the modification time to now\n");
     out(
         b"  touch -t <instant> <path>   ...to an instant you assert (RFC 3339), if you hold the right\n",
+    );
+    out(
+        b"  bind <target> <name>    name a position you already reached; /<name>/... reaches it too\n",
     );
     out(
         b"  apropos <word>          name the installed pages that mention it (it grants nothing)\n",
@@ -961,6 +977,19 @@ pub fn write_holdings(
             out(b"    (no directory capability: a name on the line has nothing to narrow)\n");
         }
     }
+    // **`bind`'s own rows** (milestone 47/154), beside whatever the match above printed: a bind is
+    // additive to the grant namespace, never a replacement for it, so its rows are a further
+    // section rather than a rewrite of one. The two-grant case already prints a `namespace:`
+    // header above; a one-grant shell with something bound gets one here, because otherwise a
+    // bound row would appear with no heading to explain it.
+    if holdings.binds.iter().next().is_some() {
+        if holdings.second.is_none() {
+            out(b"    namespace: names bound beside the one root ('bind', milestone 47)\n");
+        }
+        for entry in holdings.binds.iter() {
+            write_bind_row(entry, out);
+        }
+    }
     // **The clock, and the rights row is the whole of it** (milestone 86). This shell reads the page
     // and holds no `GRANT` on it, so `time` can measure a command and nothing typed here can hand a
     // clock to a child: which processes can read the time is still decided by the manifests init
@@ -982,6 +1011,20 @@ pub fn write_holdings(
         }
     }
     out(b"  it can name no devices and no other process. authority is what it holds.\n");
+}
+
+/// One row of `bind`'s own namespace section: the name it was filed under, and the real position
+/// it resolves to (not the label of the tree it is inside, which a one-grant shell has none of and
+/// a live two-grant shell does not exist yet to print for real; see the `bind` roadmap section's
+/// own honest caveat).
+fn write_bind_row(entry: &nav::BindEntry, out: &mut dyn FnMut(&[u8])) {
+    out(b"      bind ");
+    out(entry.name());
+    out(b" -> ");
+    let mut buf = [0u8; nav::RENDER_MAX];
+    let n = entry.pos().render(&mut buf);
+    out(&buf[..n]);
+    out(b"\n");
 }
 
 /// One row of the two-grant namespace section: the label, a `*` marking the tree
@@ -1694,6 +1737,7 @@ mod tests {
             Say::NoDirectory,
             Say::NeedsAName,
             Say::Cannot(Refusal::NoMatch),
+            Say::CannotBind(nav::BindRefused::TooMany),
         ] {
             let line = shown(|o| write_say(s, o));
             assert!(line.ends_with('\n'), "{s:?} does not end its line");
@@ -1897,6 +1941,57 @@ mod tests {
         }
     }
 
+    // ---- `bind` (milestone 47/154) ----
+
+    /// [`Say::CannotBind`] renders [`nav::BindRefused`]'s own message, the same shape
+    /// [`Say::Cannot`] and [`Say::Refused`] already use for their own refusal types.
+    #[test]
+    fn cannot_bind_renders_the_bind_refusals_own_message() {
+        let s = shown(|o| write_say(Say::CannotBind(nav::BindRefused::AlreadyBound), o));
+        assert_eq!(s, "  that name is already bound; unbind it first\n");
+    }
+
+    /// **A one-grant shell with something bound gets a namespace section too**, not only a
+    /// two-grant one: `bind` is additive to whatever the shell already prints, and a shell with
+    /// nothing bound prints exactly as before (no `namespace:` line at all), which the second half
+    /// of this test pins.
+    #[test]
+    fn a_bound_name_prints_its_own_namespace_row() {
+        let mut target = Cwd::root();
+        target.descend(b"logs");
+        target.descend(b"2026");
+        let mut binds = nav::Bindings::none();
+        binds.add(b"recent", nav::Which::A, target).unwrap();
+        let holdings = Holdings {
+            dir: true,
+            second: None,
+            cwd: Cwd::root(),
+            binds,
+        };
+        let s = shown(|o| write_holdings(128, holdings, None, o));
+        assert!(s.contains("namespace: names bound"), "{s}");
+        assert!(s.contains("bind recent -> /logs/2026"), "{s}");
+
+        // Nothing bound: no namespace section at all, the same claim
+        // `holding_a_directory_changes_exactly_one_line_of_the_endowment` already pins for the
+        // directory row itself.
+        let empty = shown(|o| {
+            write_holdings(
+                128,
+                Holdings {
+                    dir: true,
+                    second: None,
+                    cwd: Cwd::root(),
+                    binds: nav::Bindings::none(),
+                },
+                None,
+                o,
+            );
+        });
+        assert!(!empty.contains("namespace:"), "{empty}");
+        assert!(!empty.contains("bind "), "{empty}");
+    }
+
     // ---- the shell's own endowment ----
 
     #[test]
@@ -1908,6 +2003,7 @@ mod tests {
                     dir: true,
                     second: None,
                     cwd: Cwd::root(),
+                    binds: nav::Bindings::none(),
                 },
                 None,
                 o,
@@ -1938,6 +2034,7 @@ mod tests {
             dir: true,
             second: Some(SecondDir::new(b"a", b"b").unwrap()),
             cwd,
+            binds: nav::Bindings::none(),
         };
         let s = shown(|o| write_holdings(128, holdings, None, o));
         assert!(s.contains("cap 4  endpoint  directory"), "{s}");
@@ -1957,6 +2054,7 @@ mod tests {
                     dir: true,
                     second: None,
                     cwd: Cwd::root(),
+                    binds: nav::Bindings::none(),
                 },
                 None,
                 o,
@@ -1975,6 +2073,7 @@ mod tests {
             dir: true,
             second: Some(sd),
             cwd: Cwd::root(),
+            binds: nav::Bindings::none(),
         };
         let s = shown(|o| write_holdings(128, holdings, None, o));
         assert!(s.contains("* b  /"), "{s}");
@@ -2239,7 +2338,7 @@ mod tests {
         // prompt can find.
         let text = shown(write_help);
         for verb in [
-            "help", "echo", "caps", "time", "xargs", "cd", "pwd", "ls", "mkdir", "touch",
+            "help", "echo", "caps", "time", "xargs", "cd", "pwd", "ls", "mkdir", "touch", "bind",
         ] {
             assert!(text.contains(verb), "help does not mention {verb}");
             // And it really is a verb this shell answers, rather than a word in a sentence.
@@ -2297,6 +2396,7 @@ mod tests {
                     dir: true,
                     second: None,
                     cwd: Cwd::root(),
+                    binds: nav::Bindings::none(),
                 },
                 None,
                 &mut |_| Ok(NameSet::empty()),

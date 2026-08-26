@@ -158,6 +158,7 @@ fn holdings(nav: &Nav) -> grant_plan::Holdings {
         // design/roadmap/154-multi-directory-namespace.md.
         second: None,
         cwd: nav.cwd,
+        binds: nav.binds,
     }
 }
 
@@ -210,6 +211,11 @@ struct Nav {
     /// `handles[i]` is the directory capability for level `i + 1`; level 0 is [`fs::ROOT`], the
     /// capability the rendezvous itself designates.
     handles: [u64; nav::MAX_DEPTH],
+    /// **Names this shell has bound to a position it already reached some other way** (`bind`,
+    /// milestone 47/154). A value, not a capability: no cspace slot is spent minting one and none
+    /// is leaked by forgetting one, which is [`nav::Bindings`]'s own doc restated at the one place
+    /// that actually holds the table for a live shell.
+    binds: nav::Bindings,
     /// The sweep in progress, when the line is under `xargs` (milestone 109). Zeroed outside one.
     batching: Batching,
 }
@@ -305,6 +311,7 @@ impl Nav {
             rights: 0,
             cwd: Cwd::root(),
             handles: [0; nav::MAX_DEPTH],
+            binds: nav::Bindings::none(),
             batching: Batching::default(),
         }
     }
@@ -323,6 +330,7 @@ impl Nav {
             rights,
             cwd: Cwd::root(),
             handles: [0; nav::MAX_DEPTH],
+            binds: nav::Bindings::none(),
             batching: Batching::default(),
         }
     }
@@ -358,7 +366,9 @@ impl Nav {
     }
 
     /// **Resolve a path without moving**, from this shell's root when the token began with `/` and
-    /// from where it stands otherwise.
+    /// from where it stands otherwise. Bind-aware: an absolute path whose first component names a
+    /// bound entry ([`Nav::binds`]) walks through *that* entry's own stored position instead of a
+    /// literal descent from [`fs::ROOT`], which is [`Nav::walk_bind`].
     ///
     /// `..` is answered from the shell's own stack (a level up is a handle it already holds), and
     /// each `Down` is one `OPENDIR`, because the FS contract takes a single component per request
@@ -366,16 +376,61 @@ impl Nav {
     /// so an `Up` past the root and a path deeper than the shell tracks are already refused with
     /// nothing sent; the only failure left is the server's.
     fn walk(&mut self, p: &nav::Path<'_>) -> Result<Walk, Say> {
-        self.walk_from(p.from_root(), p.steps())
+        self.walk_steps(p.from_root(), p.steps())
     }
 
     /// [`Nav::walk`] with the lead of a path rather than the whole of it: the same walk, stopping
-    /// one component short, which is what every verb that acts on a *name* needs.
+    /// one component short, which is what every verb that acts on a *name* needs. Also bind-aware,
+    /// for the same reason [`Nav::walk`] is: `mkdir /recent/newdir` must open `newdir`'s parent
+    /// through the bind, not try to `OPENDIR("recent")` at the literal root.
     ///
     /// `from_root` is carried separately because a lead is a bare step sequence and cannot say
     /// where it started. **A walk from the root starts at [`fs::ROOT`]**, the capability the
     /// rendezvous itself designates, which is the only root this process has and the reason an
     /// absolute path can reach nothing a `cd` could not.
+    fn walk_steps(&mut self, from_root: bool, steps: &[Step<'_>]) -> Result<Walk, Say> {
+        if from_root
+            && let Some((Step::Down(name), rest)) = steps.split_first()
+            && let Some(entry) = self.binds.lookup(name)
+        {
+            return self.walk_bind(entry.pos(), rest);
+        }
+        self.walk_from(from_root, steps)
+    }
+
+    /// **Walk through a bound entry's own stored position, then continue through `rest`.**
+    ///
+    /// Two phases over the one [`Walk`], not two walks: first [`Nav::walk_from`] opens the real
+    /// chain of handles the bind's own position names (bounded by [`nav::MAX_DEPTH`], exactly as
+    /// any other walk from the root is), then [`Nav::extend_walk`] continues through whatever
+    /// followed the bound name in the token. This is why `bind` does not clamp `..` at the alias:
+    /// ascending from inside a bound path pops the *same* stack a direct walk to that position
+    /// would have built, so it climbs the bind's own real tree and stops only where a direct walk
+    /// would, at that tree's true root. A bind can misdirect a name; it cannot manufacture a
+    /// boundary that was not already there.
+    ///
+    /// **Depth safety.** [`Nav::plan_path`] validates the whole logical target
+    /// (`base.apply(rest)`, [`Cwd::apply`]'s own incremental [`nav::MAX_DEPTH`] check) *before*
+    /// either phase here runs, for every caller that resolves a token before walking it. Since
+    /// that check runs the identical step sequence in the identical order, its success guarantees
+    /// this walk's net open handles never exceed [`nav::MAX_DEPTH`] either, so [`Walk::tmp`]'s
+    /// fixed capacity is never at risk of overrunning.
+    fn walk_bind(&mut self, base: Cwd, rest: &[Step<'_>]) -> Result<Walk, Say> {
+        let mut base_steps = [Step::Up; nav::MAX_DEPTH];
+        let n = base.depth();
+        for (level, slot) in base_steps.iter_mut().enumerate().take(n) {
+            *slot = Step::Down(base.component(level));
+        }
+        let mut w = self.walk_from(true, &base_steps[..n])?;
+        self.extend_walk(&mut w, rest)?;
+        Ok(w)
+    }
+
+    /// The literal walk, with no bind lookup: from [`fs::ROOT`] when `from_root`, from where this
+    /// shell stands otherwise. [`Nav::walk_steps`] is every other caller's entry point; this stays
+    /// separate because [`Nav::walk_bind`]'s first phase needs exactly this and nothing more (a
+    /// bound name's own components can never themselves resolve through *another* bind: a
+    /// [`nav::BindEntry`] stores a position, not a token, so there is no second lookup to make).
     fn walk_from(&mut self, from_root: bool, steps: &[Step<'_>]) -> Result<Walk, Say> {
         let mut w = if from_root {
             Walk {
@@ -392,6 +447,16 @@ impl Nav {
                 n: 0,
             }
         };
+        self.extend_walk(&mut w, steps)?;
+        Ok(w)
+    }
+
+    /// **Continue an in-progress walk with more steps, in place.** The one loop [`Nav::walk_from`]
+    /// and [`Nav::walk_bind`] both drive: the former seeds `w` and runs every step through here,
+    /// the latter seeds `w` by walking a bind's own position first and then extends it with
+    /// whatever followed the bound name. Same unwind-on-failure rule either way: a step that
+    /// cannot be taken closes everything this call and the walk before it opened.
+    fn extend_walk(&self, w: &mut Walk, steps: &[Step<'_>]) -> Result<(), Say> {
         for step in steps {
             match step {
                 Step::Up => {
@@ -401,7 +466,7 @@ impl Nav {
                     } else if w.base > 0 {
                         w.base -= 1;
                     } else {
-                        self.unwind(&w);
+                        self.unwind(w);
                         return Err(Say::Refused(Refused::AtYourRoot));
                     }
                     w.handle = if w.n > 0 {
@@ -413,7 +478,7 @@ impl Nav {
                 Step::Down(name) => {
                     let r = self.name_call(fs::OPENDIR, w.handle, name, self.rights);
                     if r < 0 {
-                        self.unwind(&w);
+                        self.unwind(w);
                         return Err(Say::Failed(-r as i32));
                     }
                     w.tmp[w.n] = r as u64;
@@ -422,7 +487,7 @@ impl Nav {
                 }
             }
         }
-        Ok(w)
+        Ok(())
     }
 
     /// Give back every capability a walk opened. Called on failure, and by every verb that resolved
@@ -435,8 +500,19 @@ impl Nav {
     }
 
     /// Parse and validate a path operand: the steps, and where they would leave us.
+    /// Bind-aware: an absolute path whose first component names a bound entry ([`Nav::binds`])
+    /// resolves against that entry's own stored position rather than a literal walk from the sole
+    /// root, exactly as [`Nav::walk`] will resolve it for real. A token that names no bound entry
+    /// resolves exactly as it always did, which is what makes `bind` additive rather than a mode
+    /// switch: a shell with nothing bound behaves byte for byte as before this existed.
     fn plan_path<'a>(&self, token: &'a [u8]) -> Result<(nav::Path<'a>, Cwd), Say> {
         let p = nav::path(token).map_err(Say::Refused)?;
+        if p.from_root()
+            && let Some(r) = self.binds.resolve_absolute(&p)
+        {
+            let (_, target) = r.map_err(Say::Refused)?;
+            return Ok((p, target));
+        }
         let target = self.cwd.resolve(&p).map_err(Say::Refused)?;
         Ok((p, target))
     }
@@ -533,6 +609,36 @@ impl Nav {
         })
     }
 
+    /// **`bind <target> <name>`**: name a position this shell already reached some other way, so
+    /// `/<name>/...` reaches it too (milestone 47, "`bind` is not blocked on a mount table. It is
+    /// blocked on a second grant"; milestone 154 supplied the second grant, [`nav::Bindings`] is
+    /// the mechanism it unblocked). `target` is resolved through [`Nav::plan_path`], exactly as
+    /// any other operand is, which is itself bind-aware, so binding a name under an existing bind
+    /// composes rather than needing a special case.
+    ///
+    /// **A builtin, [`Nav::mkdir`]'s category**: it mints no capability, spawns nothing, and needs
+    /// no more than the directory capability this shell already holds. A value is filed under a
+    /// name; nothing is opened and nothing is kept.
+    ///
+    /// **`Which::A` is the only answer this shell could ever carry**: it holds at most one
+    /// directory capability today ([`Nav::binds`]'s own doc has the reason this field exists
+    /// anyway). Neither of the two real entry points constructs a second one yet
+    /// (design/roadmap/154-multi-directory-namespace.md's own gap), so a two-grant `bind` is
+    /// provable in `grant_plan`'s host suite but not yet reachable from this shell's own prompt.
+    fn bind(&mut self, target: &[u8], name: &[u8]) -> Say {
+        if self.dir.is_none() {
+            return Say::NoDirectory;
+        }
+        let (_, pos) = match self.plan_path(target) {
+            Ok(v) => v,
+            Err(s) => return s,
+        };
+        match self.binds.add(name, nav::Which::A, pos) {
+            Ok(()) => Say::Nothing,
+            Err(r) => Say::CannotBind(r),
+        }
+    }
+
     /// **`touch`**: create an empty file if the name is not there (a no-op if it already is), then
     /// bump its modification time. Bare `touch` sets it to now (`fs::SETMTIME`, needs only the
     /// `WRITE` this shell already holds); `-t` asserts a caller-chosen instant (`fs::SETMTIME_AT`,
@@ -606,7 +712,7 @@ impl Nav {
             // The token ends in `..`, so it designates a directory rather than a name in one.
             return Say::Refused(Refused::NotAName);
         };
-        let w = match self.walk_from(p.from_root(), lead) {
+        let w = match self.walk_steps(p.from_root(), lead) {
             Ok(w) => w,
             Err(s) => return s,
         };
@@ -638,7 +744,7 @@ impl Nav {
         let Some((lead, pattern)) = p.split_last_component() else {
             return Err(Say::Refused(Refused::NotAName));
         };
-        let w = self.walk_from(p.from_root(), lead)?;
+        let w = self.walk_steps(p.from_root(), lead)?;
 
         // **The batched and unbatched expanders decide membership identically**, which is why the
         // sweep is a policy on this one function rather than a second path: `xargs rm *.txt` and
@@ -1218,6 +1324,7 @@ fn builtin(nav: &mut Nav, cmd: &[u8], each: &mut dyn FnMut(&[u8], bool)) -> Opti
         Command::Ls(path) => Some(nav.ls(path, each)),
         Command::Mkdir(path) => Some(nav.mkdir(path)),
         Command::Touch(args) => Some(nav.touch(args)),
+        Command::Bind(target, name) => Some(nav.bind(target, name)),
         _ => None,
     }
 }
@@ -1462,7 +1569,11 @@ fn dispatch_one(nav: &mut Nav, cmd: &[u8]) {
         Command::Apropos(term) => say(apropos(nav, term)),
         Command::Run(spec) => run(nav, cmd, spec),
         // Handled above, by the one implementation the witness also runs.
-        Command::Cd(_) | Command::Ls(_) | Command::Mkdir(_) | Command::Touch(_) => {}
+        Command::Cd(_)
+        | Command::Ls(_)
+        | Command::Mkdir(_)
+        | Command::Touch(_)
+        | Command::Bind(_, _) => {}
     }
 }
 
@@ -3280,6 +3391,74 @@ fn navigate(spec: u64) -> ! {
         v |= nb::WALKED_UP;
     }
 
+    // 12. **`bind`**, milestone 47's "blocked on a second grant" closed by milestone 154: name a
+    //     position this shell already reached (a directory nested inside the one it made at step
+    //     7, holding a marker file) under a fresh top-level word, then reach the real files
+    //     through the bound name three different ways over the real wire.
+    let nested = run_name(tree::NAV_BIND_NESTED, run);
+    let alias = run_name(tree::NAV_BIND_ALIAS, run);
+    let marker_made = matches!(
+        run_line(&mut nav, line(&mut cmd, b"cd ", &dirname)),
+        Some(Say::Nothing)
+    ) && matches!(
+        run_line(&mut nav, line(&mut cmd, b"mkdir ", &nested)),
+        Some(Say::Nothing)
+    ) && matches!(
+        run_line(&mut nav, line(&mut cmd, b"cd ", &nested)),
+        Some(Say::Nothing)
+    ) && created(&nav, tree::NAV_BIND_MARKER.as_bytes())
+        .map(|h| nav.close(h))
+        .is_some()
+        && matches!(run_line(&mut nav, b"cd /"), Some(Say::Nothing));
+    if marker_made {
+        let mut bindbuf = [0u8; 64];
+        let bind_cmd = bind_line(&mut bindbuf, &dirname, &nested, &alias);
+        if matches!(run_line(&mut nav, bind_cmd), Some(Say::Nothing)) {
+            // `ls` of the bound name lists the real directory it points at: the marker, which
+            // this shell never `mkdir`ed or `cd`ed into by that name.
+            let mut cmd2 = [0u8; 32];
+            let mut saw_marker = false;
+            let listed = nav.ls(line(&mut cmd2, b"/", &alias), &mut |name, _| {
+                if name == tree::NAV_BIND_MARKER.as_bytes() {
+                    saw_marker = true;
+                }
+            });
+            if matches!(listed, Say::Nothing) && saw_marker {
+                v |= nb::BIND_REACHED_TARGET;
+            }
+
+            // `/<dirname>`, the real parent's own path: built once, so the check below compares
+            // against the *real* tree rather than the alias, which a position has no memory of
+            // having been reached through.
+            let mut want = [0u8; nav::RENDER_MAX];
+            want[0] = b'/';
+            want[1..1 + dirname.1].copy_from_slice(name_of(&dirname));
+            let want = &want[..1 + dirname.1];
+
+            // `cd` through the bound name, then `..` three times: to the real parent (not a
+            // boundary invented at the alias), to the real root, and refused there exactly where
+            // a direct walk to that depth would refuse, never one step earlier or later.
+            if matches!(
+                run_line(&mut nav, line(&mut cmd2, b"cd /", &alias)),
+                Some(Say::Nothing)
+            ) && matches!(run_line(&mut nav, b"cd .."), Some(Say::Nothing))
+                && pwd_is(&nav, want)
+            {
+                v |= nb::BIND_ASCEND_REACHES_REAL_PARENT;
+                if matches!(run_line(&mut nav, b"cd .."), Some(Say::Nothing))
+                    && pwd_is(&nav, b"/")
+                    && matches!(
+                        run_line(&mut nav, b"cd .."),
+                        Some(Say::Refused(Refused::AtYourRoot))
+                    )
+                    && pwd_is(&nav, b"/")
+                {
+                    v |= nb::BIND_STOPS_AT_TRUE_ROOT;
+                }
+            }
+        }
+    }
+
     // Nothing worked at all: say so, rather than letting a shell that reaches nothing pass as a
     // shell that is perfectly confined.
     if v & (nb::REACHED_INNER | nb::REACHED_SECRET | nb::LISTED) == 0 {
@@ -3433,13 +3612,13 @@ fn opened(nav: &Nav, name: &[u8]) -> Option<u64> {
 /// `OPEN` what a **token** designates, resolved the way the prompt resolves one: from this shell's
 /// root when the token starts with `/`, from where it stands otherwise.
 ///
-/// It goes through [`Nav::plan_path`] and [`Nav::walk_from`] rather than sending a name straight at
-/// [`Nav::here`], because the claim being witnessed is about the shell's own resolver. A helper
+/// It goes through [`Nav::plan_path`] and [`Nav::walk_steps`] rather than sending a name straight
+/// at [`Nav::here`], because the claim being witnessed is about the shell's own resolver. A helper
 /// that walked the path itself would prove that the *witness* can resolve a path.
 fn opened_token(nav: &mut Nav, token: &[u8]) -> Option<u64> {
     let (p, _) = nav.plan_path(token).ok()?;
     let (lead, name) = p.split_last_component()?;
-    let w = nav.walk_from(p.from_root(), lead).ok()?;
+    let w = nav.walk_steps(p.from_root(), lead).ok()?;
     let r = nav.name_call(fs::OPEN, w.handle, name, 0);
     nav.unwind(&w);
     if r < 0 { None } else { Some(r as u64) }
@@ -3644,6 +3823,30 @@ fn line<'a>(buf: &'a mut [u8; 32], verb: &[u8], name: &([u8; 16], usize)) -> &'a
     buf[..n].copy_from_slice(verb);
     buf[n..n + name.1].copy_from_slice(name_of(name));
     &buf[..n + name.1]
+}
+
+/// Build `bind <a>/<b> <c>` out of three generated names. `bind`'s own witness needs three
+/// pieces where every other command here needs at most two ([`line()`]'s shape), so it gets its
+/// own buffer rather than overloading that one.
+fn bind_line<'a>(
+    buf: &'a mut [u8; 64],
+    a: &([u8; 16], usize),
+    b: &([u8; 16], usize),
+    c: &([u8; 16], usize),
+) -> &'a [u8] {
+    let mut n = 0;
+    for part in [
+        b"bind " as &[u8],
+        name_of(a),
+        b"/",
+        name_of(b),
+        b" ",
+        name_of(c),
+    ] {
+        buf[n..n + part.len()].copy_from_slice(part);
+        n += part.len();
+    }
+    &buf[..n]
 }
 
 user_rt::panic_handler!();

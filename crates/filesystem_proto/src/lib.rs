@@ -2884,6 +2884,20 @@ pub mod fixture {
         /// `redoxfs_server`'s own host tests. Ten bytes plus a run digit, `run_name`'s bound.
         pub const NAV_TOUCH_NO_SETTIME: &str = "nav-notime";
 
+        /// **`bind`'s witness** (milestone 47, "`bind` is not blocked on a mount table. It is
+        /// blocked on a second grant"; milestone 154 supplied it). A directory nested inside
+        /// [`NAV_DIR`], holding [`NAV_BIND_MARKER`], and bound to a fresh top-level name
+        /// ([`NAV_BIND_ALIAS`]) so `ls`, `cd` and `..` can all be checked through the bound name
+        /// against the same real files a direct walk would reach.
+        pub const NAV_BIND_NESTED: &str = "nav-bind-nest";
+        /// The marker file [`NAV_BIND_NESTED`] holds. Its name alone is the claim: reachable
+        /// through the bind means the same `OPENDIR`/`OPEN` the direct path would have sent.
+        pub const NAV_BIND_MARKER: &str = "marker";
+        /// The top-level name [`NAV_BIND_NESTED`] is bound to. A fresh word, never a real
+        /// top-level entry, so reaching it through `ls`/`cd` is unambiguously the bind and not a
+        /// coincidence of the fixture tree's own shape.
+        pub const NAV_BIND_ALIAS: &str = "nav-bound";
+
         /// **The directory milestone 50's redirection witness works in**, a sibling of [`SUB`] for
         /// the same reason that one has siblings: a shell that writes files needs somewhere its
         /// writes cannot be mistaken for another test's, and the root is shared with every test in
@@ -3265,6 +3279,22 @@ pub mod fixture {
         /// bit's sibling and clear this one, and a caretaker that refused everything would clear
         /// both.
         pub const TOUCH_AT_REFUSED_WITHOUT_SETTIME: u64 = 1 << 28;
+        /// **`ls` of a bound name listed the real directory it points at**: [`super::tree::NAV_BIND_MARKER`]
+        /// appeared in a listing of [`super::tree::NAV_BIND_ALIAS`], which this shell never `mkdir`ed
+        /// or `cd`ed into directly. `bind`'s own claim (milestone 47/154), made a measurement: a
+        /// bound name reaches what the position it was given reaches, over the real wire.
+        pub const BIND_REACHED_TARGET: u64 = 1 << 29;
+        /// **`..` from inside a bound path landed at the bind's own real parent**, not at some
+        /// boundary invented at the alias: `cd /<alias>` followed by one `cd ..` rendered
+        /// [`super::tree::NAV_DIR`]'s own run-indexed path (`pwd` shows the real tree, not the
+        /// name used to reach it, because a position has no memory of how it was reached). Proves
+        /// `bind` composes the underlying position's own resolution rather than re-clamping at
+        /// the alias.
+        pub const BIND_ASCEND_REACHES_REAL_PARENT: u64 = 1 << 30;
+        /// **A third `cd ..` from there refused at this shell's own root**, exactly where a direct
+        /// walk to the same depth would have: the negative control that a bind cannot manufacture
+        /// either more reach or a new boundary, only a second name for a position already held.
+        pub const BIND_STOPS_AT_TRUE_ROOT: u64 = 1 << 31;
     }
 
     /// **What the globbing witness reports** (milestone 47's globbing lane): a bitmap, for the same

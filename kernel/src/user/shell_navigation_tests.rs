@@ -39,7 +39,15 @@ const ALWAYS: u64 = nb::PWD_IS_ROOT
     // `redoxfs_server`'s own host tests: `WRITE` alone is enough for bare `touch`, and it is not enough
     // for `touch -t`.
     | nb::TOUCH_NOW_NEEDS_ONLY_WRITE
-    | nb::TOUCH_AT_REFUSED_WITHOUT_SETTIME;
+    | nb::TOUCH_AT_REFUSED_WITHOUT_SETTIME
+    // `bind` (milestone 47, "blocked on a second grant"; milestone 154 supplied it): a bound
+    // name reaches the real position it was given (`ls` lists the marker it never `mkdir`ed or
+    // `cd`ed into directly), `..` from inside it climbs the *real* tree rather than stopping at
+    // a boundary invented at the alias, and that climb still refuses at this shell's own true
+    // root, exactly where a direct walk to the same depth would.
+    | nb::BIND_REACHED_TARGET
+    | nb::BIND_ASCEND_REACHES_REAL_PARENT
+    | nb::BIND_STOPS_AT_TRUE_ROOT;
 
 /// Wire a `fs_subtree_caretaker` holding a capability to `root` and run the shell's navigation
 /// script inside it. `run` keeps the names it creates distinct across runs sharing one image.
