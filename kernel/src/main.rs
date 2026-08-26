@@ -481,7 +481,9 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // architecture is DECISIONS §121 and the discovery seam's wide half rather than more
         // userspace. See the roadmap for the order the rest comes in.
         println!();
-        println!("  next        : real ELF user programs (user_rt has no x86_64 arms), then the device seam and port I/O (\u{a7}121).");
+        println!(
+            "  next        : real ELF user programs (user_rt has no x86_64 arms), then the device seam and port I/O (\u{a7}121)."
+        );
         println!("nife x86_64: boot complete, halting.");
         arch::halt();
     }
