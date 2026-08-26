@@ -32,7 +32,15 @@ use crate::sched;
 /// from now adding one more permanent login to this suite should not have to touch this constant to
 /// do it. Raising this past 640 raised `kernel::testing::SUITE_PAGE_FRAME_BUDGET` too; that comment
 /// carries the account.
-const CONSTRUCTION_PAGES: u64 = 1856;
+///
+/// **+200, milestone 49's channel-per-client update.** Every `CONNECT`, answered or not, now
+/// permanently spends three pages of this budget too (`user/src/login.rs`'s own BUGS): two
+/// rendezvous objects and a staging page frame, never reclaimed in this slice. This suite performs
+/// roughly twenty-six connects in total (one per `ls::client`/`ls::spawn_client` call, including the
+/// two `two_clients_connecting_together_get_independent_channels_and_neither_observes_the_others_secret`
+/// makes below), for an added cost of roughly 78 pages; +200 is margin over a tight count for the
+/// same reason the rest of this constant is generous rather than exact.
+const CONSTRUCTION_PAGES: u64 = 2056;
 
 /// `EEXIST`, matching `identity_provisioner.rs`'s own local constant: `fs_proto` does not re-export
 /// it under a name (that file's own comment), so every direct caller of `fs::MKDIR` names it again.
@@ -300,6 +308,94 @@ fn two_different_identities_get_independently_working_channels_and_correct_attri
             "{label}'s budget did not work",
         );
     }
+}
+
+/// **Two clients reaching the front door together get independent channels, and neither observes
+/// the other's secret.** Milestone 49's channel-per-client update (`user/src/login.rs`'s own BUGS,
+/// "Resolved"): before it, `REQUEST`/`RESULT` and a single shared staging page carried every
+/// client's identity and secret for the service's whole life, so two callers reaching the front door
+/// close together could corrupt or observe each other's presented credential. `ls::spawn_client`
+/// (unlike `ls::client`) returns the instant a role is spawned, without waiting for it to run at
+/// all, so calling it twice before waiting on either puts both roles genuinely in flight together,
+/// racing each other to `CONNECT` on the kernel's own schedule: this is the scenario the old design's
+/// hazard needed, and the new one's whole point is that it no longer matters who wins the race.
+///
+/// `login` is still one thread and answers `CONNECT` one at a time, so whichever role is served
+/// first is served to completion, private channel and all, before the second is even accepted; that
+/// is service *order*, the module docs' own distinction, not shared state. The audit trail is the
+/// outside witness that nothing crossed between them: two `ATTRIBUTED` records, each naming exactly
+/// one of the two identities, never the same one twice and never a garbled third value a corrupted
+/// shared page could have produced.
+#[test_case]
+fn two_clients_connecting_together_get_independent_channels_and_neither_observes_the_others_secret()
+{
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
+    let Some(w) = wired() else {
+        crate::testing::skip!("no virtio-rng device or no RedoxFS disk attached");
+    };
+    let cli =
+        program("login_test_client").expect("no login_test_client program in the initrd archive");
+
+    // Both spawned before either is waited on: this is the race. Which role's CONNECT actually
+    // reaches `login`'s front door first is the kernel scheduler's call, not this test's, and the
+    // property under test holds either way.
+    let chris_report = ls::spawn_client(cli, &w, ls::ROLE_CHRIS);
+    let corinne_report = ls::spawn_client(cli, &w, ls::ROLE_CORINNE);
+
+    // Whichever role wins the race, `login` cannot accept the *other*'s `CONNECT` until it finishes
+    // fully serving the first: its own `send(AUDIT, ...)` is a blocking rendezvous (every other
+    // successful-login test in this file drains it for the same reason), so this drain is what lets
+    // the second role make any progress at all, not merely bookkeeping. The loser's `CONNECT` sits
+    // queued on the front door until this happens.
+    let a_first = sched::ipc_recv(w.audit);
+    assert_eq!(
+        a_first[0],
+        login_proto::ATTRIBUTED,
+        "no attribution record followed the first of the two logins",
+    );
+
+    // Both reports can now be collected in either order: the winner's needed no help from this
+    // drain (it already held its own four capabilities before `login` ever tried to send the audit
+    // record above), and the loser's `CONNECT` is now unstuck.
+    let r_chris = ls::wait_client(chris_report);
+    let r_corinne = ls::wait_client(corinne_report);
+
+    let a_second = sched::ipc_recv(w.audit);
+    assert_eq!(
+        a_second[0],
+        login_proto::ATTRIBUTED,
+        "no attribution record followed the second of the two logins",
+    );
+
+    assert_eq!(r_chris[0], ls::RPT_OK, "chris was not authenticated");
+    assert_eq!(r_corinne[0], ls::RPT_OK, "corinne was not authenticated");
+    for (label, r) in [("chris", r_chris), ("corinne", r_corinne)] {
+        assert_eq!(
+            r[1] & ls::F_DIR_WORKS,
+            ls::F_DIR_WORKS,
+            "{label}'s directory capability did not work",
+        );
+        assert_eq!(
+            r[1] & ls::F_BUDGET_WORKS,
+            ls::F_BUDGET_WORKS,
+            "{label}'s budget did not work",
+        );
+    }
+
+    // The property under test, stated positively: the two attribution records name exactly one
+    // chris and one corinne login, in either order, never the same identity twice. A shared,
+    // corrupted staging page (the pre-fix hazard) could have produced two records naming the same
+    // identity, or a value matching neither.
+    let chris_hint = login_proto::identity_hint(b"chris");
+    let corinne_hint = login_proto::identity_hint(b"corinne");
+    let (h1, h2) = (a_first[2], a_second[2]);
+    assert!(
+        (h1 == chris_hint && h2 == corinne_hint) || (h1 == corinne_hint && h2 == chris_hint),
+        "the two attribution records did not name exactly one chris login and one corinne login: \
+         {h1:#x}, {h2:#x} (chris is {chris_hint:#x}, corinne is {corinne_hint:#x})",
+    );
 }
 
 /// **Nothing else would have caught this**: `login`'s own capability table has sixteen slots
