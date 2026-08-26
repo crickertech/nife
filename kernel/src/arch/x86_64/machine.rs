@@ -8,16 +8,16 @@
 //!
 //! # BUGS
 //!
-//! - **Only RAM and reservations cross the seam.** `memory::bring_up_page_frames` takes those two, and
-//!   the device *windows* the device-tree front end also discovers (the interrupt controller, the
-//!   RTC, the UART's interrupt line, the PCIe ECAM range) are still read from a tree by the front
-//!   end and stay `None` here. What ACPI answers is handed to `arch::x86_64::irq` **directly** by
-//!   the boot tour rather than through `memory.rs`'s statics, so `memory::pci_regions()` and
-//!   friends still report nothing on x86 even though the MCFG answered a few lines earlier.
-//!   Widening the seam is its own milestone; see notes/x86-port.md.
-//! - **COM1's interrupt is discovered and not used.** [`Acpi::isa_irqs`] resolves all sixteen
-//!   legacy IRQs, so `isa_irqs[4]` is the console UART's line and could be routed the way the PIT's
-//!   is; the x86 console is polled, so nothing asks.
+//! - **Only RAM and reservations cross the seam** through [`crate::memory::bring_up_page_frames`].
+//!   The device *windows* the device-tree front end also discovers on the other two architectures
+//!   have their own, narrower seams instead of that one: the interrupt controller (IO APIC) is
+//!   reached directly by `arch::x86_64::irq` rather than through `memory.rs`'s statics (milestone
+//!   161 item 2), and PCI and the UART's interrupt line are wired into `memory.rs`'s own statics
+//!   from `main.rs`'s boot tour (`memory::record_pci_regions`, `memory::record_uart_irq`;
+//!   milestones 165 and 176). **The only device window with no seam at all is the CMOS RTC**: it
+//!   is not memory-mapped (two fixed I/O ports, not a page), so `memory::RTC_REGION`'s
+//!   `Option<(u64, u64, u64)>` shape has nowhere to put it. See notes/x86-port.md and
+//!   `kernel/src/arch/x86_64/port.rs`'s own doc comment.
 
 use machine_discovery::x86_64::{
     BootInfo, MEMMAP_ENTRY_LEN, MODULE_ENTRY_LEN, MemoryEntry, Module, memory_entry, module,

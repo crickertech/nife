@@ -180,6 +180,16 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         let acpi = arch::machine::read_acpi(info.rsdp);
         arch::machine::print_acpi_summary(&acpi);
 
+        // COM1's interrupt line, from ACPI's ISA IRQ table (milestone 176). `isa_irqs[4]` is the
+        // legacy UART line, resolved through any MADT override the same way the PIT's IRQ 0 is
+        // below; a machine with no override leaves it at the ISA default (gsi 4), which is what
+        // `user::UART_RX_INTID` already assumes. `Acpi::isa_irqs` is never absent (it is not an
+        // `Option`, unlike the fields around it), so this is unconditional, filling the same
+        // static `memory::uart_irq()` the other two architectures fill from their device tree.
+        // The x86 console is polled, so nothing reads this yet; recording it means a future
+        // interrupt-driven driver, or a test, finds a real answer instead of `None`.
+        memory::record_uart_irq(acpi.isa_irqs[4].gsi);
+
         // Turn the MCFG's ECAM window on and record it where kernel/src/pci.rs already knows to
         // look: `memory::pci_regions()`, the same static a device-tree machine fills from its
         // `pci-host-ecam-generic` node. No MCFG, no PCI at all, the same treatment the other two
