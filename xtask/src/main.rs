@@ -7560,19 +7560,19 @@ fn bench() -> bool {
     }
 
     // The third architecture (milestone 161; DECISIONS §121's amendment, the TSS I/O-bitmap
-    // switch cost). **No icount leg, full stop**: `icount()` below refuses `--arch x86_64` for
-    // the same reason ("the instrument's boot needs a userspace this port cannot build"), and
-    // this port's runner attaches no image either. So `--x86` always runs statistically, off the
-    // guest's own TSC, and never gates; `--check`/`--save` are refused up front, the same shape
-    // `--real` uses above.
+    // switch cost, extended by milestone 161's icount leg, 2026-08-25). **Not** the same question
+    // as `icount()` below, which still refuses `--arch x86_64` for a real reason (milestone 78's
+    // instrument needs a re-armed deadline timer to compare against, and this port's LAPIC timer
+    // is periodic hardware reload with no such deadline to read). Pinning QEMU's virtual clock to
+    // the instruction stream is a strictly weaker ask than that, and it works: measured, not
+    // assumed, three consecutive boots under `-icount shift=0,sleep=off` on `q35` produced
+    // byte-identical tick counts on every bench line, including the PIT-calibrated TSC frequency
+    // itself. So `--x86` defaults to that instrument now, exactly like the other two ISAs, and
+    // gates the same way; `--real` keeps the plain-TCG statistical path notes/benchmarks.md's
+    // 2026-08-24 section already used, and the `real`+`check`/`save` refusal above already
+    // covers `--x86 --real --check`.
     if std::env::args().any(|a| a == "--x86") {
-        if check || save {
-            eprintln!(
-                "bench: --x86 has no icount leg (statistical TSC numbers only); no --check/--save"
-            );
-            return false;
-        }
-        return bench_x86();
+        return bench_x86(real, check, save);
     }
 
     // `--smp`: boot the full 4-hart machine under HVF so the multi-hart throughput bench
@@ -7711,22 +7711,36 @@ fn bench_riscv(check: bool, save: bool) -> bool {
     )
 }
 
-/// **The `x86_64` benchmark path** (DECISIONS §121's amendment, milestone 161 item 4). Same suite,
-/// minus everything that needs a real userspace ELF: `crates/user_rt` has no `x86_64` arms yet, so
-/// every `_el0` bench self-skips (`crate::user::program` finds nothing in the initrd this leg
-/// never builds), and it adds one x86-only bench, `tss_iomap_switch`: `bench::yield_switch` with
-/// a full I/O-permission-bitmap-sized write added on every switch-in. Reading its `ns/iter`
-/// against `yield_switch`'s from the same boot is §121's missing number, the dominant cost of
-/// option 1 (a port-range capability enforced by the TSS bitmap) that the decision names as
-/// unmeasured. See `kernel/src/arch/x86_64/segments.rs`'s `bench_write_io_bitmap`.
+/// **The `x86_64` benchmark path** (DECISIONS §121's amendment, milestone 161 item 4; the icount
+/// leg, milestone 161, 2026-08-25). Same suite, minus everything that needs a real userspace ELF:
+/// `crates/user_rt` has no `x86_64` arms yet, so every `_el0` bench self-skips (`crate::
+/// user::program` finds nothing in the initrd this leg never builds), and it adds one x86-only
+/// bench, `tss_iomap_switch`: `bench::yield_switch` with a full I/O-permission-bitmap-sized write
+/// added on every switch-in. Reading its `ns/iter` against `yield_switch`'s from the same boot is
+/// §121's missing number, the dominant cost of option 1 (a port-range capability enforced by the
+/// TSS bitmap) that the decision names as unmeasured. See
+/// `kernel/src/arch/x86_64/segments.rs`'s `bench_write_io_bitmap`.
 ///
-/// **Always statistical, never gating**, because there is no icount leg on this ISA (see the
-/// `--x86` branch above and `icount()`'s own refusal for `--arch x86_64`). `scripts/qemu-runner-x86_64.sh`
-/// attaches no disk and builds no initrd, so this needs neither `mkdisk` nor `user()`; the runner is
-/// plain TCG (no KVM on this ARM host to accelerate `x86_64`), so the numbers are real elapsed time off
-/// the guest's calibrated TSC, at whatever rate TCG's instruction-by-instruction translation runs, not
-/// a proxy for real x86 silicon. `cargo xtask bench --x86`.
-fn bench_x86() -> bool {
+/// **Two instruments, the same split `bench()` makes for aarch64**: default is TCG + `-icount
+/// shift=0,sleep=off`, gated against `bench/baseline-x86_64.txt`; `--real` is plain TCG (no
+/// KVM/HVF on this ARM host to accelerate `x86_64`), statistical, never gating, the shape
+/// notes/benchmarks.md's 2026-08-24 section already used for the `tss_iomap_switch` measurement
+/// before this leg existed.
+///
+/// **This is not `icount()`'s instrument** (see the `--x86` branch in `bench()` above): that one
+/// still refuses `--arch x86_64`, because milestone 78's claims compare an interrupt's arrival
+/// against a deadline the kernel re-armed, and this port's LAPIC timer is a periodic hardware
+/// reload with no such deadline to read. Pinning the virtual clock for a `timed()`-style duration
+/// measurement needs none of that: `now()` already dispatches to `rdtsc`
+/// (`kernel/src/arch/x86_64/timer.rs`), and rdtsc tracks icount's virtual clock the same way
+/// `CNTVCT_EL0` and riscv64's `rdtime` do. **Measured, not assumed**: three consecutive `--x86`
+/// boots under `-icount shift=0,sleep=off` produced byte-identical tick counts on every bench
+/// line, including the PIT-calibrated TSC frequency itself (`bench: cntfrq 999935600` on all
+/// three), so `run_bench`'s existing tick-count machinery needed no x86-specific change.
+///
+/// `scripts/qemu-runner-x86_64.sh` attaches no disk and builds no initrd, so this needs neither
+/// `mkdisk` nor `user()`. `cargo xtask bench --x86 [--real] [--check|--save]`.
+fn bench_x86(real: bool, check: bool, save: bool) -> bool {
     if !run(
         "cargo",
         &[
@@ -7744,20 +7758,22 @@ fn bench_x86() -> bool {
 
     let mut cmd = Command::new("scripts/qemu-runner-x86_64.sh");
     cmd.arg(format!("target/{X86_TARGET}/debug/kernel"));
-    eprintln!(
-        "--- bench: x86_64, single hart, plain TCG (no KVM/HVF on this host; statistical) ---"
-    );
+    if real {
+        eprintln!(
+            "--- bench: x86_64, single hart, plain TCG (no KVM/HVF on this host; statistical) ---"
+        );
+    } else {
+        cmd.args(["-icount", "shift=0,sleep=off"]);
+        eprintln!(
+            "--- bench: x86_64, single hart, TCG + icount (deterministic instruction counts) ---"
+        );
+    }
 
-    // `real: true` only to pick run_bench's "ns are fiction" footer (never printed for a TCG+icount
-    // run); check and save are always false, since --x86 refuses both before this is ever called and
-    // there is no baseline file for this ISA to check against or save. The baseline path is
-    // therefore never touched: pass a name for it anyway so a future `--save` for this leg is one
-    // `bool` flip away rather than a new parameter.
     run_bench(
         cmd,
-        true,
-        false,
-        false,
+        real,
+        check,
+        save,
         workspace_root().join("bench/baseline-x86_64.txt"),
     )
 }
@@ -7782,6 +7798,7 @@ fn run_bench(
             return false;
         }
     };
+    let runner_pid = child.id();
 
     // Read lines until the guest says it is done, then kill it: it is parked in wfi and will
     // never exit by itself (deliberately; see kernel/src/bench.rs).
@@ -7820,6 +7837,19 @@ fn run_bench(
             _ => {}
         }
     }
+    // Kill any QEMU the runner itself spawned before killing the runner: on `q35`
+    // (`scripts/qemu-runner-x86_64.sh`) `cmd` is a *wrapper* that runs `qemu-system-x86_64` as a
+    // plain foreground child rather than `exec`-ing into it (the runner's own header explains why:
+    // it has to translate `isa-debug-exit`'s odd-only exit status). `child.kill()` therefore only
+    // ever reaches the wrapper on that leg, and killing the wrapper first orphans the emulator
+    // rather than ending it, which under `-icount sleep=off` is not an idle leak: a halted guest
+    // whose virtual clock never waits on the host spins a full core forever instead of parking in
+    // `hlt`. The other two runners `exec` (their own PID already *is* QEMU's), so `pkill -P` finds
+    // nothing there and this is a no-op. Best-effort and silent either way: a runner that already
+    // exited leaves no children to find. See AGENTS.md, "Never leave QEMU running".
+    let _ = Command::new("pkill")
+        .args(["-9", "-P", &runner_pid.to_string()])
+        .status();
     let _ = child.kill();
     let _ = child.wait();
 

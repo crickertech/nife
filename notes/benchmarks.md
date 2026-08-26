@@ -2340,10 +2340,16 @@ milestone 161 item 4 made real two-thread switching on `x86_64` exist to measure
 PIT at boot; `kernel/src/arch/x86_64/timer.rs`), so `kernel/src/bench.rs`'s existing `timed()` helper
 needed no change to run on this ISA. What is missing is everything *around* it:
 
-- **No icount leg.** `icount()` in `xtask` already refuses `--arch x86_64` ("the instrument's boot
-  needs a userspace this port cannot build"), and the same is true one level up: nothing pins QEMU's
-  virtual clock to the instruction stream on this port, so there is no deterministic tick count to
-  gate a baseline against, the way `bench/baseline-aarch64.txt` and `-riscv64.txt` do.
+- **No icount leg, at the time this section was written.** `icount()` in `xtask` refused
+  `--arch x86_64` ("the instrument's boot needs a userspace this port cannot build"), and the
+  inference drawn here was that the same was true one level up: nothing pins QEMU's virtual clock
+  to the instruction stream on this port, so there was no deterministic tick count to gate a
+  baseline against, the way `bench/baseline-aarch64.txt` and `-riscv64.txt` do. **That inference
+  was wrong, and milestone 161's icount leg (2026-08-25, below) corrects it**: `icount()`'s refusal
+  is real and still stands (milestone 78's claims need a re-armed deadline timer to compare
+  against, and this port's LAPIC timer is a periodic hardware reload with no deadline to read), but
+  pinning the virtual clock for a plain duration measurement is a strictly weaker ask, nobody had
+  tried it, and it works.
 - **No HVF, no KVM.** The dev machine is Apple Silicon; there is no hardware acceleration for
   `x86_64` on it. Every number below is plain QEMU TCG, translating x86 instructions on an aarch64
   host, one at a time. That is slower than real silicon and slower than KVM, and the ratio is not
@@ -2412,8 +2418,9 @@ least against a release-shaped kernel.
 14,944-15,751 spread. Plain TCG with no `-icount` runs on the host's wall clock, and a release
 iteration is fast enough (microseconds) that host scheduling jitter on a shared dev machine is a
 real fraction of the measured window; a debug iteration is slow enough (tens of microseconds) that
-the same jitter is proportionally smaller. This is exactly why `bench_x86()` refuses `--check` and
-`--save`: there is nothing here to gate on, only a magnitude to read, medians over single runs.
+the same jitter is proportionally smaller. This is exactly why `--real` (still the only mode
+`--release` can use; see below) never gates: there is nothing to gate on in a wall-clock magnitude,
+only a magnitude to read, medians over single runs.
 
 ### What this does and does not settle
 
@@ -2432,3 +2439,86 @@ question, and this section changes only what he has to decide with, not the deci
 **And it does not build option 1.** No port-range capability, no `Untyped::SPLIT`-derived granting,
 no syscall surface change; `bench_write_io_bitmap` is explicitly not wired to the live TSS's
 `iomap_base` for exactly this reason, so nothing here can be mistaken for the real mechanism.
+
+## 2026-08-25: an icount leg for x86_64, and the "no icount leg" line above was wrong
+
+Milestone 161's roadmap (item 3, the `CR4.PCIDE`/`CR4.PGE` question) named the gap directly: turning
+either bit on is calef's call and wants a number, and `script/icount` had no x86 leg to produce
+one. This section is that leg, and it corrects the section above rather than merely adding to it:
+the 2026-08-24 note inferred, reasonably but untested, that nothing pins x86's virtual clock to the
+instruction stream on `q35`. Measuring settled it instead of arguing it, and the inference was
+backwards.
+
+**Two different questions were being conflated, and they have different answers.**
+
+- **"Does `icount()` (milestone 78's instrument, `kernel/src/icount.rs`) work on `x86_64`?" No, and
+  this has not changed.** Its claims compare an interrupt's arrival, and a re-armed deadline, against
+  the deadline the kernel itself last wrote (`CNTV_CVAL_EL0` on aarch64, the SBI `DEADLINE` word on
+  riscv64). `kernel/src/arch/x86_64/timer.rs::init` arms the local APIC timer in **periodic** mode
+  (`irq::arm_periodic_timer`, a fixed reload count the hardware reloads on its own): there is no
+  deadline word to read back, so claims 1 and 4 have no x86_64 referent as designed. Building one
+  would mean moving the shipping x86_64 tick source to one-shot/TSC-deadline mode, which is a real
+  architecture change to a production path, not a small addition to an instrument, and it stays out
+  of scope here. `icount()` still refuses `--arch x86_64` and should.
+- **"Can QEMU's virtual clock be pinned to the instruction stream on `q35` at all, for a plain
+  duration measurement?" Yes.** `kernel/src/bench.rs`'s `timed()` helper (what every `bench:` line
+  already uses on every ISA) only needs two `now()` reads around a span; it has no opinion about
+  deadlines, periodic or otherwise. `now()` on `x86_64` already dispatches to `rdtsc`
+  (`kernel/src/arch/x86_64/timer.rs`), and the empirical question was only ever whether `rdtsc`
+  tracks `-icount`'s virtual clock under TCG on `q35` the way `CNTVCT_EL0` and riscv64's `rdtime` do
+  on `virt`. It does.
+
+**The evidence, not the argument.** `-icount shift=0,sleep=off` added to `scripts/qemu-runner-x86_64.sh`'s
+invocation (no runner changes needed; it already forwards extra QEMU args), booting the existing
+`--features bench` kernel: three consecutive boots produced **byte-identical** tick counts on every
+line, including the PIT-calibrated TSC frequency itself (`bench: cntfrq 999935600`, all three runs).
+That the calibrated frequency itself lands within 0.006% of a clean 1 GHz (icount's own 1
+instruction = 1 ns rate) is the same tell `icount.rs`'s `calibrate()` checks for on the other two
+ISAs. Nothing about the PIT-polling calibration loop, which reads real ISA ports
+(`in8`/`out8` on `PIT_GATE_PORT`), turned out to introduce any non-determinism: QEMU's device model
+for the 8254 is itself clocked from `QEMU_CLOCK_VIRTUAL`, which `-icount` pins the same way it pins
+everything else a guest can observe.
+
+**`cargo xtask bench --x86` now takes the same shape `bench()` already gives aarch64**: default is
+TCG + `-icount shift=0,sleep=off`, deterministic, gated against `bench/baseline-x86_64.txt` with the
+same 10%-or-64-tick tripwire every other leg uses; `--real` is the plain-TCG statistical path the
+2026-08-24 section above already used, unchanged and still never gating. `--release` still implies
+`--real` (an optimized build changes instruction counts, so it never gates on this ISA either, the
+same rule aarch64 and riscv64 already follow).
+
+**One operational bug found and fixed along the way, worth recording because it would have leaked a
+CPU-burning QEMU on every `--x86` run rather than an idle one.** `scripts/qemu-runner-x86_64.sh` is
+the one runner of the three that does not `exec` into `qemu-system-x86_64` (its own header explains
+why: it has to translate `isa-debug-exit`'s always-odd exit status). So `run_bench`'s `Child` is the
+wrapper shell, not QEMU, on this leg only; killing it after `bench: done` orphaned the real
+`qemu-system-x86_64` process rather than ending it. Under plain TCG that orphan idles at ~0% CPU in
+`hlt` and is easy to miss; under `-icount sleep=off` a parked guest's virtual clock never waits on
+the host, so the orphan spun a full core indefinitely. Fixed in `run_bench` itself (`xtask/src/main.rs`):
+`pkill -9 -P <runner pid>` runs before the runner is killed, reaping any QEMU it spawned. This is a
+no-op for aarch64 and riscv64, whose runners already `exec` (their `Child` PID already is QEMU, so
+`pkill -P` finds no children), so nothing about the shared bench path changed for them.
+
+### Reproducibility, an honest note
+
+**Deterministic here means deterministic against this exact QEMU build, on this exact kernel
+binary, on `q35`, the same caveat every icount leg already carries** (`.qemu-version` is pinned for
+this reason on all three ISAs). Three consecutive runs in one session is not the same claim as
+"deterministic forever": what was tested is that TCG's icount accounting for `x86_64` under `q35`
+does not fall back to wall-clock timing anywhere in this kernel's boot path the way plain TCG does.
+It was not tested across a QEMU upgrade, a different host OS, or `-smp` greater than one (the runner
+already forces one hart, matching the reason the other two legs do: under `-icount` every vCPU
+shares one virtual clock, so an idle secondary parked in `wfi`/`hlt` would jump it forward and
+contaminate a per-core measurement).
+
+### What this gives the `CR4.PCIDE`/`CR4.PGE` question
+
+**A real, gated number now exists for `yield_switch`** (a bare kernel-thread switch, no I/O bitmap
+write): 18,264,216 ticks / 2000 iters = 9,132 instructions/switch, deterministic. That is the
+baseline the roadmap item asked for: turning either `CR4` bit on and re-running `--check` would show
+whether the change moves this number at all, rather than arguing from the architecture manual alone.
+**It does not answer the question by itself**, because nothing on this port switches address spaces
+under load yet (the roadmap item's own caveat, unchanged): `switch_user_root` still skips the `CR3`
+write `yield_switch` exercises, so this baseline is a kernel-thread switch's cost, not an
+address-space switch's. What it retires is the *tooling* gap the roadmap named; the *measurement*
+gap (a workload that actually switches `CR3`) is still open, and remains calef's call on when it is
+worth building one.
