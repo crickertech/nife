@@ -231,16 +231,14 @@ the wire has room already: `fs::rename_dst`'s second word packs a 16-bit handle 
 into 64 bits, leaving bits 63:56 unclaimed for a flag, so the change costs no growth in an
 already-shipped word.
 
-**Not built, on purpose.** This is a wire-format change on `fs_proto::fs::RENAME`, a verb every SMB
-client, the std PAL and `fs_server` already agree on, and it revisits a section calef decided. Per
-AGENTS.md's own rule ("anything two programs agree on" is the expensive, deliberate-first
-category), that is his call, not a lane's, however cheap the change measures. notes/smb.md's BUGS
-entry carries the corrected writeup with the citations above, and [DECISIONS
-§129](../decisions/129-rename-noreplace-flag.md) lays out the researched options awaiting that
-call. **What is blocked on the decision**: whether §42 should be narrowed to say the `NOREPLACE`
-refusal was about backend portability rather than about this backend specifically, and whether
-`fs_proto::fs::RENAME` should grow the flag. What is not blocked: nothing else in this milestone
-depends on the answer, so this is a small, isolated
+**Still not built, decided rather than deferred.** This is a wire-format change on
+`fs_proto::fs::RENAME`, a verb every SMB client, the std PAL and `fs_server` already agree on, and
+it revisited a section calef decided (§42). [DECISIONS
+§129](../decisions/129-rename-noreplace-flag.md) priced the change (a few lines, free wire room)
+and calef's own call was "build it when we have a customer": §42 is amended to correct its
+racy-emulation reason (does not describe `redoxfs_server` specifically) but stays declined on the
+feature itself, since nothing ties `ReplaceIfExists` to a confirmed Time Machine operation today.
+Nothing else in this milestone depends on the answer either way, so this stays a small, isolated
 item rather than something holding up Steps A through C.
 
 ## The reference implementation is known, and calef supplied its exact configuration

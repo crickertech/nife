@@ -100,7 +100,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 39 | DECIDED | [A component is named for what it is, and nothing is named for a daemon](39-component-names.md) |
 | 40 | DECIDED | [A supervisor's death is its subtree's death; there is no reaper of last resort](40-no-reaper-of-last-resort.md) |
 | 41 | DECIDED | [The endpoint is the broker, and a device is revoked by taking it back (milestone 23)](41-endpoint-as-broker.md) |
-| 42 | DECIDED | [A filesystem declares what it offers and must be truthful; it is not required to be capable](42-truthful-filesystem.md) |
+| 42 | AMENDED | [A filesystem declares what it offers and must be truthful; it is not required to be capable](42-truthful-filesystem.md) |
 | 43 | DECIDED | [Reading the clock is a page, setting it is a page you may write, proposing is an endpoint](43-clock-authority.md) |
 | 44 | DECIDED | [Entropy is a capability, `std::random` improves transparently, and the refusal is loud](44-entropy-capability.md) |
 | 45 | DECIDED | [A nife partition is `EC5CC08B-D749-4434-AC38-A274C50385BA`, and that never changes](45-partition-guid.md) |
@@ -187,7 +187,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 126 | DECIDED | [A process holding two directory capabilities gets a real, single, moving `cwd`](126-two-directory-cwd.md) |
 | 127 | DECIDED | [x86_64's `now()`/`cntfrq()`: PIT-calibrated `rdtsc`, ratifying what PR #476 already built](127-x86-64-timer-rdtsc.md) |
 | 128 | DECIDED | [What enforces the git-clobber rule, now that it has crossed its own threshold](128-git-clobber-enforcement.md) |
-| 129 | PROPOSED | [Whether `filesystem_proto::fs::RENAME` grows a `NOREPLACE` flag, revisiting §42](129-rename-noreplace-flag.md) |
+| 129 | DECIDED | [Whether `filesystem_proto::fs::RENAME` grows a `NOREPLACE` flag, revisiting §42](129-rename-noreplace-flag.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
 way milestone 76 moved four essays out of the roadmap: [the open design
