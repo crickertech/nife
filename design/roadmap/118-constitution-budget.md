@@ -413,7 +413,7 @@ fires when the tree exceeds it and stays silent when the tree falls below. `scri
 `agents-md-lines` registry entry (the file's own `wc -l`-equivalent line count) and the claim lives
 here, since a developer lane may not edit `AGENTS.md` to carry its own marker:
 
-**`AGENTS.md` carries at most 947 lines** <!--count-at-most:agents-md-lines-->, written at the
+**`AGENTS.md` carries at most 957 lines** <!--count-at-most:agents-md-lines-->, written at the
 tree's exact value with **zero headroom**, deliberately: the point, per this section's own words
 above, is that every line added should replace one removed, or be a considered act that says why the
 growth was worth it. That is the same choice `unsafe-thread-safety-claims` made for a different
@@ -428,6 +428,12 @@ recording that calef's crate/program/module naming authority now also covers pub
 names, plus a blank line and citation) is exactly the "considered act that says why the growth was
 worth it" this section asks for -- a durable rule change belongs in the file the rule lives in, not
 only in the milestone that decided it.
+
+**Raised from 947 to 957, 2026-08-26**: a real, previously-unrecorded footgun found live (the
+milestone 161 two-core-crash lane's `git stash` collided with another session's stash, since the
+stash stack is per-`.git` rather than per-worktree) was recorded beside the existing
+squash-against-`origin/main` trap it shares a family with, so the next lane to reach for `git stash`
+in a worktree finds the warning before it needs it.
 
 **Targets the whole file, not "the core", because the core does not exist yet.** Once the split
 happens, this ceiling should move to whatever the core becomes and stop counting the linked

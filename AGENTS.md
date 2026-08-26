@@ -865,6 +865,16 @@ to squash silently staged **four other lanes' files as its own**, including a de
 only by reading `git status` before committing. Record the base SHA when the branch is cut and squash
 against that. The wider rule it belongs to: in a worktree, `origin/*` is not a fixed point.
 
+**`git stash` is unsafe in these worktrees, for the same reason one level over.** The stash stack is
+per-`.git`, not per-worktree, so it is shared machine-wide across every lane. Found 2026-08-26 by the
+milestone 161 two-core-crash lane: another session pushed a stash between this lane's `git stash` and
+its `git stash pop`, so the pop popped *someone else's* entry into this lane's tree and conflicted.
+Nothing was lost that time (the conflict preserved the other entry, and it was restored and re-popped
+by name), but the failure mode is the same family as the squash-against-`origin/main` trap above: a
+command that reads as lane-local silently touches shared state. **Use a patch file
+(`git diff > /tmp/x.patch`, later `git apply`) instead of `git stash` in a worktree**, the same way
+`origin/*` is not treated as a fixed point once more than one lane can move it.
+
 **Never squash across purposes.** Squash-*merging* is already impossible:
 `allow_squash_merge` is `false` on this repository, so the platform refuses it. This clause stays a
 prohibition because nothing gates it. Milestone 96's lane put the
