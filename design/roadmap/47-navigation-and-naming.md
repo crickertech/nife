@@ -26,6 +26,86 @@ would also make the `caps` preview extension §111 asks for meaningful. The othe
 what Unix calls "environment" stay where this milestone always put them: names (`PATH`, `HOME`)
 wait on `bind`, and secrets are answered elsewhere by an endpoint (§41).
 
+**`bind` was built 2026-08-26** (`milestone/47-namespace-remainder`), closing the gap this block's own
+"blocked on a second grant" section named: milestone 154 supplied the second grant, and this lane
+found the doc's own sketch ("a bind entry is a value, not a capability... a `nav::Cwd` under a
+name") held up against the real, now-built mechanism without change. `crates/grant_plan::nav::Bindings`
+(provisional name) is a small fixed table, up to four entries, mapping a name to a `(Which, Cwd)`
+position this shell already reached some other way; `Holdings::resolve` tries a grant label first
+(when this shell holds two), then the bind table, then, for the one-grant shell every real boot is
+today, the same literal walk from the sole root it always did, so `bind` is additive and a shell
+with nothing bound resolves byte for byte as before. `Holdings::bind` is the mutator, refusing a
+name that collides with a grant label in addition to everything the table itself refuses (already
+bound, full, unnameable). Wired into the real interactive `swish` as a builtin, `bind <target>
+<name>`, in `mkdir`'s category (mints no capability, spawns nothing): `target` resolves through the
+same bind-aware `plan_path`/`walk` every other verb now shares, so binding a name under an existing
+bind composes rather than needing a special case, and `..` past a bound name climbs the *real* tree
+the bind points at rather than stopping at a boundary invented at the alias (the same "misdirect,
+never grant more" property §50 gives symlinks-as-bind). Proven over the real wire, both ISAs,
+extending `kernel::user::shell_navigation_tests`' navigating witness: a bound name lists the real
+directory it points at (`ls`), three `cd ..`s from inside it reach the real parent, the real root,
+and refuse there exactly where a direct walk to that depth would.
+
+**What this increment does not reach, honestly.** `bind` in a *two-grant* shell (composing two
+disjoint trees under more names than the two grant labels) is host-tested in `grant_plan` but not
+guest-provable, because milestone 154's own gap is still open: nothing tells a real, live `swish`
+process it holds a second directory capability at all (`_start`'s three `START` words are already
+spoken for), and both real init entry points still pass `second_dir: None`. That gap is 154's, not
+this lane's to close: it is a spawn-protocol wire decision 154 itself declined to make "under this
+lane's time pressure," and what the second directory should even *be* is calef's boot-time policy
+call (DECISIONS §126 already made the harder judgment call next to it, the real single moving cwd,
+without answering this one). This lane did not invent an answer to either.
+
+`ln`'s symlink half is retired from "still to do" rather than built as a separate command: DECISIONS
+§50 already settled that symlinks-as-stored-paths are superseded by `bind`, not implemented beside
+it, so `bind` landing *is* that half of `ln` landing, under Plan 9's name rather than Unix's. Hard
+links stay declined (DECISIONS §110, want of a customer); see the `ln` section below, kept as
+history, with this line added rather than rewritten.
+
+**Completion and `PATH` were investigated and neither was built.** Both looked like "the doc's
+sketch is settled, wire it up" from this block's own text, and both turned out to have a genuine
+open question underneath once read closely, in the sense the "PATH" section below already warns
+about applying to itself.
+
+- **Completion is not purely an application-level feature**, which the doc's citation of
+  `crates/line_editor/src/lib.rs:32` did not by itself reveal. Reading that crate: Tab is not
+  merely unhandled by the shell, it is **swallowed at the line discipline** ("Tab is ignored," no
+  `Event` is ever emitted for it), so there is no signal reaching `swish` to build a handler for
+  today. Wiring one needs a new event crossing the terminal-to-shell wire (mechanically small,
+  `FLAG_EOF`/`FLAG_INTERRUPTED`'s own shape), but the real question underneath is architectural:
+  every existing event (`Line`, `Eof`, `Interrupt`) ends the line discipline's local turn and hands a
+  *finished* line back; completion needs the terminal to hand back a *partial* line mid-edit, get an
+  answer, splice it into the buffer the terminal itself still owns, and resume editing at the same
+  cursor. Nothing in `line_editor`'s or the terminal wire's current shape does a round trip in the
+  middle of a line, and deciding how that round trip works (does the buffer persist across it the way
+  `Interrupt` does not; who owns the cursor position meanwhile) is a real design fork, not a wiring
+  task. Not raised as a numbered decision here, because a lane does not mint `design/decisions/`
+  sections; recorded so the next reader does not mistake this for an afternoon's work the way this
+  lane briefly did.
+- **`PATH` has a deeper blocker than the doc's own four open questions name.** Confirmed the premise
+  first: `grant_plan::Prog` is exactly the closed enum the doc says, matched by a hardcoded
+  `Prog::from_name` against eleven string literals. But the *lookup* half already is a runtime,
+  string-keyed mechanism (`nifefs::Fs::read(name)`, which `kernel::user::program` already calls with
+  an arbitrary `&str`); what is closed is not the archive, it is which names the shell will even
+  consider spawning **and the manifest that says what each one may hold**. `Manifest`'s per-program
+  data (`FileSpec`, `InputSpec`, the memory range, the recursion letter) is keyed off `Prog` today,
+  compiled into this crate, and nothing in the initrd (`nifefs`) carries a manifest alongside a
+  binary's bytes. So a name reachable only at runtime (a program dropped into the initrd after this
+  crate was built) has no declared capability manifest anywhere, and this whole milestone's safety
+  property, that a grant is checked against a manifest before anything spawns, has nothing to check
+  it against. That is a materially harder question than the doc's four (unions/shadowing,
+  enumeration, the compile-time-to-runtime gap it already named, whether `$PATH` survives as a
+  string): it is *where a program's manifest lives once naming it is no longer compiling against it*,
+  and it is the same question milestone 39's own line already points at ("installing a program
+  becomes granting it into a namespace"). Not decided here, and not attempted: no forcing customer
+  exists yet (unchanged from this block's own "none of it has a forcing use case from the shell"),
+  and inventing an answer to a manifest-provenance question this size is exactly what this lane was
+  told not to do.
+
+Environment's names and secrets thirds, and a shell-facing customer for the inert-configuration
+third, remain exactly as this block already described them below: lowest priority, untouched by this
+lane for want of time rather than for want of a plan.
+
 **`RMDIR` and `rm -r` were also already built**, found 2026-08-22 by the same kind of status check
 that caught the `IN-PROGRESS` token above: the code (`user/src/rm.rs`, `fs_proto::fs::RMDIR`), the
 decision (`DECISIONS §49`) and the concept note (notes/rm.md) all say `Built 2026-07-31`, but this
@@ -41,11 +121,19 @@ landed 2026-08-24 once DECISIONS §112 settled the authority question: bare `tou
 (`fs::SETMTIME_AT`, needs `dir::WRITE | dir::SETTIME`, the seventh rung on the directory rights
 ladder). See the `touch` section below and notes/touch.md.
 
-What remains genuinely unbuilt is completion, environment's names and secrets thirds (both answered
-elsewhere and waiting on their own machinery, `bind` and §41 respectively), a shell-facing customer
-for the inert-configuration page, `PATH`, `bind`, and `ln`'s symlink half (hard links declined for
-want of a customer, DECISIONS §110; symlinks-as-stored-paths were superseded by `bind`, DECISIONS
-§50).
+**`bind` was built 2026-08-26**, and it is the mechanism environment's "names" third pointed at
+("`PATH`... and `HOME`... wait on `bind`"), but it does not by itself close that third: `bind`
+files a *directory or file position* under a name, which is the whole of what `HOME` ever was (a
+directory capability wearing a string costume) and nothing consumes it specially yet, no `cd` with
+no args reads a bind the way Unix reads `$HOME`. `PATH` is the harder half of "names" and stays open
+for the deeper reason below. What remains genuinely unbuilt is completion (investigated: not purely
+application-level, a real terminal-wire design question underneath, see above), environment's
+secrets third (waiting on §41's endpoint) and a shell-facing customer for the inert-configuration
+page, and `PATH` (investigated: a deeper manifest-provenance blocker than this block's own four open
+questions name, see above). `ln`'s symlink half is retired rather than unbuilt: DECISIONS §50
+already settled that symlinks-as-stored-paths are superseded by `bind`, not built beside it, so
+`bind` landing is that half landing. Hard links stay declined for want of a customer (DECISIONS
+§110).
 
 64's second pass (2026-08-18) reports that **nothing in this milestone was ever waiting on 64**, and
 hands over the sized demand this block asked for: named customers at ranks 16, 18 and 27 plus
@@ -89,15 +177,21 @@ name one directory entry outside the set and gets `ENOENT`. Witnessed from the h
 which has said "Built 2026-07-31" the whole time, and the sections below at "Built 2026-07-31: the
 matcher, then the grant", which contradicted the sentence from inside this same file.
 
-**Still to do**: completion, environment's names and secrets thirds plus a shell-facing customer for
-the inert-configuration third, `PATH`, `bind`, and `ln`'s symlink half. (Absolute paths came out of
-this list on 2026-08-18, `rmdir`/`rm -r` were already built and are now annotated as such, `touch`'s
-create half came out on 2026-08-22, hard links were declined 2026-08-23, DECISIONS §110, and the
-environment's inert-configuration third came out on 2026-08-23, DECISIONS §111; see the Status
-block.) Completion is refused by design at the layer below and deferred to the application
-(`crates/line_editor/src/lib.rs:32`), environment's names and secrets thirds have no PAL and no
-shell support (the inert third does, but with nothing in the shell declaring it wants one), and
-`PATH` needs `Prog` to stop being a closed enum, which this block calls half the mechanism. The
+**Still to do**: completion, environment's secrets third plus a shell-facing customer for the
+inert-configuration third, and `PATH`. (Absolute paths came out of this list on 2026-08-18,
+`rmdir`/`rm -r` were already built and are now annotated as such, `touch`'s create half came out on
+2026-08-22, hard links were declined 2026-08-23, DECISIONS §110, the environment's inert-configuration
+third came out on 2026-08-23, DECISIONS §111, and `bind` came out 2026-08-26 along with `ln`'s
+symlink half, which it supersedes rather than sits beside (DECISIONS §50); see the Status block.)
+**Completion and `PATH` were both investigated 2026-08-26 and neither turned out to be the wiring
+task this sentence implied**: completion is refused not only by the application layer but by the
+line discipline underneath it (`crates/line_editor/src/lib.rs:32`, "Tab is ignored": no event is
+even emitted for a caller to handle), and reaching it needs a mid-line terminal-to-shell round trip
+nothing in the current wire shape does; `PATH` needs `Prog` to stop being a closed enum, which this
+block calls half the mechanism, and the harder half this lane found is that a program's *manifest*
+(what it may hold, checked before every spawn) is compiled in alongside `Prog` with nothing in the
+initrd format carrying one for a program discovered only at runtime. Environment's secrets third
+has no PAL and no shell support, unchanged. The
 `std` PAL's `rename`, `unlink` and `rmdir` **were** bindings rather than missing verbs,
 and milestone 64 bound all three on 2026-08-04 (pull request #113,
 `patches/std-nife/overlay/std/src/sys/fs/nife.rs:945`, `:960`, `:979`); they answer `Unsupported` now
@@ -734,6 +828,19 @@ that mechanism itself: there is no shell-held default config set yet, only `std_
 fixed default (`UTC`/`C`/`dumb`).
 
 ## `bind` is not blocked on a mount table. It is blocked on a second grant (found 2026-08-18)
+
+### Built 2026-08-26 (`milestone/47-namespace-remainder`), against the real mechanism. See the Status block for what it does and does not reach.
+
+The section below is kept as written: the sketch it ends on ("`bind` then falls out as a name on a
+`Cwd` per entry, and `caps` gains a namespace section with more than one row in it") is exactly what
+got built once milestone 154 supplied the second grant, checked rather than assumed. What changed
+in the checking: the sketch's "per entry" turned out to mean a *table* of entries rather than one
+(`nav::Bindings`, up to four, provisional), because a shell with one grant still wants to file more
+than one shortcut, and the table composes with `nav::TwoRoots`'s two fixed labels rather than
+replacing them (a grant label always wins, so a bind can never shadow `a` or `b`). `caps` now prints
+a bound name's own row (`bind <name> -> <real position>`), beside the two-grant namespace section
+154 already built rather than folded into it, since a bind is additive to whatever grant rows
+already print.
 
 DECISIONS §50 chose namespace composition over stored paths and priced the unbuilt half as "a mount
 table per process and resolution through it. That is real work". **Building absolute paths priced it

@@ -900,6 +900,18 @@ pub enum Command<'a> {
     /// See notes/touch.md for what is still not built (Unix's compact `[[CC]YY]MMDDhhmm[.ss]`
     /// `-t` format is not accepted, only RFC 3339) and the wire verbs this dispatches to.
     Touch(TouchArgs<'a>),
+    /// `bind <target> <name>`: name a position this shell already reached some other way, so
+    /// `/<name>/...` reaches it too (milestone 47, "`bind` is not blocked on a mount table. It
+    /// is blocked on a second grant"; milestone 154 supplied the second grant, [`nav::Bindings`]
+    /// is the mechanism it unblocked). **A builtin, [`Mkdir`](Command::Mkdir)'s category**: it
+    /// mints no capability and spawns nothing, it only records a value this shell already
+    /// resolved, under a name.
+    ///
+    /// `target` is resolved exactly as any other operand is, at bind time, against wherever this
+    /// shell stands; `name` is the single component the bound entry is filed under. Neither is
+    /// tokenized further, the same "one opaque trailing blob" rule [`Command::Cd`] and
+    /// [`Command::Mkdir`] already take their one path operand as.
+    Bind(&'a [u8], &'a [u8]),
     /// `apropos <term>`: **name the installed pages that mention a word** (milestone 40 phase 2).
     /// The operand is one word, folded the way the host builder folded the text it indexed.
     ///
@@ -1175,6 +1187,13 @@ pub struct Holdings {
     /// [`SecondDir::which`] currently names. Defaults to the root, which is also the only
     /// position a shell holding no directory can be in.
     pub cwd: nav::Cwd,
+    /// **Names this shell has bound to a position it already reached some other way**
+    /// (`bind`, milestone 47; [`nav::Bindings`]'s own doc has the full design). Present
+    /// regardless of `second`, because a bind is a value composed from whatever this shell
+    /// already holds, and even a one-grant shell has positions worth a shorter name. Checked
+    /// **after** `second`'s two grant labels in [`Holdings::resolve`], so a bind can never shadow
+    /// a real grant, only add a name beside it.
+    pub binds: nav::Bindings,
 }
 
 /// **A two-grant shell's second label and which tree [`Holdings::cwd`] is standing in**
@@ -1244,19 +1263,54 @@ fn pack_label(label: &[u8]) -> Option<([u8; nav::MAX_NAME], u8)> {
 impl Holdings {
     /// **`(which, pos)` resolution** (DECISIONS §126): where `token` lands, without moving.
     ///
-    /// A one-grant shell (`second: None`) resolves exactly as it always has, against
-    /// [`Holdings::cwd`] alone and with `A` the only answer `which` could ever be. A two-grant
-    /// shell resolves through [`nav::TwoRoots::resolve_from`], which is the whole of what §126
-    /// decided: a relative token stays inside the current tree, an absolute one picks a tree by
-    /// label and can move between them, and `..` refuses at either tree's own root.
+    /// A relative token is unaffected by [`Holdings::binds`]: it stays where it always did,
+    /// inside whichever tree this shell is standing in (`Holdings::cwd`, parameterized by
+    /// `second`'s `which` for a two-grant shell). Only an absolute token can name a bound entry,
+    /// the same rule a grant label already follows, and a grant label is tried first when this
+    /// shell holds two: **a bind can never shadow `a` or `b`**, only add a name beside them
+    /// (`Holdings::bind` refuses that at the point of binding, so this order is belt and braces
+    /// rather than the only thing stopping it). A one-grant shell has no label namespace to check
+    /// first, so an absolute token that names no bound entry falls through to the same literal
+    /// walk from the sole root this always did before `bind` existed: **this is additive**, and a
+    /// shell with nothing bound resolves byte for byte as it did before this milestone.
     pub fn resolve(&self, token: &[u8]) -> Result<(nav::Which, nav::Cwd), nav::Refused> {
-        match &self.second {
-            None => {
-                let p = nav::path(token)?;
-                Ok((nav::Which::A, self.cwd.resolve(&p)?))
-            }
-            Some(sd) => sd.roots().resolve_from(sd.which, self.cwd, token),
+        let p = nav::path(token)?;
+        if !p.from_root() {
+            return match &self.second {
+                None => Ok((nav::Which::A, self.cwd.resolve(&p)?)),
+                Some(sd) => sd.roots().resolve_from(sd.which, self.cwd, token),
+            };
         }
+        if let Some(sd) = &self.second
+            && let Some(r) = sd.roots().try_resolve_absolute(&p)
+        {
+            return r;
+        }
+        if let Some(r) = self.binds.resolve_absolute(&p) {
+            return r;
+        }
+        match &self.second {
+            Some(_) => Err(nav::Refused::NotAName),
+            None => Ok((nav::Which::A, self.cwd.resolve(&p)?)),
+        }
+    }
+
+    /// **`bind`'s mutator**: name a position this shell already reached some other way
+    /// ([`nav::Bindings::add`]'s own doc has the full design), refusing a name that would shadow
+    /// one of a two-grant shell's own grant labels in addition to everything the bind table
+    /// itself refuses (already bound, too many, not a nameable component).
+    pub fn bind(
+        &mut self,
+        name: &[u8],
+        which: nav::Which,
+        pos: nav::Cwd,
+    ) -> Result<(), nav::BindRefused> {
+        if let Some(sd) = &self.second
+            && (name == sd.label_a() || name == sd.label_b())
+        {
+            return Err(nav::BindRefused::ReservedLabel);
+        }
+        self.binds.add(name, which, pos)
     }
 }
 
@@ -1629,6 +1683,15 @@ pub fn parse(line: &[u8]) -> Command<'_> {
                     name: rest,
                 }),
             }
+        }
+        // `bind <target> <name>` (milestone 47/154). One word for the target, everything after it
+        // (trimmed) for the name: the same "one opaque trailing blob" rule `cd`/`mkdir` already
+        // use for their single path operand, generalized to two operands here rather than
+        // tokenizing the name further.
+        b"bind" => {
+            let rest = trim(rest);
+            let (target, name) = split_first_word(rest);
+            Command::Bind(target, trim(name))
         }
         // **Search the documentation store** (milestone 40 phase 2). A builtin for exactly
         // [`Command::Ls`]'s reason, stated there: a search *is* an enumeration, and a searching
@@ -2621,6 +2684,25 @@ mod tests {
             }),
             "-template must not be misread as -t plus a stray name"
         );
+        // `bind`: one word for the target, everything after it (trimmed) for the name.
+        assert_eq!(
+            parse(b"bind logs/2026 recent"),
+            Command::Bind(b"logs/2026", b"recent"),
+        );
+        assert_eq!(
+            parse(b"  bind   logs/2026   recent  "),
+            Command::Bind(b"logs/2026", b"recent"),
+        );
+        assert_eq!(
+            parse(b"bind"),
+            Command::Bind(b"", b""),
+            "bare `bind` needs both words"
+        );
+        assert_eq!(
+            parse(b"bind logs/2026"),
+            Command::Bind(b"logs/2026", b""),
+            "one word is a target with no name to file it under",
+        );
         assert_eq!(
             parse(b"apropos capability"),
             Command::Apropos(b"capability")
@@ -2650,6 +2732,7 @@ mod tests {
             b"ls",
             b"mkdir",
             b"touch",
+            b"bind",
         ] {
             assert!(
                 Prog::from_name(reserved).is_none(),
@@ -2889,6 +2972,7 @@ mod tests {
         dir: true,
         second: None,
         cwd: nav::Cwd::root(),
+        binds: nav::Bindings::none(),
     };
 
     // ---- milestone 154 / DECISIONS §126: Holdings' `(which, pos)` shape ----
@@ -2917,6 +3001,7 @@ mod tests {
             dir: true,
             second: Some(SecondDir::new(b"a", b"b").unwrap()),
             cwd: nav::Cwd::root(),
+            binds: nav::Bindings::none(),
         };
         // Relative: stays in A, the starting tree.
         let (which, pos) = holds.resolve(b"x").unwrap();
@@ -2929,6 +3014,81 @@ mod tests {
         // The negative control this milestone is named for: `/a/../b` is refused rather than
         // crossing, because selecting `a` leaves nothing above `a`'s own root to pop.
         assert_eq!(holds.resolve(b"/a/../b"), Err(nav::Refused::AtYourRoot));
+    }
+
+    // ---- `bind` (milestone 47: "blocked on a second grant", now that 154 built it) ----
+
+    /// **A one-grant `Holdings` resolves absolute paths exactly as before when nothing is
+    /// bound**, and a bound name is reachable once one is: `bind` is additive, not a new mode.
+    #[test]
+    fn a_one_grant_holdings_binds_a_name_and_resolves_through_it() {
+        let mut holds = Holdings {
+            dir: true,
+            ..Holdings::default()
+        };
+        // Unaffected before anything is bound: a literal walk from the sole root.
+        let (which, pos) = holds.resolve(b"/etc/passwd").unwrap();
+        assert_eq!(which, nav::Which::A);
+        assert_eq!(pos.component(0), b"etc");
+
+        let mut target = nav::Cwd::root();
+        target.descend(b"logs");
+        target.descend(b"2026");
+        holds.bind(b"recent", nav::Which::A, target).unwrap();
+
+        let (which, pos) = holds.resolve(b"/recent").unwrap();
+        assert_eq!(which, nav::Which::A);
+        assert_eq!(pos, target);
+        let (_, pos) = holds.resolve(b"/recent/report.txt").unwrap();
+        assert_eq!(pos.component(2), b"report.txt");
+
+        // Unaffected by the bind: a real name that is not bound still walks literally.
+        let (_, pos) = holds.resolve(b"/etc/passwd").unwrap();
+        assert_eq!(pos.component(0), b"etc");
+    }
+
+    /// **A grant label wins over a bind in a two-grant `Holdings`**, and `bind` refuses to create
+    /// the collision in the first place: two independent guards for the one property, "a bind
+    /// must never shadow `a` or `b`."
+    #[test]
+    fn a_grant_label_is_never_shadowed_by_a_bind() {
+        let mut holds = Holdings {
+            dir: true,
+            second: Some(SecondDir::new(b"a", b"b").unwrap()),
+            cwd: nav::Cwd::root(),
+            binds: nav::Bindings::none(),
+        };
+        assert_eq!(
+            holds.bind(b"a", nav::Which::B, nav::Cwd::root()),
+            Err(nav::BindRefused::ReservedLabel),
+        );
+        assert_eq!(
+            holds.bind(b"b", nav::Which::A, nav::Cwd::root()),
+            Err(nav::BindRefused::ReservedLabel),
+        );
+        // A name that is not a label binds fine, and does not disturb either grant's own row.
+        holds
+            .bind(b"shortcut", nav::Which::B, nav::Cwd::root())
+            .unwrap();
+        let (which, _) = holds.resolve(b"/a").unwrap();
+        assert_eq!(which, nav::Which::A);
+        let (which, _) = holds.resolve(b"/shortcut").unwrap();
+        assert_eq!(which, nav::Which::B);
+    }
+
+    /// **`bind`'s own refusals surface through `Holdings`**: a second bind under the same name,
+    /// and a table already at [`nav::MAX_BINDS`].
+    #[test]
+    fn holdings_bind_surfaces_the_bind_tables_own_refusals() {
+        let mut holds = Holdings {
+            dir: true,
+            ..Holdings::default()
+        };
+        holds.bind(b"x", nav::Which::A, nav::Cwd::root()).unwrap();
+        assert_eq!(
+            holds.bind(b"x", nav::Which::A, nav::Cwd::root()),
+            Err(nav::BindRefused::AlreadyBound),
+        );
     }
 
     /// [`SecondDir::new`] refuses a label that is not a nameable component, the same bound
@@ -3608,6 +3768,7 @@ mod tests {
             dir: true,
             second: None,
             cwd: deeper,
+            binds: nav::Bindings::none(),
         };
         let (p, _) = plan_line(b"date > old/report.txt", holds).unwrap();
         let line::Sink::File(g, _) = p[0].unwrap().sink else {
