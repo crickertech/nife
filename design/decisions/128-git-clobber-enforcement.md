@@ -1,9 +1,11 @@
 # 128. What enforces the git-clobber rule, now that it has crossed its own threshold
 
-**Status: PROPOSED.** Milestone 118's own violation ledger (`notes/rule-violations.md`) already
-says the git-clobber rule sits at four open strikes, one past its own three-strike threshold, with
-no enforcement mechanism decided, and names this "calef's or the integrator's call, not this
-lane's." This entry lays out the real options, researched rather than guessed at, for that call.
+**Status: DECIDED.** calef, 2026-08-25, in conversation, on the evidence below: "No repeat in three
+weeks seems like it isn't a problem any longer." Milestone 118's own violation ledger
+(`notes/rule-violations.md`) said the git-clobber rule sat at four open strikes, one past its own
+three-strike threshold, with no enforcement mechanism decided, and named this "calef's or the
+integrator's call, not this lane's." This entry lays out the real options researched for that
+call, and the decision: accept, no new mechanism, the ledger row marked `resolved`.
 
 ## The real incidents, precisely
 
@@ -60,23 +62,32 @@ unconfigured for this class of command.
   or a one-day cluster that predates the AGENTS.md convention written in direct response to it,
   already largely doing the job?
 
-## Recommendation
+## The decision
 
-**Deny `reset --hard`, `clean -f`, and `branch -D` in `.claude/settings.json`.** It is the cheapest
-option that actually prevents rather than merely discourages, it targets the layer every real
-incident went through, and it requires no new tooling, only configuration of a mechanism already
-in place. It is also fully reversible (a settings entry, not a structural commitment), which
-matters less for how much deliberation this decision deserves and more as a note that revisiting
-it later costs nothing.
+**Accept, mark the ledger row `resolved`, add no new mechanism.** The recommendation researched
+here (deny `reset --hard`, `clean -f`, and `branch -D` in `.claude/settings.json`, the cheapest
+option that actually prevents rather than merely discourages, targeting the layer every real
+incident went through) was priced and available, but calef's read of the evidence decided it
+differently: all four incidents trace to a single day, 2026-08-04, and the three weeks since have
+carried zero repeats. That reads as `AGENTS.md`'s own prose (the "move fast on what can be undone"
+section, the squash-against-base-SHA scar, the worktree-pruning warnings, all written in direct
+response to that day) already doing the job, not as a dormant risk waiting to recur. Building a new
+technical control on top of a rule that has not been broken since would be solving an
+already-solved problem.
 
-**Leave `checkout <path>` unresolved by simple denial**, and record that as a known, named gap
-rather than a silent one: no mechanism surveyed (hook, shim, or Claude Code deny rule) can
-distinguish the dangerous form from ordinary branch switching by prefix alone. `AGENTS.md`'s own
-existing prose guidance (check `git status` before a destructive-shaped command; prefer stash over
-discard) remains the answer for that one case, same as it is today.
+`notes/rule-violations.md`'s git-clobber row is marked `resolved` on this basis: the *concern* is
+resolved, not the underlying `AGENTS.md` rule, which is untouched and stays the active guard.
 
-## What this does not decide
+**`checkout <path>`'s ambiguity (it cannot be distinguished from ordinary branch switching by
+prefix alone, in a shim or in a Claude Code deny rule) is recorded rather than solved**, since no
+mechanism was going to be built either way. `AGENTS.md`'s existing prose guidance (check
+`git status` before a destructive-shaped command; prefer stash over discard) remains the answer.
 
-Whether the alias option is also worth adding alongside a deny rule (a safer spelling costs little
-and is not mutually exclusive with denying the dangerous one); the exact `.claude/settings.json`
-syntax and scope (repo-level vs. session-level), left to whoever implements this.
+## If the pattern recurs
+
+The ledger's own exact-text matching means a differently-worded recurrence starts its own count
+rather than reopening this row, so a future reader hitting a new git-clobber incident should not
+assume this decision covers it silently. Re-raise the question with the new evidence; the options
+priced above (a `.claude/settings.json` deny rule being the strongest available one, `checkout
+<path>`'s ambiguity being the one gap nothing surveyed here closes) do not need re-researching from
+scratch.

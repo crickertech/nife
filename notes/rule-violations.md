@@ -32,7 +32,7 @@ distinguish individual incidents), in the table below:
 | date | rule | instances | status | source |
 |---|---|---|---|---|
 | 2026-08-04 | squash against `origin/main` instead of the recorded base SHA | 1 | open | AGENTS.md, "Commits" |
-| 2026-08-04 | a destructive git operation (`reset --hard`, `checkout`, or `stash`) used to discard changes or "take a measurement" without committing or stashing first | 4 | open | design/roadmap/118-constitution-budget.md, "What it costs, measured 2026-08-05" |
+| 2026-08-04 | a destructive git operation (`reset --hard`, `checkout`, or `stash`) used to discard changes or "take a measurement" without committing or stashing first | 4 | resolved | design/roadmap/118-constitution-budget.md, "What it costs, measured 2026-08-05" |
 | 2026-08-04 | `pkill` a QEMU process by name/pattern instead of walking the process tree from the harness that owns it | 1 | open | design/roadmap/118-constitution-budget.md, "What it costs, measured 2026-08-05" |
 
 Columns:
@@ -60,17 +60,31 @@ at naming which rule has crossed the line, not at deciding what replaces it.
 ## What it found on its first run, 2026-08-22
 
 Backfilled from the incidents `AGENTS.md` and milestone 118's own roadmap block record, listed
-above. **One rule is already past the threshold**: *"a destructive git operation... without
-committing or stashing first"* carries four open strikes from a single day (2026-08-04), one more
-than the "three strikes" the convention describes, and exactly the kind of decision this ledger
-exists to surface rather than make. `AGENTS.md` already contains a lot of prose about this (the
-"move fast on what can be undone" section, the squash-against-base-SHA scar, the worktree-pruning
-warnings) but no mechanism: nothing stops the command, only a git alias or wrapper requiring
-confirmation, a pre-command hook, or similar could. **That is a real open decision and this lane is
-not deciding it**: see milestone 118's status for the finding, recorded rather than resolved.
+above. **One rule was past the threshold**: *"a destructive git operation... without committing or
+stashing first"* carried four open strikes from a single day (2026-08-04), one more than the
+"three strikes" the convention describes, and exactly the kind of decision this ledger exists to
+surface rather than make. `AGENTS.md` already contains a lot of prose about this (the "move fast on
+what can be undone" section, the squash-against-base-SHA scar, the worktree-pruning warnings) but
+no mechanism, so the ledger correctly surfaced a real open decision rather than making one.
 
 The other two rules (`squash against origin/main`, `pkill` a QEMU process by pattern) sit at one
 strike each and are informative rather than urgent.
+
+## What changed, 2026-08-25: the git-clobber row marked `resolved`
+
+[DECISIONS §128](../design/decisions/128-git-clobber-enforcement.md) researched the four candidate
+mechanisms named above and priced them: git has no `pre-checkout`/`pre-reset`/`pre-stash` hook to
+build a genuine pre-command check on, and a shell shim can't distinguish `git checkout <path>`
+(dangerous) from `git checkout <branch>` (ordinary) by prefix alone, so neither is a clean win. But
+the decision that actually closed the row was evidence, not a new mechanism: all four incidents
+trace to a single day (2026-08-04), and **zero repeats in the three weeks since**. calef's own
+call: "No repeat in three weeks seems like it isn't a problem any longer." The row is marked
+`resolved` on that basis, matching the convention's own reading of the word (the *concern* is
+resolved) rather than the rule itself being deleted from `AGENTS.md`, which stays exactly as
+written: the prose that already exists appears to be doing the job, so nothing further was added
+above it on the ladder. Should the pattern recur, this row (or a fresh one, since exact-text
+matching means a differently-worded recurrence starts its own count) would reopen the same
+question with three more weeks of context behind it.
 
 ## EXAMPLES
 
@@ -85,33 +99,28 @@ Check the ledger, against the three rows this note carries today:
 
 ```
 $ script/rule-violations
-rule violations: 3 rows, 6 open instances across 3 rules
-   4 strikes  (at threshold)  [open     ] a destructive git operation (`reset --hard`, `checkout`, or `stash`) used to discard changes or "take a measurement" without committing or stashing first
+rule violations: 3 rows, 2 open instances across 3 rules
    1 strike                   [open     ] squash against `origin/main` instead of the recorded base SHA
    1 strike                   [open     ] `pkill` a QEMU process by name/pattern instead of walking the process tree from the harness that owns it
+   0 strikes                  [resolved ] a destructive git operation (`reset --hard`, `checkout`, or `stash`) used to discard changes or "take a measurement" without committing or stashing first
 ```
 
 ```
 $ script/rule-violations --check
-rule-violations: a destructive git operation (`reset --hard`, `checkout`, or `stash`) used to
-discard changes or "take a measurement" without committing or stashing first has 4 open strikes
-(2026-08-04, 2026-08-04, 2026-08-04, 2026-08-04; see notes/rule-violations.md), which is the
-promotion threshold (3).
-  Move it up the ladder (a mechanism, in AGENTS.md's ladder sense) or mark its row `resolved` as
-  unenforceable in notes/rule-violations.md; either is calef's or the integrator's call, never a
-  lane's.
+rule violations: 3 rows, 2 open instances across 3 rules, none past 3 strikes
 $ echo $?
-1
+0
 ```
 
 ## BUGS
 
-- **Not wired into `script/lint` or CI.** `--check` correctly fails today, because the git-clobber
-  rule is already at four strikes; wiring that failure into the mandatory gate suite would block
-  every lane's pull request over a decision that belongs to calef or the integrator, which is exactly
-  the failure mode DECISIONS §61 warns about for an ordinary lint ("adding a lint is a commitment to
-  fix every existing violation first"). Whether and when to wire this in is itself an open decision,
-  named here rather than made.
+- **Not wired into `script/lint` or CI.** `--check` passes clean today (the git-clobber row that
+  once sat past threshold is `resolved`, see "What changed, 2026-08-25" above), but the reason not
+  to wire it in stays live for the next rule that crosses three strikes: doing so automatically
+  would fail every lane's pull request over a decision that belongs to calef or the integrator, the
+  same failure mode DECISIONS §61 warns about for an ordinary lint ("adding a lint is a commitment
+  to fix every existing violation first"). Whether and when to wire this in for a *future* crossing
+  is itself an open decision, named here rather than made.
 
 - **"The rule" is matched by exact text, not by meaning.** Two rows describing the same rule in
   different words are counted as two different rules. A human curating the table has to normalize

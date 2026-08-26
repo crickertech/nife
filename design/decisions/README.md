@@ -186,7 +186,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 125 | DECIDED | [What tells boot-time re-derivation which identities have pending work](125-durable-schedule-manifest.md) |
 | 126 | DECIDED | [A process holding two directory capabilities gets a real, single, moving `cwd`](126-two-directory-cwd.md) |
 | 127 | DECIDED | [x86_64's `now()`/`cntfrq()`: PIT-calibrated `rdtsc`, ratifying what PR #476 already built](127-x86-64-timer-rdtsc.md) |
-| 128 | PROPOSED | [What enforces the git-clobber rule, now that it has crossed its own threshold](128-git-clobber-enforcement.md) |
+| 128 | DECIDED | [What enforces the git-clobber rule, now that it has crossed its own threshold](128-git-clobber-enforcement.md) |
 | 129 | PROPOSED | [Whether `filesystem_proto::fs::RENAME` grows a `NOREPLACE` flag, revisiting §42](129-rename-noreplace-flag.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
