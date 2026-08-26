@@ -1136,6 +1136,23 @@ impl Dir {
         Ok(cur)
     }
 
+    /// **Open a directory with the minimum permission for traversal** (`#![feature(dirfd)]`,
+    /// rust-lang/rust#120426, added to the trait every backend implements the day this overlay
+    /// was bumped past `nightly-2026-08-26`). Unix answers this with `O_PATH`/`O_SEARCH`: a
+    /// handle that can be descended through but not necessarily enumerated.
+    ///
+    /// **This contract has no such right to ask for.** [`fsproto::dir`] has six bits
+    /// (`ENUMERATE`, `READ`, `WRITE`, `CREATE`, `REMOVE`, `DESCEND`) and [`Dir`]'s own header
+    /// explains why every open here asks for all of them anyway: a held directory is an object,
+    /// not a verb, and there is no wire sentinel meaning "the least you'll let me have". So the
+    /// honest answer is [`Dir::open`] itself, which already asks for everything the parent
+    /// carries, a superset of "enough to traverse".
+    pub fn open_for_traversal(path: &Path) -> io::Result<Dir> {
+        let mut opts = OpenOptions::new();
+        opts.read(true);
+        Dir::open(path, &opts)
+    }
+
     /// Open a file **under this directory**, which is the call the whole type exists for: the name
     /// is resolved against a capability the program is holding, not against anything ambient. A
     /// nested `path` walks from here exactly as [`walk`] walks from the granted directory.
@@ -1202,6 +1219,53 @@ impl Dir {
             proto::req(proto::RENAME, src_at.0, src.len() as u64),
             proto::rename_dst(dst_at.0, dst.len() as u64),
         )?;
+        Ok(())
+    }
+
+    /// `MKDIR` under this directory, the `self`-relative twin of [`DirBuilder::mkdir`] (which
+    /// walks from the granted root). Same verb, same close-what-you-don't-keep reasoning: the
+    /// handle `MKDIR` hands back is closed immediately, since std's `create_dir` returns `()`
+    /// and a later `open_dir`/`read_dir` of the same name mints another one.
+    pub fn create_dir(&self, path: &Path) -> io::Result<()> {
+        let mut p = page();
+        let (at, name) =
+            walk(&mut p, self.at.0, path, fsproto::dir::CREATE | fsproto::dir::DESCEND)?;
+        p.put(name.as_bytes());
+        let handle = request(proto::req(proto::MKDIR, at.0, name.len() as u64), 0)?;
+        let _ = request(proto::req(proto::CLOSE, handle, 0), 0);
+        Ok(())
+    }
+
+    /// **Open a directory relative to this one.** One descent per component, exactly
+    /// [`Dir::open`]'s walk, just seeded from `self` instead of the granted root.
+    ///
+    /// `""`/`"."` is the one case that walk cannot express: it names `self` again, and this
+    /// contract has no verb to mint a second handle to a directory `self` already holds (the
+    /// same gap [`File::duplicate`] documents). Under the granted directory itself that costs
+    /// nothing, because [`Dir::root`] is the `ROOT` sentinel and any number of `Dir`s may hold
+    /// it at once (its `Drop` never closes it); anywhere else, honestly, this refuses rather
+    /// than inventing a duplicate the server was never asked to mint.
+    pub fn open_dir(&self, path: &Path, _opts: &OpenOptions) -> io::Result<Dir> {
+        if count_names(path)? == 0 {
+            return if self.at.0 == proto::ROOT { Ok(Dir::root()) } else { Err(unsupported_err()) };
+        }
+        let mut p = page();
+        let mut names = names(path);
+        let mut cur = self.child(&mut p, names.next().expect("count_names checked above"))?;
+        for name in names {
+            cur = cur.child(&mut p, name)?;
+        }
+        Ok(cur)
+    }
+
+    /// `RMDIR` under this directory, the `self`-relative twin of the path-shaped [`rmdir`].
+    /// Empty-only, same as that one: `DirectoryNotEmpty` is the answer for anything else, and a
+    /// file underneath is refused with `NotADirectory`.
+    pub fn remove_dir(&self, path: &Path) -> io::Result<()> {
+        let mut p = page();
+        let (at, name) = walk(&mut p, self.at.0, path, fsproto::dir::REMOVE)?;
+        p.put(name.as_bytes());
+        request(proto::req(proto::RMDIR, at.0, name.len() as u64), 0)?;
         Ok(())
     }
 }
