@@ -413,7 +413,7 @@ fires when the tree exceeds it and stays silent when the tree falls below. `scri
 `agents-md-lines` registry entry (the file's own `wc -l`-equivalent line count) and the claim lives
 here, since a developer lane may not edit `AGENTS.md` to carry its own marker:
 
-**`AGENTS.md` carries at most 965 lines** <!--count-at-most:agents-md-lines-->, written at the
+**`AGENTS.md` carries at most 975 lines** <!--count-at-most:agents-md-lines-->, written at the
 tree's exact value with **zero headroom**, deliberately: the point, per this section's own words
 above, is that every line added should replace one removed, or be a considered act that says why the
 growth was worth it. That is the same choice `unsafe-thread-safety-claims` made for a different
@@ -441,6 +441,13 @@ instruction, typed into every lane's prompt by hand, into the Developer role's o
 beside the sibling rule it now sits next to ("a developer polls its own background work to
 completion"). The same shape of fix as both entries above it: a rule a maintainer had to remember to
 restate every time is now a rule every brief inherits without anyone retyping it.
+
+**Raised from 965 to 975, 2026-08-26**: the watcher-start instruction was rewritten after it failed
+exactly the way it was written to prevent, a maintainer session reading it and not acting on it. The
+addition records what replaced it (`launchd` on patagonia, rung one for the part of the gap a
+session can close) and the gap calef accepted rather than solved (asleep or shut down, neither
+watcher runs), which is the same "durable rule change belongs in the file the rule lives in" case
+the entry above already made.
 
 **Targets the whole file, not "the core", because the core does not exist yet.** Once the split
 happens, this ceiling should move to whatever the core becomes and stop counting the linked
