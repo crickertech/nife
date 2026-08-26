@@ -1,18 +1,16 @@
 # 40. Documentation as a system service: searchable, rendered, and installed by packages
 
-**Status: PARTIAL.** Phases 1 and 2 are built, and phase 2's own known gap (ranking by raw
-occurrence count rather than document length) closed 2026-08-22, same day as the item below. Phase
-3's caretaker-narrowing increment is built too (DECISIONS §106, 2026-08-22): `doc <page>` renders
-at the prompt with no `| wc` in front of it, which is the milestone's own headline demonstration.
-Phase 3's other half, the graphical viewer, is not started and still waits on the display ladder
-(milestone 29, milestone 33; milestone 29's font increment is itself BLOCKED on notes/frames.md's
-`Frame`-sizing fork). The status said NOT-STARTED until calef noticed the tree had moved past it
-(2026-08-16, the week's fifth §76-shaped misrecording), and **it did not move on 2026-08-18
-either**, which is the honest answer for a lane that fixed a renderer, corrected a record and built
-a front door without starting the phase that is missing. It does not move to BUILT now either: a
-ranking refinement inside an already-built phase is not a phase closing.
-
-**Gate: NONE.** Its one stated prerequisite, milestone 31's phase 2 per-file grants, is built.
+**Status: BUILT, 2026-08-26.** Phases 1 and 2 are built, phase 2's own known gap (ranking by raw
+occurrence count rather than document length) closed 2026-08-22, and phase 3's caretaker-narrowing
+increment is built too (DECISIONS §106, 2026-08-22): `doc <page>` renders at the prompt with no
+`| wc` in front of it, which is the milestone's own headline demonstration. **Phase 3's other half,
+a graphical viewer, is struck rather than built.** Traced to its origin 2026-08-26: calef's own
+quoted direction below never asked for one; a graphical viewer was the scoping lane's own addition
+("the first *application* on the display ladder that anybody would actually use"), carried forward
+unquestioned through every later revision of this file, including the one that kept the status at
+PARTIAL for it. calef, asked directly once the origin was traced: *"I don't need a graphical
+viewer."* Struck below wherever it was named; the status moves to BUILT because the milestone's own
+quoted direction, and everything a lane actually decided to build against it, is now complete.
 
 What exists: `crates/manual` (a streaming markdown renderer, the byte layout of a search index, and
 the query that reads one, all pure and host-tested in `tests/render.rs`), `user/src/doc.rs`, the
@@ -120,6 +118,8 @@ The first line is the control this milestone has carried since phase 1 (the barr
 render countable); the second is the line nobody could type before today, rendering with no `| wc`
 in front of it. The caretaker-hop display race notes/tail-output-narrowing.md named is carried as a
 documented, accepted interim rather than fixed here; see this block's `BUGS` and milestone 151.
+This is also the milestone's own headline demonstration, decided 2026-08-26 to be the whole of
+phase 3 rather than half of it (see the Status block above).
 
 **2026-08-22, later the same day: ranking divides by length.** `crates/manual/src/index.rs`'s own
 `BUGS` had named this since phase 2 landed: "ranking is occurrence count and nothing else, so a
@@ -134,12 +134,14 @@ notes/manual.md's `BUGS` and "Where this goes next" for detail and `crates/manua
 `ranking_divides_by_page_length`. This does not move phase 2 status; phase 2 was already BUILT and
 this is a quality improvement inside it, named as future work at the time and now closed.
 
-**The status still does not move to BUILT.** This closes phase 3's caretaker-narrowing increment,
-not phase 3 itself: the graphical viewer phase 3 also names waits on the display ladder (milestone
-29's font rendering, milestone 33's compositor) exactly as it did before this decision, and 40 stays
-PARTIAL until that lands too.
+**The status did not move to BUILT that day.** This closed phase 3's caretaker-narrowing increment,
+not phase 3 as this file then defined it: a graphical viewer, waiting on the display ladder
+(milestone 29's font rendering, milestone 33's compositor), was still named as the phase's other
+half. **That naming is struck 2026-08-26**, traced to its origin and found unrequested; see the
+Status block above. Phase 3 is therefore complete as of the caretaker-narrowing increment, and so
+is this milestone.
 
-**In brief.** Markdown authored, **rendered** for display rather than shown raw, searchable locally, and installed by the package that owns it. Reuse `pulldown-cmark` for parsing (CommonMark is a fiddly spec worth taking from someone else) and write the ANSI renderer against `line_editor`'s contract, because `termimad`/`mdcat` sit on `crossterm` and assume a POSIX terminal we do not have. Phase 1 is a terminal viewer and pager, phase 2 a host-built inverted index shipped as a per-package shard, phase 3 a graphical viewer riding the display ladder. Two constraints found while scoping: **`readdir` refuses and the §27 contract has no such verb**, so nothing can walk a tree for documents, and **font rendering is still milestone 29's remaining increment**, so the terminal comes first
+**In brief.** Markdown authored, **rendered** for display rather than shown raw, searchable locally, and installed by the package that owns it. Reuse `pulldown-cmark` for parsing (CommonMark is a fiddly spec worth taking from someone else) and write the ANSI renderer against `line_editor`'s contract, because `termimad`/`mdcat` sit on `crossterm` and assume a POSIX terminal we do not have. Phase 1 is a terminal viewer and pager, phase 2 a host-built inverted index shipped as a per-package shard, phase 3 a page rendered straight at the prompt. Two constraints found while scoping: **`readdir` refuses and the §27 contract has no such verb**, so nothing can walk a tree for documents, and **font rendering is still milestone 29's remaining increment**, so the terminal comes first, and stays: no graphical viewer was ever asked for (struck 2026-08-26, see the Status block)
 
 **Why it matters.** **the OS explains itself, on itself.** The project's whole argument is already markdown (DECISIONS, thirty-plus notes, this roadmap), so a capability-confined viewer serving them is a better milestone-23 demonstration than another synthetic test and costs the documentation nothing. The missing `readdir` turns out to be a feature: **enumeration is authority**, so indexing at package-build time is both the way around the gap and the more honest shape, which is the same answer `apropos` reached for a different reason. And `doc notes/ipc-naming.md` granting exactly one readable file is milestone 31's designation-is-authorization made into something a person uses
 
@@ -151,8 +153,14 @@ component brings its documentation with it.
 argument is written in markdown: `design/decisions/`, thirty-plus notes, this roadmap. A nife that
 serves its own design notes, on itself, through a capability-confined viewer, is a better
 demonstration of milestone 23's component story than another synthetic test, and it costs the
-documentation nothing because it already exists. It is also the first *application* on the display
-ladder that anybody would actually use.
+documentation nothing because it already exists.
+
+**What this section used to say next, struck 2026-08-26**: that this would also be "the first
+*application* on the display ladder that anybody would actually use," an unattributed sentence never
+in calef's own quoted direction above it. It is the traced origin of "phase 3 = graphical viewer,"
+which calef confirmed he never asked for once the origin was found; see the Status block. Kept here
+rather than deleted, because the sentence that quietly became a requirement is worth a reader seeing
+exactly where it entered.
 
 ## Two constraints found while scoping, both real
 
@@ -164,9 +172,10 @@ ladder that anybody would actually use.
    shape. Unix reached the same answer for a different reason: `apropos` reads a prebuilt `mandb`
    because scanning was slow.
 2. ~~**There is no font rendering yet.**~~ **There is now** (milestone 29, 2026-07-30): a bitmap
-   font, a VT engine, and a display terminal that is a compositor client. A *graphical* documentation
-   browser is therefore unblocked in principle, though the honest limits still argue for the terminal
-   first: an 18x8 grid, no scrollback, and no UTF-8 (notes/glyphs.md).
+   font, a VT engine, and a display terminal that is a compositor client. ~~A *graphical*
+   documentation browser is therefore unblocked in principle~~ **struck 2026-08-26**: nobody asked
+   for one, and this milestone's own headline demonstration renders at the prompt instead. See the
+   Status block.
 
 ## Reuse: take the parser, write the renderer
 
@@ -217,11 +226,11 @@ That split is the reuse judgment, and it is the same one milestone 32 made about
   stack page can hold it. **Ranking by document length, not just raw occurrence count, closed
   2026-08-22**: `manual::index::Page::tokens` and the `score` function above `Ranked::offer`, see
   this page's status block.
-- **Phase 3, split in two.** The caretaker-narrowing increment is **BUILT** (DECISIONS §106,
-  2026-08-22): `doc <page>` renders straight at the prompt, with no `| wc` needed to give it a
-  reader that is not the shell. The graphical viewer, the phase's other half, still rides the
-  display ladder: needs 29's font rendering and sits as a client of 33's compositor. Rung three of
-  the ladder is where this becomes a real application.
+- **Phase 3. BUILT** (DECISIONS §106, 2026-08-22): `doc <page>` renders straight at the prompt,
+  with no `| wc` needed to give it a reader that is not the shell. A graphical viewer was named here
+  as the phase's other half through every revision of this file until 2026-08-26, when it was traced
+  to its origin (an unattributed sentence, not calef's own quoted direction) and struck once calef
+  confirmed he never asked for one. See the Status block.
 
 **Prior art worth reading:** `man` plus `apropos` plus `mandb` for the split between format, index and
 pager, which is the architecture this proposes minus the troff. Dash/Zeal *docsets* (a bundle with its
@@ -230,7 +239,7 @@ need a browser engine, which is a mountain with no thesis behind it.
 
 **Sequencing.** Phase 1 wants milestone 31 phase 2 finished (per-file grants make `doc <file>` the
 demonstration it should be) and nothing else; it can precede the packaging work and be wired into it
-later. **Effort: 1 lane estimated per phase**, three phases, and they can land separately.
+later. **Effort: 1 lane estimated per phase**, three phases, landed separately.
 
 ## BUGS
 
