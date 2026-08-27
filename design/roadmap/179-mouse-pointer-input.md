@@ -37,8 +37,9 @@ get wrong, just "here is where the pointer now is").
 ## What it needs
 
 - **Device discovery**: read `virtio-input`'s configuration space to select a tablet over a keyboard
-  when both are present, rather than the current "attach only a keyboard" default. `NIFE_MOUSE`
-  alongside the existing `NIFE_GPU`/`NIFE_KBD` test-leg flags is the obvious shape, matching how each
+  when both are present, rather than the current "attach only a keyboard" default. A third
+  `NIFE_`-prefixed test-leg flag, alongside the existing `NIFE_GPU`/`NIFE_KBD` pair, is the obvious
+  shape once a lane picks its name, matching how each
   device milestone before this one gated itself.
 - **A pointer capability and its confinement**: the identical shape milestone 29's keyboard driver
   already proves (a confined EL0 driver, an event rendezvous, an IOMMU domain), applied to a second
