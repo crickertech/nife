@@ -177,7 +177,11 @@ pub fn start(n: usize, focusable: usize, display: RendezvousId, screen: u64) -> 
     grants[1] = rendezvous_cap(display, Rights::WRITE);
     grants[2] = rendezvous_cap(doorbell, Rights::READ);
     // The whole screen, one capability (§102): `Object::PageFrame(screen, SCREEN_PAGE_FRAMES)`.
-    grants[3] = page_frame_run_cap(screen, SCREEN_PAGE_FRAMES, Rights::READ.union(Rights::WRITE));
+    grants[3] = page_frame_run_cap(
+        screen,
+        SCREEN_PAGE_FRAMES,
+        Rights::READ.union(Rights::WRITE),
+    );
     grants[4] = memory_region_cap(budget);
     for i in 0..focusable {
         grants[COMP_INPUT_BASE as usize + i] = rendezvous_cap(input[i], Rights::WRITE);

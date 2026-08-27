@@ -340,7 +340,11 @@ mod tests {
                 .unwrap_or_else(|| panic!("arrow code {code} produced nothing"));
             assert_eq!(got.as_slice(), want, "arrow code {code}");
             // A release of the same key types nothing, same as every other key.
-            assert_eq!(kb.event(EV_KEY, code, 0), None, "arrow release, code {code}");
+            assert_eq!(
+                kb.event(EV_KEY, code, 0),
+                None,
+                "arrow release, code {code}"
+            );
             // Auto-repeat resends the same sequence, the same as a held letter key.
             assert_eq!(kb.event(EV_KEY, code, 2).unwrap().as_slice(), want);
         }

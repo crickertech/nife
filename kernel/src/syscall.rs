@@ -333,10 +333,8 @@ pub(crate) fn invoke(
                     _ => return Err(Error::WrongObject),
                 };
                 for k in 0..count {
-                    let (page_phys, page_va) = (
-                        phys + k * paging::PAGE_SIZE,
-                        va + k * paging::PAGE_SIZE,
-                    );
+                    let (page_phys, page_va) =
+                        (phys + k * paging::PAGE_SIZE, va + k * paging::PAGE_SIZE);
                     match crate::user::user_address_space_map(name, page_va, page_phys, flags) {
                         Ok(()) => {
                             // When userspace maps a frame it wrote executable (a spawner building a

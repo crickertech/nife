@@ -258,7 +258,10 @@ mod tests {
         }
         // Hollow: a filled box would be a solid block, which is a legitimate thing a terminal draws.
         assert!(!ink('\u{80}', 3, 3), "the missing glyph should be hollow");
-        assert!(ink('\u{80}', 1, 1), "the missing glyph should have a left edge");
+        assert!(
+            ink('\u{80}', 1, 1),
+            "the missing glyph should have a left edge"
+        );
         assert!(ink('\u{80}', 5, 1), "and a right edge");
     }
 

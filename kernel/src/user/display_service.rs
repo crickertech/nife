@@ -25,7 +25,9 @@
 //! the only page the kernel still places is the one `load` gives every process.
 
 use super::*;
-use crate::cap::{Rights, irq_cap, memory_region_cap, page_frame_run_cap, rendezvous_cap, virtio_cap};
+use crate::cap::{
+    Rights, irq_cap, memory_region_cap, page_frame_run_cap, rendezvous_cap, virtio_cap,
+};
 use crate::sched::RendezvousId;
 
 /// The DMA region, in frames: one for the rings and control buffers, then the surface.
