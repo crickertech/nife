@@ -1,8 +1,16 @@
 # 177. Wire the graphical terminal stack into the real interactive boot
 
-**Status: NOT-STARTED.** Minted 2026-08-26, from tracing the user story "boot to a login prompt,
+**Status: PARTIAL.** Minted 2026-08-26, from tracing the user story "boot to a login prompt,
 land in a `swish` prompt on a real terminal" against the actual code rather than the roadmap's own
-framing, and finding no milestone owns the gap this surfaced.
+framing, and finding no milestone owns the gap this surfaced. **Pieces 1-4 built and merged
+2026-08-27** (`milestone/177-boot-wiring-build`): the kernel-side graphical stack, the direct
+`kbd` -> `line_editor` grant (option A, decided), `line_editor`'s `display_terminal` output
+adapter, and device attachment, all wired and code-reviewed correct. **Not yet reaching a working
+prompt**: a real, pre-existing driver bug (a second `FLUSH` through `user/src/display.rs`'s real
+boot path hangs) blocks the graphical boot from completing; recorded in
+`notes/framebuffer-contract.md`'s own BUGS section rather than held on. **Piece 5 (x86_64's entry
+point) split off as its own milestone**, [182](182-x86-64-interactive-boot.md), once the lane
+found it needs a from-scratch ELF-loading boot path, not wiring.
 
 **Gate: NONE.** Was `Gate: DECISION` (2026-08-27, an investigation lane found piece 1's own plan
 does not fit and piece 2 cannot be built until the input-routing fork below is answered); decided
@@ -32,7 +40,10 @@ straight to a shell prompt on x86_64 today; `kernel/src/user.rs` has no third fu
 `spawn_init`/`riscv_shell_boot`. This is milestone 49's gap as much as this milestone's: neither
 currently plans it.
 
-So this milestone is three joined pieces, not two:
+This milestone was originally scoped as three joined pieces; **the third split off as its own
+milestone, [182](182-x86-64-interactive-boot.md), 2026-08-27**, once the build lane found it needs
+a from-scratch ELF-loading boot path rather than wiring. What remains here, built (see "What was
+built" below):
 
 1. **Attach the devices.** GPU and keyboard grants added to `BootEndowment`, and the interactive
    boot's QEMU invocation (`scripts/qemu-runner-*.sh`'s non-test path, or a new demo-boot flag)
@@ -40,12 +51,6 @@ So this milestone is three joined pieces, not two:
 2. **Swap the programs.** Replace `console`/`input` in `system_initializer::boot`'s spawn list with
    `display_terminal`/`compositor`/the virtio keyboard client, the same components milestone 23's
    own text already names as proven but "not running under the test harness."
-3. **Build x86_64's own interactive-boot entry point first**, before either piece above can mean
-   anything on that architecture: a third function beside `spawn_init`/`riscv_shell_boot`, and
-   `script/shell-check` extended to a third `--arch` leg once it exists. Sequencing note, not a
-   design fork: pieces 1 and 2 are provable on aarch64/riscv64 without waiting on this, and this
-   piece is provable against the plain `console`/`input` pair before it needs to be provable against
-   the graphical stack, so it does not have to land last.
 
 ## The investigation, 2026-08-27: why "just wire it up" does not work
 
@@ -147,6 +152,23 @@ no working userspace console at all, on either side of this milestone; its only 
 an interactive shell is through the graphical stack, which means piece 3 depends on finding 2's
 fork being answered the same way pieces 1-2 do, not independent of it.
 
+## What was built, 2026-08-27
+
+Pieces 1-2, both on aarch64 and riscv64: `kernel::user::boot_graphical_terminal` (kernel-side,
+mirroring `fs_service::root_directory`'s pattern, per finding 1), the direct `kbd` -> `line_editor`
+grant (`MODE_DIRECT`, option A, decided), `line_editor`'s `MODE_DISPLAY` output adapter, and
+`crates/system_initializer::boot()` branching on whether the graphical grants are present. A real,
+reproducible capability-table-exhaustion bug was found and fixed along the way (the new grants
+inflated `boot()`'s resting baseline enough to push the *entropy* build past the sixteen-slot wall;
+fixed by freeing `uart_dev`/`uart_irq` at the top of `boot()` on a graphical boot, since they are
+dead weight there). `script/shell-check --graphical` (a new leg, verifying via decoded screendump
+since there is no UART to pipe a transcript from) does not yet reach a working prompt: a second
+`FLUSH` through the real boot's own driver instance hangs, diagnosed as likely a pre-existing
+characteristic of `user/src/display.rs`'s completion-IRQ handling rather than something this
+milestone's wiring introduced, and recorded in `notes/framebuffer-contract.md`'s own BUGS section
+rather than held on. The existing plain-console boot is unaffected and re-verified working on both
+architectures throughout.
+
 ## What this does not decide
 
 Whether the swap is unconditional (the graphical stack becomes the only interactive boot) or a
@@ -160,16 +182,13 @@ against the real boot path here).
 
 The graphical half of the login-to-`kilo` user story ([DECISIONS
 §131](../decisions/131-hold-at-rung-two.md)'s "kick-ass terminal, something I'll love working
-with"). Independent of [milestone 169](169-kilo-editor.md) (`kilo`'s raw-keystroke primitive sits
-at the `DECISIONS §21` line-discipline contract level, which both `console` and
-`display_terminal` already speak identically) and of milestone 49's login-boot-wiring piece
-(unblocked 2026-08-26, DECISIONS §120 amended to grant the stopgap; the piece itself is a separate,
-ongoing build).
-
-**This paragraph's own "all three can proceed in either order" claim is corrected by the
-investigation above, not merely superseded: piece 3 (x86_64's entry point) is not independent of
-pieces 1-2, because x86_64 has no fallback UART path at all (DECISIONS §121, permanently
-kernel-resident) and therefore depends on finding 2's fork the same way pieces 1-2 do.** Piece 3 is
-still not a prerequisite for either of the *other* two meaning something on aarch64/riscv64; it is
-simply not escaping the fork either, on the one architecture that has no plain-console alternative
-to fall back on.
+with"), once the display-driver hang above is resolved. Independent of [milestone
+169](169-kilo-editor.md) (`kilo`'s raw-keystroke primitive sits at the `DECISIONS §21`
+line-discipline contract level, which both `console` and `display_terminal` already speak
+identically) and of milestone 49's login-boot-wiring piece (unblocked 2026-08-26, DECISIONS §120
+amended to grant the stopgap; the piece itself is a separate, ongoing build). x86_64's own route to
+an interactive shell, split off as [milestone 182](182-x86-64-interactive-boot.md), still depends
+on the input-routing fork this milestone already answered (option A), the same dependency the
+investigation found before the split: x86_64 has no fallback UART path at all (DECISIONS §121,
+permanently kernel-resident), so its only possible route is through the graphical stack this
+milestone builds.
