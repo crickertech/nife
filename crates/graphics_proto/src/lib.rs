@@ -41,17 +41,19 @@
 //! checksum over a fill, or a "is it all blue?" check, cannot see at all:
 //!
 //! ```
-//! use graphics_proto::{PIXELS, checksum, expected_checksum, first_mismatch, pixel_at};
+//! use graphics_proto::{checksum, expected_checksum, first_mismatch, pixel_at};
 //!
-//! // A client that painted the surface correctly.
-//! let good: [u32; PIXELS] = core::array::from_fn(pixel_at);
-//! assert_eq!(checksum(|i| good[i]), expected_checksum());
-//! assert_eq!(first_mismatch(|i| good[i]), None);
+//! // A client that painted the surface correctly. `checksum`/`first_mismatch` read through a
+//! // closure rather than a materialized buffer, which is not just convenient here: at 1280x720
+//! // (DECISIONS §102) a `[u32; PIXELS]` array is 3.6 MiB, too large for a doctest's default stack
+//! // to hold even one of, let alone the two this example used to keep side by side.
+//! assert_eq!(checksum(pixel_at), expected_checksum());
+//! assert_eq!(first_mismatch(pixel_at), None);
 //!
 //! // The same pixels, off by one: a stride bug, or a driver that transferred from the wrong offset.
-//! let shifted: [u32; PIXELS] = core::array::from_fn(|i| pixel_at(i + 1));
-//! assert_ne!(checksum(|i| shifted[i]), expected_checksum());
-//! assert_eq!(first_mismatch(|i| shifted[i]), Some(0)); // and it names where
+//! let shifted = |i| pixel_at(i + 1);
+//! assert_ne!(checksum(shifted), expected_checksum());
+//! assert_eq!(first_mismatch(shifted), Some(0)); // and it names where
 //!
 //! // A device that ignored the transfer entirely.
 //! assert_ne!(checksum(|_| 0), expected_checksum());
@@ -96,12 +98,22 @@
 ///
 /// **Not square, on purpose.** A square surface makes a stride bug, a transposition, and an x/y swap
 /// all invisible: the byte count comes out the same and the checksum of a transposed square can
-/// still be built out of the right pixels. 128x64 makes every one of those a size or content
-/// mismatch. The lower bound is the device's: QEMU refuses a scanout smaller than 16 in either
-/// dimension.
-pub const WIDTH: u32 = 128;
-/// The surface's height in pixels. See [`WIDTH`] for why this is not equal to it.
-pub const HEIGHT: u32 = 64;
+/// still be built out of the right pixels. 1280x720 makes every one of those a size or content
+/// mismatch, exactly as 128x64 did. The lower bound is the device's: QEMU refuses a scanout smaller
+/// than 16 in either dimension.
+///
+/// **Grown from 128x64 to 1280x720** (milestone 142 increment 1, DECISIONS §102). 128x64 was chosen
+/// as a test instrument, not a target: it gave an 18x8 character grid at the 7x8 bitmap font, short
+/// of the 80x24 floor a usable terminal needs. 1280x720 is 16:9 (still decidedly non-square), clears
+/// 80 columns with room at a 14-pixel-wide cell, and its byte count (1280 * 720 * 4 = 3,686,400) is
+/// exactly 900 page frames with nothing left over, so [`SURFACE_BYTES`]'s frame-alignment assertion
+/// below holds by construction rather than by luck (contrast 800x600, which needed 608 substituted
+/// for 600 to clear the same assertion). §102 is what makes 900 frames reachable at all: a
+/// `PageFrame` names a run of pages, so the scanout is one capability instead of 900.
+pub const WIDTH: u32 = 1280;
+/// The surface's height in pixels. See [`WIDTH`] for why this is not equal to it, and for why this
+/// particular value.
+pub const HEIGHT: u32 = 720;
 
 /// Bytes per pixel. One 32-bit word, in the format [`FORMAT`] names.
 pub const BYTES_PER_PIXEL: u32 = 4;
@@ -347,15 +359,17 @@ mod tests {
     /// hand out. A mismatch here would be a contract two processes read differently.
     #[test]
     fn the_geometry_agrees_with_itself() {
-        assert_eq!(STRIDE, 512);
-        assert_eq!(SURFACE_BYTES, 512 * 64);
+        // 1280x720 (DECISIONS §102, milestone 142): grown from 128x64, and still exactly a whole
+        // number of frames with nothing left over (1280 * 720 * 4 is exactly 900 * 4096).
+        assert_eq!(STRIDE, 5120);
+        assert_eq!(SURFACE_BYTES, 5120 * 720);
         assert_eq!(
             SURFACE_BYTES % 4096,
             0,
             "the surface should fill its frames"
         );
-        assert_eq!(SURFACE_PAGE_FRAMES, 8);
-        assert_eq!(PIXELS, 8192);
+        assert_eq!(SURFACE_PAGE_FRAMES, 900);
+        assert_eq!(PIXELS, 921_600);
         assert_eq!(
             offset_of(0, 1),
             STRIDE as usize,

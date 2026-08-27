@@ -17,12 +17,20 @@
 /// `user/src/display_terminal.rs` and the kernel wiring both assert the two agree at **compile time**, so a
 /// screen that changed size is a build error rather than a terminal quietly missing its last column.
 ///
-/// **Eighteen, and the division has a remainder**: 128 / 7 is 18 with two pixels left over, which
-/// the terminal paints as background once and no cell ever owns. It was 16 while the font was 8
-/// wide.
-pub const COLS: u32 = 18;
-/// The rows of a terminal that owns the whole scanout. See [`COLS`].
-pub const ROWS: u32 = 8;
+/// **182, and the division has a remainder**: 1280 / 7 is 182 with six pixels left over, which the
+/// terminal paints as background once and no cell ever owns, the same shape 128 / 7's two-pixel
+/// remainder already had.
+///
+/// **Grown from 18 at milestone 142's increment 1**, alongside the scanout (128x64 -> 1280x720,
+/// DECISIONS §102). The milestone's own arithmetic names 91 columns at a *future* 14-pixel cell
+/// (the anti-aliased atlas increments 3-6 would add, gated on a font decision this lane does not
+/// have); at today's 7x8 bitmap font (`bitmap_font::GLYPH_W`/`GLYPH_H`, unchanged by this
+/// milestone) the honest number is 182, which clears the 80-column floor with more room to spare,
+/// not less. When the atlas lands and the cell widens, this constant shrinks with it.
+pub const COLS: u32 = 182;
+/// The rows of a terminal that owns the whole scanout. See [`COLS`]: 720 / 8 is 90 exactly, no
+/// remainder, unlike 64 / 8 which was also exact. Grown from 8.
+pub const ROWS: u32 = 90;
 
 /// **What the application prints.** Delivered as `OP_WRITE`, the terminal contract's application
 /// half (notes/terminal-contract.md), exactly as a program printing to a serial console would.
@@ -80,22 +88,27 @@ pub const HOST_KEY: &str = "a";
 /// [`crate::keymap`]. Unshifted, so this is the plain letter.
 pub const HOST_KEY_BYTE: u8 = b'a';
 
-/// The terminal a full-scanout wiring shows after the whole script: the greeting, then the typing.
+/// **Feed the greeting, then the typing, into `vt`**: what a full-scanout wiring shows after the
+/// whole script. The caller constructs `vt` (typically `Vt::new(COLS, ROWS)`, compile-time
+/// constants, so a `static` costs nothing at runtime) rather than this function returning one.
 ///
-/// Built rather than stored, because the *engine* is the definition. A stored bitmap would be a
-/// second definition that could drift from the one the component runs.
-pub fn full_screen() -> crate::Vt {
-    let mut vt = crate::Vt::new(COLS, ROWS);
+/// **Takes `&mut Vt`, not `-> Vt`, since milestone 142's grid growth.** A `Vt` is now hundreds of
+/// KiB (`Vt`'s own doc comment), so a function that built one and returned it by value would need
+/// that whole value to exist somewhere at the call site; a kernel test calling this on a 24 KiB
+/// thread stack is exactly the caller this signature protects (`script/stack-frame-check` is the
+/// gate that would have caught the old shape once the grid grew, and this signature is why it does
+/// not have to).
+pub fn full_screen(vt: &mut crate::Vt) {
     vt.feed(GREETING);
     vt.feed(TYPED);
-    vt
 }
 
-/// What window `i`'s terminal shows in the compositor test: its own banner, then what was typed at
-/// it while it had focus.
-pub fn window(i: usize, cols: u32, rows: u32) -> crate::Vt {
-    let mut vt = crate::Vt::new(cols, rows);
+/// **Feed window `i`'s banner and its typed text into `vt`**: what its terminal shows in the
+/// compositor test. `vt` must already be at the right geometry (`Vt::reset_to(cols, rows)`, since a
+/// window's size is not known until runtime, unlike [`full_screen`]'s fixed one); this only feeds
+/// the script, for [`full_screen`]'s own reason (a `Vt`-by-value return is no longer a cheap thing
+/// to hand back).
+pub fn window(vt: &mut crate::Vt, i: usize) {
     vt.feed(WINDOW_BANNER[i]);
     vt.feed(WINDOW_TYPED[i]);
-    vt
 }
