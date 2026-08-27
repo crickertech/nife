@@ -281,114 +281,7 @@ pub(crate) fn invoke(
         // authority to shape it; the frame's own rights gate what kind of mapping, exactly as
         // frame::MAP; the va gate is the proved paging::is_user_page_va, as everywhere.
         Object::AddressSpace(name) => match method {
-            abi::address_space::MAP_INTO => {
-                if !cap.rights.allows(Rights::WRITE) {
-                    return Err(Error::NotPermitted);
-                }
-                let va = a0;
-                let frame = sched::current_cap(a1).map_err(|_| Error::NoSuchSlot)?;
-                // The mappable object is a PageFrame (normal memory) or a DeviceFrame (a device's
-                // MMIO, device-typed): the driver a userspace init builds gets its registers this
-                // way (19d.2). a2 chooses the shape for a PageFrame; a DeviceFrame is always
-                // device-typed read/write and needs WRITE on the cap.
-                let (phys, count, flags) = match frame.object {
-                    Object::DeviceFrame(phys) => {
-                        if !frame.rights.allows(Rights::WRITE) {
-                            return Err(Error::NotPermitted);
-                        }
-                        (phys, 1u64, paging::Flags::user_device())
-                    }
-                    // §102 (2026-08-20): `count` is the run's length. A single-page frame is
-                    // `count: 1`, so this arm's behavior for every existing caller is unchanged; a
-                    // run-capable frame maps the whole run in this one MAP_INTO call, exactly as
-                    // `page_frame::MAP` does below.
-                    Object::PageFrame(phys, count) => {
-                        // 0 read-only, 1 read/write, 2 executable code (a loader's child .text).
-                        // Code is W^X: user_code is RX, never writable, so it needs only READ.
-                        let flags = match a2 {
-                            abi::address_space::MAP_RW => {
-                                if !frame.rights.allows(Rights::WRITE) {
-                                    return Err(Error::NotPermitted);
-                                }
-                                paging::Flags::user_data()
-                            }
-                            abi::address_space::MAP_CODE => {
-                                if !frame.rights.allows(Rights::READ) {
-                                    return Err(Error::NotPermitted);
-                                }
-                                paging::Flags::user_code()
-                            }
-                            _ => {
-                                if !frame.rights.allows(Rights::READ) {
-                                    return Err(Error::NotPermitted);
-                                }
-                                paging::Flags::user_rodata()
-                            }
-                        };
-                        (phys, count.get(), flags)
-                    }
-                    _ => return Err(Error::WrongObject),
-                };
-                // **The run's last page is checked, not only its first** (milestone 142's review,
-                // MAJOR 3). This used to check `va` alone, which was right when a frame was one
-                // page and wrong the moment `count` could exceed 1: a run placed near the top of
-                // the low half passed the check and then walked out of it partway through the loop
-                // below, refused three layers down by `Mapper::map`'s own `Half::Low` re-check
-                // rather than here. Same guard `page_frame_map` uses, same reason: reject the whole
-                // request before mapping any of it.
-                let Some(last_va) = run_end_va(va, count) else {
-                    return Err(Error::BadPointer);
-                };
-                if !paging::is_user_page_va::<crate::arch::mmu::Format>(va)
-                    || !paging::is_user_page_va::<crate::arch::mmu::Format>(last_va)
-                {
-                    return Err(Error::BadPointer);
-                }
-                // The root the rollback below unmaps out of. Looked up once, before anything is
-                // mapped: a `MAP_INTO` naming a space that does not exist must fail before it
-                // spends a page table, and the loop's own `NotMapped` would otherwise report that
-                // as a mapping failure with nothing to roll back.
-                let Some(root) = crate::user::user_address_space_root(name) else {
-                    return Err(Error::BadPointer);
-                };
-                for k in 0..count {
-                    let (page_phys, page_va) =
-                        (phys + k * paging::PAGE_SIZE, va + k * paging::PAGE_SIZE);
-                    match crate::user::user_address_space_map(name, page_va, page_phys, flags) {
-                        Ok(()) => {
-                            // When userspace maps a frame it wrote executable (a spawner building a
-                            // child's code, MAP_CODE), the instruction fetcher must be made to see
-                            // the bytes the writer stored: RISC-V's `fence.i`, aarch64's
-                            // dcache-clean + icache-invalidate, both behind `sync_icache`. The
-                            // kernel-side ELF loader does this (user.rs map_segments); this is the
-                            // userspace-built path, which a fast spawn+reap loop (bench::spawn_el0)
-                            // is the first thing to stress. A child that fetches unsynced code
-                            // takes an illegal-instruction fault at its entry.
-                            if flags.is_user_executable() {
-                                crate::arch::sync_icache(
-                                    crate::arch::mmu::phys_to_virt(page_phys),
-                                    paging::PAGE_SIZE as usize,
-                                );
-                            }
-                        }
-                        // **All or nothing across the run** (milestone 142's review, MAJOR 2).
-                        // Whatever this loop mapped before failing is unmapped again, so a caller
-                        // that gets an error never has to wonder how much of its run landed: the
-                        // answer is always none of it. Before this the prefix stayed mapped and
-                        // recorded with no way to ask about it, which is the pre-§102 single-page
-                        // path's own rollback quietly narrowed to one page by the widening.
-                        Err(e) => {
-                            unmap_run_prefix(root, phys, va, k);
-                            return Err(match e {
-                                paging::MapError::OutOfPageFrames => Error::OutOfMemory,
-                                // misaligned, already mapped, unknown space
-                                _ => Error::BadPointer,
-                            });
-                        }
-                    }
-                }
-                Ok(0)
-            }
+            abi::address_space::MAP_INTO => address_space_map_into(cap, name, a0, a1, a2),
             // List what this address space has mapped, one entry per call, without the ability
             // to change any of it (milestone 126's `pmap`, DECISIONS §114): `Rendezvous::SURVEY`'s
             // shape one object type over, and pointedly `ENUMERATE` rather than `WRITE`, which is
@@ -669,6 +562,130 @@ fn memory_region_split(cap: crate::cap::Cap, region: u64, count: u64) -> Result<
 #[inline(never)]
 fn memory_region_destroy(region: u64) -> Result<i64, Error> {
     sched::reclaim_region(region).map_err(|_| Error::NotPermitted)?;
+    Ok(0)
+}
+
+/// `AddressSpace::MAP_INTO`: map an existing frame into *another* process's address space under
+/// construction (19b), the other half of [`page_frame_map`]. `#[inline(never)]` for the reason
+/// `memory_region_map` gives, **found late** (milestone 142's review): this arm sat inline in
+/// [`invoke`]'s dispatch since before milestone 156's discipline existed, and nobody had retrofitted
+/// it. It stayed under the `syscall_entry` footprint budget by luck until MAJOR 2 and MAJOR 3's real,
+/// necessary fixes (the rollback loop, the tail-VA check) added enough code to an already-inline arm
+/// to trip the 5% tripwire on riscv64 -- the fix was correct, it just landed in the wrong place
+/// structurally. Extracted here rather than shrunk, the same move every sibling administrative arm
+/// in this file already made.
+#[inline(never)]
+fn address_space_map_into(
+    cap: crate::cap::Cap,
+    name: u64,
+    a0: u64,
+    a1: u64,
+    a2: u64,
+) -> Result<i64, Error> {
+    if !cap.rights.allows(Rights::WRITE) {
+        return Err(Error::NotPermitted);
+    }
+    let va = a0;
+    let frame = sched::current_cap(a1).map_err(|_| Error::NoSuchSlot)?;
+    // The mappable object is a PageFrame (normal memory) or a DeviceFrame (a device's
+    // MMIO, device-typed): the driver a userspace init builds gets its registers this
+    // way (19d.2). a2 chooses the shape for a PageFrame; a DeviceFrame is always
+    // device-typed read/write and needs WRITE on the cap.
+    let (phys, count, flags) = match frame.object {
+        Object::DeviceFrame(phys) => {
+            if !frame.rights.allows(Rights::WRITE) {
+                return Err(Error::NotPermitted);
+            }
+            (phys, 1u64, paging::Flags::user_device())
+        }
+        // §102 (2026-08-20): `count` is the run's length. A single-page frame is
+        // `count: 1`, so this arm's behavior for every existing caller is unchanged; a
+        // run-capable frame maps the whole run in this one MAP_INTO call, exactly as
+        // `page_frame::MAP` does below.
+        Object::PageFrame(phys, count) => {
+            // 0 read-only, 1 read/write, 2 executable code (a loader's child .text).
+            // Code is W^X: user_code is RX, never writable, so it needs only READ.
+            let flags = match a2 {
+                abi::address_space::MAP_RW => {
+                    if !frame.rights.allows(Rights::WRITE) {
+                        return Err(Error::NotPermitted);
+                    }
+                    paging::Flags::user_data()
+                }
+                abi::address_space::MAP_CODE => {
+                    if !frame.rights.allows(Rights::READ) {
+                        return Err(Error::NotPermitted);
+                    }
+                    paging::Flags::user_code()
+                }
+                _ => {
+                    if !frame.rights.allows(Rights::READ) {
+                        return Err(Error::NotPermitted);
+                    }
+                    paging::Flags::user_rodata()
+                }
+            };
+            (phys, count.get(), flags)
+        }
+        _ => return Err(Error::WrongObject),
+    };
+    // **The run's last page is checked, not only its first** (milestone 142's review,
+    // MAJOR 3). This used to check `va` alone, which was right when a frame was one
+    // page and wrong the moment `count` could exceed 1: a run placed near the top of
+    // the low half passed the check and then walked out of it partway through the loop
+    // below, refused three layers down by `Mapper::map`'s own `Half::Low` re-check
+    // rather than here. Same guard `page_frame_map` uses, same reason: reject the whole
+    // request before mapping any of it.
+    let Some(last_va) = run_end_va(va, count) else {
+        return Err(Error::BadPointer);
+    };
+    if !paging::is_user_page_va::<crate::arch::mmu::Format>(va)
+        || !paging::is_user_page_va::<crate::arch::mmu::Format>(last_va)
+    {
+        return Err(Error::BadPointer);
+    }
+    // The root the rollback below unmaps out of. Looked up once, before anything is
+    // mapped: a `MAP_INTO` naming a space that does not exist must fail before it
+    // spends a page table, and the loop's own `NotMapped` would otherwise report that
+    // as a mapping failure with nothing to roll back.
+    let Some(root) = crate::user::user_address_space_root(name) else {
+        return Err(Error::BadPointer);
+    };
+    for k in 0..count {
+        let (page_phys, page_va) = (phys + k * paging::PAGE_SIZE, va + k * paging::PAGE_SIZE);
+        match crate::user::user_address_space_map(name, page_va, page_phys, flags) {
+            Ok(()) => {
+                // When userspace maps a frame it wrote executable (a spawner building a
+                // child's code, MAP_CODE), the instruction fetcher must be made to see
+                // the bytes the writer stored: RISC-V's `fence.i`, aarch64's
+                // dcache-clean + icache-invalidate, both behind `sync_icache`. The
+                // kernel-side ELF loader does this (user.rs map_segments); this is the
+                // userspace-built path, which a fast spawn+reap loop (bench::spawn_el0)
+                // is the first thing to stress. A child that fetches unsynced code
+                // takes an illegal-instruction fault at its entry.
+                if flags.is_user_executable() {
+                    crate::arch::sync_icache(
+                        crate::arch::mmu::phys_to_virt(page_phys),
+                        paging::PAGE_SIZE as usize,
+                    );
+                }
+            }
+            // **All or nothing across the run** (milestone 142's review, MAJOR 2).
+            // Whatever this loop mapped before failing is unmapped again, so a caller
+            // that gets an error never has to wonder how much of its run landed: the
+            // answer is always none of it. Before this the prefix stayed mapped and
+            // recorded with no way to ask about it, which is the pre-§102 single-page
+            // path's own rollback quietly narrowed to one page by the widening.
+            Err(e) => {
+                unmap_run_prefix(root, phys, va, k);
+                return Err(match e {
+                    paging::MapError::OutOfPageFrames => Error::OutOfMemory,
+                    // misaligned, already mapped, unknown space
+                    _ => Error::BadPointer,
+                });
+            }
+        }
+    }
     Ok(0)
 }
 
