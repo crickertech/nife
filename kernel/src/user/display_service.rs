@@ -73,8 +73,8 @@ const DRIVER_SLOT_BUDGET: u64 = 4;
 /// **The whole DMA region, one capability** (§102). Before the widening this was
 /// [`DMA_PAGE_FRAMES`] separate slots, one per page, and a `const` assertion guarded the last one
 /// against the fault slot; a scanout large enough to need this milestone would have failed that
-/// assertion outright. One slot names the whole run now, so the assertion (and the pressure it
-/// guarded against) is retired. See notes/frames.md's BUGS.
+/// assertion outright. One slot names the whole run now, so the *pressure* that assertion guarded
+/// against is retired. See notes/frames.md's BUGS.
 const DRIVER_SLOT_DMA: u64 = 5;
 
 // The painting client's capability table. Must match user/src/painter.rs.
@@ -94,6 +94,23 @@ const TERM_SLOT_SURFACE: u64 = 4;
 /// The page an application writes text into. Still its own single-page capability: it is not part
 /// of the scanout's contiguous run.
 const TERM_SLOT_OUT: u64 = TERM_SLOT_SURFACE + 1;
+
+// **No grant list on this path may reach the fault slot** (reinstated by milestone 142's review,
+// MAJOR 6). `abi::fault::FAULT_EP_SLOT` is `CAPABILITY_TABLE_SLOTS - 1` and the supervisor writes
+// the process's fault endpoint there; a grant that landed on it would overwrite that endpoint with
+// a frame, and the process would simply stop being supervised. There is no runtime complaint for
+// that, because `grant_at` on an *empty* slot succeeds: it surfaces later as a faulting process
+// that hangs instead of being reaped, three subsystems away from the cause.
+//
+// The retired assertion said `DRIVER_SLOT_DMA + DMA_PAGE_FRAMES <= FAULT_EP_SLOT`, which was the
+// same claim expressed in the one-slot-per-page representation §102 abolished. This is that claim
+// in run terms: the highest slot each of the three grant lists actually uses, against the slot none
+// of them may reach. It is the *statement* that was worth keeping, not the arithmetic.
+const _: () = {
+    assert!(DRIVER_SLOT_DMA < abi::fault::FAULT_EP_SLOT);
+    assert!(CLIENT_SLOT_SURFACE < abi::fault::FAULT_EP_SLOT);
+    assert!(TERM_SLOT_OUT < abi::fault::FAULT_EP_SLOT);
+};
 
 /// Grant one capability naming the `count`-frame run at `base`, read/write, at `slot`. The
 /// counterpart of the single `MAP` call each of these programs now makes at startup for the run
