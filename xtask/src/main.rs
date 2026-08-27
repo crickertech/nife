@@ -4340,6 +4340,10 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         // `date` (milestone 51). Portable for the same reason the service is: it reads a page and
         // formats it, and neither half knows which instruction set it is on.
         ("date", "date"),
+        // `printenv` (milestone 47's environment-variable fork, DECISIONS §111). `date`'s own
+        // shape, one manifest field over: it reads a page and prints it, and neither half knows
+        // which instruction set it is on.
+        ("printenv", "printenv"),
         ("rm", "rm"),
         // The disk surveyor (milestone 57): reads the block-device roster it was granted and the
         // partition table of the one disk it holds. Portable, so both archives carry it and both
@@ -4520,6 +4524,8 @@ fn initrd_riscv() -> bool {
             "clock",
             "--bin",
             "date",
+            "--bin",
+            "printenv",
             "--bin",
             "rm",
             "--bin",
@@ -4861,6 +4867,9 @@ fn mkinitrd() -> bool {
         // The clock service (milestone 51) and the program that reads the page it publishes.
         ("clock", "clock"),
         ("date", "date"),
+        // `printenv` (milestone 47's environment-variable fork, DECISIONS §111): `date`'s own
+        // shape, one manifest field over.
+        ("printenv", "printenv"),
         // `rm` (milestone 47's rmdir lane): the first program endowed a directory capability.
         ("rm", "rm"),
         // The disk surveyor and the partitioner (milestone 57): the same disk authority pointed in
@@ -6889,7 +6898,7 @@ fn shell_check() -> bool {
 /// `hello world` plus the newline `echo` adds is twelve bytes; the append arm is exactly twice
 /// that. The numbers are spelled out here rather than derived because this is a **boot** gate: if
 /// the arithmetic and the boot were both wrong, deriving one from the other would hide it.
-const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 58] = [
+const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 60] = [
     ("echo hello world | wc", &["1 2 12"]),
     ("echo hello world > gate.txt", &[]),
     ("wc < gate.txt", &["1 2 12"]),
@@ -7003,6 +7012,17 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 58] = [
     // make that claim false. Its wording is host-tested; this proves the wording is about a
     // capability the boot really moves.
     ("caps date", &["cap 1  frame     clock"]),
+    // **The inert-configuration page, from the prompt** (milestone 47's environment-variable fork,
+    // DECISIONS §111). `date`'s own proof, one manifest field over: this fails if the kernel
+    // granted init no config page, if init did not endow `printenv`, or if the page's validated
+    // domains rejected the boot's own defaults, none of which a host test can see, because
+    // `crates/system_initializer`'s spawn wiring is provable only against a real init
+    // (this file's module doc names `script/shell-check` as exactly that gate).
+    ("printenv", &["TZ=UTC", "LANG=C", "TERM=dumb"]),
+    // And the visibility surface agrees with the wiring, `date`'s own check repeated for `config`:
+    // `caps` claims to print a process's whole authority, so a config page endowed and not printed
+    // would make that claim false.
+    ("caps printenv", &["cap 1  frame     config"]),
     // **`ps`, at the real prompt** (milestone 126). The listing itself: a header, and at least the
     // row for `ps` itself, which is a member of the domain init spawned it into. Asserting the
     // header rather than a tid is deliberate: a tid is a generational name that moves with how many

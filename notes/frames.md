@@ -365,6 +365,21 @@ went), and the difference is accounted rather than shrugged at:
   cross-environment variance this raise also had to make room for (18621 → 18626 → 18627 local →
   18628 the one CI run that actually failed), which this investigation ruled a `swish.rs` change
   and a QEMU version mismatch out of and could not otherwise pin down.
+- **`printenv`'s four spawns, ~85 (2026-08-26, milestone 47, DECISIONS §111).** `date_tests.rs`'s
+  own shape one program over: `kernel/src/user/printenv_tests.rs` spawns a real `printenv` ELF four
+  times (`spawn_printenv`, `date_tests::spawn_date`'s own helper), and neither the child processes
+  nor, in three of the four cases, a by-hand-allocated config-page frame (`assembled_page`/
+  `blank_page`) are ever reclaimed, exactly as `date_tests.rs`'s own five spawns and one `blank`
+  clock page are not. Measured directly, twice, zero variance: 18717 both times, +85 over the
+  previous budget. None of the four tests prints its own `[that test kept N frames]` line, for the
+  same reason none of `date_tests.rs`'s five spawns do either: a handful of pages per spawn does
+  not cross whatever threshold makes a line worth printing, but the frames still count toward the
+  suite total. `printenv`'s own linked text is 15,381 bytes (`llvm-size`, dev profile), roughly four
+  pages, which times four spawns plus a stack page and construction overhead each is a plausible
+  order-of-magnitude match to +85; this is not a page-by-page reconciliation, for `report_frame_ledger`'s
+  own attribution limitation the entry above already names. See `kernel/src/testing.rs`'s
+  `SUITE_PAGE_FRAME_BUDGET` doc comment for the rest of the account (18632 + 85 + 15 headroom =
+  18732).
 
 ### BUGS in the ledger itself
 

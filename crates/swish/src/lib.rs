@@ -809,6 +809,7 @@ pub fn write_help(out: &mut dyn FnMut(&[u8])) {
     out(b"  worker <n>              spawn a process that returns n*n\n");
     out(b"  budgeter --mem N        grant a process N pages from this shell's budget\n");
     out(b"  date                    print the wall-clock time\n");
+    out(b"  printenv                print the inert configuration page (TZ, LANG, TERM)\n");
     out(b"  wc                      count lines, words and bytes on its INPUT\n");
     out(b"  doc <page>              render markdown from its INPUT (apropos names the pages)\n");
     out(b"  <prog> <name>           grant a process one file, and only that file\n");
@@ -917,7 +918,8 @@ pub fn write_outcome(e: &Endowment, answer: u64, out: &mut dyn FnMut(&[u8])) {
         | Prog::Ps
         | Prog::Pgrep
         | Prog::Watch
-        | Prog::Uptime => {}
+        | Prog::Uptime
+        | Prog::Printenv => {}
     }
 }
 
@@ -1191,6 +1193,18 @@ pub fn write_preview(e: &Endowment, out: &mut dyn FnMut(&[u8])) {
     if e.prog.manifest().clock {
         out(b"    cap 1  frame     clock    read-only. it can read the time and not set it,\n");
         out(b"                              and no token on the line could have asked for more\n");
+    }
+    // **The inert-configuration page, `clock`'s twin** (milestone 47, DECISIONS §111). No token on
+    // the line could designate it either, so it is init's to endow and this is where a reader
+    // learns the authority exists at all. Presence only, not values: this shell holds no default
+    // config set of its own to preview a value from yet (the "inheritance with visibility" middle
+    // ground the roadmap names is unbuilt), so printing a literal here would either duplicate
+    // init's default by coincidence or drift from it silently. See design/roadmap/47-navigation-
+    // and-naming.md's environment section for what remains.
+    if e.prog.manifest().config {
+        out(b"    cap 1  frame     config   read-only. TZ, LANG and TERM as this boot's inert\n");
+        out(b"                              defaults; nothing here can change what a shell hands\n");
+        out(b"                              its children\n");
     }
     // **The row this milestone exists to print.** On Linux there is nothing here to say: `ps` reads
     // /proc and the answer is "every process on the machine", which no command line chose and no
@@ -1926,6 +1940,18 @@ mod tests {
         assert!(s.contains("read the time and not set it"), "{s}");
         // And a program that declares no clock is not given a row that says it has one.
         assert!(!shown(|o| write_preview(&endowment(Prog::Wc), o)).contains("clock"));
+    }
+
+    #[test]
+    fn printenv_says_the_config_page_is_not_on_the_line() {
+        // `clock`'s twin: the same preview claim for the same reason. `printenv`'s config page is
+        // init's to endow, no token on the line could designate it, and the preview says so before
+        // anything is spawned.
+        let s = shown(|o| write_preview(&endowment(Prog::Printenv), o));
+        assert!(s.contains("cap 1  frame     config"), "{s}");
+        assert!(s.contains("read-only"), "{s}");
+        // A program that declares no config page is not given a row that says it has one.
+        assert!(!shown(|o| write_preview(&endowment(Prog::Wc), o)).contains("config"));
     }
 
     #[test]
