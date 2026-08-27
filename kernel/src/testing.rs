@@ -346,9 +346,42 @@ const PAGE_FRAME_REPORT_MIN: usize = 16;
 /// 26943 (measured) + 15 (headroom, this ledger's own precedent for raising past a value just spent
 /// close to all of) = 26958.
 ///
-/// Raising it is a decision, not a formality: read the `[that test kept N frames]` lines the run
-/// prints, find who grew, and be able to say why that growth is permanent.
-const SUITE_PAGE_FRAME_BUDGET: usize = 26_958;
+/// **Lowered, 2026-08-27, milestone 142's scanout retarget (1280x720 -> 924x344, 132x43 grid at the
+/// shipped 7x8 cell instead of 182x90 arithmetic against an unbuilt future cell;
+/// `crates/graphics_proto/src/lib.rs`'s `WIDTH` has the reasoning).** This is the first entry in
+/// this ledger's history that lowers the budget rather than raising it, for the reason the raise
+/// above already gives in reverse: the scanout-sized region every one of the eight call sites above
+/// allocates is smaller now, so the whole 7136-frame direct cost that raise priced shrinks with it,
+/// and nothing else about the suite changed. Measured locally, twice, deterministically, on both
+/// architectures: **22075** on aarch64 both times, **21853** on riscv64 both times, zero variance
+/// either side, with every guest and host-side check (scanout, inbound, multicast, SMB) passing
+/// all four runs and the scanout referee confirming the new 924x344 pattern pixel for pixel every
+/// time. The two totals disagree by 222 frames, the same "measured separately, not a property"
+/// shape the constant's own opening paragraph already documents for the pre-142 baseline (14031 vs
+/// 13787); aarch64 is again the tighter of the pair, so it is what the headroom below is measured
+/// against. (Some retries were needed to reach two clean runs per architecture: several attempts
+/// hit this file's own documented pre-existing local-only flake in
+/// `caretaker_teardown_reclaims_a_full_session_worth_of_memory`, unrelated to this change and
+/// already named above at the 19142 raise (a genuine race: it fired on a different login iteration
+/// number each time, and never on the same run twice); it did not recur in any of the four counted
+/// runs this entry's numbers come from.)
+///
+/// `SURFACE_PAGE_FRAMES` fell from 900 to 311 (`graphics_proto::WIDTH`'s doc comment has the
+/// pixel arithmetic), so each of the four `kernel_display()` calls and four real-driver wirings
+/// costs roughly a third of what it did, and the surface now fits one 2 MiB page-table window
+/// instead of two (`display_service::MAP_BUDGET_PAGES`'s own comment), removing the "more than one
+/// L3 page-table page per mapping" cost the raise above named as part of its unattributed
+/// remainder. This lane did not re-derive a fresh per-site attribution to match the raise's own
+/// level of detail; the measured total is the honest number either way, per this constant's own
+/// standing instruction to read the `[that test kept N frames]` lines rather than guess.
+///
+/// 22075 (measured) + 15 (headroom, this ledger's own precedent) = 22090. A stale, too-generous
+/// budget is exactly the kind of unexplained slack this project's own conventions call out, so this
+/// is lowered rather than left at 26958 now that the surface that drove it up is smaller.
+///
+/// Raising or lowering it is a decision, not a formality: read the `[that test kept N frames]`
+/// lines the run prints, find who grew or shrank, and be able to say why.
+const SUITE_PAGE_FRAME_BUDGET: usize = 22_090;
 
 /// **The longest run of free frames the boot must still have at the end**, in frames.
 ///
