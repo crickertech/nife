@@ -11,6 +11,13 @@ decision is the font and the dependency that renders it, below. **Increments one
 neither** and a lane could start them today; they are the larger half of the deliverable and none
 of it is aesthetic.
 
+**Increments one and two are [journey 1](../journeys/01-login-to-kilo.md)'s own step 6**
+(calef, 2026-08-27: "I want a full size usable terminal"), added there once tracing the journey
+found step 3 (milestone 177) alone only wires an 18x8 test-instrument grid into the real boot, not
+a terminal anyone would sit at. Independent of 177: this milestone grows the VT engine's own grid,
+provable under the same test harness milestone 29 already uses, and needs neither the real-boot
+wiring 177 does nor anything else on that journey.
+
 **In brief.** The terminal is 18 columns by 8 rows of a hand-drawn 7x8 bitmap on a 128x64 screen.
 The ask is a display somebody would choose over a window manager. That is four independent axes,
 of which the font is the one everybody names and the smallest one: **the surface, the terminal,
