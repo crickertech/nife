@@ -46,12 +46,21 @@
 use compositor::proto::{ctl, wlist};
 use compositor::status;
 use user_rt::mapped_window::MappedWindow;
-use user_rt::{call, exit, invoke, recv_cap, reply, send};
+use user_rt::{call, exit, invoke, map_page_frame, recv_cap, reply, send};
 
 /// Capability slots, by convention with `kernel/src/user/compositor_service.rs`.
 const REPORT: u64 = 0;
 const DOORBELL: u64 = 1;
 const INPUT: u64 = 2;
+/// The screen, one `PageFrame` capability naming the whole run (DECISIONS §102). **[`ROLE_CAPTURE`]
+/// only** (milestone 142): before the grid grew, the screen was a handful of `Spawn::maps` entries
+/// like everything else here; at the grown scanout that would be hundreds of them, which does not
+/// fit in the 1 KiB a spawn closure may capture (`kernel/src/thread.rs`'s own limit) let alone this
+/// capability table. A capture client maps it itself, the same way `painter`/`display_terminal`
+/// already do for rung one's own surface.
+const SCREEN_FRAME: u64 = 3;
+/// The untyped [`SCREEN_FRAME`]'s `MAP` draws its page tables from. **[`ROLE_CAPTURE`] only.**
+const BUDGET: u64 = 4;
 
 /// Where the kernel maps what this process is given. Must match `compositor_service`. **Every client
 /// uses the same addresses**, which is the point: two clients' surfaces are the same virtual address
@@ -60,8 +69,15 @@ const INPUT: u64 = 2;
 const CTL_VA: u64 = 0x0000_0000_0060_0000;
 const SURFACE_VA: u64 = 0x0000_0000_0061_0000;
 /// The screen and the window list, read-only, and **only** for a client granted them.
-const SCREEN_VA: u64 = 0x0000_0000_0070_0000;
-const WLIST_VA: u64 = 0x0000_0000_0078_0000;
+///
+/// **`SCREEN_VA` moved and is 2 MiB-aligned** (milestone 142, DECISIONS §102): the screen grew
+/// from 8 page frames to 900 (up to 4 MiB from `SCREEN_VA`), so the old `WLIST_VA` (`0x78_0000`,
+/// inside that span's old 32 KiB neighbourhood) would now be inside the *middle* of the screen's
+/// own mapping and `PageFrame::MAP` would refuse it as already-mapped. `WLIST_VA` moved clear;
+/// `SCREEN_VA`'s alignment keeps the run inside as few page-table windows as possible
+/// (`compositor_service::MAP_BUDGET_PAGES`'s own comment has the arithmetic).
+const SCREEN_VA: u64 = 0x0000_0000_0080_0000;
+const WLIST_VA: u64 = 0x0000_0000_0c00_0000;
 
 /// Roles, as a bitmask in `arg0`. A plain window is 0.
 const ROLE_INPUT: u64 = 1 << 0;
@@ -83,6 +99,8 @@ const E_COMMIT: u64 = 0x04;
 /// The spawner refused a report round trip. Defensive: the kernel-side test always replies 0, so this
 /// firing means the scenario was wired differently than this role expects.
 const E_REPORT: u64 = 0x05;
+/// [`ROLE_CAPTURE`]'s own `PageFrame::MAP` of the screen was refused.
+const E_SCREEN: u64 = 0x06;
 
 fn rd32(va: u64) -> u32 {
     // SAFETY: inside a page the kernel mapped into this process at spawn.
@@ -154,6 +172,14 @@ pub extern "C" fn _start(role: u64, neighbour_va: u64, _arg2: u64) -> ! {
     // rendezvous *is* the synchronization, and no client polls for a valid control page.
     if ring(compositor::proto::HELLO) != 0 {
         die(E_HELLO);
+    }
+
+    // A capture client maps the screen itself, read-only, out of its own budget (milestone 142,
+    // DECISIONS §102): one `PageFrame` capability naming the whole run, one `MAP` call. Every other
+    // role has nothing granted at [`SCREEN_FRAME`], so this is a no-op there (`MAP` on an empty
+    // slot's own irrelevance: the block never runs).
+    if role & ROLE_CAPTURE != 0 && !map_page_frame(SCREEN_FRAME, SCREEN_VA, false, BUDGET) {
+        die(E_SCREEN);
     }
 
     if rd32(CTL_VA + ctl::MAGIC) != ctl::MAGIC_VALUE {
