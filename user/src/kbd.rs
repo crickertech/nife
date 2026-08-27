@@ -60,10 +60,13 @@
 //! recorded in `crates/pci` rather than guessed at), and no configuration-space query: it drives the
 //! event queue and nothing else. The honest limits are in notes/glyphs.md.
 //!
-//! Name: ratified 2026-07-30 (calef, DECISIONS §39), among the names recorded there as always
-//! right: an abbreviation that is the ordinary name of the thing. It is also why `script/lint`'s
-//! `-d` check starts at four characters, since a three-letter abbreviation is not a claim about a
-//! process model.
+//! Name: provisional, corrected 2026-08-27. An earlier version of this comment claimed `kbd` was
+//! ratified 2026-07-30 alongside DECISIONS §39; checked directly against that section's own text
+//! and found false: §39 names `blk`, `spawner`, `console`, `input`, `shell`, `painter` and
+//! `window` as the names already right, and `kbd` is not among them. calef, 2026-08-27: he is not
+//! a fan of `kbd` for "keyboard" and this naming has not happened yet. Corrected here rather than
+//! left standing, per this project's own rule that a false name-claim is the same defect as a
+//! stale comment.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks
