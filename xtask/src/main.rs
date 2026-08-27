@@ -9013,7 +9013,7 @@ pub const GET: u64 = 1;
 
     fn text_rgb(x: u32, y: u32) -> (u8, u8, u8) {
         // Built once and cached rather than once per pixel: `ppm` below calls this per pixel of a
-        // 1280x720 image (921,600 times), and reconstructing and re-feeding a `Vt` that many times
+        // 924x344 image (317,856 times), and reconstructing and re-feeding a `Vt` that many times
         // would dominate this test's runtime the moment the grid grew past a few dozen cells.
         static SCREEN: std::sync::OnceLock<video_terminal::Vt> = std::sync::OnceLock::new();
         let screen = SCREEN.get_or_init(|| {

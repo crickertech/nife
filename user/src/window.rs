@@ -71,10 +71,13 @@ const SURFACE_VA: u64 = 0x0000_0000_0061_0000;
 /// The screen and the window list, read-only, and **only** for a client granted them.
 ///
 /// **`SCREEN_VA` moved and is 2 MiB-aligned** (milestone 142, DECISIONS §102): the screen grew
-/// from 8 page frames to 900 (up to 4 MiB from `SCREEN_VA`), so the old `WLIST_VA` (`0x78_0000`,
-/// inside that span's old 32 KiB neighbourhood) would now be inside the *middle* of the screen's
-/// own mapping and `PageFrame::MAP` would refuse it as already-mapped. `WLIST_VA` moved clear;
-/// `SCREEN_VA`'s alignment keeps the run inside as few page-table windows as possible
+/// from 8 page frames to 900 at the scanout's first size (up to 4 MiB from `SCREEN_VA`), so the
+/// old `WLIST_VA` (`0x78_0000`, inside that span's old 32 KiB neighbourhood) would now be inside
+/// the *middle* of the screen's own mapping and `PageFrame::MAP` would refuse it as
+/// already-mapped. `WLIST_VA` moved clear, with room to spare: the scanout was retargeted
+/// 2026-08-27 to 924x344 (311 page frames, up to 1.25 MiB from `SCREEN_VA`, one 2 MiB window
+/// rather than the two the 900-frame size spanned), so `SCREEN_VA`'s alignment now keeps the run
+/// inside even fewer page-table windows than it was chosen for
 /// (`compositor_service::MAP_BUDGET_PAGES`'s own comment has the arithmetic).
 const SCREEN_VA: u64 = 0x0000_0000_0080_0000;
 const WLIST_VA: u64 = 0x0000_0000_0c00_0000;

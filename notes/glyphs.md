@@ -616,11 +616,17 @@ Stated plainly, because a demonstrator's caveats are part of the deliverable.
   discipline's echo through `OP_WRITE`, which needs no new protocol at all, because `line_editor`'s echo
   is exactly a byte stream this engine parses. That is not a hope: the `video_terminal` crate proves it on the
   host by running both.
-- **A 182x90 grid, with six pixels left over** (grown 2026-08-26 from 18x8, milestone 142 increment
-  1: the scanout is 128x64 -> 1280x720, DECISIONS §102). 182 cells of 7 use 1274 of the 1280
-  columns; 720 divides 8 exactly, so there is no bottom remainder. The strip is painted background
-  once, on the terminal's first frame, and no cell ever owns it. `MAX_COLS`/`MAX_ROWS` grew with the
-  scanout and are still constants, still exactly sized to the current font and screen.
+- **A 132x43 grid, with no pixels left over** (grown 2026-08-26 from 18x8 to 182x90 at milestone
+  142 increment 1 with the scanout at 1280x720, DECISIONS §102; retargeted 2026-08-27 to 132x43 at
+  a 924x344 scanout, on review with calef: 182x90 was arithmetic against a *future* 14-pixel cell
+  that never shipped in this increment, applied by mistake to the 7x8 cell that did, producing a
+  grid nearly double any terminal anyone runs). 132 cells of 7 use all 924 columns and 43 cells of 8
+  use all 344 rows, so unlike the 1280x720 scanout's six leftover columns, there is no strip left
+  for the terminal to paint background into and no cell to own it. `MAX_COLS`/`MAX_ROWS` shrank with
+  the retargeted scanout and are still constants, still exactly sized to the current font and
+  screen. (The surface itself, [`graphics_proto::SURFACE_BYTES`], does carry about 2 KiB of
+  unrelated padding past the last pixel, for frame-alignment reasons that have nothing to do with
+  the character grid; see `graphics_proto::WIDTH`'s doc comment.)
 - **The font's own weak glyphs, named where a reader meets them.** `M` and `W` are near vertical
   mirrors, because five ink columns leaves one way to draw each; `&` is the busiest glyph in the set
   and reads as a knot at a glance; `%` fills its corners heavily enough to look bolder than its

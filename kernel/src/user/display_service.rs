@@ -18,8 +18,10 @@
 //! grew from, that was 9 capabilities in 9 consecutive slots of a sixteen-slot capability table,
 //! with one slot spare and no room for anything larger. §102 gave `PageFrame` a page count, so a
 //! whole run is now **one capability and one `MAP` call**, however many pages it holds. That is
-//! what makes the grown scanout ([`graphics_proto::WIDTH`] x [`graphics_proto::HEIGHT`], 900 page
-//! frames) fit at all: 900 one-page capabilities never would have. See notes/frames.md.
+//! what makes the grown scanout ([`graphics_proto::WIDTH`] x [`graphics_proto::HEIGHT`],
+//! [`graphics_proto::SURFACE_PAGE_FRAMES`] page frames) fit at all: that many one-page capabilities
+//! never would have, whether the surface is the 900-frame 1280x720 this milestone first grew to or
+//! the 311-frame 924x344 it was retargeted to on 2026-08-27. See notes/frames.md.
 //!
 //! What stays wired at spawn is nothing at all here: these programs have no extra stack pages, so
 //! the only page the kernel still places is the one `load` gives every process.
@@ -37,12 +39,16 @@ const DMA_PAGE_FRAMES: u64 = 1 + graphics_proto::SURFACE_PAGE_FRAMES as u64;
 const ROLE_BACKING_ESCAPE: u64 = 1;
 
 /// **The budget every program on this path draws its page tables from** (milestone 108, widened for
-/// milestone 142's larger scanout). At 128x64 the driver's whole DMA region and the terminal's
-/// surface each fit one 2 MiB window (one L3 table); at 1280x720 the 900-page surface alone spans
-/// two windows, and the terminal's separate output page a third, so more than one L3 is now the
-/// ordinary case rather than the edge case notes/frames.md recorded at 800x608. Twenty-four pages
-/// leaves headroom for several L3s plus the levels above them, still under one percent of the free
-/// pool the way eight pages was.
+/// milestone 142's larger scanout, then not shrunk back when the scanout was retargeted). At 128x64
+/// the driver's whole DMA region and the terminal's surface each fit one 2 MiB window (one L3
+/// table); at 1280x720 the 900-page surface alone spanned two windows, and the terminal's separate
+/// output page a third, so more than one L3 was briefly the ordinary case rather than the edge case
+/// notes/frames.md recorded at 800x608. **At 924x344 (retargeted 2026-08-27) the surface is back
+/// under 512 pages** (311, [`graphics_proto::SURFACE_PAGE_FRAMES`]), one 2 MiB window again, the
+/// same shape 128x64 had. Twenty-four pages is more headroom than that now strictly needs, kept
+/// rather than re-tuned down: still under one percent of the free pool, and a budget this path has
+/// already exercised at the larger size is the safer one to keep than a smaller number nobody has
+/// booted against.
 const MAP_BUDGET_PAGES: u64 = 24;
 
 // The driver's capability table. Must match user/src/display.rs.

@@ -68,11 +68,13 @@ const INPUT: u64 = 5;
 
 /// Where the kernel maps what this process is given. Must match `compositor_service`.
 ///
-/// **`SCREEN_VA` claims a 4 MiB span now, not 32 KiB** (milestone 142, DECISIONS §102: the screen
-/// grew from 8 page frames to 900). Every other address here moved clear of it: `WLIST_VA` and
-/// `RING_VA` used to sit inside the old, tiny span's immediate neighbourhood and are now well past
-/// the new one, and `CLIENT_BASE` likewise. `SCREEN_VA` itself stays 2 MiB-aligned, which is what
-/// keeps a run this large inside as few page-table windows as possible (`compositor_service`'s own
+/// **`SCREEN_VA` claims a real span now, not 32 KiB** (milestone 142, DECISIONS §102: the screen
+/// grew from 8 page frames to 900 at the scanout's first size, up to 4 MiB from `SCREEN_VA`; the
+/// scanout was retargeted 2026-08-27 to 924x344, 311 page frames, up to 1.25 MiB from
+/// `SCREEN_VA`). Every other address here moved clear of it: `WLIST_VA` and `RING_VA` used to sit
+/// inside the old, tiny span's immediate neighbourhood and are now well past the largest span this
+/// milestone has used, and `CLIENT_BASE` likewise. `SCREEN_VA` itself stays 2 MiB-aligned, which at
+/// today's size keeps the whole run inside one page-table window (`compositor_service`'s own
 /// `MAP_BUDGET_PAGES` comment has the arithmetic).
 const SCREEN_VA: u64 = 0x0000_0000_0080_0000;
 const WLIST_VA: u64 = 0x0000_0000_0c00_0000;

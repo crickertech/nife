@@ -65,7 +65,8 @@ Higher Contrast to canonical is a provenance chain.
 ## BUGS
 
 - **Neither half is measured against the other.** Nobody has rendered DejaVu Sans Mono in Solarized
-  at 1280x720 and looked at it. The specimen harness (`cargo run -p bitfont --example specimen`)
+  at 924x344 (the scanout size as of the 2026-08-27 retarget; this was 1280x720 when this section
+  was written) and looked at it. The specimen harness (`cargo run -p bitfont --example specimen`)
   renders a bitmap font and cannot show an anti-aliased atlas, so the first time this combination is
   seen will be on a screen. That is the ordinary order for this milestone and not a defect, but a
   reader should not take this section as evidence that the pair looks good together.
