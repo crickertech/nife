@@ -6847,7 +6847,12 @@ fn shell_check() -> bool {
         None => ArchLegs::All,
         Some("aarch64") => ArchLegs::Aarch64,
         Some("riscv64") => ArchLegs::Riscv64,
-        // x86_64 has no shell leg: there is no userspace on that target at all yet (milestone 161).
+        // x86_64 has no shell leg. Not because it lacks userspace (it has had real userspace
+        // running since milestone 161 item 4 landed); because nothing boots it straight to a real
+        // interactive shell prompt. aarch64 has `spawn_init`, riscv64 has `riscv_shell_boot`;
+        // x86_64 has neither, so there is nothing for this gate to type at yet. See milestone 177's
+        // own third piece (found 2026-08-27, tracing a "both boards" claim that turned out to mean
+        // aarch64/riscv64 only) for where building that entry point is scoped.
         Some(other) => {
             eprintln!("shell-check: --arch {other} is not an architecture (aarch64 or riscv64)");
             return false;
