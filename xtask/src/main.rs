@@ -1582,7 +1582,7 @@ fn decode_cell(w: u32, pixels: &[u8], col: u32, row: u32, alphabet: &[u8]) -> Op
                     row * bitmap_font::GLYPH_H + gy,
                 );
                 let o = ((y * w + x) * 3) as usize;
-                let want = bitmap_font::cell_pixel(b, gx, gy, fg, bg);
+                let want = bitmap_font::cell_pixel(b as char, gx, gy, fg, bg);
                 let (r, g, bl) = (
                     ((want >> 16) & 0xff) as u8,
                     ((want >> 8) & 0xff) as u8,
