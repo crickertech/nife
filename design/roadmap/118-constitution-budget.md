@@ -413,7 +413,7 @@ fires when the tree exceeds it and stays silent when the tree falls below. `scri
 `agents-md-lines` registry entry (the file's own `wc -l`-equivalent line count) and the claim lives
 here, since a developer lane may not edit `AGENTS.md` to carry its own marker:
 
-**`AGENTS.md` carries at most 975 lines** <!--count-at-most:agents-md-lines-->, written at the
+**`AGENTS.md` carries at most 990 lines** <!--count-at-most:agents-md-lines-->, written at the
 tree's exact value with **zero headroom**, deliberately: the point, per this section's own words
 above, is that every line added should replace one removed, or be a considered act that says why the
 growth was worth it. That is the same choice `unsafe-thread-safety-claims` made for a different
@@ -448,6 +448,14 @@ addition records what replaced it (`launchd` on patagonia, rung one for the part
 session can close) and the gap calef accepted rather than solved (asleep or shut down, neither
 watcher runs), which is the same "durable rule change belongs in the file the rule lives in" case
 the entry above already made.
+
+**Raised from 975 to 990, 2026-08-26**: calef asked, mid-session, whether clearing a stalled PR's
+conflicts needed new machinery or a human pointing at it each time; the honest answer surfaced that
+`notify()` posts once and goes quiet, so nothing re-announces a stall to a session that opens later.
+The addition records the standing check this became (a maintainer session reads the queue for
+`DIRTY`/`FAILURE` each pass) and the alternative considered and declined (an unattended scheduled
+agent, which calef turned down in favour of work that shuts down with the session driving it), the
+same shape of record as both entries above it.
 
 **Targets the whole file, not "the core", because the core does not exist yet.** Once the split
 happens, this ceiling should move to whatever the core becomes and stop counting the linked
