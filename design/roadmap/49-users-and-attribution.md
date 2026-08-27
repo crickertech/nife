@@ -147,8 +147,8 @@ retypes a real page (not merely that the capabilities arrived); a wrong secret i
 follows the refusal, which the client checks by never calling `RECV_CAP` on that path rather than by
 asserting a negative; and two different identities each get an independently working channel, correctly
 named in the audit trail and in the order they were established. A fourth test proves the service
-survives past what used to be a hard, silent ceiling of eight logins ever (a leaked cspace slot per
-login; see BUGS), by taking the shared instance's login count to nine and checking each one's
+survives past what used to be a hard, silent ceiling of eight logins ever (a leaked capability-table
+slot per login; see BUGS), by taking the shared instance's login count to nine and checking each one's
 directory and budget work.
 
 **Per-identity subtree scoping (DECISIONS §117), landed in this update.** `login` now attenuates
@@ -317,9 +317,9 @@ feature (`user/src/login.rs`'s own BUGS, more precisely worded per item).
   to be spent forever, with no logout that gave it back. `mint()` now delegates its own copy of the
   caretaker's construction region to the authenticated client as a fourth capability, narrowed to
   `WRITE` (a "logout ticket"), instead of dropping it once the caretaker confirms descent (the
-  narrower cspace-slot fix an earlier lane already landed for that same drop). The region has
-  nothing left to `SPLIT` or `RETYPE`, so its only remaining use is `Untyped::DESTROY`, and calling
-  it reclaims the caretaker's TCB, address space and endpoints, with the pages returning to
+  narrower capability-table-slot fix an earlier lane already landed for that same drop). The region
+  has nothing left to `SPLIT` or `RETYPE`, so its only remaining use is `MemoryRegion::DESTROY`, and
+  calling it reclaims the caretaker's TCB, address space and endpoints, with the pages returning to
   `CONSTRUCTION_UT` under §13 region ownership. The client's own budget (the third capability) needed
   no new mechanism at all: it was always delegated with `WRITE`, which is what `DESTROY` needs, so a
   full logout destroys both, **in a specific order**: `mint()` splits the region first and the budget
