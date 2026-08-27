@@ -26,6 +26,11 @@ would also make the `caps` preview extension §111 asks for meaningful. The othe
 what Unix calls "environment" stay where this milestone always put them: names (`PATH`, `HOME`)
 wait on `bind`, and secrets are answered elsewhere by an endpoint (§41).
 
+**That shell-facing customer was built 2026-08-26** (`milestone/47-remainder-round2`): `printenv`
+and `grant_plan::Manifest::config`, wired into real init on both boards, not only the kernel test
+harness that stood in for it above. See "The shell-facing customer was built 2026-08-26" under
+"Environment variables" below.
+
 **`bind` was built 2026-08-26** (`milestone/47-namespace-remainder`), closing the gap this block's own
 "blocked on a second grant" section named: milestone 154 supplied the second grant, and this lane
 found the doc's own sketch ("a bind entry is a value, not a capability... a `nav::Cwd` under a
@@ -177,11 +182,13 @@ name one directory entry outside the set and gets `ENOENT`. Witnessed from the h
 which has said "Built 2026-07-31" the whole time, and the sections below at "Built 2026-07-31: the
 matcher, then the grant", which contradicted the sentence from inside this same file.
 
-**Still to do**: completion, environment's secrets third plus a shell-facing customer for the
-inert-configuration third, and `PATH`. (Absolute paths came out of this list on 2026-08-18,
+**Still to do**: completion and `PATH`, both now sized and written up as proposals rather than
+built (see their own sections below), and environment's secrets third, which still has no forcing
+customer (see the environment section below). (Absolute paths came out of this list on 2026-08-18,
 `rmdir`/`rm -r` were already built and are now annotated as such, `touch`'s create half came out on
 2026-08-22, hard links were declined 2026-08-23, DECISIONS §110, the environment's inert-configuration
-third came out on 2026-08-23, DECISIONS §111, and `bind` came out 2026-08-26 along with `ln`'s
+third came out on 2026-08-23, DECISIONS §111, its shell-facing customer (`printenv`,
+`Manifest::config`) came out 2026-08-26, and `bind` came out 2026-08-26 along with `ln`'s
 symlink half, which it supersedes rather than sits beside (DECISIONS §50); see the Status block.)
 **Completion and `PATH` were both investigated 2026-08-26 and neither turned out to be the wiring
 task this sentence implied**: completion is refused not only by the application layer but by the
@@ -190,8 +197,16 @@ even emitted for a caller to handle), and reaching it needs a mid-line terminal-
 nothing in the current wire shape does; `PATH` needs `Prog` to stop being a closed enum, which this
 block calls half the mechanism, and the harder half this lane found is that a program's *manifest*
 (what it may hold, checked before every spawn) is compiled in alongside `Prog` with nothing in the
-initrd format carrying one for a program discovered only at runtime. Environment's secrets third
-has no PAL and no shell support, unchanged. The
+initrd format carrying one for a program discovered only at runtime. **Both were investigated
+further 2026-08-26 by a second lane** (`milestone/47-remainder-round2`), which priced each fork
+concretely (storage/trust cost for `PATH`, the exact primitive shape for completion) rather than
+only naming that a fork exists; see "PATH, sized rather than merely found" and "Completion: a
+concrete primitive, priced and not built" below for the costed options and recommendations, neither
+built, both **PROPOSED**. Environment's secrets third
+has no PAL and no shell support, unchanged, and the same lane found the deeper reason: unlike
+inert configuration, there is no shipped mechanism to extend (`credential_proto` is purpose-built
+for login, not a generic secret), so this is a design question with real alternatives rather than a
+wiring gap; see the environment section below. The
 `std` PAL's `rename`, `unlink` and `rmdir` **were** bindings rather than missing verbs,
 and milestone 64 bound all three on 2026-08-04 (pull request #113,
 `patches/std-nife/overlay/std/src/sys/fs/nife.rs:945`, `:960`, `:979`); they answer `Unsupported` now
@@ -827,6 +842,98 @@ demonstration harness standing in for the shell's own "inheritance with visibili
 that mechanism itself: there is no shell-held default config set yet, only `std_service.rs`'s one
 fixed default (`UTC`/`C`/`dumb`).
 
+### The shell-facing customer was built 2026-08-26 (`milestone/47-remainder-round2`): `printenv`, `Manifest::config`, and real init wiring
+
+This turned out to be exactly the wiring task the previous round's text predicted, with no fork
+underneath, unlike completion and `PATH` below: everything needed was `date`'s own shape, one
+field over, and every mechanism it reaches for already existed.
+
+- **`grant_plan::Manifest::config: bool`** (provisional field name), `clock`'s twin field for field:
+  a program declares it, the shell cannot, and init reads the declaration to decide who gets the
+  page. No wire bit on `spawnproto`, confirmed rather than merely predicted: `wants_config` is
+  read straight off `prog.manifest().config` in `crates/system_initializer`'s spawn loop, the same
+  line `wants_clock` already was.
+- **`Prog::Printenv`** (provisional name, Unix's own for exactly this, a term of art already right
+  per this tree's naming convention for standard terms), `user/src/printenv.rs`: reads the page at
+  a fixed VA (`CHILD_CONFIG_VA`, `crates/system_initializer`), prints `KEY=value` for a declared
+  key and `KEY (unset)` for one the page is valid but does not carry, using the same
+  probe-before-touch shape `date` already uses for the clock (`granted(slot)` before building the
+  pointer, so a process holding no capability at all never faults reading `CONFIG_VA`). `PROG_COUNT`
+  moved 11 to 12, exercising `grant_plan`'s own round-trip sweep test as designed.
+- **Real init wiring, on both boards, not only the kernel test harness.** `boot_config_page()`
+  (`kernel/src/user.rs`), `boot_clock_page`'s own twin minus the service (nothing runs; the page is
+  assembled once with the same `UTC`/`C`/`dumb` defaults and handed to init unconditionally, ahead
+  of the filesystem pair, so its slot number is fixed on every boot whether or not a disk is
+  attached). `BootEndowment::config_page` is a new field on both real entry points
+  (`user/src/hello.rs`, `user/src/system_initializer.rs`), which is why the filesystem pair's slot
+  numbers moved by one on each board (documented at each call site; nothing else's numbering
+  changed, since config is granted unconditionally like the clock and cannot depend on whether a
+  disk was attached). This is the wiring the 2026-08-23 lane named as missing: "there is no
+  shell-held default config set yet, only `std_service.rs`'s one fixed default" is no longer true
+  for a std program's *test harness alone*: the real, both-board init path now grants the same
+  default to any child whose manifest asks, `printenv` being the first and, for now, only asker.
+- **`caps printenv` prints a `config` row**, `clock`'s row with the same one adaptation `date`'s
+  page already required: presence only, not the three values. Printing values needs the shell to
+  hold its own default config set to preview from, which is the "inheritance with visibility"
+  middle ground this section's "Decided" subsection above named and which nothing has built yet;
+  see "What remains" below.
+- **Proven with a real `printenv`, spawned directly with the grant `crates/system_initializer`'s
+  wiring would make** (`kernel/src/user/printenv_tests.rs`, both ISAs): the page's own three values
+  round-trip unchanged from a real assembled page (deliberately not the boot defaults, so the test
+  cannot pass by coincidence), a key the page never declared reads as `(unset)` rather than an
+  empty string, a page nobody assembled (a zeroed frame) reads as no configuration at all rather
+  than three empty strings, and a process granted no capability answers without touching
+  `CONFIG_VA`. **Also proven over the real interactive prompt**: `script/shell-check`'s canned
+  script now runs `printenv` and `caps printenv` against a real, both-board boot
+  (`xtask::SHELL_CHECK_SCRIPT`), the same gate `date`'s own wiring is proven against, because
+  `crates/system_initializer`'s per-command spawn logic (the `wants_clock`/`wants_config`
+  match arms, the `caps`/`maps` assembly) is reachable only from a real init and is excluded from
+  the host pass for that reason (`crates/system_initializer`'s own module doc says so; nothing in
+  `script/test`'s automated kernel suite goes through `crates/system_initializer::boot` at all,
+  every lighter guest-test harness reimplements its own bespoke spawn loop instead).
+
+**Running that gate is what caught a real bug, and it is exactly the bug `script/shell-check`
+exists to catch.** The first shell-check attempt failed silently before any prompt: init's own
+capability table has sixteen slots, and this file's own comment ("milestone 50 added two more
+kernel grants... the shell's `build_child` had no slot left") already named that margin as having
+broken once before. A fourth permanently-held kernel grant (the config page, beside the clock page
+and the filesystem pair) reproduced it. Fixed by moving `for_test_roles`'s deletion from after
+console, line discipline and input are all built to before any of them are, since nothing in
+between ever reads those capabilities' contents and the slots they freed were sitting idle through
+the three builds that needed the room most (`crates/system_initializer/src/lib.rs`, the comment at
+the new deletion site carries the account). Verified by re-running `script/shell-check` on both
+boards after the fix. **This is the argument for the gate, made concrete**: nothing in the
+automated `script/test` suite would ever have caught this, because nothing in it boots a real init.
+
+**What remains, honestly**: printing the three inert-config *values* in a `caps` preview, which
+DECISIONS §111 also asked for and which needs the shell to hold a default config set of its own
+(unbuilt); and the "inheritance with visibility" mechanism itself, which is the same unbuilt thing
+one level up. Neither has a forcing customer yet, `printenv` being read-only and diagnostic rather
+than a program whose *behaviour* would visibly change with a different default.
+
+### Environment's secrets third: still not built, and the reason is sharper than "no PAL yet"
+
+Read closely this round rather than re-asserted. The previous lane's line ("no PAL and no shell
+support, unchanged") is accurate but understates why: inert configuration had a straightforward
+build path the moment it had a customer, because the *mechanism* (a validated, read-only page) was
+already fully designed by DECISIONS §111 and this section's own 2026-08-18 pricing table; nothing
+about secrets is in that position. "Secrets become endpoints (§41)" names the *shape* of the
+answer, not a mechanism ready to extend: `credential_proto`'s `PROVISION`/`VERIFY` split (milestone
+56) is the one concrete instance of that shape in this tree, and it is purpose-built for *login*
+(an identity and a password-shaped secret, checked but never read back). A generic secret,
+`AWS_SECRET_KEY`'s own case, is a different shape again: the *bytes* themselves are often needed
+client-side (to sign a request), not merely a yes/no over them, so the credential service's whole
+security property (a client can use a secret and never read it) does not transfer. Generalizing
+`credential_proto` into "any named secret, capability-gated" is itself an undecided design question
+with real alternatives (a single broker service keyed by name and an ACL, versus per-secret minted
+endpoints an admin tool hands out, versus folding it into milestone 49's login/session work since
+that is what would actually *grant* a secret to a session in the first place) and, per this
+milestone's own governing rule, **there is still no forcing customer**: nothing in this tree today
+needs a bearer secret the way a real network client eventually will. Building a generic mechanism
+now would be inventing infrastructure against a hypothetical, which this milestone has correctly
+declined to do for `PATH` and `bind` alike. Left exactly where it was, with the reason on record
+rather than only the fact.
+
 ## `bind` is not blocked on a mount table. It is blocked on a second grant (found 2026-08-18)
 
 ### Built 2026-08-26 (`milestone/47-namespace-remainder`), against the real mechanism. See the Status block for what it does and does not reach.
@@ -941,6 +1048,184 @@ And milestone 39 (repository structure and the road to a distribution) inherits 
 consequence: **installing a program becomes granting it into a namespace**, which is a materially
 different packaging story and is worth being on the record before anyone designs a package manager
 around the assumption that installation means writing into a globally readable directory.
+
+### PATH, sized rather than merely found (investigated further 2026-08-26, `milestone/47-remainder-round2`). **PROPOSED, not decided.**
+
+The 2026-08-26 lane found the manifest-provenance blocker and correctly declined to invent an
+answer. This lane went one step further, on the instruction to price rather than merely name a
+fork: is carrying a manifest for a runtime-discovered program a contained extension, or does it
+force the real packaging system? **Both, depending on which half.** Storage and trust turn out to
+be cheap, almost free; the spawn protocol does not, and neither does the scope question, so this is
+still a fork, just a better-priced one.
+
+**What this lane found that the previous one had not looked at: `nifefs` needs no format change at
+all, and the trust chain already covers an arbitrary name.**
+
+- **A manifest can be an ordinary sibling archive entry** (`printenv.manifest` next to `printenv`,
+  say), not a new field on `nifefs`'s directory entry. `nifefs` is a flat name-to-bytes store
+  (`crates/nifefs`'s own module doc); a manifest is just bytes under a name, exactly like an ELF or
+  `program_measurements` itself already is. No format bump, no `MAGIC` version, no `DIR_BLOCKS`
+  change.
+- **`measured_boot::PROGRAM_MEASUREMENTS` is already generic over arbitrary names.** It is a
+  build-time text table, one `name sha256` line per packed archive entry
+  (`crates/measured_boot::manifest_entries`), and `crate::trust::require(name, bytes)` checks any
+  name against it. A manifest file packed at build time would get a line in this table for free,
+  with **zero new kernel mechanism**: the same `require` call that already vouches for a program's
+  bytes before `Elf::parse` touches them would vouch for its manifest's bytes before anything parses
+  those either. Rule 7's "a shared definition is a crate" is the only new thing this half needs: a
+  small, dependency-free crate (provisional name `manifest_proto`, `environment_proto`'s own shape)
+  defining `Manifest`'s on-disk encoding, so the build tool that writes the bytes and the shell that
+  reads them share one definition and cannot drift.
+
+**What does not get cheaper, and is the reason this is still a fork.** `grant_plan::Prog::id()` is
+a small integer, 0..`PROG_COUNT`, and init decodes it by indexing a `[Option<Elf>; PROG_COUNT]`
+array it built once at its own startup by walking every *compiled-in* `Prog` variant's name through
+`program()`. A name absent from that fixed table has no id to send and no slot for init to have
+prepared, whatever a shell learns from a manifest file. Reaching a runtime-discovered program
+therefore needs `spawnproto`'s **request** word (today: program id, integer argument, memory-grant
+page count, `spawnproto`'s own header) to carry a **name** instead of, or alongside, a small int, so
+init can look the ELF up by string the way it already looks up every compiled-in program
+(`nifefs::Fs::read`, already string-keyed; the previous lane's own finding). Mechanically this is
+the same shape `DIR_BIT`'s "expect two more `SEND`s" already establishes for data that does not fit
+one word, so a `NAME_BIT` (provisional) carrying a length-prefixed name over N more `SEND`s is not
+a new *kind* of mechanism. But it **is** a new wire message two programs (the shell and init) must
+agree on forever, `spawnproto`'s own header says so explicitly ("adding a field is a change here,
+not to the syscall surface... [still] the irreversible category"), and this milestone's environment
+section already priced the identical category of change for the config page. That places it
+squarely in the "move fast on what can be undone" tenet's expensive column: reversible in principle,
+but every future program and every future shell reads are written against whatever shape is chosen.
+
+**The scope question, which is sharper than the wire-format one.** Even with both of the above
+built, a program still reaches a running system only by being packed into the initrd **at build
+time**: `nifefs` has no live write path, and the archive is mapped read-only into init. So this
+mechanism would decouple "add a program" from "edit `grant_plan::Prog`'s Rust source and recompile
+every consumer of it" (a real, meaningful simplification: authoring two files and re-packing the
+archive, rather than a source change across `grant_plan`, `swish` and every match on `Prog`), but it
+would **not** decouple "add a program" from "rebuild and re-flash the boot image", which is what
+`PATH` usually evokes (drop a binary onto a live machine and run it). Building the name-carrying
+wire change now, without deciding whether that partial win is worth having on its own, risks being
+exactly what this section's own closing paragraph already warned against: **designing a package
+manager's shape by accident**, one wire message at a time, before milestone 39 decides what
+"installing a program" means here.
+
+**Three options, costed rather than merely listed** (the six-questions discipline: what else was
+considered, what this tree already does, what each costs, how reversible):
+
+| Option | What it buys | What it costs | Reversibility |
+|---|---|---|---|
+| **Do nothing further** (status quo) | Nothing changes; `Prog` stays closed | Zero | N/A |
+| **Build the manifest-as-data half only** (a `manifest_proto` crate, a build-time convention for pairing a program with its manifest file, `require`-checked the same as any program) with **no spawn-protocol change**, so nothing can actually be spawned from it yet | A `manifest_proto` crate other tooling (`caps`, a future installer) can already read and validate against, landed cheaply and reversibly, and it de-risks the harder half by proving the encoding before the wire change is designed | Builds a crate nothing consumes yet, which this tree's own convention (a lane ships nothing speculative) argues against unless a near-term consumer exists | Fully reversible: an unused crate costs nothing to delete |
+| **Build both halves** (the wire change too) | Real decoupling of "add a program" from "recompile grant_plan" | A new wire message two programs must agree on forever, the expensive, hard-to-undo category this project reserves for calef, and it commits to a scope answer (build-time-only PATH) before milestone 39 has decided whether that is the right shape at all | The wire format, once shipped and depended on, is exactly the "who else has already acted on this" case the tenet asks about: every future program written against it inherits the shape |
+
+**Recommendation: neither yet.** Per this project's own limit on when a fork earns a lane
+("recommend on reversible forks; give options only on irreversible ones"), this is the irreversible
+kind, so options rather than a push toward one. If forced to rank: the middle option is the
+defensible next step **if and only if** a near-term consumer is already planned (otherwise it is
+exactly the speculative crate this tree's own convention refuses); the full wire change should wait
+for milestone 39 to at least sketch what "installing a program" means, since building the spawn
+protocol first risks answering that question by accident, one opcode at a time, which is the
+failure this section's closing paragraph already named before this lane existed.
+
+**What this does not decide.** Whether `PATH` is worth building at all before it has a forcing
+customer (unchanged: none exists today), and whether the manifest encoding, if built, belongs in
+`grant_plan` itself or a new crate (a naming question, calef's per this tree's own rule, not sized
+further here).
+
+## Completion: a concrete primitive, priced and not built (investigated further 2026-08-26, `milestone/47-remainder-round2`). **PROPOSED, not decided.**
+
+The 2026-08-26 lane found that Tab is swallowed at the line discipline
+(`crates/line_editor/src/lib.rs`, "Tab is ignored," confirmed again this round at the same line:
+Tab falls into the `_ => Event::None` catch-all for unhandled control bytes) and that reaching it
+needs a mid-line round trip the terminal-to-shell wire does not do. This lane specified the actual
+shape of that round trip, which the previous one correctly declined to invent, and it is small
+enough to describe precisely, but it is still a new wire message, so it is written up rather than
+built, on the same "move fast on what can be undone" ground `PATH`'s spawn-protocol half is.
+
+**First, the question this lane was asked to check: is milestone 151 (notification objects,
+wait-any) relevant here? No, and it is worth saying why, because the resemblance is only surface
+deep.** Wait-any solves *multiplexing*: one process waiting on several independent sources at once
+(a job, `^C`, a domain event) without a dedicated thread per source. Completion is not that shape.
+The shell already has exactly one wait point in play here, the blocking `CALL` on
+`line_editor::proto::OP_READLINE`, and the problem is that this **one** channel's protocol only
+has one reply shape ("a line is ready"). Nothing about Tab needs the shell to watch a *second*
+source while it waits; it needs the *existing* source to be able to reply for a second reason.
+Milestone 151 is a red herring for this specific gap, whatever it turns out to be needed for
+elsewhere.
+
+**The architecture that makes this a protocol question rather than a local one.** `line_editor` (the
+userspace component, not just the crate) is a confined server between the UART and the shell; the
+shell's `CALL` on `OP_READLINE` blocks fully until the *one* reply, which today only ever means "a
+whole line, terminated by Enter, is ready." The engine underneath (`LineDisc::feed`) is sans-IO and
+already returns a small closed `Event` enum (`None`/`Line`/`Eof`/`Interrupt`) for exactly this
+reason: it does no IO and cannot itself decide what a Tab should turn into text, because "completion
+needs the command namespace, which is the application's knowledge, not the terminal's" (this
+crate's own module doc, written before this milestone existed, still correct). So the terminal
+cannot answer Tab **locally** either: doing so would need the terminal component itself to hold a
+copy of the shell's own directory capability (to filter candidates by what the shell can actually
+reach, "the completion menu is a rendering of your authority", this milestone's own glob section)
+which is a bigger, and wrong-shaped, change than the round trip it would be avoiding: it would make
+a component serving potentially more than one session capability-aware on the *session's* behalf,
+which is not this component's job today and would need its own design fork about per-session
+capability delegation into a server that currently holds none.
+
+**The primitive, specified rather than merely gestured at:**
+
+1. **`Event::Tab`** (provisional variant name), `LineDisc::feed`'s existing closed enum widened by
+   one, `Event::Interrupt`'s own shape: zero IPC cost, a local return value, mechanically the
+   smallest possible change and the only one of the four pieces below that is *not* a wire decision.
+   The buffer and cursor are left exactly as they are; nothing is consumed or echoed on Tab itself.
+2. **A new reply flag** on `OP_READLINE`'s existing reply word, `FLAG_EOF`/`FLAG_INTERRUPTED`'s own
+   shape (provisional: `FLAG_COMPLETE`): the terminal component replies to the shell's *current*
+   `CALL` early, before Enter, carrying the in-progress buffer's current bytes (already the
+   contract's own shape: "the bytes are in the client's input page") and this flag instead of a
+   finished line.
+3. **A resume request**, and this is the piece with no existing precedent to lean on, which is why
+   it is the load-bearing decision rather than the wiring. Today every `OP_READLINE` call starts a
+   *fresh* line (`ld.start_line`); nothing resumes one in progress. A completion round trip needs
+   the shell to hand back a (possibly modified) buffer and cursor position and have the terminal
+   **splice it into the same in-progress line and keep editing from there**, a new opcode
+   (provisional `OP_READLINE_RESUME`) or a resume bit on `OP_READLINE` itself, carrying the buffer
+   to resume from. `LineDisc` already retains state across separate calls from one session (history
+   browsing depends on this), so the engine-side change is small; the wire message that tells it
+   *when* to resume rather than start fresh is the new thing.
+4. **The shell computes candidates using its own authority, not the terminal's**, which is what
+   step 3 is for: on `FLAG_COMPLETE`, the shell (which already holds whatever directory capability
+   and program-name list it would grant a spawned child) matches the in-progress last word against
+   `Prog::name()` for a bare command position or against an `ENUMERATE` of its held directory for a
+   file position, exactly bounded the way globbing already is ("the expansion you see is the
+   grant"), and sends the resume request back with the completed text spliced in.
+
+**Filename-and-program-name completion only, as the task's own instruction allows, is a real
+narrowing rather than a cop-out**: it needs no new authority beyond what `echo *` and `caps
+<command>` already exercise (an `ENUMERATE` walk and the compiled program name list), and it avoids
+qualifiers, ambiguity/shadowing across multiple sources, and the general "what can I run" question
+`PATH`'s own four open questions already name as separately hard.
+
+**Costed, the same shape as `PATH`'s table above:**
+
+| Piece | New wire decision? | Size |
+|---|---|---|
+| `Event::Tab` | No (local to `line_editor`, the crate) | Trivial |
+| `FLAG_COMPLETE` reply | Yes, but `FLAG_EOF`'s own shape | Small |
+| Resume opcode/bit | **Yes, and no existing precedent to extend** | The real decision |
+| Shell-side candidate computation | No new capability, reuses `echo`/`caps`'s own bounds | Small once the above exist |
+
+**Recommendation: written up, not built, for the same reason as `PATH`'s wire half.** Three of the
+four pieces are small and two have direct precedent in this tree's own wire vocabulary
+(`FLAG_EOF`/`FLAG_INTERRUPTED`, `DIR_BIT`'s "expect more data" shape). The resume opcode does not:
+it is a new kind of request this protocol has never needed (continue an in-progress exchange rather
+than start one), and it is a wire message two programs (the terminal component and the shell) must
+agree on forever, `line_editor::proto`'s own module doc naming exactly this category the same way
+`spawnproto`'s does. Per the same "recommend on reversible forks; options on irreversible ones"
+limit, this earns options rather than a push: **build it** (the primitive above, filename-and-
+program-name only, is small enough for one lane) **or leave it,** since the previous lane's
+"no forcing customer" reasoning for `PATH` applies here too: nobody has been unable to use this
+shell for want of Tab, and a `Refused` at the prompt has always been the honest answer to a program
+this shell cannot yet run correctly. What tips it, if calef wants a lean rather than a coin flip: of
+this milestone's three open items, this is the one with the most direct precedent to build against
+(two of four pieces are shaped exactly like an existing flag) and the smallest blast radius (one
+crate, one component, one client), so it is the cheaper of the two remaining forks to resolve either
+way.
 
 ## `file:` and `run` are not earned, and come out (decided 2026-07-30)
 

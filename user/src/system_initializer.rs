@@ -39,25 +39,27 @@ use system_initializer::BootEndowment;
 
 /// **What `kernel::user::riscv_shell_boot` grants, in order.** The kernel inserts these into this
 /// process's capability table before it starts, and the numbers below are that call's `assert_eq!`s read from
-/// the other side. Slots 4 and 5 hold nothing when this boot attached no RedoxFS disk, which is what
+/// the other side. Slots 5 and 6 hold nothing when this boot attached no RedoxFS disk, which is what
 /// `a2` (the endpoint's `filesystem_proto::dir` rights, 0 for no disk) says.
 ///
-/// The clock is granted ahead of the filesystem pair on purpose, so its slot is the same on every
-/// boot whether or not a disk was attached.
+/// The clock and the inert-configuration page are both granted ahead of the filesystem pair on
+/// purpose, so their slots are the same on every boot whether or not a disk was attached.
 const GRANTS: BootEndowment = BootEndowment {
     untyped: 0,
     uart_dev: 1,
     uart_irq: 2,
     clock_page: 3,
-    fs_ep: 4,
-    fs_page: 5,
+    config_page: 4,
+    fs_ep: 5,
+    fs_page: 6,
     // Always these three (`kernel::user::riscv_shell_boot` grants them at explicit slots, not
     // `thread_control_block_insert_cap`'s first-free `None`, for exactly this reason): a boot with
     // no virtio-rng device leaves them empty, and `system_initializer::boot`'s own probe is what
-    // tells it apart from a granted one.
-    virtio_rng: 6,
-    virtio_rng_irq: 7,
-    virtio_rng_dma: 8,
+    // tells it apart from a granted one. Fixed past the filesystem pair's own max reach (slot 6),
+    // not slot 5, because the inert-configuration page (slot 4) shifted that pair down by one.
+    virtio_rng: 7,
+    virtio_rng_irq: 8,
+    virtio_rng_dma: 9,
     // Nothing. Unlike aarch64's, this boot path is not shared with milestone 19d's test roles, so
     // the kernel grants exactly what the interactive system uses.
     for_test_roles: &[],

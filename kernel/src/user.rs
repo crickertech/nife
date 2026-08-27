@@ -903,6 +903,15 @@ pub fn spawn_init(
         None
     };
 
+    // **The inert-configuration page, for the boot role only** (milestone 47's environment-
+    // variable fork, DECISIONS §111). [`clock_page`]'s twin: assembled here, before init exists,
+    // unconditionally, so the slot is the same on every boot. See [`boot_config_page`].
+    let config_page = if role == INIT_BOOT_ROLE {
+        Some(boot_config_page())
+    } else {
+        None
+    };
+
     // **A virtio-rng device, for the boot role only, when one is attached** (DECISIONS §120's
     // 2026-08-26 amendment: "grant the QEMU-only virtio-rng stopgap"). `None` on a boot with no
     // such device (real hardware, or a run with `NIFE_RNG` unset): the whole chain past this point
@@ -1025,7 +1034,16 @@ pub fn spawn_init(
             ))
             .expect("grant the clock page");
         }
-        // The file service (slot 6) and the page its clients share with it (slot 7), when this boot
+        // The inert-configuration page (slot 6), `clock`'s twin (milestone 47, DECISIONS §111):
+        // read-only, ahead of the filesystem pair for the identical reason.
+        if let Some(phys) = config_page {
+            crate::sched::grant(crate::cap::page_frame_cap(
+                phys,
+                crate::cap::Rights::READ.union(crate::cap::Rights::GRANT),
+            ))
+            .expect("grant the config page");
+        }
+        // The file service (slot 7) and the page its clients share with it (slot 8), when this boot
         // has a filesystem. GRANT on both, because init's job with them is to delegate: it narrows
         // the endpoint into the shell and maps the frame into its address space. `a2` carries the
         // rights the endpoint holds, which is also how init is told there is one at all.
@@ -1046,7 +1064,7 @@ pub fn spawn_init(
             None => 0,
         };
 
-        // The virtio-rng device (slots 8-10, always, even without a disk): the confined transport,
+        // The virtio-rng device (slots 9-11, always, even without a disk): the confined transport,
         // its completion interrupt, and the DMA page the kernel already wrote `dma_phys` into (see
         // [`boot_virtio_rng_device`]). GRANT on all three so init can delegate them onward to an
         // entropy service it builds, the same shape every other device authority here already
@@ -1057,12 +1075,15 @@ pub fn spawn_init(
         // **`grant_at`, not `grant`'s first-free**, and this is not a style choice: the filesystem
         // pair immediately above is itself conditional, and first-free numbering would silently
         // shift these three down by two on the (ordinary) boot that has virtio-rng but no attached
-        // disk. Explicit slots keep 8-10 the virtio-rng trio's own regardless of what the
+        // disk. Explicit slots keep 9-11 the virtio-rng trio's own regardless of what the
         // filesystem pair did or did not consume (`crate::sched::grant_at`'s own doc: "some
-        // out-of-band conventions name a fixed slot... the emptiness is load-bearing").
+        // out-of-band conventions name a fixed slot... the emptiness is load-bearing"). Slot 8, not
+        // 6, is where the filesystem pair's reach now ends: milestone 47's inert-configuration page
+        // (DECISIONS §111) took the unconditional slot 6 ahead of it, shifting the pair from 6/7 to
+        // 7/8, so the virtio-rng trio's own fixed floor moved with it.
         if let Some(g) = virtio_rng {
             crate::sched::grant_at(
-                8,
+                9,
                 crate::cap::virtio_cap_rights(
                     g.vid,
                     crate::cap::Rights::WRITE.union(crate::cap::Rights::GRANT),
@@ -1070,7 +1091,7 @@ pub fn spawn_init(
             )
             .expect("grant the virtio-rng transport");
             crate::sched::grant_at(
-                9,
+                10,
                 crate::cap::irq_cap_rights(
                     g.intid,
                     crate::cap::Rights::READ.union(crate::cap::Rights::GRANT),
@@ -1078,7 +1099,7 @@ pub fn spawn_init(
             )
             .expect("grant the virtio-rng interrupt");
             crate::sched::grant_at(
-                10,
+                11,
                 crate::cap::page_frame_cap(
                     g.dma,
                     crate::cap::Rights::READ
@@ -1890,8 +1911,9 @@ pub fn riscv_uart_driver_demo(
 /// `spawn_init` + `init_boot`: load `system_initializer` (the portable system builder) as the boot process, map
 /// the whole initrd into it, and grant it a large untyped budget (slot 0), the NS16550's registers as
 /// a device cap (slot 1), the UART receive interrupt as an `Irq` cap (slot 2), the wall clock page
-/// read-only (slot 3, milestone 51's wiring), and the file service plus its shared page (slots 4 and
-/// 5) when a RedoxFS disk is attached. From those, `system_initializer` builds the console server,
+/// read-only (slot 3, milestone 51's wiring), the inert-configuration page read-only (slot 4,
+/// milestone 47's environment-variable fork, DECISIONS §111), and the file service plus its shared
+/// page (slots 5 and 6) when a RedoxFS disk is attached. From those, `system_initializer` builds the console server,
 /// the input driver, and the shell out of its own budget and wires them together; the kernel touches
 /// none of it. Unlike the other demos this
 /// does not block: `system_initializer` and its children run on the scheduler while the boot thread parks.
@@ -1994,7 +2016,17 @@ pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), Loa
     )
     .expect("insert the clock page");
     assert_eq!(s3, 3);
-    // The file service (slot 4) and the page its clients share with it (slot 5), when this boot has
+    // The inert-configuration page (slot 4), `clock`'s twin (milestone 47, DECISIONS §111): ahead
+    // of the filesystem pair for the identical reason, its slot must not depend on whether a disk
+    // was attached. See [`boot_config_page`].
+    let s4 = crate::sched::thread_control_block_insert_cap(
+        tid,
+        crate::cap::page_frame_cap(boot_config_page(), Rights::READ.union(Rights::GRANT)),
+        None,
+    )
+    .expect("insert the config page");
+    assert_eq!(s4, 4);
+    // The file service (slot 5) and the page its clients share with it (slot 6), when this boot has
     // a filesystem (milestone 50). GRANT on both, because init's job with them is to delegate: it
     // narrows the endpoint into the shell and maps the frame into its address space. `a2` carries
     // the rights the endpoint holds, which is also how init is told there is one at all. `None` is
@@ -2003,25 +2035,25 @@ pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), Loa
         fs_service::root_directory(fs_service::blk_server_image(), redoxfs_server)
     }) {
         Some((file_ep, file_shared)) => {
-            let s4 = crate::sched::thread_control_block_insert_cap(
+            let s5 = crate::sched::thread_control_block_insert_cap(
                 tid,
                 crate::cap::rendezvous_cap(file_ep, Rights::WRITE.union(Rights::GRANT)),
                 None,
             )
             .expect("insert the file service");
-            assert_eq!(s4, 4);
-            let s5 = crate::sched::thread_control_block_insert_cap(
+            assert_eq!(s5, 5);
+            let s6 = crate::sched::thread_control_block_insert_cap(
                 tid,
                 crate::cap::page_frame_cap(file_shared, Rights::WRITE.union(Rights::GRANT)),
                 None,
             )
             .expect("insert the shared file page");
-            assert_eq!(s5, 5);
+            assert_eq!(s6, 6);
             filesystem_proto::dir::ALL
         }
         None => 0,
     };
-    // The virtio-rng device (slots 6-8, always, even without a disk), when this boot has one
+    // The virtio-rng device (slots 7-9, always, even without a disk), when this boot has one
     // (DECISIONS §120's 2026-08-26 amendment). GRANT on all three so system_initializer can
     // delegate them onward to an entropy service it builds, the same shape every other device
     // authority here already takes. `None` exactly as the filesystem pair can be:
@@ -2033,34 +2065,35 @@ pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), Loa
     // sense, `notes/abi.md` §4's "the emptiness is load-bearing"), and this is not a style choice:
     // the filesystem pair above is itself conditional, and first-free numbering would silently
     // shift these three down by two on the (ordinary) boot that has virtio-rng but no attached
-    // disk. Explicit targets keep slots 6-8 the virtio-rng trio's own regardless of what the
-    // filesystem pair did or did not consume.
+    // disk. Explicit targets keep slots 7-9 the virtio-rng trio's own regardless of what the
+    // filesystem pair did or did not consume. Fixed past the pair's own max reach (slot 6), not
+    // slot 5, because the inert-configuration page (slot 4) shifted that pair down by one.
     let virtio_rng = boot_virtio_rng_device();
     if let Some(g) = &virtio_rng {
-        let s6 = crate::sched::thread_control_block_insert_cap(
-            tid,
-            crate::cap::virtio_cap_rights(g.vid, Rights::WRITE.union(Rights::GRANT)),
-            Some(6),
-        )
-        .expect("insert the virtio-rng transport");
-        assert_eq!(s6, 6);
         let s7 = crate::sched::thread_control_block_insert_cap(
             tid,
-            crate::cap::irq_cap_rights(g.intid, Rights::READ.union(Rights::GRANT)),
+            crate::cap::virtio_cap_rights(g.vid, Rights::WRITE.union(Rights::GRANT)),
             Some(7),
         )
-        .expect("insert the virtio-rng interrupt");
+        .expect("insert the virtio-rng transport");
         assert_eq!(s7, 7);
         let s8 = crate::sched::thread_control_block_insert_cap(
+            tid,
+            crate::cap::irq_cap_rights(g.intid, Rights::READ.union(Rights::GRANT)),
+            Some(8),
+        )
+        .expect("insert the virtio-rng interrupt");
+        assert_eq!(s8, 8);
+        let s9 = crate::sched::thread_control_block_insert_cap(
             tid,
             crate::cap::page_frame_cap(
                 g.dma,
                 Rights::READ.union(Rights::WRITE).union(Rights::GRANT),
             ),
-            Some(8),
+            Some(9),
         )
         .expect("insert the virtio-rng DMA page");
-        assert_eq!(s8, 8);
+        assert_eq!(s9, 9);
     }
     crate::sched::configure_thread_control_block(tid, elf.entry(), USER_STACK_TOP, aspace_name)
         .expect("configure");
@@ -2418,6 +2451,47 @@ fn boot_virtio_rng_device() -> Option<VirtioRngGrant> {
     })
 }
 
+/// **The inert-configuration page the interactive boot hands init** (milestone 47's
+/// environment-variable fork, DECISIONS §111; `spawn_init`, `riscv_shell_boot`).
+/// [`boot_clock_page`]'s twin, minus the service: nothing here runs, so there is nothing to spawn
+/// and nothing to wait for a report from. The page is assembled once, into a frame nothing else
+/// can see, and only then handed to init; see `environment_proto`'s own docs for why that
+/// ordering needs no seqlock.
+///
+/// The grant is **unconditional**, [`boot_clock_page`]'s own reason: a fixed slot on every boot,
+/// whether or not anything downstream ever declares wanting the page, is what lets init's
+/// capability table stay positional. The values are the conservative universal defaults this
+/// tree's kernel test harness for `std` programs already uses
+/// (`kernel/src/user/std_service.rs`): "nothing configured this program's locale or terminal, so
+/// tell it the least assuming thing" is the honest baseline, the same posture `boot_clock_page`
+/// takes for a machine with no RTC. There is no shell-held default config set yet to pass instead
+/// (the "inheritance with visibility" shape design/roadmap/47-navigation-and-naming.md names);
+/// this is the fixed default until one exists.
+fn boot_config_page() -> u64 {
+    let bytes = environment_proto::PageBuilder::new()
+        .tz("UTC")
+        .expect("UTC is not a recognized environment_proto::domain::KNOWN_TZ member")
+        .lang("C")
+        .expect("C is not a recognized environment_proto::domain::KNOWN_LANG member")
+        .term("dumb")
+        .expect("dumb is not a recognized environment_proto::domain::KNOWN_TERM member")
+        .build();
+    let phys = crate::memory::alloc()
+        .expect("no frame for the config page")
+        .addr();
+    // SAFETY: freshly allocated, reachable through the direct map, owned by nobody yet. Zero the
+    // whole frame before writing the assembled bytes so nothing left behind by a previous
+    // occupant of this physical page is visible through the reserved tail past `PAGE_BYTES`
+    // (`ConfigPage` only ever reads the first `PAGE_BYTES`, but a frame's contents are otherwise
+    // unspecified until written; the same shape `std_service::start_on` uses).
+    unsafe {
+        let dst = mmu::phys_to_virt(phys) as *mut u8;
+        core::ptr::write_bytes(dst, 0, FRAME_SIZE as usize);
+        core::ptr::copy_nonoverlapping(bytes.as_ptr(), dst, bytes.len());
+    }
+    phys
+}
+
 /// **Wall-clock time** (milestone 51 lane A, DECISIONS §43).
 ///
 /// Arch-neutral on purpose: one portable binary carrying both RTC drivers, one host-tested
@@ -2440,6 +2514,23 @@ mod clock_tests;
 /// and a frame nobody has published to is an honest unknown clock.
 #[cfg(all(test, initrd))]
 mod date_tests;
+
+/// **`printenv`** (milestone 47's environment-variable fork, DECISIONS §111, notes/env-config.md).
+///
+/// `date`'s own proof, one manifest field over: the program that makes the inert-configuration
+/// page visible to a person, and the first spawnable, shell-facing program to declare
+/// [`grant_plan::Manifest::config`]. Arch-neutral like the page it reads: one portable binary over
+/// one host-tested contract (`environment_proto`), so **both ISAs run literally these tests**
+/// (DECISIONS §19).
+///
+/// What these prove that nothing else does: a real spawned process, given the real capability
+/// `crates/system_initializer`'s wiring would grant, reads the three validated keys back
+/// unchanged; a page nobody assembled (the zeroed frame the allocator hands out, `date_tests`'s
+/// own unpublished-clock shape) reads as no configuration rather than three empty strings; and a
+/// process granted no capability at all answers without touching the page, the same
+/// without-touching-memory-it-does-not-hold property `date`'s clock probe already proves.
+#[cfg(all(test, initrd))]
+mod printenv_tests;
 
 /// **The entropy service** (milestone 56, DECISIONS §44): a virtio-rng device, its DMA page, its
 /// interrupt, and the request endpoint clients hold, in one confined userspace process.

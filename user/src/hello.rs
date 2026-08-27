@@ -390,23 +390,26 @@ fn init_boot(initrd_len: u64, fs_rights: u64) -> ! {
     /// for and why its numbering is not riscv64's; `system_initializer` deletes them with the device
     /// authority once the drivers exist.
     ///
-    /// The clock is granted ahead of the filesystem pair on purpose, so its slot is the same on
-    /// every boot whether or not a disk was attached. Slots 6 and 7 hold nothing when this boot
-    /// attached no RedoxFS disk, which is what `fs_rights` (0 for no disk) says.
+    /// The clock and the inert-configuration page are both granted ahead of the filesystem pair on
+    /// purpose, so their slots are the same on every boot whether or not a disk was attached. Slots
+    /// 7 and 8 hold nothing when this boot attached no RedoxFS disk, which is what `fs_rights` (0
+    /// for no disk) says.
     const GRANTS: system_initializer::BootEndowment = system_initializer::BootEndowment {
         untyped: 0,
         uart_dev: 2,
         uart_irq: 4,
         clock_page: 5,
-        fs_ep: 6,
-        fs_page: 7,
+        config_page: 6,
+        fs_ep: 7,
+        fs_page: 8,
         // Always these three (`kernel::user::spawn_init` grants them with `grant_at`, not
         // `grant`'s first-free numbering, for exactly this reason): a boot with no virtio-rng
         // device leaves them empty, and `system_initializer::boot`'s own probe is what tells it
-        // apart from a granted one.
-        virtio_rng: 8,
-        virtio_rng_irq: 9,
-        virtio_rng_dma: 10,
+        // apart from a granted one. Fixed past the filesystem pair's own max reach (slot 8), not
+        // past slot 7, because milestone 47's config_page (slot 6) shifted that pair down by one.
+        virtio_rng: 9,
+        virtio_rng_irq: 10,
+        virtio_rng_dma: 11,
         for_test_roles: &[REPORT, TEST_IRQ],
     };
 

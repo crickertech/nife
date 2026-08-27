@@ -42,14 +42,17 @@
 //!         uart_dev: 3,
 //!         uart_irq: 4,
 //!         clock_page: 5,
-//!         fs_ep: 6,
-//!         fs_page: 7,
+//!         config_page: 6,
+//!         fs_ep: 7,
+//!         fs_page: 8,
 //!         // Always these three slots, whether or not this boot has a disk (`grant_at`, not
 //!         // first-free numbering, on the kernel side): a boot with no virtio-rng device leaves
-//!         // them empty, and `boot`'s own probe is what tells it apart from a granted one.
-//!         virtio_rng: 8,
-//!         virtio_rng_irq: 9,
-//!         virtio_rng_dma: 10,
+//!         // them empty, and `boot`'s own probe is what tells it apart from a granted one. Fixed
+//!         // past the filesystem pair's own max reach (slot 8), not slot 7, because the
+//!         // inert-configuration page (slot 6) shifted that pair down by one.
+//!         virtio_rng: 9,
+//!         virtio_rng_irq: 10,
+//!         virtio_rng_dma: 11,
 //!         // Empty here. On aarch64 this holds the kernel's report endpoint and a test SGI, because
 //!         // that boot path is shared with milestone 19d's test roles; init deletes them with the
 //!         // device authority once the drivers exist, rather than keeping delegable authority for
@@ -246,6 +249,20 @@ pub struct BootEndowment {
     /// that the two agree. `READ` and no `GRANT` there too, so the shell can read the wall clock and
     /// can hand one to nothing it spawns.
     pub clock_page: u64,
+    /// **The inert-configuration page** (milestone 47's environment-variable fork, DECISIONS §111):
+    /// a `PageFrame` capability with `READ` and nothing else, granted ahead of the filesystem pair
+    /// for [`clock_page`](BootEndowment::clock_page)'s own reason (so its slot is the same whether
+    /// or not a disk was attached), and granted **unconditionally** for the same reason too: this
+    /// boot's fixed defaults (`TZ=UTC`, `LANG=C`, `TERM=dumb`) are assembled once, before init
+    /// exists, so every boot hands init a real, validated page rather than making the slot's
+    /// presence depend on some other component having started (`kernel::user::boot_config_page`,
+    /// the same shape as `boot_clock_page`, minus the service: nothing here runs, so there is no
+    /// readiness handshake to wait on, only a page to assemble and write once).
+    ///
+    /// init hands it on only to a child whose manifest declares [`grant_plan::Manifest::config`],
+    /// and hands on `READ`, so nothing spawned from this prompt can change what a shell hands its
+    /// own children.
+    pub config_page: u64,
     /// **The filesystem, when this boot has one** (milestone 50). The kernel wires the block server
     /// and the FS server before it starts us and grants the service endpoint plus the page its
     /// clients share with it. The rights that endpoint carries arrive in `fs_rights`, and **0 means
@@ -330,6 +347,13 @@ pub const CHILD_STACK_PAGES: u64 = 12;
 /// Where a child that declares a clock maps it, read-only. Must match `user/src/date.rs`'s
 /// `CLOCK_VA` and `kernel/src/user/clock_service.rs`.
 const CHILD_CLOCK_VA: u64 = 0x00c0_0000;
+
+/// Where a child that declares the inert-configuration page maps it, read-only (DECISIONS §111).
+/// Must match `user/src/printenv.rs`'s `CONFIG_VA`. A different address from `std_service.rs`'s
+/// `CONFIG_PAGE_STD`: that std program is spawned by a different wiring entirely (the `-Zbuild-std`
+/// farm's own harness), in its own address space, so there is no collision to avoid, only two
+/// numbers that happen not to need to agree.
+const CHILD_CONFIG_VA: u64 = 0x00e0_0000;
 
 /// Where a supervised (interruptible) child maps its shared job frame (DECISIONS §24). Below the ELF
 /// load address (`0x40_0000`) and the stack; must match heeder.rs / spinner.rs's `JOB_PAGE_FRAME_VA`.
@@ -545,6 +569,21 @@ pub fn boot(
     }
 
     let ut = g.untyped;
+
+    // **Freed here rather than after the console, line discipline and input are all built**
+    // (milestone 47, DECISIONS §111's config-page lane): `for_test_roles` is dead weight on this
+    // boot from the instant `g` exists (it names capabilities milestone 19d's test roles use and
+    // the interactive system never touches), and this capability table has only sixteen slots, a
+    // margin this file's own comment two screens down already documents as having broken once
+    // (milestone 50's two extra kernel grants left "no slot left" for the shell's `build_child`).
+    // Adding a fourth permanently-held kernel grant (the config page, alongside the clock page and
+    // the filesystem pair) reproduced exactly that failure during the console/line-discipline/input
+    // build, silently, because nothing between here and the old deletion point ever reads a
+    // `for_test_roles` capability's contents: only its *slot* matters, and freeing the slot two
+    // component-builds earlier costs nothing this boot was using.
+    for &c in g.for_test_roles {
+        cap_delete(c);
+    }
 
     // **The entropy service** (DECISIONS §120's 2026-08-26 amendment), when the kernel granted a
     // virtio-rng device and the archive carries a program for it. Built **here, before anything
@@ -806,9 +845,8 @@ pub fn boot(
     for c in [request, reply, con_shared, g.uart_dev, g.uart_irq] {
         cap_delete(c);
     }
-    for &c in g.for_test_roles {
-        cap_delete(c);
-    }
+    // `for_test_roles` no longer needs freeing here: it is freed at the top of this function now,
+    // two component-builds earlier, for the reason recorded there.
 
     // **The spawn channel is retyped here, not with the rest**, and the reason is the same sixteen
     // slots: holding two more endpoints through the three builds above is what pushed this capability table
@@ -1149,6 +1187,7 @@ pub fn boot(
             own_ut,
             jobs_ut,
             clock_page: g.clock_page,
+            config_page: g.config_page,
             // The terminal's sink, if this initrd carried an adapter to serve it. This is what a
             // declared second stream gets by default (DECISIONS §67): the shell names a file with
             // `2>` and otherwise the bytes go straight to the screen, through a process that can do
@@ -1198,6 +1237,10 @@ struct Channels {
     jobs_ut: u64,
     /// READ on the wall clock, endowed to a child whose manifest declares one (DECISIONS §43).
     clock_page: u64,
+    /// READ on the inert-configuration page, endowed to a child whose manifest declares
+    /// [`grant_plan::Manifest::config`] (DECISIONS §111). [`clock_page`](Channels::clock_page)'s
+    /// twin in every respect: unconditional, read-only, and handed on only where the manifest asks.
+    config_page: u64,
     /// WRITE-delegable: the endpoint the terminal's sink adapter serves, which is where a declared
     /// second stream goes when the command line named no file for it (DECISIONS §67). `None` when
     /// this initrd carried no adapter, and then a declaring child simply gets no second stream.
@@ -1256,6 +1299,7 @@ fn spawn_service(
         own_ut,
         jobs_ut,
         clock_page,
+        config_page,
         term_sink,
         fs,
     } = c;
@@ -1320,6 +1364,10 @@ fn spawn_service(
         // a person designates either. There is no /proc to name and no pid space to scan, so what a
         // program may see is decided here, by which supervision endpoint init puts in its capability table.
         let wants_domain = prog.is_some_and(|p| p.manifest().domain);
+        // `clock`'s twin again: the inert-configuration page is init's to endow, not something a
+        // command line can designate, so there is no bit on the wire for it either
+        // (`Manifest::config`).
+        let wants_config = prog.is_some_and(|p| p.manifest().config);
 
         if interruptible {
             // Build the whole child from the shell's job untyped, mapping the shared job frame; no
@@ -1419,7 +1467,14 @@ fn spawn_service(
                 sink.or(default_screen).unwrap_or(result_ep),
                 abi::rights::WRITE,
             );
-            let mut caps = [out; 5];
+            // Six rather than five (one more than the tightest bound any manifest shipped today
+            // reaches): `dir` takes two, and `clock`, `config`, `source` and `budget` are each one
+            // more, so a hypothetical program declaring all of directory, clock, config, source and
+            // budget at once would need six. No shipped manifest does (no program declares both
+            // `clock` and `config`, or a directory grant alongside either), but the array is sized
+            // for what the *fields* allow rather than for what the table happens to contain today,
+            // which is `clock_map`'s own ordered-slot debt (notes/pipes.md's `BUGS`) one field over.
+            let mut caps = [out; 6];
             let mut n = 1usize;
             if let Some(dir_ep) = narrowed {
                 caps[0] = (dir_ep, abi::rights::WRITE);
@@ -1434,6 +1489,14 @@ fn spawn_service(
             // an input. That is the same ordered-slot debt notes/pipes.md's BUGS already records.
             if wants_clock {
                 caps[n] = (clock_page, abi::rights::READ);
+                n += 1;
+            }
+            // **The inert-configuration page, `clock`'s twin** (DECISIONS §111). Same reasoning,
+            // same ordering rule: before the source and the budget, so `printenv`'s config page is
+            // slot 1 exactly as `date`'s clock is, and for the identical reason (no manifest
+            // declares `config` alongside an input either, today).
+            if wants_config {
+                caps[n] = (config_page, abi::rights::READ);
                 n += 1;
             }
             if let Some(src) = source {
@@ -1494,6 +1557,7 @@ fn spawn_service(
             }
             let placed: &[(u64, u64, u64)] = &placed_buf[..placed_n];
             let clock_map = [(CHILD_CLOCK_VA, clock_page, abi::address_space::MAP_RO)];
+            let config_map = [(CHILD_CONFIG_VA, config_page, abi::address_space::MAP_RO)];
             // **The FS contract's shared page, for a program behind a directory grant.** The same
             // frame the caretaker maps and the same frame the FS server maps: one page for all three
             // parties, sound because every request on both hops is a blocking `CALL`, so the client
@@ -1508,10 +1572,19 @@ fn spawn_service(
             // out of that carve, and a single reclaim frees all of it; the clock frame and the FS
             // page are ours and are only *mapped* into the child, so they are untouched when the
             // region goes.
+            // **One extra mapping at most, today.** A program that declared a directory grant AND a
+            // clock AND the config page would need three, and this chain only ever offers one; no
+            // shipped manifest reaches that combination (the directory program, `rm`, declares
+            // neither clock nor config, and no program declares both clock and config), so the gap
+            // is unreached rather than closed. The same ordered-slot debt `wants_clock`'s own
+            // comment above already names for `caps`, one structure over; see notes/pipes.md's
+            // `BUGS`.
             let maps: &[(u64, u64, u64)] = if narrowed.is_some() {
                 &dir_map
             } else if wants_clock {
                 &clock_map
+            } else if wants_config {
+                &config_map
             } else {
                 &[]
             };

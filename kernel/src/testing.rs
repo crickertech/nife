@@ -299,9 +299,23 @@ const PAGE_FRAME_REPORT_MIN: usize = 16;
 /// 19054 (measured) + 6 (the same headroom the 18626 -> 18632 raise restored, for the one-or-two
 /// frame cross-environment variance that raise documented) = 19060.
 ///
+/// **Raised again, 2026-08-26, milestone 47's `printenv` (DECISIONS §111, `date`'s own shape one
+/// manifest field over), landing on top of the 19060 raise above rather than the 18632 it was
+/// separately measured against.** `kernel/src/user/printenv_tests.rs`'s four new `#[test_case]`s
+/// join a suite that already carries milestone 49's channel-per-client login, so the number this
+/// constant needs is the two changes measured together, not 19060 + 85 by arithmetic: this ledger's
+/// own convention (see every raise above) is a real run, not a sum of two separate ones, because
+/// per-test frame cost is not guaranteed additive across unrelated changes (`report_frame_ledger`'s
+/// own BUGS note on registration-order drift is exactly this risk). Measured on CI's own aarch64 run
+/// (this milestone's local host reproduces an unrelated, pre-existing flake in
+/// `caretaker_teardown_reclaims_a_full_session_worth_of_memory` that does not occur in CI, so CI's
+/// own log is the trustworthy source here): **19142** frames kept, the higher of two runs in the
+/// same job (19142 and 18921). 19142 + 15 (headroom, this ledger's own precedent for raising past a
+/// value it has just spent close to all of) = 19157.
+///
 /// Raising it is a decision, not a formality: read the `[that test kept N frames]` lines the run
 /// prints, find who grew, and be able to say why that growth is permanent.
-const SUITE_PAGE_FRAME_BUDGET: usize = 19_060;
+const SUITE_PAGE_FRAME_BUDGET: usize = 19_157;
 
 /// **The longest run of free frames the boot must still have at the end**, in frames.
 ///

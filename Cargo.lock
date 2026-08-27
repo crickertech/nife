@@ -926,6 +926,7 @@ dependencies = [
  "credential_proto",
  "elf",
  "entropy_proto",
+ "environment_proto",
  "filesystem_proto",
  "gpt",
  "grant_plan",

@@ -198,13 +198,34 @@ pub enum Prog {
     /// carries. The one member of milestone 126's "machine-wide statistics" row that turned out to
     /// be pure wiring rather than a design fork; see design/roadmap/126-who-else-is-running.md.
     Uptime,
+    /// **Print the inert-configuration page** (milestone 47's environment-variable fork, DECISIONS
+    /// §111; `user/src/printenv.rs`).
+    ///
+    /// The reason [`Manifest::config`] exists, and the same asymmetry [`Prog::Date`] made for the
+    /// clock: the grant is real and it is not something a person designates on the line. Before
+    /// this program, the page existed and could be assembled and mapped
+    /// (`crates/environment_proto`), but nothing in the shell's program table declared wanting one,
+    /// so `caps`'s preview of it had nothing to show and no boot granted it outside a kernel test
+    /// harness standing in for a std program. `date` before `Prog::Date` existed is the position
+    /// this section of the roadmap named; `printenv` is this milestone's `date`.
+    ///
+    /// Takes no argument, no memory, no file: its whole authority is the read-only page. `TZ`,
+    /// `LANG` and `TERM` print as `KEY=value` when the key is present and `KEY (unset)` when the
+    /// page is valid but does not carry it (`environment_proto`'s validated-domain shape makes both
+    /// states distinguishable from a page nobody has assembled at all, which reads as
+    /// "no configuration was granted").
+    ///
+    /// **Provisional name**, Unix's own for exactly this (`printenv(1)`/`env(1)` with no
+    /// arguments): a term of art already right, per this tree's own naming convention for
+    /// standard terms.
+    Printenv,
 }
 
 /// The number of programs [`Prog::id`] can name, which is the size of the table init indexes with
 /// it. Init's array is `[Option<&Elf>; COUNT]`, so adding a variant without widening the array is
 /// an out-of-bounds panic in init rather than a compile error; the constant is here so both inits
 /// can be written against one number.
-pub const PROG_COUNT: usize = 12;
+pub const PROG_COUNT: usize = 13;
 
 impl Prog {
     /// Resolve a program by the name typed on the command line.
@@ -228,6 +249,7 @@ impl Prog {
             b"pgrep" => Some(Prog::Pgrep),
             b"watch" => Some(Prog::Watch),
             b"uptime" => Some(Prog::Uptime),
+            b"printenv" => Some(Prog::Printenv),
             _ => None,
         }
     }
@@ -247,6 +269,7 @@ impl Prog {
             Prog::Pgrep => "pgrep",
             Prog::Watch => "watch",
             Prog::Uptime => "uptime",
+            Prog::Printenv => "printenv",
         }
     }
 
@@ -265,6 +288,7 @@ impl Prog {
             Prog::Pgrep => 9,
             Prog::Watch => 10,
             Prog::Uptime => 11,
+            Prog::Printenv => 12,
         }
     }
 
@@ -283,6 +307,7 @@ impl Prog {
             9 => Some(Prog::Pgrep),
             10 => Some(Prog::Watch),
             11 => Some(Prog::Uptime),
+            12 => Some(Prog::Printenv),
             _ => None,
         }
     }
@@ -308,6 +333,7 @@ impl Prog {
                 interruptible: false,
                 clock: false,
                 domain: false,
+                config: false,
             },
             Prog::Budgeter => Manifest {
                 arg: ArgSpec::Forbidden,
@@ -325,6 +351,7 @@ impl Prog {
                 interruptible: false,
                 clock: false,
                 domain: false,
+                config: false,
             },
             // The two interrupt demonstrators. Both run until interrupted, take no argument and no
             // memory grant, and report through the shared job frame rather than the result endpoint
@@ -345,6 +372,7 @@ impl Prog {
                 interruptible: true,
                 clock: false,
                 domain: false,
+                config: false,
             },
             Prog::Spinner => Manifest {
                 arg: ArgSpec::Forbidden,
@@ -358,6 +386,7 @@ impl Prog {
                 interruptible: true,
                 clock: false,
                 domain: false,
+                config: false,
             },
             // `date` declares an empty grant expression, and that is the interesting part: its
             // authority (a read-only mapping of the clock page) is not something the command line
@@ -400,6 +429,7 @@ impl Prog {
                 // which children get the read-only mapping (milestone 51's wiring, notes/date.md).
                 clock: true,
                 domain: false,
+                config: false,
             },
             // **The first program endowed a directory**, and the first with options. It takes no
             // integer and no memory: what it needs is the authority to take a name out of the
@@ -427,6 +457,7 @@ impl Prog {
                 interruptible: false,
                 clock: false,
                 domain: false,
+                config: false,
             },
             // **The consumer**, and the only program that declares an input. Everything else about
             // it is empty: no argument, no memory, no file, no directory, no options. What it does
@@ -449,6 +480,7 @@ impl Prog {
                 interruptible: false,
                 clock: false,
                 domain: false,
+                config: false,
             },
             // **The viewer**, whose manifest is "a stream in, a stream out" like `wc`'s, and handed
             // bytes like every other stage. The one place it parts from `wc` is the field milestone
@@ -472,6 +504,7 @@ impl Prog {
                 interruptible: false,
                 clock: false,
                 domain: false,
+                config: false,
             },
             // **`ps`: a stream out, a domain in, and nothing else** (milestone 126).
             //
@@ -498,6 +531,7 @@ impl Prog {
                 interruptible: false,
                 clock: false,
                 domain: true,
+                config: false,
             },
             // **`pgrep`: `ps`'s manifest, field for field, and the sameness is the claim.**
             //
@@ -527,6 +561,7 @@ impl Prog {
                 interruptible: false,
                 clock: false,
                 domain: true,
+                config: false,
             },
             // **`watch`: `ps`'s manifest with one field changed.** `arg: ArgSpec::Required` is the
             // whole difference: this program needs a typed redraw count, because it cannot be spun up
@@ -550,6 +585,24 @@ impl Prog {
                 interruptible: false,
                 clock: false,
                 domain: true,
+                config: false,
+            },
+            // **The one program in this table that declares the inert-configuration page.** Same
+            // asymmetry as `date`'s clock: nothing on the command line designates it, so this is
+            // init's to endow and this field is how init decides which children get it.
+            Prog::Printenv => Manifest {
+                arg: ArgSpec::Forbidden,
+                mem: MemSpec::Forbidden,
+                file: FileSpec::Forbidden,
+                dir: DirSpec::Forbidden,
+                flags: NO_FLAGS,
+                output: OutputSpec::Bytes,
+                input: InputSpec::Forbidden,
+                reports: true,
+                interruptible: false,
+                clock: false,
+                domain: false,
+                config: true,
             },
             // **`worker`'s manifest, not `date`'s.** `uptime` reads `user_rt::monotonic_nanos`,
             // which is granted to every process unconditionally, so there is no capability here to
@@ -569,6 +622,7 @@ impl Prog {
                 interruptible: false,
                 clock: false,
                 domain: false,
+                config: false,
             },
         }
     }
@@ -851,6 +905,22 @@ pub struct Manifest {
     /// loudly instead of answering with an empty list: **that difference is the whole feature**, and
     /// `ps` prints the two apart.
     pub domain: bool,
+    /// **Endowed a read-only mapping of the inert-configuration page** (milestone 47's
+    /// environment-variable fork, DECISIONS §111; `crates/environment_proto`).
+    ///
+    /// [`clock`](Manifest::clock)'s twin again, for the identical reason: `TZ`/`LANG`/`TERM` are
+    /// not something a command line designates, so there is no token to place and no refusal to
+    /// write. What this field does is tell **init** which children to endow, and tell a person
+    /// reading `caps printenv` that the authority exists at all. Before this field existed, the
+    /// page was granted **unconditionally** to a `std` program by a kernel test harness standing
+    /// in for a real customer (`kernel/src/user/std_service.rs`); this is the manifest declaration
+    /// that section's own "Not yet built" line named, now with a real, `no_std`, shell-spawnable
+    /// customer ([`Prog::Printenv`]) declaring it.
+    ///
+    /// It is a *read-only* mapping, the same rung [`clock`](Manifest::clock) uses: a program
+    /// declaring this can read the three inert values and has no object through which it could
+    /// change what a shell hands its children. **Provisional field name.**
+    pub config: bool,
 }
 
 /// A parsed command line. The shell dispatches on this; only [`Command::Run`] carries a grant
@@ -2974,6 +3044,7 @@ mod tests {
         interruptible: false,
         clock: false,
         domain: false,
+        config: false,
     };
 
     /// The writable twin: a program that is endowed a file it may write.
@@ -2998,6 +3069,7 @@ mod tests {
         interruptible: false,
         clock: false,
         domain: false,
+        config: false,
     };
 
     /// A shell that WAS granted a directory to narrow, standing at its root.
@@ -3885,6 +3957,7 @@ mod tests {
         interruptible: false,
         clock: false,
         domain: false,
+        config: false,
     };
 
     /// Plan one stage against an explicit manifest, with the operators' answer folded in.
