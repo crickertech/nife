@@ -313,9 +313,42 @@ const PAGE_FRAME_REPORT_MIN: usize = 16;
 /// same job (19142 and 18921). 19142 + 15 (headroom, this ledger's own precedent for raising past a
 /// value it has just spent close to all of) = 19157.
 ///
+/// **Raised again, 2026-08-26, milestone 142's scanout growth (128x64 -> 1280x720, DECISIONS
+/// §102).** Measured locally, twice, deterministically: **26943** both times, zero variance,
+/// with every guest and host-side check (scanout, inbound, multicast, SMB) passing both runs. The
+/// growth is attributable almost entirely to what this ledger is *for*: memory that is legitimately
+/// permanent for the guest boot's own lifetime, now costing 112 times more per site because the
+/// scanout itself did.
+///
+/// The suite allocates a scanout-sized region at eight call sites, none of which are reclaimed
+/// before the boot ends (`display_service::wire_driver`'s own doc: the driver is a long-lived
+/// server for the rest of the test run, and `compositor_tests::kernel_display`'s stand-in is the
+/// same shape one level up):
+///
+/// - **Four `kernel_display()` calls** (`compositor_tests.rs`), each a fresh
+///   `graphics_proto::SURFACE_PAGE_FRAMES`-frame region: 900 now, 8 before. +892 each, +3568 total.
+/// - **Four real-driver wirings** (`display_service::start`, `start_backing_escape`,
+///   `start_terminal`, `start_driver`, one call site each across `display_tests.rs` and
+///   `compositor_tests.rs`), each allocating `DMA_PAGE_FRAMES` (`1 + SURFACE_PAGE_FRAMES`): 901 now,
+///   9 before. +892 each, +3568 total.
+///
+/// 3568 + 3568 = 7136, which is the direct scanout-size cost and accounts for most of the
+/// **7786**-frame rise from the pre-142 budget (19157). The remainder is smaller and not claimed to
+/// be fully attributed, but has a named, reasoned shape rather than being a mystery: the
+/// compositor's own screen mapping is a `PageFrame` capability now (§102), which means
+/// `compositor_service::start` mints a **new** `MAP_BUDGET_PAGES`-page (24) `MemoryRegion` for it,
+/// something the compositor held zero of before this milestone, at up to five call sites in
+/// `compositor_tests.rs` (≤120 frames); and every one of the eight sites above now needs more than
+/// one L3 page-table page per mapping (the run spans more than one 2 MiB window at this size, unlike
+/// before), a handful more frames per site. Both are real, named consequences of the same change,
+/// not leaks distinct from it.
+///
+/// 26943 (measured) + 15 (headroom, this ledger's own precedent for raising past a value just spent
+/// close to all of) = 26958.
+///
 /// Raising it is a decision, not a formality: read the `[that test kept N frames]` lines the run
 /// prints, find who grew, and be able to say why that growth is permanent.
-const SUITE_PAGE_FRAME_BUDGET: usize = 19_157;
+const SUITE_PAGE_FRAME_BUDGET: usize = 26_958;
 
 /// **The longest run of free frames the boot must still have at the end**, in frames.
 ///
