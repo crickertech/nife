@@ -403,6 +403,13 @@ fn init_boot(initrd_len: u64, fs_rights: u64) -> ! {
         clock_page: 5,
         fs_ep: 6,
         fs_page: 7,
+        // Always these three (`kernel::user::spawn_init` grants them with `grant_at`, not
+        // `grant`'s first-free numbering, for exactly this reason): a boot with no virtio-rng
+        // device leaves them empty, and `system_initializer::boot`'s own probe is what tells it
+        // apart from a granted one.
+        virtio_rng: 8,
+        virtio_rng_irq: 9,
+        virtio_rng_dma: 10,
         for_test_roles: &[REPORT, TEST_IRQ],
     };
 

@@ -76,6 +76,15 @@ fn main() -> ExitCode {
             // Boot straight to the interactive shell (the milestone tour compiled out).
             maybe_hvf();
             eprintln!("--- booting nife to an interactive shell (type `help`, Ctrl-C to quit) ---");
+            // A virtio-rng device (DECISIONS §120's 2026-08-26 amendment: "grant the QEMU-only
+            // virtio-rng stopgap"), the same terms `shell_check_leg` already attaches one on: this
+            // is the interactive boot itself, not the bench boot sharing its runner, so there is
+            // no icount-drift reason to keep it test-leg only, and the whole point of the
+            // amendment is that a person booting this way should have one.
+            // SAFETY: `set_var` became unsafe in edition 2024 because it races other threads.
+            // xtask is single-threaded up to this point in `main`, before `cargo(&[..])` spawns
+            // its child, so there is no concurrent reader to race.
+            unsafe { std::env::set_var("NIFE_RNG", "1") };
             // **The filesystem the prompt's `>` and `<` need** (milestone 50). The FS server first,
             // because `user()` packs the initrd and the boot loads it out of there by name, and the
             // RedoxFS image because the runner attaches it only when the file exists. Both are
@@ -7294,6 +7303,14 @@ fn shell_check_leg(riscv: bool) -> bool {
         },
     );
     cmd.env("NIFE_DISK", disk_path());
+    // A virtio-rng device (DECISIONS §120's 2026-08-26 amendment: "grant the QEMU-only virtio-rng
+    // stopgap"), unlike the GPU/keyboard/NVMe flags above `test()` sets: this is the interactive
+    // boot itself, not the bench boot sharing its runner, so there is no icount-drift reason to
+    // keep it test-leg only, and the whole point of the amendment is that this boot should have
+    // one. `cmd.env`, not `test()`'s own `std::env::set_var`, because this function builds its own
+    // `Command` directly (see `NIFE_INITRD`/`NIFE_DISK` just above) rather than spawning through
+    // the global-env-inheriting path `test()` uses.
+    cmd.env("NIFE_RNG", "1");
     cmd.stdin(std::process::Stdio::piped());
     cmd.stdout(std::process::Stdio::piped());
 

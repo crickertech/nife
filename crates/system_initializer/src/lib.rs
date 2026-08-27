@@ -44,6 +44,12 @@
 //!         clock_page: 5,
 //!         fs_ep: 6,
 //!         fs_page: 7,
+//!         // Always these three slots, whether or not this boot has a disk (`grant_at`, not
+//!         // first-free numbering, on the kernel side): a boot with no virtio-rng device leaves
+//!         // them empty, and `boot`'s own probe is what tells it apart from a granted one.
+//!         virtio_rng: 8,
+//!         virtio_rng_irq: 9,
+//!         virtio_rng_dma: 10,
 //!         // Empty here. On aarch64 this holds the kernel's report endpoint and a test SGI, because
 //!         // that boot path is shared with milestone 19d's test roles; init deletes them with the
 //!         // device authority once the drivers exist, rather than keeping delegable authority for
@@ -247,6 +253,26 @@ pub struct BootEndowment {
     pub fs_ep: u64,
     /// The page the file service's clients share with it; see [`fs_ep`](BootEndowment::fs_ep).
     pub fs_page: u64,
+    /// **A virtio-rng device, when this boot has one** (DECISIONS §120's 2026-08-26 amendment:
+    /// "grant the QEMU-only virtio-rng stopgap"). The confined transport; `WRITE | GRANT`, so this
+    /// process can delegate it to an entropy service it builds. **Absent** on real hardware
+    /// (milestone 55's actual target has none) or a run with `NIFE_RNG` unset, in which case this
+    /// slot holds nothing at all, the same "0/empty means absent" shape [`fs_ep`](BootEndowment::fs_ep)
+    /// already carries; [`boot`] probes for it (`invoke`'s own `NoSuchSlot` on an ungranted slot)
+    /// rather than being told, because there is no fourth `START` argument word left to tell it
+    /// with (`role`, `initrd_len`, `fs_rights` already spend all three).
+    pub virtio_rng: u64,
+    /// The device's completion interrupt; see [`virtio_rng`](BootEndowment::virtio_rng). `READ |
+    /// GRANT`, routed by the kernel but left unenabled on riscv64 (`kernel::user::VirtioRngGrant`'s
+    /// own doc: the board's hart-lottery hazard means only the kernel, which knows the true boot
+    /// hart, may enable it, and it already did before granting this).
+    pub virtio_rng_irq: u64,
+    /// **The DMA page the kernel wrote `dma_phys` into**, at its own last eight bytes; see
+    /// [`virtio_rng`](BootEndowment::virtio_rng). `READ | WRITE | GRANT`: this process maps it to
+    /// read that value back out (entropy needs its own DMA region's physical base as a plain
+    /// value; no capability exposes one), then delegates the same frame to the entropy service it
+    /// builds, unread by anything else in between.
+    pub virtio_rng_dma: u64,
     /// **Capabilities the kernel granted that the interactive system never uses**, deleted with the
     /// device authority once the drivers exist.
     ///
@@ -386,6 +412,28 @@ pub const JOBS_BUDGET_PAGES: u64 = JOB_REGION_PAGES * 6;
 /// and the loader's scratch window at `0x1000_0000`.
 const INIT_OUT_VA: u64 = 0x0f00_0000;
 
+/// Where init briefly maps the virtio-rng DMA page, in **its own** address space, to read
+/// [`RNG_DMA_PHYS_OFFSET`] back out before handing the same frame on to entropy. Distinct from
+/// [`INIT_OUT_VA`] and never unmapped (this file's own BUGS: there is no unmap in the ABI), the
+/// same permanent-scratch cost that address already carries.
+const RNG_DMA_PEEK_VA: u64 = 0x0f10_0000;
+
+/// The DMA region's own physical base, written inside the page itself at its last eight bytes
+/// (`kernel::user::VIRTIO_RNG_DMA_PHYS_OFFSET`; the two constants must agree, and the kernel-side
+/// one carries the reasoning for exactly this offset). Named separately here because reading it
+/// happens in this crate and writing it happens in the kernel; there is no crate the two could
+/// share it through (rule 7's own carve-out: this is a kernel/init boot convention, one program's
+/// bytes handed to another it spawned, not a contract between two peer user programs).
+const RNG_DMA_PHYS_OFFSET: u64 = 4096 - 8;
+
+/// Where entropy maps its own DMA page. Must match `user/src/entropy.rs`'s `DMA_VA`.
+const RNG_DMA_VA: u64 = 0x0000_0000_0090_0000;
+
+/// `entropy.rs`'s own spawn-argument convention (`user/src/entropy.rs`'s `MODE_VIRTIO`): the
+/// kernel's (and now this crate's) shared understanding with the one program it spawns, not a wire
+/// contract between two user programs, so rule 7 does not apply the way it does to `RNG_DMA_VA`.
+const RNG_MODE_VIRTIO: u64 = 0;
+
 // The VAs each program hardcodes; they must match console.rs / input.rs / line_editor.rs / swish.rs.
 const CON_SHARED_VA: u64 = 0x0060_0000; // console reads text here; line_editor writes it
 const CON_UART_VA: u64 = 0x0070_0000; // console's UART mapping
@@ -449,6 +497,13 @@ pub fn boot(
     // not a prompt. An adapter the table refuses costs exactly the same feature, which is the whole
     // policy in one line: init treats what it cannot vouch for as what is not there.
     let sink_elf = measured(&fs, table, "terminal_sink_caretaker").elf;
+    // **The entropy service** (DECISIONS §120's 2026-08-26 amendment), optional in exactly the
+    // adapter's own sense: a boot with no `entropy` program in its initrd, or a table that refuses
+    // it, simply never builds the service, and [`g.virtio_rng`](BootEndowment::virtio_rng)'s own
+    // probe finds nothing to build it *from* either way on most boots (real hardware, or a run
+    // with `NIFE_RNG` unset). Neither case is a broken boot, so neither belongs with the required
+    // three below.
+    let ent_elf = measured(&fs, table, "entropy").elf;
     // The undertaker (milestone 22, the interactive increment). Read here with the rest, because
     // the archive is only readable while we hold it and every failure below is one `fail`. Required
     // rather than optional, unlike the adapter above: without it a bounded job pool fills and the
@@ -490,6 +545,125 @@ pub fn boot(
     }
 
     let ut = g.untyped;
+
+    // **The entropy service** (DECISIONS §120's 2026-08-26 amendment), when the kernel granted a
+    // virtio-rng device and the archive carries a program for it. Built **here, before anything
+    // else**, and that positioning is load-bearing rather than a style choice.
+    //
+    // An earlier version of this built entropy after the console and line discipline, in the gap
+    // their own three capabilities free ("The console's three capabilities go back now"). That
+    // reads as the more generous gap, but it counts the wrong thing: the virtio-rng trio is
+    // granted by the *kernel*, at spawn, so it inflates the resting baseline for the **whole**
+    // function, not just the block that builds it. The earliest peak this function ever reaches
+    // (retyping `request`/`reply`/`term_ep`/`con_shared`/`term_out`/`term_in`, all six before
+    // console is even built) is already tight against the sixteen-slot wall on its own account
+    // (`crates/system_initializer`'s own BUGS: "one slot from the wall" describes the *shell's*
+    // peak, and the terminal-plumbing peak just named is close behind it); adding three more
+    // permanent slots to a baseline that peak already stresses pushed it over, and the boot
+    // faulted building `term_in`, in total silence, with no route to a person (this file's own
+    // BUGS on why a refusal this early has none). Found by bisection, not reasoning: an isolated
+    // test granted init one single harmless extra capability, at an arbitrary slot, with no code
+    // anywhere naming or using it, and the identical silent fault reproduced.
+    //
+    // Building here instead avoids the collision rather than widening anything: this is the
+    // *only* point in the function where the virtio-rng trio's three slots and the terminal
+    // plumbing's six are never both live at once. Entropy is built and its three slots are
+    // released before `request` is ever retyped, so every peak downstream of this block is
+    // exactly what it was before this amendment existed.
+    //
+    // **Absence is not a failure, twice over**: no device (real hardware, or `NIFE_RNG` unset) and
+    // no `entropy` program in the archive both leave the system exactly as it was before this
+    // amendment, the same "a missing component costs a feature, not a boot" posture the sink
+    // adapter and the subtree caretaker already take.
+    //
+    // **`entropy_ready`, not an inline `announce`.** This process has no terminal yet at this
+    // point in the boot (that is the whole reason the peak accounting above works out), so the
+    // outcome is carried forward as data and said later, at the existing, already-mapped print
+    // site right before `term_ep`/`term_out` are dropped (see that site's own comment).
+    //
+    // # BUGS
+    //
+    // **Proves the device chain, nothing past it.** This slice builds the service and confirms it
+    // drew real bytes from the real device; it does not yet wire a client (`credentialer`,
+    // `login`) to it, which is the multi-lane remainder milestone 49's own doc names.
+    let mut entropy_ready = false;
+    if let Some(ent_program) = ent_elf.as_ref() {
+        // `invoke`'s own `NoSuchSlot` (-1) on an ungranted slot is the probe: there is no fourth
+        // `START` argument word left to be told with instead (see
+        // [`BootEndowment::virtio_rng`]'s own doc). `virtio_rng`/`virtio_rng_irq`/`virtio_rng_dma`
+        // are granted as one triple or not at all (`kernel::user::boot_virtio_rng_device`), so a
+        // negative answer here means all three slots are empty, not just this one.
+        // SAFETY: `invoke` traps to the kernel, which validates the capability and the method
+        // before acting; a probe against an empty slot is exactly what that contract is built to
+        // answer safely.
+        let magic = unsafe { invoke(g.virtio_rng, abi::virtio::READ_REG, 0, 0, 0) };
+        if magic >= 0 {
+            // SAFETY: as above.
+            if unsafe {
+                invoke(
+                    g.virtio_rng_dma,
+                    abi::page_frame::MAP,
+                    RNG_DMA_PEEK_VA,
+                    1,
+                    ut,
+                )
+            } == 0
+            {
+                // SAFETY: just mapped read/write, one page, ours alone until entropy is built and
+                // holds its own copy of the same frame; `RNG_DMA_PHYS_OFFSET` is inside it and
+                // outside entropy's own ring-and-buffer layout (that constant's own doc).
+                let dma_phys = unsafe {
+                    core::ptr::read_unaligned(
+                        (RNG_DMA_PEEK_VA as *const u8)
+                            .add(RNG_DMA_PHYS_OFFSET as usize)
+                            .cast::<u64>(),
+                    )
+                };
+                let request = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
+                let ready = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
+                let entropy = must(build_child(
+                    ut,
+                    ut,
+                    ent_program,
+                    &ChildEndowment {
+                        caps: &[
+                            (request, abi::rights::READ),
+                            (g.virtio_rng_irq, abi::rights::READ),
+                            (g.virtio_rng, abi::rights::WRITE),
+                            (ready, abi::rights::WRITE),
+                        ],
+                        maps: &[(RNG_DMA_VA, g.virtio_rng_dma, abi::address_space::MAP_RW)],
+                        stack_pages: CHILD_STACK_PAGES,
+                        ..ChildEndowment::new()
+                    },
+                ));
+                must_ok(thread_control_block_start(
+                    entropy,
+                    RNG_MODE_VIRTIO,
+                    dma_phys,
+                    0,
+                ));
+                cap_delete(entropy);
+                cap_delete(g.virtio_rng_irq);
+                cap_delete(g.virtio_rng);
+                cap_delete(g.virtio_rng_dma);
+                // Block for the service's own proof of life: it fetches a first bufferful from the
+                // real device before answering, so this means "a client that asks will be
+                // answered", not merely "the handshake completed" (`user/src/entropy.rs`'s own
+                // doc). No client is wired yet (this block's own BUGS), so `request`'s init-side
+                // copy has no further use; entropy keeps its own and waits on it, harmlessly, the
+                // same idle-forever shape the undertaker and the sink adapter already have.
+                let (verdict, _, _) = recv(ready);
+                cap_delete(ready);
+                cap_delete(request);
+                entropy_ready = verdict == entropy_proto::READY;
+            } else {
+                cap_delete(g.virtio_rng_irq);
+                cap_delete(g.virtio_rng);
+                cap_delete(g.virtio_rng_dma);
+            }
+        }
+    }
 
     // **The two components that have to exist before init can say anything.** The console writes
     // the UART and the line discipline is its only client, so a refusal of either has no route to a
@@ -923,6 +1097,20 @@ pub fn boot(
             )
         },
     );
+    // **The entropy service's own outcome** (DECISIONS §120's 2026-08-26 amendment), said here
+    // rather than where it was decided: `entropy_ready` was set long before this process had a
+    // terminal at all (the whole reason the build happens first, at the top of this function; see
+    // that block's own comment), and [`INIT_OUT_VA`] is not mapped into init's own space until the
+    // line above this one first used it, so nothing earlier in this function could `announce`
+    // regardless. Silent when there was nothing to build (no device, or no `entropy` program in
+    // the archive), the same posture the sink adapter and the subtree caretaker already take for a
+    // missing component.
+    if entropy_ready {
+        announce(
+            term_ep,
+            b"init: entropy service up; drew real bytes from a virtio-rng device\n",
+        );
+    }
     cap_delete(term_ep);
     cap_delete(term_out);
 

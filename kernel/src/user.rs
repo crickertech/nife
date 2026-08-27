@@ -903,6 +903,23 @@ pub fn spawn_init(
         None
     };
 
+    // **A virtio-rng device, for the boot role only, when one is attached** (DECISIONS §120's
+    // 2026-08-26 amendment: "grant the QEMU-only virtio-rng stopgap"). `None` on a boot with no
+    // such device (real hardware, or a run with `NIFE_RNG` unset): the whole chain past this point
+    // treats it exactly as "this boot has no filesystem" is already treated, as an absence rather
+    // than a failure. See [`boot_virtio_rng_device`] for what wiring it costs.
+    let virtio_rng = if role == INIT_BOOT_ROLE {
+        boot_virtio_rng_device()
+    } else {
+        None
+    };
+    // Enabled here, immediately, the same place and the same way `uart_rx_intid` already is on
+    // this board (aarch64's GIC has no boot-hart-lottery hazard to avoid; see
+    // [`VirtioRngGrant::intid`]'s own doc for why `riscv_shell_boot` cannot do this and defers).
+    if let Some(g) = &virtio_rng {
+        crate::arch::irq::enable(g.intid);
+    }
+
     // **init's building budget is carved here, not inside the thread**, so the caller has a name for
     // it and can reclaim it. A large untyped init retypes the child's address space, frames and TCB from,
     // sized for a full copy of the initrd program plus its tables and init's scratch. Carving it out
@@ -1028,6 +1045,49 @@ pub fn spawn_init(
             }
             None => 0,
         };
+
+        // The virtio-rng device (slots 8-10, always, even without a disk): the confined transport,
+        // its completion interrupt, and the DMA page the kernel already wrote `dma_phys` into (see
+        // [`boot_virtio_rng_device`]). GRANT on all three so init can delegate them onward to an
+        // entropy service it builds, the same shape every other device authority here already
+        // takes. `virtio_rng` is `None` exactly as `fs`/`clock_page` can be: init's own probe
+        // (`invoke` on an ungranted slot answers `NoSuchSlot`) is what tells it apart from a real
+        // one, the same negative-control idiom `crates/system_initializer::boot` already uses.
+        //
+        // **`grant_at`, not `grant`'s first-free**, and this is not a style choice: the filesystem
+        // pair immediately above is itself conditional, and first-free numbering would silently
+        // shift these three down by two on the (ordinary) boot that has virtio-rng but no attached
+        // disk. Explicit slots keep 8-10 the virtio-rng trio's own regardless of what the
+        // filesystem pair did or did not consume (`crate::sched::grant_at`'s own doc: "some
+        // out-of-band conventions name a fixed slot... the emptiness is load-bearing").
+        if let Some(g) = virtio_rng {
+            crate::sched::grant_at(
+                8,
+                crate::cap::virtio_cap_rights(
+                    g.vid,
+                    crate::cap::Rights::WRITE.union(crate::cap::Rights::GRANT),
+                ),
+            )
+            .expect("grant the virtio-rng transport");
+            crate::sched::grant_at(
+                9,
+                crate::cap::irq_cap_rights(
+                    g.intid,
+                    crate::cap::Rights::READ.union(crate::cap::Rights::GRANT),
+                ),
+            )
+            .expect("grant the virtio-rng interrupt");
+            crate::sched::grant_at(
+                10,
+                crate::cap::page_frame_cap(
+                    g.dma,
+                    crate::cap::Rights::READ
+                        .union(crate::cap::Rights::WRITE)
+                        .union(crate::cap::Rights::GRANT),
+                ),
+            )
+            .expect("grant the virtio-rng DMA page");
+        }
 
         enter_frame(elf.entry(), USER_STACK_TOP, role, initrd_len, fs_rights)
     })
@@ -1961,6 +2021,47 @@ pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), Loa
         }
         None => 0,
     };
+    // The virtio-rng device (slots 6-8, always, even without a disk), when this boot has one
+    // (DECISIONS §120's 2026-08-26 amendment). GRANT on all three so system_initializer can
+    // delegate them onward to an entropy service it builds, the same shape every other device
+    // authority here already takes. `None` exactly as the filesystem pair can be:
+    // system_initializer's own probe (`invoke` on an ungranted slot answers `NoSuchSlot`) is what
+    // tells it apart from a real one. See [`boot_virtio_rng_device`] for what wiring it costs and
+    // why it hands back an un-enabled interrupt.
+    //
+    // **Explicit slots, not `None`'s first-free** (`thread_control_block_insert_cap`'s own second
+    // sense, `notes/abi.md` §4's "the emptiness is load-bearing"), and this is not a style choice:
+    // the filesystem pair above is itself conditional, and first-free numbering would silently
+    // shift these three down by two on the (ordinary) boot that has virtio-rng but no attached
+    // disk. Explicit targets keep slots 6-8 the virtio-rng trio's own regardless of what the
+    // filesystem pair did or did not consume.
+    let virtio_rng = boot_virtio_rng_device();
+    if let Some(g) = &virtio_rng {
+        let s6 = crate::sched::thread_control_block_insert_cap(
+            tid,
+            crate::cap::virtio_cap_rights(g.vid, Rights::WRITE.union(Rights::GRANT)),
+            Some(6),
+        )
+        .expect("insert the virtio-rng transport");
+        assert_eq!(s6, 6);
+        let s7 = crate::sched::thread_control_block_insert_cap(
+            tid,
+            crate::cap::irq_cap_rights(g.intid, Rights::READ.union(Rights::GRANT)),
+            Some(7),
+        )
+        .expect("insert the virtio-rng interrupt");
+        assert_eq!(s7, 7);
+        let s8 = crate::sched::thread_control_block_insert_cap(
+            tid,
+            crate::cap::page_frame_cap(
+                g.dma,
+                Rights::READ.union(Rights::WRITE).union(Rights::GRANT),
+            ),
+            Some(8),
+        )
+        .expect("insert the virtio-rng DMA page");
+        assert_eq!(s8, 8);
+    }
     crate::sched::configure_thread_control_block(tid, elf.entry(), USER_STACK_TOP, aspace_name)
         .expect("configure");
     crate::sched::start_thread_control_block(tid, [0, initrd_len, fs_rights]).expect("start"); // a1 = archive length
@@ -1969,6 +2070,11 @@ pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), Loa
     // supervisor external interrupts in `sie`. The input driver arms the NS16550's own RX interrupt
     // (its IER) when it starts, and re-arms the PLIC source through its Irq cap's ACK.
     crate::drivers::plic::enable(uart_irq, crate::arch::irq::boot_s_context());
+    // The virtio-rng device's own source, pinned to the same boot-hart context for the same reason
+    // (`notes/harts-and-pes.md`'s hart lottery; see [`VirtioRngGrant::intid`]'s own doc).
+    if let Some(g) = &virtio_rng {
+        crate::drivers::plic::enable(g.intid, crate::arch::irq::boot_s_context());
+    }
     crate::arch::exceptions::enable_external();
     Ok(())
 }
@@ -2222,6 +2328,94 @@ fn boot_clock_page() -> u64 {
             phys
         }
     }
+}
+
+/// The confined transport, the completion interrupt, and the DMA page's physical base, for a
+/// virtio-rng device this kernel discovered and wired at boot. Returned to the caller rather than
+/// stored, because `crate::sched::grant`'s next-free-slot placement means the caller decides
+/// exactly where these land relative to whatever else it has already granted.
+struct VirtioRngGrant {
+    /// The `Virtio` capability's id (`crate::virtio::register`'s return value).
+    vid: usize,
+    /// The device's completion interrupt. **Routed** (`crate::sched::bind_irq`) but not yet
+    /// **enabled**: the two boards enable an interrupt source differently (aarch64's GIC inline,
+    /// riscv64's PLIC pinned to the boot hart's own context via `boot_s_context`, not the
+    /// hart-spreading `crate::arch::irq::enable` uses -- `notes/harts-and-pes.md`'s hart lottery
+    /// is why, the same reasoning `uart_irq`'s identical two-step split in `riscv_shell_boot`
+    /// already follows), so the caller does that part itself, the same place it already enables
+    /// `uart_irq`.
+    intid: u32,
+    /// The DMA region's physical base. `entropy.rs` needs this as a plain value (it builds virtio
+    /// ring descriptors, which are physical-address-based by the spec, not a fact any capability
+    /// exposes), and there is no fourth `START` argument word to carry it across the kernel/init
+    /// boundary (`start_thread_control_block`'s own `[u64; 3]`, already spent on
+    /// `role`/`initrd_len`/`fs_rights`). So it travels the way the page's *contents* already do: written
+    /// into the page itself at [`VIRTIO_RNG_DMA_PHYS_OFFSET`], which init reads back out once,
+    /// after mapping the granted frame briefly, and relays to entropy's own `arg1` exactly the way
+    /// it already relays `fs_rights`.
+    dma: u64,
+}
+
+/// Where [`boot_virtio_rng_device`] writes the DMA region's own physical base, inside that same
+/// region. Entropy's ring (`user/src/entropy.rs`'s `Q_DESC`/`Q_AVAIL`/`Q_USED`) and its one pool
+/// buffer (`user/src/entropy.rs`'s own `POOL_OFF` 0x400, `POOL_LEN` 256 bytes) together reach no
+/// further than byte 0x500 of the page; this sits in the 2816 bytes past that, as far from both as
+/// the page allows, so a future widening of either has room to move without colliding.
+const VIRTIO_RNG_DMA_PHYS_OFFSET: u64 = FRAME_SIZE - 8;
+
+/// **Discover and wire a virtio-rng device on the MMIO bus, for the interactive boot's own use**
+/// (DECISIONS §120's 2026-08-26 amendment: "grant the QEMU-only virtio-rng stopgap"). `None` on a
+/// boot with no such device: real hardware (milestone 55's actual target has no virtio-rng at all,
+/// §120's own text), or a run with `NIFE_RNG` unset. The whole chain past this point treats that
+/// exactly as "this boot has no filesystem" is already treated by [`spawn_init`]/
+/// `riscv_shell_boot`: an absence the caller can act on, not a failure.
+///
+/// **Only the MMIO transport**, unlike `entropy_service::start`'s own test-harness wiring, which
+/// also offers PCIe: a first cut scoped to what an interactive boot actually needs, on the same
+/// "a minimal device surface for the boot a person actually meets" posture already named for the
+/// GPU/keyboard/NVMe flags (`user/src/login.rs`'s own BUGS, before this amendment). Widening to
+/// PCIe (behind the IOMMU) is real follow-on, not invented here.
+///
+/// Mirrors `kernel::user::entropy_service::start`'s own kernel-side setup (device discovery, a
+/// zeroed DMA frame, the interrupt route, `crate::virtio::register`) up to the point that function
+/// spawns the service itself: this one hands the three capabilities back for the **caller** to
+/// grant and delegate, because on the interactive boot the caller is init, not the kernel, and init
+/// is the one that builds the entropy service: `crates/system_initializer`'s own ELF loader, the
+/// tree's only one (milestone 96), and that crate's own header says why a second loader would be
+/// the wrong shape.
+fn boot_virtio_rng_device() -> Option<VirtioRngGrant> {
+    let d = crate::virtio::find_entropy_device()?;
+    let dma = crate::memory::alloc_contiguous(1)
+        .expect("no DMA frame for virtio-rng")
+        .addr();
+    // SAFETY: a fresh frame, direct-mapped, owned by nobody else yet. Zeroed first, so no stale
+    // descriptor or buffer content is visible to the device or to entropy's own first read; the
+    // physical base is then written into the tail of the same page, at an offset entropy's own
+    // ring-and-buffer layout never reaches (see [`VIRTIO_RNG_DMA_PHYS_OFFSET`]'s own doc).
+    unsafe {
+        let base = mmu::phys_to_virt(dma) as *mut u8;
+        core::ptr::write_bytes(base, 0, FRAME_SIZE as usize);
+        core::ptr::write_unaligned(
+            base.add(VIRTIO_RNG_DMA_PHYS_OFFSET as usize).cast::<u64>(),
+            dma,
+        );
+    }
+    // Routed, not yet enabled; see [`VirtioRngGrant::intid`]'s own doc for why enabling is the
+    // caller's job.
+    crate::sched::bind_irq(d.intid, crate::sched::create_rendezvous());
+    let vid = crate::virtio::register(
+        crate::virtio::Transport::Mmio {
+            mmio_phys: d.mmio_phys,
+        },
+        dma,
+        FRAME_SIZE,
+        None,
+    );
+    Some(VirtioRngGrant {
+        vid,
+        intid: d.intid,
+        dma,
+    })
 }
 
 /// **Wall-clock time** (milestone 51 lane A, DECISIONS §43).
