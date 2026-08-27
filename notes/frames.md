@@ -409,26 +409,48 @@ went), and the difference is accounted rather than shrugged at:
   a candidate before, because the sweep was driven by the mapping log and the log had no record of
   it. `PageFrame::REVOKE` deliberately keeps the exact-object sweep; see the next entry.
 
-- **A `REVOKE` on one run reaches mappings it did not authorize, and spares capabilities that
-  overlap it.** `revoke::unmap_everywhere` is space-blind: it pulls a physical page out of every
-  address space that maps it, regardless of which capability produced that mapping. That was
-  equivalent to "capability-scoped" while a `PageFrame` named exactly one page and could not
-  overlap another; §102 made overlap possible and the tree's display wiring uses it (the gpu driver
-  holds `PageFrame(dma, 312)` while the painter and terminal hold `PageFrame(dma + 4096, 311)` over
-  the same memory, deliberately, because the driver's capability must span the DMA window it
-  registered with the IOMMU). So revoking the terminal's run would unmap those pages out of the
-  driver's space too, while leaving the driver's own capability in place. **Not reachable today**:
-  `REVOKE` needs `Rights::GRANT` and no run capability in this tree carries it. **Not decided
-  here**: written up as design/decisions/132-overlapping-page-frame-runs.md (provisional number)
-  with the options priced, because it is a syscall-semantics question. Its promotion trigger is one
-  grep: the moment any `page_frame_run_cap` mint site gains `GRANT`, that decision must be answered
-  first.
+- **A `REVOKE` on one run used to reach mappings it did not authorize.** `revoke::unmap_everywhere`
+  is space-blind: it pulls a physical page out of every address space that maps it, regardless of
+  which capability produced that mapping. That was equivalent to "capability-scoped" while a
+  `PageFrame` named exactly one page and could not overlap another; §102 made overlap possible and
+  the tree's display wiring uses it (the gpu driver holds `PageFrame(dma, 312)` while the painter
+  and terminal hold `PageFrame(dma + 4096, 311)` over the same memory, deliberately, because the
+  driver's capability must span the DMA window it registered with the IOMMU). So revoking the
+  terminal's run unmapped those pages out of the driver's space too, under a capability nobody had
+  revoked.
 
-- **Revocation says nothing to a device.** A driver's IOMMU/DMA window is registered as a byte
-  range (`virtio::register(.., dma, DMA_PAGE_FRAMES * FRAME_SIZE, ..)`) and is not derived from any
-  capability, so revoking a `PageFrame` narrows what the *CPU* may reach and leaves device-initiated
-  DMA into the same physical pages exactly as it was. Whether `REVOKE` should narrow a DMA window
-  couples two objects that are independent today; it is the last section of the decision above.
+  **Fixed 2026-08-27** (design/decisions/132-overlapping-page-frame-runs.md, option C, decided
+  rather than deferred to the first `GRANT`). Each mapping record now carries the base address of
+  the object it was made under, which names the capability *and every capability derived from it*
+  because `derive` never changes the object, and `PageFrame::REVOKE`'s unmap half matches on it
+  (`revoke::unmap_under_object`). `revoke::LogEntry` grew from 16 bytes to 24 and `LOG_ENTRIES`
+  fell from 255 to 170, so a space pays about 1.5x the log pages it did; the existing
+  `assert!(size_of::<LogPage>() == FRAME_SIZE)` is what holds that arithmetic to account, and it
+  was checked by breaking it. Reclamation and the device take-back stay object-blind on purpose,
+  because neither is asking a capability's question.
+
+- **An overlapping capability still survives a `REVOKE`, and that is the decision rather than the
+  gap.** Revoking `PageFrame(dma + 4096, 311)` leaves the driver's `PageFrame(dma, 312)` in place,
+  naming pages the revoke has unmapped out of the revoked capability's holders. §102 contemplates
+  two capabilities coexisting over sub-ranges of one region, and the alternative (sweep capabilities
+  by overlap, as reclamation does) would let a one-page holder delete a 312-page capability by
+  naming any page inside it. §132 refused it for that reason.
+
+- **A run and a longer run sharing a base are one object to the log.** `PageFrame(p, 401)` and
+  `PageFrame(p, 74)` are different objects to `Cap` and identical to `revoke::LogEntry`, so revoking
+  the shorter unmaps the longer's mappings of the pages they share. Carrying the length would take
+  `LOG_ENTRIES` from 170 to 127 to separate a pair nothing in the tree mints. Bounded in the safe
+  direction (the over-broad unmap cannot reach outside the revoked run) and named in `LogEntry`'s
+  own `BUGS`.
+
+- **Revocation still says nothing to a device**, and §132 deliberately did not answer this half. A
+  driver's IOMMU/DMA window is registered as a byte range (`virtio::register(.., dma,
+  DMA_PAGE_FRAMES * FRAME_SIZE, ..)`) and is not derived from any capability, so revoking a
+  `PageFrame` narrows what the *CPU* may reach and leaves device-initiated DMA into the same
+  physical pages exactly as it was. Even a capability-perfect revocation of a surface leaves the
+  device able to write those pages until the driver's virtio registration is itself torn down.
+  Whether `REVOKE` should narrow a DMA window couples two objects that are independent today; it is
+  the last open section of the decision above and remains calef's call.
 
 - **A failed multi-page `MAP` gives the page tables back to nobody.** Both mapping paths
   (`page_frame::MAP` and `address_space::MAP_INTO`) are all-or-nothing across a run since
