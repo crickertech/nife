@@ -2,36 +2,36 @@ use super::*;
 use crate::cap::{Rights, rendezvous_cap};
 use crate::sched::{self, RendezvousId};
 
-/// The VAs `user/src/kilo.rs` hardcodes. Must match that file.
+/// The VAs `user/src/rmle.rs` hardcodes. Must match that file.
 const TERM_OUT_VA: u64 = 0x0000_0000_0080_0000;
 const FS_VA: u64 = 0x0000_0000_0060_0000;
 
-/// Stack pages beyond the one `run` maps. `kilo`'s own `Editor` is a few kilobytes (32 rows of
+/// Stack pages beyond the one `run` maps. `rmle`'s own `Editor` is a few kilobytes (32 rows of
 /// 100 bytes plus bookkeeping) and this program has no allocator, so it all lives on the stack;
 /// sized with the same "extra pages rather than exactly enough" margin `swish`'s own wiring uses.
-const KILO_STACK_PAGES: usize = 4;
+const RMLE_STACK_PAGES: usize = 4;
 
-/// The file channel's width, straight from the contract `kilo`'s FS calls speak, so this wiring
+/// The file channel's width, straight from the contract `rmle`'s FS calls speak, so this wiring
 /// cannot disagree with the program on the other end. `fs_service::FILE_PAGES` is the same value
 /// but private to that module; this is the source it is itself defined from.
 const FILE_PAGES: usize = filesystem_proto::fs::TRANSFER_PAGES;
 
-/// A fresh, zeroed frame, for `kilo`'s own extra stack pages. `fs_service`'s own `page_frame` does
+/// A fresh, zeroed frame, for `rmle`'s own extra stack pages. `fs_service`'s own `page_frame` does
 /// the same thing and is private to that module; this is a second copy of three lines rather than
 /// a visibility change to a helper whose whole point is to stay unexported.
 fn page_frame() -> u64 {
     let p = crate::memory::alloc()
-        .expect("no frame for kilo's stack")
+        .expect("no frame for rmle's stack")
         .addr();
     // SAFETY: fresh frame, reachable through the direct map.
     unsafe { core::ptr::write_bytes(mmu::phys_to_virt(p) as *mut u8, 0, FRAME_SIZE as usize) };
     p
 }
 
-/// A running `kilo`, wired with a real terminal (`line_editor` and a fake console, exactly
+/// A running `rmle`, wired with a real terminal (`line_editor` and a fake console, exactly
 /// [`raw_mode_service::start`]'s wiring) and a real filesystem (a directory narrowed to `dir_name`
 /// under `fs_subtree_caretaker`, exactly [`fs_service::narrow_dir`]'s wiring). Composing the two is
-/// the only thing this module adds: `kilo` is the one program in this tree that needs both a
+/// the only thing this module adds: `rmle` is the one program in this tree that needs both a
 /// terminal and a file at once, the same shape `swish`'s own wiring already has (milestone 50's
 /// redirection witness), so nothing here is a new pattern.
 pub struct Wiring {
@@ -40,20 +40,20 @@ pub struct Wiring {
     /// through the same input-driver role [`raw_mode_service`]'s own tests use.
     pub term: RendezvousId,
     pub term_out_phys: u64,
-    /// The narrowed directory `kilo` holds. A test may also call this directly (after `kilo` has
+    /// The narrowed directory `rmle` holds. A test may also call this directly (after `rmle` has
     /// exited and stopped using its shared page) to read the file back as an independent witness,
     /// exactly the two-witness discipline `c_seam`'s confiner tests use elsewhere.
     pub dir: RendezvousId,
     pub file_shared: u64,
-    /// `kilo`'s one closing report: `(STATUS_QUIT | STATUS_OPEN_FAILED, dirty-or-errno, 0)`.
+    /// `rmle`'s one closing report: `(STATUS_QUIT | STATUS_OPEN_FAILED, dirty-or-errno, 0)`.
     pub report: RendezvousId,
 }
 
-/// Spawn `kilo` against `dir_name` (a directory already in the test fixture tree, granted with
-/// [`filesystem_proto::dir::ALL`]) and `file_name` (the file inside it `kilo` edits, created if
+/// Spawn `rmle` against `dir_name` (a directory already in the test fixture tree, granted with
+/// [`filesystem_proto::dir::ALL`]) and `file_name` (the file inside it `rmle` edits, created if
 /// absent). `None` if there is no RedoxFS disk attached to this run.
 pub fn start(dir_name: &'static str, file_name: &str) -> Option<Wiring> {
-    let image = program("kilo").expect("no kilo program in the initrd archive");
+    let image = program("rmle").expect("no rmle program in the initrd archive");
 
     // The terminal half: identical to raw_mode_service::start, duplicated rather than reused
     // because that function's Wiring hands back a line_editor already wired to nobody; composing a
@@ -68,7 +68,7 @@ pub fn start(dir_name: &'static str, file_name: &str) -> Option<Wiring> {
         .expect("no frame for the fake console")
         .addr();
     let term_out_phys = crate::memory::alloc()
-        .expect("no frame for kilo's terminal-output page")
+        .expect("no frame for rmle's terminal-output page")
         .addr();
     let term_app_in_phys = crate::memory::alloc()
         .expect("no frame for line_editor's unused app-input page")
@@ -132,7 +132,7 @@ pub fn start(dir_name: &'static str, file_name: &str) -> Option<Wiring> {
 
     assert!(
         filesystem_proto::grant::fits(file_name.as_bytes()),
-        "kilo's target name rides in two argument words; this one does not fit",
+        "rmle's target name rides in two argument words; this one does not fit",
     );
     let (lo, hi) = filesystem_proto::grant::pack_name(file_name.as_bytes());
     let spec = filesystem_proto::grant::spec(file_name.len(), 0);
@@ -143,14 +143,14 @@ pub fn start(dir_name: &'static str, file_name: &str) -> Option<Wiring> {
             va: 0,
             phys: 0,
             flags: Flags::user_data(),
-        }; FILE_PAGES + KILO_STACK_PAGES + 1];
+        }; FILE_PAGES + RMLE_STACK_PAGES + 1];
         maps[0] = Mapping {
             va: TERM_OUT_VA,
             phys: term_out_phys,
             flags: Flags::user_data(),
         };
         let n = 1 + fs_service::map_channel(&mut maps[1..], FS_VA, file_shared, FILE_PAGES);
-        for (k, m) in maps[n..n + KILO_STACK_PAGES].iter_mut().enumerate() {
+        for (k, m) in maps[n..n + RMLE_STACK_PAGES].iter_mut().enumerate() {
             m.va = USER_STACK_VA - (k as u64 + 1) * FRAME_SIZE;
             m.phys = page_frame();
         }
@@ -165,11 +165,11 @@ pub fn start(dir_name: &'static str, file_name: &str) -> Option<Wiring> {
                     rendezvous_cap(dir_ep, Rights::WRITE), // slot 1: the directory
                     rendezvous_cap(report, Rights::WRITE), // slot 2: the closing report
                 ],
-                maps: &maps[..n + KILO_STACK_PAGES],
+                maps: &maps[..n + RMLE_STACK_PAGES],
             },
         )
     })
-    .expect("could not spawn kilo");
+    .expect("could not spawn rmle");
 
     Some(Wiring {
         term,

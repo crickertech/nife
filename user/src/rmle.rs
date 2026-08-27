@@ -1,9 +1,16 @@
-//! **`kilo`: the smallest real text editor** (milestone 169, design/roadmap/169-kilo-editor.md),
-//! built on the raw-keystroke primitive that milestone added to the terminal contract
-//! (`OP_RAWMODE`/`OP_READRAW`, `crates/line_editor`). Modelled on antirez's public-domain `kilo`
-//! (<https://github.com/antirez/kilo>): a fixed screen, a row array, a cursor, insert and delete,
-//! save. No dependency this milestone's own doc did not already say `kilo` needs none of: no
-//! subprocess, no dynamic linking, no threads.
+//! **`rmle`, the Rust multi-line editor: the smallest real text editor**
+//! (milestone 169, design/roadmap/169-kilo-editor.md), built on the raw-keystroke primitive that
+//! milestone added to the terminal contract (`OP_RAWMODE`/`OP_READRAW`, `crates/line_editor`).
+//! Modelled on antirez's public-domain `kilo` (<https://github.com/antirez/kilo>): a fixed
+//! screen, a row array, a cursor, insert and delete, save. No dependency this milestone's own doc
+//! did not already say `kilo` needs none of: no subprocess, no dynamic linking, no threads.
+//!
+//! Name: `rmle` rather than `kilo`, calef, 2026-08-27, to avoid the confusion of two things named
+//! `kilo` once a real C port of `kilo.c` through DECISIONS §31's foreign-language seam exists
+//! (see design/roadmap/181-persistent-foreign-component.md, milestone 181): this is a Rust
+//! reimplementation of `kilo`'s spirit and scope, not a port, and it earns its own name for the
+//! same reason the distinction from `line_editor` (a single-line editor) is worth keeping visible
+//! on sight.
 //!
 //! # Why Rust and not a port of `kilo.c`
 //!
@@ -29,7 +36,7 @@
 //!
 //! `_start(spec, name_lo, name_hi)`: the target filename arrives the way `rm` and
 //! `fs_file_caretaker` already take one (`filesystem_proto::grant::{spec, pack_name}`), not as a
-//! fourth capability slot. `kilo` never learns any other name in the directory it holds: it is not
+//! fourth capability slot. `rmle` never learns any other name in the directory it holds: it is not
 //! handed a listing right, and [`load`] only ever calls `OPEN`/`CREATE` with the one name it was
 //! started with.
 //!
@@ -53,8 +60,6 @@
 //! - **Quit confirmation is one extra `^Q`, not three.** Real `kilo` asks `KILO_QUIT_TIMES` (3)
 //!   times; this asks once. A deliberate simplification for a program this size, recorded here
 //!   rather than silently differing from the editor it is modelled on.
-//!
-//! Name: this program's own (the roadmap's word); not yet put to calef for ratification.
 
 #![no_std]
 #![allow(missing_docs)] // program entry point, not library surface (DECISIONS §107)
@@ -92,7 +97,7 @@ const TERM_OUT_VA: u64 = 0x0000_0000_0080_0000;
 /// have to learn a second one for no reason.
 const FS_VA: u64 = 0x0000_0000_0060_0000;
 
-// SAFETY: the wiring (`kernel/src/user/kilo_service.rs`) maps one page read/write at each VA
+// SAFETY: the wiring (`kernel/src/user/rmle_service.rs`) maps one page read/write at each VA
 // before this program runs, the same convention `fs_file_caretaker.rs`'s own `WINDOW` documents.
 const TERM_OUT_WINDOW: MappedWindow = unsafe { MappedWindow::new(TERM_OUT_VA, 4096) };
 // SAFETY: see above.
@@ -199,7 +204,7 @@ struct Editor {
 impl Editor {
     /// `const` so the one instance can live in `.bss` rather than on the stack: a user process
     /// here gets one 4 KiB page of stack by default (`kernel/src/user.rs`'s `USER_STACK_VA`), and
-    /// even with `kilo_service.rs`'s extra pages this struct plus this debug build's per-call
+    /// even with `rmle_service.rs`'s extra pages this struct plus this debug build's per-call
     /// overhead overflowed it once already (found the same way `user/src/line_editor.rs`'s own
     /// `DISC`/`LINE_QUEUE`/`RAW_QUEUE` static fix was found: a real `Data abort` with `sp` just
     /// past the mapped stack). `display_terminal.rs`'s `TERMINAL` is the precedent for this fix.
@@ -462,10 +467,10 @@ fn redraw(ed: &mut Editor) {
         push(buf, &mut n, b"\x1b[K\r\n");
     }
 
-    // Status bar: filename-free (kilo never learns its own name past the OPEN call), row count
+    // Status bar: filename-free (rmle never learns its own name past the OPEN call), row count
     // and dirty marker, which is what a status bar can honestly show here.
     push(buf, &mut n, b"\x1b[7m"); // reverse video
-    push(buf, &mut n, b"kilo -- ");
+    push(buf, &mut n, b"rmle -- ");
     push_num(buf, &mut n, ed.nrows);
     push(buf, &mut n, b" lines");
     if ed.dirty {

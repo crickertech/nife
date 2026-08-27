@@ -1,12 +1,12 @@
-//! **`kilo` itself, driven with real keystrokes over the raw-keystroke primitive, saving a real
+//! **`rmle` itself, driven with real keystrokes over the raw-keystroke primitive, saving a real
 //! file** (milestone 169's second half).
 //!
 //! The proof shape mirrors [`raw_mode_tests`](super::raw_mode_tests): the test plays the input
-//! driver on `kilo`'s terminal, and the file it edits is verified **independently**, by the test
-//! opening the same granted directory itself after `kilo` has exited and reading the bytes back,
-//! rather than trusting `kilo`'s own report. That is the two-witness discipline this tree already
+//! driver on `rmle`'s terminal, and the file it edits is verified **independently**, by the test
+//! opening the same granted directory itself after `rmle` has exited and reading the bytes back,
+//! rather than trusting `rmle`'s own report. That is the two-witness discipline this tree already
 //! uses for the confined-C test (`c_seam`'s confiner) and the framebuffer test (driver digest and
-//! client digest, taken from two different address spaces): neither witness here is `kilo` grading
+//! client digest, taken from two different address spaces): neither witness here is `rmle` grading
 //! its own homework.
 
 use filesystem_proto::fixture::tree;
@@ -46,7 +46,7 @@ fn wait_for(mut cond: impl FnMut() -> bool) -> bool {
     cond()
 }
 
-/// Does `kilo`'s terminal-output page currently contain `needle`, anywhere in its first `len`
+/// Does `rmle`'s terminal-output page currently contain `needle`, anywhere in its first `len`
 /// bytes? Used to wait for a specific redraw (the status line changing to "saved", or the message
 /// bar showing the unsaved-changes warning) without assuming a fixed timing.
 fn page_contains(phys: u64, len: usize, needle: &[u8]) -> bool {
@@ -54,20 +54,20 @@ fn page_contains(phys: u64, len: usize, needle: &[u8]) -> bool {
     let mut buf = [0u8; 4096];
     let len = len.min(buf.len());
     for (i, b) in buf[..len].iter_mut().enumerate() {
-        // SAFETY: `phys` is kilo's own terminal-output frame, which this test allocated.
+        // SAFETY: `phys` is rmle's own terminal-output frame, which this test allocated.
         *b = unsafe { core::ptr::read_volatile((base + i as u64) as *const u8) };
     }
     buf[..len].windows(needle.len()).any(|w| w == needle)
 }
 
 /// Read a file back through a **fresh** `OPEN` on the same narrowed directory, independent of
-/// whatever handle `kilo` held (which is closed and gone by the time this runs). Returns the
+/// whatever handle `rmle` held (which is closed and gone by the time this runs). Returns the
 /// bytes actually on disk, or `None` if the name is not there.
 fn read_file_back(dir: sched::RendezvousId, file_shared: u64, name: &[u8]) -> Option<[u8; 256]> {
     let base = mmu::phys_to_virt(file_shared);
     for (i, &b) in name.iter().enumerate() {
         // SAFETY: `file_shared` is the frame this directory capability shares with its holder;
-        // safe to write once nothing else is using it, which is true after `kilo` has exited.
+        // safe to write once nothing else is using it, which is true after `rmle` has exited.
         unsafe { core::ptr::write_volatile((base + i as u64) as *mut u8, b) };
     }
     let w0 = fs::req(fs::OPEN, fs::ROOT, name.len() as u64);
@@ -90,25 +90,25 @@ fn read_file_back(dir: sched::RendezvousId, file_shared: u64, name: &[u8]) -> Op
 
 /// **Open a file, move the cursor, insert and delete characters, save** -- the milestone's own
 /// scope statement, each clause driven by a real keystroke and the save verified by an independent
-/// read of the real file `kilo` wrote.
+/// read of the real file `rmle` wrote.
 ///
 /// The script: type "helo" (a deliberate typo), arrow left twice to land the cursor between the
 /// 'e' and the 'l', insert an 'l' (fixing it to "hello", cursor left mid-word), End to reach the
 /// end of the line before Enter (so the split does not carry stray tail text onto the next row),
-/// type "kilo", `^S`, `^Q`. If any of cursor movement, mid-line insertion, End, or the newline
+/// type "rmle", `^S`, `^Q`. If any of cursor movement, mid-line insertion, End, or the newline
 /// split were broken, the saved file would not read `"hello\nkilo"`.
 #[test_case]
-fn kilo_edits_and_saves_a_real_file() {
-    let Some(w) = kilo_service::start(tree::SUB, "kilo_edit.txt") else {
+fn rmle_edits_and_saves_a_real_file() {
+    let Some(w) = rmle_service::start(tree::SUB, "rmle_edit.txt") else {
         crate::testing::skip!(fs_service::NO_FS_SERVER);
     };
 
-    // Wait for kilo's first redraw (rawmode + load + the initial paint all complete by then)
+    // Wait for rmle's first redraw (rawmode + load + the initial paint all complete by then)
     // before typing anything, so no keystroke can land while the terminal is still in canonical
     // mode from line_editor's own boot default.
     assert!(
-        wait_for(|| page_contains(w.term_out_phys, 4096, b"kilo --")),
-        "kilo never drew its first screen",
+        wait_for(|| page_contains(w.term_out_phys, 4096, b"rmle --")),
+        "rmle never drew its first screen",
     );
 
     type_text(w.term, b"helo");
@@ -116,24 +116,24 @@ fn kilo_edits_and_saves_a_real_file() {
     type_text(w.term, b"l"); // "helo" -> "hello", cursor now mid-word ("hel|lo")
     type_text(w.term, &[ESC, b'[', b'F']); // End: cursor to end of line before splitting it
     type_text(w.term, b"\r");
-    type_text(w.term, b"kilo");
+    type_text(w.term, b"rmle");
     type_text(w.term, &[CTRL_S]);
 
     assert!(
         wait_for(|| page_contains(w.term_out_phys, 4096, b"saved")),
-        "kilo never reported a successful save",
+        "rmle never reported a successful save",
     );
 
     type_text(w.term, &[CTRL_Q]);
     let [status, dirty, ..] = sched::ipc_recv(w.report);
     assert_eq!(
         status, 1, /* STATUS_QUIT */
-        "kilo did not quit cleanly"
+        "rmle did not quit cleanly"
     );
-    assert_eq!(dirty, 0, "kilo quit dirty after a save");
+    assert_eq!(dirty, 0, "rmle quit dirty after a save");
 
-    let got = read_file_back(w.dir, w.file_shared, b"kilo_edit.txt")
-        .expect("the file kilo saved is not there");
+    let got = read_file_back(w.dir, w.file_shared, b"rmle_edit.txt")
+        .expect("the file rmle saved is not there");
     assert!(
         got.starts_with(b"hello\nkilo"),
         "saved content is wrong: {:?}",
@@ -144,15 +144,15 @@ fn kilo_edits_and_saves_a_real_file() {
 /// **Quitting a dirty document needs a second `^Q`, and refusing the first one does not save.**
 ///
 /// This is the negative control the save test does not cover: without it, "the file has the right
-/// content" would be consistent with `kilo` saving on every keystroke rather than only on `^S`.
+/// content" would be consistent with `rmle` saving on every keystroke rather than only on `^S`.
 #[test_case]
-fn kilo_refuses_to_quit_dirty_without_confirmation() {
-    let Some(w) = kilo_service::start(tree::SUB, "kilo_dirty.txt") else {
+fn rmle_refuses_to_quit_dirty_without_confirmation() {
+    let Some(w) = rmle_service::start(tree::SUB, "rmle_dirty.txt") else {
         crate::testing::skip!(fs_service::NO_FS_SERVER);
     };
     assert!(
-        wait_for(|| page_contains(w.term_out_phys, 4096, b"kilo --")),
-        "kilo never drew its first screen",
+        wait_for(|| page_contains(w.term_out_phys, 4096, b"rmle --")),
+        "rmle never drew its first screen",
     );
 
     type_text(w.term, b"unsaved");
@@ -163,7 +163,7 @@ fn kilo_refuses_to_quit_dirty_without_confirmation() {
     type_text(w.term, &[CTRL_Q]);
     assert!(
         wait_for(|| page_contains(w.term_out_phys, 4096, b"unsaved changes")),
-        "kilo did not warn about unsaved changes on the first ^Q",
+        "rmle did not warn about unsaved changes on the first ^Q",
     );
 
     type_text(w.term, &[CTRL_Q]);
@@ -171,13 +171,13 @@ fn kilo_refuses_to_quit_dirty_without_confirmation() {
     assert_eq!(status, 1 /* STATUS_QUIT */, "the second ^Q must quit");
     assert_eq!(
         dirty, 1,
-        "kilo quit without ever having saved; it must report dirty"
+        "rmle quit without ever having saved; it must report dirty"
     );
 
-    // And the independent witness: nothing was ever written, so the name kilo created (CREATE, on
+    // And the independent witness: nothing was ever written, so the name rmle created (CREATE, on
     // load, since it did not exist) reads back empty.
-    let got = read_file_back(w.dir, w.file_shared, b"kilo_dirty.txt")
-        .expect("kilo's load(CREATE) should have made the name exist");
+    let got = read_file_back(w.dir, w.file_shared, b"rmle_dirty.txt")
+        .expect("rmle's load(CREATE) should have made the name exist");
     assert!(
         got.iter().all(|&b| b == 0),
         "quitting without saving must not have written anything",

@@ -3484,17 +3484,17 @@ pub mod raw_mode_service;
 #[cfg(all(test, initrd))]
 mod raw_mode_tests;
 
-/// **`kilo`'s wiring** (milestone 169): a real terminal ([`raw_mode_service`]'s own shape) and a
+/// **`rmle`'s wiring** (milestone 169): a real terminal ([`raw_mode_service`]'s own shape) and a
 /// real filesystem ([`fs_service::narrow_dir`]'s shape) composed for the one program in this tree
 /// that needs both at once.
-#[cfg_attr(not(test), allow(dead_code))] // the milestone-169 kilo tests are its only caller
-pub mod kilo_service;
+#[cfg_attr(not(test), allow(dead_code))] // the milestone-169 rmle tests are its only caller
+pub mod rmle_service;
 
-/// **`kilo` itself**: open a file, move a cursor, insert and delete characters, save. Driven with
+/// **`rmle` itself**: open a file, move a cursor, insert and delete characters, save. Driven with
 /// real keystrokes over the raw-keystroke primitive, and the saved file verified independently of
-/// `kilo`'s own report. See the module's own doc for why that independence matters.
+/// `rmle`'s own report. See the module's own doc for why that independence matters.
 #[cfg(all(test, initrd))]
-mod kilo_tests;
+mod rmle_tests;
 
 /// **No test may leak a runnable thread** (the regression proxy for the test-thread starvation that
 /// made the RedoxFS mount overrun the hang watchdog under the net boot). A one-shot driver that

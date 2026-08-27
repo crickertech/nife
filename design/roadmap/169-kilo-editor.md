@@ -1,6 +1,17 @@
 # 169. `kilo`: the smallest real text editor, as the forcing function for raw terminal input
 
-**Status: NOT-STARTED.** Minted 2026-08-25, from calef asking what a lightweight first text editor
+**Status: BUILT**, 2026-08-27, as `rmle` rather than a literal `kilo.c` port. The raw-keystroke
+primitive (`OP_RAWMODE`/`OP_READRAW`, `crates/line_editor`) is built and proven; the editor itself
+is a Rust reimplementation of `kilo`'s spirit and scope (`user/src/rmle.rs`), not a port, because
+DECISIONS §31's foreign-language seam as actually built is a one-shot call and cannot support
+`kilo`'s own blocking event loop without new seam infrastructure (that infrastructure is
+[milestone 181](181-persistent-foreign-component.md), raised separately). **Named `rmle`, not
+`kilo`**, calef, 2026-08-27, specifically to avoid two things being called `kilo` once a real
+`kilo.c` port through milestone 181's extended seam exists; see `rmle.rs`'s own module doc for the
+full naming note. This milestone's own primary deliverable, the raw-keystroke primitive, is
+unaffected by the naming question either way.
+
+Minted 2026-08-25, from calef asking what a lightweight first text editor
 for nife might be, after a dependency review of Emacs, nano and vim (in that order) found the same
 wall under all three: [DECISIONS §31](../decisions/31-foreign-language-seam.md) forbids C code from
 making a syscall or holding a capability directly, so any C program's port is really "rewrite its
@@ -11,9 +22,6 @@ text editor written explicitly to have almost no dependencies: raw termios mode 
 ANSI escape sequences, no ncurses, no subprocess calls, no dynamic linking, no threads. It is the
 cheapest real program that exercises nife's one missing terminal capability without also carrying
 nano's or vim's much larger optional-feature surface.
-
-**Gate: NONE.** Software-only, reachable under QEMU on every architecture nife already boots
-userspace on; nothing here needs a board.
 
 ## The one real gap this milestone exists to close
 
