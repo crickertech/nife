@@ -4,11 +4,11 @@
 land in a `swish` prompt on a real terminal" against the actual code rather than the roadmap's own
 framing, and finding no milestone owns the gap this surfaced.
 
-**Gate: DECISION.** Reversed from the original `Gate: NONE` above (2026-08-27, an investigation
-lane): what looked like pure wiring turned out to sit on a real, unresolved architectural question.
-See "The investigation, 2026-08-27" below before starting any of the three pieces; piece 1's own
-plan as originally written does not fit, and piece 2 cannot be built at all until the fork is
-answered.
+**Gate: NONE.** Was `Gate: DECISION` (2026-08-27, an investigation lane found piece 1's own plan
+does not fit and piece 2 cannot be built until the input-routing fork below is answered); decided
+the same day, calef: **Option A**, a direct `kbd` -> `line_editor` grant, fixed at spawn, no
+compositor in this path. See "The investigation, 2026-08-27" below for the full reasoning and the
+two options not taken.
 
 ## What actually blocks this
 
@@ -108,7 +108,7 @@ focus arbitration solves does not exist in this journey's actual scope. `display
 GPU ownership, because a single terminal does not need multiplexing); the options below differ on
 whether the input side follows that same logic or not.
 
-Three shapes, priced, none decided:
+Three shapes, priced. **Decided 2026-08-27, calef: A.**
 
 - **A. Give `kbd` a second delivery mode**: `CALL` `line_editor`'s endpoint directly, fixed at
   spawn, for the boot's own single-terminal case, the same shape `display_terminal`'s own
@@ -131,12 +131,11 @@ Three shapes, priced, none decided:
   the pattern the reframing names as the thing to be wary of. Kept here rather than deleted so the
   reasoning that ruled it out stays visible.
 
-**Recommendation: A.** Not merely cheapest; per the reframing above it is the design this journey's
-actual scope calls for, and B's real benefit (multi-window arbitration) is not yet needed by
-anything in this tree. Still calef's to confirm: this is a wire contract between two programs, the
-category `AGENTS.md` reserves for him rather than a lane, and the recommendation should be checked
-against whether milestone 49's own near-term plans make B's multi-session case closer than it
-looks from here.
+**Decided: A** (calef, 2026-08-27, "Go with option A, build it"). Not merely cheapest; per the
+reframing above it is the design this journey's actual scope calls for, and B's real benefit
+(multi-window arbitration) is not yet needed by anything in this tree. B remains buildable later,
+additively, whenever a second concurrent session actually needs the keyboard; A does not foreclose
+it.
 
 **Finding 3 corrects this doc's own sequencing claim.** The original text (below, in "what this
 unblocks") said piece 3 (x86_64's entry point) is provable against the plain `console`/`input` pair
