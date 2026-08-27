@@ -53,6 +53,11 @@
 //!         virtio_rng: 9,
 //!         virtio_rng_irq: 10,
 //!         virtio_rng_dma: 11,
+//!         // The graphical terminal stack (milestone 177, option A): empty on a boot with no GPU
+//!         // or no keyboard attached, the same "absence, not failure" shape as the virtio-rng trio.
+//!         disp_term_ep: 12,
+//!         disp_term_page: 13,
+//!         kbd_ep: 14,
 //!         // Empty here. On aarch64 this holds the kernel's report endpoint and a test SGI, because
 //!         // that boot path is shared with milestone 19d's test roles; init deletes them with the
 //!         // device authority once the drivers exist, rather than keeping delegable authority for
@@ -72,18 +77,28 @@
 //!
 //! Reading that struct literal is meant to tell you the complete authority of the system about to
 //! exist, which is why the fields are named for what they *are* rather than numbered. Note what is
-//! not in it: no framebuffer, no network, and no second budget.
+//! not in it: no network and no second budget.
 //!
 //! # What the kernel hands over, and what this builds from it
 //!
 //! [`BootEndowment`] names the capabilities the kernel granted: a construction budget, the UART's registers
-//! as a device capability, the UART receive interrupt, a read-only view of the wall clock, and, when
-//! this boot attached a RedoxFS disk, the file service and the page its clients share with it. From
+//! as a device capability, the UART receive interrupt, a read-only view of the wall clock, when
+//! this boot attached a RedoxFS disk the file service and the page its clients share with it, and,
+//! when a GPU and a keyboard are both attached (milestone 177, option A), `display_terminal`'s own
+//! served endpoint and output page, plus the endpoint the keyboard driver already `CALL`s. From
 //! those, and nothing else, [`boot`] builds the whole interactive system out of its own budget:
 //!
-//! 1. the **console** server (output): reads text from a shared page, writes it to the UART;
-//! 2. the **input** driver (keystrokes): waits on the UART receive interrupt, forwards bytes;
-//! 3. the **line discipline** (`line_editor`, milestone 28): editing, echo, history, between them;
+//! 1. **output**: the **console** server, reading text from a shared page and writing it to the
+//!    UART, when this boot has no graphical terminal stack. When it does, there is no console
+//!    server at all: `display_terminal` was already built kernel-side, before this process existed,
+//!    and `line_editor` prints through it directly instead.
+//! 2. **keystrokes**: the **input** driver, waiting on the UART receive interrupt and forwarding
+//!    bytes, in the same "no graphical stack" case. When there is one, `kbd` plays this role
+//!    instead, also built kernel-side, `CALL`ing `line_editor`'s own endpoint directly rather than
+//!    going through this process at all (option A's whole point: no compositor in this path).
+//! 3. the **line discipline** (`line_editor`, milestone 28): editing, echo, history, between
+//!    whichever pair of the above this boot has. The same server either way; only its output-side
+//!    wire shape changes (`mode`, `user/src/line_editor.rs`'s own `MODE_CONSOLE`/`MODE_DISPLAY`).
 //! 4. the **shell**: prints and reads lines through the terminal endpoint, runs commands, and since
 //!    milestone 86 holds a `READ` view of the wall clock so `time <command>` can measure one;
 //! 5. the **terminal's sink adapter** (`terminal_sink_caretaker`, milestone 50), when the archive
@@ -218,7 +233,7 @@ use supervision_proto::{
     ChildEndowment, build_child, retype_obj_from as retype_obj,
     retype_page_frame_from as retype_page_frame, thread_control_block_start,
 };
-use user_rt::{call, cap_delete, invoke, recv, recv_cap, send};
+use user_rt::{call, cap_delete, granted, invoke, recv, recv_cap, send};
 
 /// **The capabilities the kernel granted this init, by slot.** The one thing the two boards do not
 /// agree on, so it is data each init states rather than code this crate repeats.
@@ -290,6 +305,31 @@ pub struct BootEndowment {
     /// value; no capability exposes one), then delegates the same frame to the entropy service it
     /// builds, unread by anything else in between.
     pub virtio_rng_dma: u64,
+    /// **`display_terminal`'s own served endpoint, when this boot has a graphical terminal stack**
+    /// (milestone 177, option A). The kernel builds the virtio-gpu driver and `display_terminal`
+    /// itself, before this process exists (`kernel::user::boot_graphical_terminal`, mirroring
+    /// [`fs_ep`](BootEndowment::fs_ep)'s own shape: a virtio-gpu device alone needs eleven
+    /// capability-table slots, which does not fit this process's own budget). `WRITE | GRANT`, so
+    /// this process can hand it to `line_editor` as the endpoint it prints through in place of the
+    /// console. **Absent** (holds nothing) on a boot with no GPU, no keyboard, or no
+    /// `display`/`display_terminal`/`kbd` program in the archive, the same "0/empty means absent"
+    /// shape [`fs_ep`](BootEndowment::fs_ep) already carries; [`boot`] probes for it the same way.
+    pub disp_term_ep: u64,
+    /// The physical page shared with `display_terminal`, written before an `OP_WRITE` on
+    /// [`disp_term_ep`](BootEndowment::disp_term_ep); see that field's own doc for when this is
+    /// absent. `READ | WRITE | GRANT`.
+    pub disp_term_page: u64,
+    /// **The endpoint the keyboard driver already holds `WRITE` (`CALL`) on**, when this boot has
+    /// one (milestone 177, option A). The kernel spawns the keyboard driver kernel-side too, wired
+    /// to this endpoint at its own spawn time, for a reason distinct from the GPU's: its target is
+    /// `line_editor`'s own served endpoint, which does not exist until this process builds it, and
+    /// a driver this process spawns can only be wired to capabilities it already holds. Granting
+    /// `READ | WRITE | GRANT` here lets this process delegate `READ` to `line_editor` (as its own
+    /// terminal endpoint, in place of a self-created one) and `WRITE` to `swish`, exactly the two
+    /// views the plain-console boot already carves out of a self-created endpoint of the same
+    /// shape. Absent in the same sense as
+    /// [`disp_term_ep`](BootEndowment::disp_term_ep); the two are granted together or not at all.
+    pub kbd_ep: u64,
     /// **Capabilities the kernel granted that the interactive system never uses**, deleted with the
     /// device authority once the drivers exist.
     ///
@@ -458,6 +498,14 @@ const RNG_DMA_VA: u64 = 0x0000_0000_0090_0000;
 /// contract between two user programs, so rule 7 does not apply the way it does to `RNG_DMA_VA`.
 const RNG_MODE_VIRTIO: u64 = 0;
 
+/// `line_editor.rs`'s own spawn-argument convention (`user/src/line_editor.rs`'s `MODE_CONSOLE`):
+/// [`RNG_MODE_VIRTIO`]'s own reasoning, one program over. The pre-milestone-177 wiring: prints
+/// through the console's bespoke two-endpoint protocol.
+const LINE_EDITOR_MODE_CONSOLE: u64 = 0;
+/// `line_editor.rs`'s own `MODE_DISPLAY`: milestone 177's wiring, prints through
+/// `display_terminal`'s `OP_WRITE`/one-`CALL` contract instead.
+const LINE_EDITOR_MODE_DISPLAY: u64 = 1;
+
 // The VAs each program hardcodes; they must match console.rs / input.rs / line_editor.rs / swish.rs.
 const CON_SHARED_VA: u64 = 0x0060_0000; // console reads text here; line_editor writes it
 const CON_UART_VA: u64 = 0x0070_0000; // console's UART mapping
@@ -583,6 +631,31 @@ pub fn boot(
     // component-builds earlier costs nothing this boot was using.
     for &c in g.for_test_roles {
         cap_delete(c);
+    }
+
+    // **Graphical, when this boot has a GPU and a keyboard both attached** (milestone 177, option
+    // A). Probed the same way the virtio-rng trio is (`user_rt::granted`, since there is no
+    // fourth `START` argument word left to be told with instead): `disp_term_ep` and `kbd_ep` are
+    // granted together or not at all (`kernel::user::boot_graphical_terminal`'s own contract), so
+    // checking one stands for both.
+    //
+    // **Computed and acted on here, at the very top, not where it is first needed** (found by
+    // hitting the wall the same way the paragraph below describes: bisection, not reasoning).
+    // `disp_term_ep`/`disp_term_page`/`kbd_ep` are kernel grants, alive from spawn, so on a
+    // graphical boot they inflate the resting baseline for the **whole** function exactly the way
+    // the virtio-rng trio already does (this paragraph's own next one) -- and this function's
+    // baseline was already tight enough that the virtio-rng trio's own three slots forced entropy
+    // to move all the way to the top once. Three more permanent slots on top of that pushed the
+    // *entropy* build itself past the wall (`must(build_child(...))` for `ent_program`, which
+    // retypes an `AddressSpace` and a `THREAD_CONTROL_BLOCK` from this same table, first-free,
+    // with only `for_test_roles`'s two freed slots to draw from). `uart_dev`/`uart_irq` are dead
+    // weight on a graphical boot from this line on (no console, no input driver ever reaches
+    // them), so freeing them here, before entropy spends anything, is what buys those two slots
+    // back before the peak that needed them.
+    let has_graphical = granted(g.disp_term_ep);
+    if has_graphical {
+        cap_delete(g.uart_dev);
+        cap_delete(g.uart_irq);
     }
 
     // **The entropy service** (DECISIONS §120's 2026-08-26 amendment), when the kernel granted a
@@ -712,58 +785,128 @@ pub fn boot(
         fail()
     };
 
+    // `has_graphical` and the early `uart_dev`/`uart_irq` free both already happened, at the top
+    // of this function, before the entropy block: see that comment for why the timing is
+    // load-bearing rather than tidiness.
+
     // The endpoints and shared pages we own and hand out, each retyped with full rights so we can
     // delegate narrowed views. `term_ep` is the terminal contract's one endpoint: the discipline
-    // serves it; the input driver and the shell only hold WRITE on it, and neither can tell what
-    // is on the other side (notes/terminal-contract.md).
-    let request = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
-    let reply = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
-    let term_ep = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
-    let con_shared = must(retype_page_frame(ut)); // line_editor -> console text
+    // serves it; the input driver (or `kbd`) and the shell only hold WRITE on it, and neither can
+    // tell what is on the other side (notes/terminal-contract.md). In the graphical case it is not
+    // ours to create: `kbd` already holds `WRITE` on `g.kbd_ep`, fixed at its own kernel-side spawn
+    // time, so that is the endpoint `line_editor` has to serve instead of a fresh one.
     let term_out = must(retype_page_frame(ut)); // shell -> line_editor text and prompts
     let term_in = must(retype_page_frame(ut)); // line_editor -> shell completed lines
 
-    // 1. Console server: reads text from the shared page, writes it to the UART.
-    let con = must(build_child(
-        ut,
-        ut,
-        &con_elf,
-        &ChildEndowment {
-            caps: &[(request, abi::rights::READ), (reply, abi::rights::WRITE)],
-            maps: &[
-                (CON_SHARED_VA, con_shared, abi::address_space::MAP_RO),
-                (CON_UART_VA, g.uart_dev, abi::address_space::MAP_RO), // mode ignored for a DeviceFrame
-            ],
-            stack_pages: CHILD_STACK_PAGES,
-            ..ChildEndowment::new()
-        },
-    ));
-    must_ok(thread_control_block_start(con, 0, 0, 0));
-    cap_delete(con);
+    let term_ep = if has_graphical {
+        g.kbd_ep
+    } else {
+        must(retype_obj(ut, abi::objtype::RENDEZVOUS))
+    };
 
-    // 2. The line discipline: serves the terminal endpoint, prints through the console. It is
-    // the console's only client; everyone else prints through it.
-    let line_editor = must(build_child(
-        ut,
-        ut,
-        &td_elf,
-        &ChildEndowment {
-            caps: &[
-                (term_ep, abi::rights::READ),
-                (request, abi::rights::WRITE),
-                (reply, abi::rights::READ),
-            ],
-            maps: &[
-                (CON_SHARED_VA, con_shared, abi::address_space::MAP_RW), // it fills what the console reads
-                (TERM_OUT_VA, term_out, abi::address_space::MAP_RO),
-                (TERM_IN_VA, term_in, abi::address_space::MAP_RW),
-            ],
-            stack_pages: CHILD_STACK_PAGES,
-            ..ChildEndowment::new()
-        },
-    ));
-    must_ok(thread_control_block_start(line_editor, 0, 0, 0));
-    cap_delete(line_editor);
+    if has_graphical {
+        // No console, no input driver, no separate request/reply pair or shared page: `kbd` and
+        // `display_terminal` are already running (built kernel-side, before this process existed),
+        // and `line_editor` is their only client. It prints through `display_terminal`'s own
+        // `OP_WRITE`/one-`CALL` contract (`g.disp_term_ep`/`g.disp_term_page`, `LINE_EDITOR_MODE_DISPLAY`)
+        // instead of the console's bespoke two-endpoint one.
+        let r = build_child(
+            ut,
+            ut,
+            &td_elf,
+            &ChildEndowment {
+                caps: &[
+                    (term_ep, abi::rights::READ),
+                    (g.disp_term_ep, abi::rights::WRITE),
+                ],
+                maps: &[
+                    (CON_SHARED_VA, g.disp_term_page, abi::address_space::MAP_RW),
+                    (TERM_OUT_VA, term_out, abi::address_space::MAP_RO),
+                    (TERM_IN_VA, term_in, abi::address_space::MAP_RW),
+                ],
+                stack_pages: CHILD_STACK_PAGES,
+                ..ChildEndowment::new()
+            },
+        );
+        let line_editor = must(r);
+        must_ok(thread_control_block_start(
+            line_editor,
+            LINE_EDITOR_MODE_DISPLAY,
+            0,
+            0,
+        ));
+        cap_delete(line_editor);
+
+        // `g.disp_term_ep`/`g.disp_term_page` are ours no further: `line_editor` holds its own
+        // narrowed copies, granting was a copy rather than a move (the same reason `con_shared`
+        // is freed on the console side below), and nothing else in this boot ever needs to reach
+        // `display_terminal` directly. `term_ep` (== `g.kbd_ep` in this branch) is not freed here:
+        // it is freed with the console branch's own copy, further down, by code that does not
+        // know or care which branch produced it.
+        cap_delete(g.disp_term_ep);
+        cap_delete(g.disp_term_page);
+    } else {
+        let request = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
+        let reply = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
+        let con_shared = must(retype_page_frame(ut)); // line_editor -> console text
+
+        // 1. Console server: reads text from the shared page, writes it to the UART.
+        let con = must(build_child(
+            ut,
+            ut,
+            &con_elf,
+            &ChildEndowment {
+                caps: &[(request, abi::rights::READ), (reply, abi::rights::WRITE)],
+                maps: &[
+                    (CON_SHARED_VA, con_shared, abi::address_space::MAP_RO),
+                    (CON_UART_VA, g.uart_dev, abi::address_space::MAP_RO), // mode ignored for a DeviceFrame
+                ],
+                stack_pages: CHILD_STACK_PAGES,
+                ..ChildEndowment::new()
+            },
+        ));
+        must_ok(thread_control_block_start(con, 0, 0, 0));
+        cap_delete(con);
+
+        // 2. The line discipline: serves the terminal endpoint, prints through the console. It is
+        // the console's only client; everyone else prints through it. `LINE_EDITOR_MODE_CONSOLE`
+        // (0) is `thread_control_block_start`'s own default, so this is unchanged from before
+        // milestone 177 gave `line_editor` a second mode.
+        let line_editor = must(build_child(
+            ut,
+            ut,
+            &td_elf,
+            &ChildEndowment {
+                caps: &[
+                    (term_ep, abi::rights::READ),
+                    (request, abi::rights::WRITE),
+                    (reply, abi::rights::READ),
+                ],
+                maps: &[
+                    (CON_SHARED_VA, con_shared, abi::address_space::MAP_RW), // it fills what the console reads
+                    (TERM_OUT_VA, term_out, abi::address_space::MAP_RO),
+                    (TERM_IN_VA, term_in, abi::address_space::MAP_RW),
+                ],
+                stack_pages: CHILD_STACK_PAGES,
+                ..ChildEndowment::new()
+            },
+        ));
+        must_ok(thread_control_block_start(
+            line_editor,
+            LINE_EDITOR_MODE_CONSOLE,
+            0,
+            0,
+        ));
+        cap_delete(line_editor);
+
+        // `request`/`reply`/`con_shared` are ours no further: the console and `line_editor` both
+        // hold their own narrowed copies (the console's own doc, one screen down, gives the
+        // sixteen-slot reason this cannot wait). The graphical branch above never retypes these at
+        // all, so there is nothing of theirs to free here.
+        for c in [request, reply, con_shared] {
+            cap_delete(c);
+        }
+    }
 
     // **Refuse the system if a required component is not the one that was measured** (milestone
     // 104), here, because this is the earliest point at which init can be read by a person and the
@@ -812,29 +955,36 @@ pub fn boot(
     };
 
     // 3. Input driver: waits on the UART receive interrupt, forwards raw bytes to the terminal.
-    let input = must(build_child(
-        ut,
-        ut,
-        &in_elf,
-        &ChildEndowment {
-            caps: &[
-                (term_ep, abi::rights::WRITE),
-                (g.uart_irq, abi::rights::READ),
-            ],
-            maps: &[(IN_UART_VA, g.uart_dev, abi::address_space::MAP_RO)],
-            stack_pages: CHILD_STACK_PAGES,
-            ..ChildEndowment::new()
-        },
-    ));
-    must_ok(thread_control_block_start(input, 0, 0, 0));
-    cap_delete(input);
+    // **Skipped entirely in the graphical case**: `kbd` already plays this role, spawned
+    // kernel-side and wired directly to `term_ep` before this process existed. `g.uart_dev`/
+    // `g.uart_irq` are still granted either way (their slot numbers do not move; see
+    // `BootEndowment`'s own doc), simply unused, and freed below regardless of mode.
+    if !has_graphical {
+        let input = must(build_child(
+            ut,
+            ut,
+            &in_elf,
+            &ChildEndowment {
+                caps: &[
+                    (term_ep, abi::rights::WRITE),
+                    (g.uart_irq, abi::rights::READ),
+                ],
+                maps: &[(IN_UART_VA, g.uart_dev, abi::address_space::MAP_RO)],
+                stack_pages: CHILD_STACK_PAGES,
+                ..ChildEndowment::new()
+            },
+        ));
+        must_ok(thread_control_block_start(input, 0, 0, 0));
+        cap_delete(input);
+    }
 
-    // **The console's three capabilities go back now, before the shell is built**, and that is not
+    // **The console's capabilities go back now, before the shell is built**, and that is not
     // tidiness: this capability table has sixteen slots, and milestone 50 added two more kernel grants (the
     // file service and its page). With them held, the shell's `build_child` had no slot left to
     // retype an address space into and failed silently, which presented as a boot that brought up
     // the console and then printed nothing. Nothing below needs these: line_editor is the console's
-    // only client and it already holds its narrowed copies.
+    // only client (or `display_terminal`'s, in the graphical case) and it already holds its
+    // narrowed copies.
     //
     // **The device and the interrupt go with them** (milestone 22, the interactive increment). Both
     // drivers that need them exist and hold their own narrowed copies, and nothing below builds
@@ -842,8 +992,15 @@ pub fn boot(
     // anything it later builds. Dropping them here is the same act as dropping the construction
     // budget further down, one boot stage earlier. `unused` is whatever else this board's kernel
     // granted that the interactive system never had a use for.
-    for c in [request, reply, con_shared, g.uart_dev, g.uart_irq] {
-        cap_delete(c);
+    //
+    // **Already freed in the graphical case**, earlier and for a stronger reason than tidiness
+    // (see the comment where `has_graphical` frees them, above): this table had no slot to spare
+    // for `term_out`/`term_in` otherwise. Freeing an empty slot here would be harmless, but
+    // skipping it is what makes the earlier comment's claim ("free the instant they are dead
+    // weight") true rather than aspirational.
+    if !has_graphical {
+        cap_delete(g.uart_dev);
+        cap_delete(g.uart_irq);
     }
     // `for_test_roles` no longer needs freeing here: it is freed at the top of this function now,
     // two component-builds earlier, for the reason recorded there.

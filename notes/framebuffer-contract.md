@@ -334,6 +334,23 @@ Deliberately not in rung one, each with the seam it will use:
   sets it up, which is why the multi-queue confinement's two-queue ceiling (DECISIONS §23) is
   untouched by this milestone.
 
+## BUGS
+
+**A second `FLUSH` through the real interactive boot's own driver instance does not return**
+(found 2026-08-27, milestone 177's boot-wiring lane). The kernel test harness and the boot's own
+first "blank grid" present both prove a *first* `FLUSH` completes; nothing before this milestone
+exercised a *second*, externally-triggered flush through this exact live sequence (`line_editor` ->
+`display_terminal` -> the driver, over the real boot's own capability wiring rather than the
+isolated test harness). Live thread-dump diagnosis found `display_terminal` blocked in `CALL` to
+the driver's serving endpoint indefinitely, with nothing receiving on it; ruled out an
+entropy/virtio-rng interaction (reproduces identically with `NIFE_RNG` unset). Best-supported
+hypothesis, not yet confirmed: the driver is stuck on its own completion IRQ for the second flush,
+which would make this a pre-existing characteristic of this file's own IRQ handling rather than
+something milestone 177's capability wiring introduced, since that wiring is independently verified
+correct by the same diagnostics that found this. Not yet root-caused; see [milestone
+177](../design/roadmap/177-graphical-interactive-boot.md)'s own status for the two next steps
+recorded there.
+
 ## Where the pieces are
 
 | piece | file |

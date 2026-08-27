@@ -1510,6 +1510,111 @@ fn scanout_matches(ppm: &[u8], want_pixel: impl Fn(u32, u32) -> u32) -> Result<(
     Ok(())
 }
 
+/// Parse a `screendump` P6 PPM into `(width, height, rgb bytes)`. [`scanout_matches`]'s own header
+/// walk, lifted out for milestone 177's graphical shell-check leg, which reads a screendump's text
+/// back out instead of comparing it against a picture computed in advance (there is no such picture
+/// for a live, typed shell session; see [`decode_cell`]).
+fn parse_ppm(ppm: &[u8]) -> Result<(u32, u32, &[u8]), String> {
+    let text = String::from_utf8_lossy(&ppm[..ppm.len().min(64)]).to_string();
+    let mut fields = text.split_ascii_whitespace();
+    if fields.next() != Some("P6") {
+        return Err("not a P6 PPM".into());
+    }
+    let w: u32 = fields
+        .next()
+        .and_then(|f| f.parse().ok())
+        .ok_or("no width")?;
+    let h: u32 = fields
+        .next()
+        .and_then(|f| f.parse().ok())
+        .ok_or("no height")?;
+    let maxval = fields.next().ok_or("no maxval")?;
+    if maxval != "255" {
+        return Err(format!("maxval {maxval}, expected 255"));
+    }
+    let mut seen = 0;
+    let mut i = 0;
+    while i < ppm.len() && seen < 4 {
+        if ppm[i].is_ascii_whitespace() {
+            seen += 1;
+            while seen < 4 && i + 1 < ppm.len() && ppm[i + 1].is_ascii_whitespace() {
+                i += 1;
+            }
+        }
+        i += 1;
+    }
+    let pixels = &ppm[i..];
+    let want_len = (w * h * 3) as usize;
+    if pixels.len() < want_len {
+        return Err(format!(
+            "short by {} bytes (QEMU may still be writing)",
+            want_len - pixels.len()
+        ));
+    }
+    Ok((w, h, &pixels[..want_len]))
+}
+
+/// **Read one glyph cell back out of a screendump**, the reverse of the direction every other
+/// scanout check in this file runs: those compare against a picture predicted in advance, and there
+/// is no way to predict a live, typed shell session's screen in advance (milestone 177's graphical
+/// shell-check leg: the boot banner's exact wrapped, scrolled position in an 18x8 grid depends on
+/// wording nobody wants two copies of, so this reads the picture instead of guessing it).
+///
+/// Tries every byte in `alphabet` against [`bitmap_font::cell_pixel`]'s own definition, at the
+/// terminal's own default colours (`video_terminal::Attr::DEFAULT`; nothing this leg looks for is
+/// ever printed with a colour escape). Returns the one that matches every one of the cell's
+/// `GLYPH_W * GLYPH_H` pixels exactly, or `None` if nothing in `alphabet` does (a blank cell, a
+/// byte outside `alphabet`, or the reversed cursor cell, which this deliberately does not decode:
+/// see the module note on why a caller never needs to).
+fn decode_cell(w: u32, pixels: &[u8], col: u32, row: u32, alphabet: &[u8]) -> Option<u8> {
+    let (fg, bg) = video_terminal::Attr::DEFAULT.colours();
+    'byte: for &b in alphabet {
+        for gy in 0..bitmap_font::GLYPH_H {
+            for gx in 0..bitmap_font::GLYPH_W {
+                let (x, y) = (
+                    col * bitmap_font::GLYPH_W + gx,
+                    row * bitmap_font::GLYPH_H + gy,
+                );
+                let o = ((y * w + x) * 3) as usize;
+                let want = bitmap_font::cell_pixel(b, gx, gy, fg, bg);
+                let (r, g, bl) = (
+                    ((want >> 16) & 0xff) as u8,
+                    ((want >> 8) & 0xff) as u8,
+                    (want & 0xff) as u8,
+                );
+                if (pixels[o], pixels[o + 1], pixels[o + 2]) != (r, g, bl) {
+                    continue 'byte;
+                }
+            }
+        }
+        return Some(b);
+    }
+    None
+}
+
+/// **Read every row of a screendump back into text**, decoding each of the 18x8 grid's cells
+/// against `alphabet` and leaving `b'?'` where nothing in it matches. One string per row, so a
+/// caller can search for a substring without caring which row it landed on (the boot banner's exact
+/// scroll position is exactly what this leg does not want to have to predict).
+fn scanout_rows(ppm: &[u8], alphabet: &[u8]) -> Result<Vec<String>, String> {
+    let (w, h, pixels) = parse_ppm(ppm)?;
+    if (w, h) != (graphics_proto::WIDTH, graphics_proto::HEIGHT) {
+        return Err(format!(
+            "scanout is {w}x{h}, the surface is {}x{}",
+            graphics_proto::WIDTH,
+            graphics_proto::HEIGHT
+        ));
+    }
+    let (cols, rows) = (w / bitmap_font::GLYPH_W, h / bitmap_font::GLYPH_H);
+    Ok((0..rows)
+        .map(|row| {
+            (0..cols)
+                .map(|col| decode_cell(w, pixels, col, row, alphabet).unwrap_or(b'?') as char)
+                .collect::<String>()
+        })
+        .collect())
+}
+
 /// **Press a key on the guest's keyboard**, over the same monitor the scanout check uses.
 ///
 /// Nothing inside the guest can press a key, which is the point of testing a real input device, so
@@ -6876,13 +6981,29 @@ fn shell_check() -> bool {
             return false;
         }
     };
+    // `--graphical` (milestone 177, option A): the same two legs, with the GPU and the keyboard
+    // attached instead of the plain UART pair, verified by screendump rather than by transcript.
+    // See [`shell_check_leg_graphical`]'s own doc for why this needs a whole different verification
+    // shape rather than two env vars added to [`shell_check_leg`].
+    let graphical = std::env::args().any(|a| a == "--graphical");
+
     // TCG only. This boot never exits (the shell loops on its prompt), so it is killed rather than
     // waited on, and there is nothing HVF would buy a gate that spends its time in QEMU's serial.
     // SAFETY: `set_var`/`remove_var` became unsafe in edition 2024 because they race other
     // threads. xtask is single-threaded here: this runs on the main thread before the child
     // that reads it is spawned, and the only thread xtask ever starts (the transcript reader
-    // in shell_check_leg) copies pipe bytes into a String and never touches the environment.
+    // in shell_check_leg, or the graphical leg's own polling loop) copies pipe bytes or polls a
+    // socket and never touches the environment.
     unsafe { std::env::remove_var("NIFE_ACCEL") };
+    if graphical {
+        if legs.aarch64() && !shell_check_leg_graphical(false) {
+            return false;
+        }
+        if legs.riscv64() && !shell_check_leg_graphical(true) {
+            return false;
+        }
+        return true;
+    }
     if legs.aarch64() && !shell_check_leg(false) {
         return false;
     }
@@ -7542,6 +7663,190 @@ fn shell_check_leg(riscv: bool) -> bool {
         eprintln!("  {f}");
     }
     false
+}
+
+/// **The graphical leg** (milestone 177, option A): the same `--features shell` boot, with a
+/// virtio-gpu and a virtio-keyboard attached instead of the plain UART pair, verified by reading
+/// the *screen* back rather than a serial transcript.
+///
+/// # Why this cannot be [`shell_check_leg`] with two env vars added
+///
+/// [`shell_check_leg`]'s whole verification is a transcript piped over the UART: `console`/`input`
+/// are exactly the two programs the graphical boot does not spawn (design/roadmap/
+/// 177-graphical-interactive-boot.md's own finding), so there is no serial channel left to pipe.
+/// The only observable surface is what a person looking at the screen would see, which on this
+/// machine means a `screendump` over the QEMU monitor (`NIFE_GPU_MON`) and a real key press
+/// (`sendkey`) for the same reason `kernel/src/user/display_tests.rs`'s own keyboard test needs the
+/// host to press one: nothing in the guest can.
+///
+/// # Why this proves less than [`shell_check_leg`], and on purpose
+///
+/// [`SHELL_CHECK_SCRIPT`] is many lines because it is the whole redirection/pipeline/glob/manual
+/// story, and every one of those checks a known **string**. There is no equivalent "the known
+/// picture" to check against here: the boot banner's exact wrapped, scrolled position in an 18x8
+/// grid is a function of wording nobody wants two copies of (one in `crates/system_initializer`,
+/// one in this gate), and predicting it exactly is real work for no claim this milestone needs to
+/// make. What this leg proves is the thing milestone 177 actually adds: the graphical stack wires
+/// up with no capability-slot collision (a collision fails the boot in total silence, so *any*
+/// prompt reaching the screen disproves one) and a real keystroke, through `kbd`'s new direct
+/// `CALL` to `line_editor` and back out through `display_terminal`, reaches the screen. Proving the
+/// rest of [`SHELL_CHECK_SCRIPT`] against a graphical prompt is real, scoped-out follow-on work,
+/// not a gap this leg pretends is closed.
+///
+/// It looks for `$ ` (the exact two bytes `swish` prints for every prompt, `proto`-unrelated to
+/// anything this leg computed in advance) anywhere in the decoded grid, not at a predicted row: a
+/// terminal this small scrolls before the banner finishes, and which row the prompt lands on is
+/// exactly the thing not worth predicting twice. Finding it at all is the proof that init built the
+/// console... no: that it built `line_editor`, `display_terminal` and the display driver, wired
+/// them to each other with no wrong slot, and that `swish` is alive and printing through them.
+/// Finding `$ a` after `sendkey "a"` is the proof that a keystroke makes the same round trip back:
+/// `kbd` (`MODE_DIRECT`) into `line_editor`, echoed out through `display_terminal`.
+fn shell_check_leg_graphical(riscv: bool) -> bool {
+    use std::time::{Duration, Instant};
+
+    let arch = if riscv { "riscv64" } else { "aarch64" };
+    eprintln!();
+    eprintln!(
+        "--- shell-check ({arch}, graphical): boot `--features shell` with a GPU and a keyboard \
+         attached ---"
+    );
+
+    let target = if riscv { RISCV_TARGET } else { TARGET };
+    let built = if riscv {
+        redoxfs_server_build(RISCV_TARGET) && mkdisk() && mkredoxfs() && initrd_riscv()
+    } else {
+        redoxfs_server_build(TARGET) && mkredoxfs() && mkdisk() && user()
+    } && run(
+        "cargo",
+        &[
+            "build",
+            "-p",
+            "kernel",
+            "--features",
+            "shell",
+            "--target",
+            target,
+        ],
+    );
+    if !built {
+        return false;
+    }
+
+    let sock = gpu_mon_socket(&format!("{arch}-shell-check"));
+    let _ = std::fs::remove_file(&sock);
+
+    let mut cmd = Command::new(if riscv {
+        "scripts/qemu-runner-riscv64.sh"
+    } else {
+        RUNNER
+    });
+    cmd.arg(format!("target/{target}/{}/kernel", profile_dir()));
+    cmd.env(
+        "NIFE_INITRD",
+        if riscv {
+            riscv_initrd_path()
+        } else {
+            initrd_path()
+        },
+    );
+    cmd.env("NIFE_DISK", disk_path());
+    cmd.env("NIFE_RNG", "1");
+    // The two flags [`shell_check_leg`] never sets: a virtio-gpu and a virtio-keyboard, the same
+    // devices `cargo xtask test` already attaches, read by `scripts/qemu-runner-*.sh` exactly the
+    // way they always have been (milestone 177 changed what *init* does with them existing, not
+    // how they get attached).
+    cmd.env("NIFE_GPU", "1");
+    cmd.env("NIFE_KBD", "1");
+    cmd.env("NIFE_GPU_MON", &sock);
+    // No stdin/stdout piping: there is no UART client on this path to talk to. Kernel boot
+    // messages before userspace exists still reach the host's own terminal, which is useful to a
+    // person reading a failure and touches nothing this leg checks.
+    cmd.stdin(std::process::Stdio::null());
+    cmd.stdout(std::process::Stdio::null());
+
+    let mut child = match cmd.spawn() {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("shell-check (graphical): failed to start the runner: {e}");
+            return false;
+        }
+    };
+
+    // `a`..`z`, `0`..`9`, space and `$`: every byte this leg's own checks look for, plus enough of
+    // the alphabet that a decode failure names the wrong character instead of silently reading `?`
+    // for one this leg simply never bothered to include.
+    let mut alphabet: Vec<u8> = (b'a'..=b'z').collect();
+    alphabet.extend(b'0'..=b'9');
+    alphabet.push(b' ');
+    alphabet.push(b'$');
+
+    let shot = workspace_root().join(format!("target/gpu-shell-check-{arch}.ppm"));
+    let deadline = Instant::now() + Duration::from_secs(SHELL_CHECK_BOOT_SECS);
+    let mut prompt_row: Option<String> = None;
+    while Instant::now() < deadline && prompt_row.is_none() {
+        if screendump(&sock, &shot)
+            && let Ok(bytes) = std::fs::read(&shot)
+            && let Ok(rows) = scanout_rows(&bytes, &alphabet)
+        {
+            prompt_row = rows.into_iter().find(|r| r.contains("$ "));
+        }
+        std::thread::sleep(Duration::from_millis(200));
+    }
+    let Some(before) = prompt_row else {
+        let _ = child.kill();
+        let _ = child.wait();
+        eprintln!(
+            "shell-check ({arch}, graphical): no `$ ` prompt appeared on the scanout within \
+             {SHELL_CHECK_BOOT_SECS}s (see {})",
+            shot.display(),
+        );
+        return false;
+    };
+    eprintln!("shell-check ({arch}, graphical): prompt found: {before:?}");
+
+    // The one keystroke this leg types, the same key (and the same reason) the kernel test's own
+    // keyboard test uses: `video_terminal::script::HOST_KEY` is the one definition of which key,
+    // so a driver that mapped the evdev code wrong fails in exactly one place instead of two.
+    sendkey(&sock, video_terminal::script::HOST_KEY);
+
+    let want = format!("$ {}", video_terminal::script::HOST_KEY);
+    let deadline = Instant::now() + Duration::from_secs(SHELL_CHECK_LINE_SECS);
+    let mut typed_row: Option<String> = None;
+    while Instant::now() < deadline && typed_row.is_none() {
+        if screendump(&sock, &shot)
+            && let Ok(bytes) = std::fs::read(&shot)
+            && let Ok(rows) = scanout_rows(&bytes, &alphabet)
+        {
+            typed_row = rows.into_iter().find(|r| r.contains(&want));
+        }
+        std::thread::sleep(Duration::from_millis(200));
+    }
+
+    let _ = child.kill();
+    let _ = child.wait();
+    let _ = std::fs::remove_file(&sock);
+
+    match typed_row {
+        Some(after) => {
+            eprintln!(
+                "shell-check ({arch}, graphical): the prompt reached the screen through \
+                 `display_terminal`, and a real key press reached it back through `kbd`'s new \
+                 direct CALL to `line_editor`: {after:?}"
+            );
+            true
+        }
+        None => {
+            eprintln!(
+                "shell-check ({arch}, graphical): the prompt appeared ({before:?}) but the key \
+                 press ({:?}) never echoed back within {SHELL_CHECK_LINE_SECS}s (see {}): `kbd` \
+                 came up but its CALL to `line_editor` is not reaching it, or the host's `sendkey` \
+                 is not reaching the device",
+                video_terminal::script::HOST_KEY,
+                shot.display(),
+            );
+            false
+        }
+    }
 }
 
 /// **What the prompt printed in response to the first `line` at or after `from`**, plus where to

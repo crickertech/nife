@@ -410,6 +410,13 @@ fn init_boot(initrd_len: u64, fs_rights: u64) -> ! {
         virtio_rng: 9,
         virtio_rng_irq: 10,
         virtio_rng_dma: 11,
+        // The graphical terminal stack (milestone 177, option A), fixed past the virtio-rng
+        // trio's own floor (slot 11) for its own reason: a boot with no GPU or no keyboard
+        // attached leaves all three empty, and `system_initializer::boot`'s own probe is what
+        // tells it apart from a granted one.
+        disp_term_ep: 12,
+        disp_term_page: 13,
+        kbd_ep: 14,
         for_test_roles: &[REPORT, TEST_IRQ],
     };
 
