@@ -2229,15 +2229,22 @@ pub fn ipc_reply(caller: ThreadId, msg: [u64; 2]) {
     }
 }
 
-/// Delete every `PageFrame` capability naming `phys` from every thread's capability table (§13). Part of
-/// revocation: once a frame is being revoked, no holder may keep a capability that could re-map it.
-/// The caller's own cap is deleted too, which is intended: a revoke destroys all access to the page.
-pub fn delete_page_frame_caps(phys: u64) {
+/// Delete every `PageFrame` capability naming the run `(phys, count)` from every thread's capability
+/// table (§13, widened by §102). Part of revocation: once a frame (or a run of them) is being
+/// revoked, no holder may keep a capability that could re-map it. The caller's own cap is deleted
+/// too, which is intended: a revoke destroys all access to the page(s).
+///
+/// **Object equality, not overlap.** A capability matches only if it names exactly this `(phys,
+/// count)` run: a narrowed derivative (rights alone differ) still matches, because `derive` never
+/// changes the object, but a capability naming a different sub-range of the same physical memory
+/// (see DECISIONS §102, "What this does NOT decide") does not, and is left alone. `count: 1` is the
+/// pre-§102 single-page case, so every existing caller is unaffected.
+pub fn delete_page_frame_caps(phys: u64, count: u64) {
     let mut guard = IPC_TABLES.lock();
     let Some(sched) = guard.as_mut() else {
         return;
     };
-    let target = crate::cap::Object::PageFrame(phys);
+    let target = crate::cap::Object::PageFrame(phys, count);
     for t in sched.threads.iter_mut() {
         for slot in 0..t.capability_table.len() as u64 {
             if t.capability_table
