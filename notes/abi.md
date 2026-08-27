@@ -126,7 +126,7 @@ is the contract, and it is **per program**, published in that program's own sour
   absolute path, any `..`) is refused as `InvalidFilename` rather than served, and an empty slot 4
   makes every `std::fs` call `Unsupported`: no ambient filesystem, the same shape as the network.
 
-- a std program *given a wall clock* (milestone 51) gets a `Frame` capability naming the clock page
+- a std program *given a wall clock* (milestone 51) gets a `PageFrame` capability naming the clock page
   at **slot 5**, with `READ`, plus a read-only mapping of that page at `0x1200_0000` (DECISIONS §43).
 - a std program *given entropy* (milestone 56) gets the entropy service's request endpoint at
   **slot 6**, with WRITE, and **no mapping alongside it** (DECISIONS §44). The contrast with slot 5
@@ -156,11 +156,12 @@ message-format convention (both in `crates/abi`, module `fault`).
 
 **The spawn-slot convention.** A supervised child is spawned with its supervision endpoint in the
 **reserved fault slot**, `abi::fault::FAULT_EP_SLOT` (the last capability table slot, `CAPABILITY_TABLE_SLOTS - 1 = 15`).
-A supervisor building a child through the TCB surface places it there with `Tcb::CAP_INSERT`'s
-explicit target argument (`invoke(tcb, CAP_INSERT, cap_slot, rights, target)`, where `target` is
-`slot + 1` and `0` keeps the original first-free behaviour). At `START` the kernel reads the fault
-slot: if it holds an `Endpoint` capability the thread is supervised, and the kernel records that
-endpoint as the thread's fault target **and clears the slot**, so the child cannot forge fault
+A supervisor building a child through the TCB surface places it there with
+`ThreadControlBlock::CAP_INSERT`'s explicit target argument (`invoke(tcb, CAP_INSERT, cap_slot,
+rights, target)`, where `target` is `slot + 1` and `0` keeps the original first-free behaviour). At
+`START` the kernel reads the fault slot: if it holds a `Rendezvous` capability the thread is
+supervised, and the kernel records that endpoint as the thread's fault target **and clears the
+slot**, so the child cannot forge fault
 messages on it. An empty fault slot means the thread is unsupervised and gets the pre-milestone-22
 behaviour: it dies and is reaped immediately, reporting to no one. The reserved slot is the *last*
 one precisely so an ordinary child, whose grants fill the low slots from zero upward, never lands a

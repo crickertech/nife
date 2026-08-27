@@ -76,10 +76,10 @@ requirement a terminal has. 1280x720 clears it with room, is 16:9 and so is deci
 and satisfies both `const` assertions `gfx_proto` already carries: it is far above 16 a side, and
 1280x720x4 is 3,686,400 bytes, exactly 900 frames with nothing left over.
 
-**§102 is what makes this reachable, it is decided, and nobody is building it.** A `Frame` naming
-a run turns 900 capabilities and 900 `MAP` calls into one of each, and without it the sixteen-slot
-cspace refuses the surface outright. `Object::Frame` is still `Frame(u64)` in
-`crates/capability/src/lib.rs`, one page and no count.
+**§102 is what makes this reachable, it is decided, and nobody is building it.** A `PageFrame`
+naming a run turns 900 capabilities and 900 `MAP` calls into one of each, and without it the
+sixteen-slot capability table refuses the surface outright. `Object::PageFrame` is still
+`PageFrame(u64)` in `crates/capability/src/lib.rs`, one page and no count.
 
 That is worth flagging rather than assuming, because **the milestone that motivated §102 no longer
 needs it.** §102 was raised to unblock milestone 29's font increment at 800x608 for gohufont-14 at
