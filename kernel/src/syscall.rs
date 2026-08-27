@@ -354,7 +354,18 @@ pub(crate) fn invoke(
                 for k in 0..count {
                     let (page_phys, page_va) =
                         (phys + k * paging::PAGE_SIZE, va + k * paging::PAGE_SIZE);
-                    match crate::user::user_address_space_map(name, page_va, page_phys, flags) {
+                    // `phys` is the run's base for a `PageFrame` and the page itself for a
+                    // `DeviceFrame`, so in both arms it is the object the invoked capability names
+                    // (§132). The device case never scopes a revoke by it: `DeviceFrame::REVOKE`
+                    // scopes by holder, not by capability, which `revoke_device_from_others`
+                    // explains.
+                    match crate::user::user_address_space_map(
+                        name,
+                        page_va,
+                        page_phys,
+                        flags,
+                        crate::revoke::MappedUnder::Capability(phys),
+                    ) {
                         Ok(()) => {
                             // When userspace maps a frame it wrote executable (a spawner building a
                             // child's code, MAP_CODE), the instruction fetcher must be made to see
@@ -572,7 +583,16 @@ fn memory_region_map(region: u64, va: u64) -> Result<i64, Error> {
             // memory_region::destroy frees the region under them. The record is paid from the caller's
             // own address-space budget (phase C); if it cannot afford the record, it cannot keep
             // the mapping: an unrecorded mapping is invisible to revocation, the §13 hole.
-            if !crate::revoke::record_mapping(phys, mmu::current_user_root(), va) {
+            // No capability names this page (§132): `MemoryRegion::MAP` retypes and maps in one
+            // step, so there is never a `PageFrame` capability and no derivation family to scope a
+            // revoke to. Reclamation finds the record regardless, because `revoke_region`'s unmap
+            // sweep is object-blind by design.
+            if !crate::revoke::record_mapping(
+                phys,
+                mmu::current_user_root(),
+                va,
+                crate::revoke::MappedUnder::NoCapability,
+            ) {
                 mmu::unmap_user_at(mmu::current_user_root(), va);
                 return Err(Error::OutOfMemory);
             }
@@ -734,7 +754,16 @@ fn page_frame_map(
                 // Record the mapping so a later REVOKE (or memory_region::destroy) can pull this
                 // page out of every holder before it is reused (§13). Unrecordable means
                 // unmappable, at the mapper's own expense (phase C): see MemoryRegion::MAP.
-                if !crate::revoke::record_mapping(page_phys, root, page_va) {
+                // `phys` (the run's base, not `page_phys`) is the object: it names the capability
+                // this mapping was made under, derivatives included, which is what lets a later
+                // `REVOKE` take back this authority without touching an overlapping holder's
+                // (DECISIONS §132).
+                if !crate::revoke::record_mapping(
+                    page_phys,
+                    root,
+                    page_va,
+                    crate::revoke::MappedUnder::Capability(phys),
+                ) {
                     mmu::unmap_user_at(root, page_va);
                     unmap_run_prefix(root, phys, va, k);
                     return Err(Error::OutOfMemory);
@@ -1007,6 +1036,7 @@ mod tests {
             va + paging::PAGE_SIZE,
             squatter,
             paging::Flags::user_data(),
+            crate::revoke::MappedUnder::NoCapability,
         )
         .expect("the squatter maps");
 

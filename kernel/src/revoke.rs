@@ -9,11 +9,25 @@
 //! use-after-free.
 //!
 //! This module is that revocation. It keeps a **mapping database, lite**: every mapping of an
-//! untyped-derived page. To revoke a page it unmaps it from *every* address space that held it and
-//! deletes every `PageFrame` capability to it, after which no holder maps it and no capability names
-//! it, so the page is safe to return to the allocator. seL4 keeps a full capability-derivation
-//! tree and revokes a *subtree*; this keeps only the unmap side and revokes *all* derivatives of a
-//! page, which is precisely what reclamation wants.
+//! untyped-derived page, and since §132 the object each mapping was made under.
+//!
+//! # Two scopes, because two questions are being asked
+//!
+//! **Reclamation asks "is this page safe to hand out again", so it is object-blind.**
+//! `memory_region::destroy` unmaps a page from *every* address space that held it and deletes every
+//! capability whose run overlaps the range, after which no holder maps it and no capability names
+//! it. Anything less is §13's use-after-free, because the allocator is about to give the memory to
+//! somebody else.
+//!
+//! **`PageFrame::REVOKE` asks "whose authority is being taken back", so it is capability-scoped**
+//! (DECISIONS §132, option C, decided 2026-08-27). It reclaims nothing (a region is spend-only), so
+//! a mapping made under a *different* capability over the same physical memory is somebody else's
+//! authority and survives. §102 is what made those two answers diverge: once one capability can name
+//! a run, two capabilities can overlap, and the tree's display wiring has three that do.
+//!
+//! seL4 keeps a full capability-derivation tree and revokes a *subtree*. This keeps no tree: the
+//! object address in each record stands in for one, because `derive` never changes the object, so
+//! one word matches a capability and all of its derivatives.
 //!
 //! # Who pays for the records (phase C, the heap's last customer)
 //!
@@ -28,17 +42,88 @@
 use crate::arch::mmu;
 use crate::sync::{IrqSafeMutex, rank};
 
-/// One recorded mapping: `va` in the owning space maps `phys`. `phys == 0` is a tombstone (RAM
-/// starts at `0x4000_0000` on this board, so no real frame is 0).
+/// One recorded mapping: `va` in the owning space maps `phys`, **under the capability whose run
+/// starts at `object`**. `phys == 0` is a tombstone (RAM starts at `0x4000_0000` on this board, so
+/// no real frame is 0).
+///
+/// # Why the third word exists (DECISIONS §132, option C)
+///
+/// Without it a revocation cannot tell *which* capability produced a mapping, so `PageFrame::REVOKE`
+/// had to unmap the physical page from every space that held it, whoever mapped it and under
+/// whatever authority. §102 made that visible by letting one capability name a run: the tree's own
+/// display wiring has a driver holding `PageFrame(dma, 312)` and two clients holding
+/// `PageFrame(dma + 4096, 311)` over the same memory, so a client's revoke reached into the
+/// driver's space under a capability nobody revoked.
+///
+/// **The run's base address identifies the capability, derivatives included**, and that is the
+/// whole reason one word is enough: `Cap::derive` narrows rights and never changes the object, so
+/// matching on the object matches the entire derivation family without the §13 derivation tree this
+/// kernel deferred.
+///
+/// **A mapping made with no `PageFrame` capability at all records itself as its own object**
+/// (`object == phys`): `MemoryRegion::MAP` retypes a page and maps it in one step, and there is
+/// never a capability to name. That is the honest encoding rather than a sentinel, because the page
+/// really is the whole of what was mapped.
+///
+/// # BUGS
+///
+/// **Two capabilities sharing a base but not a length are one object here.** `PageFrame(p, 401)`
+/// and `PageFrame(p, 74)` are distinct objects to `Cap`, and a revoke of the shorter one unmaps the
+/// longer one's mappings of the pages they share. Carrying the length too would cost a fourth word
+/// and take `LOG_ENTRIES` from 170 to 127 (a `LogEntry` would round up to 32 bytes), which is twice
+/// the log pages a space pays now rather than 1.5x, to separate a pair nothing in the tree mints.
+/// The failure is bounded in the safe direction: the over-broad unmap can only reach pages inside
+/// the revoked run, and it is strictly narrower than the space-blind unmap this replaced. Named
+/// here because a reader who trusts "capability-scoped" without qualification would be wrong.
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct LogEntry {
     phys: u64,
     va: u64,
+    /// The base address of the run named by the capability this mapping was made under.
+    object: u64,
 }
 
 /// How many entries fit a log page after its header.
-const LOG_ENTRIES: usize = 255;
+///
+/// **Fell from 255 to 170 when [`LogEntry`] grew its third word** (§132 option C, 2026-08-27):
+/// `16 + 24 * 170 == 4096` exactly, and the `LogPage` size assertion below is what keeps that
+/// arithmetic honest rather than a comment claiming it.
+const LOG_ENTRIES: usize = 170;
+
+/// **What authority a mapping was made under**, which is the question [`record_mapping`] now
+/// requires an answer to (DECISIONS §132).
+///
+/// A two-variant enum rather than a bare address, for the ladder's own reason (AGENTS.md, rung
+/// one): twelve of this kernel's fourteen mapping sites map a page no capability names, and passing
+/// the page's own address as "the object" a second time would read as a duplicated argument rather
+/// than as the decision it is. The variant makes the case explicit at every call site and makes the
+/// wrong one hard to write by accident. It is the same move `InputSpec::Required` made when it
+/// stopped being a unit variant.
+///
+/// **The name is provisional** (a lane does not name a type this reader-facing; calef does).
+#[derive(Clone, Copy)]
+pub enum MappedUnder {
+    /// The capability whose object begins at this physical address, **and every capability derived
+    /// from it**: `Cap::derive` narrows rights and never changes the object, so one address names
+    /// the whole family. For a `PageFrame` run this is the run's base, not the page being mapped.
+    Capability(u64),
+    /// No capability names this page. `MemoryRegion::MAP` retypes and maps in one step, and the
+    /// kernel's own loaders map pages straight into a space they are building; in both cases there
+    /// is no derivation family for a revoke to be scoped to, so the page stands as its own object.
+    NoCapability,
+}
+
+impl MappedUnder {
+    /// The object address to file with the record: the run's base, or the mapped page itself when
+    /// nothing names it.
+    fn object(self, phys: u64) -> u64 {
+        match self {
+            MappedUnder::Capability(base) => base,
+            MappedUnder::NoCapability => phys,
+        }
+    }
+}
 
 /// One page of mapping records, retyped from the owning space's region. Exactly one frame.
 #[repr(C)]
@@ -109,13 +194,26 @@ pub fn forget_root(root: u64) {
     }
 }
 
-/// Record that the address space rooted at `root` mapped `phys` at `va`, **paid for by that
-/// space's own region**: the record goes in an existing log slot, or a fresh log page is retyped
-/// from the region (rank MAPPINGS > `MEMORY_REGION` makes that legal under this lock). Returns `false` if
+/// Record that the address space rooted at `root` mapped `phys` at `va`, **under the capability
+/// whose run begins at `object`**, and **paid for by that space's own region**: the record goes in
+/// an existing log slot, or a fresh log page is retyped from the region (rank MAPPINGS >
+/// `MEMORY_REGION` makes that legal under this lock). Returns `false` if
 /// the space is unknown or its budget is exhausted, and the caller must then unmap what it just
 /// mapped: an unrecorded mapping is invisible to revocation, which is the §13 use-after-free.
+///
+/// `under` is a required argument with no default, which is the point (AGENTS.md's ladder, rung
+/// one): a mapping that cannot say which capability made it is exactly the record §132 found
+/// missing, and a caller must now answer the question to compile. See [`MappedUnder`].
 #[must_use]
-pub fn record_mapping(phys: u64, root: u64, va: u64) -> bool {
+pub fn record_mapping(phys: u64, root: u64, va: u64, under: MappedUnder) -> bool {
+    let object = under.object(phys);
+    // The run's base is at or below the page it covers, and a whole number of pages below it. The
+    // enum stops a caller confusing the two arguments; this catches a caller computing the base
+    // wrongly, which would silently scope the record to a family it does not belong to.
+    debug_assert!(
+        object <= phys && (phys - object) % page_frames::FRAME_SIZE == 0,
+        "a mapping of {phys:#x} recorded under an object at {object:#x}: not a page of that run",
+    );
     let mut spaces = SPACES.lock();
     let Some(space) = spaces.iter_mut().flatten().find(|s| s.root == root) else {
         return false;
@@ -128,12 +226,12 @@ pub fn record_mapping(phys: u64, root: u64, va: u64) -> bool {
         let page = unsafe { log_page(page_phys) };
         for e in page.entries.iter_mut().take(page.used as usize) {
             if e.phys == 0 {
-                *e = LogEntry { phys, va };
+                *e = LogEntry { phys, va, object };
                 return true;
             }
         }
         if (page.used as usize) < LOG_ENTRIES {
-            page.entries[page.used as usize] = LogEntry { phys, va };
+            page.entries[page.used as usize] = LogEntry { phys, va, object };
             page.used += 1;
             return true;
         }
@@ -148,7 +246,7 @@ pub fn record_mapping(phys: u64, root: u64, va: u64) -> bool {
     // SAFETY: just retyped exclusively for the log; SPACES is held.
     let page = unsafe { log_page(fresh) };
     page.next = space.head;
-    page.entries[0] = LogEntry { phys, va };
+    page.entries[0] = LogEntry { phys, va, object };
     page.used = 1;
     space.head = fresh;
     true
@@ -267,7 +365,37 @@ pub fn list_mapping(root: u64, cursor: u64) -> (u64, u64) {
 /// below passes one: reclamation must unmap everywhere or the page is not safe to reuse, but
 /// transferring a device wants the invoker to keep what it is about to hand on. See
 /// [`revoke_device_from_others`].
+///
+/// **Deliberately object-blind, and that is not an oversight left over from §132.** Its two
+/// remaining callers are reclamation ([`revoke_region`]) and the device take-back, and neither is
+/// asking a capability's question. Reclamation is about to hand these pages back to an allocator,
+/// so *any* surviving mapping is §13's use-after-free regardless of which capability made it; the
+/// device take-back scopes by **holder** (§41), which is a different axis entirely. Capability
+/// scope belongs to `PageFrame::REVOKE`, and that is [`unmap_under_object`].
 fn unmap_everywhere(phys: u64, spare: u64) {
+    unmap_matching(phys, spare, None);
+}
+
+/// Unmap `phys` **only from the mappings made under the capability whose run begins at `object`**,
+/// its narrowed derivatives included, tombstoning those records and leaving every other holder's
+/// mapping of the same physical page alone (DECISIONS §132, option C).
+///
+/// This is `PageFrame::REVOKE`'s unmap half. The question it answers is "what authority is being
+/// taken back", not "is this page safe to reuse": `REVOKE` reclaims nothing (a region is
+/// spend-only), so a mapping made under a *different* capability is somebody else's authority and
+/// survives. Under the old space-blind sweep, revoking a client's 311-page surface pulled those
+/// pages out of the gpu driver's address space too, under a `PageFrame(dma, 312)` nobody had
+/// revoked.
+fn unmap_under_object(phys: u64, object: u64) {
+    unmap_matching(phys, 0, Some(object));
+}
+
+/// The body both sweeps share: unmap `phys` from every recorded mapping except those in `spare`'s
+/// space and, when `object` is `Some`, except those made under a different capability. Split out
+/// for the reason `sched::delete_page_frame_caps_where` is: the two policies differ by one
+/// predicate, and one body is what keeps the locking, the tombstoning and the TLB broadcast the
+/// same for both.
+fn unmap_matching(phys: u64, spare: u64, object: Option<u64>) {
     let spaces = SPACES.lock();
     for space in spaces.iter().flatten() {
         if space.root == spare {
@@ -278,7 +406,7 @@ fn unmap_everywhere(phys: u64, spare: u64) {
             // SAFETY: chain pages under the held SPACES lock.
             let page = unsafe { log_page(page_phys) };
             for e in page.entries.iter_mut().take(page.used as usize) {
-                if e.phys == phys {
+                if e.phys == phys && object.is_none_or(|o| e.object == o) {
                     mmu::unmap_user_at(space.root, e.va);
                     e.phys = 0; // tombstone: reusable by the next record
                 }
@@ -302,9 +430,14 @@ fn unmap_everywhere(phys: u64, spare: u64) {
 /// harmless on a reclamation path, which is why reclamation does not use it:
 /// [`revoke_region`] sweeps capabilities by overlap over the whole range instead.
 ///
-/// The single-page case of [`revoke_page_frame_run`]. `PageFrame::REVOKE`'s own syscall path uses
-/// that one, because there the object being revoked really is the run named by the invoked
-/// capability.
+/// **Nor is it "nothing maps the page afterwards"**, since §132: the unmap half is scoped to the
+/// capability being revoked, so a mapping some *other* capability made of this same page survives.
+/// For a one-page object those two cannot differ unless the pages were also named by a longer run
+/// sharing this base; see [`LogEntry`]'s `BUGS`.
+///
+/// The single-page case of [`revoke_page_frame_run`], and now literally so. `PageFrame::REVOKE`'s
+/// own syscall path uses that one, because there the object being revoked really is the run named
+/// by the invoked capability.
 ///
 /// **Test-only in a non-`initrd` build**, and it stopped being anything else when `revoke_region`
 /// took its own range sweep: its remaining callers are the two `#[cfg(all(test, initrd))]` suites
@@ -313,8 +446,7 @@ fn unmap_everywhere(phys: u64, spare: u64) {
 /// because it is what a caller wanting exactly one page should still reach for.
 #[cfg_attr(not(all(test, initrd)), allow(dead_code))]
 pub fn revoke_page_frame(phys: u64) {
-    crate::sched::delete_page_frame_caps(phys, 1);
-    unmap_everywhere(phys, 0);
+    revoke_page_frame_run(phys, 1);
 }
 
 /// **Revoke a run of `count` frames from everyone** (DECISIONS §102). Deletes every capability
@@ -326,25 +458,39 @@ pub fn revoke_page_frame(phys: u64) {
 /// The two passes are not the same granularity on purpose. Capability deletion is one exact-object
 /// match against `(phys, count)`, because that is the one capability (and its narrowed derivatives)
 /// this invocation could possibly be revoking. Unmapping stays per-page, because the mapping
-/// database records one entry per mapped virtual page regardless of which capability produced it
+/// database records one entry per mapped virtual page regardless of how long the run is
 /// (`PageFrame::MAP` loops over the run and records each page individually); that granularity does
 /// not change here.
+///
+/// **Both passes are scoped to the invoked capability's derivation family** (DECISIONS §132, option
+/// C, decided 2026-08-27). The capability pass always was: `derive` narrows rights and never
+/// changes the object, so exact-object equality *is* the family. The unmap pass now is too, and
+/// that is what changed here: it takes only the mappings recorded under this run's base, so
+/// revoking a client's `PageFrame(dma + 4096, 311)` no longer reaches into the gpu driver's space,
+/// which holds `PageFrame(dma, 312)` over the same physical memory and was never revoked. What
+/// makes one word enough to say "and its derivatives" is [`LogEntry`], which carries the reasoning
+/// and the one case it cannot separate.
 ///
 /// # BUGS
 ///
 /// **A capability whose run overlaps this one is left holding authority over pages this call has
-/// just unmapped out from under it**, and the unmap half is space-blind besides: it removes the
-/// physical page from every address space that maps it, whoever mapped it and under whatever
-/// capability. Both halves are visible in the tree's own display wiring, where the driver holds
-/// `PageFrame(dma, 312)` and two clients hold `PageFrame(dma + 4096, 311)` over the same physical
-/// memory. Nothing reaches it today (no run capability in the tree carries `Rights::GRANT`, and
-/// `REVOKE` requires it), and nothing is reclaimed by `REVOKE`, so this is a sharing and
-/// confinement question rather than a use-after-free. It is written up rather than answered here:
-/// see design/decisions/132-overlapping-page-frame-runs.md, which is calef's call.
+/// unmapped out of *its own* holders' spaces**, and that is now deliberate rather than a gap: §102
+/// contemplates two capabilities coexisting over sub-ranges of one region, and letting a one-page
+/// holder delete a 312-page capability by naming a page inside it is an authority a one-page
+/// capability should not have (§132 option B, refused). The overlapping holder keeps both its
+/// capability and its mappings; only what was mapped under *this* capability goes.
+///
+/// **Revocation still owes a device nothing** (§132's question 3, deliberately not answered by this
+/// work). `PageFrame::REVOKE` is a CPU-side operation: the gpu driver registers its DMA window with
+/// `virtio::register`, that window is not derived from any capability, and revoking one does not
+/// narrow it. So a capability-perfect revocation of a surface leaves the device able to write those
+/// pages until the driver's virtio registration is itself torn down. Coupling `PageFrame` and
+/// `Virtio`, which are independent today, is a separate decision and remains calef's call: see
+/// design/decisions/132-overlapping-page-frame-runs.md.
 pub fn revoke_page_frame_run(phys: u64, count: u64) {
     crate::sched::delete_page_frame_caps(phys, count);
     for k in 0..count {
-        unmap_everywhere(phys + k * page_frames::FRAME_SIZE, 0);
+        unmap_under_object(phys + k * page_frames::FRAME_SIZE, phys);
     }
 }
 
@@ -365,6 +511,14 @@ pub fn revoke_page_frame_run(phys: u64, count: u64) {
 /// the root by construction (it holds `GRANT` and it is the one asking), and every other holder is
 /// treated as a derivative. Revoking one *named* holder while sparing another still wants the real
 /// tree, and still is not built.
+///
+/// **§132 left this alone on purpose**, and the reason is that it scopes by a different thing.
+/// Capability scope answers "whose authority is being taken back"; this answers "who is allowed to
+/// keep reaching the registers", and the answer is one *holder*, not one capability. Scoping the
+/// unmap to an object here would spare a second capability to the same MMIO page, which is exactly
+/// the outcome a live replacement must not have: after this call the device has one owner. So it
+/// keeps [`unmap_everywhere`], and the swap suite (`user::live_swap_tests`, `LOG_REVOKE_ENFORCED`)
+/// is the end-to-end evidence that the behaviour did not move.
 pub fn revoke_device_from_others(phys: u64) {
     crate::sched::delete_device_frame_caps_from_others(phys);
     // The invoker is the current thread, so its address space is the one installed in TTBR0 (satp
@@ -436,22 +590,23 @@ mod tests {
     use crate::cap::{Rights, page_frame_run_cap, page_frame_run_len};
     use crate::user::AddressSpace;
 
-    /// Three consecutive pages out of one region, or a skipped test if the region did not hand
-    /// them out contiguously. A region is a contiguous span and `retype_page` bumps through it, so
-    /// this holds; it is asserted rather than assumed because the run tests below are meaningless
-    /// if it ever stops holding.
-    fn three_in_a_row(region: u64) -> [u64; 3] {
-        let pages = [
-            crate::memory_region::retype_page(region).expect("retype 0"),
-            crate::memory_region::retype_page(region).expect("retype 1"),
-            crate::memory_region::retype_page(region).expect("retype 2"),
-        ];
-        assert_eq!(
-            pages[1],
-            pages[0] + page_frames::FRAME_SIZE,
-            "a region stopped retyping contiguously; a PageFrame run has no meaning without that",
-        );
-        assert_eq!(pages[2], pages[1] + page_frames::FRAME_SIZE);
+    /// `N` consecutive pages out of one region. A region is a contiguous span and `retype_page`
+    /// bumps through it, so this holds; it is asserted rather than assumed because the run tests
+    /// below are meaningless if it ever stops holding.
+    fn consecutive<const N: usize>(region: u64) -> [u64; N] {
+        let mut pages = [0u64; N];
+        for (k, page) in pages.iter_mut().enumerate() {
+            *page = crate::memory_region::retype_page(region)
+                .unwrap_or_else(|| panic!("region ran out at page {k} of {N}"));
+        }
+        for k in 1..N {
+            assert_eq!(
+                pages[k],
+                pages[k - 1] + page_frames::FRAME_SIZE,
+                "a region stopped retyping contiguously at page {k}; a PageFrame run has no \
+                 meaning without that",
+            );
+        }
         pages
     }
 
@@ -468,7 +623,7 @@ mod tests {
         let mut a = AddressSpace::new(2).expect("no space A");
         let mut b = AddressSpace::new(2).expect("no space B");
         let region = crate::memory_region::create(4).expect("no region");
-        let run = three_in_a_row(region);
+        let run = consecutive::<3>(region);
 
         // A maps the first two pages; B maps the third, at an unrelated VA. Nothing about the
         // revocation may depend on where a holder put the run.
@@ -477,11 +632,17 @@ mod tests {
             let va = va_a + k as u64 * page_frames::FRAME_SIZE;
             a.map_physical(va, *phys, Flags::user_data())
                 .expect("map A");
-            assert!(record_mapping(*phys, a.root(), va), "record A");
+            assert!(
+                record_mapping(*phys, a.root(), va, MappedUnder::Capability(run[0])),
+                "record A",
+            );
         }
         b.map_physical(va_b, run[2], Flags::user_rodata())
             .expect("map B");
-        assert!(record_mapping(run[2], b.root(), va_b), "record B");
+        assert!(
+            record_mapping(run[2], b.root(), va_b, MappedUnder::Capability(run[0])),
+            "record B",
+        );
 
         let slot = crate::sched::grant(page_frame_run_cap(
             run[0],
@@ -510,6 +671,158 @@ mod tests {
         crate::memory_region::destroy(region);
     }
 
+    /// **`REVOKE` takes back what was mapped under the capability invoked, and nothing else**
+    /// (DECISIONS §132, option C, decided 2026-08-27).
+    ///
+    /// The shape is the tree's own display wiring, shrunk to four pages: one holder's capability
+    /// spans the whole window (`PageFrame(run[0], 4)`, what a gpu driver registers with the IOMMU)
+    /// and another's starts one page in (`PageFrame(run[1], 3)`, the surface a client paints). They
+    /// are different objects over overlapping memory, which is legal and, on that path, required.
+    ///
+    /// Both spaces map the **same physical page** at their own addresses under their own
+    /// capabilities, and that page is the whole test. Before this, `REVOKE`'s unmap half was
+    /// space-blind: the client handing its surface back pulled the page out of the driver's address
+    /// space too, under a capability nobody had revoked, while leaving the driver's capability alive
+    /// to re-map it. Both halves of that are asserted here, in the direction they should now go.
+    #[test_case]
+    fn revoking_one_run_leaves_an_overlapping_capability_and_its_mappings_alone() {
+        let mut driver = AddressSpace::new(2).expect("no driver space");
+        let mut client = AddressSpace::new(2).expect("no client space");
+        let region = crate::memory_region::create(8).expect("no region");
+        let run = consecutive::<4>(region);
+
+        // `Rights::ALL` carries `GRANT`, which is what `PageFrame::REVOKE` requires and what no run
+        // capability in the shipping tree has yet: minting it here is how this path is reachable at
+        // all. See design/decisions/132-*.md on why that made the question worth answering early
+        // rather than at the first real `GRANT`.
+        let window = crate::sched::grant(page_frame_run_cap(
+            run[0],
+            page_frame_run_len(4),
+            Rights::ALL,
+        ))
+        .expect("grant the whole window");
+        let surface = crate::sched::grant(page_frame_run_cap(
+            run[1],
+            page_frame_run_len(3),
+            Rights::ALL,
+        ))
+        .expect("grant the inner surface");
+
+        let (va_driver, va_client) = (0x40_0000u64, 0x80_0000u64);
+        driver
+            .map_physical(va_driver, run[1], Flags::user_data())
+            .expect("map driver");
+        assert!(
+            record_mapping(
+                run[1],
+                driver.root(),
+                va_driver,
+                MappedUnder::Capability(run[0]),
+            ),
+            "record driver",
+        );
+        client
+            .map_physical(va_client, run[1], Flags::user_data())
+            .expect("map client");
+        assert!(
+            record_mapping(
+                run[1],
+                client.root(),
+                va_client,
+                MappedUnder::Capability(run[1]),
+            ),
+            "record client",
+        );
+
+        // The client hands its surface back.
+        revoke_page_frame_run(run[1], 3);
+
+        assert!(
+            mmu::translate_at(client.root(), va_client).is_none(),
+            "the revoked capability's own mapping survived the revoke",
+        );
+        assert!(
+            mmu::translate_at(driver.root(), va_driver).is_some(),
+            "revoking one capability unmapped a page another capability had mapped: the \
+             space-blind unmap §132 replaced",
+        );
+        assert!(
+            crate::sched::current_cap(surface).is_err(),
+            "REVOKE left the capability that named the revoked run in the revoker's own table",
+        );
+        assert!(
+            crate::sched::current_cap(window).is_ok(),
+            "revoking a run deleted an overlapping capability nobody revoked: §132 option B, \
+             refused because a three-page holder must not be able to delete a four-page one",
+        );
+
+        crate::memory_region::destroy(region);
+    }
+
+    /// **A device take-back is scoped by holder, not by capability, and §132 left that alone.**
+    ///
+    /// The regression guard for DECISIONS §41, which is the one revocation in the tree that was
+    /// already selective and is selective along a *different* axis. If capability scope ever leaked
+    /// into this path, a second capability to the same MMIO page would survive the take-back and the
+    /// device would have two owners, which is exactly what live replacement (`user::live_swap_tests`)
+    /// exists to prevent.
+    ///
+    /// Two holders map one physical page **under deliberately different objects**, so an
+    /// object-scoped sweep would spare one of them; the take-back must still take it. What is
+    /// exercised is `unmap_everywhere` rather than `revoke_device_from_others` itself, because that
+    /// function reads its spare from `mmu::current_user_root()` and a kernel test is not running in
+    /// either of these spaces. The end-to-end evidence for the whole function is the swap suite's
+    /// `LOG_REVOKE_ENFORCED`, where a real userspace invoker keeps the registers and the outgoing
+    /// driver faults on them.
+    #[test_case]
+    fn a_device_take_back_ignores_the_object_and_spares_one_holder() {
+        let mut keeper = AddressSpace::new(2).expect("no keeper space");
+        let mut loser = AddressSpace::new(2).expect("no loser space");
+        let region = crate::memory_region::create(4).expect("no region");
+        let run = consecutive::<2>(region);
+        let shared = run[1];
+
+        let (va_keeper, va_loser) = (0x40_0000u64, 0x80_0000u64);
+        keeper
+            .map_physical(va_keeper, shared, Flags::user_data())
+            .expect("map keeper");
+        assert!(
+            record_mapping(
+                shared,
+                keeper.root(),
+                va_keeper,
+                MappedUnder::Capability(run[0]),
+            ),
+            "record keeper",
+        );
+        loser
+            .map_physical(va_loser, shared, Flags::user_data())
+            .expect("map loser");
+        assert!(
+            record_mapping(
+                shared,
+                loser.root(),
+                va_loser,
+                MappedUnder::Capability(shared),
+            ),
+            "record loser",
+        );
+
+        unmap_everywhere(shared, keeper.root());
+
+        assert!(
+            mmu::translate_at(keeper.root(), va_keeper).is_some(),
+            "the take-back unmapped the invoker's own mapping: §41's asymmetry is the point",
+        );
+        assert!(
+            mmu::translate_at(loser.root(), va_loser).is_none(),
+            "a holder that recorded its mapping under a different object survived the take-back: \
+             the device now has two owners",
+        );
+
+        crate::memory_region::destroy(region);
+    }
+
     /// **Destroying a region deletes a run capability naming its pages, so the reclaimed memory is
     /// not nameable** (milestone 142's review, CRITICAL 1).
     ///
@@ -528,14 +841,17 @@ mod tests {
     fn destroying_a_region_deletes_every_capability_naming_it() {
         let mut space = AddressSpace::new(2).expect("no space");
         let region = crate::memory_region::create(4).expect("no region");
-        let run = three_in_a_row(region);
+        let run = consecutive::<3>(region);
         let unmapped = crate::memory_region::retype_page(region).expect("retype 3");
 
         let va = 0x40_0000u64;
         space
             .map_physical(va, run[0], Flags::user_data())
             .expect("map");
-        assert!(record_mapping(run[0], space.root(), va), "record");
+        assert!(
+            record_mapping(run[0], space.root(), va, MappedUnder::Capability(run[0])),
+            "record",
+        );
 
         let run_slot = crate::sched::grant(page_frame_run_cap(
             run[0],
@@ -577,8 +893,14 @@ mod tests {
             .expect("map A");
         b.map_physical(va_b, shared, Flags::user_rodata())
             .expect("map B");
-        assert!(record_mapping(shared, a.root(), va_a), "record A");
-        assert!(record_mapping(shared, b.root(), va_b), "record B");
+        assert!(
+            record_mapping(shared, a.root(), va_a, MappedUnder::NoCapability),
+            "record A",
+        );
+        assert!(
+            record_mapping(shared, b.root(), va_b, MappedUnder::NoCapability),
+            "record B",
+        );
 
         assert!(
             mmu::translate_at(a.root(), va_a).is_some(),
@@ -617,7 +939,10 @@ mod tests {
         space
             .map_physical(va, phys, Flags::user_data())
             .expect("map");
-        assert!(record_mapping(phys, space.root(), va), "record");
+        assert!(
+            record_mapping(phys, space.root(), va, MappedUnder::NoCapability),
+            "record",
+        );
         assert!(
             mmu::translate_at(space.root(), va).is_some(),
             "the page was not mapped"
@@ -660,7 +985,7 @@ mod tests {
                 refused = true; // ran out mapping: also a fine way for the budget to end
                 break;
             }
-            if !record_mapping(shared, space.root(), va) {
+            if !record_mapping(shared, space.root(), va, MappedUnder::NoCapability) {
                 refused = true;
                 break;
             }

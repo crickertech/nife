@@ -316,12 +316,24 @@ pub fn user_address_space_create(region: u64) -> Option<u64> {
 /// §13 record come from the space's own backing region; an unrecordable mapping is unmapped and
 /// refused, exactly as at the `page_frame::MAP` syscall, because a mapping revocation cannot see is
 /// the §13 use-after-free.
-pub fn user_address_space_map(name: u64, va: u64, phys: u64, flags: Flags) -> Result<(), MapError> {
+///
+/// `under` says which capability's authority this mapping was made with, which is what scopes a
+/// later `PageFrame::REVOKE` to that capability's derivation family rather than to the physical
+/// page (DECISIONS §132). The `MAP_INTO` syscall passes the invoked frame capability's object; the
+/// kernel's own callers, which build a space directly out of a region, pass
+/// `MappedUnder::NoCapability`.
+pub fn user_address_space_map(
+    name: u64,
+    va: u64,
+    phys: u64,
+    flags: Flags,
+    under: crate::revoke::MappedUnder,
+) -> Result<(), MapError> {
     let mut spaces = USER_SPACES.lock();
     let space = spaces.get_mut(name).ok_or(MapError::NotMapped)?;
 
     space.map_physical(va, phys, flags)?;
-    if !crate::revoke::record_mapping(phys, space.root(), va) {
+    if !crate::revoke::record_mapping(phys, space.root(), va, under) {
         mmu::unmap_user_at(space.root(), va);
         return Err(MapError::OutOfPageFrames);
     }
@@ -1545,12 +1557,24 @@ fn x86_build_child(
         mmu::phys_to_virt(code_phys),
         core::mem::size_of_val(program),
     );
-    user_address_space_map(aspace, X86_DEMO_CODE_VA, code_phys, Flags::user_code())
-        .map_err(|_| "could not map the child's code")?;
+    user_address_space_map(
+        aspace,
+        X86_DEMO_CODE_VA,
+        code_phys,
+        Flags::user_code(),
+        crate::revoke::MappedUnder::NoCapability,
+    )
+    .map_err(|_| "could not map the child's code")?;
 
     let stack_phys = crate::memory_region::retype_page(region).ok_or("no stack frame")?;
-    user_address_space_map(aspace, X86_DEMO_STACK_VA, stack_phys, Flags::user_data())
-        .map_err(|_| "could not map the child's stack")?;
+    user_address_space_map(
+        aspace,
+        X86_DEMO_STACK_VA,
+        stack_phys,
+        Flags::user_data(),
+        crate::revoke::MappedUnder::NoCapability,
+    )
+    .map_err(|_| "could not map the child's stack")?;
 
     let tid = crate::sched::create_thread_control_block(region).ok_or("no tcb")?;
     if let Some(cap) = slot0 {
