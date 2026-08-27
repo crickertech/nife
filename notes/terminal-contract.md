@@ -57,6 +57,8 @@ terminal writes, it reads).
 | `OP_BYTES` | driver → terminal | `req(OP_BYTES, n)` | n bytes, packed LE | 0 | 0 |
 | `OP_INTRCOUNT` | app → terminal | `req(OP_INTRCOUNT, 0)` | 0 | `^C` count so far | 0 |
 | `OP_PRINT` | adapter → terminal | `req(OP_PRINT, len)` | len bytes, packed LE | bytes consumed | 0 |
+| `OP_RAWMODE` | app → terminal | `req(OP_RAWMODE, 0\|1)` | 0 | 0 | 0 |
+| `OP_READRAW` | app → terminal | `req(OP_READRAW, 0)` | 0 | byte count (1..=8) | bytes, packed LE |
 
 - **`OP_WRITE`**: print `len` bytes from the client's output page. The terminal performs
   output-side newline translation (`\n` becomes `\r\n`) and passes everything else, ANSI
@@ -92,6 +94,33 @@ terminal writes, it reads).
   choice: a served request arrives through `recv_cap` with the reply capability and two data words,
   which is why `OP_BYTES` carries eight too.
 
+- **`OP_RAWMODE` / `OP_READRAW`** (milestone 169): the raw-keystroke primitive `kilo` needs and the
+  line discipline, by design, does not give a program (DECISIONS §21 says a program "never sees a
+  keystroke, an escape sequence, or an echo"). `OP_RAWMODE` switches the terminal between the line
+  discipline and raw mode (`len` 1 to enter, 0 to leave), replied immediately. While raw mode is on,
+  `OP_BYTES` bypasses [`LineDisc`](../crates/line_editor/src/lib.rs) entirely: no echo, no editing,
+  no line assembly, and a control byte like `^C` is delivered literally rather than intercepted.
+  `OP_READRAW` reads the result: one to eight raw bytes, packed little-endian, the same
+  register-only shape `OP_BYTES` and `OP_PRINT` already use, so this needs no page either. At most
+  one `OP_READRAW` may be outstanding, the same rule `OP_READLINE` already has. The two input
+  models refuse each other with `BAD_REQUEST`: `OP_READLINE` while raw mode is on, `OP_READRAW`
+  while it is off. Switching mode in either direction abandons whatever line was in progress in the
+  mode being left (the line discipline's edit buffer, or raw mode's queued-but-unread bytes), and
+  fails a parked read of the mode being left rather than hang it forever; history and the kill
+  buffer are untouched. Proved in `kernel/src/user/raw_mode_tests.rs` against a real `line_editor`
+  process: echo suppression (both ways, so the check cannot be vacuous), literal delivery of bytes
+  the line discipline would otherwise interpret, the two refusals, and a read parked before data
+  arrives still being answered once it does.
+
+  **Only `line_editor` serves it.** `display_terminal` does not serve `OP_READLINE` either (see
+  "For milestones 29 and 31" below); raw mode is a line-discipline opcode exactly like
+  `OP_READLINE` is, and belongs nowhere else. A client behind the display terminal that wants raw
+  keystrokes composes `line_editor` in front of it exactly as one wanting edited lines already does,
+  and that composition needs no change to either component: `line_editor`'s `OP_WRITE` output is
+  already backend-agnostic (it prints through whatever `Con` sink is wired underneath), and raw
+  mode never touches `Con` at all except its overflow bell, so the primitive is identical behind
+  either backend by construction rather than by having been wired twice.
+
 - **`OP_INTRCOUNT`** (DECISIONS §24): reply immediately with the running count of `^C` the terminal
   has seen since boot. This is the shell's `^C` sensor for the case a parked read cannot cover: when
   a foreground job is running, the shell is not in `OP_READLINE`, so there is no read to fail with
@@ -125,9 +154,11 @@ client fails fast instead of hanging on a reply that will never come.
 
 Owes:
 
-- **Line discipline on input.** The program calls `OP_READLINE` and receives a finished line. All
-  editing (cursor motion, backspace, kill and yank, history) happened on the far side of the
-  endpoint; the program never sees a keystroke, an escape sequence, or an echo.
+- **Line discipline on input, by default.** The program calls `OP_READLINE` and receives a finished
+  line. All editing (cursor motion, backspace, kill and yank, history) happened on the far side of
+  the endpoint; the program never sees a keystroke, an escape sequence, or an echo. **Unless it
+  asked not to**: `OP_RAWMODE` (milestone 169) opts a program into exactly that, one keystroke at a
+  time through `OP_READRAW`, for the class of program (a screen editor) that needs to.
 - **Newline translation on output.** A program writes Unix `\n` and the terminal puts a carriage
   return on the serial wire. A program that wants raw control of the wire gets it: everything
   that is not a bare `\n` passes through, so ANSI from the application reaches the screen intact.

@@ -56,7 +56,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use line_editor::{Event, LINE_MAX, LineDisc, PROMPT_MAX, Sink, proto};
+use line_editor::{Event, LINE_MAX, LineDisc, PROMPT_MAX, RawQueue, Sink, proto};
 use user_rt::{call, recv, recv_cap, reply, send};
 
 /// The terminal endpoint (slot 0): clients CALL requests here; we serve it with `RECV_CAP`. Its
@@ -109,11 +109,34 @@ const PAGE: usize = 4096;
 /// which is what a real tty's flooded input queue does too.
 const QUEUE: usize = 4;
 
+/// **These three live in `.bss`, not on the stack.** A user process here gets one 4 KiB page of
+/// stack (`kernel/src/user.rs`'s `USER_STACK_VA`), and `LineDisc` alone is a couple of KiB before
+/// `LineQueue` (four buffered lines) and `RawQueue` (milestone 169) are added on top of it; as
+/// stack locals in `_start`'s own frame that overflowed the page (found by
+/// `kernel::user::raw_mode_tests` faulting at `_start` with `sp` just past the mapped stack, the
+/// exact symptom `display_terminal.rs`'s own `TERMINAL` comment already names). `LineDisc::new`,
+/// `LineQueue::new` and `RawQueue::new` are all `const` precisely so this is possible; see
+/// `display_terminal.rs`'s `TERMINAL` for the same fix, one program over.
+static mut DISC: LineDisc = LineDisc::new();
+static mut LINE_QUEUE: LineQueue = LineQueue::new();
+static mut RAW_QUEUE: RawQueue = RawQueue::new();
+
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(mode: u64, _x1: u64, _x2: u64) -> ! {
-    let mut disc = LineDisc::new();
+    // A raw pointer first, then one dereference: taking `&mut DISC` directly is what
+    // `static_mut_refs` exists to refuse. This process has exactly one thread (DECISIONS §33), so
+    // each pointer below is the only route to its static and there is no aliasing question, the
+    // same reasoning `display_terminal.rs`'s `term()` documents for `TERMINAL`.
+    let disc_p = &raw mut DISC;
+    // SAFETY: see above.
+    let disc = unsafe { &mut *disc_p };
+    let queue_p = &raw mut LINE_QUEUE;
+    // SAFETY: see above.
+    let queue = unsafe { &mut *queue_p };
+    let raw_queue_p = &raw mut RAW_QUEUE;
+    // SAFETY: see above.
+    let raw_queue = unsafe { &mut *raw_queue_p };
     let mut con = Con { used: 0, mode };
-    let mut queue = LineQueue::new();
     // A parked READLINE: the slot holding the caller's one-shot Reply capability. The caller
     // stays blocked (that is CALL's contract) while we serve everyone else.
     let mut pending: Option<u64> = None;
@@ -121,6 +144,11 @@ pub extern "C" fn _start(mode: u64, _x1: u64, _x2: u64) -> ! {
     // while a foreground job runs and no read is parked to fail (DECISIONS §24). A
     // monotonic counter, so the shell learns of a ^C by the count advancing, never missing one.
     let mut intr_count: u64 = 0;
+    // Raw mode (milestone 169, OP_RAWMODE): while true, OP_BYTES bypasses `disc` entirely and
+    // lands in `raw_queue` instead, with no echo and no interpretation. `pending_raw` is
+    // OP_READRAW's own parked reply capability, the raw-mode twin of `pending`.
+    let mut raw_mode = false;
+    let mut pending_raw: Option<u64> = None;
 
     loop {
         let (w0, slot, w1) = recv_cap(TERM);
@@ -130,6 +158,18 @@ pub extern "C" fn _start(mode: u64, _x1: u64, _x2: u64) -> ! {
             continue;
         }
         match proto::op(w0) {
+            proto::OP_BYTES if raw_mode => {
+                // Raw mode: no echo, no interpretation, straight into the raw queue. A burst past
+                // RAW_QUEUE_MAX is dropped audibly, the same overflow contract `disc.feed` uses.
+                let n = proto::len(w0).min(8);
+                let bytes = w1.to_le_bytes();
+                if raw_queue.push(&bytes[..n]) < n {
+                    con.put(&[0x07]);
+                    con.flush();
+                }
+                reply(slot, 0, 0);
+                deliver_raw(raw_queue, &mut pending_raw);
+            }
             proto::OP_BYTES => {
                 let n = proto::len(w0).min(8);
                 for i in 0..n {
@@ -154,7 +194,42 @@ pub extern "C" fn _start(mode: u64, _x1: u64, _x2: u64) -> ! {
                 }
                 con.flush();
                 reply(slot, 0, 0);
-                deliver(&mut queue, &mut pending);
+                deliver(queue, &mut pending);
+            }
+            proto::OP_RAWMODE => {
+                let on = proto::len(w0) != 0;
+                // Abandon whichever mode's in-progress line we're leaving: the edit buffer (and
+                // any parked OP_READLINE, which raw mode would otherwise never complete) going
+                // into raw mode, the unread raw queue (and any parked OP_READRAW) coming out of
+                // it. A session must never resume half a line typed under the mode it just left.
+                if on {
+                    disc.abandon();
+                    queue.clear();
+                    if let Some(p) = pending.take() {
+                        reply(p, proto::BAD_REQUEST, 0);
+                    }
+                } else {
+                    *raw_queue = RawQueue::new();
+                    if let Some(p) = pending_raw.take() {
+                        reply(p, proto::BAD_REQUEST, 0);
+                    }
+                }
+                raw_mode = on;
+                reply(slot, 0, 0);
+            }
+            proto::OP_READRAW if !raw_mode => {
+                reply(slot, proto::BAD_REQUEST, 0);
+            }
+            proto::OP_READRAW => {
+                if pending_raw.is_some() {
+                    reply(slot, proto::BAD_REQUEST, 0);
+                    continue;
+                }
+                pending_raw = Some(slot);
+                deliver_raw(raw_queue, &mut pending_raw);
+            }
+            proto::OP_READLINE if raw_mode => {
+                reply(slot, proto::BAD_REQUEST, 0);
             }
             proto::OP_WRITE => {
                 let len = proto::len(w0).min(PAGE);
@@ -184,7 +259,7 @@ pub extern "C" fn _start(mode: u64, _x1: u64, _x2: u64) -> ! {
                 disc.start_line(&prompt[..plen], &mut con);
                 con.flush();
                 pending = Some(slot);
-                deliver(&mut queue, &mut pending);
+                deliver(queue, &mut pending);
             }
             proto::OP_PRINT => {
                 // **A second writer, with no second page** (DECISIONS §67, notes/sink-protocol.md).
@@ -222,6 +297,20 @@ fn deliver(queue: &mut LineQueue, pending: &mut Option<u64>) {
     let (len, flags) = queue.pop_front_into(APP_IN_VA);
     let p = pending.take().unwrap();
     reply(p, len as u64, flags);
+}
+
+/// Raw mode's twin of [`deliver`]: if an `OP_READRAW` is parked and a byte is queued, pop up to
+/// eight and reply register-only, exactly [`proto::OP_READRAW`]'s reply shape. No page: the bytes
+/// ride in `r1`, the same register-only path [`proto::OP_BYTES`] arrived on.
+fn deliver_raw(raw_queue: &mut RawQueue, pending_raw: &mut Option<u64>) {
+    if pending_raw.is_none() {
+        return;
+    }
+    let Some((n, packed)) = raw_queue.pop8() else {
+        return;
+    };
+    let p = pending_raw.take().unwrap();
+    reply(p, n as u64, packed);
 }
 
 /// The output sink channel: a page we fill and a message that says how much. Batches everything
@@ -296,7 +385,7 @@ struct LineQueue {
 }
 
 impl LineQueue {
-    fn new() -> Self {
+    const fn new() -> Self {
         LineQueue {
             lines: [([0; LINE_MAX], 0, 0); QUEUE],
             head: 0,

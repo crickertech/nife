@@ -193,6 +193,36 @@ pub mod proto {
     /// convention, which is what a sink adapter needed (notes/sink-protocol.md).
     pub const OP_PRINT: u64 = 5;
 
+    /// Application → terminal: switch the terminal between line-discipline and raw mode
+    /// (milestone 169). `len` is 1 to enter raw mode, 0 to leave it. Replied immediately, r0 = 0.
+    ///
+    /// **Raw mode is the primitive a screen editor needs that the line discipline does not give
+    /// it** (design/roadmap/169-kilo-editor.md): DECISIONS §21 says a program "never sees a
+    /// keystroke, an escape sequence, or an echo", which is exactly wrong for `kilo`, which needs
+    /// all three. While raw mode is on, [`OP_BYTES`] bypasses [`super::LineDisc`] entirely: no echo, no
+    /// editing, no line assembly. A keystroke reaches the application exactly as it arrived, one
+    /// [`OP_READRAW`] reply per burst the driver delivered.
+    ///
+    /// `OP_READLINE` is refused (`BAD_REQUEST`) while raw mode is on, and `OP_READRAW` is refused
+    /// while it is off: the two input models do not mix on one terminal at once, and a client that
+    /// tries gets a fast, loud refusal rather than a read that silently never completes.
+    ///
+    /// Switching in either direction **abandons whatever line was in progress**: the line
+    /// discipline's edit buffer going in, raw mode's queued-but-unread bytes coming out. That is
+    /// the same discard `^C` already does to the edit buffer, and it exists for the same reason:
+    /// a session must never resume half a line typed under the mode it just left. History and the
+    /// kill buffer are untouched, because neither belongs to the in-progress line.
+    pub const OP_RAWMODE: u64 = 6;
+
+    /// Application → terminal: read raw bytes, no line discipline (milestone 169). Valid only
+    /// while raw mode ([`OP_RAWMODE`]) is on; refused with `BAD_REQUEST` otherwise. Replied when
+    /// at least one byte is available, never held back to fill more (raw mode's whole point is
+    /// keystroke-at-a-time delivery, not batching): r0 = byte count (1..=8), r1 = the bytes packed
+    /// little-endian, the same register-only shape [`OP_BYTES`] and [`OP_PRINT`] already use, so
+    /// this needs no page either. **At most one read may be outstanding**, exactly like
+    /// [`OP_READLINE`]; a second one while one is parked is refused with `BAD_REQUEST`.
+    pub const OP_READRAW: u64 = 7;
+
     /// Pack a request's first word from an opcode and a length/count.
     pub const fn req(op: u64, len: u64) -> u64 {
         (op << OP_SHIFT) | (len & 0xffff_ffff)
@@ -287,8 +317,12 @@ impl Default for LineDisc {
 }
 
 impl LineDisc {
-    /// An empty discipline: no line in progress, no history, prompt unset.
-    pub fn new() -> Self {
+    /// An empty discipline: no line in progress, no history, prompt unset. `const` on purpose: a
+    /// user process here gets one 4 KiB page of stack (`kernel/src/user.rs`'s `USER_STACK_VA`),
+    /// and this struct is a few KiB before the temporary a stack-local move would make, so
+    /// `user/src/line_editor.rs` holds it in a `static` rather than in `_start`'s own frame
+    /// (`display_terminal.rs`'s `TERMINAL` is the same fix for the same reason, one program over).
+    pub const fn new() -> Self {
         LineDisc {
             buf: [0; LINE_MAX],
             len: 0,
@@ -312,6 +346,17 @@ impl LineDisc {
     /// The completed line, valid after [`Event::Line`] until the next one.
     pub fn line(&self) -> &[u8] {
         &self.done[..self.done_len]
+    }
+
+    /// Discard whatever line is in progress: the edit buffer, the cursor, and any history
+    /// browsing. History and the kill buffer are untouched, because neither belongs to the line
+    /// that was in progress. No echo; the caller prints whatever tells the human why, or nothing
+    /// (`^C`'s own `"^C\r\n"` is the caller side of that choice, and [`proto::OP_RAWMODE`]'s
+    /// mode switch prints nothing at all).
+    pub fn abandon(&mut self) {
+        self.len = 0;
+        self.cur = 0;
+        self.browse = None;
     }
 
     /// Begin a read: remember `prompt` (for repaints) and paint it, followed by whatever the
@@ -382,9 +427,7 @@ impl LineDisc {
                 // ^C: discard the line in progress. The caller routes the interrupt (or, today,
                 // merely fails a pending read); see design/interrupt-routing.md.
                 out.put(b"^C\r\n");
-                self.len = 0;
-                self.cur = 0;
-                self.browse = None;
+                self.abandon();
                 Event::Interrupt
             }
             0x04 => {
@@ -661,6 +704,76 @@ impl LineDisc {
         self.cur = n;
         out.put(&self.buf[..n]);
         out.put(b"\x1b[K");
+    }
+}
+
+/// How many raw bytes [`RawQueue`] holds for a parked `OP_READRAW`, when bytes arrive faster than
+/// the raw reader drains them. Sized like [`LINE_MAX`]'s bell-on-overflow precedent: a burst past
+/// this is dropped, audibly, rather than grown without bound. 64 is generous for a keystroke-at-a
+/// time reader (`kilo`'s own event loop reads one key, redraws, reads the next) and still covers a
+/// terminal-paste dumped in one go.
+pub const RAW_QUEUE_MAX: usize = 64;
+
+/// **Raw-mode byte delivery** (milestone 169, `OP_READRAW`): a plain FIFO of wire bytes, with no
+/// interpretation of any of them. Kept separate from [`LineDisc`] rather than a mode bit on it,
+/// because raw mode's whole point is that nothing here ever looks at what a byte means; a
+/// `LineDisc` exists to do exactly that.
+pub struct RawQueue {
+    buf: [u8; RAW_QUEUE_MAX],
+    head: usize,
+    len: usize,
+}
+
+impl Default for RawQueue {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl RawQueue {
+    /// An empty queue. `const` for the same reason [`LineDisc::new`] is: so a holder can be a
+    /// `static` instead of a stack local.
+    pub const fn new() -> Self {
+        RawQueue {
+            buf: [0; RAW_QUEUE_MAX],
+            head: 0,
+            len: 0,
+        }
+    }
+
+    /// True once nothing is queued.
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    /// Push bytes onto the queue. Returns the number actually pushed; once the queue is full the
+    /// rest are dropped, and the caller (which holds the [`Sink`] this crate deliberately does
+    /// not) is the one that rings the bell, the same split [`LineDisc::feed`] keeps between
+    /// interpretation and echo.
+    pub fn push(&mut self, bytes: &[u8]) -> usize {
+        let room = RAW_QUEUE_MAX - self.len;
+        let n = bytes.len().min(room);
+        for &b in &bytes[..n] {
+            self.buf[(self.head + self.len) % RAW_QUEUE_MAX] = b;
+            self.len += 1;
+        }
+        n
+    }
+
+    /// Pop up to 8 bytes (the register-only reply's own limit), packed little-endian. `None` if
+    /// the queue is empty.
+    pub fn pop8(&mut self) -> Option<(usize, u64)> {
+        if self.len == 0 {
+            return None;
+        }
+        let n = self.len.min(8);
+        let mut packed = 0u64;
+        for i in 0..n {
+            packed |= (self.buf[(self.head + i) % RAW_QUEUE_MAX] as u64) << (8 * i);
+        }
+        self.head = (self.head + n) % RAW_QUEUE_MAX;
+        self.len -= n;
+        Some((n, packed))
     }
 }
 
@@ -1076,6 +1189,85 @@ mod tests {
         // drifted FLAG_INTERRUPTED makes an interrupted read look like a normal empty line.
         assert_eq!(proto::FLAG_EOF, 1);
         assert_eq!(proto::FLAG_INTERRUPTED, 2);
+        // Pinned for the same reason: OP_RAWMODE and OP_READRAW are wire ABI too, and a drifted
+        // opcode number would silently reassign OP_PRINT's or a future opcode's traffic.
+        assert_eq!(proto::OP_RAWMODE, 6);
+        assert_eq!(proto::OP_READRAW, 7);
+    }
+
+    /// `abandon` clears the buffer, cursor, and history browsing, but leaves history and the kill
+    /// buffer alone: a mode switch mid-line must not erase what earlier lines put there.
+    #[test]
+    fn abandon_clears_the_line_not_the_history() {
+        let (mut d, mut s) = (LineDisc::new(), Screen::new());
+        feed_all(&mut d, &mut s, b"first\r"); // one real history entry
+        feed_all(&mut d, &mut s, b"x\x02\x0b"); // type 'x', ^B onto it, ^K kills it to end
+        feed_all(&mut d, &mut s, b"\x1b[A"); // browse into history
+        d.abandon();
+        assert_eq!(d.line(), b"first", "abandon must not touch the last completed line");
+        // The kill buffer survives: yanking it after abandon still works.
+        s = Screen::new();
+        feed_all(&mut d, &mut s, b"\x19");
+        assert_eq!(s.text(), "x", "abandon must not clear the kill buffer");
+        // History survives: up-arrow still reaches the recorded line.
+        s = Screen::new();
+        feed_all(&mut d, &mut s, b"\x15"); // ^U: clear the yanked "x"
+        feed_all(&mut d, &mut s, b"\x1b[A");
+        assert_eq!(s.text(), "first", "abandon must not clear history");
+    }
+
+    /// [`RawQueue`] delivers bytes in order, packs up to 8 per pop, and drains to empty: the
+    /// primitive `OP_READRAW` is built on, proven with no IPC involved.
+    #[test]
+    fn raw_queue_pops_in_order_up_to_eight() {
+        let mut q = RawQueue::new();
+        assert!(q.is_empty());
+        assert_eq!(q.push(b"hello, kilo!"), 12); // 12 bytes, under the cap
+        assert!(!q.is_empty());
+
+        let (n, packed) = q.pop8().unwrap();
+        assert_eq!(n, 8);
+        let first8: [u8; 8] = packed.to_le_bytes();
+        assert_eq!(&first8, b"hello, k");
+
+        let (n, packed) = q.pop8().unwrap();
+        assert_eq!(n, 4);
+        assert_eq!(&packed.to_le_bytes()[..4], b"ilo!");
+        assert!(q.is_empty());
+        assert!(q.pop8().is_none());
+    }
+
+    /// A burst past [`RAW_QUEUE_MAX`] is truncated: `push` reports how many actually landed, so
+    /// the caller (which owns the [`Sink`]) knows to ring the bell for the rest, exactly the
+    /// `LineDisc` overflow contract one level over.
+    #[test]
+    fn raw_queue_overflow_is_reported_not_grown() {
+        let mut q = RawQueue::new();
+        assert_eq!(q.push(&[b'a'; RAW_QUEUE_MAX]), RAW_QUEUE_MAX);
+        assert_eq!(q.push(b"more"), 0, "a full queue accepts nothing further");
+        // Draining still returns exactly what was pushed, byte for byte.
+        let mut drained = 0;
+        while let Some((n, _)) = q.pop8() {
+            drained += n;
+        }
+        assert_eq!(drained, RAW_QUEUE_MAX);
+    }
+
+    /// The queue wraps its ring correctly: push past the wrap point, pop some, push more, and the
+    /// bytes must still come out in the order they went in.
+    #[test]
+    fn raw_queue_wraps_the_ring_in_order() {
+        let mut q = RawQueue::new();
+        q.push(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+        let (n, packed) = q.pop8().unwrap(); // drain the first 8, head now at index 8
+        assert_eq!(n, 8);
+        assert_eq!(packed.to_le_bytes(), [1, 2, 3, 4, 5, 6, 7, 8]);
+        q.push(&[11, 12, 13]); // wraps past RAW_QUEUE_MAX
+        let mut out = std::vec::Vec::new();
+        while let Some((n, packed)) = q.pop8() {
+            out.extend_from_slice(&packed.to_le_bytes()[..n]);
+        }
+        assert_eq!(out, [9, 10, 11, 12, 13]);
     }
 
     /// The control-character encodings of movement (^B ^A ^E ^F), which the CSI tests do not
