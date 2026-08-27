@@ -449,6 +449,14 @@ path = "src/kbd.rs"
 test = false
 bench = false
 
+# The smallest real text editor (milestone 169), on the raw-keystroke primitive
+# (OP_RAWMODE/OP_READRAW) that milestone added to the terminal contract. See user/src/kilo.rs.
+[[bin]]
+name = "kilo"
+path = "src/kilo.rs"
+test = false
+bench = false
+
 # The entropy service (milestone 56, DECISIONS §44): owns a virtio-rng device and is the only thing
 # that can read it; clients hold an endpoint that means "you may obtain randomness". The driver rides
 # in it, the way both RTC drivers ride in the clock service, because a separate driver process would

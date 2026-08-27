@@ -4386,6 +4386,8 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         ("input", "input"),
         ("swish", "swish"),
         ("line_editor", "line_editor"),
+        // The smallest real text editor (milestone 169), on line_editor's raw-keystroke primitive.
+        ("kilo", "kilo"),
         ("terminal_sink_caretaker", "terminal_sink_caretaker"),
         ("blk", "blk"),
         ("allocator_exerciser", "allocator_exerciser"),
@@ -4563,6 +4565,8 @@ fn initrd_riscv() -> bool {
             "swish",
             "--bin",
             "line_editor",
+            "--bin",
+            "kilo",
             "--bin",
             "terminal_sink_caretaker",
             "--bin",
@@ -4918,6 +4922,8 @@ fn mkinitrd() -> bool {
         ("swish", "swish"),
         // The line discipline between the console and the shell (milestone 28).
         ("line_editor", "line_editor"),
+        // The smallest real text editor (milestone 169), on line_editor's raw-keystroke primitive.
+        ("kilo", "kilo"),
         // The terminal's sink adapter (milestone 50), so a declared second stream has somewhere to
         // go that is not the shell's own output slot.
         ("terminal_sink_caretaker", "terminal_sink_caretaker"),
