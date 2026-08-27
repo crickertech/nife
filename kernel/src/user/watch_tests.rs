@@ -229,7 +229,7 @@ fn a_second_frame_erases_the_first_rather_than_leaving_it_on_screen() {
     watch::frame(&survey1, &mut |bytes| vt.feed(bytes));
 
     let mut grid1 = [0u8; GRID_BYTES];
-    grid_text(vt,&mut grid1);
+    grid_text(vt, &mut grid1);
     let (mut da, mut db) = ([0u8; 20], [0u8; 20]);
     let da = digits(a, &mut da);
     let db = digits(b, &mut db);
@@ -264,7 +264,7 @@ fn a_second_frame_erases_the_first_rather_than_leaving_it_on_screen() {
     watch::frame(&survey2, &mut |bytes| vt.feed(bytes));
 
     let mut grid2 = [0u8; GRID_BYTES];
-    grid_text(vt,&mut grid2);
+    grid_text(vt, &mut grid2);
     assert!(
         !contains_exact_number(&grid2, da),
         "a's tid from the first frame is still on screen: watch overwrote instead of erasing",

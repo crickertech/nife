@@ -1434,7 +1434,8 @@ fn scanout_holds_the_terminals_text(ppm: &[u8]) -> Result<(), String> {
     // hundreds of KiB since milestone 142's grid growth, and while this host binary's stack has
     // room either way, the crate's own signature changed for its kernel-side callers and this is
     // the one shape that works for both (see `Vt`'s and `script::full_screen`'s own doc comments).
-    let mut expect = video_terminal::Vt::new(video_terminal::script::COLS, video_terminal::script::ROWS);
+    let mut expect =
+        video_terminal::Vt::new(video_terminal::script::COLS, video_terminal::script::ROWS);
     video_terminal::script::full_screen(&mut expect);
     scanout_matches(ppm, |x, y| expect.pixel(x, y))
 }
