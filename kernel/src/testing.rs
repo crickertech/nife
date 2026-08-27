@@ -306,12 +306,16 @@ const PAGE_FRAME_REPORT_MIN: usize = 16;
 /// constant needs is the two changes measured together, not 19060 + 85 by arithmetic: this ledger's
 /// own convention (see every raise above) is a real run, not a sum of two separate ones, because
 /// per-test frame cost is not guaranteed additive across unrelated changes (`report_frame_ledger`'s
-/// own BUGS note on registration-order drift is exactly this risk). Measured directly on the
-/// combined tree: see the fresh number below.
+/// own BUGS note on registration-order drift is exactly this risk). Measured on CI's own aarch64 run
+/// (this milestone's local host reproduces an unrelated, pre-existing flake in
+/// `caretaker_teardown_reclaims_a_full_session_worth_of_memory` that does not occur in CI, so CI's
+/// own log is the trustworthy source here): **19142** frames kept, the higher of two runs in the
+/// same job (19142 and 18921). 19142 + 15 (headroom, this ledger's own precedent for raising past a
+/// value it has just spent close to all of) = 19157.
 ///
 /// Raising it is a decision, not a formality: read the `[that test kept N frames]` lines the run
 /// prints, find who grew, and be able to say why that growth is permanent.
-const SUITE_PAGE_FRAME_BUDGET: usize = 19_200;
+const SUITE_PAGE_FRAME_BUDGET: usize = 19_157;
 
 /// **The longest run of free frames the boot must still have at the end**, in frames.
 ///
