@@ -114,9 +114,10 @@
 //! enforce those and it does not.
 //!
 //! Name: unrecorded. Introduced 2026-07-31 with milestone 56. `script/lint`'s `-d` allow-list
-//! carries a reason for it (the abbreviation of "credential", the shortening `kbd` is of
-//! "keyboard"), but that entry is the lane's own; milestone 63 spelled the long-running process
-//! `credentialer` in full and left this crate as it stood, without saying so.
+//! carries a reason for it (the abbreviation of "credential", the same ordinary kind of shortening
+//! `kbd` was of "keyboard" before its 2026-08-27 rename to `keyboard_driver`), but that entry is
+//! the lane's own; milestone 63 spelled the long-running process `credentialer` in full and left
+//! this crate as it stood, without saying so.
 
 #![cfg_attr(not(test), no_std)]
 

@@ -931,7 +931,7 @@ pub fn spawn_init(
 
     // **The graphical terminal stack, for the boot role only, when the GPU and the keyboard are
     // both attached** (milestone 177, option A). `None` on a boot with either device absent (real
-    // hardware, or a run with `NIFE_GPU`/`NIFE_KBD` unset): the whole chain past this point treats
+    // hardware, or a run with `NIFE_GPU`/`NIFE_KEYBOARD` unset): the whole chain past this point treats
     // it exactly as "this boot has no filesystem" is already treated, as an absence rather than a
     // failure, and init builds the plain console/input pair instead. See
     // [`boot_graphical_terminal`] for what wiring it costs and why it is built here rather than by
@@ -2312,7 +2312,7 @@ fn term_print(out: u64, ep: crate::sched::RendezvousId, text: &[u8]) {
 /// driver and a client that draws, wired by the kernel and then left alone.
 ///
 /// ```text
-///   virtio-gpu ──virtio (PCIe, behind the IOMMU)──► display driver ──display IPC──► painter
+///   virtio-gpu ──virtio (PCIe, behind the IOMMU)──► gpu_driver ──display IPC──► painter
 ///        │                                              │                             │
 ///        └──── DMA: the whole region ───────────────────►│                             │
 ///                                    the surface (pages 1..) ─────── shared ──────────┘
@@ -2367,7 +2367,7 @@ pub mod compositor_service;
 /// reads them.
 ///
 /// ```text
-///   virtio-input ──virtio (PCIe, IOMMU)──► kbd ──the input ring──► whoever maps it
+///   virtio-input ──virtio (PCIe, IOMMU)──► keyboard_driver ──the input ring──► whoever maps it
 ///                                           └──doorbell COMMIT──► "look at the surfaces"
 /// ```
 ///
@@ -2612,7 +2612,7 @@ pub struct GraphicalTerminal {
 /// time (`keyboard_service::start_direct`), means the caller receives a single capability to it
 /// (`kbd_ep`) and grants `READ` to `line_editor` and `WRITE` to `swish`, exactly the two views it
 /// already carves out of a self-created endpoint in the plain-console boot. That turns three slots
-/// into one, which is what makes 2 (display) + 1 (keyboard) fit the three slots aarch64 has left,
+/// into one, which is what makes 2 (GPU) + 1 (keyboard) fit the three slots aarch64 has left,
 /// where 2 + 3 would not.
 ///
 /// **Readiness is drained here**, the same idiom `fs_service::wait_for_service` already uses: the
@@ -2621,19 +2621,19 @@ pub struct GraphicalTerminal {
 /// program exists.
 ///
 /// A GPU with no keyboard attached (or the reverse) is treated as absent overall: the already-
-/// spawned display driver and terminal are left running, unused, the same "idle forever" shape the
+/// spawned GPU driver and terminal are left running, unused, the same "idle forever" shape the
 /// undertaker and the sink adapter already have on a boot that never builds a client for them. A
 /// real boot attaches both devices together or neither; see `scripts/qemu-runner-*.sh`.
 fn boot_graphical_terminal() -> Option<GraphicalTerminal> {
-    let display = program("display")?;
+    let gpu_driver = program("gpu_driver")?;
     let display_terminal = program("display_terminal")?;
-    let kbd = program("kbd")?;
+    let keyboard_driver = program("keyboard_driver")?;
 
-    let w = display_service::start_terminal(display, display_terminal)?;
+    let w = display_service::start_terminal(gpu_driver, display_terminal)?;
     assert_eq!(
         crate::sched::ipc_recv(w.driver_report)[0],
         graphics_proto::status::UP,
-        "the display driver did not come up",
+        "the GPU driver did not come up",
     );
     let [tag, ..] = crate::sched::ipc_recv(w.term_report);
     assert_eq!(
@@ -2643,7 +2643,7 @@ fn boot_graphical_terminal() -> Option<GraphicalTerminal> {
     );
 
     let kbd_ep = crate::sched::create_rendezvous();
-    keyboard_service::start_direct(kbd, kbd_ep)?;
+    keyboard_service::start_direct(keyboard_driver, kbd_ep)?;
 
     Some(GraphicalTerminal {
         disp_term_ep: w.term,
@@ -3369,7 +3369,8 @@ mod glob_grant_tests;
 /// because that module leans on aarch64-only scaffolding (the hand-written 7a user programs and
 /// the PL011-wired `hello` roles), while these need only the ELF loader and the initrd archive.
 /// The driver is the SAME `virtio` module the aarch64 roles compile, packed as the dedicated
-/// `blk` binary (user/src/blk.rs); the kernel-side wiring (`virtio_service`) is the same code,
+/// `block_driver` binary (`user/src/block_driver.rs`); the kernel-side wiring (`virtio_service`) is
+/// the same code,
 /// unconditionally. What these prove that aarch64's runs do not: userspace device drivers with
 /// DMA, and the kernel's DMA confinement, on the second ISA.
 #[cfg(all(test, target_arch = "riscv64"))]

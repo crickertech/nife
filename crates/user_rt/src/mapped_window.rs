@@ -4,8 +4,9 @@
 //! Seven programs each hand-rolled the same four to six functions: `r8`/`w8`/`r16`/`w16`/`r32`,
 //! sometimes `r16le`/`w16le` or `a_r8`/`a_w8`, every one of them `unsafe { core::ptr::read_volatile
 //! ... }` or its `write_volatile` twin, over either a DMA page a driver's wiring maps before
-//! `_start` runs or a shared IPC frame the program `PageFrame::MAP`s itself. `entropy.rs`, `kbd.rs`,
-//! `net_transport.rs`, `mdns_responder.rs`, `socket_test_client.rs`, `smb_server.rs` and `ntp.rs`
+//! `_start` runs or a shared IPC frame the program `PageFrame::MAP`s itself. `entropy.rs`,
+//! `keyboard_driver.rs`, `net_transport.rs`, `mdns_responder.rs`, `socket_test_client.rs`,
+//! `smb_server.rs` and `ntp.rs`
 //! all carried a copy; `ntp.rs`'s own comment named the duplication out loud ("the same shape
 //! `net_stack` and `socket_test_client` use") without anyone lifting it out.
 //!

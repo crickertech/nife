@@ -9,7 +9,7 @@
 # and a virtio-keyboard instead of the plain UART pair, and verifies it by reading the screen back
 # (a QEMU screendump decoded against the same 7x8 font the guest drew from) rather than by piping a
 # serial transcript: there is no UART client on that path to pipe. It proves a working, typeable
-# prompt reached the screen and a real keystroke round-tripped through `kbd`'s direct `CALL` to
+# prompt reached the screen and a real keystroke round-tripped through `keyboard_driver`'s direct `CALL` to
 # `line_editor`; it does not run the full console leg's script (echo, redirects, `wc <`, ...), which
 # is real, scoped-out follow-on work. See `shell_check_leg_graphical`'s own doc in `xtask/src/main.rs`.
 #

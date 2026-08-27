@@ -7,7 +7,7 @@
 //! (DECISIONS §7) rather than in a driver where a wrong row costs a QEMU boot to find.
 //!
 //! It lives in this crate rather than in `line_editor` because it is the *display* terminal's input
-//! half, and because the driver that uses it (`user/src/kbd.rs`) already depends on nothing else
+//! half, and because the driver that uses it (`user/src/keyboard_driver.rs`) already depends on nothing else
 //! here. The bytes it produces are the terminal contract's driver half either way
 //! (notes/terminal-contract.md, `OP_BYTES`), so a keystroke from this device and a keystroke from the
 //! UART are the same thing by the time anything downstream sees it.

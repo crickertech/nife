@@ -431,7 +431,7 @@ fn attach_page_frame() {
 
 // =================================================================================================
 // The shared frame. Absolute-VA volatile access through `WINDOW` (milestone 139), the same
-// abstraction mdns_responder, socket_test_client, smb_server, kbd, entropy and net_transport share.
+// abstraction mdns_responder, socket_test_client, smb_server, keyboard_driver, entropy and net_transport share.
 // `va` is always `PAGE_FRAME_VA + <an offset constant>`, so subtracting PAGE_FRAME_VA recovers the offset
 // `WINDOW` bounds-checks against.
 // =================================================================================================

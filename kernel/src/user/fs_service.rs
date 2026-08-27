@@ -241,7 +241,7 @@ fn ensure(blk_image: &'static [u8], fs_server_image: &'static [u8]) -> Option<Se
 }
 
 /// Wire and spawn the block server and the FS server. `blk_image` is the driver binary carrying
-/// the block-server role (hello on aarch64, `blk` on riscv); `fs_server_image` is the same on
+/// the block-server role (hello on aarch64, `block_driver` on riscv); `fs_server_image` is the same on
 /// both ISAs. Returns `(blk_ready, ready, file_ep, file_shared)`.
 fn wire_servers(
     blk_image: &'static [u8],
@@ -897,8 +897,8 @@ pub const NO_MKFS: &str = "no mkfs in this archive: it is built from the same pa
 
 /// **The binary carrying the block server's role**, which is the one thing the two ISAs
 /// disagree about here: on aarch64 it is a role of the `init`/hello binary, on riscv the
-/// dedicated `blk` one. Every caller goes through this so the disagreement is one `cfg` rather
-/// than a second copy of every wiring.
+/// dedicated `block_driver` one. Every caller goes through this so the disagreement is one `cfg`
+/// rather than a second copy of every wiring.
 ///
 /// It panics rather than returning `None` because a boot archive without it is a build that did
 /// not finish, not a machine without a disk; the disk's absence is [`root_directory`]'s `None`.
@@ -906,13 +906,13 @@ pub fn blk_server_image() -> &'static [u8] {
     #[cfg(target_arch = "aarch64")]
     return program("init").expect("no init program in the initrd archive");
     #[cfg(target_arch = "riscv64")]
-    return program("blk").expect("no blk program in the initrd archive");
+    return program("block_driver").expect("no block_driver program in the initrd archive");
     // x86_64 (milestone 161) packs RISC-V's archive, so it gets RISC-V's answer: the dedicated
-    // `blk` program. This arm used to panic outright, because nothing in `user/` compiled for this
-    // target at all; item 4's hand-off changed that and the arm became a third copy of the same
-    // line rather than a special case.
+    // `block_driver` program. This arm used to panic outright, because nothing in `user/` compiled
+    // for this target at all; item 4's hand-off changed that and the arm became a third copy of
+    // the same line rather than a special case.
     #[cfg(target_arch = "x86_64")]
-    return program("blk").expect("no blk program in the initrd archive");
+    return program("block_driver").expect("no block_driver program in the initrd archive");
 }
 
 /// **Wire the filesystem and hand back the root directory capability**, for a boot rather than

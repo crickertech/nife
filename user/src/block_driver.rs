@@ -12,9 +12,13 @@
 //! in the same binary for the same reason they ride in hello: they differ from the honest driver
 //! by one descriptor, and sharing the setup code is what makes the attack a fair test.
 //!
-//! Name: ratified 2026-07-30 (calef, DECISIONS §39), among the names recorded there as "always
-//! right, and always the majority". An abbreviation is allowed where it is the ordinary name of the
-//! thing, which `blk` is.
+//! Name: ratified 2026-08-27 (calef). Renamed from `blk` to `block_driver`, matching the
+//! `<device>_driver` shape given to `gpu_driver` and `keyboard_driver` in the same pass. Not
+//! `disk_driver`: virtio-blk operates on the block-device abstraction, which is medium-agnostic
+//! (RAM-backed, network-backed and virtual block devices are all real, not just physical disks),
+//! so `block` is the accurate term and `disk` would be a narrower, slightly false claim. `blk`
+//! itself was ratified 2026-07-30 (DECISIONS §39) as an abbreviation that was the ordinary name
+//! of the thing; this supersedes that entry with the fuller, consistent name.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks

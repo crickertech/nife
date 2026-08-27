@@ -2,7 +2,7 @@
 //! ladder's rung two).
 //!
 //! This process is rung one's *client*, unchanged at that seam: it holds the display endpoint and the
-//! scanout frames exactly as `painter` did, and `display` cannot tell the difference. What it adds is
+//! scanout frames exactly as `painter` did, and `gpu_driver` cannot tell the difference. What it adds is
 //! everything above the seam, and it holds these capabilities and nothing else:
 //!
 //! - slot 0, a **report** endpoint: how it tells its spawner it came up;
@@ -91,7 +91,7 @@ fn wr32(va: u64, v: u32) {
 ///
 /// # Safety
 /// The kernel maps exactly `SCREEN_PIXELS` pixels at [`SCREEN_VA`], read/write, shared with the
-/// display driver. No other thread in this process exists, so there is no aliasing question.
+/// GPU driver. No other thread in this process exists, so there is no aliasing question.
 fn screen() -> &'static mut [u32] {
     // SAFETY: see above.
     unsafe { core::slice::from_raw_parts_mut(SCREEN_VA as *mut u32, compositor::SCREEN_PIXELS) }
@@ -154,12 +154,12 @@ fn flush(damage: Rect) {
     let Some((x, y, w, h)) = damage.as_flush_rect() else {
         return; // nothing on screen changed; asking the driver to flush nothing is a refused request
     };
-    // The pixels must be visible to whoever reads them next: the display driver in another address
+    // The pixels must be visible to whoever reads them next: the GPU driver in another address
     // space, and through it a device. A release fence is the portable way to say that (it lowers to
     // `dmb ish` on aarch64 and `fence` on RISC-V), and it belongs here rather than in arch code
     // because this is a userspace program (DECISIONS rule 1).
     //
-    // PAIR: `barrier()` in user/src/display.rs, which the driver issues before it moves the
+    // PAIR: `barrier()` in user/src/gpu_driver.rs, which the driver issues before it moves the
     // virtqueue index and again before it notifies the device. The `call(DISPLAY, FLUSH, ...)` below
     // is what orders these pixels against the driver *reading* them (the driver is blocked in
     // `recv_cap`); this fence is what covers the driver-to-device leg not being ours to see.
@@ -186,7 +186,7 @@ fn flush(damage: Rect) {
 fn drain_input(focusable: usize, focus: &mut u32) {
     let mut head = rd32(RING_VA + ring::HEAD);
     let tail = rd32(RING_VA + ring::TAIL);
-    // **The acquire half of `kbd::ring_publish`'s release** (milestone 43,
+    // **The acquire half of `keyboard_driver::ring_publish`'s release** (milestone 43,
     // notes/shared-page-audit.md finding 7). The producer fences before it stores the tail, with a
     // comment saying the bytes must be visible before the tail that advertises them; that orders
     // the producer's stores and does nothing whatever for this reader. `rd32` is a plain volatile
@@ -194,7 +194,7 @@ fn drain_input(focusable: usize, focus: &mut u32) {
     // without this the compositor can act on a fresh tail and stale bytes. The kernel's stand-in
     // for this same ring (`kernel/src/user/keyboard_service.rs`, `take_typed`) already fences
     // here; the userspace reader of the same contract did not.
-    // PAIR: `kbd::ring_publish`'s release fence in the input source (milestone 43,
+    // PAIR: `keyboard_driver::ring_publish`'s release fence in the input source (milestone 43,
     // notes/shared-page-audit.md finding 7), which fences before it stores the tail loaded above.
     core::sync::atomic::fence(core::sync::atomic::Ordering::Acquire);
     while head != tail {

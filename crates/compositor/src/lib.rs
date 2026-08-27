@@ -21,7 +21,7 @@
 //! ```
 //!
 //! The compositor is **rung one's client, unchanged**: it holds the display endpoint and the scanout
-//! frames exactly as `painter` did, and `display` cannot tell the difference. Everything rung two adds
+//! frames exactly as `painter` did, and `gpu_driver` cannot tell the difference. Everything rung two adds
 //! is above that seam.
 //!
 //! # Examples
@@ -148,7 +148,7 @@
 
 /// The screen's width. **The screen is rung one's surface**, so this is `graphics_proto`'s geometry rather
 /// than a second declaration of it: the compositor composites into the very frames `painter` used to
-/// paint, and flushes them through the same `FLUSH(rect)` the display driver already honours.
+/// paint, and flushes them through the same `FLUSH(rect)` the GPU driver already honours.
 pub const SCREEN_W: u32 = graphics_proto::WIDTH;
 /// The screen's height. See [`SCREEN_W`].
 pub const SCREEN_H: u32 = graphics_proto::HEIGHT;
@@ -276,7 +276,7 @@ impl Rect {
     }
 
     /// This rectangle as unsigned screen coordinates, for [`graphics_proto::rect`]. `None` if it is empty
-    /// or not wholly on the screen, because the display driver **refuses** an out-of-surface flush
+    /// or not wholly on the screen, because the GPU driver **refuses** an out-of-surface flush
     /// rather than clamping it (rung one's rule), so handing it one is a bug we should not paper over.
     pub const fn as_flush_rect(&self) -> Option<(u32, u32, u32, u32)> {
         if self.is_empty() || self.x < 0 || self.y < 0 {
@@ -1151,7 +1151,7 @@ mod tests {
         }
     }
 
-    /// The flush rectangle handed to the display driver is always inside the screen, and an empty or
+    /// The flush rectangle handed to the GPU driver is always inside the screen, and an empty or
     /// off-screen one is refused rather than turned into a bogus flush. Rung one refuses an
     /// out-of-surface rectangle, so producing one would be a driver-visible bug.
     #[test]

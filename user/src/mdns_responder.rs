@@ -148,7 +148,7 @@ const E_ANSWER_SEND: u64 = 0xE241;
 
 // `va` is always `PAGE_FRAME_VA + <an offset constant>` at every call site, so subtracting PAGE_FRAME_VA
 // recovers the offset `WINDOW` bounds-checks against (milestone 139; see `user_rt::mapped_window`,
-// the same abstraction socket_test_client, smb_server, ntp, kbd, entropy and net_transport share).
+// the same abstraction socket_test_client, smb_server, ntp, keyboard_driver, entropy and net_transport share).
 fn w8(va: u64, v: u8) {
     WINDOW.w8(va - PAGE_FRAME_VA, v);
 }
