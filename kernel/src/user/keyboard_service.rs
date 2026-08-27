@@ -102,6 +102,82 @@ pub fn start(image: &'static [u8]) -> Option<Wiring> {
     })
 }
 
+/// `arg0`'s direct-wiring value. Must match `user/src/kbd.rs` `MODE_DIRECT`.
+const MODE_DIRECT: u64 = 1;
+
+/// **Wire and spawn the keyboard driver in `MODE_DIRECT`** (milestone 177, option A): a fixed
+/// `CALL` target instead of the compositor's ring and doorbell, for a boot with exactly one
+/// terminal and no compositor in the input path at all
+/// (design/roadmap/177-graphical-interactive-boot.md's own reasoning: the compositor's focus
+/// arbitration answers a multi-client question a single-terminal boot does not have).
+///
+/// `target` is the endpoint the driver will `CALL` with `line_editor::proto::OP_BYTES`, granted
+/// here with `WRITE` and nothing else, so this driver can name exactly one destination and no
+/// other. Ordinarily `line_editor`'s own served endpoint (its slot 0), the same endpoint
+/// `user/src/input.rs`'s UART driver already holds `WRITE` on for the plain-console boot: a
+/// keyboard and a serial line are both "one input source" to the line discipline.
+///
+/// Returns the driver's report endpoint, or `None` if no virtio-input function is on the bus. No
+/// input ring and no doorbell exist in this wiring: nothing here plays the compositor, because
+/// there is no compositor in this path.
+pub fn start_direct(image: &'static [u8], target: RendezvousId) -> Option<RendezvousId> {
+    let d = crate::pci::find_input_device()?;
+
+    let dma = crate::memory::alloc_contiguous(DMA_PAGE_FRAMES as usize)
+        .expect("no DMA region for the keyboard driver")
+        .addr();
+    // SAFETY: a fresh frame, direct-mapped, owned by nobody else. Zeroed so no stale descriptor
+    // and no stale event is ever visible to the device.
+    unsafe {
+        core::ptr::write_bytes(
+            mmu::phys_to_virt(dma) as *mut u8,
+            0,
+            (DMA_PAGE_FRAMES * FRAME_SIZE) as usize,
+        );
+    }
+
+    let irq_ep = crate::sched::create_rendezvous();
+    crate::sched::bind_irq(d.intid, irq_ep);
+    crate::arch::irq::enable(d.intid);
+
+    let vid = crate::virtio::register(
+        crate::virtio::Transport::pci(&d),
+        dma,
+        DMA_PAGE_FRAMES * FRAME_SIZE,
+        Some(d.rid),
+    );
+
+    let report = crate::sched::create_rendezvous();
+
+    // Only the DMA page: MODE_DIRECT has no input ring to map, because it has no compositor to
+    // share one with.
+    let maps = [Mapping {
+        va: DMA_VA,
+        phys: dma,
+        flags: Flags::user_data(),
+    }];
+    crate::sched::spawn(move || {
+        run(
+            image,
+            Spawn {
+                arg0: MODE_DIRECT,
+                arg1: dma, // the DMA region's PHYSICAL base: descriptors speak physical
+                arg2: 0,
+                grants: &[
+                    rendezvous_cap(report, Rights::WRITE), // slot 0: status
+                    irq_cap(d.intid),                      // slot 1: the event interrupt
+                    virtio_cap(vid),                       // slot 2: the confined transport
+                    rendezvous_cap(target, Rights::WRITE), // slot 3: line_editor, directly
+                ],
+                maps: &maps,
+            },
+        )
+    })
+    .expect("could not spawn the keyboard driver");
+
+    Some(report)
+}
+
 impl Wiring {
     /// **Take what the driver has typed into the ring**, advancing the head the way a compositor
     /// does. Returns how many bytes landed in `out`.
