@@ -1,0 +1,129 @@
+name: architect hold
+
+# **Enforces the `needs-architect` label mechanically, so no one merges a PR they only think they
+# lack authority for.** The label documents that a PR sits outside standing merge authority (a
+# `DECISIONS.md` section, the syscall surface, or a new dependency, per its own GitHub description),
+# but before this workflow existed, nothing checked it. On 2026-08-27 a maintainer session called
+# `gh pr merge --auto` on a `needs-architect` PR without realizing the label meant "not yours to
+# merge," and the queue happily ran it through: a documentation convention is not a gate, and this
+# repository's own tenet on the ladder of enforcement (AGENTS.md, "the ladder, strongest first")
+# says a prose reminder is rung four, the weakest rung there is. This workflow moves the same fact
+# to rung two: a required status check that fails for as long as the label is present, regardless
+# of who or what is driving the session.
+#
+# One job, one `gh api` call, no polling, no waiting on anything slow: read the PR's current
+# labels and fail if `needs-architect` is among them. That determinism is deliberate and not
+# incidental. This check becomes a required status check sitting in the exact merge queue that
+# PR #546 sat stuck in for two hours (fixed by PR #557, whose concurrency exemption this file
+# copies below) -- a slow or flaky required check is what jams that queue, and this one must never
+# be the thing that gets stuck.
+
+on:
+  # `labeled`/`unlabeled` are the two types the default trigger omits and the two this check exists
+  # for: adding or removing `needs-architect` with no new commit must still flip this check's result
+  # for the PR's current head SHA, or the check would keep reporting whatever it last saw at the
+  # last push and the label could be added after a green run with nothing to notice.
+  #
+  # No draft-skip condition, unlike ci.yml/verify.yml's jobs. Those skip drafts because their checks
+  # are expensive and a draft can never reach the merge queue anyway. This one costs about the same
+  # as a single API call either way, and a lane should be able to see this check's result on its own
+  # PR while it is still a draft (this project's own convention, AGENTS.md's "a lane's first act is
+  # a draft pull request"), rather than only once marked ready.
+  pull_request:
+    types: [opened, reopened, synchronize, labeled, unlabeled, ready_for_review]
+  # **Required for the same reason ci.yml and verify.yml need it (read their headers).** A queued
+  # pull request is tested on a `gh-readonly-queue/...` branch, which raises `merge_group` rather
+  # than `pull_request`. A workflow that only listens for the latter never runs in the queue, so a
+  # required check built from it would sit on "Expected" forever and the queue would jam on a check
+  # that can never report, exactly the trap those two files' headers already document for their own
+  # triggers.
+  merge_group:
+  workflow_dispatch:
+
+# `contents: read` is every other workflow's default here (see ci.yml's header on least privilege:
+# a project whose thesis is that a component holds only the authority its job needs has no business
+# giving its CI token more). This workflow needs exactly one thing beyond that default: reading a
+# PR's labels via the API, which `contents: read` does not grant. `pull-requests: read` is the one
+# addition, scoped to this workflow only. Nothing here writes anything -- no comment, no label
+# change, no merge action -- so nothing beyond read access is asked for.
+permissions:
+  contents: read
+  pull-requests: read
+
+# Mirrors ci.yml's and verify.yml's pattern (their headers have the full argument): only the tip of
+# a branch or PR matters, so a follow-up push should cancel the run in flight, but a merge-queue
+# entry must run to completion undisturbed or it can structurally never report.
+#
+# **The `gh-readonly-queue/` exemption is applied from the start here**, not discovered the way
+# PR #557 discovered it for ci.yml and verify.yml. PR #546 sat `AWAITING_CHECKS` for over two hours
+# because the old `'tip'` fallback put every retry of one queue entry in the same concurrency group
+# as the last, and `cancel-in-progress` killed each attempt before it could report a conclusion --
+# a required check that could never complete. This workflow is new, so there is no history of that
+# bug here specifically, but the fix is known and applied up front rather than reintroduced.
+#
+# This workflow never triggers on a push to `main` (it has no `push:` trigger above), so the
+# `github.ref == 'refs/heads/main'` branch of this condition is unreachable today. Kept anyway, for
+# parity with ci.yml/verify.yml's pattern and so the group stays correct without edits if a `push`
+# trigger is ever added.
+concurrency:
+  group: architect-hold-${{ github.ref }}-${{ github.ref == 'refs/heads/main' && github.sha || 'tip' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/heads/gh-readonly-queue/') }}
+
+jobs:
+  hold:
+    # **This exact string is what goes into ruleset 19596094's `required_status_checks` once
+    # someone with admin access adds it** (not done by this workflow's own PR -- see its
+    # "What I need from you"). Keep it stable: renaming this job breaks the match the same way
+    # verify.yml's header already warns about for a required check moved between workflows.
+    name: architect hold (needs-architect label)
+    runs-on: ubuntu-24.04-arm
+    # Reads one PR's labels over the API. No checkout, no toolchain, no cache: nothing here needs
+    # the repository's contents.
+    timeout-minutes: 5
+    steps:
+      # Resolves to the same PR number on both triggers, so the check step below has one path
+      # instead of two. `pull_request` carries the number directly in the event payload;
+      # `merge_group` carries no PR object at all, only the queue's synthetic ref
+      # (`.../gh-readonly-queue/main/pr-<number>-<sha>`, observed directly on PR #546), so the
+      # number has to be parsed back out of it.
+      - name: Resolve the PR number for this event
+        id: pr
+        env:
+          HEAD_REF: ${{ github.event.merge_group.head_ref }}
+          PR_EVENT_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          if [ -n "$PR_EVENT_NUMBER" ]; then
+            echo "number=$PR_EVENT_NUMBER" >> "$GITHUB_OUTPUT"
+            echo "==> pull_request event: PR #$PR_EVENT_NUMBER"
+            exit 0
+          fi
+          if [ -z "$HEAD_REF" ]; then
+            echo "neither pull_request.number nor merge_group.head_ref is set; cannot resolve a PR number" >&2
+            exit 1
+          fi
+          # Match the pr-<digits>- segment regardless of whether HEAD_REF carries a refs/heads/
+          # prefix, since that has not been confirmed to be stable across GitHub's own payloads.
+          number="$(printf '%s\n' "$HEAD_REF" | grep -oE 'pr-[0-9]+-' | head -1 | grep -oE '[0-9]+')"
+          if [ -z "$number" ]; then
+            echo "could not parse a PR number out of merge_group.head_ref: '$HEAD_REF'" >&2
+            exit 1
+          fi
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+          echo "==> merge_group event: head_ref '$HEAD_REF' -> PR #$number"
+
+      # Reads the PR's labels fresh from the API rather than trusting the pull_request event
+      # payload's own label list, so a label added or removed a moment ago is always what this
+      # check sees, on both trigger paths, through one piece of logic instead of two.
+      - name: Fail if the resolved PR carries needs-architect
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+        run: |
+          labels="$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER" --jq '.labels[].name')"
+          echo "PR #$PR_NUMBER labels:"
+          printf '%s\n' "$labels" | sed 's/^/  /'
+          if printf '%s\n' "$labels" | grep -qx 'needs-architect'; then
+            echo "==> needs-architect is present: this PR is outside standing merge authority and must not merge." >&2
+            exit 1
+          fi
+          echo "==> needs-architect not present"
