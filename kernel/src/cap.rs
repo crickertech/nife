@@ -5,6 +5,8 @@
 //!
 //! DECISIONS.md §10 and notes/capabilities.md.
 
+use core::num::NonZeroU64;
+
 /// Every kind of thing a process can be handed.
 ///
 /// **One entry, and that is the milestone-8 result rather than a stub.** There used to be a
@@ -65,7 +67,14 @@ pub enum Object {
     /// caller that predates this widening passes `count: 1` and keeps its exact prior behavior; the
     /// syscall's argument shape does not change; `count` rides on the capability, not on `MAP`'s
     /// arguments. See notes/frames.md.
-    PageFrame(u64, u64),
+    ///
+    /// **`NonZeroU64` rather than `u64`, because a zero-page run is the wrong state and the
+    /// compiler is the cheapest place to forbid it** (AGENTS.md's ladder, rung 1). Every dispatch
+    /// path derives an end address from the count (`page_frame_map`'s tail-VA check computes
+    /// `(count - 1) * PAGE_SIZE`), and a zero would underflow it: a debug build panics, a release
+    /// build wraps. The type removes the branch instead of guarding it, and it costs nothing,
+    /// since the niche makes `Option<Object>` no larger.
+    PageFrame(u64, NonZeroU64),
 
     /// **A device's MMIO page**, by physical address (milestone 19d.2): a delegatable authority
     /// to map a *specific* device's registers, **device-typed** (nGnRnE, uncacheable, unreordered
@@ -116,6 +125,21 @@ pub enum Object {
 }
 
 pub type Cap = capability::Cap<Object>;
+
+// **What a slot costs, pinned** (milestone 142's review, MINOR 9).
+//
+// DECISIONS §102 rejected growing `CAPABILITY_TABLE_SLOTS` on an arithmetic that starts from "24
+// bytes a slot, times `MAX_THREADS` = 128", and then, in the same decision, widened `PageFrame`
+// from one `u64` to two. **A slot is 32 bytes now, not 24**: the enum is as wide as its widest
+// variant, `PageFrame` is that variant, and it grew by a word. Nothing measured it, so §102's own
+// figure went stale inside §102. That is what this assertion is for; it is the fact, not a target.
+//
+// Sixteen slots is 512 bytes a capability table rather than 384, so the option §102 priced at 12
+// KiB a thread for 512 slots would now be 16 KiB. The refusal does not change (the decision's
+// argument was never really about the bytes), but the number a future reader quotes should be the
+// one the compiler agrees with. Update these two and re-read §102 when they fire.
+const _: () = assert!(core::mem::size_of::<Object>() == 24);
+const _: () = assert!(core::mem::size_of::<Cap>() == 32);
 
 /// A thread's capability table: 16 slots, fixed at the type (milestone 14 phase B.1). The size
 /// was already the de-facto limit (`CapabilityTable::empty()` made 16); now it is part of the
@@ -320,7 +344,7 @@ pub fn device_frame_cap(phys: u64, rights: Rights) -> Cap {
 /// count is not 1.
 pub fn page_frame_cap(phys: u64, rights: Rights) -> Cap {
     Cap {
-        object: Object::PageFrame(phys, 1),
+        object: Object::PageFrame(phys, NonZeroU64::MIN),
         rights,
     }
 }
@@ -328,12 +352,31 @@ pub fn page_frame_cap(phys: u64, rights: Rights) -> Cap {
 /// A capability naming a run of `count` contiguous physical pages starting at `phys` (DECISIONS
 /// §102, 2026-08-20). The run-capable sibling of [`page_frame_cap`]: one capability for a DMA
 /// region or a scanout that is contiguous in physics, in the address space, and in the IOMMU domain
-/// that confines it, instead of one capability per page. `count` must be at least 1; `count: 1` is
+/// that confines it, instead of one capability per page. `count: 1` ([`NonZeroU64::MIN`]) is
 /// exactly [`page_frame_cap`].
-pub fn page_frame_run_cap(phys: u64, count: u64, rights: Rights) -> Cap {
-    debug_assert!(count >= 1, "a PageFrame run must name at least one page");
+///
+/// The count is a [`NonZeroU64`] rather than a `u64` guarded by a `debug_assert!`, which is what
+/// this took until the milestone 142 review: a `debug_assert!` is compiled out of the release build
+/// `xtask bench --release` runs, so the one build whose numbers get published was the one build
+/// with no check at all. See [`Object::PageFrame`] for what a zero would have underflowed.
+pub fn page_frame_run_cap(phys: u64, count: NonZeroU64, rights: Rights) -> Cap {
     Cap {
         object: Object::PageFrame(phys, count),
         rights,
+    }
+}
+
+/// `n` pages as a run length, refusing zero.
+///
+/// The bridge for the callers that compute a page count arithmetically (a surface's
+/// `SURFACE_BYTES.div_ceil(4096)`, a DMA region's `1 + surface`) and would otherwise each spell out
+/// the same `NonZeroU64::new(..).expect(..)`. `const`, so a caller passing a literal or a `const`
+/// gets the refusal **at compile time** rather than at boot: that is the rung this whole
+/// widening's zero-check wanted and the reason the function exists at all rather than the call
+/// sites doing it themselves.
+pub const fn page_frame_run_len(n: u64) -> NonZeroU64 {
+    match NonZeroU64::new(n) {
+        Some(count) => count,
+        None => panic!("a PageFrame run must name at least one page"),
     }
 }

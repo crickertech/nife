@@ -44,7 +44,8 @@ pub const ROLE_SMALL_DAMAGE: u64 = 1 << 6;
 
 /// The screen's frames, in the scanout's own geometry. The same run of frames rung one's driver
 /// scans out, because the screen *is* rung one's surface.
-const SCREEN_PAGE_FRAMES: u64 = graphics_proto::SURFACE_PAGE_FRAMES as u64;
+const SCREEN_PAGE_FRAMES: core::num::NonZeroU64 =
+    crate::cap::page_frame_run_len(graphics_proto::SURFACE_PAGE_FRAMES as u64);
 
 /// What the kernel keeps after wiring a scene: the endpoints it can ring or listen on, and the
 /// physical addresses it needs to be an independent witness of what the processes did.

@@ -26,14 +26,27 @@
 //! What stays wired at spawn is nothing at all here: these programs have no extra stack pages, so
 //! the only page the kernel still places is the one `load` gives every process.
 
+use core::num::NonZeroU64;
+
 use super::*;
 use crate::cap::{
-    Rights, irq_cap, memory_region_cap, page_frame_run_cap, rendezvous_cap, virtio_cap,
+    Rights, irq_cap, memory_region_cap, page_frame_run_cap, page_frame_run_len, rendezvous_cap,
+    virtio_cap,
 };
 use crate::sched::RendezvousId;
 
 /// The DMA region, in frames: one for the rings and control buffers, then the surface.
 const DMA_PAGE_FRAMES: u64 = 1 + graphics_proto::SURFACE_PAGE_FRAMES as u64;
+
+/// The three run lengths this file grants, as run lengths.
+///
+/// They are `const` rather than computed at the call site so that
+/// [`crate::cap::page_frame_run_len`]'s refusal of a zero-page run happens **while this file is
+/// compiled**: a geometry change that took `SURFACE_PAGE_FRAMES` to zero would fail the build here
+/// rather than panic a driver at boot. (Provisional names; a lane does not settle a name.)
+const SURFACE_RUN: NonZeroU64 = page_frame_run_len(graphics_proto::SURFACE_PAGE_FRAMES as u64);
+const DMA_RUN: NonZeroU64 = page_frame_run_len(DMA_PAGE_FRAMES);
+const ONE_PAGE_RUN: NonZeroU64 = NonZeroU64::MIN;
 
 /// The driver binary's escape-attempt role; must match user/src/display.rs `ROLE_BACKING_ESCAPE`.
 const ROLE_BACKING_ESCAPE: u64 = 1;
@@ -85,7 +98,7 @@ const TERM_SLOT_OUT: u64 = TERM_SLOT_SURFACE + 1;
 /// Grant one capability naming the `count`-frame run at `base`, read/write, at `slot`. The
 /// counterpart of the single `MAP` call each of these programs now makes at startup for the run
 /// (§102): before this widening a run was `count` separate slots and `count` separate `MAP` calls.
-fn grant_run(slot: u64, base: u64, count: u64, what: &str) {
+fn grant_run(slot: u64, base: u64, count: NonZeroU64, what: &str) {
     crate::sched::grant_at(
         slot,
         page_frame_run_cap(base, count, Rights::READ.union(Rights::WRITE)),
@@ -126,7 +139,7 @@ pub fn start(
         grant_run(
             CLIENT_SLOT_SURFACE,
             surface,
-            graphics_proto::SURFACE_PAGE_FRAMES as u64,
+            SURFACE_RUN,
             "the painting client",
         );
         run(
@@ -239,7 +252,7 @@ fn wire_driver(
         .expect("driver slot 3 was occupied");
         crate::sched::grant_at(DRIVER_SLOT_BUDGET, memory_region_cap(budget))
             .expect("driver slot 4 was occupied");
-        grant_run(DRIVER_SLOT_DMA, dma, DMA_PAGE_FRAMES, "the display driver");
+        grant_run(DRIVER_SLOT_DMA, dma, DMA_RUN, "the display driver");
         run(
             driver_image,
             Spawn {
@@ -346,11 +359,11 @@ pub fn start_terminal(
         grant_run(
             TERM_SLOT_SURFACE,
             surface,
-            graphics_proto::SURFACE_PAGE_FRAMES as u64,
+            SURFACE_RUN,
             "the display terminal",
         );
         // The page an application writes text into.
-        grant_run(TERM_SLOT_OUT, out, 1, "the display terminal");
+        grant_run(TERM_SLOT_OUT, out, ONE_PAGE_RUN, "the display terminal");
         run(
             term_image,
             Spawn {

@@ -154,6 +154,36 @@ pub fn record_mapping(phys: u64, root: u64, va: u64) -> bool {
     true
 }
 
+/// **Undo one [`record_mapping`]**: tombstone the record that `root` maps `phys` at `va`, without
+/// touching any other space's view of `phys`.
+///
+/// The counterpart the rollback paths needed and did not have. [`unmap_everywhere`] is the wrong
+/// tool for undoing a half-finished `PageFrame::MAP`, because it is space-blind by design: it pulls
+/// the physical page out of *every* address space that maps it, which for a shared frame would
+/// punish the peers for the mapper's failure. This removes exactly the one record the caller just
+/// wrote, and the caller unmaps exactly the one page it just mapped.
+///
+/// Silent when the space or the record is unknown, because both mean the same thing to a rollback:
+/// there is nothing left to undo.
+pub fn forget_mapping(phys: u64, root: u64, va: u64) {
+    let mut spaces = SPACES.lock();
+    let Some(space) = spaces.iter_mut().flatten().find(|s| s.root == root) else {
+        return;
+    };
+    let mut page_phys = space.head;
+    while page_phys != 0 {
+        // SAFETY: pages in the chain are the log's own; SPACES is held.
+        let page = unsafe { log_page(page_phys) };
+        for e in page.entries.iter_mut().take(page.used as usize) {
+            if e.phys == phys && e.va == va {
+                e.phys = 0; // tombstone: reusable by the next record, exactly as a revoke leaves it
+                return;
+            }
+        }
+        page_phys = page.next;
+    }
+}
+
 /// **One entry of what `root` has mapped, resuming from `cursor`** (`abi::address_space::LIST`,
 /// milestone 126's `pmap`, DECISIONS §114). `(0, 0)` means done, the same `abi::survey::DONE`
 /// convention `SURVEY` uses on the endpoint side: start with `cursor = 0`, feed each returned

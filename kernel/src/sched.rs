@@ -2244,6 +2244,9 @@ pub fn delete_page_frame_caps(phys: u64, count: u64) {
     let Some(sched) = guard.as_mut() else {
         return;
     };
+    let Some(count) = core::num::NonZeroU64::new(count) else {
+        return;
+    };
     let target = crate::cap::Object::PageFrame(phys, count);
     for t in sched.threads.iter_mut() {
         for slot in 0..t.capability_table.len() as u64 {
