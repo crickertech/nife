@@ -1,33 +1,47 @@
 //! **`line_editor`: the line discipline as a userspace component** (milestone 28).
 //!
 //! The layer Unix builds into the kernel as the tty line discipline is here a process. It sits
-//! between the raw input driver and the application, and between the application and the console
-//! server, on plain endpoints:
+//! between the raw input driver and the application, and between the application and its output
+//! sink, on plain endpoints:
 //!
 //! ```text
+//!   MODE_CONSOLE (the plain-console boot):
 //!   input driver ──OP_BYTES──►┌──────────┐──text──► console server ──► UART
+//!                             │ line_editor │
+//!        application ◄─lines──└──────────┘◄──OP_WRITE / OP_READLINE── application
+//!
+//!   MODE_DISPLAY (milestone 177, the graphical boot):
+//!   kbd (direct) ──OP_BYTES──►┌──────────┐──OP_WRITE──► display_terminal
 //!                             │ line_editor │
 //!        application ◄─lines──└──────────┘◄──OP_WRITE / OP_READLINE── application
 //! ```
 //!
 //! Nobody in that picture knows what they are talking to. The input driver holds "an endpoint I
 //! send wire bytes to"; the application holds "an endpoint that prints and reads lines"; the
-//! console server holds "an endpoint requests arrive on". Rendezvous-only naming (notes/
+//! output sink holds "an endpoint requests arrive on". Rendezvous-only naming (notes/
 //! ipc-naming.md) is what makes the discipline swappable: rewire the endpoints and no client can
-//! tell, which is milestone 23's hot-swap claim in component form.
+//! tell, which is milestone 23's hot-swap claim in component form. Milestone 177 exercises that
+//! claim on the output side for real: the same server, unchanged on its input side, prints through
+//! `display_terminal`'s `OP_WRITE`/one-`CALL` contract instead of the console's bespoke two-endpoint
+//! one, chosen at spawn by `mode` (see [`MODE_CONSOLE`]/[`MODE_DISPLAY`]) and nowhere else --
+//! `Con::put` writes to the same page either way, because the wire shape only differs in
+//! [`Con::flush`].
 //!
 //! The IPC protocol is the terminal contract, notes/terminal-contract.md; the framing constants
-//! are `line_editor::proto`. Every request is a `CALL`, served through `RECV_CAP`, answered through
-//! the kernel's one-shot Reply capability (DECISIONS §12). That choice is what makes the server
-//! deadlock-free: a READLINE with no line ready is *held* (the reply capability parked in a
-//! slot) while the server keeps serving, so a client blocked printing can never interlock with
-//! a server blocked delivering. The editing itself lives in the host-tested `line_editor` crate;
-//! this file is only wiring: words in, pages copied, words out.
+//! are `line_editor::proto`. Every request served here is a `CALL`, served through `RECV_CAP`,
+//! answered through the kernel's one-shot Reply capability (DECISIONS §12). That choice is what
+//! makes the server deadlock-free: a READLINE with no line ready is *held* (the reply capability
+//! parked in a slot) while the server keeps serving, so a client blocked printing can never
+//! interlock with a server blocked delivering. The editing itself lives in the host-tested
+//! `line_editor` crate; this file is only wiring: words in, pages copied, words out.
 //!
-//! Its whole authority: the terminal endpoint (slot 0, RECV), the console server's request and
-//! reply endpoints (slots 1 and 2), the console's shared page (write), the client's output page
-//! (read) and input page (write). No UART, no interrupt: the discipline touches no hardware,
-//! which is exactly why it did not exist until the drivers did.
+//! Its whole authority: the terminal endpoint (slot 0, RECV), the output sink's request endpoint
+//! (slot 1: `CONREQ`/`SEND` in [`MODE_CONSOLE`], `display_terminal`'s served endpoint/`CALL` in
+//! [`MODE_DISPLAY`]), the console server's reply endpoint (slot 2, [`MODE_CONSOLE`] only), the
+//! output page shared with whichever sink this boot has (write), the client's output page (read)
+//! and input page (write). No UART, no interrupt, no device of any kind: the discipline touches no
+//! hardware, which is exactly why it did not exist until the drivers did and exactly why it did
+//! not need to change to gain a second one.
 //!
 //! Name: ratified 2026-07-30 (calef, DECISIONS §39, landed by milestone 46) for the word and again
 //! 2026-08-01 (milestone 63) for the spelling, replacing `termd` and then `lineedit`. Refused
@@ -43,19 +57,43 @@
 #![no_main]
 
 use line_editor::{Event, LINE_MAX, LineDisc, PROMPT_MAX, Sink, proto};
-use user_rt::{recv, recv_cap, reply, send};
+use user_rt::{call, recv, recv_cap, reply, send};
 
-/// The terminal endpoint (slot 0): clients CALL requests here; we serve it with `RECV_CAP`.
+/// The terminal endpoint (slot 0): clients CALL requests here; we serve it with `RECV_CAP`. Its
+/// clients differ by [`MODE_CONSOLE`]/[`MODE_DISPLAY`] (`input` or `kbd`, directly, for the
+/// keystroke half; `swish` either way), but this server never has to know which: an `OP_BYTES`
+/// CALL looks the same regardless of who is holding the other end (notes/ipc-naming.md).
 const TERM: u64 = 0;
-/// The console server's request endpoint (slot 1): we SEND a byte count on it.
+/// The output sink's request endpoint (slot 1): [`MODE_CONSOLE`] SENDs a byte count here
+/// ([`CONREQ`]'s own doc); [`MODE_DISPLAY`] CALLs it with `OP_WRITE` (`display_terminal`'s own
+/// served endpoint). One slot, two meanings, chosen by `mode` at spawn -- the same shape
+/// `display_terminal`'s own `PRESENT` slot and `kbd`'s own `OUT` slot already use.
 const CONREQ: u64 = 1;
 /// The console server's reply endpoint (slot 2): we RECV its ack here. The console speaks the
 /// pre-§12 two-endpoint protocol (it serves with plain RECV, which cannot answer a CALL), so
 /// this hop is SEND+RECV, not CALL. Safe with one console client, and `line_editor` is that client.
+/// **[`MODE_CONSOLE`] only**: [`MODE_DISPLAY`] prints through one `CALL` on [`CONREQ`] and needs no
+/// second endpoint, so nothing is granted here in that mode and this slot is simply never read.
 const CONREP: u64 = 2;
 
-/// The console's shared page, mapped read/write: we fill it, the console prints it. The same
-/// frame the console server reads at its own `SHARED_VA`; must match the wiring (init).
+/// `mode`: the pre-milestone-177 wiring, unchanged. `Con::flush` speaks the console's bespoke
+/// two-endpoint protocol over [`CONREQ`]/[`CONREP`]. Named for symmetry with [`MODE_DISPLAY`]
+/// rather than matched by value: it is also `Con::flush`'s fallback for any `mode` this process
+/// was never told to expect, which is the safer of the two directions to default in (a refused
+/// `SEND` is silent; a `CALL` to an endpoint that does not speak that contract would hang this
+/// server forever).
+#[allow(dead_code)]
+const MODE_CONSOLE: u64 = 0;
+/// `mode`: milestone 177's wiring, for the graphical boot. `Con::flush` speaks
+/// `display_terminal`'s `OP_WRITE`/one-`CALL` contract over [`CONREQ`], which in this mode holds
+/// `display_terminal`'s own served endpoint instead of the console's request endpoint.
+const MODE_DISPLAY: u64 = 1;
+
+/// The output sink's shared page, mapped read/write: we fill it, the sink prints it. In
+/// [`MODE_CONSOLE`] the same frame the console server reads at its own `SHARED_VA`; in
+/// [`MODE_DISPLAY`] the same frame `display_terminal` reads at its own `OUT_VA`. Must match the
+/// wiring (init, or `kernel::user::boot_graphical_terminal` one level further up); one address
+/// either way, since the two modes never coexist in one process.
 const CONOUT_VA: u64 = 0x0060_0000;
 /// The client's output page, mapped read-only: `OP_WRITE` text and `OP_READLINE` prompts arrive
 /// here, written by the client at its own VA for this frame.
@@ -72,9 +110,9 @@ const PAGE: usize = 4096;
 const QUEUE: usize = 4;
 
 #[unsafe(no_mangle)]
-pub extern "C" fn _start(_x0: u64, _x1: u64, _x2: u64) -> ! {
+pub extern "C" fn _start(mode: u64, _x1: u64, _x2: u64) -> ! {
     let mut disc = LineDisc::new();
-    let mut con = Con { used: 0 };
+    let mut con = Con { used: 0, mode };
     let mut queue = LineQueue::new();
     // A parked READLINE: the slot holding the caller's one-shot Reply capability. The caller
     // stays blocked (that is CALL's contract) while we serve everyone else.
@@ -186,20 +224,40 @@ fn deliver(queue: &mut LineQueue, pending: &mut Option<u64>) {
     reply(p, len as u64, flags);
 }
 
-/// The console channel: a page we fill and a message that says how much. Batches everything
+/// The output sink channel: a page we fill and a message that says how much. Batches everything
 /// the engine emits between flushes, so one keystroke's echo (or one ^L repaint) is one IPC
-/// round trip, not one per escape sequence.
+/// round trip, not one per escape sequence. `put` (below) is identical in both modes: it always
+/// writes to [`CONOUT_VA`], and which physical frame backs that address is the wiring's business,
+/// not this struct's. Only `flush`'s wire shape differs, by `mode`.
 struct Con {
     used: usize,
+    mode: u64,
 }
 
 impl Con {
     fn flush(&mut self) {
-        if self.used > 0 {
-            send(CONREQ, self.used as u64, 0, 0);
-            recv(CONREP); // the ack means the page is ours to refill
-            self.used = 0;
+        if self.used == 0 {
+            return;
         }
+        match self.mode {
+            MODE_DISPLAY => {
+                // One CALL, `display_terminal`'s own `OP_WRITE` contract: `CONREQ` holds its
+                // served endpoint in this mode, not the console's request endpoint. The reply's
+                // byte count is not re-checked here for the same reason the console's ack
+                // content already wasn't: a short write from a terminal that never refuses one is
+                // not a case this server has ever had to handle, in either mode.
+                call(CONREQ, proto::req(proto::OP_WRITE, self.used as u64), 0);
+            }
+            _ => {
+                // MODE_CONSOLE, and the default for any value this process was never told to
+                // expect: the pre-milestone-177 wiring, which is also the safer of the two to
+                // fall back on (a refused SEND is silent; a CALL to an endpoint that does not
+                // speak this contract would hang this server forever).
+                send(CONREQ, self.used as u64, 0, 0);
+                recv(CONREP); // the ack means the page is ours to refill
+            }
+        }
+        self.used = 0;
     }
 }
 

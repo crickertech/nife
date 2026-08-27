@@ -929,6 +929,18 @@ pub fn spawn_init(
         crate::arch::irq::enable(g.intid);
     }
 
+    // **The graphical terminal stack, for the boot role only, when the GPU and the keyboard are
+    // both attached** (milestone 177, option A). `None` on a boot with either device absent (real
+    // hardware, or a run with `NIFE_GPU`/`NIFE_KBD` unset): the whole chain past this point treats
+    // it exactly as "this boot has no filesystem" is already treated, as an absence rather than a
+    // failure, and init builds the plain console/input pair instead. See
+    // [`boot_graphical_terminal`] for what wiring it costs and why it is built here rather than by
+    // init.
+    let graphical = if role == INIT_BOOT_ROLE {
+        boot_graphical_terminal()
+    } else {
+        None
+    };
     // **init's building budget is carved here, not inside the thread**, so the caller has a name for
     // it and can reclaim it. A large untyped init retypes the child's address space, frames and TCB from,
     // sized for a full copy of the initrd program plus its tables and init's scratch. Carving it out
@@ -1108,6 +1120,41 @@ pub fn spawn_init(
                 ),
             )
             .expect("grant the virtio-rng DMA page");
+        }
+
+        // **The graphical terminal stack (slots 12-14, milestone 177), when this boot has one.**
+        // `grant_at`, not first-free, for the virtio-rng trio's own reason: the filesystem pair is
+        // itself conditional, so first-free numbering would silently shift these three depending on
+        // whether a disk was attached. Fixed past the virtio-rng trio's own floor (slot 11).
+        if let Some(g) = graphical {
+            crate::sched::grant_at(
+                12,
+                crate::cap::rendezvous_cap(
+                    g.disp_term_ep,
+                    crate::cap::Rights::WRITE.union(crate::cap::Rights::GRANT),
+                ),
+            )
+            .expect("grant the display terminal's endpoint");
+            crate::sched::grant_at(
+                13,
+                crate::cap::page_frame_cap(
+                    g.disp_term_page,
+                    crate::cap::Rights::READ
+                        .union(crate::cap::Rights::WRITE)
+                        .union(crate::cap::Rights::GRANT),
+                ),
+            )
+            .expect("grant the display terminal's output page");
+            crate::sched::grant_at(
+                14,
+                crate::cap::rendezvous_cap(
+                    g.kbd_ep,
+                    crate::cap::Rights::READ
+                        .union(crate::cap::Rights::WRITE)
+                        .union(crate::cap::Rights::GRANT),
+                ),
+            )
+            .expect("grant the keyboard driver's endpoint");
         }
 
         enter_frame(elf.entry(), USER_STACK_TOP, role, initrd_len, fs_rights)
@@ -2095,6 +2142,40 @@ pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), Loa
         .expect("insert the virtio-rng DMA page");
         assert_eq!(s9, 9);
     }
+    // The graphical terminal stack (slots 10-12, milestone 177), when the GPU and the keyboard are
+    // both attached. `None` on a boot with either device absent: system_initializer builds the
+    // plain console/input pair instead, the same "absence rather than failure" shape as the
+    // filesystem pair and the virtio-rng trio. See [`boot_graphical_terminal`].
+    let graphical = boot_graphical_terminal();
+    if let Some(g) = &graphical {
+        let s10 = crate::sched::thread_control_block_insert_cap(
+            tid,
+            crate::cap::rendezvous_cap(g.disp_term_ep, Rights::WRITE.union(Rights::GRANT)),
+            Some(10),
+        )
+        .expect("insert the display terminal's endpoint");
+        assert_eq!(s10, 10);
+        let s11 = crate::sched::thread_control_block_insert_cap(
+            tid,
+            crate::cap::page_frame_cap(
+                g.disp_term_page,
+                Rights::READ.union(Rights::WRITE).union(Rights::GRANT),
+            ),
+            Some(11),
+        )
+        .expect("insert the display terminal's output page");
+        assert_eq!(s11, 11);
+        let s12 = crate::sched::thread_control_block_insert_cap(
+            tid,
+            crate::cap::rendezvous_cap(
+                g.kbd_ep,
+                Rights::READ.union(Rights::WRITE).union(Rights::GRANT),
+            ),
+            Some(12),
+        )
+        .expect("insert the keyboard driver's endpoint");
+        assert_eq!(s12, 12);
+    }
     crate::sched::configure_thread_control_block(tid, elf.entry(), USER_STACK_TOP, aspace_name)
         .expect("configure");
     crate::sched::start_thread_control_block(tid, [0, initrd_len, fs_rights]).expect("start"); // a1 = archive length
@@ -2490,6 +2571,85 @@ fn boot_config_page() -> u64 {
         core::ptr::copy_nonoverlapping(bytes.as_ptr(), dst, bytes.len());
     }
     phys
+}
+
+/// What [`boot_graphical_terminal`] hands the caller: the two capabilities init actually needs to
+/// hand a client, and one more for the keyboard driver's own target.
+pub struct GraphicalTerminal {
+    /// `display_terminal`'s own served endpoint (`display_service::TerminalWiring::term`): an
+    /// application `CALL`s it with `OP_WRITE` to print. `fs_ep`'s own shape, one level over.
+    pub disp_term_ep: crate::sched::RendezvousId,
+    /// The physical page shared with `display_terminal`
+    /// (`display_service::TerminalWiring::out`), written before an `OP_WRITE`.
+    pub disp_term_page: u64,
+    /// The endpoint the keyboard driver already holds `WRITE` (`CALL`) on. The caller grants
+    /// `READ` to whatever serves it (`line_editor`, as its own terminal endpoint) and `WRITE` to
+    /// whatever else needs to reach the same discipline (`swish`), exactly the two views the
+    /// plain-console boot already carves out of a self-created endpoint of the same shape.
+    pub kbd_ep: crate::sched::RendezvousId,
+}
+
+/// **The whole graphical terminal stack, kernel-side, for the boot's single-terminal case**
+/// (milestone 177, option A). `None` when the GPU, the keyboard, or any of the three programs is
+/// absent; the caller falls back to the plain console/input pair exactly the way it already falls
+/// back on a boot with no filesystem or no virtio-rng device.
+///
+/// **Built kernel-side, mirroring `fs_service::root_directory`'s own shape**, for a mechanical
+/// reason design/roadmap/177-graphical-interactive-boot.md's own investigation worked out in full:
+/// a virtio-gpu device alone needs eleven capability-table slots (a `PageFrame` per DMA page, and
+/// the ABI's `MAP_INTO`/`CAP_INSERT` are strictly one-capability-per-physical-page), which does not
+/// fit either board's remaining budget. So the driver and the terminal are spawned here, before
+/// init exists, and the caller receives only the two capabilities it actually needs to hand a
+/// client (`disp_term_ep`/`disp_term_page`), the same shape `fs_ep`/`fs_page` already are.
+///
+/// **The keyboard driver is spawned here too, for a different reason than the GPU's.** Its own raw
+/// materials (an `Irq`, a `Virtio`, one DMA `PageFrame`) would fit the three slots aarch64's
+/// `spawn_init` has left, on their own -- but option A's target endpoint is `line_editor`'s own
+/// served endpoint, which does not exist until init builds it, and a driver init spawns can only be
+/// wired to capabilities init itself already holds (`ChildEndowment::maps`' own contract: it maps
+/// what the caller has, not what the caller could ask the kernel for). Creating that endpoint here
+/// instead, before either process exists, and wiring the keyboard driver to it at its own spawn
+/// time (`keyboard_service::start_direct`), means the caller receives a single capability to it
+/// (`kbd_ep`) and grants `READ` to `line_editor` and `WRITE` to `swish`, exactly the two views it
+/// already carves out of a self-created endpoint in the plain-console boot. That turns three slots
+/// into one, which is what makes 2 (display) + 1 (keyboard) fit the three slots aarch64 has left,
+/// where 2 + 3 would not.
+///
+/// **Readiness is drained here**, the same idiom `fs_service::wait_for_service` already uses: the
+/// kernel plays the waiting process it would otherwise be, so by the time this returns the display
+/// driver and the terminal are *running*, not merely spawned, and init never has to know either
+/// program exists.
+///
+/// A GPU with no keyboard attached (or the reverse) is treated as absent overall: the already-
+/// spawned display driver and terminal are left running, unused, the same "idle forever" shape the
+/// undertaker and the sink adapter already have on a boot that never builds a client for them. A
+/// real boot attaches both devices together or neither; see `scripts/qemu-runner-*.sh`.
+fn boot_graphical_terminal() -> Option<GraphicalTerminal> {
+    let display = program("display")?;
+    let display_terminal = program("display_terminal")?;
+    let kbd = program("kbd")?;
+
+    let w = display_service::start_terminal(display, display_terminal)?;
+    assert_eq!(
+        crate::sched::ipc_recv(w.driver_report)[0],
+        graphics_proto::status::UP,
+        "the display driver did not come up",
+    );
+    let [tag, ..] = crate::sched::ipc_recv(w.term_report);
+    assert_eq!(
+        tag,
+        video_terminal::status::TERM_UP,
+        "the display terminal did not come up",
+    );
+
+    let kbd_ep = crate::sched::create_rendezvous();
+    keyboard_service::start_direct(kbd, kbd_ep)?;
+
+    Some(GraphicalTerminal {
+        disp_term_ep: w.term,
+        disp_term_page: w.out,
+        kbd_ep,
+    })
 }
 
 /// **Wall-clock time** (milestone 51 lane A, DECISIONS §43).

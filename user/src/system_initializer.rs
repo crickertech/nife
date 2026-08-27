@@ -60,6 +60,13 @@ const GRANTS: BootEndowment = BootEndowment {
     virtio_rng: 7,
     virtio_rng_irq: 8,
     virtio_rng_dma: 9,
+    // The graphical terminal stack (milestone 177, option A), fixed past the virtio-rng trio's
+    // own floor (slot 9) for its own reason: a boot with no GPU or no keyboard attached leaves
+    // all three empty, and `system_initializer::boot`'s own probe is what tells it apart from a
+    // granted one.
+    disp_term_ep: 10,
+    disp_term_page: 11,
+    kbd_ep: 12,
     // Nothing. Unlike aarch64's, this boot path is not shared with milestone 19d's test roles, so
     // the kernel grants exactly what the interactive system uses.
     for_test_roles: &[],
