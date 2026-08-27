@@ -1430,7 +1430,12 @@ fn scanout_holds_the_composed_screen(ppm: &[u8]) -> Result<(), String> {
 /// text into text nobody can read. Its negative control is
 /// `tests::the_scanout_check_rejects_text_that_is_one_letter_wrong`.
 fn scanout_holds_the_terminals_text(ppm: &[u8]) -> Result<(), String> {
-    let expect = video_terminal::script::full_screen();
+    // `Vt::new` then `script::full_screen(&mut _)` rather than the old `-> Vt` shape: a `Vt` is
+    // hundreds of KiB since milestone 142's grid growth, and while this host binary's stack has
+    // room either way, the crate's own signature changed for its kernel-side callers and this is
+    // the one shape that works for both (see `Vt`'s and `script::full_screen`'s own doc comments).
+    let mut expect = video_terminal::Vt::new(video_terminal::script::COLS, video_terminal::script::ROWS);
+    video_terminal::script::full_screen(&mut expect);
     scanout_matches(ppm, |x, y| expect.pixel(x, y))
 }
 
@@ -9311,7 +9316,17 @@ pub const GET: u64 = 1;
     }
 
     fn text_rgb(x: u32, y: u32) -> (u8, u8, u8) {
-        let w = video_terminal::script::full_screen().pixel(x, y);
+        // Built once and cached rather than once per pixel: `ppm` below calls this per pixel of a
+        // 1280x720 image (921,600 times), and reconstructing and re-feeding a `Vt` that many times
+        // would dominate this test's runtime the moment the grid grew past a few dozen cells.
+        static SCREEN: std::sync::OnceLock<video_terminal::Vt> = std::sync::OnceLock::new();
+        let screen = SCREEN.get_or_init(|| {
+            let mut vt =
+                video_terminal::Vt::new(video_terminal::script::COLS, video_terminal::script::ROWS);
+            video_terminal::script::full_screen(&mut vt);
+            vt
+        });
+        let w = screen.pixel(x, y);
         (
             ((w >> 16) & 0xff) as u8,
             ((w >> 8) & 0xff) as u8,
