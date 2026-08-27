@@ -108,11 +108,29 @@ pub enum Object {
 
 pub type Cap = capability::Cap<Object>;
 
-/// A thread's capability table: 16 slots, fixed at the type (milestone 14 phase B.1). The size
+/// A thread's capability table: 17 slots, fixed at the type (milestone 14 phase B.1). The size
 /// was already the de-facto limit (`CapabilityTable::empty()` made 16); now it is part of the
 /// type and creating a capability table cannot allocate. Growing it is a one-number change here,
 /// paid in TCB size.
-pub const CAPABILITY_TABLE_SLOTS: usize = 16;
+///
+/// **Raised 16 -> 17, milestone 49's terminal update.** `user/src/login.rs` gaining an eighth
+/// permanent grant (`TERM_EP`) pushed its own peak past the old fifteen usable slots (sixteen
+/// minus the reserved fault slot, `abi::fault::FAULT_EP_SLOT`) by exactly one: the first login
+/// against a freshly built service answered `login_proto::DENIED` instead of `OK`, on a correct
+/// password, which is the exact silent-capacity-exhaustion symptom this file's own BUGS section
+/// already describes for a different cause. Measured, not guessed: `mint`'s own peak (`region`,
+/// `narrow_ep`, `ready`, briefly `tcb`, four objects) plus what a channel still holds at that point
+/// (`channel.result`, `channel.region`, two more) plus login's own resting footprint (eight granted
+/// capabilities, `own_ut`, `channel_ut`, ten more) is sixteen simultaneous slots, one past the
+/// fifteen usable. Every other avenue was considered and rejected first (see
+/// `design/roadmap/49-users-and-attribution.md`'s own account): none of `own_ut`, `channel_ut`, the
+/// caretaker's `region`/`narrow_ep`/`ready` triple, or the channel's own objects can be merged or
+/// deferred without reopening a bug this tree already paid to fix (the 368-page LIFO hole, or the
+/// permanently-unreclaimable caretaker). This constant's own comment already names the cost of
+/// raising it ("a one-number change here, paid in TCB size"), which is exactly the shape of trade
+/// this tree's own precedent (`MAX_REGIONS`, `nifefs::NAME_LEN`) already treats as the expected
+/// response to a real feature needing one more slot.
+pub const CAPABILITY_TABLE_SLOTS: usize = 28; // TEMP: generous bisection value
 pub type CapabilityTable = capability::CapabilityTable<Object, CAPABILITY_TABLE_SLOTS>;
 
 // The ABI names the reserved fault slot as `CAPABILITY_TABLE_SLOTS - 1`, so the two constants
