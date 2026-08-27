@@ -398,6 +398,58 @@ went), and the difference is accounted rather than shrugged at:
 
 ## BUGS
 
+- **A capability naming a run outlives nothing it should not, but the sweep that guarantees that is
+  not the one `PageFrame::REVOKE` uses.** Found by milestone 142's adversarial review, 2026-08-27,
+  and fixed: `MemoryRegion::DESTROY` used to delete capabilities by *exact object*, one mapped page
+  at a time, so `PageFrame(base, 311)` matched nothing and survived the reclamation of every page it
+  named. A holder could then re-map pages the allocator had already handed out as a page table or
+  another process's stack, which is §13's use-after-free with the widening's name on it. Reclamation
+  now sweeps by **overlap** over the whole range (`sched::delete_page_frame_caps_overlapping`),
+  which also closes an older hole the same way: a capability to a page nobody had *mapped* was never
+  a candidate before, because the sweep was driven by the mapping log and the log had no record of
+  it. `PageFrame::REVOKE` deliberately keeps the exact-object sweep; see the next entry.
+
+- **A `REVOKE` on one run reaches mappings it did not authorize, and spares capabilities that
+  overlap it.** `revoke::unmap_everywhere` is space-blind: it pulls a physical page out of every
+  address space that maps it, regardless of which capability produced that mapping. That was
+  equivalent to "capability-scoped" while a `PageFrame` named exactly one page and could not
+  overlap another; §102 made overlap possible and the tree's display wiring uses it (the gpu driver
+  holds `PageFrame(dma, 312)` while the painter and terminal hold `PageFrame(dma + 4096, 311)` over
+  the same memory, deliberately, because the driver's capability must span the DMA window it
+  registered with the IOMMU). So revoking the terminal's run would unmap those pages out of the
+  driver's space too, while leaving the driver's own capability in place. **Not reachable today**:
+  `REVOKE` needs `Rights::GRANT` and no run capability in this tree carries it. **Not decided
+  here**: written up as design/decisions/132-overlapping-page-frame-runs.md (provisional number)
+  with the options priced, because it is a syscall-semantics question. Its promotion trigger is one
+  grep: the moment any `page_frame_run_cap` mint site gains `GRANT`, that decision must be answered
+  first.
+
+- **Revocation says nothing to a device.** A driver's IOMMU/DMA window is registered as a byte
+  range (`virtio::register(.., dma, DMA_PAGE_FRAMES * FRAME_SIZE, ..)`) and is not derived from any
+  capability, so revoking a `PageFrame` narrows what the *CPU* may reach and leaves device-initiated
+  DMA into the same physical pages exactly as it was. Whether `REVOKE` should narrow a DMA window
+  couples two objects that are independent today; it is the last section of the decision above.
+
+- **A failed multi-page `MAP` gives the page tables back to nobody.** Both mapping paths
+  (`page_frame::MAP` and `address_space::MAP_INTO`) are all-or-nothing across a run since
+  2026-08-27: a failure partway through unmaps the prefix it had already mapped and tombstones its
+  revocation records, so a caller that gets an error never has to wonder how much of its run landed.
+  The **budget** is not rolled back with it. Whatever L3s (and parents) the prefix needed were
+  retyped out of the caller's region, and a region is spend-only, so those pages stay spent. The
+  mapping is undone; the memory is not returned. A caller that retries a large run after an
+  `OutOfMemory` should expect to have less budget than it started with, not the same.
+
+- **A run capability names more than its object, by up to one page.** `SURFACE_PAGE_FRAMES` is
+  `SURFACE_BYTES.div_ceil(4096)`, and at 924x344 the surface is 1,271,424 bytes in 311 frames, so
+  the capability names 2,432 bytes past the end of the surface. Those bytes are inside the same
+  contiguous allocation (the driver's DMA region), not another object's memory, and nothing
+  addresses them: every consumer bounds-checks against `SURFACE_BYTES` rather than the frame count
+  (`user_rt::mapped_window::MappedWindow`). It is recorded because a capability that names more
+  than the thing it stands for is exactly the kind of fact this convention exists to write down,
+  and because the `SURFACE_BYTES % 4096 == 0` assertion that used to hide the question by
+  construction was deleted this milestone (`crates/graphics_proto/src/lib.rs` has the search that
+  justified deleting it).
+
 - **RESOLVED 2026-08-26 (DECISIONS §102, built by milestone 142's terminal-size lane).** `Object::
   PageFrame` now carries a page count (`PageFrame(phys, count)`), `page_frame::MAP` and
   `page_frame::REVOKE` operate on the whole run, and `cap::page_frame_run_cap` mints one capability
@@ -408,7 +460,11 @@ went), and the difference is accounted rather than shrugged at:
   the scanout was retargeted to on 2026-08-27, `crates/graphics_proto/src/lib.rs`'s `WIDTH` has the
   reasoning) fit a sixteen-slot capability table at all: at one capability per page neither size
   would have. `display_service::DRIVER_SLOT_DMA`'s `const` assertion (below, and the error it
-  used to produce) is retired along with the pressure it guarded against. The paragraphs below are
+  used to produce) is retired along with the pressure it guarded against, and **replaced rather
+  than simply deleted**: the reformulated assertion beside those slot constants makes the same
+  claim in run terms, that no grant list on that path reaches the fault slot. Deleting it outright
+  was the state milestone 142's review found, and the hole it left was a future lane pushing a
+  service's highest slot onto `FAULT_EP_SLOT` and booting instead of failing the build. The paragraphs below are
   kept as the record of how the fork was found, priced and decided; they describe a state this tree
   no longer has.
 

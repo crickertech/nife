@@ -176,6 +176,14 @@ const _: () = assert!(
 // (div_ceil) and every consumer (`user_rt::mapped_window::MappedWindow`) bounds-checks against
 // SURFACE_BYTES, not the frame count, so the unused tail of the last frame is unreachable rather
 // than a "partial page" anything can read or write.
+//
+// What that costs, said plainly rather than left as an implication (milestone 142's review): the
+// `PageFrame` run capability the kernel mints over this surface names 311 whole frames, so it names
+// 2,432 bytes (311 * 4096 - 1,271,424) that are not part of the surface. Those bytes are inside the
+// same contiguous DMA allocation, not another object's memory, so this is padding rather than a
+// disclosure. It is written down because a capability that names more than the object it stands for
+// is the kind of fact this project's BUGS convention exists to record, and because the deleted
+// assertion above is what used to make the question unaskable. See notes/frames.md's BUGS.
 
 /// The byte offset of pixel `(x, y)` from the start of the surface.
 pub const fn offset_of(x: u32, y: u32) -> usize {

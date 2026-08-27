@@ -329,6 +329,18 @@ pub fn revoke_page_frame(phys: u64) {
 /// database records one entry per mapped virtual page regardless of which capability produced it
 /// (`PageFrame::MAP` loops over the run and records each page individually); that granularity does
 /// not change here.
+///
+/// # BUGS
+///
+/// **A capability whose run overlaps this one is left holding authority over pages this call has
+/// just unmapped out from under it**, and the unmap half is space-blind besides: it removes the
+/// physical page from every address space that maps it, whoever mapped it and under whatever
+/// capability. Both halves are visible in the tree's own display wiring, where the driver holds
+/// `PageFrame(dma, 312)` and two clients hold `PageFrame(dma + 4096, 311)` over the same physical
+/// memory. Nothing reaches it today (no run capability in the tree carries `Rights::GRANT`, and
+/// `REVOKE` requires it), and nothing is reclaimed by `REVOKE`, so this is a sharing and
+/// confinement question rather than a use-after-free. It is written up rather than answered here:
+/// see design/decisions/132-overlapping-page-frame-runs.md, which is calef's call.
 pub fn revoke_page_frame_run(phys: u64, count: u64) {
     crate::sched::delete_page_frame_caps(phys, count);
     for k in 0..count {
