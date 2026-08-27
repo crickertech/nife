@@ -295,8 +295,14 @@ pub extern "C" fn _start(_arg0: u64, dma_phys: u64, _arg2: u64) -> ! {
             let (kind, code, value) = (r16(at), r16(at + 2), r32(at + 4));
             seen = seen.wrapping_add(1);
 
-            if let Some(b) = keys.event(kind, code, value) {
-                ring_push(&mut tail, b);
+            if let Some(bytes) = keys.event(kind, code, value) {
+                // Most keys send one byte; an arrow key sends its three-byte `CSI` sequence
+                // (video_terminal::keymap::Bytes). Either way the ring takes them one at a time,
+                // in order, which is what makes a multi-byte key indistinguishable downstream from
+                // several single-byte keys typed fast.
+                for &b in bytes.as_slice() {
+                    ring_push(&mut tail, b);
+                }
                 typed = true;
             }
 
