@@ -106,7 +106,7 @@ pub(super) fn build_child_in(
         CODE_VA,
         code_phys,
         Flags::user_code(),
-        crate::revoke::MappedUnder::NoCapability,
+        crate::revoke::PageMapSource::NoCapability,
     )
     .expect("map code");
 
@@ -116,7 +116,7 @@ pub(super) fn build_child_in(
         STACK_VA,
         stack_phys,
         Flags::user_data(),
-        crate::revoke::MappedUnder::NoCapability,
+        crate::revoke::PageMapSource::NoCapability,
     )
     .expect("map stack");
 

@@ -101,9 +101,13 @@ const LOG_ENTRIES: usize = 170;
 /// wrong one hard to write by accident. It is the same move `InputSpec::Required` made when it
 /// stopped being a unit variant.
 ///
-/// **The name is provisional** (a lane does not name a type this reader-facing; calef does).
+/// Name: ratified 2026-08-27 (calef). Landed as `MappedUnder`; renamed to `PageMapSource` on
+/// request, since "mapping" alone is overloaded across this tree (page mappings, capability
+/// derivation, filesystem grants) and this tree already has an established, narrower term for
+/// exactly this concept: `crates/pmap`, "page map." `Source` matches this tree's existing pattern
+/// for a small enum naming where something came from (`grant_plan::Source`, `mdns_proto::QuerySource`).
 #[derive(Clone, Copy)]
-pub enum MappedUnder {
+pub enum PageMapSource {
     /// The capability whose object begins at this physical address, **and every capability derived
     /// from it**: `Cap::derive` narrows rights and never changes the object, so one address names
     /// the whole family. For a `PageFrame` run this is the run's base, not the page being mapped.
@@ -114,13 +118,13 @@ pub enum MappedUnder {
     NoCapability,
 }
 
-impl MappedUnder {
+impl PageMapSource {
     /// The object address to file with the record: the run's base, or the mapped page itself when
     /// nothing names it.
     fn object(self, phys: u64) -> u64 {
         match self {
-            MappedUnder::Capability(base) => base,
-            MappedUnder::NoCapability => phys,
+            PageMapSource::Capability(base) => base,
+            PageMapSource::NoCapability => phys,
         }
     }
 }
@@ -203,9 +207,9 @@ pub fn forget_root(root: u64) {
 ///
 /// `under` is a required argument with no default, which is the point (AGENTS.md's ladder, rung
 /// one): a mapping that cannot say which capability made it is exactly the record §132 found
-/// missing, and a caller must now answer the question to compile. See [`MappedUnder`].
+/// missing, and a caller must now answer the question to compile. See [`PageMapSource`].
 #[must_use]
-pub fn record_mapping(phys: u64, root: u64, va: u64, under: MappedUnder) -> bool {
+pub fn record_mapping(phys: u64, root: u64, va: u64, under: PageMapSource) -> bool {
     let object = under.object(phys);
     // The run's base is at or below the page it covers, and a whole number of pages below it. The
     // enum stops a caller confusing the two arguments; this catches a caller computing the base
@@ -633,14 +637,14 @@ mod tests {
             a.map_physical(va, *phys, Flags::user_data())
                 .expect("map A");
             assert!(
-                record_mapping(*phys, a.root(), va, MappedUnder::Capability(run[0])),
+                record_mapping(*phys, a.root(), va, PageMapSource::Capability(run[0])),
                 "record A",
             );
         }
         b.map_physical(va_b, run[2], Flags::user_rodata())
             .expect("map B");
         assert!(
-            record_mapping(run[2], b.root(), va_b, MappedUnder::Capability(run[0])),
+            record_mapping(run[2], b.root(), va_b, PageMapSource::Capability(run[0])),
             "record B",
         );
 
@@ -717,7 +721,7 @@ mod tests {
                 run[1],
                 driver.root(),
                 va_driver,
-                MappedUnder::Capability(run[0]),
+                PageMapSource::Capability(run[0]),
             ),
             "record driver",
         );
@@ -729,7 +733,7 @@ mod tests {
                 run[1],
                 client.root(),
                 va_client,
-                MappedUnder::Capability(run[1]),
+                PageMapSource::Capability(run[1]),
             ),
             "record client",
         );
@@ -791,7 +795,7 @@ mod tests {
                 shared,
                 keeper.root(),
                 va_keeper,
-                MappedUnder::Capability(run[0]),
+                PageMapSource::Capability(run[0]),
             ),
             "record keeper",
         );
@@ -803,7 +807,7 @@ mod tests {
                 shared,
                 loser.root(),
                 va_loser,
-                MappedUnder::Capability(shared),
+                PageMapSource::Capability(shared),
             ),
             "record loser",
         );
@@ -849,7 +853,7 @@ mod tests {
             .map_physical(va, run[0], Flags::user_data())
             .expect("map");
         assert!(
-            record_mapping(run[0], space.root(), va, MappedUnder::Capability(run[0])),
+            record_mapping(run[0], space.root(), va, PageMapSource::Capability(run[0])),
             "record",
         );
 
@@ -894,11 +898,11 @@ mod tests {
         b.map_physical(va_b, shared, Flags::user_rodata())
             .expect("map B");
         assert!(
-            record_mapping(shared, a.root(), va_a, MappedUnder::NoCapability),
+            record_mapping(shared, a.root(), va_a, PageMapSource::NoCapability),
             "record A",
         );
         assert!(
-            record_mapping(shared, b.root(), va_b, MappedUnder::NoCapability),
+            record_mapping(shared, b.root(), va_b, PageMapSource::NoCapability),
             "record B",
         );
 
@@ -940,7 +944,7 @@ mod tests {
             .map_physical(va, phys, Flags::user_data())
             .expect("map");
         assert!(
-            record_mapping(phys, space.root(), va, MappedUnder::NoCapability),
+            record_mapping(phys, space.root(), va, PageMapSource::NoCapability),
             "record",
         );
         assert!(
@@ -985,7 +989,7 @@ mod tests {
                 refused = true; // ran out mapping: also a fine way for the budget to end
                 break;
             }
-            if !record_mapping(shared, space.root(), va, MappedUnder::NoCapability) {
+            if !record_mapping(shared, space.root(), va, PageMapSource::NoCapability) {
                 refused = true;
                 break;
             }

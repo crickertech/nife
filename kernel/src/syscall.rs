@@ -364,7 +364,7 @@ pub(crate) fn invoke(
                         page_va,
                         page_phys,
                         flags,
-                        crate::revoke::MappedUnder::Capability(phys),
+                        crate::revoke::PageMapSource::Capability(phys),
                     ) {
                         Ok(()) => {
                             // When userspace maps a frame it wrote executable (a spawner building a
@@ -591,7 +591,7 @@ fn memory_region_map(region: u64, va: u64) -> Result<i64, Error> {
                 phys,
                 mmu::current_user_root(),
                 va,
-                crate::revoke::MappedUnder::NoCapability,
+                crate::revoke::PageMapSource::NoCapability,
             ) {
                 mmu::unmap_user_at(mmu::current_user_root(), va);
                 return Err(Error::OutOfMemory);
@@ -762,7 +762,7 @@ fn page_frame_map(
                     page_phys,
                     root,
                     page_va,
-                    crate::revoke::MappedUnder::Capability(phys),
+                    crate::revoke::PageMapSource::Capability(phys),
                 ) {
                     mmu::unmap_user_at(root, page_va);
                     unmap_run_prefix(root, phys, va, k);
@@ -1036,7 +1036,7 @@ mod tests {
             va + paging::PAGE_SIZE,
             squatter,
             paging::Flags::user_data(),
-            crate::revoke::MappedUnder::NoCapability,
+            crate::revoke::PageMapSource::NoCapability,
         )
         .expect("the squatter maps");
 

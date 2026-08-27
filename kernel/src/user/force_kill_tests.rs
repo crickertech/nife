@@ -44,7 +44,7 @@ fn destroy_force_kills_a_runaway_and_reclaims_its_region() {
         CODE_VA,
         code_phys,
         Flags::user_code(),
-        crate::revoke::MappedUnder::NoCapability,
+        crate::revoke::PageMapSource::NoCapability,
     )
     .expect("map code");
 
@@ -54,7 +54,7 @@ fn destroy_force_kills_a_runaway_and_reclaims_its_region() {
         STACK_VA,
         stack_phys,
         Flags::user_data(),
-        crate::revoke::MappedUnder::NoCapability,
+        crate::revoke::PageMapSource::NoCapability,
     )
     .expect("map stack");
 
@@ -176,7 +176,7 @@ fn destroy_reclaims_a_region_whose_resident_is_blocked_in_recv() {
         CODE_VA,
         code_phys,
         Flags::user_code(),
-        crate::revoke::MappedUnder::NoCapability,
+        crate::revoke::PageMapSource::NoCapability,
     )
     .expect("map code");
     let stack_phys = crate::memory_region::retype_page(region).expect("no stack frame");
@@ -185,7 +185,7 @@ fn destroy_reclaims_a_region_whose_resident_is_blocked_in_recv() {
         STACK_VA,
         stack_phys,
         Flags::user_data(),
-        crate::revoke::MappedUnder::NoCapability,
+        crate::revoke::PageMapSource::NoCapability,
     )
     .expect("map stack");
 

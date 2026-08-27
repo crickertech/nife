@@ -203,9 +203,11 @@ not two.
 **What shipped**, on `milestone/132-capability-scoped-revocation`:
 
 - `revoke::LogEntry` carries the object each mapping was made under, and `revoke::record_mapping`
-  takes a required `MappedUnder` (**provisional name**) saying which capability that was, or
-  `NoCapability` for a page nothing names. A required argument with no default is the ladder's rung
-  one: a mapping that cannot say what authority made it no longer compiles.
+  takes a required `PageMapSource` (ratified 2026-08-27, landed as `MappedUnder`; renamed since
+  "mapping" alone is overloaded across this tree and `pmap` is already this tree's word for a page
+  mapping) saying which capability that was, or `NoCapability` for a page nothing names. A required
+  argument with no default is the ladder's rung one: a mapping that cannot say what authority made
+  it no longer compiles.
 - `PageFrame::REVOKE`'s unmap half is scoped to that object (`revoke::unmap_under_object`);
   `revoke_page_frame` is now literally the `count: 1` case of `revoke_page_frame_run`.
 - The capability half is unchanged, because exact-object equality already *was* the derivation

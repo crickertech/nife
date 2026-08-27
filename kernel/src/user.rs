@@ -321,13 +321,13 @@ pub fn user_address_space_create(region: u64) -> Option<u64> {
 /// later `PageFrame::REVOKE` to that capability's derivation family rather than to the physical
 /// page (DECISIONS §132). The `MAP_INTO` syscall passes the invoked frame capability's object; the
 /// kernel's own callers, which build a space directly out of a region, pass
-/// `MappedUnder::NoCapability`.
+/// `PageMapSource::NoCapability`.
 pub fn user_address_space_map(
     name: u64,
     va: u64,
     phys: u64,
     flags: Flags,
-    under: crate::revoke::MappedUnder,
+    under: crate::revoke::PageMapSource,
 ) -> Result<(), MapError> {
     let mut spaces = USER_SPACES.lock();
     let space = spaces.get_mut(name).ok_or(MapError::NotMapped)?;
@@ -1562,7 +1562,7 @@ fn x86_build_child(
         X86_DEMO_CODE_VA,
         code_phys,
         Flags::user_code(),
-        crate::revoke::MappedUnder::NoCapability,
+        crate::revoke::PageMapSource::NoCapability,
     )
     .map_err(|_| "could not map the child's code")?;
 
@@ -1572,7 +1572,7 @@ fn x86_build_child(
         X86_DEMO_STACK_VA,
         stack_phys,
         Flags::user_data(),
-        crate::revoke::MappedUnder::NoCapability,
+        crate::revoke::PageMapSource::NoCapability,
     )
     .map_err(|_| "could not map the child's stack")?;
 
