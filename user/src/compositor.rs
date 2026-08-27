@@ -49,25 +49,42 @@
 use compositor::proto::{ctl, ring, wlist};
 use compositor::{Rect, SCENE};
 use graphics_proto as gfx;
-use user_rt::{call, recv_cap, reply, send};
+use user_rt::{call, map_page_frame, recv_cap, reply, send};
 
 /// Capability slots, by convention with `kernel/src/user/compositor_service.rs`.
 const REPORT: u64 = 0;
 const DISPLAY: u64 = 1;
 const DOORBELL: u64 = 2;
+/// The screen, one `PageFrame` capability naming the whole run (DECISIONS §102, milestone 142).
+/// Before the scanout grew, the screen arrived as `SCREEN_PAGE_FRAMES` `Spawn::maps` entries, like
+/// everything else here; at 900 frames that no longer fits in the 1 KiB a spawn closure may capture
+/// (`kernel/src/thread.rs`'s own limit), so the compositor maps it itself, the same way
+/// `painter`/`display_terminal` already do for rung one's own surface.
+const SCREEN_FRAME: u64 = 3;
+/// The untyped [`SCREEN_FRAME`]'s `MAP` draws its page tables from.
+const BUDGET: u64 = 4;
 /// The first per-client input endpoint. Client `i` (for `i < focusable`) is at `INPUT + i`.
-const INPUT: u64 = 3;
+const INPUT: u64 = 5;
 
 /// Where the kernel maps what this process is given. Must match `compositor_service`.
+///
+/// **`SCREEN_VA` claims a 4 MiB span now, not 32 KiB** (milestone 142, DECISIONS §102: the screen
+/// grew from 8 page frames to 900). Every other address here moved clear of it: `WLIST_VA` and
+/// `RING_VA` used to sit inside the old, tiny span's immediate neighbourhood and are now well past
+/// the new one, and `CLIENT_BASE` likewise. `SCREEN_VA` itself stays 2 MiB-aligned, which is what
+/// keeps a run this large inside as few page-table windows as possible (`compositor_service`'s own
+/// `MAP_BUDGET_PAGES` comment has the arithmetic).
 const SCREEN_VA: u64 = 0x0000_0000_0080_0000;
-const WLIST_VA: u64 = 0x0000_0000_0081_0000;
-const RING_VA: u64 = 0x0000_0000_0082_0000;
-const CLIENT_BASE: u64 = 0x0000_0000_0090_0000;
+const WLIST_VA: u64 = 0x0000_0000_0c00_0000;
+const RING_VA: u64 = 0x0000_0000_0c01_0000;
+const CLIENT_BASE: u64 = 0x0000_0000_0e00_0000;
 const CLIENT_STRIDE: u64 = 0x0000_0000_0010_0000;
 
 /// Bring-up failures, reported in a `0xDEAD_...` word so a failure names its step instead of hanging.
 const E_TOO_MANY_WINDOWS: u64 = 0x01;
 const E_FLUSH: u64 = 0x02;
+/// `PageFrame::MAP` of the screen ([`SCREEN_FRAME`]) was refused.
+const E_SCREEN: u64 = 0x03;
 
 fn ctl_va(i: usize) -> u64 {
     CLIENT_BASE + i as u64 * CLIENT_STRIDE
@@ -318,6 +335,13 @@ pub extern "C" fn _start(windows: u64, focusable: u64, _arg2: u64) -> ! {
     let mut focus: u32 = 0;
     let mut last_seq = [0u32; compositor::MAX_WINDOWS];
     let mut committed = [false; compositor::MAX_WINDOWS];
+
+    // The screen: one `PageFrame` capability naming the whole run (DECISIONS §102), mapped here
+    // instead of arriving as `Spawn::maps` entries. Before `publish`/`paint`, both of which touch
+    // `screen()`.
+    if !map_page_frame(SCREEN_FRAME, SCREEN_VA, true, BUDGET) {
+        die(E_SCREEN);
+    }
 
     publish(n, focus);
 

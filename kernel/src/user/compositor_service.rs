@@ -1,21 +1,33 @@
 use compositor::SCENE;
 
 use super::*;
-use crate::cap::{Rights, rendezvous_cap};
+use crate::cap::{Rights, memory_region_cap, page_frame_run_cap, rendezvous_cap};
 use crate::sched::RendezvousId;
 
-// The compositor's address space. Must match user/src/compositor.rs.
-const SCREEN_VA: u64 = 0x0000_0000_0080_0000;
-const WLIST_VA: u64 = 0x0000_0000_0081_0000;
-const RING_VA: u64 = 0x0000_0000_0082_0000;
-const CLIENT_BASE: u64 = 0x0000_0000_0090_0000;
+/// **The budget the compositor, and a capture client, draw their own screen mapping's page tables
+/// from** (DECISIONS §102, milestone 142). Same reasoning as `display_service::MAP_BUDGET_PAGES`:
+/// the screen alone spans more than one 2 MiB window at the grown scanout, so more than one L3 table
+/// is the ordinary case now, not the edge case a smaller screen only occasionally hit.
+const MAP_BUDGET_PAGES: u64 = 24;
+
+// The compositor's address space. Must match user/src/compositor.rs. `SCREEN_VA` is not here: the
+// screen is a `PageFrame` capability now (§102), and the compositor picks its own VA for it (like
+// `painter`/`display_terminal` already do for rung one's surface), so the kernel wiring has no
+// reason to know the address. `WLIST_VA`/`RING_VA`/`CLIENT_BASE` moved clear of the address range
+// the grown screen (900 page frames, up to 4 MiB from `SCREEN_VA`) now claims in the compositor's
+// own space; see `user/src/compositor.rs`'s matching comment for the arithmetic.
+const WLIST_VA: u64 = 0x0000_0000_0c00_0000;
+const RING_VA: u64 = 0x0000_0000_0c01_0000;
+const CLIENT_BASE: u64 = 0x0000_0000_0e00_0000;
 const CLIENT_STRIDE: u64 = 0x0000_0000_0010_0000;
 
 // A client's address space. Must match user/src/window.rs. The same in every client, on purpose.
+// `C_SCREEN_VA` is likewise not here, for `SCREEN_VA`'s own reason above. `C_WLIST_VA` moved for
+// the same reason `compositor.rs`'s own `WLIST_VA` did: it used to sit just past the screen's old,
+// tiny span and is now well clear of the grown one (`window.rs`'s own comment has the arithmetic).
 const CTL_VA: u64 = 0x0000_0000_0060_0000;
 const SURFACE_VA: u64 = 0x0000_0000_0061_0000;
-const C_SCREEN_VA: u64 = 0x0000_0000_0070_0000;
-const C_WLIST_VA: u64 = 0x0000_0000_0078_0000;
+const C_WLIST_VA: u64 = 0x0000_0000_0c00_0000;
 
 // Client roles. Must match user/src/window.rs.
 pub const ROLE_INPUT: u64 = 1 << 0;
@@ -122,22 +134,19 @@ pub fn start(n: usize, focusable: usize, display: RendezvousId, screen: u64) -> 
         *ep = crate::sched::create_rendezvous();
     }
 
-    // The compositor's world: the screen, the list it publishes, the ring it reads, and every
-    // client's control page and surface. No device, no interrupt, no physical address.
+    // The compositor's world: the list it publishes, the ring it reads, and every client's control
+    // page and surface, all still `Spawn::maps` entries (small, fixed in number). **Not the screen**
+    // (milestone 142, DECISIONS §102): at the grown scanout, `SCREEN_PAGE_FRAMES` (900) one-page
+    // `Mapping` entries would no longer fit in the 1 KiB a spawn closure may capture
+    // (`kernel/src/thread.rs`'s own limit), the same reason the display driver's DMA region moved
+    // to a single run capability. The screen is granted below as one `PageFrame` instead, and the
+    // compositor maps it itself. No device, no interrupt, no physical address.
     let mut maps = [Mapping {
         va: 0,
         phys: 0,
         flags: Flags::user_data(),
     }; MAX_COMP_MAPS];
     let mut m = 0;
-    for k in 0..SCREEN_PAGE_FRAMES {
-        maps[m] = Mapping {
-            va: SCREEN_VA + k * FRAME_SIZE,
-            phys: screen + k * FRAME_SIZE,
-            flags: Flags::user_data(),
-        };
-        m += 1;
-    }
     maps[m] = Mapping {
         va: WLIST_VA,
         phys: wlist,
@@ -161,13 +170,19 @@ pub fn start(n: usize, focusable: usize, display: RendezvousId, screen: u64) -> 
         }
     }
 
+    let budget =
+        crate::memory_region::create(MAP_BUDGET_PAGES).expect("no map budget for the compositor");
+
     let mut grants = [rendezvous_cap(report, Rights::WRITE); MAX_COMP_GRANTS];
     grants[1] = rendezvous_cap(display, Rights::WRITE);
     grants[2] = rendezvous_cap(doorbell, Rights::READ);
+    // The whole screen, one capability (§102): `Object::PageFrame(screen, SCREEN_PAGE_FRAMES)`.
+    grants[3] = page_frame_run_cap(screen, SCREEN_PAGE_FRAMES, Rights::READ.union(Rights::WRITE));
+    grants[4] = memory_region_cap(budget);
     for i in 0..focusable {
-        grants[3 + i] = rendezvous_cap(input[i], Rights::WRITE);
+        grants[COMP_INPUT_BASE as usize + i] = rendezvous_cap(input[i], Rights::WRITE);
     }
-    let ngrants = 3 + focusable;
+    let ngrants = COMP_INPUT_BASE as usize + focusable;
 
     crate::sched::spawn(move || {
         run(
@@ -226,18 +241,11 @@ impl Wiring {
             };
             m += 1;
         }
+        // The window-list mapping stays a `Spawn::maps` entry (one page, unaffected by the
+        // scanout's size). The screen itself does not (milestone 142, DECISIONS §102): see this
+        // `impl`'s own note on `SCREEN_FRAME`/`BUDGET` below for why, and `user/src/window.rs`'s
+        // matching constants for the client side.
         if role & ROLE_CAPTURE != 0 {
-            // The screenshot and enumeration grant, and it is **read-only**: a thing that may look
-            // at the screen may not draw on it. `Flags::user_rodata` is the difference between a
-            // screenshot tool and a second compositor.
-            for k in 0..SCREEN_PAGE_FRAMES {
-                maps[m] = Mapping {
-                    va: C_SCREEN_VA + k * FRAME_SIZE,
-                    phys: self.screen + k * FRAME_SIZE,
-                    flags: Flags::user_rodata(),
-                };
-                m += 1;
-            }
             maps[m] = Mapping {
                 va: C_WLIST_VA,
                 phys: self.wlist,
@@ -258,9 +266,43 @@ impl Wiring {
             2
         };
 
+        // `SCREEN_FRAME`/`BUDGET` (slots 3/4, matching `user/src/window.rs`): granted **only** for
+        // `ROLE_CAPTURE`, at explicit slots via `grant_at` rather than through `Spawn.grants`'
+        // sequential first-free fill, because slot 2 must stay genuinely empty for a non-focusable
+        // client (the `ROLE_PROBE_INPUT` property above) and a sequential fill cannot skip it.
+        // **This is still the kernel's decision, not the client's**: the capability is granted
+        // here, by the spawner, based on `role`, exactly as the old `Spawn::maps` entry was. A
+        // hostile `window` binary that ignored its own `role` argument still could not read the
+        // screen unless *this* code decided to grant it, which is the same guarantee
+        // `ROLE_PROBE_SCREEN`'s neighbouring test checks: nothing here lets a process's own code
+        // grant itself authority the spawner withheld.
+        //
+        // The screenshot and enumeration grant is **read-only**: a thing that may look at the
+        // screen may not draw on it. `Rights::READ` alone (no `WRITE`) is the difference between a
+        // screenshot tool and a second compositor; `user/src/window.rs`'s own `ROLE_CAPTURE` block
+        // proves the write half faults.
+        let capture_budget = if role & ROLE_CAPTURE != 0 {
+            Some(
+                crate::memory_region::create(MAP_BUDGET_PAGES)
+                    .expect("no map budget for a capture client"),
+            )
+        } else {
+            None
+        };
+        let screen = self.screen;
+
         let image = self.image;
         let probe = self.neighbour_probe_va(i);
         crate::sched::spawn(move || {
+            if let Some(budget) = capture_budget {
+                crate::sched::grant_at(
+                    3,
+                    page_frame_run_cap(screen, SCREEN_PAGE_FRAMES, Rights::READ),
+                )
+                .expect("client slot 3 was occupied");
+                crate::sched::grant_at(4, memory_region_cap(budget))
+                    .expect("client slot 4 was occupied");
+            }
             run(
                 image,
                 Spawn {
@@ -467,9 +509,13 @@ impl Wiring {
 
 // A display terminal's address space. Must match user/src/display_terminal.rs. Different numbers from a
 // `window` client's, because they are different programs; the kernel picks each binary's.
+// `T_OUT_VA`/`T_CTL_VA` match `display_terminal.rs`'s own moved constants (milestone 142): that
+// binary uses the same three addresses in both `MODE_DISPLAY` and `MODE_WINDOW`, so moving them
+// for `MODE_DISPLAY`'s grown surface moves them here too, even though `MODE_WINDOW`'s own surface
+// (this function's `frames`, window-sized) never grew and never collided on its own.
 const T_SURFACE_VA: u64 = 0x0000_0000_0060_0000;
-const T_OUT_VA: u64 = 0x0000_0000_0068_0000;
-const T_CTL_VA: u64 = 0x0000_0000_0069_0000;
+const T_OUT_VA: u64 = 0x0000_0000_0a00_0000;
+const T_CTL_VA: u64 = 0x0000_0000_0a01_0000;
 
 /// A display terminal running as a compositor client, from the spawner's side: the page it reads
 /// an application's bytes out of, and the endpoint it serves.
@@ -485,14 +531,20 @@ impl TermClient {
     }
 }
 
-/// The most mappings a compositor can need: the screen, the list, the ring, and every client's
-/// control page and surface.
-const MAX_COMP_MAPS: usize = SCREEN_PAGE_FRAMES as usize + 2 + compositor::MAX_WINDOWS * 4;
-/// The most a client can need: its control page, its surface, and (capture only) the screen and
-/// the window list.
-const MAX_CLIENT_MAPS: usize = 4 + SCREEN_PAGE_FRAMES as usize + 1;
-/// Report, display, doorbell, and one input endpoint per focusable client.
-const MAX_COMP_GRANTS: usize = 3 + compositor::MAX_WINDOWS;
+/// The most mappings a compositor can need: the list, the ring, and every client's control page
+/// and surface. The screen is **not** here since milestone 142 (§102): it is a `PageFrame` grant,
+/// not a `Spawn::maps` entry (see `start`'s own comment).
+const MAX_COMP_MAPS: usize = 2 + compositor::MAX_WINDOWS * 4;
+/// The most a client can need: its control page, its surface, and (capture only) the window list.
+/// The screen is **not** here for the same reason as `MAX_COMP_MAPS`: a capture client maps it
+/// itself, out of the `SCREEN_FRAME`/`BUDGET` grants `user/src/window.rs` holds.
+const MAX_CLIENT_MAPS: usize = 4 + 1;
+/// Report, display, doorbell, the screen `PageFrame`, its map budget, then one input endpoint per
+/// focusable client starting at [`COMP_INPUT_BASE`].
+const MAX_COMP_GRANTS: usize = COMP_INPUT_BASE as usize + compositor::MAX_WINDOWS;
+/// The first of the compositor's per-client input-endpoint grant slots. Must match `user/src/
+/// compositor.rs`'s own `INPUT` constant.
+const COMP_INPUT_BASE: u64 = 5;
 
 /// A fresh zeroed frame, for a page the kernel hands two processes to share.
 fn zeroed_page_frame() -> u64 {
