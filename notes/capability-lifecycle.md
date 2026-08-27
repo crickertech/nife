@@ -50,9 +50,9 @@ Delegation answers separate questions, and they narrow independently:
 
 | Question | Right | Example |
 |---|---|---|
-| What may the holder **do**? | `READ`, `WRITE` | a `Frame` with `READ` alone maps read-only, never writable |
+| What may the holder **do**? | `READ`, `WRITE` | a `PageFrame` with `READ` alone maps read-only, never writable |
 | May the holder **pass it on**? | `GRANT` | a derivative sent *without* `GRANT` is a dead end: the receiver may use it but not re-delegate |
-| What may the holder **learn**? | `ENUMERATE` | an `Endpoint` with `ENUMERATE` can `SURVEY` the domain it supervises; one with `READ` instead can `RECV` and `REAP` there but cannot list it |
+| What may the holder **learn**? | `ENUMERATE` | a `Rendezvous` with `ENUMERATE` can `SURVEY` the domain it supervises; one with `READ` instead can `RECV` and `REAP` there but cannot list it |
 
 This section was headed "Two independent narrowings" and had the first two rows until the
 2026-08-17 documentation sweep; `ENUMERATE` made the third question a real one the day before. The
@@ -66,10 +66,10 @@ capability (was I trusted to lend it?). Two rights, two objects, two questions.
 
 The frame path shows every piece confining the next:
 
-1. `Untyped::RETYPE` mints the owner a `Frame` with `READ|WRITE|GRANT` (`syscall.rs:181`).
-2. The owner maps it writable (`Frame::MAP` with the writable flag needs `WRITE`).
+1. `MemoryRegion::RETYPE` mints the owner a `PageFrame` with `READ|WRITE|GRANT` (`syscall.rs:181`).
+2. The owner maps it writable (`PageFrame::MAP` with the writable flag needs `WRITE`).
 3. The owner delegates a **`READ`-only, no-`GRANT`** derivative with `SEND_CAP`.
-4. The consumer's `Frame::MAP` sees `READ` without `WRITE`, so it is confined to `user_rodata`: it
+4. The consumer's `PageFrame::MAP` sees `READ` without `WRITE`, so it is confined to `user_rodata`: it
    maps the same physical page but **cannot write it, and cannot pass it on**.
 
 The test `a_frame_capability_shares_a_page_and_a_read_only_view_cannot_write_it` pins exactly this.
@@ -111,10 +111,10 @@ page contents, would not be safe, and the read-only bit would not save it.
 
 ## Revocation (milestone 13)
 
-**Built.** As of milestone 13 a `Frame` capability can be revoked: `Frame::REVOKE` unmaps the page
-from every holder and deletes every capability to it, and `untyped::destroy` reclaims a whole region
-safely. See DECISIONS §13 and revoke.rs. What follows is the design that led there, in the present
-tense of *before* it existed.
+**Built.** As of milestone 13 a `PageFrame` capability can be revoked: `PageFrame::REVOKE` unmaps
+the page from every holder and deletes every capability to it, and `memory_region::destroy`
+reclaims a whole region safely. See DECISIONS §13 and revoke.rs. What follows is the design that
+led there, in the present tense of *before* it existed.
 
 Before milestone 13 a capability, once granted, could not be retracted: there was no
 capability-derivation tree, no refcount, no `revoke`. The only trace of the idea was `untyped.rs`:
