@@ -188,13 +188,44 @@ pub enum Prog {
     /// thing it can already reach without that, which is also the most common real-world invocation
     /// of the tool it is named for.
     Watch,
+    /// **Print how long the ambient monotonic counter has been running** (milestone 126,
+    /// `user/src/uptime.rs`, `crates/uptime`).
+    ///
+    /// [`Prog::Worker`]'s manifest, not [`Prog::Date`]'s: `user_rt::monotonic_nanos` is granted to
+    /// **every** process unconditionally (`kernel/src/arch/*/timer.rs`'s documented, deliberate
+    /// exception to DECISIONS §10's no-ambient-authority rule), so this program needed no clock
+    /// capability, no domain, no memory, no file, nothing beyond the report channel every spawn
+    /// carries. The one member of milestone 126's "machine-wide statistics" row that turned out to
+    /// be pure wiring rather than a design fork; see design/roadmap/126-who-else-is-running.md.
+    Uptime,
+    /// **Print the inert-configuration page** (milestone 47's environment-variable fork, DECISIONS
+    /// §111; `user/src/printenv.rs`).
+    ///
+    /// The reason [`Manifest::config`] exists, and the same asymmetry [`Prog::Date`] made for the
+    /// clock: the grant is real and it is not something a person designates on the line. Before
+    /// this program, the page existed and could be assembled and mapped
+    /// (`crates/environment_proto`), but nothing in the shell's program table declared wanting one,
+    /// so `caps`'s preview of it had nothing to show and no boot granted it outside a kernel test
+    /// harness standing in for a std program. `date` before `Prog::Date` existed is the position
+    /// this section of the roadmap named; `printenv` is this milestone's `date`.
+    ///
+    /// Takes no argument, no memory, no file: its whole authority is the read-only page. `TZ`,
+    /// `LANG` and `TERM` print as `KEY=value` when the key is present and `KEY (unset)` when the
+    /// page is valid but does not carry it (`environment_proto`'s validated-domain shape makes both
+    /// states distinguishable from a page nobody has assembled at all, which reads as
+    /// "no configuration was granted").
+    ///
+    /// **Provisional name**, Unix's own for exactly this (`printenv(1)`/`env(1)` with no
+    /// arguments): a term of art already right, per this tree's own naming convention for
+    /// standard terms.
+    Printenv,
 }
 
 /// The number of programs [`Prog::id`] can name, which is the size of the table init indexes with
 /// it. Init's array is `[Option<&Elf>; COUNT]`, so adding a variant without widening the array is
 /// an out-of-bounds panic in init rather than a compile error; the constant is here so both inits
 /// can be written against one number.
-pub const PROG_COUNT: usize = 11;
+pub const PROG_COUNT: usize = 13;
 
 impl Prog {
     /// Resolve a program by the name typed on the command line.
@@ -217,6 +248,8 @@ impl Prog {
             b"ps" => Some(Prog::Ps),
             b"pgrep" => Some(Prog::Pgrep),
             b"watch" => Some(Prog::Watch),
+            b"uptime" => Some(Prog::Uptime),
+            b"printenv" => Some(Prog::Printenv),
             _ => None,
         }
     }
@@ -235,6 +268,8 @@ impl Prog {
             Prog::Ps => "ps",
             Prog::Pgrep => "pgrep",
             Prog::Watch => "watch",
+            Prog::Uptime => "uptime",
+            Prog::Printenv => "printenv",
         }
     }
 
@@ -252,6 +287,8 @@ impl Prog {
             Prog::Ps => 8,
             Prog::Pgrep => 9,
             Prog::Watch => 10,
+            Prog::Uptime => 11,
+            Prog::Printenv => 12,
         }
     }
 
@@ -269,6 +306,8 @@ impl Prog {
             8 => Some(Prog::Ps),
             9 => Some(Prog::Pgrep),
             10 => Some(Prog::Watch),
+            11 => Some(Prog::Uptime),
+            12 => Some(Prog::Printenv),
             _ => None,
         }
     }
@@ -294,6 +333,7 @@ impl Prog {
                 interruptible: false,
                 clock: false,
                 domain: false,
+                config: false,
             },
             Prog::Budgeter => Manifest {
                 arg: ArgSpec::Forbidden,
@@ -311,6 +351,7 @@ impl Prog {
                 interruptible: false,
                 clock: false,
                 domain: false,
+                config: false,
             },
             // The two interrupt demonstrators. Both run until interrupted, take no argument and no
             // memory grant, and report through the shared job frame rather than the result endpoint
@@ -331,6 +372,7 @@ impl Prog {
                 interruptible: true,
                 clock: false,
                 domain: false,
+                config: false,
             },
             Prog::Spinner => Manifest {
                 arg: ArgSpec::Forbidden,
@@ -344,6 +386,7 @@ impl Prog {
                 interruptible: true,
                 clock: false,
                 domain: false,
+                config: false,
             },
             // `date` declares an empty grant expression, and that is the interesting part: its
             // authority (a read-only mapping of the clock page) is not something the command line
@@ -386,6 +429,7 @@ impl Prog {
                 // which children get the read-only mapping (milestone 51's wiring, notes/date.md).
                 clock: true,
                 domain: false,
+                config: false,
             },
             // **The first program endowed a directory**, and the first with options. It takes no
             // integer and no memory: what it needs is the authority to take a name out of the
@@ -413,6 +457,7 @@ impl Prog {
                 interruptible: false,
                 clock: false,
                 domain: false,
+                config: false,
             },
             // **The consumer**, and the only program that declares an input. Everything else about
             // it is empty: no argument, no memory, no file, no directory, no options. What it does
@@ -435,6 +480,7 @@ impl Prog {
                 interruptible: false,
                 clock: false,
                 domain: false,
+                config: false,
             },
             // **The viewer**, whose manifest is "a stream in, a stream out" like `wc`'s, and handed
             // bytes like every other stage. The one place it parts from `wc` is the field milestone
@@ -458,6 +504,7 @@ impl Prog {
                 interruptible: false,
                 clock: false,
                 domain: false,
+                config: false,
             },
             // **`ps`: a stream out, a domain in, and nothing else** (milestone 126).
             //
@@ -484,6 +531,7 @@ impl Prog {
                 interruptible: false,
                 clock: false,
                 domain: true,
+                config: false,
             },
             // **`pgrep`: `ps`'s manifest, field for field, and the sameness is the claim.**
             //
@@ -513,6 +561,7 @@ impl Prog {
                 interruptible: false,
                 clock: false,
                 domain: true,
+                config: false,
             },
             // **`watch`: `ps`'s manifest with one field changed.** `arg: ArgSpec::Required` is the
             // whole difference: this program needs a typed redraw count, because it cannot be spun up
@@ -536,6 +585,44 @@ impl Prog {
                 interruptible: false,
                 clock: false,
                 domain: true,
+                config: false,
+            },
+            // **The one program in this table that declares the inert-configuration page.** Same
+            // asymmetry as `date`'s clock: nothing on the command line designates it, so this is
+            // init's to endow and this field is how init decides which children get it.
+            Prog::Printenv => Manifest {
+                arg: ArgSpec::Forbidden,
+                mem: MemSpec::Forbidden,
+                file: FileSpec::Forbidden,
+                dir: DirSpec::Forbidden,
+                flags: NO_FLAGS,
+                output: OutputSpec::Bytes,
+                input: InputSpec::Forbidden,
+                reports: true,
+                interruptible: false,
+                clock: false,
+                domain: false,
+                config: true,
+            },
+            // **`worker`'s manifest, not `date`'s.** `uptime` reads `user_rt::monotonic_nanos`,
+            // which is granted to every process unconditionally, so there is no capability here to
+            // declare: no clock, no domain, no memory, no file. `OutputSpec::Bytes` rather than
+            // `BytesAndDiagnostics` because the program cannot fail (the counter is always there to
+            // read), so there is nothing a second stream would ever carry; `wc`'s manifest makes the
+            // same call for the same reason.
+            Prog::Uptime => Manifest {
+                arg: ArgSpec::Forbidden,
+                mem: MemSpec::Forbidden,
+                file: FileSpec::Forbidden,
+                dir: DirSpec::Forbidden,
+                flags: NO_FLAGS,
+                output: OutputSpec::Bytes,
+                input: InputSpec::Forbidden,
+                reports: true,
+                interruptible: false,
+                clock: false,
+                domain: false,
+                config: false,
             },
         }
     }
@@ -818,6 +905,22 @@ pub struct Manifest {
     /// loudly instead of answering with an empty list: **that difference is the whole feature**, and
     /// `ps` prints the two apart.
     pub domain: bool,
+    /// **Endowed a read-only mapping of the inert-configuration page** (milestone 47's
+    /// environment-variable fork, DECISIONS §111; `crates/environment_proto`).
+    ///
+    /// [`clock`](Manifest::clock)'s twin again, for the identical reason: `TZ`/`LANG`/`TERM` are
+    /// not something a command line designates, so there is no token to place and no refusal to
+    /// write. What this field does is tell **init** which children to endow, and tell a person
+    /// reading `caps printenv` that the authority exists at all. Before this field existed, the
+    /// page was granted **unconditionally** to a `std` program by a kernel test harness standing
+    /// in for a real customer (`kernel/src/user/std_service.rs`); this is the manifest declaration
+    /// that section's own "Not yet built" line named, now with a real, `no_std`, shell-spawnable
+    /// customer ([`Prog::Printenv`]) declaring it.
+    ///
+    /// It is a *read-only* mapping, the same rung [`clock`](Manifest::clock) uses: a program
+    /// declaring this can read the three inert values and has no object through which it could
+    /// change what a shell hands its children. **Provisional field name.**
+    pub config: bool,
 }
 
 /// A parsed command line. The shell dispatches on this; only [`Command::Run`] carries a grant
@@ -900,6 +1003,18 @@ pub enum Command<'a> {
     /// See notes/touch.md for what is still not built (Unix's compact `[[CC]YY]MMDDhhmm[.ss]`
     /// `-t` format is not accepted, only RFC 3339) and the wire verbs this dispatches to.
     Touch(TouchArgs<'a>),
+    /// `bind <target> <name>`: name a position this shell already reached some other way, so
+    /// `/<name>/...` reaches it too (milestone 47, "`bind` is not blocked on a mount table. It
+    /// is blocked on a second grant"; milestone 154 supplied the second grant, [`nav::Bindings`]
+    /// is the mechanism it unblocked). **A builtin, [`Mkdir`](Command::Mkdir)'s category**: it
+    /// mints no capability and spawns nothing, it only records a value this shell already
+    /// resolved, under a name.
+    ///
+    /// `target` is resolved exactly as any other operand is, at bind time, against wherever this
+    /// shell stands; `name` is the single component the bound entry is filed under. Neither is
+    /// tokenized further, the same "one opaque trailing blob" rule [`Command::Cd`] and
+    /// [`Command::Mkdir`] already take their one path operand as.
+    Bind(&'a [u8], &'a [u8]),
     /// `apropos <term>`: **name the installed pages that mention a word** (milestone 40 phase 2).
     /// The operand is one word, folded the way the host builder folded the text it indexed.
     ///
@@ -1163,11 +1278,143 @@ pub mod rmopt {
 pub struct Holdings {
     /// The shell holds a directory capability it can narrow into a per-file grant.
     pub dir: bool,
-    /// **Where in that capability it currently is**, which is the other half of what it holds: a
-    /// working directory is a directory capability used as the default base for resolving names, so
-    /// it belongs here beside the fact that there is one. Defaults to the root, which is also the
-    /// only position a shell holding no directory can be in.
+    /// **A second, disjoint directory capability, when this shell holds two** (milestone 154,
+    /// design/roadmap/154-multi-directory-namespace.md; [DECISIONS
+    /// §126](../../../design/decisions/126-two-directory-cwd.md)). `None` for a one-grant shell,
+    /// which resolves and prints exactly as it always has. Provisional name and shape.
+    pub second: Option<SecondDir>,
+    /// **Where in the currently-selected tree it stands**, which is the other half of what it
+    /// holds: a working directory is a directory capability used as the default base for
+    /// resolving names, so it belongs here beside the fact that there is one. For a one-grant
+    /// shell this is the one tree; for a two-grant shell it is whichever tree
+    /// [`SecondDir::which`] currently names. Defaults to the root, which is also the only
+    /// position a shell holding no directory can be in.
     pub cwd: nav::Cwd,
+    /// **Names this shell has bound to a position it already reached some other way**
+    /// (`bind`, milestone 47; [`nav::Bindings`]'s own doc has the full design). Present
+    /// regardless of `second`, because a bind is a value composed from whatever this shell
+    /// already holds, and even a one-grant shell has positions worth a shorter name. Checked
+    /// **after** `second`'s two grant labels in [`Holdings::resolve`], so a bind can never shadow
+    /// a real grant, only add a name beside it.
+    pub binds: nav::Bindings,
+}
+
+/// **A two-grant shell's second label and which tree [`Holdings::cwd`] is standing in**
+/// (DECISIONS §126's `(which, pos)`, `pos` being [`Holdings::cwd`]). Provisional name and shape
+/// (milestone 154).
+///
+/// Both labels are carried here, not just the second one, because interpreting an absolute token
+/// (`/a/...` vs `/b/...`) needs both: [`nav::TwoRoots`] matches a path's first component against
+/// either label, and a two-grant shell that only remembered one of them could not tell "the other
+/// grant" from "no such capability" apart.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct SecondDir {
+    label_a: [u8; nav::MAX_NAME],
+    label_a_len: u8,
+    label_b: [u8; nav::MAX_NAME],
+    label_b_len: u8,
+    /// Which tree [`Holdings::cwd`] is inside right now. A fresh two-grant holder starts at `A`
+    /// (DECISIONS §126: "the first-listed grant's own root", the same "slot 0 is always the
+    /// first grant" precedent milestone 154 already established for cspace ordering).
+    pub which: nav::Which,
+}
+
+impl SecondDir {
+    /// Compose two labels, standing in `A`. `None` if either is not a nameable component
+    /// ([`nav::component_fits`]), the same bound [`nav::TwoRoots`] matches against.
+    pub fn new(label_a: &[u8], label_b: &[u8]) -> Option<Self> {
+        let (label_a, label_a_len) = pack_label(label_a)?;
+        let (label_b, label_b_len) = pack_label(label_b)?;
+        Some(SecondDir {
+            label_a,
+            label_a_len,
+            label_b,
+            label_b_len,
+            which: nav::Which::A,
+        })
+    }
+
+    /// Grant A's label: an absolute path's first component that selects it.
+    pub fn label_a(&self) -> &[u8] {
+        &self.label_a[..self.label_a_len as usize]
+    }
+
+    /// Grant B's label.
+    pub fn label_b(&self) -> &[u8] {
+        &self.label_b[..self.label_b_len as usize]
+    }
+
+    /// The two labels, composed the way [`nav::TwoRoots::resolve_from`] needs them.
+    fn roots(&self) -> nav::TwoRoots<'_> {
+        nav::TwoRoots::new(self.label_a(), self.label_b())
+    }
+}
+
+fn pack_label(label: &[u8]) -> Option<([u8; nav::MAX_NAME], u8)> {
+    // A label is matched against a parsed path's first *component* ([`nav::TwoRoots::resolve`]),
+    // and `nav::path` never produces a component `nav::component_fits` would refuse. A label that
+    // failed that same check could never match anything a real token parses to, so this rejects it
+    // at construction rather than building a namespace half of which is unreachable.
+    if !nav::component_fits(label) {
+        return None;
+    }
+    let mut bytes = [0u8; nav::MAX_NAME];
+    bytes[..label.len()].copy_from_slice(label);
+    Some((bytes, label.len() as u8))
+}
+
+impl Holdings {
+    /// **`(which, pos)` resolution** (DECISIONS §126): where `token` lands, without moving.
+    ///
+    /// A relative token is unaffected by [`Holdings::binds`]: it stays where it always did,
+    /// inside whichever tree this shell is standing in (`Holdings::cwd`, parameterized by
+    /// `second`'s `which` for a two-grant shell). Only an absolute token can name a bound entry,
+    /// the same rule a grant label already follows, and a grant label is tried first when this
+    /// shell holds two: **a bind can never shadow `a` or `b`**, only add a name beside them
+    /// (`Holdings::bind` refuses that at the point of binding, so this order is belt and braces
+    /// rather than the only thing stopping it). A one-grant shell has no label namespace to check
+    /// first, so an absolute token that names no bound entry falls through to the same literal
+    /// walk from the sole root this always did before `bind` existed: **this is additive**, and a
+    /// shell with nothing bound resolves byte for byte as it did before this milestone.
+    pub fn resolve(&self, token: &[u8]) -> Result<(nav::Which, nav::Cwd), nav::Refused> {
+        let p = nav::path(token)?;
+        if !p.from_root() {
+            return match &self.second {
+                None => Ok((nav::Which::A, self.cwd.resolve(&p)?)),
+                Some(sd) => sd.roots().resolve_from(sd.which, self.cwd, token),
+            };
+        }
+        if let Some(sd) = &self.second
+            && let Some(r) = sd.roots().try_resolve_absolute(&p)
+        {
+            return r;
+        }
+        if let Some(r) = self.binds.resolve_absolute(&p) {
+            return r;
+        }
+        match &self.second {
+            Some(_) => Err(nav::Refused::NotAName),
+            None => Ok((nav::Which::A, self.cwd.resolve(&p)?)),
+        }
+    }
+
+    /// **`bind`'s mutator**: name a position this shell already reached some other way
+    /// ([`nav::Bindings::add`]'s own doc has the full design), refusing a name that would shadow
+    /// one of a two-grant shell's own grant labels in addition to everything the bind table
+    /// itself refuses (already bound, too many, not a nameable component).
+    pub fn bind(
+        &mut self,
+        name: &[u8],
+        which: nav::Which,
+        pos: nav::Cwd,
+    ) -> Result<(), nav::BindRefused> {
+        if let Some(sd) = &self.second
+            && (name == sd.label_a() || name == sd.label_b())
+        {
+            return Err(nav::BindRefused::ReservedLabel);
+        }
+        self.binds.add(name, which, pos)
+    }
 }
 
 /// Why an invocation was refused, decided at the prompt before any spawn. Each variant maps to one
@@ -1539,6 +1786,15 @@ pub fn parse(line: &[u8]) -> Command<'_> {
                     name: rest,
                 }),
             }
+        }
+        // `bind <target> <name>` (milestone 47/154). One word for the target, everything after it
+        // (trimmed) for the name: the same "one opaque trailing blob" rule `cd`/`mkdir` already
+        // use for their single path operand, generalized to two operands here rather than
+        // tokenizing the name further.
+        b"bind" => {
+            let rest = trim(rest);
+            let (target, name) = split_first_word(rest);
+            Command::Bind(target, trim(name))
         }
         // **Search the documentation store** (milestone 40 phase 2). A builtin for exactly
         // [`Command::Ls`]'s reason, stated there: a search *is* an enumeration, and a searching
@@ -2531,6 +2787,25 @@ mod tests {
             }),
             "-template must not be misread as -t plus a stray name"
         );
+        // `bind`: one word for the target, everything after it (trimmed) for the name.
+        assert_eq!(
+            parse(b"bind logs/2026 recent"),
+            Command::Bind(b"logs/2026", b"recent"),
+        );
+        assert_eq!(
+            parse(b"  bind   logs/2026   recent  "),
+            Command::Bind(b"logs/2026", b"recent"),
+        );
+        assert_eq!(
+            parse(b"bind"),
+            Command::Bind(b"", b""),
+            "bare `bind` needs both words"
+        );
+        assert_eq!(
+            parse(b"bind logs/2026"),
+            Command::Bind(b"logs/2026", b""),
+            "one word is a target with no name to file it under",
+        );
         assert_eq!(
             parse(b"apropos capability"),
             Command::Apropos(b"capability")
@@ -2560,6 +2835,7 @@ mod tests {
             b"ls",
             b"mkdir",
             b"touch",
+            b"bind",
         ] {
             assert!(
                 Prog::from_name(reserved).is_none(),
@@ -2768,6 +3044,7 @@ mod tests {
         interruptible: false,
         clock: false,
         domain: false,
+        config: false,
     };
 
     /// The writable twin: a program that is endowed a file it may write.
@@ -2792,13 +3069,145 @@ mod tests {
         interruptible: false,
         clock: false,
         domain: false,
+        config: false,
     };
 
     /// A shell that WAS granted a directory to narrow, standing at its root.
     const WITH_DIR: Holdings = Holdings {
         dir: true,
+        second: None,
         cwd: nav::Cwd::root(),
+        binds: nav::Bindings::none(),
     };
+
+    // ---- milestone 154 / DECISIONS §126: Holdings' `(which, pos)` shape ----
+
+    /// A one-grant [`Holdings`] resolves exactly as it always has, and `which` can only ever come
+    /// back `A`: there is no second tree for it to mean anything else.
+    #[test]
+    fn a_one_grant_holdings_resolves_exactly_as_before() {
+        assert_eq!(
+            WITH_DIR.resolve(b"logs"),
+            Ok((nav::Which::A, {
+                let mut c = nav::Cwd::root();
+                c.descend(b"logs");
+                c
+            })),
+        );
+        assert_eq!(WITH_DIR.resolve(b".."), Err(nav::Refused::AtYourRoot));
+    }
+
+    /// A two-grant [`Holdings`] resolves through [`SecondDir`]: a relative token stays in the
+    /// current tree, and an absolute one crosses by label, which is `caps`'s namespace section
+    /// and a two-grant shell's `cd` both reading the same primitive.
+    #[test]
+    fn a_two_grant_holdings_resolves_relative_and_absolute_tokens() {
+        let holds = Holdings {
+            dir: true,
+            second: Some(SecondDir::new(b"a", b"b").unwrap()),
+            cwd: nav::Cwd::root(),
+            binds: nav::Bindings::none(),
+        };
+        // Relative: stays in A, the starting tree.
+        let (which, pos) = holds.resolve(b"x").unwrap();
+        assert_eq!(which, nav::Which::A);
+        assert_eq!(pos.component(0), b"x");
+        // Absolute: crosses into B.
+        let (which, pos) = holds.resolve(b"/b/y").unwrap();
+        assert_eq!(which, nav::Which::B);
+        assert_eq!(pos.component(0), b"y");
+        // The negative control this milestone is named for: `/a/../b` is refused rather than
+        // crossing, because selecting `a` leaves nothing above `a`'s own root to pop.
+        assert_eq!(holds.resolve(b"/a/../b"), Err(nav::Refused::AtYourRoot));
+    }
+
+    // ---- `bind` (milestone 47: "blocked on a second grant", now that 154 built it) ----
+
+    /// **A one-grant `Holdings` resolves absolute paths exactly as before when nothing is
+    /// bound**, and a bound name is reachable once one is: `bind` is additive, not a new mode.
+    #[test]
+    fn a_one_grant_holdings_binds_a_name_and_resolves_through_it() {
+        let mut holds = Holdings {
+            dir: true,
+            ..Holdings::default()
+        };
+        // Unaffected before anything is bound: a literal walk from the sole root.
+        let (which, pos) = holds.resolve(b"/etc/passwd").unwrap();
+        assert_eq!(which, nav::Which::A);
+        assert_eq!(pos.component(0), b"etc");
+
+        let mut target = nav::Cwd::root();
+        target.descend(b"logs");
+        target.descend(b"2026");
+        holds.bind(b"recent", nav::Which::A, target).unwrap();
+
+        let (which, pos) = holds.resolve(b"/recent").unwrap();
+        assert_eq!(which, nav::Which::A);
+        assert_eq!(pos, target);
+        let (_, pos) = holds.resolve(b"/recent/report.txt").unwrap();
+        assert_eq!(pos.component(2), b"report.txt");
+
+        // Unaffected by the bind: a real name that is not bound still walks literally.
+        let (_, pos) = holds.resolve(b"/etc/passwd").unwrap();
+        assert_eq!(pos.component(0), b"etc");
+    }
+
+    /// **A grant label wins over a bind in a two-grant `Holdings`**, and `bind` refuses to create
+    /// the collision in the first place: two independent guards for the one property, "a bind
+    /// must never shadow `a` or `b`."
+    #[test]
+    fn a_grant_label_is_never_shadowed_by_a_bind() {
+        let mut holds = Holdings {
+            dir: true,
+            second: Some(SecondDir::new(b"a", b"b").unwrap()),
+            cwd: nav::Cwd::root(),
+            binds: nav::Bindings::none(),
+        };
+        assert_eq!(
+            holds.bind(b"a", nav::Which::B, nav::Cwd::root()),
+            Err(nav::BindRefused::ReservedLabel),
+        );
+        assert_eq!(
+            holds.bind(b"b", nav::Which::A, nav::Cwd::root()),
+            Err(nav::BindRefused::ReservedLabel),
+        );
+        // A name that is not a label binds fine, and does not disturb either grant's own row.
+        holds
+            .bind(b"shortcut", nav::Which::B, nav::Cwd::root())
+            .unwrap();
+        let (which, _) = holds.resolve(b"/a").unwrap();
+        assert_eq!(which, nav::Which::A);
+        let (which, _) = holds.resolve(b"/shortcut").unwrap();
+        assert_eq!(which, nav::Which::B);
+    }
+
+    /// **`bind`'s own refusals surface through `Holdings`**: a second bind under the same name,
+    /// and a table already at [`nav::MAX_BINDS`].
+    #[test]
+    fn holdings_bind_surfaces_the_bind_tables_own_refusals() {
+        let mut holds = Holdings {
+            dir: true,
+            ..Holdings::default()
+        };
+        holds.bind(b"x", nav::Which::A, nav::Cwd::root()).unwrap();
+        assert_eq!(
+            holds.bind(b"x", nav::Which::A, nav::Cwd::root()),
+            Err(nav::BindRefused::AlreadyBound),
+        );
+    }
+
+    /// [`SecondDir::new`] refuses a label that is not a nameable component, the same bound
+    /// [`nav::TwoRoots`] matches against, so a caller cannot build a `Holdings` whose absolute
+    /// paths could never resolve to what it claims to hold.
+    #[test]
+    fn second_dir_refuses_an_unnameable_label() {
+        assert!(SecondDir::new(b"", b"b").is_none());
+        assert!(SecondDir::new(b"a", b"").is_none());
+        assert!(SecondDir::new(b"a/b", b"c").is_none());
+        let too_long = [b'x'; nav::MAX_NAME + 1];
+        assert!(SecondDir::new(&too_long, b"b").is_none());
+        assert!(SecondDir::new(b"a", b"b").is_some());
+    }
 
     /// The combination milestone 117's fifth stranger found no program declares: an integer
     /// argument **and** an input stream. Unlike [`STAMPS_A_FILE`]'s pairing with `FileSpec`, this
@@ -3462,7 +3871,9 @@ mod tests {
         deeper.apply(nav::path(b"logs").unwrap().steps()).unwrap();
         let holds = Holdings {
             dir: true,
+            second: None,
             cwd: deeper,
+            binds: nav::Bindings::none(),
         };
         let (p, _) = plan_line(b"date > old/report.txt", holds).unwrap();
         let line::Sink::File(g, _) = p[0].unwrap().sink else {
@@ -3546,6 +3957,7 @@ mod tests {
         interruptible: false,
         clock: false,
         domain: false,
+        config: false,
     };
 
     /// Plan one stage against an explicit manifest, with the operators' answer folded in.

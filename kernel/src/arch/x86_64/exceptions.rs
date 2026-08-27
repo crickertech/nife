@@ -12,7 +12,7 @@
 //! other two: a [`TrapFrame`], counters it can assert on, the last user fault, and an `init` that
 //! makes faults reportable instead of fatal.
 
-use core::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 
 use super::segments::{IST_DOUBLE_FAULT, KERNEL_CODE};
 use crate::arch::UserFault;
@@ -230,6 +230,12 @@ pub static ROUTED_IRQS: AtomicUsize = AtomicUsize::new(0);
 /// between assertion and acknowledgement, and the local APIC has a dedicated spurious vector.
 pub static SPURIOUS_IRQS: AtomicUsize = AtomicUsize::new(0);
 
+/// **How many NMIs arrived that the TLB shootdown did not claim.** Vector 2 is this kernel's
+/// shootdown message (`mmu::shoot_down_others`) and nothing else on this machine sends one, so this
+/// should stay at zero; it is counted rather than assumed away because an NMI from a source we do
+/// not know about is exactly the kind of fact that is invisible until someone looks.
+pub static NMIS_UNCLAIMED: AtomicUsize = AtomicUsize::new(0);
+
 /// **How many *device* interrupts arrived through the IO APIC**, as distinct from the local APIC's
 /// own timer. Counted separately because the two prove different things: the timer proves the local
 /// APIC delivers and the trap path returns, and this proves a line outside the CPU reached it.
@@ -352,6 +358,10 @@ pub fn enable_external() {
     );
 }
 
+/// **Whether [`IDT`] has been built yet.** Guards the one write every core used to make
+/// unconditionally, back when there was only ever one core to make it (milestone 161's SMP item).
+static IDT_BUILT: AtomicBool = AtomicBool::new(false);
+
 /// Install the IDT on this CPU.
 ///
 /// Every vector gets a gate, including the 224 that no hardware currently drives: an IDT entry that
@@ -363,13 +373,28 @@ pub fn enable_external() {
 /// is that the CPU could not deliver a first exception, and the commonest cause of that is a stack
 /// that cannot be pushed to. A handler that tries to push its frame onto the same broken stack
 /// triple-faults, which QEMU reports as a silent machine reset and a real machine as a reboot.
+///
+/// **The table itself is built at most once, by whichever core gets here first** (in practice
+/// always the boot core: `smp::bring_up_secondaries` never starts a second core before its own
+/// `arch::init` has long since returned). Every core still calls this and every core still `lidt`s
+/// its own IDTR (`lidt` names a per-core register, not shared state), but a secondary rewriting 256
+/// already-correct gate descriptors used to be harmless only because nothing else was running.
+/// **Fixed, milestone 161's SMP item:** the boot core keeps interrupts enabled across
+/// `bring_up_secondaries` (its own timer must keep ticking), so a secondary's rewrite loop used to
+/// race the boot core's live interrupt delivery reading the SAME table; a torn read of one gate
+/// descriptor mid-write is a spurious or garbled trap on the boot core, not a compile error, which
+/// is exactly the shape of bug this file's own comments elsewhere warn does not announce itself.
 pub fn init() {
-    // SAFETY: single-threaded boot code on the boot CPU, before interrupts are unmasked. The stub
-    // table is 256 entries and so is the IDT, so every index below is in bounds.
-    unsafe {
-        for vector in 0..256 {
-            let ist = if vector == 8 { IST_DOUBLE_FAULT } else { 0 };
-            IDT[vector] = IdtEntry::interrupt_gate(ISR_STUBS[vector], ist);
+    if !IDT_BUILT.swap(true, Ordering::AcqRel) {
+        // SAFETY: guarded by the swap above, so at most one core ever runs this loop, and it runs
+        // to completion before any OTHER core's `lidt` (below) can possibly point at this table:
+        // that core would have to have gotten here first, which the swap already ruled out. The
+        // stub table is 256 entries and so is the IDT, so every index is in bounds.
+        unsafe {
+            for vector in 0..256 {
+                let ist = if vector == 8 { IST_DOUBLE_FAULT } else { 0 };
+                IDT[vector] = IdtEntry::interrupt_gate(ISR_STUBS[vector], ist);
+            }
         }
     }
 
@@ -377,8 +402,9 @@ pub fn init() {
         limit: (size_of::<[IdtEntry; 256]>() - 1) as u16,
         base: (&raw const IDT) as u64,
     };
-    // SAFETY: `idtr` describes the table just filled, whose every entry is a well-formed gate
-    // pointing at a stub in this image.
+    // SAFETY: `idtr` describes the table, which the branch above guarantees is fully built by the
+    // time any core reaches this `lidt`, whose every entry is a well-formed gate pointing at a stub
+    // in this image. `lidt` writes only this core's own IDTR.
     unsafe {
         core::arch::asm!("lidt [{}]", in(reg) &idtr, options(readonly, nostack, preserves_flags));
     }
@@ -474,30 +500,24 @@ const _: () = assert!(
     "a real IDT vector would be ambiguous here"
 );
 
-/// **The kernel stack a `syscall` from ring 3 lands on.** Written by
-/// `segments::set_kernel_stack` in the same breath as `TSS.RSP0`, so the two mechanisms cannot name
-/// different stacks; read by `x86_syscall_entry` in trap.s, which is why it is `no_mangle`.
+/// **Point the `syscall` path's kernel stack at `top`, on this core.**
 ///
-/// # BUGS
-/// **One CPU's, not one per CPU.** A second CPU running a `syscall` would take this one's stack.
-/// `TSS.RSP0` has the same problem for the same reason (segments.rs holds a single static TSS), and
-/// both are fixed by the same work: a per-CPU GDT and TSS, which SMP bring-up needs anyway
-/// (milestone 161, roadmap item 5).
-#[unsafe(no_mangle)]
-static mut X86_SYSCALL_KERNEL_RSP: u64 = 0;
-
-/// Where `x86_syscall_entry` parks the caller's `rsp` between the `swapgs` and the point where it
-/// can be pushed into the frame. `syscall` does not switch stacks, so there is nowhere else to put
-/// it: every register still holds a user value that has to be saved. Same single-CPU caveat as
-/// [`X86_SYSCALL_KERNEL_RSP`].
-#[unsafe(no_mangle)]
-static mut X86_SYSCALL_USER_RSP: u64 = 0;
-
-/// Point the `syscall` path's kernel stack at `top`. Called only by `segments::set_kernel_stack`,
-/// which owns the other half of the same fact.
+/// Called only by `segments::set_kernel_stack`, which writes `TSS.RSP0` in the same breath, so the
+/// two mechanisms (a trap and a `syscall`) cannot name different stacks for one thread. Read back by
+/// `x86_syscall_entry` in trap.s through a `gs`-relative offset into `cpu::PerCpu::x86_trap` (see
+/// `super::global_asm!`'s `SYSCALL_KERNEL_RSP_OFF` substitution) rather than through a flat
+/// `static mut`: `gs` already names this core's own block, so a second per-CPU array (and the
+/// index arithmetic asm would need to reach it) buys nothing an offset into the block `gs` points
+/// at does not. `x86_syscall_entry`'s OWN scratch slot for the interrupted user `rsp`
+/// (`x86_trap.syscall_user_rsp`) is the same shape, written and read entirely from trap.s with no
+/// Rust-side accessor at all.
+///
+/// **Per-CPU as of milestone 161's SMP item.** This used to be one flat `static mut`, shared by
+/// every CPU, which a second CPU running a `syscall` would have raced the first over.
 pub(super) fn set_syscall_kernel_stack(top: u64) {
-    // SAFETY: a single-CPU kernel with no preemption of this write; see the BUGS on the static.
-    unsafe { X86_SYSCALL_KERNEL_RSP = top };
+    // SAFETY: writes this core's own `PerCpu` slot, the same one `gs` already names on this core;
+    // no other core's write can land here.
+    unsafe { *crate::cpu::current().x86_trap.syscall_kernel_rsp.get() = top };
 }
 
 /// **Program the four MSRs that make `syscall` work**, once per CPU, at boot.
@@ -625,6 +645,28 @@ unsafe extern "C" {
 /// address it passes. Nothing else may call it.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn x86_trap_dispatch(frame: *mut TrapFrame) {
+    // **An NMI is served here and returns from here**, before either of the two things below can
+    // happen to it, and both would be wrong for it.
+    //
+    // It may not move to the interrupt stack. An NMI arrives at an arbitrary instruction boundary,
+    // including one inside a handler already running on that stack, and `top_for_trap` would hand
+    // it the same top and let it overwrite the frames underneath it.
+    //
+    // It may not owe a deferred `schedule()`. The whole point of an NMI shootdown is that its
+    // target is often mid-critical-section with interrupts masked; switching threads out from under
+    // that would be a far larger surprise than the interrupt itself.
+    //
+    // Serving it costs an `invlpg` and one atomic (`mmu::serve_shootdown_nmi`), so the frame it is
+    // charged to, wherever it landed, is the trap frame plus a shallow call.
+    // SAFETY: `isr_common` built the frame directly below the pointer it passed; reading the vector
+    // it manufactured, before anything else looks at the frame.
+    if unsafe { (*frame).vector } == 2 {
+        if !super::mmu::serve_shootdown_nmi() {
+            NMIS_UNCLAIMED.fetch_add(1, Ordering::Relaxed);
+        }
+        return;
+    }
+
     // SAFETY: `isr_common` built the frame directly below the pointer it passed.
     let from_user = unsafe { (*frame).cs } & 3 == 3;
     let top = crate::interrupt_stack::top_for_trap(from_user);

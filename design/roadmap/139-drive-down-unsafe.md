@@ -440,6 +440,311 @@ needs to re-measure from the merged tree rather than trust either round's own be
 in isolation, the same discipline round 2's own report names for tree-wide census under concurrent
 growth.
 
+## Round 6 (2026-08-25): the `user/` survey this milestone's BUGS section asked the first lane
+for, finished, plus two more migrations and one honest count-regression
+
+This milestone's own BUGS section, verbatim: *"`user/`'s 285 is unexplained... nobody has read
+enough of it to say whether that number is raw shared-page handling, a missing safe wrapper, or
+something else."* Five rounds had already done most of that reading as a side effect of chasing
+specific clusters; this round did the rest: read every remaining `unsafe` block in `user/`,
+confirmed the census against `script/lint`'s own regex rather than a hand grep, and closed the one
+named gap ("what is still open"'s `login_test_client.rs`'s `PAGE_VA`) plus five more files reading
+found in the same shape.
+
+**The re-measured count.** `user/` carries **284** `unsafe {` blocks today (replicating
+`script/lint`'s exact stripping-and-counting regex, scoped to `user/*.rs`), against the milestone's
+own opening baseline of 285 (2026-08-18) and the 287 a mid-milestone reading of this same section
+recorded. Roughly flat, and that flatness is itself the finding: five rounds removed real
+duplication (net -21, -16, -6, -3, -2 across rounds 1-5, most of it in `user/`), and unrelated tree
+growth in `user/` over the same five weeks (milestone 176's COM1 IRQ wiring, milestone 158's
+kernel-object renames, and ordinary feature work) put almost exactly that much back. The
+tree-wide density ceiling is the number that shows the reduction rather than hiding it: 93.4 to 87,
+even while the raw count outside `arch/` grew from 799 to (as of this round's start) 792 net-lower
+despite five weeks of concurrent development. `user/`'s own raw count is not the number to read;
+the density is.
+
+**The breakdown**, by what the first non-comment token inside each block is:
+
+| shape | blocks | what it is |
+|---|---|---|
+| `invoke(cap, method, ...)` | 123 | a raw capability invocation: the userspace syscall itself |
+| `read_volatile`/`write_volatile` | 36 | device registers and shared-frame fields with no further collapse available (see below) |
+| `core::arch::asm!` | 16 | entry stubs, the trap, and a handful of driver-specific instructions (`wfi`, `fence`) |
+| `core::slice::from_raw_parts[_mut]` | 12 | whole-page slice construction; down from ~30 before this round's own migration |
+| everything else | 97 | `MappedWindow`/`RegisterBlock`-family constructors (new, mostly this round: see below), the C ABI shim (`c_shim.rs`, `malloc`/`free`, already documented per milestone 82's survey), deliberate-fault test programs (`flaky.rs`, `outlaw.rs`, `hello.rs`'s `.bss`/`.data` probes), and single one-off writes (`budgeter.rs`, `swapper.rs`) |
+
+**Two clusters migrated this round, on `MappedWindow`, the same primitive round 1 built.**
+
+*`user_rt::initrd::initrd_bytes` (new, provisional name).* Seven programs (`builder`, `c_confiner`,
+`hello`, `login`, `root_supervisor`, `swapper`, `timetable`) each declared their own `const
+INITRD_VA: u64 = 0x2000_0000` and their own `unsafe { core::slice::from_raw_parts(INITRD_VA,
+initrd_len) }`, one hand-written `// SAFETY:` comment per file asserting the identical invariant
+("the kernel maps `initrd_len` bytes of the initrd, read-only, at this VA, before `_start` runs").
+`timetable.rs`'s own comment had already named the duplication out loud ("the same contract
+`user/src/builder.rs` is started under") without anyone lifting it out, the same shape `ntp.rs`'s
+comment named for round 1's cluster. One `unsafe fn` in `crates/user_rt/src/initrd.rs` now holds
+that assertion once. **Measured from the diff: 7 `unsafe {` blocks removed at the seven call sites,
+7 added at the same sites (calling the shared function) plus 1 added inside it, net +1.** Flat at
+the call sites, still a real reduction by this milestone's own criterion 1: seven independently
+worded assertions of one invariant collapsed into one declaration plus seven one-line "forwarded
+from `initrd_bytes`'s own contract" comments, the same "flat count, real reduction" shape
+`smb_server.rs`, `swish.rs`'s terminal pair, `display_terminal.rs`'s `paint` and `console.rs`'s
+PL011 half were in earlier rounds. Verified compiling clean on all three target architectures
+(aarch64, riscv64, x86_64), since the seven call sites split across both boot paths.
+
+*`MappedWindow::as_slice`/`as_mut_slice` (new methods on round 1's own type, provisional).*
+`login_test_client.rs`'s `PAGE_VA` was this milestone's one explicitly named gap ("what is still
+open", above): a `core::slice::from_raw_parts_mut` site the `read_volatile`/`write_volatile` grep
+that found rounds 2-5's clusters could not see, being a different pattern. Reading it in context
+surfaced five more files in the identical shape, none previously investigated:
+`credentialer.rs` (5 sites: `PROV_VA` and `VERIFY_VA`, one shared page apiece, read in some
+functions and written in others depending on protocol phase), `credentialer_test_client.rs` (5,
+the same two pages from the client side), `identity_provisioner.rs` (4: `REQ_VA`, `PROV_VA`,
+`FS_VA`), `session_reviver.rs` (2: `FS_VA`, already had a sibling `MappedWindow` for a different
+page from an earlier round) and `smb_server.rs` (1: `CRED_VA`). Eighteen call sites total, each
+independently asserting "this page is mapped read/write here, shared with exactly this peer,"
+often in near-identical wording. `MappedWindow` gained two methods returning the whole window as
+an ordinary (non-volatile) `&'static [u8]`/`&'static mut [u8]`, for the "hand the page to a parser"
+call shape these eighteen sites all have, distinct from round 1's "read/write one typed field"
+shape. Six new window constants (`PROV_WINDOW`, `VERIFY_WINDOW`, `PAGE_WINDOW` x2 in two files,
+`REQ_WINDOW`, `FS_WINDOW`, `CRED_WINDOW`) now hold the eighteen invariants as six declarations;
+`credentialer.rs`'s `wipe`/`publish` and `credentialer_test_client.rs`'s `request`/`page_is_clean`
+changed from taking a raw `va: u64` to taking a `MappedWindow`, so the type carries the "which
+page" fact through the call rather than a bare integer.
+
+**The honest count, which this round is not going to round off.** Unlike round 1's `r8`/`w8`
+cluster, this migration does **not** reduce the raw block count, and it should not be reported as
+if it does. Round 1's `read`/`write` are ordinary safe functions: the bounds check they perform
+(`offset + size <= len`) is a real runtime assertion that lets the call site drop `unsafe`
+entirely. `as_slice`/`as_mut_slice` have no equivalent check to add: the risk they carry is not "an
+offset out of range," it is "something else touches this memory while the slice is alive," which
+no bounds check catches and no cheap runtime check can verify. So both methods stayed `unsafe fn`,
+every one of the eighteen call sites still carries its own `unsafe {}` block (unchanged in count),
+and centralizing the "which page" half of the invariant cost one new block per shared window (ten
+constructors) plus two new blocks inside `MappedWindow` itself for the methods' own bodies.
+**Measured from the diff against this round's own base commit: 18 `unsafe {` blocks removed, 30
+added, net +12.** Combined with `initrd_bytes`'s +1, this round is **net +13** against a
+tree-wide `outside_arch` count of 792 at its own start, landing at 805 (89 per 10,000 lines,
+truncated, against the still-unmoved ceiling of 94: 5 points of headroom, one point less than the
+7-point cushion every prior round preserved, spent by unrelated growth and this round's own
+choice rather than by a ceiling that fired).
+
+**What this round believes it bought for that cost, and why it might be the wrong trade.** Eighteen
+independently worded assertions became six canonical declarations plus eighteen one-line forwarding
+comments: a reader auditing "is `PROV_VA` really exclusive to the provisioner while a request is
+in flight" now checks one comment instead of five worded slightly differently across two files.
+That is a real reduction in *the number of distinct claims a reader has to independently verify*,
+which is the milestone's own stated test ("the test is not the token count, it is the number of
+distinct invariants asserted by hand"). But it is not a reduction in the number the ratchet
+watches, and a careful reader comparing this round to rounds 1-5 should notice that difference
+rather than take "round 6" as more of the same shape. **This is easy to revert**: it touches
+exactly six `user/` files plus two new methods on one type, none of it wire format, syscall
+surface, or anything else two programs must agree on, so if calef would rather the raw count stay
+the primary signal even at the cost of the six duplicate comments, reverting this specific piece
+(not `initrd_bytes`, which is unambiguously a reduction) costs nothing but the six files' worth of
+diff.
+
+**The one cluster this round did not touch, and the reason is a design fork rather than a
+reduction this lane could invent.** `invoke(cap, method, a0, a1, a2)` calls are 123 of `user/`'s
+284 blocks, by far the largest single share (43%), and every one carries the identical comment
+`invoke` itself carries: *"the kernel validates the capability and the method before acting; the
+caller is trusting the kernel, not the other way around."* Milestone 134's own census already
+named this precisely: *"a per-method obligation carried by a single all-methods signature... some
+methods (`aspace::MAP_INTO` among them) can perturb the caller's own address space, so some
+obligation is real,"* and its own conclusion was "neither is this milestone's work; the handoff in
+its lane report proposes it." This round counted rather than proposed: at least **18 distinct
+methods** are invoked directly this way across `user/` (by literal `abi::module::CONST` at the
+call site; calls that compute the method dynamically are not counted, so 18 is a floor, not a
+ceiling), led by `RETYPE` (10 sites), `REPLY` (9), `page_frame::MAP` (8), `page_frame::REVOKE` (3),
+`memory_region::DESTROY` (3), `irq::WAIT` (3), `address_space::MAP_INTO` (3), and nine more at one
+or two sites each. `send`/`recv`/`reap`/`call` and the rest of `user_rt`'s existing safe surface
+already cover the handful of methods common to nearly every program; what remains uncovered is
+long-tail and program-specific: page-frame and address-space construction verbs mostly used by the
+handful of programs that build child processes (`hello`, `builder`, `login`, the caretakers), and
+IRQ and virtio methods used only by the drivers that own those devices.
+
+**Why this is calef's call and not a migration to invent.** Building a safe wrapper per method
+the way `send`/`reap` already exist would need a decision this lane has no standing to make:
+whether the per-method obligation is real (as `MAP_INTO`'s is, per milestone 134's own reading) or
+vestigial (as most of `send`/`recv`/`reap`'s turned out to be), for each of at least 18 methods,
+and whether the wrappers belong in `user_rt` (available to every program, growing that crate's
+surface by a wrapper per verb) or in a smaller per-purpose crate (a construction-verbs module used
+only by the handful of programs that build children). Getting this wrong in either direction costs
+more than the code: too permissive and a genuinely dangerous method (one that perturbs the
+caller's own address space) reads as safe; too conservative and the exercise reduces to renaming
+123 identical comments without moving the count, the exact "relocates unsafe... hides it behind a
+[wrapper]" anti-pattern this block's own text refuses. **Left as a named follow-on, not attempted
+here**: the next lane's job is not "wrap `invoke`," it is "decide, method by method, which of the
+18-plus obligations are real, the same reading milestone 112 already did for the four SAFETY
+comments that discharged onto nobody" -- and only then does a mechanical wrapping pass become safe
+to write.
+
+**A realistic floor for `user/`, as this milestone's own BUGS section asked the first lane to
+report rather than pick a target here.** The `invoke` cluster is the whole question: it is 123 of
+284 blocks, and the achievable reduction ranges from near zero (if most of the 18-plus methods
+turn out to carry the real, per-call obligation `MAP_INTO` does) to on the order of 100 (if most
+turn out to be the same non-obligation `send`/`recv`/`reap` already were). No number in that range
+is more than a guess without the method-by-method reading above. **Setting the `invoke` cluster
+aside, the rest of `user/` (roughly 161 blocks: the `read_volatile`/`write_volatile`, `asm!`,
+`from_raw_parts` and "everything else" rows above) is close to its practical floor already.** Six
+rounds have read essentially all of it: the `asm!` entries are ABI entry stubs and traps with no
+further collapse available; the remaining `read_volatile`/`write_volatile` sites are device
+registers this milestone investigated and deliberately left unmigrated (the NS16550 halves of
+`console.rs`/`input.rs`, whose register stride is a runtime fact no compile-time layout can
+express; `clock.rs` and `driver.rs`, each already collapsed to one function apiece); the remaining
+`from_raw_parts` sites are deliberate-fault test programs (`flaky.rs`, `outlaw.rs`) and one-off
+writes (`budgeter.rs`, `swapper.rs`) this milestone's own text already names as not having a §94
+shape to collapse; and `crates/ipc`'s three call sites are DECIDED as genuinely distinct (round 2).
+So: **no single number, but a bounded one** -- somewhere between roughly 160 (if the `invoke`
+cluster turns out to need no wrapper at all) and roughly 260 (if it turns out nearly all of it is
+real per-call obligation and stays exactly as it is), and the only way to narrow that range further
+is the method-by-method reading named above, not more reading of the kind this round and its five
+predecessors already did.
+
+**The ceiling's own open question, answered as far as it can be from five weeks of data.** BUGS
+item 1 (below) asks whether the density ceiling fires on honest work. It has not: the density has
+moved from 93.4 (this milestone's own start) through 90.8, 89, 88, 87, 87 (unchanged), and now 89
+again after this round's own count-regression, always 5 to 7 points under whatever the ceiling was
+at the time, across five weeks and both growth and reduction. That is not proof it never will, but
+it is the honest answer available today: **no evidence yet that 94 is too tight**, and this
+round's own +13 is the first commit in the milestone's history to spend headroom rather than widen
+it, which is worth calef seeing plainly rather than folded into a paragraph that reads like every
+other round's.
+
+## Round 7 (2026-08-26): the `invoke` cluster, read method by method and mostly resolved
+
+Round 6 read and counted the `invoke(cap, method, ...)` cluster (123 of `user/`'s 284 blocks, 43%,
+its largest single share) and deliberately did not migrate it, naming the open question precisely:
+*"deciding which of the 18-plus obligations are real... versus vestigial... is a design fork for
+calef."* This round did that reading, method by method, and it resolves almost the whole cluster.
+
+**The re-read, replicating round 6's own count first.** `user/`'s 123 `invoke(...)` call sites
+(confirmed against round 6's number exactly; the 124th grep hit is a doc comment on
+`os_primitives_benchmarker.rs`, not code) resolve, after following each file's own `use abi::... as
+...` aliases (`ut` for `memory_region`, `fr` for `page_frame`), to **22 distinct methods**, four more
+than round 6's own floor of "at least 18" because round 6's count did not fully resolve aliases.
+Grouped by method rather than by call site, the shape round 6 predicted is exactly what is there:
+some methods have one or two call sites, and several have a dozen or more.
+
+**The reading, method by method, and the answer to round 6's own question.** Every one of the 22
+methods carries the *identical* safety argument `invoke`'s own doc already states: *"the kernel
+validates the capability and the method before acting; the caller is trusting the kernel, not the
+other way around."* That argument does not vary by method, because it is not about what the method
+*does*, it is about what the syscall boundary *is*: a trap the kernel validates before touching
+anything, on every one of the 22. Milestone 134's census read `abi::address_space::MAP_INTO` as
+carrying a "real" obligation because it "can perturb the caller's own address space," which is true
+of the *result* of a successful call, but that is exactly as true of `abi::page_frame::MAP`, which
+round 1 already wrapped as `map_page_frame` (a fully safe function, no `unsafe` at any of its
+seventeen call sites) without anyone treating that as unsound. The two methods carry the same shape:
+the kernel checks rights and alignment and either performs the mapping or returns an error, and
+nothing about the *call itself* can violate a Rust invariant the wrapper could have checked and did
+not. What can go wrong after a successful call (aliasing a page a Rust reference already assumes is
+private, racing a mapping change) is a caller-side correctness question every syscall in this cluster
+already has, `map_page_frame`'s included, and it is the argument the raw call site's own SAFETY
+comment already discharges onto "the caller is trusting the kernel." **So round 6's "real vs.
+vestigial" question resolves to: for Rust-safety purposes, all 22 are the `send`/`recv`/`reap` shape,
+not the exception `MAP_INTO` was flagged as being.** The genuinely separate question, "should a
+supervisor be able to remap a child's memory out from under it without the child's cooperation," is
+real, but it is a capability-policy question the kernel's rights model already answers (`WRITE` on
+the address-space capability), not a Rust-safety gap a wrapper's absence was leaving open.
+
+**What that reading bought, mechanically.** Three of the 22 methods already had a safe wrapper
+sitting unused: nine `abi::reply::REPLY` call sites (three of them local one-line `fn reply(slot,
+r0)` re-wrappers, in `fs_file_caretaker.rs`, `fs_nameset_caretaker.rs`, `fs_subtree_caretaker.rs`,
+each duplicating [`reply`]'s own body) and one `abi::rendezvous::SEND` call site were migrated onto
+[`reply`]/[`send`], which already existed and needed no change; seventeen `abi::page_frame::MAP` call
+sites moved onto [`map_page_frame`], likewise pre-existing. That is 27 sites, zero new code.
+
+One more method is the sharpest instance of the §94 shape this milestone keeps finding: `date.rs`
+had a `granted(slot) -> bool` probe (invoke a method number no object type defines, so the call can
+only be refused, and read *which* refusal came back to tell an empty slot from a real object),
+documented as lifted from `clock_page`'s own probe. Four more programs (`pgrep`, `pmap`, `ps`,
+`watch`) had each copied the identical function, byte-for-byte body and comment, one of them saying
+so out loud ("`ps`'s and `date`'s probe, verbatim") without anyone lifting it out. [`granted`] is now
+one declaration in `user_rt`; the five call sites are gone.
+
+The remaining eighteen methods had no wrapper at all, and each got the thin, one-`unsafe`-block
+wrapper round 1's `map_page_frame` already established the shape for: [`retype_page_frame`]
+(`memory_region::RETYPE`, 15 sites), [`retype_object`] (`RETYPE_OBJ`, 7), [`split_region`] (`SPLIT`,
+3), [`destroy_region`] (`DESTROY`, 4), [`map_region_page`] (`MAP`, 2), [`revoke_frame`]
+(`page_frame::REVOKE`, 3), [`map_into`] (`address_space::MAP_INTO`, 9), [`tcb_cap_insert`],
+[`tcb_configure`], [`tcb_start`] (`thread_control_block::CAP_INSERT`/`CONFIGURE`/`START`, 2 each),
+[`irq_wait`], [`irq_ack`] (`irq::WAIT`/`ACK`, 7 and 6), and [`send_cap`] (`rendezvous::SEND_CAP`,
+10). Four more (`virtio::READ_REG`/`WRITE_REG`/`SETUP_QUEUE`/`NOTIFY`, 18 sites across `display.rs`,
+`entropy.rs`, `kbd.rs`, `net_transport.rs`) went into a new opt-in `user_rt::virtio` module rather
+than the crate root, the same "scoped to the programs that actually touch this capability" shape
+`mapped_window`/`initrd` already established, since only four of `user/`'s programs hold a `Virtio`
+capability. **Provisional names, all of them**, per this milestone's own naming discipline: none is
+ratified, and `calef`'s call on all fourteen (plus `granted`) is open.
+
+One `tcb_start` correction found while wrapping it: `abi::thread_control_block::START`'s own doc
+comment reads `invoke(cap, START, _, _, _)`, implying the three arguments are ignored, but
+`kernel/src/syscall.rs`'s `START` arm forwards all three to `sched::start_thread_control_block`
+unconditionally, and `builder.rs`'s own call relies on exactly that (`START`'s second argument is the
+worker's input). The wrapper takes `(tcb_slot, x0, x1, x2)` to match what the kernel actually does;
+the stale `abi` doc comment is a separate, smaller finding left for whoever next touches that file.
+
+**Every one of the 122 migrated call sites lost its `unsafe {}` entirely**, not moved it: the
+wrapper functions are ordinary safe `fn`s (each holding exactly one `unsafe { invoke(...) }` inside,
+forwarding `invoke`'s own contract), so a caller with a valid capability slot number, of any value,
+cannot violate a Rust invariant by calling one. That is what makes this a §94 collapse rather than a
+relocation: eighteen new declarations (plus `granted`, plus four `virtio` functions) replace 122
+independently-worded `// SAFETY:` comments that all said the same thing.
+
+**The one call site left raw, and why it is not this shape.** `window.rs`'s `ROLE_PROBE_INPUT` path
+calls `invoke(INPUT, abi::rendezvous::RECV, 0, 0, 0)` directly to read the raw negative `abi::Error`
+a `RECV` against an empty capability slot returns. `user_rt::recv`'s own contract assumes success and
+returns the three data words, discarding the syscall's own return code, so it cannot serve this call
+site's actual purpose (proving the kernel refuses cleanly) without becoming a second, differently-
+shaped `recv` written for one caller. That is not a reduction by this milestone's own test ("the
+number of distinct invariants asserted by hand"), so it stays, with an expanded `# Safety` comment
+recording why it is the one exception rather than an oversight.
+
+**The honest count.** `user/` carries **162** `unsafe {` blocks (was 284; the exact regex from round
+6, re-verified against `script/lint`'s own printed number before and after). Tree-wide, outside
+`kernel/src/arch/`: **701** (was 805), density **77 per 10,000** (was 89), against the still-unmoved
+ceiling of 94 -- **17 points of headroom**, the widest margin on record (round 6 had spent it down to
+5). `crates/user_rt` itself grew from 31 to 45 blocks (`lib.rs`) plus a new 4-block `virtio.rs`,
+which is the 18 wrapper bodies; that growth is inside the same directory this round's own reduction
+counts against, so the 104-block net (122 removed from `user/`, 18 added to `user_rt`) is the real
+tree-wide number, not the 122 `user/`-local one. Verified compiling clean and `cargo clippy` clean on
+all three target architectures (aarch64, riscv64, x86_64), and the full `script/test` suite green on
+all three (295/298/175 passed respectively, the x86_64 skips being the recorded hardware-scope gaps
+already in the suite, none of them touching this round's own migration).
+
+**What this round believes it resolved in round 6's own design fork.** The "which of the 18-plus
+methods carry a real per-call obligation" question is answered: **for Rust-safety purposes, none of
+them do, in the way `MAP_INTO` was flagged as possibly doing**; the obligation `invoke`'s own
+contract already discharges is the whole of it, the same as it already was for the five methods
+round 1-6 had already wrapped. The "where do the wrappers belong" question is answered by precedent
+already in the tree: the crate root for anything more than one or two programs touch, a scoped
+opt-in module (`virtio`) for a capability only a handful of drivers hold, exactly `mapped_window`'s
+and `initrd`'s own shape.
+
+**What is not resolved, and is worth naming rather than leaving implicit.** This round did not build
+a generic, checked `invoke` entry point that all 22 (now: 1 unwrapped) methods share -- each wrapper
+above is its own thin, per-method function, not a shared primitive underneath them. That is
+deliberate: a cross-cutting `invoke` abstraction is new shared infrastructure every future capability
+call would depend on, and building one without a proposal first is exactly what this milestone's own
+brief asked not to do. **Nothing observed while doing this reading suggests such a primitive would
+buy anything the fourteen per-method wrappers do not already buy** (there is no shared runtime check
+across the 22 methods beyond `invoke`'s own trap, unlike, say, `map_page_frame`'s bounds check, which
+IS method-specific and already lives in that one wrapper), so this round is not raising it as an open
+question for calef; it is recording that the question was considered and the answer, on the evidence
+gathered, is "the per-method shape is the right one and nothing here argues for more machinery."
+
+**Provisional, easy to revert.** All fifteen new names (fourteen wrapper functions plus `granted`)
+and the new `virtio` module are provisional, per this milestone's own naming discipline; `calef`'s
+call. One naming tension worth surfacing rather than deciding here: `user_rt::virtio` shares its
+last path segment with the pre-existing `crates/virtio` crate (the block driver, unrelated). The two
+never collide in code (nothing in `user/` imports both unqualified in one file), but a reader
+grepping "virtio" meets two different things under that name. `user_rt::virtio` reads correctly as
+"the wrapper module for `abi::virtio`'s methods," which is the reason it was named that on first
+pass, but a different name (`user_rt::virtio_cap`, or similar) would remove the ambiguity entirely if
+calef would rather. Reverting any single wrapper (moving its call sites back to raw `invoke`) costs
+nothing but that one function and its call sites; none of this touches the syscall surface, a wire
+format, or anything else two programs must agree on.
+
 ## What is still open
 
 **`crates/ipc`'s unsafe is settled**: read in full, genuinely per-call-site distinct, no further work
@@ -474,13 +779,25 @@ sorted the non-FS hits into rough categories a follow-on lane can use rather tha
   `flaky.rs` and `outlaw.rs` (deliberately touch a bad/unauthorized address to provoke a fault; a
   bounds-checked wrapper would defeat the point), `budgeter.rs` and `swapper.rs` (single one-off
   writes, not a repeated hand-written invariant -- nothing to collapse).
-- **`login_test_client.rs`'s `PAGE_VA`** uses `core::slice::from_raw_parts_mut` rather than
-  `read_volatile`/`write_volatile`, so the grep this round ran legitimately did not catch it; it is a
-  different pattern (an ordinary, non-volatile slice reference into shared memory) and out of this
-  sweep's scope by construction, not by oversight.
+- **`login_test_client.rs`'s `PAGE_VA` is done** (round 6), along with five more files in the
+  identical `core::slice::from_raw_parts[_mut]`-over-a-whole-page shape that reading this one
+  surfaced: `credentialer.rs`, `credentialer_test_client.rs`, `identity_provisioner.rs`,
+  `session_reviver.rs`, `smb_server.rs`. See round 6 above, including the honest note that this
+  migration is a net **increase** in raw block count (+12), unlike every prior round's.
+- **The `invoke` cluster (123 of `user/`'s 284 blocks, the largest single share) is read, resolved,
+  and migrated** (round 7): 22 distinct methods, all found to carry the same Rust-safety shape as
+  the five methods already wrapped (`send`/`recv`/`reap`/`reply`/`map_page_frame`), none of them the
+  exception milestone 134's census flagged `MAP_INTO` as possibly being. 122 of the 123 call sites
+  now go through fourteen new thin wrappers, a new `granted` (the §94 shape, five programs'
+  identical probe), and a new opt-in `user_rt::virtio` module; one call site (`window.rs`'s refusal
+  probe) stays raw, with the reason recorded there. See round 7 above for the full per-method
+  accounting.
 
 **This block still sets no target number**, per its own original text -- the ratchet moves by
-measured reduction, not by picking a floor in advance.
+measured reduction, not by picking a floor in advance. Round 6's own reading of what a realistic
+floor looks like is above, and it is a range bounded by the `invoke` cluster's unresolved question
+rather than a single number, per this milestone's own BUGS item asking the first lane to report
+rather than pick one.
 
 **In brief.** Reduce the hand-written `unsafe` this tree carries outside `kernel/src/arch/`, and lower
 the ceiling after each reduction so the ground gained cannot be given back quietly.
@@ -552,14 +869,37 @@ proofs and the type system are standing aside and a person's comment is the whol
 
 ## BUGS
 
-- **This block sets no target number and should not, until 134 measures whether the ceiling fires on
-  honest work.** `script/lint` has already had three checks deleted for the signature "only ever
-  rejects legitimate work", and a ceiling cinched past what the tree can sustain would be the fourth.
-  The first lane should report what a realistic floor looks like rather than picking one here.
-- **`user/`'s 285 is unexplained.** A userspace program in a capability system arguably needs little
-  unsafe, and nobody has read enough of it to say whether that number is raw shared-page handling, a
-  missing safe wrapper, or something else. That reading is the first lane's cheapest useful output
-  and it may change what this milestone does.
-- **A reduction can be real and still not show in the count.** Proving an existing `unsafe` block's
-  invariant with Kani leaves the block where it is and makes it safer; the metric cannot see that.
-  Do not let the number decide which work is worth doing.
+- **This block sets no target number.** `script/lint` has already had three checks deleted for the
+  signature "only ever rejects legitimate work", and a ceiling cinched past what the tree can
+  sustain would be the fourth. **Round 6 answered the "does it fire on honest work" half**: across
+  five weeks and six rounds of both growth and reduction, the density has stayed 5 to 7 points
+  under whatever the ceiling was at the time (93.4 down to 87, back up to 89), with no near-miss on
+  record. **Round 7 widened that margin to 17 points** (89 down to 77) by resolving the `invoke`
+  cluster (below), the largest single reduction of the milestone's seven rounds. No evidence yet
+  that 94 is too tight, and rather more evidence now that it has real headroom. **The "what floor"
+  half is answered too, as far as `user/` is concerned**: round 7's reading found the `invoke`
+  cluster's achievable reduction was not the 0-to-100 range round 6 could only bound, it was
+  essentially all of it (122 of 123 sites), because the "real per-call obligation" round 6 held open
+  turned out, on reading, not to distinguish any of the 22 methods from the five already-wrapped
+  ones. `user/` now stands at 162 blocks; whether that is close to a practical floor for the
+  *rest* of `user/` (the `asm!`, device-register and deliberate-fault categories) is still the
+  reading rounds 1-6 already did, recorded below.
+- **`user/`'s 285 (then 284, now 162) is explained**, closing this milestone's own original BUGS
+  item and, as of round 7, resolving the one piece of the breakdown round 6 left open. The
+  breakdown (round 6's own table, updated by round 7): 122 of the 123 raw `invoke(...)` calls (43%
+  of the original total) are now behind fourteen new thin wrappers, `granted`, or the existing
+  `send`/`reply`/`map_page_frame`, and one stays raw with its reason recorded at the call site (see
+  round 7 above); 36 `read_volatile`/`write_volatile` (device registers and shared frames already
+  investigated and either migrated or deliberately left, per rounds 1-5), 16 `asm!` (entry stubs and
+  traps, no further collapse available), 12 `from_raw_parts[_mut]` (deliberate-fault test programs
+  and one-off writes with no §94 shape to collapse), and 97 everything else (window constructors,
+  the C ABI shim, deliberate `.bss`/`.data` probes) are unchanged by this round. What was "how much
+  of the `invoke` cluster is real" is now answered: essentially none of it, in the sense that
+  mattered for whether a safe wrapper could exist.
+- **A reduction can be real and still not show in the count**, and round 6 is the sharpest example
+  on record of the inverse: a real reduction (eighteen independently worded page-sharing
+  invariants collapsed to six canonical declarations) that shows as a raw block-count **increase**
+  (+12), because unlike round 1's `r8`/`w8` cluster, the "hand back a whole slice" call shape has no
+  runtime check to add that would let the call site drop `unsafe` the way a bounds check did. Do
+  not let the number alone decide which work is worth doing, in either direction: it under-credits
+  round 6's collapse and it would over-credit a Kani-proved block that stays exactly where it is.

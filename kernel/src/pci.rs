@@ -65,12 +65,41 @@ fn host_bridge_present() -> bool {
 
 /// Place every unassigned BAR of `bdf` at a size-aligned address drawn from the shared cursor,
 /// writing the config-space BAR registers. Returns false (after saying so) if the window is
-/// exhausted. A BAR that already carries an address (nonzero) is left alone.
+/// exhausted. A BAR that already carries an address **inside the window `mmu::map_everything`
+/// actually mapped** is left alone; one that carries an address outside it is reassigned exactly
+/// as if it had read zero.
+///
+/// **The "leave a nonzero BAR alone" half of that rule is not enough on its own**, found here
+/// 2026-08-25 (decisions §86's VT-d/NVMe data point). The comment this replaced assumed a nonzero
+/// BAR means "firmware (or a previous boot stage) already placed it," and therefore already
+/// mapped: true on the two device-tree architectures, where nothing runs before this kernel to
+/// place one. It is false on `x86_64`'s PVH boot: nothing here runs any firmware either, yet
+/// QEMU's `-device nvme`, attached directly to the root complex, resets with a live, working BAR0
+/// already assigned (`0xfebd4000` on this boot) that has no relationship to `PCI_BAR_PHYS`, the
+/// kernel's own hardcoded, mapped window. Trusting it produced a controller whose registers page
+/// fault on first touch, because nothing in `mmu::map_everything` maps wherever QEMU chose. The
+/// same gap would bite a real UEFI machine too (milestone 87): firmware there also picks its own
+/// addresses, unrelated to this kernel's hardcoded window, so "nonzero" was never sufficient
+/// evidence of "mapped" on this architecture. Checking against the window this kernel actually
+/// mapped, rather than against zero, is correct in both cases and a no-op on the other two
+/// architectures (their BARs still always arrive at 0).
 fn place_bars(bdf: Bdf, bars: &mut [Option<Bar>; 6]) -> bool {
+    // The window `mmu::map_everything` actually mapped: `memory::pci_regions()`'s mem32 half for
+    // the lower bound (immutable once `host_bridge_present` caches it), `BAR_LIMIT` for the upper
+    // (the same `PCI_BAR_MAPPED.min(bar_size)` clamp that call computed, so this always agrees
+    // with what is really mapped even on the two architectures whose device tree describes a
+    // PCIe memory window larger than `PCI_BAR_MAPPED`).
+    let mapped_lo = crate::memory::pci_regions().map(|(_, (base, _))| base);
+    let mapped_hi = BAR_LIMIT.load(Ordering::Relaxed);
+
     for (i, bar) in bars.iter_mut().enumerate() {
         let Some(bar) = bar.as_mut() else { continue };
-        if bar.base != 0 {
-            continue; // firmware (or a previous boot stage) already placed it
+        if bar.base != 0
+            && let Some(lo) = mapped_lo
+            && bar.base >= lo
+            && bar.base + bar.size <= mapped_hi
+        {
+            continue; // already placed, and inside memory this kernel actually mapped
         }
         // A BAR's address must be aligned to its size (the writable-bits mask encodes that). Reserve
         // size-aligned space from the shared cursor.

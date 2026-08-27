@@ -301,6 +301,14 @@ are new.
   notification" while your own gate is running is the failure mode, not patience (calef,
   2026-08-14, after five lanes in one day stopped mid-gate and each needed a manual resume). The
   report comes after the gate, and nothing about a gate is finished until you have read its exit.
+  **A lane continues until it needs a human or it is done** (calef, 2026-08-26), the standing
+  default for every brief rather than a per-brief instruction: finishing one item on a milestone's
+  own list is not a stopping condition when the list has more on it, and "ran out of easy things"
+  is not the same as "ran out of things a lane can make progress on." The one genuine stop is
+  hitting something that is calef's own call (a design fork, a wire format, a naming decision) --
+  write that up as a proposal, the same shape this file already asks for elsewhere, and stop there,
+  rather than either inventing an answer or ending the turn early because the next item looked
+  harder than the last one.
 - **Every pull request and comment an agent writes opens by saying so.** One line, first thing
   in the body: `**Lane:** <branch or milestone>, written by an agent; calef's account is the
   author GitHub shows.` Until milestone 128 gives the automation a real identity, every artifact
@@ -442,14 +450,39 @@ this lane touch, and who else is in them"**. Concretely:
 branch and relinking `nife-dev`. Eight finished worktrees had accumulated by the time anyone
 looked, and one of them alone held 3.3 GB.
 
-**The maintainer starts the two watchers at the beginning of every session**, because both are
-ordinary loops that die with the session that started them, and a session that forgets has exactly
-the gap they were written to close:
+**Both watchers now run unattended on patagonia, via `launchd`** (`com.nife.merge-drain` and
+`com.nife.trunk-health`, `~/Library/LaunchAgents/`, calef, 2026-08-26), each firing `--once` every
+five minutes rather than as a session-owned foreground loop. This replaced the original instruction
+below the same day it failed for the reason it always fails: a maintainer session read the words,
+agreed with them, and did not act on them, which is prose behaving like rung four regardless of
+which file it lives in. `launchd` is rung one for the part of the gap a session can close: nothing
+has to remember to start these any more, because starting them is no longer a session's job.
 
-```sh
-scripts/merge-drain.sh &     # lands every PR not labelled needs-architect, one at a time
-scripts/trunk-health.sh &    # says when main goes red, and when it recovers
-```
+**The gap that remains is the one calef accepted rather than solved**: patagonia asleep or shut
+down means neither watcher runs, and nobody is watching during that window. Raised as an
+alternative (a cron on cordoba, the always-on box, which would close this gap too) and declined in
+favour of the simpler thing on the machine already in use, the cost named and accepted rather than
+hidden.
+
+**A session should still confirm both are alive** (`launchctl list | grep nife`) rather than assume
+the plists never got unloaded, and may start them in the foreground the old way
+(`scripts/merge-drain.sh &`, `scripts/trunk-health.sh &`) if they are not, which is still how they
+run everywhere that is not patagonia (a lane's own worktree checks, CI, another machine).
+
+**And a maintainer session checks for what those watchers already found**, not only whether they are
+running. `merge-drain.sh`'s `notify()` posts once per stall (a conflict, a check failure, a stuck
+check) as a PR comment and then goes quiet, by design, so a stalled PR does not re-announce itself
+every five minutes; that also means nothing re-announces it to a session that opens later; and
+resolving a conflict or a check failure needs the same reading and judgment a person brings; it
+is not something the watcher itself can do (`design/decisions/`'s own boundary: a queue reports,
+it does not resolve). Deliberately not automated further into an unattended scheduled agent
+(calef declined that, 2026-08-26: he would rather this shut down when the session driving it
+does than run standing on a timer with nobody watching): so this is a maintainer session's own
+standing check, same priority as keeping lanes full, not new machinery. Concretely: `gh pr list
+--search "commenter:app/github-actions merge-drain" ` is not precise enough to script, so read the
+queue (`gh pr list --json number,mergeStateStatus,statusCheckRollup`) for `DIRTY`/`CONFLICTING` or
+a `FAILURE` conclusion, and treat every one found as a task to resolve, the same as a lane report
+naming work nobody is doing yet.
 
 They exist because on 2026-08-04 three duties turned out to belong to whoever happened to notice: two
 green pull requests sat unmerged for hours, `main` went red with nobody assigned, and merging one
@@ -864,6 +897,16 @@ sprung the day the rule above was written (2026-08-04). Agent worktrees share on
 to squash silently staged **four other lanes' files as its own**, including a deletion, and caught it
 only by reading `git status` before committing. Record the base SHA when the branch is cut and squash
 against that. The wider rule it belongs to: in a worktree, `origin/*` is not a fixed point.
+
+**`git stash` is unsafe in these worktrees, for the same reason one level over.** The stash stack is
+per-`.git`, not per-worktree, so it is shared machine-wide across every lane. Found 2026-08-26 by the
+milestone 161 two-core-crash lane: another session pushed a stash between this lane's `git stash` and
+its `git stash pop`, so the pop popped *someone else's* entry into this lane's tree and conflicted.
+Nothing was lost that time (the conflict preserved the other entry, and it was restored and re-popped
+by name), but the failure mode is the same family as the squash-against-`origin/main` trap above: a
+command that reads as lane-local silently touches shared state. **Use a patch file
+(`git diff > /tmp/x.patch`, later `git apply`) instead of `git stash` in a worktree**, the same way
+`origin/*` is not treated as a fixed point once more than one lane can move it.
 
 **Never squash across purposes.** Squash-*merging* is already impossible:
 `allow_squash_merge` is `false` on this repository, so the platform refuses it. This clause stays a

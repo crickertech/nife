@@ -3,8 +3,10 @@
 //! One binary, several roles, on `credentialer_test_client`'s own pattern: a program that shares the
 //! honest path with an attempted-wrong-secret run is a fairer test of a refusal than a different
 //! program failing for its own reasons. Every role holds the identical endowment: the login
-//! service's request endpoint, its result endpoint, a report endpoint, and the page it stages a
-//! request in.
+//! service's front-door request endpoint, its front-door result endpoint, a report endpoint, and a
+//! small scratch region (milestone 49's channel-per-client update: a role must map the page
+//! [`login_proto::CONNECTED`] delegates before it holds anything else of its own to draw page tables
+//! from).
 //!
 //! - [`ROLE_CHRIS`] and [`ROLE_CORINNE`] present two different identities' correct credentials.
 //!   Both must succeed, and the kernel test compares what each received: two distinct caretaker
@@ -34,12 +36,16 @@
 //!
 //! # Capability contract
 //!
-//! - slot 0: the login service's request endpoint, `WRITE`.
-//! - slot 1: the login service's result endpoint, `READ` (both the verdict and, on success, the
-//!   four delegated capabilities arrive here).
+//! - slot 0: the login service's front-door request endpoint, `WRITE`. Carries exactly one word
+//!   this program ever sends: [`login_proto::connect_word`].
+//! - slot 1: the login service's front-door result endpoint, `READ`. [`login_proto::CONNECTED`],
+//!   then three delegated capabilities: a private request endpoint, a private result endpoint, and
+//!   a staging page. The actual [`login_proto::LOGIN`] exchange happens on the first two of those,
+//!   never on slots 0/1 again.
 //! - slot 2: a report endpoint, `WRITE`.
-//! - mapped [`PAGE_VA`]: the page shared with the login service, where this program stages its
-//!   identity and secret.
+//! - slot 3: a small `MemoryRegion`, `WRITE`: this program's own scratch, for `map_page_frame`'s
+//!   page-table cost when it self-maps the page [`login_proto::CONNECTED`] delegates (see
+//!   `kernel::user::login_service::CLIENT_SCRATCH_UT_PAGES`).
 //! - `a0`: the role.
 //!
 //! Name: unrecorded. Provisional, minted 2026-08-22 for milestone 49 and not yet put to calef, on
@@ -53,16 +59,24 @@
 #![no_main]
 
 use user_rt::mapped_window::MappedWindow;
-use user_rt::{call, exit, invoke, map_page_frame, recv, recv_cap, send, yield_now};
+use user_rt::{
+    call, destroy_region, exit, map_page_frame, recv, recv_cap, retype_page_frame, send, yield_now,
+};
 
-/// The login service's request endpoint (slot 0), `WRITE`.
+/// The login service's front-door request endpoint (slot 0), `WRITE`.
 const SERVICE: u64 = 0;
-/// The login service's result endpoint (slot 1), `READ`.
+/// The login service's front-door result endpoint (slot 1), `READ`.
 const RESULT: u64 = 1;
 /// The report endpoint (slot 2), `WRITE`.
 const REPORT: u64 = 2;
+/// This program's own scratch `MemoryRegion` (slot 3), `WRITE`. Used once, for `map_page_frame`'s
+/// own page-table cost when this program self-maps the page [`login_proto::CONNECTED`] delegates.
+const SCRATCH: u64 = 3;
 
-/// The page shared with the login service.
+/// Where this program maps the private staging page [`login_proto::CONNECTED`] delegates, at
+/// runtime, once `CONNECT` hands back the capability naming it (milestone 49's channel-per-client
+/// update; see `_start`'s own `map_page_frame` call). Not a `MappedWindow` (round 6's usual
+/// collapse for a statically pre-mapped page): nothing is mapped here before this process runs.
 const PAGE_VA: u64 = 0x0000_0000_00e2_0000;
 /// Where this process maps the delegated file-service frame, once it has one. Distinct from
 /// [`PAGE_VA`]: they are two different pages (this process's login request, and the filesystem
@@ -165,13 +179,40 @@ pub const F_BUDGET_DEAD_AFTER_TEARDOWN: u64 = 1 << 7;
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
     let (identity, secret) = credentials(role);
-    // SAFETY: the wiring mapped one page read/write at PAGE_VA before this process ran.
+
+    // **Milestone 49's channel-per-client update: connect first.** The front door's only legal
+    // word; see `login_proto`'s own module docs for the two-phase exchange. Nothing is staged for
+    // this step, so there is no page to write before sending it.
+    send(SERVICE, login_proto::connect_word(), 0, 0);
+    let (connect_verdict, _, _) = recv(RESULT);
+    if connect_verdict != login_proto::CONNECTED {
+        // The front door answered something other than CONNECTED (MALFORMED or DENIED): nothing
+        // follows, the same promise the private channel's own OK/DENIED gives.
+        done(connect_verdict, 0, 0);
+    }
+    let (_, priv_request, _) = recv_cap(RESULT);
+    let (_, priv_result, _) = recv_cap(RESULT);
+    let (_, priv_page, _) = recv_cap(RESULT);
+
+    // Map the delegated staging page using this program's own small scratch region: unlike the
+    // post-auth `budget` the rest of this function uses, nothing else has been received yet at this
+    // point.
+    if !map_page_frame(priv_page, PAGE_VA, true, SCRATCH) {
+        done(RPT_MALFORMED, 0, 0);
+    }
+
+    // SAFETY: `priv_page` was just mapped read/write at PAGE_VA, private to this process and to the
+    // login service's own copy; no other client holds a capability to it. Not `PAGE_WINDOW`
+    // (round 6's collapse): that type's contract assumes the wiring maps this page before the
+    // process runs, which milestone 49's channel-per-client update made false here specifically:
+    // the page is now mapped dynamically, per connection, from a capability CONNECT hands back at
+    // runtime, so there is nothing for a compile-time-constant window to be a window onto yet.
     let page = unsafe { core::slice::from_raw_parts_mut(PAGE_VA as *mut u8, login_proto::PAGE) };
     let Some(w0) = login_proto::place(page, identity, secret, login_proto::LOGIN) else {
         done(RPT_MALFORMED, 0, 0);
     };
-    send(SERVICE, w0, 0, 0);
-    let (verdict, _, _) = recv(RESULT);
+    send(priv_request, w0, 0, 0);
+    let (verdict, _, _) = recv(priv_result);
 
     if verdict != login_proto::OK {
         // `login_proto`'s own promise: nothing follows a refusal. Reporting here, rather than
@@ -182,11 +223,11 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
         done(verdict, 0, 0);
     }
 
-    // Four capabilities, in login_proto's fixed order.
-    let (_, dir_ep, _) = recv_cap(RESULT);
-    let (_, fs_page_frame, _) = recv_cap(RESULT);
-    let (_, budget, _) = recv_cap(RESULT);
-    let (_, region, _) = recv_cap(RESULT);
+    // Four capabilities, in login_proto's fixed order, on the private channel `priv_result` names.
+    let (_, dir_ep, _) = recv_cap(priv_result);
+    let (_, fs_page_frame, _) = recv_cap(priv_result);
+    let (_, budget, _) = recv_cap(priv_result);
+    let (_, region, _) = recv_cap(priv_result);
 
     let mut flags = 0u64;
     let mut hint = 0u64;
@@ -200,8 +241,7 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
     // Prove the budget works: retype one page from it. `RETYPE`'s reply is the new frame's slot
     // (>= 0) or a negative error. Done here, right after the one use of `budget` that needs it
     // alive (`map_page_frame` above), and before anything below tears it down.
-    // SAFETY: `svc`/`ecall`; the kernel validates the capability and the method.
-    if unsafe { invoke(budget, abi::memory_region::RETYPE, 0, 0, 0) } >= 0 {
+    if retype_page_frame(budget) >= 0 {
         flags |= F_BUDGET_WORKS;
     }
 
@@ -221,8 +261,7 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
     // module docs on the fourth capability for the client-facing version of this note.
     if role == ROLE_LOGOUT && destroy_with_retry(budget) {
         flags |= F_BUDGET_TEARDOWN_OK;
-        // SAFETY: as above.
-        if unsafe { invoke(budget, abi::memory_region::RETYPE, 0, 0, 0) } < 0 {
+        if retype_page_frame(budget) < 0 {
             flags |= F_BUDGET_DEAD_AFTER_TEARDOWN;
         }
     }
@@ -397,8 +436,7 @@ fn teardown_directory(dir: u64, region: u64) -> u64 {
 fn destroy_with_retry(ut: u64) -> bool {
     const ATTEMPTS: usize = 64;
     for _ in 0..ATTEMPTS {
-        // SAFETY: `svc`/`ecall`; the kernel checks WRITE on `ut`.
-        if unsafe { invoke(ut, abi::memory_region::DESTROY, 0, 0, 0) } == 0 {
+        if destroy_region(ut) == 0 {
             return true;
         }
         yield_now();

@@ -272,9 +272,50 @@ const PAGE_FRAME_REPORT_MIN: usize = 16;
 /// 18626 (the migration's own confirmed cost, 18621 + 5) + 6 (restored headroom, matching the gap
 /// this budget carried before it silently spent nearly all of it) = 18632.
 ///
+/// **Raised again, 2026-08-26, milestone 49's channel-per-client login.** Measured against a full
+/// aarch64 run of `origin/main` at `d8f1d9bb` on the same machine, minutes apart, rather than
+/// against this comment's own history: main kept **18631** (one frame under this budget) and this
+/// branch keeps **19054**. The +423 has two named parts and a remainder this instrument cannot
+/// attribute, stated as such:
+///
+/// - **+320, `login_tests.rs`'s `CONSTRUCTION_PAGES`, 1856 -> 2176.** That constant's own doc
+///   carries the page-by-page account; the short version is that this milestone adds a test
+///   (`two_clients_connecting_together_get_independent_channels_and_neither_observes_the_others_secret`)
+///   which leaves **two more sessions logged in**, at the 128 pages a live session costs, and
+///   `user/src/login.rs` gains a 32-page `CHANNEL_UT_PAGES` split once at startup. 1664 + 256 + 32
+///   = 1952 permanently resident, and 2176 is that with the same ~10% margin 1856 carried over
+///   1664.
+/// - **+104, `login_service.rs`'s `CLIENT_SCRATCH_UT_PAGES`.** Every spawned `login_test_client`
+///   role now needs a four-page region of its own to pay for mapping the staging page
+///   `login_proto::CONNECT` delegates it, and nothing reclaims it when the role exits. Twenty-six
+///   roles run across this suite. This is the one part of the raise that is scaffolding rather than
+///   a property under test, and it is recorded at that constant as work someone could take.
+/// - **The remaining ~0 to 40 frames are not attributed**, and the per-test diff says why: nine
+///   unrelated tests moved by amounts that cancel in pairs (`+36/-32`, `+16/-38`, `+32/-32`,
+///   `+62/-62`), which is exactly the `#[test_case]`-registration-order drift
+///   `report_frame_ledger`'s own BUGS note warns the per-test attribution suffers from. Only the
+///   suite-wide total is evidence.
+///
+/// 19054 (measured) + 6 (the same headroom the 18626 -> 18632 raise restored, for the one-or-two
+/// frame cross-environment variance that raise documented) = 19060.
+///
+/// **Raised again, 2026-08-26, milestone 47's `printenv` (DECISIONS §111, `date`'s own shape one
+/// manifest field over), landing on top of the 19060 raise above rather than the 18632 it was
+/// separately measured against.** `kernel/src/user/printenv_tests.rs`'s four new `#[test_case]`s
+/// join a suite that already carries milestone 49's channel-per-client login, so the number this
+/// constant needs is the two changes measured together, not 19060 + 85 by arithmetic: this ledger's
+/// own convention (see every raise above) is a real run, not a sum of two separate ones, because
+/// per-test frame cost is not guaranteed additive across unrelated changes (`report_frame_ledger`'s
+/// own BUGS note on registration-order drift is exactly this risk). Measured on CI's own aarch64 run
+/// (this milestone's local host reproduces an unrelated, pre-existing flake in
+/// `caretaker_teardown_reclaims_a_full_session_worth_of_memory` that does not occur in CI, so CI's
+/// own log is the trustworthy source here): **19142** frames kept, the higher of two runs in the
+/// same job (19142 and 18921). 19142 + 15 (headroom, this ledger's own precedent for raising past a
+/// value it has just spent close to all of) = 19157.
+///
 /// Raising it is a decision, not a formality: read the `[that test kept N frames]` lines the run
 /// prints, find who grew, and be able to say why that growth is permanent.
-const SUITE_PAGE_FRAME_BUDGET: usize = 18_632;
+const SUITE_PAGE_FRAME_BUDGET: usize = 19_157;
 
 /// **The longest run of free frames the boot must still have at the end**, in frames.
 ///

@@ -70,7 +70,7 @@ use compositor::proto::ctl;
 use graphics_proto as gfx;
 use line_editor::proto;
 use user_rt::mapped_window::MappedWindow;
-use user_rt::{call, invoke, recv_cap, send};
+use user_rt::{call, recv_cap, reply, send};
 use video_terminal::status::{MODE_DISPLAY, MODE_WINDOW};
 
 /// Capability slots, by convention with `kernel/src/user/display_service.rs` and
@@ -460,8 +460,7 @@ pub extern "C" fn _start(mode: u64, _arg1: u64, _arg2: u64) -> ! {
             // notes/glyphs.md rather than half-implemented.
             _ => r0 = proto::BAD_REQUEST,
         }
-        // SAFETY: `svc`/`ecall`; the kernel validated the Reply capability and consumes it here.
-        unsafe { invoke(reply_slot, abi::reply::REPLY, r0, 0, 0) };
+        reply(reply_slot, r0, 0);
     }
 }
 

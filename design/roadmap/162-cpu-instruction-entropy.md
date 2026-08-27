@@ -1,11 +1,13 @@
 # 162. Real hardware entropy on x86_64 and aarch64: RDSEED and RNDRRS
 
-**Status: PARTIAL, updated 2026-08-25.** aarch64 is fully built and proven; riscv64 is correctly
-excluded (neither instruction exists on that ISA). x86_64's own work inside this milestone is
-complete and verified correct (see "What was built" below); what remains is entirely outside this
-milestone's scope, milestone 161 item 4's userspace-compilation hand-off, which x86_64's proof is
-gated behind (`cfg(initrd)`). No further code in `entropy_service.rs` or `entropy.rs` is expected;
-this is a status waiting on a merge, not open design or implementation work. Minted 2026-08-24, from
+**Status: BUILT, confirmed 2026-08-26.** aarch64 is fully built and proven; riscv64 is correctly
+excluded (neither instruction exists on that ISA). x86_64's blocker, milestone 161 item 4's
+userspace-compilation hand-off, landed on `main` via PR #476 (merged 2026-08-25), so `cfg(initrd)`
+now covers x86_64 and `kernel::user::entropy_tests` compiles and runs there.
+`a_client_obtains_unpredictable_bytes_from_rndrrs_with_no_device_at_all` passes for real on
+`x86_64` (`script/test --arch x86_64`, 2026-08-26): `entropy : rdseed supported (cpuid leaf 7
+ebx.18), drew 0xaf76297f70e4c32a`. No code changed; this is a status flip on a test that now
+compiles and passes, not new work. Minted 2026-08-24, from
 calef asking for architectural parity with milestone
 159 (the JH7110's TRNG, riscv64/VisionFive 2 only) after "we now have a customer" reopened the
 question DECISIONS §120 declined for want of one. Unlike 159, this is **not hardware-gated**: RDSEED
@@ -17,9 +19,6 @@ independently toggleable, so this milestone confirms the actual instruction exec
 the absence of a prop either way). So this milestone can be fully built **and verified** without
 physical hardware, unlike 159. See "What was built" below for why the title says `RDSEED`/`RNDRRS`
 rather than the more familiar `RDRAND`/`RNDR`.
-
-**Gate: NONE.** The design is a direct extension of milestone 56's existing shape (see below); no
-open fork.
 
 ## Why this is not "the JH7110 driver on two more architectures"
 

@@ -178,7 +178,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 117 | DECIDED | [A principal's subtree is named by its identity string, created at provisioning time](117-subtree-name-is-identity.md) |
 | 118 | DECIDED | [`Scheduler`/`SCHED` rename to `IpcTables`/`IPC_TABLES`](118-ipc-tables-name.md) |
 | 119 | DECIDED | [Splitting `OutOfMemory`'s three causes is declined for want of a customer](119-oom-causes-declined.md) |
-| 120 | DECIDED | [A QEMU-only virtio-rng stopgap for the interactive boot is declined for now](120-boot-entropy-stopgap-declined.md) |
+| 120 | AMENDED | [A QEMU-only virtio-rng stopgap for the interactive boot](120-boot-entropy-stopgap-declined.md) |
 | 121 | DECIDED | [What a device capability is when the device has no page: x86 port I/O](121-port-io-capability.md) |
 | 122 | DECIDED | [The on-disk, per-user schedule store: format, write path, read-at-boot path](122-durable-schedule-store-format.md) |
 | 123 | DECIDED | [Boot-time re-derivation: what grants the privilege, and how it dies after one use](123-boot-time-rederivation-privilege.md) |
@@ -189,6 +189,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 128 | DECIDED | [What enforces the git-clobber rule, now that it has crossed its own threshold](128-git-clobber-enforcement.md) |
 | 129 | DECIDED | [Whether `filesystem_proto::fs::RENAME` grows a `NOREPLACE` flag, revisiting §42](129-rename-noreplace-flag.md) |
 | 130 | DECIDED | [How the kernel-resident CMOS RTC reaches the userspace clock service](130-cmos-rtc-delegation.md) |
+| 131 | DECIDED | [The competitor question: hold at rung two, prove text-mode usefulness first](131-hold-at-rung-two.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
 way milestone 76 moved four essays out of the roadmap: [the open design

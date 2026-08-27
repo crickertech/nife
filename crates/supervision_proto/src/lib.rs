@@ -233,6 +233,23 @@ pub fn build_child(
 /// operator could not hand over any earlier, because revoking it from the outgoing owner would have
 /// taken the incoming owner's copy too. `CONFIGURE` consumes the address space capability, so once it has
 /// run there is no way to reach the child's memory again; this is where that seam is.
+///
+/// # BUGS
+///
+/// **A failure leaks the caller's own capability-table slots** (recorded 2026-08-26, milestone 49).
+/// Every `?` below returns `Err(())` naming nothing, so the address space this function retyped, the
+/// frame it was part-way through, and any TCB it had already made stay in the **caller's** sixteen-
+/// slot table (`kernel::cap::CAPABILITY_TABLE_SLOTS`) with no way for the caller to reach them. A
+/// caller that builds one child at boot does not care; a long-lived server that builds one per
+/// request, and whose builds can fail, runs its own table down and then cannot serve at all. That is
+/// not hypothetical in kind: `user/src/login.rs`'s BUGS records the same class of leak (two slots per
+/// request, from a different site) refusing correct passwords for two days.
+///
+/// Fixing it properly means this function tracking what it has made and unwinding on the way out,
+/// which is a change every caller inherits for free and none of them can make locally. Not attempted
+/// from the lane that found it, because that lane's own failure path is now unreachable and a
+/// speculative rewrite of the tree's one userspace ELF loader is not what "minimal and targeted"
+/// means.
 pub fn build_child_space(
     own_ut: u64,
     build_ut: u64,

@@ -59,10 +59,7 @@
 use component_plan::Provisions;
 use supervision_proto::ChildEndowment;
 use swap_proto::log_checks as lc;
-use user_rt::{cap_delete, invoke, recv, recv_fault, send};
-
-/// Where the kernel maps the initrd archive, read-only. Must match the kernel's spawn path.
-const INITRD_VA: u64 = 0x2000_0000;
+use user_rt::{cap_delete, map_into, map_page_frame, recv, recv_fault, revoke_frame, send};
 
 /// What the kernel grants us, and nothing else.
 const ROOT_UT: u64 = 0; // the construction budget: what every process here is built out of
@@ -92,9 +89,8 @@ struct Wiring {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(role: u64, initrd_len: u64, _a2: u64) -> ! {
-    // SAFETY: the kernel mapped `initrd_len` bytes of reserved RAM read-only at INITRD_VA.
-    let archive =
-        unsafe { core::slice::from_raw_parts(INITRD_VA as *const u8, initrd_len as usize) };
+    // SAFETY: forwarded from user_rt::initrd::initrd_bytes's own contract.
+    let archive = unsafe { user_rt::initrd::initrd_bytes(initrd_len) };
     let Ok(fs) = nifefs::Fs::parse(archive) else {
         bail(1)
     };
@@ -106,17 +102,7 @@ pub extern "C" fn _start(role: u64, initrd_len: u64, _a2: u64) -> ! {
         poke: obj(abi::objtype::RENDEZVOUS, 8),
         log_page_frame: page_frame(9),
     };
-    // SAFETY: plain syscall; the kernel validates the frame, the va and the budget.
-    if unsafe {
-        invoke(
-            w.log_page_frame,
-            abi::page_frame::MAP,
-            swap_proto::LOG_VA,
-            1,
-            ROOT_UT,
-        )
-    } != 0
-    {
+    if !map_page_frame(w.log_page_frame, swap_proto::LOG_VA, true, ROOT_UT) {
         bail(10)
     }
     for i in 0..swap_proto::PAGE {
@@ -293,8 +279,7 @@ fn direct(fs: &nifefs::Fs, w: &Wiring) -> ! {
     // keep ours, which is what makes this a transfer rather than a demolition (DECISIONS §41).
     // ------------------------------------------------------------------------------------------
 
-    // SAFETY: plain syscall on the device capability the kernel granted us at spawn.
-    if unsafe { invoke(DEVICE, abi::page_frame::REVOKE, 0, 0, 0) } != 0 {
+    if revoke_frame(DEVICE) != 0 {
         bail(23)
     }
     send(REPORT, swap_proto::RPT_STEP, swap_proto::step::REVOKED, 0);
@@ -305,8 +290,7 @@ fn direct(fs: &nifefs::Fs, w: &Wiring) -> ! {
     // ------------------------------------------------------------------------------------------
 
     for &(va, slot, mode) in component.devices() {
-        // SAFETY: plain syscall; the address space capability is still ours until CONFIGURE consumes it.
-        if unsafe { invoke(b_aspace, abi::address_space::MAP_INTO, va, slot, mode) } != 0 {
+        if map_into(b_aspace, va, slot, mode) != 0 {
             bail(24)
         }
     }
@@ -698,15 +682,13 @@ fn hung(fs: &nifefs::Fs, w: &Wiring) -> ! {
     // has the argument and the reason it is a decision rather than a task.
     // ------------------------------------------------------------------------------------------
 
-    // SAFETY: plain syscall on the device capability the kernel granted us at spawn.
-    if unsafe { invoke(DEVICE, abi::page_frame::REVOKE, 0, 0, 0) } != 0 {
+    if revoke_frame(DEVICE) != 0 {
         bail(82)
     }
     send(REPORT, swap_proto::RPT_STEP, swap_proto::step::REVOKED, 0);
 
     for &(va, slot, mode) in component.devices() {
-        // SAFETY: plain syscall; the address space capability is still ours until CONFIGURE consumes it.
-        if unsafe { invoke(b_aspace, abi::address_space::MAP_INTO, va, slot, mode) } != 0 {
+        if map_into(b_aspace, va, slot, mode) != 0 {
             bail(83)
         }
     }

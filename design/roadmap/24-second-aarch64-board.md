@@ -3,10 +3,9 @@
 **Status: OPTIONAL.** Modernized 2026-08-03 to the current block standard, with the two design
 forks named that the original one-liner left implicit; the substance is unchanged.
 
-**Gate: DECISION.** Fork two, the host-side runner: a Swift runner in this tree or a dependency on
-an existing CLI such as vfkit, and the block says whoever picks this up brings the choice to calef
-first. Sequencing is a separate question and not a blocker, since the default EFI path follows
-milestone 88's stage 1 while the Linux-boot-protocol path needs neither.
+**Gate: NONE.** Fork two, the host-side runner, is decided: **vfkit** (calef, 2026-08-26: "Ratify
+vfkit"). See below. Sequencing is a separate question and not a blocker, since the default EFI path
+follows milestone 88's stage 1 while the Linux-boot-protocol path needs neither.
 
 **In brief.** Boot under Apple's Virtualization.framework, not QEMU's `virt`: a different machine
 of the *same* ISA, with no PL011, its own device discovery, and its own boot handoff.
@@ -39,12 +38,34 @@ double-serve: whether OCI's serial console presents a 16550 or virtio-console is
 88's recorded unknowns, so this driver is potentially on 88's path, not just this one's. If 88's
 stage 2 finds virtio-console, build the driver there and this milestone inherits it.
 
-**Fork two, the host-side runner, named so it does not ambush a lane.** VZ requires a host binary
-with the `com.apple.security.virtualization` entitlement. Either the tree grows a small Swift
-runner (a new language in the repository, a decision to make deliberately, not in passing) or it
-takes a dependency on an existing CLI such as vfkit (§46: a dependency is a decision, and this
-one is a whole subsystem we would never write, which is the vendoring side of that rule's line).
-Undecided; whoever picks this milestone up brings the choice to calef first.
+**Fork two, the host-side runner: decided as vfkit, 2026-08-26.** VZ requires a host binary with
+the `com.apple.security.virtualization` entitlement, and the choice was framed as symmetric (a new
+Swift runner in this tree, or a dependency on an existing CLI such as vfkit) without being one.
+Checked rather than assumed: vfkit ([crc-org/vfkit](https://github.com/crc-org/vfkit), Apache-2.0)
+is written in Go internally, but that is irrelevant here, since nothing in this tree would ever
+touch its source. As an **external host binary invoked by a runner script**, it is the identical
+shape this tree already depends on for `qemu-system-aarch64`/`-riscv64`/`-x86_64`: installed via
+Homebrew, shelled out to from `scripts/qemu-runner-*.sh`, never vendored, zero lines in the Cargo
+build graph. A Swift runner would instead be the tree's first non-Rust *source file*, with its own
+`swiftc`/`Package.swift` step nothing else here needs. The "new language in the repository" framing
+above applies to the Swift option only; it does not transfer to vfkit, which is why the two were
+not actually symmetric.
+
+vfkit's own CLI already covers both fork-one boot paths directly: `--bootloader
+linux,kernel=...,initrd=...,cmdline=...` and `--bootloader efi,variable-store=...,create`, plus
+`--device virtio-serial` (stdio or pty) for the console this milestone needs, matching the virtio
+device set this tree already drives elsewhere. It is real production software (Apache-2.0, v0.6.1
+as of June 2026), not a toy: adopted by podman 5.0+, minikube 1.35+, and Red Hat's crc. §46's own
+rule agrees independently: this tree's dependency posture is thin architectural primitives or whole
+subsystems it would never write, nothing in between, and a full VM CLI with disk/network/USB/vsock
+support this milestone mostly will not use is squarely the latter, the same reasoning that vendors
+RedoxFS and smoltcp rather than hand-rolling them.
+
+**The one real cost, named rather than hidden.** vfkit sits outside `script/lint`'s supply-chain
+check, which covers Cargo dependencies; an external host tool a shell script invokes is not touched
+by it at all. This is not a new blind spot: `qemu-system-*` already has the identical one, unaudited
+by the same gate. Whoever wires the runner script should document the required vfkit version the
+same way the QEMU runners document their pinned QEMU version.
 
 ## Scope note
 

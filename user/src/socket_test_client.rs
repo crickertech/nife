@@ -47,10 +47,10 @@
 //! and `socket_client`, which belongs to the real clients milestone 54 will need. This file is a
 //! single-consumer `#[path]` module rather than a `[[bin]]`.
 
-use abi::{memory_region as ut, page_frame as fr, rendezvous, rights};
+use abi::rights;
 use socket_proto::*;
 use user_rt::mapped_window::{MappedWindow, PAGE};
-use user_rt::{call, exit, invoke, send};
+use user_rt::{call, exit, map_page_frame, retype_page_frame, send, send_cap};
 
 const REPORT: u64 = 0;
 const STACK: u64 = 1;
@@ -187,26 +187,23 @@ fn done(code: u64) -> ! {
 
 /// Mint a frame from our untyped, map it writable, and delegate it to socket `sid`.
 fn attach_page_frame(sid: u64) {
-    // SAFETY: `svc`. RETYPE returns the new frame capability's slot, or a negative error.
-    let frame = unsafe { invoke(MEMORY_REGION, ut::RETYPE, 0, 0, 0) };
+    // RETYPE returns the new frame capability's slot, or a negative error.
+    let frame = retype_page_frame(MEMORY_REGION);
     if frame < 0 {
         done(0xE001);
     }
     let frame = frame as u64;
-    // SAFETY: `svc`. Map it writable; page tables come from our untyped.
-    if unsafe { invoke(frame, fr::MAP, PAGE_FRAME_VA, 1, MEMORY_REGION) } < 0 {
+    // Map it writable; page tables come from our untyped.
+    if !map_page_frame(frame, PAGE_FRAME_VA, true, MEMORY_REGION) {
         done(0xE002);
     }
-    // Delegate it (narrowed to read/write) with the ATTACH request. SAFETY: `svc`.
-    if unsafe {
-        invoke(
-            STACK,
-            rendezvous::SEND_CAP,
-            frame,
-            rights::READ | rights::WRITE,
-            req(OP_ATTACH_PAGE_FRAME, sid),
-        )
-    } < 0
+    // Delegate it (narrowed to read/write) with the ATTACH request.
+    if send_cap(
+        STACK,
+        frame,
+        rights::READ | rights::WRITE,
+        req(OP_ATTACH_PAGE_FRAME, sid),
+    ) < 0
     {
         done(0xE003);
     }

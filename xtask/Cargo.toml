@@ -32,6 +32,10 @@ measured_boot = { version = "0.1.0", path = "../crates/measured_boot" }
 # The framebuffer contract (milestone 29): the host-side scanout check compares QEMU's screendump
 # against the same pattern the guest painted, from the same definition, so the two cannot drift.
 graphics_proto = { version = "0.1.0", path = "../crates/graphics_proto" }
+# The 7x8 font (milestone 29's text increment), used directly by milestone 177's graphical
+# shell-check leg to decode a screendump's cells back into characters: the same glyph table the
+# guest drew from, so a mismatch is the guest's picture being wrong rather than the host guessing.
+bitmap_font = { version = "0.1.0", path = "../crates/bitmap_font" }
 smb_proto = { version = "0.1.0", path = "../crates/smb_proto" }
 # NTLMv2's arithmetic (milestone 54's identity item). The prober is a *client*, so it legitimately
 # knows the password and computes a real proof over the challenge the guest issued; the guest's own

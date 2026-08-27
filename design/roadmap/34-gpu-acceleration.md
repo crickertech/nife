@@ -2,9 +2,12 @@
 
 **Status: NOT-STARTED.**
 
-**Gate: DECISION.** The block prices it as a mountain and says it reopens the parked competitor
-question, which the display ladder's governance note records as the architect's call. Rung four is
-not a lane to launch before that answer.
+**Gate: NONE.** The block prices it as a mountain and says it reopens the parked competitor
+question; that question is decided, not merely open. [DECISIONS
+§131](../decisions/131-hold-at-rung-two.md) (calef, 2026-08-26): hold at the display ladder's rung
+two until something useful is built and proven on text mode. This is not an unresolved fork
+blocking a lane; it is a resolved one whose answer is "not yet, and not a lane's to pick up," and it
+reopens on the terms §131 names rather than on a further decision here.
 
 **In brief.** The **Venus** path: Vulkan commands serialized over the virtio-gpu device, arriving on the §18 PCIe transport, so the guest gets real GPU acceleration without owning a hardware driver. Needs the 3D context and command-submission side of virtio-gpu that rung one deliberately left alone (rung one sets up no cursor queue and no 3D context, keeping the §23 two-queue ceiling untouched), the confinement story extended to command-carried backing addresses (DECISIONS §30's residual gap: those are the addresses the descriptor validator structurally cannot see, and today only an IOMMU stops them), and something to consume it, which is what would give `wgpu` a real target
 

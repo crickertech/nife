@@ -121,6 +121,14 @@ pub enum Say {
     /// is refused before there is a program to attribute it to, and [`echo`] can reach the same
     /// refusals with no program on the line at all.
     Cannot(Refusal),
+    /// **`bind` refused**, in [`nav::BindRefused`]'s vocabulary: the name is already bound, the
+    /// table is full, or (a two-grant shell only, not reachable from any real boot yet) the name
+    /// collides with one of this shell's own grant labels. Distinct from
+    /// [`Refused`](Say::Refused): that is a fact about the *path* being navigated, this is a fact
+    /// about the *name being filed*, and the two vocabularies stay separate for the same reason
+    /// [`nav::Refused`] and [`nav::BindRefused`] are separate types rather than one enum with two
+    /// unrelated halves.
+    CannotBind(nav::BindRefused),
 }
 
 /// **What a command did**, which is what `$?` reports and what `&&` reads (milestone 67,
@@ -757,6 +765,11 @@ pub fn write_say(s: Say, out: &mut dyn FnMut(&[u8])) {
             out(r.message().as_bytes());
             out(b"\n");
         }
+        Say::CannotBind(r) => {
+            out(b"  ");
+            out(r.message().as_bytes());
+            out(b"\n");
+        }
     }
 }
 
@@ -787,12 +800,16 @@ pub fn write_help(out: &mut dyn FnMut(&[u8])) {
         b"  touch -t <instant> <path>   ...to an instant you assert (RFC 3339), if you hold the right\n",
     );
     out(
+        b"  bind <target> <name>    name a position you already reached; /<name>/... reaches it too\n",
+    );
+    out(
         b"  apropos <word>          name the installed pages that mention it (it grants nothing)\n",
     );
     out(b"  rm [-rfv] <path>        a PROGRAM, granted the directory holding what you name\n");
     out(b"  worker <n>              spawn a process that returns n*n\n");
     out(b"  budgeter --mem N        grant a process N pages from this shell's budget\n");
     out(b"  date                    print the wall-clock time\n");
+    out(b"  printenv                print the inert configuration page (TZ, LANG, TERM)\n");
     out(b"  wc                      count lines, words and bytes on its INPUT\n");
     out(b"  doc <page>              render markdown from its INPUT (apropos names the pages)\n");
     out(b"  <prog> <name>           grant a process one file, and only that file\n");
@@ -900,7 +917,9 @@ pub fn write_outcome(e: &Endowment, answer: u64, out: &mut dyn FnMut(&[u8])) {
         | Prog::Doc
         | Prog::Ps
         | Prog::Pgrep
-        | Prog::Watch => {}
+        | Prog::Watch
+        | Prog::Uptime
+        | Prog::Printenv => {}
     }
 }
 
@@ -927,10 +946,52 @@ pub fn write_holdings(
     out(b"    cap 3  untyped   ");
     write_num(budget_pages, out);
     out(b" pages  the memory it grants with --mem (initial)\n");
-    if holdings.dir {
-        out(b"    cap 4  endpoint  directory  the files it can narrow into per-file grants\n");
-    } else {
-        out(b"    (no directory capability: a name on the line has nothing to narrow)\n");
+    match (&holdings.second, holdings.dir) {
+        (Some(sd), _) => {
+            // **Two rows, not one**, and a namespace section beneath them: milestone 154's own
+            // roadmap block names this exactly, "`caps` gains a namespace section with more than
+            // one row", because one root has one row and two disjoint roots need two.
+            out(b"    cap 4  endpoint  directory  the first of two disjoint trees, labeled '");
+            out(sd.label_a());
+            out(b"'\n");
+            out(b"    cap 5  endpoint  directory  the second, labeled '");
+            out(sd.label_b());
+            out(b"'\n");
+            out(b"    namespace: two disjoint trees, standing in one at a time (milestone 154)\n");
+            // **One position, not one per tree**: DECISIONS §126 decided a real, single, moving
+            // cwd, so only the tree `sd.which` names has a remembered place inside it; the other
+            // is printed at its own root, which is honest rather than a guess (nothing here
+            // remembers where the shell last stood in a tree it is not currently in).
+            write_namespace_row(
+                sd.label_a(),
+                (sd.which == nav::Which::A).then_some(holdings.cwd),
+                out,
+            );
+            write_namespace_row(
+                sd.label_b(),
+                (sd.which == nav::Which::B).then_some(holdings.cwd),
+                out,
+            );
+        }
+        (None, true) => {
+            out(b"    cap 4  endpoint  directory  the files it can narrow into per-file grants\n");
+        }
+        (None, false) => {
+            out(b"    (no directory capability: a name on the line has nothing to narrow)\n");
+        }
+    }
+    // **`bind`'s own rows** (milestone 47/154), beside whatever the match above printed: a bind is
+    // additive to the grant namespace, never a replacement for it, so its rows are a further
+    // section rather than a rewrite of one. The two-grant case already prints a `namespace:`
+    // header above; a one-grant shell with something bound gets one here, because otherwise a
+    // bound row would appear with no heading to explain it.
+    if holdings.binds.iter().next().is_some() {
+        if holdings.second.is_none() {
+            out(b"    namespace: names bound beside the one root ('bind', milestone 47)\n");
+        }
+        for entry in holdings.binds.iter() {
+            write_bind_row(entry, out);
+        }
     }
     // **The clock, and the rights row is the whole of it** (milestone 86). This shell reads the page
     // and holds no `GRANT` on it, so `time` can measure a command and nothing typed here can hand a
@@ -953,6 +1014,38 @@ pub fn write_holdings(
         }
     }
     out(b"  it can name no devices and no other process. authority is what it holds.\n");
+}
+
+/// One row of `bind`'s own namespace section: the name it was filed under, and the real position
+/// it resolves to (not the label of the tree it is inside, which a one-grant shell has none of and
+/// a live two-grant shell does not exist yet to print for real; see the `bind` roadmap section's
+/// own honest caveat).
+fn write_bind_row(entry: &nav::BindEntry, out: &mut dyn FnMut(&[u8])) {
+    out(b"      bind ");
+    out(entry.name());
+    out(b" -> ");
+    let mut buf = [0u8; nav::RENDER_MAX];
+    let n = entry.pos().render(&mut buf);
+    out(&buf[..n]);
+    out(b"\n");
+}
+
+/// One row of the two-grant namespace section: the label, a `*` marking the tree
+/// [`Holdings::cwd`] currently stands in (`pos: Some`), and the position within it or a bare
+/// root for the tree not currently standing in.
+fn write_namespace_row(label: &[u8], pos: Option<Cwd>, out: &mut dyn FnMut(&[u8])) {
+    out(if pos.is_some() {
+        b"      * "
+    } else {
+        b"        "
+    });
+    out(label);
+    out(b"  ");
+    let mut buf = [0u8; nav::RENDER_MAX];
+    let cwd = pos.unwrap_or(Cwd::root());
+    let n = cwd.render(&mut buf);
+    out(&buf[..n]);
+    out(b"\n");
 }
 
 /// **Preview what a command line would grant**, which is the whole of `caps <command>`.
@@ -1101,6 +1194,20 @@ pub fn write_preview(e: &Endowment, out: &mut dyn FnMut(&[u8])) {
         out(b"    cap 1  frame     clock    read-only. it can read the time and not set it,\n");
         out(b"                              and no token on the line could have asked for more\n");
     }
+    // **The inert-configuration page, `clock`'s twin** (milestone 47, DECISIONS §111). No token on
+    // the line could designate it either, so it is init's to endow and this is where a reader
+    // learns the authority exists at all. Presence only, not values: this shell holds no default
+    // config set of its own to preview a value from yet (the "inheritance with visibility" middle
+    // ground the roadmap names is unbuilt), so printing a literal here would either duplicate
+    // init's default by coincidence or drift from it silently. See design/roadmap/47-navigation-
+    // and-naming.md's environment section for what remains.
+    if e.prog.manifest().config {
+        out(b"    cap 1  frame     config   read-only. TZ, LANG and TERM as this boot's inert\n");
+        out(
+            b"                              defaults; nothing here can change what a shell hands\n",
+        );
+        out(b"                              its children\n");
+    }
     // **The row this milestone exists to print.** On Linux there is nothing here to say: `ps` reads
     // /proc and the answer is "every process on the machine", which no command line chose and no
     // tool can narrow. Here the scope is a capability, so it is a line a person can read before
@@ -1214,6 +1321,8 @@ pub fn write_preview(e: &Endowment, out: &mut dyn FnMut(&[u8])) {
 
 #[cfg(test)]
 mod tests {
+    use grant_plan::SecondDir;
+
     use super::*;
     extern crate std;
     use std::string::String;
@@ -1645,6 +1754,7 @@ mod tests {
             Say::NoDirectory,
             Say::NeedsAName,
             Say::Cannot(Refusal::NoMatch),
+            Say::CannotBind(nav::BindRefused::TooMany),
         ] {
             let line = shown(|o| write_say(s, o));
             assert!(line.ends_with('\n'), "{s:?} does not end its line");
@@ -1835,6 +1945,18 @@ mod tests {
     }
 
     #[test]
+    fn printenv_says_the_config_page_is_not_on_the_line() {
+        // `clock`'s twin: the same preview claim for the same reason. `printenv`'s config page is
+        // init's to endow, no token on the line could designate it, and the preview says so before
+        // anything is spawned.
+        let s = shown(|o| write_preview(&endowment(Prog::Printenv), o));
+        assert!(s.contains("cap 1  frame     config"), "{s}");
+        assert!(s.contains("read-only"), "{s}");
+        // A program that declares no config page is not given a row that says it has one.
+        assert!(!shown(|o| write_preview(&endowment(Prog::Wc), o)).contains("config"));
+    }
+
+    #[test]
     fn every_preview_names_where_the_output_goes() {
         // The demonstration milestone 50 owed: on Unix this question has no answer at this point,
         // because fd 1 is whatever the shell's fd 1 happened to be.
@@ -1848,6 +1970,57 @@ mod tests {
         }
     }
 
+    // ---- `bind` (milestone 47/154) ----
+
+    /// [`Say::CannotBind`] renders [`nav::BindRefused`]'s own message, the same shape
+    /// [`Say::Cannot`] and [`Say::Refused`] already use for their own refusal types.
+    #[test]
+    fn cannot_bind_renders_the_bind_refusals_own_message() {
+        let s = shown(|o| write_say(Say::CannotBind(nav::BindRefused::AlreadyBound), o));
+        assert_eq!(s, "  that name is already bound; unbind it first\n");
+    }
+
+    /// **A one-grant shell with something bound gets a namespace section too**, not only a
+    /// two-grant one: `bind` is additive to whatever the shell already prints, and a shell with
+    /// nothing bound prints exactly as before (no `namespace:` line at all), which the second half
+    /// of this test pins.
+    #[test]
+    fn a_bound_name_prints_its_own_namespace_row() {
+        let mut target = Cwd::root();
+        target.descend(b"logs");
+        target.descend(b"2026");
+        let mut binds = nav::Bindings::none();
+        binds.add(b"recent", nav::Which::A, target).unwrap();
+        let holdings = Holdings {
+            dir: true,
+            second: None,
+            cwd: Cwd::root(),
+            binds,
+        };
+        let s = shown(|o| write_holdings(128, holdings, None, o));
+        assert!(s.contains("namespace: names bound"), "{s}");
+        assert!(s.contains("bind recent -> /logs/2026"), "{s}");
+
+        // Nothing bound: no namespace section at all, the same claim
+        // `holding_a_directory_changes_exactly_one_line_of_the_endowment` already pins for the
+        // directory row itself.
+        let empty = shown(|o| {
+            write_holdings(
+                128,
+                Holdings {
+                    dir: true,
+                    second: None,
+                    cwd: Cwd::root(),
+                    binds: nav::Bindings::none(),
+                },
+                None,
+                o,
+            );
+        });
+        assert!(!empty.contains("namespace:"), "{empty}");
+        assert!(!empty.contains("bind "), "{empty}");
+    }
+
     // ---- the shell's own endowment ----
 
     #[test]
@@ -1857,7 +2030,9 @@ mod tests {
                 128,
                 Holdings {
                     dir: true,
+                    second: None,
                     cwd: Cwd::root(),
+                    binds: nav::Bindings::none(),
                 },
                 None,
                 o,
@@ -1874,6 +2049,64 @@ mod tests {
         assert!(without.contains("no directory capability"));
         // The budget row is the one number the shell cannot query, so it must be the caller's.
         assert!(with.contains("128 pages"));
+    }
+
+    /// **Milestone 154's own words, made real**: "`caps` gains a namespace section with more than
+    /// one row". Two directory rows instead of one, and a namespace section beneath them naming
+    /// both labels; the current one is marked, the other prints its own root because a two-grant
+    /// shell remembers exactly one position (DECISIONS §126).
+    #[test]
+    fn a_second_grant_prints_two_rows_and_a_namespace_section() {
+        let mut cwd = Cwd::root();
+        cwd.descend(b"inner");
+        let holdings = Holdings {
+            dir: true,
+            second: Some(SecondDir::new(b"a", b"b").unwrap()),
+            cwd,
+            binds: nav::Bindings::none(),
+        };
+        let s = shown(|o| write_holdings(128, holdings, None, o));
+        assert!(s.contains("cap 4  endpoint  directory"), "{s}");
+        assert!(s.contains("cap 5  endpoint  directory"), "{s}");
+        assert!(s.contains("labeled 'a'"), "{s}");
+        assert!(s.contains("labeled 'b'"), "{s}");
+        assert!(s.contains("namespace:"), "{s}");
+        // Standing in `a`, at `/inner`: that row is marked, and `b` prints its own root.
+        assert!(s.contains("* a  /inner"), "{s}");
+        assert!(s.contains("  b  /\n"), "{s}");
+        // A one-grant shell still prints exactly the old single row: this is additive, not a
+        // format change for the case every existing wiring is in today.
+        let one_grant = shown(|o| {
+            write_holdings(
+                128,
+                Holdings {
+                    dir: true,
+                    second: None,
+                    cwd: Cwd::root(),
+                    binds: nav::Bindings::none(),
+                },
+                None,
+                o,
+            );
+        });
+        assert!(!one_grant.contains("namespace:"), "{one_grant}");
+    }
+
+    /// The row marked with `*` follows `which` when it moves, not always the first label: this is
+    /// what makes the display a *reading* of `Holdings` rather than a hardcoded shape.
+    #[test]
+    fn the_marked_row_follows_which_the_shell_is_standing_in() {
+        let mut sd = SecondDir::new(b"a", b"b").unwrap();
+        sd.which = nav::Which::B;
+        let holdings = Holdings {
+            dir: true,
+            second: Some(sd),
+            cwd: Cwd::root(),
+            binds: nav::Bindings::none(),
+        };
+        let s = shown(|o| write_holdings(128, holdings, None, o));
+        assert!(s.contains("* b  /"), "{s}");
+        assert!(s.contains("  a  /\n"), "{s}");
     }
 
     /// **A clock in the endowment is one row, and the row says it cannot be handed on** (milestone
@@ -2134,7 +2367,7 @@ mod tests {
         // prompt can find.
         let text = shown(write_help);
         for verb in [
-            "help", "echo", "caps", "time", "xargs", "cd", "pwd", "ls", "mkdir", "touch",
+            "help", "echo", "caps", "time", "xargs", "cd", "pwd", "ls", "mkdir", "touch", "bind",
         ] {
             assert!(text.contains(verb), "help does not mention {verb}");
             // And it really is a verb this shell answers, rather than a word in a sentence.
@@ -2190,7 +2423,9 @@ mod tests {
                 128,
                 Holdings {
                     dir: true,
+                    second: None,
                     cwd: Cwd::root(),
+                    binds: nav::Bindings::none(),
                 },
                 None,
                 &mut |_| Ok(NameSet::empty()),

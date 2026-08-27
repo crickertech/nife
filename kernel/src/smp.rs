@@ -283,12 +283,85 @@ pub fn read_cpu_list(dtb_ptr: usize) {
     }
 }
 
+/// **Read the machine's core list out of the ACPI MADT** (milestone 161's SMP item), x86's
+/// counterpart of [`read_cpu_list`]'s device-tree walk: x86 has no device tree, and the MADT's
+/// `LocalApic` entries are its own per-core list.
+///
+/// Called once, on the boot core, after `arch::machine::read_acpi` has walked the MADT
+/// (`arch::machine::Acpi::cpus[..cpu_count]` is what a caller passes here) and before
+/// [`bring_up_secondaries`]. It seats each described core at the slot its own local APIC id names,
+/// mirroring [`read_cpu_list`]'s seating by hardware id: every per-cpu array in this kernel is
+/// indexed by logical id, so the same logical-id-equals-hardware-id invariant has to hold here too.
+/// `arch::boot_cpu_id` reading the boot core's own local APIC id (via `CPUID`, this same milestone)
+/// rather than assuming 0 is what makes that hold for the boot core as well as for the secondaries;
+/// see its own doc for why the two have to agree.
+///
+/// `cpus` is `(local_apic_id, enabled)` per MADT `LocalApic` entry, in the table's own order.
+/// `enabled` is what [`STARTABLE`] takes directly: unlike the device-tree architectures, there is no
+/// second check to fold in (no supervisor-mode string to distrust), because a MADT entry that is
+/// present but not enabled already means exactly "a socket exists here and firmware will not start
+/// it", the same thing `enabled` says.
+///
+/// x86-only: ACPI is x86's discovery mechanism, not a portable one, the same reason
+/// `arch::machine::Acpi` itself lives under `arch/x86_64/` rather than beside `dtb`.
+#[cfg(target_arch = "x86_64")]
+pub fn seat_cpus_from_acpi(cpus: &[(u8, bool)]) {
+    let mut startable = 0;
+    let mut unseated = 0; // startable cores whose local apic id names no slot
+
+    for &(apic_id, enabled) in cpus {
+        let slot = apic_id as usize;
+        if slot >= MAX_CPUS {
+            // A core this build cannot seat: its local apic id is past the per-CPU statics. Only
+            // counted against us when we could otherwise have run it, the same convention
+            // read_cpu_list's `unseated` uses.
+            unseated += usize::from(enabled);
+            continue;
+        }
+        if HWID[slot].load(Ordering::Relaxed) != u64::MAX {
+            // Two entries claiming one local apic id is a malformed table. First claim wins; say so.
+            println!("  smp: two madt entries claim local apic id {slot}; keeping the first");
+            continue;
+        }
+        HWID[slot].store(apic_id as u64, Ordering::Relaxed);
+        STARTABLE[slot].store(enabled, Ordering::Relaxed);
+        startable += usize::from(enabled);
+    }
+    DESCRIBED.store(cpus.len(), Ordering::Release);
+
+    print!("  smp: {} core(s) in the madt", cpus.len());
+    if startable != cpus.len() {
+        print!(", {startable} startable");
+    }
+    if unseated > 0 {
+        print!(
+            " ({unseated} of them with local apic ids past cpu::MAX_CPUS = {MAX_CPUS}, which sizes \
+             the per-CPU statics, so they stay parked)"
+        );
+    }
+    println!();
+
+    // As read_cpu_list's own closing check: the core we are executing on has to be in the roster at
+    // its own index, or the roster describes a machine other than the one running this code.
+    let boot = arch::boot_cpu_id();
+    if hwid(boot) != Some(boot as u64) {
+        println!(
+            "  smp: the boot core is logical {boot}, and the madt does not put a core with that \
+             local apic id there"
+        );
+    }
+}
+
 /// The hardware id of logical core `id`, or `None` for a slot no described core's hart id names.
 ///
 /// Since seating went by-id (2026-08-14) a filled slot holds its own index by construction, so a
 /// `Some` answer is always `Some(id)`; the value of asking is the `None`, which distinguishes a
 /// seat the machine filled from one it did not.
-#[cfg_attr(not(test), allow(dead_code))]
+///
+/// **Used outside tests on `x86_64` only**: `arch::x86_64::irq::send_reschedule` looks up a target
+/// core's local APIC id here (milestone 161's SMP item). aarch64 and RISC-V never need to ask,
+/// because their own reschedule messages (an SGI, an SBI IPI) are already sent by *logical* id.
+#[cfg_attr(not(any(test, target_arch = "x86_64")), allow(dead_code))]
 pub fn hwid(id: usize) -> Option<u64> {
     match HWID.get(id)?.load(Ordering::Acquire) {
         u64::MAX => None,
@@ -368,7 +441,7 @@ pub fn bring_up_secondaries() {
         return;
     }
 
-    // The entry point PSCI needs is PHYSICAL: the core starts with its MMU off. Cast the
+    // The entry point PSCI/SBI needs is PHYSICAL: the core starts with its MMU off. Cast the
     // function item through a pointer (not straight to an integer, which the compiler warns on).
     //
     // **Below the refusal above, not before it** (milestone 161, roadmap item 4). It used to be the
@@ -377,8 +450,18 @@ pub fn bring_up_secondaries() {
     // 32-bit protected mode and cannot name a 64-bit one, so `virt_to_phys` gets a low address and
     // subtracts a high-half base from it. Computing an entry for a machine that cannot be asked to
     // start anything was always work for nothing; on the third architecture it was also wrong.
-    // (When x86 SMP lands, this conversion is not the right one for it either: that entry is
-    // already physical. See milestone 161's roadmap item 5.)
+    //
+    // **On x86_64, `virt_to_phys` is not called at all** (fixed, milestone 161's SMP item; this was
+    // the milestone's own second named bug). `secondary_boot` there is linked at the fixed low
+    // *virtual* address it has to execute from (`AP_TRAMPOLINE_PHYS`, a STARTUP IPI can only name a
+    // page below 1 MiB), which already IS its physical address; `virt_to_phys` would compute
+    // `secondary_boot's address - DIRECT_MAP_BASE`, an unsigned underflow, since that address is
+    // nowhere near the direct map. `arch::secondary_boot_entry` is the identity function for this
+    // reason, kept as a function rather than a bare `secondary_boot as u64` so the "no conversion
+    // here, and here is why" reasoning lives beside the one call site that needs it.
+    #[cfg(target_arch = "x86_64")]
+    let entry = arch::secondary_boot_entry(secondary_boot as *const () as u64);
+    #[cfg(not(target_arch = "x86_64"))]
     let entry = arch::mmu::virt_to_phys(secondary_boot as *const () as u64);
 
     let mut started = 0;
@@ -636,15 +719,24 @@ mod tests {
     /// id says, on the machine every merge boots.
     #[test_case]
     fn the_roster_is_the_machines_own_core_list() {
-        // **No roster, no claim.** `read_cpu_list` is the only thing that fills this in, and it
-        // reads a device tree; x86_64 has none, and its own roster (the ACPI MADT's processor
-        // entries, seated by local APIC id rather than by index) arrives with SMP bring-up on that
-        // architecture, milestone 161's item 5. Zero here means "nobody has said", which is a third
+        // **No roster, no claim** (device-tree architectures): `read_cpu_list` is the only thing
+        // that fills `described_count()` in there, and zero means "nobody has said", a third
         // answer from "this machine has no cores".
-        if super::described_count() == 0 {
+        //
+        // **x86_64 always skips here, not just when its roster is empty.** Its own roster
+        // (`smp::seat_cpus_from_acpi`, milestone 161's SMP item) is real and `described_count()`
+        // is nonzero on it from boot (`every_core_the_tree_described_is_running` and
+        // `all_secondaries_came_online` below both run and pass there), but *this* test's
+        // independent re-read is device-tree-specific (`dtb::Dtb::from_ptr` on `crate::DTB`), and
+        // `crate::DTB` on x86 holds PVH's `hvm_start_info` pointer, not an FDT blob: parsing it as
+        // one would not skip, it would panic. An ACPI-based independent re-read (walking the MADT
+        // again and comparing) would give this test the same power there; nobody has written it
+        // yet, so this fixture genuinely is not on that boot.
+        if super::described_count() == 0 || cfg!(target_arch = "x86_64") {
             crate::testing::skip!(
-                "nothing has read this machine's core roster (no device tree; the x86 ACPI roster \
-                 is milestone 161's SMP item)"
+                "nothing has read this machine's core roster from a device tree (either \
+                 described_count() is 0, or this is x86_64, whose roster is ACPI-based and has no \
+                 independent device-tree re-read to check it against yet)"
             );
         }
         let ptr = crate::DTB.load(Ordering::Relaxed);
@@ -710,15 +802,17 @@ mod tests {
     /// bring-up worked from was a constant and could only ever agree with itself.
     #[test_case]
     fn every_core_the_tree_described_is_running() {
-        // **No roster, no claim.** `read_cpu_list` is the only thing that fills this in, and it
-        // reads a device tree; x86_64 has none, and its own roster (the ACPI MADT's processor
-        // entries, seated by local APIC id rather than by index) arrives with SMP bring-up on that
-        // architecture, milestone 161's item 5. Zero here means "nobody has said", which is a third
-        // answer from "this machine has no cores".
+        // **No roster, no claim.** `read_cpu_list` (device-tree architectures) or
+        // `smp::seat_cpus_from_acpi` (x86_64, milestone 161's SMP item) is what fills this in,
+        // and neither has a device-tree dependency in what follows (unlike
+        // `the_roster_is_the_machines_own_core_list`, which does and skips x86 outright), so this
+        // one genuinely runs and passes there too, from `described_count() == 1` (a lone boot
+        // core, this port's default) on up. Zero here means "nobody has said", a third answer
+        // from "this machine has no cores".
         if super::described_count() == 0 {
             crate::testing::skip!(
-                "nothing has read this machine's core roster (no device tree; the x86 ACPI roster \
-                 is milestone 161's SMP item)"
+                "nothing has read this machine's core roster yet (neither read_cpu_list nor \
+                 seat_cpus_from_acpi has run)"
             );
         }
         assert_eq!(
@@ -776,15 +870,14 @@ mod tests {
     /// on an eight-slot kernel has four secondaries, honestly.
     #[test_case]
     fn all_secondaries_came_online() {
-        // **No roster, no claim.** `read_cpu_list` is the only thing that fills this in, and it
-        // reads a device tree; x86_64 has none, and its own roster (the ACPI MADT's processor
-        // entries, seated by local APIC id rather than by index) arrives with SMP bring-up on that
-        // architecture, milestone 161's item 5. Zero here means "nobody has said", which is a third
-        // answer from "this machine has no cores".
+        // **No roster, no claim**, same reasoning as `every_core_the_tree_described_is_running`
+        // just above: no device-tree dependency here either, so this runs and passes on x86_64
+        // too, including at `described_count() == 1` (`ONLINE` and `described_count() - 1` are
+        // both 0 for a lone boot core with no secondaries started, this port's default).
         if super::described_count() == 0 {
             crate::testing::skip!(
-                "nothing has read this machine's core roster (no device tree; the x86 ACPI roster \
-                 is milestone 161's SMP item)"
+                "nothing has read this machine's core roster yet (neither read_cpu_list nor \
+                 seat_cpus_from_acpi has run)"
             );
         }
         assert_eq!(

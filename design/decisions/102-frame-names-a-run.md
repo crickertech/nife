@@ -4,6 +4,13 @@
 (§100's gohufont-14) cannot ship without a bigger scanout, and a bigger scanout is 469 capabilities
 in a sixteen-slot cspace. Decided 2026-08-20 by calef: option 1, a `Frame` names a run.
 
+*This decision is still unbuilt (see milestone 142's own text: "nobody is building it"), and
+DECISIONS §113's rename (milestone 158, 2026-08-23/24) postdates it: every `Frame` below is now
+`PageFrame` in the tree's current code, and `cspace`/`CSPACE_SLOTS` are now `capability table`/
+`CAPABILITY_TABLE_SLOTS`. Left as originally written, period-accurate to when it was decided, the
+same way `design/decisions/113-*.md`'s own record does; a future implementer should read every
+identifier below through that mapping.*
+
 **What is blocked: milestone 29's terminal font.** The scanout grows to 800x608 (475 frames) and
 gohufont-14 ships on it. This decision is the prerequisite.
 
@@ -57,8 +64,14 @@ one of each.
 ### `frame::MAP`
 
 `invoke(cap, MAP, va, writable, untyped_slot)` maps the run starting at `va`. The page tables come
-from the untyped, same as today. The mapping is recorded for revocation, one record per page (the
-revocation table is per-page, not per-capability, and that doesn't change).
+from the untyped, same as today. The mapping is recorded for revocation, one record per page. ~~The
+revocation table is per-page, not per-capability, and that doesn't change.~~ **Corrected
+2026-08-27: it did change.** This section did not anticipate two capabilities naming overlapping
+runs, which §132 found is exactly what the display driver's wiring does. §132 made
+`PageFrame::REVOKE` capability-scoped: each record still exists one-per-page, but now also carries
+which capability's authority produced it, so revoking one capability no longer touches a mapping a
+different, overlapping capability made. See §132 for the full reasoning and the one imprecision it
+knowingly left (two capabilities sharing a base but not a length are still one record).
 
 The signature is additive: the `count` lives on the capability, not in the syscall arguments, so
 `MAP`'s argument shape doesn't change. A caller that holds a `Frame(phys, 475)` calls `MAP` once

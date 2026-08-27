@@ -11,7 +11,9 @@
 //!
 //! 1. Stamp the clock page (it starts as an honest [`clock_proto::state::UNKNOWN`]).
 //! 2. Read the RTC once, through whichever driver the *machine* named (`a0`, from the device
-//!    tree's `compatible`, not from `target_arch`).
+//!    tree's `compatible`, not from `target_arch`), or, on `x86_64`, take the reading the *kernel*
+//!    already made (`a1`), because the CMOS clock is two I/O ports the kernel keeps to itself
+//!    (DECISIONS §121, §130; milestone 176).
 //! 3. If the reading is plausible, publish it. **If it is not, publish nothing**: the page stays
 //!    unknown and every reader can see that the machine does not know what time it is. This is
 //!    DECISIONS §42's no-silent-degradation rule; the alternative is confidently reporting 1970.
@@ -65,7 +67,7 @@ const RTC_VA: u64 = 0x00d0_0000;
 const RPT_READY: u64 = 0x_c10c_c0de;
 
 #[unsafe(no_mangle)]
-pub extern "C" fn _start(rtc_kind: u64, _a1: u64, _a2: u64) -> ! {
+pub extern "C" fn _start(rtc_kind: u64, rtc_seed: u64, _a2: u64) -> ! {
     // SAFETY: the wiring maps the clock page read/write at CLOCK_VA before this program runs, and
     // nothing unmaps it. We are the first to touch it, so stamping it here cannot race a reader
     // that has already seen the magic.
@@ -74,8 +76,10 @@ pub extern "C" fn _start(rtc_kind: u64, _a1: u64, _a2: u64) -> ! {
 
     // The RTC, read exactly once. A second reading would not be more correct: from here on the
     // monotonic counter is the thing that advances, and re-reading the RTC would only import its
-    // drift and its coarse resolution into a clock that already has better.
-    if let Some(unix_nanos) = read_rtc(rtc_kind)
+    // drift and its coarse resolution into a clock that already has better. `rtc_seed` is only
+    // meaningful for `rtc::CMOS`, where it is the kernel's own reading rather than a register to
+    // poll; every other kind ignores it.
+    if let Some(unix_nanos) = read_rtc(rtc_kind, rtc_seed)
         && policy::plausible(unix_nanos)
     {
         page.publish(
@@ -151,14 +155,18 @@ fn monotonic_nanos() -> u64 {
 
 /// Read the machine's RTC, whichever one it has. `None` when it has none.
 ///
-/// **Both drivers are compiled on both ISAs.** Neither is behind a `cfg(target_arch)`, because the
-/// device is a fact about the board and not about the instruction set: the VisionFive 2 is riscv64
-/// and has neither of these. Keying the layout off the ISA would compile clean and read garbage on
-/// the first real board, which is precisely the failure rule 5 exists to catch.
-fn read_rtc(kind: u64) -> Option<u64> {
+/// **Both mapped-register drivers are compiled on every ISA.** Neither `pl031_unix_nanos` nor
+/// `goldfish_unix_nanos` is behind a `cfg(target_arch)`, because the device is a fact about the
+/// board and not about the instruction set: the VisionFive 2 is riscv64 and has neither of these.
+/// Keying the layout off the ISA would compile clean and read garbage on the first real board,
+/// which is precisely the failure rule 5 exists to catch. `rtc::CMOS` needs no such driver at all:
+/// there is no register at `RTC_VA` on `x86_64` (no mapping is ever made for it), and `seed` is
+/// already the converted answer the kernel read from CMOS before this program ran.
+fn read_rtc(kind: u64, seed: u64) -> Option<u64> {
     match kind {
         rtc::PL031 => Some(pl031_unix_nanos(RTC_VA)),
         rtc::GOLDFISH => Some(goldfish_unix_nanos(RTC_VA)),
+        rtc::CMOS => Some(seed),
         _ => None,
     }
 }

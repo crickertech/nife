@@ -39,18 +39,34 @@ use system_initializer::BootEndowment;
 
 /// **What `kernel::user::riscv_shell_boot` grants, in order.** The kernel inserts these into this
 /// process's capability table before it starts, and the numbers below are that call's `assert_eq!`s read from
-/// the other side. Slots 4 and 5 hold nothing when this boot attached no RedoxFS disk, which is what
+/// the other side. Slots 5 and 6 hold nothing when this boot attached no RedoxFS disk, which is what
 /// `a2` (the endpoint's `filesystem_proto::dir` rights, 0 for no disk) says.
 ///
-/// The clock is granted ahead of the filesystem pair on purpose, so its slot is the same on every
-/// boot whether or not a disk was attached.
+/// The clock and the inert-configuration page are both granted ahead of the filesystem pair on
+/// purpose, so their slots are the same on every boot whether or not a disk was attached.
 const GRANTS: BootEndowment = BootEndowment {
     untyped: 0,
     uart_dev: 1,
     uart_irq: 2,
     clock_page: 3,
-    fs_ep: 4,
-    fs_page: 5,
+    config_page: 4,
+    fs_ep: 5,
+    fs_page: 6,
+    // Always these three (`kernel::user::riscv_shell_boot` grants them at explicit slots, not
+    // `thread_control_block_insert_cap`'s first-free `None`, for exactly this reason): a boot with
+    // no virtio-rng device leaves them empty, and `system_initializer::boot`'s own probe is what
+    // tells it apart from a granted one. Fixed past the filesystem pair's own max reach (slot 6),
+    // not slot 5, because the inert-configuration page (slot 4) shifted that pair down by one.
+    virtio_rng: 7,
+    virtio_rng_irq: 8,
+    virtio_rng_dma: 9,
+    // The graphical terminal stack (milestone 177, option A), fixed past the virtio-rng trio's
+    // own floor (slot 9) for its own reason: a boot with no GPU or no keyboard attached leaves
+    // all three empty, and `system_initializer::boot`'s own probe is what tells it apart from a
+    // granted one.
+    disp_term_ep: 10,
+    disp_term_page: 11,
+    kbd_ep: 12,
     // Nothing. Unlike aarch64's, this boot path is not shared with milestone 19d's test roles, so
     // the kernel grants exactly what the interactive system uses.
     for_test_roles: &[],
@@ -58,7 +74,11 @@ const GRANTS: BootEndowment = BootEndowment {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(_a0: u64, initrd_len: u64, fs_rights: u64) -> ! {
-    system_initializer::boot(&GRANTS, initrd_len, fs_rights)
+    // `None`: milestone 154's second directory grant is a real mechanism
+    // (`system_initializer::boot`'s `second_dir` parameter), but what the second subtree should
+    // *be* is a boot-time policy decision DECISIONS §126 reserves for calef, so this real boot
+    // does not enable it.
+    system_initializer::boot(&GRANTS, initrd_len, fs_rights, None)
 }
 
 user_rt::panic_handler!();

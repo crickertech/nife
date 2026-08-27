@@ -32,7 +32,31 @@ use crate::sched;
 /// from now adding one more permanent login to this suite should not have to touch this constant to
 /// do it. Raising this past 640 raised `kernel::testing::SUITE_PAGE_FRAME_BUDGET` too; that comment
 /// carries the account.
-const CONSTRUCTION_PAGES: u64 = 1856;
+///
+/// **Raised, milestone 49's channel-per-client update: 1856 -> 2176, and the account is two lines
+/// rather than the four figures an earlier version of this comment carried.** That version set this
+/// to 4096 while chasing this suite's second-login failure, on the theory that the failure was a
+/// sizing problem. It was not (it was `login`'s own sixteen-slot capability table; see that file's
+/// BUGS), and neither 16384 here nor 8192 for `OWN_UT_PAGES` ever changed the outcome. Both are back
+/// to sizes with a measurement behind them:
+///
+/// - **+256, two more permanently-logged-in sessions.** This update adds
+///   `two_clients_connecting_together_get_independent_channels_and_neither_observes_the_others_secret`,
+///   whose two roles both log in and neither logs out, at the same 128 pages a live session costs
+///   every other test above. Fourteen, not twelve.
+/// - **+32, `login::CHANNEL_UT_PAGES`**, split from this budget once at that process's startup, the
+///   same one-time shape `OWN_UT_PAGES` already has. See that constant's own doc for why a channel's
+///   region must come from a budget with exactly one spender.
+///
+/// `connect`'s own channel objects spend nothing permanent: each channel is retyped from a small,
+/// dedicated region that is destroyed once the channel is served, and because that region is carved
+/// from `CHANNEL_UT_PAGES` rather than from here, it is always the LIFO top when it is destroyed, so
+/// its pages actually come home (`crates/regions`' `return_to_parent`). The earlier arrangement,
+/// carving it from this budget, stranded **368 pages of holes** in one run, measured.
+///
+/// 128 (`OWN_UT_PAGES`) + 32 (`CHANNEL_UT_PAGES`) + 14 * 128 = 1952 permanently resident; 2176 is
+/// that with the same margin 1856 carried over 1664.
+const CONSTRUCTION_PAGES: u64 = 2176;
 
 /// `EEXIST`, matching `identity_provisioner.rs`'s own local constant: `fs_proto` does not re-export
 /// it under a name (that file's own comment), so every direct caller of `fs::MKDIR` names it again.
@@ -302,6 +326,94 @@ fn two_different_identities_get_independently_working_channels_and_correct_attri
     }
 }
 
+/// **Two clients reaching the front door together get independent channels, and neither observes
+/// the other's secret.** Milestone 49's channel-per-client update (`user/src/login.rs`'s own BUGS,
+/// "Resolved"): before it, `REQUEST`/`RESULT` and a single shared staging page carried every
+/// client's identity and secret for the service's whole life, so two callers reaching the front door
+/// close together could corrupt or observe each other's presented credential. `ls::spawn_client`
+/// (unlike `ls::client`) returns the instant a role is spawned, without waiting for it to run at
+/// all, so calling it twice before waiting on either puts both roles genuinely in flight together,
+/// racing each other to `CONNECT` on the kernel's own schedule: this is the scenario the old design's
+/// hazard needed, and the new one's whole point is that it no longer matters who wins the race.
+///
+/// `login` is still one thread and answers `CONNECT` one at a time, so whichever role is served
+/// first is served to completion, private channel and all, before the second is even accepted; that
+/// is service *order*, the module docs' own distinction, not shared state. The audit trail is the
+/// outside witness that nothing crossed between them: two `ATTRIBUTED` records, each naming exactly
+/// one of the two identities, never the same one twice and never a garbled third value a corrupted
+/// shared page could have produced.
+#[test_case]
+fn two_clients_connecting_together_get_independent_channels_and_neither_observes_the_others_secret()
+{
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
+    let Some(w) = wired() else {
+        crate::testing::skip!("no virtio-rng device or no RedoxFS disk attached");
+    };
+    let cli =
+        program("login_test_client").expect("no login_test_client program in the initrd archive");
+
+    // Both spawned before either is waited on: this is the race. Which role's CONNECT actually
+    // reaches `login`'s front door first is the kernel scheduler's call, not this test's, and the
+    // property under test holds either way.
+    let chris_report = ls::spawn_client(cli, &w, ls::ROLE_CHRIS);
+    let corinne_report = ls::spawn_client(cli, &w, ls::ROLE_CORINNE);
+
+    // Whichever role wins the race, `login` cannot accept the *other*'s `CONNECT` until it finishes
+    // fully serving the first: its own `send(AUDIT, ...)` is a blocking rendezvous (every other
+    // successful-login test in this file drains it for the same reason), so this drain is what lets
+    // the second role make any progress at all, not merely bookkeeping. The loser's `CONNECT` sits
+    // queued on the front door until this happens.
+    let a_first = sched::ipc_recv(w.audit);
+    assert_eq!(
+        a_first[0],
+        login_proto::ATTRIBUTED,
+        "no attribution record followed the first of the two logins",
+    );
+
+    // Both reports can now be collected in either order: the winner's needed no help from this
+    // drain (it already held its own four capabilities before `login` ever tried to send the audit
+    // record above), and the loser's `CONNECT` is now unstuck.
+    let r_chris = ls::wait_client(chris_report);
+    let r_corinne = ls::wait_client(corinne_report);
+
+    let a_second = sched::ipc_recv(w.audit);
+    assert_eq!(
+        a_second[0],
+        login_proto::ATTRIBUTED,
+        "no attribution record followed the second of the two logins",
+    );
+
+    assert_eq!(r_chris[0], ls::RPT_OK, "chris was not authenticated");
+    assert_eq!(r_corinne[0], ls::RPT_OK, "corinne was not authenticated");
+    for (label, r) in [("chris", r_chris), ("corinne", r_corinne)] {
+        assert_eq!(
+            r[1] & ls::F_DIR_WORKS,
+            ls::F_DIR_WORKS,
+            "{label}'s directory capability did not work",
+        );
+        assert_eq!(
+            r[1] & ls::F_BUDGET_WORKS,
+            ls::F_BUDGET_WORKS,
+            "{label}'s budget did not work",
+        );
+    }
+
+    // The property under test, stated positively: the two attribution records name exactly one
+    // chris and one corinne login, in either order, never the same identity twice. A shared,
+    // corrupted staging page (the pre-fix hazard) could have produced two records naming the same
+    // identity, or a value matching neither.
+    let chris_hint = login_proto::identity_hint(b"chris");
+    let corinne_hint = login_proto::identity_hint(b"corinne");
+    let (h1, h2) = (a_first[2], a_second[2]);
+    assert!(
+        (h1 == chris_hint && h2 == corinne_hint) || (h1 == corinne_hint && h2 == chris_hint),
+        "the two attribution records did not name exactly one chris login and one corinne login: \
+         {h1:#x}, {h2:#x} (chris is {chris_hint:#x}, corinne is {corinne_hint:#x})",
+    );
+}
+
 /// **Nothing else would have caught this**: `login`'s own capability table has sixteen slots
 /// (`kernel::cap::CAPABILITY_TABLE_SLOTS`), eight are spent at rest (`REQUEST`..`AUDIT` plus its own scratch
 /// untyped), and before `user/src/login.rs`'s `mint` learned to drop its own copy of the
@@ -565,10 +677,11 @@ fn logins_caretaker_measurement_matches_the_real_table_and_a_tampered_one_would_
 /// **Nothing else would have caught this**: the caretaker-teardown fix (this milestone; see
 /// `user/src/login.rs`'s own BUGS, "Resolved"), proven by needing more memory than could possibly
 /// fit if a session's pages did not actually come back. `wired()`'s shared instance holds
-/// `CONSTRUCTION_PAGES` (1856) in total, and 1664 of that is already permanently spent by the tests
-/// above (this file's own accounting comment on that constant); the 192 pages left would not survive
-/// a *second* leaked session at the old 128-pages-per-login rate, let alone the ten this test
-/// performs (2560 pages, thirteen times the headroom). Every one of the ten logs fully back out
+/// `CONSTRUCTION_PAGES` in total, and all but a few hundred pages of that is already permanently
+/// spent by the tests above (this file's own accounting comment on that constant); what is left
+/// would not survive a *second* leaked session at the old 128-pages-per-login rate, let alone the
+/// ten this test performs (2560 pages, an order of magnitude past the headroom). Every one of the
+/// ten logs fully back out
 /// (both delegated `MemoryRegion`s destroyed, `login_test_client.rs`'s `ROLE_LOGOUT`) before the next
 /// begins, so this test could only pass by the memory genuinely coming home each time.
 ///
@@ -576,6 +689,13 @@ fn logins_caretaker_measurement_matches_the_real_table_and_a_tampered_one_would_
 /// real `READDIR` and a real `RETYPE` before teardown (the same proof every other successful-login
 /// test in this file asks for), both `DESTROY` calls succeeding, and both capabilities answering
 /// nothing afterward (`login_test_client.rs`'s own re-check, not merely the syscalls' return codes).
+///
+/// **It also caught a second bug, and this is the one worth knowing about**: for two days this test
+/// failed reproducibly on its *second* iteration, refusing a correct password. Ten cycles in a row
+/// is what made it visible at all, because the cause was a two-slot-per-connect leak of `login`'s
+/// own sixteen-slot capability table, and a service that never serves two logins in a row cannot
+/// show it. See `user/src/login.rs`'s BUGS ("Resolved, 2026-08-26") for the mechanism and for the
+/// four memory hypotheses that were measured and ruled out before it was found.
 #[test_case]
 fn caretaker_teardown_reclaims_a_full_session_worth_of_memory() {
     if fs_service::fs_server_image().is_none() {

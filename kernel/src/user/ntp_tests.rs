@@ -54,6 +54,22 @@ fn entropy() -> Option<crate::sched::RendezvousId> {
     Some(w.request)
 }
 
+/// **Whether this machine has no source of unguessable bytes for the client's nonce**, checked
+/// before any test that needs a *complete* exchange rather than merely a client and a server:
+/// the client refuses to reach the network without one (`without_entropy_the_client_refuses_rather_than_guessing`
+/// is the test that proves exactly that refusal), so a test that assumes `exchange` completes
+/// has to know first, the same convention `disk_tests`, `credential_tests` and `entropy_tests`
+/// already use for the identical cause.
+///
+/// `x86_64` is the case this exists for today: the test runner attaches no virtio-rng function on
+/// any bus yet (notes/x86-port.md), where both QEMU `virt` boards have one on mmio. Milestone 176
+/// only fixed the wall clock (DECISIONS §130); it did not, and was not scoped to, give this
+/// architecture a network entropy device.
+fn machine_has_no_entropy() -> bool {
+    let image = program("entropy").expect("no entropy program in the initrd archive");
+    entropy_service::ensure(image, entropy_service::Bus::Mmio).is_none()
+}
+
 /// Where the client is told to send. Nothing listens there; the test server is behind the
 /// endpoint, not behind the address. The address is asserted anyway, because a client that
 /// invented its own destination would be one that ignores its wiring.
@@ -105,6 +121,9 @@ fn exchange(
 fn an_ntp_exchange_reaches_the_clock_as_a_proposal() {
     if clock_service::machine_has_no_rtc() {
         crate::testing::skip!(clock_service::NO_RTC);
+    }
+    if machine_has_no_entropy() {
+        crate::testing::skip!("no virtio-rng device on the mmio bus (NIFE_RNG not set?)");
     }
     let clock = clock();
     let before = clock.page().read();
@@ -188,6 +207,9 @@ fn a_reply_that_fails_validation_never_becomes_a_proposal() {
     if clock_service::machine_has_no_rtc() {
         crate::testing::skip!(clock_service::NO_RTC);
     }
+    if machine_has_no_entropy() {
+        crate::testing::skip!("no virtio-rng device on the mmio bus (NIFE_RNG not set?)");
+    }
     let clock = clock();
     let before = clock.page().read();
     let claimed = clock.wall_nanos() + NANOS_PER_SEC / 2;
@@ -244,6 +266,9 @@ fn a_reply_that_fails_validation_never_becomes_a_proposal() {
 fn a_proposal_outside_the_policy_is_refused_by_the_service() {
     if clock_service::machine_has_no_rtc() {
         crate::testing::skip!(clock_service::NO_RTC);
+    }
+    if machine_has_no_entropy() {
+        crate::testing::skip!("no virtio-rng device on the mmio bus (NIFE_RNG not set?)");
     }
     let clock = clock();
     let before = clock.page().read();
@@ -355,6 +380,9 @@ fn an_ntp_client_holds_no_writable_clock_page() {
 fn the_nonce_on_the_wire_is_random_and_is_not_the_clock() {
     if clock_service::machine_has_no_rtc() {
         crate::testing::skip!(clock_service::NO_RTC);
+    }
+    if machine_has_no_entropy() {
+        crate::testing::skip!("no virtio-rng device on the mmio bus (NIFE_RNG not set?)");
     }
     let clock = clock();
     let claimed = clock.wall_nanos() + NANOS_PER_SEC / 2;

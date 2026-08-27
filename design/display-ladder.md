@@ -32,8 +32,9 @@ answered on purpose.
    **Its font increment is blocked, and the blocker is not graphical** (2026-08-19).
    `design/decisions/100-the-terminal-font.md` chose gohufont-14 at 8x14, which on this rung's
    128x64 scanout is a 16x4 grid rather than a terminal, so the surface has to grow with it. It
-   cannot: a `Frame` capability names one page and occupies one of sixteen cspace slots, the driver
-   holds nine already, and the ceiling is nine frames of surface against the 469 that 800x600 needs.
+   cannot: a `PageFrame` capability names one page and occupies one of sixteen capability-table
+   slots, the driver holds nine already, and the ceiling is nine frames of surface against the 469
+   that 800x600 needs.
    That is `notes/frames.md`'s recorded fork arriving with a bill attached, and it has to be
    answered before this rung's text gets any better. The pixel-for-pixel verification, the VT
    engine, the terminal and the keyboard are all unaffected and all still built.
@@ -76,5 +77,9 @@ answered on purpose.
 
 Governance, stated now so it is not smuggled later: rungs one and two are demonstrator work.
 Rungs three and four reopen the parked competitor question ([competitor-question.md](competitor-question.md)), which is the architect's call
-to make consciously when rung two is real. **Rung two is now real, so that call is live**, and
-milestone 33 deliberately stopped at its edge: no iced, no cosmic-text, no application work.
+to make consciously when rung two is real. **Rung two is now real, and the call is made**: hold at
+rung two ([DECISIONS §131](decisions/131-hold-at-rung-two.md), calef, 2026-08-26). Rungs three and
+four stay unstarted; milestone 33 deliberately stopped at its edge (no iced, no cosmic-text, no
+application work), and that edge holds until something useful is built and proven on text mode.
+Text-mode work that is not GUI-toolkit work (a kick-ass shell and editor experience, the 169-174
+self-hosting line, milestone 142's typography) is exactly the direction §131 asks for instead.

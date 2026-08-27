@@ -683,7 +683,7 @@ ceiling stays 94: there is nothing to cinch that round 4 had not already cinched
 is real and lower, and it is recorded as such above; the ceiling tracks density, not a raw block
 count, and density is what a growing tree's line count keeps honest.
 
-**At most 22 `unsafe impl Send`/`Sync` claims** <!--count-at-most:unsafe-thread-safety-claims-->,
+**At most 23 `unsafe impl Send`/`Sync` claims** <!--count-at-most:unsafe-thread-safety-claims-->,
 and this one has no headroom at all. Each is a hand-written assertion that the compiler is wrong
 about a type, which is the most consequential unsafe in the tree: a wrong one is a data race that
 no test reliably reproduces. The population moved twice in three weeks, so a zero-slack ceiling
@@ -713,6 +713,17 @@ already carries and for the identical argument. The page is computed once by the
 (`kernel::user::x86_timebase_page_phys`) and mapped read-only into every x86_64 process; it has no
 writer once mapped, the same shape that makes `ConfigPage`'s claim easy to justify, restated for a
 page carrying a calibrated clock rate instead of locale strings.
+
+Raised from 22 to 23 by milestone 161's x86_64 SMP item (2026-08-25): `kernel::cpu::X86TrapPerCpu`'s
+`unsafe impl Sync`, a single claim over a struct of three plain `u64`s reached through `PerCpu`
+(`x86_trap`) via the same `gs`-relative addressing `IA32_GS_BASE` already gives every core to its
+own block. It carries no lock because it needs none: `trap.s`'s `isr_restore` and
+`x86_syscall_entry` are the only readers or writers, both running on the core whose own slot they
+touch, and `IA32_GS_BASE` is an MSR no context switch saves or restores and no other core's write
+can name, so two cores can never reach the same instance. Same argument `PerCpu` itself already
+carries (`unsafe impl Sync for PerCpu`, cpu.rs's own comment: "no two cores ever reach the same
+block"), restated for the one architecture whose trap-entry assembly needs a second, smaller
+per-core scratch area beside it rather than folding into `PerCpu`'s existing fields directly.
 
 **No target for `kernel/src/arch/`**, which is 139 blocks and rising. Driving that number down means
 either writing assembly wrong or moving it out of `arch/`, and DECISIONS rule 1 says arch code

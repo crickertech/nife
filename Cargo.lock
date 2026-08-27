@@ -780,6 +780,7 @@ dependencies = [
  "abi",
  "byte_sink_proto",
  "elf",
+ "entropy_proto",
  "filesystem_proto",
  "grant_plan",
  "line_editor",
@@ -904,6 +905,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
 
 [[package]]
+name = "uptime"
+version = "0.1.0"
+
+[[package]]
 name = "user"
 version = "0.1.0"
 dependencies = [
@@ -921,6 +926,7 @@ dependencies = [
  "credential_proto",
  "elf",
  "entropy_proto",
+ "environment_proto",
  "filesystem_proto",
  "gpt",
  "grant_plan",
@@ -947,6 +953,7 @@ dependencies = [
  "system_initializer",
  "timetable",
  "tock-registers",
+ "uptime",
  "user_rt",
  "video_terminal",
  "virtio",
@@ -1040,6 +1047,7 @@ dependencies = [
 name = "xtask"
 version = "0.1.0"
 dependencies = [
+ "bitmap_font",
  "compositor",
  "credential_proto",
  "filesystem_proto",

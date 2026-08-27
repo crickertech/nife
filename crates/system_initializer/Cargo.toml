@@ -31,3 +31,7 @@ byte_sink_proto = { version = "0.1.0", path = "../byte_sink_proto" }
 # tree since milestone 96; this crate is one of its two callers.
 supervision_proto = { version = "0.1.0", path = "../supervision_proto" }
 user_rt = { version = "0.1.0", path = "../user_rt" }
+# The entropy contract (DECISIONS §120's 2026-08-26 amendment), for the one message this crate
+# reads: the readiness sentinel an entropy service answers once it has drawn its first bufferful
+# from a real device. Pure logic, no non-dev dependencies of its own.
+entropy_proto = { version = "0.1.0", path = "../entropy_proto" }

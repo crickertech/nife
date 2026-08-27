@@ -38,9 +38,16 @@ permissions:
 #
 # The group name differs from ci.yml's on purpose. Sharing one would make a push cancel the OTHER
 # workflow too, which is the coupling this split exists to remove.
+#
+# **Mirrors ci.yml's merge-queue exemption too, and must, for the same "triggers must mirror
+# exactly" reason this file's own header already gives.** Found 2026-08-27 via PR #546: a
+# `gh-readonly-queue/` ref does not change between GitHub's retries of one queue entry, so the old
+# `'tip'` fallback here would put a slow `verify` run (Kani's ~47 minutes is this project's own
+# stated long pole) in the same group as its own retry and cancel it before it could finish --
+# exactly the failure this concurrency block's `main` exemption already prevents for pushes.
 concurrency:
   group: verify-${{ github.ref }}-${{ github.ref == 'refs/heads/main' && github.sha || 'tip' }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/heads/gh-readonly-queue/') }}
 
 # **The required check is `verify (Kani proofs)` and it must stay a single job with that exact name**
 # (milestone 119). A `matrix` on the proving job would rename it to `verify (Kani proofs) (1)` and

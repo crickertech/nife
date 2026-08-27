@@ -15,12 +15,14 @@
 //! # What is built here and what is not
 //!
 //! Built: the local APIC (enable, EOI, the timer's LVT), masking the legacy 8259 PICs, the
-//! calibration counter `timer.rs` needs, and **the IO APIC's redirection table**, so a real device
-//! line reaches the kernel on a vector this module chose. The boot tour proves both halves: the
-//! local APIC's own timer, and the PIT arriving through the IO APIC.
+//! calibration counter `timer.rs` needs, **the IO APIC's redirection table**, so a real device
+//! line reaches the kernel on a vector this module chose, and **INIT-SIPI-SIPI** ([`send_init`],
+//! [`send_startup`]), which is what starts a second logical CPU (milestone 161's SMP item; see
+//! `arch::x86_64::ap_boot`). The boot tour proves the interrupt-controller half: the local APIC's
+//! own timer, and the PIT arriving through the IO APIC.
 //!
-//! Not built: IPIs, so no secondary CPU can be started, and no interrupt is routed to any CPU but
-//! the boot one.
+//! Not built: every redirection entry still targets the boot CPU only, so a device interrupt
+//! reaches whichever core booted the kernel regardless of which core is busiest.
 //!
 //! # The two obligations the tables state and code must honour
 //!
@@ -580,11 +582,26 @@ pub fn init() {
     unimplemented!("x86_64 irq::init: see init_io_apic, which takes the MADT's address")
 }
 
-/// Bring up this CPU's local interrupt interface. See [`init_local_apic`], which is the same
-/// operation with the address the MADT gave rather than none.
-#[allow(dead_code)]
+/// Bring up this CPU's local interrupt interface (milestone 161's SMP item): a secondary's own
+/// call to [`init_local_apic`], at the SAME physical address the boot core already found in the
+/// MADT and mapped device-typed.
+///
+/// **Every core's local APIC answers at this identical MMIO address**, unlike a device with one
+/// physical instance: the address is architecturally per-core (`IA32_APIC_BASE`, reset to the same
+/// value on every core), so a redundant [`mask_the_8259s`] and a redundant write of [`LOCAL_APIC`]/
+/// [`LOCAL_APIC_PHYS`] to the SAME value are both harmless idempotent re-statements of what the
+/// boot core already recorded, not a race over shared state.
+///
+/// A no-op if the boot core never found a local APIC at all (`local_apic_phys()` is `None`):
+/// unreachable in practice, because `smp::bring_up_secondaries` only starts a core once
+/// `arch::can_start_secondaries()` has already required exactly that.
 pub fn init_this_cpu() {
-    unimplemented!("x86_64 irq::init_this_cpu: see init_local_apic (milestone 161)")
+    if let Some(apic) = local_apic_phys() {
+        // SAFETY: the same physical address the boot core already validated (it is where
+        // `read_acpi` found the MADT's local APIC entry) and mapped device-typed in `mmu::init`'s
+        // fine map, which every core shares (x86 has one kernel root; see `mmu::init_secondary`).
+        unsafe { init_local_apic(apic) };
+    }
 }
 
 /// **Unmask interrupt `intid` at the controller**, where `intid` is a *legacy IRQ number* the way
@@ -638,9 +655,23 @@ fn is_local_apic_source(intid: u32) -> bool {
 }
 
 /// **ICR delivery mode `Fixed`**, bits 10:8 = 000: deliver `vector` to the destination, exactly as
-/// if a device line had raised it. The other modes (NMI, INIT, STARTUP) are SMP bring-up's, not
-/// this.
+/// if a device line had raised it. The other modes below (INIT, STARTUP) are SMP bring-up's.
 const ICR_FIXED: u32 = 0b000 << 8;
+/// **ICR delivery mode `INIT`**, bits 10:8 = 101: the first step of INIT-SIPI-SIPI (milestone 161's
+/// SMP item). Resets the target CPU into a wait-for-SIPI state; the vector field is unused (left
+/// zero) because INIT does not say where to start, only that the target should stop and wait.
+const ICR_INIT: u32 = 0b101 << 8;
+/// **ICR delivery mode `NMI`**, bits 10:8 = 100: deliver a non-maskable interrupt (vector 2) to the
+/// destination. The vector field is unused, as it is for INIT, because the vector is architectural.
+///
+/// **This is the only message on this architecture that `cli` cannot suppress**, which is the whole
+/// reason the TLB shootdown uses it: see `mmu::shoot_down_others`, whose target is routinely a core
+/// spinning for `KERNEL_MMU` with interrupts masked.
+const ICR_NMI: u32 = 0b100 << 8;
+/// **ICR delivery mode `Startup`** (a STARTUP inter-processor interrupt, "SIPI"), bits 10:8 = 110:
+/// the vector field names a *physical page below 1 MiB* the target begins executing at, in 16-bit
+/// real mode, with `cs` = the vector and `ip` = 0 (so the physical address is `vector << 12`).
+const ICR_STARTUP: u32 = 0b110 << 8;
 /// ICR bit 14, the level bit. Must be 1 for every delivery mode except INIT de-assert, which no
 /// modern part uses; a zero here is silently ignored on some steppings and not on others.
 const ICR_ASSERT: u32 = 1 << 14;
@@ -701,17 +732,58 @@ pub fn raise_self_interrupt(vector: u8) {
 /// serves any outstanding work-steal request (`sched::drain_inbox`, `sched::serve_steal_request`).
 /// The x86 counterpart of aarch64's reschedule SGI and RISC-V's SBI IPI.
 ///
-/// # BUGS
-/// **The logical cpu id is used as the destination local APIC id**, which is true on the one CPU
-/// this port brings up (the boot CPU is logical 0 and QEMU gives it APIC id 0) and is not true in
-/// general: the two numbers are independent and the MADT states the mapping. SMP bring-up
-/// (milestone 161, roadmap item 5) is what has to build that table, because it is the same table
-/// INIT-SIPI-SIPI needs to name a CPU to start. Nothing calls this today: every caller in `sched`
-/// is guarded by "the target is another core", and there is no other core.
+/// **The logical cpu id is looked up in the roster rather than used as the destination local APIC
+/// id directly** (fixed, milestone 161's SMP item). The two numbers are independent in general; the
+/// MADT states the mapping and `smp::seat_cpus_from_acpi` reads it into the same roster
+/// `bring_up_secondaries` uses, seating every core (the boot core included, via
+/// `arch::boot_cpu_id`'s own `CPUID` read) at the slot its own local APIC id names, so
+/// `smp::hwid(id)` is that id.
+///
+/// # Panics
+/// If `target_cpu` names no seated core. Every caller in `sched` first checks the target is an
+/// online core (`smp::online_cpus`), and an online core is by construction a seated one.
 pub fn send_reschedule(target_cpu: usize) {
     debug_assert!(
         local_apic_ready(),
         "a reschedule IPI before the local APIC is up has nothing to send it with"
     );
-    send_ipi(target_cpu as u8, RESCHEDULE_VECTOR);
+    let apic_id = crate::smp::hwid(target_cpu).unwrap_or_else(|| {
+        panic!("send_reschedule: cpu {target_cpu} is not in the roster (no local apic id)")
+    });
+    send_ipi(apic_id as u8, RESCHEDULE_VECTOR);
+}
+
+/// **Send a non-maskable interrupt to the local APIC whose id is `dest_apic_id`.**
+///
+/// The target takes vector 2 at its next instruction boundary **whether or not its interrupts are
+/// enabled**, which is the property `mmu::shoot_down_others` is built on and the reason this exists
+/// beside [`send_ipi`] rather than being one more vector through it.
+///
+/// No acknowledgement is written by the receiver's local APIC: an NMI sets no in-service bit, so
+/// there is no EOI to owe, unlike every vector [`send_ipi`] delivers.
+///
+/// **Name provisional** (milestone 161's SMP item): calef names public items.
+pub fn send_nmi(dest_apic_id: u8) {
+    wait_for_ipi_delivery();
+    write(reg::ICR_HIGH, (dest_apic_id as u32) << 24);
+    write(reg::ICR_LOW, ICR_NMI | ICR_ASSERT);
+}
+
+/// **Send an INIT inter-processor interrupt** to the local APIC whose id is `dest_apic_id`: the
+/// first step of INIT-SIPI-SIPI. Resets the target into a wait-for-SIPI state; it does not say
+/// where to start, which is what the two STARTUP IPIs that follow are for.
+pub fn send_init(dest_apic_id: u8) {
+    wait_for_ipi_delivery();
+    write(reg::ICR_HIGH, (dest_apic_id as u32) << 24);
+    write(reg::ICR_LOW, ICR_INIT | ICR_ASSERT);
+}
+
+/// **Send a STARTUP inter-processor interrupt ("SIPI")** to the local APIC whose id is
+/// `dest_apic_id`, naming the page it should begin executing at: physical address
+/// `(vector as u64) << 12`. The target starts there in 16-bit real mode, with `cs` = `vector << 8`
+/// and `ip` = 0 (`cs * 16 + ip` is exactly `vector << 12`).
+pub fn send_startup(dest_apic_id: u8, vector: u8) {
+    wait_for_ipi_delivery();
+    write(reg::ICR_HIGH, (dest_apic_id as u32) << 24);
+    write(reg::ICR_LOW, ICR_STARTUP | ICR_ASSERT | vector as u32);
 }

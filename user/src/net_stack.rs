@@ -42,13 +42,12 @@ extern crate alloc;
 
 use alloc::vec;
 
-use abi::{irq, page_frame as fr};
 use smoltcp::iface::{Config, Interface, SocketHandle, SocketSet};
 use smoltcp::socket::{dhcpv4, tcp, udp};
 use smoltcp::time::Instant;
 use smoltcp::wire::{EthernetAddress, HardwareAddress, IpAddress, IpCidr, IpEndpoint, Ipv4Address};
 use user_rt::mapped_window::{MappedWindow, PAGE};
-use user_rt::{cap_delete, cntfrq, invoke, now, recv_cap, reply, send};
+use user_rt::{cap_delete, cntfrq, irq_wait, map_page_frame, now, recv_cap, reply, send};
 
 #[path = "net_transport.rs"]
 mod net_transport;
@@ -236,12 +235,9 @@ fn server(dma_phys: u64, grant_word: u64) -> ! {
                 // from net_stack's untyped; the mapping outlives the cap, so drop the cap after. ATTACH
                 // is a SEND_CAP, so there is no reply cap to answer on.
                 let va = socket_va(sid);
-                // SAFETY: `invoke` traps to the kernel, which validates the capability and the method
-                // before acting (user_rt's contract). A caller cannot break an invariant by passing a
-                // bad slot or method; it gets an error back.
-                let r = unsafe { invoke(cap_slot, fr::MAP, va, 1, MEMORY_REGION) };
+                let ok = map_page_frame(cap_slot, va, true, MEMORY_REGION);
                 cap_delete(cap_slot);
-                if r >= 0 {
+                if ok {
                     // SAFETY: the MAP above just mapped one page read/write at `va`, and it stays
                     // mapped for the rest of this socket id's life (no unmap syscall exists), so
                     // this asserts that once here instead of at every access the way the four
@@ -419,10 +415,7 @@ fn wait_for_nic(
     sockets: &mut SocketSet,
 ) {
     if iface.poll_delay(instant(), sockets).is_none() {
-        // SAFETY: as above: the kernel validates the capability and the method.
-        unsafe {
-            invoke(IRQ, irq::WAIT, 0, 0, 0);
-        }
+        irq_wait(IRQ);
         dev.ack_irq();
     } else {
         // A smoltcp timer is due: keep the source armed and the device quiet, then yield so the

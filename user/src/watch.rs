@@ -101,7 +101,7 @@
 
 use core::sync::atomic::{AtomicBool, Ordering};
 
-use user_rt::{exit, invoke, monotonic_nanos, send, survey, yield_now};
+use user_rt::{exit, granted, monotonic_nanos, send, survey, yield_now};
 
 /// The output sink: where redrawn frames go. Slot 0 is where every spawned program's output lands.
 const REPORT: u64 = 0;
@@ -201,17 +201,6 @@ fn write_on(slot: u64, bytes: &[u8]) {
         send(slot, w0, w1, w2);
         rest = &rest[n..];
     }
-}
-
-/// Whether a capability is in `slot`, without touching whatever it names. `ps`'s and `date`'s probe,
-/// verbatim: invoke a method number no object type defines, so the call can only be refused, and
-/// read *which* refusal came back.
-fn granted(slot: u64) -> bool {
-    /// A method number no object type defines, so the invocation can only ever be refused.
-    const NO_SUCH_METHOD: u64 = 0xffff;
-    // SAFETY: a syscall that cannot succeed; the kernel validates the slot before the method.
-    let r = unsafe { invoke(slot, NO_SUCH_METHOD, 0, 0, 0) };
-    r != abi::Error::NoSuchSlot as i64
 }
 
 user_rt::panic_handler!();

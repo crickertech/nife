@@ -14,8 +14,16 @@ programs**, read out of an initrd it found in PVH's module list, before it halts
 **170 of the kernel's own tests and skips 67**, every skip naming its missing fixture. What is built
 and what is still open are spelled out at the bottom of this block; `notes/x86-port.md` is the
 working record. The scope note below (milestone 20's "enough of each ISA to boot, confine a ring-3/U
-process, and run the test suite") is **met** as of 2026-08-24, on QEMU. What keeps this milestone
-PARTIAL rather than BUILT is items 0, 5 and 6. Item 4's own hand-off, **no user program compiled for
+process, and run the test suite") is **met** as of 2026-08-24, on QEMU. **What keeps this milestone
+PARTIAL rather than BUILT is item 5, SMP**: the mechanism that starts a second core is built, but
+nothing downstream of "a second core exists" has been shown safe yet, and two unresolved bugs are why
+(`arch::x86_64::ap_boot`'s own `BUGS`; see item 5 below). Item 6, VT-d, is now **BUILT** (2026-08-25).
+Item 0's wide half was split into its own milestone, **176** (PARTIAL, minted 2026-08-25), the same
+way item 4's `fs_server`/`aes` gap was split into milestone 164: two of the four device windows this
+item's text used to name as still tree-only turned out to already be built (the interrupt controller,
+by item 2 below; PCI, by milestone 165's ACPI/MCFG work), so 176 tracks only what is actually left
+(the CMOS RTC) without holding this milestone's own status hostage to it, the same precedent item 4
+already set for 164. Item 4's own hand-off, **no user program compiled for
 `x86_64-unknown-none`**, was closed the same day; see step 13 of "What was built".
 DECISIONS §19 declared the target set (aarch64, riscv64, x86_64) and recorded honestly that
 *"x86_64 is a declared target that does not exist yet."* Milestone 20's own "Deliverable, in two
@@ -387,14 +395,27 @@ In the order it should be done, because each is a prerequisite for the next.
 0. **The device-discovery seam**, milestone 20's other promised abstraction. Its **narrow half is
    built** (`memory::bring_up_page_frames`), because without it the frame allocator could not come up on
    a machine with no device tree and the port stopped there; `memory::init` is now explicitly a
-   device-tree front end and `arch::x86_64::machine::bring_up_memory` is the x86 one. **The wide
-   half is still owed and should be its own milestone**: the device *windows* (interrupt controller,
-   RTC, UART interrupt line, PCIe ECAM) are still tree-only and stay `None` on x86, so ACPI answers
-   for the ECAM window and PCI still reports nothing. notes/x86-port.md has the table of which fact
-   has which source. **Item 2 made this sharper rather than smaller**: the boot tour now hands the
-   MADT's answers to `arch::x86_64::irq` *directly*, so the interrupt controller has a working x86
-   path that goes around `memory.rs` instead of through it, and COM1's interrupt line is discovered
-   (`Acpi::isa_irqs[4]`) and unused.
+   device-tree front end and `arch::x86_64::machine::bring_up_memory` is the x86 one.
+
+   **The wide half was split into its own milestone, [176](176-x86-64-discovery-seam-wide-half.md)**
+   (PARTIAL, minted 2026-08-25), once checking this item's own claim directly against the tree found
+   it had gone stale in two of its four places rather than being uniformly still open. **The
+   interrupt controller is built**, by item 2 below: the boot tour hands the MADT's answers to
+   `arch::x86_64::irq` directly, a path that goes around `memory.rs`'s statics rather than through
+   them. **PCI is wired**, and has been since milestone 165's ACPI/MCFG work: `main.rs` calls
+   `memory::record_pci_regions` from the ACPI `ecam` path, so `memory::pci_regions()` returns `Some`
+   on x86_64 today. What 176 actually tracks is the two windows that were genuinely still open:
+   **piece 1, COM1's ISA IRQ into `memory::UART_IRQ` (`Acpi::isa_irqs[4]`, via a new
+   `memory::record_uart_irq`), is BUILT** (2026-08-25); **piece 2, a CMOS RTC seam, is DECIDED but
+   not yet built**. Sizing it found a real design fork (the PC-compatible CMOS RTC is two fixed I/O
+   ports, not a page, so the "map the device, let userspace drive it" pattern the other two
+   architectures' RTCs use has no CMOS equivalent), resolved as
+   [DECISIONS §130](../decisions/130-cmos-rtc-delegation.md) (**DECIDED** 2026-08-26, "Ratify option
+   3"): the kernel reads CMOS once at boot and hands the seed to the clock service as a `Spawn`
+   argument, the same way `kind` already crosses that boundary. `kernel/src/arch/x86_64/machine.rs`'s
+   own `BUGS` section now names only the CMOS RTC as the device window with no seam at all;
+   notes/x86-port.md has the table of which fact has which source. See milestone 176 for the current
+   state of both pieces rather than this item duplicating it.
 1. **Fine-grained page tables, and the address-space layout they force a decision about. BUILT
    2026-08-24**; see step 9 of "What was built" for what landed and what it cost. The number is kept
    in place rather than struck out because the items below cite each other by it.
@@ -510,41 +531,154 @@ In the order it should be done, because each is a prerequisite for the next.
      skips. A role that mapped it anyway would read the real-mode interrupt vector table and look
      like it worked.
 
-   The rest of the 67 are the items above and below this one, doing what they were always going to
-   do: 13 skips want the RTC (item 0's device windows, or §121 for the CMOS ports), 15 want a PCI
-   bus the discovery seam does not enumerate here (item 0 again, and it is the single change that
-   would unlock the most), 5 want a UART page (§121), 4 want a second core (item 5), 1 wants
+   The rest of the 67 were the items above and below this one, doing what they were always going to
+   do, though what closes some of them has since changed: 13 skips wanted the RTC, which is now
+   milestone 176 piece 2's job (decided, [§130](../decisions/130-cmos-rtc-delegation.md); not §121,
+   which forecloses a CMOS port capability rather than building one); 15 wanted a PCI bus enumerated,
+   which the discovery seam itself no longer blocks (item 0's PCI window is wired, milestone 165) but
+   `scripts/qemu-runner-x86_64.sh` still does, since it attaches no PCI device (`-device
+   virtio-blk-pci` and friends) for anything to enumerate; 5 want a UART page, which §121 now answers
+   permanently rather than pending (kernel-resident forever, no port capability, so these five stay
+   skipped by design rather than by omission); 4 want a second core (item 5); 1 wants
    `CR4.PCIDE` (item 3's measurement), and 1 wants an `x86_64-unknown-nife` target and a `std` farm
    (milestone 27).
 
-5. **SMP**, via INIT-SIPI-SIPI. The local APIC is up, so what remains is the Interrupt Command
-   Register sequence and a real-mode trampoline copied below 1 MiB. Also needs a per-CPU TSS and a
-   per-CPU GDT, since `TSS.RSP0` names a per-core stack.
+5. **SMP, via INIT-SIPI-SIPI. PARTIALLY BUILT 2026-08-25**: the mechanism that starts a second
+   logical CPU is built and does what it says; nothing downstream of "a second core exists" has
+   been shown safe yet, and the standard test suite does not exercise it by default because of
+   that, not because the mechanism itself is unfinished. Both of this item's own two named bugs
+   are fixed, not inherited.
 
-   **Item 4 did three of these without meaning to**, which is worth knowing before this is scoped:
-   the ICR is written and tested (`irq::send_ipi` and `irq::raise_self_interrupt`, the latter driving
-   the scheduler's interrupt-delivery tests on every x86 run), `irq::send_reschedule` is real, and
-   the reschedule vector has a handler arm that drains the inbox and serves a steal request. So the
-   *cross-CPU scheduler plumbing* is built and only its second CPU is missing. What item 4 also
-   found, and what this item has to fix rather than inherit: `smp::bring_up_secondaries` converts the
-   secondary entry with `arch::mmu::virt_to_phys`, and that is the wrong conversion here, because
-   `secondary_boot` is in `.boot` and the linker already places it at its physical address. And
-   `send_reschedule` uses the logical cpu id as the destination local APIC id, which is true on one
-   CPU and not in general; the MADT states the mapping and nothing reads it into a roster yet, which
-   is also why three `smp` tests skip on this architecture.
-6. **VT-d.** No longer blocked on table parsing: `machine_discovery::acpi` walks the root table
-   generically, so finding the DMAR is adding a signature arm. What remains is the device itself.
+   **What landed.** The Interrupt Command Register sequence (`arch::x86_64::irq::send_init`/
+   `send_startup`) and a real-mode trampoline (`boot.s`'s `secondary_boot`, now real code rather than
+   a `hlt` stub) linked at a fixed low virtual address (`AP_TRAMPOLINE_PHYS = 0x8000`, `link-x86_64.ld`'s
+   `.ap_trampoline`) so its own address already is the physical page a `STARTUP` IPI has to name, and
+   copied there at runtime from an ordinary spot in the loaded image (`arch::x86_64::ap_boot::prepare`)
+   because its two natural-looking homes, `.boot_scratch` and the secondary stacks, are both
+   runtime-mutated and would hand back corrupted bytes. The trampoline replays `_start`'s own
+   16→32→64-bit transition against the same boot page tables, reads its own local APIC id via
+   `CPUID` (the same "Initial APIC ID" `arch::boot_cpu_id` now reads on the boot core, fixed from a
+   hardcoded 0, so the roster's seating and the boot core's own logical id agree), and jumps to the
+   portable `secondary_main` already used by the other two architectures. A per-CPU TSS and GDT
+   (`segments.rs`, indexed by `cpu::id()`) replace the single boot-CPU pair item 4 left behind, and
+   the three words `trap.s`'s `isr_restore`/`x86_syscall_entry` reach per CPU (the syscall path's
+   kernel stack, its scratch for the interrupted user `rsp`, and a pointer to this core's own
+   `TSS.rsp0`) moved into `cpu::PerCpu::x86_trap`, reached through a `gs`-relative offset the same
+   way every other per-CPU write on this architecture already is. The ACPI MADT's local-APIC-id
+   roster is read into the same `HWID`/`STARTABLE` arrays `smp::read_cpu_list` fills from a device
+   tree (`smp::seat_cpus_from_acpi`), seating each core, boot core included, at the slot its own
+   local APIC id names. A single secondary, started this way, reaches `secondary_main` and its own
+   idle loop reliably, measured across dozens of boots.
 
-One thing that is not a step but is owed:
+   **Both named bugs are fixed.** `smp::bring_up_secondaries` no longer calls `arch::mmu::virt_to_phys`
+   on `secondary_boot`'s address on this architecture (that address is already physical, by
+   construction of the linker script above; `arch::secondary_boot_entry` is the identity function
+   here and says why). `irq::send_reschedule` no longer uses the logical cpu id as a local APIC id
+   directly; it looks the real one up in the roster (`smp::hwid`) the same MADT read above built.
+
+   **What did not land: anything past "a second core idles". Two separate, unresolved failures.**
+
+   **(1) A third or later secondary fails intermittently.** Brought up while an earlier one is
+   already online and running, exactly one secondary typically fails to reach `secondary_main`'s
+   online mark, and *which* one varies run to run. Instrumented with raw port-I/O checkpoints, the
+   failing core reaches 64-bit long mode but not the last checkpoint before jumping to
+   `secondary_main`, across five ordinary instructions identical to what the succeeding core(s)
+   just ran. Two direct hypotheses were tested and neither held up: routing `cpu_start`'s wait
+   through `hlt` instead of a busy spin (in case CPU 0's own loop was starving the target vCPU
+   thread of host scheduling time under QEMU TCG) turned an occasional full hang into a reliable
+   clean give-up but did not fix the underlying failure; copying the trampoline's code bytes only
+   once instead of once per `STARTUP` IPI (in case QEMU's self-modifying-code detection was
+   mishandling a rewrite-and-re-execute of a page another vCPU might be concurrently running from)
+   made no measurable difference either. Both changes are kept, on their own independent merits, but
+   neither is the fix.
+
+   **(2) Two cores crashed under the kernel's own test suite's real scheduler workload. FIXED
+   2026-08-25**, by the lane that took this finding. The symptom was a `script/test` run at
+   `NIFE_SMP=2` faulting at `rip 0x0` or at `rip 0x5afe57ac5afe57ac`, which is `stack::PAINT`, the
+   pattern this kernel writes into a fresh kernel stack. It reproduced 10 times in 10.
+
+   The cause was a **missing cross-core TLB shootdown**, and it was neither in the INIT-SIPI-SIPI
+   mechanism above nor in the portable scheduler. `mmu::flush_tlb` on this port was local to the
+   calling CPU, because `invlpg` is; its own doc comment said exactly that and predicted exactly
+   this ("this is the line that will need company"). aarch64 needs no remote half at all (`tlbi
+   ..., is` is broadcast in hardware) and RISC-V has had one since milestone 58's RISC-V TLB shootdown,
+   which is why the same `sched`/`thread` code runs clean at `-smp 4` on both. So a dead thread's
+   kernel-stack address range, handed back by `KernelStack::drop` and remapped onto *different*
+   frames for the next thread, was still translated by the other core to the old frame; a `Context`
+   read back through that stale entry is whatever the recycled frame now holds, and a freshly
+   recycled stack page is painted. Confirmed before any fix was written, by making a stale entry
+   harmless (never reusing stack address space): the fault vanished, 8 runs of 8.
+
+   The fix is `mmu::shoot_down_others`, **and it is an NMI rather than an ordinary IPI**, which is
+   the one design point worth carrying up here. `unmap_page` runs inside `KERNEL_MMU`, an
+   `IrqSafeMutex`, so the sender and every other core running the same code have interrupts masked;
+   a maskable IPI would deadlock the first time two cores spawned and reaped at once. That is the
+   property notes/riscv-tlb-shootdown.md already names as load-bearing there ("a hart with S-mode
+   interrupts masked still services it"), which RISC-V gets from M-mode and aarch64 does not need.
+   On x86 the NMI is the only delivery `cli` cannot suppress.
+
+   Verified rather than gated: `user::tests::an_asid_flush_reaches_the_other_cores`, the portable
+   test milestone 58 wrote for this exact property, **fails on this port without the shootdown and
+   passes with it**, and the suite reaches `test result: ok. 177 passed` at two cores once (3) below
+   is stepped over. 20 further runs produced no paint fault.
+
+   **(3) The suite cannot agree on which core booted** (found by the same lane while verifying (2),
+   **not fixed**, and a different subsystem's bug). `arch::x86_64::boot_cpu_id` reads CPUID leaf 1's
+   initial local APIC id, which answers *"which core am I"* rather than *"which core booted"*;
+   aarch64 answers a constant `0` and RISC-V returns the hart id recorded at boot. So a test body
+   that §28's placement has migrated onto a secondary reads that secondary's id as "the boot core",
+   and `smp::tests::every_secondary_runs_scheduled_work` waits for a `RAN_ON` mark the real boot
+   core never sets. `stack.rs`'s high-water report picks the slot to skip the same way, scans a
+   never-painted one, and reports a secondary stack at 65536/65536. One cause, both symptoms, about
+   half of two-core runs. It reproduces with no shootdown code present at all, checked against the
+   pre-fix tree, so it predates (2)'s fix. The likely answer is a boot-time record, which is what
+   RISC-V's `boot_hartid` already is. Small, wants no hardware, and wants a lane.
+
+   Full account of all three: `arch::x86_64::ap_boot`'s own `BUGS`, which stays the authoritative
+   record. `scripts/qemu-runner-x86_64.sh` keeps `NIFE_SMP` at 1 because (1) and (3) are open and
+   either can fail a run, so the `smp` tests this item's roster work would otherwise unblock keep
+   skipping, honestly, until those two are answered. Whether (1) is a QEMU TCG emulation quirk or a
+   real bug in this port's own code is exactly the kind of question milestone 87's real hardware
+   would settle, and it is the one still worth a lane of its own.
+6. **VT-d, x86_64's IOMMU. BUILT 2026-08-25.** The same milestone-16b role the SMMUv3 and RISC-V
+   IOMMU drivers already fill, this time over an interface that is register-driven rather than
+   memory-queue-driven: VT-d has no command or fault queue in memory, so invalidation is a register
+   write-and-poll (`CCMD_REG`) and faults are read out of a small bank of Fault Recording Registers
+   instead. `arch::iommu::init` (`kernel/src/arch/x86_64/iommu.rs`) builds the root and context
+   tables, turns translation on over an all-absent root so every bus faults until its context table
+   exists (the same default-deny posture the other two drivers give their own table shapes), and
+   wires into `main.rs`'s boot tour right after the fine page tables and before anything could
+   attach a device: one DRHD (`machine_discovery::acpi::first_drhd`), translation enable/disable
+   through `GCMD`/`GSTS`, register-based context-cache and IOTLB invalidation, and fault detection
+   through `FSTS.PPF` and the first Fault Recording Register.
+
+   **What is deliberately scoped out, per the driver's own `BUGS`:** exactly one DRHD is brought up,
+   so a machine reporting more than one VT-d unit has devices this driver never sees; no interrupt
+   remapping (`GCMD.IRE` is never set); invalidation is always global-granularity, never domain- or
+   device-selective; `RWBF` (`CAP_REG` bit 4) is honoured in code but has never actually been
+   exercised, since QEMU's model does not set it; and the fault path decodes only the first Fault
+   Recording Register, since QEMU reports `CAP.NFR = 0`. **No PCI device is confined through it
+   yet**, because no virtio-pci or NVMe driver exists on `x86_64` (item 4's own hand-off), so
+   `main.rs` proves the driver against the hardware's own status registers rather than against a
+   downstream escape.
+
+One thing that is not a step, and is now resolved rather than owed:
 
 - **A capability shape for port I/O.** On the other two architectures a device is a page, so a device
   capability is a mapping and the MMU enforces it. x86's legacy devices, the console UART included,
   are in an I/O space with no page tables; the only mechanism with the right granularity is the TSS
   I/O permission bitmap, which is per-task rather than per-page. `user::UART_PHYS` is zero on this
-  architecture and that zero is the marker. Written up as
-  [DECISIONS §121](../decisions/121-port-io-capability.md) (PROPOSED), since it is a change to what a
-  capability *is* rather than an implementation choice. The number is provisional: a lane minted it
-  against the current index, and the integrator owns it at merge.
+  architecture and that zero is the marker.
+  [DECISIONS §121](../decisions/121-port-io-capability.md) (**DECIDED** 2026-08-25, "Ratify option 2,
+  permanently") answered it: **x86's legacy port-I/O devices, the console included, stay
+  kernel-resident forever.** No new capability object gets added; only memory-mapped devices get a
+  userspace driver on this architecture, which is a permanent, recorded parity gap rather than an
+  interim stance. The measured cost of the alternative supported closing it rather than leaving it
+  open (the TSS I/O-bitmap write costs ~2,682 ns/context-switch, 423% overhead on the naive
+  always-write implementation), and nothing on the customer path is affected: every device the Time
+  Machine thesis touches (network, disk, everything SMB needs) is already memory-mapped PCI/PCIe and
+  already gets the ordinary capability treatment identically on all three architectures. There is
+  nothing further to build here.
 
 **Resolved**: the two arch-contract names that did not stretch to a third architecture,
 `arch::psci_cpu_on` and `kernel_main`'s `dtb` argument, were renamed `arch::cpu_start` and

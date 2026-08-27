@@ -159,6 +159,52 @@ pub struct PerCpu {
     /// deterministic PRNG, not real entropy: there is none before an OS, and determinism keeps the
     /// icount benchmark instrument reproducible.
     rng: AtomicU32,
+
+    /// **`x86_64` only: this core's own trap-entry scratch** (milestone 161's SMP item). Three words
+    /// `trap.s` reaches through a `gs`-relative offset, computed at compile time via
+    /// `core::mem::offset_of!` (see `arch::x86_64::mod`'s `global_asm!` call): `IA32_GS_BASE`
+    /// already names this exact block on this CPU, so a second per-CPU array (RISC-V's `sscratch`
+    /// answer, needed there because `tp` is a general register a trap frame can carry stale) buys
+    /// nothing here that an offset into the block `gs` already points at does not.
+    ///
+    /// Used only by this core, only through raw `gs`-relative reads and writes in `trap.s` and
+    /// through `segments::set_kernel_stack`/`segments::init`; nothing ever reads another core's
+    /// copy. Plain `u64`s behind `UnsafeCell`, the same reasoning `runq` above gives: only this
+    /// core ever touches its own instance, so there is no data race for an atomic to guard against.
+    #[cfg(target_arch = "x86_64")]
+    pub x86_trap: X86TrapPerCpu,
+}
+
+/// See [`PerCpu::x86_trap`].
+#[cfg(target_arch = "x86_64")]
+pub struct X86TrapPerCpu {
+    /// This core's own `TSS.rsp0` field's address (a pointer, not a stack top): `isr_restore`
+    /// writes the outgoing thread's kernel-stack top through it on every return to ring 3.
+    /// Written once, by `segments::init`, from that CPU's own per-CPU TSS.
+    pub tss_rsp0_ptr: UnsafeCell<u64>,
+    /// The `syscall` path's kernel stack top for this core: `x86_syscall_entry` loads `rsp` from
+    /// here. Kept in step with `tss_rsp0_ptr`'s target by `segments::set_kernel_stack`, and
+    /// rewritten on every return to ring 3 by `isr_restore`, same as the trap path's `TSS.rsp0`.
+    pub syscall_kernel_rsp: UnsafeCell<u64>,
+    /// Scratch for the interrupted user `rsp`, parked here by `x86_syscall_entry` between its
+    /// `swapgs` and the point it can be pushed into the trap frame (`syscall` does not switch
+    /// stacks itself, so there is nowhere else to hold it while it is in flight).
+    pub syscall_user_rsp: UnsafeCell<u64>,
+}
+
+// SAFETY: as `PerCpu` itself: only the owning core ever touches its own instance.
+#[cfg(target_arch = "x86_64")]
+unsafe impl Sync for X86TrapPerCpu {}
+
+#[cfg(target_arch = "x86_64")]
+impl X86TrapPerCpu {
+    const fn new() -> Self {
+        Self {
+            tss_rsp0_ptr: UnsafeCell::new(0),
+            syscall_kernel_rsp: UnsafeCell::new(0),
+            syscall_user_rsp: UnsafeCell::new(0),
+        }
+    }
 }
 
 // SAFETY: the only non-`Sync` field is `runq`, and the whole contract of this type is that a
@@ -182,6 +228,8 @@ impl PerCpu {
             steal_request: work_steal_slot::Slot::new(),
             adopted: AtomicU64::new(0),
             rng: AtomicU32::new(1), // reseeded per core in init_this_cpu; never left 0 (xorshift)
+            #[cfg(target_arch = "x86_64")]
+            x86_trap: X86TrapPerCpu::new(),
         }
     }
 

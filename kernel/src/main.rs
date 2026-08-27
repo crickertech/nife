@@ -180,6 +180,12 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         let acpi = arch::machine::read_acpi(info.rsdp);
         arch::machine::print_acpi_summary(&acpi);
 
+        // Which CPUs does this machine have (milestone 161's SMP item)? Here, right beside the rest
+        // of the ACPI walk, mirroring where the other two architectures read their own roster
+        // (`smp::read_cpu_list`, right after the device tree that describes it is parsed). Seats
+        // every core the MADT lists, boot core included, at the slot its own local APIC id names.
+        smp::seat_cpus_from_acpi(&acpi.cpus[..acpi.cpu_count]);
+
         // COM1's interrupt line, from ACPI's ISA IRQ table (milestone 176). `isa_irqs[4]` is the
         // legacy UART line, resolved through any MADT override the same way the PIT's IRQ 0 is
         // below; a machine with no override leaves it at the ISA default (gsi 4), which is what
@@ -372,11 +378,13 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // VT-d (milestone 161, roadmap item 6), if the DMAR named a DRHD. The same position the
         // SMMUv3 and the RISC-V IOMMU come up in on the other two boots: after the fine page
         // tables (a DRHD's register file is device-typed MMIO, reachable only through the map
-        // `mmu::init` just installed) and before anything that could attach a device. No PCI
-        // device is confined through it yet (no virtio-pci or NVMe driver exists on this
-        // architecture; roadmap item 4's hand-off), so this proves the driver against real
-        // hardware rather than a downstream escape: root table installed, translation enabled,
-        // read back from the register the hardware itself reports status through.
+        // `mmu::init` just installed) and before anything that could attach a device. The
+        // kernel-resident NVMe driver (`kernel/src/nvme.rs`, decisions §86) is the first PCI
+        // device this architecture confines through it, on the same terms as the aarch64/riscv64
+        // legs' SMMUv3/riscv-iommu confinement; a boot with no NVMe controller attached (no
+        // NIFE_NVME on this leg) still proves the driver stands up against real hardware: root
+        // table installed, translation enabled, read back from the register the hardware itself
+        // reports status through.
         if let Some(base) = acpi.vtd_base {
             // `init` polls GSTS.RTPS then GSTS.TES itself and panics rather than returning if
             // either write never takes, so reaching this line already is the confirmation: the
@@ -406,14 +414,13 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             arch::timer::TICK_HZ,
         );
 
-        // **SMP, which on this machine is one line and a refusal**, and it is called anyway rather
-        // than skipped. `arch::can_start_secondaries` is false here (INIT-SIPI-SIPI is roadmap item
-        // 5), so this prints the mechanism and returns; what it does *first* is mark the boot core
-        // in `ONLINE_MASK`, and that is not optional. Everything that broadcasts (`online_cpus`,
-        // `nth_online`, the shootdown loops) reads that mask, so a kernel that never called this
-        // has an empty online set while `online_count` says one, and the two disagreeing is what
-        // `the_online_set_is_the_mask_and_the_sampler_stays_inside_it` caught on the first x86 test
-        // run. Both other boots call this in the same position.
+        // **SMP** (milestone 161's SMP item): INIT-SIPI-SIPI through the local APIC, same call and
+        // same position as the other two boots. What it does *first*, whether or not any secondary
+        // starts, is mark the boot core in `ONLINE_MASK`, and that is not optional: everything that
+        // broadcasts (`online_cpus`, `nth_online`, the shootdown loops) reads that mask, so a kernel
+        // that never called this has an empty online set while `online_count` says one, and the two
+        // disagreeing is what `the_online_set_is_the_mask_and_the_sampler_stays_inside_it` caught on
+        // the first x86 test run.
         smp::bring_up_secondaries();
 
         // The benchmark boot (milestone 21, `script/bench`; DECISIONS §121's amendment measuring
@@ -513,7 +520,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // userspace. See the roadmap for the order the rest comes in.
         println!();
         println!(
-            "  next        : SMP (INIT-SIPI-SIPI), then the device seam and port I/O (\u{a7}121)."
+            "  next        : real ELF user programs (user_rt has no x86_64 arms), then the device seam and port I/O (\u{a7}121)."
         );
         println!("nife x86_64: boot complete, halting.");
         arch::halt();

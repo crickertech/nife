@@ -123,10 +123,10 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use abi::memory_region as ut;
 use filesystem_proto::{dir, fs};
 use supervision_proto::{memory_region_destroy, memory_region_split};
-use user_rt::{call, cap_delete, invoke, send};
+use user_rt::mapped_window::MappedWindow;
+use user_rt::{call, cap_delete, retype_page_frame, send};
 
 /// The report endpoint, `WRITE`. One report, then this process exits.
 const REPORT: u64 = 0;
@@ -138,6 +138,9 @@ const FS_EP: u64 = 2;
 /// `login.rs` and `identity_provisioner.rs` already use, one past `identity_provisioner.rs`'s
 /// highest (`FS_VA`, `0xe5_0000`).
 const FS_VA: u64 = 0x0000_0000_00e6_0000;
+// SAFETY: the wiring maps one page read/write at FS_VA before this process runs, shared with the
+// FS server and with nothing else.
+const FS_WINDOW: MappedWindow = unsafe { MappedWindow::new(FS_VA, filesystem_proto::PAGE as u64) };
 
 /// Each synthetic session's own construction, `MemoryRegion::SPLIT` off [`UT`]. One page is enough:
 /// nothing is ever retyped from it, matching `smb_server.rs`'s own `SESSION_UT_PAGES`.
@@ -219,11 +222,10 @@ pub extern "C" fn _start(_a0: u64, _a1: u64, _a2: u64) -> ! {
     // slot held a `MemoryRegion` or a directory endpoint.
     let (store_try, _) = call(FS_EP, fs::req(fs::OPEN, fs::ROOT, 1), 0);
     let store_gone = (store_try as i64) < 0;
-    // SAFETY: `svc`/`ecall`; the kernel validates the capability and the method before acting
-    // (`user_rt::invoke`'s own contract). `UT` names an empty slot by this point, so this either
-    // faults on nothing (the kernel checks the slot first) or returns a negative code; it cannot
-    // build anything, because there is nothing left to build from.
-    let ut_try = unsafe { invoke(UT, ut::RETYPE, 0, 0, 0) };
+    // `UT` names an empty slot by this point, so this either faults on nothing (the kernel checks
+    // the slot first) or returns a negative code; it cannot build anything, because there is
+    // nothing left to build from.
+    let ut_try = retype_page_frame(UT);
     let ut_gone = ut_try < 0;
 
     send(REPORT, OK, rederived, (store_gone && ut_gone) as u64);
@@ -350,16 +352,15 @@ fn put_page(bytes: &[u8]) {
 
 /// The shared page, immutable: what a completed read landed there.
 fn fs_page() -> &'static [u8] {
-    // SAFETY: the wiring mapped one page read/write at FS_VA before this process ran, shared with
-    // the FS server and with nothing else. One thread per address space (DECISIONS §33), so there
-    // is no concurrent writer.
-    unsafe { core::slice::from_raw_parts(FS_VA as *const u8, filesystem_proto::PAGE) }
+    // SAFETY: forwarded from FS_WINDOW's own contract. One thread per address space (DECISIONS
+    // §33), so there is no concurrent writer.
+    unsafe { FS_WINDOW.as_slice() }
 }
 
 /// The shared page, mutable: where a name to resolve is staged.
 fn fs_page_mut() -> &'static mut [u8] {
     // SAFETY: as `fs_page`'s.
-    unsafe { core::slice::from_raw_parts_mut(FS_VA as *mut u8, filesystem_proto::PAGE) }
+    unsafe { FS_WINDOW.as_mut_slice() }
 }
 
 /// Report [`FAILED`] with `stage` as its detail word, and stop. One-shot roles must exit, not spin

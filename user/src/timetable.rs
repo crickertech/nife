@@ -22,10 +22,11 @@
 //!   so every scheduled child is born supervised (DECISIONS §26), and invoked with
 //!   `Rendezvous::REAP` to collect the corpses (§32).
 //! - `a0`: how many fires to perform before summarising and exiting. `0` means forever.
-//! - `a1`: the length of the archive the spawn site mapped read-only at [`INITRD_VA`]. **Not the
-//!   initrd**: it holds exactly the programs this document will ever build, because the plan is
-//!   computable before the first tick and so the endowment can be narrowed to it. This process
-//!   audits that and says what it found, in the line after the plan.
+//! - `a1`: the length of the archive the spawn site mapped read-only at
+//!   [`user_rt::initrd::INITRD_VA`]. **Not the initrd**: it holds exactly the programs this
+//!   document will ever build, because the plan is computable before the first tick and so the
+//!   endowment can be narrowed to it. This process audits that and says what it found, in the
+//!   line after the plan.
 //!
 //! **It wants a bigger stack than a small program does**, and a spawn site has to say so: a
 //! `grant_plan::Endowment` is about a kilobyte (mostly the name set a directory grant can carry) and
@@ -161,12 +162,6 @@ const CHILD_REPORT: u64 = 2;
 /// Placed in each instance's reserved fault slot, and what corpses are collected through.
 const DEATHS: u64 = 3;
 
-/// Where the spawn site maps the initrd archive, read-only. Must match the kernel's wiring.
-///
-/// The same address `user/src/builder.rs` uses, deliberately: two programs that read the archive
-/// the same way should not disagree about where it is.
-const INITRD_VA: u64 = 0x2000_0000;
-
 /// Pages per instance region. Enough for a small program's segments, its stack, its address-space
 /// tables and its TCB, and the same number `user/src/spawner.rs` arrived at for the same job.
 ///
@@ -191,10 +186,9 @@ const E_BUDGET: u64 = 0xE303; // the budget cannot back even one instance
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(fires_wanted: u64, initrd_len: u64, _a2: u64) -> ! {
-    // SAFETY: the spawn site mapped `initrd_len` bytes of the reserved initrd region read-only at
-    // INITRD_VA, which is the same contract `user/src/builder.rs` is started under.
-    let archive =
-        unsafe { core::slice::from_raw_parts(INITRD_VA as *const u8, initrd_len as usize) };
+    // SAFETY: forwarded from user_rt::initrd::initrd_bytes's own contract, the same one
+    // `user/src/builder.rs` is started under.
+    let archive = unsafe { user_rt::initrd::initrd_bytes(initrd_len) };
 
     let doc = match timetable::parse(CONFIG) {
         Ok(d) => d,

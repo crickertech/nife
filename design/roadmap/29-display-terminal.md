@@ -5,11 +5,12 @@
 **The font increment is blocked on the capability model, not on the font** (2026-08-19).
 `design/decisions/100-the-terminal-font.md` chose gohufont-14, which is 8x14, and calef chose to
 grow the scanout in the same change rather than ship a 16x4 regression in between. The scanout
-cannot grow. A `Frame` capability names one page and takes one of sixteen cspace slots, the
-virtio-gpu driver already holds nine of them for its DMA region, and the hard ceiling is
+cannot grow. A `PageFrame` capability names one page and takes one of sixteen capability-table
+slots, the virtio-gpu driver already holds nine of them for its DMA region, and the hard ceiling is
 `SURFACE_FRAMES <= 9`, or 36,864 bytes; 800x600 needs 469 frames. `display_service::DRIVER_SLOT_DMA`
 fails the build rather than the boot, which is the guard working as designed. The fork is the one
-notes/frames.md already recorded (may a `Frame` name a run of pages, or does `CSPACE_SLOTS` grow),
+notes/frames.md already recorded (may a `PageFrame` name a run of pages, or does
+`CAPABILITY_TABLE_SLOTS` grow),
 and that note now carries all three options priced and the sizing arithmetic 800x600 needs. Nothing
 in this milestone moves until it is answered.
 

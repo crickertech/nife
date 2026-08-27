@@ -2,20 +2,43 @@
 //! turns key events into the bytes a terminal understands.
 //!
 //! ```text
+//!   MODE_RING (rung two, a compositor scene):
 //!   virtio-input ──virtio (PCIe, behind the IOMMU)──► kbd ──the input ring──► compositor
 //!    (a keyboard)                                      │    (shared memory)
 //!                                                      └──doorbell COMMIT──► "look at the surfaces"
+//!
+//!   MODE_DIRECT (milestone 177, option A: the boot's single-terminal case):
+//!   virtio-input ──virtio──► kbd ──OP_BYTES, one CALL──► line_editor
 //! ```
+//!
+//! # Two modes, chosen at spawn, the same shape `display_terminal`'s `MODE_DISPLAY`/`MODE_WINDOW`
+//! # split already uses
+//!
+//! [`MODE_RING`] is rung two's: the driver publishes bytes into a page the compositor maps and
+//! rings a content-free doorbell, so a compositor arbitrating between several windows decides who
+//! actually sees them (DECISIONS §33). [`MODE_DIRECT`] is milestone 177's: for a boot with exactly
+//! one terminal, there is no second window to misdirect a keystroke to, so the problem the
+//! compositor's focus arbitration solves does not exist in this journey's scope
+//! (design/roadmap/177-graphical-interactive-boot.md's own reasoning). The driver instead holds a
+//! fixed `CALL` capability to `line_editor`'s own served endpoint, granted at spawn, and sends
+//! every keystroke there directly, byte for byte the same [`line_editor::proto::OP_BYTES`] framing
+//! `user/src/input.rs`'s UART driver already uses to feed the very same endpoint. **Not** a
+//! security exception to the module note below: it is *narrower* authority than [`MODE_RING`], not
+//! looser, because this driver holds exactly one fixed capability instead of "whichever client the
+//! compositor currently focuses."
 //!
 //! Its whole authority, and the shape of it is the point:
 //!
 //! - slot 0, a **report** endpoint: how it tells its spawner it came up;
 //! - slot 1, an **`Irq`**: the device's event interrupt;
 //! - slot 2, a **`Virtio`**: the confined transport, and the only way it can reach the device;
-//! - slot 3, the **doorbell** (WRITE): the same content-free endpoint every compositor client rings;
-//! - mapped: its own DMA page, and the **input ring** it shares with the compositor and nobody else.
+//! - slot 3, **[`OUT`]**: the compositor's doorbell (WRITE) in [`MODE_RING`], `line_editor`'s served
+//!   endpoint (WRITE) in [`MODE_DIRECT`] -- one slot, two meanings, chosen by `arg0` exactly as
+//!   `display_terminal`'s `PRESENT` slot is;
+//! - mapped: its own DMA page, and in [`MODE_RING`] only, the **input ring** it shares with the
+//!   compositor and nobody else.
 //!
-//! # Why the ring is the authority, and the doorbell is not
+//! # Why the ring is the authority, and the doorbell is not (`MODE_RING`)
 //!
 //! DECISIONS §33's central idea, from the producing side. This driver's power to inject a keystroke
 //! is the **mapping of the input ring**, which no client has. It is not the doorbell: every client
@@ -25,7 +48,10 @@
 //!
 //! So this driver is *not* trusted with the compositor's policy and holds no client's endpoint. It
 //! cannot choose who receives what it types: focus is the compositor's decision, expressed as which
-//! of the input endpoints *it* holds it uses. This program cannot name a client at all.
+//! of the input endpoints *it* holds it uses. This program cannot name a client at all -- **in
+//! [`MODE_RING`]**. [`MODE_DIRECT`] names exactly one, fixed at spawn by whoever built this process,
+//! never by the driver's own choice, which is the same authority `user/src/input.rs` has always had
+//! for the plain UART case.
 //!
 //! # What it does not do
 //!
@@ -34,10 +60,13 @@
 //! recorded in `crates/pci` rather than guessed at), and no configuration-space query: it drives the
 //! event queue and nothing else. The honest limits are in notes/glyphs.md.
 //!
-//! Name: ratified 2026-07-30 (calef, DECISIONS §39), among the names recorded there as always
-//! right: an abbreviation that is the ordinary name of the thing. It is also why `script/lint`'s
-//! `-d` check starts at four characters, since a three-letter abbreviation is not a claim about a
-//! process model.
+//! Name: provisional, corrected 2026-08-27. An earlier version of this comment claimed `kbd` was
+//! ratified 2026-07-30 alongside DECISIONS §39; checked directly against that section's own text
+//! and found false: §39 names `blk`, `spawner`, `console`, `input`, `shell`, `painter` and
+//! `window` as the names already right, and `kbd` is not among them. calef, 2026-08-27: he is not
+//! a fan of `kbd` for "keyboard" and this naming has not happened yet. Corrected here rather than
+//! left standing, per this project's own rule that a false name-claim is the same defect as a
+//! stale comment.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks
@@ -46,15 +75,24 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use abi::{irq, virtio};
+use line_editor::proto;
 use user_rt::mapped_window::{MappedWindow, PAGE};
-use user_rt::{call, invoke, send};
+use user_rt::virtio::{virtio_notify, virtio_read_reg, virtio_setup_queue, virtio_write_reg};
+use user_rt::{call, irq_ack, irq_wait, send};
 
 /// Capability slots, by convention with `kernel/src/user/keyboard_service.rs`.
 const REPORT: u64 = 0;
 const IRQ: u64 = 1;
 const VIRTIO: u64 = 2;
-const DOORBELL: u64 = 3;
+/// The compositor's doorbell in [`MODE_RING`]; `line_editor`'s served endpoint in [`MODE_DIRECT`].
+/// See the module note.
+const OUT: u64 = 3;
+
+/// `arg0`: the compositor-mediated wiring (rung two), ring-and-doorbell. The default, and the only
+/// mode this driver had before milestone 177.
+const MODE_RING: u64 = 0;
+/// `arg0`: milestone 177's direct wiring, a fixed `CALL` to `line_editor`. See the module note.
+const MODE_DIRECT: u64 = 1;
 
 /// Where the kernel maps this driver's DMA page and the compositor's input ring.
 const DMA_VA: u64 = 0x0000_0000_0090_0000;
@@ -116,6 +154,7 @@ const E_MAGIC: u64 = 0x01;
 const E_DEVICE_ID: u64 = 0x02;
 const E_FEATURES: u64 = 0x03;
 const E_QUEUE: u64 = 0x04;
+const E_MODE: u64 = 0x05;
 
 fn event_buf(i: usize) -> u64 {
     EVENT_BASE + i as u64 * EVENT_LEN
@@ -134,15 +173,11 @@ fn w16(off: u64, v: u16) {
 }
 
 fn mr(off: u64) -> u32 {
-    // SAFETY: `svc`/`ecall`; the kernel validates the `Virtio` capability and the register offset.
-    unsafe { invoke(VIRTIO, virtio::READ_REG, off, 0, 0) as u32 }
+    virtio_read_reg(VIRTIO, off) as u32
 }
 
 fn mw(off: u64, v: u32) {
-    // SAFETY: as above.
-    unsafe {
-        invoke(VIRTIO, virtio::WRITE_REG, off, v as u64, 0);
-    }
+    virtio_write_reg(VIRTIO, off, v as u64);
 }
 
 fn barrier() {
@@ -193,15 +228,35 @@ fn ring_publish(tail: u32) {
     //
     // PAIR: two readers of one contract. `take_typed` in kernel/src/user/keyboard_service.rs has the
     // matching `fence(SeqCst)`; `drain_input` in user/src/compositor.rs is the half milestone 43's
-    // audit found missing (finding 7). The `call(DOORBELL, ...)` this program makes immediately
+    // audit found missing (finding 7). The `call(OUT, ...)` this program makes immediately
     // after `ring_publish` orders it against the compositor anyway, because the compositor is
     // blocked in `recv_cap` on that doorbell. See notes/memory-ordering.md.
     core::sync::atomic::fence(core::sync::atomic::Ordering::SeqCst);
     RING.w32(ring::TAIL, tail);
 }
 
+/// **[`MODE_DIRECT`]: send whatever is buffered as one `OP_BYTES` `CALL`.** Byte for byte the
+/// framing `user/src/input.rs`'s `drain` already uses to feed the same endpoint from the UART side;
+/// a keyboard and a serial line are both "one input source" to `line_editor`, and neither contract
+/// had to grow anything to carry the other's bytes. A no-op if nothing is buffered, so a caller need
+/// not check first.
+fn direct_send(buf: &[u8], n: &mut usize) {
+    if *n == 0 {
+        return;
+    }
+    let mut word: u64 = 0;
+    for (i, &b) in buf[..*n].iter().enumerate() {
+        word |= (b as u64) << (8 * i);
+    }
+    call(OUT, proto::req(proto::OP_BYTES, *n as u64), word);
+    *n = 0;
+}
+
 #[unsafe(no_mangle)]
-pub extern "C" fn _start(_arg0: u64, dma_phys: u64, _arg2: u64) -> ! {
+pub extern "C" fn _start(mode: u64, dma_phys: u64, _arg2: u64) -> ! {
+    if mode != MODE_RING && mode != MODE_DIRECT {
+        die(E_MODE);
+    }
     if mr(MAGIC) != 0x7472_6976 {
         die(E_MAGIC);
     }
@@ -234,8 +289,7 @@ pub extern "C" fn _start(_arg0: u64, dma_phys: u64, _arg2: u64) -> ! {
 
     // The kernel programs the queue's ring addresses; this driver never writes a queue address
     // register, which is the §18 seam and the reason the shadow ring can be trusted.
-    // SAFETY: `svc`/`ecall`; the kernel validates the capability and the queue index.
-    if unsafe { invoke(VIRTIO, virtio::SETUP_QUEUE, QSIZE as u64, EVENT_Q, 0) } != 0 {
+    if virtio_setup_queue(VIRTIO, QSIZE as u64, EVENT_Q) != 0 {
         die(E_QUEUE);
     }
     mw(
@@ -262,20 +316,19 @@ pub extern "C" fn _start(_arg0: u64, dma_phys: u64, _arg2: u64) -> ! {
     barrier();
     w16(EQ_AVAIL + 2, avail);
     barrier();
-    // SAFETY: `svc`/`ecall`; the kernel validates the newly published descriptors and copies them
-    // into the shadow ring the device actually reads.
-    unsafe {
-        invoke(VIRTIO, virtio::NOTIFY, EVENT_Q, 0, 0);
-    }
+    // The kernel validates the newly published descriptors and copies them into the shadow ring
+    // the device actually reads.
+    virtio_notify(VIRTIO, EVENT_Q);
 
     send(REPORT, video_terminal::status::KBD_UP, EVENTS as u64, 0);
 
     let mut keys = video_terminal::keymap::Keyboard::new();
     let mut seen: u16 = 0; // used-ring index already drained
-    let mut tail: u32 = 0; // our end of the compositor's input ring
+    let mut tail: u32 = 0; // our end of the compositor's input ring (MODE_RING)
+    let mut direct_buf = [0u8; 8]; // buffered bytes awaiting one OP_BYTES CALL (MODE_DIRECT)
+    let mut direct_n: usize = 0;
     loop {
-        // SAFETY: `svc`/`ecall`; the kernel validates the `Irq` capability in slot 1.
-        unsafe { invoke(IRQ, irq::WAIT, 0, 0, 0) };
+        irq_wait(IRQ);
 
         let mut typed = false;
         loop {
@@ -304,7 +357,15 @@ pub extern "C" fn _start(_arg0: u64, dma_phys: u64, _arg2: u64) -> ! {
             seen = seen.wrapping_add(1);
 
             if let Some(b) = keys.event(kind, code, value) {
-                ring_push(&mut tail, b);
+                if mode == MODE_DIRECT {
+                    direct_buf[direct_n] = b;
+                    direct_n += 1;
+                    if direct_n == direct_buf.len() {
+                        direct_send(&direct_buf, &mut direct_n);
+                    }
+                } else {
+                    ring_push(&mut tail, b);
+                }
                 typed = true;
             }
 
@@ -315,30 +376,27 @@ pub extern "C" fn _start(_arg0: u64, dma_phys: u64, _arg2: u64) -> ! {
             avail = avail.wrapping_add(1);
             w16(EQ_AVAIL + 2, avail);
             barrier();
-            // SAFETY: `svc`/`ecall`; as above.
-            unsafe {
-                invoke(VIRTIO, virtio::NOTIFY, EVENT_Q, 0, 0);
-            }
+            virtio_notify(VIRTIO, EVENT_Q);
         }
 
         // Quiet the device, then re-enable the line at the controller. In that order: the disk
         // driver's discipline, and the reason an interrupt does not immediately re-fire.
         let istatus = mr(INTERRUPT_STATUS);
         mw(INTERRUPT_ACK, istatus);
-        // SAFETY: `svc`/`ecall`; re-enable the interrupt the kernel masked when it fired.
-        unsafe { invoke(IRQ, irq::ACK, 0, 0, 0) };
+        irq_ack(IRQ); // re-enable the interrupt the kernel masked when it fired
 
-        if typed {
+        if mode == MODE_DIRECT {
+            // Flush whatever this drain accumulated that did not already fill a whole word: a
+            // partial batch is still worth delivering promptly, the same "send what you have"
+            // rule `user/src/input.rs`'s own `drain` follows for the UART side.
+            direct_send(&direct_buf, &mut direct_n);
+        } else if typed {
             // Publish the tail, then ring. **The doorbell carries nothing**, and that is the design:
             // what was typed is in a page the compositor maps and no client does. This is also the
             // frame that will show the keystroke, because the compositor drains the ring and then
             // rescans every client's control page before it composites (see user/src/display_terminal.rs).
             ring_publish(tail);
-            let _ = call(
-                DOORBELL,
-                compositor::proto::req(compositor::proto::COMMIT, 0),
-                0,
-            );
+            let _ = call(OUT, compositor::proto::req(compositor::proto::COMMIT, 0), 0);
         }
     }
 }

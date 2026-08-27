@@ -12,18 +12,34 @@
 //! a successful login has to hand back capabilities, which only `abi::rendezvous::SEND_CAP` can do.
 //! So this is two persistent endpoints and a fixed message order, the same shape
 //! `grant_plan::spawnproto` already uses for exactly this reason (a shell's spawn request that may
-//! carry a delegated budget):
+//! carry a delegated budget).
+//!
+//! **Two phases, not one, since milestone 49's channel-per-client update.** `REQUEST`/`RESULT` (the
+//! endpoints every client is handed at spawn) are a **front door**, shared by every client this
+//! service will ever see, for the width of exactly one message each: a bare [`CONNECT`], answered
+//! with a fresh, private [`CONNECTED`] channel. The identity and secret an actual login needs never
+//! touch the front door at all, which is what removes the hazard the front door used to carry (see
+//! this service's BUGS, "One client at a time", for what that hazard was and why a shared front door
+//! carrying only [`CONNECT`] does not reintroduce it):
 //!
 //! ```text
-//!   client --place(), send(REQUEST, w0, 0, 0)-------------------------> login
-//!   client <--------------------------- recv(RESULT) -> OK or DENIED-- login
-//!   client <---- RECV_CAP(RESULT) x 4, only after OK -----------------  login
+//!   client --send(REQUEST, connect_word(), 0, 0)------------------------> login
+//!   client <----------------- recv(RESULT) -> CONNECTED ---------------- login
+//!   client <---- RECV_CAP(RESULT) x 3: priv_request, priv_result, page - login
+//!
+//!   client --place(), send(priv_request, w0, 0, 0)-----------------------> login
+//!   client <----------------- recv(priv_result) -> OK or DENIED --------- login
+//!   client <---- RECV_CAP(priv_result) x 4, only after OK ---------------  login
 //! ```
 //!
-//! On [`OK`], login sends exactly four capabilities over the result endpoint, in this order, and a
-//! client that does not read all four leaves its own protocol out of step for the *next* login
-//! (there is no other client on this endpoint in the slice this contract ships with; see this
-//! service's BUGS):
+//! [`CONNECT`] carries no page: there is nothing in it a client did not already know, so the front
+//! door never maps or reads a shared staging page at all, and two clients racing to connect can only
+//! ever contend for two harmless, empty, freshly-minted objects, never for each other's identity or
+//! secret. Login answers [`CONNECT`]s one at a time (this process has one thread and no wait-any
+//! primitive), but that is service order, not shared state: each answer is a private key handed to
+//! exactly one holder before login goes on to serve the actual login it just enabled.
+//!
+//! On [`OK`], login sends exactly four capabilities over `priv_result`, in this order:
 //!
 //! 1. the **directory** capability: a freshly built `fs_subtree_caretaker`'s endpoint, `WRITE`;
 //! 2. the **filesystem's shared page**, a `PageFrame`, `READ | WRITE`: the client maps it itself
@@ -87,26 +103,46 @@
 
 pub use credential_proto::{MAX_IDENTITY, MAX_SECRET, PAGE, op, place, read, wipe};
 
-/// The one request opcode this contract defines. There is only one verb (authenticate), so unlike
-/// `credential_proto` (verify, provision) there is nothing to distinguish it from; it exists so a reader
-/// of a captured request word can tell this contract's traffic from any other sharing the encoding.
-/// Build a request word with `place(page, identity, secret, LOGIN)`, which returns it already
-/// carrying this opcode and the two lengths.
+/// **The front door's only legal request** (milestone 49's channel-per-client update): "give me my
+/// own private channel." Carries no lengths and touches no page; build the word with
+/// [`connect_word`] rather than [`place`] (there is nothing to stage).
+pub const CONNECT: u64 = 2;
+
+/// The one opcode a private, per-client channel accepts. There is only one verb (authenticate), so
+/// unlike `credential_proto` (verify, provision) there is nothing to distinguish it from; it exists so a
+/// reader of a captured request word can tell this contract's traffic from any other sharing the
+/// encoding. Build a request word with `place(page, identity, secret, LOGIN)`, which returns it
+/// already carrying this opcode and the two lengths. Sent on the private `priv_request` endpoint
+/// [`CONNECTED`] delegates, never on the front door.
 pub const LOGIN: u64 = 1;
 
-/// **Authenticated.** Exactly three capabilities follow on the result endpoint; see the module docs
-/// for the order.
+/// `send(REQUEST, connect_word(), 0, 0)`. The bare word [`CONNECT`] travels as; a client never calls
+/// [`place`] for this step, because there is no identity or secret to stage.
+pub fn connect_word() -> u64 {
+    CONNECT << credential_proto::OP_SHIFT
+}
+
+/// **A private channel is ready.** Answered on the front door's `RESULT` endpoint, followed by
+/// exactly three delegated capabilities, in this order: the private `priv_request` endpoint
+/// (`WRITE`), the private `priv_result` endpoint (`READ`), and a page frame (`READ | WRITE`) to stage
+/// the actual login on. See the module docs for the two-phase exchange.
+pub const CONNECTED: u64 = 4;
+
+/// **Authenticated.** Exactly four capabilities follow on the private result endpoint; see the
+/// module docs for the order.
 pub const OK: u64 = 1;
 
-/// **Refused.** The identity is unknown, the secret is wrong, or the service could not mint a
-/// capability set for an otherwise-authenticated principal (see this service's BUGS on the second
-/// case: it is folded into the same code on purpose, for [`credential_proto`]'s reason: a caller must not
-/// be able to distinguish "wrong password" from "the service is out of memory" by trying the same
-/// identity twice and comparing outcomes).
+/// **Refused.** The identity is unknown, the secret is wrong, the service could not mint a
+/// capability set for an otherwise-authenticated principal, or (on the front door) the service could
+/// not mint a private channel at all (see this service's BUGS on the second and third cases: both
+/// are folded into the same code on purpose, for [`credential_proto`]'s reason: a caller must not be able
+/// to distinguish "wrong password" from "the service is out of memory" by trying the same identity
+/// twice and comparing outcomes).
 pub const DENIED: u64 = 2;
 
-/// The request word's lengths are out of range. Not an authentication outcome, and a client that
-/// gets this has learned nothing about whether the identity exists.
+/// The request word's lengths are out of range, or the front door was sent something other than
+/// [`CONNECT`]. Not an authentication outcome, and a client that gets this has learned nothing about
+/// whether the identity exists.
 pub const MALFORMED: u64 = 3;
 
 /// **One attribution record**, sent once per successful login on the service's own audit endpoint
@@ -150,5 +186,17 @@ mod tests {
         let (id, secret) = read(&page, w0).expect("well-formed");
         assert_eq!(id, b"chris");
         assert_eq!(secret, b"secret");
+    }
+
+    #[test]
+    fn connect_word_carries_no_lengths_and_reads_back_as_connect() {
+        let w0 = connect_word();
+        assert_eq!(op(w0), CONNECT);
+        // Unlike a LOGIN word, there is nothing else packed into it: the low 32 bits (where `place`
+        // packs the two lengths) are zero.
+        assert_eq!(w0 & 0xffff_ffff, 0);
+        // And it is distinguishable from LOGIN's own opcode, so a front door that only expects
+        // CONNECT can refuse a stray LOGIN word rather than mistake it for one.
+        assert_ne!(CONNECT, LOGIN);
     }
 }

@@ -527,8 +527,9 @@ whole rendered grid rather than merely absent from wherever the second frame wro
 
 **It is not upstream `watch`.** Re-running an arbitrary command needs a program to hold spawn
 authority, which in this system belongs to the shell alone (`grant_plan::spawnproto`) and is granted
-to nothing the shell spawns -- an interruptible child is built with no capabilities in its cspace at
-all, so there is no route from "a program is running" to "that program can start a second one"
+to nothing the shell spawns -- an interruptible child is built with no capabilities in its
+capability table at all, so there is no route from "a program is running" to "that program can
+start a second one"
 without new spawn-delegation machinery this milestone does not build. That is the same category of
 gap `top`, `pwdx` and `w` are blocked on. So `watch` redraws the one thing it can already reach
 without any of that: the domain it was spawned into, exactly `ps`'s own listing, which is also real

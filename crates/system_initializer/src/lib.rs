@@ -42,8 +42,22 @@
 //!         uart_dev: 3,
 //!         uart_irq: 4,
 //!         clock_page: 5,
-//!         fs_ep: 6,
-//!         fs_page: 7,
+//!         config_page: 6,
+//!         fs_ep: 7,
+//!         fs_page: 8,
+//!         // Always these three slots, whether or not this boot has a disk (`grant_at`, not
+//!         // first-free numbering, on the kernel side): a boot with no virtio-rng device leaves
+//!         // them empty, and `boot`'s own probe is what tells it apart from a granted one. Fixed
+//!         // past the filesystem pair's own max reach (slot 8), not slot 7, because the
+//!         // inert-configuration page (slot 6) shifted that pair down by one.
+//!         virtio_rng: 9,
+//!         virtio_rng_irq: 10,
+//!         virtio_rng_dma: 11,
+//!         // The graphical terminal stack (milestone 177, option A): empty on a boot with no GPU
+//!         // or no keyboard attached, the same "absence, not failure" shape as the virtio-rng trio.
+//!         disp_term_ep: 12,
+//!         disp_term_page: 13,
+//!         kbd_ep: 14,
 //!         // Empty here. On aarch64 this holds the kernel's report endpoint and a test SGI, because
 //!         // that boot path is shared with milestone 19d's test roles; init deletes them with the
 //!         // device authority once the drivers exist, rather than keeping delegable authority for
@@ -53,24 +67,38 @@
 //!
 //!     // `fs_rights` of 0 means this boot attached no RedoxFS disk, in which case `fs_ep` and
 //!     // `fs_page` hold nothing at all and the system comes up without a filesystem.
-//!     boot(&endowment, initrd_len, fs_rights)
+//!     //
+//!     // The fourth argument is milestone 154's second directory grant: `None` here, as at every
+//!     // real entry point today, because what the second subtree should *be* is a boot-time
+//!     // policy decision, not something this call site decides for itself.
+//!     boot(&endowment, initrd_len, fs_rights, None)
 //! }
 //! ```
 //!
 //! Reading that struct literal is meant to tell you the complete authority of the system about to
 //! exist, which is why the fields are named for what they *are* rather than numbered. Note what is
-//! not in it: no framebuffer, no network, and no second budget.
+//! not in it: no network and no second budget.
 //!
 //! # What the kernel hands over, and what this builds from it
 //!
 //! [`BootEndowment`] names the capabilities the kernel granted: a construction budget, the UART's registers
-//! as a device capability, the UART receive interrupt, a read-only view of the wall clock, and, when
-//! this boot attached a RedoxFS disk, the file service and the page its clients share with it. From
+//! as a device capability, the UART receive interrupt, a read-only view of the wall clock, when
+//! this boot attached a RedoxFS disk the file service and the page its clients share with it, and,
+//! when a GPU and a keyboard are both attached (milestone 177, option A), `display_terminal`'s own
+//! served endpoint and output page, plus the endpoint the keyboard driver already `CALL`s. From
 //! those, and nothing else, [`boot`] builds the whole interactive system out of its own budget:
 //!
-//! 1. the **console** server (output): reads text from a shared page, writes it to the UART;
-//! 2. the **input** driver (keystrokes): waits on the UART receive interrupt, forwards bytes;
-//! 3. the **line discipline** (`line_editor`, milestone 28): editing, echo, history, between them;
+//! 1. **output**: the **console** server, reading text from a shared page and writing it to the
+//!    UART, when this boot has no graphical terminal stack. When it does, there is no console
+//!    server at all: `display_terminal` was already built kernel-side, before this process existed,
+//!    and `line_editor` prints through it directly instead.
+//! 2. **keystrokes**: the **input** driver, waiting on the UART receive interrupt and forwarding
+//!    bytes, in the same "no graphical stack" case. When there is one, `kbd` plays this role
+//!    instead, also built kernel-side, `CALL`ing `line_editor`'s own endpoint directly rather than
+//!    going through this process at all (option A's whole point: no compositor in this path).
+//! 3. the **line discipline** (`line_editor`, milestone 28): editing, echo, history, between
+//!    whichever pair of the above this boot has. The same server either way; only its output-side
+//!    wire shape changes (`mode`, `user/src/line_editor.rs`'s own `MODE_CONSOLE`/`MODE_DISPLAY`).
 //! 4. the **shell**: prints and reads lines through the terminal endpoint, runs commands, and since
 //!    milestone 86 holds a `READ` view of the wall clock so `time <command>` can measure one;
 //! 5. the **terminal's sink adapter** (`terminal_sink_caretaker`, milestone 50), when the archive
@@ -205,7 +233,7 @@ use supervision_proto::{
     ChildEndowment, build_child, retype_obj_from as retype_obj,
     retype_page_frame_from as retype_page_frame, thread_control_block_start,
 };
-use user_rt::{call, cap_delete, invoke, recv, recv_cap, send};
+use user_rt::{call, cap_delete, granted, invoke, recv, recv_cap, send};
 
 /// **The capabilities the kernel granted this init, by slot.** The one thing the two boards do not
 /// agree on, so it is data each init states rather than code this crate repeats.
@@ -236,6 +264,20 @@ pub struct BootEndowment {
     /// that the two agree. `READ` and no `GRANT` there too, so the shell can read the wall clock and
     /// can hand one to nothing it spawns.
     pub clock_page: u64,
+    /// **The inert-configuration page** (milestone 47's environment-variable fork, DECISIONS §111):
+    /// a `PageFrame` capability with `READ` and nothing else, granted ahead of the filesystem pair
+    /// for [`clock_page`](BootEndowment::clock_page)'s own reason (so its slot is the same whether
+    /// or not a disk was attached), and granted **unconditionally** for the same reason too: this
+    /// boot's fixed defaults (`TZ=UTC`, `LANG=C`, `TERM=dumb`) are assembled once, before init
+    /// exists, so every boot hands init a real, validated page rather than making the slot's
+    /// presence depend on some other component having started (`kernel::user::boot_config_page`,
+    /// the same shape as `boot_clock_page`, minus the service: nothing here runs, so there is no
+    /// readiness handshake to wait on, only a page to assemble and write once).
+    ///
+    /// init hands it on only to a child whose manifest declares [`grant_plan::Manifest::config`],
+    /// and hands on `READ`, so nothing spawned from this prompt can change what a shell hands its
+    /// own children.
+    pub config_page: u64,
     /// **The filesystem, when this boot has one** (milestone 50). The kernel wires the block server
     /// and the FS server before it starts us and grants the service endpoint plus the page its
     /// clients share with it. The rights that endpoint carries arrive in `fs_rights`, and **0 means
@@ -243,6 +285,51 @@ pub struct BootEndowment {
     pub fs_ep: u64,
     /// The page the file service's clients share with it; see [`fs_ep`](BootEndowment::fs_ep).
     pub fs_page: u64,
+    /// **A virtio-rng device, when this boot has one** (DECISIONS §120's 2026-08-26 amendment:
+    /// "grant the QEMU-only virtio-rng stopgap"). The confined transport; `WRITE | GRANT`, so this
+    /// process can delegate it to an entropy service it builds. **Absent** on real hardware
+    /// (milestone 55's actual target has none) or a run with `NIFE_RNG` unset, in which case this
+    /// slot holds nothing at all, the same "0/empty means absent" shape [`fs_ep`](BootEndowment::fs_ep)
+    /// already carries; [`boot`] probes for it (`invoke`'s own `NoSuchSlot` on an ungranted slot)
+    /// rather than being told, because there is no fourth `START` argument word left to tell it
+    /// with (`role`, `initrd_len`, `fs_rights` already spend all three).
+    pub virtio_rng: u64,
+    /// The device's completion interrupt; see [`virtio_rng`](BootEndowment::virtio_rng). `READ |
+    /// GRANT`, routed by the kernel but left unenabled on riscv64 (`kernel::user::VirtioRngGrant`'s
+    /// own doc: the board's hart-lottery hazard means only the kernel, which knows the true boot
+    /// hart, may enable it, and it already did before granting this).
+    pub virtio_rng_irq: u64,
+    /// **The DMA page the kernel wrote `dma_phys` into**, at its own last eight bytes; see
+    /// [`virtio_rng`](BootEndowment::virtio_rng). `READ | WRITE | GRANT`: this process maps it to
+    /// read that value back out (entropy needs its own DMA region's physical base as a plain
+    /// value; no capability exposes one), then delegates the same frame to the entropy service it
+    /// builds, unread by anything else in between.
+    pub virtio_rng_dma: u64,
+    /// **`display_terminal`'s own served endpoint, when this boot has a graphical terminal stack**
+    /// (milestone 177, option A). The kernel builds the virtio-gpu driver and `display_terminal`
+    /// itself, before this process exists (`kernel::user::boot_graphical_terminal`, mirroring
+    /// [`fs_ep`](BootEndowment::fs_ep)'s own shape: a virtio-gpu device alone needs eleven
+    /// capability-table slots, which does not fit this process's own budget). `WRITE | GRANT`, so
+    /// this process can hand it to `line_editor` as the endpoint it prints through in place of the
+    /// console. **Absent** (holds nothing) on a boot with no GPU, no keyboard, or no
+    /// `display`/`display_terminal`/`kbd` program in the archive, the same "0/empty means absent"
+    /// shape [`fs_ep`](BootEndowment::fs_ep) already carries; [`boot`] probes for it the same way.
+    pub disp_term_ep: u64,
+    /// The physical page shared with `display_terminal`, written before an `OP_WRITE` on
+    /// [`disp_term_ep`](BootEndowment::disp_term_ep); see that field's own doc for when this is
+    /// absent. `READ | WRITE | GRANT`.
+    pub disp_term_page: u64,
+    /// **The endpoint the keyboard driver already holds `WRITE` (`CALL`) on**, when this boot has
+    /// one (milestone 177, option A). The kernel spawns the keyboard driver kernel-side too, wired
+    /// to this endpoint at its own spawn time, for a reason distinct from the GPU's: its target is
+    /// `line_editor`'s own served endpoint, which does not exist until this process builds it, and
+    /// a driver this process spawns can only be wired to capabilities it already holds. Granting
+    /// `READ | WRITE | GRANT` here lets this process delegate `READ` to `line_editor` (as its own
+    /// terminal endpoint, in place of a self-created one) and `WRITE` to `swish`, exactly the two
+    /// views the plain-console boot already carves out of a self-created endpoint of the same
+    /// shape. Absent in the same sense as
+    /// [`disp_term_ep`](BootEndowment::disp_term_ep); the two are granted together or not at all.
+    pub kbd_ep: u64,
     /// **Capabilities the kernel granted that the interactive system never uses**, deleted with the
     /// device authority once the drivers exist.
     ///
@@ -252,6 +339,31 @@ pub struct BootEndowment {
     /// that kept them would be keeping delegable authority for no reason, which is the same kind of
     /// thing the construction budget is.
     pub for_test_roles: &'static [u64],
+}
+
+/// **A second, disjoint directory capability for the shell** (milestone 154's "wiring a second
+/// grant into the real boot", design/roadmap/154-multi-directory-namespace.md), passed to [`boot`]
+/// alongside [`BootEndowment`] rather than folded into it: this is not a kernel grant like every
+/// field above, it is something [`boot`] itself constructs (a second `fs_subtree_caretaker`,
+/// narrowing the same file service [`BootEndowment::fs_ep`] already names) out of capabilities the
+/// kernel already granted.
+///
+/// **`None` at every real entry point today.** The mechanism here is real and reachable through
+/// the one function both boards' real inits call (`user/src/system_initializer.rs`,
+/// `user/src/hello.rs`'s `init_boot` role), not a synthetic kernel-side test harness. What it does
+/// not decide is *what* the second subtree should be: [DECISIONS
+/// §126](../../../design/decisions/126-two-directory-cwd.md) named that a boot-time policy
+/// question reserved for calef, so no shipped boot enables it. A second, separate gap: nothing
+/// yet tells the shell process *which* label and cspace slot this landed at (the `START` ABI's
+/// three words are already spoken for by the role, the argument, and the clock slot), so a shell
+/// built with one of these today would hold a capability its own `Nav` has no way to learn about.
+/// Provisional shape.
+#[derive(Clone, Copy)]
+pub struct SecondDirGrant {
+    /// One component under the image root, the same shape a `DirGrant`'s `name` already takes.
+    pub name: &'static str,
+    /// The `filesystem_proto::dir` rights the caretaker asks for on its descent.
+    pub rights: u64,
 }
 
 /// Where the kernel maps the initrd archive, read-only. Must match `kernel::user::INITRD_VA`.
@@ -275,6 +387,13 @@ pub const CHILD_STACK_PAGES: u64 = 12;
 /// Where a child that declares a clock maps it, read-only. Must match `user/src/date.rs`'s
 /// `CLOCK_VA` and `kernel/src/user/clock_service.rs`.
 const CHILD_CLOCK_VA: u64 = 0x00c0_0000;
+
+/// Where a child that declares the inert-configuration page maps it, read-only (DECISIONS §111).
+/// Must match `user/src/printenv.rs`'s `CONFIG_VA`. A different address from `std_service.rs`'s
+/// `CONFIG_PAGE_STD`: that std program is spawned by a different wiring entirely (the `-Zbuild-std`
+/// farm's own harness), in its own address space, so there is no collision to avoid, only two
+/// numbers that happen not to need to agree.
+const CHILD_CONFIG_VA: u64 = 0x00e0_0000;
 
 /// Where a supervised (interruptible) child maps its shared job frame (DECISIONS §24). Below the ELF
 /// load address (`0x40_0000`) and the stack; must match heeder.rs / spinner.rs's `JOB_PAGE_FRAME_VA`.
@@ -337,6 +456,15 @@ const CARETAKER_STACK_PAGES: u64 = 4;
 /// second VA would only be a second name for the same page.
 const FS_CLIENT_PAGE_VA: u64 = 0x0060_0000;
 
+/// **One shell-boot second-directory caretaker's region** (milestone 154's "wiring a second
+/// grant into the real boot"). Sized for one caretaker alone, the way [`CARETAKER_STACK_PAGES`]
+/// already is: unlike [`DIR_JOB_REGION_PAGES`], nothing else is built out of this region, because
+/// the confined program here is the shell itself, already built directly out of `ut` rather than
+/// out of a region of its own. Conservative rather than tight (the same headroom
+/// [`JOB_REGION_PAGES`] carries for one child), since this is spent once per boot rather than
+/// once per command.
+const SECOND_DIR_CARETAKER_PAGES: u64 = JOB_REGION_PAGES;
+
 /// **The job pool.** Six live jobs at once, which is far more than a prompt has ever needed and is
 /// deliberately small: the whole claim of this increment is that a *bounded* budget is enough once
 /// the regions come back, so a budget nobody could exhaust would prove nothing. `script/shell-check`
@@ -347,6 +475,36 @@ pub const JOBS_BUDGET_PAGES: u64 = JOB_REGION_PAGES * 6;
 /// ever prints (the dropped-authority negative control). Well clear of init's segments, its stack,
 /// and the loader's scratch window at `0x1000_0000`.
 const INIT_OUT_VA: u64 = 0x0f00_0000;
+
+/// Where init briefly maps the virtio-rng DMA page, in **its own** address space, to read
+/// [`RNG_DMA_PHYS_OFFSET`] back out before handing the same frame on to entropy. Distinct from
+/// [`INIT_OUT_VA`] and never unmapped (this file's own BUGS: there is no unmap in the ABI), the
+/// same permanent-scratch cost that address already carries.
+const RNG_DMA_PEEK_VA: u64 = 0x0f10_0000;
+
+/// The DMA region's own physical base, written inside the page itself at its last eight bytes
+/// (`kernel::user::VIRTIO_RNG_DMA_PHYS_OFFSET`; the two constants must agree, and the kernel-side
+/// one carries the reasoning for exactly this offset). Named separately here because reading it
+/// happens in this crate and writing it happens in the kernel; there is no crate the two could
+/// share it through (rule 7's own carve-out: this is a kernel/init boot convention, one program's
+/// bytes handed to another it spawned, not a contract between two peer user programs).
+const RNG_DMA_PHYS_OFFSET: u64 = 4096 - 8;
+
+/// Where entropy maps its own DMA page. Must match `user/src/entropy.rs`'s `DMA_VA`.
+const RNG_DMA_VA: u64 = 0x0000_0000_0090_0000;
+
+/// `entropy.rs`'s own spawn-argument convention (`user/src/entropy.rs`'s `MODE_VIRTIO`): the
+/// kernel's (and now this crate's) shared understanding with the one program it spawns, not a wire
+/// contract between two user programs, so rule 7 does not apply the way it does to `RNG_DMA_VA`.
+const RNG_MODE_VIRTIO: u64 = 0;
+
+/// `line_editor.rs`'s own spawn-argument convention (`user/src/line_editor.rs`'s `MODE_CONSOLE`):
+/// [`RNG_MODE_VIRTIO`]'s own reasoning, one program over. The pre-milestone-177 wiring: prints
+/// through the console's bespoke two-endpoint protocol.
+const LINE_EDITOR_MODE_CONSOLE: u64 = 0;
+/// `line_editor.rs`'s own `MODE_DISPLAY`: milestone 177's wiring, prints through
+/// `display_terminal`'s `OP_WRITE`/one-`CALL` contract instead.
+const LINE_EDITOR_MODE_DISPLAY: u64 = 1;
 
 // The VAs each program hardcodes; they must match console.rs / input.rs / line_editor.rs / swish.rs.
 const CON_SHARED_VA: u64 = 0x0060_0000; // console reads text here; line_editor writes it
@@ -368,8 +526,16 @@ const SH_CLOCK_VA: u64 = 0x00d0_0000;
 /// does is park in `RECV` on the shell's spawn channel for the life of the boot.
 ///
 /// `initrd_len` is the archive length the kernel passed at entry; `fs_rights` is the `filesystem_proto::dir`
-/// rights the file-service endpoint carries, and 0 means this boot attached no disk.
-pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
+/// rights the file-service endpoint carries, and 0 means this boot attached no disk. `second_dir`
+/// is milestone 154's addition: `Some` hands the shell a second, disjoint directory capability
+/// (see [`SecondDirGrant`] for what this does and does not decide); every real entry point passes
+/// `None` today.
+pub fn boot(
+    g: &BootEndowment,
+    initrd_len: u64,
+    fs_rights: u64,
+    second_dir: Option<SecondDirGrant>,
+) -> ! {
     // The archive the kernel mapped read-only; its length arrived at entry.
     // SAFETY: the kernel mapped `initrd_len` bytes of reserved RAM, read-only, at INITRD_VA. It is
     // reserved memory that outlives every process, so the borrow is honest for the whole boot.
@@ -403,6 +569,13 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
     // not a prompt. An adapter the table refuses costs exactly the same feature, which is the whole
     // policy in one line: init treats what it cannot vouch for as what is not there.
     let sink_elf = measured(&fs, table, "terminal_sink_caretaker").elf;
+    // **The entropy service** (DECISIONS §120's 2026-08-26 amendment), optional in exactly the
+    // adapter's own sense: a boot with no `entropy` program in its initrd, or a table that refuses
+    // it, simply never builds the service, and [`g.virtio_rng`](BootEndowment::virtio_rng)'s own
+    // probe finds nothing to build it *from* either way on most boots (real hardware, or a run
+    // with `NIFE_RNG` unset). Neither case is a broken boot, so neither belongs with the required
+    // three below.
+    let ent_elf = measured(&fs, table, "entropy").elf;
     // The undertaker (milestone 22, the interactive increment). Read here with the rest, because
     // the archive is only readable while we hold it and every failure below is one `fail`. Required
     // rather than optional, unlike the adapter above: without it a bounded job pool fills and the
@@ -445,6 +618,165 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
 
     let ut = g.untyped;
 
+    // **Freed here rather than after the console, line discipline and input are all built**
+    // (milestone 47, DECISIONS §111's config-page lane): `for_test_roles` is dead weight on this
+    // boot from the instant `g` exists (it names capabilities milestone 19d's test roles use and
+    // the interactive system never touches), and this capability table has only sixteen slots, a
+    // margin this file's own comment two screens down already documents as having broken once
+    // (milestone 50's two extra kernel grants left "no slot left" for the shell's `build_child`).
+    // Adding a fourth permanently-held kernel grant (the config page, alongside the clock page and
+    // the filesystem pair) reproduced exactly that failure during the console/line-discipline/input
+    // build, silently, because nothing between here and the old deletion point ever reads a
+    // `for_test_roles` capability's contents: only its *slot* matters, and freeing the slot two
+    // component-builds earlier costs nothing this boot was using.
+    for &c in g.for_test_roles {
+        cap_delete(c);
+    }
+
+    // **Graphical, when this boot has a GPU and a keyboard both attached** (milestone 177, option
+    // A). Probed the same way the virtio-rng trio is (`user_rt::granted`, since there is no
+    // fourth `START` argument word left to be told with instead): `disp_term_ep` and `kbd_ep` are
+    // granted together or not at all (`kernel::user::boot_graphical_terminal`'s own contract), so
+    // checking one stands for both.
+    //
+    // **Computed and acted on here, at the very top, not where it is first needed** (found by
+    // hitting the wall the same way the paragraph below describes: bisection, not reasoning).
+    // `disp_term_ep`/`disp_term_page`/`kbd_ep` are kernel grants, alive from spawn, so on a
+    // graphical boot they inflate the resting baseline for the **whole** function exactly the way
+    // the virtio-rng trio already does (this paragraph's own next one) -- and this function's
+    // baseline was already tight enough that the virtio-rng trio's own three slots forced entropy
+    // to move all the way to the top once. Three more permanent slots on top of that pushed the
+    // *entropy* build itself past the wall (`must(build_child(...))` for `ent_program`, which
+    // retypes an `AddressSpace` and a `THREAD_CONTROL_BLOCK` from this same table, first-free,
+    // with only `for_test_roles`'s two freed slots to draw from). `uart_dev`/`uart_irq` are dead
+    // weight on a graphical boot from this line on (no console, no input driver ever reaches
+    // them), so freeing them here, before entropy spends anything, is what buys those two slots
+    // back before the peak that needed them.
+    let has_graphical = granted(g.disp_term_ep);
+    if has_graphical {
+        cap_delete(g.uart_dev);
+        cap_delete(g.uart_irq);
+    }
+
+    // **The entropy service** (DECISIONS §120's 2026-08-26 amendment), when the kernel granted a
+    // virtio-rng device and the archive carries a program for it. Built **here, before anything
+    // else**, and that positioning is load-bearing rather than a style choice.
+    //
+    // An earlier version of this built entropy after the console and line discipline, in the gap
+    // their own three capabilities free ("The console's three capabilities go back now"). That
+    // reads as the more generous gap, but it counts the wrong thing: the virtio-rng trio is
+    // granted by the *kernel*, at spawn, so it inflates the resting baseline for the **whole**
+    // function, not just the block that builds it. The earliest peak this function ever reaches
+    // (retyping `request`/`reply`/`term_ep`/`con_shared`/`term_out`/`term_in`, all six before
+    // console is even built) is already tight against the sixteen-slot wall on its own account
+    // (`crates/system_initializer`'s own BUGS: "one slot from the wall" describes the *shell's*
+    // peak, and the terminal-plumbing peak just named is close behind it); adding three more
+    // permanent slots to a baseline that peak already stresses pushed it over, and the boot
+    // faulted building `term_in`, in total silence, with no route to a person (this file's own
+    // BUGS on why a refusal this early has none). Found by bisection, not reasoning: an isolated
+    // test granted init one single harmless extra capability, at an arbitrary slot, with no code
+    // anywhere naming or using it, and the identical silent fault reproduced.
+    //
+    // Building here instead avoids the collision rather than widening anything: this is the
+    // *only* point in the function where the virtio-rng trio's three slots and the terminal
+    // plumbing's six are never both live at once. Entropy is built and its three slots are
+    // released before `request` is ever retyped, so every peak downstream of this block is
+    // exactly what it was before this amendment existed.
+    //
+    // **Absence is not a failure, twice over**: no device (real hardware, or `NIFE_RNG` unset) and
+    // no `entropy` program in the archive both leave the system exactly as it was before this
+    // amendment, the same "a missing component costs a feature, not a boot" posture the sink
+    // adapter and the subtree caretaker already take.
+    //
+    // **`entropy_ready`, not an inline `announce`.** This process has no terminal yet at this
+    // point in the boot (that is the whole reason the peak accounting above works out), so the
+    // outcome is carried forward as data and said later, at the existing, already-mapped print
+    // site right before `term_ep`/`term_out` are dropped (see that site's own comment).
+    //
+    // # BUGS
+    //
+    // **Proves the device chain, nothing past it.** This slice builds the service and confirms it
+    // drew real bytes from the real device; it does not yet wire a client (`credentialer`,
+    // `login`) to it, which is the multi-lane remainder milestone 49's own doc names.
+    let mut entropy_ready = false;
+    if let Some(ent_program) = ent_elf.as_ref() {
+        // `invoke`'s own `NoSuchSlot` (-1) on an ungranted slot is the probe: there is no fourth
+        // `START` argument word left to be told with instead (see
+        // [`BootEndowment::virtio_rng`]'s own doc). `virtio_rng`/`virtio_rng_irq`/`virtio_rng_dma`
+        // are granted as one triple or not at all (`kernel::user::boot_virtio_rng_device`), so a
+        // negative answer here means all three slots are empty, not just this one.
+        // SAFETY: `invoke` traps to the kernel, which validates the capability and the method
+        // before acting; a probe against an empty slot is exactly what that contract is built to
+        // answer safely.
+        let magic = unsafe { invoke(g.virtio_rng, abi::virtio::READ_REG, 0, 0, 0) };
+        if magic >= 0 {
+            // SAFETY: as above.
+            if unsafe {
+                invoke(
+                    g.virtio_rng_dma,
+                    abi::page_frame::MAP,
+                    RNG_DMA_PEEK_VA,
+                    1,
+                    ut,
+                )
+            } == 0
+            {
+                // SAFETY: just mapped read/write, one page, ours alone until entropy is built and
+                // holds its own copy of the same frame; `RNG_DMA_PHYS_OFFSET` is inside it and
+                // outside entropy's own ring-and-buffer layout (that constant's own doc).
+                let dma_phys = unsafe {
+                    core::ptr::read_unaligned(
+                        (RNG_DMA_PEEK_VA as *const u8)
+                            .add(RNG_DMA_PHYS_OFFSET as usize)
+                            .cast::<u64>(),
+                    )
+                };
+                let request = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
+                let ready = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
+                let entropy = must(build_child(
+                    ut,
+                    ut,
+                    ent_program,
+                    &ChildEndowment {
+                        caps: &[
+                            (request, abi::rights::READ),
+                            (g.virtio_rng_irq, abi::rights::READ),
+                            (g.virtio_rng, abi::rights::WRITE),
+                            (ready, abi::rights::WRITE),
+                        ],
+                        maps: &[(RNG_DMA_VA, g.virtio_rng_dma, abi::address_space::MAP_RW)],
+                        stack_pages: CHILD_STACK_PAGES,
+                        ..ChildEndowment::new()
+                    },
+                ));
+                must_ok(thread_control_block_start(
+                    entropy,
+                    RNG_MODE_VIRTIO,
+                    dma_phys,
+                    0,
+                ));
+                cap_delete(entropy);
+                cap_delete(g.virtio_rng_irq);
+                cap_delete(g.virtio_rng);
+                cap_delete(g.virtio_rng_dma);
+                // Block for the service's own proof of life: it fetches a first bufferful from the
+                // real device before answering, so this means "a client that asks will be
+                // answered", not merely "the handshake completed" (`user/src/entropy.rs`'s own
+                // doc). No client is wired yet (this block's own BUGS), so `request`'s init-side
+                // copy has no further use; entropy keeps its own and waits on it, harmlessly, the
+                // same idle-forever shape the undertaker and the sink adapter already have.
+                let (verdict, _, _) = recv(ready);
+                cap_delete(ready);
+                cap_delete(request);
+                entropy_ready = verdict == entropy_proto::READY;
+            } else {
+                cap_delete(g.virtio_rng_irq);
+                cap_delete(g.virtio_rng);
+                cap_delete(g.virtio_rng_dma);
+            }
+        }
+    }
+
     // **The two components that have to exist before init can say anything.** The console writes
     // the UART and the line discipline is its only client, so a refusal of either has no route to a
     // person and this is the one case that stops in silence (see this module's BUGS). Everything
@@ -453,58 +785,128 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
         fail()
     };
 
+    // `has_graphical` and the early `uart_dev`/`uart_irq` free both already happened, at the top
+    // of this function, before the entropy block: see that comment for why the timing is
+    // load-bearing rather than tidiness.
+
     // The endpoints and shared pages we own and hand out, each retyped with full rights so we can
     // delegate narrowed views. `term_ep` is the terminal contract's one endpoint: the discipline
-    // serves it; the input driver and the shell only hold WRITE on it, and neither can tell what
-    // is on the other side (notes/terminal-contract.md).
-    let request = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
-    let reply = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
-    let term_ep = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
-    let con_shared = must(retype_page_frame(ut)); // line_editor -> console text
+    // serves it; the input driver (or `kbd`) and the shell only hold WRITE on it, and neither can
+    // tell what is on the other side (notes/terminal-contract.md). In the graphical case it is not
+    // ours to create: `kbd` already holds `WRITE` on `g.kbd_ep`, fixed at its own kernel-side spawn
+    // time, so that is the endpoint `line_editor` has to serve instead of a fresh one.
     let term_out = must(retype_page_frame(ut)); // shell -> line_editor text and prompts
     let term_in = must(retype_page_frame(ut)); // line_editor -> shell completed lines
 
-    // 1. Console server: reads text from the shared page, writes it to the UART.
-    let con = must(build_child(
-        ut,
-        ut,
-        &con_elf,
-        &ChildEndowment {
-            caps: &[(request, abi::rights::READ), (reply, abi::rights::WRITE)],
-            maps: &[
-                (CON_SHARED_VA, con_shared, abi::address_space::MAP_RO),
-                (CON_UART_VA, g.uart_dev, abi::address_space::MAP_RO), // mode ignored for a DeviceFrame
-            ],
-            stack_pages: CHILD_STACK_PAGES,
-            ..ChildEndowment::new()
-        },
-    ));
-    must_ok(thread_control_block_start(con, 0, 0, 0));
-    cap_delete(con);
+    let term_ep = if has_graphical {
+        g.kbd_ep
+    } else {
+        must(retype_obj(ut, abi::objtype::RENDEZVOUS))
+    };
 
-    // 2. The line discipline: serves the terminal endpoint, prints through the console. It is
-    // the console's only client; everyone else prints through it.
-    let line_editor = must(build_child(
-        ut,
-        ut,
-        &td_elf,
-        &ChildEndowment {
-            caps: &[
-                (term_ep, abi::rights::READ),
-                (request, abi::rights::WRITE),
-                (reply, abi::rights::READ),
-            ],
-            maps: &[
-                (CON_SHARED_VA, con_shared, abi::address_space::MAP_RW), // it fills what the console reads
-                (TERM_OUT_VA, term_out, abi::address_space::MAP_RO),
-                (TERM_IN_VA, term_in, abi::address_space::MAP_RW),
-            ],
-            stack_pages: CHILD_STACK_PAGES,
-            ..ChildEndowment::new()
-        },
-    ));
-    must_ok(thread_control_block_start(line_editor, 0, 0, 0));
-    cap_delete(line_editor);
+    if has_graphical {
+        // No console, no input driver, no separate request/reply pair or shared page: `kbd` and
+        // `display_terminal` are already running (built kernel-side, before this process existed),
+        // and `line_editor` is their only client. It prints through `display_terminal`'s own
+        // `OP_WRITE`/one-`CALL` contract (`g.disp_term_ep`/`g.disp_term_page`, `LINE_EDITOR_MODE_DISPLAY`)
+        // instead of the console's bespoke two-endpoint one.
+        let r = build_child(
+            ut,
+            ut,
+            &td_elf,
+            &ChildEndowment {
+                caps: &[
+                    (term_ep, abi::rights::READ),
+                    (g.disp_term_ep, abi::rights::WRITE),
+                ],
+                maps: &[
+                    (CON_SHARED_VA, g.disp_term_page, abi::address_space::MAP_RW),
+                    (TERM_OUT_VA, term_out, abi::address_space::MAP_RO),
+                    (TERM_IN_VA, term_in, abi::address_space::MAP_RW),
+                ],
+                stack_pages: CHILD_STACK_PAGES,
+                ..ChildEndowment::new()
+            },
+        );
+        let line_editor = must(r);
+        must_ok(thread_control_block_start(
+            line_editor,
+            LINE_EDITOR_MODE_DISPLAY,
+            0,
+            0,
+        ));
+        cap_delete(line_editor);
+
+        // `g.disp_term_ep`/`g.disp_term_page` are ours no further: `line_editor` holds its own
+        // narrowed copies, granting was a copy rather than a move (the same reason `con_shared`
+        // is freed on the console side below), and nothing else in this boot ever needs to reach
+        // `display_terminal` directly. `term_ep` (== `g.kbd_ep` in this branch) is not freed here:
+        // it is freed with the console branch's own copy, further down, by code that does not
+        // know or care which branch produced it.
+        cap_delete(g.disp_term_ep);
+        cap_delete(g.disp_term_page);
+    } else {
+        let request = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
+        let reply = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
+        let con_shared = must(retype_page_frame(ut)); // line_editor -> console text
+
+        // 1. Console server: reads text from the shared page, writes it to the UART.
+        let con = must(build_child(
+            ut,
+            ut,
+            &con_elf,
+            &ChildEndowment {
+                caps: &[(request, abi::rights::READ), (reply, abi::rights::WRITE)],
+                maps: &[
+                    (CON_SHARED_VA, con_shared, abi::address_space::MAP_RO),
+                    (CON_UART_VA, g.uart_dev, abi::address_space::MAP_RO), // mode ignored for a DeviceFrame
+                ],
+                stack_pages: CHILD_STACK_PAGES,
+                ..ChildEndowment::new()
+            },
+        ));
+        must_ok(thread_control_block_start(con, 0, 0, 0));
+        cap_delete(con);
+
+        // 2. The line discipline: serves the terminal endpoint, prints through the console. It is
+        // the console's only client; everyone else prints through it. `LINE_EDITOR_MODE_CONSOLE`
+        // (0) is `thread_control_block_start`'s own default, so this is unchanged from before
+        // milestone 177 gave `line_editor` a second mode.
+        let line_editor = must(build_child(
+            ut,
+            ut,
+            &td_elf,
+            &ChildEndowment {
+                caps: &[
+                    (term_ep, abi::rights::READ),
+                    (request, abi::rights::WRITE),
+                    (reply, abi::rights::READ),
+                ],
+                maps: &[
+                    (CON_SHARED_VA, con_shared, abi::address_space::MAP_RW), // it fills what the console reads
+                    (TERM_OUT_VA, term_out, abi::address_space::MAP_RO),
+                    (TERM_IN_VA, term_in, abi::address_space::MAP_RW),
+                ],
+                stack_pages: CHILD_STACK_PAGES,
+                ..ChildEndowment::new()
+            },
+        ));
+        must_ok(thread_control_block_start(
+            line_editor,
+            LINE_EDITOR_MODE_CONSOLE,
+            0,
+            0,
+        ));
+        cap_delete(line_editor);
+
+        // `request`/`reply`/`con_shared` are ours no further: the console and `line_editor` both
+        // hold their own narrowed copies (the console's own doc, one screen down, gives the
+        // sixteen-slot reason this cannot wait). The graphical branch above never retypes these at
+        // all, so there is nothing of theirs to free here.
+        for c in [request, reply, con_shared] {
+            cap_delete(c);
+        }
+    }
 
     // **Refuse the system if a required component is not the one that was measured** (milestone
     // 104), here, because this is the earliest point at which init can be read by a person and the
@@ -553,29 +955,36 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
     };
 
     // 3. Input driver: waits on the UART receive interrupt, forwards raw bytes to the terminal.
-    let input = must(build_child(
-        ut,
-        ut,
-        &in_elf,
-        &ChildEndowment {
-            caps: &[
-                (term_ep, abi::rights::WRITE),
-                (g.uart_irq, abi::rights::READ),
-            ],
-            maps: &[(IN_UART_VA, g.uart_dev, abi::address_space::MAP_RO)],
-            stack_pages: CHILD_STACK_PAGES,
-            ..ChildEndowment::new()
-        },
-    ));
-    must_ok(thread_control_block_start(input, 0, 0, 0));
-    cap_delete(input);
+    // **Skipped entirely in the graphical case**: `kbd` already plays this role, spawned
+    // kernel-side and wired directly to `term_ep` before this process existed. `g.uart_dev`/
+    // `g.uart_irq` are still granted either way (their slot numbers do not move; see
+    // `BootEndowment`'s own doc), simply unused, and freed below regardless of mode.
+    if !has_graphical {
+        let input = must(build_child(
+            ut,
+            ut,
+            &in_elf,
+            &ChildEndowment {
+                caps: &[
+                    (term_ep, abi::rights::WRITE),
+                    (g.uart_irq, abi::rights::READ),
+                ],
+                maps: &[(IN_UART_VA, g.uart_dev, abi::address_space::MAP_RO)],
+                stack_pages: CHILD_STACK_PAGES,
+                ..ChildEndowment::new()
+            },
+        ));
+        must_ok(thread_control_block_start(input, 0, 0, 0));
+        cap_delete(input);
+    }
 
-    // **The console's three capabilities go back now, before the shell is built**, and that is not
+    // **The console's capabilities go back now, before the shell is built**, and that is not
     // tidiness: this capability table has sixteen slots, and milestone 50 added two more kernel grants (the
     // file service and its page). With them held, the shell's `build_child` had no slot left to
     // retype an address space into and failed silently, which presented as a boot that brought up
     // the console and then printed nothing. Nothing below needs these: line_editor is the console's
-    // only client and it already holds its narrowed copies.
+    // only client (or `display_terminal`'s, in the graphical case) and it already holds its
+    // narrowed copies.
     //
     // **The device and the interrupt go with them** (milestone 22, the interactive increment). Both
     // drivers that need them exist and hold their own narrowed copies, and nothing below builds
@@ -583,12 +992,18 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
     // anything it later builds. Dropping them here is the same act as dropping the construction
     // budget further down, one boot stage earlier. `unused` is whatever else this board's kernel
     // granted that the interactive system never had a use for.
-    for c in [request, reply, con_shared, g.uart_dev, g.uart_irq] {
-        cap_delete(c);
+    //
+    // **Already freed in the graphical case**, earlier and for a stronger reason than tidiness
+    // (see the comment where `has_graphical` frees them, above): this table had no slot to spare
+    // for `term_out`/`term_in` otherwise. Freeing an empty slot here would be harmless, but
+    // skipping it is what makes the earlier comment's claim ("free the instant they are dead
+    // weight") true rather than aspirational.
+    if !has_graphical {
+        cap_delete(g.uart_dev);
+        cap_delete(g.uart_irq);
     }
-    for &c in g.for_test_roles {
-        cap_delete(c);
-    }
+    // `for_test_roles` no longer needs freeing here: it is freed at the top of this function now,
+    // two component-builds earlier, for the reason recorded there.
 
     // **The spawn channel is retyped here, not with the rest**, and the reason is the same sixteen
     // slots: holding two more endpoints through the three builds above is what pushed this capability table
@@ -623,28 +1038,106 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
     // *told* the number in `x2`/`a2` instead of assuming one; see swish.rs's `CLOCK_SLOT`.
     let sh_budget = must(memory_region_split(ut, SH_BUDGET_PAGES));
     let with_fs = fs_rights != 0;
-    let sh_caps: [(u64, u64); 6] = [
-        (term_ep, abi::rights::WRITE),
-        (spawn_ep, abi::rights::WRITE),
-        (result_ep, abi::rights::READ),
-        (sh_budget, abi::rights::WRITE | abi::rights::GRANT),
-        (g.fs_ep, abi::rights::WRITE),
-        (g.clock_page, abi::rights::READ),
-    ];
-    let sh_maps: [(u64, u64, u64); 4] = [
-        (SH_OUT_VA, term_out, abi::address_space::MAP_RW), // shell writes text and prompts here
-        (LINE_VA, term_in, abi::address_space::MAP_RO),    // shell reads completed lines
-        (SH_FS_VA, g.fs_page, abi::address_space::MAP_RW), // and its half of the FS contract
-        (SH_CLOCK_VA, g.clock_page, abi::address_space::MAP_RO), // and the clock it times with
-    ];
-    // A boot with no disk gets the same lists with the FS pair taken out of the middle, which is a
-    // second pair of arrays rather than a slice: the clock is granted either way, and "the last
-    // entry stays" is not something a range can say.
-    let no_fs_caps: [(u64, u64); 5] = [sh_caps[0], sh_caps[1], sh_caps[2], sh_caps[3], sh_caps[5]];
-    let no_fs_maps: [(u64, u64, u64); 3] = [sh_maps[0], sh_maps[1], sh_maps[3]];
-    // Which slot the clock landed in, for the shell's `x2`. It is the count of what went before it,
-    // which is the same arithmetic `build_child` does when it fills the capability table from zero.
-    let sh_clock_slot: u64 = if with_fs { 5 } else { 4 };
+
+    // **The second grant, when this boot was configured with one** (milestone 154's "wiring a
+    // second grant into the real boot"). Built here, before the shell, for the same reason
+    // `build_caretaker` is always called before the process that will hold its endpoint: the
+    // caretaker must exist and answer ready before anything could `CALL` it.
+    //
+    // Meaningless without a first directory ([`SecondDirGrant`]'s own doc), so this is `None`
+    // whenever the boot has no filesystem at all, and it degrades to "no second grant" rather
+    // than a boot failure whenever the caretaker cannot be built, the same posture this file
+    // already takes toward a missing `sink_elf` or `care_elf`: a component the archive did not
+    // pack or the table would not vouch for costs a feature, not a boot.
+    //
+    // # BUGS
+    //
+    // **Unverified against a real boot.** `second_dir` is `None` at every shipped entry point
+    // (DECISIONS §126: what the subtree should be is calef's call), so this branch has never run
+    // under `script/shell-check`, which is the only thing in the tree that runs a real init.
+    // `build_caretaker` retypes two more objects into *this process's* capability table right
+    // where the comment two screens up already documents this table as tight ("the shell's
+    // `build_child` had no slot left ... and failed silently"). The failure mode if this pushes
+    // init over sixteen slots is exactly that one: a boot that reaches userspace and prints
+    // nothing. Whoever first passes `Some` here should watch for it and run `script/shell-check`
+    // before trusting this path.
+    let second_dir_ep: Option<u64> = second_dir.filter(|_| with_fs).and_then(|sd| {
+        assert!(
+            filesystem_proto::grant::fits(sd.name.as_bytes()),
+            "a granted directory's name rides in two argument words; this one does not fit",
+        );
+        let region = memory_region_split(ut, SECOND_DIR_CARETAKER_PAGES).ok()?;
+        let care = care_elf.as_ref()?;
+        let (lo, hi) = filesystem_proto::grant::pack_name(sd.name.as_bytes());
+        let spec = filesystem_proto::grant::spec(sd.name.len(), sd.rights);
+        build_caretaker(
+            ut,
+            region,
+            care,
+            Fs {
+                ep: g.fs_ep,
+                page: g.fs_page,
+            },
+            (lo, hi, spec),
+        )
+    });
+
+    // Slot 4 is the filesystem when this boot has one, which is the whole of what `>` and `<` need
+    // (milestone 50, notes/pipes.md): the shell resolves a redirection against it and writes the
+    // file itself. Narrowed to WRITE, which on an endpoint is the right to CALL, and without GRANT,
+    // so the shell can hand it to nobody.
+    //
+    // **Slot 5, when this boot also has a second grant**, is [`second_dir_ep`]: the narrowed
+    // caretaker endpoint built above. It shares [`SH_FS_VA`] rather than needing a map of its own,
+    // for `narrow_dir`'s own reason one level narrower: caretaker and client both map the *same*
+    // physical frame the FS server shares with everything downstream of it, and the shell is one
+    // thread of control with at most one `CALL` in flight, so it is never mid-request on both
+    // endpoints at once.
+    //
+    // **And a read-only clock last, always** (milestone 86), which is what `time <command>`
+    // measures with. It is [`BootEndowment::clock_page`], the same frame this init was granted and
+    // hands to a child whose manifest declares a clock; the shell is simply another holder of a
+    // narrowed view. `READ` and no `GRANT`, deliberately: the shell can read the wall clock and
+    // can hand one to nothing it spawns, so which processes can read the time is still decided by
+    // the manifests this crate reads (DECISIONS §43) rather than by anything typed at a prompt.
+    //
+    // Clock last in the list whatever else is granted, which is why the shell is *told* its slot
+    // in `x2`/`a2` instead of assuming one; see swish.rs's `CLOCK_SLOT`. That was already true
+    // before this milestone (4 without a disk, 5 with one); it now also moves to 6 when a second
+    // grant lands, and the mechanism that keeps the shell honest about the number is unchanged.
+    let mut sh_caps = [(0u64, 0u64); 7];
+    let mut sh_maps = [(0u64, 0u64, 0u64); 4];
+    let mut n_caps = 0usize;
+    let mut n_maps = 0usize;
+    sh_caps[n_caps] = (term_ep, abi::rights::WRITE);
+    n_caps += 1;
+    sh_caps[n_caps] = (spawn_ep, abi::rights::WRITE);
+    n_caps += 1;
+    sh_caps[n_caps] = (result_ep, abi::rights::READ);
+    n_caps += 1;
+    sh_caps[n_caps] = (sh_budget, abi::rights::WRITE | abi::rights::GRANT);
+    n_caps += 1;
+    sh_maps[n_maps] = (SH_OUT_VA, term_out, abi::address_space::MAP_RW); // text and prompts
+    n_maps += 1;
+    sh_maps[n_maps] = (LINE_VA, term_in, abi::address_space::MAP_RO); // completed lines
+    n_maps += 1;
+    if with_fs {
+        sh_caps[n_caps] = (g.fs_ep, abi::rights::WRITE);
+        n_caps += 1;
+        sh_maps[n_maps] = (SH_FS_VA, g.fs_page, abi::address_space::MAP_RW);
+        n_maps += 1;
+    }
+    if let Some(ep) = second_dir_ep {
+        sh_caps[n_caps] = (ep, abi::rights::WRITE);
+        n_caps += 1;
+    }
+    sh_caps[n_caps] = (g.clock_page, abi::rights::READ);
+    n_caps += 1;
+    sh_maps[n_maps] = (SH_CLOCK_VA, g.clock_page, abi::address_space::MAP_RO);
+    n_maps += 1;
+    // Which slot the clock landed in, for the shell's `x2`: the count of what went before it, the
+    // same arithmetic `build_child` does when it fills the capability table from zero.
+    let sh_clock_slot: u64 = n_caps as u64 - 1;
     // **Built but not started**, because the drop below has to happen while the shell's output page
     // is still ours alone to write: the negative control is printed through it, and a running shell
     // would be printing its banner into the same page.
@@ -653,13 +1146,19 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
         ut,
         &sh_elf,
         &ChildEndowment {
-            caps: if with_fs { &sh_caps } else { &no_fs_caps },
-            maps: if with_fs { &sh_maps } else { &no_fs_maps },
+            caps: &sh_caps[..n_caps],
+            maps: &sh_maps[..n_maps],
             stack_pages: CHILD_STACK_PAGES,
             ..ChildEndowment::new()
         },
     ));
     cap_delete(sh_budget); // our copy; the shell holds its own now
+    // The caretaker's endpoint was only ever the means of wiring: the shell holds its own copy and
+    // the caretaker holds the other end, the same disposal `spawn_service`'s dynamic directory
+    // grants already give their own narrowed endpoint below.
+    if let Some(ep) = second_dir_ep {
+        cap_delete(ep);
+    }
 
     // Free every boot cap the spawn service does not need, so init's 16-slot capability table has room to
     // build a supervised child (which holds a job untyped and a job frame while the loader retypes
@@ -793,6 +1292,20 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
             )
         },
     );
+    // **The entropy service's own outcome** (DECISIONS §120's 2026-08-26 amendment), said here
+    // rather than where it was decided: `entropy_ready` was set long before this process had a
+    // terminal at all (the whole reason the build happens first, at the top of this function; see
+    // that block's own comment), and [`INIT_OUT_VA`] is not mapped into init's own space until the
+    // line above this one first used it, so nothing earlier in this function could `announce`
+    // regardless. Silent when there was nothing to build (no device, or no `entropy` program in
+    // the archive), the same posture the sink adapter and the subtree caretaker already take for a
+    // missing component.
+    if entropy_ready {
+        announce(
+            term_ep,
+            b"init: entropy service up; drew real bytes from a virtio-rng device\n",
+        );
+    }
     cap_delete(term_ep);
     cap_delete(term_out);
 
@@ -831,6 +1344,7 @@ pub fn boot(g: &BootEndowment, initrd_len: u64, fs_rights: u64) -> ! {
             own_ut,
             jobs_ut,
             clock_page: g.clock_page,
+            config_page: g.config_page,
             // The terminal's sink, if this initrd carried an adapter to serve it. This is what a
             // declared second stream gets by default (DECISIONS §67): the shell names a file with
             // `2>` and otherwise the bytes go straight to the screen, through a process that can do
@@ -880,6 +1394,10 @@ struct Channels {
     jobs_ut: u64,
     /// READ on the wall clock, endowed to a child whose manifest declares one (DECISIONS §43).
     clock_page: u64,
+    /// READ on the inert-configuration page, endowed to a child whose manifest declares
+    /// [`grant_plan::Manifest::config`] (DECISIONS §111). [`clock_page`](Channels::clock_page)'s
+    /// twin in every respect: unconditional, read-only, and handed on only where the manifest asks.
+    config_page: u64,
     /// WRITE-delegable: the endpoint the terminal's sink adapter serves, which is where a declared
     /// second stream goes when the command line named no file for it (DECISIONS §67). `None` when
     /// this initrd carried no adapter, and then a declaring child simply gets no second stream.
@@ -938,6 +1456,7 @@ fn spawn_service(
         own_ut,
         jobs_ut,
         clock_page,
+        config_page,
         term_sink,
         fs,
     } = c;
@@ -1002,6 +1521,10 @@ fn spawn_service(
         // a person designates either. There is no /proc to name and no pid space to scan, so what a
         // program may see is decided here, by which supervision endpoint init puts in its capability table.
         let wants_domain = prog.is_some_and(|p| p.manifest().domain);
+        // `clock`'s twin again: the inert-configuration page is init's to endow, not something a
+        // command line can designate, so there is no bit on the wire for it either
+        // (`Manifest::config`).
+        let wants_config = prog.is_some_and(|p| p.manifest().config);
 
         if interruptible {
             // Build the whole child from the shell's job untyped, mapping the shared job frame; no
@@ -1101,7 +1624,14 @@ fn spawn_service(
                 sink.or(default_screen).unwrap_or(result_ep),
                 abi::rights::WRITE,
             );
-            let mut caps = [out; 5];
+            // Six rather than five (one more than the tightest bound any manifest shipped today
+            // reaches): `dir` takes two, and `clock`, `config`, `source` and `budget` are each one
+            // more, so a hypothetical program declaring all of directory, clock, config, source and
+            // budget at once would need six. No shipped manifest does (no program declares both
+            // `clock` and `config`, or a directory grant alongside either), but the array is sized
+            // for what the *fields* allow rather than for what the table happens to contain today,
+            // which is `clock_map`'s own ordered-slot debt (notes/pipes.md's `BUGS`) one field over.
+            let mut caps = [out; 6];
             let mut n = 1usize;
             if let Some(dir_ep) = narrowed {
                 caps[0] = (dir_ep, abi::rights::WRITE);
@@ -1116,6 +1646,14 @@ fn spawn_service(
             // an input. That is the same ordered-slot debt notes/pipes.md's BUGS already records.
             if wants_clock {
                 caps[n] = (clock_page, abi::rights::READ);
+                n += 1;
+            }
+            // **The inert-configuration page, `clock`'s twin** (DECISIONS §111). Same reasoning,
+            // same ordering rule: before the source and the budget, so `printenv`'s config page is
+            // slot 1 exactly as `date`'s clock is, and for the identical reason (no manifest
+            // declares `config` alongside an input either, today).
+            if wants_config {
+                caps[n] = (config_page, abi::rights::READ);
                 n += 1;
             }
             if let Some(src) = source {
@@ -1176,6 +1714,7 @@ fn spawn_service(
             }
             let placed: &[(u64, u64, u64)] = &placed_buf[..placed_n];
             let clock_map = [(CHILD_CLOCK_VA, clock_page, abi::address_space::MAP_RO)];
+            let config_map = [(CHILD_CONFIG_VA, config_page, abi::address_space::MAP_RO)];
             // **The FS contract's shared page, for a program behind a directory grant.** The same
             // frame the caretaker maps and the same frame the FS server maps: one page for all three
             // parties, sound because every request on both hops is a blocking `CALL`, so the client
@@ -1190,10 +1729,19 @@ fn spawn_service(
             // out of that carve, and a single reclaim frees all of it; the clock frame and the FS
             // page are ours and are only *mapped* into the child, so they are untouched when the
             // region goes.
+            // **One extra mapping at most, today.** A program that declared a directory grant AND a
+            // clock AND the config page would need three, and this chain only ever offers one; no
+            // shipped manifest reaches that combination (the directory program, `rm`, declares
+            // neither clock nor config, and no program declares both clock and config), so the gap
+            // is unreached rather than closed. The same ordered-slot debt `wants_clock`'s own
+            // comment above already names for `caps`, one structure over; see notes/pipes.md's
+            // `BUGS`.
             let maps: &[(u64, u64, u64)] = if narrowed.is_some() {
                 &dir_map
             } else if wants_clock {
                 &clock_map
+            } else if wants_config {
+                &config_map
             } else {
                 &[]
             };

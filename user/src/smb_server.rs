@@ -196,7 +196,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use abi::{memory_region as ut, page_frame as fr, rendezvous, rights};
+use abi::rights;
 use filesystem_proto::{dir, dirent, fs, xattr};
 use smb_proto::authenticator::{Attempt, Authenticator, NoIdentity, Verdict};
 use smb_proto::path::Path;
@@ -208,7 +208,10 @@ use socket_proto::{
     OP_ATTACH_PAGE_FRAME, OP_CLOSE, OP_LISTEN, OP_RECV, OP_SEND, REP_ERR, REP_OK, req,
 };
 use user_rt::mapped_window::MappedWindow;
-use user_rt::{call, exit, invoke, now, send};
+use user_rt::{
+    call, destroy_region, exit, map_page_frame, now, retype_page_frame, send, send_cap,
+    split_region,
+};
 
 const REPORT: u64 = 0;
 const STACK: u64 = 1;
@@ -250,6 +253,10 @@ const FS_WINDOW: MappedWindow = unsafe { MappedWindow::new(FS_VA, fs::TRANSFER_M
 /// [`FS_VA`]'s and from the network one, because it is shared with a different process; must match
 /// the kernel-side wiring like every VA here.
 const CRED_VA: u64 = 0x0000_0000_00C0_0000;
+// SAFETY: the wiring maps one page read/write at CRED_VA before this program runs, shared with the
+// credential service and with nothing else (milestone 139 round 6).
+const CRED_WINDOW: MappedWindow =
+    unsafe { MappedWindow::new(CRED_VA, credential_proto::PAGE as u64) };
 
 /// **What `arg2` says the share is.** Four values rather than a flag: the write path made "which
 /// backing" and "which direction" two separate questions, and identity made "who may connect" a
@@ -884,11 +891,9 @@ impl Authenticator for CredentialAuthenticator {
         if a.blob.len() > credential_proto::MAX_BLOB {
             return Verdict::Refused;
         }
-        // SAFETY: the wiring mapped one page read/write at CRED_VA before this program ran, shared
-        // with the credential service and with nothing else. One thread per address space
+        // SAFETY: forwarded from CRED_WINDOW's own contract. One thread per address space
         // (DECISIONS §33), so there is no second borrow.
-        let page =
-            unsafe { core::slice::from_raw_parts_mut(CRED_VA as *mut u8, credential_proto::PAGE) };
+        let page = unsafe { CRED_WINDOW.as_mut_slice() };
         let Some(w0) = credential_proto::place_ntlm_proof(
             page,
             Self::resource(),
@@ -938,9 +943,7 @@ fn done(code: u64) -> ! {
 /// (`OutOfMemory` if the parent's budget or this capability table is exhausted, `NotPermitted` without
 /// `WRITE` on `parent`, neither of which this program's own capabilities should ever hit).
 fn memory_region_split(parent: u64, pages: u64) -> Result<u64, i64> {
-    // SAFETY: `svc`. `parent` is an untyped capability this process holds with WRITE (every one
-    // granted to it is; see the capability contract above), which is what `SPLIT` requires.
-    let r = unsafe { invoke(parent, ut::SPLIT, pages, 0, 0) };
+    let r = split_region(parent, pages);
     if r < 0 { Err(r) } else { Ok(r as u64) }
 }
 
@@ -949,8 +952,7 @@ fn memory_region_split(parent: u64, pages: u64) -> Result<u64, i64> {
 /// occupies it or while it has been [`memory_region_split`] into children not yet themselves destroyed;
 /// this is the whole of the rule [`DurableSession`] leans on.
 fn memory_region_destroy(region: u64) -> Result<(), i64> {
-    // SAFETY: `svc`.
-    let r = unsafe { invoke(region, ut::DESTROY, 0, 0, 0) };
+    let r = destroy_region(region);
     if r < 0 { Err(r) } else { Ok(()) }
 }
 
@@ -1047,25 +1049,22 @@ fn open_durable_session_or_die() -> DurableSession {
 
 /// Mint a frame from our untyped, map it writable, and delegate it to socket `sid`.
 fn attach_page_frame(sid: u64) {
-    // SAFETY: `svc`. RETYPE returns the new frame capability's slot, or a negative error.
-    let frame = unsafe { invoke(MEMORY_REGION, ut::RETYPE, 0, 0, 0) };
+    // RETYPE returns the new frame capability's slot, or a negative error.
+    let frame = retype_page_frame(MEMORY_REGION);
     if frame < 0 {
         done(0xE101);
     }
-    // SAFETY: `svc`. Map it writable; page tables come from our untyped.
-    if unsafe { invoke(frame as u64, fr::MAP, PAGE_FRAME_VA, 1, MEMORY_REGION) } < 0 {
+    // Map it writable; page tables come from our untyped.
+    if !map_page_frame(frame as u64, PAGE_FRAME_VA, true, MEMORY_REGION) {
         done(0xE102);
     }
-    // SAFETY: `svc`. Delegate it (narrowed to read/write) with the ATTACH request.
-    if unsafe {
-        invoke(
-            STACK,
-            rendezvous::SEND_CAP,
-            frame as u64,
-            rights::READ | rights::WRITE,
-            req(OP_ATTACH_PAGE_FRAME, sid),
-        )
-    } < 0
+    // Delegate it (narrowed to read/write) with the ATTACH request.
+    if send_cap(
+        STACK,
+        frame as u64,
+        rights::READ | rights::WRITE,
+        req(OP_ATTACH_PAGE_FRAME, sid),
+    ) < 0
     {
         done(0xE103);
     }

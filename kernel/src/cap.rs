@@ -243,6 +243,17 @@ pub fn virtio_cap(id: usize) -> Cap {
     }
 }
 
+/// A virtio transport capability with explicit rights (DECISIONS §120's 2026-08-26 amendment):
+/// init holds one with `GRANT` so it can delegate the device to an entropy service it builds,
+/// [`irq_cap_rights`]'s own reason one object type over.
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn virtio_cap_rights(id: usize, rights: Rights) -> Cap {
+    Cap {
+        object: Object::Virtio(id),
+        rights,
+    }
+}
+
 /// A capability naming a thread under construction (milestone 19c.3). Full rights at creation.
 pub fn thread_control_block_cap(tid: crate::thread::ThreadId, rights: Rights) -> Cap {
     Cap {

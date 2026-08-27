@@ -73,7 +73,7 @@
 //!   their own words; neither pretends to a selectivity the hardware does not have. Same reason as
 //!   PGE above: there is nothing to measure it against yet.
 
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 
 use paging::x86_64::{Ia32e, Vtd};
 use paging::{Flags, Half, MapError, Mapper, PAGE_SIZE, PageTable};
@@ -353,13 +353,11 @@ unsafe fn install(root: u64) {
     }
 }
 
-/// Adopt the kernel map on a secondary CPU. Every CPU shares one kernel root, so there is nothing
-/// per-CPU to build.
-///
-/// Unreachable today: `arch::cpu_start` returns an error on this architecture, so no secondary is
-/// ever started (roadmap item 5). It is written because the shape is fixed by the other two ports
-/// and guessing at it later is how a bring-up sequence acquires an ordering bug.
-#[allow(dead_code)]
+/// Adopt the kernel map on a secondary CPU. Every CPU shares one kernel root (`CR3` names the whole
+/// address space, unlike `TTBR0`/`TTBR1`'s split), so there is nothing per-CPU to build: the
+/// trampoline (`boot.s`'s `secondary_boot`) already installed `boot_pml4`, and this just switches
+/// to the same fine root the boot core is already running on. Called from `secondary_main`'s step
+/// 3, same as the other two architectures.
 pub fn init_secondary() {
     let root = KERNEL_ROOT.load(Ordering::Relaxed);
     assert_ne!(
@@ -402,16 +400,159 @@ pub fn unmap_page(va: u64) -> Result<u64, MapError> {
     Ok(pa)
 }
 
-/// Invalidate the TLB entry for `va`. The x86 instruction is `invlpg`, which unlike aarch64's
-/// `tlbi ..., is` is **local to this CPU**: a multi-CPU kernel needs a software shootdown protocol
-/// (an IPI), the same problem RISC-V solves with SBI RFENCE. There is one CPU here (roadmap item 5),
-/// so the local invalidate is the whole of it, and this is the line that will need company.
+/// Invalidate the TLB entry for `va`, **on every online CPU**.
+///
+/// The x86 instruction is `invlpg`, which unlike aarch64's `tlbi ..., is` is local to the CPU that
+/// executes it. So this is the local invalidate plus [`shoot_down_others`], the same shape RISC-V's
+/// `flush_tlb` has (an `sfence.vma` plus an SBI RFENCE) and for the same reason: without the remote
+/// half, a core that cached a translation for `va` keeps using it after this one has handed the
+/// frame away.
+///
+/// Local first, so this core's own page-table write is retired before anyone is told to look.
 pub fn flush_tlb(va: u64) {
     // SAFETY: TLB maintenance is always sound. Getting it wrong means a stale translation, which is
     // the memory-unsafety that matters here rather than Rust's.
     unsafe {
         core::arch::asm!("invlpg [{}]", in(reg) va, options(nostack, preserves_flags));
     }
+    shoot_down_others(va);
+}
+
+/// The [`SHOOTDOWN_VA`] value meaning "discard everything", as opposed to one page. `u64::MAX` is
+/// not a canonical address, so it can never be a real `va` and needs no separate flag word.
+const SHOOTDOWN_ALL: u64 = u64::MAX;
+
+/// **The one shootdown in flight**, and the lock that makes it one.
+///
+/// A raw `AtomicBool` rather than an [`crate::sync::IrqSafeMutex`], deliberately, and the reason is
+/// the whole design below: this is taken from inside `KERNEL_MMU`, which has already masked
+/// interrupts, so there is nothing left to mask and no rank to check. A core spinning here is still
+/// reachable, because the message that ends the spin is an NMI.
+static SHOOTDOWN_LOCK: AtomicBool = AtomicBool::new(false);
+
+/// What the cores named by [`SHOOTDOWN_PENDING`] are being asked to invalidate: one page, or
+/// [`SHOOTDOWN_ALL`]. Written under [`SHOOTDOWN_LOCK`], published by the `Release` store to
+/// `SHOOTDOWN_PENDING` that follows it.
+static SHOOTDOWN_VA: AtomicU64 = AtomicU64::new(0);
+
+/// **Which cores have not yet acknowledged**, as a bitmask of cpu ids. The sender sets it and spins
+/// until it reads zero; each target clears its own bit from the NMI handler. A mask rather than a
+/// countdown so that an NMI from any other source (or a late one from the previous round) finds its
+/// bit already clear and is a no-op instead of an acknowledgement nobody owed.
+static SHOOTDOWN_PENDING: AtomicUsize = AtomicUsize::new(0);
+
+/// **Make every other online CPU discharge `va` from its TLB, and do not return until they have.**
+///
+/// # Why this is an NMI and not an ordinary IPI
+///
+/// This is called from inside [`unmap_page`], which holds `KERNEL_MMU`, an `IrqSafeMutex`: **this
+/// core reaches here with interrupts masked, and so does every other core running the same code.**
+/// A maskable IPI would therefore deadlock on the first concurrent spawn-and-reap: core A holds
+/// `KERNEL_MMU` and waits for core B's acknowledgement, while core B spins for `KERNEL_MMU` with
+/// interrupts off and can never take the message that would let A finish. That is not a corner
+/// case; it is what two cores running the thread tests do continuously.
+///
+/// notes/riscv-tlb-shootdown.md already names the property that makes the RISC-V protocol work,
+/// and it is exactly the one at issue: *"The IPI arrives as an M-mode software interrupt, so a hart
+/// with S-mode interrupts masked still services it. That is not a footnote: without it, any kernel
+/// code that disables interrupts and spins would deadlock whoever was flushing, and this kernel
+/// disables interrupts routinely."* RISC-V gets that from a privilege level below the kernel's, and
+/// aarch64 does not need it at all because `tlbi ..., is` is broadcast by the hardware. x86 has
+/// neither, and has exactly one delivery mode `cli` cannot suppress, so the NMI is not a stylistic
+/// choice here: it is the only message that keeps the guarantee.
+///
+/// # What it does not do
+///
+/// Nothing before the local APIC is up, and nothing when this is the only online core: boot maps a
+/// great many pages with nobody to tell.
+///
+/// # BUGS
+///
+/// **One page per round trip.** A thread reap unmaps [`crate::thread::STACK_PAGES`] pages and pays
+/// for six full shootdowns, where a batched protocol (collect the range, send once) would pay for
+/// one. Correct and unbatched was chosen over fast and first: the batched version needs `unmap_page`
+/// to hand its caller an undischarged obligation, which is the one thing `paging::TlbFlush` exists
+/// to prevent. Worth revisiting with `script/bench` numbers rather than by argument.
+fn shoot_down_others(va: u64) {
+    // Nothing to tell, or nothing to tell it with. `local_apic_ready` is the earlier of the two:
+    // `mmu::init` maps the whole machine before `init_local_apic` runs.
+    if !super::irq::local_apic_ready() {
+        return;
+    }
+    let others = crate::smp::online_harts_mask() & !(1usize << crate::cpu::id());
+    if others == 0 {
+        return;
+    }
+
+    // One round at a time. See this static's own comment for why a raw spin is the right lock here
+    // and not a lapse: a core waiting here is still reachable by the only message that matters.
+    while SHOOTDOWN_LOCK
+        .compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed)
+        .is_err()
+    {
+        core::hint::spin_loop();
+    }
+
+    SHOOTDOWN_VA.store(va, Ordering::Relaxed);
+    // Release: this publishes the `va` above. A handler that sees its own bit set has, by the
+    // matching `Acquire` load, also seen the address that bit is about.
+    SHOOTDOWN_PENDING.store(others, Ordering::Release);
+
+    for cpu in cpu_set::cpus_in(others) {
+        // The local APIC id *is* the cpu id on this port: `smp::seat_cpus_from_acpi` seats every
+        // core at the slot its own APIC id names, which is what makes `smp::hwid(id) == Some(id)`
+        // for a filled slot. Asserted rather than assumed, because the whole protocol is addressed
+        // by this number.
+        debug_assert_eq!(
+            crate::smp::hwid(cpu),
+            Some(cpu as u64),
+            "shootdown addressed cpu {cpu}, whose local APIC id is not its own id"
+        );
+        super::irq::send_nmi(cpu as u8);
+    }
+
+    while SHOOTDOWN_PENDING.load(Ordering::Acquire) != 0 {
+        core::hint::spin_loop();
+    }
+
+    SHOOTDOWN_LOCK.store(false, Ordering::Release);
+}
+
+/// **Serve a shootdown NMI**: the receiving half of [`shoot_down_others`].
+///
+/// Called from the trap path for vector 2 and from nowhere else. Returns whether this NMI was one
+/// of ours, so the caller can tell a shootdown from an NMI this kernel did not send.
+///
+/// # It may not touch anything reached through `gs`
+///
+/// An NMI lands wherever it lands, and `trap.s` documents one window where `IA32_GS_BASE` still
+/// holds the *user's* value while `cs` says ring 0 (between the exit `swapgs` and the `iretq`). In
+/// that window `cpu::id()`, which reads that MSR, would answer with somebody else's arithmetic. So
+/// this core names itself from the local APIC's own id register instead, which is hardware ground
+/// truth and needs no per-CPU pointer to read. Nothing else here dereferences per-CPU state, takes
+/// a lock, or prints.
+pub fn serve_shootdown_nmi() -> bool {
+    let bit = 1usize << (super::irq::local_apic_id() as usize);
+
+    // Acquire: pairs with the sender's `Release` store, so seeing our bit means seeing its `va`.
+    if SHOOTDOWN_PENDING.load(Ordering::Acquire) & bit == 0 {
+        return false;
+    }
+
+    match SHOOTDOWN_VA.load(Ordering::Relaxed) {
+        // SAFETY: rewriting CR3 with the value it already holds changes no mapping and invalidates
+        // every non-global entry, which with `CR4.PGE` clear is every entry. See `flush_asid`.
+        SHOOTDOWN_ALL => unsafe { install(read_cr3()) },
+        // SAFETY: TLB maintenance is always sound, at any address.
+        va => unsafe {
+            core::arch::asm!("invlpg [{}]", in(reg) va, options(nostack, preserves_flags));
+        },
+    }
+
+    // Release: the invalidate above is complete before the sender may observe the acknowledgement
+    // and go on to hand the frame to somebody else.
+    SHOOTDOWN_PENDING.fetch_and(!bit, Ordering::Release);
+    true
 }
 
 /// Translate a kernel virtual address through the live kernel tables.
@@ -460,6 +601,21 @@ where
         direct_map(m, start, image_lo.min(end), Flags::kernel_data())?;
         direct_map(m, image_hi.max(start), end, Flags::kernel_data())?;
     }
+
+    // 1b. **One deliberate hole inside the excluded image range** (milestone 161's SMP item): the
+    //     AP trampoline's LMA, the gap link-x86_64.ld opens between `.rodata` and `.data` so the
+    //     trampoline's *source* bytes are not `.boot_scratch` or the secondary stacks (both
+    //     runtime-mutated; see that file's comment). It is inside `image_lo..image_hi`, so step 1's
+    //     loop skips it same as `.text`, and it is *between* two mapped sections rather than inside
+    //     either, so neither section's own mapping (step 3, below) reaches it either. Nobody's
+    //     mapping covers it unless this does. `ap_boot::prepare` is the one reader, through the
+    //     direct map; see `ap_boot::trampoline_lma`'s own doc for the full account.
+    direct_map(
+        m,
+        super::ap_boot::trampoline_lma(),
+        super::ap_boot::trampoline_lma() + super::ap_boot::trampoline_size(),
+        Flags::kernel_data(),
+    )?;
 
     // 2. Memory the loader did not call usable RAM but which is still *memory*: the first megabyte
     //    (IVT, BDA, EBDA, the BIOS area the ACPI RSDP is scanned out of, and the page below 1 MiB a
@@ -603,6 +759,26 @@ where
         }
         fill(m, start, end)?;
     }
+
+    // **The initrd, explicitly, regardless of how the memmap classified the bytes it occupies.**
+    // Found 2026-08-25 (decisions §86's VT-d/NVMe data point): attaching an NVMe controller grows
+    // the ACPI tables enough that the memmap's reserved entry immediately above `top_of_ram`
+    // widens to swallow the initrd's last few hundred bytes (PVH's loader places it at a fixed
+    // offset below the top of guest memory, sized for a smaller device set than this boot's
+    // tables need). The `top_of_ram` clamp above exists to keep this loop from identity-mapping
+    // the enormous, genuinely-bogus reserved entries elsewhere in the map (some span terabytes,
+    // nowhere near real RAM), so narrowing it is not the fix; it would also have to stop
+    // excluding the one legitimate sliver we need. Mapping the initrd's own recorded bounds
+    // directly sidesteps the question of which reserved entry is real backing memory and which
+    // is not: `bring_up_memory` already claimed this exact range as `forbidden` before this runs,
+    // so nothing else can be relying on it staying unmapped, and `fill` is idempotent over
+    // anything the loop above already covered.
+    if let Some((istart, isize)) = memory::initrd_region() {
+        let start = istart & !(PAGE_SIZE - 1);
+        let end = (istart + isize).next_multiple_of(PAGE_SIZE);
+        fill(m, start, end)?;
+    }
+
     Ok(())
 }
 
@@ -989,9 +1165,11 @@ pub fn deactivate_user() {
 /// reading another's memory with no fault to announce it, which is the failure `flush_asid` exists
 /// to prevent.
 ///
-/// Local to this CPU. x86 has no TLB broadcast (`invlpg` and a `CR3` reload are both local), so an
-/// SMP kernel needs a software shootdown IPI here, the same problem RISC-V solves with SBI RFENCE.
-/// There is one CPU (roadmap item 5), so this is the whole of it.
+/// **Every online CPU, not just this one.** x86 has no TLB broadcast (`invlpg` and a `CR3` reload
+/// are both local), so the remote half is [`shoot_down_others`]'s NMI protocol, the same problem
+/// RISC-V solves with SBI RFENCE. Without it, a core that ran a thread of the dying space keeps its
+/// translations and the next space handed this number reads them, which is one process reading
+/// another's memory with no fault to announce it.
 #[allow(dead_code)]
 pub fn flush_asid(asid: u16) {
     let _ = asid; // nothing to select on; see this function's doc comment
@@ -999,6 +1177,7 @@ pub fn flush_asid(asid: u16) {
     // every non-global entry, which is exactly the discharge this owes. TLB maintenance is always
     // sound; getting it wrong means a stale translation, which is the unsafety that matters here.
     unsafe { install(read_cr3()) };
+    shoot_down_others(SHOOTDOWN_ALL);
 }
 
 /// Map one user page at `va` in the currently installed address space, allocating the leaf and any

@@ -1,21 +1,62 @@
 # 49. Users, login, and attribution: what identity is for once it stops being authority
 
-**Status: PARTIAL, unchanged by this update.** A login service exists, proven end to end (see "What
-is built" below), and it authenticates exactly one login path against the credential service
-milestone 56 already built. It is not wired into the interactive boot, and it hands back two of the
-three capabilities the milestone's own text names (a directory and a budget; not a terminal). See
-BUGS for the full remainder and where each piece is headed.
+**Status: PARTIAL.** A login service exists, proven end to end (see "What is built" below), and it
+authenticates exactly one login path against the credential service milestone 56 already built. It
+is not wired into the interactive boot, and it hands back two of the three capabilities the
+milestone's own text names (a directory and a budget; not a terminal). **DECISIONS §120's 2026-08-26
+amendment unblocked the boot-wiring half of that gap, and the real virtio-rng device grant chain it
+authorized is now built and proven**: the interactive boot on both ISAs discovers a real virtio-rng
+device, grants it to init, and init builds a real entropy service from it before building anything
+else, verified by `script/shell-check` printing a real device-backed line
+(`"init: entropy service up; drew real bytes from a virtio-rng device"`). `credentialer` and this
+milestone's own `login` are not yet wired to that entropy service under the real boot; identity
+provisioning for a real credential is a separate, still-open piece; and the terminal capability
+question below remains a proposal rather than a build. See BUGS for the full remainder and where
+each piece is headed.
 
 **Gate: NONE.** Milestone 47 landed 2026-08-22. The attribution fork is decided (DECISIONS §109):
 channel, not capability. What remained was a real component to build (login); a first slice of it now
 exists.
 
-**Per-identity subtree scoping, this update's own piece, is resolved.** `login` used to attenuate
-every principal to the same fixed subtree; it now attenuates each identity to a subtree named by
-the identity string itself (DECISIONS §117), created beforehand at provisioning time by milestone
-155's `identity_provisioner`. What remains open (interactive boot wiring, the terminal) is exactly
-what it was before; this update does not move the status line, and says so per this file's own
-convention for a piece that lands without changing it.
+**Per-identity subtree scoping, an earlier update's own piece, is resolved.** `login` used to
+attenuate every principal to the same fixed subtree; it now attenuates each identity to a subtree
+named by the identity string itself (DECISIONS §117), created beforehand at provisioning time by
+milestone 155's `identity_provisioner`.
+
+**Channel-per-client, this update's own piece, is resolved.** `login`'s front door
+(`REQUEST`/`RESULT`) used to be a single endpoint pair sharing one staging page across every client
+this process would ever serve, for its whole life: the structural "one client at a time" limit this
+file's BUGS named. It now accepts exactly one word there, [`login_proto::CONNECT`], and mints a
+fresh, private request/result pair and staging page per caller before any identity or secret is ever
+staged, `filesystem_proto`'s own "a fresh object per client" answer copied here. Two callers reaching
+the front door together can now only contend for service order, never for each other's secret; see
+`user/src/login.rs`'s own BUGS for the full design and
+`kernel::user::login_tests::two_clients_connecting_together_get_independent_channels_and_neither_observes_the_others_secret`
+for the proof. What remains open (interactive boot wiring, the terminal) is exactly what it was
+before and is blocked on the same thing (DECISIONS §120: no interactive login needs to work before
+real hardware entropy is sorted, milestone 159); this update does not move the status line, and says
+so per this file's own convention for a piece that lands without changing it.
+
+**Two resource leaks that piece introduced were found and fixed before it landed**, both of the same
+shape and both worth reading past this milestone, because neither is specific to `login`:
+
+- **`MemoryRegion::DESTROY` does not free the destroyer's own capability-table slot.** It tears down
+  the objects retyped from a region and returns its pages, and `revoke_region` deletes every
+  `PageFrame` capability naming a freed page; it touches no `Rendezvous` capability and never the
+  `MemoryRegion` capability *naming the region being destroyed*. So a server that destroys a region
+  per request runs out of sixteen-slot capability table while its memory budget still looks
+  healthy, and the failure arrives as whatever that server says when it cannot serve. Here that was
+  `login_proto::DENIED` on a correct password, on the second login after start-up, for two days.
+  The kernel's `Error::OutOfMemory` collapsing "your budget is empty" and "your table is full" into
+  one code (milestone 153) is what made it expensive to find: four separate memory hypotheses were
+  measured and ruled out first.
+- **A region destroyed out of LIFO order strands its pages** until its parent dies (`crates/regions`'
+  `return_to_parent`, DECISIONS §16's documented half-answer). A channel is minted before the login
+  it carries and destroyed after it, so a channel region carved from the same budget as that login's
+  caretaker and client budget is never the top when it goes: 368 pages of holes in one suite run.
+  The fix is a budget with exactly one spender, which makes the channel region always its only live
+  child; the general form is that **a short-lived region wants a parent nothing long-lived is carved
+  from.**
 
 **A named prerequisite for milestone 152 (durable delegation)**, minted 2026-08-22: a scheduled job
 registered by a specific user (milestone 129's #387) needs a durable principal to be supervised by,
@@ -106,8 +147,8 @@ retypes a real page (not merely that the capabilities arrived); a wrong secret i
 follows the refusal, which the client checks by never calling `RECV_CAP` on that path rather than by
 asserting a negative; and two different identities each get an independently working channel, correctly
 named in the audit trail and in the order they were established. A fourth test proves the service
-survives past what used to be a hard, silent ceiling of eight logins ever (a leaked cspace slot per
-login; see BUGS), by taking the shared instance's login count to nine and checking each one's
+survives past what used to be a hard, silent ceiling of eight logins ever (a leaked capability-table
+slot per login; see BUGS), by taking the shared instance's login count to nine and checking each one's
 directory and budget work.
 
 **Per-identity subtree scoping (DECISIONS §117), landed in this update.** `login` now attenuates
@@ -172,49 +213,92 @@ feature (`user/src/login.rs`'s own BUGS, more precisely worded per item).
   bytes (`fs_proto::grant::MAX_NAME`) cannot get a per-identity subtree in this slice at all, and an
   authenticated identity with no provisioned subtree is refused indistinguishably from a wrong
   password (a considered fold, not an oversight; see `user/src/login.rs`'s own BUGS for both).
-- **No terminal.** The roadmap's own text names three things a login hands back; `login` hands back
-  two. A terminal in this system is a singleton hardware-backed resource wired once at interactive
-  boot; minting a second one, or multiplexing the one that exists across logins, is unscoped follow-on.
-- **Not wired into the interactive boot, and the blocker is a missing device grant, not a wiring
-  exercise** (investigated 2026-08-23, milestone/49-login-boot-prompt, no code changed by that
-  lane; see `user/src/login.rs`'s own BUGS for the full chain). `login` is spawned directly by the
-  kernel's guest test harness, the same way `credentialer` is, and is not reachable from
-  `crates/system_initializer::boot`'s real prompt. The reason is not that nobody has called
-  `build_child` enough times: `credentialer` refuses to start without the entropy service (its
-  decoy record's salt comes from entropy at start-up and there is no predictable fallback,
-  DECISIONS §42), the entropy service needs a real virtio-rng device, and the interactive boot
-  neither attaches one in QEMU nor grants a capability for one in
-  `system_initializer::BootEndowment` (built by `kernel::user::spawn_init` on aarch64 and
-  `kernel::user::riscv_shell_boot` on riscv64). `NIFE_RNG`, like the GPU/keyboard/NVMe device
-  flags it sits beside, is set only inside `cargo xtask test`, never by `cargo xtask shell-check`
-  or any interactive/demo boot; that is an existing, deliberate choice about that boot's device
-  surface, not an omission this milestone introduced.
+- **No terminal, and this is now a written proposal rather than a placeholder** (investigated
+  2026-08-26; see `user/src/login.rs`'s own BUGS for the pointer a reader meets first). The roadmap's
+  own text names three things a login hands back; `login` hands back two. A terminal in this system
+  is a singleton hardware-backed resource wired once at interactive boot, and that singularity is
+  exactly what makes "hand one back" a real design question rather than an unbuilt feature.
 
-  **The rest of the chain is already built and proven**: a real virtio-rng-backed entropy service,
-  `credentialer` provisioned with milestone 56's own family fixture (`chris`, `corinne`, …), and
-  `login` relaying to it all run correctly end to end today whenever a virtio-rng device is present
-  (`kernel::user::login_tests::wired`, reusing `kernel::user::credential_tests::provisioned`). So
-  the remaining gap is exactly one missing capability grant, not unfinished login or credential
-  logic.
+  **The single-login case has a real, narrow answer, and it does not need multiplexing.** Today's
+  actual scope is one interactive boot, one physical terminal, one session live at a time: `boot`
+  already wires the terminal once and hands it directly to the shell it builds; the only change a
+  login-gated boot needs is handing that same capability to `login`'s successful caller instead
+  (`WRITE`, the same right the shell already holds on it), which costs nothing new and multiplexes
+  nothing, because there is still only ever one holder at a time.
 
-  **Why a lane should not just add the device.** Whether the interactive boot should carry a
-  virtio-rng device is a question about what that boot models, and milestone 55's actual target is
-  real Raspberry-Pi-class hardware, which has no virtio-rng and needs its own entropy source; adding
-  one in QEMU would answer the demonstrator's boot and not the target's. It also means a new
-  permanent capability in `BootEndowment` on a cspace `crates/system_initializer` already documents
-  as one slot from the wall at peak, so fitting it (and a way for a spawned client to reach `login`)
-  means restructuring which capabilities init holds simultaneously during the shell's own build, not
-  adding a field. Both are exactly the "who has already acted on this, and how reversible is it"
-  shape the *move fast on what can be undone* tenet reserves for calef: a kernel-to-init grant and a
-  claim about what hardware the interactive boot represents.
+  **What has no answer yet, and is a real fork rather than a wiring gap:** what a *second*,
+  concurrent login should be told when the terminal is already spoken for (deny cleanly? queue?),
+  and whether a real multiplexing primitive (more than one session, each with its own view) is ever
+  wanted at all. Two shapes, not decided between:
 
-  **Decided (calef, 2026-08-23, DECISIONS §120): the QEMU-only stopgap is declined for now**, for
-  want of a customer -- no interactive login needs to work before real hardware entropy is sorted.
-  Milestone 159, a real hardware entropy source: the JH7110's TRNG (minted alongside §120), tracks
-  the real answer, already named as the candidate in `notes/entropy.md` and milestone 56's own doc
-  but never given a home. Replacing the shell's build-time endowment with a real login prompt remains this milestone's
-  largest piece and stays blocked until either §120 is revisited with a real customer or milestone
-  159 lands.
+  - **Deny cleanly.** `login` holds the terminal capability only once wired to a real boot, hands it
+    to the first successful login, and every login after that gets [`login_proto::DENIED`] or a
+    dedicated "no terminal available" code for as long as the first session holds it, freeing it on
+    logout (the existing logout ticket, `MemoryRegion::DESTROY`, already gives a session a way to
+    signal "I am done"). Cheap, matches today's actual single-session boot exactly, and answers
+    nothing about ever supporting two live sessions.
+  - **Real multiplexing.** A second terminal-shaped object (the compositor's own per-client window
+    is the closest existing precedent, DECISIONS §109's shared-endpoint refusal read the other
+    direction) that composes multiple sessions' input and output onto the one physical device. Real
+    work, and the milestone's own text already named this as the shape neither this program nor its
+    caller should guess at.
+
+  **Recommendation: the first shape, when boot-wiring makes it buildable.** It is the smaller change
+  by a wide margin, it is what today's actual customer (one interactive boot, one person at it) needs
+  and nothing more, and choosing it commits to nothing the second shape would later have to unwind:
+  a `login` that denies a second concurrent caller today can start handing out real multiplexed views
+  tomorrow without changing what a *single* session ever received. Not built here because `login`
+  does not yet hold the terminal at all (see the boot-wiring item below, which this one piece sits on
+  top of), not because the recommendation itself is undecided.
+
+- **Not wired into the interactive boot. The device-grant half of the blocker is built and proven;
+  reaching `login` itself is the piece that remains** (investigated 2026-08-23,
+  milestone/49-login-boot-prompt; the grant chain built 2026-08-26 on DECISIONS §120's amendment;
+  see `user/src/login.rs`'s own BUGS for the full account, more precisely worded). `login` is still
+  spawned directly by the kernel's guest test harness, the same way `credentialer` is, and is not
+  itself reachable from `crates/system_initializer::boot`'s real prompt.
+
+  **What §120's amendment unblocked, and is now built.** `kernel::user::spawn_init` (aarch64) and
+  `kernel::user::riscv_shell_boot` (riscv64) now discover a real virtio-rng device on the MMIO bus
+  and grant it to init as three capabilities; the interactive boot's own QEMU invocation now attaches
+  one (`xtask`'s `shell_check_leg` and `"shell"` command both set `NIFE_RNG`, a flag that used to be
+  test-leg only); and `crates/system_initializer::boot` builds a real entropy service from that
+  grant, before building anything else, and proves it drew real device bytes
+  (`script/shell-check` reads `"init: entropy service up; drew real bytes from a virtio-rng device"`
+  on both ISAs). `credentialer.rs` and `entropy.rs` needed no changes: the entropy service they
+  already assumed now genuinely exists under a real boot. **Why entropy had to be built before
+  anything else in `boot`, load-bearing rather than tidy**: the virtio-rng trio is a kernel grant, so
+  it inflates init's resting capability-table baseline for the whole function, and the boot's
+  earliest peak (retyping the terminal's own six capabilities, before the console even exists) was
+  already close to the sixteen-slot wall; adding three permanent slots to that baseline pushed it
+  over and faulted in total silence. Building entropy first and releasing its slots before the
+  terminal plumbing runs restores every peak after it to what it was before this landed. Found by
+  bisection (an isolated extra capability nobody used reproduced the identical silent fault), not
+  reasoned to in advance.
+
+  **What is still missing, and none of it is a plumbing gap in the sense the device grant was.**
+
+  1. **`credentialer` and `login`, wired into `boot` the same way entropy now is**: built via
+     `build_child`, holding narrowed views of capabilities `boot` already has (the file service
+     pair, a construction budget) plus a client view of the entropy service `boot` just built.
+  2. **A real subtree and a real credential for whoever logs in.** `identity_provisioner` (milestone
+     155) already builds the tool; it has the identical "spawned only by the kernel's guest test
+     harness" bound this item itself names, unchanged (`design/roadmap/155-*`'s own BUGS).
+  3. **Where the demo credential's password comes from, a real fork rather than a detail.** Nothing
+     today provisions a credential for a real boot. Two shapes considered: a password baked into the
+     image at build time (a permanent, shipped secret; the "a fact that leaves the machine" category
+     `AGENTS.md`'s own tenet reserves for calef, so not decided here); or a password the boot
+     generates itself from the entropy service now built, provisioned once per boot and printed to
+     the console before the prompt (the shape cloud images already use for a generated first-boot
+     password). **Recommendation: the second.** No permanent secret, no decision about whose
+     password to bake in, and it is reversible in exactly the sense the *move fast on what can be
+     undone* tenet uses to tell a lane's call from calef's: a later boot can trivially do something
+     else. Not built here because it is new work stacked on (1) and (2), not because the
+     recommendation is itself undecided.
+
+  Milestone 159, a real hardware entropy source (the JH7110's TRNG, minted alongside §120), remains
+  unaffected by any of this either way, exactly as §120's own "what this does not decide" already
+  said.
 - **Resolved, 2026-08-24.** `login` used to load `fs_subtree_caretaker` by name with no check at all,
   inconsistent with milestone 104's discipline (init refuses to load a program whose bytes do not
   match the archive's measurement table). Investigating "how a loader outside the boot chain joins
@@ -233,9 +317,9 @@ feature (`user/src/login.rs`'s own BUGS, more precisely worded per item).
   to be spent forever, with no logout that gave it back. `mint()` now delegates its own copy of the
   caretaker's construction region to the authenticated client as a fourth capability, narrowed to
   `WRITE` (a "logout ticket"), instead of dropping it once the caretaker confirms descent (the
-  narrower cspace-slot fix an earlier lane already landed for that same drop). The region has
-  nothing left to `SPLIT` or `RETYPE`, so its only remaining use is `Untyped::DESTROY`, and calling
-  it reclaims the caretaker's TCB, address space and endpoints, with the pages returning to
+  narrower capability-table-slot fix an earlier lane already landed for that same drop). The region
+  has nothing left to `SPLIT` or `RETYPE`, so its only remaining use is `MemoryRegion::DESTROY`, and
+  calling it reclaims the caretaker's TCB, address space and endpoints, with the pages returning to
   `CONSTRUCTION_UT` under §13 region ownership. The client's own budget (the third capability) needed
   no new mechanism at all: it was always delegated with `WRITE`, which is what `DESTROY` needs, so a
   full logout destroys both, **in a specific order**: `mint()` splits the region first and the budget
@@ -260,6 +344,13 @@ feature (`user/src/login.rs`'s own BUGS, more precisely worded per item).
   existing multi-client server either serves exactly one principal by construction
   (`fs_subtree_caretaker`) or is anonymous by design (the credential service). Wiring the second half
   into a real multi-tenant consumer is follow-on for whenever such a consumer exists.
-- **One client at a time.** `login`'s request and result endpoints are each a single endpoint, the same
-  structural limit `credentialer.rs` documents for its own verify page. A second concurrent caller
-  needs a channel per client, `fs_proto`'s answer, copied here when a second concurrent caller exists.
+- **Resolved.** `login`'s request and result endpoints used to be a single endpoint pair sharing one
+  staging page across every client, the same structural limit `credentialer.rs` still documents for
+  its own verify page. The front door now accepts exactly one word, `login_proto::CONNECT`, and mints
+  a fresh, private request/result pair and staging page per caller before any identity or secret is
+  staged: `filesystem_proto`'s "a fresh object per client" answer, copied here. See
+  `user/src/login.rs`'s own BUGS for the full design and its cost (a channel, answered or not, is
+  never reclaimed in this slice), and
+  `kernel::user::login_tests::two_clients_connecting_together_get_independent_channels_and_neither_observes_the_others_secret`
+  for the proof that two callers reaching the front door together can no longer observe or corrupt
+  each other's secret.
