@@ -137,19 +137,20 @@ pub mod script;
 ///
 /// Fixed rather than allocated, because the terminal component has no allocator and this crate is
 /// the same code the kernel and the host run. **Grown from 32 to 182 at milestone 142's increment
-/// 1**, alongside the scanout (128x64 -> 1280x720, DECISIONS §102): 182 is exactly
-/// `graphics_proto::WIDTH / bitmap_font::GLYPH_W` (1280 / 7), so it covers the grown scanout at the
-/// current bitmap font with no headroom to spare (unlike the old 32, which covered 128x64 at four
-/// times over). A screen bigger than that gets a bigger constant, and the terminal component
-/// asserts its own geometry fits at compile time so the failure is a build error rather than a
-/// truncated screen.
-pub const MAX_COLS: usize = 182;
-/// The tallest grid this engine can hold, in cells. See [`MAX_COLS`]. Grown from 16 to 90 (1280x720
-/// / 8, the font's row height), with the same "exactly covers today's scanout" property.
-pub const MAX_ROWS: usize = 90;
+/// 1, then retargeted to 132 on 2026-08-27** alongside the scanout (128x64 -> 1280x720 -> 924x344,
+/// `graphics_proto::WIDTH`'s doc comment has the full story). 132 is exactly
+/// `graphics_proto::WIDTH / bitmap_font::GLYPH_W` (924 / 7), the classic VT100/VT220 "wide mode"
+/// column count and roughly what a real terminal actually runs, unlike 182's near-double of any
+/// terminal anyone uses. A screen bigger than that gets a bigger constant, and the terminal
+/// component asserts its own geometry fits at compile time so the failure is a build error rather
+/// than a truncated screen.
+pub const MAX_COLS: usize = 132;
+/// The tallest grid this engine can hold, in cells. See [`MAX_COLS`]. Grown from 16 to 90, then
+/// retargeted to 43 (924x344's `HEIGHT` / 8, the font's row height), the VT100/VT220 "wide mode"
+/// row count.
+pub const MAX_ROWS: usize = 43;
 /// Cells in the largest possible **live** grid (the on-screen viewport; see [`SCROLLBACK_ROWS`] for
-/// the off-screen history alongside it). At the current cell size this is a little over 100 KiB of
-/// `.bss`, up from 1 KiB at the pre-142 32x16 grid: a real cost, paid once per terminal instance and
+/// the off-screen history alongside it). A real cost, paid once per terminal instance and
 /// auto-provisioned from that program's own region (`kernel/src/user.rs`'s `load` sizes a process's
 /// address-space region from its ELF segments, `.bss` included), not from any shared budget.
 pub const MAX_CELLS: usize = MAX_COLS * MAX_ROWS;
@@ -160,7 +161,7 @@ pub const MAX_CELLS: usize = MAX_COLS * MAX_ROWS;
 /// reaches no allocator, so the capacity is a constant three parties (the terminal, the kernel test,
 /// the host-side check) already agree on the same way they agree on [`MAX_COLS`]/[`MAX_ROWS`].
 ///
-/// **300, chosen as a working depth rather than derived from anything.** At [`MAX_COLS`] (182) that
+/// **300, chosen as a working depth rather than derived from anything.** At [`MAX_COLS`] (132) that
 /// is roughly 300 KiB more of `.bss`, comparable in order of magnitude to the live grid itself and a
 /// small fraction of the free page-frame pool a terminal's own region draws from (see
 /// notes/frames.md's measurement that hundreds of page frames are "under one percent of the free

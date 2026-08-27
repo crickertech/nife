@@ -18,26 +18,31 @@ a terminal anyone would sit at. Independent of 177: this milestone grows the VT 
 provable under the same test harness milestone 29 already uses, and needs neither the real-boot
 wiring 177 does nor anything else on that journey.
 
-**Increments one and two are built** (`milestone/142-terminal-size`). §102 ("A Frame names a run
-of pages") is built and consumed, `Object::PageFrame` now carrying the page count: the scanout is
-1280x720 (900 page frames, one capability instead of 900), and every place that named the surface
-at the sixteen-slot capability
-table's old ceiling (the display driver's DMA region, the painting client's and the display
-terminal's own surface grant, and the compositor's screen and a capture client's read-only mirror
-of it, which this milestone's own text did not anticipate touching) now holds one run capability.
-`gfx_proto::WIDTH`'s non-square argument was re-checked at the new size and holds by construction
-(1280x720x4 is exactly 900 page frames, no remainder). The grid is a real terminal now: UTF-8
-decoding in the VT engine (`bitmap_font::glyph` takes `char`), a scrollback ring
-(`video_terminal::SCROLLBACK_ROWS`) with a viewport and `Vt::scroll_up`/`scroll_down`, and the
-arrow-key cluster in the keymap (`CSI A/B/C/D`, the sequence `crates/line_editor` already
-understood on its receiving side). **One correction to this block's own arithmetic**: increment
-2's "91x27 at the target cell" table further down computed columns and rows at a *future*
-anti-aliased Menlo-derived cell (14x26 at 2x, the cell increments 3-6 would build); at today's 7x8
-bitmap font, unchanged by this pass, the honest grid is **182x90**, comfortably past the same
-80x24 floor. When the atlas lands and the cell widens, the grid shrinks with it. **Not wired to a
-key**: the scrollback engine is built and host-tested, but nothing sends `Vt::scroll_up`/
-`scroll_down` from a keystroke yet, which is a small, separate follow-up rather than a gap in the
-engine itself.
+§102 ("A Frame names a run of pages") is built and consumed, `Object::PageFrame` now carrying the
+page count: the scanout was first grown to 1280x720 (900 page frames, one capability instead of
+900), and every place that named the surface at the sixteen-slot capability table's old ceiling
+(the display driver's DMA region, the painting client's and the display terminal's own surface
+grant, and the compositor's screen and a capture client's read-only mirror of it, which this
+milestone's own text did not anticipate touching) now holds one run capability. `gfx_proto::WIDTH`'s
+non-square argument was re-checked at that size and held by construction (1280x720x4 was exactly
+900 page frames, no remainder). The grid is a real terminal now: UTF-8 decoding in the VT engine
+(`bitmap_font::glyph` takes `char`), a scrollback ring (`video_terminal::SCROLLBACK_ROWS`) with a
+viewport and `Vt::scroll_up`/`scroll_down`, and the arrow-key cluster in the keymap (`CSI A/B/C/D`,
+the sequence `crates/line_editor` already understood on its receiving side). **One correction to
+this block's own arithmetic**: increment 2's "91x27 at the target cell" table further down computed
+columns and rows at a *future* anti-aliased Menlo-derived cell (14x26 at 2x, the cell increments
+3-6 would build); at today's 7x8 bitmap font, unchanged by this pass, the honest grid at 1280x720
+was **182x90**, comfortably past the 80x24 floor but, on review with calef (2026-08-27), roughly
+double any terminal anyone runs (most are 80x24 up to maybe 160x50 on a large monitor). **Retargeted
+2026-08-27 to 132x43** (the classic VT100/VT220 "wide mode" size) at a 924x344 scanout, sized
+directly against the shipping 7x8 cell instead of the future one: 924 = 132 * 7 and 344 = 43 * 8,
+both exact. This drops [`graphics_proto::SURFACE_PAGE_FRAMES`] to 311 (`crates/graphics_proto/src/
+lib.rs`'s `WIDTH` doc comment has the full arithmetic, including the one property lost: 924x344's
+byte count is no longer an exact multiple of 4096, unlike 1280x720's, and no nearby resolution that
+still delivers exactly 132x43 recovers it). When the atlas lands and the cell widens, the grid
+shrinks with it. **Not wired to a key**: the scrollback engine is built and host-tested, but nothing
+sends `Vt::scroll_up`/`scroll_down` from a keystroke yet, which is a small, separate follow-up
+rather than a gap in the engine itself.
 
 **Increments three through six remain NOT-STARTED**, blocked on the font-family and licence
 decision (increment 3) and, downstream of it, the palette decision (increment 6, itself gated on
@@ -517,15 +522,17 @@ Six increments. **The first two need no decision from calef and no dependency at
 are the larger half of "would use it outside a GUI".
 
 1. **Grow the surface. BUILT.** §102 built (`Object::PageFrame` gains a page count), the scanout
-   is 1280x720, and `gfx_proto::WIDTH`'s non-square argument re-checked at the new size and held
-   by construction. The harness cost was paid, not dodged: see the lane's own report for the
-   measured `screendump` and per-poll cost, and whether the poll rate itself needed to move.
+   was first grown to 1280x720 and `gfx_proto::WIDTH`'s non-square argument re-checked at that size
+   and held by construction; retargeted 2026-08-27 to 924x344 (see the status note above). The
+   harness cost was paid, not dodged: see the lane's own report for the measured `screendump` and
+   per-poll cost, and whether the poll rate itself needed to move.
 2. **Make the grid a terminal. BUILT.** Scrollback (a ring of off-screen rows and a viewport,
    which changes the damage model and is why milestone 29 deferred it: `video_terminal`'s own
    `scroll_up`/`scroll_down` and `view_offset`), UTF-8 in the VT engine with `bitmap_font::glyph`
-   taking a `char`, and the arrow-key cluster the keymap did not have. The grid itself is 182x90 at
+   taking a `char`, and the arrow-key cluster the keymap did not have. The grid itself is 132x43 at
    today's 7x8 bitmap font (not "91x27 at the target cell": that number was this block's own
-   arithmetic for a *future*, not-yet-built cell; see the status note above), comfortably past the
+   arithmetic for a *future*, not-yet-built cell; and not the intermediate 182x90 the surface briefly
+   delivered before the 2026-08-27 retarget, either; see the status note above), comfortably past the
    80x24 floor either way.
 3. **The atlas and the host-side generator.** A tool that turns an outline font into a coverage
    table, a checked-in table, and a gate that regenerating reproduces it byte for byte. Three

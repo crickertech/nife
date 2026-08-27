@@ -5,17 +5,21 @@ use crate::cap::{Rights, memory_region_cap, page_frame_run_cap, rendezvous_cap};
 use crate::sched::RendezvousId;
 
 /// **The budget the compositor, and a capture client, draw their own screen mapping's page tables
-/// from** (DECISIONS §102, milestone 142). Same reasoning as `display_service::MAP_BUDGET_PAGES`:
-/// the screen alone spans more than one 2 MiB window at the grown scanout, so more than one L3 table
-/// is the ordinary case now, not the edge case a smaller screen only occasionally hit.
+/// from** (DECISIONS §102, milestone 142). Same reasoning as `display_service::MAP_BUDGET_PAGES`,
+/// including that lane's caveat: at the 1280x720 scanout this was widened for, the screen alone
+/// spanned more than one 2 MiB window; at the 924x344 scanout the milestone was retargeted to on
+/// 2026-08-27 ([`SCREEN_PAGE_FRAMES`], 311 pages) it is back under one window, the same shape a
+/// smaller screen always had, and this constant is kept at the wider value rather than re-tuned
+/// down.
 const MAP_BUDGET_PAGES: u64 = 24;
 
 // The compositor's address space. Must match user/src/compositor.rs. `SCREEN_VA` is not here: the
 // screen is a `PageFrame` capability now (§102), and the compositor picks its own VA for it (like
 // `painter`/`display_terminal` already do for rung one's surface), so the kernel wiring has no
 // reason to know the address. `WLIST_VA`/`RING_VA`/`CLIENT_BASE` moved clear of the address range
-// the grown screen (900 page frames, up to 4 MiB from `SCREEN_VA`) now claims in the compositor's
-// own space; see `user/src/compositor.rs`'s matching comment for the arithmetic.
+// the grown screen ([`SCREEN_PAGE_FRAMES`] page frames, up to 4 MiB from `SCREEN_VA`, sized for the
+// largest scanout this milestone has used rather than today's 924x344/311-frame one) now claims in
+// the compositor's own space; see `user/src/compositor.rs`'s matching comment for the arithmetic.
 const WLIST_VA: u64 = 0x0000_0000_0c00_0000;
 const RING_VA: u64 = 0x0000_0000_0c01_0000;
 const CLIENT_BASE: u64 = 0x0000_0000_0e00_0000;

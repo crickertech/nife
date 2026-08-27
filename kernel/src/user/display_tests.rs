@@ -327,7 +327,7 @@ fn a_bitmap_font_and_a_vt_engine_put_readable_text_on_the_scanout() {
     // space's witness, taken after the device reported the transfer complete.
     //
     // **A function-local `static`, not a stack local** (milestone 142): at the grown scanout's
-    // grid (`script::COLS` x `script::ROWS`, 182x90), one `Vt` is well over a hundred KiB, which a
+    // grid (`script::COLS` x `script::ROWS`, 132x43), one `Vt` is well over a hundred KiB, which a
     // 24 KiB kernel thread stack cannot hold (`script/stack-frame-check`'s whole reason for being;
     // see notes/stack-high-water.md). `Vt::new` is `const fn` and `COLS`/`ROWS` are compile-time
     // constants, so this initializer is evaluated by the compiler and lands in `.bss`, never on the

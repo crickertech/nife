@@ -403,9 +403,11 @@ went), and the difference is accounted rather than shrugged at:
   `page_frame::REVOKE` operate on the whole run, and `cap::page_frame_run_cap` mints one capability
   for a multi-page region instead of one per page. The display driver's DMA region, the painting
   client's and display terminal's surface grant, and the compositor's screen (plus a capture
-  client's read-only mirror of it) all moved to this, which is what makes the grown 1280x720
-  scanout (900 page frames) fit a sixteen-slot capability table at all: at one capability per page it
-  would not have. `display_service::DRIVER_SLOT_DMA`'s `const` assertion (below, and the error it
+  client's read-only mirror of it) all moved to this, which is what makes the grown scanout (900
+  page frames at the 1280x720 this was first built and measured against; 311 frames at the 924x344
+  the scanout was retargeted to on 2026-08-27, `crates/graphics_proto/src/lib.rs`'s `WIDTH` has the
+  reasoning) fit a sixteen-slot capability table at all: at one capability per page neither size
+  would have. `display_service::DRIVER_SLOT_DMA`'s `const` assertion (below, and the error it
   used to produce) is retired along with the pressure it guarded against. The paragraphs below are
   kept as the record of how the fork was found, priced and decided; they describe a state this tree
   no longer has.

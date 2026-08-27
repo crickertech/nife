@@ -17,20 +17,21 @@
 /// `user/src/display_terminal.rs` and the kernel wiring both assert the two agree at **compile time**, so a
 /// screen that changed size is a build error rather than a terminal quietly missing its last column.
 ///
-/// **182, and the division has a remainder**: 1280 / 7 is 182 with six pixels left over, which the
-/// terminal paints as background once and no cell ever owns, the same shape 128 / 7's two-pixel
-/// remainder already had.
+/// **132, no remainder**: 924 / 7 is exactly 132, unlike 1280 / 7's six leftover pixels (and 128 /
+/// 7's two).
 ///
-/// **Grown from 18 at milestone 142's increment 1**, alongside the scanout (128x64 -> 1280x720,
-/// DECISIONS §102). The milestone's own arithmetic names 91 columns at a *future* 14-pixel cell
-/// (the anti-aliased atlas increments 3-6 would add, gated on a font decision this lane does not
-/// have); at today's 7x8 bitmap font (`bitmap_font::GLYPH_W`/`GLYPH_H`, unchanged by this
-/// milestone) the honest number is 182, which clears the 80-column floor with more room to spare,
-/// not less. When the atlas lands and the cell widens, this constant shrinks with it.
-pub const COLS: u32 = 182;
-/// The rows of a terminal that owns the whole scanout. See [`COLS`]: 720 / 8 is 90 exactly, no
-/// remainder, unlike 64 / 8 which was also exact. Grown from 8.
-pub const ROWS: u32 = 90;
+/// **Grown from 18 to 182 at milestone 142's increment 1, then retargeted to 132 on 2026-08-27**
+/// (`graphics_proto::WIDTH`'s doc comment has the full story: 182 was arithmetic against a *future*
+/// 14-pixel cell that never shipped in this increment, applied by mistake to the 7x8 cell that did,
+/// producing a grid nearly double any terminal anyone runs). 132 columns is the classic VT100/VT220
+/// "wide mode" size at today's 7x8 bitmap font (`bitmap_font::GLYPH_W`/`GLYPH_H`, unchanged by this
+/// retarget), and still clears the 80-column floor with real room. When the atlas lands and the
+/// cell widens, this constant shrinks with it.
+pub const COLS: u32 = 132;
+/// The rows of a terminal that owns the whole scanout. See [`COLS`]: 344 / 8 is 43 exactly, no
+/// remainder, unlike 64 / 8 which was also exact. Grown from 8 to 90, then retargeted to 43 (the
+/// VT100/VT220 "wide mode" row count).
+pub const ROWS: u32 = 43;
 
 /// **What the application prints.** Delivered as `OP_WRITE`, the terminal contract's application
 /// half (notes/terminal-contract.md), exactly as a program printing to a serial console would.

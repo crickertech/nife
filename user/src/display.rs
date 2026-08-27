@@ -20,8 +20,9 @@
 //! count: this driver's DMA region is adjacent in physics, adjacent in its address space, and
 //! covered as a single range by the IOMMU domain the kernel programmed, so one capability names all
 //! of it. Before §102 this was one capability per page (nine, at the original 128x64 scanout); at
-//! the grown 1280x720 scanout it would have been 901, which does not fit a sixteen-slot capability
-//! table at all. See notes/frames.md's BUGS (now resolved) for the history.
+//! the scanout's first growth to 1280x720 it would have been 901, and at today's 924x344
+//! (retargeted 2026-08-27) it would still be 312 ([`DMA_PAGE_FRAMES`]), neither of which fits a
+//! sixteen-slot capability table at all. See notes/frames.md's BUGS (now resolved) for the history.
 //!
 //! # The thing that draws is not the thing that talks to the hardware
 //!
@@ -80,10 +81,13 @@ const DMA_PAGE_FRAMES: u64 = 1 + gfx::SURFACE_PAGE_FRAMES as u64;
 /// maps them (milestone 108). The *physical* base still arrives in `a1`, and has to: descriptors
 /// speak physical, and a process only knows virtual addresses.
 ///
-/// **2 MiB-aligned** (moved here at milestone 142, DECISIONS §102): at [`DMA_PAGE_FRAMES`] (901,
-/// since the scanout grew to 1280x720) the region is 3.5 MiB, so an unaligned base would span three
-/// 2 MiB page-table windows instead of two. The old `0x90_0000` was never aligned; it went
-/// unnoticed while the region was a few pages.
+/// **2 MiB-aligned** (moved here at milestone 142, DECISIONS §102): at the scanout's first growth to
+/// 1280x720, [`DMA_PAGE_FRAMES`] was 901 and the region was 3.5 MiB, so an unaligned base would have
+/// spanned three 2 MiB page-table windows instead of two. At today's 924x344 (retargeted
+/// 2026-08-27) [`DMA_PAGE_FRAMES`] is 312 and the region is about 1.2 MiB, comfortably one window
+/// regardless of alignment; the alignment is kept anyway; it costs nothing and this VA is not
+/// reused for anything an unaligned base would help pack more tightly. The old `0x90_0000` was never
+/// aligned; it went unnoticed while the region was a few pages.
 const DMA_VA: u64 = 0x0000_0000_0100_0000;
 
 // --- virtio-mmio v2 register offsets. The PCI transport answers this same vocabulary

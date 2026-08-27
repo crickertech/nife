@@ -104,9 +104,12 @@ fn walk(slot: u64, rows: &mut [ps::Row; TEST_ROWS]) -> ps::Survey<'_> {
 /// this engine's `LF` does not return the carriage (`video_terminal`'s own tests pin `LF alone must
 /// not return the carriage`), so a multi-line table's rows do not all start at column 0 the way a
 /// naive reader would expect; a check keyed to exact row/column position would be testing that
-/// quirk, not `watch`. `[u8; 256]` is `MAX_COLS * MAX_ROWS_TALL` below, on the stack: this runs on a
-/// kernel thread stack under a 4,096-byte guard page, the same reason `TEST_ROWS` above is 8 and not
-/// `ps::MAX_ROWS`.
+/// quirk, not `watch`. `[u8; GRID_BYTES]` (`MAX_COLS * ROWS_TALL` below) lives on the stack: this
+/// runs on a kernel thread stack under a 4,096-byte guard page, the same reason `TEST_ROWS` above
+/// is 8 and not `ps::MAX_ROWS`. (An earlier version of this comment named a literal byte count
+/// that had already gone stale by the time it was noticed: it dated to `MAX_COLS` being 32,
+/// pre-milestone-142, and was never updated through 182 or the 2026-08-27 retarget to 132. `GRID_BYTES`
+/// is the number that cannot go stale.)
 const ROWS_TALL: u32 = 8;
 const GRID_BYTES: usize = video_terminal::MAX_COLS * ROWS_TALL as usize;
 
