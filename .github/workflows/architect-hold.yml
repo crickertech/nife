@@ -103,7 +103,14 @@ jobs:
           fi
           # Match the pr-<digits>- segment regardless of whether HEAD_REF carries a refs/heads/
           # prefix, since that has not been confirmed to be stable across GitHub's own payloads.
-          number="$(printf '%s\n' "$HEAD_REF" | grep -oE 'pr-[0-9]+-' | head -1 | grep -oE '[0-9]+')"
+          #
+          # **`|| true` is load-bearing, not decoration.** GitHub's default shell for `run:` is
+          # `bash -eo pipefail`, so a `grep` that finds nothing exits non-zero, and pipefail makes
+          # that the whole pipeline's status; without `|| true`, `number=$(...)` would itself be a
+          # failing simple command and `-e` would kill the script right here, before the `if`
+          # below ever runs, silently swallowing the diagnostic message that follows. Verified by
+          # exercising this exact pipeline under bash -eo pipefail against a malformed HEAD_REF.
+          number="$(printf '%s\n' "$HEAD_REF" | grep -oE 'pr-[0-9]+-' | head -1 | grep -oE '[0-9]+' || true)"
           if [ -z "$number" ]; then
             echo "could not parse a PR number out of merge_group.head_ref: '$HEAD_REF'" >&2
             exit 1
