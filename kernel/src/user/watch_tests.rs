@@ -214,11 +214,22 @@ fn a_second_frame_erases_the_first_rather_than_leaving_it_on_screen() {
         "both members should be in the first frame"
     );
 
-    let mut vt = video_terminal::Vt::new(video_terminal::MAX_COLS as u32, ROWS_TALL);
+    // **A function-local `static`, not a stack local** (milestone 142): at `MAX_COLS` wide, one
+    // `Vt` is well over a hundred KiB, which this test's 24 KiB kernel thread stack cannot hold
+    // (`script/stack-frame-check`'s reason for being; see notes/stack-high-water.md). `Vt::new` is
+    // `const fn` and both arguments here are compile-time constants, so this initializer is
+    // evaluated by the compiler and lands in `.bss`, never on the stack.
+    static mut VT: video_terminal::Vt =
+        video_terminal::Vt::new(video_terminal::MAX_COLS as u32, ROWS_TALL);
+    let vt_ptr = &raw mut VT;
+    // SAFETY: this `#[test_case]` runs once, to completion, before any other test that might
+    // declare a same-named function-local static begins (the harness runs test cases
+    // sequentially); nothing else in this process can reach `VT`.
+    let vt: &mut video_terminal::Vt = unsafe { &mut *vt_ptr };
     watch::frame(&survey1, &mut |bytes| vt.feed(bytes));
 
     let mut grid1 = [0u8; GRID_BYTES];
-    grid_text(&vt, &mut grid1);
+    grid_text(vt,&mut grid1);
     let (mut da, mut db) = ([0u8; 20], [0u8; 20]);
     let da = digits(a, &mut da);
     let db = digits(b, &mut db);
@@ -253,7 +264,7 @@ fn a_second_frame_erases_the_first_rather_than_leaving_it_on_screen() {
     watch::frame(&survey2, &mut |bytes| vt.feed(bytes));
 
     let mut grid2 = [0u8; GRID_BYTES];
-    grid_text(&vt, &mut grid2);
+    grid_text(vt,&mut grid2);
     assert!(
         !contains_exact_number(&grid2, da),
         "a's tid from the first frame is still on screen: watch overwrote instead of erasing",
