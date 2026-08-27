@@ -1204,7 +1204,11 @@ mod tests {
         feed_all(&mut d, &mut s, b"x\x02\x0b"); // type 'x', ^B onto it, ^K kills it to end
         feed_all(&mut d, &mut s, b"\x1b[A"); // browse into history
         d.abandon();
-        assert_eq!(d.line(), b"first", "abandon must not touch the last completed line");
+        assert_eq!(
+            d.line(),
+            b"first",
+            "abandon must not touch the last completed line"
+        );
         // The kill buffer survives: yanking it after abandon still works.
         s = Screen::new();
         feed_all(&mut d, &mut s, b"\x19");

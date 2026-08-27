@@ -79,8 +79,8 @@ pub fn start() -> Wiring {
                 arg2: 0,
                 grants: &[
                     rendezvous_cap(term, Rights::READ),    // slot 0: TERM, RECV_CAP
-                    rendezvous_cap(conreq, Rights::WRITE),  // slot 1: CONREQ, SEND
-                    rendezvous_cap(conrep, Rights::READ),   // slot 2: CONREP, RECV
+                    rendezvous_cap(conreq, Rights::WRITE), // slot 1: CONREQ, SEND
+                    rendezvous_cap(conrep, Rights::READ),  // slot 2: CONREP, RECV
                 ],
                 maps: &[
                     Mapping {

@@ -44,7 +44,10 @@ fn read(phys: u64, len: usize) -> [u8; 8] {
 }
 
 fn rawmode(term: sched::RendezvousId, on: bool) {
-    let w0 = line_editor::proto::req(line_editor::proto::OP_RAWMODE, if on { OP_ON } else { OP_OFF });
+    let w0 = line_editor::proto::req(
+        line_editor::proto::OP_RAWMODE,
+        if on { OP_ON } else { OP_OFF },
+    );
     let r = sched::ipc_call(term, [w0, 0]);
     assert_eq!(r[0], 0, "OP_RAWMODE did not reply 0");
 }
@@ -80,7 +83,10 @@ fn raw_mode_suppresses_echo_and_delivers_bytes_unbuffered() {
     rawmode(w.term, true);
     fill(w.console_phys, SENTINEL, 8);
     let r = send_bytes(w.term, b"hi");
-    assert_eq!(r[0], 0, "a raw OP_BYTES must reply 0, like the canonical path");
+    assert_eq!(
+        r[0], 0,
+        "a raw OP_BYTES must reply 0, like the canonical path"
+    );
     assert_eq!(
         &read(w.console_phys, 2)[..2],
         &[SENTINEL, SENTINEL],
@@ -89,7 +95,11 @@ fn raw_mode_suppresses_echo_and_delivers_bytes_unbuffered() {
 
     let (n, bytes) = read_raw(w.term);
     assert_eq!(n, 2, "OP_READRAW returned the wrong byte count");
-    assert_eq!(&bytes[..2], b"hi", "OP_READRAW did not return exactly what was sent");
+    assert_eq!(
+        &bytes[..2],
+        b"hi",
+        "OP_READRAW did not return exactly what was sent"
+    );
 
     // The positive control: same bytes, canonical mode, same page. If this did not move, the
     // negative check above would have been meaningless.
@@ -123,20 +133,34 @@ fn raw_mode_delivers_control_bytes_literally() {
     );
     let (n, bytes) = read_raw(w.term);
     assert_eq!(n, 1);
-    assert_eq!(bytes[0], 0x03, "^C must arrive as a literal byte in raw mode");
+    assert_eq!(
+        bytes[0], 0x03,
+        "^C must arrive as a literal byte in raw mode"
+    );
 
     let intr_w0 = line_editor::proto::req(line_editor::proto::OP_INTRCOUNT, 0);
     let r = sched::ipc_call(w.term, [intr_w0, 0]);
-    assert_eq!(r[0], 0, "raw mode's ^C must not bump the line discipline's interrupt counter");
+    assert_eq!(
+        r[0], 0,
+        "raw mode's ^C must not bump the line discipline's interrupt counter"
+    );
 
     // An escape sequence a VT arrow key sends is three more bytes the line discipline would
     // otherwise consume whole and echo nothing for; raw mode must hand back all three raw.
     fill(w.console_phys, SENTINEL, 8);
     send_bytes(w.term, b"\x1b[D");
-    assert_eq!(read(w.console_phys, 8)[0], SENTINEL, "no echo for an escape sequence either");
+    assert_eq!(
+        read(w.console_phys, 8)[0],
+        SENTINEL,
+        "no echo for an escape sequence either"
+    );
     let (n, bytes) = read_raw(w.term);
     assert_eq!(n, 3);
-    assert_eq!(&bytes[..3], b"\x1b[D", "the escape sequence must arrive byte for byte, unparsed");
+    assert_eq!(
+        &bytes[..3],
+        b"\x1b[D",
+        "the escape sequence must arrive byte for byte, unparsed"
+    );
 }
 
 /// **The two input models refuse each other.** `OP_READLINE` while raw mode is on, and
@@ -200,7 +224,11 @@ fn a_raw_read_parked_before_data_arrives_still_gets_it() {
 
     let [n, packed, ..] = sched::ipc_recv(report);
     assert_eq!(n, 1, "the parked reader did not get exactly one byte");
-    assert_eq!(packed.to_le_bytes()[0], 0x42, "the parked reader got the wrong byte");
+    assert_eq!(
+        packed.to_le_bytes()[0],
+        0x42,
+        "the parked reader got the wrong byte"
+    );
 }
 
 /// **Switching mode abandons the line in progress, in both directions**, so a session can never
@@ -274,7 +302,11 @@ fn op_write_ignores_raw_mode_and_op_readline_survives_a_round_trip() {
     }
     let w0 = line_editor::proto::req(line_editor::proto::OP_WRITE, text.len() as u64);
     let r = sched::ipc_call(w.term, [w0, 0]);
-    assert_eq!(r[0], text.len() as u64, "OP_WRITE must work while raw mode is on");
+    assert_eq!(
+        r[0],
+        text.len() as u64,
+        "OP_WRITE must work while raw mode is on"
+    );
     assert_eq!(
         &read(w.console_phys, 8)[..4],
         b"kilo",
@@ -289,12 +321,18 @@ fn op_write_ignores_raw_mode_and_op_readline_survives_a_round_trip() {
     send_bytes(w.term, b"hi\r");
     let w0 = line_editor::proto::req(line_editor::proto::OP_READLINE, 0);
     let r = sched::ipc_call(w.term, [w0, 0]);
-    assert_eq!(r[0], 2, "OP_READLINE must return the type-ahead line's length");
+    assert_eq!(
+        r[0], 2,
+        "OP_READLINE must return the type-ahead line's length"
+    );
     let base = mmu::phys_to_virt(w.app_in_phys);
     let got: [u8; 2] = core::array::from_fn(|i| {
         // SAFETY: `app_in_phys` is the frame `line_editor` maps read/write at its own APP_IN_VA,
         // and the OP_READLINE reply above is ordered after `line_editor` wrote it there.
         unsafe { core::ptr::read_volatile((base + i as u64) as *const u8) }
     });
-    assert_eq!(&got, b"hi", "OP_READLINE did not deliver the line line_editor assembled");
+    assert_eq!(
+        &got, b"hi",
+        "OP_READLINE did not deliver the line line_editor assembled"
+    );
 }

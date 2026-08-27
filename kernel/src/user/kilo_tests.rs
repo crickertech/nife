@@ -126,7 +126,10 @@ fn kilo_edits_and_saves_a_real_file() {
 
     type_text(w.term, &[CTRL_Q]);
     let [status, dirty, ..] = sched::ipc_recv(w.report);
-    assert_eq!(status, 1 /* STATUS_QUIT */, "kilo did not quit cleanly");
+    assert_eq!(
+        status, 1, /* STATUS_QUIT */
+        "kilo did not quit cleanly"
+    );
     assert_eq!(dirty, 0, "kilo quit dirty after a save");
 
     let got = read_file_back(w.dir, w.file_shared, b"kilo_edit.txt")
@@ -166,7 +169,10 @@ fn kilo_refuses_to_quit_dirty_without_confirmation() {
     type_text(w.term, &[CTRL_Q]);
     let [status, dirty, ..] = sched::ipc_recv(w.report);
     assert_eq!(status, 1 /* STATUS_QUIT */, "the second ^Q must quit");
-    assert_eq!(dirty, 1, "kilo quit without ever having saved; it must report dirty");
+    assert_eq!(
+        dirty, 1,
+        "kilo quit without ever having saved; it must report dirty"
+    );
 
     // And the independent witness: nothing was ever written, so the name kilo created (CREATE, on
     // load, since it did not exist) reads back empty.

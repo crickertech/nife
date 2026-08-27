@@ -162,8 +162,8 @@ pub fn start(dir_name: &'static str, file_name: &str) -> Option<Wiring> {
                 arg2: hi,
                 grants: &[
                     rendezvous_cap(term, Rights::WRITE),   // slot 0: the terminal
-                    rendezvous_cap(dir_ep, Rights::WRITE),  // slot 1: the directory
-                    rendezvous_cap(report, Rights::WRITE),  // slot 2: the closing report
+                    rendezvous_cap(dir_ep, Rights::WRITE), // slot 1: the directory
+                    rendezvous_cap(report, Rights::WRITE), // slot 2: the closing report
                 ],
                 maps: &maps[..n + KILO_STACK_PAGES],
             },

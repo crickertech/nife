@@ -308,7 +308,9 @@ impl Editor {
     fn delete_at_cursor(&mut self) {
         let len = self.rows[self.cy].len;
         if self.cx < len {
-            self.rows[self.cy].buf.copy_within(self.cx + 1..len, self.cx);
+            self.rows[self.cy]
+                .buf
+                .copy_within(self.cx + 1..len, self.cx);
             self.rows[self.cy].len -= 1;
             self.dirty = true;
         } else if self.cy + 1 < self.nrows {
