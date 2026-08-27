@@ -39,10 +39,24 @@ fn destroy_force_kills_a_runaway_and_reclaims_its_region() {
         mmu::phys_to_virt(code_phys),
         core::mem::size_of_val(SPIN_STUB),
     );
-    user_address_space_map(aspace, CODE_VA, code_phys, Flags::user_code()).expect("map code");
+    user_address_space_map(
+        aspace,
+        CODE_VA,
+        code_phys,
+        Flags::user_code(),
+        crate::revoke::MappedUnder::NoCapability,
+    )
+    .expect("map code");
 
     let stack_phys = crate::memory_region::retype_page(region).expect("no stack frame");
-    user_address_space_map(aspace, STACK_VA, stack_phys, Flags::user_data()).expect("map stack");
+    user_address_space_map(
+        aspace,
+        STACK_VA,
+        stack_phys,
+        Flags::user_data(),
+        crate::revoke::MappedUnder::NoCapability,
+    )
+    .expect("map stack");
 
     let tid = sched::create_thread_control_block(region).expect("no tcb");
     sched::configure_thread_control_block(tid, CODE_VA, STACK_VA + page_frames::FRAME_SIZE, aspace)
@@ -157,9 +171,23 @@ fn destroy_reclaims_a_region_whose_resident_is_blocked_in_recv() {
         mmu::phys_to_virt(code_phys),
         core::mem::size_of_val(RECV_STUB),
     );
-    user_address_space_map(aspace, CODE_VA, code_phys, Flags::user_code()).expect("map code");
+    user_address_space_map(
+        aspace,
+        CODE_VA,
+        code_phys,
+        Flags::user_code(),
+        crate::revoke::MappedUnder::NoCapability,
+    )
+    .expect("map code");
     let stack_phys = crate::memory_region::retype_page(region).expect("no stack frame");
-    user_address_space_map(aspace, STACK_VA, stack_phys, Flags::user_data()).expect("map stack");
+    user_address_space_map(
+        aspace,
+        STACK_VA,
+        stack_phys,
+        Flags::user_data(),
+        crate::revoke::MappedUnder::NoCapability,
+    )
+    .expect("map stack");
 
     let tid = sched::create_thread_control_block(region).expect("no tcb");
     // READ, because the child receives on it. The rights are the point of not reusing
