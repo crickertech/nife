@@ -259,6 +259,26 @@ That is a silicon question (notes/target-hardware.md), not a QEMU one.
 
 ### BUGS
 
+- **RESOLVED 2026-08-26, in the same lane, a few hours after it was first written below.** The
+  paragraph that follows was written mid-investigation and its conclusion was wrong: there is no
+  QEMU-side resize bug. Root cause was the guest driver, not the host: `user/src/display.rs`,
+  `user/src/painter.rs` and `user/src/display_terminal.rs` still looped over per-page capability
+  slots (`SLOT + k` for `k` in `0..N`) that increment one's move to a single run capability
+  (DECISIONS §102) had already removed. The second iteration always failed with `NoSuchSlot`, and
+  the driver called `die()` and exited *before* sending the "UP" report anything downstream was
+  waiting on. Whatever waited on that report hung, the hang looked exactly like a stuck
+  `screendump`, and every diagnostic below (the qtree check, `edid=off`, an explicit
+  `xres=1280,yres=720`) was chasing a symptom that had nothing to do with the display device: the
+  guest kernel test suite had genuinely hung and exited on the watchdog, and `display_tests::`
+  never appeared in the log at all, which the xtask summary's static pass/fail prose did not make
+  obvious. After replacing the three per-page loops with single `map_page_frame` calls, the full
+  suite passed clean on both architectures, including the host-side scanout referee reading back
+  1280x720 correctly. **The investigation below is kept verbatim as the record of a false lead**,
+  because it is a real account of what was checked and found (the qtree state, the two-witness
+  digest agreement, the ruled-out fixes), and because the project's own convention is to correct
+  the record rather than delete the wrong turn. Read every claim below that a QEMU resize bug
+  exists as superseded by this paragraph.
+
 - **The host-side scanout check does not currently confirm a grown scanout, on aarch64, under QEMU
   11.0.2** (found 2026-08-26, milestone 142 increment 1, growing the surface from 128x64 to
   1280x720 per DECISIONS §102). `screendump` consistently returns a 640x480 PPM for the whole
@@ -289,6 +309,7 @@ That is a silicon question (notes/target-hardware.md), not a QEMU one.
     short of the three-party proof this contract otherwise gets, until this is root-caused (a
     different QEMU version is the first thing worth trying) or a different host-side probe replaces
     `screendump`.
+  - **This paragraph is wrong; see the RESOLVED entry above it.**
 
 ## What rung two did with this contract (milestone 33)
 
