@@ -5,12 +5,15 @@
 //! screen, a row array, a cursor, insert and delete, save. No dependency this milestone's own doc
 //! did not already say `kilo` needs none of: no subprocess, no dynamic linking, no threads.
 //!
-//! Name: `rmle` rather than `kilo`, calef, 2026-08-27, to avoid the confusion of two things named
-//! `kilo` once a real C port of `kilo.c` through DECISIONS §31's foreign-language seam exists
-//! (see design/roadmap/181-persistent-foreign-component.md, milestone 181): this is a Rust
-//! reimplementation of `kilo`'s spirit and scope, not a port, and it earns its own name for the
-//! same reason the distinction from `line_editor` (a single-line editor) is worth keeping visible
-//! on sight.
+//! Name: ratified 2026-08-27 (calef). Chosen over `kilo` to avoid the confusion of two things
+//! named `kilo` once a real C port of `kilo.c` through DECISIONS §31's foreign-language seam
+//! exists (see design/roadmap/181-persistent-foreign-component.md, milestone 181): this is a
+//! Rust reimplementation of `kilo`'s spirit and scope, not a port, and it earns its own name for
+//! the same reason the distinction from `line_editor` (a single-line editor) is worth keeping
+//! visible on sight. `rmle`: Rust Multi-Line Editor. Checked against real prior art before
+//! settling on it: every SI-prefix name in this genre (`micro`, `nano`, `milli`, `giga`, `mega`)
+//! and several metalwork-themed alternatives (`oxide`, `chisel`, `crucible`, `anvil`, `alloy`,
+//! `redit`) turned out to already be real, same-domain software.
 //!
 //! # Why Rust and not a port of `kilo.c`
 //!
