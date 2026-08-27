@@ -2,20 +2,29 @@ use super::*;
 use crate::cap::{Rights, memory_region_root_cap, page_frame_cap, rendezvous_cap};
 use crate::sched::{self, RendezvousId};
 
-/// Where the service maps the current client's request. Must match `user/src/login.rs`.
-const LOGIN_VA: u64 = 0x0000_0000_00e2_0000;
-/// Where the service maps its own request to the credential service. Must match the same file.
+/// Where the service maps its own request to the credential service. Must match `user/src/login.rs`.
 const CRED_VA: u64 = 0x0000_0000_00e3_0000;
-/// Where a `login_test_client` role stages its own request. Must match
-/// `user/src/login_test_client.rs`. A different address space from the service's, so the numeric
-/// value colliding with [`LOGIN_VA`] names nothing shared; both processes chose it independently.
-const CLIENT_VA: u64 = 0x0000_0000_00e2_0000;
 
-/// The physical frame [`start`] mapped at `LOGIN_VA`, remembered so [`client`] can map the exact
-/// same frame at [`CLIENT_VA`] in each role it spawns. Plain atomic rather than a lock: the only
-/// writer is [`start`], once, before any client exists (`credential_service.rs`'s own `FRAMES`
-/// pattern, simplified to one frame because there is one request page here rather than two).
-static LOGIN_PAGE_FRAME: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU64::new(0);
+/// How many pages a spawned `login_test_client` role's own `memory_region_cap` (slot 3) holds:
+/// enough for `page_frame::MAP`'s own page-table cost when it self-maps the frame `login`'s
+/// `CONNECT` step delegates (milestone 49's channel-per-client update; `user/src/login_test_client.rs`
+/// mirrors this program's own post-auth `map_page_frame(fs_page_frame, FS_VA, true, budget)`, but a
+/// role holds no budget yet at the point it must map its own connect channel). Margin over the one
+/// page a fresh mapping ever strictly needs, on this file's own existing style for every other
+/// region here.
+///
+/// # BUGS
+///
+/// **Nothing reclaims one of these when its role exits**, so a full aarch64 suite leaves twenty-six
+/// of them (104 frames) held for the rest of the boot, which is a measured line item in
+/// `kernel::testing::SUITE_PAGE_FRAME_BUDGET`'s own account. This is scaffolding rather than a
+/// property under test, and `kernel::user::holding::Holding` is the mechanism that would give it
+/// back; what stops it being a two-line change is that a role's scratch pays for **page tables** in
+/// that role's own address space rather than for anything the role holds a capability to, so
+/// destroying the region frees tables the dying process is still walking. Doing this properly means
+/// reclaiming the role's whole address space first (`Holding::add_region_after_death`), which needs
+/// [`spawn_client`] to hand its caller the thread id it currently drops.
+const CLIENT_SCRATCH_UT_PAGES: u64 = 4;
 
 /// Stack pages beyond the one page `run` maps. This process parses the initrd, parses an ELF, and
 /// builds a child address space (`supervision_proto::build_child`), which is deeper than
@@ -99,7 +108,7 @@ pub fn start(
             (e - s) / FRAME_SIZE
         })
         .sum::<u64>()
-        + 2 // LOGIN_VA, CRED_VA
+        + 1 // CRED_VA
         + initrd_pages / 512
         + LOGIN_STACK_PAGES
         + 8;
@@ -121,36 +130,18 @@ pub fn start(
             )
             .expect("could not map the initrd");
     }
-    // **The request page must be the exact physical frame every `login_test_client` role also
-    // maps**, the same way `credential_service`'s `VERIFY_VA` frame is shared with its clients:
-    // this is the one page a request travels through, so a client writing into a *different* frame
-    // would leave this process reading whatever was already at `LOGIN_VA` (zeros, on a fresh
-    // frame), not the request that was sent. `LOGIN_PAGE_FRAME` remembers which physical frame that is,
-    // for [`client`] to map at its own end.
-    let login_page = crate::memory::alloc()
-        .expect("no frame for login's request page")
-        .addr();
-    LOGIN_PAGE_FRAME.store(login_page, core::sync::atomic::Ordering::Release);
-    // The credential-relay page is a **different** frame from the one above, `credentialer.rs`'s own
-    // reason (a provisioner's page and a client's page are never the same frame): it must be the
-    // exact physical frame `credential_service` wired the service's own `VERIFY_VA` to, because that
-    // is the only page the credential service ever reads a request from. Taken from the caller's own
-    // `Wiring` (see this function's own doc) rather than looked up.
+    // Milestone 49's channel-per-client update removed the front door's own shared staging page:
+    // `CONNECT` (the only word the front door accepts) carries no page at all, and every actual
+    // login's identity and secret now travel on a page `login`'s own `connect()` mints and maps at
+    // runtime, private to the one client it was minted for. Only the credential-relay page below is
+    // still wired here, statically, because it must be the exact frame `credential_service` itself
+    // reads from.
+    //
+    // The credential-relay page: it must be the exact physical frame `credential_service` wired the
+    // service's own `VERIFY_VA` to, because that is the only page the credential service ever reads
+    // a request from. Taken from the caller's own `Wiring` (see this function's own doc) rather than
+    // looked up.
     let cred_page = verify_page_frame;
-    // SAFETY: `login_page` is a fresh frame the direct map reaches; zeroing it before mapping is
-    // what keeps a first request from reading whatever the allocator's last owner left there.
-    // `cred_page` is not zeroed here: it is `credential_service`'s own frame, already live and
-    // possibly already in use by another client of the same sealed store.
-    unsafe {
-        core::ptr::write_bytes(
-            mmu::phys_to_virt(login_page) as *mut u8,
-            0,
-            FRAME_SIZE as usize,
-        );
-    }
-    space
-        .map_physical(LOGIN_VA, login_page, Flags::user_data())
-        .expect("could not map login's request page");
     space
         .map_physical(CRED_VA, cred_page, Flags::user_data())
         .expect("could not map login's credential-relay page");
@@ -214,16 +205,30 @@ pub fn start(
     }
 }
 
-/// **Spawn a `login_test_client` role** against `w`, and return its report.
+/// **Spawn a `login_test_client` role** against `w`, and return its report. Waits for the role to
+/// finish before returning: `spawn_client` followed by `wait_client` is the same pair, split, for a
+/// caller that wants two (or more) roles genuinely in flight together (see those two functions'
+/// own docs, and `kernel::user::login_tests` for the isolation proof that needs it).
 pub fn client(image: &'static [u8], w: &Wiring, role: u64) -> [u64; 5] {
+    wait_client(spawn_client(image, w, role))
+}
+
+/// **Spawn a `login_test_client` role and return its report endpoint immediately**, without
+/// waiting for it to run at all. Milestone 49's channel-per-client update is what makes this worth
+/// having separately from [`client`]: two roles spawned this way before either is waited on reach
+/// the front door on their own schedule, which is genuine concurrency at the front door rather than
+/// the artificial kind a single call that spawns-then-waits could ever produce. Pair with
+/// [`wait_client`].
+pub fn spawn_client(image: &'static [u8], w: &Wiring, role: u64) -> RendezvousId {
     let report = sched::create_rendezvous();
-    let phys = LOGIN_PAGE_FRAME.load(core::sync::atomic::Ordering::Acquire);
-    assert_ne!(phys, 0, "the login service was not wired before a client");
-    let maps = [Mapping {
-        va: CLIENT_VA,
-        phys,
-        flags: Flags::user_data(),
-    }];
+    // A small, private scratch budget for this one role: milestone 49's channel-per-client update
+    // means a role must map the page `login`'s `CONNECT` step delegates before it holds anything
+    // else of its own (unlike the post-auth `budget`, `map_page_frame`'s own page-table cost has
+    // nowhere else to come from at that point). Independent per role, the same reason
+    // `login`'s own `CONSTRUCTION_UT` is never shared with a client: two roles racing to map their
+    // own, unrelated pages must never be able to exhaust or interfere with each other's page tables.
+    let scratch =
+        crate::memory_region::create(CLIENT_SCRATCH_UT_PAGES).expect("no scratch region for role");
     // Copied out of `w` rather than captured by reference: the spawned closure must be `'static`,
     // and an `RendezvousId` is a plain integer with nothing left to borrow once it is in hand.
     let (request, result) = (w.request, w.result);
@@ -238,11 +243,17 @@ pub fn client(image: &'static [u8], w: &Wiring, role: u64) -> [u64; 5] {
                     rendezvous_cap(request, Rights::WRITE),
                     rendezvous_cap(result, Rights::READ),
                     rendezvous_cap(report, Rights::WRITE),
+                    memory_region_root_cap(scratch),
                 ],
-                maps: &maps,
+                maps: &[],
             },
         )
     })
     .expect("could not spawn a login_test_client");
+    report
+}
+
+/// **Block for one role's report**, the other half of [`spawn_client`].
+pub fn wait_client(report: RendezvousId) -> [u64; 5] {
     sched::ipc_recv(report)
 }

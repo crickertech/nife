@@ -52,6 +52,43 @@ Not found by auditing error codes. Found while pricing milestone 49's attributio
 is the real number that matters for "how many durable sessions can this system support," and tracing
 what a caller actually sees when it happens found the three-way collapse.
 
+## The first real customer, 2026-08-26
+
+§119 declined this **for want of a customer**, on the honest ground that it was found by pricing a
+future cost rather than by an actual bug. There is now an actual bug, and it is recorded here as the
+evidence that decision asked for rather than as a request to reverse it (that is calef's call).
+
+Milestone 49's channel-per-client lane spent two days on a `login` service that answered
+`login_proto::DENIED` to a correct password on its second login after start-up. The failing call was
+`MemoryRegion::RETYPE`, and the kernel's own implementation is four lines:
+
+```rust
+let phys = crate::memory_region::retype_page(region).ok_or(Error::OutOfMemory)?;
+let slot = sched::grant(crate::cap::page_frame_cap(phys, Rights::ALL))
+    .map_err(|_| Error::OutOfMemory)?; // capability table full
+```
+
+The region was fine. The **capability table** was full, because `MemoryRegion::DESTROY` frees a
+region but never the destroyer's own table slot naming it, and the service leaked two slots per
+request. Both facts read as one `Error::OutOfMemory` at the call site, and the userspace helper
+(`supervision_proto::retype_page_frame_from`) narrows even that to `Err(())`.
+
+What the collapse actually cost, which is the part worth quoting to whoever picks this up:
+
+- **Four memory hypotheses were measured and ruled out before the real one was reached**: the
+  service's construction budget (raised to 16384 pages, no change), its scratch budget (8192, no
+  change), `kernel::sched::MAX_RENDEZVOUS`, and `kernel::memory_region::MAX_REGIONS`. Every one of
+  them is a thing `OutOfMemory` can mean. None of them was it.
+- **The capability table was looked at and passed over**, because tightening and restoring one slot
+  of margin changed nothing, which is exactly what a two-slot-per-request leak does to that
+  experiment.
+- **What finally resolved it was a temporary kernel-side `println!` in the failing arm**, which is
+  to say: reconstructing by hand the distinction the error code had thrown away. `EMFILE` versus
+  `ENOMEM` would have ended it in minutes.
+
+This does not by itself argue for a particular shape (§119's three options stand). It argues that
+the customer exists.
+
 ## What was decided
 
 **Declined for now (DECISIONS §119, 2026-08-23), for want of a customer.** Three shapes were on the
