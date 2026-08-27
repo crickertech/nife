@@ -82,27 +82,36 @@ const PRESENT: u64 = 1;
 /// The endpoint it serves. **One**, for both classes of sender; see the module note.
 const TERM: u64 = 2;
 /// The untyped it spends on the page tables its own mappings need. [`MODE_DISPLAY`] only; see the
-/// note on [`SURFACE_PAGE_FRAME`].
+/// note on [`SURFACE_FRAME`].
 const BUDGET: u64 = 3;
-/// The first of `gfx::SURFACE_PAGE_FRAMES` consecutive slots holding the scanout, then one more for
-/// [`OUT_VA`]'s page. **[`MODE_DISPLAY`] only** (milestone 108).
+/// The whole scanout, one `PageFrame` capability naming the `gfx::SURFACE_PAGE_FRAMES`-page run
+/// (DECISIONS §102), then one more slot for [`OUT_VA`]'s page. **[`MODE_DISPLAY`] only**
+/// (milestone 108).
 ///
 /// The two wirings do not agree about this yet, and the asymmetry is deliberate rather than
 /// overlooked: milestone 108 migrated the disk and display paths, and rung two's compositor is not
 /// one of them. In [`MODE_WINDOW`] the surface, the output page and the control page still arrive as
-/// spawn-time mappings from `compositor_service`, which is why the `MAP` loop below is inside the
+/// spawn-time mappings from `compositor_service`, which is why the `MAP` calls below are inside the
 /// `MODE_DISPLAY` arm.
-const SURFACE_PAGE_FRAME: u64 = 4;
-const OUT_PAGE_FRAME: u64 = SURFACE_PAGE_FRAME + gfx::SURFACE_PAGE_FRAMES as u64;
+const SURFACE_FRAME: u64 = 4;
+const OUT_PAGE_FRAME: u64 = SURFACE_FRAME + 1;
 
 /// Where the scanout goes. In [`MODE_DISPLAY`] this process holds the frames and picks the address;
 /// in [`MODE_WINDOW`] the compositor's wiring maps it here.
+///
+/// **`OUT_VA`/`CTL_VA` moved past it** (milestone 142, DECISIONS §102): the scanout grew from 8
+/// page frames to 900 (up to 4 MiB from `SURFACE_VA`), so the old `OUT_VA` (`0x68_0000`, inside
+/// that span's old 512 KiB neighbourhood) would now be inside the middle of
+/// [`MODE_DISPLAY`]'s own surface mapping, and its `PageFrame::MAP` would refuse it as
+/// already-mapped. Both moved well clear; `SURFACE_VA`'s own 2 MiB alignment is unchanged and is
+/// what keeps a run this large inside as few page-table windows as possible
+/// (`display_service::MAP_BUDGET_PAGES`'s own comment has the arithmetic).
 const SURFACE_VA: u64 = 0x0000_0000_0060_0000;
 /// The page an application writes the bytes of an `OP_WRITE` into. The terminal contract's
 /// "control by message, bulk by shared page" split (DECISIONS §10), the same one `filesystem_proto` makes.
-const OUT_VA: u64 = 0x0000_0000_0068_0000;
+const OUT_VA: u64 = 0x0000_0000_0a00_0000;
 /// The compositor's per-client control page. [`MODE_WINDOW`] only.
-const CTL_VA: u64 = 0x0000_0000_0069_0000;
+const CTL_VA: u64 = 0x0000_0000_0a01_0000;
 
 /// Failure codes, in a `0xDEAD_...` word so a failure names its step rather than hanging.
 const E_INFO: u64 = 0x01;
@@ -320,16 +329,10 @@ pub extern "C" fn _start(mode: u64, _arg1: u64, _arg2: u64) -> ! {
         MODE_DISPLAY => {
             // The scanout and the application's output page are `PageFrame`s this process holds, and it
             // maps them itself out of its own budget (milestone 108). Before the `INFO` call,
-            // because a terminal with nowhere to paint has no use for the geometry.
-            for k in 0..gfx::SURFACE_PAGE_FRAMES as u64 {
-                if !user_rt::map_page_frame(
-                    SURFACE_PAGE_FRAME + k,
-                    SURFACE_VA + k * 4096,
-                    true,
-                    BUDGET,
-                ) {
-                    die(E_SURFACE);
-                }
+            // because a terminal with nowhere to paint has no use for the geometry. One `MAP` call
+            // for the whole scanout run (DECISIONS §102), not one per page.
+            if !user_rt::map_page_frame(SURFACE_FRAME, SURFACE_VA, true, BUDGET) {
+                die(E_SURFACE);
             }
             if !user_rt::map_page_frame(OUT_PAGE_FRAME, OUT_VA, true, BUDGET) {
                 die(E_SURFACE);
@@ -377,7 +380,13 @@ pub extern "C" fn _start(mode: u64, _arg1: u64, _arg2: u64) -> ! {
     if cols as usize > video_terminal::MAX_COLS || rows as usize > video_terminal::MAX_ROWS {
         die(E_GEOMETRY);
     }
-    *term() = video_terminal::Vt::new(cols, rows);
+    // `reset_to`, not `*term() = Vt::new(cols, rows)` (milestone 142): `cols`/`rows` are runtime
+    // values negotiated with the driver or the compositor, so `Vt::new` here would run as an
+    // ordinary function call rather than being evaluated at compile time, and its return value (a
+    // `Vt` is hundreds of KiB now, see `Vt`'s own doc) would need to exist somewhere at runtime.
+    // This process gets one 4 KiB page of stack; `reset_to` mutates the existing `static` in place
+    // instead, so no `Vt`-sized value is ever a stack local or a return value here.
+    term().reset_to(cols, rows);
 
     // SAFETY: MODE_DISPLAY mapped `gfx::SURFACE_FRAMES` frames (`gfx::SURFACE_BYTES` bytes) at
     // SURFACE_VA itself, in the `MAP` loop above; MODE_WINDOW's frames are mapped by the

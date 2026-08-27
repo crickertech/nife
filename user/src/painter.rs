@@ -5,9 +5,9 @@
 //! - slot 0, a **report** endpoint: its verdict goes to whoever spawned it;
 //! - slot 1, a **display** endpoint (WRITE): it CALLs the driver here;
 //! - slot 2, an **untyped**: the budget the page tables for its own mappings come out of;
-//! - slots 3.., the **surface**: `gfx::SURFACE_PAGE_FRAMES` `PageFrame` capabilities, one per page, which it
-//!   maps itself (milestone 108; before that the kernel mapped them in at spawn and the client held
-//!   nothing that said so).
+//! - slot 3, the **surface**: one `PageFrame` capability naming the whole `gfx::SURFACE_PAGE_FRAMES`-page
+//!   run (DECISIONS §102), which it maps itself in one call (milestone 108; before that the kernel
+//!   mapped them in at spawn and the client held nothing that said so).
 //!
 //! And that is all. It holds no `Virtio` capability, no interrupt, no device mapping, and it cannot
 //! name a physical address; it has never heard of virtio-gpu. The pixels are the only memory it
@@ -44,8 +44,9 @@ const REPORT: u64 = 0;
 const DISPLAY: u64 = 1;
 /// The untyped this program spends on the page tables the surface needs.
 const BUDGET: u64 = 2;
-/// The first of `gfx::SURFACE_PAGE_FRAMES` consecutive slots holding the scanout, a `PageFrame` per page.
-const SURFACE_PAGE_FRAME: u64 = 3;
+/// The whole scanout, one `PageFrame` capability naming the `gfx::SURFACE_PAGE_FRAMES`-page run
+/// (DECISIONS §102).
+const SURFACE_FRAME: u64 = 3;
 
 /// Where this program puts the surface. **Its choice, not the kernel's**: it holds the frames and
 /// maps them (milestone 108).
@@ -83,13 +84,12 @@ fn die(code: u64) -> ! {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(_arg0: u64, _arg1: u64, _arg2: u64) -> ! {
-    // **Put the surface in our own address space** (milestone 108). One `MAP` per page, because a
-    // `PageFrame` names a page: the run is contiguous in physics and in virtual memory, and the object
-    // has no way to say so. See notes/frames.md's BUGS.
-    for k in 0..gfx::SURFACE_PAGE_FRAMES as u64 {
-        if !user_rt::map_page_frame(SURFACE_PAGE_FRAME + k, SURFACE_VA + k * 4096, true, BUDGET) {
-            die(E_SURFACE);
-        }
+    // **Put the surface in our own address space** (milestone 108). One `MAP` call for the whole
+    // run (DECISIONS §102): the `PageFrame` capability at `SURFACE_FRAME` names all
+    // `gfx::SURFACE_PAGE_FRAMES` pages, contiguous in physics and in virtual memory, so one `MAP`
+    // maps all of them starting at `SURFACE_VA`.
+    if !user_rt::map_page_frame(SURFACE_FRAME, SURFACE_VA, true, BUDGET) {
+        die(E_SURFACE);
     }
 
     // Ask the driver how big the surface is, rather than only trusting the compile-time constants.
