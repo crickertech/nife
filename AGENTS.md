@@ -450,14 +450,39 @@ this lane touch, and who else is in them"**. Concretely:
 branch and relinking `nife-dev`. Eight finished worktrees had accumulated by the time anyone
 looked, and one of them alone held 3.3 GB.
 
-**The maintainer starts the two watchers at the beginning of every session**, because both are
-ordinary loops that die with the session that started them, and a session that forgets has exactly
-the gap they were written to close:
+**Both watchers now run unattended on patagonia, via `launchd`** (`com.nife.merge-drain` and
+`com.nife.trunk-health`, `~/Library/LaunchAgents/`, calef, 2026-08-26), each firing `--once` every
+five minutes rather than as a session-owned foreground loop. This replaced the original instruction
+below the same day it failed for the reason it always fails: a maintainer session read the words,
+agreed with them, and did not act on them, which is prose behaving like rung four regardless of
+which file it lives in. `launchd` is rung one for the part of the gap a session can close: nothing
+has to remember to start these any more, because starting them is no longer a session's job.
 
-```sh
-scripts/merge-drain.sh &     # lands every PR not labelled needs-architect, one at a time
-scripts/trunk-health.sh &    # says when main goes red, and when it recovers
-```
+**The gap that remains is the one calef accepted rather than solved**: patagonia asleep or shut
+down means neither watcher runs, and nobody is watching during that window. Raised as an
+alternative (a cron on cordoba, the always-on box, which would close this gap too) and declined in
+favour of the simpler thing on the machine already in use, the cost named and accepted rather than
+hidden.
+
+**A session should still confirm both are alive** (`launchctl list | grep nife`) rather than assume
+the plists never got unloaded, and may start them in the foreground the old way
+(`scripts/merge-drain.sh &`, `scripts/trunk-health.sh &`) if they are not, which is still how they
+run everywhere that is not patagonia (a lane's own worktree checks, CI, another machine).
+
+**And a maintainer session checks for what those watchers already found**, not only whether they are
+running. `merge-drain.sh`'s `notify()` posts once per stall (a conflict, a check failure, a stuck
+check) as a PR comment and then goes quiet, by design, so a stalled PR does not re-announce itself
+every five minutes; that also means nothing re-announces it to a session that opens later; and
+resolving a conflict or a check failure needs the same reading and judgment a person brings; it
+is not something the watcher itself can do (`design/decisions/`'s own boundary: a queue reports,
+it does not resolve). Deliberately not automated further into an unattended scheduled agent
+(calef declined that, 2026-08-26: he would rather this shut down when the session driving it
+does than run standing on a timer with nobody watching): so this is a maintainer session's own
+standing check, same priority as keeping lanes full, not new machinery. Concretely: `gh pr list
+--search "commenter:app/github-actions merge-drain" ` is not precise enough to script, so read the
+queue (`gh pr list --json number,mergeStateStatus,statusCheckRollup`) for `DIRTY`/`CONFLICTING` or
+a `FAILURE` conclusion, and treat every one found as a task to resolve, the same as a lane report
+naming work nobody is doing yet.
 
 They exist because on 2026-08-04 three duties turned out to belong to whoever happened to notice: two
 green pull requests sat unmerged for hours, `main` went red with nobody assigned, and merging one
