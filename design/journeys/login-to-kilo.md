@@ -14,7 +14,7 @@ waiting on it. The gaps are everywhere else.
 |---|---|---|---|
 | 1 | 29 | | the framebuffer contract, bitmap font, VT engine, and virtio keyboard driver: proven, but only under the test harness |
 | 2 | 33 | | the compositor: multiplexing the screen, proven under the test harness |
-| 3 | 177 | | attach the GPU/keyboard devices to the real interactive boot and swap `console`/`input` for `display_terminal`/`compositor` |
+| 3 | 177 | | attach the GPU/keyboard devices to the real interactive boot and swap `console`/`input` for `display_terminal`/`compositor`; on x86_64 this also needs a real interactive-boot entry point first, which does not exist on that architecture at all yet |
 | 4 | 49 | 120 | wire `login` into the real interactive boot; blocked on real hardware entropy (milestone 159) or a revisit of §120's decline, not on wiring |
 | 5 | 169 | | `kilo`: the raw-keystroke input primitive nife's terminal layer does not have today, and the editor itself |
 
