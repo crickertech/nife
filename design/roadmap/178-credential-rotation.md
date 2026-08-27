@@ -63,7 +63,7 @@ Completes the boot-generated-password decision (§120's amendment, this mileston
 today a person can only ever read whatever the boot printed; this is what lets them replace it with
 something they chose and can remember. Also the natural home for a operator resetting *another*
 identity's password (the provisioning-endpoint path, already capability-shaped for that case) versus
-a user changing their own (this milestone's actual gap) — worth keeping the two paths conceptually
+a user changing their own (this milestone's actual gap): worth keeping the two paths conceptually
 separate even though both eventually touch the same store.
 
 ## Prior art
