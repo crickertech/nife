@@ -46,7 +46,7 @@
 use compositor::proto::{ctl, wlist};
 use compositor::status;
 use user_rt::mapped_window::MappedWindow;
-use user_rt::{call, exit, invoke, recv_cap, send};
+use user_rt::{call, exit, invoke, recv_cap, reply, send};
 
 /// Capability slots, by convention with `kernel/src/user/compositor_service.rs`.
 const REPORT: u64 = 0;
@@ -208,7 +208,12 @@ pub extern "C" fn _start(role: u64, neighbour_va: u64, _arg2: u64) -> ! {
 
     // --- The refusal that needs no attack: ask for something we hold no capability for. ---
     if role & ROLE_PROBE_INPUT != 0 {
-        // SAFETY: `svc`/`ecall`. The slot is empty, so the kernel refuses; nothing happens.
+        // SAFETY: `svc`/`ecall`. The slot is empty, so the kernel refuses; nothing happens. Left as
+        // a raw `invoke` (milestone 139 round 7's own survey of the whole `invoke` cluster): this is
+        // the one call site of its kind, deliberately probing the raw negative `abi::Error` a RECV
+        // against an empty slot returns, which `user_rt::recv`'s own contract discards (it assumes
+        // success and returns the three data words, not the syscall's own return code). A wrapper
+        // exposing the raw code would be a second `recv` for one caller, not a real reduction.
         let r = unsafe { invoke(INPUT, abi::rendezvous::RECV, 0, 0, 0) };
         send(REPORT, status::WIN_REFUSED, r as u64, WHAT_INPUT);
     }
@@ -298,8 +303,7 @@ pub extern "C" fn _start(role: u64, neighbour_va: u64, _arg2: u64) -> ! {
             let (w0, reply_slot, bytes) = recv_cap(INPUT);
             // Answer first: the compositor is blocked in CALL, the terminal contract's driver-half
             // rendezvous, and it is the flow control for a fast source.
-            // SAFETY: `svc`/`ecall`; the kernel validated the Reply capability and consumes it.
-            unsafe { invoke(reply_slot, abi::reply::REPLY, 0, 0, 0) };
+            reply(reply_slot, 0, 0);
             // Clamp to the eight bytes one word carries. `proto::len` is a full 32-bit field, so
             // an unclamped count shifts past 63 at `k == 8` and spins up to 2^32 times.
             // `display_terminal.rs` and `line_editor.rs` both clamp here; this was the one that

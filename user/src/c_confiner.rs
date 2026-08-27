@@ -55,10 +55,7 @@
 // two parts this milestone leans on: a child born with shared pages and born supervised.
 use c_seam::checks;
 use supervision_proto::ChildEndowment;
-use user_rt::{cap_delete, invoke, recv_fault, send};
-
-/// Where the kernel maps the initrd archive, read-only. Must match the kernel's spawn path.
-const INITRD_VA: u64 = 0x2000_0000;
+use user_rt::{cap_delete, map_page_frame, recv_fault, send};
 
 /// What the kernel grants us, and nothing else.
 const ROOT_UT: u64 = 0; // the construction budget: what we build each instance out of
@@ -71,9 +68,8 @@ const INSTANCE_PAGES: u64 = 96;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
-    // SAFETY: the kernel mapped `initrd_len` bytes of reserved RAM read-only at INITRD_VA.
-    let archive =
-        unsafe { core::slice::from_raw_parts(INITRD_VA as *const u8, initrd_len as usize) };
+    // SAFETY: forwarded from user_rt::initrd::initrd_bytes's own contract.
+    let archive = unsafe { user_rt::initrd::initrd_bytes(initrd_len) };
     let Ok(fs) = nifefs::Fs::parse(archive) else {
         bail(1)
     };
@@ -101,8 +97,7 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
         (wit_ro, c_seam::WITNESS_RO_VA),
         (wit_far, c_seam::WITNESS_FAR_VA),
     ] {
-        // SAFETY: plain syscall; the kernel validates the frame, the va, and the budget.
-        if unsafe { invoke(frame, abi::page_frame::MAP, va, 1, ROOT_UT) } != 0 {
+        if !map_page_frame(frame, va, true, ROOT_UT) {
             bail(6)
         }
     }

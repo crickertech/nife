@@ -97,7 +97,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use abi::{memory_region as ut, page_frame as fr, rendezvous, rights};
+use abi::{rendezvous, rights};
 use clock_proto::propose;
 use ntp_proto::{Packet, Query, Reject, Short, Timestamp, leap, mode};
 // The socket contract, verbatim from the file `net_stack` compiles, so the client and the test
@@ -108,7 +108,10 @@ use ntp_proto::{Packet, Query, Reject, Short, Timestamp, leap, mode};
 #[allow(dead_code)]
 use socket_proto::*;
 use user_rt::mapped_window::{MappedWindow, PAGE};
-use user_rt::{call, cap_delete, cntfrq, exit, invoke, now, recv_cap, reply, send, yield_now};
+use user_rt::{
+    call, cap_delete, cntfrq, exit, map_page_frame, now, recv_cap, reply, retype_page_frame, send,
+    send_cap, yield_now,
+};
 
 // =================================================================================================
 // The roles, the slots, and the words this program reports.
@@ -404,26 +407,23 @@ fn reject_code(r: Reject) -> u64 {
 /// Mint one frame from our own budget, map it, and delegate it to the socket contract's server.
 /// Exactly what `socket_test_client` does, because it is exactly the same contract.
 fn attach_page_frame() {
-    // SAFETY: `svc`. RETYPE answers with the new frame capability's slot, or a negative error.
-    let frame = unsafe { invoke(MEMORY_REGION, ut::RETYPE, 0, 0, 0) };
+    // RETYPE answers with the new frame capability's slot, or a negative error.
+    let frame = retype_page_frame(MEMORY_REGION);
     if frame < 0 {
         done(RPT_NET_ERROR, 0, 0);
     }
     let frame = frame as u64;
-    // SAFETY: `svc`. Map it writable; the page tables come from our untyped.
-    if unsafe { invoke(frame, fr::MAP, PAGE_FRAME_VA, 1, MEMORY_REGION) } < 0 {
+    // Map it writable; the page tables come from our untyped.
+    if !map_page_frame(frame, PAGE_FRAME_VA, true, MEMORY_REGION) {
         done(RPT_NET_ERROR, 1, 0);
     }
-    // SAFETY: `svc`. Delegate it, narrowed to read/write, with the ATTACH request.
-    if unsafe {
-        invoke(
-            STACK,
-            rendezvous::SEND_CAP,
-            frame,
-            rights::READ | rights::WRITE,
-            req(OP_ATTACH_PAGE_FRAME, SID),
-        )
-    } < 0
+    // Delegate it, narrowed to read/write, with the ATTACH request.
+    if send_cap(
+        STACK,
+        frame,
+        rights::READ | rights::WRITE,
+        req(OP_ATTACH_PAGE_FRAME, SID),
+    ) < 0
     {
         done(RPT_NET_ERROR, 1, 0);
     }
@@ -513,8 +513,7 @@ fn server(variant: u64, claimed_nanos: u64) -> ! {
             // A SEND_CAP: the client's shared frame, which we map for ourselves and then drop the
             // capability for, because the mapping outlives it. No reply; nobody is waiting.
             OP_ATTACH_PAGE_FRAME => {
-                // SAFETY: `svc`. The cap is the frame the client delegated.
-                let _ = unsafe { invoke(cap, fr::MAP, PAGE_FRAME_VA, 1, MEMORY_REGION) };
+                map_page_frame(cap, PAGE_FRAME_VA, true, MEMORY_REGION);
                 cap_delete(cap);
             }
             OP_OPEN_UDP | OP_OPEN_TCP => {

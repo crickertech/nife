@@ -82,7 +82,7 @@
 
 use core::sync::atomic::{AtomicBool, Ordering};
 
-use user_rt::{exit, invoke, send, survey};
+use user_rt::{exit, granted, send, survey};
 
 /// The output sink: where the tids go. Slot 0 is where every spawned program's output lands.
 const REPORT: u64 = 0;
@@ -155,19 +155,6 @@ fn write_on(slot: u64, bytes: &[u8]) {
         send(slot, w0, w1, w2);
         rest = &rest[n..];
     }
-}
-
-/// Whether a capability is in `slot`, without touching whatever it names.
-///
-/// `date`'s probe, and the same problem: invoke a method number no object type defines, so the call
-/// can only be refused, and read *which* refusal came back. An empty slot answers `NoSuchSlot`; a
-/// real object answers `BadMethod`, which is a refusal from something that exists.
-fn granted(slot: u64) -> bool {
-    /// A method number no object type defines, so the invocation can only ever be refused.
-    const NO_SUCH_METHOD: u64 = 0xffff;
-    // SAFETY: a syscall that cannot succeed; the kernel validates the slot before the method.
-    let r = unsafe { invoke(slot, NO_SUCH_METHOD, 0, 0, 0) };
-    r != abi::Error::NoSuchSlot as i64
 }
 
 #[panic_handler]

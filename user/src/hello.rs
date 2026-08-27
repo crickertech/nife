@@ -35,7 +35,10 @@ use abi::{Error, rendezvous};
 /// interactive boot's own use of it is in `crates/system_initializer`; what is left here is milestone
 /// 19d's test roles, which build a child out of one budget and hand it two or three capabilities.
 use supervision_proto::ChildEndowment;
-use user_rt::{call, exit, invoke, recv, recv_cap as rt_recv_cap, send, yield_now};
+use user_rt::{
+    call, exit, irq_wait, map_into, map_page_frame, map_region_page, recv, recv_cap as rt_recv_cap,
+    reply, revoke_frame, send, send_cap, yield_now,
+};
 
 /// Roles, as passed in `x0` by the kernel.
 ///
@@ -204,8 +207,7 @@ fn print(bytes: &[u8]) -> Result<(), Error> {
     }
 
     // The length is the message. The data is already in place, shared, uncopied.
-    // SAFETY: as above: the kernel validates the capability and the method.
-    let r = unsafe { invoke(REQUEST, rendezvous::SEND, n as u64, 0, 0) };
+    let r = send(REQUEST, n as u64, 0, 0);
     if let Some(e) = Error::from_ret(r) {
         return Err(e); // e.g. NoSuchSlot: we were not handed a console
     }
@@ -236,11 +238,9 @@ fn call_server() -> ! {
 
     let (w0, reply_slot, w1) = rt_recv_cap(EP);
     // Answer the caller: w0 + w1. This consumes the one-shot reply capability.
-    // SAFETY: `svc`; the kernel validates the reply capability in `reply_slot`.
-    check(unsafe { invoke(reply_slot, abi::reply::REPLY, w0 + w1, 0, 0) } == 0);
+    check(reply(reply_slot, w0 + w1, 0) == 0);
     // A second reply on the same slot must fail: the cap was consumed on first use.
-    // SAFETY: `svc`.
-    let second = unsafe { invoke(reply_slot, abi::reply::REPLY, 0xBAD, 0, 0) };
+    let second = reply(reply_slot, 0xBAD, 0);
     send(REPORT, if second < 0 { 1 } else { 0 }, 0, 0); // 1 = refused (one-shot held), 0 = a hole
     exit();
 }
@@ -267,42 +267,39 @@ fn revoke_demo() -> ! {
     const VA: u64 = 0x0000_0000_00c0_0000;
 
     // Retype a page into a PageFrame capability we hold, then map it writable.
-    // SAFETY: `svc`. The result is the slot the new capability landed in.
-    let frame = unsafe { invoke(MEMORY_REGION, abi::memory_region::RETYPE, 0, 0, 0) };
+    let frame = user_rt::retype_page_frame(MEMORY_REGION);
     check(frame >= 0);
     let frame = frame as u64;
-    // SAFETY: as above: the kernel validates the capability and the method.
-    check(unsafe { invoke(frame, abi::page_frame::MAP, VA, 1, MEMORY_REGION) } == 0);
+    check(map_page_frame(frame, VA, true, MEMORY_REGION));
     // SAFETY: VA is now a mapped, writable page in our address space.
     unsafe { core::ptr::write_volatile(VA as *mut u64, 0xABCD) };
 
     // Revoke: unmap the page everywhere and delete every capability to it, ours included. The frame
-    // was retyped with GRANT, so we are allowed to. SAFETY: `svc`.
-    let revoked = unsafe { invoke(frame, abi::page_frame::REVOKE, 0, 0, 0) };
+    // was retyped with GRANT, so we are allowed to.
+    let revoked = revoke_frame(frame);
     // Our PageFrame capability is gone now: a second operation on that slot must fail (NoSuchSlot). We
-    // do NOT touch VA again, which is unmapped and would fault. SAFETY: `svc`.
-    let after = unsafe { invoke(frame, abi::page_frame::MAP, VA, 1, MEMORY_REGION) };
+    // do NOT touch VA again, which is unmapped and would fault.
+    let after = if map_page_frame(frame, VA, true, MEMORY_REGION) {
+        0
+    } else {
+        -1
+    };
 
     send(REPORT, if revoked == 0 && after < 0 { 1 } else { 0 }, 0, 0);
     exit();
 }
 
-/// Where the kernel maps the initrd into init (must match user.rs `INITRD_VA`).
-const INITRD_VA: u64 = 0x2000_0000;
-
 /// The bytes of the program named `name` in the initrd (milestone 19f). The initrd is a nifefs
-/// archive the kernel maps read-only at [`INITRD_VA`]; init indexes it by name rather than treating
-/// the whole blob as a single ELF. `initrd_len` (the archive length) arrives in `x1` at entry.
-/// Returns `None` if the archive will not parse or holds no such program.
+/// archive the kernel maps read-only at [`user_rt::initrd::INITRD_VA`]; init indexes it by name
+/// rather than treating the whole blob as a single ELF. `initrd_len` (the archive length) arrives
+/// in `x1` at entry. Returns `None` if the archive will not parse or holds no such program.
 ///
 /// Through 19f.1 every program is still a role of *this* binary, so callers look up `"init"` (the
 /// binary the kernel loaded) and enter it at a different role; 19f.2 adds distinct entries a caller
 /// can name directly (`"worker"` and so on).
 fn program(initrd_len: u64, name: &str) -> Option<&'static [u8]> {
-    // SAFETY: the kernel mapped `initrd_len` bytes of the initrd, read-only, at INITRD_VA. It is
-    // reserved RAM that outlives every process, so the 'static lifetime is honest.
-    let archive =
-        unsafe { core::slice::from_raw_parts(INITRD_VA as *const u8, initrd_len as usize) };
+    // SAFETY: forwarded from user_rt::initrd::initrd_bytes's own contract.
+    let archive = unsafe { user_rt::initrd::initrd_bytes(initrd_len) };
     nifefs::Fs::parse(archive).ok()?.read(name)
 }
 
@@ -351,7 +348,7 @@ const CHILD_WORD: u64 = 0xC0FFEE;
 /// **The init task, milestone 19d.** The first program the kernel starts, and the one that
 /// starts the others: the ELF parser lives here, in userspace, not in the kernel. init holds a
 /// building untyped (slot 0) and a report endpoint (slot 1, `WRITE|GRANT`); the initrd is mapped
-/// read-only at [`INITRD_VA`], and its length arrives in `x1`.
+/// read-only at [`user_rt::initrd::INITRD_VA`], and its length arrives in `x1`.
 ///
 /// It parses that ELF (the `elf` crate, linked into userspace) and loads it as a **child**: a
 /// second instance of this same program, entered at role [`CHILD`], built entirely by init out
@@ -506,8 +503,7 @@ fn irq_child() -> ! {
     const IRQ: u64 = 1;
     const IRQ_WORD: u64 = 0x1590; // "IRQ 0" ish; any fixed value the test asserts
 
-    // SAFETY: `svc`; WAIT blocks until the interrupt the kernel routed for this cap fires.
-    let _ = unsafe { invoke(IRQ, abi::irq::WAIT, 0, 0, 0) };
+    let _ = irq_wait(IRQ); // blocks until the interrupt the kernel routed for this cap fires
     send(REPORT, IRQ_WORD, 0, 0);
     exit();
 }
@@ -552,8 +548,7 @@ fn init_console(initrd_len: u64) -> ! {
     };
 
     // Map the shared page read/write in init's own space, so init (the client) can write into it.
-    // SAFETY: as above: the kernel validates the capability and the method.
-    if unsafe { invoke(shared, abi::page_frame::MAP, SHARED_VA, 1, MEMORY_REGION) } != 0 {
+    if !map_page_frame(shared, SHARED_VA, true, MEMORY_REGION) {
         fail_report(REPORT);
     }
 
@@ -720,31 +715,17 @@ fn address_space_builder() -> ! {
     const REPORT: u64 = 1;
     const VA: u64 = 0x0040_0000;
 
-    // SAFETY: `svc` throughout.
-    let aspace = unsafe {
-        invoke(
-            MEMORY_REGION,
-            abi::memory_region::RETYPE_OBJ,
-            abi::objtype::ADDRESS_SPACE,
-            0,
-            0,
-        )
-    };
+    let aspace = user_rt::retype_object(MEMORY_REGION, abi::objtype::ADDRESS_SPACE);
     let mut verdict = 0u64;
     if aspace >= 0 {
         verdict |= 1; // built a space out of our own pages
-        // SAFETY: as above: the kernel validates the capability and the method.
-        let frame = unsafe { invoke(MEMORY_REGION, abi::memory_region::RETYPE, 0, 0, 0) };
+        let frame = user_rt::retype_page_frame(MEMORY_REGION);
         if frame >= 0 {
-            let mapped =
-                // SAFETY: as above: the kernel validates the capability and the method.
-                unsafe { invoke(aspace as u64, abi::address_space::MAP_INTO, VA, frame as u64, 1) };
+            let mapped = map_into(aspace as u64, VA, frame as u64, 1);
             if mapped == 0 {
                 verdict |= 2; // mapped our frame into the space we built
             }
-            let again =
-                // SAFETY: as above: the kernel validates the capability and the method.
-                unsafe { invoke(aspace as u64, abi::address_space::MAP_INTO, VA, frame as u64, 1) };
+            let again = map_into(aspace as u64, VA, frame as u64, 1);
             if again < 0 {
                 verdict |= 4; // the same va twice was refused: break-before-make holds there too
             }
@@ -763,23 +744,14 @@ fn ep_maker() -> ! {
     const MEMORY_REGION: u64 = 0;
     const CHANNEL: u64 = 1;
 
-    // SAFETY: `svc`. Retype one page of our budget into an endpoint; the kernel returns the slot
-    // where our full-rights capability to it landed.
-    let ep = unsafe {
-        invoke(
-            MEMORY_REGION,
-            abi::memory_region::RETYPE_OBJ,
-            abi::objtype::RENDEZVOUS,
-            0,
-            0,
-        )
-    };
+    // Retype one page of our budget into an endpoint; the kernel returns the slot where our
+    // full-rights capability to it landed.
+    let ep = user_rt::retype_object(MEMORY_REGION, abi::objtype::RENDEZVOUS);
     check(ep >= 0);
     let ep = ep as u64;
 
     // Delegate a READ-only view (recv, never send) to whoever is on the channel; we keep WRITE.
-    // SAFETY: `svc`.
-    check(unsafe { invoke(CHANNEL, rendezvous::SEND_CAP, ep, abi::rights::READ, 0) } == 0);
+    check(send_cap(CHANNEL, ep, abi::rights::READ, 0) == 0);
 
     // Speak first through our own creation: blocks until the peer receives, which is the proof.
     check(send(ep, 0x77, 0, 0) == 0);
@@ -811,16 +783,8 @@ fn granter() -> ! {
     const CHANNEL: u64 = 0;
     const RESOURCE: u64 = 1;
 
-    // SAFETY: `svc`. Delegate RESOURCE, narrowed to WRITE (dropping GRANT), over CHANNEL.
-    unsafe {
-        invoke(
-            CHANNEL,
-            rendezvous::SEND_CAP,
-            RESOURCE,
-            abi::rights::WRITE,
-            0,
-        )
-    };
+    // Delegate RESOURCE, narrowed to WRITE (dropping GRANT), over CHANNEL.
+    send_cap(CHANNEL, RESOURCE, abi::rights::WRITE, 0);
 
     exit(); // one-shot: our authority is passed on, so we leave and the kernel reaps us
 }
@@ -847,8 +811,7 @@ fn receiver() -> ! {
 
     // Try to pass it on. We hold it WITHOUT grant, so the kernel refuses before any rendezvous, and
     // the invoke returns an error. LOOPBACK needs no receiver: the refusal happens at the check.
-    // SAFETY: as above: the kernel validates the capability and the method.
-    let redelegate = unsafe { invoke(LOOPBACK, rendezvous::SEND_CAP, got, abi::rights::WRITE, 0) };
+    let redelegate = send_cap(LOOPBACK, got, abi::rights::WRITE, 0);
     let refused = redelegate < 0;
 
     // Verdict: bit 0 we received a capability, bit 1 re-delegation was refused. 0b11 is the story.
@@ -868,39 +831,24 @@ fn page_frame_producer() -> ! {
     const PAGE_FRAME_VA: u64 = 0x0000_0000_00A0_0000;
 
     // Retype: a page out of our budget becomes a PageFrame capability we hold. Nothing is mapped yet.
-    // SAFETY: `svc`. The result is the slot the new capability landed in.
-    let frame = unsafe { invoke(MEMORY_REGION, abi::memory_region::RETYPE, 0, 0, 0) };
+    let frame = user_rt::retype_page_frame(MEMORY_REGION);
     check(frame >= 0);
 
     // Map it read/write; the page tables to reach PAGE_FRAME_VA come from the same untyped.
-    // SAFETY: `svc`.
-    check(
-        unsafe {
-            invoke(
-                frame as u64,
-                abi::page_frame::MAP,
-                PAGE_FRAME_VA,
-                1,
-                MEMORY_REGION,
-            )
-        } == 0,
-    );
+    check(map_page_frame(
+        frame as u64,
+        PAGE_FRAME_VA,
+        true,
+        MEMORY_REGION,
+    ));
 
     // Write the sentinel the consumer will read back through its own mapping of this page.
     // SAFETY: PAGE_FRAME_VA is now a mapped, writable page in our address space.
     unsafe { core::ptr::write_volatile(PAGE_FRAME_VA as *mut u64, PAGE_FRAME_SENTINEL) };
 
     // Delegate a READ-only view: drop WRITE and GRANT on the way over. The rendezvous is also the
-    // synchronization edge that makes our write visible to the consumer. SAFETY: `svc`.
-    unsafe {
-        invoke(
-            CHANNEL,
-            rendezvous::SEND_CAP,
-            frame as u64,
-            abi::rights::READ,
-            0,
-        )
-    };
+    // synchronization edge that makes our write visible to the consumer.
+    send_cap(CHANNEL, frame as u64, abi::rights::READ, 0);
 
     exit();
 }
@@ -922,9 +870,7 @@ fn page_frame_consumer() -> ! {
     let mut rw_refused = false;
     if received {
         // Map the shared page read-only and read the producer's sentinel through it.
-        // SAFETY: `svc`.
-        let mapped =
-            unsafe { invoke(frame, abi::page_frame::MAP, PAGE_FRAME_VA, 0, MEMORY_REGION) } == 0;
+        let mapped = map_page_frame(frame, PAGE_FRAME_VA, false, MEMORY_REGION);
         if mapped {
             // SAFETY: PAGE_FRAME_VA is now a mapped, readable page.
             let seen = unsafe { core::ptr::read_volatile(PAGE_FRAME_VA as *const u64) };
@@ -932,9 +878,7 @@ fn page_frame_consumer() -> ! {
         }
 
         // Try to map it read/write. We hold it READ only, so the kernel refuses before mapping.
-        // SAFETY: `svc`.
-        let rw = unsafe { invoke(frame, abi::page_frame::MAP, RW_VA, 1, MEMORY_REGION) };
-        rw_refused = rw < 0;
+        rw_refused = !map_page_frame(frame, RW_VA, true, MEMORY_REGION);
     }
 
     // Verdict: bit 0 we read the shared sentinel, bit 1 a writable mapping was refused.
@@ -988,8 +932,8 @@ fn memory_region_demo() -> ! {
     let mut mapped: u64 = 0;
     loop {
         let va = BASE_VA + mapped * 4096;
-        // Retype a page out of our untyped and map it here. SAFETY: `svc`.
-        let r = unsafe { invoke(MEMORY_REGION, abi::memory_region::MAP, va, 0, 0) };
+        // Retype a page out of our untyped and map it here.
+        let r = map_region_page(MEMORY_REGION, va);
         if let Some(e) = Error::from_ret(r) {
             // OutOfMemory means our budget is spent. Any other error is a real bug.
             if e != Error::OutOfMemory {

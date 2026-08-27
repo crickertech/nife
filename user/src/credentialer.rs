@@ -138,6 +138,7 @@ use alloc::vec::Vec;
 
 use cred::{Block, Cost, Store, Verdict};
 use credential_proto as proto;
+use user_rt::mapped_window::MappedWindow;
 use user_rt::{call, cap_delete, exit, recv_cap, reply, send};
 
 /// The provision endpoint (slot 0): RECV, and only until the seal.
@@ -153,8 +154,13 @@ const READY: u64 = 4;
 
 /// The provisioner's page. Plaintext secrets cross it; nothing but the provisioner maps it.
 const PROV_VA: u64 = 0x0000_0000_00e0_0000;
+// SAFETY: the wiring maps one page read/write at PROV_VA before this program runs (milestone 139
+// round 6).
+const PROV_WINDOW: MappedWindow = unsafe { MappedWindow::new(PROV_VA, proto::PAGE as u64) };
 /// A client's page. Must match `user/src/credentialer_test_client.rs`.
 const VERIFY_VA: u64 = 0x0000_0000_00e1_0000;
+// SAFETY: as PROV_WINDOW's.
+const VERIFY_WINDOW: MappedWindow = unsafe { MappedWindow::new(VERIFY_VA, proto::PAGE as u64) };
 
 /// How many secrets the store holds. **Six: three logins and three shares.**
 ///
@@ -244,11 +250,11 @@ fn provision(store: &mut Store<CAPACITY>, scratch: &mut [Block]) {
                 let verdict = put(store, scratch, w0, w1);
                 // Unconditionally, on every path including the malformed one: the page holds a
                 // plaintext secret and the provisioner is still mapping it.
-                wipe(PROV_VA);
+                wipe(PROV_WINDOW);
                 reply(cap, verdict, proto::NO_DATA);
             }
             proto::provision::SEAL => {
-                wipe(PROV_VA);
+                wipe(PROV_WINDOW);
                 reply(cap, proto::OK, proto::NO_DATA);
                 // **The seal.** After this the service holds no capability to this endpoint, so
                 // there is no code path back into the loop above even if one were written. The
@@ -273,8 +279,8 @@ fn provision(store: &mut Store<CAPACITY>, scratch: &mut [Block]) {
 /// speaks NTLM can also answer an ordinary verify, which is what lets milestone 49's login and
 /// milestone 55's SMB server share one account instead of needing two.
 fn put(store: &mut Store<CAPACITY>, scratch: &mut [Block], w0: u64, w1: u64) -> u64 {
-    // SAFETY: the wiring mapped one page read/write at PROV_VA before this program ran.
-    let page = unsafe { core::slice::from_raw_parts(PROV_VA as *const u8, proto::PAGE) };
+    // SAFETY: forwarded from PROV_WINDOW's own contract.
+    let page = unsafe { PROV_WINDOW.as_slice() };
     let ntlm = proto::op(w0) == proto::provision::PUT_NTLM;
     let parsed = if ntlm {
         proto::read_ntlm_put(page, w0, w1)
@@ -320,12 +326,12 @@ fn serve(store: &Store<CAPACITY>, scratch: &mut [Block]) -> ! {
         };
         // On every path: the client wrote a secret into this page, and leaving it there would make
         // the frame a place the secret persists after the answer.
-        wipe(VERIFY_VA);
+        wipe(VERIFY_WINDOW);
         // **After the wipe, never before.** The wipe is what removes the client's request from the
         // shared frame, and it covers the reply area too, so a session key published first would
         // be erased by the very call that makes publishing it safe.
         if let Some(key) = key {
-            publish(VERIFY_VA, &key);
+            publish(VERIFY_WINDOW, &key);
         }
         reply(cap, verdict, proto::NO_DATA);
     }
@@ -334,8 +340,8 @@ fn serve(store: &Store<CAPACITY>, scratch: &mut [Block]) -> ! {
 /// One `VERIFY`. The reply is a verdict and nothing else; see `credential_proto`'s module docs on why
 /// the reply channel has no room for data.
 fn answer(store: &Store<CAPACITY>, scratch: &mut [Block], w0: u64) -> u64 {
-    // SAFETY: the wiring mapped one page read/write at VERIFY_VA before this program ran.
-    let page = unsafe { core::slice::from_raw_parts(VERIFY_VA as *const u8, proto::PAGE) };
+    // SAFETY: forwarded from VERIFY_WINDOW's own contract.
+    let page = unsafe { VERIFY_WINDOW.as_slice() };
     let Some((identity, presented)) = proto::read(page, w0) else {
         return proto::MALFORMED;
     };
@@ -362,8 +368,8 @@ fn answer(store: &Store<CAPACITY>, scratch: &mut [Block], w0: u64) -> u64 {
 /// a choice made here, and it is the reason this endpoint has no rate limit worth the name. See
 /// this program's BUGS.
 fn ntlm_answer(store: &Store<CAPACITY>, w0: u64) -> (u64, Option<[u8; cred::NTLM_KEY_LEN]>) {
-    // SAFETY: the wiring mapped one page read/write at VERIFY_VA before this program ran.
-    let page = unsafe { core::slice::from_raw_parts(VERIFY_VA as *const u8, proto::PAGE) };
+    // SAFETY: forwarded from VERIFY_WINDOW's own contract.
+    let page = unsafe { VERIFY_WINDOW.as_slice() };
     let Some((identity, challenge, blob, presented)) = proto::read_ntlm_proof(page, w0) else {
         return (proto::MALFORMED, None);
     };
@@ -374,19 +380,20 @@ fn ntlm_answer(store: &Store<CAPACITY>, w0: u64) -> (u64, Option<[u8; cred::NTLM
     }
 }
 
-/// Write the `SessionBaseKey` into the shared page.
-fn publish(va: u64, key: &[u8; cred::NTLM_KEY_LEN]) {
-    // SAFETY: as in `wipe`; the wiring mapped one page read/write here and this process is the
-    // only writer between a request arriving and its reply going out.
-    let page = unsafe { core::slice::from_raw_parts_mut(va as *mut u8, proto::PAGE) };
+/// Write the `SessionBaseKey` into the shared page named by `window` (`PROV_WINDOW` or
+/// `VERIFY_WINDOW`).
+fn publish(window: MappedWindow, key: &[u8; cred::NTLM_KEY_LEN]) {
+    // SAFETY: forwarded from `window`'s own contract; this process is the only writer between a
+    // request arriving and its reply going out.
+    let page = unsafe { window.as_mut_slice() };
     proto::put_session_key(page, key);
 }
 
-/// Zero the request area of a shared page.
-fn wipe(va: u64) {
-    // SAFETY: the wiring mapped one page read/write here, and this process is the only writer
-    // between a request arriving and its reply going out.
-    let page = unsafe { core::slice::from_raw_parts_mut(va as *mut u8, proto::PAGE) };
+/// Zero the request area of the shared page named by `window` (`PROV_WINDOW` or `VERIFY_WINDOW`).
+fn wipe(window: MappedWindow) {
+    // SAFETY: forwarded from `window`'s own contract; this process is the only writer between a
+    // request arriving and its reply going out.
+    let page = unsafe { window.as_mut_slice() };
     proto::wipe(page);
 }
 

@@ -55,7 +55,8 @@
 
 use graphics_proto as gfx;
 use user_rt::mapped_window::MappedWindow;
-use user_rt::{exit, invoke, recv_cap, send};
+use user_rt::virtio::{virtio_notify, virtio_read_reg, virtio_setup_queue, virtio_write_reg};
+use user_rt::{exit, irq_ack, irq_wait, recv_cap, reply, send};
 
 /// Capability slots, by convention with `kernel/src/user/display_service.rs`.
 const REPORT: u64 = 0;
@@ -171,15 +172,13 @@ const E_DMA_REFUSED: u64 = 0x0A;
 const E_NO_COMPLETION: u64 = 0x0B;
 
 fn mr(off: u64) -> u32 {
-    // SAFETY: `svc`/`ecall`; the kernel validates the Virtio capability in slot 2. Register reads
-    // are DMA-safe, so any offset is permitted.
-    unsafe { invoke(VIRTIO, abi::virtio::READ_REG, off, 0, 0) as u32 }
+    virtio_read_reg(VIRTIO, off) as u32
 }
 
 fn mw(off: u64, v: u32) {
-    // SAFETY: as above. Only DMA-*safe* registers reach the device; the queue-address and notify
-    // registers are refused by the kernel and go through SETUP_QUEUE / NOTIFY instead.
-    unsafe { invoke(VIRTIO, abi::virtio::WRITE_REG, off, v as u64, 0) };
+    // Only DMA-*safe* registers reach the device; the queue-address and notify registers are
+    // refused by the kernel and go through SETUP_QUEUE / NOTIFY instead.
+    virtio_write_reg(VIRTIO, off, v as u64);
 }
 
 /// Order our stores to the rings and buffers against the device's reads, and against the kernel's
@@ -271,9 +270,9 @@ fn submit(dma_phys: u64, req_len: u32) -> u32 {
     dma_write::<u16>(OFF_AVAIL + 2, idx.wrapping_add(1));
     barrier(); // idx must be visible before the kernel rings the device
 
-    // SAFETY: `svc`/`ecall`. The kernel validates both descriptors against our DMA region, copies
-    // them into the shadow ring the device actually reads, and only then rings the doorbell.
-    if unsafe { invoke(VIRTIO, abi::virtio::NOTIFY, CONTROL_Q, 0, 0) } < 0 {
+    // The kernel validates both descriptors against our DMA region, copies them into the shadow
+    // ring the device actually reads, and only then rings the doorbell.
+    if virtio_notify(VIRTIO, CONTROL_Q) < 0 {
         die(E_DMA_REFUSED);
     }
 
@@ -283,12 +282,10 @@ fn submit(dma_phys: u64, req_len: u32) -> u32 {
     // the kill-mid-write section). The bound turns "no completion ever" into a legible failure
     // instead of a hang the watchdog has to catch.
     for _ in 0..64 {
-        // SAFETY: `svc`/`ecall`; blocks until the device raises its line.
-        unsafe { invoke(IRQ, abi::irq::WAIT, 0, 0, 0) };
+        irq_wait(IRQ); // blocks until the device raises its line
         let istatus = mr(INTERRUPT_STATUS);
         mw(INTERRUPT_ACK, istatus);
-        // SAFETY: `svc`/`ecall`; re-enable the line the kernel masked when it fired.
-        unsafe { invoke(IRQ, abi::irq::ACK, 0, 0, 0) };
+        irq_ack(IRQ); // re-enable the line the kernel masked when it fired
         barrier();
         if dma_read::<u16>(OFF_USED + 2) != used_before {
             return dma_read::<u32>(OFF_RESP);
@@ -331,8 +328,8 @@ fn init(dma_phys: u64) -> (u32, u32) {
         die(E_FEATURES);
     }
 
-    // SAFETY: `svc`/`ecall`; the kernel places queue 0's rings at the contract's offsets.
-    if unsafe { invoke(VIRTIO, abi::virtio::SETUP_QUEUE, QSIZE as u64, CONTROL_Q, 0) } != 0 {
+    // The kernel places queue 0's rings at the contract's offsets.
+    if virtio_setup_queue(VIRTIO, QSIZE as u64, CONTROL_Q) != 0 {
         die(E_QUEUE);
     }
 
@@ -561,8 +558,7 @@ pub extern "C" fn _start(role: u64, dma_phys: u64, arg2: u64) -> ! {
             gfx::display::INFO => gfx::WIDTH as u64 | ((gfx::HEIGHT as u64) << 32),
             _ => 0,
         };
-        // SAFETY: `svc`/`ecall`; the kernel validated the Reply capability and consumes it here.
-        unsafe { invoke(reply_slot, abi::reply::REPLY, r0 as u64, r1, 0) };
+        reply(reply_slot, r0 as u64, r1);
 
         // **The driver-side witness**, once, after the first successful flush. The digest is taken
         // in this address space, from our own mapping of the surface, after the device reported the

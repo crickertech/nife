@@ -46,6 +46,7 @@
 #![no_main]
 
 use credential_proto as proto;
+use user_rt::mapped_window::MappedWindow;
 use user_rt::{call, exit, send};
 
 /// The credential service's endpoint (slot 0). Verify or provision, depending on the role, and
@@ -56,8 +57,13 @@ const REPORT: u64 = 1;
 
 /// A client's shared page. Must match user/src/credentialer.rs `VERIFY_VA`.
 const PAGE_VA: u64 = 0x0000_0000_00e1_0000;
+// SAFETY: the wiring maps one page read/write at PAGE_VA before this program runs (milestone 139
+// round 6).
+const PAGE_WINDOW: MappedWindow = unsafe { MappedWindow::new(PAGE_VA, proto::PAGE as u64) };
 /// The provisioner's shared page. Must match user/src/credentialer.rs `PROV_VA`.
 const PROV_VA: u64 = 0x0000_0000_00e0_0000;
+// SAFETY: as PAGE_WINDOW's.
+const PROV_WINDOW: MappedWindow = unsafe { MappedWindow::new(PROV_VA, proto::PAGE as u64) };
 
 /// An SMB adapter's shape: ask, and believe the answer.
 pub const ROLE_HONEST: u64 = 0;
@@ -178,7 +184,12 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
 fn provisioner() -> ! {
     let mut codes = Codes::new();
     for (identity, secret) in PEOPLE {
-        codes.push(request(PROV_VA, identity, secret, proto::provision::PUT));
+        codes.push(request(
+            PROV_WINDOW,
+            identity,
+            secret,
+            proto::provision::PUT,
+        ));
     }
     // Then the three shares, each bound to its own account and domain. A share's secret is scoped
     // to the resource, so these are six independent secrets in one store rather than three people
@@ -188,15 +199,20 @@ fn provisioner() -> ! {
     }
     // A seventh secret in a six-slot store: FULL, not a silent overwrite of somebody.
     codes.push(request(
-        PROV_VA,
+        PROV_WINDOW,
         b"nobody",
         b"no room",
         proto::provision::PUT,
     ));
     // Seal. `place` needs a non-empty identity and secret even for an opcode that reads neither;
     // the words carry the opcode and the page is wiped by the service either way.
-    codes.push(request(PROV_VA, b"seal", b"seal", proto::provision::SEAL));
-    done(codes, u64::from(page_is_clean(PROV_VA)))
+    codes.push(request(
+        PROV_WINDOW,
+        b"seal",
+        b"seal",
+        proto::provision::SEAL,
+    ));
+    done(codes, u64::from(page_is_clean(PROV_WINDOW)))
 }
 
 /// **An SMB server's shape**, and the whole point of milestone 65: this program answers a client's
@@ -231,8 +247,13 @@ fn ntlm() -> ! {
     // One password, two derivations: the share also answers an ordinary verify. Deliberately last,
     // because its reply leaves the page wiped, which is what makes the cleanliness check below say
     // something rather than measuring a wipe this program did itself.
-    codes.push(request(PAGE_VA, SHARE, SHARES[0].1, proto::verify::VERIFY));
-    if page_is_clean(PAGE_VA) {
+    codes.push(request(
+        PAGE_WINDOW,
+        SHARE,
+        SHARES[0].1,
+        proto::verify::VERIFY,
+    ));
+    if page_is_clean(PAGE_WINDOW) {
         flags |= F_CLEAN;
     }
     done(codes, flags)
@@ -241,8 +262,8 @@ fn ntlm() -> ! {
 /// A `PUT_NTLM`, which needs both request words because the account name's and the domain's
 /// lengths ride in the second one.
 fn put_ntlm(resource: &[u8], password: &[u8], user: &[u8], domain: &[u8]) -> u64 {
-    // SAFETY: the wiring mapped one page read/write at PROV_VA before this program ran.
-    let page = unsafe { core::slice::from_raw_parts_mut(PROV_VA as *mut u8, proto::PAGE) };
+    // SAFETY: forwarded from PROV_WINDOW's own contract.
+    let page = unsafe { PROV_WINDOW.as_mut_slice() };
     let Some((w0, w1)) = proto::place_ntlm_put(page, resource, password, user, domain) else {
         return u64::MAX;
     };
@@ -253,8 +274,8 @@ fn put_ntlm(resource: &[u8], password: &[u8], user: &[u8], domain: &[u8]) -> u64
 /// An `NTLM_PROOF`, with the challenge and the blob this program would have exchanged with a real
 /// client.
 fn ntlm_request(resource: &[u8], proof: &[u8; proto::KEY_LEN]) -> u64 {
-    // SAFETY: as in `request`.
-    let page = unsafe { core::slice::from_raw_parts_mut(PAGE_VA as *mut u8, proto::PAGE) };
+    // SAFETY: forwarded from PAGE_WINDOW's own contract.
+    let page = unsafe { PAGE_WINDOW.as_mut_slice() };
     let Some(w0) = proto::place_ntlm_proof(page, resource, &CHALLENGE, &BLOB, proof) else {
         return u64::MAX;
     };
@@ -265,8 +286,8 @@ fn ntlm_request(resource: &[u8], proof: &[u8; proto::KEY_LEN]) -> u64 {
 /// The `SessionBaseKey` the service published, or zeros if the page is somehow too small (which it
 /// cannot be: the wiring maps a whole frame).
 fn session_key() -> [u8; proto::KEY_LEN] {
-    // SAFETY: as in `request`.
-    let page = unsafe { core::slice::from_raw_parts(PAGE_VA as *const u8, proto::PAGE) };
+    // SAFETY: forwarded from PAGE_WINDOW's own contract.
+    let page = unsafe { PAGE_WINDOW.as_slice() };
     proto::session_key(page).unwrap_or([0; proto::KEY_LEN])
 }
 
@@ -274,15 +295,20 @@ fn session_key() -> [u8; proto::KEY_LEN] {
 fn honest() -> ! {
     let mut codes = Codes::new();
     let (identity, secret) = PEOPLE[0];
-    codes.push(request(PAGE_VA, identity, secret, proto::verify::VERIFY));
     codes.push(request(
-        PAGE_VA,
+        PAGE_WINDOW,
+        identity,
+        secret,
+        proto::verify::VERIFY,
+    ));
+    codes.push(request(
+        PAGE_WINDOW,
         identity,
         b"not the secret",
         proto::verify::VERIFY,
     ));
     codes.push(request(
-        PAGE_VA,
+        PAGE_WINDOW,
         b"nobody-at-all",
         secret,
         proto::verify::VERIFY,
@@ -290,8 +316,8 @@ fn honest() -> ! {
     // The pairing is what is checked, not the secret alone: one person's password must not open
     // another person's account.
     let (other, _) = PEOPLE[1];
-    codes.push(request(PAGE_VA, other, secret, proto::verify::VERIFY));
-    done(codes, u64::from(page_is_clean(PAGE_VA)))
+    codes.push(request(PAGE_WINDOW, other, secret, proto::verify::VERIFY));
+    done(codes, u64::from(page_is_clean(PAGE_WINDOW)))
 }
 
 /// **The attacker**: the same slot 0, used for everything the contract does not offer.
@@ -303,7 +329,7 @@ fn attacker() -> ! {
     // choose which serve loop reads it. So this is a verify of an identity nobody provisioned, and
     // the honest answer is no. See `credential_proto`'s "an opcode is not an authority".
     codes.push(request(
-        PAGE_VA,
+        PAGE_WINDOW,
         IMPOSTOR,
         IMPOSTOR_SECRET,
         proto::provision::PUT,
@@ -312,13 +338,13 @@ fn attacker() -> ! {
     // is `NTLM_PROOF`'s number on this endpoint, so the answer is MISMATCH rather than MALFORMED:
     // what the attacker sent is a proof for a resource nobody provisioned. See the kernel test.
     codes.push(request(
-        PAGE_VA,
+        PAGE_WINDOW,
         IMPOSTOR,
         IMPOSTOR_SECRET,
         proto::provision::SEAL,
     ));
     // An opcode nobody defined, in case the dispatch falls through to something.
-    codes.push(request(PAGE_VA, IMPOSTOR, IMPOSTOR_SECRET, 0x7f));
+    codes.push(request(PAGE_WINDOW, IMPOSTOR, IMPOSTOR_SECRET, 0x7f));
     // A length outside the contract, in case the service indexes before it checks. `place` will
     // not build this request, so the word is hand-made and the page is left as it was.
     let (r0, r1) = call(
@@ -336,27 +362,26 @@ fn attacker() -> ! {
     // is opcode 3, which no serve loop here implements, so it is MALFORMED rather than a refusal:
     // there is still nothing to refuse.
     codes.push(request(
-        PAGE_VA,
+        PAGE_WINDOW,
         IMPOSTOR,
         IMPOSTOR_SECRET,
         proto::provision::PUT_NTLM,
     ));
     // And now the question that matters: did any of that install a credential?
     codes.push(request(
-        PAGE_VA,
+        PAGE_WINDOW,
         IMPOSTOR,
         IMPOSTOR_SECRET,
         proto::verify::VERIFY,
     ));
-    done(codes, u64::from(page_is_clean(PAGE_VA)))
+    done(codes, u64::from(page_is_clean(PAGE_WINDOW)))
 }
 
 /// Place a request in the shared page and `CALL`. Returns the service's reply code, or
 /// [`u64::MAX`] if the reply carried data in its second word, which nothing here ever should.
-fn request(va: u64, identity: &[u8], secret: &[u8], op: u64) -> u64 {
-    // SAFETY: the wiring mapped one page read/write at `va` before this program ran, and this
-    // process is its only user.
-    let page = unsafe { core::slice::from_raw_parts_mut(va as *mut u8, proto::PAGE) };
+fn request(window: MappedWindow, identity: &[u8], secret: &[u8], op: u64) -> u64 {
+    // SAFETY: forwarded from `window`'s own contract, and this process is its only user.
+    let page = unsafe { window.as_mut_slice() };
     let Some(w0) = proto::place(page, identity, secret, op) else {
         return u64::MAX;
     };
@@ -368,9 +393,9 @@ fn request(va: u64, identity: &[u8], secret: &[u8], op: u64) -> u64 {
 /// last `CALL` this frame should hold neither the secret this program presented nor anything the
 /// service put there. Checking the whole page and not just the request area, because a byte of a
 /// salt or a tag landing past the request area would be the interesting kind of leak.
-fn page_is_clean(va: u64) -> bool {
-    // SAFETY: as in `request`.
-    let page = unsafe { core::slice::from_raw_parts(va as *const u8, proto::PAGE) };
+fn page_is_clean(window: MappedWindow) -> bool {
+    // SAFETY: forwarded from `window`'s own contract.
+    let page = unsafe { window.as_slice() };
     page.iter().all(|&b| b == 0)
 }
 

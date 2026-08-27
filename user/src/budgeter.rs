@@ -32,7 +32,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use user_rt::{exit, invoke, send};
+use user_rt::{exit, map_region_page, send};
 
 /// The result endpoint init grants every spawned program (slot 0).
 const RESULT: u64 = 0;
@@ -53,8 +53,7 @@ pub extern "C" fn _start(_x0: u64, _x1: u64, _x2: u64) -> ! {
         // table it needs both come from the budget; when the budget is spent the kernel returns a
         // negative error (OutOfMemory), and a program with no budget at all gets NoSuchSlot on the
         // first call. Either way, we stop and report what we got.
-        // SAFETY: `svc`/`ecall`; the kernel validates the untyped capability and the address.
-        let r = unsafe { invoke(BUDGET, abi::memory_region::MAP, va, 0, 0) };
+        let r = map_region_page(BUDGET, va);
         if r < 0 {
             break;
         }
