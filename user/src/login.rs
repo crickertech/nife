@@ -258,12 +258,18 @@
 //! with exactly one spender, so a channel region is always its only live child and always comes home
 //! whole. See that constant's own doc.
 //!
-//! **No terminal.** The roadmap's own text names three things a login hands back: a root directory,
-//! a budget, a terminal. This program hands back the first two. A terminal in this system is a
-//! singleton hardware-backed resource wired once at interactive boot
-//! (`crates/system_initializer::boot`); minting a second one, or multiplexing the one that exists
-//! across logins, is real work this slice does not attempt and does not want to guess the shape of.
-//! It is unscoped follow-on, not an oversight.
+//! **No terminal, and this was investigated rather than left as a placeholder** (2026-08-26). The
+//! roadmap's own text names three things a login hands back: a root directory, a budget, a terminal.
+//! This program hands back the first two. A terminal in this system is a singleton hardware-backed
+//! resource wired once at interactive boot (`crates/system_initializer::boot`), which is exactly
+//! what makes "hand one back" underspecified rather than merely unbuilt: the narrow, single-login
+//! case (one interactive boot, one terminal, one session live at a time) has a real, cheap answer
+//! (the terminal `boot` already wired, delegated to whichever session is live, because there is only
+//! ever one); what has no answer yet is what a *second* concurrent login should be told, or what a
+//! real multiplexing primitive would need to look like, and guessing at either is exactly the kind
+//! of capability-shaped decision this tree reserves for calef rather than a lane. See
+//! `design/roadmap/49-users-and-attribution.md`'s own BUGS for the proposal, options and
+//! recommendation, written up rather than built past.
 //!
 //! **Resolved, 2026-08-23 (DECISIONS §117).** Every successful login used to be attenuated to the
 //! same fixed subtree, with the same rights, for every identity. It is now attenuated to a subtree
@@ -298,43 +304,73 @@
 //!   channel than the login result itself (an operator-facing log the login result is not), which is
 //!   real work this slice does not build.
 //!
-//! **Not wired into the interactive boot, and the blocker is a missing device grant, not a wiring
-//! exercise** (investigated 2026-08-23, milestone/49-login-boot-prompt). This process is spawned
-//! directly by the kernel's guest test harness (`kernel/src/user/login_service.rs`), the same way
-//! `credentialer` is, and is not reachable from `crates/system_initializer::boot`'s real prompt.
-//! The chain that is missing: `login` needs `credentialer`'s `VERIFY`; `credentialer` refuses to
-//! start without the entropy service (it draws its decoy record's salt from entropy at start-up
-//! and will not fall back to a predictable one, DECISIONS §42); the entropy service needs a
-//! `Virtio` capability onto a real virtio-rng device (`user/src/entropy.rs`'s slot 2); and neither
-//! `kernel::user::spawn_init` (aarch64) nor `kernel::user::riscv_shell_boot` (riscv64), the two
-//! sites that build a [`system_initializer::BootEndowment`] (`user/src/hello.rs`'s
-//! `init_boot`, `user/src/system_initializer.rs`), discovers or grants one. Nor does the interactive
-//! boot's own QEMU invocation attach a virtio-rng device at all: `NIFE_RNG` (like `NIFE_GPU`,
-//! `NIFE_KBD`, `NIFE_NVME`) is set only inside `cargo xtask test`, never by `cargo xtask shell-check`
-//! or any interactive/demo boot, which is a deliberate, existing pattern (a minimal device surface
-//! for the boot a person actually meets) and not an oversight this file's own code could fix.
+//! **Not wired into the interactive boot. The device-grant half of the blocker is now built; login
+//! itself, and what it needs to serve a real password, are the remaining piece** (investigated
+//! 2026-08-23, milestone/49-login-boot-prompt; the grant chain built 2026-08-26 on DECISIONS §120's
+//! amendment). This process is still spawned directly by the kernel's guest test harness
+//! (`kernel/src/user/login_service.rs`), the same way `credentialer` is, and is not itself reachable
+//! from `crates/system_initializer::boot`'s real prompt.
 //!
-//! **What is already proven, so the remaining gap is precisely this and nothing more**: the whole
-//! chain (a real virtio-rng-backed entropy service, `credentialer` provisioned with milestone 56's
-//! own family fixture, and this program relaying to it) already runs and is tested end to end
-//! whenever a virtio-rng device is present (`kernel::user::login_tests::wired`, which reuses
-//! `kernel::user::credential_tests::provisioned`). No code in this program, `credentialer.rs`, or
-//! `entropy.rs` needs to change for interactive-boot reachability. What is missing is a capability
-//! the kernel does not yet construct, on a boot whose device set does not yet include the device
-//! that capability would name.
+//! **What changed 2026-08-26.** §120 reversed its own 2026-08-23 decline ("calef is that customer,
+//! for a reason specific to this project's own method": a QEMU boot is reachable unattended, a real
+//! board is not). `kernel::user::spawn_init` (aarch64) and `kernel::user::riscv_shell_boot`
+//! (riscv64) now discover a real virtio-rng device (MMIO only; the PCIe transport
+//! `kernel::user::entropy_service::start` also offers is real follow-on, not built here) and grant
+//! it to init as three capabilities (`BootEndowment::virtio_rng`/`virtio_rng_irq`/`virtio_rng_dma`),
+//! and the interactive boot's own QEMU invocation now attaches one (`xtask`'s `shell_check_leg` and
+//! `"shell"` command both set `NIFE_RNG`, where before it was a test-leg-only flag). `crates/
+//! system_initializer::boot` builds a real entropy service from that grant, at the very top of the
+//! function, and proves it drew real device bytes before building anything else (`script/shell-check`
+//! now reads `"init: entropy service up; drew real bytes from a virtio-rng device"` on both ISAs).
+//! **This is the harder half of the original blocker, and it required no help from this program**:
+//! `credentialer.rs` and `entropy.rs` are unmodified, because the entropy service they both already
+//! assumed now genuinely exists under a real boot.
 //!
-//! **Why this is not this lane's decision to make.** Whether the interactive boot should carry a
-//! virtio-rng device at all is a question about what that boot models, not a plumbing gap: milestone
-//! 55's actual target is real Raspberry-Pi-class hardware (`design/roadmap/55-*`), which has no
-//! virtio-rng and would need a different entropy source entirely, so "attach one in QEMU" answers
-//! the demonstrator's boot and not the target's. It also touches `BootEndowment`, which is what the
-//! kernel promises an init at spawn, on a capability table this file's own comments already call "one slot
-//! from the wall" at peak (`crates/system_initializer::DIR_JOB_REGION_PAGES`'s neighboring comment).
-//! Getting either wrong costs a design decision to unwind, not a line of code, which is the "move
-//! fast on what can be undone" tenet's own test for when a fork is calef's rather than a lane's.
-//! Replacing the shell's own build-time endowment with a real login prompt remains the multi-lane
-//! remainder of this milestone, and its first lane is now this decision rather than a
-//! `build_child` exercise.
+//! **Why entropy had to be built before the console, and that ordering is load-bearing rather than
+//! tidy**: the virtio-rng trio is granted by the kernel, at spawn, so it inflates init's resting
+//! capability-table baseline for the *whole* function, and the earliest peak `boot` ever reaches
+//! (retyping the terminal's six capabilities, before the console is even built) was already close to
+//! the wall on its own account. Building entropy anywhere after that peak, including in the
+//! reasonable-looking gap the console's own three capabilities free, pushes it over and boots in
+//! total silence; building it first, and releasing its three slots before the terminal plumbing ever
+//! runs, restores every peak downstream to exactly what it was before this landed. Found by
+//! bisection: an isolated test granted init one single harmless extra capability, unused by any
+//! code, and the identical silent fault reproduced. See `crates/system_initializer::boot`'s own
+//! comment on this block for the full account.
+//!
+//! **What is still missing, now that the device chain is real.** Reaching *this program*, and a
+//! real credential, from the prompt needs three more pieces, none of them plumbing gaps in the sense
+//! the device grant was:
+//!
+//! 1. **`credentialer` and this program, wired into `boot` the same way entropy now is** (built via
+//!    `build_child`, holding narrowed views of capabilities `boot` already retypes or is granted:
+//!    the file service pair, a construction budget, and the entropy service's own request endpoint,
+//!    which `boot` would keep a client view of alongside the one it hands `credentialer`).
+//! 2. **A real subtree and a real credential for whoever is meant to log in**, which
+//!    `identity_provisioner` (milestone 155) already builds the tool for, but that tool has the
+//!    identical "spawned only by the kernel's guest test harness" bound this program's own BUGS
+//!    used to name (`design/roadmap/155-*`'s own BUGS, unchanged). Wiring it in is the same shape
+//!    of `build_child` call as (1); it is listed separately because it raises the next point.
+//! 3. **Where the demo credential's password comes from**, which is a real, undecided fork and not
+//!    a wiring detail: nothing today provisions a subtree or a credential for a real boot, and a
+//!    lane should not silently choose one. Two shapes were considered, not built: a password baked
+//!    into the image at build time (rejected here as a recommendation, not decided against
+//!    absolutely: a fixed secret shipped in a public repository is exactly the "a fact that leaves
+//!    the machine" category `AGENTS.md`'s own tenet reserves for calef, and it is also the harder
+//!    one to undo); and a password the boot itself generates, from the entropy service already
+//!    built here, provisioned once per boot and printed to the console before the prompt (in the
+//!    shape cloud images already use for a generated first-boot password). The second is the
+//!    recommendation: it needs no permanent secret, no decision about *whose* password to bake in,
+//!    and it is reversible (a later boot can trivially do something else) in exactly the sense that
+//!    makes it a lane's call rather than calef's under the *move fast on what can be undone* tenet.
+//!    Not built here because it is new work on top of (1) and (2), not because it is undecided in
+//!    the sense that would block a lane from attempting it.
+//!
+//! **Why (1)-(3) are not this file's own BUGS to carry alone.** They live one level up, in
+//! `design/roadmap/49-users-and-attribution.md`'s own BUGS, because they are facts about the boot's
+//! wiring and milestone 155's own tool, not about what this program does or does not do; this
+//! program's own contract (VERIFY, `FS_EP`, `FS_PAGE`, a construction budget, AUDIT, and now what a
+//! wired `boot` would need to add: a terminal, see below) is unchanged by any of them.
 //!
 //! **Resolved, 2026-08-24.** This process used to load `fs_subtree_caretaker` by name with no check
 //! at all, inconsistent with `crates/system_initializer`'s own discipline (milestone 104: refuse a
