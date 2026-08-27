@@ -41,9 +41,19 @@ permissions:
 # So `main` commits are not grouped with each other at all: the SHA is in the group name, making each
 # one unique and therefore uncancellable. Branches and PRs keep the shared group, where superseding
 # is right because only the tip matters.
+#
+# **A merge-queue entry needs the same exemption as `main`, for the same reason, and did not have
+# it.** Found 2026-08-27: PR #546 sat `AWAITING_CHECKS` in the queue for over two hours, its
+# `gh-readonly-queue/main/pr-546-...` ref cycling pending -> in_progress -> cancelled roughly every
+# ten minutes, forever. The ref does not change between GitHub's retries of one queue entry, so the
+# old `'tip'` fallback put every retry in the same concurrency group as the last, and
+# `cancel-in-progress` killed each attempt before it could report a conclusion -- a required check
+# that can structurally never complete. Exempting `gh-readonly-queue/` refs the same way `main` is
+# exempted is the fix: a queue entry's checks run to completion undisturbed, exactly like a push to
+# `main` already does.
 concurrency:
   group: ci-${{ github.ref }}-${{ github.ref == 'refs/heads/main' && github.sha || 'tip' }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/heads/gh-readonly-queue/') }}
 
 # Each job's real work is a script from script/ (the "Scripts to Rule Them All" set), so CI runs
 # exactly what a developer runs locally. See notes/scripts.md.
