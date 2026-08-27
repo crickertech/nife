@@ -4,11 +4,11 @@
 land in a `swish` prompt on a real terminal" against the actual code rather than the roadmap's own
 framing, and finding no milestone owns the gap this surfaced.
 
-**Gate: NONE.** Nothing here is a design fork. The framebuffer contract (milestone 29), the
-compositor (milestone 33), the VT engine and bitmap font (milestone 29's deferred half), and the
-virtio keyboard driver are all built and proven, on both ISAs, under the test harness. What is
-missing is device attachment and program selection in the one boot path that is not the test
-harness.
+**Gate: DECISION.** Reversed from the original `Gate: NONE` above (2026-08-27, an investigation
+lane): what looked like pure wiring turned out to sit on a real, unresolved architectural question.
+See "The investigation, 2026-08-27" below before starting any of the three pieces; piece 1's own
+plan as originally written does not fit, and piece 2 cannot be built at all until the fork is
+answered.
 
 ## What actually blocks this
 
@@ -47,6 +47,107 @@ So this milestone is three joined pieces, not two:
    piece is provable against the plain `console`/`input` pair before it needs to be provable against
    the graphical stack, so it does not have to land last.
 
+## The investigation, 2026-08-27: why "just wire it up" does not work
+
+A lane investigated all three pieces before writing code, and reverted the one piece it did write
+(the grant code below) once the reason became clear. Recorded here rather than only in the pull
+request that carried it (merged with no code changes; the PR is not where a future reader meets
+this).
+
+**Finding 1: `BootEndowment` has no room for GPU/keyboard grants as piece 1 describes them
+(mechanical, not a fork).** Counted the actual slots rather than assumed them: aarch64's
+`spawn_init` (`user/src/hello.rs`'s `init_boot`) fills capability-table slots 0-11 of 16 already
+(`untyped`, the report endpoint, `uart_dev`, the test IRQ, `uart_irq`, `clock_page`, `config_page`,
+`fs_ep`, `fs_page`, the virtio-rng trio); 3 free. riscv64's `riscv_shell_boot` fills 0-9; 5 free. A
+virtio-gpu device needs 11 (`display_service.rs`'s own shape: transport, irq, and a nine-page DMA
+region, one `PageFrame` capability per page, because the ABI's `MAP_INTO`/`CAP_INSERT` are strictly
+one-capability-per-physical-page). A virtio-keyboard device needs 3-4. Neither fits what remains on
+either board, let alone both together. The lane found this by writing the grant code first and
+watching it try to `grant_at` a slot past 16, then reverted it (`kernel/src/user.rs` is unaffected
+by this milestone as of this writing).
+
+The fix is mechanical: build the graphical stack **kernel-side**, called from `spawn_init`/
+`riscv_shell_boot` before init exists, the same shape `fs_service::root_directory` already uses for
+the filesystem pair (the block server and FS server are built kernel-side; init receives only two
+capabilities, `fs_ep`/`fs_page`, regardless of how many processes or pages sit behind them).
+Kernel-side spawning maps physical pages directly and is not bound by any one process's
+sixteen-slot table, so it sidesteps the wall entirely. The kernel-side wiring functions already
+exist and are proven under test (`kernel/src/user/display_service.rs`, `compositor_service.rs`,
+`keyboard_service.rs`); this piece is calling them (or code shaped identically) from the real boot
+path instead of only from tests.
+
+**Finding 2, the real fork: there is no path for a keystroke to reach the shell in the graphical
+stack, and closing it means choosing how.** `swish` calls `OP_READLINE` on its terminal capability,
+and only `line_editor` answers that opcode; `display_terminal`'s own module doc is explicit that it
+is not a line discipline and expects `line_editor` in front of it. So `line_editor` has to stay in
+the graphical stack. Two problems:
+
+1. **Output.** `console.rs` speaks a bespoke two-endpoint request/reply protocol plus a shared
+   page; `display_terminal` speaks `line_editor::proto`'s `OP_WRITE`/`OP_BYTES` over one `CALL`
+   endpoint. `line_editor` needs a code change (or a second output path) to print through
+   `display_terminal` instead of `console`.
+2. **Input, the harder one.** `kbd.rs` (the only proven virtio-keyboard driver) speaks only the
+   compositor's ring-and-doorbell protocol. This is not an accident of what has been built so far;
+   it is DECISIONS §33's own security property, stated in `kbd.rs`'s own module doc: the driver
+   "cannot name a client at all," and holds no client's endpoint, precisely so a compromised or
+   buggy keyboard driver cannot forge a keystroke to a client it was never meant to reach. Focus is
+   entirely the compositor's decision. `display_terminal`'s own `OP_BYTES` handler, when it is the
+   compositor's focused client, only feeds its local renderer (`term().feed(&b)`) and forwards
+   nothing onward. So there is no route from a real keystroke to `line_editor` in the
+   compositor-mediated model as it exists today, by design rather than by gap.
+
+**Whether the compositor belongs in this path at all, checked directly rather than assumed**
+(calef, 2026-08-27: *"I'm concerned we're leveraging the compositor because we started a GUI and
+then paused."*). The concern is correct and sharpens the fork below. `kbd`'s inability to name a
+client is not a general security property of keyboard drivers; it is the specific answer to a
+**multi-client** problem, "which of several competing windows should this keystroke reach," stated
+in DECISIONS §33's own reasoning. A single-terminal boot has exactly one possible destination for
+every keystroke, always: there is no second window to misdirect to, so the problem the compositor's
+focus arbitration solves does not exist in this journey's actual scope. `display_terminal`'s
+`MODE_DISPLAY` already reaches the equivalent conclusion on the output side (no compositor, direct
+GPU ownership, because a single terminal does not need multiplexing); the options below differ on
+whether the input side follows that same logic or not.
+
+Three shapes, priced, none decided:
+
+- **A. Give `kbd` a second delivery mode**: `CALL` `line_editor`'s endpoint directly, fixed at
+  spawn, for the boot's own single-terminal case, the same shape `display_terminal`'s own
+  `MODE_DISPLAY`/`MODE_WINDOW` split already uses. **Not a security exception to DECISIONS §33**,
+  on the reasoning above: it is this codebase's own standing pattern (`AGENTS.md` rule 2, "a driver
+  takes what it needs, passed in") applied consistently, and it is *narrower* authority than the
+  compositor-mediated model, not looser, because `kbd` would hold exactly one fixed capability
+  instead of "whichever client the compositor currently focuses." Cheapest change, and the one that
+  matches what this journey's scope actually needs.
+- **B. Make `line_editor` itself a compositor-window-shaped client** (hold a control page and
+  doorbell, receive `OP_BYTES` from the compositor as the focused client, forward rendered output to
+  `display_terminal` via `OP_WRITE`). Buys the compositor's real value, multi-window/multi-login
+  arbitration, before this journey needs it (milestone 49's login wiring is still single-session
+  today). Real new work for a problem not yet in scope: a second blocking endpoint on a process, in
+  a system DECISIONS §33 already found has exactly one blocking wait point per process.
+- **C. Have `display_terminal` relay** (already the compositor's focused client, already receives
+  `OP_BYTES`; forward to `line_editor` instead of only feeding its own renderer). Raised in the same
+  conversation as an alternative to A/B before the reframing above; superseded by it, since C keeps
+  the compositor load-bearing for input in exactly the case that does not need multiplexing at all,
+  the pattern the reframing names as the thing to be wary of. Kept here rather than deleted so the
+  reasoning that ruled it out stays visible.
+
+**Recommendation: A.** Not merely cheapest; per the reframing above it is the design this journey's
+actual scope calls for, and B's real benefit (multi-window arbitration) is not yet needed by
+anything in this tree. Still calef's to confirm: this is a wire contract between two programs, the
+category `AGENTS.md` reserves for him rather than a lane, and the recommendation should be checked
+against whether milestone 49's own near-term plans make B's multi-session case closer than it
+looks from here.
+
+**Finding 3 corrects this doc's own sequencing claim.** The original text (below, in "what this
+unblocks") said piece 3 (x86_64's entry point) is provable against the plain `console`/`input` pair
+independent of pieces 1-2. Checked against
+[DECISIONS §121](../decisions/121-port-io-capability.md) (ratified permanently 2026-08-25) and
+found false: x86_64's UART console is **permanently kernel-resident**, a closed question rather
+than an unbuilt feature ("this is not an interim stance to be revisited on a schedule"). x86_64 has
+no working userspace console at all, on either side of this milestone; its only possible route to
+an interactive shell is through the graphical stack, which means piece 3 depends on finding 2's
+fork being answered the same way pieces 1-2 do, not independent of it.
+
 ## What this does not decide
 
 Whether the swap is unconditional (the graphical stack becomes the only interactive boot) or a
@@ -64,6 +165,12 @@ with"). Independent of [milestone 169](169-kilo-editor.md) (`kilo`'s raw-keystro
 at the `DECISIONS §21` line-discipline contract level, which both `console` and
 `display_terminal` already speak identically) and of milestone 49's login-boot-wiring piece
 (unblocked 2026-08-26, DECISIONS §120 amended to grant the stopgap; the piece itself is a separate,
-ongoing build). All three can proceed in either order; none is a prerequisite for either of the
-others, though piece 3 above (x86_64's own entry point) is a real prerequisite for either of *this*
-milestone's other two pieces meaning anything on that one architecture specifically.
+ongoing build).
+
+**This paragraph's own "all three can proceed in either order" claim is corrected by the
+investigation above, not merely superseded: piece 3 (x86_64's entry point) is not independent of
+pieces 1-2, because x86_64 has no fallback UART path at all (DECISIONS §121, permanently
+kernel-resident) and therefore depends on finding 2's fork the same way pieces 1-2 do.** Piece 3 is
+still not a prerequisite for either of the *other* two meaning something on aarch64/riscv64; it is
+simply not escaping the fork either, on the one architecture that has no plain-console alternative
+to fall back on.
