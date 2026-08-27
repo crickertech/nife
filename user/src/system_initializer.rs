@@ -51,6 +51,13 @@ const GRANTS: BootEndowment = BootEndowment {
     clock_page: 3,
     fs_ep: 4,
     fs_page: 5,
+    // Always these three (`kernel::user::riscv_shell_boot` grants them at explicit slots, not
+    // `thread_control_block_insert_cap`'s first-free `None`, for exactly this reason): a boot with
+    // no virtio-rng device leaves them empty, and `system_initializer::boot`'s own probe is what
+    // tells it apart from a granted one.
+    virtio_rng: 6,
+    virtio_rng_irq: 7,
+    virtio_rng_dma: 8,
     // Nothing. Unlike aarch64's, this boot path is not shared with milestone 19d's test roles, so
     // the kernel grants exactly what the interactive system uses.
     for_test_roles: &[],

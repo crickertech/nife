@@ -780,6 +780,7 @@ dependencies = [
  "abi",
  "byte_sink_proto",
  "elf",
+ "entropy_proto",
  "filesystem_proto",
  "grant_plan",
  "line_editor",
