@@ -82,5 +82,5 @@ against real hardware, not a reason to block development velocity today.
 ## What it unblocks
 
 Milestone 49's login-boot-wiring piece (its own BUGS section can move from a recorded DECLINED to a
-build), and by extension the [login-to-kilo journey](../journeys/login-to-kilo.md)'s step 4.
+build), and by extension [journey 1](../journeys/01-login-to-kilo.md)'s step 4.
 Milestone 159 is unaffected either way, exactly as "what this does not decide" already said.
