@@ -3,6 +3,15 @@
 #
 #   script/shell-check                     both architectures
 #   script/shell-check --arch aarch64      one leg
+#   script/shell-check --graphical         both architectures, GPU and keyboard attached, no UART
+#
+# `--graphical` (milestone 177, option A) boots the same `--features shell` kernel with a virtio-gpu
+# and a virtio-keyboard instead of the plain UART pair, and verifies it by reading the screen back
+# (a QEMU screendump decoded against the same 7x8 font the guest drew from) rather than by piping a
+# serial transcript: there is no UART client on that path to pipe. It proves a working, typeable
+# prompt reached the screen and a real keystroke round-tripped through `kbd`'s direct `CALL` to
+# `line_editor`; it does not run the full console leg's script (echo, redirects, `wc <`, ...), which
+# is real, scoped-out follow-on work. See `shell_check_leg_graphical`'s own doc in `xtask/src/main.rs`.
 #
 # This is the gate for `user/src/system_initializer.rs`. Every other test that runs the shell has
 # the KERNEL play init, so a broken init fails nothing; the interactive boot is the only thing that
