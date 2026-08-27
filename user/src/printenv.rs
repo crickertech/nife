@@ -50,7 +50,7 @@
 //!   so this is a property of the contract rather than an oversight, but a reader expecting a
 //!   generic env dump should know the shape is closed.
 //!
-//! Name: **provisional**, introduced 2026-08-26 alongside [`grant_plan::Manifest::config`]. Unix's
+//! Name: provisional, introduced 2026-08-26 alongside `grant_plan::Manifest::config`. Unix's
 //! own name for exactly this (`printenv(1)`), a term of art already right per this tree's own
 //! naming convention for standard terms; unrated by calef.
 

@@ -66,7 +66,10 @@ fn line(out: RendezvousId, buf: &mut [u8; 128]) -> usize {
             if b == b'\n' {
                 return len;
             }
-            assert!(len < buf.len(), "printenv printed a line longer than a line");
+            assert!(
+                len < buf.len(),
+                "printenv printed a line longer than a line"
+            );
             buf[len] = b;
             len += 1;
         }
@@ -125,11 +128,17 @@ fn printenv_prints_the_page_it_was_granted() {
     let mut buf = [0u8; 128];
 
     let n = line(out, &mut buf);
-    assert_eq!(core::str::from_utf8(&buf[..n]).unwrap(), "TZ=America/Los_Angeles");
+    assert_eq!(
+        core::str::from_utf8(&buf[..n]).unwrap(),
+        "TZ=America/Los_Angeles"
+    );
     let n = line(out, &mut buf);
     assert_eq!(core::str::from_utf8(&buf[..n]).unwrap(), "LANG=en_US.UTF-8");
     let n = line(out, &mut buf);
-    assert_eq!(core::str::from_utf8(&buf[..n]).unwrap(), "TERM=xterm-256color");
+    assert_eq!(
+        core::str::from_utf8(&buf[..n]).unwrap(),
+        "TERM=xterm-256color"
+    );
 }
 
 /// **A key the page never declared reads as `(unset)`, not as an empty value.**

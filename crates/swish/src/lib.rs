@@ -1203,7 +1203,9 @@ pub fn write_preview(e: &Endowment, out: &mut dyn FnMut(&[u8])) {
     // and-naming.md's environment section for what remains.
     if e.prog.manifest().config {
         out(b"    cap 1  frame     config   read-only. TZ, LANG and TERM as this boot's inert\n");
-        out(b"                              defaults; nothing here can change what a shell hands\n");
+        out(
+            b"                              defaults; nothing here can change what a shell hands\n",
+        );
         out(b"                              its children\n");
     }
     // **The row this milestone exists to print.** On Linux there is nothing here to say: `ps` reads
