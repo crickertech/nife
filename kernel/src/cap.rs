@@ -45,18 +45,27 @@ pub enum Object {
     /// milestone-8 move (the console driver left; now the interrupt does too).
     Irq(u32),
 
-    /// **A physical page**, by its physical address, that the holder may map into its own address
-    /// space and delegate to others.
+    /// **A contiguous run of physical pages**, by the base physical address and a page count, that
+    /// the holder may map into its own address space and delegate to others.
     ///
     /// The object §10 named as the shared-memory capability: *IPC carries control, shared memory
     /// carries data*. A shared buffer used to be a page the kernel mapped into both parties at
     /// spawn, wired once and never movable. A `PageFrame` makes it a runtime object instead: a process
     /// retypes one out of its own untyped (`MemoryRegion::RETYPE`), maps it (`PageFrame::MAP`), and hands it
     /// (or a read-only view of it, since delegation narrows) to a peer over an endpoint. The peer
-    /// maps the *same physical page* and the two share memory, composed by the processes rather
+    /// maps the *same physical pages* and the two share memory, composed by the processes rather
     /// than arranged for them. The address is the identity: a process can never forge one, because
     /// the only ways to get a `PageFrame` are to retype it or be handed it, and both keep the object.
-    PageFrame(u64),
+    ///
+    /// **`count` is the run's length in pages, at least 1** (DECISIONS §102, 2026-08-20): a `PageFrame`
+    /// names what the hardware names. A DMA region or a scanout is contiguous in physics, in the
+    /// address space, and in the IOMMU domain that confines it, so one capability names the whole
+    /// run instead of one per page: `PageFrame::MAP` maps all `count` pages with one call, and
+    /// `PageFrame::REVOKE` unmaps all of them and deletes every capability naming the run. Every
+    /// caller that predates this widening passes `count: 1` and keeps its exact prior behavior; the
+    /// syscall's argument shape does not change; `count` rides on the capability, not on `MAP`'s
+    /// arguments. See notes/frames.md.
+    PageFrame(u64, u64),
 
     /// **A device's MMIO page**, by physical address (milestone 19d.2): a delegatable authority
     /// to map a *specific* device's registers, **device-typed** (nGnRnE, uncacheable, unreordered
@@ -292,9 +301,10 @@ pub fn device_frame_cap(phys: u64, rights: Rights) -> Cap {
     }
 }
 
-/// A capability naming a physical page. `READ` lets the holder map it read-only, `WRITE` lets it
-/// map it read/write, `GRANT` lets it pass the page on. A freshly retyped frame gets all three;
-/// delegation narrows them (a read-only, non-lendable view is `READ` alone).
+/// A capability naming **one** physical page at `phys` (the `count: 1` case of DECISIONS §102's
+/// `PageFrame`). `READ` lets the holder map it read-only, `WRITE` lets it map it read/write,
+/// `GRANT` lets it pass the page on. A freshly retyped frame gets all three; delegation narrows
+/// them (a read-only, non-lendable view is `READ` alone).
 ///
 /// (This doc comment was attached to [`device_frame_cap`] until milestone 108, so `page_frame_cap` had
 /// none and the device one appeared to have two. A correction, not a rewrite.)
@@ -303,9 +313,27 @@ pub fn device_frame_cap(phys: u64, rights: Rights) -> Cap {
 /// a shared buffer, the clock page. Since milestone 108 that is how the disk and display paths hand
 /// a driver its memory, in place of a `Spawn::maps` entry that no capability stood behind. See
 /// notes/frames.md.
+///
+/// Kept at its pre-§102 signature on purpose: every one of its ~20 existing callers wants exactly
+/// one page, and this is additive rather than a rewrite (§102's own text: "existing callers pass
+/// count: 1 and get the same behavior"). [`page_frame_run_cap`] is the one to reach for when the
+/// count is not 1.
 pub fn page_frame_cap(phys: u64, rights: Rights) -> Cap {
     Cap {
-        object: Object::PageFrame(phys),
+        object: Object::PageFrame(phys, 1),
+        rights,
+    }
+}
+
+/// A capability naming a run of `count` contiguous physical pages starting at `phys` (DECISIONS
+/// §102, 2026-08-20). The run-capable sibling of [`page_frame_cap`]: one capability for a DMA
+/// region or a scanout that is contiguous in physics, in the address space, and in the IOMMU domain
+/// that confines it, instead of one capability per page. `count` must be at least 1; `count: 1` is
+/// exactly [`page_frame_cap`].
+pub fn page_frame_run_cap(phys: u64, count: u64, rights: Rights) -> Cap {
+    debug_assert!(count >= 1, "a PageFrame run must name at least one page");
+    Cap {
+        object: Object::PageFrame(phys, count),
         rights,
     }
 }

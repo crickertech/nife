@@ -398,6 +398,18 @@ went), and the difference is accounted rather than shrugged at:
 
 ## BUGS
 
+- **RESOLVED 2026-08-26 (DECISIONS §102, built by milestone 142's terminal-size lane).** `Object::
+  PageFrame` now carries a page count (`PageFrame(phys, count)`), `page_frame::MAP` and
+  `page_frame::REVOKE` operate on the whole run, and `cap::page_frame_run_cap` mints one capability
+  for a multi-page region instead of one per page. The display driver's DMA region, the painting
+  client's and display terminal's surface grant, and the compositor's screen (plus a capture
+  client's read-only mirror of it) all moved to this, which is what makes the grown 1280x720
+  scanout (900 page frames) fit a sixteen-slot capability table at all: at one capability per page it
+  would not have. `display_service::DRIVER_SLOT_DMA`'s `const` assertion (below, and the error it
+  used to produce) is retired along with the pressure it guarded against. The paragraphs below are
+  kept as the record of how the fork was found, priced and decided; they describe a state this tree
+  no longer has.
+
 - **A `PageFrame` names one page, and a DMA region is a run of them.** The virtio-gpu driver's region is
   nine contiguous pages, so it holds **nine capabilities** and issues nine `MAP` calls for memory
   that is adjacent in physics, adjacent in its address space, and covered as a single range by the

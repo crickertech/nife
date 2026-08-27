@@ -258,15 +258,41 @@ fn unmap_everywhere(phys: u64, spare: u64) {
     }
 }
 
-/// **Revoke a page from everyone.** Delete every `PageFrame` capability to `phys` from every capability table,
-/// then unmap it from every address space. After this no capability names the page and no address
-/// space maps it, so it is safe to return to the allocator. Caps go **first**, so a `PageFrame::MAP`
-/// that starts after this cannot re-establish a mapping we would then miss. (The remaining window,
-/// an in-flight map on another core between the cap delete and the unmap, is the SMP race §13
-/// names; a full mapping-database lock is seL4's answer and this milestone's deferral.)
+/// **Revoke a page from everyone.** Delete every single-page `PageFrame` capability to `phys` (a
+/// `count: 1` object) from every capability table, then unmap it from every address space. After
+/// this no capability names the page and no address space maps it, so it is safe to return to the
+/// allocator. Caps go **first**, so a `PageFrame::MAP` that starts after this cannot re-establish a
+/// mapping we would then miss. (The remaining window, an in-flight map on another core between the
+/// cap delete and the unmap, is the SMP race §13 names; a full mapping-database lock is seL4's
+/// answer and this milestone's deferral.)
+///
+/// The single-page case of [`revoke_page_frame_run`], and the one every pre-§102 caller keeps
+/// using: `revoke_region`'s per-mapping-record sweep and the tests below all walk one physical
+/// page at a time out of the mapping log, which is unrelated to what capability (if any) a holder
+/// used to map it. `PageFrame::REVOKE`'s own syscall path uses `revoke_page_frame_run` instead,
+/// because there the object being revoked really is the run named by the invoked capability.
 pub fn revoke_page_frame(phys: u64) {
-    crate::sched::delete_page_frame_caps(phys);
+    crate::sched::delete_page_frame_caps(phys, 1);
     unmap_everywhere(phys, 0);
+}
+
+/// **Revoke a run of `count` frames from everyone** (DECISIONS §102). Deletes every capability
+/// naming exactly the run `(phys, count)`, once, then unmaps each of the `count` physical pages from
+/// every address space that mapped it. This is `PageFrame::REVOKE`'s body: the capability being
+/// invoked names the whole run, so the whole run is what gets deleted and unmapped, in one syscall
+/// regardless of how many pages the run holds.
+///
+/// The two passes are not the same granularity on purpose. Capability deletion is one exact-object
+/// match against `(phys, count)`, because that is the one capability (and its narrowed derivatives)
+/// this invocation could possibly be revoking. Unmapping stays per-page, because the mapping
+/// database records one entry per mapped virtual page regardless of which capability produced it
+/// (`PageFrame::MAP` loops over the run and records each page individually); that granularity does
+/// not change here.
+pub fn revoke_page_frame_run(phys: u64, count: u64) {
+    crate::sched::delete_page_frame_caps(phys, count);
+    for k in 0..count {
+        unmap_everywhere(phys + k * page_frames::FRAME_SIZE, 0);
+    }
 }
 
 /// **Take a device's registers back from everyone else** (milestone 23, DECISIONS §41). Delete
