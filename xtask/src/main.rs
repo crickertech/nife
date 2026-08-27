@@ -1955,6 +1955,15 @@ impl ScanoutReferee {
 
     /// One pass: press a key, take a screendump, and see whether it is the picture we are waiting
     /// for. Call it on a cadence for as long as the suite is running.
+    ///
+    /// **Costs more per poll than it used to, and that is a considered, recorded choice rather
+    /// than an oversight** (milestone 142, 2026-08-27). The scanout grew from 128x64 (8,192
+    /// pixels) to 924x344 (317,856 pixels), roughly 39x more data moved through `screendump` on
+    /// the same 100 ms cadence. Measured, not assumed: both architectures' full test suites still
+    /// completed in normal time with no timeout pressure at the new size. calef confirmed leaving
+    /// the cadence unchanged rather than widening it preemptively, since nothing is currently
+    /// slow enough to measure a real problem against; revisit if a future resolution increase
+    /// (or a slower CI runner) actually makes this cadence cost something observable.
     fn poll(&mut self) {
         // Press a key every poll. Harmless before the keyboard driver exists (QEMU drops the event)
         // and harmless after its test has passed (the driver ends up parked in a `CALL` nobody
