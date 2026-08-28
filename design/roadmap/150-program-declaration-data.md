@@ -6,6 +6,16 @@
 should confirm the number at merge. 147, 148 and 149 were already claimed by other lanes' pull
 requests (147/148 open, 149 merged into this lane's own base commit) as this was written.
 
+**Amended 2026-08-27** (maintainer/initrd-build-consistency): site 3 below, `initrd_riscv()`'s
+`--bin` argument list, is deleted. It predated every program in `user/` compiling for riscv64 and
+bought nothing once that became true; it also fell out of step with sites 1/2/4 twice in one night
+(`audit_sink`, milestone 49) before it was removed. The count this milestone was minted against is
+now seven hand-maintained places, not eight (`mkinitrd()` is also renamed `initrd_aarch64()`, and
+riscv64/x86_64 both build the whole `user` package unfiltered, the way aarch64 always did). This
+does not close the milestone: sites 1, 2 (now `initrd_aarch64()`), 4 (`initrd_riscv()`'s/`initrd_x86()`'s
+shared `entries` table), 5, 6, 7 and 8 are all still hand-maintained, and the design question in the
+next section is unchanged. See notes/adding-a-program.md for the corrected count and PR #564.
+
 ## What this is
 
 **Nominated by three successive strangers.** Milestone 117's stranger-test runs 3, 4 and 5 each

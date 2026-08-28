@@ -62,7 +62,7 @@ fn declare_initrd_cfg(arch: &str) {
 
 /// **Compile the boot program's measurement into the kernel image** (milestone 22 phase B.1).
 ///
-/// The build packs the initrd archive first (`xtask::mkinitrd` / `initrd_riscv`), hashes the entries
+/// The build packs the initrd archive first (`xtask::initrd_aarch64` / `initrd_riscv` / `initrd_x86`), hashes the entries
 /// the kernel may enter as init, and writes `target/init-measure-<arch>.txt`. Here we turn that
 /// manifest into `TRUST_ROOT`, a `&[measured_boot::Measurement]` in the kernel's own `.rodata`. That is
 /// what makes the check mean "this kernel image runs exactly this init" with no key management: the

@@ -59,32 +59,41 @@ bench = false
 `test` and `bench` off are **mandatory**, not tidiness: the default libtest harness needs
 `extern crate test`, which does not exist for a bare-metal target.
 
-### 4. Pack it into both initrds, in `xtask/src/main.rs`
+### 4. Pack it into all three initrds, in `xtask/src/main.rs`
 
-**Three hand-maintained lists, and skipping any of them breaks something different.** Two of the
-three are now the same shape, which is a change from what this page said before 2026-08-18:
+**Two hand-maintained lists as of 2026-08-27** (this page's fourth correction to this section; see
+`BUGS`), down from three. All three architectures now build the whole `user` package unfiltered, so
+there is no per-program `--bin` list on any of them any more:
 
-- `mkinitrd()` for aarch64: **one `("your_program", "your_program")` row in its `entries` table.**
-  The pair is `(archive_name, bin_name)` and they differ exactly once in the whole table, for `init`.
-  Nothing else on this side: the aarch64 archive builds the whole `user` package, so there is no
-  per-program build list to extend.
-- `initrd_riscv()` for riscv64: **two edits, not one.** A `"--bin", "your_program",` pair in the
-  `cargo build` argument list at the top of the function, **and** the same `("your_program",
-  "your_program")` row in the `entries` table below it. The table reads an ELF that only the `--bin`
-  list causes cargo to build, so half the edit fails the build with `mkinitrd: cannot read
-  .../your_program: No such file or directory`.
+- `initrd_aarch64()` (renamed from `mkinitrd()`, 2026-08-27) for aarch64: **one
+  `("your_program", "your_program")` row in its `entries` table.** The pair is `(archive_name,
+  bin_name)` and they differ exactly once in the whole table, for `init`.
+- `initrd_riscv()` for riscv64: the same shape, one `("your_program", "your_program")` row in its
+  own `entries` table (from [`portable_archive_entries`], shared with `initrd_x86()`). **It used to
+  also need a `"--bin", "your_program",` pair in a hand-maintained `cargo build` argument list**,
+  and that was the trap this section warned about through 2026-08-27: the table read an ELF that
+  only the `--bin` list caused cargo to build, so half the edit failed the build with `mkinitrd:
+  cannot read .../your_program: No such file or directory` (or, after the rename, the same failure
+  under `initrd-riscv:`). That list predated riscv64 parity and every program in `user/` compiling
+  for the riscv64 target; it bought nothing once that was true, and it fell out of step twice in one
+  night (`audit_sink`, milestone 49) before it was deleted. **The trap described in the paragraph
+  below is gone**, not just documented differently.
+- `initrd_x86()` for x86_64: the same shared `entries` table, no `--bin` list, and never had one.
 
-That last trap is not hypothetical, and the file carries its own scar about it: the credential pair
-(milestone 56) sat in the riscv tables while nobody added them to the `--bin` list, so a clean tree
-could not build them, and the lane's own riscv leg went green on a stale binary its target directory
-still held.
+That old trap is not hypothetical, and the file carried its own scar about it before the fix: the
+credential pair (milestone 56) sat in the riscv tables while nobody added them to the `--bin` list,
+so a clean tree could not build them, and a lane's own riscv leg went green on a stale binary its
+target directory still held. The mechanism that let that happen twice more (`audit_sink`) is exactly
+what motivated deleting the list rather than remembering it harder.
 
-**What changed, and why this page was wrong twice about the same function.** It used to send you to
-a `for name in [ ... ]` list and warn you off an older tier of hand-written
-`let name = match read_stripped(...)` blocks. **Milestone 130 deleted both on 2026-08-17**, replacing them
-with the one table and one loop `initrd_riscv()` had always had, so the only asymmetry left is the
-`--bin` list. Run 2 corrected this page on 2026-08-16 and 130 falsified it the next day; see this
-page's `BUGS`, because the recurrence is the finding rather than the accident.
+**What changed, and why this page was wrong about this function three times running.** It used to
+send you to a `for name in [ ... ]` list and warn you off an older tier of hand-written
+`let name = match read_stripped(...)` blocks; milestone 130 deleted both on 2026-08-17, replacing
+them with the one table and one loop `initrd_riscv()`'s packaging step had always had. That left the
+`--bin` list as the one remaining asymmetry, which run 2 corrected this page to describe on
+2026-08-16 and which 130 then re-broke the next day (see `BUGS`, because the recurrence is the
+finding rather than the accident); the `--bin` list itself is now gone (2026-08-27), which is the
+first time this section has shrunk instead of just moved.
 
 **You do not touch the measurement table.** init refuses to spawn a program its measurement manifest
 does not vouch for, and a reader who meets that refusal reasonably wonders where to register a new
@@ -177,12 +186,14 @@ script/test          # both ISAs, and it builds the riscv archive
 script/shell-check   # if the shell spawns it: also both ISAs, and much faster than the suite
 ```
 
-**`cargo xtask build` does not pack both archives**, whatever the name suggests, and this page
-claimed it did until 2026-08-18. It runs `mkinitrd()` and stops; `initrd_riscv()` is called by
-`test()` and by `shell-check` and by nothing else, so after a green `cargo xtask build` the file
-`target/initrd-riscv.img` may not exist at all. **A step-4 mistake on the riscv side is invisible to
-it.** If the shell spawns your program, `script/shell-check` is the cheapest thing that catches one:
-it builds both archives and boots both prompts, and it does not run the kernel suite.
+**`cargo xtask build` does not pack all three archives**, whatever the name suggests, and this page
+claimed it did until 2026-08-18. It runs `initrd_aarch64()` (`mkinitrd()` before 2026-08-27) and
+stops; `initrd_riscv()` and `initrd_x86()` are called by `test()` and by `shell-check` and by
+nothing else, so after a green `cargo xtask build` the files `target/initrd-riscv.img` and
+`target/initrd-x86_64.img` may not exist at all. **A step-4 mistake on the riscv or x86 packaging
+table is invisible to it.** If the shell spawns your program, `script/shell-check` is the cheapest
+thing that catches one on aarch64/riscv64: it builds both archives and boots both prompts, and it
+does not run the kernel suite.
 
 If the shell spawns it, add a line to `SHELL_CHECK_SCRIPT` in `xtask/src/main.rs` and bump the array
 length the compiler asks for. The element is a `(&str, &[&str])` pair, one line typed and the
@@ -201,9 +212,13 @@ $ triple 21
 
 ## BUGS
 
-- **Nothing gates the two initrd lists against each other.** A program in `mkinitrd()` and not in
-  `initrd_riscv()` builds, boots on aarch64, and is simply absent on riscv64. The parity gate catches
-  it only if a test names the program.
+- **Nothing gates the three initrd packaging tables against each other.** A program in
+  `initrd_aarch64()`'s `entries` table and not in `initrd_riscv()`'s (or `initrd_x86()`'s, both of
+  which share [`portable_archive_entries`]) builds, boots on aarch64, and is simply absent
+  elsewhere. The parity gate catches it only if a test names the program. **This used to also be
+  true of a hand-maintained `--bin` build list on riscv64** (fixed 2026-08-27: that list is gone,
+  and the riscv64/x86_64 build step is now unfiltered like aarch64's always was), so what remains
+  is narrower than it was, but the packaging-table gap is unchanged.
   **The two commands you will run first are both blind to it**, which run 4 measured: such a program
   passes `cargo xtask build` *and* `script/lint`, and is caught first by `script/shell-check` or
   `script/test`, both of which cost an emulated boot. **And nothing counts programs**, so the
@@ -211,11 +226,11 @@ $ triple 21
   program's presence is proven only by a transcript line somebody remembered to write into
   `SHELL_CHECK_SCRIPT`.
 - **The archives do not boot the same binary, and the sentence saying so is 200 lines from where
-  you need it.** `mkinitrd()` packs `hello` under the archive name `init`; `initrd_riscv()` packs
-  `builder`. `xtask/src/main.rs` does state this, in a comment on the aarch64 table's `hello`
-  row rather than on either `("init", ...)` row, and run 4's stranger read both tables in the
-  same minute and still reported the asymmetry as undocumented. For a project whose loudest
-  claim is architectural parity that is worth meeting at the table you are editing.
+  you need it.** `initrd_aarch64()` packs `hello` under the archive name `init`; `initrd_riscv()`
+  and `initrd_x86()` pack `builder`. `xtask/src/main.rs` does state this, in a comment on the
+  aarch64 table's `hello` row rather than on either `("init", ...)` row, and run 4's stranger read
+  both tables in the same minute and still reported the asymmetry as undocumented. For a project
+  whose loudest claim is architectural parity that is worth meeting at the table you are editing.
 - **Removal is the same eight places and has no page.** Taking a program out is clean only while
   you can still name every file you touched; a half-removed program is a `PROG_COUNT` too large
   and an init table slot no variant claims, which is the same silent failure as a forgotten
@@ -291,12 +306,17 @@ $ triple 21
   still need `the_arg_line_follows_the_manifest_for_every_program` in `crates/swish/src/lib.rs`
   taught to supply an input operand for a program whose manifest asks for one, since that sweep's
   gap is what turns red today, not the planner.
-- **The program's name is written in seven places** and nothing joins them: the `[[bin]]` block in
-  `user/Cargo.toml`, `mkinitrd()`'s table, `initrd_riscv()`'s `--bin` list, `initrd_riscv()`'s table,
-  the seven-part `Prog` table in `grant_plan`, the exhaustive match in `swish`, and
-  `SHELL_CHECK_SCRIPT`. This page is an eighth. Steps 4 and 6 are long because the tree is, not
-  because adding a program is hard. **Three of the seven can be skipped in silence**: a missing
-  `initrd_riscv()` row, and `from_id()` and `from_name()` when `PROG_COUNT` was forgotten alongside
-  them. Step 6's table is measured rather than reasoned, and a claim about which of these the
-  compiler catches is worth re-measuring rather than quoting: the last such claim written down in
-  this tree was wrong, and it was written in the test that makes it.
+- **The program's name is written in six places as of 2026-08-27** (seven before that date; see
+  below) and nothing joins them: the `[[bin]]` block in `user/Cargo.toml`, `initrd_aarch64()`'s
+  table, `initrd_riscv()`'s table, `initrd_x86()`'s table (the last two share
+  [`portable_archive_entries`]), the seven-part `Prog` table in `grant_plan`, the exhaustive match
+  in `swish`, and `SHELL_CHECK_SCRIPT`. This page is a seventh. Steps 4 and 6 are long because the
+  tree is, not because adding a program is hard. **`initrd_riscv()`'s own hand-maintained `--bin`
+  build list was the seventh site through 2026-08-26**; it is deleted as of 2026-08-27 (this lane),
+  the first of these lists to be removed rather than merely documented, so the count here dropped
+  for the first time instead of only moving. **Two of the remaining six can be skipped in
+  silence**: a missing `initrd_riscv()`/`initrd_x86()` table row, and `from_id()` and `from_name()`
+  when `PROG_COUNT` was forgotten alongside them. Step 6's table is measured rather than reasoned,
+  and a claim about which of these the compiler catches is worth re-measuring rather than quoting:
+  the last such claim written down in this tree was wrong, and it was written in the test that
+  makes it.
