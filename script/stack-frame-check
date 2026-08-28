@@ -33,8 +33,9 @@
 #
 # EXAMPLES
 #
-#     script/stack-frame-check                 # gate both architectures, the default
+#     script/stack-frame-check                 # gate the default architectures (aarch64, riscv64)
 #     script/stack-frame-check --arch aarch64  # one architecture
+#     script/stack-frame-check --arch x86_64   # reachable but not in the default set; see BUGS
 #     script/stack-frame-check --report        # print the deepest 40 frames, gate nothing
 #
 # BUGS
@@ -60,6 +61,17 @@
 #     boot-only; a reader who changes that has to change the entry.
 #   - It builds the kernel test binary itself rather than reusing CI's, because the measurement needs
 #     `-Z emit-stack-sizes` and that flag changes the build. Costs one extra kernel build per arch.
+#   - **x86_64 is reachable (`--arch x86_64`) but not in the default set.** It found a real offender
+#     the first time it ran: `kernel::arch::x86_64::iommu::init` at 12504 bytes, over 3x the ceiling,
+#     from `Iommu { ctx: [Option<u64>; 256], .. }`, one context-table root per PCI bus, the same
+#     `[T; MAX]`-sized-to-a-table-maximum shape this file's first BUGS entry describes. Whether to
+#     fix that offender, except it, or something else is not this gate's call; until it is decided,
+#     `main` stays green by leaving x86_64 out of the default `arches` list rather than by lying
+#     about what was found. x86_64 became a `script/test` target on 2026-08-24 (milestone 161 item
+#     4) and this gate's arch list stayed hardcoded to `aarch64 riscv64` for the next three days,
+#     found only because a report was missing x86_64 numbers a reader expected to see; that gap is
+#     the rung-2 failure AGENTS.md describes (a gate wrong about the tree, silently), recorded here
+#     so the next architecture does not repeat it.
 
 set -e
 cd "$(dirname "$0")/.."
@@ -70,7 +82,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --arch) arches="$2"; shift 2 ;;
         --report) report_only=1; shift ;;
-        -h|--help) sed -n '2,40p' "$0"; exit 0 ;;
+        -h|--help) sed -n '2,41p' "$0"; exit 0 ;;
         *) echo "script/stack-frame-check: unknown argument $1" >&2; exit 2 ;;
     esac
 done
@@ -81,14 +93,26 @@ for arch in $arches; do
     case "$arch" in
         aarch64) target=aarch64-unknown-none-softfloat ;;
         riscv64) target=riscv64imac-unknown-none-elf ;;
+        x86_64) target=x86_64-unknown-none ;;
         *) echo "script/stack-frame-check: no target for arch $arch" >&2; exit 2 ;;
+    esac
+
+    # RUSTFLAGS replaces .cargo/config.toml's [target.*.rustflags] rather than adding to it, and
+    # x86_64-unknown-none carries `-C relocation-model=static` there (the target defaults to a
+    # static-PIE, which a kernel cannot be). Setting bare RUSTFLAGS for this arch drops that flag
+    # and the link fails ("relocation R_X86_64_32 cannot be used against local symbol"), so it has
+    # to be repeated here. The other two targets carry no target-specific rustflags, so nothing is
+    # lost for them.
+    case "$arch" in
+        x86_64) stack_size_rustflags="-Z emit-stack-sizes -C relocation-model=static" ;;
+        *) stack_size_rustflags="-Z emit-stack-sizes" ;;
     esac
 
     echo "==> $arch: building the kernel test binary with stack-size metadata"
     # The TEST binary, not `cargo build`. Half the spawn paths and every test body are `cfg(test)`,
     # so the plain binary is missing exactly what this is looking for. That mistake cost an hour on
     # the day this was written, and the tell was that a test-only symbol was absent from `nm`.
-    artifact=$(RUSTFLAGS="-Z emit-stack-sizes" \
+    artifact=$(RUSTFLAGS="$stack_size_rustflags" \
         cargo test -p kernel --target "$target" --no-run 2>&1 \
         | grep -oE "\(target/[^)]*\)" | tr -d '()' | tail -1)
 
