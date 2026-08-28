@@ -75,6 +75,29 @@ type Rendezvous = ipc::Rendezvous<Thread>;
 /// The most threads that can be alive at once, whole machine (milestone 14 phase A). A documented
 /// limit of the image rather than a heap that can be exhausted: spawn past it fails cleanly, the
 /// same contract callers already have for out-of-memory. The table itself is ~2 KiB of pointers.
+///
+/// **BUGS: the aarch64 test suite's own peak demand now sits at this exact ceiling, measured
+/// twice** (this lane, 2026-08-27, milestone 169's raw_mode/rmle leak fix). Instrumenting the
+/// failing spawn to call [`dump_threads`] before panicking showed **128/128 live, 121-123
+/// `Blocked`**, in two independent full runs, both stopping at the same deterministic point:
+/// `kernel::user::time_tests::a_shell_with_no_usable_clock_times_the_command_anyway`'s call into
+/// `pipeline_service::start_with`, whose own second `sched::spawn(...)?` (spawning `swish`) has no
+/// diagnostic on refusal, the same silently-`?`-shaped bug `fs_service.rs`'s `spawn_fs_client` had.
+/// This is not the leak that lane fixed: `time_tests` is pre-existing, unrelated to milestone 169,
+/// and `thread_leak_police` (no runnable spinner left) passed in both runs, so what is alive is
+/// exactly the suite's many intentionally-permanent-for-the-boot services (`notes/frames.md`'s
+/// "held" list: FS servers, two credential store instances, `login`, both `net_stack` transports,
+/// SMB, mDNS, `display`, `compositor`, ...), each accepted individually and never priced against
+/// this ceiling collectively. Raising it is coupled, not free: `kernel/src/user/survey_tests.rs`
+/// const-asserts `ps::MAX_ROWS >= sched::MAX_THREADS` (`crates/ps/src/lib.rs`), which sizes
+/// stack-resident `[Row; MAX_ROWS]` arrays in `ps`, `watch` and `pgrep` (`user/src/ps.rs`,
+/// `user/src/watch.rs`, `user/src/pgrep.rs`); a naive bump found `kmem::KERNEL_OBJ_PAGES` also
+/// needs proportional headroom (its own doc comment already prices kernel stacks at
+/// `STACK_PAGES * MAX_THREADS`). Out of scope for the lane that found this: it is a tree-wide
+/// capacity question, not a milestone-169 regression, and wants its own measured raise (this
+/// ledger's own convention: read real numbers, not a guess) across all three of those coupled
+/// constants plus a re-check of `ps`/`watch`/`pgrep`'s stack budgets, rather than a bump bolted
+/// onto an unrelated fix.
 pub(crate) const MAX_THREADS: usize = 128;
 
 /// The thread table: generational names (`crates/slots`, notes/generational-names.md) over
