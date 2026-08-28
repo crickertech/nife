@@ -913,7 +913,7 @@ The bound on everything above, listed because it is the next lane's brief rather
 Every item is a device or a toolchain, and none is `user_rt` any more.
 
 - **No device a ring-3 process can reach.** The console UART is in the I/O port space, so
-  `user::UART_PHYS` is zero and `console`, `input`, `kbd` and `swapper` are packed but cannot run;
+  `user::UART_PHYS` is zero and `console`, `input`, `keyboard_driver` and `swapper` are packed but cannot run;
   their arms `trap()` rather than no-op, so a boot that reached one would say so on the first byte.
   That is DECISIONS §121, still PROPOSED. **One foot gun is marked rather than removed**:
   `spawn_init` grants slot 2 a device capability over `UART_PHYS`, which on this architecture is

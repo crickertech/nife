@@ -85,7 +85,7 @@ pub struct Wiring {
 }
 
 /// **Wire the scene and start the compositor.** `display` is an endpoint speaking the rung-one
-/// display contract (`display`, or a kernel stand-in for the tests that do not need a device), and
+/// display contract (`gpu_driver`, or a kernel stand-in for the tests that do not need a device), and
 /// `screen` the frames it scans out.
 ///
 /// Returns once the compositor is spawned; the caller should wait for `status::COMP_UP` on
@@ -425,7 +425,7 @@ impl Wiring {
     /// It takes a `window` client's place with **exactly a window client's authority**: a report
     /// endpoint, the doorbell, an input endpoint, and its own control page and surface. The
     /// compositor cannot tell it from the client that painted a coordinate pattern, which is the
-    /// same claim rung two made about `display` one seam down, now made about a client.
+    /// same claim rung two made about `gpu_driver` one seam down, now made about a client.
     ///
     /// The one addition is an **output page**, and it belongs to the terminal contract rather
     /// than to the compositor's: it is where an application puts the bytes of an `OP_WRITE`

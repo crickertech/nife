@@ -22,10 +22,10 @@ screen without being able to reach each other?**
 ```
 
 **The compositor is rung one's client, unchanged at that seam.** It holds the display endpoint and the
-scanout frames exactly as `painter` did, and `display` cannot tell the difference; three of the four
-kernel tests replace `display` with the kernel itself and the compositor does not notice that either.
+scanout frames exactly as `painter` did, and `gpu_driver` cannot tell the difference; three of the four
+kernel tests replace `gpu_driver` with the kernel itself and the compositor does not notice that either.
 That was the promise the framebuffer contract made when it said routing was by endpoint, and it cost
-nothing to keep: `display` and `graphics_proto` needed no change for this milestone beyond one new
+nothing to keep: `gpu_driver` and `graphics_proto` needed no change for this milestone beyond one new
 kernel-side wiring entry point (`display_service::start_driver`, the driver with no client).
 
 What each party holds:
@@ -139,7 +139,7 @@ compares every pixel of the composed screen against the two VT engines it ran it
 delivered to the wrong client is a wrong picture. Two things came out of it that this note had not
 foreseen:
 
-- **The producing side of "who may deliver input" got a real driver.** `user/src/kbd.rs` is a confined
+- **The producing side of "who may deliver input" got a real driver.** `user/src/keyboard_driver.rs` is a confined
   virtio-input driver holding the ring's mapping and the doorbell, and nothing else. It holds no
   client endpoint and cannot name a client, so it cannot influence focus; and the doorbell it rings
   carries nothing, so the ring's mapping really is the whole of its power to type.
@@ -380,4 +380,4 @@ Stated plainly, because a demonstrator's honest limits are part of the deliverab
 | the wiring (frames, endpoints, grants) | `kernel/src/user/compositor_service.rs` |
 | the tests | `kernel/src/user/compositor_tests.rs` |
 | the host-side scanout check and its negative control | `xtask/src/main.rs` |
-| the display driver it flushes to, unchanged | `user/src/display.rs` |
+| the display driver it flushes to, unchanged | `user/src/gpu_driver.rs` |
