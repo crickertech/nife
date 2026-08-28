@@ -16,6 +16,16 @@
 # Name: unrecorded. Introduced 2026-07-23 with milestone 21. It is not one of the Scripts to Rule
 # Them All names and nothing records the choice; `bench/` is also a directory holding the committed
 # baselines, so the word does two jobs in this tree.
+#
+# BUGS
+#
+#   - **The EXAMPLES above name one of three architectures.** `--riscv` and `--x86` both exist
+#     (`cargo xtask bench --help`, and `bench_riscv` / `bench_x86` in xtask), each gates against its
+#     own `bench/baseline-<arch>.txt`, and CI runs `--riscv --check` on every pull request. None of
+#     that is discoverable from this header, which is the FreeBSD standard's own test: a page
+#     without the worked example has not finished explaining itself. Left as a record rather than
+#     fixed here because the sweep that found it was not the lane to change three architectures'
+#     documentation; see notes/architecture-list-sweep.md.
 
 set -e
 cd "$(dirname "$0")/.."

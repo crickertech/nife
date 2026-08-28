@@ -79,6 +79,16 @@
 #   - **It builds the kernel test binary itself**, because the measurement needs
 #     `-Z emit-stack-sizes` and that flag changes the build. One extra kernel build per arch, and
 #     the test binary is the right one: half the spawn paths and every test body are `cfg(test)`.
+#   - **It gates two of the three supported architectures.** `arches` below is `aarch64 riscv64`
+#     and the `case` exits 2 on anything else, so x86_64 is not measured. That is an omission
+#     rather than a decision: this gate was written 2026-08-16, x86_64 became a `script/test`
+#     target on 2026-08-24, and nobody widened the list. The premise holds there (that arch tree
+#     has an `exceptions.rs` and a `trap.s`, so there is a trap-frame size and a dispatch symbol
+#     to name), so closing it is real work rather than one word: the `TRAP_FRAME`, `DISPATCH` and
+#     `BODY` tables below each need an x86_64 row, measured against `size_of::<TrapFrame>()` and
+#     the symbol names that arch actually uses. Widening it may also newly fail on a real
+#     offender, so it wants its own commit and its own green run. See
+#     notes/architecture-list-sweep.md, which found nine siblings of this in one sweep.
 #   - The ceiling is shared with the watermark's thread row deliberately (14336 of 16384), so the
 #     two instruments fail at the same place from opposite directions. A trip is not automatically
 #     a bug: read the chain it prints, and if the growth is honest, raise both numbers together.

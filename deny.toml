@@ -17,8 +17,16 @@
 # alert list becomes wallpaper (DECISIONS §35).
 #
 # Two bare-metal targets (the kernel, user, and the EL0 redoxfs_server binary) and three hosts (the
-# Apple Silicon dev machine, CI's aarch64 Linux runner, and an x86_64 Linux contributor). x86_64
-# bare metal is declared in §19 but not started; it joins this list when it does.
+# Apple Silicon dev machine, CI's aarch64 Linux runner, and an x86_64 Linux contributor).
+#
+# BUGS: **the sentence that used to follow is now false, and a stale scope note is worse than an
+# absent one.** It read "x86_64 bare metal is declared in §19 but not started; it joins this list
+# when it does". It started: milestone 161 brought up the third architecture, the kernel builds and
+# tests for `x86_64-unknown-none`, and this array was never widened, so cargo-deny has never
+# resolved that target's graph. A crate reached only under `cfg(target_arch = "x86_64")` gets no
+# advisory, licence, or ban verdict. TOML cannot call a script, so unlike the `rustup target add`
+# lists in `script/`, this copy has to stay hand-maintained; see notes/architecture-list-sweep.md
+# for what would keep it honest.
 targets = [
     "aarch64-unknown-none-softfloat",
     "riscv64imac-unknown-none-elf",
