@@ -1090,7 +1090,36 @@ fn thread_control_block_ptr(sched: &mut IpcTables, tid: ThreadId) -> core::ptr::
 /// into the target's inbox, and the SGI (sent after `IPC_TABLES` is released, by the caller) makes it
 /// drain. The inbox push under `IPC_TABLES` is rank-safe (INBOX < `IPC_TABLES`), and the inbox's own lock supplies
 /// the release/acquire that orders our thread-table insert before the target's drain (§11).
-fn place_on(target: usize, thread: core::ptr::NonNull<Thread>) {
+///
+/// **Returns the core that owes an SGI**, `Some(target)` when the thread went into a remote inbox
+/// and `None` when it went onto this core's own run queue, and that return value is the whole
+/// point rather than a convenience. A caller must not decide "was this remote?" a second time by
+/// comparing `target` against [`cpu::id()`] again: this function runs under `IPC_TABLES`, which
+/// masks interrupts, while the caller's second comparison does not, so the calling thread can be
+/// preempted and **stolen onto a different core** in between and the two answers disagree. When
+/// they disagree in the direction that skips the SGI, the placed thread sits `Ready` in a remote
+/// core's inbox that nothing will ever drain (only the reschedule-SGI handler calls
+/// [`drain_inbox`]), the idle target refuses to steal because [`cpu::PerCpu::runnable`] counts that
+/// inbox as its own work, and the machine wedges with every core idle. That is the 2026-08-28
+/// riscv64 CPU-matrix hang, whose trace ring caught the migration in the act:
+///
+/// ```text
+/// core 2: ... switch:0x0 ... switch:0x1000000076 steal:0x0/3 ...   gave tid 0 away to core 3
+/// core 3: ... drain:0x1 switch:0x0 place:0x500000077/2 block:0x0/177 switch:0x4
+/// ```
+///
+/// Tid 0 read `target == cpu::id()` on core 2, was preempted and stolen to core 3, and finished the
+/// same `spawn_on` there: the push went to core 2's inbox and the stale "local" answer skipped the
+/// poke.
+///
+/// **A skipped SGI is usually invisible, which is what makes it dangerous.** The next SGI aimed at
+/// that core for any reason drains the whole inbox, so a strand is normally repaired within
+/// milliseconds and nothing is ever seen. It wedges only when the stranded thread is the work
+/// everything else was about to wait on, so no further SGI is generated. Do not take "it has not
+/// hung" as evidence that a placement path pokes correctly. See notes/scheduler.md.
+#[must_use = "a remote placement owes a reschedule SGI once IPC_TABLES is released, or the thread \
+              sits in an inbox nothing drains"]
+fn place_on(target: usize, thread: core::ptr::NonNull<Thread>) -> Option<usize> {
     // A REMOTE parked cpu's inbox is drained by nothing, so placing there is a thread nothing
     // will ever run: the VisionFive 2 first-silicon hang (notes/visionfive2.md, third stop). The
     // online-set sweep removed every count-as-index chooser, and this is the audit lane's
@@ -1115,6 +1144,7 @@ fn place_on(target: usize, thread: core::ptr::NonNull<Thread>) {
     if target == cpu::id() {
         // SAFETY: `thread` is a live Ready thread (see thread_control_block_ptr), on no other queue.
         cpu::current().with_runq(|q| unsafe { q.push_back(thread) });
+        None
     } else {
         // SAFETY: as above; the inbox mutex serializes access to the link.
         let mut inbox = cpu::inbox_of(target).lock();
@@ -1126,6 +1156,7 @@ fn place_on(target: usize, thread: core::ptr::NonNull<Thread>) {
         // SAFETY: reading the id of a live thread we still hold exclusively (see above).
         let tid = unsafe { (*thread.as_ptr()).id };
         trace::record(trace::Event::PlaceRemote, tid, target as u8);
+        Some(target)
     }
 }
 
@@ -1136,9 +1167,7 @@ fn place_on(target: usize, thread: core::ptr::NonNull<Thread>) {
 /// thread through its inbox and then poked with the reschedule SGI. (Wiring `spawn` itself to
 /// round-robin over `target` is the trivial next step, once the mechanism is proven.)
 pub fn spawn_on<F: FnOnce() + Send + 'static>(target: usize, f: F) -> Option<ThreadId> {
-    let remote = target != cpu::id();
-
-    let id = {
+    let (id, remote) = {
         let mut guard = IPC_TABLES.lock();
         let sched = guard.as_mut()?;
         // **The Thread is built on its own TCB page, not carried there** (milestone 124). The old
@@ -1151,11 +1180,15 @@ pub fn spawn_on<F: FnOnce() + Send + 'static>(target: usize, f: F) -> Option<Thr
             // is aligned for `Thread` and holds no live one, so `write` drops nothing.
             unsafe { Thread::spawn_into(f, tid, dst) }
         })?;
-        place_on(target, thread_control_block_ptr(sched, id));
-        id
+        // The placement decision is made ONCE, here, with interrupts masked, and carried out of
+        // the critical section as a value. Re-deriving it below from `target != cpu::id()` is the
+        // lost-wakeup bug `place_on` documents: this thread can be stolen onto another core
+        // between the two reads.
+        let remote = place_on(target, thread_control_block_ptr(sched, id));
+        (id, remote)
     }; // IPC_TABLES released here, before the SGI, so the target's schedule() can take it
 
-    if remote {
+    if let Some(target) = remote {
         // Poke the target: its handler drains the inbox we just pushed to and reschedules.
         crate::arch::irq::send_reschedule(target);
     }
@@ -1946,18 +1979,15 @@ fn wake_load_aware(sched: &mut IpcTables, tid: ThreadId) -> Option<usize> {
             crate::testing::note_progress();
             let ptr = core::ptr::NonNull::from(t);
             trace::record(trace::Event::Wake, tid, 0);
-            let target = pick_wake_target();
-            if target == cpu::id() {
-                // SAFETY: just Blocked -> Ready, on no queue; IPC_TABLES masks interrupts, which
-                // with_runq needs.
-                cpu::current().with_runq(|q| unsafe { q.push_back(ptr) });
-                None
-            } else {
-                // Into the target's inbox (place_on keeps the inbox-len mirror under the inbox
-                // lock). The SGI that drains it goes out after IPC_TABLES drops, in irq_notify.
-                place_on(target, ptr);
-                Some(target)
-            }
+            // One placement decision, `place_on`'s: onto this core's own run queue, or into the
+            // target's inbox with the inbox-len mirror kept under the inbox lock. Its return value
+            // is what tells `irq_notify` to poke the target once IPC_TABLES drops, and it is the
+            // only thing that may: a second `target == cpu::id()` comparison outside the lock can
+            // disagree with the one that placed (see `place_on`).
+            //
+            // SAFETY: just Blocked -> Ready, so on no queue; IPC_TABLES masks interrupts, which
+            // `with_runq` needs on the local side.
+            place_on(pick_wake_target(), ptr)
         }
     }
 }
@@ -3036,11 +3066,13 @@ pub fn start_thread_control_block(tid: ThreadId, args: [u64; 3]) -> Result<(), a
     // process that spawns a pipeline does not pile it all onto one core. `place_on` enqueues locally
     // or hands the thread to the target's inbox; the SGI that makes a remote target pick it up goes
     // out after IPC_TABLES is released.
-    let target = pick_spawn_target();
     let ptr = thread_control_block_ptr(sched, tid);
-    place_on(target, ptr);
+    // The decision, once, under the lock. Asking `target != cpu::id()` again after `drop(guard)`
+    // unmasks interrupts first, so this thread can be stolen onto `target` in between and the
+    // second answer skips the SGI the first one owed (see `place_on`).
+    let remote = place_on(pick_spawn_target(), ptr);
     drop(guard);
-    if target != cpu::id() {
+    if let Some(target) = remote {
         crate::arch::irq::send_reschedule(target);
     }
     Ok(())
