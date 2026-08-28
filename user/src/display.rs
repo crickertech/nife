@@ -11,14 +11,18 @@
 //!   validates every descriptor first (notes/dma.md);
 //! - slot 3, a **display** endpoint it RECVs on: where clients ask for a flush;
 //! - slot 4, an **untyped**: the budget the page tables for its own mappings come out of;
-//! - slots 5.., its **DMA region**: [`DMA_PAGE_FRAMES`] `PageFrame` capabilities, one per page, which it maps
-//!   itself (milestone 108). The region's *physical* base still arrives in `x1`, because descriptors
-//!   speak physical addresses and a process only knows virtual ones.
+//! - slot 5, its **DMA region**: one `PageFrame` capability naming the whole [`DMA_PAGE_FRAMES`]-page
+//!   run (DECISIONS §102), which it maps itself in one call (milestone 108). The region's *physical*
+//!   base still arrives in `x1`, because descriptors speak physical addresses and a process only
+//!   knows virtual ones.
 //!
-//! **Nine capabilities for one contiguous region** is the shape a `PageFrame` forces, and it is worth
-//! seeing: this driver spends nine of the fourteen usable slots in its capability table naming pages that are
-//! adjacent in physics, adjacent in its address space, and covered as a single range by the IOMMU
-//! domain the kernel programmed. See notes/frames.md's BUGS.
+//! **One capability for one contiguous region**, since DECISIONS §102 gave `PageFrame` a page
+//! count: this driver's DMA region is adjacent in physics, adjacent in its address space, and
+//! covered as a single range by the IOMMU domain the kernel programmed, so one capability names all
+//! of it. Before §102 this was one capability per page (nine, at the original 128x64 scanout); at
+//! the scanout's first growth to 1280x720 it would have been 901, and at today's 924x344
+//! (retargeted 2026-08-27) it would still be 312 ([`DMA_PAGE_FRAMES`]), neither of which fits a
+//! sixteen-slot capability table at all. See notes/frames.md's BUGS (now resolved) for the history.
 //!
 //! # The thing that draws is not the thing that talks to the hardware
 //!
@@ -65,8 +69,9 @@ const VIRTIO: u64 = 2;
 const DISPLAY: u64 = 3;
 /// The untyped this driver spends on the page tables its DMA region needs.
 const BUDGET: u64 = 4;
-/// The first of [`DMA_PAGE_FRAMES`] consecutive slots holding the DMA region, a `PageFrame` per page.
-const DMA_PAGE_FRAME: u64 = 5;
+/// The whole DMA region, one `PageFrame` capability naming the [`DMA_PAGE_FRAMES`]-page run
+/// (DECISIONS §102).
+const DMA_FRAME: u64 = 5;
 
 /// The DMA region, in frames: one for the rings and control buffers, then the surface. Must match
 /// `display_service::DMA_PAGE_FRAMES`.
@@ -75,7 +80,15 @@ const DMA_PAGE_FRAMES: u64 = 1 + gfx::SURFACE_PAGE_FRAMES as u64;
 /// Where this driver puts its DMA region. **Its choice, not the kernel's**: it holds the frames and
 /// maps them (milestone 108). The *physical* base still arrives in `a1`, and has to: descriptors
 /// speak physical, and a process only knows virtual addresses.
-const DMA_VA: u64 = 0x0000_0000_0090_0000;
+///
+/// **2 MiB-aligned** (moved here at milestone 142, DECISIONS §102): at the scanout's first growth to
+/// 1280x720, [`DMA_PAGE_FRAMES`] was 901 and the region was 3.5 MiB, so an unaligned base would have
+/// spanned three 2 MiB page-table windows instead of two. At today's 924x344 (retargeted
+/// 2026-08-27) [`DMA_PAGE_FRAMES`] is 312 and the region is about 1.2 MiB, comfortably one window
+/// regardless of alignment; the alignment is kept anyway; it costs nothing and this VA is not
+/// reused for anything an unaligned base would help pack more tightly. The old `0x90_0000` was never
+/// aligned; it went unnoticed while the region was a few pages.
+const DMA_VA: u64 = 0x0000_0000_0100_0000;
 
 // --- virtio-mmio v2 register offsets. The PCI transport answers this same vocabulary
 // (kernel/src/virtio.rs, the transport seam), so this driver reads like every other one here even
@@ -497,20 +510,15 @@ fn run_backing_escape(dma_phys: u64, victim: u64) -> ! {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(role: u64, dma_phys: u64, arg2: u64) -> ! {
-    // **The DMA region is ours to place** (milestone 108): DMA_PAGE_FRAMES capabilities, one per page,
-    // mapped read/write out of our own budget. Before either role, because the rings live in the
-    // first page of it and the escape attempt writes a descriptor too.
-    //
-    // One `MAP` per page is what a `PageFrame` costs: the object names a page, and this region is a
-    // contiguous run of nine. The kernel had to reserve slots 5..13 of a sixteen-slot capability table to
-    // hand it over. See notes/frames.md's BUGS.
-    for k in 0..DMA_PAGE_FRAMES {
-        if !user_rt::map_page_frame(DMA_PAGE_FRAME + k, DMA_VA + k * 4096, true, BUDGET) {
-            // Nothing to report: `gfx::status` has no code for "I never reached my own rings",
-            // and inventing one would be a protocol change to say what the missing `UP` already
-            // says. A spawner that never sees `UP` knows bring-up failed.
-            exit();
-        }
+    // **The DMA region is ours to place** (milestone 108): one `PageFrame` capability naming the
+    // whole [`DMA_PAGE_FRAMES`]-page run (DECISIONS §102), mapped read/write out of our own budget
+    // in one `MAP` call. Before either role, because the rings live in the first page of it and the
+    // escape attempt writes a descriptor too.
+    if !user_rt::map_page_frame(DMA_FRAME, DMA_VA, true, BUDGET) {
+        // Nothing to report: `gfx::status` has no code for "I never reached my own rings", and
+        // inventing one would be a protocol change to say what the missing `UP` already says. A
+        // spawner that never sees `UP` knows bring-up failed.
+        exit();
     }
 
     // Two roles in one binary, for the reason the blk attackers ride with the blk driver: the attack

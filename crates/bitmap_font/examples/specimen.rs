@@ -80,7 +80,9 @@ impl Font {
             name: "kaypro-style (shipped)".into(),
             height: bitmap_font::GLYPH_H as usize,
             advance: bitmap_font::GLYPH_W as usize,
-            glyphs: (0..128u8).map(|b| bitmap_font::glyph(b).to_vec()).collect(),
+            glyphs: (0..128u8)
+                .map(|b| bitmap_font::glyph(b as char).to_vec())
+                .collect(),
         }
     }
 
