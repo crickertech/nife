@@ -27,8 +27,12 @@ Two ways a name can be a false claim, and the tree had both:
   understands immediately.
 
 So: **name a component for what it is, and prefer a word that parses without prior Unix exposure.**
-`blk`, `spawner`, `console`, `input`, `painter`, `window`, `kbd` were always right, and were always
-the majority. The four `-d` names were the outliers.
+`spawner`, `console`, `input`, `painter`, `window` were always right, and were always the majority.
+The four `-d` names were the outliers.
+
+(`blk` and `kbd` stood in this list until 2026-08-28, when they were renamed to `block_driver` and
+`keyboard_driver`. They belonged to the second failure below, not to this one: they parse fine to a
+Unix reader and badly to anyone else, which is the whole point the sentence above makes.)
 
 The shell is the one exception, and it is deliberate: it is called **`swish`**, not `shell`, because
 shell names are identities rather than descriptions (`bash`, `zsh`, `fish`, `rc`). The argument is in
@@ -43,7 +47,7 @@ one entry in the initrd archive. A **service** is what a component offers. A **c
 protocol it offers it over. "Server" is a fine role word inside a component (`redoxfs_server` serves
 the FS service). "Daemon" appears nowhere.
 
-- Lowercase, `snake_case`, no suffix. `net_stack`, `compositor`, `display`, `line_editor`,
+- Lowercase, `snake_case`, no suffix. `net_stack`, `compositor`, `gpu_driver`, `line_editor`,
   `fs_subtree_caretaker`. One word where one word will do, an underscore where the name is a
   qualifier applied to a thing; the 2026-08-01 rule below retired the older "no separators" wording.
 - **Never `-d`.** Not `netd`, not a future `logd` or `authd`. Checked.
@@ -52,8 +56,24 @@ the FS service). "Daemon" appears nowhere.
   23's replacement demo, the C half of the `rust_swappable` / `c_swappable` pair. The prefix means
   the same thing in both places and the milestones have nothing to do with each other, so do not
   read the four of them as one family.
-- Abbreviate only where the abbreviation is the ordinary name of the thing: `blk`, `kbd`, `pci`. If
-  you have to expand it in the doc comment to make the file readable, it was not the ordinary name.
+- **Abbreviate only where the abbreviation is what the field itself calls the thing**, not merely a
+  shortening that reads as obvious to whoever typed it: `pci`, `elf`, `dtb`, `gpt`, `ipc`, `asid`.
+  If you have to expand it in the doc comment to make the file readable, it was not the ordinary
+  name.
+
+  **This clause used to cite `blk` and `kbd`, and they were renamed on 2026-08-28 for failing it**,
+  to `block_driver` and `keyboard_driver`. That is worth keeping rather than quietly deleting,
+  because a rule whose own examples got renamed is telling you something: the test as first written
+  ("is this the ordinary name?") was answered from inside Unix, where `blk` and `kbd` obviously are.
+  The survivors are not shortenings at all. `pci` and `elf` are the names of standards, `dtb` and
+  `gpt` name formats, `asid` is an architectural term of art. A reader meets each of them outside
+  this project and arrives already knowing it. Nobody meets `blk` outside a Unix source tree.
+
+  So the sharper question, and the one to ask of a new name: **would a competent stranger who has
+  never read this tree recognise it?** `capsh`, `uheap` and `vt` fail that and are named in
+  CLAUDE.md as the abbreviation failure mode. `pci` passes it. Truncating a word you happen to be
+  tired of typing is not abbreviation, it is shorthand, and shorthand is what the third principle
+  ("a newcomer must be able to succeed without asking anyone") exists to refuse.
 - The binary name, the source file name and the archive entry name are the same string. `xtask`'s
   `initrd_aarch64` (`mkinitrd` before 2026-08-27) pairs them positionally in a flat array, so a mismatch is a runtime "program not found"
   rather than a compile error, which is exactly the kind of thing to keep boring.
@@ -203,7 +223,7 @@ the same pair). They are the same thing at two layers, and giving the engine a s
 **One pair deliberately does not share a name**, and the reason is worth keeping: the crate is
 `video_terminal` and the program that wires it is `display_terminal`. The crate is named for the
 **protocol** it implements (the VT standard, bytes in and a character grid out) and the program for
-its **role** (the terminal on the display, next to `display`, the virtio-gpu driver it is a client
+its **role** (the terminal on the display, next to `gpu_driver`, the virtio-gpu driver it is a client
 of). Both facts are true and neither name says the other.
 
 ## Scripts
@@ -646,7 +666,9 @@ because lint runs constantly. (An earlier version of this sentence said four and
 which is the ordinary way a hand-kept count drifts; take it from the script.)
 
 1. **No name ending in `-d`**, over `user/src/*.rs`, `user/Cargo.toml`'s `[[bin]]` names, and
-   `crates/*`. Four characters or more, so `kbd` is an abbreviation rather than a daemon. Words that
+   `crates/*`. Four characters or more, so a three-letter name ending in `d` is read as an
+   abbreviation rather than a daemon (`kbd` was this rule's worked example until its 2026-08-28
+   rename). Words that
    genuinely end in `d` go in `naming_allow` **with a reason**, the same shape as a per-item
    `#[allow]`; `asid` (Address Space IDentifier) is the one there today.
 2. **The word "daemon" appears nowhere**, outside `DECISIONS.md` and `design/`, which are where the
