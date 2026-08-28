@@ -73,8 +73,82 @@ const MAX_SPACES: usize = crate::sched::MAX_THREADS + 32;
 /// **The registry of live address spaces.** Fixed (milestone 14 phase C): the records themselves
 /// live in the spaces' own regions, so this is just the index that finds them, bounded by how
 /// many spaces can exist at once.
-static SPACES: IrqSafeMutex<[Option<SpaceLog>; MAX_SPACES]> =
-    IrqSafeMutex::new(rank::MAPPINGS, [const { None }; MAX_SPACES]);
+static SPACES: IrqSafeMutex<Registry> = IrqSafeMutex::new(rank::MAPPINGS, Registry::new());
+
+/// The registry array plus **one past its highest live slot**, for the same reason
+/// `generational_table::Table` carries one: without it every walk here costs [`MAX_SPACES`], and
+/// that constant is derived from `sched::MAX_THREADS`, so raising the thread ceiling made address
+/// space creation and teardown slower for slots nothing occupied.
+///
+/// Measured rather than assumed. Doubling `MAX_THREADS` from 128 to 256 cost the `spawn_el0`
+/// icount benchmark **+138,584 ticks** through this file, almost exactly what the capability sweep
+/// in `sched` cost through the other half of the same regression, and `forget_root` is the worst
+/// of the sites because it scanned the whole array unconditionally on every `AddressSpace::drop`.
+/// See notes/benchmarks.md and `sched::MAX_THREADS`'s own ledger.
+///
+/// `claim` is first-fit, so occupancy packs toward slot 0 and `top` stays near the live count.
+/// Every slot at or above `top` is `None`, which is what makes a bounded walk identical to a full
+/// one.
+struct Registry {
+    spaces: [Option<SpaceLog>; MAX_SPACES],
+    top: usize,
+}
+
+impl Registry {
+    const fn new() -> Self {
+        Self {
+            spaces: [const { None }; MAX_SPACES],
+            top: 0,
+        }
+    }
+
+    /// Every live space. The `flatten` still skips holes; the bound is what stops the walk from
+    /// visiting slots that have never been occupied at all.
+    fn live(&self) -> impl Iterator<Item = &SpaceLog> + '_ {
+        self.spaces[..self.top].iter().flatten()
+    }
+
+    /// [`live`](Self::live), mutably.
+    fn live_mut(&mut self) -> impl Iterator<Item = &mut SpaceLog> + '_ {
+        self.spaces[..self.top].iter_mut().flatten()
+    }
+
+    /// Take the first free slot, growing the bound if it is past the end of the occupied prefix.
+    /// `false` (and nothing stored) when the registry is full, which is `register_space`'s own
+    /// "the caller should fail creation" answer.
+    fn claim(&mut self, log: SpaceLog) -> bool {
+        let Some(slot) = self.spaces.iter().position(|s| s.is_none()) else {
+            return false;
+        };
+        self.spaces[slot] = Some(log);
+        if slot >= self.top {
+            self.top = slot + 1;
+        }
+        true
+    }
+
+    /// Drop every entry naming `root` and bring the bound back down over whatever emptiness that
+    /// left at the top. The downward walk stops at the first live slot and can only step over a
+    /// slot that was filled and freed, so it is amortised O(1).
+    fn release(&mut self, root: u64) {
+        for slot in self.spaces[..self.top].iter_mut() {
+            if slot.as_ref().is_some_and(|s| s.root == root) {
+                *slot = None;
+            }
+        }
+        // Bounded by the array's own length, the same shape and for the same reason as
+        // `generational_table::Table::remove`: the bound the type guarantees, written where a
+        // reader (and a prover) can see it. The `break` keeps the runtime cost amortised O(1).
+        let mut top = self.top;
+        for _ in 0..MAX_SPACES {
+            if top == 0 || self.spaces[top - 1].is_some() {
+                break;
+            }
+            top -= 1;
+        }
+        self.top = top;
+    }
+}
 
 /// A log page, by physical address, through the direct map.
 ///
@@ -90,15 +164,11 @@ unsafe fn log_page(phys: u64) -> &'static mut LogPage {
 /// creation) if the registry is full.
 pub fn register_space(root: u64, region: u64) -> bool {
     let mut spaces = SPACES.lock();
-    let Some(slot) = spaces.iter_mut().find(|s| s.is_none()) else {
-        return false;
-    };
-    *slot = Some(SpaceLog {
+    spaces.claim(SpaceLog {
         root,
         region,
         head: 0,
-    });
-    true
+    })
 }
 
 /// Forget an address space. Called from `AddressSpace::drop` **before** its region is destroyed:
@@ -107,11 +177,7 @@ pub fn register_space(root: u64, region: u64) -> bool {
 /// their own; they are region pages, and the region is about to come back whole.
 pub fn forget_root(root: u64) {
     let mut spaces = SPACES.lock();
-    for slot in spaces.iter_mut() {
-        if slot.as_ref().is_some_and(|s| s.root == root) {
-            *slot = None;
-        }
-    }
+    spaces.release(root);
 }
 
 /// Record that the address space rooted at `root` mapped `phys` at `va`, **paid for by that
@@ -122,7 +188,7 @@ pub fn forget_root(root: u64) {
 #[must_use]
 pub fn record_mapping(phys: u64, root: u64, va: u64) -> bool {
     let mut spaces = SPACES.lock();
-    let Some(space) = spaces.iter_mut().flatten().find(|s| s.root == root) else {
+    let Some(space) = spaces.live_mut().find(|s| s.root == root) else {
         return false;
     };
 
@@ -172,7 +238,7 @@ pub fn record_mapping(phys: u64, root: u64, va: u64) -> bool {
 /// there is nothing left to undo.
 pub fn forget_mapping(phys: u64, root: u64, va: u64) {
     let mut spaces = SPACES.lock();
-    let Some(space) = spaces.iter_mut().flatten().find(|s| s.root == root) else {
+    let Some(space) = spaces.live_mut().find(|s| s.root == root) else {
         return;
     };
     let mut page_phys = space.head;
@@ -219,7 +285,7 @@ pub fn forget_mapping(phys: u64, root: u64, va: u64) {
 /// linked toward *older* entries and a cursor only ever advances that way.
 pub fn list_mapping(root: u64, cursor: u64) -> (u64, u64) {
     let spaces = SPACES.lock();
-    let Some(space) = spaces.iter().flatten().find(|s| s.root == root) else {
+    let Some(space) = spaces.live().find(|s| s.root == root) else {
         // The space is gone (a race with teardown, or a stale cursor from a caller that kept one
         // past the space's life): nothing to report. Not a refusal; the syscall layer already
         // checked the capability before calling here.
@@ -274,7 +340,7 @@ pub fn list_mapping(root: u64, cursor: u64) -> (u64, u64) {
 /// [`revoke_device_from_others`].
 fn unmap_everywhere(phys: u64, spare: u64) {
     let spaces = SPACES.lock();
-    for space in spaces.iter().flatten() {
+    for space in spaces.live() {
         if space.root == spare {
             continue;
         }
@@ -407,7 +473,7 @@ pub fn revoke_region(base: u64, size: u64) {
         let victim = {
             let spaces = SPACES.lock();
             let mut found = None;
-            'scan: for space in spaces.iter().flatten() {
+            'scan: for space in spaces.live() {
                 let mut page_phys = space.head;
                 while page_phys != 0 {
                     // SAFETY: chain pages under the held SPACES lock.

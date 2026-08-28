@@ -359,6 +359,14 @@ The honest remainder: 130 of 256 is 51%, so the same growth curve reaches the sa
 and the answer then should be an account of what the boot keeps alive rather than another
 doubling. `notes/frames.md`'s "held" list is where that account would start.
 
+**What the raise cost, and why the next one will not.** The first attempt failed `script/bench
+--check`: `spawn_el0` moved +16.8%, through two whole-table scans whose cost tracked the ceiling
+rather than the occupancy (the capability sweep, and `revoke`'s space registry). Both are bounded
+by live occupancy now, which left that benchmark 41% below where it had been at 128 slots and, more
+to the point, flat against the constant: doubling to 512 moves it 0.05%. So the next raise is
+cheap in the one place this one was not. `notes/benchmarks.md`'s 2026-08-27 section has the
+attribution, and `MILESTONE 183` is the structural fix the mitigation does not replace.
+
 ### The general lesson
 
 **A call that returns `Err` may still have done something.** `reclaim_region(r).is_err()` reads like

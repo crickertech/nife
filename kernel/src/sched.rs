@@ -130,6 +130,17 @@ type Rendezvous = ipc::Rendezvous<Thread>;
 /// - **`revoke::MAX_SPACES`** and **`thread::FreeAddressSpace`**, both of which are now written as
 ///   arithmetic on this constant rather than as a literal that has to be remembered. The second
 ///   was a bare `[u64; 128]` with a `debug_assert` for a comment; it could have drifted silently.
+/// - **Nothing on the `spawn_el0` benchmark, but only after a second fix.** The first attempt at
+///   this raise cost that benchmark **+348,133 icount ticks (+16.8%)** and failed `script/bench
+///   --check`, through two scans of equal size whose cost tracked this constant rather than what
+///   the machine held: `delete_page_frame_caps_where`'s walk of every thread's capability table
+///   (141,359) and `revoke`'s registry, whose `MAX_SPACES` is derived from this one (138,584).
+///   Both are bounded by live occupancy now (`generational_table`'s `top`, `revoke::Registry`'s),
+///   which took the benchmark to **1,212,888, 41% below the 128-slot baseline**, and, the part
+///   that matters here, made it **flat against this constant**: doubling again to 512 moves it 587
+///   ticks. Re-baselining instead was available and refused, because the cost belonged to slots
+///   nothing occupied and would have been paid again by every future raise. notes/benchmarks.md
+///   has the attribution table.
 /// - **Two `[u64; MAX_THREADS]` scratch arrays in [`reap_region_objects`]**, which took that frame
 ///   to 4,624 bytes at 256, over `script/stack-frame-check`'s 4,096-byte guard-page ceiling. Both
 ///   are gone: the function's own comment already prescribed rescanning rather than collecting,
@@ -142,6 +153,12 @@ type Rendezvous = ipc::Rendezvous<Thread>;
 ///   of that argument survives (the bound is still static and still the product of two constants)
 ///   but the figure does not, and a decision record is not a lane's to edit. Whoever ratifies this
 ///   raise owes §96 a corrected sentence.
+/// - **Revocation still scans every live thread, and `MILESTONE 183` is the fix.** Bounding the
+///   sweep by occupancy makes it independent of *this* constant; it does not make it independent
+///   of how many threads are actually alive. A boot with real tenancy pays the walk in full. That
+///   milestone ("a physical-range index for capability holders, so revocation stops scanning every
+///   thread") is the structural answer, and the numbers above are evidence for it rather than
+///   against it.
 /// - **The peak is a whole-boot high-water, not a per-test charge.** It cannot say *which* test
 ///   pushed the table up, only that something did, and for this table that is the honest shape:
 ///   what fills it is what earlier tests deliberately left running. See
