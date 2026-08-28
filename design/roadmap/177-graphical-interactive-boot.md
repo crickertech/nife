@@ -6,7 +6,7 @@ framing, and finding no milestone owns the gap this surfaced. **Pieces 1-4 built
 2026-08-27** (`milestone/177-boot-wiring-build`): the kernel-side graphical stack, the direct
 `kbd` -> `line_editor` grant (option A, decided), `line_editor`'s `display_terminal` output
 adapter, and device attachment, all wired and code-reviewed correct. **Not yet reaching a working
-prompt**: a real, pre-existing driver bug (a second `FLUSH` through `user/src/display.rs`'s real
+prompt**: a real, pre-existing driver bug (a second `FLUSH` through `user/src/gpu_driver.rs`'s real
 boot path hangs) blocks the graphical boot from completing; recorded in
 `notes/framebuffer-contract.md`'s own BUGS section rather than held on. **Piece 5 (x86_64's entry
 point) split off as its own milestone**, [182](182-x86-64-interactive-boot.md), once the lane
@@ -164,7 +164,7 @@ fixed by freeing `uart_dev`/`uart_irq` at the top of `boot()` on a graphical boo
 dead weight there). `script/shell-check --graphical` (a new leg, verifying via decoded screendump
 since there is no UART to pipe a transcript from) does not yet reach a working prompt: a second
 `FLUSH` through the real boot's own driver instance hangs, diagnosed as likely a pre-existing
-characteristic of `user/src/display.rs`'s completion-IRQ handling rather than something this
+characteristic of `user/src/gpu_driver.rs`'s completion-IRQ handling rather than something this
 milestone's wiring introduced, and recorded in `notes/framebuffer-contract.md`'s own BUGS section
 rather than held on. The existing plain-console boot is unaffected and re-verified working on both
 architectures throughout.
