@@ -76,10 +76,41 @@ jobs:
   # Decide the scope ONCE. Before sharding this was folded into the proving job; with shards it has
   # to be its own, because two shards computing it separately could disagree on a moving tree, and
   # because paying `cargo metadata` twice to answer one question is waste.
+  # The live draft state, read once. See ci.yml's `gate` job, which carries the full reasoning:
+  # the event payload's `draft` is a snapshot that has been wrong, `ready_for_review` did not
+  # reliably raise a run to correct it, and a skipped job still satisfies a required check. This
+  # asks what the pull request is right now and fails safe toward running.
+  gate:
+    name: draft gate
+    runs-on: ubuntu-24.04-arm
+    outputs:
+      run: ${{ steps.state.outputs.run }}
+    steps:
+      - id: state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "==> ${{ github.event_name }} is not a pull request; running everything"
+            exit 0
+          fi
+          draft="$(gh pr view "${{ github.event.pull_request.number }}" \
+                     --repo "$GITHUB_REPOSITORY" --json isDraft -q .isDraft 2>/dev/null || true)"
+          if [ "$draft" = "true" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "==> pull request is a draft right now; skipping"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "==> live draft state is '${draft:-unreadable}'; running"
+          fi
+          exit 0
+
   scope:
     name: verify scope
     runs-on: ubuntu-24.04-arm
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    needs: gate
+    if: ${{ always() && needs.gate.outputs.run != 'false' }}
     outputs:
       needed: ${{ steps.scope.outputs.needed }}
     steps:
@@ -102,10 +133,15 @@ jobs:
 
   prove:
     name: prove (shard ${{ matrix.shard }}/2)
-    needs: scope
+    needs: [gate, scope]
+    # `always()` for the same reason `verify` below gives: without it a failed or cancelled
+    # dependency skips this job outright, whatever the condition says, and a skipped job still
+    # posts a conclusion that satisfies a required check. The scope test is unchanged; it just has
+    # to be reached to be applied.
     if: >-
+      always() &&
       needs.scope.outputs.needed == 'true' &&
-      (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
+      needs.gate.outputs.run != 'false'
     runs-on: ubuntu-24.04-arm
     # Half the serial job plus its setup. The serial job's 60 was for ~30 minutes of proving; a
     # shard proves ~15, and the box stays generous because a hung solver must fail loudly rather
@@ -145,7 +181,7 @@ jobs:
 
   verify:
     name: verify (Kani proofs)
-    needs: [scope, prove]
+    needs: [gate, scope, prove]
     # **`always()` is load-bearing.** Without it this job is skipped whenever a shard fails or the
     # scope job says the proofs are not needed, and a required check that never reports blocks the
     # merge forever, which notes/repo-hardening.md names as the single most likely way to get this
@@ -153,7 +189,7 @@ jobs:
     # merge queue in the first place, so there is nothing here for `always()` to protect yet.
     if: >-
       always() &&
-      (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
+      needs.gate.outputs.run != 'false'
     runs-on: ubuntu-24.04-arm
     # Reads two strings. The proving is upstream; nothing here needs a toolchain, a checkout or a
     # cache.
