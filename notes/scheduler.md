@@ -424,6 +424,14 @@ reschedule-SGI handler. `schedule()` does not look at the inbox, and neither doe
 is `try_initiate_steal(); wait_for_interrupt(); yield_now()` forever. So a missed SGI is permanent
 rather than late.
 
+**That `run_idle` does not drain is a decision, not an oversight** (DECISIONS §133, calef,
+2026-08-28). Draining before parking would make any future missed poke self-healing, and it was
+refused because it trades a loud failure for a quiet one: this bug announced itself as a watchdog
+dump precise enough to name the culprit from the trace rings, and the same defect under an idle
+drain would have read as threads occasionally starting late. The window is a few instructions wide,
+so that dump was the only instrument that could have found it. The section carries the case for
+draining, which is real, and what would reopen it.
+
 **And the target then refuses to rescue itself.** `try_initiate_steal` returns early when
 `runnable() > 0`, and `runnable()` counts the inbox, on purpose: an idle core with work in transit
 should wait for its own work rather than steal more. Here the "work in transit" is never arriving,
