@@ -11,10 +11,12 @@ because the milestone is no longer nothing but a design: what remains is wiring 
 against the pieces already proven (#387), which is real, separate work rather than a detail of what
 is already built.
 
-**Gate: MILESTONE 49.** The design fork (what durably represents a user) is answered below; what
-remains is that the answer needs a real identity to attach to, and milestone 49 (users, login, and
-attribution) is where identity first exists. Sequenced after 49, not blocked on a further decision
-of this milestone's own.
+**Gate: NONE.** Cleared 2026-08-27: milestone 49 (users, login, and attribution) reached BUILT, so
+the real identity this milestone's design needed to attach to now exists. The design fork itself
+(what durably represents a user) was already answered below; what remains is wiring a real
+registrar against the pieces already proven (#387), which is real, separate work and not a further
+decision of this milestone's own -- see "What was built" and the BUGS entry below for exactly what
+that is. Not attempted by this update: milestone 49's own lane was scoped to milestone 49 alone.
 
 ## In brief
 
