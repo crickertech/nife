@@ -515,7 +515,6 @@ in the code or the conversation doesn't make sense, it belongs here.
   shared page, the fork on `std::random` (transparent, split on std's own seam, so the caller that
   promises cryptographic strength panics rather than degrading), and the INTx-sharing finding that
   made this driver look at the used ring before it blocks.
-- [The framebuffer contract](framebuffer-contract.md): milestone 29, the display ladder's first
 - [Credentials](credentials.md): milestone 56's second half: an identity and a secret you can check
   and cannot read. The tension it answers is that a secret is a bearer token while a capability is
   an unforgeable reference, so knowledge cannot be revoked and everything else here can; the answer
@@ -678,6 +677,21 @@ in the code or the conversation doesn't make sense, it belongs here.
   stranger test) falls, why `script/audits --worklist` is a heuristic and not a signal, and the rule
   that makes the mechanism compound: **every sweep converts at least one class of claim into one a
   gate re-derives.**
+- [Reviewing the work of one model](model-attribution-review.md): a **plan**, not a review, written
+  after calef raised a concern about the code one model wrote here. The trap it exists to avoid is
+  that reading only one model's diffs finds defects (all code has them) and reads as confirmation
+  whichever way the truth runs, so every tier carries a control group, a rubric fixed before the
+  reading, blinding borrowed from milestone 117 (the stranger test), and a null result stated in
+  advance. The reconnaissance moved the question rather than narrowing it: the whole footprint is one
+  session and six days, no other model has a commit in that window, so **model is perfectly
+  confounded with date** and the natural comparison is between two different weeks. Also: the counts
+  the lane was handed do not reproduce; attributing by pull request instead of by commit recovers 34%
+  more work because a pull request is a lane and 95 of them mixed no models; three defect metrics
+  rank the models three different ways on 77 fix-shaped commits; and the week's real exposure is the
+  irreversible surface (52 renames, 7 crates, 23 commits in wire crates, 649 diff lines on the
+  syscall surface) rather than defect density. Recommends the cheap tier, which is a lens on the
+  security audit that `script/audits` already reports overdue, and a prospective A/B as the only
+  design in which the confound is removable. Name provisional.
 - [Machine-checked proofs (Kani)](verification.md): the verification thesis (DECISIONS §14) in
   practice: the capability model is proved for *every* input, not just tested on the cases we wrote.
   Run by `script/verify`. Milestone 18 completed the spread inward: `capability`, then IPC (rendezvous and

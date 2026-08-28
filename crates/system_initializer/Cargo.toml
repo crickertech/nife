@@ -35,3 +35,8 @@ user_rt = { version = "0.1.0", path = "../user_rt" }
 # reads: the readiness sentinel an entropy service answers once it has drawn its first bufferful
 # from a real device. Pure logic, no non-dev dependencies of its own.
 entropy_proto = { version = "0.1.0", path = "../entropy_proto" }
+# The credential contract (milestone 49's boot-wiring update), for the request word `identity_provisioner`
+# needs staged and the provision opcodes (`PUT`, `SEAL`) this crate sends directly. Pure logic, no
+# non-dev dependencies of its own; `login_proto` itself re-exports the same functions rather than
+# duplicating them, so this is the one crate both `login.rs` and this file ultimately share.
+credential_proto = { version = "0.1.0", path = "../credential_proto" }

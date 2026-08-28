@@ -64,11 +64,14 @@ separate lookup.
 
 ## BUGS
 
-**Not wired into the interactive boot.** This process is spawned directly by the kernel's guest
-test harness (`kernel/src/user/identity_provisioner_service.rs`), the same way `credentialer` and
-`login` are, and is not reachable from `crates/system_initializer::boot`'s real prompt. An
-operator's real path to holding this tool's two capabilities is real work this slice does not
-attempt, matching `login.rs`'s own identical bound.
+~~Not wired into the interactive boot.~~ **Resolved, 2026-08-27, milestone 49's boot-wiring
+update.** `crates/system_initializer::boot` now spawns this tool once per real boot, on both ISAs,
+staging a boot-generated password into its request page and holding both of its capabilities
+(`credentialer`'s own provision endpoint, before its seal, and the file service's root) itself,
+provisioning a demo identity (`operator`) before `login` can serve anyone. See
+`design/roadmap/49-users-and-attribution.md`'s own account of that wiring for the full design. An
+operator's real path to holding this tool's two capabilities *for an identity other than the one
+boot-generated demo account* remains real work this slice does not attempt.
 
 **No `SEAL`.** Deliberately: sealing ends provisioning for the whole store, forever, and is an
 operator's decision made once after every identity for a boot is in, not a side effect of one

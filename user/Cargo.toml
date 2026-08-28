@@ -518,6 +518,15 @@ path = "src/login_test_client.rs"
 test = false
 bench = false
 
+# The audit sink (milestone 49's boot-wiring update, provisional name): drains `login`'s AUDIT
+# endpoint so its blocking `send` on a successful login never parks the whole service, holding
+# nothing but that one READ capability. `initrd_aarch64` packs it as "audit_sink" for both ISAs.
+[[bin]]
+name = "audit_sink"
+path = "src/audit_sink.rs"
+test = false
+bench = false
+
 # The provisioning tool (milestone 155, provisional name; DECISIONS §117): a `useradd`-equivalent
 # that PUTs an identity and secret into the credential store and creates that identity's home
 # subtree as one act, so a principal never exists with one and not the other for longer than this
