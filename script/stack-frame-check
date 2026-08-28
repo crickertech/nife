@@ -43,6 +43,14 @@
 #     which frames stack on top of each other, so this cannot produce a worst-case depth. It is a
 #     lower bound on trouble and pairs with the watermark; neither is sufficient alone. A call-graph
 #     walker would close the gap and nothing in this tree does that today.
+#   - **The reported number can be several times the source-visible size of the locals.** The
+#     unoptimised build this measures keeps one temporary alive per element of any array or
+#     tuple-array literal built up before it is consumed, so a frame is not bounded by the `size_of`
+#     of anything the reader can see. Measured 2026-08-27: `kernel::user::login_service::start`'s
+#     offending local was `[(&str, crate::cap::Cap); 8]`, 384 bytes by its own `size_of`, and
+#     removing it recovered 2656 bytes, about 7x the array's own size. A reader who checks only
+#     declared sizes against the reported number will conclude, wrongly, that nothing in the
+#     function is large enough to be the problem.
 #   - **The ceiling is one number for stacks of three different sizes.** Boot is 64 KiB, secondaries
 #     64 KiB, kernel thread stacks 24 KiB, and this gates everything against the smallest, because a
 #     function does not carry a label saying which stack it will run on. That is deliberately
@@ -204,9 +212,12 @@ below the guard in ONE step, touching nothing in between, so the guard never fau
 lands in the neighbouring thread's stack. Measured on riscv64 2026-08-14: a fault 4088 bytes below
 the bottom, on a 4096-byte guard. Eight more bytes and there is no fault at all.
 
-Look for a `[T; MAX]` local sized to a table maximum. That shape is a stack allocation wearing the
-clothes of a bound, and the usual fix is to stop collecting into it: rescan for one item at a time,
-or take a caller-provided slice.
+Two shapes cause this. One is a `[T; MAX]` local sized to a table maximum: a stack allocation
+wearing the clothes of a bound. The other leaves no such tell in the source, only in the frame: an
+array or tuple-array literal built up before it is consumed, however small its own `size_of`,
+because an unoptimised build keeps one temporary alive per element until the consuming loop runs.
+Either way, stop collecting into it: build and consume one element at a time, or take a
+caller-provided slice.
 
 If the function provably cannot run on a kernel thread stack, add it to EXCEPT in this script **with
 the reason**, so the next reader can check whether the reason is still true.""", file=sys.stderr)
