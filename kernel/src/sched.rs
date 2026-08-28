@@ -103,6 +103,10 @@ type Rendezvous = ipc::Rendezvous<Thread>;
 /// | riscv64 | **129** | 127 spare |
 /// | `x86_64` | **57** | 199 spare (its userspace suite is smaller: 192 run, 56 skipped) |
 ///
+/// Those are the figures on the tree this was measured on; they move by a thread or two as the
+/// boot's service list changes (the merge that landed while this branch was open took aarch64 to
+/// 129), which is exactly why the number is printed by every run rather than only written here.
+///
 /// So the tightest real demand is 130, and 256 is **1.97x it**. Headroom rather than a fitted
 /// number, deliberately, because every milestone that adds a boot service spends some of this and
 /// the failure mode is an unrelated test refusing a spawn far from the cause. What that headroom
