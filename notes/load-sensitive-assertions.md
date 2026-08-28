@@ -1576,3 +1576,198 @@ block moves to BUILT.
   eliminating the failure mode outright, and both are compatible with a true rate near zero. Only
   more runs, or a different host, would narrow it further, and nothing in this milestone's own
   acceptance standard asks for that: 45 was the number the first run set and this run matched it.
+
+## The caretaker teardown, 2026-08-27: the family's first member in userspace
+
+Every site above is kernel code. This one is a **user program**, and that turns out to matter more
+than "one more assertion" would suggest: every fix on this page reaches for `smp.rs`'s `wait_for` or
+`testing::TickBudget`, and a process can call neither.
+
+**The record correction first, because this lane was briefed from a section that is not in this
+file.** The brief quoted "The fifth round, 2026-08-27: caretaker teardown joins the family, observed
+rather than rescoped" as the newest section here and asked for the follow-up to it. There is no such
+section, on this branch or on `main`: the newest was the 2026-08-22 confirmation run above, and "the
+fifth round" is already spent on 2026-08-17. The observation was real and it was right; what it
+never got was a home, which is rung four of AGENTS.md's ladder behaving exactly as that file says it
+will. This section is the first time it is written where somebody could find it.
+
+One line about it was in the tree, in a place a reader meets by accident. `kernel/src/testing.rs`'s
+`SUITE_PAGE_FRAME_BUDGET` takes its number from CI rather than from this laptop because "this
+milestone's local host reproduces an unrelated, pre-existing flake in
+`caretaker_teardown_reclaims_a_full_session_worth_of_memory` that does not occur in CI". A frame
+budget's comment is where that fact had been living.
+
+### The assertion, and the hypothesis it arrived with
+
+`kernel::user::login_tests::caretaker_teardown_reclaims_a_full_session_worth_of_memory` logs in ten
+times as `chris` and logs fully back out each time, and its `F_TEARDOWN_OK` assertion is the client
+saying `MemoryRegion::DESTROY` on the caretaker's construction region returned success. The
+hypothesis handed to this lane: `DESTROY` refuses a region that still holds a live thread, and the
+client's teardown role has a bounded patience for that refusal that a session's worth of threads can
+outrun under load.
+
+**It held in outline and it is wrong about the mechanism**, which is the part worth keeping. The
+patience is not too small for the number of threads. It is denominated in the wrong thing:
+
+```rust
+fn destroy_with_retry(ut: u64) -> bool {
+    const ATTEMPTS: usize = 64;
+    for _ in 0..ATTEMPTS {
+        if destroy_region(ut) == 0 { return true; }
+        yield_now();
+    }
+    false
+}
+```
+
+What the refusal is waiting on is **a timer tick**. `sched::reap_region_objects` refuses while the
+caretaker is still live and *arms* DECISIONS §16's kill on it (`region_reap_verdict`'s
+`RefuseAndArm`), and an armed kill lands at that thread's next preemption. So the wait is one tick
+period, 10 ms at 100 Hz, and a count of syscalls is not a way to buy one. The direction is positive
+("not yet"), so by this page's first diagnostic it is honest load sensitivity rather than a wait
+written against something wider than the property.
+
+### The measurement, and the number that settles it
+
+The client was instrumented to report both what it spent, in attempts and in counter ticks, and the
+first run reproduced the failure. Every logout of that run, in order (aarch64, one-minute load
+average 9.4 to 10.8 on eight cores, which the harness's own host-load line reported):
+
+| logout | attempts | elapsed | verdict |
+|---|---|---|---|
+| 0 | 23 | 5.97 ms | ok |
+| 1 | 36 | 10.79 ms | ok |
+| 2 | 2 | 8.60 ms | ok |
+| 3 | **64** | **8.26 ms** | **red** |
+
+**The failing wait is the shortest one in the table.** It gave up after 8.26 ms having spent its
+whole budget, where the logout above it took 10.79 ms and passed. Attempts and elapsed time are not
+the same axis at all: a `yield_now` that finds work on this core returns in about 130 us, and one
+that finds none parks until the next tick, so sixty-four of the first kind elapse in 8 ms while two
+of the second cover 12 ms. Which kind a logout gets is a scheduling outcome the host decides. That
+is "a yield count is not a duration", the second round's own sentence, arriving in a program instead
+of in the scheduler.
+
+The A/B below produced the cleaner version of the same fact in a single run: the old form gave up on
+logout 6 after **26.6 ms**, in a run where logout 3 had legitimately taken **39.3 ms** and passed.
+
+### The fix, and why its bound is the second-best unit
+
+`user/src/login_test_client.rs`'s `destroy_with_retry` now waits on the property (the region
+genuinely coming down) and bounds itself with a clock rather than with a count. The ceiling is
+`DESTROY_WAIT_SECS`, five seconds of counter time, and it is a watchdog rather than a rate: only a
+run that is going to fail ever pays it, because the loop returns the moment the region comes down.
+
+The ceiling has an argument rather than a feel, and the argument is the tail, measured here:
+
+| condition | waits | worst single wait |
+|---|---|---|
+| aarch64, no induced load (one-minute load average 7 to 15) | 30 | 12.8 ms |
+| aarch64, six spinners (13 to 29) | 40 | 44.3 ms |
+| riscv64, six spinners (27 to 47) | 30 | **126.4 ms** |
+
+Five seconds is 40x the worst of those, and the cost of being wrong in the generous direction is
+that a genuinely wedged caretaker takes ten seconds to report (this ceiling twice, the budget and
+the region) inside a 90 s per-test harness ceiling, instead of reporting in eight milliseconds and
+being wrong.
+
+**The unit is wall clock, which is the unit the migration-drain section above argues against, and
+that is a limitation rather than a disagreement.** Milestone 62 re-denominated `smp.rs`'s drain in
+*delivered timer ticks* precisely because a counter deadline keeps running while the guest is
+descheduled. A process cannot do that: `user_rt::now` is the raw counter, and nothing publishes the
+kernel's per-core tick count to userspace. So what makes this safe is the margin and not the unit,
+and the margin is what would have to be re-measured if the wait ever grew. Giving a process a
+delivered-tick reading is an ABI addition, which is calef's call rather than a lane's; it is written
+in that function's own BUGS section so the next reader meets it there and not only here.
+
+**The failure message now carries the observation the wait decided on.** The client reports its wait
+in the third report word (where every other role puts an identity hint, and `ROLE_LOGOUT` has no
+identity to report), and the assertion prints it beside the ceiling: a wait near the ceiling means
+the caretaker never died, which is a kernel bug, and one far under it means the client stopped
+waiting early, which is the defect this ceiling replaced. That is the fifth round's panic-message
+lesson applied before anybody had to read a red run at 2 a.m.
+
+### The injection, because a green run proves nothing about a branch it never took
+
+The fourth round's caveat is the one this page keeps having to repeat: twelve green runs said
+nothing about a branch that was never exercised. So the giving-up path was proven directly, by
+pointing the wait at a capability whose `DESTROY` can never succeed (the caretaker's *endpoint*
+rather than its region, a one-word edit, reverted):
+
+```
+assertion `left == right` failed: login 0's logout ticket did not destroy the caretaker's
+construction region; the client waited 5000100 us for the refusal to clear, against its own ceiling
+of 5000000 us. A number near that ceiling means the caretaker never died, which is a kernel bug and
+not this host being slow; a number far under it means the client stopped waiting early, which is
+the defect that ceiling replaced.
+```
+
+The ceiling fires, it fires at the value the constant names, and the message is the one a reader
+needs. (An earlier run of the same injection, at the 2 s ceiling this lane started from, printed
+2000037 us against 2000000; the ceiling was raised afterwards on the riscv64 tail above.)
+
+### The runs, all of them
+
+The second round's rule: reporting the interesting ones would be the dishonesty this milestone
+exists to remove. Six spinners rather than the recipe's eight, because other lanes were gating on
+this laptop and the fourth round's choice not to fail somebody else's run still applies; the machine
+supplied the rest of the contention itself.
+
+| tree | leg | runs | reached the test | logouts | red at this assertion | worst wait |
+|---|---|---|---|---|---|---|
+| old form (64 attempts) | aarch64 | 5 | 4 | 31 | **2** | 94.4 ms, and truncated by the give-up |
+| new form (5 s clock) | aarch64 | 8 | 8 | 80 | 0 | 44.3 ms |
+| new form (5 s clock) | riscv64 | 3 | 3 | 30 | 0 | 126.4 ms |
+
+Five of those eleven new-form runs carried a 2 s ceiling rather than the 5 s this lane shipped,
+which is recorded because it is the sort of detail a later reader would otherwise have to trust: the
+raise happened after the riscv64 tail was measured, and it changes nothing about a run that passes,
+since the loop returns when the region comes down and never reaches its bound. The tree as it stands
+was then run once through all three architectures at one-minute load averages of 13 to 25 (aarch64
+300 passed, riscv64 303, x86_64 189 with this test skipped for the reason
+`fs_service::NO_FS_SERVER` gives, which is the vendored RedoxFS `aes` dependency rather than
+anything here).
+
+The two old-form reds were at one-minute load averages of about 10 and about 37, which is the range
+this laptop sits in whenever two lanes are gating: 2x to 5x oversubscribed on eight cores, not a
+pathological host. Of the runs that did not reach the test, one died at `live_swap_tests.rs:263` and
+one at `holding_a_lock_masks_the_timer`; both are below.
+
+**What eleven green runs do not prove** is that the rate is zero. By the rule of three, 0 failures
+in 110 waits bounds it near 3%, and this is one host, one QEMU build, one load shape, which is the
+same caveat the 2026-08-22 confirmation run attaches to its own 45 runs.
+
+### Three things found on the way, none of them fixed here
+
+**`crates/system_initializer::reclaim` is the same loop, in a shipping program.** Sixty-four
+attempts over the same §16 refusal, and its own comment makes the claim this lane's measurement
+refutes: "one preemption is enough" is true, and sixty-four yields is not a way to buy one. It was
+left alone deliberately, because the two failures are different sizes (a test client that gives up
+early fails a run; that one gives up quietly and strands `DIR_JOB_REGION_PAGES` until the machine
+stops) and because changing the boot path was not this lane's brief. The measurement is recorded in
+a BUGS section at `RECLAIM_ATTEMPTS`, where the next reader of that constant meets it.
+
+**And it is not alone: there are five of these, and two of them trap.** Every one waits on the same
+refusal, and none has a clock in it:
+
+| site | on exhaustion |
+|---|---|
+| `crates/system_initializer::reclaim` (`RECLAIM_ATTEMPTS`) | returns; a stranded region |
+| `user/src/login.rs`'s `reclaim` (`RECLAIM_ATTEMPTS`) | returns; a stranded region |
+| `user/src/swish.rs`'s `await_screen` (`SCREEN_REAP_ATTEMPTS`) | returns; leaks one job's pool |
+| `user/src/job_undertaker.rs`'s `collect` (`MAX_ATTEMPTS`) | **`user_rt::trap()`** |
+| `user/src/timetable.rs`'s `collect` (`REAP_ATTEMPTS`) | **`user_rt::trap()`** |
+
+That is the reading order's fourth grep, and it is the first one that leaves this repository's
+kernel: **a bounded retry count in a user program, over a syscall that a timer tick has to clear.**
+The scope note's 39 sites were all kernel (`wait_for`, `free_frames`, `thread_count`, `used()`), so
+userspace was never swept at all. Proposed as a milestone of its own in this lane's report rather
+than taken here.
+
+**Two more kernel sites went red under this lane's load and are nobody's yet.** Neither is in the
+scope note. `user/live_swap_tests.rs:263`, "reclaiming the operator's budget returned 277 of 224
+pages", is a **negative-direction** failure against a global count, which is this page's first
+diagnostic pointing straight at a wait written against something wider than the property.
+`arch/aarch64/timer.rs:680`, "the timer is not ticking at all", killed a run before it reached the
+suite's userspace half; it is a sibling of the assertions milestone 62 dispositioned and it was not
+one of them.
