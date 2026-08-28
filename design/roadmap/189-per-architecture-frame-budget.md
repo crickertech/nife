@@ -1,0 +1,88 @@
+# 189. A page-frame budget per architecture, so the ledger constrains all three
+
+**Status: NOT-STARTED.** Minted 2026-08-28, calef, out of his own question about why x86_64 has no
+page-frame budget. It has one; it has the same one, which is the problem.
+
+**Gate: NONE.** The ledger already prints, on every leg, the figure this needs. Splitting one
+constant into three is not a design fork, and the shape it splits into is the one
+`bench/baseline-aarch64.txt`, `bench/baseline-riscv64.txt` and `bench/baseline-x86_64.txt` already
+use for the icount tripwire.
+
+## What is wrong
+
+`SUITE_PAGE_FRAME_BUDGET` (`kernel/src/testing.rs`) is a single number, and
+`report_page_frame_ledger` is called unconditionally from the suite's closing summary. There is no
+`cfg(target_arch)` anywhere in that file. So every architecture is measured, and all three are
+measured against a ceiling that was fitted to one of them.
+
+The value has always been set from **aarch64**, the tighter of the two the ledger's own history
+discusses. Its doc comment is one of the most carefully maintained records in this tree, a dated
+entry per raise with the measurement behind it, and **not one entry mentions x86_64.**
+
+That would be a nuisance if the three suites were the same size. They are not:
+
+| leg | tests run | skipped |
+|---|---|---|
+| aarch64 | 306 | 1 |
+| riscv64 | 309 | 1 |
+| **x86_64** | **194** | **57** |
+
+And the skips are not a random 57. They are `fs_service::NO_FS_SERVER` (vendored RedoxFS's
+unconditional `aes` dependency does not compile for `x86_64-unknown-none`, which milestone 164
+owns), `NO_STD_EXERCISER` (no `x86_64-unknown-nife` target yet, which milestone 184 owns), plus
+`NO_RTC` and `NO_UART_PAGE`. Those name the **heaviest and longest-lived frame consumers in the
+suite**: the file servers, the `std` farm, and the services that keep a session's scratch for the
+rest of the boot. The tests that do not run on x86_64 are disproportionately the ones that keep
+memory.
+
+So x86_64 sits far under a ceiling it cannot approach, and the gate that reads green there is not
+reporting a healthy leg. It is reporting that a number fitted to a different, larger suite was not
+exceeded by a smaller one.
+
+**A leak that appeared only on x86_64 would have to be enormous before this noticed.**
+
+## The fact that makes it worse, and it is a small one
+
+**Nobody knows what x86_64 keeps.** The ledger prints the figure on every x86_64 run and no one has
+ever written it down: it is absent from the constant's history, from `notes/frames.md`, and from
+every lane report this was searched in. There is therefore no baseline for that leg at all, and no
+way to say whether it has grown, shrunk, or leaked since the port landed.
+
+The first task of this milestone is one measurement that has simply never been taken.
+
+## Why this is the same failure the tree already named
+
+`notes/architecture-list-sweep.md` found eleven silent parity gaps and stated the pattern: what is
+complete at three architectures is a Rust `match` the compiler pushed on, or a per-architecture file
+whose absence a build notices; what is stale is a string in a shell script, a YAML step, a TOML
+array, or a sentence in a note.
+
+This is the same failure in a shape that sweep did not look for: **not a list missing an entry, but
+one number doing duty for three suites.** It cannot be found by grepping for architecture names,
+because the constant does not mention any. Worth recording as a widening of that note's own method
+rather than only as a fix here.
+
+## What to build
+
+1. **Measure x86_64 first**, on a quiet machine, more than once, and write the number down before
+   changing anything. If it turns out close to the aarch64 figure, the premise above is wrong and
+   this milestone should be rewritten rather than executed.
+2. **Split the constant into three**, one per architecture, selected by `cfg(target_arch)`. Keep the
+   existing narrative doc comment as the shared history it is, and give each constant its own dated
+   entry in that voice. Do not fork the prose three ways.
+3. **Choose each headroom on that leg's own evidence.** The ledger's conventions are +15 ordinarily
+   and +32 where a known flake perturbs the reading; whether x86_64 needs either is a question its
+   own measurements answer.
+4. **Say in the failure message which architecture's budget was exceeded**, since a single message
+   naming a single constant will now be ambiguous.
+
+## What this does not fix
+
+- **It does not make x86_64's suite comparable.** 57 skips remain, and closing them is milestones
+  164 and 184, not this. A per-architecture budget measures what that leg actually runs; it does not
+  make that leg run more.
+- **It does not find a leak, it makes one findable.** The ledger is a tripwire on retained frames,
+  and a tighter ceiling on x86_64 only helps for growth that happens after the number is recorded.
+- **It cannot say whether today's x86_64 figure is already carrying a leak**, because there is no
+  earlier reading to compare against. The first measurement establishes a baseline and blesses
+  whatever is already there, which is the honest cost of having gone this long without one.
