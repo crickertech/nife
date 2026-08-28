@@ -55,7 +55,7 @@ the FS service). "Daemon" appears nowhere.
 - Abbreviate only where the abbreviation is the ordinary name of the thing: `blk`, `kbd`, `pci`. If
   you have to expand it in the doc comment to make the file readable, it was not the ordinary name.
 - The binary name, the source file name and the archive entry name are the same string. `xtask`'s
-  `mkinitrd` pairs them positionally in a flat array, so a mismatch is a runtime "program not found"
+  `initrd_aarch64` (`mkinitrd` before 2026-08-27) pairs them positionally in a flat array, so a mismatch is a runtime "program not found"
   rather than a compile error, which is exactly the kind of thing to keep boring.
 - The one deliberate exception: `builder` is packed as `init`, because `init` is the entry the kernel
   loads by name. The name in the archive is a role; the name in `user/src/` is the program.
