@@ -1198,9 +1198,42 @@ unrelated reasons, where a symbol size moves only when the code moves.
 | `syscall_entry` (flat) | 4,168 | 2,692 |
 | **total, an upper bound** | **9,948 (9.71 KiB)** | **7,766 (7.58 KiB)** |
 
+*Two architectures because that is what the gate measured on the date in the heading; x86_64 is in
+its own subsection below. The recorded baselines have since moved (`bench/fastpath-aarch64.txt` is
+5,788 / 3,304 and `bench/fastpath-riscv64.txt` 5,106 / 1,870); this table is left as the dated
+reading it says it is, and the baseline files are the current numbers.*
+
 The closure's aarch64 members: `ipc_recv`, `schedule`, `ipc_send`, `finish_switch`, `wake`,
 `current_cap`, `kmem::recycle`, `memcpy`, `switch_to`. Every one of them is defensible as something
 an IPC round trip actually runs, which is the test the root list has to pass.
+
+### x86_64, added 2026-08-27, and why one of its two numbers is not comparable
+
+The gate measured two of the three architectures for nine days and said nothing about the third,
+which is the same silent omission `script/stack-frame-check` carried until the architecture-list
+sweep of the same week found both.
+x86_64 is measured and gated now, at `ipc_fastpath` **6,639** and `syscall_entry` **1,637**, total
+**8,276 (8.08 KiB)**, recorded in `bench/fastpath-x86_64.txt`.
+
+**`ipc_fastpath` is comparable across all three and x86_64 is the largest.** The closure is the same
+eight functions as aarch64's list above, minus `memcpy`, which LLVM inlines on x86_64 rather than
+calling by symbol (the symbol exists in the image and nothing references it). So the +15% over
+aarch64 is the same portable Rust in a different ISA's encodings, not a different path.
+
+**`syscall_entry` is not comparable, and a reader looking at three numbers will assume it is.** On
+aarch64 and riscv64 a syscall *is* an exception: `svc` enters the same vector table as a page fault,
+`ecall` the same `stvec` handler as a timer interrupt, so both entry figures carry the whole vector
+and cause decoder. On x86_64 a ring-3 `syscall` reads `IA32_LSTAR` and jumps, consulting no IDT
+entry at all, so its entry set is four symbols: `x86_syscall_entry`, `x86_syscall_handler`,
+`isr_restore` (the shared return path, the twin of riscv64's `trap_return`, which that list already
+carries) and `syscall::dispatch`. Excluded, because no syscall fetches them: the 256 IDT stubs
+(2,412 bytes), `isr_common`, and `x86_trap_dispatch` / `x86_trap_body` (918 bytes), which are the
+twins of the `riscv_trap_*` pair that riscv64's list *does* include. **x86_64's entry figure being
+the smallest of the three is that architectural fact and not a leaner decoder.** The per-symbol
+reasoning is in the script beside the `ENTRY` table, where the next person to add an ISA meets it.
+
+Nothing here is a cache result on x86_64 any more than on the other two; the framing in "What cannot
+be measured yet" below applies to all three equally.
 
 **Against the target above, we are over it.** The target is a fastpath under 4 KiB, an eighth of the
 U74's 32 KB L1i; `ipc_fastpath` alone is 5.6 KiB and the total with entry is 9.7. That is the gap
@@ -1225,6 +1258,16 @@ calling it IPC, and would have been quiet about a doubling of the real path.
 - **The riscv64 tail instruction is assumed to be 4 bytes.** That ISA mixes 2- and 4-byte
   instructions, so the last instruction of each symbol may be over-counted by two bytes. Conservative,
   and lost in the noise at this scale.
+- **The same 4 is a guess in both directions on x86_64**, whose instructions are 1 to 15 bytes, so it
+  is not strictly an upper bound there. Measured rather than assumed: summing exact symbol sizes
+  instead gives 6,619 against 6,639 for the closure and 1,632 against 1,637 for the entry set, a 0.3%
+  over-count, because the `int3` padding LLVM parks after most x86 functions is already counted and
+  roughly cancels the under-count on a symbol ending in a 5-byte tail `jmp`. A fifteenth of the 5%
+  tolerance, so the formula was left alone rather than made per-ISA.
+- **Conditional branches to another symbol are not followed on any ISA.** `b.ne`, `bne` and `jne` all
+  fail the call pattern. Checked on x86_64 rather than assumed: every conditional branch in the five
+  root symbols targets an offset inside its own symbol, so nothing is missed today, but a compiler
+  that started emitting a conditional tail call would drop that callee from the closure silently.
 - **The cold list is a judgement, and a wrong entry is silent.** If a symbol that an IPC really does
   reach ever matches the cold pattern, it drops out of the number with no warning. The list is in the
   script with a reason per family for exactly this reason.
