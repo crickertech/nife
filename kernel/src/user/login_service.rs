@@ -188,43 +188,56 @@ pub fn start(
         sched::create_thread_control_block(thread_control_block_region).expect("no tcb for login");
 
     // In `user/src/login.rs`'s own slot order: REQUEST, RESULT, VERIFY, FS_EP, FS_PAGE_FRAME,
-    // CONSTRUCTION_UT, AUDIT, TERM_EP. Each `assert_eq!` is that file's own doc read from the other
-    // side, the same discipline `authority_tests::spawn_tree` uses for `root_supervisor`.
-    let grants: [(&str, crate::cap::Cap); 8] = [
-        ("request", rendezvous_cap(request, Rights::READ)),
-        (
-            "result",
-            rendezvous_cap(result, Rights::WRITE.union(Rights::GRANT)),
-        ),
-        ("verify", rendezvous_cap(verify, Rights::WRITE)),
-        (
-            "fs_ep",
-            rendezvous_cap(fs_ep, Rights::WRITE.union(Rights::GRANT)),
-        ),
-        (
-            "fs_page_frame",
-            // GRANT as well as READ|WRITE: `user/src/login.rs` both maps this frame into every
-            // caretaker it builds (`MAP_INTO`, which only checks WRITE) and delegates it directly
-            // to every authenticated client (`SEND_CAP`, which needs GRANT on the capability being
-            // sent). The second use is why this differs from `credential_service.rs`'s own frames,
-            // which are never delegated onward.
-            page_frame_cap(
-                fs_page_frame,
-                Rights::READ.union(Rights::WRITE).union(Rights::GRANT),
-            ),
-        ),
-        ("construction", memory_region_root_cap(construction)),
-        ("audit", rendezvous_cap(audit, Rights::WRITE)),
-        (
-            "term_ep",
-            rendezvous_cap(term_ep, Rights::WRITE.union(Rights::GRANT)),
-        ),
-    ];
-    for (i, (name, cap)) in grants.into_iter().enumerate() {
+    // CONSTRUCTION_UT, AUDIT, TERM_EP. Each `assert_eq!` inside `grant_in_order` is that file's
+    // own doc read from the other side, the same discipline `authority_tests::spawn_tree` uses for
+    // `root_supervisor`.
+    //
+    // Granted one at a time rather than collected into a `[(&str, Cap); 8]` first: milestone 49's
+    // terminal update took that array to eight entries and `start`'s frame to 4288 bytes, over the
+    // 4096-byte guard page `script/stack-frame-check` gates against, because an unoptimised build
+    // materialises the whole table plus a temporary per element before the first insert ever runs.
+    // The array only ever existed to pair each name with its slot index, and the counter below
+    // pairs them just as tightly while nothing but one capability is ever live at once: 1632 bytes
+    // on aarch64, 1648 on riscv64, measured the same way the gate measures.
+    let mut next_slot = 0u64;
+    let mut grant_in_order = |name: &str, cap: crate::cap::Cap| {
         let slot = sched::thread_control_block_insert_cap(tid, cap, None)
             .unwrap_or_else(|_| panic!("insert {name}"));
-        assert_eq!(slot, i as u64, "login's {name} must land in slot {i}");
-    }
+        assert_eq!(
+            slot, next_slot,
+            "login's {name} must land in slot {next_slot}"
+        );
+        next_slot += 1;
+    };
+    grant_in_order("request", rendezvous_cap(request, Rights::READ));
+    grant_in_order(
+        "result",
+        rendezvous_cap(result, Rights::WRITE.union(Rights::GRANT)),
+    );
+    grant_in_order("verify", rendezvous_cap(verify, Rights::WRITE));
+    grant_in_order(
+        "fs_ep",
+        rendezvous_cap(fs_ep, Rights::WRITE.union(Rights::GRANT)),
+    );
+    grant_in_order(
+        "fs_page_frame",
+        // GRANT as well as READ|WRITE: `user/src/login.rs` both maps this frame into every
+        // caretaker it builds (`MAP_INTO`, which only checks WRITE) and delegates it directly
+        // to every authenticated client (`SEND_CAP`, which needs GRANT on the capability being
+        // sent). The second use is why this differs from `credential_service.rs`'s own frames,
+        // which are never delegated onward.
+        page_frame_cap(
+            fs_page_frame,
+            Rights::READ.union(Rights::WRITE).union(Rights::GRANT),
+        ),
+    );
+    grant_in_order("construction", memory_region_root_cap(construction));
+    grant_in_order("audit", rendezvous_cap(audit, Rights::WRITE));
+    grant_in_order(
+        "term_ep",
+        rendezvous_cap(term_ep, Rights::WRITE.union(Rights::GRANT)),
+    );
+    assert_eq!(next_slot, 8, "login must hold exactly eight capabilities");
 
     sched::configure_thread_control_block(tid, elf.entry(), USER_STACK_TOP, aspace)
         .expect("configure");
