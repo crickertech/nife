@@ -141,7 +141,14 @@ pub fn start() -> (Wiring, Holding) {
 // directly, not from a region this `Holding` knows about, so `release` does not reclaim them; a
 // released call still costs three page frames for the life of the boot. Same shape and same
 // judgment as `virtio_service`'s DMA page ("twenty page frames is not worth the hazard"): three
-// pages times six raw_mode_tests plus two rmle_tests call sites is eight tests' worth, already
-// inside `SUITE_PAGE_FRAME_BUDGET`'s headroom (`[that test kept N frames]` on this suite shows 31
-// or 33, not the ~112 that leaving the *threads* unreclaimed would have cost per call). Worth
-// fixing only if a future caller adds enough call sites to matter.
+// pages times six raw_mode_tests plus two rmle_tests call sites is eight tests' worth (`[that test
+// kept N frames]` on this suite shows 31 or 33, not the ~112 that leaving the *threads*
+// unreclaimed would have cost per call). Worth fixing only if a future caller adds enough call
+// sites to matter.
+//
+// Corrected 2026-08-28: an earlier version of this note said the residue was "already inside
+// `SUITE_PAGE_FRAME_BUDGET`'s headroom", and it was not. Measured on the merged tree, these eight
+// tests cost the suite +108 frames on aarch64 over the trunk they landed on, past a budget with 32
+// frames of margin, and that constant was raised to 22249 to account for them. The residue is
+// still a deliberate, recorded cost rather than a leak; what was wrong was the claim that somebody
+// else's margin would absorb it.
