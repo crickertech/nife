@@ -1971,6 +1971,22 @@ fn reclaim(region: u64) {
 
 /// How many times [`reclaim`] retries. Small, because the only resident it ever waits on is a
 /// caretaker that has already been woken and doomed, and one preemption is enough.
+///
+/// # BUGS
+///
+/// **One preemption is enough and sixty-four attempts do not reliably buy one**, which is a
+/// different claim from the one above and the measurement is not this crate's. `login_test_client`
+/// carried this exact loop, over the same refusal, and it was measured on 2026-08-27 (see that
+/// program's `destroy_with_retry` and notes/load-sensitive-assertions.md): a `yield_now` that finds
+/// work on this core returns in about 130 us, so sixty-four of them can elapse in 8 ms, where the
+/// preemption being waited for is a whole tick period (10 ms) away. Whether the count covers the
+/// tick is a scheduling outcome the host decides, and at roughly 2x oversubscription it stopped
+/// covering it in about one run in three. That client now waits on the property with a clock; this
+/// loop was left as it is, deliberately, because the two failures are not the same size: a test
+/// client that gives up early fails a run, and this gives up quietly and strands
+/// [`DIR_JOB_REGION_PAGES`] until the machine stops. **The failure has never been observed here**,
+/// and it would be invisible if it happened, which is the argument for a lane rather than for a
+/// number: this wants the same clock-bounded wait and a way to notice when it expires.
 const RECLAIM_ATTEMPTS: usize = 64;
 
 /// Carve `pages` off `ut` into a new child untyped we can delegate (milestone 31). The SPLIT grants
