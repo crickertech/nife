@@ -361,6 +361,20 @@ impl<O: Copy, const N: usize> CapabilityTable<O, N> {
         s.take().ok_or(Error::NoSuchSlot)?;
         Ok(())
     }
+
+    /// Delete every occupied slot whose object satisfies `matches`, in place. The revocation
+    /// sweeps' primitive (a whole-range reclamation visits every table in the system), so it walks
+    /// the storage directly instead of a `get`-then-`delete` per slot: `get` copies the capability
+    /// out and both halves re-run the bounds check, which a sweep over every slot of every thread
+    /// pays thousands of times per call. Behaviorally identical to that pair; `delete` is
+    /// `Option::take` with no slot reserved from it.
+    pub fn delete_matching(&mut self, matches: impl Fn(&O) -> bool) {
+        for s in self.slots.iter_mut() {
+            if matches!(s, Some(c) if matches(&c.object)) {
+                *s = None;
+            }
+        }
+    }
 }
 
 /// Machine-checked proofs of the capability model (DECISIONS §14, the verification thesis).
@@ -644,6 +658,49 @@ mod tests {
         for slot in 0..cs.len() as u64 {
             assert_eq!(cs.get(slot).err(), Some(Error::NoSuchSlot));
         }
+    }
+
+    /// `delete_matching` is `get`-then-`delete` over every slot, done in place: everything the
+    /// predicate matches goes, and **a non-matching neighbor survives untouched**, rights and all.
+    /// The second half is the property worth the test: a revocation sweep that took a bystander's
+    /// capability would be a denial of service wearing a security fix's clothes.
+    #[test]
+    fn delete_matching_takes_the_matched_and_spares_the_neighbor() {
+        let mut cs: CapabilityTable<Obj, 16> = CapabilityTable::new();
+        cs.put(
+            0,
+            Cap {
+                object: Obj::PageFrame(0x1000),
+                rights: Rights::READ,
+            },
+        )
+        .unwrap();
+        cs.put(
+            1,
+            Cap {
+                object: Obj::Console,
+                rights: Rights::WRITE,
+            },
+        )
+        .unwrap();
+        cs.put(
+            15,
+            Cap {
+                object: Obj::PageFrame(0x2000),
+                rights: Rights::ALL,
+            },
+        )
+        .unwrap();
+
+        cs.delete_matching(|o| matches!(o, Obj::PageFrame(_)));
+
+        // Both frames are gone, wherever they sat, including the last slot.
+        assert_eq!(cs.get(0).err(), Some(Error::NoSuchSlot));
+        assert_eq!(cs.get(15).err(), Some(Error::NoSuchSlot));
+        // The bystander keeps its object and its rights.
+        let survivor = cs.get(1).unwrap();
+        assert_eq!(survivor.object, Obj::Console);
+        assert_eq!(survivor.rights, Rights::WRITE);
     }
 
     /// You cannot fabricate a capability. There is nothing to guess.

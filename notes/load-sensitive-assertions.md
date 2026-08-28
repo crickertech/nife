@@ -1577,37 +1577,68 @@ block moves to BUILT.
   more runs, or a different host, would narrow it further, and nothing in this milestone's own
   acceptance standard asks for that: 45 was the number the first run set and this run matched it.
 
-## The caretaker teardown, 2026-08-27: the family's first member in userspace
+## The fifth round, 2026-08-27: caretaker teardown joins the family, observed rather than rescoped
 
-Every site above is kernel code. This one is a **user program**, and that turns out to matter more
-than "one more assertion" would suggest: every fix on this page reaches for `smp.rs`'s `wait_for` or
-`testing::TickBudget`, and a process can call neither.
+### `caretaker_teardown_reclaims_a_full_session_worth_of_memory` (`user/login_tests.rs`): fails at roughly 2x oversubscription, passes quiet, passes CI
 
-**The record correction first, because this lane was briefed from a section that is not in this
-file.** The brief quoted "The fifth round, 2026-08-27: caretaker teardown joins the family, observed
-rather than rescoped" as the newest section here and asked for the follow-up to it. There is no such
-section, on this branch or on `main`: the newest was the 2026-08-22 confirmation run above, and "the
-fifth round" is already spent on 2026-08-17. The observation was real and it was right; what it
-never got was a home, which is rung four of AGENTS.md's ladder behaving exactly as that file says it
-will. This section is the first time it is written where somebody could find it.
+Found by milestone 142's bench-regression lane while it was gating an unrelated change, and
+recorded here as an observation with its evidence; nothing has been rescoped and the mechanism is
+a hypothesis, not a verdict.
 
-One line about it was in the tree, in a place a reader meets by accident. `kernel/src/testing.rs`'s
-`SUITE_PAGE_FRAME_BUDGET` takes its number from CI rather than from this laptop because "this
-milestone's local host reproduces an unrelated, pre-existing flake in
+**The observation, three failing runs and two passing ones on the same tree.** With the aarch64
+suite sharing this host with a second lane's full suite (the harness's own load line read 14.5 to
+16.2 one-minute average on 8 cores, 1.9 to 2x oversubscribed), the test failed its
+`F_TEARDOWN_OK` assertion ("login N's logout ticket did not destroy the caretaker's construction
+region", `left: 0, right: 16`) on login 6, login 6 again, and, at a clean checkout of the branch
+head with no local changes at all, login 8. The same clean-head code passed the whole test in
+CI's own QEMU leg the same day, and passed locally, twice, the moment the competing suite
+finished (the passing run's load line: back under 1x by the QEMU phase). The failing iteration
+moving between 6 and 8 is the tell it shares with the rest of this file's family: the code path
+is fixed, the schedule is not.
+
+**The hypothesis, unverified.** `MemoryRegion::DESTROY` refuses a region that still holds a live
+thread, and `login_test_client`'s teardown role has a bounded patience for that refusal; a
+session-worth of threads takes longer to finish exiting on a 2x-oversubscribed host than that
+patience allows. That is the same shape as the reaper-count and address-space-frames verdicts
+above, which is why it is recorded in this note rather than in the test's own file. Whoever picks
+this up should start from those two sections' dispositions.
+
+**The three network checks fail in the same runs and recover in the same runs** (`inbound`,
+`multicast`, `smb`: connection refused or reset for the whole window), which is worth knowing so
+the cluster is read as one host-load event and not as four independent regressions.
+
+## The disposition, 2026-08-28: the teardown wait is a yield count, and now it is a clock
+
+The section above ends by saying nothing has been rescoped and the mechanism is a hypothesis rather
+than a verdict. This is the verdict. It is also the family's **first member in a user program**,
+which matters more than "one more assertion" would suggest: every fix on this page reaches for
+`smp.rs`'s `wait_for` or `testing::TickBudget`, and a process can call neither.
+
+**A correction this lane owes on its own account, because it got the record wrong in the other
+direction.** It was briefed from the section above and went looking for it here, found the newest
+section to be the 2026-08-22 confirmation run, checked `main` as well, and wrote a paragraph saying
+the observation had never been written down anywhere. That was false by about an hour:
+the observation was on `milestone/142-terminal-size`, and that branch merged
+(`ac41c827`, in PR #545) while this lane was running its loaded runs. Both halves are worth keeping.
+The claim was checked against `main` and was right when it was checked, which is the honest part;
+and it was still wrong, because **a branch is not a record** and this file says so about itself
+three sections up ("nobody reads branches", AGENTS.md). A lane cannot see another lane's branch, so
+"I checked and it is not in the tree" means "not yet", and the merge is what decides.
+
+The one trace that was on `main` the whole time is in a place a reader meets by accident:
+`kernel/src/testing.rs`'s `SUITE_PAGE_FRAME_BUDGET` takes its number from CI rather than from this
+laptop because "this milestone's local host reproduces an unrelated, pre-existing flake in
 `caretaker_teardown_reclaims_a_full_session_worth_of_memory` that does not occur in CI". A frame
 budget's comment is where that fact had been living.
 
-### The assertion, and the hypothesis it arrived with
+### The hypothesis held in outline and was wrong about the mechanism
 
-`kernel::user::login_tests::caretaker_teardown_reclaims_a_full_session_worth_of_memory` logs in ten
-times as `chris` and logs fully back out each time, and its `F_TEARDOWN_OK` assertion is the client
-saying `MemoryRegion::DESTROY` on the caretaker's construction region returned success. The
-hypothesis handed to this lane: `DESTROY` refuses a region that still holds a live thread, and the
-client's teardown role has a bounded patience for that refusal that a session's worth of threads can
-outrun under load.
-
-**It held in outline and it is wrong about the mechanism**, which is the part worth keeping. The
-patience is not too small for the number of threads. It is denominated in the wrong thing:
+The hypothesis above: `DESTROY` refuses a region that still holds a live thread, and the client's
+teardown role has a bounded patience for that refusal that a session's worth of threads can outrun
+under load. Reproduced on the first instrumented run, so the shape is confirmed. **The mechanism is
+not what the words say**, and that is the part worth keeping. The patience is not too small for the
+number of threads; there is only ever one thread in that region. It is denominated in the wrong
+thing:
 
 ```rust
 fn destroy_with_retry(ut: u64) -> bool {
@@ -1650,6 +1681,19 @@ of in the scheduler.
 
 The A/B below produced the cleaner version of the same fact in a single run: the old form gave up on
 logout 6 after **26.6 ms**, in a run where logout 3 had legitimately taken **39.3 ms** and passed.
+
+**That also answers the question the section above left hanging**, which is why the failing
+iteration wanders (login 6, login 6, login 8 there; login 3 and login 6 here). Nothing distinguishes
+one logout from another. Each one draws a fresh answer to "does this client's `yield_now` park or
+return", ten times per run, and a run goes red when any one of the ten draws badly. Ten draws is
+also why this test is where the family surfaced first: the other login tests log out once or not at
+all.
+
+**The three network checks failing together, which that section flags as one host-load event, is
+confirmed here** and is worth reading as a load gauge rather than as noise. `inbound`, `multicast`
+and `smb` are host-side checks that talk to the guest over forwarded ports, and they went red in
+exactly the loaded runs below (including runs whose kernel suite was entirely green), so a
+transcript with all three red is a transcript to read as "this host was saturated".
 
 ### The fix, and why its bound is the second-best unit
 

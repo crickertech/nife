@@ -154,6 +154,36 @@ pub fn record_mapping(phys: u64, root: u64, va: u64) -> bool {
     true
 }
 
+/// **Undo one [`record_mapping`]**: tombstone the record that `root` maps `phys` at `va`, without
+/// touching any other space's view of `phys`.
+///
+/// The counterpart the rollback paths needed and did not have. [`unmap_everywhere`] is the wrong
+/// tool for undoing a half-finished `PageFrame::MAP`, because it is space-blind by design: it pulls
+/// the physical page out of *every* address space that maps it, which for a shared frame would
+/// punish the peers for the mapper's failure. This removes exactly the one record the caller just
+/// wrote, and the caller unmaps exactly the one page it just mapped.
+///
+/// Silent when the space or the record is unknown, because both mean the same thing to a rollback:
+/// there is nothing left to undo.
+pub fn forget_mapping(phys: u64, root: u64, va: u64) {
+    let mut spaces = SPACES.lock();
+    let Some(space) = spaces.iter_mut().flatten().find(|s| s.root == root) else {
+        return;
+    };
+    let mut page_phys = space.head;
+    while page_phys != 0 {
+        // SAFETY: pages in the chain are the log's own; SPACES is held.
+        let page = unsafe { log_page(page_phys) };
+        for e in page.entries.iter_mut().take(page.used as usize) {
+            if e.phys == phys && e.va == va {
+                e.phys = 0; // tombstone: reusable by the next record, exactly as a revoke leaves it
+                return;
+            }
+        }
+        page_phys = page.next;
+    }
+}
+
 /// **One entry of what `root` has mapped, resuming from `cursor`** (`abi::address_space::LIST`,
 /// milestone 126's `pmap`, DECISIONS §114). `(0, 0)` means done, the same `abi::survey::DONE`
 /// convention `SURVEY` uses on the endpoint side: start with `cursor = 0`, feed each returned
@@ -258,15 +288,64 @@ fn unmap_everywhere(phys: u64, spare: u64) {
     }
 }
 
-/// **Revoke a page from everyone.** Delete every `PageFrame` capability to `phys` from every capability table,
-/// then unmap it from every address space. After this no capability names the page and no address
-/// space maps it, so it is safe to return to the allocator. Caps go **first**, so a `PageFrame::MAP`
-/// that starts after this cannot re-establish a mapping we would then miss. (The remaining window,
-/// an in-flight map on another core between the cap delete and the unmap, is the SMP race §13
-/// names; a full mapping-database lock is seL4's answer and this milestone's deferral.)
+/// **Revoke a single-page frame from everyone.** Delete every `PageFrame(phys, 1)` capability from
+/// every capability table, then unmap `phys` from every address space. Caps go **first**, so a
+/// `PageFrame::MAP` that starts after this cannot re-establish a mapping we would then miss. (The
+/// remaining window, an in-flight map on another core between the cap delete and the unmap, is the
+/// SMP race §13 names; a full mapping-database lock is seL4's answer and this milestone's
+/// deferral.)
+///
+/// **This is not "no capability names the page afterwards", and the earlier wording that said so
+/// was wrong from the day §102 landed.** The sweep is by exact object, so a `PageFrame(p, n)` run
+/// that merely *contains* `phys` survives it. That is harmless where this function is used (a
+/// driver taking one of its own kernel-minted pages back, the tests below) and would not be
+/// harmless on a reclamation path, which is why reclamation does not use it:
+/// [`revoke_region`] sweeps capabilities by overlap over the whole range instead.
+///
+/// The single-page case of [`revoke_page_frame_run`]. `PageFrame::REVOKE`'s own syscall path uses
+/// that one, because there the object being revoked really is the run named by the invoked
+/// capability.
+///
+/// **Test-only in a non-`initrd` build**, and it stopped being anything else when `revoke_region`
+/// took its own range sweep: its remaining callers are the two `#[cfg(all(test, initrd))]` suites
+/// that revoke a single kernel-minted page (`user::disk_tests`, `user::tests`) and the suite in
+/// this file. Kept rather than deleted because those are the tests that prove the property, and
+/// because it is what a caller wanting exactly one page should still reach for.
+#[cfg_attr(not(all(test, initrd)), allow(dead_code))]
 pub fn revoke_page_frame(phys: u64) {
-    crate::sched::delete_page_frame_caps(phys);
+    crate::sched::delete_page_frame_caps(phys, 1);
     unmap_everywhere(phys, 0);
+}
+
+/// **Revoke a run of `count` frames from everyone** (DECISIONS §102). Deletes every capability
+/// naming exactly the run `(phys, count)`, once, then unmaps each of the `count` physical pages from
+/// every address space that mapped it. This is `PageFrame::REVOKE`'s body: the capability being
+/// invoked names the whole run, so the whole run is what gets deleted and unmapped, in one syscall
+/// regardless of how many pages the run holds.
+///
+/// The two passes are not the same granularity on purpose. Capability deletion is one exact-object
+/// match against `(phys, count)`, because that is the one capability (and its narrowed derivatives)
+/// this invocation could possibly be revoking. Unmapping stays per-page, because the mapping
+/// database records one entry per mapped virtual page regardless of which capability produced it
+/// (`PageFrame::MAP` loops over the run and records each page individually); that granularity does
+/// not change here.
+///
+/// # BUGS
+///
+/// **A capability whose run overlaps this one is left holding authority over pages this call has
+/// just unmapped out from under it**, and the unmap half is space-blind besides: it removes the
+/// physical page from every address space that maps it, whoever mapped it and under whatever
+/// capability. Both halves are visible in the tree's own display wiring, where the driver holds
+/// `PageFrame(dma, 312)` and two clients hold `PageFrame(dma + 4096, 311)` over the same physical
+/// memory. Nothing reaches it today (no run capability in the tree carries `Rights::GRANT`, and
+/// `REVOKE` requires it), and nothing is reclaimed by `REVOKE`, so this is a sharing and
+/// confinement question rather than a use-after-free. It is written up rather than answered here:
+/// see design/decisions/132-overlapping-page-frame-runs.md, which is calef's call.
+pub fn revoke_page_frame_run(phys: u64, count: u64) {
+    crate::sched::delete_page_frame_caps(phys, count);
+    for k in 0..count {
+        unmap_everywhere(phys + k * page_frames::FRAME_SIZE, 0);
+    }
 }
 
 /// **Take a device's registers back from everyone else** (milestone 23, DECISIONS §41). Delete
@@ -293,15 +372,32 @@ pub fn revoke_device_from_others(phys: u64) {
     unmap_everywhere(phys, mmu::current_user_root());
 }
 
-/// Revoke every mapped page in `[base, base + size)`. `memory_region::destroy` calls this before
+/// Revoke every page in `[base, base + size)`. `memory_region::destroy` calls this before
 /// returning a region to the allocator, which is what turns the old "spend-only, never reused"
 /// invariant into the stronger "no live mapping survives" one that makes reuse actually safe.
 ///
-/// One page per pass: find a recorded page in range under the registry lock, release, revoke it
-/// (revoking takes the scheduler lock for the capability sweep, which ranks *above* this one, so
-/// it cannot be taken while the registry is held). Each pass tombstones every record of its page,
-/// so the scan strictly shrinks and terminates.
+/// **Two passes, at two granularities, and the split is the point.** The capability sweep is over
+/// the whole range **once**, up front, and it matches by overlap rather than by object equality
+/// ([`crate::sched::delete_page_frame_caps_overlapping`], which carries the reasoning). The unmap
+/// sweep stays per-page and mapping-log-driven, because the log is per-page and says nothing about
+/// which capability produced an entry.
+///
+/// Doing capabilities first, for the whole range, is the same ordering [`revoke_page_frame`]
+/// documents one function up, applied at range scale: a `PageFrame::MAP` that starts after the
+/// sweep has no capability left to map with, so it cannot re-establish a mapping the unmap pass
+/// would then miss.
+///
+/// It also fixes what the per-page version could not see. That version deleted capabilities one
+/// *mapped* page at a time, so a capability naming a page nobody had mapped was never a candidate:
+/// the log had no record to find it by. A range sweep does not consult the log, so a
+/// retyped-but-never-mapped frame in a destroyed region loses its capability too.
+///
+/// The unmap pass is one page per iteration: find a recorded page in range under the registry lock,
+/// release it, then unmap (unmapping retakes the registry lock, so it cannot be called while it is
+/// held). Each pass tombstones every record of its page, so the scan strictly shrinks and
+/// terminates.
 pub fn revoke_region(base: u64, size: u64) {
+    crate::sched::delete_page_frame_caps_overlapping(base, size);
     loop {
         let victim = {
             let spaces = SPACES.lock();
@@ -323,7 +419,10 @@ pub fn revoke_region(base: u64, size: u64) {
             found
         };
         match victim {
-            Some(phys) => revoke_page_frame(phys),
+            // Unmap only: the capability sweep above already covered the whole range, and calling
+            // `revoke_page_frame` here would re-run an exact-match sweep per page that by
+            // construction can no longer find anything.
+            Some(phys) => unmap_everywhere(phys, 0),
             None => break,
         }
     }
@@ -334,7 +433,134 @@ mod tests {
     use paging::Flags;
 
     use super::*;
+    use crate::cap::{Rights, page_frame_run_cap, page_frame_run_len};
     use crate::user::AddressSpace;
+
+    /// Three consecutive pages out of one region, or a skipped test if the region did not hand
+    /// them out contiguously. A region is a contiguous span and `retype_page` bumps through it, so
+    /// this holds; it is asserted rather than assumed because the run tests below are meaningless
+    /// if it ever stops holding.
+    fn three_in_a_row(region: u64) -> [u64; 3] {
+        let pages = [
+            crate::memory_region::retype_page(region).expect("retype 0"),
+            crate::memory_region::retype_page(region).expect("retype 1"),
+            crate::memory_region::retype_page(region).expect("retype 2"),
+        ];
+        assert_eq!(
+            pages[1],
+            pages[0] + page_frames::FRAME_SIZE,
+            "a region stopped retyping contiguously; a PageFrame run has no meaning without that",
+        );
+        assert_eq!(pages[2], pages[1] + page_frames::FRAME_SIZE);
+        pages
+    }
+
+    /// **A multi-page `REVOKE` unmaps every page of the run, in every address space, and deletes
+    /// the capability that named it** (DECISIONS §102, milestone 142).
+    ///
+    /// The property §102 asserted and nothing tested: before this, every revocation test drove the
+    /// `count: 1` path, so "the run" and "the page" were the same thing and a loop bound could have
+    /// been wrong in either direction without a failure. Two spaces hold different pages of one
+    /// three-page run at different virtual addresses, which is also what makes the space-blind
+    /// unmap visible: the run is revoked once and both spaces lose their page.
+    #[test_case]
+    fn revoking_a_run_unmaps_every_page_of_it_everywhere() {
+        let mut a = AddressSpace::new(2).expect("no space A");
+        let mut b = AddressSpace::new(2).expect("no space B");
+        let region = crate::memory_region::create(4).expect("no region");
+        let run = three_in_a_row(region);
+
+        // A maps the first two pages; B maps the third, at an unrelated VA. Nothing about the
+        // revocation may depend on where a holder put the run.
+        let (va_a, va_b) = (0x40_0000u64, 0x80_0000u64);
+        for (k, phys) in run[..2].iter().enumerate() {
+            let va = va_a + k as u64 * page_frames::FRAME_SIZE;
+            a.map_physical(va, *phys, Flags::user_data())
+                .expect("map A");
+            assert!(record_mapping(*phys, a.root(), va), "record A");
+        }
+        b.map_physical(va_b, run[2], Flags::user_rodata())
+            .expect("map B");
+        assert!(record_mapping(run[2], b.root(), va_b), "record B");
+
+        let slot = crate::sched::grant(page_frame_run_cap(
+            run[0],
+            page_frame_run_len(3),
+            Rights::ALL,
+        ))
+        .expect("grant the run");
+
+        revoke_page_frame_run(run[0], 3);
+
+        for k in 0..2u64 {
+            assert!(
+                mmu::translate_at(a.root(), va_a + k * page_frames::FRAME_SIZE).is_none(),
+                "page {k} of the run survived the revoke in A",
+            );
+        }
+        assert!(
+            mmu::translate_at(b.root(), va_b).is_none(),
+            "the run's last page survived the revoke in B",
+        );
+        assert!(
+            crate::sched::current_cap(slot).is_err(),
+            "REVOKE left the capability that named the run in the revoker's own table",
+        );
+
+        crate::memory_region::destroy(region);
+    }
+
+    /// **Destroying a region deletes a run capability naming its pages, so the reclaimed memory is
+    /// not nameable** (milestone 142's review, CRITICAL 1).
+    ///
+    /// The regression this exists for: reclamation used to delete capabilities by *exact object*,
+    /// one mapped page at a time, and `PageFrame(base, 3)` is equal to no `PageFrame(p, 1)` for any
+    /// `p`. So a holder kept a live capability over pages that had gone back to the allocator and
+    /// could re-map them read/write once they had been handed out again as a page table or another
+    /// process's stack: §13's use-after-free, straight through the door `MemoryRegion::DESTROY`
+    /// exists to shut.
+    ///
+    /// Two capabilities, because the two halves failed for different reasons. The run is the
+    /// widening's own hole. The single unmapped page is the older one the same fix closes: it was
+    /// never mapped, so the mapping log had no record to find it by and the per-page sweep never
+    /// looked at it at all.
+    #[test_case]
+    fn destroying_a_region_deletes_every_capability_naming_it() {
+        let mut space = AddressSpace::new(2).expect("no space");
+        let region = crate::memory_region::create(4).expect("no region");
+        let run = three_in_a_row(region);
+        let unmapped = crate::memory_region::retype_page(region).expect("retype 3");
+
+        let va = 0x40_0000u64;
+        space
+            .map_physical(va, run[0], Flags::user_data())
+            .expect("map");
+        assert!(record_mapping(run[0], space.root(), va), "record");
+
+        let run_slot = crate::sched::grant(page_frame_run_cap(
+            run[0],
+            page_frame_run_len(3),
+            Rights::ALL,
+        ))
+        .expect("grant the run");
+        let lone_slot = crate::sched::grant(crate::cap::page_frame_cap(unmapped, Rights::ALL))
+            .expect("grant the unmapped page");
+
+        crate::memory_region::destroy(region);
+
+        assert!(
+            crate::sched::current_cap(run_slot).is_err(),
+            "a run capability outlived the reclamation of the pages it names: §13's use-after-free",
+        );
+        assert!(
+            crate::sched::current_cap(lone_slot).is_err(),
+            "a capability to a never-mapped page outlived its region: the mapping log cannot see it",
+        );
+        assert!(
+            mmu::translate_at(space.root(), va).is_none(),
+            "destroy reclaimed a page a live address space still maps",
+        );
+    }
 
     /// **Revocation unmaps a shared page from every address space that held it.** Two address
     /// spaces map one physical page; after `revoke_page_frame` neither maps it. This is the property
