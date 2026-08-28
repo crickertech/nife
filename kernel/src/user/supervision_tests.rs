@@ -101,10 +101,24 @@ pub(super) fn build_child_in(
         }
     }
     sync_icache(mmu::phys_to_virt(code_phys), core::mem::size_of_val(stub));
-    user_address_space_map(aspace, CODE_VA, code_phys, Flags::user_code()).expect("map code");
+    user_address_space_map(
+        aspace,
+        CODE_VA,
+        code_phys,
+        Flags::user_code(),
+        crate::revoke::PageMapSource::NoCapability,
+    )
+    .expect("map code");
 
     let stack_phys = crate::memory_region::retype_page(region).expect("no stack frame");
-    user_address_space_map(aspace, STACK_VA, stack_phys, Flags::user_data()).expect("map stack");
+    user_address_space_map(
+        aspace,
+        STACK_VA,
+        stack_phys,
+        Flags::user_data(),
+        crate::revoke::PageMapSource::NoCapability,
+    )
+    .expect("map stack");
 
     let tid = sched::create_thread_control_block(region).expect("no tcb");
     if let Some(rep) = report {
