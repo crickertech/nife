@@ -12,23 +12,23 @@ already holds every mechanism it proposes, and every part of it is reversible.
 
 `script/stack-frame-check` gated `arches="aarch64 riscv64"` ten days after x86_64 became a
 `script/test` target, and its `BUGS` section, which honestly recorded four other limitations, did
-not record that one. The sweep asked how many siblings that line has: **ten silent gaps in eight
+not record that one. The sweep asked how many siblings that line has: **eleven silent gaps in nine
 files**, beside nine recorded gaps that are working as designed and about fifteen things that are
-legitimately one architecture's. Rule 5 and §19 (architectural parity is a tenet) make the ten
+legitimately one architecture's. Rule 5 and §19 (architectural parity is a tenet) make those
 bugs; the other twenty-four are not, and the sweep's value is in that split.
 
 **The pattern is the actual result.** Everything in the tree that stayed complete at three
 architectures is either a Rust `match` the compiler pushed on (`kernel/build.rs`'s `panic!` default
 arm, `crates/elf`'s `EXPECTED_MACHINE`, `xtask`'s `ArchLegs`) or a per-architecture file whose
 absence a build notices. Everything that went stale is a space-separated string in a shell script, a
-YAML step, a TOML array, or a sentence in a note. Nine of the ten silent gaps are in that second
-group and the tenth is a `#[cfg]` pair with no `else`.
+YAML step, a TOML array, or a sentence in a note. Ten of the eleven silent gaps are in that second
+group and the eleventh is a `#[cfg]` pair with no `else`.
 
 ## What "done" means
 
-1. Every one of the sweep's ten silent gaps is either closed or converted into a recorded gap with
+1. Every one of the sweep's eleven silent gaps is either closed or converted into a recorded gap with
    a reason and a trigger, in the shape `script/lint`'s x86_64 block already uses. **A recorded gap
-   is a legitimate outcome**, per rule 5, and forcing all ten to close would be the wrong reading of
+   is a legitimate outcome**, per rule 5, and forcing all eleven to close would be the wrong reading of
    this milestone.
 2. The arch-to-triple table has **one** authority that the shell scripts read, rather than the
    four copies it has today.
@@ -41,7 +41,7 @@ group and the tenth is a `#[cfg]` pair with no `else`.
 architecture runs a check that has never run there, and a check that has never run may have real
 offenders. It already does: `script/stack-frame-check --arch x86_64` surfaced
 `kernel::arch::x86_64::iommu::init` at **12,504 bytes** against a 4,096-byte guard page, found by
-the lane on pull request #567 the same night. A milestone that lands ten widenings in one commit
+the lane on pull request #567 the same night. A milestone that lands eleven widenings in one commit
 turns `main` red for a reason unrelated to whoever pushed, and leaves the next reader unable to tell
 which widening did it. Milestone 96's loader commit is the precedent: separateness is the argument.
 
@@ -96,10 +96,17 @@ a fourth architecture arrives.
 - `script/bench`'s `EXAMPLES`, which names one architecture of three and does not mention `--riscv`,
   which CI runs on every pull request. Documentation, so it cannot fail a gate, but it is the
   FreeBSD standard's own test and it belongs with the leg it documents.
+- `script/fastpath-footprint`, whose `arches` is still `aarch64 riscv64` and which has no x86
+  mention at all. Not a one-word widening either: it needs `bench/fastpath-x86_64.txt` and
+  `kernel/src/arch/x86_64/fastpath_pad.rs`, neither of which exists, plus an x86_64 row in its
+  `ROOTS` table.
 
-`script/stack-frame-check` and `script/fastpath-footprint` are the same shape and were held by
-pull request #567 while the sweep ran. Whoever takes this checks their state first rather than
-assuming.
+**`script/stack-frame-check` is already done and is the model for this phase.** Pull request #567
+widened it, ran it, found `iommu::init`'s 12,504-byte frame, and then held x86_64 out of the
+*default* set while making it reachable through `--arch`, with a `BUGS` entry recording what was
+found and saying that dispositioning the offender is not that gate's call. `main` stayed green by
+naming the finding rather than by not looking. Every phase-3 item should end that way, and the
+offender it names becomes somebody else's lane.
 
 ## What this milestone does not cover
 

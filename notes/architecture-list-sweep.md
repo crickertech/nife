@@ -18,10 +18,16 @@ prompted the sweep, it is the count of its siblings.
 
 ## The short answer
 
-**Ten silent gaps**, in eight files. Six are lists that were correct when written and were never
+**Eleven silent gaps**, in nine files. Seven are lists that were correct when written and were never
 widened; two are content (an audit's scope, a script's `EXAMPLES`) rather than lists; one is a
-class of five `#[cfg]` pairs whose failure mode is a silently empty function rather than a missing
+class of four `#[cfg]` pairs whose failure mode is a silently empty function rather than a missing
 entry; one is a tripwire that exists, is committed, and is not armed.
+
+Findings 1 through 10 are the sweep as it was first run. Finding 11 was added when the lane holding
+`script/fastpath-footprint` turned out to have assessed and not changed it, so it stopped being
+somebody else's and became one more of these. The prompting instance, `script/stack-frame-check`,
+is deliberately **not** in the table: another lane converted it into a recorded gap the same night,
+and that conversion is described below because it is the model for how the rest should end.
 
 **Nine recorded gaps**, which rule 5 explicitly allows and which are working as designed. They are
 listed below so a later reader does not re-derive them as findings. `script/lint`'s x86_64 block is
@@ -64,7 +70,8 @@ has to redo the judgment.
 | 7 | `script/bench:5` | the header's `EXAMPLES`, which names only `bench/baseline-aarch64.txt` | `--riscv` and `--x86` | CI runs `--riscv` and the script's own documentation does not mention it exists. Two of three architectures are undiscoverable from the front door. |
 | 8 | `notes/arch-audit.md:41` | "Everything under `kernel/src/arch/`, read in full, both ISAs", and a two-column table | x86_64 | The note contains zero occurrences of "x86". `kernel/src/arch/x86_64/` is 18 files and 6,797 lines, which is **larger than the 6,200-line two-ISA tree that audit read in full**. The audit's own argument is that hand-written arch assembly is the least-verified code in the trusted computing base; a third of it is now unread. |
 | 9 | `crates/virtio/src/lib.rs` `barrier`, `user/src/display.rs` `barrier`, `user/src/kbd.rs` `barrier`, `user/src/net_transport.rs` `barrier` | two `#[cfg(target_arch)]` arms with no third arm and no fallback | x86_64 | All four compile for x86_64 (`initrd_x86` builds `-p user` for the target; `script/lint` clippies `-p user -p user_rt --target x86_64-unknown-none --all-targets -- -D warnings` and passes). On x86_64 both arms compile out and the function body is empty, so it emits no compiler fence at all. TSO covers the machine half and nothing covers the compiler half. |
-| 10 | `user/src/pgrep.rs`, its `#[panic_handler]` | the same two-arm shape, for a deliberate trap (`brk #0` / `ebreak`) | x86_64 | On x86_64 neither arm compiles, control reaches the spin loop, and a panic becomes a thread burning CPU forever instead of the kill the comment above it promises. `pgrep` is the **only** program in `user/` with a hand-written panic handler of this shape; every other one goes through `crates/user_rt`, whose arms cover all three ISAs. |
+| 10 | `user/src/pgrep.rs`, its `#[panic_handler]` | the same two-arm shape, for a deliberate trap (`brk #0` / `ebreak`) | x86_64 | On x86_64 neither arm compiles, control reaches the spin loop, and a panic becomes a thread burning CPU forever instead of the kill the comment above it promises. `pgrep` is the **only** program in `user/` with a hand-written panic handler of this shape; every other one goes through `crates/user_rt`, whose arms cover all three ISAs. **Fixed on this branch**, since it is a live defect rather than a coverage gap. |
+| 11 | `script/fastpath-footprint`, its `arches` and its `ROOTS` table | `arches="aarch64 riscv64"` plus a two-key `ROOTS` dict | x86_64 | The file has no occurrence of "x86" at all. The IPC fastpath is exactly the kind of thing §19 says must not fit on one ISA and silently not another. Not a one-word widening: it needs `bench/fastpath-x86_64.txt` and `kernel/src/arch/x86_64/fastpath_pad.rs`, neither of which exists, plus an x86_64 `ROOTS` row. |
 
 ### The one to read first, because it names its own trap
 
@@ -96,14 +103,35 @@ reasons: `script/drift` and `script/toolchain-bump` both add targets to a **diff
 than the pin, where the file's array does not apply; and a list that is wrong and harmless today is
 the exact shape of `script/stack-frame-check` on 2026-08-24.
 
-### Already claimed by another lane, cross-referenced rather than duplicated
+### The two that were another lane's while this ran, and how they ended differently
 
-`script/stack-frame-check:59` and `script/fastpath-footprint:54` are the same shape as finding 1 and
-are held by the lane on pull request #567. Not touched here. The footprint one has two absent
-companions worth naming for whoever takes it: `bench/fastpath-x86_64.txt` and
+Both are the same shape as finding 1 and both were held by the lane on pull request #567 while this
+sweep ran. That pull request landed 2026-08-27, and it settled one of them and not the other, which
+is worth recording because the split is instructive.
+
+**`script/stack-frame-check` is now a recorded gap**, and is the best example in the tree of the
+conversion this note keeps asking for. The lane widened it to accept `--arch x86_64`, ran it, and
+**found a real offender the first time**: `kernel::arch::x86_64::iommu::init` at 12,504 bytes
+against a 4,096-byte ceiling, from an `Iommu { ctx: [Option<u64>; 256], .. }`, which is the same
+"`[T; MAX]` local sized to a table maximum" shape that gate's own first `BUGS` entry describes. So
+x86_64 is reachable but deliberately out of the default set, with a `BUGS` entry saying so, saying
+what was found, and saying that whether to fix the offender or except it is not that gate's call.
+`main` stays green by naming the finding rather than by not looking. That is exactly the phase-3
+outcome milestone 186 plans for, arrived at a day early.
+
+**`script/fastpath-footprint` was assessed and left alone**, and it is still
+`arches="aarch64 riscv64"` with **no x86 mention anywhere in the file**. So it is not a claimed item
+any more; it is finding 11, unclaimed, and it is recorded in its own `BUGS` on this branch. It has
+two absent companions worth naming for whoever takes it: `bench/fastpath-x86_64.txt` and
 `kernel/src/arch/x86_64/fastpath_pad.rs` do not exist, where both other architectures have both.
-The baseline set diverged: `bench/baseline-<arch>.txt` is complete at three and
+The two tripwire file sets diverged: `bench/baseline-<arch>.txt` is complete at three and
 `bench/fastpath-<arch>.txt` is at two.
+
+**The ten-versus-eleven count.** The table above is the sweep as it was run, when
+`script/stack-frame-check` was the prompting instance and `script/fastpath-footprint` was somebody
+else's. Read forward from today it is eleven silent gaps, one of which (`stack-frame-check`) was
+converted to a recorded gap by another lane before this note landed. The table is not renumbered,
+because an inventory records what the sweep found rather than what survived it.
 
 `.github/workflows/ci.yml` installs two bare-metal targets for each of those two jobs, under a
 comment that reads "Both bare-metal targets, because this gates both (§19 parity: a frame that fits
@@ -164,7 +192,7 @@ These are worth more than the findings, because each one is a shape that did not
 **The pattern.** Everything that stayed complete is either a Rust `match` the compiler pushed on,
 or a per-architecture file whose absence a build notices. Everything that went stale is a
 space-separated string in a shell script, a YAML step, a TOML array, or a sentence in a note.
-Nine of the ten silent gaps are in the second group and the tenth is a `#[cfg]` pair with no `else`.
+Ten of the eleven silent gaps are in the second group and the eleventh is a `#[cfg]` pair with no `else`.
 
 ### One hazard that is not a finding today
 
@@ -224,7 +252,7 @@ outside this repository has acted on it.
 doc records the bug it was created by: two variants, predicates written as `self != the_other_one`,
 and every leg answering `true` once there was a third. `crates/elf`'s `EXPECTED_MACHINE` is the
 same correction in the same week. **Its reach is the problem**: no shell script, YAML step, or TOML
-array can see a Rust enum, and eight of the ten silent gaps live in exactly those three languages.
+array can see a Rust enum, and nine of the eleven silent gaps live in exactly those three languages.
 So B is already taken where it applies and cannot apply where the gaps are.
 
 **Where it extends, and this is the half worth building.** Findings 9 and 10 are five `#[cfg]`
@@ -306,7 +334,7 @@ a build system, a CI matrix, and a package manifest, since that is the general f
 
 ## Where the work went
 
-Closing the ten silent gaps is a real body of work rather than a sed. Finding 1 needs an x86_64
+Closing the eleven silent gaps is a real body of work rather than a sed. Finding 1 needs an x86_64
 trap-frame size and dispatch symbol names; finding 6 needs a CI leg that may find real drift the
 first time it runs; finding 8 is an audit. It is **milestone 186 (derive the architecture list, and
 close what it does not reach)**, minted on calef's question against this sweep, and **this note is

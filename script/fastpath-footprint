@@ -46,6 +46,23 @@
 # from the built kernel, compare it against a rule, fail the build. That gate exists because
 # `sched::reap_region_objects` grew a 6816-byte frame that compiled without a warning and was found
 # only when CI faulted one run in five. A hot-path footprint has the same shape: it grows silently.
+#
+# BUGS
+#
+#   - **It gates two of the three supported architectures.** `arches` below is `aarch64 riscv64`
+#     and the `case` exits 2 on anything else, so x86_64's IPC fastpath is unmeasured. That is an
+#     omission rather than a decision: x86_64 became a `script/test` target on 2026-08-24
+#     (milestone 161 item 4) and nobody widened this list. The sibling gate this file copies its
+#     shape from settled the same gap on 2026-08-27 (see `script/stack-frame-check`'s own BUGS,
+#     which makes x86_64 reachable via `--arch` while holding it out of the default set until a
+#     found offender is dispositioned), and that is the shape to follow here.
+#   - **Closing it needs two files that do not exist**, so it is not a one-word widening:
+#     `bench/fastpath-x86_64.txt` (the baseline, where both other architectures have one) and
+#     `kernel/src/arch/x86_64/fastpath_pad.rs` (which `--features fastpath_pad` needs). The two
+#     tripwire file sets diverged along the way: `bench/baseline-<arch>.txt` is complete at three
+#     and `bench/fastpath-<arch>.txt` is at two. The `ROOTS` table below also needs an x86_64 row,
+#     naming that ISA's trap-entry and dispatch symbols.
+#   - See notes/architecture-list-sweep.md, finding 11, and milestone 186, which owns this.
 
 set -e
 cd "$(dirname "$0")/.."
