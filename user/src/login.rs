@@ -5,11 +5,11 @@
 //! and the thing this system refuses to have. This process authenticates a presented identity
 //! against the credential service milestone 56 already built, and on success hands back **a
 //! capability set** instead: a fresh directory, a fresh budget, a **logout ticket** (see "Reclaiming
-//! a session" below), and (see this program's BUGS) not yet a terminal. It is the powerbox pattern
-//! with the human at one end, answering the question milestone 49's own doc named and left open: who
-//! gets which capabilities at startup, which used to be a fact baked into
-//! `crates/system_initializer` at build time and is, for the one login path this program serves, a
-//! fact decided here at run time instead.
+//! a session" below), and, when it is available, **the terminal** (see "The terminal:
+//! single-session, deny cleanly" below). It is the powerbox pattern with the human at one end,
+//! answering the question milestone 49's own doc named and left open: who gets which capabilities
+//! at startup, which used to be a fact baked into `crates/system_initializer` at build time and is,
+//! for the one login path this program serves, a fact decided here at run time instead.
 //!
 //! # What "produces capabilities" means, concretely
 //!
@@ -132,12 +132,57 @@
 //! ever split from `CONSTRUCTION_UT` between one login's two capabilities) but does not generalize to
 //! reclaiming two different logins' memory out of the order they were minted in.
 //!
+//! # The terminal: single-session, deny cleanly
+//!
+//! Resolved 2026-08-27, executing the recommendation
+//! `design/roadmap/49-users-and-attribution.md`'s own BUGS already recorded rather than deciding it
+//! fresh here. Milestone 49's own text names three things a login hands back (a directory, a
+//! budget, a terminal); this program used to hand back two. The reason "hand one back" was ever a
+//! real design question rather than an unbuilt feature: a terminal in this system is a singleton
+//! hardware-backed resource, wired once at interactive boot (`crates/system_initializer::boot`), so
+//! handing it to a login-authenticated principal has to say what a *second* concurrent login gets
+//! told, which naming a fourth capability slot does not answer by itself.
+//!
+//! **The shape built is the narrow one, matching what this boot actually is**: one interactive
+//! boot, one physical terminal, one session live at a time. [`TERM_EP`] arrives from
+//! `crates/system_initializer::boot` exactly like [`FS_EP`] does (a capability this process holds
+//! for its whole life, never `cap_delete`d, delegated fresh to whichever session currently
+//! qualifies). `_start`'s own `terminal_held: bool`, `false` at start-up, is the whole of the
+//! state this needs:
+//!
+//! - A login is refused [`login_proto::NO_TERMINAL`], **before** its identity and secret are even
+//!   relayed to the credential service, whenever `terminal_held` is already `true`. See
+//!   [`serve_login`]'s own comment for why the check runs first rather than after authentication.
+//! - The first login to arrive while `terminal_held` is `false` receives [`TERM_EP`] as its fifth
+//!   delegated capability (`WRITE`, the same right the interactive boot's shell already holds on
+//!   it), and `terminal_held` becomes `true`.
+//! - [`login_proto::LOGOUT`], a bare word on the *front door* (not a private channel: it carries no
+//!   secret, so there is nothing a shared endpoint exposes by handling it directly), sets
+//!   `terminal_held` back to `false` and answers [`login_proto::LOGGED_OUT`]. The next login to
+//!   arrive after that may receive the terminal again.
+//!
+//! **What this does not build, named rather than assumed away.** `LOGOUT` authenticates nothing (a
+//! deliberate choice for today's actual deployment, one interactive boot with no untrusted co-tenant
+//! reaching the front door; see `login_proto`'s own BUGS for the real interruption hazard a hostile
+//! holder of [`REQUEST`] would pose in a different deployment). There is no liveness check on
+//! whoever currently holds the terminal: a session that exits, crashes, or simply never calls
+//! `LOGOUT` leaves `terminal_held` stuck `true` for the rest of this process's life, indistinguishable
+//! from a session genuinely still in use, because this process has no wait-any primitive with which
+//! to watch a client and keep serving new connections at the same time (the same structural bound
+//! `notes/hung-component.md` names elsewhere in this tree). Recovering from an abandoned session
+//! today means restarting this process. This is explicitly **not** the "real multiplexing" shape
+//! (more than one live session, each with its own view, composed the way the compositor composes
+//! windows): the roadmap's own BUGS entry recommends against building that now, because the
+//! single-session boot this program actually serves does not need it, and choosing the narrow shape
+//! here commits to nothing the wider one would later have to unwind.
+//!
 //! # Capability contract
 //!
 //! - slot [`REQUEST`]: `RECV`. The front door. A client sends exactly one
-//!   [`login_proto::connect_word`] here, ever; the actual [`login_proto::LOGIN`] request travels on
-//!   the private endpoint [`connect`] delegates in answer (see "Two phases" above and
-//!   `login_proto`'s own module docs). No page is read for this step.
+//!   [`login_proto::connect_word`] here, ever, or exactly one [`login_proto::logout_word`], any
+//!   number of times; the actual [`login_proto::LOGIN`] request travels on the private endpoint
+//!   [`connect`] delegates in answer (see "Two phases" above and `login_proto`'s own module docs).
+//!   No page is read for either front-door word.
 //! - slot [`RESULT`]: `WRITE | GRANT`. [`login_proto::CONNECTED`], followed by three delegated
 //!   capabilities: a private request endpoint (`WRITE`), a private result endpoint (`READ`), and a
 //!   staging page (`READ | WRITE`). This process keeps its own copies of all three (the "delegate,
@@ -149,9 +194,11 @@
 //!   before any client of the credential service exists (`user/src/credentialer.rs`).
 //! - slot [`FS_EP`]: `WRITE | GRANT` on the file service's root directory capability. What every
 //!   minted caretaker attenuates.
-//! - slot [`FS_PAGE_FRAME`]: a `PageFrame`, `READ | WRITE`, the page the file service shares with its
-//!   clients. Delegated on to each authenticated principal (see the module docs on why one frame
-//!   serves every hop).
+//! - slot [`FS_PAGE_FRAME`]: a `PageFrame`, `WRITE` (resolved, milestone 49's boot-wiring update: not
+//!   `READ | WRITE` -- see [`serve_login`]'s own comment on why `WRITE` alone already produces a
+//!   fully read+write mapping for every holder, and why a real boot could not have delegated `READ`
+//!   here regardless). The page the file service shares with its clients. Delegated on to each
+//!   authenticated principal (see the module docs on why one frame serves every hop).
 //! - slot [`CONSTRUCTION_UT`]: `WRITE | GRANT`. Everything a connecting client's own private channel,
 //!   a caretaker, and a client budget are all built from. Never given away, unlike
 //!   `root_supervisor`'s: this process keeps serving logins for its whole life, so unlike an init
@@ -159,7 +206,13 @@
 //! - slot [`AUDIT`]: `WRITE`. One [`login_proto::ATTRIBUTED`] message per successful login, so the
 //!   property DECISIONS §109 names (a server logging which channel it just established, and for
 //!   whom) is checkable rather than merely claimed. See this program's BUGS on the scope of what
-//!   this endpoint proves.
+//!   this endpoint proves. **Must be drained by something**, or the first successful login blocks
+//!   this process forever on this `send` (a plain rendezvous `SEND` queues until a receiver
+//!   arrives): `crates/system_initializer::boot` wires a dedicated `audit_sink` for exactly this
+//!   reason at real boot, and the kernel test harness's own `Wiring::audit` is what the guest test
+//!   suite drains it with.
+//! - slot [`TERM_EP`]: `WRITE | GRANT` on the interactive terminal `crates/system_initializer::boot`
+//!   already wires. See "The terminal: single-session, deny cleanly" above.
 //! - mapped [`CRED_VA`]: the page shared with the credential service, for the relayed `VERIFY`.
 //! - mapped [`user_rt::initrd::INITRD_VA`]: the archive, read-only, so this process can find
 //!   `fs_subtree_caretaker`'s own bytes and [`measured_boot::PROGRAM_MEASUREMENTS`], the exact way
@@ -259,18 +312,15 @@
 //! with exactly one spender, so a channel region is always its only live child and always comes home
 //! whole. See that constant's own doc.
 //!
-//! **No terminal, and this was investigated rather than left as a placeholder** (2026-08-26). The
-//! roadmap's own text names three things a login hands back: a root directory, a budget, a terminal.
-//! This program hands back the first two. A terminal in this system is a singleton hardware-backed
-//! resource wired once at interactive boot (`crates/system_initializer::boot`), which is exactly
-//! what makes "hand one back" underspecified rather than merely unbuilt: the narrow, single-login
-//! case (one interactive boot, one terminal, one session live at a time) has a real, cheap answer
-//! (the terminal `boot` already wired, delegated to whichever session is live, because there is only
-//! ever one); what has no answer yet is what a *second* concurrent login should be told, or what a
-//! real multiplexing primitive would need to look like, and guessing at either is exactly the kind
-//! of capability-shaped decision this tree reserves for calef rather than a lane. See
-//! `design/roadmap/49-users-and-attribution.md`'s own BUGS for the proposal, options and
-//! recommendation, written up rather than built past.
+//! **Resolved, 2026-08-27 (executing `design/roadmap/49-users-and-attribution.md`'s own recorded
+//! recommendation).** The roadmap's own text names three things a login hands back: a root
+//! directory, a budget, a terminal. This program now hands back all three, in the single-session,
+//! deny-cleanly shape that recommendation named: see "The terminal: single-session, deny cleanly"
+//! above for the design, [`TERM_EP`] for the capability, and [`login_proto::NO_TERMINAL`] /
+//! [`login_proto::LOGOUT`] for the wire contract. What that recommendation explicitly declined to
+//! build (a real multiplexing primitive, more than one live session with its own view) remains
+//! undecided and unbuilt, on purpose; see the same section for why choosing the narrow shape now
+//! commits to nothing the wider one would later have to unwind.
 //!
 //! **Resolved, 2026-08-23 (DECISIONS §117).** Every successful login used to be attenuated to the
 //! same fixed subtree, with the same rights, for every identity. It is now attenuated to a subtree
@@ -513,6 +563,14 @@ const FS_PAGE_FRAME: u64 = 4;
 const CONSTRUCTION_UT: u64 = 5;
 /// One [`login_proto::ATTRIBUTED`] message per successful login, `WRITE`.
 const AUDIT: u64 = 6;
+/// **The interactive terminal** (milestone 49's terminal update), `WRITE | GRANT`. The same
+/// endpoint `crates/system_initializer::boot` already hands the shell, `WRITE` only: this process
+/// never reads a keystroke or writes a line itself, it only ever hands a narrowed `WRITE` copy on to
+/// whichever session currently holds it (see `_start`'s own `terminal_held` flag and this program's
+/// module docs, "The terminal: single-session, deny cleanly"). `GRANT` is what lets [`delegate`]
+/// narrow and re-delegate it at all; absent that right the capability could be held but never handed
+/// on.
+const TERM_EP: u64 = 7;
 
 /// The page shared with the credential service, for the relayed `VERIFY`.
 const CRED_VA: u64 = 0x0000_0000_00e3_0000;
@@ -655,11 +713,27 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
     // How many channels this process has minted, in order: [`connect`]'s own bump allocator for a
     // fresh scratch VA per channel (see `CONNECT_VA_BASE`'s own doc on why a VA is never reused).
     let mut connect_seq: u64 = 0;
+    // **Whether [`TERM_EP`] is currently on loan to a session** (milestone 49's terminal update).
+    // `false` at start-up: nobody has logged in yet, so the terminal is free. See this program's
+    // module docs, "The terminal: single-session, deny cleanly", for the whole design and this
+    // program's BUGS for what freeing it does and does not guarantee.
+    let mut terminal_held = false;
 
     loop {
         let (w0, _w1, _w2) = recv(REQUEST);
-        if login_proto::op(w0) != login_proto::CONNECT {
-            // The front door's only legal word; see `login_proto`'s own module docs. Not an
+        let op = login_proto::op(w0);
+        if op == login_proto::LOGOUT {
+            // **Travels on the front door itself**, unlike an actual login: it carries no secret,
+            // so there is nothing a shared endpoint would expose by handling it here directly (see
+            // `login_proto`'s own BUGS on what this does and does not authenticate). Idempotent: a
+            // logout that arrives when nobody holds the terminal simply finds `terminal_held`
+            // already `false`.
+            terminal_held = false;
+            send(RESULT, login_proto::LOGGED_OUT, 0, 0);
+            continue;
+        }
+        if op != login_proto::CONNECT {
+            // The front door's only other legal word; see `login_proto`'s own module docs. Not an
             // authentication outcome (no identity has been presented yet), so `MALFORMED` rather
             // than `DENIED`.
             send(RESULT, login_proto::MALFORMED, 0, 0);
@@ -682,7 +756,13 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
         delegate(RESULT, channel.result, abi::rights::READ);
         delegate(RESULT, channel.page, abi::rights::READ | abi::rights::WRITE);
 
-        serve_login(&channel, own_ut, care_elf.as_ref(), &mut seq);
+        serve_login(
+            &channel,
+            own_ut,
+            care_elf.as_ref(),
+            &mut seq,
+            &mut terminal_held,
+        );
         // **Reclaim the whole channel by destroying the region it was built from, not by deleting
         // our own capabilities to its pieces.** An earlier version of this loop only called
         // `cap_delete` on `channel.request`/`channel.result`/`channel.page`, which removes *this
@@ -736,7 +816,13 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
 /// this channel existed at all. `channel.request` is done being useful the instant its one expected
 /// message has been received (below); `channel.page` is done the instant it has been read and wiped.
 /// Freeing both before `mint` ever runs restores the margin `mint`'s own four slots already assumed.
-fn serve_login(channel: &Channel, own_ut: u64, care: Option<&elf::Elf>, seq: &mut u64) {
+fn serve_login(
+    channel: &Channel,
+    own_ut: u64,
+    care: Option<&elf::Elf>,
+    seq: &mut u64,
+    terminal_held: &mut bool,
+) {
     let (w0, _w1, _w2) = recv(channel.request);
     cap_delete(channel.request);
     // SAFETY: `connect` mapped one page read/write at `channel.va` before delegating `channel.page`
@@ -748,6 +834,18 @@ fn serve_login(channel: &Channel, own_ut: u64, care: Option<&elf::Elf>, seq: &mu
         send(channel.result, login_proto::MALFORMED, 0, 0);
         return;
     };
+    // **The terminal check runs before anything about `identity` or `secret` is acted on**
+    // (milestone 49's terminal update). This is global, caller-independent state (there is exactly
+    // one physical terminal, held or not, regardless of who is asking), not a fact about any
+    // identity, so checking it first costs nothing an attacker could turn into a per-identity
+    // timing or outcome oracle, and it saves a round trip to the credential service on every
+    // refusal while the terminal is spoken for.
+    if *terminal_held {
+        wipe_page(channel.va);
+        cap_delete(channel.page);
+        send(channel.result, login_proto::NO_TERMINAL, 0, 0);
+        return;
+    }
     // Computed before the page is wiped: `identity` borrows `channel.va` and must not be read after.
     let hint = login_proto::identity_hint(identity);
     // **Copy the identity out before it is gone.** `identity` borrows `channel.va`, and the page is
@@ -790,11 +888,21 @@ fn serve_login(channel: &Channel, own_ut: u64, care: Option<&elf::Elf>, seq: &mu
         Some((dir_ep, budget, region)) => {
             send(channel.result, login_proto::OK, 0, 0);
             delegate(channel.result, dir_ep, abi::rights::WRITE);
-            delegate(
-                channel.result,
-                FS_PAGE_FRAME,
-                abi::rights::READ | abi::rights::WRITE,
-            );
+            // **`WRITE` alone, not `READ | WRITE`** (resolved, milestone 49's boot-wiring
+            // update): the kernel's own `page_frame_map` checks only `Rights::WRITE` for a
+            // writable mapping (`PageFrame::MAP` with `writable=true`, what
+            // `user_rt::map_page_frame`'s callers on both ends of this frame always request) and
+            // grants a fully read+write page table entry either way -- `Rights::READ` on the
+            // *capability* only gates a *read-only* mapping, which this frame's protocol never
+            // asks for. This matters beyond tidiness: `crates/system_initializer::boot` itself
+            // holds only `WRITE | GRANT` on the real file service's shared page (the kernel's own
+            // grant to init, `kernel::user::boot_file_service` or equivalent), so a real boot
+            // could never have delegated `READ` here at all. Asking for it was over-specifying a
+            // right this protocol never needed, harmless under the kernel test harness (which
+            // mints capabilities directly, unconstrained by what a real boot could pass on) and
+            // silently unbuildable under a real one; found by `script/shell-check` refusing this
+            // exact `SEND_CAP` from a WRITE-only source.
+            delegate(channel.result, FS_PAGE_FRAME, abi::rights::WRITE);
             delegate(
                 channel.result,
                 budget,
@@ -806,6 +914,16 @@ fn serve_login(channel: &Channel, own_ut: u64, care: Option<&elf::Elf>, seq: &mu
             // means to end this one's session, which is authority narrower to withhold than to
             // grant back.
             delegate(channel.result, region, abi::rights::WRITE);
+            // **The terminal, fifth and last** (milestone 49's terminal update). Reaching here
+            // already proved `!*terminal_held` (checked above, before authentication), so this is
+            // never refused by the kernel: `TERM_EP` is held `WRITE | GRANT` for this process's
+            // whole life (never `cap_delete`d, the "delegate, then keep going" pattern
+            // `FS_PAGE_FRAME` already uses), because a future session may need the identical
+            // capability delegated again. `WRITE` only, the same right the interactive boot's shell
+            // already holds on it: a login session gets to write the terminal, never to hand the
+            // capability to read keystrokes on to anything it spawns.
+            delegate(channel.result, TERM_EP, abi::rights::WRITE);
+            *terminal_held = true;
             cap_delete(dir_ep);
             cap_delete(budget);
             cap_delete(region);

@@ -139,7 +139,10 @@ pub type CapSlot = u64;
 /// [`fault::FAULT_EP_SLOT`] without reaching into the kernel. The two must agree, and a mismatch
 /// would put the fault slot in different places on the two sides of the boundary, which is
 /// exactly the drift this crate exists to prevent.
-pub const CAPABILITY_TABLE_SLOTS: u64 = 16;
+///
+/// **Raised 16 -> 17, milestone 49's terminal update**; see `kernel::cap::CAPABILITY_TABLE_SLOTS`'s
+/// own comment for the measured reason (`user/src/login.rs`'s eighth permanent grant).
+pub const CAPABILITY_TABLE_SLOTS: u64 = 17;
 
 /// Methods on a `Console` capability. **Historical: no longer wired up.**
 ///

@@ -4494,6 +4494,9 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         // identity mutated) holds on either instruction set or it is not a claim.
         ("login", "login"),
         ("login_test_client", "login_test_client"),
+        // The audit sink (milestone 49's boot-wiring update): drains login's AUDIT endpoint so
+        // its blocking send never parks the whole service.
+        ("audit_sink", "audit_sink"),
         // The provisioning tool (milestone 155): a `useradd`-equivalent that PUTs an identity and
         // secret into the credential store and MKDIRs its home subtree as one act. Portable, so
         // both archives carry it and the same guest tests run against either ISA.
@@ -4883,6 +4886,9 @@ fn initrd_aarch64() -> bool {
         // a fresh directory capability and budget rather than mutating an identity.
         ("login", "login"),
         ("login_test_client", "login_test_client"),
+        // The audit sink (milestone 49's boot-wiring update): drains login's AUDIT endpoint so
+        // its blocking send never parks the whole service.
+        ("audit_sink", "audit_sink"),
         // The provisioning tool (milestone 155): a `useradd`-equivalent that PUTs an identity and
         // secret into the credential store and MKDIRs its home subtree as one act.
         ("identity_provisioner", "identity_provisioner"),
