@@ -96,7 +96,8 @@ argument survives the crossing: the worker reports `n*n`, not `n` and not garbag
 Through 19d/19e the initrd *was* one ELF: the kernel parsed the whole blob as the init program, and
 init, to load a child, parsed that same blob again (children were roles of the one binary). 19f
 turns the blob into a **nifefs archive**, the same named-file format the virtio disk uses, so one
-parser serves both the RAM archive and the disk. `cargo xtask` packs it (`mkinitrd`); it holds one
+parser serves both the RAM archive and the disk. `cargo xtask` packs it (`initrd_aarch64`, renamed
+from `mkinitrd` 2026-08-27); it holds one
 entry today, `init`.
 
 Two readers changed, each in its own domain:
@@ -130,7 +131,7 @@ contiguous eight-megabyte run for init's building budget: `no building budget fo
 that had nothing to do with the change, which is the usual signature of a resource the whole suite
 shares.
 
-So `mkinitrd` now strips each ELF (`llvm-objcopy --strip-debug`) before packing, and the archive is
+So `initrd_aarch64` (`mkinitrd` before 2026-08-27) now strips each ELF (`llvm-objcopy --strip-debug`) before packing, and the archive is
 **4.3 MB**. Nothing lost anything: `crates/elf` parses **program headers only** and has no
 section-header code at all, so no loader on either side of the boundary could ever see a debug
 section; the kernel prints a raw `pc` on a fault, and symbolising it is done offline against the
@@ -148,7 +149,7 @@ on each machine.
 The worker is the first program that is **its own binary**, not a role of `hello`. It lives in
 `user/src/worker.rs`: its own `_start`, its own panic handler, ~30 lines, and not one line of hello's
 code. It shares the `user` package's `link.ld` (so it links at `0x40_0000` like hello), which is not
-a conflict because each program runs in its own address space. `mkinitrd` packs it as a second
+a conflict because each program runs in its own address space. `initrd_aarch64` packs it as a second
 archive entry, `"worker"`, beside `"init"`.
 
 Every consumer that used to spawn "a role-6 worker of hello" now loads `"worker"` by name and starts
