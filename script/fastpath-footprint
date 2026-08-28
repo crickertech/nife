@@ -19,13 +19,29 @@
 #                  closure. A syscall traverses one path through the decoder, but the decoder's own
 #                  bytes are on every syscall, and its other arms are not on this path at all.
 #
+# **`syscall_entry` is not like for like across the three ISAs, and the reason is architectural.**
+# aarch64 and riscv64 route a syscall through the same vector table and cause decoder as every other
+# exception, so their entry numbers carry the whole trap path. x86_64 does not: `syscall` jumps
+# through `IA32_LSTAR` and never touches the 256-entry IDT, so its entry number covers four symbols
+# and legitimately excludes 3,330 bytes of stubs and trap handlers that the other two ISAs' figures
+# have no equivalent of. x86_64's entry figure being the smallest of the three is that fact, not a
+# leaner decoder. The per-symbol reasoning is at `ENTRY` below. `ipc_fastpath` IS comparable across
+# all three: it closes over portable Rust and the symbol sets agree.
+#
 # **What it is not.** It is not a cache measurement. No cache is modelled by icount and the HVF host
 # has an L1i several times larger than the boards, so nothing in this tree can yet observe the
 # effect this bounds. Milestone 74's PMU counters on milestone 127's Jetson TX1 are what turn this
 # from arithmetic into measurement. Until then this is a tripwire on the quantity, not the harm.
 #
+# BUGS
+#   **This measured two of the three architectures until 2026-08-27**, with nothing in the script
+#   recording the omission, which is the same gap `script/stack-frame-check` had and the
+#   architecture-list sweep found. x86_64 is measured now. Anything added here that is per-architecture
+#   (`ENTRY`, the `case` below, `CALL`) has to be extended when a fourth ISA arrives, and the
+#   `ENTRY` set is a judgement about that ISA's trap architecture rather than a string edit.
+#
 # Usage:
-#   script/fastpath-footprint            # measure both ISAs and check against the baselines
+#   script/fastpath-footprint            # measure all three ISAs and check against the baselines
 #   script/fastpath-footprint --save     # re-record the baselines (a statement that a change is intended)
 #   script/fastpath-footprint --arch aarch64
 #   script/fastpath-footprint --features fastpath_pad  # E3 (milestone 134): build with an extra
@@ -68,7 +84,7 @@ set -e
 cd "$(dirname "$0")/.."
 
 save=""
-arches="aarch64 riscv64"
+arches="aarch64 riscv64 x86_64"
 features=""
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -102,6 +118,14 @@ for arch in $arches; do
     case "$arch" in
         aarch64) target=aarch64-unknown-none-softfloat ;;
         riscv64) target=riscv64imac-unknown-none-elf ;;
+        # No RUSTFLAGS is set anywhere in this script, which is what makes this arm a one-liner:
+        # `x86_64-unknown-none` needs `-C relocation-model=static` (a kernel cannot be a static-PIE)
+        # and gets it from `.cargo/config.toml`. A bare `RUSTFLAGS` in the environment REPLACES that
+        # table rather than appending to it, and rust-lld then fails with `relocation R_X86_64_32
+        # cannot be used against local symbol`. Found by the `script/stack-frame-check` lane that
+        # widened it the same week; if this script ever grows a RUSTFLAGS of its own, re-add the
+        # flag explicitly.
+        x86_64) target=x86_64-unknown-none ;;
         *) echo "script/fastpath-footprint: no target for arch $arch" >&2; exit 2 ;;
     esac
 
@@ -130,10 +154,16 @@ arch, dis_path, base_path, save = os.environ["ARCH"], os.environ["DIS"], os.envi
 # otherwise chop real functions into fragments and make every size wrong. Skipping them keeps the
 # enclosing function accumulating, which is what a footprint wants.
 SYMHDR = re.compile(r"^([0-9a-f]+) <(.+)>:$")
-# aarch64 calls with `bl`; riscv64 with `jalr` (and `jal`), and both tail-call with `b` / `j`.
-# Every form objdump annotates with a target symbol is followed, because a tail call is still a
-# fetch of the callee's bytes.
-CALL = re.compile(r"\b(bl|blr|jal|jalr|b|j)\s+[^<]*<([^>+]+)")
+# aarch64 calls with `bl`; riscv64 with `jalr` (and `jal`); x86_64 with `callq`. All three
+# tail-call with their unconditional branch (`b` / `j` / `jmp`). Every form objdump annotates with a
+# target symbol is followed, because a tail call is still a fetch of the callee's bytes.
+#
+# **Conditional branches are deliberately not here, on any of the three.** `b.ne`, `bne` and `jne`
+# all fail the `\s` after the mnemonic, which was an accident of the original two-ISA pattern and is
+# now a checked choice: every conditional branch in the x86_64 kernel's five root symbols targets an
+# offset inside the branching symbol itself (`<ipc_send+0x2b8>`), which the `t != cur` test below
+# would discard anyway. Counting them would add no edge and would risk following a cold arm.
+CALL = re.compile(r"\b(bl|blr|jal|jalr|b|j|callq?|jmpq?)\s+[^<]*<([^>+]+)")
 
 start, last, calls = {}, {}, collections.defaultdict(set)
 cur = None
@@ -160,6 +190,15 @@ for line in open(dis_path, encoding="utf8", errors="replace"):
 
 # The last instruction's address plus its width. 4 on aarch64; riscv64 mixes 2- and 4-byte
 # instructions, so 4 is the conservative choice, which is the right direction for an upper bound.
+#
+# **x86_64 is the case where 4 is a guess in both directions**, since its instructions are 1 to 15
+# bytes, and it was worth measuring rather than asserting. Summing the exact sizes instead (the gap
+# to the next symbol header, padding included) gives 6,619 bytes against this formula's 6,639 for the
+# closure and 1,632 against 1,637 for the entry set: a 0.3% over-count. Two effects nearly cancel.
+# LLVM parks `int3` padding after most x86 functions and objdump lists those bytes as instructions,
+# so `last` is usually already the final padding byte and the +4 lands past the symbol; against that,
+# a function ending in a 5-byte tail `jmp` is under-counted by one. 0.3% is a fifteenth of the
+# tolerance below, so this is noise rather than a bound that needs a different formula.
 size = {s: last.get(s, start[s]) - start[s] + 4 for s in start}
 
 # **The roots: what "the IPC fastpath" is.** This list is a decision, not a heuristic, and it is the
@@ -181,10 +220,42 @@ COLD = re.compile(
     r"|6revoke|7destroy|drop_in_place|delete_frame_caps|unmap|KernelStack|12AddressSpace"
 )
 
+# **The entry set, and x86_64 is not the same shape as the other two.** On aarch64 and riscv64 a
+# syscall IS an exception: `svc` lands in the same vector table as a page fault, `ecall` in the same
+# `stvec` handler as a timer interrupt, so the whole vector and the whole cause decoder are bytes
+# every syscall fetches and both lists carry them. On x86_64 a ring-3 `syscall` reads `IA32_LSTAR`
+# and jumps, consulting **no IDT entry at all** (kernel/src/arch/x86_64/trap.s says so at its
+# `x86_syscall_entry` header: "THIS IS NOT AN IDT VECTOR AND THE DIFFERENCES ALL MATTER"). So the
+# correct x86_64 set is NARROWER than the other two, not wider, and a reader comparing the three
+# numbers should not read the difference as this port having a leaner decoder.
+#
+# Included, each because a `syscall` fetches its bytes:
+#   x86_syscall_entry    the `IA32_LSTAR` target, written by `init_syscall` in exceptions.rs. The
+#                        hardware jumps straight here.
+#   x86_syscall_handler  "the one Rust function every `syscall` reaches" (exceptions.rs), which
+#                        bumps the counter and tail-calls the portable dispatcher.
+#   isr_restore          the return path. `x86_syscall_entry` ends `jmp isr_restore`, and trap.s
+#                        names it "the RISC-V twin of `trap_return`", which riscv64's list already
+#                        carries for the same reason. Shared with the IDT path; a syscall runs it.
+#   syscall::dispatch    as on both other architectures.
+#
+# Excluded, each because a `syscall` never reaches it:
+#   isr_0 .. isr_255     the 256 IDT stubs, 2,412 bytes of them. Reached only through an IDT gate.
+#   isr_common           the stubs' shared save path, which `x86_syscall_entry` duplicates inline
+#                        rather than jumping to (it has a different frame to reconstruct).
+#   x86_trap_dispatch,   the Rust trap handlers. These ARE the twins of riscv64's
+#   x86_trap_body        `riscv_trap_dispatch` / `riscv_trap_body`, which riscv64's list includes,
+#                        and that is exactly the asymmetry: on riscv64 the syscall arrives through
+#                        them, on x86_64 it does not. Including them here for symmetry with the
+#                        other list would put 918 bytes on this number that no syscall fetches.
+#   user_return,         first entry to ring 3, and the interrupt-stack trampoline. Once per thread
+#   dispatch_on_...      and per IDT trap respectively, neither per syscall.
 ENTRY = {
     "aarch64": [r"^exception_vectors$", r"^exception_dispatch$", r"kernel7syscall8dispatch"],
     "riscv64": [r"^trap_entry$", r"^trap_return$", r"^riscv_trap_dispatch$", r"^riscv_trap_body$",
                 r"kernel7syscall8dispatch"],
+    "x86_64": [r"^x86_syscall_entry$", r"^x86_syscall_handler$", r"^isr_restore$",
+               r"kernel7syscall8dispatch"],
 }[arch]
 
 roots = [s for s in size if ROOTS.search(s)]
