@@ -4408,6 +4408,8 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         ("input", "input"),
         ("swish", "swish"),
         ("line_editor", "line_editor"),
+        // The smallest real text editor (milestone 169), on line_editor's raw-keystroke primitive.
+        ("rmle", "rmle"),
         ("terminal_sink_caretaker", "terminal_sink_caretaker"),
         ("block_driver", "block_driver"),
         ("allocator_exerciser", "allocator_exerciser"),
@@ -4812,6 +4814,8 @@ fn initrd_aarch64() -> bool {
         ("swish", "swish"),
         // The line discipline between the console and the shell (milestone 28).
         ("line_editor", "line_editor"),
+        // The smallest real text editor (milestone 169), on line_editor's raw-keystroke primitive.
+        ("rmle", "rmle"),
         // The terminal's sink adapter (milestone 50), so a declared second stream has somewhere to
         // go that is not the shell's own output slot.
         ("terminal_sink_caretaker", "terminal_sink_caretaker"),

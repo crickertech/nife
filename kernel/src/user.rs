@@ -3495,6 +3495,32 @@ mod language_tests;
 #[cfg(all(test, initrd))]
 mod sink_tests;
 
+/// **The raw-keystroke input primitive** (milestone 169): a real `line_editor` process, wired
+/// exactly as the boot path wires it except that the test plays both the input driver and the
+/// application, so `OP_RAWMODE` and `OP_READRAW` can be driven directly with real keystrokes.
+#[cfg_attr(not(test), allow(dead_code))] // the milestone-169 raw-mode tests are its only caller
+pub mod raw_mode_service;
+
+/// **`OP_RAWMODE` and `OP_READRAW`, proved against a real `line_editor`** (milestone 169): echo
+/// suppression, literal (uninterpreted) delivery of what the line discipline would otherwise
+/// consume as an editing command, the two input models refusing each other, and a read parked
+/// before data arrives still being answered once it does. See the module's own doc for why the
+/// echo-suppression check is proven both ways rather than only the direction that matters.
+#[cfg(all(test, initrd))]
+mod raw_mode_tests;
+
+/// **`rmle`'s wiring** (milestone 169): a real terminal ([`raw_mode_service`]'s own shape) and a
+/// real filesystem ([`fs_service::narrow_dir`]'s shape) composed for the one program in this tree
+/// that needs both at once.
+#[cfg_attr(not(test), allow(dead_code))] // the milestone-169 rmle tests are its only caller
+pub mod rmle_service;
+
+/// **`rmle` itself**: open a file, move a cursor, insert and delete characters, save. Driven with
+/// real keystrokes over the raw-keystroke primitive, and the saved file verified independently of
+/// `rmle`'s own report. See the module's own doc for why that independence matters.
+#[cfg(all(test, initrd))]
+mod rmle_tests;
+
 /// **No test may leak a runnable thread** (the regression proxy for the test-thread starvation that
 /// made the RedoxFS mount overrun the hang watchdog under the net boot). A one-shot driver that
 /// spins forever instead of exiting stays `Ready`/`Running` for the rest of the boot; enough of them
