@@ -1430,7 +1430,13 @@ fn scanout_holds_the_composed_screen(ppm: &[u8]) -> Result<(), String> {
 /// text into text nobody can read. Its negative control is
 /// `tests::the_scanout_check_rejects_text_that_is_one_letter_wrong`.
 fn scanout_holds_the_terminals_text(ppm: &[u8]) -> Result<(), String> {
-    let expect = video_terminal::script::full_screen();
+    // `Vt::new` then `script::full_screen(&mut _)` rather than the old `-> Vt` shape: a `Vt` is
+    // hundreds of KiB since milestone 142's grid growth, and while this host binary's stack has
+    // room either way, the crate's own signature changed for its kernel-side callers and this is
+    // the one shape that works for both (see `Vt`'s and `script::full_screen`'s own doc comments).
+    let mut expect =
+        video_terminal::Vt::new(video_terminal::script::COLS, video_terminal::script::ROWS);
+    video_terminal::script::full_screen(&mut expect);
     scanout_matches(ppm, |x, y| expect.pixel(x, y))
 }
 
@@ -1576,7 +1582,7 @@ fn decode_cell(w: u32, pixels: &[u8], col: u32, row: u32, alphabet: &[u8]) -> Op
                     row * bitmap_font::GLYPH_H + gy,
                 );
                 let o = ((y * w + x) * 3) as usize;
-                let want = bitmap_font::cell_pixel(b, gx, gy, fg, bg);
+                let want = bitmap_font::cell_pixel(b as char, gx, gy, fg, bg);
                 let (r, g, bl) = (
                     ((want >> 16) & 0xff) as u8,
                     ((want >> 8) & 0xff) as u8,
@@ -1949,6 +1955,15 @@ impl ScanoutReferee {
 
     /// One pass: press a key, take a screendump, and see whether it is the picture we are waiting
     /// for. Call it on a cadence for as long as the suite is running.
+    ///
+    /// **Costs more per poll than it used to, and that is a considered, recorded choice rather
+    /// than an oversight** (milestone 142, 2026-08-27). The scanout grew from 128x64 (8,192
+    /// pixels) to 924x344 (317,856 pixels), roughly 39x more data moved through `screendump` on
+    /// the same 100 ms cadence. Measured, not assumed: both architectures' full test suites still
+    /// completed in normal time with no timeout pressure at the new size. calef confirmed leaving
+    /// the cadence unchanged rather than widening it preemptively, since nothing is currently
+    /// slow enough to measure a real problem against; revisit if a future resolution increase
+    /// (or a slower CI runner) actually makes this cadence cost something observable.
     fn poll(&mut self) {
         // Press a key every poll. Harmless before the keyboard driver exists (QEMU drops the event)
         // and harmless after its test has passed (the driver ends up parked in a `CALL` nobody
@@ -9317,7 +9332,17 @@ pub const GET: u64 = 1;
     }
 
     fn text_rgb(x: u32, y: u32) -> (u8, u8, u8) {
-        let w = video_terminal::script::full_screen().pixel(x, y);
+        // Built once and cached rather than once per pixel: `ppm` below calls this per pixel of a
+        // 924x344 image (317,856 times), and reconstructing and re-feeding a `Vt` that many times
+        // would dominate this test's runtime the moment the grid grew past a few dozen cells.
+        static SCREEN: std::sync::OnceLock<video_terminal::Vt> = std::sync::OnceLock::new();
+        let screen = SCREEN.get_or_init(|| {
+            let mut vt =
+                video_terminal::Vt::new(video_terminal::script::COLS, video_terminal::script::ROWS);
+            video_terminal::script::full_screen(&mut vt);
+            vt
+        });
+        let w = screen.pixel(x, y);
         (
             ((w >> 16) & 0xff) as u8,
             ((w >> 8) & 0xff) as u8,

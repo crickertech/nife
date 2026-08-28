@@ -599,21 +599,34 @@ same text.
 
 Stated plainly, because a demonstrator's caveats are part of the deliverable.
 
-- **No scrollback.** A live grid only. The roadmap named scrollback in this milestone and it is not
-  here: it wants a ring of off-screen rows and a viewport, which is real work and changes the damage
-  model. Recorded, not half-built.
-- **No UTF-8.** The grid holds bytes and the font covers basic latin, so a decoder above it would
-  have nothing to draw for most of what it decoded. When there is a font with the coverage to justify
-  one, the decoder goes in the VT engine and `bitmap_font::glyph`'s signature becomes `char`.
+- **Scrollback: BUILT 2026-08-26** (milestone 142 increment 2). A ring of `video_terminal::
+  SCROLLBACK_ROWS` off-screen rows plus a viewport (`Vt::scroll_up`/`scroll_down`, `Vt::
+  view_offset`); new output snaps the view back to live, the standard convention. **Not wired to a
+  key**: nothing in the keymap or `display_terminal.rs` sends a scroll gesture yet, so the engine is
+  proven (host-tested) but not reachable from a real keyboard. That is the honest remainder, not the
+  ring-and-viewport work the roadmap named.
+- **UTF-8: BUILT 2026-08-26** (milestone 142 increment 2). The VT engine decodes UTF-8 in its ground
+  state (a running `utf8_need`/`utf8_code` accumulator, invalid or truncated sequences drawing
+  U+FFFD), and `bitmap_font::glyph`'s signature is `char`. The font's repertoire did not grow: a
+  decoded non-ASCII `char` still draws the missing-glyph box, same as an unmapped byte always did.
+  What changed is that a multi-byte sequence now occupies **one** cell (one box) instead of one wrong
+  picture per encoded byte.
 - **No line editing in the display terminal.** It renders a stream and echoes keystrokes; it does not
   serve `OP_READLINE`. A client that wants edited lines puts `line_editor` in front of it and prints the
   discipline's echo through `OP_WRITE`, which needs no new protocol at all, because `line_editor`'s echo
   is exactly a byte stream this engine parses. That is not a hope: the `video_terminal` crate proves it on the
   host by running both.
-- **An 18x8 grid, with two pixels left over.** The scanout is 128x64 and the font is 7x8, so 18
-  cells of 7 use 126 of the 128 columns. The strip is painted background once, on the terminal's
-  first frame, and no cell ever owns it. That is what the display ladder's current screen affords;
-  the engine's maximum is 32x16 and both are constants.
+- **A 132x43 grid, with no pixels left over** (grown 2026-08-26 from 18x8 to 182x90 at milestone
+  142 increment 1 with the scanout at 1280x720, DECISIONS §102; retargeted 2026-08-27 to 132x43 at
+  a 924x344 scanout, on review with calef: 182x90 was arithmetic against a *future* 14-pixel cell
+  that never shipped in this increment, applied by mistake to the 7x8 cell that did, producing a
+  grid nearly double any terminal anyone runs). 132 cells of 7 use all 924 columns and 43 cells of 8
+  use all 344 rows, so unlike the 1280x720 scanout's six leftover columns, there is no strip left
+  for the terminal to paint background into and no cell to own it. `MAX_COLS`/`MAX_ROWS` shrank with
+  the retargeted scanout and are still constants, still exactly sized to the current font and
+  screen. (The surface itself, [`graphics_proto::SURFACE_BYTES`], does carry about 2 KiB of
+  unrelated padding past the last pixel, for frame-alignment reasons that have nothing to do with
+  the character grid; see `graphics_proto::WIDTH`'s doc comment.)
 - **The font's own weak glyphs, named where a reader meets them.** `M` and `W` are near vertical
   mirrors, because five ink columns leaves one way to draw each; `&` is the busiest glyph in the set
   and reads as a knot at a glance; `%` fills its corners heavily enough to look bolder than its
@@ -624,8 +637,9 @@ Stated plainly, because a demonstrator's caveats are part of the deliverable.
   nothing else, so a program that wants a frame draws it out of `-` `|` `+`.
 - **No reflow on resize**, because nothing resizes. The roadmap named reflow; a fixed scene has
   nothing to reflow to.
-- **The keymap is a US layout's main block.** No keypad, no function keys, no arrow keys, no compose,
-  no dead keys, no other layout.
+- **The keymap is a US layout's main block, plus the arrow cluster** (arrows added 2026-08-26,
+  milestone 142 increment 2: `CSI A/B/C/D`, the sequence `crates/line_editor` already understood on
+  its receiving side). Still no keypad, no function keys, no compose, no dead keys, no other layout.
 - **No bell**, visual or otherwise. `BEL` is consumed.
 - **No mouse.** `virtio-tablet-pci` presents the same PCI device id as the keyboard, which is
   recorded in `crates/pci` so that a machine carrying both would be a known problem rather than a
