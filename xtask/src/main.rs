@@ -4686,6 +4686,10 @@ fn initrd_riscv() -> bool {
             "login",
             "--bin",
             "login_test_client",
+            // The audit sink (milestone 49's boot-wiring update): drains login's AUDIT endpoint so
+            // its blocking send never parks the whole service. Portable, so both archives carry it.
+            "--bin",
+            "audit_sink",
             // The provisioning tool (milestone 155): PUTs an identity and its secret into the
             // credential store and MKDIRs its home subtree as one act. Portable, so both archives
             // carry it and the same test suite runs against either ISA.
