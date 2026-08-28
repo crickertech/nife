@@ -1815,3 +1815,76 @@ diagnostic pointing straight at a wait written against something wider than the 
 `arch/aarch64/timer.rs:680`, "the timer is not ticking at all", killed a run before it reached the
 suite's userspace half; it is a sibling of the assertions milestone 62 dispositioned and it was not
 one of them.
+
+## Two unowned reds, recorded rather than chased: 2026-08-27 (milestone 185's lane)
+
+The paragraph above named both and moved on; this is the fuller entry the diagnostic asks for, so a
+reader who meets either site does not have to re-derive what the two-line version already knew.
+Neither line number has moved since the paragraph above was written (checked directly against
+`main`, 2026-08-27), and neither site was touched: this lane's brief was to record, not to chase.
+
+### `kernel/src/user/live_swap_tests.rs:263`, `run_swap`: "reclaiming the operator's budget returned 277 of 224 pages"
+
+```rust
+let recovered = memory::free_page_frames() - before_reclaim;
+assert_eq!(
+    recovered, SWAPPER_BUDGET_PAGES as usize,
+    "reclaiming the operator's budget returned {recovered} of {SWAPPER_BUDGET_PAGES} pages",
+);
+```
+
+`run_swap` is the shared teardown helper all four `#[test_case]`s in this file call, not one test's
+own body, so any of the four could have been the run that hit it. `SWAPPER_BUDGET_PAGES` is 224; the
+observed run recovered 277, **53 pages more than the operator's own budget held.**
+
+**Applying this page's first diagnostic (line 14 above): a slow machine produces a deficit, never a
+surplus.** Host contention can only make `reclaim_region` return late or with less than expected; it
+cannot manufacture 53 extra pages out of a budget that was only ever 224. A count higher than the
+property being measured is the negative-direction shape this page already has a name for, "a wait
+written against something wider than the property" (`notes/riscv-parity-scope.md`'s phrase, used
+throughout this file), which here reads as free frames from *outside* `budget` landing inside the
+measured window, most likely a neighboring test's own teardown completing while this one's
+`before_reclaim`/`reclaim_region` pair was in flight.
+
+**Say plainly what the diagnostic says plainly: this is not explained by load, and it may be a real
+bug.** Every negative-direction case this page has actually chased turned out to be a test written
+against a global counter that something else could also move (the reaper count, the address-space
+frame count, both rescoped to a narrow `Tid`-scoped wait in the fourth round), never a kernel defect
+undiscovered underneath. Whether this one is the same shape or something a swap-system regression
+put there is not established, because it was not investigated here per this lane's brief. Proposed
+in this lane's report as a milestone of its own (provisional; the integrator mints the number),
+rather than chased in place.
+
+### `kernel/src/arch/aarch64/timer.rs:680`, `holding_a_lock_masks_the_timer`: "the timer is not ticking at all"
+
+```rust
+let alive_on = crate::cpu::id();
+let t0 = timer::ticks_on(alive_on);
+timer::spin_for(timer::interval() * 2);
+assert!(
+    timer::ticks_on(alive_on) > t0,
+    "the timer is not ticking at all"
+);
+```
+
+This is the liveness check at the top of `holding_a_lock_masks_the_timer`, ahead of the
+lock-masking assertion the second round (2026-08-04) already core-scoped ("the window moved inside
+the lock", above). That earlier fix touched the two reads bracketing the critical section; this
+read pair, `t0` before `spin_for` and the assertion after it, is a different window in the same
+function and was not part of that round's audit.
+
+**Applying the diagnostic: the failure direction is positive** ("not yet": `ticks_on(alive_on)`
+did not exceed `t0` after spinning across two tick intervals), which by line 19 above is honest load
+sensitivity rather than a wait written against something wider than the property. `ticks_on` is
+already core-scoped (`ticks_arrive_at_the_configured_rate`'s fix, reused here), so this is not the
+migration hazard a bare `ticks()` would have. What it needs to be a genuine failure of this kernel
+rather than of the host is a vCPU denied the core for the whole two-interval spin, which an
+oversubscribed host can do and which killing a run before it even reaches the suite's userspace half
+is consistent with: this leg never got far enough to log a host-load line (`HostLoad` samples while
+the leg is *running*, and a leg that dies output-less here has nothing for it to have sampled).
+
+**Not chased, per this page's own rule that the second kind of failure ("not yet") is the one a
+clock-bounded wait or a wider margin actually fixes**, and per this lane's brief, which was to
+record rather than to change kernel timer tests. Whether it wants a `wait_for`-shaped rescope, or is
+rare enough not to, is unmeasured; the site is a sibling of the family milestone 62 and this page's
+earlier rounds already dispositioned, and it was not one of the ones they reached.
