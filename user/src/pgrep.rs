@@ -157,32 +157,13 @@ fn write_on(slot: u64, bytes: &[u8]) {
     }
 }
 
-#[panic_handler]
-fn panic(_: &core::panic::PanicInfo) -> ! {
-    // Nothing here should panic: `ps::collect` is total for every reader and `pgrep::select` only
-    // reads the rows it returned. A fault the kernel turns into a kill is the honest signal if one
-    // ever does.
-    //
-    // BUGS: **two arms, three architectures, and the signal is lost on the third.** This program
-    // builds for `x86_64-unknown-none` (`cargo xtask initrd-x86`), where both `cfg`s compile out
-    // and control reaches the spin loop below with no trap taken. So a panic here does not become
-    // a kill on x86_64, it becomes a thread burning CPU forever, which is the opposite of the
-    // "honest signal" the paragraph above promises. It compiles clean because a `cfg` that matches
-    // nothing is not a warning. `pgrep` is the only program in `user/` with a hand-written panic
-    // handler of this shape; every other one goes through `crates/user_rt`, whose arms cover all
-    // three ISAs, so the fix is most likely to delete this and use that. See
-    // notes/architecture-list-sweep.md, finding 10.
-    #[cfg(target_arch = "aarch64")]
-    // SAFETY: `brk` traps; the kernel turns a trap from userspace into a kill.
-    unsafe {
-        core::arch::asm!("brk #0", options(nostack, nomem));
-    };
-    #[cfg(target_arch = "riscv64")]
-    // SAFETY: `ebreak` traps; the kernel turns a trap from userspace into a kill.
-    unsafe {
-        core::arch::asm!("ebreak", options(nostack, nomem))
-    };
-    loop {
-        core::hint::spin_loop();
-    }
-}
+// Nothing here should panic: `ps::collect` is total for every reader and `pgrep::select` only reads
+// the rows it returned. A fault the kernel turns into a kill is the honest signal if one ever does.
+//
+// **This was hand-rolled with two architecture arms and lost that signal on the third.** Neither
+// `cfg` matched on x86_64, so control fell to a spin loop and a panicking `pgrep` burned a thread
+// forever instead of dying, which is the opposite of what the paragraph above promises. The macro
+// expands to a handler over `user_rt::trap`, whose arms cover all three ISAs and whose x86_64 one
+// carries the measured argument for `ud2` over `int3`. This was the last hand-rolled handler left
+// outside `user_rt` after milestone 130 swept forty-eight of them.
+user_rt::panic_handler!();
