@@ -318,12 +318,23 @@ And there is no unmap in the surface yet, so each VA is used once.
 Second, the debug and release numbers diverged by ~10x, far more than any other primitive, and that
 divergence is the whole lesson. `map_el0` **aliases one existing frame** at every VA, so it does no
 page allocation and no zeroing: it is trap + capability resolve + walk + PTE write + a `record_mapping`
-append. That append scans the head log page for a free slot, an ~128-entry linear walk on average, and
+append. That append scans the head log page for a free slot, an ~85-entry linear walk on average, and
 in a debug build that unoptimized scan *dominated* the number (~909 ns). Release compiles the scan down
 to almost nothing, and the true cost of the mapping mechanism shows through: **~91 ns**. The kernel-side
 `map_new`, by contrast, is ~524 ns in release and barely moved from debug, because its cost is the 4 KiB
 **page zeroing** a fresh frame needs (`retype_page` hands back a zeroed page), which is memory-bandwidth
 bound and the optimizer cannot speed it up.
+
+That average walk length is a constant in `kernel/src/revoke.rs`, `LOG_ENTRIES`, and it was ~128 when
+the ~909 ns above was measured: a log page held 255 records until §132 gave each one a third word
+naming the capability it was made under, which took the page to 170. **So `LOG_ENTRIES` is a benchmark
+input, and the icount tripwire is the thing that noticed.** §132's branch came in at `map_el0` -16.9%
+aarch64 and -16.4% riscv64 against a baseline nothing else on the branch explained, and the
+attribution is a one-number experiment rather than an argument: setting `LOG_ENTRIES` to 170 on `main`
+and changing nothing else reproduces it to within 0.7%. The unoptimized suite is measuring the search
+for a free slot roughly as much as it is measuring the mapping, which is exactly what makes the debug
+and release numbers diverge by 10x, and it means a future change to that constant moves two benches on
+two ISAs. Whoever makes it should expect to re-record them.
 
 Third, and this is why map is a tie: **`map_el0` and the host `lat_mmap` do not measure the same thing.**
 The host number is a first-touch page fault, which allocates and zeroes a fresh page; `map_el0` aliases

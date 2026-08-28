@@ -2423,7 +2423,14 @@ fn a_user_built_aspace_maps_translates_and_revokes() {
     let phys = crate::memory_region::retype_page(frame_region).expect("no frame");
     let va = 0x40_0000u64;
 
-    user_address_space_map(name, va, phys, Flags::user_rodata()).expect("map_into failed");
+    user_address_space_map(
+        name,
+        va,
+        phys,
+        Flags::user_rodata(),
+        crate::revoke::PageMapSource::NoCapability,
+    )
+    .expect("map_into failed");
 
     let (mapped_pa, flags) = mmu::translate_at(root, va).expect("the walker sees no mapping");
     assert_eq!(mapped_pa, phys, "mapped the wrong frame");
@@ -2435,7 +2442,14 @@ fn a_user_built_aspace_maps_translates_and_revokes() {
 
     // Same va twice: refused, the break-before-make contract holds for built spaces too.
     assert!(
-        user_address_space_map(name, va, phys, Flags::user_rodata()).is_err(),
+        user_address_space_map(
+            name,
+            va,
+            phys,
+            Flags::user_rodata(),
+            crate::revoke::PageMapSource::NoCapability
+        )
+        .is_err(),
         "double-map at one va was allowed"
     );
 
@@ -2676,10 +2690,24 @@ fn a_process_can_build_start_and_run_a_child_thread() {
         }
     }
     sync_icache(mmu::phys_to_virt(code_phys), size_of_val(code));
-    user_address_space_map(aspace, CODE_VA, code_phys, Flags::user_code()).expect("map code");
+    user_address_space_map(
+        aspace,
+        CODE_VA,
+        code_phys,
+        Flags::user_code(),
+        crate::revoke::PageMapSource::NoCapability,
+    )
+    .expect("map code");
 
     let stack_phys = crate::memory_region::retype_page(frames_region).expect("no stack frame");
-    user_address_space_map(aspace, STACK_VA, stack_phys, Flags::user_data()).expect("map stack");
+    user_address_space_map(
+        aspace,
+        STACK_VA,
+        stack_phys,
+        Flags::user_data(),
+        crate::revoke::PageMapSource::NoCapability,
+    )
+    .expect("map stack");
 
     // The child's one authority: WRITE on a report rendezvous, so it can SEND but not receive.
     let report = crate::sched::create_rendezvous();
@@ -2782,10 +2810,24 @@ fn reclaim_frees_a_started_then_exited_childs_regions() {
         }
     }
     sync_icache(mmu::phys_to_virt(code_phys), size_of_val(code));
-    user_address_space_map(aspace, CODE_VA, code_phys, Flags::user_code()).expect("map code");
+    user_address_space_map(
+        aspace,
+        CODE_VA,
+        code_phys,
+        Flags::user_code(),
+        crate::revoke::PageMapSource::NoCapability,
+    )
+    .expect("map code");
 
     let stack_phys = crate::memory_region::retype_page(as_region).expect("no stack frame");
-    user_address_space_map(aspace, STACK_VA, stack_phys, Flags::user_data()).expect("map stack");
+    user_address_space_map(
+        aspace,
+        STACK_VA,
+        stack_phys,
+        Flags::user_data(),
+        crate::revoke::PageMapSource::NoCapability,
+    )
+    .expect("map stack");
 
     let report_cap = crate::cap::rendezvous_cap(
         report,
@@ -2874,10 +2916,23 @@ fn spawn_to_reap_repeats_without_leaking() {
             }
         }
         sync_icache(mmu::phys_to_virt(code_phys), size_of_val(code));
-        user_address_space_map(aspace, CODE_VA, code_phys, Flags::user_code()).expect("map code");
+        user_address_space_map(
+            aspace,
+            CODE_VA,
+            code_phys,
+            Flags::user_code(),
+            crate::revoke::PageMapSource::NoCapability,
+        )
+        .expect("map code");
         let stack_phys = crate::memory_region::retype_page(as_region).expect("stack frame");
-        user_address_space_map(aspace, STACK_VA, stack_phys, Flags::user_data())
-            .expect("map stack");
+        user_address_space_map(
+            aspace,
+            STACK_VA,
+            stack_phys,
+            Flags::user_data(),
+            crate::revoke::PageMapSource::NoCapability,
+        )
+        .expect("map stack");
 
         let report_cap = crate::cap::rendezvous_cap(
             report,

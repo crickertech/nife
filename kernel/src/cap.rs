@@ -134,15 +134,19 @@ pub type Cap = capability::Cap<Object>;
 // variant, `PageFrame` is that variant, and it grew by a word. Nothing measured it, so §102's own
 // figure went stale inside §102. That is what this assertion is for; it is the fact, not a target.
 //
-// Sixteen slots is 512 bytes a capability table rather than 384, so the option §102 priced at 12
+// Seventeen slots is 544 bytes a capability table rather than 408, so the option §102 priced at 12
 // KiB a thread for 512 slots would now be 16 KiB. The refusal does not change (the decision's
 // argument was never really about the bytes), but the number a future reader quotes should be the
 // one the compiler agrees with. Update these two and re-read §102 when they fire.
 //
-// **The other half of §102's arithmetic also moved**: `MAX_THREADS` was raised from 128 to 256 on
-// 2026-08-27 (that constant's own doc comment carries the measurement), so the whole-machine
-// figures §102 quoted are doubled again on top of the widening above. Same conclusion, same
-// reason, larger numbers.
+// **Sixteen when this note was written, seventeen now** (milestone 49's terminal update raised
+// `CAPABILITY_TABLE_SLOTS`; see that constant's own doc, below). The count changed; the per-slot
+// arithmetic this note exists to pin did not.
+//
+// **And the other half of §102's arithmetic moved too**: `MAX_THREADS` was raised from 128 to 256
+// on 2026-08-27 (that constant's own doc comment carries the measurement), so every whole-machine
+// figure §102 quoted is doubled on top of both changes above. Same conclusion, same reason, larger
+// numbers.
 const _: () = assert!(core::mem::size_of::<Object>() == 24);
 const _: () = assert!(core::mem::size_of::<Cap>() == 32);
 
