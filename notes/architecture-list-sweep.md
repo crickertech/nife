@@ -304,18 +304,36 @@ recalled, and this lane did not go outside the repository, so nothing is claimed
 hour, the question to ask is how a multi-target project keeps one target list authoritative across
 a build system, a CI matrix, and a package manifest, since that is the general form of option A.
 
-## A proposed milestone, provisional
+## Where the work went
 
 Closing the ten silent gaps is a real body of work rather than a sed. Finding 1 needs an x86_64
-trap-frame size and dispatch symbol names; finding 6 needs a CI job that may find real drift the
-first time it runs; finding 8 is an audit. Proposed as **one milestone: derive the architecture
-list, and close what it does not reach**, with the sweep's table as its worklist. The number is the
-integrator's to mint at merge, per `AGENTS.md`; this lane does not claim one.
+trap-frame size and dispatch symbol names; finding 6 needs a CI leg that may find real drift the
+first time it runs; finding 8 is an audit. It is **milestone 186 (derive the architecture list, and
+close what it does not reach)**, minted on calef's question against this sweep, and **this note is
+that milestone's worklist**. The block carries the phasing and the scope refusals; the table above
+carries the items.
+
+Two things the milestone is explicit about, because both were decided here.
 
 **Do not do it as one commit.** Widening an architecture list newly gates that architecture, and a
-gate that has never run against x86_64 may have real offenders. That turns `main` red for a reason
-unrelated to whoever pushed. Each widening is its own commit with its own green run, which is
-milestone 96's loader argument applied to gates.
+gate that has never run against x86_64 may have real offenders. It already does:
+`script/stack-frame-check --arch x86_64` surfaced `kernel::arch::x86_64::iommu::init` at 12,504
+bytes against a 4,096-byte guard page, found by the lane on pull request #567 the same night. Ten
+widenings in one commit turns `main` red for a reason unrelated to whoever pushed and leaves nobody
+able to tell which one did it. Milestone 96's loader commit is the precedent: separateness is the
+argument.
+
+**Finding 10 was not scheduled, it was fixed.** `user/src/pgrep.rs`'s panic handler was a live
+defect rather than a coverage gap: on x86_64 neither arm compiled, control reached the spin loop,
+and a panic burned a thread forever. It was the last hand-rolled panic handler left outside
+`user_rt` after milestone 130 swept forty-eight of them, and the fix was to use
+`user_rt::panic_handler!()` like every other program in `user/`. Kept in the table above as a
+finding, since the point of an inventory is what the sweep found rather than what survived it.
+
+**Finding 8 is deliberately not in milestone 186 either**, and for the opposite reason: it is too
+large, not too small. Reading 6,797 lines of x86_64 assembly and low-level Rust on
+`notes/arch-audit.md`'s terms does not fit beside a `rustup target add` line. Proposed there,
+provisionally, as its own milestone.
 
 ## EXAMPLES
 
