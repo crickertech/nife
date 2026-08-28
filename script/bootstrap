@@ -29,6 +29,13 @@ channel="$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml)"
 echo "==> Ensuring Rust toolchain '$channel' (components + bare-metal targets)"
 rustup toolchain install "$channel" --profile minimal
 rustup component add --toolchain "$channel" rust-src llvm-tools rustfmt clippy miri
+# BUGS: this list names TWO of the three supported targets. `x86_64-unknown-none` is missing,
+# which is visibly inconsistent with the paragraph immediately below that checks for all three
+# QEMU emulators because "`cargo xtask test` now needs the full set". It is harmless today only
+# because `rust-toolchain.toml` carries `targets = [all three]` and rustup honours that array,
+# which is also what makes this line dead weight rather than a source of truth. The fix is to
+# derive the list from that file, the way `channel` above already is; see
+# notes/architecture-list-sweep.md, option A.
 rustup target add --toolchain "$channel" aarch64-unknown-none-softfloat riscv64imac-unknown-none-elf
 
 # --- QEMU ---------------------------------------------------------------------------------
