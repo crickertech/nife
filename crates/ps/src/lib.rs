@@ -109,6 +109,15 @@
 //!   only once there is something to sort by, which means the accounting `top` needs.
 //! - **The state is a snapshot per row, not per table.** See the `BUGS` section of
 //!   notes/process-view.md: a row read early in the walk may be stale by the time the table prints.
+//! - **No automated run spawns `ps`, `watch` or `pgrep`.** This crate's own logic has host tests
+//!   and `kernel::user::survey_tests` covers the syscall underneath, but the three shipped
+//!   programs are reachable only from an interactive prompt (`script/shell`): neither
+//!   `script/test` nor `script/shell-check` types them. Found 2026-08-27 while raising
+//!   [`MAX_ROWS`] with the kernel's thread ceiling, which left a static measurement
+//!   (`-Z emit-stack-sizes` against `system_initializer::CHILD_STACK_PAGES`; the numbers are on
+//!   [`MAX_ROWS`]) as the only check that the bigger stack-resident buffer still fits. That is a
+//!   real check and it is not a run, so anything that only shows up when the program executes has
+//!   nothing standing in its way.
 //!
 //! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review). `ps` is the name
 //! every reader already knows from outside this project, which the naming tenet calls the best
@@ -119,14 +128,24 @@
 #![cfg_attr(not(test), no_std)]
 
 /// The widest domain a survey can produce: the kernel's entire thread table (`MAX_THREADS` in
-/// `kernel/src/sched.rs`, 128 as of milestone 126).
+/// `kernel/src/sched.rs`).
 ///
 /// **A buffer this size makes truncation unreachable rather than handled.** A `ps` holding the
-/// widest grant this system can express sees every thread on the machine, and that is still 128
-/// rows, so there is no "and N more" the shipped program can ever print. If the kernel's table
-/// grows, this is the number that moves with it, and a compile-time assertion in
-/// `kernel::user::survey_tests` is what keeps the two in step rather than a reader.
-pub const MAX_ROWS: usize = 128;
+/// widest grant this system can express sees every thread on the machine, so there is no "and N
+/// more" the shipped program can ever print. If the kernel's table grows, this is the number that
+/// moves with it, and a compile-time assertion in `kernel::user::survey_tests` is what keeps the
+/// two in step rather than a reader.
+///
+/// **128 from milestone 126 until 2026-08-27**, when the kernel's ceiling doubled on a measured
+/// peak (`sched::MAX_THREADS` carries the numbers) and this followed it, which is that assertion
+/// working as designed. The raise is not free here, because a `[Row; MAX_ROWS]` is a stack
+/// allocation in three shipped programs, so it was measured rather than waved through:
+/// `-Z emit-stack-sizes` puts `_start` at 4,240 bytes in `ps`, 4,320 in `pgrep` and 8,464 in
+/// `watch` (which holds two of these buffers, one across the whole run and one per redraw),
+/// against the 12 pages (49,152 bytes) `system_initializer::CHILD_STACK_PAGES` maps under every
+/// child. The worst of the three spends 17% of its stack on this, and nothing else in these
+/// programs is deep: `collect` is 368 bytes and the next frame down is smaller still.
+pub const MAX_ROWS: usize = 256;
 
 /// One line of the listing: a thread and what it is doing.
 ///

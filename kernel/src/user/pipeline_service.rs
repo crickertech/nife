@@ -162,7 +162,7 @@ fn start_with(
         return None;
     }
 
-    crate::sched::spawn(move || {
+    let shell = crate::sched::spawn(move || {
         // The extra stack goes in as ordinary mappings below the one `run` maps, which is the
         // shape `spawn_fs_client` uses and for the same measured reason: a shell carries a path
         // stack, a parsed line and now an array of planned endowments, all by value.
@@ -238,7 +238,30 @@ fn start_with(
                 maps: &maps[..n],
             },
         )
-    })?;
+    });
+
+    // **Say why it was refused, instead of handing the caller a bare `None`.**
+    //
+    // This was `})?;` until 2026-08-27, and the silence cost a whole investigation. The only
+    // thing that can refuse this spawn is `sched::MAX_THREADS`, and when the aarch64 suite
+    // reached that ceiling here the test above only ever learned that it had not got a shell.
+    // Same silently-`?`-shaped bug `fs_service::spawn_fs_client` had, and the same fix.
+    //
+    // `dump_threads` goes with the line rather than after it because the table's contents are
+    // the whole diagnosis: a leak and a boot that legitimately wants more threads than the
+    // image allows are indistinguishable from the refusal alone, and telling them apart is
+    // what took two full instrumented runs the first time. See `sched::MAX_THREADS`, whose doc
+    // comment carries the measurement and the coupled constants.
+    if shell.is_none() {
+        crate::println!(
+            "start_with: spawn(swish) refused; the thread table is full ({} of {} live). \
+             See sched::MAX_THREADS.",
+            crate::sched::thread_count(),
+            crate::sched::MAX_THREADS,
+        );
+        crate::sched::dump_threads();
+        return None;
+    }
 
     Some(Wiring { term, out_phys })
 }

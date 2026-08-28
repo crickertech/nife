@@ -142,6 +142,11 @@ pub type Cap = capability::Cap<Object>;
 // **Sixteen when this note was written, seventeen now** (milestone 49's terminal update raised
 // `CAPABILITY_TABLE_SLOTS`; see that constant's own doc, below). The count changed; the per-slot
 // arithmetic this note exists to pin did not.
+//
+// **And the other half of §102's arithmetic moved too**: `MAX_THREADS` was raised from 128 to 256
+// on 2026-08-27 (that constant's own doc comment carries the measurement), so every whole-machine
+// figure §102 quoted is doubled on top of both changes above. Same conclusion, same reason, larger
+// numbers.
 const _: () = assert!(core::mem::size_of::<Object>() == 24);
 const _: () = assert!(core::mem::size_of::<Cap>() == 32);
 
