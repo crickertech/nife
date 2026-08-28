@@ -22,6 +22,20 @@ on:
   push:
     branches: [main]
   pull_request:
+    # **`ready_for_review` is not a default activity type, and without it the draft guard below
+    # fails open.** A bare `pull_request:` fires on `opened`, `synchronize` and `reopened` only.
+    # §90 opens every lane as a draft and work is pushed while it is still one, so those pushes
+    # raise `synchronize` with `draft: true` and every job correctly skips. Marking the pull
+    # request ready then raises `ready_for_review`, which this workflow did not listen for, so no
+    # run followed and the skipped jobs stayed the last word: the required checks were satisfied
+    # by jobs that never ran, `mergeStateStatus` read `CLEAN`, and nothing had been verified.
+    # Found 2026-08-28 on #567, which sat mergeable with all thirteen checks skipped. The comment
+    # on the draft guard asserted this already worked, which is why it went unnoticed for five
+    # days: it described the event GitHub raises rather than the events this trigger subscribes to.
+    # `architect-hold.yml` had the correct list from the day it was written; these two did not.
+    # Adding a type can only cause more runs, never fewer, so this fails safe in the direction the
+    # rest of this file argues for.
+    types: [opened, reopened, synchronize, ready_for_review]
   # The merge queue tests on a `gh-readonly-queue/...` branch, which raises `merge_group` rather
   # than `pull_request`. `verify (Kani proofs)` is a required check, so without this the queue waits
   # on a run that never starts. See the longer note in ci.yml.
