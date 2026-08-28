@@ -382,6 +382,18 @@ pub fn take_ipc_aborted() -> bool {
 /// no-allocation-in-IRQ rule holds by construction.
 static IPC_TABLES: IrqSafeMutex<Option<IpcTables>> = IrqSafeMutex::new(rank::IPC_TABLES, None);
 
+/// The scheduler before anything is in it, as a `const` rather than an expression [`init`] builds.
+///
+/// Both tables are `const fn` constructors already, so this is a `.rodata` aggregate the installer
+/// copies from instead of a value assembled on the boot stack. `init`'s own comment carries the
+/// measurement and why it decides how large [`MAX_THREADS`] may be.
+const EMPTY_TABLES: IpcTables = IpcTables {
+    threads: Threads::new(),
+    rendezvous_table: generational_table::Table::new(),
+    kernel_ep_region: None,
+    kernel_ep_chunks: 0,
+};
+
 /// **Per-cpu ring of the last few scheduler events** (first-silicon diagnostics, 2026-08-14; the
 /// module name is provisional). A boot-7 bench dump on the VisionFive 2 showed an end state no
 /// legal transition sequence produces (a thread `Blocked` at a non-syscall pc; a receiver
@@ -787,11 +799,29 @@ pub fn canary_disarm() {
 pub fn init() {
     let mut sched = IPC_TABLES.lock();
 
-    let mut threads = Threads::new();
+    // **Install the empty tables FIRST, then name the boot thread through them**, rather than
+    // building a `Threads` as a local and moving it in afterwards. That ordering is a stack
+    // measurement rather than a preference, and it is what lets [`MAX_THREADS`] be raised at all.
+    //
+    // `IpcTables` is two generational tables and nothing else that matters, and the thread table
+    // is `MAX_THREADS` slots wide. Built as a local and then moved into the `Option`, an
+    // unoptimised build carries the table twice on the boot stack, so **every slot added to
+    // `MAX_THREADS` cost about 80 bytes of boot stack** rather than the ~40 the table itself is.
+    // Measured 2026-08-27: at 128 slots this function's frame was 43,952 bytes, the deepest in
+    // the kernel and the reason the suite's boot-stack high-water sat at 54,336 of 65,504 (82%);
+    // a probe raise to 256 took the high-water to 64,640 (98%) and failed `stack::report_high_water`'s
+    // own gate, in a run where nothing else about the boot had changed. Assigning
+    // [`EMPTY_TABLES`], a `const`, gives the compiler a `.rodata` aggregate to copy from and
+    // leaves the boot thread's insert to go straight into the installed table.
+    *sched = Some(EMPTY_TABLES);
+    let tables = sched
+        .as_mut()
+        .expect("the tables were just installed on this line");
     // The table names the boot thread at insert. The first name a fresh table mints is 0 by
     // construction (slot 0, generation 0), so "the boot thread is tid 0" survives, now as a
     // property of the table rather than a hardcoded key.
-    let boot_tid = threads
+    let boot_tid = tables
+        .threads
         .insert_with(|tid| {
             let mut boot = Thread::boot();
             boot.id = tid;
@@ -799,12 +829,6 @@ pub fn init() {
         })
         .expect("a fresh table refused its first insert");
 
-    *sched = Some(IpcTables {
-        threads,
-        rendezvous_table: generational_table::Table::new(),
-        kernel_ep_region: None,
-        kernel_ep_chunks: 0,
-    });
     drop(sched); // release before spawning, which takes the lock itself
 
     // This core (core 0) is running the boot thread.
