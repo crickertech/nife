@@ -96,7 +96,7 @@ fn read_file_back(dir: sched::RendezvousId, file_shared: u64, name: &[u8]) -> Op
 /// 'e' and the 'l', insert an 'l' (fixing it to "hello", cursor left mid-word), End to reach the
 /// end of the line before Enter (so the split does not carry stray tail text onto the next row),
 /// type "rmle", `^S`, `^Q`. If any of cursor movement, mid-line insertion, End, or the newline
-/// split were broken, the saved file would not read `"hello\nkilo"`.
+/// split were broken, the saved file would not read `"hello\nrmle"`.
 #[test_case]
 fn rmle_edits_and_saves_a_real_file() {
     let Some(w) = rmle_service::start(tree::SUB, "rmle_edit.txt") else {
@@ -135,7 +135,7 @@ fn rmle_edits_and_saves_a_real_file() {
     let got = read_file_back(w.dir, w.file_shared, b"rmle_edit.txt")
         .expect("the file rmle saved is not there");
     assert!(
-        got.starts_with(b"hello\nkilo"),
+        got.starts_with(b"hello\nrmle"),
         "saved content is wrong: {:?}",
         &got[..10],
     );
