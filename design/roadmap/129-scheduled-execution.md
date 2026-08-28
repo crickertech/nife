@@ -97,24 +97,41 @@ timetable: the archive it holds carries exactly the 1 program its plan names   <
 timetable: the archive it holds carries 57 programs, 56 of them beyond its plan <- before
 ```
 
+## Built: a backable `--mem` grant, 2026-08-22
+
+`Held::mem_pages` was zero, so an entry naming a memory grant was refused although the process held
+a budget. `timetable::SHIPPED_HELD.mem_pages` is now 4, and `timetable.conf`'s
+`at-boot budgeter --mem 4` is planned, backed, and fires; `user/src/timetable.rs`'s `fire_with_grant`
+and `collect_grant` are the mechanism, and its `BUGS` records the cost.
+
+**This block's own sketch for backing it was wrong, and stayed corrected rather than reopened.** It
+said to split the grant out of the *instance's own region* so a single `DESTROY` reclaims both.
+`regions::destroy_outcome` answers `Refused` for any region with a live child, and
+`sched::reap_supervised` passes that back, so a corpse whose region carries a grant cannot be
+collected through `reap` at all until the grant is destroyed first, by its own separate capability.
+
+The nesting survives the correction for the reason already found: **a refused reap is the only thing
+that pairs a death with a grant.** A supervisor learns a tid and nothing else, because nothing hands
+a builder its child's tid (`build_child` returns a TCB capability and `abi::tcb` reads none out).
+What was left was a decision rather than wiring, and it was made here rather than deferred again:
+**at most one `--mem` instance may be outstanding at a time.** `_start` drains everything already
+running, fires the grant-bearing instance alone, and blocks until it dies and its grant is destroyed
+before anything else in the document fires again, which is what makes the next death on the
+supervision endpoint unambiguous without needing a tid at all. The price is paid by every *other*
+entry, not by `--mem` ones: nothing else can fire while that wait is blocked, so an interval entry
+due during it runs late rather than on schedule (never dropped: `next_after`'s ordinary
+skip-not-catch-up rule covers a wait that outlasts more than one period, the same as any other
+stall). The shipped document does not exercise that cost (`at-boot budgeter --mem 4` fires before
+the first `every 150ms` tick can even become due); a document whose `--mem` entry shared the clock
+with a fast interval would.
+
+A generation counter or a slot table could track more than one outstanding grant; nothing here needs
+its child's tid for any other reason, so building that now would be speculative machinery for a
+milestone whose document schedules exactly one such entry. Serialising to one was the small answer
+and is the one taken.
+
 ## Still to build
 
-- **A `--mem` grant a scheduled entry can actually be backed with.** `Held::mem_pages` is zero today,
-  so an entry naming one is refused although the process holds a budget.
-
-  **This block's own sketch for backing it is wrong and is corrected here** (2026-08-18, found by
-  reading the kernel rather than by failing). It said to split the grant out of the *instance's own
-  region* so a single `DESTROY` reclaims both. `regions::destroy_outcome` answers `Refused` for any
-  region with a live child, and `sched::reap_supervised` passes that back, so a corpse whose region
-  carries a grant cannot be collected at all until the grant is destroyed first.
-
-  The nesting survives the correction for a better reason: **a refused reap is the only thing that
-  pairs a death with a grant.** A supervisor learns a tid and nothing else, because nothing hands a
-  builder its child's tid (`build_child` returns a TCB capability and `abi::tcb` reads none out). So
-  what is left is a decision rather than wiring: how many `--mem` instances may be outstanding at
-  once, since the refusal identifies one. Serialising them is the small answer.
-  `crates/timetable` supports the planning and refusal already, and its host tests cover both. Needs
-  nobody.
 - **One image per entry rather than one archive per timetable, and this needs more than a capability
   per entry.** Checked by a 2026-08-23 lane rather than built, because the framing above turned out
   optimistic. The residual risk isn't the plan's union being reachable from a spawned *child's*
@@ -128,14 +145,46 @@ timetable: the archive it holds carries 57 programs, 56 of them beyond its plan 
   not have (nothing today spawns N sub-builders sized to a document computed at registration), and it
   is a design fork rather than a lane's increment. Not scoped as its own milestone yet.
 - **A runtime registration protocol, and who holds the right to use it.** calef's, per above.
-  **Held pending milestones 49 and 152** (2026-08-22): calef wants a scheduled job's capabilities to
-  reflect the scheduling user's own authority, which means the registrar in #387's own Option 3
-  should be a user's session rather than a fixed system component. That collides with DECISIONS
-  §92 (a caretaker is supervised by the client it serves) for anything meant to outlive the session that
-  registered it, and there is no durable "user" principal yet to supervise a delegation that should.
-  Milestone 152 names the fork; it gates on 49 (users, login, and attribution), which does not exist
-  yet either. #387's `--mem` grant (already built) is unaffected; only the registration-protocol
-  question is blocked.
+  **Held 2026-08-22 pending milestones 49 and 152; both blockers cleared, rechecked 2026-08-28.**
+
+  The hold's reason was that calef wants a scheduled job's capabilities to reflect the scheduling
+  user's own authority, which makes the registrar in #387's Option 3 a user's session rather than a
+  fixed system component, and that collided with DECISIONS §92 (a caretaker is supervised by the
+  client it serves), whose rule is that derived authority dies with that client, for a job meant to
+  outlive the session that registered it. There was no durable "user" principal to supervise such a
+  delegation, and no design for one.
+
+  **Both are now on `main`.** Milestone 49 (users, login, and attribution) reached `BUILT` on
+  2026-08-27. Milestone 152 (durable delegation) cleared its own gate the same day, and its design is
+  not merely named but worked out and ratified: [DECISIONS §108](../decisions/108-credential-revocation-kills-durable-session.md),
+  [§122](../decisions/122-durable-schedule-store-format.md),
+  [§123](../decisions/123-boot-time-rederivation-privilege.md) and
+  [§125](../decisions/125-durable-schedule-manifest.md) are all `DECIDED`, and three of 152's four
+  design pieces are built and gated on both ISAs (`smb_server`'s `DurableSession`, kept alive past a
+  disconnect by §16's live-children rule; `crates/schedule_store`, the on-disk per-identity schedule
+  and its manifest; `user/src/session_reviver.rs`, boot-time re-derivation of both).
+
+  **So the question this bullet was held on is answered**: the registrar is a user's own durable
+  login session, handed a `Held` narrower than the scheduler's own, which `Registry::register(doc,
+  held)` has always taken as a parameter. §92 is not violated, because 152's answer is that the
+  client a scheduled job's authority is supervised by is the session, not the connection.
+
+  **What is left under this heading is smaller than what was held, and is build work plus two
+  residual asks**, both worth naming so they are decided rather than discovered:
+
+  - **The registration wire format**, if the registrar and the scheduler are separate programs.
+    `Registry::register` is an in-process call and needs no opcode; a session registering into a
+    running `timetable` does, and whether a call carries one entry or a whole document is the kind of
+    thing two programs agree on, so it is calef's under AGENTS.md rather than a lane's.
+  - **Removal.** The original ask read "add *or remove*", and 152 answers removal only as a cascade:
+    revoking a user's credentials kills the durable session and everything derived from it (§108).
+    Deregistering one entry, by the user who registered it, while the session lives, has no answer
+    yet, and it is the half a person actually meets.
+
+  One mechanical consequence, not a decision: `DurableSession` is private to
+  `user/src/smb_server.rs`, so a registrar in any other binary means lifting it into a crate, whose
+  name is calef's like every other. #387's `--mem` grant (built, and the whole of that pull request)
+  was never affected by this hold.
 - **Calendar syntax, wall-clock entries, persistence.** Each its own later decision, per the scope
   note below, and none of them started.
 
@@ -186,3 +235,9 @@ entries, and persistence of the entry table across reboot are each their own lat
   `user/src/mdns_responder.rs` records and has the same fix (a `FileSpec` grant plus an `fs_proto`
   open-and-read at startup, milestone 131). It is load-bearing here in a way it is not there, because
   where the document lives is also what answers "who may register".
+
+- **At most one `--mem` instance may be outstanding at a time**, recorded in full in
+  `user/src/timetable.rs`'s own `BUGS`. The scheduler is fully blocked, unable to fire anything else
+  in the document, for as long as that one instance takes to die and its grant to be reclaimed. A
+  document whose `--mem` entry competes with a fast interval for the clock pays that cost as a late
+  fire rather than a dropped one; the shipped document does not exercise it.
