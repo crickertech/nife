@@ -958,7 +958,7 @@ pub fn spawn_init(
     // sized for a full copy of the initrd program plus its tables and init's scratch. Carving it out
     // here changes nothing about what init gets; it changes who can name it afterwards, which is the
     // whole difference between 8 MiB spent and 8 MiB lent. See notes/frames.md.
-    let build_region = crate::memory_region::create(2048).expect("no building budget for init");
+    let build_region = crate::memory_region::create(12288).expect("no building budget for init");
 
     let tid = crate::sched::spawn(move || {
         let elf = match Elf::parse(init_bytes) {
@@ -1816,7 +1816,7 @@ pub fn riscv_initrd_demo(archive: &'static [u8]) -> Result<u64, LoadError> {
     // endpoint WRITE|GRANT (slot 1, so init may delegate a narrowed view to the child it builds).
     let aspace_name = readopt_user_address_space(space).expect("register init address space");
     let report = crate::sched::create_rendezvous();
-    let build_region = crate::memory_region::create(2048).expect("no building budget for init");
+    let build_region = crate::memory_region::create(12288).expect("no building budget for init");
 
     let thread_control_block_region = crate::memory_region::create(2).expect("no tcb region");
     let tid =
@@ -2047,7 +2047,7 @@ pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), Loa
     let irq_ep = crate::sched::create_rendezvous();
     crate::sched::bind_irq(uart_irq, irq_ep);
     let build_region =
-        crate::memory_region::create(2048).expect("no building budget for system_initializer");
+        crate::memory_region::create(12288).expect("no building budget for system_initializer");
 
     let thread_control_block_region = crate::memory_region::create(2).expect("no tcb region");
     let tid =
