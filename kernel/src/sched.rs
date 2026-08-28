@@ -946,7 +946,7 @@ fn thread_control_block_ptr(sched: &mut IpcTables, tid: ThreadId) -> core::ptr::
 /// preempted and **stolen onto a different core** in between and the two answers disagree. When
 /// they disagree in the direction that skips the SGI, the placed thread sits `Ready` in a remote
 /// core's inbox that nothing will ever drain (only the reschedule-SGI handler calls
-/// [`drain_inbox`]), the idle target refuses to steal because [`cpu::Cpu::runnable`] counts that
+/// [`drain_inbox`]), the idle target refuses to steal because [`cpu::PerCpu::runnable`] counts that
 /// inbox as its own work, and the machine wedges with every core idle. That is the 2026-08-28
 /// riscv64 CPU-matrix hang, whose trace ring caught the migration in the act:
 ///
@@ -957,7 +957,13 @@ fn thread_control_block_ptr(sched: &mut IpcTables, tid: ThreadId) -> core::ptr::
 ///
 /// Tid 0 read `target == cpu::id()` on core 2, was preempted and stolen to core 3, and finished the
 /// same `spawn_on` there: the push went to core 2's inbox and the stale "local" answer skipped the
-/// poke. See notes/scheduler.md.
+/// poke.
+///
+/// **A skipped SGI is usually invisible, which is what makes it dangerous.** The next SGI aimed at
+/// that core for any reason drains the whole inbox, so a strand is normally repaired within
+/// milliseconds and nothing is ever seen. It wedges only when the stranded thread is the work
+/// everything else was about to wait on, so no further SGI is generated. Do not take "it has not
+/// hung" as evidence that a placement path pokes correctly. See notes/scheduler.md.
 #[must_use = "a remote placement owes a reschedule SGI once IPC_TABLES is released, or the thread \
               sits in an inbox nothing drains"]
 fn place_on(target: usize, thread: core::ptr::NonNull<Thread>) -> Option<usize> {
