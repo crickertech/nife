@@ -152,6 +152,13 @@ fn main() -> ExitCode {
                     TARGET,
                 ])
         }
+        // The aarch64 archive, standalone (2026-08-27): every other caller reaches
+        // `initrd_aarch64` through `user()` as part of a boot (`build`, `run`, `shell`, ...), and
+        // `initrd_aarch64` itself only packs, it does not build. `initrd_riscv` and `initrd_x86`
+        // both build-then-pack in one call, so this subcommand calls `user()` (build, then pack)
+        // rather than `initrd_aarch64()` alone, to give aarch64 the same self-contained entry
+        // point its two siblings already have.
+        "initrd-aarch64" => user(),
         "initrd-riscv" => initrd_riscv(),
         // The third archive (milestone 161). Same programs, built for x86_64.
         "initrd-x86" => initrd_x86(),
@@ -192,7 +199,7 @@ fn main() -> ExitCode {
                 eprintln!("unknown command: {other}\n");
             }
             eprintln!(
-                "usage: cargo xtask <build|run|shell|shell-check|initboot|smb-serve|initrd-riscv|initrd-x86|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image> [--hvf]"
+                "usage: cargo xtask <build|run|shell|shell-check|initboot|smb-serve|initrd-aarch64|initrd-riscv|initrd-x86|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image> [--hvf]"
             );
             eprintln!("       cargo xtask shell-check [--arch aarch64|riscv64]");
             eprintln!(
@@ -229,7 +236,7 @@ fn build() -> bool {
 /// an **ELF**: the kernel's loader wants program headers, unlike the kernel itself, which QEMU
 /// wants as a flat image. See notes/elf.md.
 fn user() -> bool {
-    cargo_profiled(&["build", "-p", "user", "--target", TARGET]) && mkinitrd()
+    cargo_profiled(&["build", "-p", "user", "--target", TARGET]) && initrd_aarch64()
 }
 
 // ===========================================================================================
@@ -4373,7 +4380,7 @@ fn riscv_initrd_path() -> String {
 ///
 /// `(archive_name, bin_name)`, because the two differ exactly once: the kernel loads the entry
 /// called **`init`**, and on both these architectures that is the portable `builder` demo rather
-/// than `hello`. aarch64 packs hello as `init` and so keeps its own table in [`mkinitrd`]; that is
+/// than `hello`. aarch64 packs hello as `init` and so keeps its own table in [`initrd_aarch64`]; that is
 /// the one asymmetry, and it is why `hello` appears here under its own name.
 ///
 /// **Not filtered per architecture, deliberately.** Several of these programs cannot do their job
@@ -4552,170 +4559,18 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
 /// NIFE_INITRD=target/initrd-riscv.img cargo run -p kernel --target riscv64imac-unknown-none-elf
 /// ```
 fn initrd_riscv() -> bool {
-    if !run(
-        "cargo",
-        &[
-            "build",
-            "-p",
-            "user",
-            "--bin",
-            "builder",
-            "--bin",
-            "worker",
-            "--bin",
-            "driver",
-            "--bin",
-            "os_primitives_benchmarker",
-            "--bin",
-            "coremark",
-            "--bin",
-            "system_initializer",
-            "--bin",
-            "console",
-            "--bin",
-            "input",
-            "--bin",
-            "swish",
-            "--bin",
-            "line_editor",
-            "--bin",
-            "terminal_sink_caretaker",
-            "--bin",
-            "blk",
-            "--bin",
-            "allocator_exerciser",
-            "--bin",
-            "net_stack",
-            "--bin",
-            "smb_server",
-            "--bin",
-            "mdns_responder",
-            "--bin",
-            "budgeter",
-            "--bin",
-            "fs_test_client",
-            "--bin",
-            "fs_file_caretaker",
-            "--bin",
-            "fs_subtree_caretaker",
-            "--bin",
-            "fs_nameset_caretaker",
-            "--bin",
-            "heeder",
-            "--bin",
-            "spinner",
-            "--bin",
-            "root_supervisor",
-            "--bin",
-            "spawner",
-            "--bin",
-            "sub_server_supervisor",
-            "--bin",
-            "flaky",
-            "--bin",
-            "job_undertaker",
-            "--bin",
-            "display",
-            "--bin",
-            "painter",
-            "--bin",
-            "c_confiner",
-            "--bin",
-            "c_shim",
-            "--bin",
-            "compositor",
-            "--bin",
-            "window",
-            "--bin",
-            "display_terminal",
-            "--bin",
-            "kbd",
-            "--bin",
-            "swapper",
-            "--bin",
-            "rust_swappable",
-            "--bin",
-            "c_swappable",
-            "--bin",
-            "chatty",
-            "--bin",
-            "broker",
-            "--bin",
-            "clock",
-            "--bin",
-            "date",
-            "--bin",
-            "printenv",
-            "--bin",
-            "rm",
-            "--bin",
-            "entropy",
-            "--bin",
-            "ntp",
-            "--bin",
-            "outlaw",
-            "--bin",
-            "hello",
-            "--bin",
-            "sink",
-            "--bin",
-            "wc",
-            "--bin",
-            "doc",
-            // `ps` (milestone 126): the process listing. Both archives, because the claim it
-            // makes is about the capability model rather than about a machine.
-            "--bin",
-            "ps",
-            // `pgrep` (milestone 126): the same listing, filtered. Built beside `ps` because the
-            // demonstration is the pair: both hold one supervision endpoint with `ENUMERATE`, and
-            // there is no `pkill` to build alongside them.
-            "--bin",
-            "pgrep",
-            // `watch` (milestone 126): `ps`'s own domain walk, redrawn a bounded number of times
-            // instead of printed once. Both archives for `ps`'s reason: the redraw claim is about the
-            // capability model and the terminal contract, neither of which is instruction-set-specific.
-            "--bin",
-            "watch",
-            "--bin",
-            "timetable",
-            // `uptime` (milestone 126): elapsed time on the ambient monotonic counter, granted to
-            // every process unconditionally. Both archives, same reason as `ps`.
-            "--bin",
-            "uptime",
-            // The credential pair (milestone 56). These were listed in the riscv initrd tables below
-            // but never added HERE, so a clean tree could not build them and `mkinitrd` failed on a
-            // file the build was never asked to produce. The lane's own riscv leg went green on a
-            // stale binary left in its target directory by an earlier build, which is exactly the
-            // failure a dirty target dir hides: parity was asserted against an artifact no
-            // invocation creates.
-            "--bin",
-            "credentialer",
-            "--bin",
-            "credentialer_test_client",
-            // The login service (milestone 49): authenticates against the credential service and
-            // mints a fresh directory capability and budget rather than mutating an identity.
-            "--bin",
-            "login",
-            "--bin",
-            "login_test_client",
-            // The provisioning tool (milestone 155): PUTs an identity and its secret into the
-            // credential store and MKDIRs its home subtree as one act. Portable, so both archives
-            // carry it and the same test suite runs against either ISA.
-            "--bin",
-            "identity_provisioner",
-            // The boot-time re-deriver (milestone 152's third piece, provisional name). Portable,
-            // so both archives carry it and the same test suite runs against either ISA.
-            "--bin",
-            "session_reviver",
-            // The disk surveyor (milestone 57), portable like the rest, and its write-half twin.
-            "--bin",
-            "disk_surveyor",
-            "--bin",
-            "disk_partitioner",
-            "--target",
-            RISCV_TARGET,
-        ],
-    ) {
+    // **Builds the whole package rather than naming binaries** (fixed 2026-08-27; see
+    // [`initrd_x86`]'s doc comment, which used to describe this as the one structural
+    // difference between the two). The `--bin` list this used to carry predated every program
+    // in `user/` compiling for this target, and had to be kept in step with
+    // `portable_archive_entries` by hand; it fell out of step twice in one night when
+    // `audit_sink` (milestone 49) landed in `Cargo.toml` and the packaging table but not here,
+    // and CI caught it both times with "cannot read .../audit_sink: No such file or directory".
+    // Verified 2026-08-27: `cargo build -p user --target riscv64imac-unknown-none-elf`, unfiltered,
+    // compiles clean on current `main` (every program is already riscv64-portable), so the list
+    // bought nothing but a place to forget an entry. Now a missing binary is structurally
+    // impossible instead of a gate someone has to remember to update.
+    if !run("cargo", &["build", "-p", "user", "--target", RISCV_TARGET]) {
         return false;
     }
 
@@ -4805,11 +4660,12 @@ fn x86_initrd_path() -> String {
 /// packing the same programs RISC-V's does out of [`portable_archive_entries`], built for
 /// `x86_64-unknown-none`.
 ///
-/// **It builds the whole package rather than naming binaries**, which is the one structural
-/// difference from [`initrd_riscv`] and is worth the sentence. That function's `--bin` list predates
-/// every program in `user/` compiling for its target and has to be kept in step with the table by
-/// hand; here everything compiles, so `cargo build -p user` is both shorter and self-maintaining.
-/// A program added to `user/Cargo.toml` and to the shared table is packed here with no third edit.
+/// **It builds the whole package rather than naming binaries.** This used to be the one structural
+/// difference from [`initrd_riscv`], whose `--bin` list predated every program in `user/` compiling
+/// for its target and had to be kept in step with the table by hand; that list is gone as of
+/// 2026-08-27 and `initrd_riscv` now builds unfiltered too, the same way this function always has.
+/// A program added to `user/Cargo.toml` and to the shared table is packed here (and by
+/// `initrd_riscv`) with no third edit, on either architecture.
 ///
 /// ```text
 /// cargo xtask initrd-x86
@@ -4840,10 +4696,18 @@ fn x86_initrd_path() -> String {
 /// feature, or an x86 target spec that keeps SSE for userspace. Both are their own work.
 /// See notes/x86-port.md.
 ///
-/// Name provisional (milestone 161), and it does not match its two siblings: `mkinitrd` for
-/// aarch64, `initrd_riscv` for RISC-V, `initrd_x86` here. Three functions doing one job under three
-/// naming schemes is a small mess that predates this lane, and unifying them is a rename of a
-/// subcommand a reader may have typed, so it is flagged rather than taken.
+/// **Naming, updated 2026-08-27**: this function's own name predates a naming scheme; the mismatch
+/// it used to flag against its two siblings (`mkinitrd` for aarch64, `initrd_riscv` for RISC-V,
+/// `initrd_x86` here) is resolved on calef's behalf as follows, and remains **provisional** because
+/// naming is calef's call, not a lane's (per this repo's naming convention; function names get more
+/// latitude than crate names but still ship provisional). aarch64's `mkinitrd` is renamed to
+/// `initrd_aarch64` and given its own `initrd-aarch64` subcommand, matching the `initrd_<arch>` /
+/// `initrd-<arch>` shape `initrd_riscv`/`initrd-riscv` and this function/`initrd-x86` already had;
+/// this function and `initrd_riscv` are left as they were; see the PR that made this change for the
+/// reasoning (chiefly: extending the pattern two of three already used costs one new subcommand and
+/// one rename, where making all three agree on fully-spelled ISA names, e.g. `initrd_riscv64` /
+/// `initrd_x86_64`, would also rename two already-typed, already-documented subcommand names for a
+/// smaller win). Confirm or redirect.
 fn initrd_x86() -> bool {
     if !cargo_profiled(&["build", "-p", "user", "--target", X86_TARGET]) {
         return false;
@@ -4901,7 +4765,8 @@ fn initrd_x86() -> bool {
     true
 }
 
-/// Pack the built user ELF into the initrd archive the kernel hands init (milestone 19f).
+/// **Build the aarch64 userspace archive.** Pack the built user ELF into the initrd archive the
+/// kernel hands init (milestone 19f).
 ///
 /// The initrd is a **nifefs image**, the same format the virtio disk uses, so one parser serves
 /// both the RAM archive and the disk. It holds `init` (the `hello` binary, which the kernel loads
@@ -4909,7 +4774,18 @@ fn initrd_x86() -> bool {
 /// `worker` (19f.2) and `console` (19f.3). The kernel reads the `init` entry to boot; init loads the
 /// rest by name. Generated, not checked in, exactly like the disk and the flat kernel image: a blob
 /// in git is a blob nobody can review.
-fn mkinitrd() -> bool {
+///
+/// **Renamed from `mkinitrd` (2026-08-27), and given aarch64 its own `initrd-aarch64`
+/// subcommand**, to match its two siblings ([`initrd_riscv`], [`initrd_x86`]): one job, one
+/// `initrd_<arch>` naming scheme, three matching `cargo xtask initrd-<arch>` subcommands. This
+/// function only packs, unlike its two siblings, which both build-then-pack in one call; `main`'s
+/// `"initrd-aarch64"` arm calls [`user`] (build, then pack) rather than this function alone, so
+/// the subcommand is self-contained the same way `initrd-riscv`/`initrd-x86` are. It is still
+/// called internally by `user()` (and so by `build`, `run`, `shell`, and everything else that
+/// boots the aarch64 kernel) exactly as `mkinitrd` was; the new subcommand is additive, so nothing
+/// that already called this function changed. **Name and subcommand provisional**, per this
+/// repo's naming convention: calef's call to confirm or redirect.
+fn initrd_aarch64() -> bool {
     // **One table, one loop**, the shape `initrd_riscv` has always had (milestone 130). This
     // function used to do the same job three ways at once: nineteen hand-rolled `let` bindings of
     // seven identical lines each, then a loop over a name array doing exactly the same thing, then
@@ -5044,7 +4920,7 @@ fn mkinitrd() -> bool {
         match read_stripped(&bin_elf(bin_name)) {
             Ok(b) => blobs.push((archive_name, b)),
             Err(e) => {
-                eprintln!("mkinitrd: cannot read {}: {e}", bin_elf(bin_name));
+                eprintln!("initrd-aarch64: cannot read {}: {e}", bin_elf(bin_name));
                 return false;
             }
         }
@@ -5084,11 +4960,11 @@ fn mkinitrd() -> bool {
     let size = nifefs::image_size(&files);
     let mut img = std::vec![0u8; size];
     if nifefs::write_image(&files, &mut img).is_err() {
-        eprintln!("mkinitrd: could not build the initrd archive");
+        eprintln!("initrd-aarch64: could not build the initrd archive");
         return false;
     }
     if let Err(e) = std::fs::write(initrd_path(), &img) {
-        eprintln!("mkinitrd: could not write {}: {e}", initrd_path());
+        eprintln!("initrd-aarch64: could not write {}: {e}", initrd_path());
         return false;
     }
     // Measure the boot program before the kernel is built (milestone 22 phase B.1). Every caller
@@ -5098,7 +4974,7 @@ fn mkinitrd() -> bool {
 }
 
 /// The packed initrd archive ([`initrd_path`]) is what `scripts/qemu-runner-aarch64.sh` passes to QEMU as
-/// `-initrd` (milestone 19f); the raw user ELFs ([`bin_elf`]) are only the input `mkinitrd` packs.
+/// `-initrd` (milestone 19f); the raw user ELFs ([`bin_elf`]) are only the input `initrd_aarch64` packs.
 ///
 /// **Deliberately the same road Linux's initramfs travels**, now literally an archive like theirs.
 /// QEMU loads the file into RAM and writes its address into `/chosen/linux,initrd-start` in the
@@ -6200,7 +6076,7 @@ fn redoxfs_reads_back(name: &str, want: &[u8]) -> bool {
 }
 
 /// The ELF path of a named binary the `user` package builds (milestone 19f.2+): `hello`, `worker`,
-/// `console`, and so on. `mkinitrd` packs each into the archive, under that same name for every
+/// `console`, and so on. `initrd_aarch64` packs each into the archive, under that same name for every
 /// program but `hello`, which is packed as `init`.
 ///
 /// **The path is ABSOLUTE, and that is not fussiness.** Cargo runs the runner script with the
@@ -6211,7 +6087,7 @@ fn redoxfs_reads_back(name: &str, want: &[u8]) -> bool {
 ///
 /// That lesson was written on a `user_elf()` helper that computed this same path for `hello`
 /// alone, and was `bin_elf("hello")` in every respect but the comment. Milestone 130 folded it in
-/// when `mkinitrd` stopped needing a special case for `init`; the warning belongs here, where
+/// when `initrd_aarch64` stopped needing a special case for `init`; the warning belongs here, where
 /// every caller reads it, rather than on the one caller that happened to earn it.
 fn bin_elf(name: &str) -> String {
     workspace_root()
@@ -6480,7 +6356,7 @@ fn test() -> bool {
     }
 
     // Build the std demo (milestone 27) for both custom targets first, so both initrds carry it:
-    // mkinitrd (inside `user`) packs the aarch64 std_exerciser, initrd_riscv packs the riscv one. Outside
+    // initrd_aarch64 (inside `user`) packs the aarch64 std_exerciser, initrd_riscv packs the riscv one. Outside
     // the leg guards below because BOTH legs need it, and the nifefs data disk with it: it is
     // arch-neutral, and the riscv leg reads it whether or not the aarch64 leg ran.
     if !std_exerciser() || !mkdisk() {
@@ -6528,7 +6404,7 @@ fn test() -> bool {
         eprintln!();
         eprintln!("--- kernel tests, aarch64 (QEMU) ---");
         // The FS server (milestone 32 phase 2), for the aarch64 bare target, before `user()` so
-        // mkinitrd packs it; then the RedoxFS test images the runner attaches as extra mmio disks.
+        // initrd_aarch64 packs it; then the RedoxFS test images the runner attaches as extra mmio disks.
         if !redoxfs_server_build(TARGET)
             || !user()
             || !mkredoxfs()
@@ -7966,7 +7842,7 @@ fn bench() -> bool {
     // lines. Only meaningful with `--real`.
     let smp = std::env::args().any(|a| a == "--smp");
 
-    // For --smp, build the FS server (before user(), so mkinitrd packs the redoxfs_server ELF) and the
+    // For --smp, build the FS server (before user(), so initrd_aarch64 packs the redoxfs_server ELF) and the
     // RedoxFS test image the runner attaches as the second mmio disk. The fs_read bench opens it; on
     // any run without the image the bench finds no second disk and skips, so this stays out of the
     // icount gate's build entirely.
