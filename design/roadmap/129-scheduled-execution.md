@@ -145,14 +145,46 @@ and is the one taken.
   not have (nothing today spawns N sub-builders sized to a document computed at registration), and it
   is a design fork rather than a lane's increment. Not scoped as its own milestone yet.
 - **A runtime registration protocol, and who holds the right to use it.** calef's, per above.
-  **Held pending milestones 49 and 152** (2026-08-22): calef wants a scheduled job's capabilities to
-  reflect the scheduling user's own authority, which means the registrar in #387's own Option 3
-  should be a user's session rather than a fixed system component. That collides with DECISIONS
-  §92 (a caretaker is supervised by the client it serves) for anything meant to outlive the session that
-  registered it, and there is no durable "user" principal yet to supervise a delegation that should.
-  Milestone 152 names the fork; it gates on 49 (users, login, and attribution), which does not exist
-  yet either. #387's `--mem` grant (already built) is unaffected; only the registration-protocol
-  question is blocked.
+  **Held 2026-08-22 pending milestones 49 and 152; both blockers cleared, rechecked 2026-08-28.**
+
+  The hold's reason was that calef wants a scheduled job's capabilities to reflect the scheduling
+  user's own authority, which makes the registrar in #387's Option 3 a user's session rather than a
+  fixed system component, and that collided with DECISIONS §92 (a caretaker is supervised by the
+  client it serves), whose rule is that derived authority dies with that client, for a job meant to
+  outlive the session that registered it. There was no durable "user" principal to supervise such a
+  delegation, and no design for one.
+
+  **Both are now on `main`.** Milestone 49 (users, login, and attribution) reached `BUILT` on
+  2026-08-27. Milestone 152 (durable delegation) cleared its own gate the same day, and its design is
+  not merely named but worked out and ratified: [DECISIONS §108](../decisions/108-credential-revocation-kills-durable-session.md),
+  [§122](../decisions/122-durable-schedule-store-format.md),
+  [§123](../decisions/123-boot-time-rederivation-privilege.md) and
+  [§125](../decisions/125-durable-schedule-manifest.md) are all `DECIDED`, and three of 152's four
+  design pieces are built and gated on both ISAs (`smb_server`'s `DurableSession`, kept alive past a
+  disconnect by §16's live-children rule; `crates/schedule_store`, the on-disk per-identity schedule
+  and its manifest; `user/src/session_reviver.rs`, boot-time re-derivation of both).
+
+  **So the question this bullet was held on is answered**: the registrar is a user's own durable
+  login session, handed a `Held` narrower than the scheduler's own, which `Registry::register(doc,
+  held)` has always taken as a parameter. §92 is not violated, because 152's answer is that the
+  client a scheduled job's authority is supervised by is the session, not the connection.
+
+  **What is left under this heading is smaller than what was held, and is build work plus two
+  residual asks**, both worth naming so they are decided rather than discovered:
+
+  - **The registration wire format**, if the registrar and the scheduler are separate programs.
+    `Registry::register` is an in-process call and needs no opcode; a session registering into a
+    running `timetable` does, and whether a call carries one entry or a whole document is the kind of
+    thing two programs agree on, so it is calef's under AGENTS.md rather than a lane's.
+  - **Removal.** The original ask read "add *or remove*", and 152 answers removal only as a cascade:
+    revoking a user's credentials kills the durable session and everything derived from it (§108).
+    Deregistering one entry, by the user who registered it, while the session lives, has no answer
+    yet, and it is the half a person actually meets.
+
+  One mechanical consequence, not a decision: `DurableSession` is private to
+  `user/src/smb_server.rs`, so a registrar in any other binary means lifting it into a crate, whose
+  name is calef's like every other. #387's `--mem` grant (built, and the whole of that pull request)
+  was never affected by this hold.
 - **Calendar syntax, wall-clock entries, persistence.** Each its own later decision, per the scope
   note below, and none of them started.
 
