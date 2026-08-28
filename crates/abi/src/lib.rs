@@ -142,7 +142,7 @@ pub type CapSlot = u64;
 ///
 /// **Raised 16 -> 17, milestone 49's terminal update**; see `kernel::cap::CAPABILITY_TABLE_SLOTS`'s
 /// own comment for the measured reason (`user/src/login.rs`'s eighth permanent grant).
-pub const CAPABILITY_TABLE_SLOTS: u64 = 28; // TEMP: generous bisection value
+pub const CAPABILITY_TABLE_SLOTS: u64 = 17;
 
 /// Methods on a `Console` capability. **Historical: no longer wired up.**
 ///

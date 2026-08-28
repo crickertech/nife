@@ -130,7 +130,7 @@ pub type Cap = capability::Cap<Object>;
 /// raising it ("a one-number change here, paid in TCB size"), which is exactly the shape of trade
 /// this tree's own precedent (`MAX_REGIONS`, `nifefs::NAME_LEN`) already treats as the expected
 /// response to a real feature needing one more slot.
-pub const CAPABILITY_TABLE_SLOTS: usize = 28; // TEMP: generous bisection value
+pub const CAPABILITY_TABLE_SLOTS: usize = 17;
 pub type CapabilityTable = capability::CapabilityTable<Object, CAPABILITY_TABLE_SLOTS>;
 
 // The ABI names the reserved fault slot as `CAPABILITY_TABLE_SLOTS - 1`, so the two constants
