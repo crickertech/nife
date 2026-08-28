@@ -7,16 +7,16 @@
              # understood; do it in the commit that causes the change. Checked by --check, a coarse
              # 10% tripwire (icount counts drift across builds; see notes/benchmarks.md).
 yield_switch 1096445 2000
-ipc_rtt 1017343 1000
-relay_rtt 2027636 1000
+ipc_rtt 1017344 1000
+relay_rtt 2027637 1000
 call_reply 1040096 1000
 broker_rtt 2076500 1000
-spawn_reap 204447 64
-map_new 15743 64
-coremark 20917348 256
+spawn_reap 204704 64
+map_new 15744 64
+coremark 20917347 256
 null_syscall 405227 20000
-ctx_switch 2909838 5000
-ipc_rtt_el0 10728300 5000
-sink_throughput 4413709 80000
-map_el0 464182 500
-spawn_el0 2070473 100
+ctx_switch 2909257 5000
+ipc_rtt_el0 10740544 5000
+sink_throughput 4414435 80000
+map_el0 385919 500
+spawn_el0 2074336 100

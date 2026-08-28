@@ -89,6 +89,17 @@ struct LogEntry {
 /// **Fell from 255 to 170 when [`LogEntry`] grew its third word** (§132 option C, 2026-08-27):
 /// `16 + 24 * 170 == 4096` exactly, and the `LogPage` size assertion below is what keeps that
 /// arithmetic honest rather than a comment claiming it.
+///
+/// **This number is a benchmark input, which is not obvious from here.** [`record_mapping`] scans
+/// the head page's used slots for a tombstone before it appends, so the average scan is half of
+/// this constant and the whole cost of recording a mapping is linear in it. Lowering it to 170 took
+/// `map_el0` down 16.9% on aarch64 (464,182 -> 385,919) and 16.4% on riscv64 (73,990 -> 61,868),
+/// measured by changing this one number on `main` and nothing else: 383,325, which is the branch's
+/// figure to within 0.7%. Nothing was skipped to earn it; a shorter search for a free slot is the
+/// same search over a smaller page. It is paid for on the other side, in the space's own region
+/// budget, which now funds 1.5x the log pages for the same number of mappings ([`LogEntry`]'s
+/// `BUGS` prices the next word on that same scale). Whoever moves this constant again moves both
+/// benchmarks with it and should expect to re-record them.
 const LOG_ENTRIES: usize = 170;
 
 /// **What authority a mapping was made under**, which is the question [`record_mapping`] now
