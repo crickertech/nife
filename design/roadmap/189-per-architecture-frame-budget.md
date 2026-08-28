@@ -43,12 +43,26 @@ exceeded by a smaller one.
 
 ## The fact that makes it worse, and it is a small one
 
-**Nobody knows what x86_64 keeps.** The ledger prints the figure on every x86_64 run and no one has
-ever written it down: it is absent from the constant's history, from `notes/frames.md`, and from
-every lane report this was searched in. There is therefore no baseline for that leg at all, and no
-way to say whether it has grown, shrunk, or leaked since the port landed.
+**Nobody had written down what x86_64 keeps**, and it was absent from the constant's history, from
+`notes/frames.md`, and from every lane report searched when this milestone was minted.
 
-The first task of this milestone is one measurement that has simply never been taken.
+**Measured 2026-08-28, and it is worse than this milestone assumed.** PR #546's lane reported the
+figure while re-measuring the other two legs:
+
+| leg | frames kept | against the shared budget |
+|---|---|---|
+| aarch64 | 22,217 | the number the constant is fitted to |
+| riscv64 | 21,941 | 276 under aarch64 |
+| **x86_64** | **7,514** | **roughly 14,700 frames of slack** |
+
+So x86_64 keeps **about a third** of what aarch64 keeps, and sits nearly fifteen thousand frames
+below a ceiling it is nominally gated by. The gate is not merely loose there. **x86_64's retained
+frames could triple and the ledger would still report green**, which is not a tripwire in any useful
+sense.
+
+That single reading does not remove the need for the milestone's first step. One number is not a
+baseline: it wants a second reading to establish whether the leg is stable, and it still cannot say
+whether 7,514 already carries a leak, for the reason recorded at the end of this block.
 
 ## Why this is the same failure the tree already named
 
