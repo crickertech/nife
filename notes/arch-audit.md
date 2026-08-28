@@ -348,6 +348,33 @@ missing barrier or a mis-ordered instruction, it was **one ISA quietly getting a
 hardware that the other does not**, and the RISC-V driver having been written as if it did. That is
 the same shape as finding 1, and both are the shape rule 5 exists to catch.
 
+## BUGS: this audit covers two of the three architectures
+
+Added 2026-08-27 by the sweep in [architecture-list-sweep.md](architecture-list-sweep.md), which
+went looking for exactly this shape and found it here.
+
+**Everything above is aarch64 and riscv64. `kernel/src/arch/x86_64/` has never been read this way.**
+The scope table has two columns because there were two architectures when this was written
+(2026-07-29); milestone 161 brought up the third and this note was not revisited. The size is the
+part that should decide how urgent it is: **that tree is 18 files and 6,797 lines, larger than the
+roughly 6,200 lines this audit read in full across both other ISAs.** It carries its own `trap.s`,
+`context.s`, `boot.s`, an AP bring-up path, a segment and TSS layer, and a VT-d driver, none of
+which has an analogue that was covered here.
+
+That matters more than an ordinary coverage gap because of this note's own argument: hand-written
+architecture assembly is the least-verified code in the trusted computing base, no tool in this
+project can prove it, and an audit by reading is the compensating control. On a third of the arch
+tree there is currently neither.
+
+The audit cadence (`script/audits`, `.github/workflows/audit-cadence.yml`) will not raise this. It
+counts audits against elapsed time and shipped components; it has no notion of an architecture, so
+a whole unaudited ISA reads to it as a tree in good standing.
+
+Recorded rather than fixed here, since reading 6,797 lines is its own lane. It is item 8 of the
+sweep's table and is folded into the milestone proposed there.
+
+## The original audit's limit
+
 That is a reassuring result, and it should be read with its limit attached: **an audit by reading
 finds what the reader thinks to look for.** The original bug was found by a failure, not by
 inspection, and it had survived every previous reading of that file. Until something can prove

@@ -1,15 +1,20 @@
 # 132. What `PageFrame::REVOKE` owes an overlapping run
 
-**Status: PROPOSED.** Raised 2026-08-27 by milestone 142's lane, out of the adversarial security
-review of DECISIONS §102's build. **The section number is provisional**: a lane does not mint one,
+**Status: DECIDED.** calef, 2026-08-27: **option C for questions 1 and 2**, built rather than
+deferred; question 3 (the device half) stays open. Raised the same day by milestone 142's lane, out
+of the adversarial security review of DECISIONS §102's build. **The section number is provisional**: a lane does not mint one,
 and the integrator renumbers this at merge like every other global name. Cited from
 `kernel/src/revoke.rs`'s `revoke_page_frame_run` BUGS section, `kernel/src/sched.rs`'s
 `delete_page_frame_caps`, and notes/frames.md.
 
-**Nothing is blocked by this today.** What is blocked is the first `Rights::GRANT` on a run
-capability: `PageFrame::REVOKE` requires `GRANT` (`kernel/src/syscall.rs`), no run capability in
-the tree carries it, and so no path below is reachable. That is the whole reason this is a written
-decision rather than a fix: the fix is unreachable and the wrong one is expensive.
+**The body below is left as it was written**, options priced and lean stated, because a decision
+record that edits away the argument it was decided against is worth less than the argument. What
+changed is the last section: see [How it was decided, and what shipped](#how-it-was-decided-and-what-shipped).
+
+**Nothing was blocked by this.** What was blocked is the first `Rights::GRANT` on a run capability:
+`PageFrame::REVOKE` requires `GRANT` (`kernel/src/syscall.rs`), no run capability in the tree
+carries it, and so no path below was reachable. That is the whole reason this was a written decision
+rather than a fix: the fix was unreachable and the wrong one is expensive.
 
 ## What is being decided
 
@@ -137,7 +142,7 @@ until the driver's virtio registration is itself torn down. **Whether `REVOKE` s
 window is a separate question from all of the above**, and it is the one with the most surface: it
 would couple two objects (`PageFrame` and `Virtio`) that are deliberately independent today.
 
-## Recommendation
+## Recommendation (as written, before the decision)
 
 **A now, C when it becomes reachable, and the reachability is the trigger.** This is a
 syscall-surface question, so per AGENTS.md it arrives with options rather than a made decision; the
@@ -153,8 +158,75 @@ syscall-semantics decision, which is a lot to spend on an unreachable path.
 (`git grep -n page_frame_run_cap`) and it is the condition under which A stops being honest and
 starts being a hole.
 
-## What is blocked until this is answered
+## What was blocked until this was answered
 
 Nothing in flight. Specifically **not** blocked: milestone 142, the scanout, or any current
 `PageFrame` work. **Blocked:** granting `GRANT` on any run capability, and therefore any future
-design that wants a run to be delegable or revocable by its holder.
+design that wants a run to be delegable or revocable by its holder. That is now unblocked.
+
+## How it was decided, and what shipped
+
+**calef asked "why not C now?" and the deferral did not survive the question** (2026-08-27). The
+recommendation above is a worked instance of the failure AGENTS.md names in *elegance and
+performance beat implementation convenience*: a case made in the vocabulary of architecture
+("unreachable path", "syscall-semantics decision") whose load-bearing clause was that A was less
+work. Applied to itself, the tenet's one question, *would I still choose this if both options were
+the same amount of work*, answers no. C wins outright on the merits, and the cost that made
+deferring look prudent turned out to be small and bounded.
+
+**Three things the argument turned on, and they are lookups rather than opinions.**
+
+**Every live `REVOKE` call site is single-page, so C changes nothing observable today.** Not
+asserted, traced. There are four, and the earlier count of three missed one:
+
+| Site | Object | Path |
+|---|---|---|
+| `user/src/hello.rs`'s `revoke_demo` | `PageFrame(phys, 1)` from `MemoryRegion::RETYPE`, `Rights::ALL` | the only production `PageFrame::REVOKE` in the tree, driven end to end by `a_process_revokes_a_frame_and_loses_the_capability` |
+| `user/src/swapper.rs`'s device hand-back | `DeviceFrame(phys)` | `revoke_device_from_others`, §41, untouched by this work |
+| `kernel/src/user/disk_tests.rs` | `PageFrame(roster_phys, 1)` from `page_frame_cap` | `revoke::revoke_page_frame` directly |
+| `kernel/src/user/tests.rs` | one page, mapped with no capability at all | `revoke::revoke_page_frame` directly |
+
+For a single-page object, capability identity and physical overlap are the same test: two *different*
+one-page capabilities cannot overlap without being equal. All four still pass on all three
+architectures, unchanged, which is the empirical half of the claim rather than the reasoning half.
+
+**The cost is one word per mapping record.** `LogEntry` went from 16 bytes to 24 and `LOG_ENTRIES`
+from 255 to 170 per log page (`16 + 24 * 170 == 4096`), so a space pays about 1.5x the log pages it
+paid. The pricing in the option above was right. `revoke.rs`'s `assert!(size_of::<LogPage>() ==
+FRAME_SIZE)` holds it to account at compile time, and that was verified by setting `LOG_ENTRIES` to
+171 and watching it fail rather than by trusting the arithmetic.
+
+**"Or its derivatives" really is free.** `Cap::derive` narrows rights and never changes the object,
+so the run's base address matches the whole derivation family with no §13 derivation tree. One word,
+not two.
+
+**What shipped**, on `milestone/132-capability-scoped-revocation`:
+
+- `revoke::LogEntry` carries the object each mapping was made under, and `revoke::record_mapping`
+  takes a required `PageMapSource` (ratified 2026-08-27, landed as `MappedUnder`; renamed since
+  "mapping" alone is overloaded across this tree and `pmap` is already this tree's word for a page
+  mapping) saying which capability that was, or `NoCapability` for a page nothing names. A required
+  argument with no default is the ladder's rung one: a mapping that cannot say what authority made
+  it no longer compiles.
+- `PageFrame::REVOKE`'s unmap half is scoped to that object (`revoke::unmap_under_object`);
+  `revoke_page_frame` is now literally the `count: 1` case of `revoke_page_frame_run`.
+- The capability half is unchanged, because exact-object equality already *was* the derivation
+  family. Question 1's answer under C is the code that was already there.
+- Reclamation (`revoke_region`) and the device take-back (`revoke_device_from_others`) stay
+  object-blind, each with the reason written where a reader meets it: reclamation asks whether the
+  page is safe to hand out again, and the take-back scopes by holder rather than by capability.
+- Two tests: `revoking_one_run_leaves_an_overlapping_capability_and_its_mappings_alone` (the display
+  wiring's shape, shrunk to four pages; it fails on the old space-blind unmap, which was checked by
+  reverting the one line) and `a_device_take_back_ignores_the_object_and_spares_one_holder` (§41's
+  regression guard, two holders recording one page under deliberately different objects).
+
+**This amends one sentence of §102**, which said "the revocation table is per-page, not
+per-capability, and that doesn't change." It changed. The table is still keyed per page; it now also
+records which object authorized each entry.
+
+**Question 3 is not answered and is not made easier by this.** `PageFrame::REVOKE` is still a
+CPU-side operation, a driver's IOMMU/DMA window is still registered as a byte range derived from no
+capability, and a capability-perfect revocation still leaves the device able to write the pages until
+the virtio registration is torn down. Coupling `PageFrame` and `Virtio`, which are independent by
+design, is a separate decision with more surface than this one had. Recorded in `revoke.rs`'s
+`revoke_page_frame_run` BUGS and in notes/frames.md, where a reader meets the feature.

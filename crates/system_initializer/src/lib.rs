@@ -522,6 +522,117 @@ const SH_FS_VA: u64 = 0x0060_0000; // the shell's half of the FS contract (swish
 /// agree on an address, one may not.
 const SH_CLOCK_VA: u64 = 0x00d0_0000;
 
+// -------------------------------------------------------------------------------------------
+// Milestone 49's login stack: credentialer, identity_provisioner, login, audit_sink.
+// -------------------------------------------------------------------------------------------
+
+/// Where `credentialer` maps its own provision page. Must match `user/src/credentialer.rs`'s own
+/// `PROV_VA`.
+const CRED_SVC_PROV_VA: u64 = 0x0000_0000_00e0_0000;
+/// Where `credentialer` maps its own verify page. Must match the same file's `VERIFY_VA`.
+const CRED_SVC_VERIFY_VA: u64 = 0x0000_0000_00e1_0000;
+/// Where `login` maps its relay of the verify page (the same physical frame as
+/// [`CRED_SVC_VERIFY_VA`], mapped into a different address space). Must match `user/src/login.rs`'s
+/// own `CRED_VA`.
+const LOGIN_CRED_VA: u64 = 0x0000_0000_00e3_0000;
+/// Where `identity_provisioner` maps the identity/secret this boot stages for it. Must match
+/// `user/src/identity_provisioner.rs`'s own `REQ_VA`.
+const IDP_REQ_VA: u64 = 0x0000_0000_00e4_0000;
+/// Where `identity_provisioner` maps `credentialer`'s provision page (the same physical frame as
+/// [`CRED_SVC_PROV_VA`]). Must match the same file's own `PROV_VA`.
+const IDP_PROV_VA: u64 = 0x0000_0000_00e0_0000;
+/// Where `identity_provisioner` maps the file service's shared page. Must match the same file's own
+/// `FS_VA`.
+const IDP_FS_VA: u64 = 0x0000_0000_00e5_0000;
+/// Where this process briefly maps the page it stages `identity_provisioner`'s request into, in its
+/// own address space, before delegating the same physical frame on. Distinct from every VA above
+/// (those are addresses inside a *child's* address space); in the same scratch family as
+/// [`RNG_DMA_PEEK_VA`] and [`INIT_OUT_VA`].
+const PROVISION_SCRATCH_VA: u64 = 0x0f20_0000;
+
+/// `credentialer`'s own construction budget, in pages: matches
+/// `kernel::user::credential_service::CRED_BUDGET_PAGES` (6 MiB, sized from `cred::Cost::DEFAULT`'s
+/// own scratch requirement, not guessed).
+const CRED_BUDGET_PAGES: u64 = 1536;
+/// Extra stack pages `credentialer` needs, beyond the one page `build_child` maps: matches
+/// `kernel::user::credential_service::CRED_STACK_PAGES`, itself a measurement (Argon2id's inner
+/// loop overflows one page) rather than a guess.
+const CRED_STACK_PAGES: u64 = 16;
+/// `login`'s own construction budget under a real boot, in pages. Sized for a handful of real
+/// sessions across the boot's whole life (`OWN_UT_PAGES` 128 + `CHANNEL_UT_PAGES` 32, both
+/// `user/src/login.rs`'s own one-time costs, plus `CARETAKER_REGION_PAGES` 64 + `CLIENT_BUDGET_PAGES`
+/// 64 per session that never logs out), not the much larger figure
+/// `kernel::user::login_tests::CONSTRUCTION_PAGES` carries for a whole guest-test suite's worth of
+/// logins against one shared instance.
+const LOGIN_CONSTRUCTION_PAGES: u64 = 768;
+/// Extra stack pages `login` needs, beyond the one page `build_child` maps: matches
+/// `kernel::user::login_service::LOGIN_STACK_PAGES`, "sized against `credentialer.rs`'s own lesson"
+/// (that file's own comment).
+const LOGIN_STACK_PAGES: u64 = 16;
+
+/// `credentialer.rs`'s own readiness sentinel, duplicated here the same way its `PROV_VA`/`VERIFY_VA`
+/// already are: a binary crate cannot be imported, so every wiring site that needs to recognise this
+/// word states it again (`kernel::user::credential_service`'s own `RPT_READY` is the same
+/// duplication one level over). Must match `user/src/credentialer.rs`'s own `RPT_READY`.
+const CRED_RPT_READY: u64 = 0x_c2ed_0000_0000_0001;
+/// `identity_provisioner.rs`'s own success report code, duplicated for the same reason
+/// (`kernel::user::identity_provisioner_service`'s own `RPT_OK` is the identical duplication).
+/// Must match `user/src/identity_provisioner.rs`'s own `RPT_OK`.
+const IDP_RPT_OK: u64 = 1;
+
+/// **The demo identity this boot provisions**, once per boot, with a freshly generated password
+/// (see `have_login_stack`'s own block for the reasoning): a role name rather than a specific
+/// family member's, deliberately, because the whole point of a boot-generated credential is that
+/// nothing here has to decide *whose* account this is (`design/roadmap/49-users-and-attribution.md`'s
+/// own BUGS names this as the reason the generated shape was recommended over a baked-in one).
+const DEMO_IDENTITY: &[u8] = b"operator";
+/// How many raw bytes of entropy the generated password draws. 12 bytes (96 bits) hex-encoded to
+/// [`PASSWORD_HEX_LEN`] printable characters: comfortably past what an online guesser could work
+/// through before the boot that generated it is long gone, and short enough to type at a keyboard.
+const PASSWORD_BYTES: usize = 12;
+/// [`PASSWORD_BYTES`] hex-encoded, two characters per byte.
+const PASSWORD_HEX_LEN: usize = PASSWORD_BYTES * 2;
+
+/// Draw `out.len()` bytes from the entropy service through `request`
+/// ([`entropy_proto::MAX_BYTES`] at a time), the identical loop `user/src/credentialer.rs`'s own
+/// `fill` performs as a *client* of that same service (this process is, briefly, one too: it draws
+/// the generated password's own raw bytes before `credentialer` ever exists). `false` when the
+/// service could not supply them, which the caller treats as fatal to generating a password at all
+/// -- the same "never invent a weak one" posture `credentialer.rs`'s own `fill` documents for a
+/// salt.
+fn fill_entropy(request: u64, out: &mut [u8]) -> bool {
+    let mut done = 0;
+    while done < out.len() {
+        let want = (out.len() - done).min(entropy_proto::MAX_BYTES as usize);
+        // SAFETY: `invoke` traps to the kernel, which validates the capability and the method
+        // before acting.
+        let (r0, r1) = call(
+            request,
+            entropy_proto::req(entropy_proto::GET, want as u64),
+            0,
+        );
+        let Some(n) = entropy_proto::delivered(r0) else {
+            return false;
+        };
+        if n < want {
+            return false;
+        }
+        done += entropy_proto::take(n, r1, &mut out[done..]);
+    }
+    true
+}
+
+/// Hex-encode `bytes` into `out` (`out.len() == 2 * bytes.len()`), lowercase: the shape a cloud
+/// image's generated first-boot password already takes, printable and typeable at a keyboard
+/// without a decoder.
+fn hex_password(bytes: &[u8], out: &mut [u8]) {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    for (i, &b) in bytes.iter().enumerate() {
+        out[i * 2] = DIGITS[(b >> 4) as usize];
+        out[i * 2 + 1] = DIGITS[(b & 0xf) as usize];
+    }
+}
+
 /// **Build the interactive system and become its spawn service.** Never returns: the last thing it
 /// does is park in `RECV` on the shell's spawn channel for the life of the boot.
 ///
@@ -576,6 +687,18 @@ pub fn boot(
     // with `NIFE_RNG` unset). Neither case is a broken boot, so neither belongs with the required
     // three below.
     let ent_elf = measured(&fs, table, "entropy").elf;
+    // **Milestone 49's login stack** (`credentialer`, `identity_provisioner`, `login`,
+    // `audit_sink`): optional in exactly the entropy service's own sense, and gated on it too --
+    // there is no salt, no password and no credential store without real entropy, so a boot with
+    // no entropy service has no login path either, the same way it has no login path with no
+    // filesystem (`have_login_stack`, below, checks both). Read here with the rest of this
+    // pass, not built yet: building happens later, after the shell's own construction has
+    // returned this table to its resting count (see that block's own comment for why the timing
+    // matters).
+    let cred_elf = measured(&fs, table, "credentialer").elf;
+    let idp_elf = measured(&fs, table, "identity_provisioner").elf;
+    let login_elf = measured(&fs, table, "login").elf;
+    let audit_elf = measured(&fs, table, "audit_sink").elf;
     // The undertaker (milestone 22, the interactive increment). Read here with the rest, because
     // the archive is only readable while we hold it and every failure below is one `fail`. Required
     // rather than optional, unlike the adapter above: without it a bounded job pool fills and the
@@ -693,12 +816,21 @@ pub fn boot(
     // outcome is carried forward as data and said later, at the existing, already-mapped print
     // site right before `term_ep`/`term_out` are dropped (see that site's own comment).
     //
-    // # BUGS
+    // # BUGS (historical: resolved below, this update)
     //
-    // **Proves the device chain, nothing past it.** This slice builds the service and confirms it
-    // drew real bytes from the real device; it does not yet wire a client (`credentialer`,
-    // `login`) to it, which is the multi-lane remainder milestone 49's own doc names.
+    // **Used to prove only the device chain.** This block builds the service and confirms it drew
+    // real bytes from the real device; `entropy_client`, below, is what changed: `request`'s
+    // init-side copy is now kept (not `cap_delete`d) exactly when a client will need it, so
+    // `credentialer` can be handed a working view of it further down.
     let mut entropy_ready = false;
+    // **`request`'s init-side copy, kept only when there is a real client waiting for it**
+    // (milestone 49's boot-wiring update). `None` on every path that used to `cap_delete` it
+    // (device absent, mapping failed, the handshake did not answer `READY`); `Some(request)`
+    // exactly once entropy is proven up, so the login stack below can delegate a working view of
+    // it to `credentialer` without re-probing anything. Consumed (delegated once, then dropped) by
+    // the login-stack block below; `cap_delete`d there instead if that block ends up skipping
+    // entirely (no filesystem, or one of the four programs missing/unvouched).
+    let mut entropy_client: Option<u64> = None;
     if let Some(ent_program) = ent_elf.as_ref() {
         // `invoke`'s own `NoSuchSlot` (-1) on an ungranted slot is the probe: there is no fourth
         // `START` argument word left to be told with instead (see
@@ -762,13 +894,20 @@ pub fn boot(
                 // Block for the service's own proof of life: it fetches a first bufferful from the
                 // real device before answering, so this means "a client that asks will be
                 // answered", not merely "the handshake completed" (`user/src/entropy.rs`'s own
-                // doc). No client is wired yet (this block's own BUGS), so `request`'s init-side
-                // copy has no further use; entropy keeps its own and waits on it, harmlessly, the
-                // same idle-forever shape the undertaker and the sink adapter already have.
+                // doc).
                 let (verdict, _, _) = recv(ready);
                 cap_delete(ready);
-                cap_delete(request);
                 entropy_ready = verdict == entropy_proto::READY;
+                if entropy_ready {
+                    // Kept for the login stack below (`credentialer`'s own client view); see
+                    // `entropy_client`'s own doc.
+                    entropy_client = Some(request);
+                } else {
+                    // No login stack will be built without a working entropy service (this
+                    // block's own comment on `have_login_stack`), so `request` has no further use
+                    // on this path.
+                    cap_delete(request);
+                }
             } else {
                 cap_delete(g.virtio_rng_irq);
                 cap_delete(g.virtio_rng);
@@ -1227,6 +1366,274 @@ pub fn boot(
         cap_delete(adapter);
     }
 
+    // **Milestone 49's login stack**: `credentialer`, `identity_provisioner`, `login`,
+    // `audit_sink`. Built here, after the shell (this table's own tightest peak, "one slot from
+    // the wall") has already returned its own transient capabilities, and before the giveaway
+    // below spends `ut` down to nothing: everything this block needs (`ut` itself, `term_ep`, the
+    // file service pair, a live client view of entropy) is still ours to spend here and nowhere
+    // later, the identical reasoning the entropy block's own comment gives for building *that*
+    // where it does.
+    //
+    // Optional, in the sink adapter's own sense: a boot with no filesystem, no working entropy
+    // service, or any of these four programs missing or unvouched for simply has no login path,
+    // and this whole block is skipped rather than faulted on. `login_ready`/`login_password` are
+    // carried forward as data (the same shape `entropy_ready` already uses) because this process
+    // has no terminal mapped yet at this point in the boot; the actual announcement happens later,
+    // at the existing print site, right before `term_ep` is dropped.
+    let have_login_stack = with_fs
+        && entropy_client.is_some()
+        && cred_elf.is_some()
+        && idp_elf.is_some()
+        && login_elf.is_some()
+        && audit_elf.is_some();
+    let mut login_ready = false;
+    let mut login_password = [0u8; PASSWORD_HEX_LEN];
+    if !have_login_stack {
+        // Nothing below will use it; give it back rather than leak a permanent slot for the rest
+        // of the boot.
+        if let Some(req) = entropy_client {
+            cap_delete(req);
+        }
+    } else {
+        let request = entropy_client.expect("have_login_stack checked entropy_client.is_some()");
+
+        // **The generated password, drawn before anything else in this block**: `credentialer`'s
+        // own posture ("it never invents a salt") one level up. No unpredictable bits, no
+        // password, and this whole block is abandoned rather than provisioning one with something
+        // weaker (DECISIONS §42).
+        let mut password_bytes = [0u8; PASSWORD_BYTES];
+        if !fill_entropy(request, &mut password_bytes) {
+            cap_delete(request);
+        } else {
+            hex_password(&password_bytes, &mut login_password);
+
+            // 1. **`credentialer`** (milestone 56/65, the secrets service): built the same way
+            // entropy was, permanent for the life of the boot, holding the client view of entropy
+            // this block just drew a password from.
+            let prov = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
+            let verify = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
+            let cred_ready = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
+            let prov_page = must(retype_page_frame(ut));
+            let verify_page = must(retype_page_frame(ut));
+            let cred_budget = must(memory_region_split(ut, CRED_BUDGET_PAGES));
+            let cred_program = cred_elf.as_ref().expect("have_login_stack checked this");
+            let cred_tcb = must(build_child(
+                ut,
+                ut,
+                cred_program,
+                &ChildEndowment {
+                    caps: &[
+                        (prov, abi::rights::READ),
+                        (verify, abi::rights::READ),
+                        (request, abi::rights::WRITE),
+                        (cred_budget, abi::rights::WRITE),
+                        (cred_ready, abi::rights::WRITE),
+                    ],
+                    maps: &[
+                        (CRED_SVC_PROV_VA, prov_page, abi::address_space::MAP_RW),
+                        (CRED_SVC_VERIFY_VA, verify_page, abi::address_space::MAP_RW),
+                    ],
+                    stack_pages: CRED_STACK_PAGES,
+                    ..ChildEndowment::new()
+                },
+            ));
+            must_ok(thread_control_block_start(cred_tcb, 0, 0, 0));
+            cap_delete(cred_tcb);
+            cap_delete(request); // credentialer holds its own copy now
+            cap_delete(cred_budget); // ditto
+
+            // **`cred_ready` is not read yet, and that ordering is load-bearing rather than an
+            // oversight.** `credentialer.rs`'s own `_start` sends its one readiness message
+            // (`RPT_READY`) only *after* `provision()` returns, which is only after this process's
+            // own `SEAL` arrives (`credentialer.rs`'s own "Two phases" doc: phase one is `RECV` on
+            // the provision endpoint, forever, until sealed). A `recv(cred_ready)` here, before
+            // provisioning has even been attempted, is not "wait for the service to come up" the
+            // way the entropy block's own `recv(ready)` is -- it is "wait for a message that
+            // cannot exist until this same function seals the store a few lines further down", a
+            // deadlock this process would never wake from. Found by running `script/shell-check`
+            // and watching it hang rather than fault: no `[PANIC]`, nothing kept building, because
+            // this process was genuinely blocked rather than trapped.
+            //
+            // 2. **Provision the generated credential and the demo identity's home subtree, as
+            // one act, through `identity_provisioner`** (milestone 155): stage the plaintext
+            // into a page this process maps briefly, hand it to the tool along with `prov`
+            // (before its seal) and this boot's own `g.fs_ep`.
+            let req_frame = must(retype_page_frame(ut));
+            // SAFETY: `invoke` traps to the kernel, which validates the capability and the
+            // method before acting.
+            if unsafe { invoke(req_frame, abi::page_frame::MAP, PROVISION_SCRATCH_VA, 1, ut) } != 0
+            {
+                cap_delete(req_frame);
+            } else {
+                // SAFETY: just mapped read/write, one page, ours alone until it is delegated
+                // on below.
+                let req_slice = unsafe {
+                    core::slice::from_raw_parts_mut(
+                        PROVISION_SCRATCH_VA as *mut u8,
+                        credential_proto::PAGE,
+                    )
+                };
+                req_slice.fill(0);
+                let placed = credential_proto::place(
+                    req_slice,
+                    DEMO_IDENTITY,
+                    &login_password,
+                    credential_proto::provision::PUT,
+                );
+                placed.expect(
+                    "DEMO_IDENTITY and login_password are both well within credential_proto's \
+                     bounds by construction; a None here is a logic bug in this file, not a \
+                     runtime condition",
+                );
+
+                let idp_report = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
+                let idp_program = idp_elf.as_ref().expect("have_login_stack checked this");
+                let idp_tcb = must(build_child(
+                    ut,
+                    ut,
+                    idp_program,
+                    &ChildEndowment {
+                        caps: &[
+                            (prov, abi::rights::WRITE),
+                            (g.fs_ep, abi::rights::WRITE),
+                            (idp_report, abi::rights::WRITE),
+                        ],
+                        maps: &[
+                            (IDP_REQ_VA, req_frame, abi::address_space::MAP_RW),
+                            (IDP_PROV_VA, prov_page, abi::address_space::MAP_RW),
+                            (IDP_FS_VA, g.fs_page, abi::address_space::MAP_RW),
+                        ],
+                        stack_pages: CHILD_STACK_PAGES,
+                        ..ChildEndowment::new()
+                    },
+                ));
+                must_ok(thread_control_block_start(
+                    idp_tcb,
+                    DEMO_IDENTITY.len() as u64,
+                    login_password.len() as u64,
+                    0,
+                ));
+                cap_delete(idp_tcb);
+                cap_delete(req_frame);
+
+                let (idp_code, _, _) = recv(idp_report);
+                cap_delete(idp_report);
+                login_ready = idp_code == IDP_RPT_OK;
+
+                // Wipe the staged plaintext regardless of outcome: this process's own copy of
+                // the generated password should not sit in memory longer than provisioning
+                // needs it.
+                // SAFETY: still the same page this process mapped above, and the only writer
+                // between it being staged and this wipe.
+                let req_slice = unsafe {
+                    core::slice::from_raw_parts_mut(
+                        PROVISION_SCRATCH_VA as *mut u8,
+                        credential_proto::PAGE,
+                    )
+                };
+                credential_proto::wipe(req_slice);
+            }
+            // Ours no further either way: `identity_provisioner` holds its own copy when it was
+            // built at all, and this process never maps this page again.
+            cap_delete(prov_page);
+
+            // **Seal the store regardless of whether provisioning succeeded.** `credentialer`
+            // must leave phase one before its `VERIFY` endpoint will ever answer anything
+            // (`credentialer.rs`'s own "two phases" doc), and a login against an empty or
+            // partially-provisioned store should deny cleanly rather than the whole boot
+            // hanging with a service that can never be asked a real question.
+            call(
+                prov,
+                credential_proto::req(credential_proto::provision::SEAL, 0, 0),
+                0,
+            );
+            cap_delete(prov);
+
+            // **Now** `cred_ready` answers: the seal just sent is exactly what makes
+            // `provision()` return and `credentialer.rs`'s own `_start` reach its one
+            // `send(READY, RPT_READY, ...)`. A dead-on-arrival service (its own
+            // `E_ENTROPY`/`E_SCRATCH` startup failure, which happens before phase one even
+            // begins) still answers here too, with its own `0xDEAD_...` word instead, so this
+            // `recv` is never left permanently unanswered by that path either.
+            let (cred_rv, _, _) = recv(cred_ready);
+            cap_delete(cred_ready);
+            if cred_rv != CRED_RPT_READY {
+                cap_delete(verify);
+                cap_delete(verify_page);
+                login_ready = false;
+            } else {
+                // 3. **`login`** (milestone 49): built the same way, holding narrowed views of
+                // what this process already has (the file service pair, a fresh construction
+                // budget) plus a client view of `credentialer`'s own verify endpoint just built,
+                // and (this update) a `WRITE | GRANT` view of the terminal so it can hand the
+                // single-session terminal to its first successful caller
+                // (`user/src/login.rs`'s "The terminal: single-session, deny cleanly").
+                //
+                // `audit_sink` is built *first* and started before `login` ever runs, so the
+                // receiver for `login`'s blocking `AUDIT` send exists before there is any way to
+                // reach it (`user/src/audit_sink.rs`'s own doc on why this ordering matters).
+                let audit = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
+                let audit_program = audit_elf.as_ref().expect("have_login_stack checked this");
+                let audit_tcb = must(build_child(
+                    ut,
+                    ut,
+                    audit_program,
+                    &ChildEndowment {
+                        caps: &[(audit, abi::rights::READ)],
+                        stack_pages: CHILD_STACK_PAGES,
+                        ..ChildEndowment::new()
+                    },
+                ));
+                must_ok(thread_control_block_start(audit_tcb, 0, 0, 0));
+                cap_delete(audit_tcb);
+
+                let login_request = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
+                let login_result = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
+                let login_ut = must(memory_region_split(ut, LOGIN_CONSTRUCTION_PAGES));
+                let login_program = login_elf.as_ref().expect("have_login_stack checked this");
+                let login_tcb = must(build_child(
+                    ut,
+                    ut,
+                    login_program,
+                    &ChildEndowment {
+                        caps: &[
+                            (login_request, abi::rights::READ),
+                            (login_result, abi::rights::WRITE | abi::rights::GRANT),
+                            (verify, abi::rights::WRITE),
+                            (g.fs_ep, abi::rights::WRITE | abi::rights::GRANT),
+                            // **`WRITE` only, not `READ | WRITE`.** This process itself holds
+                            // only `WRITE | GRANT` on the real file service's shared page (the
+                            // kernel's own grant to init), and `WRITE` is all a writable mapping
+                            // ever checks (`kernel::syscall::page_frame_map`'s own comment: "a
+                            // read/write mapping needs WRITE on the frame"). See
+                            // `user/src/login.rs`'s own comment on its matching delegation to its
+                            // clients for the fuller account. Found here first: `must(build_child(...))`
+                            // for `login` refused this exact `SEND_CAP` when it asked for `READ`
+                            // too, in total silence, the same way every other capacity mismatch in
+                            // this function has.
+                            (g.fs_page, abi::rights::WRITE | abi::rights::GRANT),
+                            (login_ut, abi::rights::WRITE | abi::rights::GRANT),
+                            (audit, abi::rights::WRITE),
+                            (term_ep, abi::rights::WRITE | abi::rights::GRANT),
+                        ],
+                        maps: &[(LOGIN_CRED_VA, verify_page, abi::address_space::MAP_RW)],
+                        stack_pages: LOGIN_STACK_PAGES,
+                        ..ChildEndowment::new()
+                    },
+                ));
+                must_ok(thread_control_block_start(login_tcb, 0, 0, 0));
+                cap_delete(login_tcb);
+                // login holds its own copies now; ours were only ever the means of wiring.
+                cap_delete(login_request);
+                cap_delete(login_result);
+                cap_delete(verify);
+                cap_delete(verify_page);
+                cap_delete(login_ut);
+                cap_delete(audit);
+            }
+        }
+    }
+
     // **Give the construction budget away** (milestone 22, the interactive increment). Two bounded
     // carves and then the root itself: after this line init can spend at most `INIT_OWN_PAGES` on
     // itself and `JOBS_BUDGET_PAGES` on the prompt's jobs, and it can no longer reach the rest of the
@@ -1305,6 +1712,36 @@ pub fn boot(
             term_ep,
             b"init: entropy service up; drew real bytes from a virtio-rng device\n",
         );
+    }
+    // **The generated login credential** (milestone 49's boot-wiring update), said here for
+    // [`entropy_ready`]'s own reason: `login_ready` was decided long before this process had a
+    // terminal. Printed exactly once, before the prompt, the shape a cloud image's generated
+    // first-boot password already takes: this process's own copy was wiped the moment
+    // `identity_provisioner` used it (see that block's own comment), so this line is the only
+    // place the password exists once it scrolls past. Silent when there is no login stack at all
+    // (no entropy, no filesystem, or one of the four programs missing/unvouched), the same posture
+    // every other optional boot component already takes.
+    if login_ready {
+        fn push(buf: &mut [u8; SENTENCE], n: &mut usize, src: &[u8]) {
+            for &b in src {
+                if *n < SENTENCE {
+                    buf[*n] = b;
+                    *n += 1;
+                }
+            }
+        }
+        let mut buf = [0u8; SENTENCE];
+        let mut n = 0usize;
+        push(
+            &mut buf,
+            &mut n,
+            b"init: login ready -- generated credentials: identity '",
+        );
+        push(&mut buf, &mut n, DEMO_IDENTITY);
+        push(&mut buf, &mut n, b"' password '");
+        push(&mut buf, &mut n, &login_password);
+        push(&mut buf, &mut n, b"' (shown once; use it now)\n");
+        announce(term_ep, &buf[..n]);
     }
     cap_delete(term_ep);
     cap_delete(term_out);
@@ -1971,6 +2408,22 @@ fn reclaim(region: u64) {
 
 /// How many times [`reclaim`] retries. Small, because the only resident it ever waits on is a
 /// caretaker that has already been woken and doomed, and one preemption is enough.
+///
+/// # BUGS
+///
+/// **One preemption is enough and sixty-four attempts do not reliably buy one**, which is a
+/// different claim from the one above and the measurement is not this crate's. `login_test_client`
+/// carried this exact loop, over the same refusal, and it was measured on 2026-08-27 (see that
+/// program's `destroy_with_retry` and notes/load-sensitive-assertions.md): a `yield_now` that finds
+/// work on this core returns in about 130 us, so sixty-four of them can elapse in 8 ms, where the
+/// preemption being waited for is a whole tick period (10 ms) away. Whether the count covers the
+/// tick is a scheduling outcome the host decides, and at roughly 2x oversubscription it stopped
+/// covering it in about one run in three. That client now waits on the property with a clock; this
+/// loop was left as it is, deliberately, because the two failures are not the same size: a test
+/// client that gives up early fails a run, and this gives up quietly and strands
+/// [`DIR_JOB_REGION_PAGES`] until the machine stops. **The failure has never been observed here**,
+/// and it would be invisible if it happened, which is the argument for a lane rather than for a
+/// number: this wants the same clock-bounded wait and a way to notice when it expires.
 const RECLAIM_ATTEMPTS: usize = 64;
 
 /// Carve `pages` off `ut` into a new child untyped we can delegate (milestone 31). The SPLIT grants

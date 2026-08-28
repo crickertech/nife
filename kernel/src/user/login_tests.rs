@@ -56,6 +56,13 @@ use crate::sched;
 ///
 /// 128 (`OWN_UT_PAGES`) + 32 (`CHANNEL_UT_PAGES`) + 14 * 128 = 1952 permanently resident; 2176 is
 /// that with the same margin 1856 carried over 1664.
+///
+/// **Unchanged by milestone 49's terminal update.**
+/// `login_hands_out_the_terminal_once_and_denies_a_concurrent_second_login_until_logout` performs
+/// two successful logins, both of `caretaker_teardown_reclaims_a_full_session_worth_of_memory`'s own
+/// "logs back out before returning" shape, plus one refusal that never reaches `mint` at all
+/// (`NO_TERMINAL`, checked before authentication) and one bare front-door word: no new permanent
+/// charge.
 const CONSTRUCTION_PAGES: u64 = 2176;
 
 /// `EEXIST`, matching `identity_provisioner.rs`'s own local constant: `fs_proto` does not re-export
@@ -147,7 +154,12 @@ fn wired() -> Option<ls::Wiring> {
     use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
     static DONE: AtomicBool = AtomicBool::new(false);
     static OK: AtomicBool = AtomicBool::new(false);
-    static SAVED: [AtomicU64; 3] = [AtomicU64::new(0), AtomicU64::new(0), AtomicU64::new(0)];
+    static SAVED: [AtomicU64; 4] = [
+        AtomicU64::new(0),
+        AtomicU64::new(0),
+        AtomicU64::new(0),
+        AtomicU64::new(0),
+    ];
 
     if !DONE.load(Ordering::Acquire) {
         let result = (|| {
@@ -172,6 +184,7 @@ fn wired() -> Option<ls::Wiring> {
             SAVED[0].store(w.request, Ordering::Relaxed);
             SAVED[1].store(w.result, Ordering::Relaxed);
             SAVED[2].store(w.audit, Ordering::Relaxed);
+            SAVED[3].store(w.term_ep, Ordering::Relaxed);
             OK.store(true, Ordering::Release);
         }
         DONE.store(true, Ordering::Release);
@@ -183,6 +196,7 @@ fn wired() -> Option<ls::Wiring> {
         request: SAVED[0].load(Ordering::Relaxed),
         result: SAVED[1].load(Ordering::Relaxed),
         audit: SAVED[2].load(Ordering::Relaxed),
+        term_ep: SAVED[3].load(Ordering::Relaxed),
     })
 }
 
@@ -190,6 +204,28 @@ fn wired() -> Option<ls::Wiring> {
 /// present only when `test` built the FS server, absent for a plain interactive run.
 fn redoxfs_server_image() -> &'static [u8] {
     program("redoxfs_server").expect("no redoxfs_server program in the initrd archive")
+}
+
+/// **Free the terminal directly, without spawning a client** (milestone 49's terminal update).
+///
+/// Every successful login now also claims the single, shared terminal
+/// (`login_proto::NO_TERMINAL` denies any concurrent second one until it is freed), and `wired()`
+/// memoizes **one** login instance across this entire file. Every test below that performs a
+/// successful login and does not itself exercise the terminal property calls this first, as a
+/// defensive, idempotent reset: `login_proto::LOGOUT` is answered `LOGGED_OUT` whether or not
+/// anything was actually held (`login_proto::LOGGED_OUT`'s own doc), so this is safe to call
+/// regardless of what a previous test (in whatever order this suite happens to run them) left
+/// behind. Issued as a raw front-door exchange rather than through `login_test_client`, since
+/// freeing the terminal needs no identity and carries no secret (`login_proto`'s own module docs on
+/// why `LOGOUT` travels on the shared front door at all).
+fn free_terminal(w: &ls::Wiring) {
+    sched::ipc_send(w.request, [login_proto::logout_word(), 0, 0]);
+    let r = sched::ipc_recv(w.result);
+    assert_eq!(
+        r[0],
+        login_proto::LOGGED_OUT,
+        "login_proto::logout_word on the front door was not answered LOGGED_OUT",
+    );
 }
 
 /// **The headline.** A correct identity and secret produce a directory capability and a budget
@@ -204,6 +240,7 @@ fn login_grants_a_working_capability_set_to_the_identity_it_verified() {
     let Some(w) = wired() else {
         crate::testing::skip!("no virtio-rng device or no RedoxFS disk attached");
     };
+    free_terminal(&w);
     let cli =
         program("login_test_client").expect("no login_test_client program in the initrd archive");
     let r = ls::client(cli, &w, ls::ROLE_CHRIS);
@@ -247,6 +284,7 @@ fn login_denies_a_wrong_secret_and_sends_nothing_further() {
     let Some(w) = wired() else {
         crate::testing::skip!("no virtio-rng device or no RedoxFS disk attached");
     };
+    free_terminal(&w);
     let cli =
         program("login_test_client").expect("no login_test_client program in the initrd archive");
     let r = ls::client(cli, &w, ls::ROLE_WRONG_SECRET);
@@ -274,6 +312,7 @@ fn two_different_identities_get_independently_working_channels_and_correct_attri
     let Some(w) = wired() else {
         crate::testing::skip!("no virtio-rng device or no RedoxFS disk attached");
     };
+    free_terminal(&w);
     let cli =
         program("login_test_client").expect("no login_test_client program in the initrd archive");
 
@@ -290,6 +329,10 @@ fn two_different_identities_get_independently_working_channels_and_correct_attri
         login_proto::identity_hint(b"chris"),
         "the attribution record named the wrong identity for the first channel",
     );
+    // Free the terminal before corinne's login (milestone 49's terminal update): unrelated to the
+    // channel-attribution property this test exists to prove, but every successful login now also
+    // claims the single, shared terminal.
+    free_terminal(&w);
 
     let r_corinne = ls::client(cli, &w, ls::ROLE_CORINNE);
     assert_eq!(r_corinne[0], ls::RPT_OK, "corinne was not authenticated",);
@@ -338,10 +381,18 @@ fn two_different_identities_get_independently_working_channels_and_correct_attri
 ///
 /// `login` is still one thread and answers `CONNECT` one at a time, so whichever role is served
 /// first is served to completion, private channel and all, before the second is even accepted; that
-/// is service *order*, the module docs' own distinction, not shared state. The audit trail is the
-/// outside witness that nothing crossed between them: two `ATTRIBUTED` records, each naming exactly
-/// one of the two identities, never the same one twice and never a garbled third value a corrupted
-/// shared page could have produced.
+/// is service *order*, the module docs' own distinction, not shared state.
+///
+/// **Rewritten for milestone 49's terminal update.** Before it, both concurrent logins succeeded
+/// and this test's own property was that the two attribution records named exactly one chris and
+/// one corinne, never crossed. Now only one of them *can* succeed: the single, shared terminal has
+/// exactly one holder at a time, and the loser is refused `login_proto::NO_TERMINAL` before its
+/// identity or secret is even relayed to the credential service (`login.rs`'s own `serve_login`
+/// checks this first, deliberately, so the refusal cannot become a timing or outcome oracle about a
+/// specific identity). The property this test can still prove, and does: whichever one wins, its
+/// own channel works and its own attribution record names *it*, never the other identity and never
+/// a garbled third value -- a shared, corrupted staging page (the pre-fix hazard this test was
+/// originally written to catch) could have produced either.
 #[test_case]
 fn two_clients_connecting_together_get_independent_channels_and_neither_observes_the_others_secret()
 {
@@ -351,6 +402,7 @@ fn two_clients_connecting_together_get_independent_channels_and_neither_observes
     let Some(w) = wired() else {
         crate::testing::skip!("no virtio-rng device or no RedoxFS disk attached");
     };
+    free_terminal(&w);
     let cli =
         program("login_test_client").expect("no login_test_client program in the initrd archive");
 
@@ -363,55 +415,61 @@ fn two_clients_connecting_together_get_independent_channels_and_neither_observes
     // Whichever role wins the race, `login` cannot accept the *other*'s `CONNECT` until it finishes
     // fully serving the first: its own `send(AUDIT, ...)` is a blocking rendezvous (every other
     // successful-login test in this file drains it for the same reason), so this drain is what lets
-    // the second role make any progress at all, not merely bookkeeping. The loser's `CONNECT` sits
-    // queued on the front door until this happens.
-    let a_first = sched::ipc_recv(w.audit);
+    // the second role make any progress at all -- reach *its own* verdict, `NO_TERMINAL` now rather
+    // than `OK` -- not merely bookkeeping. The loser's `CONNECT` sits queued on the front door until
+    // this happens. Exactly one audit record follows, unlike before this update: the loser's
+    // refusal never reaches `mint`, so it never reaches `AUDIT` either.
+    let a = sched::ipc_recv(w.audit);
     assert_eq!(
-        a_first[0],
+        a[0],
         login_proto::ATTRIBUTED,
-        "no attribution record followed the first of the two logins",
+        "no attribution record followed the winning login",
     );
 
-    // Both reports can now be collected in either order: the winner's needed no help from this
-    // drain (it already held its own four capabilities before `login` ever tried to send the audit
-    // record above), and the loser's `CONNECT` is now unstuck.
     let r_chris = ls::wait_client(chris_report);
     let r_corinne = ls::wait_client(corinne_report);
 
-    let a_second = sched::ipc_recv(w.audit);
+    let (winner_label, winner, loser_label, loser) = if r_chris[0] == ls::RPT_OK {
+        ("chris", r_chris, "corinne", r_corinne)
+    } else {
+        ("corinne", r_corinne, "chris", r_chris)
+    };
     assert_eq!(
-        a_second[0],
-        login_proto::ATTRIBUTED,
-        "no attribution record followed the second of the two logins",
+        winner[0],
+        ls::RPT_OK,
+        "neither chris ({:#x}) nor corinne ({:#x}) was authenticated",
+        r_chris[0],
+        r_corinne[0],
+    );
+    assert_eq!(
+        loser[0],
+        ls::RPT_NO_TERMINAL,
+        "{loser_label} was refused for a reason other than the terminal already being held \
+         (chris: {:#x}, corinne: {:#x})",
+        r_chris[0],
+        r_corinne[0],
+    );
+    assert_eq!(
+        winner[1] & ls::F_DIR_WORKS,
+        ls::F_DIR_WORKS,
+        "{winner_label}'s directory capability did not work",
+    );
+    assert_eq!(
+        winner[1] & ls::F_BUDGET_WORKS,
+        ls::F_BUDGET_WORKS,
+        "{winner_label}'s budget did not work",
     );
 
-    assert_eq!(r_chris[0], ls::RPT_OK, "chris was not authenticated");
-    assert_eq!(r_corinne[0], ls::RPT_OK, "corinne was not authenticated");
-    for (label, r) in [("chris", r_chris), ("corinne", r_corinne)] {
-        assert_eq!(
-            r[1] & ls::F_DIR_WORKS,
-            ls::F_DIR_WORKS,
-            "{label}'s directory capability did not work",
-        );
-        assert_eq!(
-            r[1] & ls::F_BUDGET_WORKS,
-            ls::F_BUDGET_WORKS,
-            "{label}'s budget did not work",
-        );
-    }
-
-    // The property under test, stated positively: the two attribution records name exactly one
-    // chris and one corinne login, in either order, never the same identity twice. A shared,
-    // corrupted staging page (the pre-fix hazard) could have produced two records naming the same
-    // identity, or a value matching neither.
-    let chris_hint = login_proto::identity_hint(b"chris");
-    let corinne_hint = login_proto::identity_hint(b"corinne");
-    let (h1, h2) = (a_first[2], a_second[2]);
-    assert!(
-        (h1 == chris_hint && h2 == corinne_hint) || (h1 == corinne_hint && h2 == chris_hint),
-        "the two attribution records did not name exactly one chris login and one corinne login: \
-         {h1:#x}, {h2:#x} (chris is {chris_hint:#x}, corinne is {corinne_hint:#x})",
+    // The property under test, stated positively: the one attribution record names exactly the
+    // identity that won, never the other one and never a garbled third value.
+    let expected_hint = login_proto::identity_hint(winner_label.as_bytes());
+    assert_eq!(
+        a[2], expected_hint,
+        "the attribution record named the wrong identity for the winning channel \
+         (winner was {winner_label})",
     );
+
+    free_terminal(&w);
 }
 
 /// **Nothing else would have caught this**: `login`'s own capability table has sixteen slots
@@ -444,6 +502,7 @@ fn the_login_service_serves_past_the_old_capability_table_ceiling() {
     let Some(w) = wired() else {
         crate::testing::skip!("no virtio-rng device or no RedoxFS disk attached");
     };
+    free_terminal(&w);
     let cli =
         program("login_test_client").expect("no login_test_client program in the initrd archive");
 
@@ -480,6 +539,10 @@ fn the_login_service_serves_past_the_old_capability_table_ceiling() {
             login_proto::ATTRIBUTED,
             "no attribution record followed login {i}",
         );
+        // Free the terminal so login {i+1} is authenticated rather than refused NO_TERMINAL
+        // (milestone 49's terminal update: every successful login also claims the single, shared
+        // terminal).
+        free_terminal(&w);
     }
 }
 
@@ -512,6 +575,7 @@ fn login_scopes_each_identity_to_its_own_provisioned_subtree() {
     let Some(w) = wired() else {
         crate::testing::skip!("no virtio-rng device or no RedoxFS disk attached");
     };
+    free_terminal(&w);
     let cli =
         program("login_test_client").expect("no login_test_client program in the initrd archive");
 
@@ -534,6 +598,10 @@ fn login_scopes_each_identity_to_its_own_provisioned_subtree() {
         login_proto::ATTRIBUTED,
         "no attribution record followed chris's marking login",
     );
+    // Free the terminal before corinne's own login (milestone 49's terminal update): unrelated to
+    // the per-identity subtree property this test exists to prove, but every successful login now
+    // also claims the single, shared terminal.
+    free_terminal(&w);
 
     let r_corinne = ls::client(cli, &w, ls::ROLE_CORINNE_MARK);
     assert_eq!(r_corinne[0], ls::RPT_OK, "corinne was not authenticated");
@@ -554,6 +622,7 @@ fn login_scopes_each_identity_to_its_own_provisioned_subtree() {
         login_proto::ATTRIBUTED,
         "no attribution record followed corinne's marking login",
     );
+    free_terminal(&w);
 
     let r_check = ls::client(cli, &w, ls::ROLE_CHRIS_CHECK);
     assert_eq!(
@@ -579,6 +648,7 @@ fn login_scopes_each_identity_to_its_own_provisioned_subtree() {
         login_proto::ATTRIBUTED,
         "no attribution record followed chris's second login",
     );
+    free_terminal(&w);
 }
 
 /// **The considered fold this milestone adds: a real, authenticated identity with no provisioned
@@ -604,6 +674,7 @@ fn login_denies_an_authenticated_identity_with_no_provisioned_subtree() {
     let Some(w) = wired() else {
         crate::testing::skip!("no virtio-rng device or no RedoxFS disk attached");
     };
+    free_terminal(&w);
     let cli =
         program("login_test_client").expect("no login_test_client program in the initrd archive");
     let r = ls::client(cli, &w, ls::ROLE_NO_SUBTREE);
@@ -704,6 +775,7 @@ fn caretaker_teardown_reclaims_a_full_session_worth_of_memory() {
     let Some(w) = wired() else {
         crate::testing::skip!("no virtio-rng device or no RedoxFS disk attached");
     };
+    free_terminal(&w);
     let cli =
         program("login_test_client").expect("no login_test_client program in the initrd archive");
 
@@ -728,7 +800,14 @@ fn caretaker_teardown_reclaims_a_full_session_worth_of_memory() {
         assert_eq!(
             r[1] & ls::F_TEARDOWN_OK,
             ls::F_TEARDOWN_OK,
-            "login {i}'s logout ticket did not destroy the caretaker's construction region",
+            "login {i}'s logout ticket did not destroy the caretaker's construction region; the \
+             client waited {} us for the refusal to clear, against its own ceiling of {} us. A \
+             number near that ceiling means the caretaker never died, which is a kernel bug and \
+             not this host being slow; a number far under it means the client stopped waiting \
+             early, which is the defect that ceiling replaced. See \
+             user/src/login_test_client.rs's `destroy_with_retry`.",
+            r[2],
+            ls::DESTROY_WAIT_MICROS,
         );
         assert_eq!(
             r[1] & ls::F_DEAD_AFTER_TEARDOWN,
@@ -753,5 +832,137 @@ fn caretaker_teardown_reclaims_a_full_session_worth_of_memory() {
             login_proto::ATTRIBUTED,
             "no attribution record followed login {i}",
         );
+        // **Free the terminal, after draining `AUDIT`, not before.** `ROLE_LOGOUT` deliberately
+        // does not do this itself (`login_test_client.rs`'s own comment on why: it would deadlock
+        // against this same drain). Every iteration after the first would otherwise be refused
+        // `NO_TERMINAL` instead of authenticated, since milestone 49's terminal update means every
+        // successful login also claims the single, shared terminal.
+        free_terminal(&w);
     }
+}
+
+/// **Milestone 49's terminal update, end to end: single-session, deny cleanly.** The roadmap's own
+/// recommendation (`design/roadmap/49-users-and-attribution.md`'s BUGS) built and proven here in one
+/// sequence against the one memoized service instance every other test in this file shares:
+///
+/// 1. `chris` logs in ([`ls::ROLE_TERM_FIRST`]) and receives a fifth delegated capability, the
+///    terminal, which this test confirms is real (not merely present) by receiving the word the
+///    role sends through it on `w.term_ep` -- the stand-in terminal this suite's own harness wires
+///    in place of a real one (`ls::Wiring::term_ep`'s own doc). `chris` then tears the *session*
+///    down (the same `MemoryRegion::DESTROY` pair [`ROLE_LOGOUT`] already proves) **without**
+///    freeing the terminal: no `login_proto::logout_word` is ever sent.
+/// 2. `corinne` then presents a **real, correct** credential ([`ls::ROLE_TERM_SECOND`]) while the
+///    terminal is still on loan. She is refused [`login_proto::NO_TERMINAL`], not `DENIED`: this is
+///    provably not about her identity or secret, both of which are genuine.
+/// 3. [`ls::ROLE_TERM_LOGOUT`] frees the terminal, a bare word on the front door with no identity
+///    involved at all, and is answered [`login_proto::LOGGED_OUT`].
+/// 4. `chris` logs in again ([`ls::ROLE_TERM_FIRST`], a second, independent time) and receives the
+///    terminal a second time, proven the same way as step 1 -- the property stated positively: a
+///    session freeing the terminal is what makes it available to the *next* login, not merely what
+///    stops it being refused.
+///
+/// **Costs nothing permanent against [`CONSTRUCTION_PAGES`].** Every login this test performs either
+/// tears its own session down before returning (`ROLE_TERM_FIRST`, exactly like `ROLE_LOGOUT`) or is
+/// refused before `mint` ever runs (`ROLE_TERM_SECOND`'s `NO_TERMINAL`, checked in `login.rs`'s
+/// `serve_login` before authentication is even attempted), so this test's own two successful logins
+/// are the same "logs back out" shape `caretaker_teardown_reclaims_a_full_session_worth_of_memory`
+/// already established, not a third kind of permanent charge.
+#[test_case]
+fn login_hands_out_the_terminal_once_and_denies_a_concurrent_second_login_until_logout() {
+    if fs_service::fs_server_image().is_none() {
+        crate::testing::skip!(fs_service::NO_FS_SERVER);
+    }
+    let Some(w) = wired() else {
+        crate::testing::skip!("no virtio-rng device or no RedoxFS disk attached");
+    };
+    free_terminal(&w);
+    let cli =
+        program("login_test_client").expect("no login_test_client program in the initrd archive");
+
+    // Step 1: chris takes the terminal. `spawn_client`/`wait_client`, not `client`, because the
+    // role blocks inside `send(term_ep, ...)` until this test's own `ipc_recv(w.term_ep)` catches
+    // it (a genuine rendezvous, not merely `RECV_CAP` succeeding): waiting on the report first would
+    // deadlock against the role's own forward progress.
+    let report1 = ls::spawn_client(cli, &w, ls::ROLE_TERM_FIRST);
+    let a1 = sched::ipc_recv(w.audit);
+    assert_eq!(
+        a1[0],
+        login_proto::ATTRIBUTED,
+        "no attribution record followed chris's first terminal login",
+    );
+    let term_msg = sched::ipc_recv(w.term_ep);
+    assert_eq!(
+        term_msg[0],
+        ls::TERM_MAGIC,
+        "the delegated terminal capability did not deliver a real message to a real receiver",
+    );
+    let r1 = ls::wait_client(report1);
+    assert_eq!(
+        r1[0],
+        ls::RPT_OK,
+        "chris's first terminal login was not authenticated"
+    );
+    for (bit, what) in [
+        (ls::F_DIR_WORKS, "the directory capability"),
+        (ls::F_BUDGET_WORKS, "the budget"),
+        (ls::F_TERM_WORKS, "the terminal capability"),
+        (ls::F_TEARDOWN_OK, "the logout ticket's own DESTROY"),
+        (
+            ls::F_DEAD_AFTER_TEARDOWN,
+            "the directory's post-teardown refusal",
+        ),
+        (ls::F_BUDGET_TEARDOWN_OK, "the budget's own DESTROY"),
+        (
+            ls::F_BUDGET_DEAD_AFTER_TEARDOWN,
+            "the budget's post-teardown refusal",
+        ),
+    ] {
+        assert_eq!(
+            r1[1] & bit,
+            bit,
+            "chris's first terminal login: {what} did not work"
+        );
+    }
+
+    // Step 2: corinne, a real credential, refused purely because the terminal is spoken for.
+    let r2 = ls::client(cli, &w, ls::ROLE_TERM_SECOND);
+    assert_eq!(
+        r2[0],
+        ls::RPT_NO_TERMINAL,
+        "corinne's real credential was not refused NO_TERMINAL while chris still held the terminal",
+    );
+
+    // Step 3: free it.
+    let r3 = ls::client(cli, &w, ls::ROLE_TERM_LOGOUT);
+    assert_eq!(
+        r3[0],
+        ls::RPT_LOGGED_OUT,
+        "login_proto::logout_word on the front door was not answered LOGGED_OUT",
+    );
+
+    // Step 4: chris again, a second, independent time, and the terminal is available once more.
+    let report4 = ls::spawn_client(cli, &w, ls::ROLE_TERM_FIRST);
+    let a4 = sched::ipc_recv(w.audit);
+    assert_eq!(
+        a4[0],
+        login_proto::ATTRIBUTED,
+        "no attribution record followed chris's second terminal login",
+    );
+    let term_msg2 = sched::ipc_recv(w.term_ep);
+    assert_eq!(
+        term_msg2[0],
+        ls::TERM_MAGIC,
+        "the terminal was not delegated again after being freed",
+    );
+    let r4 = ls::wait_client(report4);
+    assert_eq!(
+        r4[0],
+        ls::RPT_OK,
+        "chris's second terminal login (after logout freed it) was not authenticated",
+    );
+    assert_eq!(
+        r4[1] & ls::F_TERM_WORKS,
+        ls::F_TERM_WORKS,
+        "the re-delegated terminal capability did not work",
+    );
 }

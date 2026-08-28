@@ -110,17 +110,22 @@ static FREE_STACK_ADDRESS_SPACE: IrqSafeMutex<FreeAddressSpace> =
 /// A fixed stack of reusable stack-VA ranges (milestone 14 phase B.1). Bounded by construction:
 /// a range is pushed only when a thread dies and popped when one spawns, so the free count can
 /// never exceed the most threads that ever lived at once, which the scheduler caps at
-/// `MAX_THREADS` (= 128; sched.rs). The array is sized to that bound, and the debug assert is the
-/// cross-check.
+/// [`crate::sched::MAX_THREADS`]. The array is **sized from that constant** rather than to a
+/// literal matching it, and the debug assert is the cross-check.
+///
+/// It was `[u64; 128]` with the constant named only in this comment until 2026-08-27, which is a
+/// coupling nothing enforced: raising the ceiling without finding this line would have overflowed
+/// the bound the assert claims, and in a release build the `else` branch below would have quietly
+/// leaked VA ranges instead. The array does not need to be told twice.
 struct FreeAddressSpace {
-    vas: [u64; 128],
+    vas: [u64; crate::sched::MAX_THREADS],
     len: usize,
 }
 
 impl FreeAddressSpace {
     const fn new() -> Self {
         Self {
-            vas: [0; 128],
+            vas: [0; crate::sched::MAX_THREADS],
             len: 0,
         }
     }

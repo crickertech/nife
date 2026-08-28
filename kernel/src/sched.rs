@@ -74,8 +74,125 @@ type Rendezvous = ipc::Rendezvous<Thread>;
 
 /// The most threads that can be alive at once, whole machine (milestone 14 phase A). A documented
 /// limit of the image rather than a heap that can be exhausted: spawn past it fails cleanly, the
-/// same contract callers already have for out-of-memory. The table itself is ~2 KiB of pointers.
-pub(crate) const MAX_THREADS: usize = 128;
+/// same contract callers already have for out-of-memory.
+///
+/// # The ledger, and why 256
+///
+/// **128 until 2026-08-27, and the suite had been sitting on the ceiling for some time without
+/// anybody being able to see it.** Milestone 169's leak-fix lane found it the hard way: with its
+/// `raw_mode`/`rmle` leak fixed, the aarch64 run reached further than any run before it and
+/// stopped dead at `time_tests::a_shell_with_no_usable_clock_times_the_command_anyway`, with
+/// **128 of 128 live and 121-123 `Blocked`**, twice, at the same point both times. Not a leak:
+/// `thread_leak_police` (no runnable spinner left over) passed both runs. What is alive is the
+/// accumulated cost of this tree's many individually-reasonable services that are
+/// **intentionally permanent for the boot** (`notes/frames.md`'s "held" list: the FS servers,
+/// two credential store instances, `login`, both `net_stack` transports, SMB, mDNS, `display`,
+/// `compositor`, and more since), each accepted on its own merits over many milestones and never
+/// once priced against this shared ceiling collectively.
+///
+/// **What the measurement then showed, and it is worse than the report that prompted it.**
+/// [`PEAK_THREADS`] and `kernel::testing`'s closing `threads:` line were built for this raise, so
+/// the number is read rather than guessed. On `main`, at 128, the aarch64 suite reports a peak of
+/// **exactly 128 with zero spare and still passes**: it is not that the ceiling is about to bite,
+/// it is that the ceiling is already refusing spawns and the refusals were being swallowed. Raise
+/// the ceiling and nothing else, and the same suite says what it actually wanted:
+///
+/// | architecture | peak live threads | with the ceiling at 256 |
+/// |---|---|---|
+/// | aarch64 | **130** | 126 spare |
+/// | riscv64 | **129** | 127 spare |
+/// | `x86_64` | **57** | 199 spare (its userspace suite is smaller: 192 run, 56 skipped) |
+///
+/// Those are the figures on the tree this was measured on; they move by a thread or two as the
+/// boot's service list changes (the merge that landed while this branch was open took aarch64 to
+/// 129), which is exactly why the number is printed by every run rather than only written here.
+///
+/// So the tightest real demand is 130, and 256 is **1.97x it**. Headroom rather than a fitted
+/// number, deliberately, because every milestone that adds a boot service spends some of this and
+/// the failure mode is an unrelated test refusing a spawn far from the cause. What that headroom
+/// costs is measured below rather than asserted, which is the only reason it can be called cheap.
+///
+/// # What it costs, per slot, measured
+///
+/// Nothing here scales with the ceiling *except* through these, and each was checked at 256:
+///
+/// - **The boot stack, 20 bytes a slot.** [`init`] installs the tables, and an unoptimised build
+///   carries the thread table on its frame. That frame was 43,952 bytes at 128 (the deepest in the
+///   kernel) and the suite's boot-stack high-water was 54,336 of 65,504, 82%. Installing
+///   [`EMPTY_TABLES`] instead of building a `Threads` local and moving it in cut the frame to
+///   15,696 at 128 and made the slope 20 bytes rather than ~80; at 256 the high-water is **48,760
+///   (74%)**, lower than before the raise. `stack::report_high_water`'s gate is 61,440.
+/// - **`kmem::KERNEL_OBJ_PAGES`, 7 pages a *live* thread** (`thread::STACK_PAGES` = 6, plus the
+///   TCB page), which is why that carve went 1024 -> 2048. Spent per live thread, not per slot,
+///   so unused headroom costs only that constant's own `[u64; KERNEL_OBJ_PAGES]` free stack.
+/// - **`ps::MAX_ROWS`**, which `kernel::user::survey_tests` const-asserts is `>= MAX_THREADS`,
+///   because a `ps` holding the widest grant must have room for every row. It sizes stack-resident
+///   `[Row; MAX_ROWS]` arrays in `ps`, `watch` and `pgrep`; measured with `-Z emit-stack-sizes` at
+///   256, `_start` is 4,240 bytes in `ps`, 4,320 in `pgrep` and 8,464 in `watch` (which holds
+///   two), against the 12 pages (49,152 bytes) `system_initializer::CHILD_STACK_PAGES` gives every
+///   child. 17% at the worst.
+/// - **`revoke::MAX_SPACES`** and **`thread::FreeAddressSpace`**, both of which are now written as
+///   arithmetic on this constant rather than as a literal that has to be remembered. The second
+///   was a bare `[u64; 128]` with a `debug_assert` for a comment; it could have drifted silently.
+/// - **Nothing on the `spawn_el0` benchmark, but only after a second fix.** The first attempt at
+///   this raise cost that benchmark **+348,133 icount ticks (+16.8%)** and failed `script/bench
+///   --check`, through two scans of equal size whose cost tracked this constant rather than what
+///   the machine held: `delete_page_frame_caps_where`'s walk of every thread's capability table
+///   (141,359) and `revoke`'s registry, whose `MAX_SPACES` is derived from this one (138,584).
+///   Both are bounded by live occupancy now (`generational_table`'s `top`, `revoke::Registry`'s),
+///   which took the benchmark to **1,212,888, 41% below the 128-slot baseline**, and, the part
+///   that matters here, made it **flat against this constant**: doubling again to 512 moves it 587
+///   ticks. Re-baselining instead was available and refused, because the cost belonged to slots
+///   nothing occupied and would have been paid again by every future raise. notes/benchmarks.md
+///   has the attribution table.
+/// - **Two `[u64; MAX_THREADS]` scratch arrays in [`reap_region_objects`]**, which took that frame
+///   to 4,624 bytes at 256, over `script/stack-frame-check`'s 4,096-byte guard-page ceiling. Both
+///   are gone: the function's own comment already prescribed rescanning rather than collecting,
+///   for exactly this reason, and these two were the sites it had not been applied to.
+///
+/// # BUGS
+///
+/// - **`design/decisions/96-process-kernel-or-event-kernel.md` prices the confinement claim off
+///   the old number** ("`MAX_THREADS` is 128, so kernel stacks total 3.00 MiB, static"). The shape
+///   of that argument survives (the bound is still static and still the product of two constants)
+///   but the figure does not, and a decision record is not a lane's to edit. Whoever ratifies this
+///   raise owes §96 a corrected sentence.
+/// - **Revocation still scans every live thread, and `MILESTONE 183` is the fix.** Bounding the
+///   sweep by occupancy makes it independent of *this* constant; it does not make it independent
+///   of how many threads are actually alive. A boot with real tenancy pays the walk in full. That
+///   milestone ("a physical-range index for capability holders, so revocation stops scanning every
+///   thread") is the structural answer, and the numbers above are evidence for it rather than
+///   against it.
+/// - **The peak is a whole-boot high-water, not a per-test charge.** It cannot say *which* test
+///   pushed the table up, only that something did, and for this table that is the honest shape:
+///   what fills it is what earlier tests deliberately left running. See
+///   `kernel::testing`'s `report_thread_peak`, which explains why it reports and does not gate.
+pub(crate) const MAX_THREADS: usize = 256;
+
+/// **The most threads that were ever alive at once on this boot.**
+///
+/// The instrument that makes [`MAX_THREADS`] a measured number rather than a felt one, and the
+/// reason a future lane does not have to repeat the two instrumented runs that found the
+/// ceiling in the first place. It answers the only question a capacity limit poses, "how close
+/// is the suite to it", which the refusal itself cannot: by the time a spawn is refused the
+/// table is full and every earlier number is gone.
+///
+/// A high-water mark rather than a ledger, deliberately. Attributing threads to tests the way
+/// `kernel::testing`'s frame ledger attributes frames would need a per-test reading, and the
+/// answer would be misleading anyway: what fills this table is not one test's spend but the
+/// services every earlier test left running on purpose (`notes/frames.md`'s "held" list). One
+/// number for the whole boot is the honest shape.
+///
+/// Updated on the two inserts that can grow the table, under `IPC_TABLES`, so it never races;
+/// `fetch_max` rather than a compare-store because the write is cheap and this is not a hot path
+/// (a spawn already costs a page).
+static PEAK_THREADS: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
+
+/// The high-water mark [`PEAK_THREADS`] holds. Printed by the test suite's closing summary.
+#[cfg_attr(not(test), allow(dead_code))] // the closing summary is the only reader
+pub fn peak_thread_count() -> usize {
+    PEAK_THREADS.load(Ordering::Relaxed)
+}
 
 /// The thread table: generational names (`crates/slots`, notes/generational-names.md) over
 /// **page-resident** TCBs (milestone 19c.2). Each `Thread` lives at the start of one page from
@@ -196,6 +313,7 @@ impl Threads {
             self.table.remove(name);
             return None;
         }
+        self.note_peak();
         Some(name)
     }
 
@@ -203,12 +321,16 @@ impl Threads {
     /// own `thread_control_block_kmem`, which `remove` reads to decide whether the page returns to `kmem`.
     fn insert_at(&mut self, page: u64, f: impl FnOnce(ThreadId) -> Thread) -> Option<ThreadId> {
         let ptr = crate::arch::mmu::phys_to_virt(page) as *mut Thread;
-        self.table.insert_with(|tid| {
+        let name = self.table.insert_with(|tid| {
             // SAFETY: a fresh, exclusively-ours page; `write` moves the Thread in, no drop of
             // uninitialized bytes.
             unsafe { ptr.write(f(tid)) };
             ThreadControlBlockPointer(ptr)
-        })
+        });
+        if name.is_some() {
+            self.note_peak();
+        }
+        name
     }
 
     /// Remove and destroy: drop the TCB in place (its stack, address space, and quota token go
@@ -234,6 +356,13 @@ impl Threads {
 
     fn len(&self) -> usize {
         self.table.len()
+    }
+
+    /// Record the table's occupancy against [`PEAK_THREADS`]. Called on the two paths that can
+    /// make the table grow, which is every insert: `insert_at` and `insert_at_in_place` are what
+    /// the three public inserts delegate to.
+    fn note_peak(&self) {
+        PEAK_THREADS.fetch_max(self.table.len(), Ordering::Relaxed);
     }
 
     /// Every live TCB, for whole-table sweeps (revocation). Each live name resolves to a
@@ -381,6 +510,18 @@ pub fn take_ipc_aborted() -> bool {
 /// operation is a couple of pointer writes, from the timer IRQ or anywhere else. §9's
 /// no-allocation-in-IRQ rule holds by construction.
 static IPC_TABLES: IrqSafeMutex<Option<IpcTables>> = IrqSafeMutex::new(rank::IPC_TABLES, None);
+
+/// The scheduler before anything is in it, as a `const` rather than an expression [`init`] builds.
+///
+/// Both tables are `const fn` constructors already, so this is a `.rodata` aggregate the installer
+/// copies from instead of a value assembled on the boot stack. `init`'s own comment carries the
+/// measurement and why it decides how large [`MAX_THREADS`] may be.
+const EMPTY_TABLES: IpcTables = IpcTables {
+    threads: Threads::new(),
+    rendezvous_table: generational_table::Table::new(),
+    kernel_ep_region: None,
+    kernel_ep_chunks: 0,
+};
 
 /// **Per-cpu ring of the last few scheduler events** (first-silicon diagnostics, 2026-08-14; the
 /// module name is provisional). A boot-7 bench dump on the VisionFive 2 showed an end state no
@@ -787,11 +928,29 @@ pub fn canary_disarm() {
 pub fn init() {
     let mut sched = IPC_TABLES.lock();
 
-    let mut threads = Threads::new();
+    // **Install the empty tables FIRST, then name the boot thread through them**, rather than
+    // building a `Threads` as a local and moving it in afterwards. That ordering is a stack
+    // measurement rather than a preference, and it is what lets [`MAX_THREADS`] be raised at all.
+    //
+    // `IpcTables` is two generational tables and nothing else that matters, and the thread table
+    // is `MAX_THREADS` slots wide. Built as a local and then moved into the `Option`, an
+    // unoptimised build carries the table twice on the boot stack, so **every slot added to
+    // `MAX_THREADS` cost about 80 bytes of boot stack** rather than the ~40 the table itself is.
+    // Measured 2026-08-27: at 128 slots this function's frame was 43,952 bytes, the deepest in
+    // the kernel and the reason the suite's boot-stack high-water sat at 54,336 of 65,504 (82%);
+    // a probe raise to 256 took the high-water to 64,640 (98%) and failed `stack::report_high_water`'s
+    // own gate, in a run where nothing else about the boot had changed. Assigning
+    // [`EMPTY_TABLES`], a `const`, gives the compiler a `.rodata` aggregate to copy from and
+    // leaves the boot thread's insert to go straight into the installed table.
+    *sched = Some(EMPTY_TABLES);
+    let tables = sched
+        .as_mut()
+        .expect("the tables were just installed on this line");
     // The table names the boot thread at insert. The first name a fresh table mints is 0 by
     // construction (slot 0, generation 0), so "the boot thread is tid 0" survives, now as a
     // property of the table rather than a hardcoded key.
-    let boot_tid = threads
+    let boot_tid = tables
+        .threads
         .insert_with(|tid| {
             let mut boot = Thread::boot();
             boot.id = tid;
@@ -799,12 +958,6 @@ pub fn init() {
         })
         .expect("a fresh table refused its first insert");
 
-    *sched = Some(IpcTables {
-        threads,
-        rendezvous_table: generational_table::Table::new(),
-        kernel_ep_region: None,
-        kernel_ep_chunks: 0,
-    });
     drop(sched); // release before spawning, which takes the lock itself
 
     // This core (core 0) is running the boot thread.
@@ -937,7 +1090,36 @@ fn thread_control_block_ptr(sched: &mut IpcTables, tid: ThreadId) -> core::ptr::
 /// into the target's inbox, and the SGI (sent after `IPC_TABLES` is released, by the caller) makes it
 /// drain. The inbox push under `IPC_TABLES` is rank-safe (INBOX < `IPC_TABLES`), and the inbox's own lock supplies
 /// the release/acquire that orders our thread-table insert before the target's drain (§11).
-fn place_on(target: usize, thread: core::ptr::NonNull<Thread>) {
+///
+/// **Returns the core that owes an SGI**, `Some(target)` when the thread went into a remote inbox
+/// and `None` when it went onto this core's own run queue, and that return value is the whole
+/// point rather than a convenience. A caller must not decide "was this remote?" a second time by
+/// comparing `target` against [`cpu::id()`] again: this function runs under `IPC_TABLES`, which
+/// masks interrupts, while the caller's second comparison does not, so the calling thread can be
+/// preempted and **stolen onto a different core** in between and the two answers disagree. When
+/// they disagree in the direction that skips the SGI, the placed thread sits `Ready` in a remote
+/// core's inbox that nothing will ever drain (only the reschedule-SGI handler calls
+/// [`drain_inbox`]), the idle target refuses to steal because [`cpu::PerCpu::runnable`] counts that
+/// inbox as its own work, and the machine wedges with every core idle. That is the 2026-08-28
+/// riscv64 CPU-matrix hang, whose trace ring caught the migration in the act:
+///
+/// ```text
+/// core 2: ... switch:0x0 ... switch:0x1000000076 steal:0x0/3 ...   gave tid 0 away to core 3
+/// core 3: ... drain:0x1 switch:0x0 place:0x500000077/2 block:0x0/177 switch:0x4
+/// ```
+///
+/// Tid 0 read `target == cpu::id()` on core 2, was preempted and stolen to core 3, and finished the
+/// same `spawn_on` there: the push went to core 2's inbox and the stale "local" answer skipped the
+/// poke.
+///
+/// **A skipped SGI is usually invisible, which is what makes it dangerous.** The next SGI aimed at
+/// that core for any reason drains the whole inbox, so a strand is normally repaired within
+/// milliseconds and nothing is ever seen. It wedges only when the stranded thread is the work
+/// everything else was about to wait on, so no further SGI is generated. Do not take "it has not
+/// hung" as evidence that a placement path pokes correctly. See notes/scheduler.md.
+#[must_use = "a remote placement owes a reschedule SGI once IPC_TABLES is released, or the thread \
+              sits in an inbox nothing drains"]
+fn place_on(target: usize, thread: core::ptr::NonNull<Thread>) -> Option<usize> {
     // A REMOTE parked cpu's inbox is drained by nothing, so placing there is a thread nothing
     // will ever run: the VisionFive 2 first-silicon hang (notes/visionfive2.md, third stop). The
     // online-set sweep removed every count-as-index chooser, and this is the audit lane's
@@ -962,6 +1144,7 @@ fn place_on(target: usize, thread: core::ptr::NonNull<Thread>) {
     if target == cpu::id() {
         // SAFETY: `thread` is a live Ready thread (see thread_control_block_ptr), on no other queue.
         cpu::current().with_runq(|q| unsafe { q.push_back(thread) });
+        None
     } else {
         // SAFETY: as above; the inbox mutex serializes access to the link.
         let mut inbox = cpu::inbox_of(target).lock();
@@ -973,6 +1156,7 @@ fn place_on(target: usize, thread: core::ptr::NonNull<Thread>) {
         // SAFETY: reading the id of a live thread we still hold exclusively (see above).
         let tid = unsafe { (*thread.as_ptr()).id };
         trace::record(trace::Event::PlaceRemote, tid, target as u8);
+        Some(target)
     }
 }
 
@@ -983,9 +1167,7 @@ fn place_on(target: usize, thread: core::ptr::NonNull<Thread>) {
 /// thread through its inbox and then poked with the reschedule SGI. (Wiring `spawn` itself to
 /// round-robin over `target` is the trivial next step, once the mechanism is proven.)
 pub fn spawn_on<F: FnOnce() + Send + 'static>(target: usize, f: F) -> Option<ThreadId> {
-    let remote = target != cpu::id();
-
-    let id = {
+    let (id, remote) = {
         let mut guard = IPC_TABLES.lock();
         let sched = guard.as_mut()?;
         // **The Thread is built on its own TCB page, not carried there** (milestone 124). The old
@@ -998,11 +1180,15 @@ pub fn spawn_on<F: FnOnce() + Send + 'static>(target: usize, f: F) -> Option<Thr
             // is aligned for `Thread` and holds no live one, so `write` drops nothing.
             unsafe { Thread::spawn_into(f, tid, dst) }
         })?;
-        place_on(target, thread_control_block_ptr(sched, id));
-        id
+        // The placement decision is made ONCE, here, with interrupts masked, and carried out of
+        // the critical section as a value. Re-deriving it below from `target != cpu::id()` is the
+        // lost-wakeup bug `place_on` documents: this thread can be stolen onto another core
+        // between the two reads.
+        let remote = place_on(target, thread_control_block_ptr(sched, id));
+        (id, remote)
     }; // IPC_TABLES released here, before the SGI, so the target's schedule() can take it
 
-    if remote {
+    if let Some(target) = remote {
         // Poke the target: its handler drains the inbox we just pushed to and reschedules.
         crate::arch::irq::send_reschedule(target);
     }
@@ -1111,6 +1297,16 @@ fn try_initiate_steal() {
 /// Before an idle thread existed, a moment where every thread was blocked waiting for I/O was a
 /// kernel panic. It is never in the ready queue, so it never competes with real work, and it is
 /// per-CPU as of §11 step 3b, so an idle core parks in its own `wfi`.
+///
+/// **It deliberately does not drain its own inbox before parking** (DECISIONS §133, calef,
+/// 2026-08-28). Doing so would make a missed reschedule-SGI self-healing, and that was refused on
+/// purpose: `drain_inbox` has one caller per architecture, the SGI handler, so a missed poke is
+/// permanent rather than late, and a permanent wedge announces itself as a watchdog dump naming
+/// the stranded thread and the undrained inbox. A self-healing drain would turn the same defect
+/// into threads occasionally starting late, which nothing files, bisects or gates. That mattered
+/// concretely: the `place_on` stale-locality lost wakeup was found from one such dump and never
+/// reproduced in the wild, 0 crossings in over 1,600 `spawn_on` calls across five instrumented
+/// runs. The section records what would reopen it.
 pub fn run_idle() -> ! {
     loop {
         try_initiate_steal();
@@ -1793,18 +1989,15 @@ fn wake_load_aware(sched: &mut IpcTables, tid: ThreadId) -> Option<usize> {
             crate::testing::note_progress();
             let ptr = core::ptr::NonNull::from(t);
             trace::record(trace::Event::Wake, tid, 0);
-            let target = pick_wake_target();
-            if target == cpu::id() {
-                // SAFETY: just Blocked -> Ready, on no queue; IPC_TABLES masks interrupts, which
-                // with_runq needs.
-                cpu::current().with_runq(|q| unsafe { q.push_back(ptr) });
-                None
-            } else {
-                // Into the target's inbox (place_on keeps the inbox-len mirror under the inbox
-                // lock). The SGI that drains it goes out after IPC_TABLES drops, in irq_notify.
-                place_on(target, ptr);
-                Some(target)
-            }
+            // One placement decision, `place_on`'s: onto this core's own run queue, or into the
+            // target's inbox with the inbox-len mirror kept under the inbox lock. Its return value
+            // is what tells `irq_notify` to poke the target once IPC_TABLES drops, and it is the
+            // only thing that may: a second `target == cpu::id()` comparison outside the lock can
+            // disagree with the one that placed (see `place_on`).
+            //
+            // SAFETY: just Blocked -> Ready, so on no queue; IPC_TABLES masks interrupts, which
+            // `with_runq` needs on the local side.
+            place_on(pick_wake_target(), ptr)
         }
     }
 }
@@ -2512,20 +2705,23 @@ fn reap_region_objects(base: u64, end: u64) -> Result<(), ()> {
             .map(|(name, _)| name);
         let Some(name) = doomed else { break };
 
-        // Drain the rendezvous's waiters. `rendezvous_of` returns a `'static` reference, so it does not
-        // hold the `sched` borrow across the wakes below.
-        let mut waiters = [0u64; MAX_THREADS];
-        let mut nw = 0;
+        // Drain the rendezvous's waiters, **waking each one inside the drain rather than listing
+        // them into a `[u64; MAX_THREADS]` first**, which is the same rule the paragraph above
+        // states and this line did not follow: that array was 1 KiB at 128 threads and grows with
+        // the ceiling, on the frame this function's own comment calls the deepest in the kernel.
+        //
+        // The wake is safe here for the reason the collected version relied on one line later:
+        // `Rendezvous::drain_waiters` pops an entry off its queue *before* calling back, so the
+        // thread's one intrusive link is already free and `wake` may push it onto a run queue.
+        // `rendezvous_of` returns a `'static` reference, so the rendezvous does not hold the
+        // `sched` borrow the callback needs.
         if let Some(rendezvous) = rendezvous_of(sched, name) {
             rendezvous.drain_waiters(|w| {
                 // SAFETY: wait-queue entries are live Blocked threads; the id revalidates it.
-                waiters[nw] = unsafe { (*w.as_ptr()).id };
-                nw += 1;
+                let tid = unsafe { (*w.as_ptr()).id };
+                set_ipc_aborted(sched, tid);
+                wake(sched, tid);
             });
-        }
-        for &tid in &waiters[..nw] {
-            set_ipc_aborted(sched, tid);
-            wake(sched, tid); // the link is free (drained), so wake queues it onto a run queue
         }
         sched.rendezvous_table.remove(name);
     }
@@ -2595,17 +2791,22 @@ fn reap_region_objects(base: u64, end: u64) -> Result<(), ()> {
     }
     // --- Removal phase: every object in the region is reapable. ---
 
-    // Threads: collect before removing (`remove` mutates the table). Both Embryo and Finished go.
-    let mut doomed = [0u64; MAX_THREADS];
-    let mut n = 0;
-    for t in sched.threads.iter_mut() {
-        let phys = page_of(t);
-        if base <= phys && phys < end {
-            doomed[n] = t.id;
-            n += 1;
-        }
-    }
-    for &tid in &doomed[..n] {
+    // Threads: `remove` mutates the table, so this cannot remove while iterating. **Rescan for one
+    // at a time**, exactly as the rendezvous sweep above does and for the same reason it gives: the
+    // obvious `[u64; MAX_THREADS]` list is a scratch array on the kernel's deepest frame that grows
+    // every time the thread ceiling does. Each pass removes one resident, so the set shrinks and
+    // this terminates; the cost is O(live threads) per removal on a teardown path. Both Embryo and
+    // Finished go.
+    loop {
+        let doomed = sched
+            .threads
+            .iter_mut()
+            .find(|t| {
+                let phys = page_of(t);
+                base <= phys && phys < end
+            })
+            .map(|t| t.id);
+        let Some(tid) = doomed else { break };
         // **Unlink a corpse from its supervision rendezvous first.** A supervised thread that died
         // with nobody in `RECV` is parked on that rendezvous's *sender* queue holding its death
         // message (DECISIONS §26 implementation note 2), and that rendezvous is the supervisor's, so
@@ -2875,11 +3076,13 @@ pub fn start_thread_control_block(tid: ThreadId, args: [u64; 3]) -> Result<(), a
     // process that spawns a pipeline does not pile it all onto one core. `place_on` enqueues locally
     // or hands the thread to the target's inbox; the SGI that makes a remote target pick it up goes
     // out after IPC_TABLES is released.
-    let target = pick_spawn_target();
     let ptr = thread_control_block_ptr(sched, tid);
-    place_on(target, ptr);
+    // The decision, once, under the lock. Asking `target != cpu::id()` again after `drop(guard)`
+    // unmasks interrupts first, so this thread can be stolen onto `target` in between and the
+    // second answer skips the SGI the first one owed (see `place_on`).
+    let remote = place_on(pick_spawn_target(), ptr);
     drop(guard);
-    if target != cpu::id() {
+    if let Some(target) = remote {
         crate::arch::irq::send_reschedule(target);
     }
     Ok(())

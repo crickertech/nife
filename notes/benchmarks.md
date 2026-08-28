@@ -318,12 +318,23 @@ And there is no unmap in the surface yet, so each VA is used once.
 Second, the debug and release numbers diverged by ~10x, far more than any other primitive, and that
 divergence is the whole lesson. `map_el0` **aliases one existing frame** at every VA, so it does no
 page allocation and no zeroing: it is trap + capability resolve + walk + PTE write + a `record_mapping`
-append. That append scans the head log page for a free slot, an ~128-entry linear walk on average, and
+append. That append scans the head log page for a free slot, an ~85-entry linear walk on average, and
 in a debug build that unoptimized scan *dominated* the number (~909 ns). Release compiles the scan down
 to almost nothing, and the true cost of the mapping mechanism shows through: **~91 ns**. The kernel-side
 `map_new`, by contrast, is ~524 ns in release and barely moved from debug, because its cost is the 4 KiB
 **page zeroing** a fresh frame needs (`retype_page` hands back a zeroed page), which is memory-bandwidth
 bound and the optimizer cannot speed it up.
+
+That average walk length is a constant in `kernel/src/revoke.rs`, `LOG_ENTRIES`, and it was ~128 when
+the ~909 ns above was measured: a log page held 255 records until §132 gave each one a third word
+naming the capability it was made under, which took the page to 170. **So `LOG_ENTRIES` is a benchmark
+input, and the icount tripwire is the thing that noticed.** §132's branch came in at `map_el0` -16.9%
+aarch64 and -16.4% riscv64 against a baseline nothing else on the branch explained, and the
+attribution is a one-number experiment rather than an argument: setting `LOG_ENTRIES` to 170 on `main`
+and changing nothing else reproduces it to within 0.7%. The unoptimized suite is measuring the search
+for a free slot roughly as much as it is measuring the mapping, which is exactly what makes the debug
+and release numbers diverge by 10x, and it means a future change to that constant moves two benches on
+two ISAs. Whoever makes it should expect to re-record them.
 
 Third, and this is why map is a tie: **`map_el0` and the host `lat_mmap` do not measure the same thing.**
 The host number is a first-touch page fault, which allocates and zeroes a fresh page; `map_el0` aliases
@@ -1198,9 +1209,42 @@ unrelated reasons, where a symbol size moves only when the code moves.
 | `syscall_entry` (flat) | 4,168 | 2,692 |
 | **total, an upper bound** | **9,948 (9.71 KiB)** | **7,766 (7.58 KiB)** |
 
+*Two architectures because that is what the gate measured on the date in the heading; x86_64 is in
+its own subsection below. The recorded baselines have since moved (`bench/fastpath-aarch64.txt` is
+5,788 / 3,304 and `bench/fastpath-riscv64.txt` 5,106 / 1,870); this table is left as the dated
+reading it says it is, and the baseline files are the current numbers.*
+
 The closure's aarch64 members: `ipc_recv`, `schedule`, `ipc_send`, `finish_switch`, `wake`,
 `current_cap`, `kmem::recycle`, `memcpy`, `switch_to`. Every one of them is defensible as something
 an IPC round trip actually runs, which is the test the root list has to pass.
+
+### x86_64, added 2026-08-27, and why one of its two numbers is not comparable
+
+The gate measured two of the three architectures for nine days and said nothing about the third,
+which is the same silent omission `script/stack-frame-check` carried until the architecture-list
+sweep of the same week found both.
+x86_64 is measured and gated now, at `ipc_fastpath` **6,639** and `syscall_entry` **1,637**, total
+**8,276 (8.08 KiB)**, recorded in `bench/fastpath-x86_64.txt`.
+
+**`ipc_fastpath` is comparable across all three and x86_64 is the largest.** The closure is the same
+eight functions as aarch64's list above, minus `memcpy`, which LLVM inlines on x86_64 rather than
+calling by symbol (the symbol exists in the image and nothing references it). So the +15% over
+aarch64 is the same portable Rust in a different ISA's encodings, not a different path.
+
+**`syscall_entry` is not comparable, and a reader looking at three numbers will assume it is.** On
+aarch64 and riscv64 a syscall *is* an exception: `svc` enters the same vector table as a page fault,
+`ecall` the same `stvec` handler as a timer interrupt, so both entry figures carry the whole vector
+and cause decoder. On x86_64 a ring-3 `syscall` reads `IA32_LSTAR` and jumps, consulting no IDT
+entry at all, so its entry set is four symbols: `x86_syscall_entry`, `x86_syscall_handler`,
+`isr_restore` (the shared return path, the twin of riscv64's `trap_return`, which that list already
+carries) and `syscall::dispatch`. Excluded, because no syscall fetches them: the 256 IDT stubs
+(2,412 bytes), `isr_common`, and `x86_trap_dispatch` / `x86_trap_body` (918 bytes), which are the
+twins of the `riscv_trap_*` pair that riscv64's list *does* include. **x86_64's entry figure being
+the smallest of the three is that architectural fact and not a leaner decoder.** The per-symbol
+reasoning is in the script beside the `ENTRY` table, where the next person to add an ISA meets it.
+
+Nothing here is a cache result on x86_64 any more than on the other two; the framing in "What cannot
+be measured yet" below applies to all three equally.
 
 **Against the target above, we are over it.** The target is a fastpath under 4 KiB, an eighth of the
 U74's 32 KB L1i; `ipc_fastpath` alone is 5.6 KiB and the total with entry is 9.7. That is the gap
@@ -1225,6 +1269,16 @@ calling it IPC, and would have been quiet about a doubling of the real path.
 - **The riscv64 tail instruction is assumed to be 4 bytes.** That ISA mixes 2- and 4-byte
   instructions, so the last instruction of each symbol may be over-counted by two bytes. Conservative,
   and lost in the noise at this scale.
+- **The same 4 is a guess in both directions on x86_64**, whose instructions are 1 to 15 bytes, so it
+  is not strictly an upper bound there. Measured rather than assumed: summing exact symbol sizes
+  instead gives 6,619 against 6,639 for the closure and 1,632 against 1,637 for the entry set, a 0.3%
+  over-count, because the `int3` padding LLVM parks after most x86 functions is already counted and
+  roughly cancels the under-count on a symbol ending in a 5-byte tail `jmp`. A fifteenth of the 5%
+  tolerance, so the formula was left alone rather than made per-ISA.
+- **Conditional branches to another symbol are not followed on any ISA.** `b.ne`, `bne` and `jne` all
+  fail the call pattern. Checked on x86_64 rather than assumed: every conditional branch in the five
+  root symbols targets an offset inside its own symbol, so nothing is missed today, but a compiler
+  that started emitting a conditional tail call would drop that callee from the closure silently.
 - **The cold list is a judgement, and a wrong entry is silent.** If a symbol that an IPC really does
   reach ever matches the cold pattern, it drops out of the number with no warning. The list is in the
   script with a reason per family for exactly this reason.
@@ -2522,3 +2576,71 @@ write `yield_switch` exercises, so this baseline is a kernel-thread switch's cos
 address-space switch's. What it retires is the *tooling* gap the roadmap named; the *measurement*
 gap (a workload that actually switches `CR3`) is still open, and remains calef's call on when it is
 worth building one.
+
+## 2026-08-27: raising a ceiling made `spawn_el0` 16.5% slower, and the fix made it 41% faster than it had ever been
+
+The `--check` tripwire caught `sched::MAX_THREADS` going 128 to 256: **`spawn_el0` 2,418,606 ticks
+against a 2,070,473 baseline, +348,133 (+16.8%), well outside the ±10% band.** Every other row was
+flat. The interesting part is not the regression, it is what looking for it found.
+
+### Attribution, by measurement rather than arithmetic
+
+The technique is `1259dc07`'s: hold everything constant and remove one suspect at a time. All four
+numbers are `spawn_el0`, aarch64, TCG + icount, at `MAX_THREADS = 256` unless stated.
+
+| configuration | ticks | attributed |
+|---|---|---|
+| baseline, `MAX_THREADS = 128` | 2,070,473 | (reference) |
+| everything at 256 | 2,418,606 | +348,133 total |
+| 256, capability sweep stubbed out | 2,277,247 | the sweep = **141,359** |
+| 256, `revoke::MAX_SPACES` pinned at its old 160 | 2,280,022 | the registry = **138,584** |
+
+**Two causes of nearly equal size, not one.** The first was predicted: `sched::delete_page_frame_caps_where`
+walks every thread's capability table on every `MemoryRegion::DESTROY`, and
+`generational_table::iter_mut` *yields* only live entries but *visits* every slot to filter them, so
+its cost tracked `MAX_THREADS` rather than the number of live threads. The second was not predicted
+and is this file's reason for existing: `revoke::MAX_SPACES` is derived from `MAX_THREADS`, and the
+registry is a plain array walked linearly, with `forget_root` scanning all of it unconditionally on
+every `AddressSpace::drop`. The two do not quite sum to the total (280k of 348k); the remainder was
+not chased separately because the fix below removed all of it.
+
+### The fix, and why it is not a re-baseline
+
+Both are the same disease: **a scan whose cost tracks a ceiling rather than occupancy.** Both get
+the same cure, a `top` field holding one past the highest live slot, with every walk bounded by it.
+The invariant that makes it sound (every slot at or above `top` is empty) is one line to state and
+is now carried by a Kani harness and two host tests in `generational_table`.
+
+Re-baselining was available and was the wrong move, for the reason the maintainer who caught this
+gave: live threads peaked at 130 and did not move, only the ceiling did, so paying 16.5% for slots
+nothing occupies is a cost attached to the wrong thing, and baking it in would make **every future
+raise pay again**.
+
+### What it actually measured, which was not what anybody expected
+
+`spawn_el0` is now **1,212,888 ticks: 41% faster than the 128-slot baseline it was supposed to be
+restored to.** The bound did not merely undo the raise; it removed cost that had been there all
+along, because the bench boot holds far fewer threads and address spaces than either ceiling
+allows, so both walks were mostly visiting slots that had never been occupied. Every other row is
+within noise (`map_el0` +0.5%, `spawn_reap` +0.1%). The baseline is re-recorded in the commit that
+moved it, per this instrument's own rule.
+
+### The ratchet is gone, and that is the claim worth keeping
+
+Doubling the ceiling *again*, to 512, and re-running: **1,213,475 ticks, +587 on the 256 number,
+0.05%.** Before the fix the same doubling cost +348,133. Whatever the thread ceiling is raised to
+next, this benchmark will not notice, which is the property that was worth an hour rather than the
+41%.
+
+### BUGS
+
+- **This is a mitigation, and `MILESTONE 183` is the fix.** That milestone ("a physical-range index
+  for capability holders, so revocation stops scanning every thread") removes the sweep rather than
+  making it cheaper. What is measured here sharpens its case rather than closing it: the sweep is
+  now O(live threads) instead of O(`MAX_THREADS`), which is a much better constant on a boot holding
+  130 threads and no help at all to one holding 130 threads that all need checking. The index is
+  still the answer for a machine with real tenancy.
+- **The 41% is `spawn_el0` on a bench boot, not a claim about spawn in general.** A boot whose
+  tables are genuinely full would see the old cost, because then the bound and the ceiling agree.
+  The honest statement is that cost now tracks what the machine holds; on this benchmark that
+  happens to be very little.

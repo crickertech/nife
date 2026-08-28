@@ -27,7 +27,23 @@
 //!   then calls `MemoryRegion::DESTROY` on the fourth delegated capability (`login_proto`'s own logout
 //!   ticket) and proves the *directory* came down with it: a further `READDIR` through it must fail.
 //!   This is milestone 49's caretaker-teardown fix, proven end to end rather than merely by the
-//!   syscall's own return code.
+//!   syscall's own return code. It reports how long that `DESTROY` waited (microseconds) in the
+//!   third report word, where the other roles put an identity hint; see `destroy_with_retry`.
+//! - [`ROLE_TERM_FIRST`] (milestone 49's terminal update) logs in as `chris`, proves the fifth
+//!   delegated capability (the terminal) actually names a real, working endpoint by sending a known
+//!   word through it (which the kernel test catches with its own `sched::ipc_recv` on the stand-in
+//!   `Wiring::term_ep`, the same "prove it works, not merely that it arrived" standard the directory
+//!   and budget already get), then tears its own session down exactly like [`ROLE_LOGOUT`] -- but,
+//!   deliberately, **without** sending [`login_proto::logout_word`], so the terminal itself stays on
+//!   loan even though the session's memory came home. That is the property under test: session
+//!   teardown and freeing the terminal are two independent acts.
+//! - [`ROLE_TERM_SECOND`] presents `corinne`'s real credentials while [`ROLE_TERM_FIRST`] still
+//!   holds the terminal. Must be refused [`login_proto::NO_TERMINAL`], and nothing follows: the
+//!   existing "protocol promise" flow already used for [`ROLE_WRONG_SECRET`] covers this for free,
+//!   since `NO_TERMINAL != OK`.
+//! - [`ROLE_TERM_LOGOUT`] sends [`login_proto::logout_word`] on the front door directly, without
+//!   ever calling `CONNECT`: there is no identity or secret in this word at all (`login_proto`'s own
+//!   BUGS on what this does and does not authenticate).
 //!
 //! A role that succeeds does not stop at the verdict. It **uses** what it received: a directory
 //! read through the caretaker's endpoint, the file service's shared frame mapped and used for that
@@ -41,7 +57,8 @@
 //! - slot 1: the login service's front-door result endpoint, `READ`. [`login_proto::CONNECTED`],
 //!   then three delegated capabilities: a private request endpoint, a private result endpoint, and
 //!   a staging page. The actual [`login_proto::LOGIN`] exchange happens on the first two of those,
-//!   never on slots 0/1 again.
+//!   never on slots 0/1 again. [`login_proto::logout_word`] also travels here directly ([`ROLE_TERM_LOGOUT`]),
+//!   since it needs no private channel at all.
 //! - slot 2: a report endpoint, `WRITE`.
 //! - slot 3: a small `MemoryRegion`, `WRITE`: this program's own scratch, for `map_page_frame`'s
 //!   page-table cost when it self-maps the page [`login_proto::CONNECTED`] delegates (see
@@ -113,10 +130,26 @@ pub const ROLE_NO_SUBTREE: u64 = 6;
 /// session down and confirm it actually came down: a further `READDIR` through the now-`DESTROY`ed
 /// directory capability must fail. See the module docs.
 pub const ROLE_LOGOUT: u64 = 7;
+/// Log in as `chris`, prove the fifth delegated capability (the terminal) is real by sending
+/// [`TERM_MAGIC`] through it, then tear the session down like [`ROLE_LOGOUT`] **without** freeing
+/// the terminal. See the module docs.
+pub const ROLE_TERM_FIRST: u64 = 8;
+/// Log in as `corinne` while [`ROLE_TERM_FIRST`]'s terminal loan is still outstanding. Must be
+/// refused [`login_proto::NO_TERMINAL`]. See the module docs.
+pub const ROLE_TERM_SECOND: u64 = 9;
+/// Send [`login_proto::logout_word`] on the front door directly; no identity involved. See the
+/// module docs.
+pub const ROLE_TERM_LOGOUT: u64 = 10;
 
 /// The one-shot marker file every `*_MARK`/`*_CHECK` role reads or writes, inside the identity's own
 /// granted subtree. Chosen to collide with nothing else this tree's fixtures use.
 const MARKER_NAME: &str = "whoami";
+
+/// **[`ROLE_TERM_FIRST`]'s proof of life for the delegated terminal.** Sent through the fifth
+/// delegated capability once it is in hand; the kernel test's own `sched::ipc_recv` on the stand-in
+/// `Wiring::term_ep` is what confirms the delegated copy names the real object rather than merely
+/// having arrived. The exact value carries no meaning beyond being recognisable in a test assertion.
+const TERM_MAGIC: u64 = 0x_7e12_0000_0000_0001;
 
 /// This role's identity and the secret it presents. `chris`/`corinne` are the same two identities
 /// `credentialer_test_client.rs`'s own `PEOPLE` fixture already provisions, reused rather than
@@ -127,10 +160,12 @@ const MARKER_NAME: &str = "whoami";
 /// subtree.
 fn credentials(role: u64) -> (&'static [u8], &'static [u8]) {
     match role {
-        ROLE_CHRIS | ROLE_CHRIS_MARK | ROLE_CHRIS_CHECK | ROLE_LOGOUT => {
+        ROLE_CHRIS | ROLE_CHRIS_MARK | ROLE_CHRIS_CHECK | ROLE_LOGOUT | ROLE_TERM_FIRST => {
             (b"chris", b"correct horse battery staple")
         }
-        ROLE_CORINNE | ROLE_CORINNE_MARK => (b"corinne", b"a different secret entirely"),
+        ROLE_CORINNE | ROLE_CORINNE_MARK | ROLE_TERM_SECOND => {
+            (b"corinne", b"a different secret entirely")
+        }
         // The right identity, the wrong secret: a fairer refusal than an unknown identity would be,
         // for `credentialer_test_client`'s own reason (a boundary tested by a program sharing the
         // honest path rather than one failing for a different reason).
@@ -144,6 +179,10 @@ fn credentials(role: u64) -> (&'static [u8], &'static [u8]) {
 pub const RPT_OK: u64 = login_proto::OK;
 pub const RPT_DENIED: u64 = login_proto::DENIED;
 pub const RPT_MALFORMED: u64 = login_proto::MALFORMED;
+/// Milestone 49's terminal update: the terminal was already on loan to another session.
+pub const RPT_NO_TERMINAL: u64 = login_proto::NO_TERMINAL;
+/// [`ROLE_TERM_LOGOUT`]'s own answer: the terminal is free again.
+pub const RPT_LOGGED_OUT: u64 = login_proto::LOGGED_OUT;
 
 /// Bits of the report's second word, set only when [`RPT_OK`] is the first: which of the delegated
 /// capabilities this process proved actually work, rather than merely that they arrived.
@@ -159,8 +198,9 @@ pub const F_NOT_SHARED_SUBTREE: u64 = 1 << 2;
 /// not get to run at all, which the kernel test must treat as its own failure rather than silence.
 pub const F_MARKER_WRITTEN: u64 = 1 << 3;
 /// **Set when the fourth capability's `MemoryRegion::DESTROY` returned success.** Set only by
-/// [`ROLE_LOGOUT`]; retried a bounded few times on refusal (`login_proto`'s own module docs, on the
-/// fourth capability, name the transient window this covers).
+/// [`ROLE_LOGOUT`]; retried on refusal until the region comes down or [`DESTROY_WAIT_SECS`] runs out
+/// (`login_proto`'s own module docs, on the fourth capability, name the transient window this
+/// covers, and `destroy_with_retry` says why the bound is a clock).
 pub const F_TEARDOWN_OK: u64 = 1 << 4;
 /// **Set when a `READDIR` through the directory capability failed *after* teardown.** Set only by
 /// [`ROLE_LOGOUT`]; this is the proof that the capability, not merely the syscall, came down: a
@@ -175,9 +215,23 @@ pub const F_BUDGET_TEARDOWN_OK: u64 = 1 << 6;
 /// **Set when a further `RETYPE` on the budget failed *after* its own teardown.** The budget's half
 /// of [`F_DEAD_AFTER_TEARDOWN`].
 pub const F_BUDGET_DEAD_AFTER_TEARDOWN: u64 = 1 << 7;
+/// **Set when the fifth delegated capability (the terminal) delivered [`TERM_MAGIC`] to a real
+/// receiver.** Set only by [`ROLE_TERM_FIRST`]. A capability that merely arrived (`RECV_CAP`
+/// succeeded) would pass every earlier check and never set this one: `send` only returns once a
+/// receiver is actually matched.
+pub const F_TERM_WORKS: u64 = 1 << 8;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
+    if role == ROLE_TERM_LOGOUT {
+        // **Never calls `CONNECT` at all.** `login_proto::logout_word` travels on the shared front
+        // door directly (`login_proto`'s own module docs): there is no secret to protect, so there
+        // is nothing a private channel would buy here.
+        send(SERVICE, login_proto::logout_word(), 0, 0);
+        let (verdict, _, _) = recv(RESULT);
+        done(verdict, 0, 0);
+    }
+
     let (identity, secret) = credentials(role);
 
     // **Milestone 49's channel-per-client update: connect first.** The front door's only legal
@@ -223,14 +277,25 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
         done(verdict, 0, 0);
     }
 
-    // Four capabilities, in login_proto's fixed order, on the private channel `priv_result` names.
+    // Five capabilities, in login_proto's fixed order, on the private channel `priv_result` names.
     let (_, dir_ep, _) = recv_cap(priv_result);
     let (_, fs_page_frame, _) = recv_cap(priv_result);
     let (_, budget, _) = recv_cap(priv_result);
     let (_, region, _) = recv_cap(priv_result);
+    let (_, term_ep, _) = recv_cap(priv_result);
 
     let mut flags = 0u64;
     let mut hint = 0u64;
+
+    // **Prove the terminal, before anything else touches `budget`/`region`.** `send` on a plain
+    // rendezvous only returns once a receiver is actually matched (`crates/ipc`'s own model), so
+    // this blocks until the kernel test's own `sched::ipc_recv(w.term_ep)` catches it -- a stronger
+    // proof than `RECV_CAP` alone, which would pass even for a capability naming a dead or wrong
+    // object.
+    if role == ROLE_TERM_FIRST {
+        send(term_ep, TERM_MAGIC, 0, 0);
+        flags |= F_TERM_WORKS;
+    }
 
     // Prove the directory capability works: map the delegated frame (which needs `budget` alive, to
     // supply page-table pages for the mapping: `user_rt::map_page_frame`'s own contract), then read the
@@ -259,7 +324,7 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
     // fixed, which is exactly the anti-oracle failure `login_proto::DENIED`'s own fold exists to
     // prevent (a real password silently answered as though it were wrong). See `login_proto`'s own
     // module docs on the fourth capability for the client-facing version of this note.
-    if role == ROLE_LOGOUT && destroy_with_retry(budget) {
+    if (role == ROLE_LOGOUT || role == ROLE_TERM_FIRST) && destroy_with_retry(budget) {
         flags |= F_BUDGET_TEARDOWN_OK;
         if retype_page_frame(budget) < 0 {
             flags |= F_BUDGET_DEAD_AFTER_TEARDOWN;
@@ -307,12 +372,34 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
                 // `budget` is already gone by construction (above); `region` is now the top of
                 // `CONSTRUCTION_UT`'s watermark, so this `DESTROY` un-bumps it too, and this
                 // login's whole 128-page contribution comes home.
-                ROLE_LOGOUT => flags |= teardown_directory(dir_ep, region),
+                ROLE_LOGOUT => {
+                    flags |= teardown_directory(dir_ep, region);
+                    // The third report word, for this role only: how many microseconds the
+                    // caretaker region's `DESTROY` waited (the budget's own wait is not reported;
+                    // nothing lives in that region, so it has never needed one). The kernel test
+                    // quotes it in the failure message.
+                    hint = waited_micros();
+                }
+                // `ROLE_TERM_FIRST` shares the teardown but not the wait report (see the module
+                // docs: freeing the session's memory and freeing the terminal are two independent
+                // acts, and this role deliberately only does the first). It keeps the identity hint
+                // every other role puts in the third word, so the wait report stays ROLE_LOGOUT's
+                // alone, exactly as that comment above claims.
+                ROLE_TERM_FIRST => flags |= teardown_directory(dir_ep, region),
                 _ => {}
             }
         }
     }
 
+    // **`ROLE_LOGOUT` deliberately does not also free the terminal here.** `login`'s own thread is
+    // blocked inside `send(AUDIT, ...)` (a blocking rendezvous) until the *caller* drains it, which
+    // happens after this role's report, not before; sending `login_proto::logout_word` from inside
+    // this role and waiting for its answer here would deadlock against that (this role's own report
+    // would never arrive, because `login` cannot get back to `RECV(REQUEST)` to answer the logout
+    // until the caller has already drained `AUDIT`, which it does *after* waiting for this report).
+    // A caller that also wants the terminal freed does that itself, after draining `AUDIT` --
+    // `kernel::user::login_tests::free_terminal`, used exactly this way by
+    // `caretaker_teardown_reclaims_a_full_session_worth_of_memory`.
     done(RPT_OK, flags, hint);
 }
 
@@ -425,23 +512,94 @@ fn teardown_directory(dir: u64, region: u64) -> u64 {
     flags
 }
 
-/// **`MemoryRegion::DESTROY` on `ut`, retried a bounded few times.** Used on both the fourth delegated
-/// capability (the caretaker's construction region) and the third (the client's own budget, already
-/// held with `WRITE` by every role): `login_proto`'s own module docs, on the fourth capability, name
-/// the one transient refusal the *caretaker's* region can give (mid-`forward` to the file service,
-/// blocked on an endpoint the region does not own, at the exact instant `DESTROY` is attempted; that
-/// window closes on its own, so a short bounded retry, `crates/system_initializer::reclaim`'s own
-/// idiom, is enough). The budget has no such window: nothing else is ever running in it, so its own
-/// `DESTROY` is expected to succeed on the first attempt, and this loop costs it nothing to share.
+/// **How long [`destroy_with_retry`] waits for a refusal to clear, in seconds of counter time.**
+///
+/// A watchdog, deliberately, and not a rate: it is set so far above what the wait actually costs
+/// that only a region which will *never* come down can reach it. Measured on 2026-08-27, an
+/// eight-core Mac under TCG, ten logouts per run, 70 waits over seven full-suite runs:
+///
+/// | condition | worst single wait |
+/// |---|---|
+/// | quiet host, aarch64 | 12.8 ms |
+/// | one-minute load average 13 to 29, aarch64 | 44.3 ms |
+/// | one-minute load average 27 to 47, riscv64 | **126.4 ms** |
+///
+/// The tail grows with contention, which is the whole reason this is not a two-digit number: five
+/// seconds is 40x the worst of those. **Only a failing run ever pays it**, because the loop returns
+/// the moment the region comes down, and the test that drives this stops at its first bad logout, so
+/// the worst a wedged caretaker costs is this twice (the budget and the region) against the
+/// harness's 90 s per-test ceiling. That is the trade: a red run takes ten seconds to arrive and
+/// says which of the two things happened, instead of arriving in eight milliseconds and being wrong.
+const DESTROY_WAIT_SECS: u64 = 5;
+
+/// **`MemoryRegion::DESTROY` on `ut`, retried until the region actually becomes destroyable.** Used
+/// on both the fourth delegated capability (the caretaker's construction region) and the third (the
+/// client's own budget, already held with `WRITE` by every role): `login_proto`'s own module docs, on
+/// the fourth capability, name the one transient refusal the *caretaker's* region can give
+/// (mid-`forward` to the file service, blocked on an endpoint the region does not own, at the exact
+/// instant `DESTROY` is attempted; that window closes on its own). The budget has no such window:
+/// nothing else is ever running in it, so its own `DESTROY` is expected to succeed on the first
+/// attempt, and this loop costs it nothing to share.
+///
+/// # Why this is a clock and not a count of attempts
+///
+/// It was `for _ in 0..64 { destroy; yield }` until 2026-08-27, which is
+/// notes/load-sensitive-assertions.md's family in one line: **a yield count is not a duration.**
+/// What the refusal is waiting on is a timer tick. `sched::reap_region_objects` refuses while the
+/// caretaker is still live and *arms* DECISIONS §16's kill on it, and the kill lands at that
+/// thread's next preemption, so the wait is a tick period (10 ms at 100 Hz) rather than a number of
+/// syscalls. A `yield_now` that finds work on this core returns in ~130 us, so sixty-four of them
+/// can elapse in 8 ms and give up **before the tick that does the work arrives**; a `yield_now`
+/// that finds none parks until the next tick, and then two attempts are enough. Which of the two
+/// happens is a scheduling outcome the host decides, which is why the old form passed quiet, passed
+/// CI, and failed at about 2x oversubscription. Measured, both shapes, in one run: 23, 36, 2, then
+/// 64-and-refused, at 130 to 300 us per attempt.
+///
+/// So the loop waits on the property (the region genuinely coming down) and bounds itself with
+/// [`DESTROY_WAIT_SECS`] of counter time.
+///
+/// # BUGS
+///
+/// **The bound is wall clock, which is the unit milestone 62 argues against**, and it is used here
+/// because the better one is not reachable from a process. That milestone re-denominated
+/// `smp.rs`'s migration drain in *delivered timer ticks* precisely because a counter deadline keeps
+/// running while the guest is descheduled; userspace has no delivered-tick counter (`user_rt::now`
+/// is the raw counter and nothing publishes the kernel's per-core tick count), so what makes this
+/// safe is the 40x margin above rather than the unit. The margin is what would have to be
+/// re-measured if the wait ever grew. Giving a process a delivered-tick reading is an ABI addition
+/// and therefore calef's call, not a lane's.
 fn destroy_with_retry(ut: u64) -> bool {
-    const ATTEMPTS: usize = 64;
-    for _ in 0..ATTEMPTS {
+    let ceiling = user_rt::cntfrq().saturating_mul(DESTROY_WAIT_SECS);
+    let started = user_rt::now();
+    loop {
         if destroy_region(ut) == 0 {
+            record(user_rt::now().wrapping_sub(started));
             return true;
+        }
+        if user_rt::now().wrapping_sub(started) >= ceiling {
+            record(user_rt::now().wrapping_sub(started));
+            return false;
         }
         yield_now();
     }
-    false
+}
+
+/// How long the last [`destroy_with_retry`] waited, in counter ticks. [`ROLE_LOGOUT`] reports it as
+/// microseconds in the third report word (see [`_start`]), so a red run carries the observation the
+/// wait actually decided on instead of sending the reader back to re-run under load.
+static mut WAITED: u64 = 0;
+
+/// Store [`WAITED`]. Every role of this program is single-threaded and this is its only writer.
+fn record(ticks: u64) {
+    // SAFETY: one thread, one writer, and the only reader runs after it in the same thread.
+    unsafe { WAITED = ticks }
+}
+
+/// [`WAITED`] in microseconds, for the report.
+fn waited_micros() -> u64 {
+    // SAFETY: as `record`.
+    let ticks = unsafe { WAITED };
+    ticks.saturating_mul(1_000_000) / user_rt::cntfrq().max(1)
 }
 
 fn done(tag: u64, w1: u64, w2: u64) -> ! {
