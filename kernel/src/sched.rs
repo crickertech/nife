@@ -1297,6 +1297,16 @@ fn try_initiate_steal() {
 /// Before an idle thread existed, a moment where every thread was blocked waiting for I/O was a
 /// kernel panic. It is never in the ready queue, so it never competes with real work, and it is
 /// per-CPU as of §11 step 3b, so an idle core parks in its own `wfi`.
+///
+/// **It deliberately does not drain its own inbox before parking** (DECISIONS §133, calef,
+/// 2026-08-28). Doing so would make a missed reschedule-SGI self-healing, and that was refused on
+/// purpose: `drain_inbox` has one caller per architecture, the SGI handler, so a missed poke is
+/// permanent rather than late, and a permanent wedge announces itself as a watchdog dump naming
+/// the stranded thread and the undrained inbox. A self-healing drain would turn the same defect
+/// into threads occasionally starting late, which nothing files, bisects or gates. That mattered
+/// concretely: the `place_on` stale-locality lost wakeup was found from one such dump and never
+/// reproduced in the wild, 0 crossings in over 1,600 `spawn_on` calls across five instrumented
+/// runs. The section records what would reopen it.
 pub fn run_idle() -> ! {
     loop {
         try_initiate_steal();
