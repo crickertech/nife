@@ -89,6 +89,13 @@ concurrency:
 # your triggers": this comment described what the platform does and not what this file asked for,
 # and those are two different claims that read identically.
 #
+# **And subscribing was not sufficient either, which is why the guard no longer reads the payload
+# at all.** With `ready_for_review` in `types:` on the head commit, PR #577 still went from draft
+# to ready without raising a run: the API reports three runs on that SHA, none cancelled, none from
+# that event. That remains unexplained. The `gate` job below sidesteps it by asking what the pull
+# request *is* rather than what an event once said it was, and by failing toward running. Treat the
+# paragraph above as history: no job now tests `github.event.pull_request.draft`.
+#
 # Every job runs on ubuntu-24.04-arm (a free aarch64 runner for public repos), not the x86_64
 # ubuntu-latest default, and that is deliberate. nife targets aarch64; the host-logic crates
 # (paging, elf, frames, slab, the intrusive queue) run on the host in tests and on aarch64 on real
@@ -98,10 +105,57 @@ concurrency:
 # exactly the weak-ordering discipline DECISIONS §4 rule 4 commits us to. It also makes CI match the
 # aarch64 dev machine, so "passes locally" means "passes in CI".
 jobs:
+  # **The live draft state, read once, because the event payload's copy is a snapshot that has been
+  # wrong.** Every job below used to test `github.event.pull_request.draft` straight out of the
+  # webhook payload. That value is captured when the event is created, so a `synchronize` raised
+  # while a lane was still a draft carries `draft: true` for ever, even if the lane marks the pull
+  # request ready a second later. #569 added `ready_for_review` to this workflow's `types:` so that
+  # transition would raise its own run and correct the record. On PR #577 it did not: the `types:`
+  # line was present on the head commit (verified), the pull request went from draft to ready, and
+  # the GitHub API reports exactly three runs on that SHA, none cancelled and none from
+  # `ready_for_review`. **Why that event produced no run is still unexplained.**
+  #
+  # So this does not depend on knowing. It asks the API what the pull request *is right now*,
+  # once, and every job consumes the answer. Event ordering, coalescing and stale payloads stop
+  # mattering because none of them are consulted.
+  #
+  # **It fails safe in the direction that costs minutes rather than correctness.** A job whose
+  # dependency failed reports an empty output, and `!= 'false'` admits that, so a broken or
+  # cancelled gate runs the whole suite instead of skipping it. `always()` is what lets the
+  # condition be evaluated at all when a dependency did not succeed. The failure this whole file
+  # keeps relearning is that **a skipped job still posts a conclusion and still satisfies a
+  # required check**, so skipping is never the safe default.
+  gate:
+    name: draft gate
+    runs-on: ubuntu-24.04-arm
+    outputs:
+      run: ${{ steps.state.outputs.run }}
+    steps:
+      - id: state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "==> ${{ github.event_name }} is not a pull request; running everything"
+            exit 0
+          fi
+          draft="$(gh pr view "${{ github.event.pull_request.number }}" \
+                     --repo "$GITHUB_REPOSITORY" --json isDraft -q .isDraft 2>/dev/null || true)"
+          if [ "$draft" = "true" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "==> pull request is a draft right now; skipping the suite"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "==> live draft state is '${draft:-unreadable}'; running everything"
+          fi
+          exit 0
+
   test:
     name: build + test (host + QEMU)
     runs-on: ubuntu-24.04-arm
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    needs: gate
+    if: ${{ always() && needs.gate.outputs.run != 'false' }}
     # A hung kernel means QEMU never exits and the runner would block until the 6-hour default.
     # Fail loudly instead. Local runs finish in well under a minute once built.
     timeout-minutes: 30
@@ -170,7 +224,8 @@ jobs:
   cpu-matrix:
     name: cpu matrix (riscv64 across QEMU CPU models)
     runs-on: ubuntu-24.04-arm
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    needs: gate
+    if: ${{ always() && needs.gate.outputs.run != 'false' }}
     # Five QEMU boots plus a std-farm build. Generous because a hung guest must fail loudly rather
     # than sit on the runner's 6-hour default, the same reason the test job has one.
     timeout-minutes: 45
@@ -250,7 +305,8 @@ jobs:
   fmt:
     name: rustfmt
     runs-on: ubuntu-24.04-arm
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    needs: gate
+    if: ${{ always() && needs.gate.outputs.run != 'false' }}
     steps:
       - uses: actions/checkout@v7
       - name: Install rustfmt (pinned nightly)
@@ -260,7 +316,8 @@ jobs:
   clippy:
     name: clippy
     runs-on: ubuntu-24.04-arm
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    needs: gate
+    if: ${{ always() && needs.gate.outputs.run != 'false' }}
     steps:
       - uses: actions/checkout@v7
       - name: Install clippy and the bare-metal target
@@ -295,7 +352,8 @@ jobs:
   fastpath-footprint:
     name: fastpath footprint (the IPC path must stay L1i-sized)
     runs-on: ubuntu-24.04-arm
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    needs: gate
+    if: ${{ always() && needs.gate.outputs.run != 'false' }}
     steps:
       - uses: actions/checkout@v7
       # Both bare-metal targets, because this gates both (§19 parity: a fastpath that fits on one
@@ -313,7 +371,8 @@ jobs:
   stack-frame-check:
     name: stack frames (no frame over a third of a thread stack)
     runs-on: ubuntu-24.04-arm
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    needs: gate
+    if: ${{ always() && needs.gate.outputs.run != 'false' }}
     steps:
       - uses: actions/checkout@v7
       # Both bare-metal targets, because this gates both (§19 parity: a frame that fits on one ISA
@@ -344,7 +403,8 @@ jobs:
   bench:
     name: bench (icount regression tripwire)
     runs-on: ubuntu-24.04-arm
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    needs: gate
+    if: ${{ always() && needs.gate.outputs.run != 'false' }}
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
@@ -431,7 +491,8 @@ jobs:
   supply-chain:
     name: supply chain (advisories, licences, vendored integrity)
     runs-on: ubuntu-24.04-arm
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    needs: gate
+    if: ${{ always() && needs.gate.outputs.run != 'false' }}
     # No permissions block of its own: the workflow-level `contents: read` above already gives every
     # job the least privilege that works, and this job wants exactly that (read the source, read the
     # advisory database, fetch a tarball from crates.io). Adding a redundant per-job copy would make
@@ -463,7 +524,8 @@ jobs:
   fuzz:
     name: fuzz (parsers, 60s per target)
     runs-on: ubuntu-24.04-arm
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    needs: gate
+    if: ${{ always() && needs.gate.outputs.run != 'false' }}
     # Build, then four one-minute runs. Generous against a cold `-Zbuild-std`, which compiles the
     # standard library with the sanitizer on the first run of the day.
     timeout-minutes: 30
@@ -536,7 +598,8 @@ jobs:
   coverage:
     name: coverage (host crates)
     runs-on: ubuntu-24.04-arm
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    needs: gate
+    if: ${{ always() && needs.gate.outputs.run != 'false' }}
     steps:
       - uses: actions/checkout@v7
         with:
