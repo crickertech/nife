@@ -313,9 +313,169 @@ const PAGE_FRAME_REPORT_MIN: usize = 16;
 /// same job (19142 and 18921). 19142 + 15 (headroom, this ledger's own precedent for raising past a
 /// value it has just spent close to all of) = 19157.
 ///
-/// Raising it is a decision, not a formality: read the `[that test kept N frames]` lines the run
-/// prints, find who grew, and be able to say why that growth is permanent.
-const SUITE_PAGE_FRAME_BUDGET: usize = 19_157;
+/// **Raised again, 2026-08-26, milestone 142's scanout growth (128x64 -> 1280x720, DECISIONS
+/// §102).** Measured locally, twice, deterministically: **26943** both times, zero variance,
+/// with every guest and host-side check (scanout, inbound, multicast, SMB) passing both runs. The
+/// growth is attributable almost entirely to what this ledger is *for*: memory that is legitimately
+/// permanent for the guest boot's own lifetime, now costing 112 times more per site because the
+/// scanout itself did.
+///
+/// The suite allocates a scanout-sized region at eight call sites, none of which are reclaimed
+/// before the boot ends (`display_service::wire_driver`'s own doc: the driver is a long-lived
+/// server for the rest of the test run, and `compositor_tests::kernel_display`'s stand-in is the
+/// same shape one level up):
+///
+/// - **Four `kernel_display()` calls** (`compositor_tests.rs`), each a fresh
+///   `graphics_proto::SURFACE_PAGE_FRAMES`-frame region: 900 now, 8 before. +892 each, +3568 total.
+/// - **Four real-driver wirings** (`display_service::start`, `start_backing_escape`,
+///   `start_terminal`, `start_driver`, one call site each across `display_tests.rs` and
+///   `compositor_tests.rs`), each allocating `DMA_PAGE_FRAMES` (`1 + SURFACE_PAGE_FRAMES`): 901 now,
+///   9 before. +892 each, +3568 total.
+///
+/// 3568 + 3568 = 7136, which is the direct scanout-size cost and accounts for most of the
+/// **7786**-frame rise from the pre-142 budget (19157). The remainder is smaller and not claimed to
+/// be fully attributed, but has a named, reasoned shape rather than being a mystery: the
+/// compositor's own screen mapping is a `PageFrame` capability now (§102), which means
+/// `compositor_service::start` mints a **new** `MAP_BUDGET_PAGES`-page (24) `MemoryRegion` for it,
+/// something the compositor held zero of before this milestone, at up to five call sites in
+/// `compositor_tests.rs` (≤120 frames); and every one of the eight sites above now needs more than
+/// one L3 page-table page per mapping (the run spans more than one 2 MiB window at this size, unlike
+/// before), a handful more frames per site. Both are real, named consequences of the same change,
+/// not leaks distinct from it.
+///
+/// 26943 (measured) + 15 (headroom, this ledger's own precedent for raising past a value just spent
+/// close to all of) = 26958.
+///
+/// **Lowered, 2026-08-27, milestone 142's scanout retarget (1280x720 -> 924x344, 132x43 grid at the
+/// shipped 7x8 cell instead of 182x90 arithmetic against an unbuilt future cell;
+/// `crates/graphics_proto/src/lib.rs`'s `WIDTH` has the reasoning).** This is the first entry in
+/// this ledger's history that lowers the budget rather than raising it, for the reason the raise
+/// above already gives in reverse: the scanout-sized region every one of the eight call sites above
+/// allocates is smaller now, so the whole 7136-frame direct cost that raise priced shrinks with it,
+/// and nothing else about the suite changed. Measured locally, twice, deterministically, on both
+/// architectures: **22075** on aarch64 both times, **21853** on riscv64 both times, zero variance
+/// either side, with every guest and host-side check (scanout, inbound, multicast, SMB) passing
+/// all four runs and the scanout referee confirming the new 924x344 pattern pixel for pixel every
+/// time. The two totals disagree by 222 frames, the same "measured separately, not a property"
+/// shape the constant's own opening paragraph already documents for the pre-142 baseline (14031 vs
+/// 13787); aarch64 is again the tighter of the pair, so it is what the headroom below is measured
+/// against. (Some retries were needed to reach two clean runs per architecture: several attempts
+/// hit this file's own documented pre-existing local-only flake in
+/// `caretaker_teardown_reclaims_a_full_session_worth_of_memory`, unrelated to this change and
+/// already named above at the 19142 raise (a genuine race: it fired on a different login iteration
+/// number each time, and never on the same run twice); it did not recur in any of the four counted
+/// runs this entry's numbers come from.)
+///
+/// `SURFACE_PAGE_FRAMES` fell from 900 to 311 (`graphics_proto::WIDTH`'s doc comment has the
+/// pixel arithmetic), so each of the four `kernel_display()` calls and four real-driver wirings
+/// costs roughly a third of what it did, and the surface now fits one 2 MiB page-table window
+/// instead of two (`display_service::MAP_BUDGET_PAGES`'s own comment), removing the "more than one
+/// L3 page-table page per mapping" cost the raise above named as part of its unattributed
+/// remainder. This lane did not re-derive a fresh per-site attribution to match the raise's own
+/// level of detail; the measured total is the honest number either way, per this constant's own
+/// standing instruction to read the `[that test kept N frames]` lines rather than guess.
+///
+/// 22075 (measured) + 15 (headroom, this ledger's own precedent) = 22090. A stale, too-generous
+/// budget is exactly the kind of unexplained slack this project's own conventions call out, so this
+/// is lowered rather than left at 26958 now that the surface that drove it up is smaller.
+///
+/// **Raised again, 2026-08-27, milestone 49's terminal update.** `login_tests.rs` gains
+/// `login_hands_out_the_terminal_once_and_denies_a_concurrent_second_login_until_logout`, which
+/// spawns four more `login_test_client` roles (`ROLE_TERM_FIRST` twice, `ROLE_TERM_SECOND`,
+/// `ROLE_TERM_LOGOUT`) against the same memoized login instance every other test in that file
+/// shares. Each spawned role still costs `login_service.rs`'s own `CLIENT_SCRATCH_UT_PAGES` (four
+/// pages, nothing reclaims it when the role exits, that constant's own BUGS entry), so this is
+/// scaffolding rather than a property under test, the identical shape the milestone 49
+/// channel-per-client raise above already named for the same reason: +16 frames, measured (a local
+/// aarch64 run kept 19158, one over the previous 19157, on that branch, before it carried the
+/// scanout retarget above). Measured locally rather than on CI (this lane had no CI run to read), so
+/// the same "measure the real run, do not sum two separate measurements" convention above applies
+/// with a local rather than a CI source.
+///
+/// **The margin was widened once more, same day, after this constant's own first raise (+15) still
+/// clipped a later run at 19174.** `caretaker_teardown_reclaims_a_full_session_worth_of_memory`
+/// (this same milestone's own known local flake, `notes/frame-ledger.md`-adjacent: a real, already-
+/// recorded CI/local divergence, not something this lane introduced) fails at a different iteration
+/// from run to run on this host, and each iteration it completes before failing leaves a slightly
+/// different amount of transient state behind, which reads here as a few frames of run-to-run
+/// variance on top of the real, permanent +16. +32 headroom (double the prior raise's own margin)
+/// on top of the measured 19158, rather than chasing the exact number a single local run happens to
+/// produce: 19158 + 32 = 19190, on the milestone 49 branch alone.
+///
+/// **Merged, 2026-08-27, decision 132's capability-scoped revocation (with its own scanout-retarget
+/// lineage above) landing beside milestone 49's terminal update.** Both entries immediately above
+/// reached this constant from the same 19157 ancestor, on branches that could not see each other:
+/// one shrank the scanout-sized allocations (26958 -> 22090), the other added terminal-test
+/// scaffolding (19157 -> 19190). Neither number is a property of the merged tree, so this entry
+/// measures it fresh rather than summing or picking a side, the same standing rule every entry
+/// above already follows.
+///
+/// Measured locally, twice, deterministically, on both architectures, with every guest and
+/// host-side check (scanout, inbound, multicast, SMB) passing all four runs: **22107** on aarch64
+/// both times, **21868** on riscv64 both times, zero variance either side. Neither run tripped
+/// `caretaker_teardown_reclaims_a_full_session_worth_of_memory`'s own known flake (named above, at
+/// the 19158 raise): that test's variance only shows up on a run where it *fails* partway through
+/// (a different amount of transient state left behind depending which iteration it dies on), and a
+/// suite that fails never reaches this ledger's own report at all, so a clean run of this constant's
+/// own measurement is unaffected by it. aarch64 is again the tighter of the pair, so it is what the
+/// headroom below is measured against, the same convention the scanout-retarget entry above used.
+///
+/// **+32 headroom, not this ledger's more common +15.** The flake is still in the merged tree
+/// (nothing about this merge touches `login_tests.rs`'s teardown path), and milestone 49's own
+/// +32 raise above is the freshest, most directly applicable precedent for exactly this suite: a
+/// future run that ends up a few frames different from today's clean 22107, for the same reason
+/// that raise named, should not need a third emergency widening. 22107 + 32 = 22139.
+///
+/// Raising or lowering it is a decision, not a formality: read the `[that test kept N frames]`
+/// lines the run prints, find who grew or shrank, and be able to say why.
+/// **Raised again, 2026-08-27, milestone 49's terminal update, on its own branch before this merge.**
+/// `login_tests.rs` gains
+/// `login_hands_out_the_terminal_once_and_denies_a_concurrent_second_login_until_logout`, which
+/// spawns four more `login_test_client` roles (`ROLE_TERM_FIRST` twice, `ROLE_TERM_SECOND`,
+/// `ROLE_TERM_LOGOUT`) against the same memoized login instance every other test in that file
+/// shares. Each spawned role still costs `login_service.rs`'s own `CLIENT_SCRATCH_UT_PAGES` (four
+/// pages, nothing reclaims it when the role exits, that constant's own BUGS entry), so this is
+/// scaffolding rather than a property under test, the identical shape the milestone 49
+/// channel-per-client raise above already named for the same reason: +16 frames, measured (a local
+/// aarch64 run kept 19158, one over the previous 19157, on that branch, before it carried the
+/// scanout retarget below). Measured locally rather than on CI (this lane had no CI run to read), so
+/// the same "measure the real run, do not sum two separate measurements" convention above applies
+/// with a local rather than a CI source.
+///
+/// **The margin was widened once more, same day, after this constant's own first raise (+15) still
+/// clipped a later run at 19174.** `caretaker_teardown_reclaims_a_full_session_worth_of_memory`
+/// (this same milestone's own known local flake, `notes/frame-ledger.md`-adjacent: a real, already-
+/// recorded CI/local divergence, not something this lane introduced) fails at a different iteration
+/// from run to run on this host, and each iteration it completes before failing leaves a slightly
+/// different amount of transient state behind, which reads here as a few frames of run-to-run
+/// variance on top of the real, permanent +16. +32 headroom (double the prior raise's own margin)
+/// on top of the measured 19158, rather than chasing the exact number a single local run happens to
+/// produce: 19158 + 32 = 19190, on the milestone 49 branch alone.
+///
+/// **Merged, 2026-08-27, decision 132's capability-scoped revocation (with its own scanout-retarget
+/// lineage above) landing beside milestone 49's terminal update.** Both entries immediately above
+/// reached this constant from the same 19157 ancestor, on branches that could not see each other:
+/// one shrank the scanout-sized allocations (26958 -> 22090), the other added terminal-test
+/// scaffolding (19157 -> 19190). Neither number is a property of the merged tree, so this entry
+/// measures it fresh rather than summing or picking a side, the same standing rule every entry
+/// above already follows.
+///
+/// Measured locally, twice, deterministically, on both architectures, with every guest and
+/// host-side check (scanout, inbound, multicast, SMB) passing all four runs: **22107** on aarch64
+/// both times, **21868** on riscv64 both times, zero variance either side. Neither run tripped
+/// `caretaker_teardown_reclaims_a_full_session_worth_of_memory`'s own known flake (named above, at
+/// the 19158 raise): that test's variance only shows up on a run where it *fails* partway through
+/// (a different amount of transient state left behind depending which iteration it dies on), and a
+/// suite that fails never reaches this ledger's own report at all, so a clean run of this constant's
+/// own measurement is unaffected by it. aarch64 is again the tighter of the pair, so it is what the
+/// headroom below is measured against, the same convention the scanout-retarget entry above used.
+///
+/// **+32 headroom, not this ledger's more common +15.** The flake is still in the merged tree
+/// (nothing about this merge touches `login_tests.rs`'s teardown path), and milestone 49's own
+/// +32 raise above is the freshest, most directly applicable precedent for exactly this suite: a
+/// future run that ends up a few frames different from today's clean 22107, for the same reason
+/// that raise named, should not need a third emergency widening. 22107 + 32 = 22139.
+const SUITE_PAGE_FRAME_BUDGET: usize = 22_139;
 
 /// **The longest run of free frames the boot must still have at the end**, in frames.
 ///
@@ -420,6 +580,31 @@ fn report_page_frame_ledger() {
         );
         semihosting::exit(semihosting::EXIT_FAILURE);
     }
+}
+
+/// **How close the boot came to the thread table's ceiling**, printed beside the frame ledger.
+///
+/// The same posture as that ledger and deliberately one rung weaker: it reports and does not gate.
+/// A frame budget can be gated because a suite that keeps more frames than it accounts for has a
+/// leak, and the number the gate compares against is the tree's own claim about what is permanent.
+/// A thread peak is not that. What fills this table is the services earlier tests started and
+/// meant to keep (`notes/frames.md`'s "held" list), so a peak that climbs is usually a boot doing
+/// more rather than a boot doing something wrong, and a gate here would fire on every milestone
+/// that adds a service. `sched::thread_leak_police` is the check that does catch the wrong kind of
+/// growth, and it is a different question (runnable spinners, not occupancy).
+///
+/// What this buys instead is that nobody has to instrument the kernel to learn the number again.
+/// It was invisible until a spawn was refused, and then the investigation cost two full runs. See
+/// `sched::MAX_THREADS`, whose doc comment reads these lines the way the frame budget's reads the
+/// `[that test kept N frames]` ones.
+fn report_thread_peak() {
+    let peak = crate::sched::peak_thread_count();
+    let max = crate::sched::MAX_THREADS;
+    println!(
+        "threads: {peak} live at the peak, of {max} the image allows ({} spare). \
+         See sched::MAX_THREADS.",
+        max.saturating_sub(peak)
+    );
 }
 
 /// Report a test's duration once it reaches this many seconds. Below it, silence: most tests are
@@ -790,6 +975,7 @@ pub fn runner(tests: &[&dyn Testable]) {
     // the runner itself is compiled in every build; the instrument only exists in test
     crate::stack::report_high_water();
     report_page_frame_ledger();
+    report_thread_peak();
 
     println!();
     // "passed" counts only the tests that actually ran to an "ok"; a skipped test (skip!(), no

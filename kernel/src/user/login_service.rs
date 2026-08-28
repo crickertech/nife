@@ -15,8 +15,10 @@ const CRED_VA: u64 = 0x0000_0000_00e3_0000;
 ///
 /// # BUGS
 ///
-/// **Nothing reclaims one of these when its role exits**, so a full aarch64 suite leaves twenty-six
-/// of them (104 frames) held for the rest of the boot, which is a measured line item in
+/// **Nothing reclaims one of these when its role exits**, so a full aarch64 suite leaves thirty of
+/// them (120 frames) held for the rest of the boot (milestone 49's terminal update added four more:
+/// `login_hands_out_the_terminal_once_and_denies_a_concurrent_second_login_until_logout`'s own
+/// `ROLE_TERM_FIRST` x2, `ROLE_TERM_SECOND`, `ROLE_TERM_LOGOUT`), which is a measured line item in
 /// `kernel::testing::SUITE_PAGE_FRAME_BUDGET`'s own account. This is scaffolding rather than a
 /// property under test, and `kernel::user::holding::Holding` is the mechanism that would give it
 /// back; what stops it being a two-line change is that a role's scratch pays for **page tables** in
@@ -46,12 +48,27 @@ pub const ROLE_NO_SUBTREE: u64 = 6;
 /// Logs in, then tears the session down with the fourth delegated capability and proves the
 /// directory came down with it. See the same file's module docs.
 pub const ROLE_LOGOUT: u64 = 7;
+/// Milestone 49's terminal update: logs in, proves the fifth delegated capability (the terminal)
+/// works, tears the session down without freeing the terminal. See the same file's module docs.
+pub const ROLE_TERM_FIRST: u64 = 8;
+/// A real credential presented while [`ROLE_TERM_FIRST`]'s terminal loan is outstanding.
+pub const ROLE_TERM_SECOND: u64 = 9;
+/// Sends `login_proto::logout_word` on the front door directly.
+pub const ROLE_TERM_LOGOUT: u64 = 10;
 
 /// The report words `login_test_client` sends; must match the same file.
 pub const RPT_OK: u64 = login_proto::OK;
 pub const RPT_DENIED: u64 = login_proto::DENIED;
 #[allow(dead_code)] // named for completeness with the pair above; no role exercises it today
 pub const RPT_MALFORMED: u64 = login_proto::MALFORMED;
+/// Milestone 49's terminal update: the terminal was already on loan.
+pub const RPT_NO_TERMINAL: u64 = login_proto::NO_TERMINAL;
+/// [`ROLE_TERM_LOGOUT`]'s own answer.
+pub const RPT_LOGGED_OUT: u64 = login_proto::LOGGED_OUT;
+
+/// [`ROLE_TERM_FIRST`]'s proof-of-life word for the delegated terminal; must match the same file's
+/// `TERM_MAGIC`.
+pub const TERM_MAGIC: u64 = 0x_7e12_0000_0000_0001;
 
 /// Bits of a successful report's second word; must match the same file.
 pub const F_DIR_WORKS: u64 = 1 << 0;
@@ -62,15 +79,35 @@ pub const F_TEARDOWN_OK: u64 = 1 << 4;
 pub const F_DEAD_AFTER_TEARDOWN: u64 = 1 << 5;
 pub const F_BUDGET_TEARDOWN_OK: u64 = 1 << 6;
 pub const F_BUDGET_DEAD_AFTER_TEARDOWN: u64 = 1 << 7;
+/// Milestone 49's terminal update: the fifth delegated capability delivered [`TERM_MAGIC`] to a
+/// real receiver. Set only by [`ROLE_TERM_FIRST`].
+pub const F_TERM_WORKS: u64 = 1 << 8;
+
+/// **[`ROLE_LOGOUT`]'s third report word is microseconds, not an identity hint**: how long that
+/// role's `MemoryRegion::DESTROY` on the caretaker region waited for §16's armed kill to land.
+/// Every other role that fills the third word puts a [`login_proto::identity_hint`] there; this one
+/// has no identity to report and a number a red run needs. Must match
+/// `user/src/login_test_client.rs`'s `waited_micros`.
+///
+/// This is that client's own ceiling in the same units, so a failure message can say how close to
+/// it the wait came, which is the difference between "the host was slow" and "the caretaker never
+/// died". Must match its `DESTROY_WAIT_SECS`.
+pub const DESTROY_WAIT_MICROS: u64 = 5 * 1_000_000;
 
 /// A running login service and the endpoints that reach it.
 pub struct Wiring {
     /// A client's login request, `WRITE`.
     pub request: RendezvousId,
-    /// The verdict and, on success, four delegated capabilities, `READ`.
+    /// The verdict and, on success, five delegated capabilities, `READ`.
     pub result: RendezvousId,
     /// One [`login_proto::ATTRIBUTED`] message per successful login, `READ`.
     pub audit: RendezvousId,
+    /// **The stand-in terminal** (milestone 49's terminal update): this test harness holds no real
+    /// terminal to grant, so it wires a bare rendezvous in its place, `READ`. A test can `ipc_recv`
+    /// here to confirm a delegated `TERM_EP` copy actually names this object (real communication,
+    /// not merely "a capability arrived"), the same "prove it works, not merely that it arrived"
+    /// standard this file's own module doc already sets for the directory and the budget.
+    pub term_ep: RendezvousId,
 }
 
 /// **Wire and spawn the login service.** It parses the initrd for `fs_subtree_caretaker`'s own
@@ -151,6 +188,8 @@ pub fn start(
     let request = sched::create_rendezvous();
     let result = sched::create_rendezvous();
     let audit = sched::create_rendezvous();
+    // The stand-in terminal (milestone 49's terminal update); see `Wiring::term_ep`'s own doc.
+    let term_ep = sched::create_rendezvous();
     let construction = crate::memory_region::create(construction_pages)
         .expect("no construction budget for the login service");
 
@@ -160,39 +199,56 @@ pub fn start(
         sched::create_thread_control_block(thread_control_block_region).expect("no tcb for login");
 
     // In `user/src/login.rs`'s own slot order: REQUEST, RESULT, VERIFY, FS_EP, FS_PAGE_FRAME,
-    // CONSTRUCTION_UT, AUDIT. Each `assert_eq!` is that file's own doc read from the other side, the
-    // same discipline `authority_tests::spawn_tree` uses for `root_supervisor`.
-    let grants: [(&str, crate::cap::Cap); 7] = [
-        ("request", rendezvous_cap(request, Rights::READ)),
-        (
-            "result",
-            rendezvous_cap(result, Rights::WRITE.union(Rights::GRANT)),
-        ),
-        ("verify", rendezvous_cap(verify, Rights::WRITE)),
-        (
-            "fs_ep",
-            rendezvous_cap(fs_ep, Rights::WRITE.union(Rights::GRANT)),
-        ),
-        (
-            "fs_page_frame",
-            // GRANT as well as READ|WRITE: `user/src/login.rs` both maps this frame into every
-            // caretaker it builds (`MAP_INTO`, which only checks WRITE) and delegates it directly
-            // to every authenticated client (`SEND_CAP`, which needs GRANT on the capability being
-            // sent). The second use is why this differs from `credential_service.rs`'s own frames,
-            // which are never delegated onward.
-            page_frame_cap(
-                fs_page_frame,
-                Rights::READ.union(Rights::WRITE).union(Rights::GRANT),
-            ),
-        ),
-        ("construction", memory_region_root_cap(construction)),
-        ("audit", rendezvous_cap(audit, Rights::WRITE)),
-    ];
-    for (i, (name, cap)) in grants.into_iter().enumerate() {
+    // CONSTRUCTION_UT, AUDIT, TERM_EP. Each `assert_eq!` inside `grant_in_order` is that file's
+    // own doc read from the other side, the same discipline `authority_tests::spawn_tree` uses for
+    // `root_supervisor`.
+    //
+    // Granted one at a time rather than collected into a `[(&str, Cap); 8]` first: milestone 49's
+    // terminal update took that array to eight entries and `start`'s frame to 4288 bytes, over the
+    // 4096-byte guard page `script/stack-frame-check` gates against, because an unoptimised build
+    // materialises the whole table plus a temporary per element before the first insert ever runs.
+    // The array only ever existed to pair each name with its slot index, and the counter below
+    // pairs them just as tightly while nothing but one capability is ever live at once: 1632 bytes
+    // on aarch64, 1648 on riscv64, measured the same way the gate measures.
+    let mut next_slot = 0u64;
+    let mut grant_in_order = |name: &str, cap: crate::cap::Cap| {
         let slot = sched::thread_control_block_insert_cap(tid, cap, None)
             .unwrap_or_else(|_| panic!("insert {name}"));
-        assert_eq!(slot, i as u64, "login's {name} must land in slot {i}");
-    }
+        assert_eq!(
+            slot, next_slot,
+            "login's {name} must land in slot {next_slot}"
+        );
+        next_slot += 1;
+    };
+    grant_in_order("request", rendezvous_cap(request, Rights::READ));
+    grant_in_order(
+        "result",
+        rendezvous_cap(result, Rights::WRITE.union(Rights::GRANT)),
+    );
+    grant_in_order("verify", rendezvous_cap(verify, Rights::WRITE));
+    grant_in_order(
+        "fs_ep",
+        rendezvous_cap(fs_ep, Rights::WRITE.union(Rights::GRANT)),
+    );
+    grant_in_order(
+        "fs_page_frame",
+        // GRANT as well as READ|WRITE: `user/src/login.rs` both maps this frame into every
+        // caretaker it builds (`MAP_INTO`, which only checks WRITE) and delegates it directly
+        // to every authenticated client (`SEND_CAP`, which needs GRANT on the capability being
+        // sent). The second use is why this differs from `credential_service.rs`'s own frames,
+        // which are never delegated onward.
+        page_frame_cap(
+            fs_page_frame,
+            Rights::READ.union(Rights::WRITE).union(Rights::GRANT),
+        ),
+    );
+    grant_in_order("construction", memory_region_root_cap(construction));
+    grant_in_order("audit", rendezvous_cap(audit, Rights::WRITE));
+    grant_in_order(
+        "term_ep",
+        rendezvous_cap(term_ep, Rights::WRITE.union(Rights::GRANT)),
+    );
+    assert_eq!(next_slot, 8, "login must hold exactly eight capabilities");
 
     sched::configure_thread_control_block(tid, elf.entry(), USER_STACK_TOP, aspace)
         .expect("configure");
@@ -202,6 +258,7 @@ pub fn start(
         request,
         result,
         audit,
+        term_ep,
     }
 }
 

@@ -15,11 +15,12 @@
 //! # What it covers, and the limits that are real
 //!
 //! A **US layout's main block**: the alphanumerics, the symbol keys, space, enter, tab, backspace,
-//! and escape, shifted and unshifted. That is what a terminal needs to be usable and it is where the
-//! honest line is: no keypad, no function keys, no arrow keys (a terminal sends escape sequences for
-//! those, and this device's codes for them are the *other* half of a mapping `line_editor` already has
-//! on the receiving side), no compose, no dead keys, no other layout, and no key repeat beyond what
-//! the device itself sends. Recorded in notes/glyphs.md rather than half-built.
+//! and escape, shifted and unshifted. **Plus the arrow cluster** (milestone 142 increment 2): a
+//! terminal sends an escape sequence for those, and `crates/line_editor` already understood the
+//! receiving half of that mapping (`CSI A/B/C/D`, its own `arrow_keys_edit_mid_line` and history
+//! tests) before this crate could produce it. What is still missing, and stays the honest line: no
+//! keypad, no function keys, no compose, no dead keys, no other layout, and no key repeat beyond
+//! what the device itself sends. Recorded in notes/glyphs.md rather than half-built.
 
 /// `EV_SYN`: an event-batch separator. Carries no key and is ignored here.
 pub const EV_SYN: u16 = 0;
@@ -46,6 +47,29 @@ static UNSHIFTED: [u8; MAX_CODE as usize + 1] =
 static SHIFTED: [u8; MAX_CODE as usize + 1] =
     *b"\0\x1b!@#$%^&*()_+\x08\tQWERTYUIOP{}\r\0ASDFGHJKL:\"~\0|ZXCVBNM<>?\0*\0 ";
 
+// The arrow cluster's evdev codes. Numerically far above [`MAX_CODE`] (the main block's own flat
+// table stops at 57; the arrow cluster starts at 103), so they get their own case in [`arrow`]
+// rather than a much wider table padded with zeros in between.
+
+/// `KEY_UP`.
+pub const KEY_UP: u16 = 103;
+/// `KEY_LEFT`.
+pub const KEY_LEFT: u16 = 105;
+/// `KEY_RIGHT`.
+pub const KEY_RIGHT: u16 = 106;
+/// `KEY_DOWN`.
+pub const KEY_DOWN: u16 = 108;
+
+// The arrow cluster sits entirely above the main block's own table, checked at compile time so a
+// future edit that moved `MAX_CODE` up past 103 fails the build rather than silently making
+// `byte`'s table start answering for an arrow code (`arrow` is matched first in `Keyboard::event`,
+// so `byte` would never be reached, but the table itself would then hold a wrong, unreachable
+// entry, which is exactly the kind of fact this file's own tests exist to keep visible).
+const _: () = assert!(KEY_UP > MAX_CODE);
+const _: () = assert!(KEY_DOWN > MAX_CODE);
+const _: () = assert!(KEY_LEFT > MAX_CODE);
+const _: () = assert!(KEY_RIGHT > MAX_CODE);
+
 /// Is this key a shift?
 pub const fn is_shift(code: u16) -> bool {
     code == KEY_LEFTSHIFT || code == KEY_RIGHTSHIFT
@@ -56,11 +80,60 @@ pub const fn is_shift(code: u16) -> bool {
 /// `None` rather than a placeholder byte: a key with no mapping must produce *nothing*, because a
 /// terminal that inserted a substitute character for every unmapped function key would corrupt every
 /// line the user typed while reaching for one.
+///
+/// The main block only: an arrow key is not in `UNSHIFTED`/`SHIFTED` (it sends three bytes, not
+/// one) and is handled separately, by `arrow` and [`Keyboard::event`].
 pub fn byte(code: u16, shift: bool) -> Option<u8> {
     let table = if shift { &SHIFTED } else { &UNSHIFTED };
     match table.get(code as usize) {
         Some(&0) | None => None,
         Some(&b) => Some(b),
+    }
+}
+
+/// The CSI final byte one arrow key's sequence ends in, or `None` if `code` is not an arrow key.
+/// `ESC [` plus this byte is `CSI A/B/C/D`, cursor up/down/right/left: the standard VT100/ANSI
+/// cursor-key sequences, and the exact bytes `crates/line_editor`'s own parser already recognizes on
+/// its receiving side. No shift or application-mode (SS3) variant: a plain arrow always sends the
+/// CSI form, which is the one `line_editor` treats identically to SS3 already
+/// (`ss3_arrows_are_understood`).
+const fn arrow(code: u16) -> Option<u8> {
+    match code {
+        KEY_UP => Some(b'A'),
+        KEY_DOWN => Some(b'B'),
+        KEY_RIGHT => Some(b'C'),
+        KEY_LEFT => Some(b'D'),
+        _ => None,
+    }
+}
+
+/// **What one key event sends**: at most three bytes, in a fixed-capacity buffer rather than a
+/// `Vec`, because this crate is `no_std` and reaches no allocator. Three is the longest sequence this
+/// table emits (`CSI` plus a final byte); most keys send exactly one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Bytes {
+    buf: [u8; 3],
+    len: u8,
+}
+
+impl Bytes {
+    const fn one(b: u8) -> Bytes {
+        Bytes {
+            buf: [b, 0, 0],
+            len: 1,
+        }
+    }
+
+    const fn csi(final_byte: u8) -> Bytes {
+        Bytes {
+            buf: [0x1b, b'[', final_byte],
+            len: 3,
+        }
+    }
+
+    /// The bytes this key sent, in order.
+    pub fn as_slice(&self) -> &[u8] {
+        &self.buf[..self.len as usize]
     }
 }
 
@@ -89,12 +162,14 @@ impl Keyboard {
         self.left || self.right
     }
 
-    /// **Feed one `virtio_input_event`**, and get back the byte it produces, if any.
+    /// **Feed one `virtio_input_event`**, and get back the bytes it produces, if any.
     ///
     /// `value` is 0 for a release, 1 for a press, and 2 for the device's own auto-repeat. **Repeats
     /// count as presses**, which is what makes holding a key type: a driver that only honoured
-    /// `value == 1` would look correct in every test and be maddening to use.
-    pub fn event(&mut self, kind: u16, code: u16, value: u32) -> Option<u8> {
+    /// `value == 1` would look correct in every test and be maddening to use. That includes the
+    /// arrow keys: a held arrow repeats the same three-byte sequence, exactly as a real terminal's
+    /// auto-repeat would.
+    pub fn event(&mut self, kind: u16, code: u16, value: u32) -> Option<Bytes> {
         if kind != EV_KEY {
             return None;
         }
@@ -110,7 +185,10 @@ impl Keyboard {
         if value == 0 {
             return None; // a release types nothing
         }
-        byte(code, self.shift())
+        if let Some(final_byte) = arrow(code) {
+            return Some(Bytes::csi(final_byte));
+        }
+        byte(code, self.shift()).map(Bytes::one)
     }
 }
 
@@ -198,13 +276,13 @@ mod tests {
     #[test]
     fn shift_is_remembered_between_events() {
         let mut kb = Keyboard::new();
-        assert_eq!(kb.event(EV_KEY, 30, 1), Some(b'a'));
+        assert_eq!(kb.event(EV_KEY, 30, 1), Some(Bytes::one(b'a')));
         assert_eq!(kb.event(EV_KEY, KEY_LEFTSHIFT, 1), None);
         assert!(kb.shift());
-        assert_eq!(kb.event(EV_KEY, 30, 1), Some(b'A'));
+        assert_eq!(kb.event(EV_KEY, 30, 1), Some(Bytes::one(b'A')));
         assert_eq!(kb.event(EV_KEY, KEY_LEFTSHIFT, 0), None);
         assert!(!kb.shift());
-        assert_eq!(kb.event(EV_KEY, 30, 1), Some(b'a'));
+        assert_eq!(kb.event(EV_KEY, 30, 1), Some(Bytes::one(b'a')));
 
         // Two shifts, released independently: releasing one while the other is held stays shifted.
         kb.event(EV_KEY, KEY_LEFTSHIFT, 1);
@@ -212,11 +290,11 @@ mod tests {
         kb.event(EV_KEY, KEY_LEFTSHIFT, 0);
         assert_eq!(
             kb.event(EV_KEY, 30, 1),
-            Some(b'A'),
+            Some(Bytes::one(b'A')),
             "right shift is still down"
         );
         kb.event(EV_KEY, KEY_RIGHTSHIFT, 0);
-        assert_eq!(kb.event(EV_KEY, 30, 1), Some(b'a'));
+        assert_eq!(kb.event(EV_KEY, 30, 1), Some(Bytes::one(b'a')));
 
         // Which hand is down is only ever read as the OR of the two, so a keyboard that filed the
         // left key under the right one types identically and debugs as the wrong hand. The state
@@ -234,11 +312,54 @@ mod tests {
     #[test]
     fn releases_type_nothing_and_repeats_type_again() {
         let mut kb = Keyboard::new();
-        assert_eq!(kb.event(EV_KEY, 30, 1), Some(b'a'), "press");
+        assert_eq!(kb.event(EV_KEY, 30, 1), Some(Bytes::one(b'a')), "press");
         assert_eq!(kb.event(EV_KEY, 30, 0), None, "release");
-        assert_eq!(kb.event(EV_KEY, 30, 2), Some(b'a'), "auto-repeat");
+        assert_eq!(
+            kb.event(EV_KEY, 30, 2),
+            Some(Bytes::one(b'a')),
+            "auto-repeat"
+        );
         assert_eq!(kb.event(EV_SYN, 0, 0), None, "a batch separator");
         assert_eq!(kb.event(7, 30, 1), None, "some other event type");
+    }
+
+    /// **Each arrow sends the standard `CSI` cursor-key sequence**, which is `crates/line_editor`'s
+    /// own receiving vocabulary: pointed straight at the pair, so a wrong final byte here fails this
+    /// test rather than surfacing three components away as a cursor that moves the wrong direction.
+    #[test]
+    fn arrow_keys_send_the_csi_sequence_line_editor_understands() {
+        let mut kb = Keyboard::new();
+        for (code, want) in [
+            (KEY_UP, &b"\x1b[A"[..]),
+            (KEY_DOWN, b"\x1b[B"),
+            (KEY_RIGHT, b"\x1b[C"),
+            (KEY_LEFT, b"\x1b[D"),
+        ] {
+            let got = kb
+                .event(EV_KEY, code, 1)
+                .unwrap_or_else(|| panic!("arrow code {code} produced nothing"));
+            assert_eq!(got.as_slice(), want, "arrow code {code}");
+            // A release of the same key types nothing, same as every other key.
+            assert_eq!(
+                kb.event(EV_KEY, code, 0),
+                None,
+                "arrow release, code {code}"
+            );
+            // Auto-repeat resends the same sequence, the same as a held letter key.
+            assert_eq!(kb.event(EV_KEY, code, 2).unwrap().as_slice(), want);
+        }
+    }
+
+    /// Arrow codes sit well above [`MAX_CODE`] (checked at compile time, below this module): this
+    /// proves the runtime half of the same claim, that [`byte`] (the main block's own lookup) does
+    /// not accidentally answer for them. If it ever did, [`Keyboard::event`]'s arrow case would be
+    /// dead code nobody noticed.
+    #[test]
+    fn arrow_codes_are_outside_the_main_blocks_table() {
+        for code in [KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT] {
+            assert_eq!(byte(code, false), None);
+            assert_eq!(byte(code, true), None);
+        }
     }
 
     /// A whole word typed the way the device sends it: press and release per key, shift for the
@@ -264,8 +385,8 @@ mod tests {
             (28, 1),
             (28, 0),
         ] {
-            if let Some(b) = kb.event(EV_KEY, code, value) {
-                out.push(b);
+            if let Some(bytes) = kb.event(EV_KEY, code, value) {
+                out.extend_from_slice(bytes.as_slice());
             }
         }
         assert_eq!(out, b"Hello\r");

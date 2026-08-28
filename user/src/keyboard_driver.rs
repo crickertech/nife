@@ -180,6 +180,12 @@ fn mw(off: u64, v: u32) {
     virtio_write_reg(VIRTIO, off, v as u64);
 }
 
+// BUGS: two arms, three architectures, no fallback. On x86_64 both `cfg`s compile out and this
+// body is empty, so the very reordering the comment below names is unconstrained on that ISA: the
+// machine half is covered by TSO, the compiler half by nothing. Builds and lints clean there
+// anyway, because an empty function is not a warning. Same hole in `crates/virtio`,
+// `user/src/gpu_driver.rs` and `user/src/net_transport.rs`; see
+// notes/architecture-list-sweep.md, finding 9.
 fn barrier() {
     // The device reads what we wrote, so a store the compiler or the machine reordered past the
     // index that advertises it is a descriptor the device may act on before it is finished.
@@ -361,15 +367,22 @@ pub extern "C" fn _start(mode: u64, dma_phys: u64, _arg2: u64) -> ! {
             let (kind, code, value) = (r16(at), r16(at + 2), r32(at + 4));
             seen = seen.wrapping_add(1);
 
-            if let Some(b) = keys.event(kind, code, value) {
-                if mode == MODE_DIRECT {
-                    direct_buf[direct_n] = b;
-                    direct_n += 1;
-                    if direct_n == direct_buf.len() {
-                        direct_send(&direct_buf, &mut direct_n);
+            if let Some(bytes) = keys.event(kind, code, value) {
+                // Most keys send one byte; an arrow key sends its three-byte `CSI` sequence
+                // (video_terminal::keymap::Bytes). Either way both delivery modes take them one at
+                // a time, in order, which is what makes a multi-byte key indistinguishable
+                // downstream from several single-byte keys typed fast -- true of the ring
+                // (MODE_RING) and just as true of the direct-batch buffer (MODE_DIRECT).
+                for &b in bytes.as_slice() {
+                    if mode == MODE_DIRECT {
+                        direct_buf[direct_n] = b;
+                        direct_n += 1;
+                        if direct_n == direct_buf.len() {
+                            direct_send(&direct_buf, &mut direct_n);
+                        }
+                    } else {
+                        ring_push(&mut tail, b);
                     }
-                } else {
-                    ring_push(&mut tail, b);
                 }
                 typed = true;
             }

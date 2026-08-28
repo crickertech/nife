@@ -519,7 +519,20 @@ fn focus_routes_a_keystroke_to_one_terminals_grid_and_not_its_neighbours() {
 
     // Both terminals up. Each negotiated its geometry out of the control page the compositor
     // published, so a window whose size the client did not choose is the *normal* case here.
-    let mut terms = [video_terminal::Vt::new(1, 1), video_terminal::Vt::new(1, 1)];
+    //
+    // **`static mut`, not a stack-local array** (milestone 142): a `Vt` is hundreds of KiB now
+    // (`Vt`'s own doc comment), so `[Vt; 2]` is over a stack frame's worth on a 24 KiB kernel thread
+    // stack. `Vt::new(1, 1)` is `const fn` over a compile-time-constant argument, so this array
+    // initializer is evaluated by the compiler and lands in `.bss`; `reset_to` below retargets each
+    // entry to its real, runtime-only-known geometry without ever constructing a `Vt` by value at
+    // runtime (see `Vt::reset_to`'s own doc for why that matters here specifically).
+    static mut TERMS: [video_terminal::Vt; 2] =
+        [video_terminal::Vt::new(1, 1), video_terminal::Vt::new(1, 1)];
+    let terms_ptr = &raw mut TERMS;
+    // SAFETY: this `#[test_case]` runs once, to completion, before any other test that might
+    // declare a same-named function-local static begins (the harness runs test cases
+    // sequentially); nothing else in this process can reach `TERMS`.
+    let terms: &mut [video_terminal::Vt; 2] = unsafe { &mut *terms_ptr };
     let mut clients = [None, None];
     for i in 0..2 {
         let c = w.spawn_terminal(i);
@@ -540,7 +553,8 @@ fn focus_routes_a_keystroke_to_one_terminals_grid_and_not_its_neighbours() {
             ),
             "terminal {i} sized itself to a grid its window cannot hold",
         );
-        terms[i] = video_terminal::script::window(i, cols, rows);
+        terms[i].reset_to(cols, rows);
+        video_terminal::script::window(&mut terms[i], i);
         clients[i] = Some(c);
     }
 
@@ -585,10 +599,16 @@ fn focus_routes_a_keystroke_to_one_terminals_grid_and_not_its_neighbours() {
     // compositor that sent both keystrokes to both terminals, or the wrong one to each, would
     // have to produce a different picture. Asserted rather than assumed, because if the two
     // scripts ever became the same text this test would keep passing while proving nothing.
-    let swapped = [
-        video_terminal::script::window(1, terms[0].cols(), terms[0].rows()),
-        video_terminal::script::window(0, terms[1].cols(), terms[1].rows()),
-    ];
+    // Same reasoning as `TERMS` above: a `static`, retargeted in place, never a `Vt` by value.
+    static mut SWAPPED: [video_terminal::Vt; 2] =
+        [video_terminal::Vt::new(1, 1), video_terminal::Vt::new(1, 1)];
+    let swapped_ptr = &raw mut SWAPPED;
+    // SAFETY: see `TERMS` above.
+    let swapped: &mut [video_terminal::Vt; 2] = unsafe { &mut *swapped_ptr };
+    swapped[0].reset_to(terms[0].cols(), terms[0].rows());
+    video_terminal::script::window(&mut swapped[0], 1);
+    swapped[1].reset_to(terms[1].cols(), terms[1].rows());
+    video_terminal::script::window(&mut swapped[1], 0);
     assert!(
         (0..compositor::SCREEN_H).any(|y| (0..compositor::SCREEN_W).any(|x| {
             compositor::expected_screen_pixel_with(2, x, y, |i, sx, sy| swapped[i].pixel(sx, sy))

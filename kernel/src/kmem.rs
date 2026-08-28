@@ -26,17 +26,26 @@ use page_frames::FRAME_SIZE;
 
 use crate::sync::{IrqSafeMutex, rank};
 
-/// The carve: 1024 pages (4 MiB). Endpoints (one page each, ~60 across a full test run), live
-/// kernel stacks (6 pages x up to `MAX_THREADS` = 768; see thread.rs `STACK_PAGES`), TCB pages
-/// (19c.2), and slack. Exhaustion fails the spawn or create cleanly, the same contract as every
-/// budget since milestone 11; raising this constant is the fix if the image ever legitimately
-/// needs more, and 2026-08-15 was such a day: this was 768 when stacks were 4 pages (512 of 768
-/// budgeted for stacks, the same two-to-one ratio kept here), and the 24 KiB stacks made stacks
-/// alone outgrow the whole carve. The symptom was `kmem::page()` returning `None` late in the
-/// aarch64 suite, surfacing as an unrelated test's spawn failing with "no memory to wire one",
-/// exactly the failure shape this module's budget contract promises (clean refusal, far from the
-/// cause).
-const KERNEL_OBJ_PAGES: u64 = 1024;
+/// The carve: 2048 pages (8 MiB). Endpoints (one page each, ~60 across a full test run), live
+/// kernel stacks (6 pages x up to `MAX_THREADS`; see thread.rs `STACK_PAGES`), TCB pages (one
+/// each, 19c.2), and slack. Exhaustion fails the spawn or create cleanly, the same contract as
+/// every budget since milestone 11; raising this constant is the fix if the image ever
+/// legitimately needs more, and there have now been two such days.
+///
+/// 2026-08-15: this was 768 when stacks were 4 pages (512 of 768 budgeted for stacks, the same
+/// two-to-one ratio kept since), and the 24 KiB stacks made stacks alone outgrow the whole carve.
+/// The symptom was `kmem::page()` returning `None` late in the aarch64 suite, surfacing as an
+/// unrelated test's spawn failing with "no memory to wire one", exactly the failure shape this
+/// module's budget contract promises (clean refusal, far from the cause).
+///
+/// 2026-08-27: `sched::MAX_THREADS` doubled to 256 on a measured peak (its own doc comment carries
+/// the numbers), and this constant is the reason that raise is not free. A thread costs **7 pages
+/// here**, six of stack and one of TCB, so 256 of them is 1792, endpoints are ~60, and 2048 leaves
+/// 196 of slack. That is the whole arithmetic, and it is deliberately written as a sum rather than
+/// as a ratio to the old number: a carve sized by doubling would have been a guess, and a carve
+/// left at 1024 would have moved the ceiling from the thread table down to here, one level lower
+/// and no easier to diagnose.
+const KERNEL_OBJ_PAGES: u64 = 2048;
 
 struct Pool {
     /// The region id, once carved. Lazy: the first object need triggers the carve, which is

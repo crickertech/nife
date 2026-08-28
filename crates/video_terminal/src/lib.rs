@@ -95,8 +95,12 @@
 //! parser, so the two components are checked against each other rather than against a list somebody
 //! wrote down.
 //!
-//! - Printable bytes, with **deferred wrap** at the right margin (see [`Vt::feed`]).
-//! - `CR`, `LF` (with scrolling), `BS`, `TAB`, `BEL` (ignored: there is no bell here).
+//! - Printable bytes, with **deferred wrap** at the right margin (see [`Vt::feed`]) and **UTF-8
+//!   decoding** (milestone 142 increment 2): a multi-byte sequence occupies one cell, drawn as
+//!   [`bitmap_font::glyph`]'s missing-glyph box for anything past basic latin, which is this font's
+//!   whole repertoire (see `bitmap_font::glyph`'s own doc).
+//! - `CR`, `LF` (with scrolling into [`SCROLLBACK_ROWS`] of history, milestone 142 increment 2), `BS`,
+//!   `TAB`, `BEL` (ignored: there is no bell here).
 //! - `CSI A/B/C/D` cursor motion, `CSI H` / `CSI f` absolute positioning.
 //! - `CSI J` erase in display, `CSI K` erase in line, both with all three modes.
 //! - `CSI m` (SGR): reset, bold, reverse, and the eight ANSI foreground and background colours plus
@@ -107,10 +111,10 @@
 //!
 //! # What deliberately is NOT here
 //!
-//! No scrollback (a live grid only), no UTF-8 (the grid holds bytes; see [`bitmap_font::glyph`]), no
-//! alternate screen, no origin mode, no scrolling regions, no tab stops other than every eight
+//! No alternate screen, no origin mode, no scrolling regions, no tab stops other than every eight
 //! columns, no mouse, and no reporting sequences at all: this engine never writes to its input,
-//! which is what "sans-IO" means here and what keeps it a *value*. The honest limits are listed in
+//! which is what "sans-IO" means here and what keeps it a *value*. No reflow: `MAX_COLS`/`MAX_ROWS`
+//! are fixed, and nothing here resizes a live grid. The honest limits are listed in
 //! notes/glyphs.md.
 //!
 //! Name: ratified 2026-08-01 (calef, milestone 63), replacing `vt`. Refused `vt` (two letters that
@@ -132,15 +136,40 @@ pub mod script;
 /// The widest grid this engine can hold, in cells.
 ///
 /// Fixed rather than allocated, because the terminal component has no allocator and this crate is
-/// the same code the kernel and the host run. 32 by 16 covers the current 128x64 scanout at four
-/// times over; a screen bigger than that gets a bigger constant, and the terminal component asserts
-/// its own geometry fits at compile time so the failure is a build error rather than a truncated
-/// screen.
-pub const MAX_COLS: usize = 32;
-/// The tallest grid this engine can hold, in cells. See [`MAX_COLS`].
-pub const MAX_ROWS: usize = 16;
-/// Cells in the largest possible grid. At two bytes a cell this is 1 KiB of `.bss`.
+/// the same code the kernel and the host run. **Grown from 32 to 182 at milestone 142's increment
+/// 1, then retargeted to 132 on 2026-08-27** alongside the scanout (128x64 -> 1280x720 -> 924x344,
+/// `graphics_proto::WIDTH`'s doc comment has the full story). 132 is exactly
+/// `graphics_proto::WIDTH / bitmap_font::GLYPH_W` (924 / 7), the classic VT100/VT220 "wide mode"
+/// column count and roughly what a real terminal actually runs, unlike 182's near-double of any
+/// terminal anyone uses. A screen bigger than that gets a bigger constant, and the terminal
+/// component asserts its own geometry fits at compile time so the failure is a build error rather
+/// than a truncated screen.
+pub const MAX_COLS: usize = 132;
+/// The tallest grid this engine can hold, in cells. See [`MAX_COLS`]. Grown from 16 to 90, then
+/// retargeted to 43 (924x344's `HEIGHT` / 8, the font's row height), the VT100/VT220 "wide mode"
+/// row count.
+pub const MAX_ROWS: usize = 43;
+/// Cells in the largest possible **live** grid (the on-screen viewport; see [`SCROLLBACK_ROWS`] for
+/// the off-screen history alongside it). A real cost, paid once per terminal instance and
+/// auto-provisioned from that program's own region (`kernel/src/user.rs`'s `load` sizes a process's
+/// address-space region from its ELF segments, `.bss` included), not from any shared budget.
 pub const MAX_CELLS: usize = MAX_COLS * MAX_ROWS;
+
+/// **Off-screen history**, in whole rows, kept alongside the live grid (milestone 142 increment 2).
+///
+/// A fixed ring rather than a `Vec`, for the same reason the live grid is a fixed array: this crate
+/// reaches no allocator, so the capacity is a constant three parties (the terminal, the kernel test,
+/// the host-side check) already agree on the same way they agree on [`MAX_COLS`]/[`MAX_ROWS`].
+///
+/// **300, chosen as a working depth rather than derived from anything.** At [`MAX_COLS`] (132) that
+/// is roughly 300 KiB more of `.bss`, comparable in order of magnitude to the live grid itself and a
+/// small fraction of the free page-frame pool a terminal's own region draws from (see
+/// notes/frames.md's measurement that hundreds of page frames are "under one percent of the free
+/// pool"). There is no principled reason it could not be larger or smaller; it is a constant a
+/// future lane can change without touching the shape of the ring around it.
+pub const SCROLLBACK_ROWS: usize = 300;
+/// Cells in the scrollback ring. See [`SCROLLBACK_ROWS`].
+pub const SCROLLBACK_CELLS: usize = MAX_COLS * SCROLLBACK_ROWS;
 
 // ================================================================================================
 // Colour.
@@ -254,11 +283,16 @@ impl Default for Attr {
     }
 }
 
-/// One cell of the grid: a byte and how to paint it.
+/// One cell of the grid: a character and how to paint it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Cell {
-    /// The character. Not UTF-8 aware: this is a byte-per-cell text-mode terminal.
-    pub byte: u8,
+    /// The character, decoded from UTF-8 by the engine (milestone 142 increment 2). One `char`, not
+    /// one byte: a multi-byte UTF-8 sequence occupies exactly one cell, the same as it occupies one
+    /// column, rather than one cell per encoded byte. `bitmap_font` still only has pictures for basic
+    /// latin (`bitmap_font::glyph`'s own doc), so a non-ASCII `char` here draws the missing-glyph
+    /// box; what changed is that it draws *one* box per character instead of a run of wrong pictures,
+    /// one per UTF-8 continuation byte.
+    pub ch: char,
     /// How to paint it.
     pub attr: Attr,
 }
@@ -267,7 +301,7 @@ impl Cell {
     /// A blank cell in `attr`. Erasing writes **spaces in the current rendition**, not zeroes, which
     /// is what makes `CSI K` on a coloured background leave the background rather than a black gap.
     pub const fn blank(attr: Attr) -> Cell {
-        Cell { byte: b' ', attr }
+        Cell { ch: ' ', attr }
     }
 }
 
@@ -368,12 +402,41 @@ enum State {
 /// long enough to matter belongs to a sequence this engine does not implement.
 const MAX_PARAMS: usize = 4;
 
-/// **A terminal's live grid.**
+/// **A terminal's live grid, plus its off-screen history.**
 ///
 /// Construct with [`Vt::new`], push bytes with [`Vt::feed`], read pixels with [`Vt::pixel`], and ask
-/// what changed with [`Vt::take_damage`].
+/// what changed with [`Vt::take_damage`]. Scroll into history with [`Vt::scroll_up`]/
+/// [`Vt::scroll_down`] (milestone 142 increment 2).
+///
+/// **Large enough now that a `Vt` must never be a runtime-constructed local or return value**,
+/// which is worth stating as a rule next to the type rather than only in the notes. At [`MAX_COLS`]
+/// x [`MAX_ROWS`] plus [`SCROLLBACK_CELLS`] this is several hundred KiB, comfortably past a kernel
+/// thread stack (24 KiB) and past a user process's own stack page (4 KiB). `Vt::new` stays `const
+/// fn` for exactly this reason: called with compile-time-constant `cols`/`rows` (as every
+/// `static mut ... = Vt::new(...)` in this tree does), the value is built by the compiler and placed
+/// directly in `.bss`, never on a stack. A caller with a **runtime** geometry (`display_terminal`
+/// negotiating with its driver, a kernel test reading dimensions off a reply) must construct once,
+/// at a fixed or upper-bound size, and then call [`Vt::reset_to`] to retarget it in place; it must
+/// never write `let vt = Vt::new(runtime_cols, runtime_rows);` or `*existing = Vt::new(...);`; both
+/// are calls to a `const fn` outside a const context, which run as ordinary functions and would
+/// require an ordinary, Vt-sized return value to exist somewhere at runtime. `script/stack-frame-
+/// check` is the gate that would catch a violation, and this doc comment is why a reader should not
+/// need it to.
 pub struct Vt {
     cells: [Cell; MAX_CELLS],
+    /// Off-screen history: a ring of whole rows, oldest overwritten first. See
+    /// [`Vt::scroll_up`]/[`Vt::scroll_down`] for the read side and [`Vt::line_feed`] for the write
+    /// side (a row scrolled off the live grid's top is pushed here before being discarded).
+    scrollback: [Cell; SCROLLBACK_CELLS],
+    /// The ring index (in rows) the **next** pushed row will occupy. Rows already stored occupy the
+    /// `sb_len` slots immediately before this one, wrapping.
+    sb_tail: u32,
+    /// How many scrollback rows are populated, capped at [`SCROLLBACK_ROWS`].
+    sb_len: u32,
+    /// How many rows scrolled back from the live view, `0..=sb_len`. `0` is the ordinary live view;
+    /// nonzero means [`Vt::cell`] (and therefore [`Vt::pixel`]/[`Vt::row_bytes`]) reads from
+    /// [`scrollback`](Self::scrollback) for the topmost `view_offset` display rows.
+    view_offset: u32,
     cols: u32,
     rows: u32,
     col: u32,
@@ -388,6 +451,12 @@ pub struct Vt {
     /// A parameter list this engine will not act on (private `?` sequences, an intermediate byte, or
     /// more parameters than fit). The sequence is still swallowed whole; only its effect is dropped.
     ignore: bool,
+    /// How many UTF-8 continuation bytes are still expected before [`utf8_code`](Self::utf8_code) is
+    /// a complete code point. `0` means the next byte starts a fresh character (or is plain ASCII).
+    utf8_need: u8,
+    /// The code point accumulated so far, valid only while [`utf8_need`](Self::utf8_need) is
+    /// nonzero.
+    utf8_code: u32,
     dirty: Option<CellRect>,
 }
 
@@ -398,28 +467,23 @@ impl Vt {
     /// process that has no way to report one, and a terminal that is smaller than asked for is
     /// visibly wrong. The component that wires it asserts the real geometry at compile time.
     ///
-    /// **`const`, so a terminal can live in `.bss`.** A user process here gets one 4 KiB page of
-    /// stack (`kernel/src/user.rs`, `USER_STACK_VA`), and a grid plus the temporary a move would
-    /// make is most of it. So `user/src/display_terminal.rs` keeps its `Vt` as a `static`, which needs this to
-    /// be a constant expression; the clamps are spelled out rather than using `Ord::clamp`, which is
-    /// not `const`.
+    /// **`const`, so a terminal can live in `.bss`.** See this struct's own doc for why that
+    /// matters more now than it used to: a `Vt` is hundreds of KiB, and `const` is what lets a
+    /// compile-time-constant geometry cost nothing at runtime. The clamps are spelled out rather
+    /// than using `Ord::clamp`, which is not `const`.
+    ///
+    /// A **runtime** geometry must not call this directly and bind the result (see the struct doc);
+    /// construct once with any geometry (typically `(1, 1)`, as `user/src/display_terminal.rs`'s
+    /// `static` does) and call [`Vt::reset_to`] instead.
     pub const fn new(cols: u32, rows: u32) -> Vt {
-        let cols = if cols == 0 {
-            1
-        } else if cols > MAX_COLS as u32 {
-            MAX_COLS as u32
-        } else {
-            cols
-        };
-        let rows = if rows == 0 {
-            1
-        } else if rows > MAX_ROWS as u32 {
-            MAX_ROWS as u32
-        } else {
-            rows
-        };
+        let cols = Self::clamp_cols(cols);
+        let rows = Self::clamp_rows(rows);
         Vt {
             cells: [Cell::blank(Attr::DEFAULT); MAX_CELLS],
+            scrollback: [Cell::blank(Attr::DEFAULT); SCROLLBACK_CELLS],
+            sb_tail: 0,
+            sb_len: 0,
+            view_offset: 0,
             cols,
             rows,
             col: 0,
@@ -431,6 +495,8 @@ impl Vt {
             params: [0; MAX_PARAMS],
             nparams: 0,
             ignore: false,
+            utf8_need: 0,
+            utf8_code: 0,
             // A fresh terminal is entirely damage: nothing has painted its surface yet, so the
             // first present must cover the whole grid rather than the empty rectangle "nothing
             // changed" would give.
@@ -441,6 +507,57 @@ impl Vt {
                 rows,
             }),
         }
+    }
+
+    const fn clamp_cols(cols: u32) -> u32 {
+        if cols == 0 {
+            1
+        } else if cols > MAX_COLS as u32 {
+            MAX_COLS as u32
+        } else {
+            cols
+        }
+    }
+
+    const fn clamp_rows(rows: u32) -> u32 {
+        if rows == 0 {
+            1
+        } else if rows > MAX_ROWS as u32 {
+            MAX_ROWS as u32
+        } else {
+            rows
+        }
+    }
+
+    /// **Re-target this terminal to `cols` by `rows`, in place, clearing the grid and the
+    /// scrollback.** What [`Vt::new`] does, applied to an existing `Vt` by mutating it field by
+    /// field, so a caller with a **runtime** geometry never needs a `Vt`-sized return value or
+    /// local (see this struct's own doc for why that is now a real hazard rather than a style
+    /// preference). Typical use: a `static mut` constructed once at `(1, 1)`, retargeted here the
+    /// moment the real geometry is known (`user/src/display_terminal.rs`'s own bring-up, a kernel
+    /// test that read a window's size off a control page).
+    pub fn reset_to(&mut self, cols: u32, rows: u32) {
+        let cols = Self::clamp_cols(cols);
+        let rows = Self::clamp_rows(rows);
+        self.cells = [Cell::blank(Attr::DEFAULT); MAX_CELLS];
+        self.scrollback = [Cell::blank(Attr::DEFAULT); SCROLLBACK_CELLS];
+        self.sb_tail = 0;
+        self.sb_len = 0;
+        self.view_offset = 0;
+        self.cols = cols;
+        self.rows = rows;
+        self.col = 0;
+        self.row = 0;
+        self.attr = Attr::DEFAULT;
+        self.wrap_pending = false;
+        self.cursor_visible = true;
+        self.state = State::Ground;
+        self.params = [0; MAX_PARAMS];
+        self.nparams = 0;
+        self.ignore = false;
+        self.utf8_need = 0;
+        self.utf8_code = 0;
+        self.damage_all();
     }
 
     /// The grid's width in cells.
@@ -477,32 +594,71 @@ impl Vt {
         }
     }
 
-    /// The cell at `(col, row)`. Out of range gives a default blank rather than a panic, because the
-    /// callers are pixel loops.
+    /// **The cell at `(col, row)` of what is currently displayed** (the live grid, or scrollback if
+    /// [`Vt::view_offset`] is nonzero). Out of range gives a default blank rather than a panic,
+    /// because the callers are pixel loops.
+    ///
+    /// `row` is a **display** row: `0` is always the top of whatever is currently shown, whether
+    /// that is the live grid (view offset `0`) or a scrolled-back history page. This is the one
+    /// function every reader (`pixel`, `row_bytes`) goes through, so the scrollback view is uniform
+    /// rather than a special case each caller has to know about.
     pub fn cell(&self, col: u32, row: u32) -> Cell {
         if col >= self.cols || row >= self.rows {
             return Cell::default();
         }
-        self.cells[(row * self.cols + col) as usize]
+        if row < self.view_offset {
+            // The topmost `view_offset` display rows come from history: display row 0 is the
+            // oldest of the rows being shown from scrollback (`age = view_offset - 1`), and each
+            // row closer to the live grid is one age newer, down to `age = 0` immediately above it.
+            let age = self.view_offset - 1 - row;
+            return self.scrollback_cell(col, age);
+        }
+        let live_row = row - self.view_offset;
+        self.cells[(live_row * self.cols + col) as usize]
+    }
+
+    /// The scrollback cell `age` rows above the live grid's top (`age = 0` is the most recently
+    /// scrolled-off row), at column `col`. `age >= sb_len` (asked for history that was never kept,
+    /// or never existed) gives a default blank, the same total-function discipline [`Vt::cell`]
+    /// uses for a coordinate outside the grid.
+    fn scrollback_cell(&self, col: u32, age: u32) -> Cell {
+        if age >= self.sb_len {
+            return Cell::default();
+        }
+        // `sb_tail` is the ring slot the *next* push will use, so the most recent row (age 0) is
+        // one slot behind it, and each older age is one slot further behind, wrapping.
+        let capacity = SCROLLBACK_ROWS as u32;
+        let ring_row = (self.sb_tail + capacity - 1 - age) % capacity;
+        self.scrollback[(ring_row * self.cols + col) as usize]
     }
 
     /// **The pixel at `(x, y)` of the terminal's surface.** The whole of rendering, as a pure
-    /// function of the grid.
+    /// function of the grid (and, since milestone 142 increment 2, of the scroll position).
     ///
     /// The cursor is a **block**, drawn by swapping the cell's own two colours. Drawing it here
     /// rather than as a separate overlay is what keeps the picture a function of the state: a test
     /// that predicts the screen predicts the cursor too, and a cursor left in the wrong place is a
     /// failure rather than a cosmetic difference nobody notices.
+    ///
+    /// **The cursor does not draw while scrolled back.** It names a position in the live grid, which
+    /// is not what is on screen when `view_offset` is nonzero; drawing it there would put the block
+    /// on whatever history cell happens to share its `(col, row)`, which is not the cursor's
+    /// position and would be actively misleading.
     pub fn pixel(&self, x: u32, y: u32) -> u32 {
         let (col, row) = (x / bitmap_font::GLYPH_W, y / bitmap_font::GLYPH_H);
         let cell = self.cell(col, row);
         let mut attr = cell.attr;
-        if self.cursor_visible && col == self.col && row == self.row && col < self.cols {
+        if self.view_offset == 0
+            && self.cursor_visible
+            && col == self.col
+            && row == self.row
+            && col < self.cols
+        {
             attr = Attr::new(attr.fg(), attr.bg(), !attr.reverse());
         }
         let (fg, bg) = attr.colours();
         bitmap_font::cell_pixel(
-            cell.byte,
+            cell.ch,
             x % bitmap_font::GLYPH_W,
             y % bitmap_font::GLYPH_H,
             fg,
@@ -520,14 +676,48 @@ impl Vt {
         self.dirty.take()
     }
 
-    /// Copy row `row`'s bytes into `out`, returning how many were written. For tests and for a
-    /// caller that wants the text rather than the pixels; there is no `String` in `no_std`.
+    /// Copy row `row`'s characters into `out` as bytes, returning how many were written. For tests
+    /// and for a caller that wants the text rather than the pixels; there is no `String` in
+    /// `no_std`. ASCII characters pass through unchanged; anything else (a non-ASCII `char`, since
+    /// milestone 142's UTF-8 increment) becomes `?`, the conventional lossy placeholder, since the
+    /// return type has no room for anything wider than a byte.
     pub fn row_bytes(&self, row: u32, out: &mut [u8]) -> usize {
         let n = (self.cols as usize).min(out.len());
         for (i, o) in out.iter_mut().enumerate().take(n) {
-            *o = self.cell(i as u32, row).byte;
+            let ch = self.cell(i as u32, row).ch;
+            *o = if ch.is_ascii() { ch as u8 } else { b'?' };
         }
         n
+    }
+
+    /// How many rows scrolled back from the live view. `0` is the ordinary live view.
+    pub const fn view_offset(&self) -> u32 {
+        self.view_offset
+    }
+
+    /// How many rows of history are available to scroll into.
+    pub const fn scrollback_len(&self) -> u32 {
+        self.sb_len
+    }
+
+    /// **Scroll `n` rows further into history**, clamped at [`Vt::scrollback_len`]. Marks the whole
+    /// grid dirty, because scrolling changes every displayed row at once (the same reason the
+    /// ordinary scroll on `LF` at the bottom row does).
+    pub fn scroll_up(&mut self, n: u32) {
+        let new_offset = self.view_offset.saturating_add(n).min(self.sb_len);
+        if new_offset != self.view_offset {
+            self.view_offset = new_offset;
+            self.damage_all();
+        }
+    }
+
+    /// **Scroll `n` rows back toward the live view**, clamped at `0`. See [`Vt::scroll_up`].
+    pub fn scroll_down(&mut self, n: u32) {
+        let new_offset = self.view_offset.saturating_sub(n);
+        if new_offset != self.view_offset {
+            self.view_offset = new_offset;
+            self.damage_all();
+        }
     }
 
     /// **Push bytes through the parser.**
@@ -541,6 +731,15 @@ impl Vt {
     /// asked it to, and a `CR` arriving right after the last character would find the cursor a row
     /// too low. Any cursor motion, `CR`, or `LF` cancels the pending wrap.
     pub fn feed(&mut self, bytes: &[u8]) {
+        // New output snaps the view back to live, the same convention every real terminal follows:
+        // typing (or a program printing) while scrolled into history is disorienting otherwise, and
+        // it is what makes `view_offset` a read-only concern for a caller that never scrolls. A
+        // caller mid-history who then feeds nothing (a scroll key alone, which goes through
+        // `scroll_up`/`scroll_down` and never reaches this function) is unaffected.
+        if self.view_offset != 0 {
+            self.view_offset = 0;
+            self.damage_all();
+        }
         let before = (self.col, self.row);
         for &b in bytes {
             self.byte(b);
@@ -576,7 +775,35 @@ impl Vt {
         }
     }
 
+    /// The Unicode replacement character, drawn for an invalid or incomplete UTF-8 sequence. The
+    /// conventional choice (the same one `String::from_utf8_lossy` makes), so this engine's failure
+    /// picture is the one a reader has likely seen from every other tool that decodes UTF-8.
+    const REPLACEMENT: char = '\u{fffd}';
+
     fn ground(&mut self, b: u8) {
+        // **UTF-8 decoding, ahead of the control-code match.** Every control code and every escape
+        // introducer this engine understands is plain ASCII (`< 0x80`), so a byte with the high bit
+        // set can only be part of a multi-byte character; checking `utf8_need` first is what lets
+        // the two decoders (this one, and the ANSI/CSI state machine below) coexist without either
+        // having to know about the other's bytes. State persists across `feed` calls, so a sequence
+        // split at a buffer boundary still decodes correctly.
+        if self.utf8_need > 0 {
+            if b & 0xc0 == 0x80 {
+                // A well-formed continuation byte.
+                self.utf8_code = (self.utf8_code << 6) | (b & 0x3f) as u32;
+                self.utf8_need -= 1;
+                if self.utf8_need == 0 {
+                    let ch = char::from_u32(self.utf8_code).unwrap_or(Self::REPLACEMENT);
+                    self.print(ch);
+                }
+                return;
+            }
+            // Not a continuation byte: the sequence was truncated. Draw the replacement for what
+            // was collected so far and reprocess `b` as a fresh byte, rather than eating it, so a
+            // truncated sequence loses exactly the bytes it claimed and nothing after them.
+            self.utf8_need = 0;
+            self.print(Self::REPLACEMENT);
+        }
         match b {
             0x1b => {
                 self.state = State::Esc;
@@ -604,11 +831,30 @@ impl Vt {
             }
             0x07 => {} // BEL: there is no bell on a framebuffer, and a visual bell is policy
             0x00..=0x1f | 0x7f => {} // every other control code: consumed, never drawn
-            _ => self.print(b),
+            0x20..=0x7e => self.print(b as char), // plain printable ASCII, the common case
+            // A UTF-8 lead byte: 0xc2..0xdf is two bytes total, 0xe0..0xef three, 0xf0..0xf4 four
+            // (RFC 3629's range, past which no code point is assigned). 0x80..0xc1 and 0xf5..0xff
+            // can never start a sequence (0x80..0xbf are continuation-only; 0xc0/0xc1 could only
+            // encode a code point already representable in one byte, which RFC 3629 forbids as an
+            // overlong form), so those draw the replacement immediately rather than waiting for
+            // bytes that would never complete a valid character.
+            0xc2..=0xdf => {
+                self.utf8_need = 1;
+                self.utf8_code = (b & 0x1f) as u32;
+            }
+            0xe0..=0xef => {
+                self.utf8_need = 2;
+                self.utf8_code = (b & 0x0f) as u32;
+            }
+            0xf0..=0xf4 => {
+                self.utf8_need = 3;
+                self.utf8_code = (b & 0x07) as u32;
+            }
+            0x80..=0xc1 | 0xf5..=0xff => self.print(Self::REPLACEMENT),
         }
     }
 
-    fn print(&mut self, b: u8) {
+    fn print(&mut self, ch: char) {
         if self.wrap_pending {
             self.wrap_pending = false;
             self.col = 0;
@@ -619,7 +865,7 @@ impl Vt {
             col,
             row,
             Cell {
-                byte: b,
+                ch,
                 attr: self.attr,
             },
         );
@@ -636,15 +882,37 @@ impl Vt {
             self.row += 1;
             return;
         }
-        // Scroll: every row moves, so the whole grid is damage. Honest rather than clever; a real
-        // terminal with a scrolling accelerator still repaints the screen it exposes.
+        // Scroll: the row about to fall off the top goes to scrollback first (milestone 142
+        // increment 2), before the shift below overwrites it. Every row moves, so the whole grid is
+        // damage. Honest rather than clever; a real terminal with a scrolling accelerator still
+        // repaints the screen it exposes.
         let cols = self.cols as usize;
+        self.push_scrollback_row(0);
         let used = cols * self.rows as usize;
         self.cells.copy_within(cols..used, 0);
         for c in &mut self.cells[used - cols..used] {
             *c = Cell::blank(self.attr);
         }
         self.damage_all();
+    }
+
+    /// Copy live row `row` into the scrollback ring's next slot, as the newest entry.
+    ///
+    /// Only ever called from [`Vt::line_feed`], itself only reachable through [`Vt::feed`]'s byte
+    /// loop, and [`Vt::feed`] resets `view_offset` to `0` before that loop runs (see its own doc).
+    /// So a push never happens while the caller is looking at history, and this does not need to
+    /// (and does not) adjust `view_offset` to compensate for the shift a push would otherwise cause.
+    fn push_scrollback_row(&mut self, row: u32) {
+        let cols = self.cols;
+        let capacity = SCROLLBACK_ROWS as u32;
+        let ring_row = self.sb_tail;
+        for c in 0..cols {
+            self.scrollback[(ring_row * cols + c) as usize] = self.cells[(row * cols + c) as usize];
+        }
+        self.sb_tail = (self.sb_tail + 1) % capacity;
+        if self.sb_len < capacity {
+            self.sb_len += 1;
+        }
     }
 
     fn esc(&mut self, b: u8) {
@@ -1245,7 +1513,7 @@ mod tests {
         for c in 0..4 {
             assert_eq!(t.cell(c, 0).attr.bg(), 4, "column {c} lost its background");
         }
-        assert_eq!(t.cell(3, 0).byte, b' ');
+        assert_eq!(t.cell(3, 0).ch, ' ');
     }
 
     /// SGR: the colours, the reverse flag, and the two rules a terminal actually needs. Bold is a
@@ -1459,8 +1727,10 @@ mod tests {
     /// rather than in QEMU minutes later.
     #[test]
     fn each_window_shows_its_own_banner_and_its_own_typing() {
-        let a = script::window(0, script::COLS, script::ROWS);
-        let b = script::window(1, script::COLS, script::ROWS);
+        let mut a = vt(script::COLS, script::ROWS);
+        let mut b = vt(script::COLS, script::ROWS);
+        script::window(&mut a, 0);
+        script::window(&mut b, 1);
         let (ra, rb) = (rows(&a), rows(&b));
         assert_eq!(ra[0].trim_end(), "term0");
         assert_eq!(rb[0].trim_end(), "term1");
@@ -1480,11 +1750,12 @@ mod tests {
     /// find out otherwise.
     #[test]
     fn the_demo_script_produces_a_picture_worth_checking() {
-        // Drive `script::full_screen()` rather than rebuilding it here. The guest test renders
+        // Drive `script::full_screen` rather than rebuilding it here. The guest test renders
         // exactly that, so reconstructing the setup by hand let the two witnesses diverge: this
         // test fed GREETING and stopped, while the screen being graded in QEMU also had TYPED on
         // it. `script.rs` exists so every party agrees, which only works if every party calls it.
-        let t = script::full_screen();
+        let mut t = vt(script::COLS, script::ROWS);
+        script::full_screen(&mut t);
         let seen = rows(&t);
         assert_eq!(seen[0].trim_end(), "nife");
         assert!(
@@ -1500,7 +1771,7 @@ mod tests {
             "the script never changes rendition: the colour path is untested on the machine",
         );
         assert!(
-            (0..t.rows()).any(|r| (0..t.cols()).any(|c| t.cell(c, r).byte != b' ')),
+            (0..t.rows()).any(|r| (0..t.cols()).any(|c| t.cell(c, r).ch != ' ')),
             "the script drew nothing",
         );
     }

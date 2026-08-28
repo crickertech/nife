@@ -24,14 +24,14 @@ bench = false
 
 # The worker (milestone 19f.2): the first program that is its own binary, not a role of `hello`.
 # It shares this package's `build.rs` link.ld (linked at 0x40_0000) but no code. Same test/bench
-# reasoning as above. `mkinitrd` packs it into the archive under the name "worker".
+# reasoning as above. `initrd_aarch64` packs it into the archive under the name "worker".
 [[bin]]
 name = "worker"
 path = "src/worker.rs"
 test = false
 bench = false
 
-# The console server (milestone 19f.3): the second program lifted out of `hello`. `mkinitrd` packs
+# The console server (milestone 19f.3): the second program lifted out of `hello`. `initrd_aarch64` packs
 # it under "console"; init loads it by name.
 [[bin]]
 name = "console"
@@ -68,7 +68,7 @@ bench = false
 
 # `swish` (milestone 19f.5): the shell, the last program lifted out of hello, and the most wired.
 # A swish is the shot that goes through the net touching nothing, which is least authority in one
-# word. `mkinitrd` packs it as "swish"; `system_initializer` loads it by that name.
+# word. `initrd_aarch64` packs it as "swish"; `system_initializer` loads it by that name.
 [[bin]]
 name = "swish"
 path = "src/swish.rs"
@@ -163,7 +163,7 @@ test = false
 bench = false
 
 # The FS-service client (milestone 32 phase 2): opens a file through a granted directory capability,
-# reads it, writes and reads back a pattern, and reports. mkinitrd packs it as "fs_test_client".
+# reads it, writes and reads back a pattern, and reports. initrd_aarch64 packs it as "fs_test_client".
 [[bin]]
 name = "fs_test_client"
 path = "src/fs_test_client.rs"
@@ -173,7 +173,7 @@ bench = false
 # The file caretaker (milestone 31 phase 2): a directory capability attenuated to one file, in one
 # direction. It is the caretaker that stands between the FS server and a program the command line
 # granted a single file, and it is a separate process so the narrowing is an address-space boundary
-# rather than a branch. mkinitrd packs it as "fs_file_caretaker".
+# rather than a branch. initrd_aarch64 packs it as "fs_file_caretaker".
 [[bin]]
 name = "fs_file_caretaker"
 path = "src/fs_file_caretaker.rs"
@@ -184,7 +184,7 @@ bench = false
 # capability to one SUBTREE with an explicit rights ladder. It is what `cd` and a per-process
 # namespace resolve to, and it is a separate process for fs_file_caretaker's reason: the FS
 # server's handle table is per server, so only an address-space boundary keeps a program off the
-# parent directory. mkinitrd packs it as "fs_subtree_caretaker".
+# parent directory. initrd_aarch64 packs it as "fs_subtree_caretaker".
 [[bin]]
 name = "fs_subtree_caretaker"
 path = "src/fs_subtree_caretaker.rs"
@@ -194,7 +194,7 @@ bench = false
 # The nameset caretaker (milestone 47's globbing lane): the same caretaker over a namespace of the
 # names a pattern matched. A third caretaker rather than a mode on `fs_subtree_caretaker`, because
 # that program's design property is that it performs no checks at all, and a name filter is a check
-# on every name-taking verb. mkinitrd packs it as "fs_nameset_caretaker".
+# on every name-taking verb. initrd_aarch64 packs it as "fs_nameset_caretaker".
 [[bin]]
 name = "fs_nameset_caretaker"
 path = "src/fs_nameset_caretaker.rs"
@@ -264,7 +264,7 @@ test = false
 bench = false
 
 # The net server (milestone 30, piece 3): smoltcp as a userspace TCP/IP stack driving the confined
-# NIC. Links `extern crate alloc` over user_rt's heap. `mkinitrd` packs it as "net_stack" for both ISAs.
+# NIC. Links `extern crate alloc` over user_rt's heap. `initrd_aarch64` packs it as "net_stack" for both ISAs.
 [[bin]]
 name = "net_stack"
 path = "src/net_stack.rs"
@@ -292,8 +292,8 @@ test = false
 bench = false
 
 # The GPU driver (milestone 29, the display ladder's rung one): drives the virtio-gpu device
-# over the confined transport and serves the framebuffer contract to clients. `mkinitrd` packs it as
-# "gpu_driver" for both ISAs.
+# over the confined transport and serves the framebuffer contract to clients. `initrd_aarch64` packs
+# it as "gpu_driver" for both ISAs.
 [[bin]]
 name = "gpu_driver"
 path = "src/gpu_driver.rs"
@@ -311,7 +311,7 @@ bench = false
 
 # The compositor (milestone 33, rung two): multiplexes one screen among mutually distrusting clients.
 # It is rung one's client at the display seam (display cannot tell it from `painter`), and it holds one
-# doorbell endpoint for all its clients plus one input endpoint per focusable client. `mkinitrd` packs
+# doorbell endpoint for all its clients plus one input endpoint per focusable client. `initrd_aarch64` packs
 # it as "compositor" for both ISAs.
 [[bin]]
 name = "compositor"
@@ -331,7 +331,7 @@ bench = false
 # The display terminal (milestone 29's remaining increment): the component that makes the
 # framebuffer readable. One binary, two wirings (rung one's display endpoint, or rung two's
 # doorbell), because being a client at both seams is what proves neither contract needed to change
-# to carry text. `mkinitrd` packs it as "display_terminal" for both ISAs.
+# to carry text. `initrd_aarch64` packs it as "display_terminal" for both ISAs.
 [[bin]]
 name = "display_terminal"
 path = "src/display_terminal.rs"
@@ -381,7 +381,7 @@ bench = false
 # The clock service (milestone 51, DECISIONS §43): owns the RTC's registers and the wall clock's
 # offset, publishes the offset into a page its readers hold read-only, and serves proposals it is
 # free to refuse. Both RTC drivers ride in it, on both ISAs, because the device is a fact about the
-# board rather than the instruction set. `mkinitrd` packs it as "clock" for both ISAs.
+# board rather than the instruction set. `initrd_aarch64` packs it as "clock" for both ISAs.
 [[bin]]
 name = "clock"
 path = "src/clock.rs"
@@ -390,7 +390,7 @@ bench = false
 
 # `date` (milestone 51, DECISIONS §43): reads the clock page, hands the number to the host-tested
 # `calendar` crate, prints. It holds a read-only mapping and therefore cannot set the clock; there is
-# no `date -s` here on purpose. `mkinitrd` packs it as "date" for both ISAs.
+# no `date -s` here on purpose. `initrd_aarch64` packs it as "date" for both ISAs.
 [[bin]]
 name = "date"
 path = "src/date.rs"
@@ -400,7 +400,7 @@ bench = false
 # `printenv` (milestone 47's environment-variable fork, DECISIONS §111): reads the inert-
 # configuration page init endows and prints TZ/LANG/TERM. `date`'s own shape, one manifest field
 # over: a read-only mapping and nothing else, so there is no way for this program to change what a
-# shell hands its own children. `mkinitrd` packs it as "printenv" for both ISAs.
+# shell hands its own children. `initrd_aarch64` packs it as "printenv" for both ISAs.
 [[bin]]
 name = "printenv"
 path = "src/printenv.rs"
@@ -409,7 +409,7 @@ bench = false
 
 # `rm` (milestone 47's rmdir lane): the first program endowed a **directory** capability, and the
 # reason `rm` stopped being a shell builtin. A builtin runs with the shell's whole endowment; this
-# takes an attenuated grant, so its recursion can only reach what it was handed. `mkinitrd` packs it
+# takes an attenuated grant, so its recursion can only reach what it was handed. `initrd_aarch64` packs it
 # as "rm" for both ISAs.
 [[bin]]
 name = "rm"
@@ -420,7 +420,7 @@ bench = false
 # `disk_surveyor` (milestone 57): what drives are attached, and how the one it holds is divided up.
 # It holds a read-only roster mapping (the listing) and a block-service endpoint (the one disk), and
 # the whole point is that those are two authorities rather than one. Its second role is the negative
-# control: it writes to the roster's address and dies. `mkinitrd` packs it for both ISAs.
+# control: it writes to the roster's address and dies. `initrd_aarch64` packs it for both ISAs.
 #
 # A surveyor maps land they do not own, which is the split this program exists to demonstrate.
 [[bin]]
@@ -432,7 +432,7 @@ bench = false
 # `disk_partitioner` (milestone 57's write half): writes the map the surveyor reads. The pair of
 # authorities it needs is the demonstration: ONE disk, and an entropy endpoint for the unique ids a
 # GPT requires. Without the second it writes nothing at all rather than inventing an id, and the
-# same binary's verify role reads the disk back to show which happened. `mkinitrd` packs it for both
+# same binary's verify role reads the disk back to show which happened. `initrd_aarch64` packs it for both
 # ISAs. Provisional name (milestone 57's lane): calef settles program names.
 [[bin]]
 name = "disk_partitioner"
@@ -442,7 +442,7 @@ bench = false
 
 # The keyboard driver (milestone 29's input): a confined userspace virtio-input driver whose whole
 # power to inject a keystroke is the mapping of the compositor's input ring, not the doorbell every
-# client holds. `mkinitrd` packs it as "keyboard_driver" for both ISAs.
+# client holds. `initrd_aarch64` packs it as "keyboard_driver" for both ISAs.
 [[bin]]
 name = "keyboard_driver"
 path = "src/keyboard_driver.rs"
@@ -452,7 +452,7 @@ bench = false
 # The entropy service (milestone 56, DECISIONS §44): owns a virtio-rng device and is the only thing
 # that can read it; clients hold an endpoint that means "you may obtain randomness". The driver rides
 # in it, the way both RTC drivers ride in the clock service, because a separate driver process would
-# add a hop and hold exactly the same authority. `mkinitrd` packs it as "entropy" for both ISAs.
+# add a hop and hold exactly the same authority. `initrd_aarch64` packs it as "entropy" for both ISAs.
 [[bin]]
 name = "entropy"
 path = "src/entropy.rs"
@@ -473,7 +473,7 @@ bench = false
 # The credential service (milestone 56, the credential half): holds the credential store and serves
 # one question over one endpoint. Its authority to *write* the store is a second endpoint that it
 # deletes at the seal, so a client cannot be refused permission to write it; there is no object left
-# for the request to travel through. `mkinitrd` packs it as "credentialer" for both ISAs.
+# for the request to travel through. `initrd_aarch64` packs it as "credentialer" for both ISAs.
 [[bin]]
 name = "credentialer"
 path = "src/credentialer.rs"
@@ -483,7 +483,7 @@ bench = false
 # The credential service's clients (milestone 56): the provisioner that fills the store, the honest
 # client that asks questions, and the attacker that holds the identical endowment and tries to write
 # it. One binary, three roles, because an attacker on the honest path is a fairer test of a boundary
-# than a different program failing for its own reasons. `mkinitrd` packs it as "credentialer_test_client".
+# than a different program failing for its own reasons. `initrd_aarch64` packs it as "credentialer_test_client".
 [[bin]]
 name = "credentialer_test_client"
 path = "src/credentialer_test_client.rs"
@@ -493,7 +493,7 @@ bench = false
 # The login service (milestone 49, provisional name): authenticates a presented identity against
 # the credential service and, on success, mints a fresh directory capability (a
 # `fs_subtree_caretaker` built for that principal) and a fresh budget rather than mutating anything
-# ambient. `mkinitrd` packs it as "login" for both ISAs.
+# ambient. `initrd_aarch64` packs it as "login" for both ISAs.
 [[bin]]
 name = "login"
 path = "src/login.rs"
@@ -503,17 +503,26 @@ bench = false
 # The login service's test client (milestone 49, provisional name): presents an identity and a
 # secret, and on `login_proto::OK` receives the caretaker's endpoint, the file service's shared
 # frame, and a budget, then uses all three to prove they work rather than merely that they arrived.
-# `mkinitrd` packs it as "login_test_client" for both ISAs.
+# `initrd_aarch64` packs it as "login_test_client" for both ISAs.
 [[bin]]
 name = "login_test_client"
 path = "src/login_test_client.rs"
 test = false
 bench = false
 
+# The audit sink (milestone 49's boot-wiring update, provisional name): drains `login`'s AUDIT
+# endpoint so its blocking `send` on a successful login never parks the whole service, holding
+# nothing but that one READ capability. `initrd_aarch64` packs it as "audit_sink" for both ISAs.
+[[bin]]
+name = "audit_sink"
+path = "src/audit_sink.rs"
+test = false
+bench = false
+
 # The provisioning tool (milestone 155, provisional name; DECISIONS §117): a `useradd`-equivalent
 # that PUTs an identity and secret into the credential store and creates that identity's home
 # subtree as one act, so a principal never exists with one and not the other for longer than this
-# tool's own two calls. `mkinitrd` packs it as "identity_provisioner" for both ISAs.
+# tool's own two calls. `initrd_aarch64` packs it as "identity_provisioner" for both ISAs.
 [[bin]]
 name = "identity_provisioner"
 path = "src/identity_provisioner.rs"
@@ -524,7 +533,7 @@ bench = false
 # `root_supervisor`-shaped boot-only process that reads the durable schedule store's manifest, reads
 # and parses each named identity's own schedule file, mints and tears down a synthetic stand-in for
 # the session it would re-derive, then deletes its own construction budget and store-read capability
-# and proves both gone. `mkinitrd` packs it as "session_reviver" for both ISAs.
+# and proves both gone. `initrd_aarch64` packs it as "session_reviver" for both ISAs.
 [[bin]]
 name = "session_reviver"
 path = "src/session_reviver.rs"
@@ -533,7 +542,7 @@ bench = false
 
 # The NTP client (milestone 51): holds a network capability and the right to PROPOSE a time, and
 # deliberately not the right to set one. One binary, three roles (the client, the test server that
-# answers it, and the probe that proves the clock page is unreachable). `mkinitrd` packs it as "ntp"
+# answers it, and the probe that proves the clock page is unreachable). `initrd_aarch64` packs it as "ntp"
 # for both ISAs.
 [[bin]]
 name = "ntp"
@@ -543,7 +552,7 @@ bench = false
 
 # The sink contract's ends (milestone 50): a program that writes to whatever is in its output slot,
 # a caretaker that puts a file behind that slot, and the read-back that proves the bytes went
-# through a real filesystem. One binary, three roles. `mkinitrd` packs it as "sink" for both ISAs.
+# through a real filesystem. One binary, three roles. `initrd_aarch64` packs it as "sink" for both ISAs.
 [[bin]]
 name = "sink"
 path = "src/sink.rs"

@@ -316,12 +316,24 @@ pub fn user_address_space_create(region: u64) -> Option<u64> {
 /// §13 record come from the space's own backing region; an unrecordable mapping is unmapped and
 /// refused, exactly as at the `page_frame::MAP` syscall, because a mapping revocation cannot see is
 /// the §13 use-after-free.
-pub fn user_address_space_map(name: u64, va: u64, phys: u64, flags: Flags) -> Result<(), MapError> {
+///
+/// `under` says which capability's authority this mapping was made with, which is what scopes a
+/// later `PageFrame::REVOKE` to that capability's derivation family rather than to the physical
+/// page (DECISIONS §132). The `MAP_INTO` syscall passes the invoked frame capability's object; the
+/// kernel's own callers, which build a space directly out of a region, pass
+/// `PageMapSource::NoCapability`.
+pub fn user_address_space_map(
+    name: u64,
+    va: u64,
+    phys: u64,
+    flags: Flags,
+    under: crate::revoke::PageMapSource,
+) -> Result<(), MapError> {
     let mut spaces = USER_SPACES.lock();
     let space = spaces.get_mut(name).ok_or(MapError::NotMapped)?;
 
     space.map_physical(va, phys, flags)?;
-    if !crate::revoke::record_mapping(phys, space.root(), va) {
+    if !crate::revoke::record_mapping(phys, space.root(), va, under) {
         mmu::unmap_user_at(space.root(), va);
         return Err(MapError::OutOfPageFrames);
     }
@@ -946,7 +958,7 @@ pub fn spawn_init(
     // sized for a full copy of the initrd program plus its tables and init's scratch. Carving it out
     // here changes nothing about what init gets; it changes who can name it afterwards, which is the
     // whole difference between 8 MiB spent and 8 MiB lent. See notes/frames.md.
-    let build_region = crate::memory_region::create(2048).expect("no building budget for init");
+    let build_region = crate::memory_region::create(12288).expect("no building budget for init");
 
     let tid = crate::sched::spawn(move || {
         let elf = match Elf::parse(init_bytes) {
@@ -1545,12 +1557,24 @@ fn x86_build_child(
         mmu::phys_to_virt(code_phys),
         core::mem::size_of_val(program),
     );
-    user_address_space_map(aspace, X86_DEMO_CODE_VA, code_phys, Flags::user_code())
-        .map_err(|_| "could not map the child's code")?;
+    user_address_space_map(
+        aspace,
+        X86_DEMO_CODE_VA,
+        code_phys,
+        Flags::user_code(),
+        crate::revoke::PageMapSource::NoCapability,
+    )
+    .map_err(|_| "could not map the child's code")?;
 
     let stack_phys = crate::memory_region::retype_page(region).ok_or("no stack frame")?;
-    user_address_space_map(aspace, X86_DEMO_STACK_VA, stack_phys, Flags::user_data())
-        .map_err(|_| "could not map the child's stack")?;
+    user_address_space_map(
+        aspace,
+        X86_DEMO_STACK_VA,
+        stack_phys,
+        Flags::user_data(),
+        crate::revoke::PageMapSource::NoCapability,
+    )
+    .map_err(|_| "could not map the child's stack")?;
 
     let tid = crate::sched::create_thread_control_block(region).ok_or("no tcb")?;
     if let Some(cap) = slot0 {
@@ -1792,7 +1816,7 @@ pub fn riscv_initrd_demo(archive: &'static [u8]) -> Result<u64, LoadError> {
     // endpoint WRITE|GRANT (slot 1, so init may delegate a narrowed view to the child it builds).
     let aspace_name = readopt_user_address_space(space).expect("register init address space");
     let report = crate::sched::create_rendezvous();
-    let build_region = crate::memory_region::create(2048).expect("no building budget for init");
+    let build_region = crate::memory_region::create(12288).expect("no building budget for init");
 
     let thread_control_block_region = crate::memory_region::create(2).expect("no tcb region");
     let tid =
@@ -2023,7 +2047,7 @@ pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), Loa
     let irq_ep = crate::sched::create_rendezvous();
     crate::sched::bind_irq(uart_irq, irq_ep);
     let build_region =
-        crate::memory_region::create(2048).expect("no building budget for system_initializer");
+        crate::memory_region::create(12288).expect("no building budget for system_initializer");
 
     let thread_control_block_region = crate::memory_region::create(2).expect("no tcb region");
     let tid =

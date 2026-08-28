@@ -119,6 +119,11 @@ fn mw(off: u64, v: u32) {
     virtio_write_reg(VIRTIO, off, v as u64);
 }
 
+// BUGS: two arms, three architectures, no fallback. On x86_64 both `cfg`s compile out and this
+// body is empty, so it orders nothing against the compiler, which is the half TSO does not cover.
+// Builds and lints clean there, because an empty function is not a warning. Same hole in
+// `crates/virtio`, `user/src/gpu_driver.rs` and `user/src/keyboard_driver.rs`; see
+// notes/architecture-list-sweep.md, finding 9.
 fn barrier() {
     #[cfg(target_arch = "aarch64")]
     // SAFETY: a barrier: no operands, and the options say it touches neither memory nor the

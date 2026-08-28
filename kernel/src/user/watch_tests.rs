@@ -104,9 +104,12 @@ fn walk(slot: u64, rows: &mut [ps::Row; TEST_ROWS]) -> ps::Survey<'_> {
 /// this engine's `LF` does not return the carriage (`video_terminal`'s own tests pin `LF alone must
 /// not return the carriage`), so a multi-line table's rows do not all start at column 0 the way a
 /// naive reader would expect; a check keyed to exact row/column position would be testing that
-/// quirk, not `watch`. `[u8; 256]` is `MAX_COLS * MAX_ROWS_TALL` below, on the stack: this runs on a
-/// kernel thread stack under a 4,096-byte guard page, the same reason `TEST_ROWS` above is 8 and not
-/// `ps::MAX_ROWS`.
+/// quirk, not `watch`. `[u8; GRID_BYTES]` (`MAX_COLS * ROWS_TALL` below) lives on the stack: this
+/// runs on a kernel thread stack under a 4,096-byte guard page, the same reason `TEST_ROWS` above
+/// is 8 and not `ps::MAX_ROWS`. (An earlier version of this comment named a literal byte count
+/// that had already gone stale by the time it was noticed: it dated to `MAX_COLS` being 32,
+/// pre-milestone-142, and was never updated through 182 or the 2026-08-27 retarget to 132. `GRID_BYTES`
+/// is the number that cannot go stale.)
 const ROWS_TALL: u32 = 8;
 const GRID_BYTES: usize = video_terminal::MAX_COLS * ROWS_TALL as usize;
 
@@ -214,11 +217,22 @@ fn a_second_frame_erases_the_first_rather_than_leaving_it_on_screen() {
         "both members should be in the first frame"
     );
 
-    let mut vt = video_terminal::Vt::new(video_terminal::MAX_COLS as u32, ROWS_TALL);
+    // **A function-local `static`, not a stack local** (milestone 142): at `MAX_COLS` wide, one
+    // `Vt` is well over a hundred KiB, which this test's 24 KiB kernel thread stack cannot hold
+    // (`script/stack-frame-check`'s reason for being; see notes/stack-high-water.md). `Vt::new` is
+    // `const fn` and both arguments here are compile-time constants, so this initializer is
+    // evaluated by the compiler and lands in `.bss`, never on the stack.
+    static mut VT: video_terminal::Vt =
+        video_terminal::Vt::new(video_terminal::MAX_COLS as u32, ROWS_TALL);
+    let vt_ptr = &raw mut VT;
+    // SAFETY: this `#[test_case]` runs once, to completion, before any other test that might
+    // declare a same-named function-local static begins (the harness runs test cases
+    // sequentially); nothing else in this process can reach `VT`.
+    let vt: &mut video_terminal::Vt = unsafe { &mut *vt_ptr };
     watch::frame(&survey1, &mut |bytes| vt.feed(bytes));
 
     let mut grid1 = [0u8; GRID_BYTES];
-    grid_text(&vt, &mut grid1);
+    grid_text(vt, &mut grid1);
     let (mut da, mut db) = ([0u8; 20], [0u8; 20]);
     let da = digits(a, &mut da);
     let db = digits(b, &mut db);
@@ -253,7 +267,7 @@ fn a_second_frame_erases_the_first_rather_than_leaving_it_on_screen() {
     watch::frame(&survey2, &mut |bytes| vt.feed(bytes));
 
     let mut grid2 = [0u8; GRID_BYTES];
-    grid_text(&vt, &mut grid2);
+    grid_text(vt, &mut grid2);
     assert!(
         !contains_exact_number(&grid2, da),
         "a's tid from the first frame is still on screen: watch overwrote instead of erasing",

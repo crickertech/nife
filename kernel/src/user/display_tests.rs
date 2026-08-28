@@ -325,7 +325,21 @@ fn a_bitmap_font_and_a_vt_engine_put_readable_text_on_the_scanout() {
 
     // The driver's account of the terminal's first flush: the blank grid. A second address
     // space's witness, taken after the device reported the transfer complete.
-    let blank = video_terminal::Vt::new(video_terminal::script::COLS, video_terminal::script::ROWS);
+    //
+    // **A function-local `static`, not a stack local** (milestone 142): at the grown scanout's
+    // grid (`script::COLS` x `script::ROWS`, 132x43), one `Vt` is well over a hundred KiB, which a
+    // 24 KiB kernel thread stack cannot hold (`script/stack-frame-check`'s whole reason for being;
+    // see notes/stack-high-water.md). `Vt::new` is `const fn` and `COLS`/`ROWS` are compile-time
+    // constants, so this initializer is evaluated by the compiler and lands in `.bss`, never on the
+    // stack. This test builds three such grids (`blank`, `expect`, `typo` below); each gets its own
+    // named static for exactly this reason.
+    static mut BLANK: video_terminal::Vt =
+        video_terminal::Vt::new(video_terminal::script::COLS, video_terminal::script::ROWS);
+    let blank_ptr = &raw const BLANK;
+    // SAFETY: this `#[test_case]` runs once, to completion, before any other test that might
+    // declare a same-named function-local static begins (the harness runs test cases
+    // sequentially); nothing else in this process can reach `BLANK`.
+    let blank: &video_terminal::Vt = unsafe { &*blank_ptr };
     let [tag, driver_digest, pixels, ..] = sched::ipc_recv(w.driver_report);
     assert_eq!(tag, gfx::status::FLUSHED, "the driver served no flush");
     assert_eq!(pixels, gfx::PIXELS as u64);
@@ -341,23 +355,33 @@ fn a_bitmap_font_and_a_vt_engine_put_readable_text_on_the_scanout() {
         "the frames the device read for the terminal's first flush are not a blank terminal: an \
          empty terminal must be a defined picture, not whatever was in those frames",
     );
-    w.assert_screen_is(&blank, "a terminal that has been sent nothing");
+    w.assert_screen_is(blank, "a terminal that has been sent nothing");
 
     // Play the application, then the input driver. Both replies mean the pixels are on the
     // device's side, so there is nothing to poll and nothing to sleep for.
     w.print(video_terminal::script::GREETING);
     w.type_bytes(video_terminal::script::TYPED);
 
-    // The kernel's own witness: every pixel, against the engine it ran itself.
-    let expect = video_terminal::script::full_screen();
-    w.assert_screen_is(&expect, "after the greeting and the typing");
+    // The kernel's own witness: every pixel, against the engine it ran itself. `script::full_screen`
+    // takes `&mut Vt` rather than returning one **by value** for exactly the reason `BLANK` above is
+    // a static: a `Vt` is too large now to be a stack-local return value on this thread's stack.
+    static mut EXPECT: video_terminal::Vt =
+        video_terminal::Vt::new(video_terminal::script::COLS, video_terminal::script::ROWS);
+    let expect_ptr = &raw mut EXPECT;
+    // SAFETY: see `BLANK` above.
+    let expect: &mut video_terminal::Vt = unsafe { &mut *expect_ptr };
+    video_terminal::script::full_screen(expect);
+    w.assert_screen_is(expect, "after the greeting and the typing");
 
     // A wrong screen must not pass this. The typo picture differs from the real one in one
     // letter, so asserting they differ at all is what says the comparison above has teeth: if
     // `assert_screen_is` were somehow vacuous, this would still be true, which is why the check
     // is that the two *pictures* differ rather than that the screen is not the typo.
-    let mut typo =
+    static mut TYPO: video_terminal::Vt =
         video_terminal::Vt::new(video_terminal::script::COLS, video_terminal::script::ROWS);
+    let typo_ptr = &raw mut TYPO;
+    // SAFETY: see `BLANK` above.
+    let typo: &mut video_terminal::Vt = unsafe { &mut *typo_ptr };
     typo.feed(video_terminal::script::GREETING_TYPO);
     typo.feed(video_terminal::script::TYPED);
     assert!(

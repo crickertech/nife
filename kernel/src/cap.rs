@@ -5,6 +5,8 @@
 //!
 //! DECISIONS.md §10 and notes/capabilities.md.
 
+use core::num::NonZeroU64;
+
 /// Every kind of thing a process can be handed.
 ///
 /// **One entry, and that is the milestone-8 result rather than a stub.** There used to be a
@@ -45,18 +47,34 @@ pub enum Object {
     /// milestone-8 move (the console driver left; now the interrupt does too).
     Irq(u32),
 
-    /// **A physical page**, by its physical address, that the holder may map into its own address
-    /// space and delegate to others.
+    /// **A contiguous run of physical pages**, by the base physical address and a page count, that
+    /// the holder may map into its own address space and delegate to others.
     ///
     /// The object §10 named as the shared-memory capability: *IPC carries control, shared memory
     /// carries data*. A shared buffer used to be a page the kernel mapped into both parties at
     /// spawn, wired once and never movable. A `PageFrame` makes it a runtime object instead: a process
     /// retypes one out of its own untyped (`MemoryRegion::RETYPE`), maps it (`PageFrame::MAP`), and hands it
     /// (or a read-only view of it, since delegation narrows) to a peer over an endpoint. The peer
-    /// maps the *same physical page* and the two share memory, composed by the processes rather
+    /// maps the *same physical pages* and the two share memory, composed by the processes rather
     /// than arranged for them. The address is the identity: a process can never forge one, because
     /// the only ways to get a `PageFrame` are to retype it or be handed it, and both keep the object.
-    PageFrame(u64),
+    ///
+    /// **`count` is the run's length in pages, at least 1** (DECISIONS §102, 2026-08-20): a `PageFrame`
+    /// names what the hardware names. A DMA region or a scanout is contiguous in physics, in the
+    /// address space, and in the IOMMU domain that confines it, so one capability names the whole
+    /// run instead of one per page: `PageFrame::MAP` maps all `count` pages with one call, and
+    /// `PageFrame::REVOKE` unmaps all of them and deletes every capability naming the run. Every
+    /// caller that predates this widening passes `count: 1` and keeps its exact prior behavior; the
+    /// syscall's argument shape does not change; `count` rides on the capability, not on `MAP`'s
+    /// arguments. See notes/frames.md.
+    ///
+    /// **`NonZeroU64` rather than `u64`, because a zero-page run is the wrong state and the
+    /// compiler is the cheapest place to forbid it** (AGENTS.md's ladder, rung 1). Every dispatch
+    /// path derives an end address from the count (`page_frame_map`'s tail-VA check computes
+    /// `(count - 1) * PAGE_SIZE`), and a zero would underflow it: a debug build panics, a release
+    /// build wraps. The type removes the branch instead of guarding it, and it costs nothing,
+    /// since the niche makes `Option<Object>` no larger.
+    PageFrame(u64, NonZeroU64),
 
     /// **A device's MMIO page**, by physical address (milestone 19d.2): a delegatable authority
     /// to map a *specific* device's registers, **device-typed** (nGnRnE, uncacheable, unreordered
@@ -108,11 +126,53 @@ pub enum Object {
 
 pub type Cap = capability::Cap<Object>;
 
-/// A thread's capability table: 16 slots, fixed at the type (milestone 14 phase B.1). The size
+// **What a slot costs, pinned** (milestone 142's review, MINOR 9).
+//
+// DECISIONS §102 rejected growing `CAPABILITY_TABLE_SLOTS` on an arithmetic that starts from "24
+// bytes a slot, times `MAX_THREADS` = 128", and then, in the same decision, widened `PageFrame`
+// from one `u64` to two. **A slot is 32 bytes now, not 24**: the enum is as wide as its widest
+// variant, `PageFrame` is that variant, and it grew by a word. Nothing measured it, so §102's own
+// figure went stale inside §102. That is what this assertion is for; it is the fact, not a target.
+//
+// Seventeen slots is 544 bytes a capability table rather than 408, so the option §102 priced at 12
+// KiB a thread for 512 slots would now be 16 KiB. The refusal does not change (the decision's
+// argument was never really about the bytes), but the number a future reader quotes should be the
+// one the compiler agrees with. Update these two and re-read §102 when they fire.
+//
+// **Sixteen when this note was written, seventeen now** (milestone 49's terminal update raised
+// `CAPABILITY_TABLE_SLOTS`; see that constant's own doc, below). The count changed; the per-slot
+// arithmetic this note exists to pin did not.
+//
+// **And the other half of §102's arithmetic moved too**: `MAX_THREADS` was raised from 128 to 256
+// on 2026-08-27 (that constant's own doc comment carries the measurement), so every whole-machine
+// figure §102 quoted is doubled on top of both changes above. Same conclusion, same reason, larger
+// numbers.
+const _: () = assert!(core::mem::size_of::<Object>() == 24);
+const _: () = assert!(core::mem::size_of::<Cap>() == 32);
+
+/// A thread's capability table: 17 slots, fixed at the type (milestone 14 phase B.1). The size
 /// was already the de-facto limit (`CapabilityTable::empty()` made 16); now it is part of the
 /// type and creating a capability table cannot allocate. Growing it is a one-number change here,
 /// paid in TCB size.
-pub const CAPABILITY_TABLE_SLOTS: usize = 16;
+///
+/// **Raised 16 -> 17, milestone 49's terminal update.** `user/src/login.rs` gaining an eighth
+/// permanent grant (`TERM_EP`) pushed its own peak past the old fifteen usable slots (sixteen
+/// minus the reserved fault slot, `abi::fault::FAULT_EP_SLOT`) by exactly one: the first login
+/// against a freshly built service answered `login_proto::DENIED` instead of `OK`, on a correct
+/// password, which is the exact silent-capacity-exhaustion symptom this file's own BUGS section
+/// already describes for a different cause. Measured, not guessed: `mint`'s own peak (`region`,
+/// `narrow_ep`, `ready`, briefly `tcb`, four objects) plus what a channel still holds at that point
+/// (`channel.result`, `channel.region`, two more) plus login's own resting footprint (eight granted
+/// capabilities, `own_ut`, `channel_ut`, ten more) is sixteen simultaneous slots, one past the
+/// fifteen usable. Every other avenue was considered and rejected first (see
+/// `design/roadmap/49-users-and-attribution.md`'s own account): none of `own_ut`, `channel_ut`, the
+/// caretaker's `region`/`narrow_ep`/`ready` triple, or the channel's own objects can be merged or
+/// deferred without reopening a bug this tree already paid to fix (the 368-page LIFO hole, or the
+/// permanently-unreclaimable caretaker). This constant's own comment already names the cost of
+/// raising it ("a one-number change here, paid in TCB size"), which is exactly the shape of trade
+/// this tree's own precedent (`MAX_REGIONS`, `nifefs::NAME_LEN`) already treats as the expected
+/// response to a real feature needing one more slot.
+pub const CAPABILITY_TABLE_SLOTS: usize = 17;
 pub type CapabilityTable = capability::CapabilityTable<Object, CAPABILITY_TABLE_SLOTS>;
 
 // The ABI names the reserved fault slot as `CAPABILITY_TABLE_SLOTS - 1`, so the two constants
@@ -292,9 +352,10 @@ pub fn device_frame_cap(phys: u64, rights: Rights) -> Cap {
     }
 }
 
-/// A capability naming a physical page. `READ` lets the holder map it read-only, `WRITE` lets it
-/// map it read/write, `GRANT` lets it pass the page on. A freshly retyped frame gets all three;
-/// delegation narrows them (a read-only, non-lendable view is `READ` alone).
+/// A capability naming **one** physical page at `phys` (the `count: 1` case of DECISIONS §102's
+/// `PageFrame`). `READ` lets the holder map it read-only, `WRITE` lets it map it read/write,
+/// `GRANT` lets it pass the page on. A freshly retyped frame gets all three; delegation narrows
+/// them (a read-only, non-lendable view is `READ` alone).
 ///
 /// (This doc comment was attached to [`device_frame_cap`] until milestone 108, so `page_frame_cap` had
 /// none and the device one appeared to have two. A correction, not a rewrite.)
@@ -303,9 +364,46 @@ pub fn device_frame_cap(phys: u64, rights: Rights) -> Cap {
 /// a shared buffer, the clock page. Since milestone 108 that is how the disk and display paths hand
 /// a driver its memory, in place of a `Spawn::maps` entry that no capability stood behind. See
 /// notes/frames.md.
+///
+/// Kept at its pre-§102 signature on purpose: every one of its ~20 existing callers wants exactly
+/// one page, and this is additive rather than a rewrite (§102's own text: "existing callers pass
+/// count: 1 and get the same behavior"). [`page_frame_run_cap`] is the one to reach for when the
+/// count is not 1.
 pub fn page_frame_cap(phys: u64, rights: Rights) -> Cap {
     Cap {
-        object: Object::PageFrame(phys),
+        object: Object::PageFrame(phys, NonZeroU64::MIN),
         rights,
+    }
+}
+
+/// A capability naming a run of `count` contiguous physical pages starting at `phys` (DECISIONS
+/// §102, 2026-08-20). The run-capable sibling of [`page_frame_cap`]: one capability for a DMA
+/// region or a scanout that is contiguous in physics, in the address space, and in the IOMMU domain
+/// that confines it, instead of one capability per page. `count: 1` ([`NonZeroU64::MIN`]) is
+/// exactly [`page_frame_cap`].
+///
+/// The count is a [`NonZeroU64`] rather than a `u64` guarded by a `debug_assert!`, which is what
+/// this took until the milestone 142 review: a `debug_assert!` is compiled out of the release build
+/// `xtask bench --release` runs, so the one build whose numbers get published was the one build
+/// with no check at all. See [`Object::PageFrame`] for what a zero would have underflowed.
+pub fn page_frame_run_cap(phys: u64, count: NonZeroU64, rights: Rights) -> Cap {
+    Cap {
+        object: Object::PageFrame(phys, count),
+        rights,
+    }
+}
+
+/// `n` pages as a run length, refusing zero.
+///
+/// The bridge for the callers that compute a page count arithmetically (a surface's
+/// `SURFACE_BYTES.div_ceil(4096)`, a DMA region's `1 + surface`) and would otherwise each spell out
+/// the same `NonZeroU64::new(..).expect(..)`. `const`, so a caller passing a literal or a `const`
+/// gets the refusal **at compile time** rather than at boot: that is the rung this whole
+/// widening's zero-check wanted and the reason the function exists at all rather than the call
+/// sites doing it themselves.
+pub const fn page_frame_run_len(n: u64) -> NonZeroU64 {
+    match NonZeroU64::new(n) {
+        Some(count) => count,
+        None => panic!("a PageFrame run must name at least one page"),
     }
 }

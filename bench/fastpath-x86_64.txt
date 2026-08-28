@@ -1,6 +1,6 @@
-# bench/fastpath-aarch64.txt: an upper bound on the IPC fastpath's instruction footprint.
+# bench/fastpath-x86_64.txt: an upper bound on the IPC fastpath's instruction footprint.
 # Written by script/fastpath-footprint --save. Updating this file is a statement that a
 # footprint change is intended and understood; do it in the commit that causes it.
 # See notes/benchmarks.md for what the two numbers mean and what they are measured against.
-ipc_fastpath 5788
-syscall_entry 3304
+ipc_fastpath 6639
+syscall_entry 1637

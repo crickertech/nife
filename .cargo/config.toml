@@ -1,6 +1,20 @@
 [alias]
 xtask = "run --quiet --package xtask --"
 
+# **A host test thread's default stack (2 MiB on macOS) is too small for `video_terminal::Vt`**
+# since milestone 142's grid growth (128x64 -> 1280x720, DECISIONS §102): the type is hundreds of
+# KiB (`crates/video_terminal/src/lib.rs`'s own doc comment on `Vt`), and a debug build's
+# unoptimized frames stack several such values deep in some tests (`cargo test -p video_terminal`
+# overflowed and `SIGABRT`ed before this was set, reproducibly, on the crate's own host tests, which
+# is the one place this project promised would run in milliseconds without needing a workaround).
+# 16 MiB is comfortably past what any test here needs (8 MiB already sufficed, measured) and costs
+# nothing: `RUST_MIN_STACK` only sets a floor libtest requests per spawned test thread, not memory
+# actually touched. Kernel-side code does not get this for free (a QEMU-run thread's stack is fixed
+# by `kernel/src/thread.rs`, not by this variable) and instead avoids ever putting a `Vt` on a
+# stack at all; see `Vt`'s own doc comment and `script/stack-frame-check`.
+[env]
+RUST_MIN_STACK = "16777216"
+
 # `cargo run -p kernel --target aarch64-unknown-none-softfloat` and
 # `cargo test -p kernel --target aarch64-unknown-none-softfloat` both work because of
 # this runner: cargo appends the built ELF path to the end of the command.

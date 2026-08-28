@@ -28,8 +28,12 @@
 //!   client <---- RECV_CAP(RESULT) x 3: priv_request, priv_result, page - login
 //!
 //!   client --place(), send(priv_request, w0, 0, 0)-----------------------> login
-//!   client <----------------- recv(priv_result) -> OK or DENIED --------- login
-//!   client <---- RECV_CAP(priv_result) x 4, only after OK ---------------  login
+//!   client <----------------- recv(priv_result) -> OK, DENIED or -------- login
+//!                                                   NO_TERMINAL
+//!   client <---- RECV_CAP(priv_result) x 5, only after OK ---------------  login
+//!
+//!   client --send(REQUEST, logout_word(), 0, 0)---------------------------> login
+//!   client <----------------- recv(RESULT) -> LOGGED_OUT ----------------- login
 //! ```
 //!
 //! [`CONNECT`] carries no page: there is nothing in it a client did not already know, so the front
@@ -39,7 +43,12 @@
 //! primitive), but that is service order, not shared state: each answer is a private key handed to
 //! exactly one holder before login goes on to serve the actual login it just enabled.
 //!
-//! On [`OK`], login sends exactly four capabilities over `priv_result`, in this order:
+//! **[`LOGOUT`] travels on the front door itself, not on a private channel** (milestone 49's
+//! terminal update): unlike [`CONNECT`], it carries no secret and needs no private staging, so
+//! there is nothing a shared front door would expose by handling it directly. See
+//! [`logout_word`] and this contract's own BUGS for what it does and does not authenticate.
+//!
+//! On [`OK`], login sends exactly five capabilities over `priv_result`, in this order:
 //!
 //! 1. the **directory** capability: a freshly built `fs_subtree_caretaker`'s endpoint, `WRITE`;
 //! 2. the **filesystem's shared page**, a `PageFrame`, `READ | WRITE`: the client maps it itself
@@ -67,6 +76,14 @@
 //!    `notes/hung-component.md` documents as unfixable. Logging out is optional: a client that never
 //!    calls `DESTROY` costs `login` exactly what it always cost (see that program's BUGS on
 //!    `CONSTRUCTION_UT` exhaustion), this ticket just makes not costing it possible.
+//! 5. **the terminal** (milestone 49's terminal update, DECISIONS-recommended "deny cleanly" shape,
+//!    `design/roadmap/49-users-and-attribution.md`'s own BUGS): a `Rendezvous`, `WRITE` only, the
+//!    same right the interactive boot's shell already holds on it. **Only ever present because it
+//!    could be**: `login`'s own `serve_login` refuses with [`NO_TERMINAL`] before authentication is
+//!    even attempted while another session already holds it, so every `OK` this contract answers
+//!    carries this fifth capability too. There is exactly one physical terminal and exactly one
+//!    holder at a time; see this contract's own BUGS and `user/src/login.rs`'s module docs for the
+//!    single-session design this is deliberately not more than.
 //!
 //! **A full logout destroys capability 3 before capability 4, and the order is load-bearing.**
 //! `mint()` splits the fourth capability's region from `login`'s own `CONSTRUCTION_UT` first and the
@@ -85,8 +102,32 @@
 //! of the order they were minted in, which needs the same LIFO discipline this tree already accepts
 //! elsewhere.
 //!
-//! On [`DENIED`] or [`MALFORMED`], nothing follows: the client holds exactly what it held before it
-//! asked.
+//! On [`DENIED`], [`MALFORMED`] or [`NO_TERMINAL`], nothing follows: the client holds exactly what
+//! it held before it asked.
+//!
+//! # BUGS
+//!
+//! **[`LOGOUT`] authenticates nothing.** It is a bare word on the shared front door, deliberately:
+//! unlike a login it carries no secret to protect and needs no private channel, but the flip side is
+//! that any process holding the front-door request endpoint (every client this service will ever
+//! see, by construction)
+//! can free the terminal out from under whoever is using it. That is a real, unauthenticated
+//! interruption a hostile co-tenant could perform, not merely a discourtesy; it is accepted here
+//! because today's actual deployment is one interactive boot with one physical terminal and no
+//! untrusted co-tenant reaching this endpoint at all, which is exactly the scope
+//! `design/roadmap/49-users-and-attribution.md`'s own terminal BUGS entry names as this slice's
+//! bound. A deployment that must defend against a hostile holder of `REQUEST` needs `LOGOUT` to
+//! carry proof (the identity that is logging out, or better, a capability only that session holds),
+//! which is real work this slice does not build.
+//!
+//! **A stale terminal handoff has no automatic recovery.** If the process holding the terminal
+//! capability exits, crashes, or simply never calls [`logout_word`], `login`'s own `terminal_held`
+//! flag stays set forever and every later login is refused `NO_TERMINAL`, indistinguishably from a
+//! session that is genuinely still in use. There is no liveness check on the holder (this tree's
+//! usual "no wait-any primitive" bound: `login` cannot watch its client and also keep serving new
+//! connections), so recovering from an abandoned session today means restarting `login` itself. See
+//! `user/src/login.rs`'s own BUGS for the same limitation stated at the component a reader meets
+//! first.
 //!
 //! # The request page
 //!
@@ -116,10 +157,22 @@ pub const CONNECT: u64 = 2;
 /// [`CONNECTED`] delegates, never on the front door.
 pub const LOGIN: u64 = 1;
 
+/// **Free the terminal** (milestone 49's terminal update): "I am done; the next login may have it."
+/// A bare word on the shared front door, like [`CONNECT`], and for the same reason [`CONNECT`]
+/// carries no page: there is nothing here a caller did not already know. Build it with
+/// [`logout_word`]. See this contract's own BUGS for what `LOGOUT` does not authenticate.
+pub const LOGOUT: u64 = 3;
+
 /// `send(REQUEST, connect_word(), 0, 0)`. The bare word [`CONNECT`] travels as; a client never calls
 /// [`place`] for this step, because there is no identity or secret to stage.
 pub fn connect_word() -> u64 {
     CONNECT << credential_proto::OP_SHIFT
+}
+
+/// `send(REQUEST, logout_word(), 0, 0)`. The bare word [`LOGOUT`] travels as, on the *front door*
+/// (unlike [`connect_word`]'s answer, this needs no private channel): see [`LOGOUT`]'s own doc.
+pub fn logout_word() -> u64 {
+    LOGOUT << credential_proto::OP_SHIFT
 }
 
 /// **A private channel is ready.** Answered on the front door's `RESULT` endpoint, followed by
@@ -128,7 +181,7 @@ pub fn connect_word() -> u64 {
 /// the actual login on. See the module docs for the two-phase exchange.
 pub const CONNECTED: u64 = 4;
 
-/// **Authenticated.** Exactly four capabilities follow on the private result endpoint; see the
+/// **Authenticated.** Exactly five capabilities follow on the private result endpoint; see the
 /// module docs for the order.
 pub const OK: u64 = 1;
 
@@ -141,9 +194,23 @@ pub const OK: u64 = 1;
 pub const DENIED: u64 = 2;
 
 /// The request word's lengths are out of range, or the front door was sent something other than
-/// [`CONNECT`]. Not an authentication outcome, and a client that gets this has learned nothing about
-/// whether the identity exists.
+/// [`CONNECT`] or [`LOGOUT`]. Not an authentication outcome, and a client that gets this has learned
+/// nothing about whether the identity exists.
 pub const MALFORMED: u64 = 3;
+
+/// **The terminal is already held by another session** (milestone 49's terminal update, the
+/// "deny cleanly" shape). Sent on the private `priv_result` endpoint, *before* the presented
+/// identity and secret are even relayed to the credential service: this is global, caller-
+/// independent state (there is exactly one physical terminal), not a fact about any identity, so
+/// checking it first costs nothing an attacker could turn into a timing oracle and saves a round
+/// trip to the credential service on every refusal. A client that gets this has learned nothing
+/// about whether its identity or secret were correct.
+pub const NO_TERMINAL: u64 = 5;
+
+/// **The terminal is free again.** Sent on the front door's `RESULT` endpoint in answer to
+/// [`LOGOUT`]. Idempotent: sent whether or not anything was actually held, since a logout that
+/// arrives when nobody holds the terminal is harmless rather than an error.
+pub const LOGGED_OUT: u64 = 6;
 
 /// **One attribution record**, sent once per successful login on the service's own audit endpoint
 /// (`user/src/login.rs`'s `AUDIT` slot), so the property DECISIONS §109 names ("a server ... logs
@@ -198,5 +265,36 @@ mod tests {
         // And it is distinguishable from LOGIN's own opcode, so a front door that only expects
         // CONNECT can refuse a stray LOGIN word rather than mistake it for one.
         assert_ne!(CONNECT, LOGIN);
+    }
+
+    #[test]
+    fn logout_word_carries_no_lengths_and_reads_back_as_logout() {
+        let w0 = logout_word();
+        assert_eq!(op(w0), LOGOUT);
+        assert_eq!(w0 & 0xffff_ffff, 0);
+        // Distinguishable from both existing front-door/private-channel opcodes, so a front door
+        // that dispatches on `op(w0)` can never confuse the three.
+        assert_ne!(LOGOUT, CONNECT);
+        assert_ne!(LOGOUT, LOGIN);
+    }
+
+    #[test]
+    fn every_wire_code_this_contract_defines_is_distinct() {
+        // The two namespaces (a request's opcode, and a private channel's OK/DENIED/... verdict)
+        // are read from different fields by different code and are allowed to share numbers; this
+        // checks each namespace is internally distinct, which is the property a dispatch `match`
+        // actually relies on.
+        let request_ops = [LOGIN, CONNECT, LOGOUT];
+        for (i, a) in request_ops.iter().enumerate() {
+            for b in &request_ops[i + 1..] {
+                assert_ne!(a, b, "two request opcodes collide");
+            }
+        }
+        let verdicts = [OK, DENIED, MALFORMED, CONNECTED, NO_TERMINAL, LOGGED_OUT];
+        for (i, a) in verdicts.iter().enumerate() {
+            for b in &verdicts[i + 1..] {
+                assert_ne!(a, b, "two verdict codes collide");
+            }
+        }
     }
 }
