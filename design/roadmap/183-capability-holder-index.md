@@ -32,7 +32,7 @@ correctness fix (a use-after-free: a reclaimed region's pages could still be nam
 run capability). A follow-up fix, `CapabilityTable::delete_matching`
 (`crates/capability/src/lib.rs:371`, doing the sweep in place instead of `get`-then-`delete` per
 slot), roughly halved it, to about +13,895 ticks (~4.4% of baseline), and that remainder was
-re-recorded as the honest, accepted baseline (`bench/fastpath-riscv64.txt`, `bench/fastpath-aarch64.txt`).
+re-recorded as the honest, accepted baseline (`bench/baseline-riscv64.txt`, `bench/baseline-aarch64.txt`).
 
 **That remainder is inside the tripwire's own ±10% margin, and `spawn_el0` is a synthetic stress
 benchmark**, not a real workload: it calls `DESTROY` in a tight, unbroken 100-iteration loop, which
@@ -40,9 +40,32 @@ no real process does. The cost that exists today is real and measured, but not c
 anything a real workload would notice. This milestone exists so the option is designed and priced
 before it is needed, not because it is needed now.
 
+**What sharpened the argument, 2026-08-28: the sweep's cost tracks `MAX_THREADS`, a constant this
+tree keeps raising.** The thread-table capacity lane (PR #566, `fix/thread-table-capacity`) raised `MAX_THREADS` from
+128 to 256 on a measured peak of 130, and `spawn_el0` moved **+340,749 ticks on aarch64 (+16.5%)**, well
+outside the tripwire, with every other row flat. Live threads did not change; only the ceiling did.
+
+Two costs live in `delete_page_frame_caps_where` and it is worth keeping them apart, because only
+the second is this milestone's:
+
+- **Visiting slots nothing occupies.** `generational_table::iter_mut` is
+  `slots.iter_mut().filter_map(...)`: it yields live entries but walks the whole backing array to
+  find them, so doubling the ceiling doubled the walk for 126 slots holding nothing. That is an
+  implementation defect independent of this milestone's architecture, and bounding the scan is the
+  fix; it is being handled on #566 rather than here.
+- **Checking every live thread's table.** This is the cost this milestone removes, and it is
+  unchanged by the above.
+
+So the regression above is **not** evidence that this milestone became urgent, and it should not be
+cited as if it were. What it does establish, which nothing did before, is that the whole-table walk
+is coupled to a number that is raised roughly whenever a milestone adds a boot service, and
+`notes/scheduler.md` records that 130 of 256 puts the same curve on course to arrive again. An index
+makes revocation's cost independent of the ceiling; every alternative pays that coupling once per
+raise.
+
 ## The starting point, not yet a decision
 
-DECISIONS §132 (2026-08-27, capability-scoped `PageFrame::REVOKE`) already built the closest thing
+DECISIONS §132 (what `PageFrame::REVOKE` owes an overlapping run) already built the closest thing
 to half of this index: `revoke::LogEntry` (`kernel/src/revoke.rs`) now carries a `PageMapSource`
 (ratified name, `kernel/src/revoke.rs`) on every recorded page mapping, answering "which capability's
 authority backs this mapping" per address space. What it does not answer, and what this milestone is
@@ -70,7 +93,7 @@ with the capability tables it indexes" as the central question, not an afterthou
 ## Prior art
 
 seL4 keeps a mapping database associating each frame mapping with the capability that made it, so
-revoking a capability revokes its own mappings and derivatives and nothing else — the same shape
+revoking a capability revokes its own mappings and derivatives and nothing else, the same shape
 DECISIONS §132 built for the per-space mapping log. This milestone is the same idea one level up:
 indexed by physical range, across the whole capability table rather than one address space's
 mappings. (Stated from established prior art already cited in §132, not re-derived here.)
