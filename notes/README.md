@@ -515,7 +515,6 @@ in the code or the conversation doesn't make sense, it belongs here.
   shared page, the fork on `std::random` (transparent, split on std's own seam, so the caller that
   promises cryptographic strength panics rather than degrading), and the INTx-sharing finding that
   made this driver look at the used ring before it blocks.
-- [The framebuffer contract](framebuffer-contract.md): milestone 29, the display ladder's first
 - [Credentials](credentials.md): milestone 56's second half: an identity and a secret you can check
   and cannot read. The tension it answers is that a secret is a bearer token while a capability is
   an unforgeable reference, so knowledge cannot be revoked and everything else here can; the answer
