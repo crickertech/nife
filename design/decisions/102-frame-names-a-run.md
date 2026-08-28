@@ -64,8 +64,14 @@ one of each.
 ### `frame::MAP`
 
 `invoke(cap, MAP, va, writable, untyped_slot)` maps the run starting at `va`. The page tables come
-from the untyped, same as today. The mapping is recorded for revocation, one record per page (the
-revocation table is per-page, not per-capability, and that doesn't change).
+from the untyped, same as today. The mapping is recorded for revocation, one record per page. ~~The
+revocation table is per-page, not per-capability, and that doesn't change.~~ **Corrected
+2026-08-27: it did change.** This section did not anticipate two capabilities naming overlapping
+runs, which §132 found is exactly what the display driver's wiring does. §132 made
+`PageFrame::REVOKE` capability-scoped: each record still exists one-per-page, but now also carries
+which capability's authority produced it, so revoking one capability no longer touches a mapping a
+different, overlapping capability made. See §132 for the full reasoning and the one imprecision it
+knowingly left (two capabilities sharing a base but not a length are still one record).
 
 The signature is additive: the `count` lives on the capability, not in the syscall arguments, so
 `MAP`'s argument shape doesn't change. A caller that holds a `Frame(phys, 475)` calls `MAP` once
