@@ -77,7 +77,7 @@ type Rendezvous = ipc::Rendezvous<Thread>;
 /// same contract callers already have for out-of-memory. The table itself is ~2 KiB of pointers.
 ///
 /// **BUGS: the aarch64 test suite's own peak demand now sits at this exact ceiling, measured
-/// twice** (this lane, 2026-08-27, milestone 169's raw_mode/rmle leak fix). Instrumenting the
+/// twice** (this lane, 2026-08-27, milestone 169's `raw_mode`/`rmle` leak fix). Instrumenting the
 /// failing spawn to call [`dump_threads`] before panicking showed **128/128 live, 121-123
 /// `Blocked`**, in two independent full runs, both stopping at the same deterministic point:
 /// `kernel::user::time_tests::a_shell_with_no_usable_clock_times_the_command_anyway`'s call into
