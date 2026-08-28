@@ -2229,24 +2229,74 @@ pub fn ipc_reply(caller: ThreadId, msg: [u64; 2]) {
     }
 }
 
-/// Delete every `PageFrame` capability naming `phys` from every thread's capability table (§13). Part of
-/// revocation: once a frame is being revoked, no holder may keep a capability that could re-map it.
-/// The caller's own cap is deleted too, which is intended: a revoke destroys all access to the page.
-pub fn delete_page_frame_caps(phys: u64) {
+/// Delete every `PageFrame` capability naming the run `(phys, count)` from every thread's capability
+/// table (§13, widened by §102). Part of revocation: once a frame (or a run of them) is being
+/// revoked, no holder may keep a capability that could re-map it. The caller's own cap is deleted
+/// too, which is intended: a revoke destroys all access to the page(s).
+///
+/// **Object equality, not overlap.** A capability matches only if it names exactly this `(phys,
+/// count)` run: a narrowed derivative (rights alone differ) still matches, because `derive` never
+/// changes the object, but a capability naming a different sub-range of the same physical memory
+/// (see DECISIONS §102, "What this does NOT decide") does not, and is left alone. `count: 1` is the
+/// pre-§102 single-page case, so every existing caller is unaffected.
+///
+/// **This is the right sweep for `PageFrame::REVOKE` and the wrong one for reclamation**, and the
+/// difference is which question is being asked. `REVOKE` names one capability's run and takes that
+/// authority back; whether it should also take an *overlapping* holder's separate capability is an
+/// open question (design/decisions/132-*.md). Reclamation asks the stronger question, "may any
+/// capability still name a page this allocator is about to hand out", and only
+/// [`delete_page_frame_caps_overlapping`] answers it.
+pub fn delete_page_frame_caps(phys: u64, count: u64) {
+    let Some(count) = core::num::NonZeroU64::new(count) else {
+        return;
+    };
+    let target = crate::cap::Object::PageFrame(phys, count);
+    delete_page_frame_caps_where(|object| *object == target);
+}
+
+/// Delete every `PageFrame` capability whose run **overlaps** `[base, base + size)`, from every
+/// thread's capability table. The reclamation sweep: `memory_region::destroy` is about to return
+/// these pages to an allocator that will hand them out again, so the question is not "who holds
+/// exactly this object" but "may anyone still name any page of this range".
+///
+/// **Overlap rather than equality, because equality was a use-after-free** (found by milestone
+/// 142's review). `PageFrame(base, 311)` is not equal to `PageFrame(base, 1)`, nor to any
+/// `PageFrame(p, 1)` for a page inside its run, so the pre-existing per-page reclamation sweep
+/// walked straight past every run capability §102 made possible: the pages came back to the
+/// allocator while a holder still held a capability naming them, and one `PageFrame::MAP` later
+/// re-mapped a page table or another process's stack read/write. That is exactly the hole
+/// `MemoryRegion::DESTROY` exists to close, reopened by the widening.
+///
+/// **It also closes an older one, at no extra cost.** [`crate::revoke::revoke_region`] used to
+/// delete capabilities one mapped page at a time, driven by the mapping log, so a capability whose
+/// page was *never mapped* was never even looked at: nothing recorded it, so nothing found it. A
+/// range sweep does not consult the log at all, so a retyped-but-unmapped frame in a destroyed
+/// region loses its capability like every other.
+///
+/// Saturating arithmetic on the run's end: a `(phys, count)` near `u64::MAX` cannot wrap its way
+/// out of the comparison, and saturating to `u64::MAX` overlaps everything, which is the safe
+/// direction for a sweep whose failure mode is missing a holder.
+pub fn delete_page_frame_caps_overlapping(base: u64, size: u64) {
+    let end = base.saturating_add(size);
+    delete_page_frame_caps_where(|object| match object {
+        crate::cap::Object::PageFrame(phys, count) => {
+            let run_end = phys.saturating_add(count.get().saturating_mul(page_frames::FRAME_SIZE));
+            *phys < end && base < run_end
+        }
+        _ => false,
+    });
+}
+
+/// The body both `PageFrame` sweeps share: walk every thread's table and delete every slot whose
+/// object satisfies `matches`. The caller's own capability goes too, which is intended in both
+/// cases: a revoke destroys all access to the page(s), including the revoker's.
+fn delete_page_frame_caps_where(matches: impl Fn(&crate::cap::Object) -> bool) {
     let mut guard = IPC_TABLES.lock();
     let Some(sched) = guard.as_mut() else {
         return;
     };
-    let target = crate::cap::Object::PageFrame(phys);
     for t in sched.threads.iter_mut() {
-        for slot in 0..t.capability_table.len() as u64 {
-            if t.capability_table
-                .get(slot)
-                .is_ok_and(|c| c.object == target)
-            {
-                let _ = t.capability_table.delete(slot);
-            }
-        }
+        t.capability_table.delete_matching(&matches);
     }
 }
 

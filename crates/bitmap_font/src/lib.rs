@@ -28,7 +28,7 @@
 //! use bitmap_font::{GLYPH_H, GLYPH_W, ink};
 //!
 //! let art: Vec<String> = (0..GLYPH_H)
-//!     .map(|y| (0..GLYPH_W).map(|x| if ink(b'F', x, y) { '#' } else { '.' }).collect())
+//!     .map(|y| (0..GLYPH_W).map(|x| if ink('F', x, y) { '#' } else { '.' }).collect())
 //!     .collect();
 //!
 //! assert_eq!(
@@ -64,29 +64,30 @@
 //! let (col, row) = (3u32, 0u32);
 //! for y in 0..GLYPH_H {
 //!     for x in 0..GLYPH_W {
-//!         assert_eq!(cell_pixel(b' ', x, y, WHITE, BLACK), BLACK);
+//!         assert_eq!(cell_pixel(' ', x, y, WHITE, BLACK), BLACK);
 //!     }
 //! }
 //!
 //! // And the grid arithmetic a fixed-pitch font buys: a pixel's cell is a division.
 //! let (px, py) = (col * GLYPH_W + 1, row * GLYPH_H + 1); // column 1 is the F's stem
 //! assert_eq!((px / GLYPH_W, py / GLYPH_H), (col, row));
-//! assert_eq!(cell_pixel(b'F', px % GLYPH_W, py % GLYPH_H, WHITE, BLACK), WHITE);
+//! assert_eq!(cell_pixel('F', px % GLYPH_W, py % GLYPH_H, WHITE, BLACK), WHITE);
 //! ```
 //!
 //! Out-of-cell coordinates are not ink rather than a panic, because the callers are pixel loops, and
-//! a byte with no glyph draws a visible box rather than nothing:
+//! a character with no glyph draws a visible box rather than nothing:
 //!
 //! ```
 //! use bitmap_font::{ink, glyph, MISSING};
 //!
-//! assert!(!ink(b'F', 7, 0)); // past the cell
-//! assert!(!ink(b'F', 0, 99));
+//! assert!(!ink('F', 7, 0)); // past the cell
+//! assert!(!ink('F', 0, 99));
 //!
-//! // Everything from 0x80 up is outside basic latin, so it draws the missing-glyph box. A reader
-//! // sees that the text is wrong instead of seeing a gap.
-//! assert_eq!(glyph(0xe9), &MISSING);
-//! assert_ne!(glyph(b'F'), &MISSING);
+//! // Everything past basic latin (0x80 up, and every non-Latin `char` since milestone 142's UTF-8
+//! // increment) draws the missing-glyph box. A reader sees that the text is wrong instead of seeing
+//! // a gap.
+//! assert_eq!(glyph('\u{e9}'), &MISSING);
+//! assert_ne!(glyph('F'), &MISSING);
 //! ```
 //!
 //! # What deliberately is NOT here
@@ -133,18 +134,25 @@ pub const GLYPH_H: u32 = 8;
 /// visible is that a wrong byte in the grid shows up as a wrong picture rather than as nothing.
 pub static MISSING: [u8; 8] = [0x3e, 0x22, 0x22, 0x22, 0x22, 0x22, 0x3e, 0x00];
 
-/// **The rows of the glyph for `byte`**, top row first, bit 0 the leftmost pixel.
+/// **The rows of the glyph for `ch`**, top row first, bit 0 the leftmost pixel.
 ///
-/// Bytes `0x00..=0x7f` come from the drawn table in [`glyphs`]; the control codes in there
-/// are blank, which is correct because a terminal never puts a control code in a cell (the VT engine
-/// consumes them). Everything from `0x80` up draws [`MISSING`].
+/// `'\u{00}'..='\u{7f}'` come from the drawn table in [`glyphs`]; the control codes in there are
+/// blank, which is correct because a terminal never puts a control code in a cell (the VT engine
+/// consumes them). Every other `char` draws [`MISSING`], including the whole of Unicode past basic
+/// latin: this font's repertoire did not grow with this signature, only its input type did.
 ///
-/// **The grid is bytes, not `char`s, and that is an honest limit**: this font covers basic latin, so
-/// a UTF-8 decoder above it would have nothing to draw for what it decoded. When there is a font
-/// with the coverage to justify one, the decoder goes in the VT engine and this signature becomes
-/// `char`. Recorded in notes/glyphs.md rather than half-built.
-pub fn glyph(byte: u8) -> &'static [u8; 8] {
-    match glyphs::BASIC.get(byte as usize) {
+/// **`char`, not `u8`, since milestone 142's UTF-8 increment.** This font still covers basic latin
+/// only, so a decoded non-ASCII `char` has nothing to draw and correctly gets [`MISSING`]; what
+/// changed is that a multi-byte UTF-8 sequence now decodes to *one* `char` and occupies *one* cell
+/// (drawn as the missing-glyph box) rather than being fed byte-by-byte and drawing a run of wrong
+/// pictures, one per byte. Recorded as the honest remaining limit in notes/glyphs.md: a real
+/// repertoire needs a real font, not a signature change.
+pub fn glyph(ch: char) -> &'static [u8; 8] {
+    let cp = ch as u32;
+    if cp >= 0x80 {
+        return &MISSING;
+    }
+    match glyphs::BASIC.get(cp as usize) {
         Some(g) => g,
         None => &MISSING,
     }
@@ -154,11 +162,11 @@ pub fn glyph(byte: u8) -> &'static [u8; 8] {
 ///
 /// Out-of-cell coordinates are not ink rather than a panic: the callers are pixel loops, and a
 /// bounds check they can rely on is cheaper than one each.
-pub fn ink(byte: u8, x: u32, y: u32) -> bool {
+pub fn ink(ch: char, x: u32, y: u32) -> bool {
     if x >= GLYPH_W || y >= GLYPH_H {
         return false;
     }
-    glyph(byte)[y as usize] >> x & 1 != 0
+    glyph(ch)[y as usize] >> x & 1 != 0
 }
 
 /// **The colour a cell shows at `(x, y)`**: `fg` where the glyph has ink, `bg` where it does not.
@@ -167,8 +175,8 @@ pub fn ink(byte: u8, x: u32, y: u32) -> bool {
 /// to paint, the kernel test calls it to predict, and the host-side scanout check calls it to grade
 /// what QEMU is actually displaying, so none of the three can be wrong in a way the others agree
 /// with.
-pub fn cell_pixel(byte: u8, x: u32, y: u32, fg: u32, bg: u32) -> u32 {
-    if ink(byte, x, y) { fg } else { bg }
+pub fn cell_pixel(ch: char, x: u32, y: u32, fg: u32, bg: u32) -> u32 {
+    if ink(ch, x, y) { fg } else { bg }
 }
 
 #[cfg(test)]
@@ -187,7 +195,7 @@ mod tests {
         let art: Vec<std::string::String> = (0..GLYPH_H)
             .map(|y| {
                 (0..GLYPH_W)
-                    .map(|x| if ink(b'F', x, y) { '#' } else { '.' })
+                    .map(|x| if ink('F', x, y) { '#' } else { '.' })
                     .collect()
             })
             .collect();
@@ -213,44 +221,48 @@ mod tests {
     /// here as a hole or a collision, and nowhere else until it was on a screen.
     #[test]
     fn every_printable_glyph_is_present_and_distinct() {
-        assert!(!glyph(b' ').iter().any(|&r| r != 0), "space must be blank",);
-        let mut seen: Vec<(u8, [u8; 8])> = Vec::new();
+        assert!(!glyph(' ').iter().any(|&r| r != 0), "space must be blank",);
+        let mut seen: Vec<(char, [u8; 8])> = Vec::new();
         for byte in 0x21..=0x7eu8 {
-            let g = *glyph(byte);
+            let ch = byte as char;
+            let g = *glyph(ch);
             assert!(
                 g.iter().any(|&r| r != 0),
-                "{:?} ({byte:#04x}) has no glyph",
-                byte as char,
+                "{ch:?} ({byte:#04x}) has no glyph",
             );
             if let Some((other, _)) = seen.iter().find(|(_, o)| *o == g) {
                 panic!(
-                    "{:?} and {:?} have the same glyph: the table is shifted or duplicated",
-                    *other as char, byte as char,
+                    "{other:?} and {ch:?} have the same glyph: the table is shifted or duplicated",
                 );
             }
-            seen.push((byte, g));
+            seen.push((ch, g));
         }
         assert_eq!(seen.len(), 0x7e - 0x21 + 1);
     }
 
     /// A byte with no picture draws the missing-glyph box, and that box is nobody's letter. Total,
-    /// so a mojibake bug is visible rather than blank.
+    /// so a mojibake bug is visible rather than blank. Also total past ASCII: a non-Latin `char` (the
+    /// grid's cells since milestone 142's UTF-8 increment) draws the same box rather than panicking.
     #[test]
-    fn an_unmapped_byte_draws_a_box_that_is_not_a_letter() {
-        assert_eq!(glyph(0x80), &MISSING);
-        assert_eq!(glyph(0xff), &MISSING);
+    fn an_unmapped_char_draws_a_box_that_is_not_a_letter() {
+        assert_eq!(glyph('\u{80}'), &MISSING);
+        assert_eq!(glyph('\u{ff}'), &MISSING);
+        assert_eq!(glyph('\u{1f600}'), &MISSING, "well past basic latin");
         for byte in 0x20..=0x7eu8 {
+            let ch = byte as char;
             assert_ne!(
-                *glyph(byte),
+                *glyph(ch),
                 MISSING,
-                "{:?} is indistinguishable from the missing glyph",
-                byte as char,
+                "{ch:?} is indistinguishable from the missing glyph",
             );
         }
         // Hollow: a filled box would be a solid block, which is a legitimate thing a terminal draws.
-        assert!(!ink(0x80, 3, 3), "the missing glyph should be hollow");
-        assert!(ink(0x80, 1, 1), "the missing glyph should have a left edge");
-        assert!(ink(0x80, 5, 1), "and a right edge");
+        assert!(!ink('\u{80}', 3, 3), "the missing glyph should be hollow");
+        assert!(
+            ink('\u{80}', 1, 1),
+            "the missing glyph should have a left edge"
+        );
+        assert!(ink('\u{80}', 5, 1), "and a right edge");
     }
 
     /// Control codes are blank. The VT engine consumes them, so one reaching a cell is a bug; if it
@@ -259,7 +271,7 @@ mod tests {
     fn control_codes_are_blank() {
         for byte in (0x00..0x20u8).chain(core::iter::once(0x7f)) {
             assert!(
-                !glyph(byte).iter().any(|&r| r != 0),
+                !glyph(byte as char).iter().any(|&r| r != 0),
                 "{byte:#04x} is a control code with ink",
             );
         }
@@ -274,8 +286,8 @@ mod tests {
         let mut lit = 0;
         for y in 0..GLYPH_H {
             for x in 0..GLYPH_W {
-                let got = cell_pixel(b'A', x, y, FG, BG);
-                assert_eq!(got, if ink(b'A', x, y) { FG } else { BG });
+                let got = cell_pixel('A', x, y, FG, BG);
+                assert_eq!(got, if ink('A', x, y) { FG } else { BG });
                 lit += u32::from(got == FG);
             }
         }
@@ -284,10 +296,10 @@ mod tests {
             (8..cell - 8).contains(&lit),
             "'A' lit {lit} of {cell} pixels, which is a blank or a solid block",
         );
-        assert_eq!(cell_pixel(b'A', GLYPH_W, 0, FG, BG), BG, "outside the cell");
-        assert_eq!(cell_pixel(b'A', 0, GLYPH_H, FG, BG), BG);
+        assert_eq!(cell_pixel('A', GLYPH_W, 0, FG, BG), BG, "outside the cell");
+        assert_eq!(cell_pixel('A', 0, GLYPH_H, FG, BG), BG);
         assert_eq!(
-            cell_pixel(b' ', 3, 3, FG, BG),
+            cell_pixel(' ', 3, 3, FG, BG),
             BG,
             "a space must show no ink at all",
         );
@@ -304,8 +316,8 @@ mod tests {
     fn every_glyph_keeps_the_gutter_columns_clear() {
         let spilling: Vec<char> = (0x20..=0x7eu8)
             .chain(core::iter::once(0x80))
-            .filter(|&b| (0..GLYPH_H).any(|y| ink(b, 0, y) || ink(b, GLYPH_W - 1, y)))
             .map(|b| b as char)
+            .filter(|&c| (0..GLYPH_H).any(|y| ink(c, 0, y) || ink(c, GLYPH_W - 1, y)))
             .collect();
         assert_eq!(
             spilling,
@@ -315,7 +327,7 @@ mod tests {
         // And the five that remain are really used: a font that had quietly become four columns
         // wide would pass the check above.
         assert!(
-            (0x20..=0x7eu8).any(|b| (0..GLYPH_H).any(|y| ink(b, GLYPH_W - 2, y))),
+            (0x20..=0x7eu8).any(|b| (0..GLYPH_H).any(|y| ink(b as char, GLYPH_W - 2, y))),
             "no glyph uses the fifth ink column",
         );
     }
@@ -328,19 +340,18 @@ mod tests {
     #[test]
     fn the_letters_share_a_baseline_and_a_left_edge() {
         for byte in (b'a'..=b'z').chain(b'A'..=b'Z') {
-            let left = (0..GLYPH_W).find(|&x| (0..GLYPH_H).any(|y| ink(byte, x, y)));
+            let ch = byte as char;
+            let left = (0..GLYPH_W).find(|&x| (0..GLYPH_H).any(|y| ink(ch, x, y)));
             // Column 1 for a letter with a body, column 2 for the narrow ones (`i j l t f`),
             // which are centred in the cell the way a fixed-pitch font centres them. Anything
             // further right is a letter that has drifted.
             assert!(
                 matches!(left, Some(1 | 2)),
-                "{:?} starts at {left:?}, not in the first two ink columns",
-                byte as char,
+                "{ch:?} starts at {left:?}, not in the first two ink columns",
             );
             assert!(
-                (0..GLYPH_W).any(|x| ink(byte, x, 6)),
-                "{:?} has nothing on the baseline (row 6)",
-                byte as char,
+                (0..GLYPH_W).any(|x| ink(ch, x, 6)),
+                "{ch:?} has nothing on the baseline (row 6)",
             );
         }
         // Exactly the glyphs that belong below the baseline, and each by one row. More would be a
@@ -348,8 +359,8 @@ mod tests {
         // underscore, which *is* row 7, and `|` is deliberately full height so it cannot be read
         // as an `I` or an `l`.
         let descending: Vec<char> = (0x21..=0x7eu8)
-            .filter(|&b| (0..GLYPH_W).any(|x| ink(b, x, GLYPH_H - 1)))
             .map(|b| b as char)
+            .filter(|&c| (0..GLYPH_W).any(|x| ink(c, x, GLYPH_H - 1)))
             .collect();
         assert_eq!(descending, [',', ';', '_', 'g', 'j', 'p', 'q', 'y', '|']);
     }

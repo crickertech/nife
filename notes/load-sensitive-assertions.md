@@ -1576,3 +1576,33 @@ block moves to BUILT.
   eliminating the failure mode outright, and both are compatible with a true rate near zero. Only
   more runs, or a different host, would narrow it further, and nothing in this milestone's own
   acceptance standard asks for that: 45 was the number the first run set and this run matched it.
+
+## The fifth round, 2026-08-27: caretaker teardown joins the family, observed rather than rescoped
+
+### `caretaker_teardown_reclaims_a_full_session_worth_of_memory` (`user/login_tests.rs`): fails at roughly 2x oversubscription, passes quiet, passes CI
+
+Found by milestone 142's bench-regression lane while it was gating an unrelated change, and
+recorded here as an observation with its evidence; nothing has been rescoped and the mechanism is
+a hypothesis, not a verdict.
+
+**The observation, three failing runs and two passing ones on the same tree.** With the aarch64
+suite sharing this host with a second lane's full suite (the harness's own load line read 14.5 to
+16.2 one-minute average on 8 cores, 1.9 to 2x oversubscribed), the test failed its
+`F_TEARDOWN_OK` assertion ("login N's logout ticket did not destroy the caretaker's construction
+region", `left: 0, right: 16`) on login 6, login 6 again, and, at a clean checkout of the branch
+head with no local changes at all, login 8. The same clean-head code passed the whole test in
+CI's own QEMU leg the same day, and passed locally, twice, the moment the competing suite
+finished (the passing run's load line: back under 1x by the QEMU phase). The failing iteration
+moving between 6 and 8 is the tell it shares with the rest of this file's family: the code path
+is fixed, the schedule is not.
+
+**The hypothesis, unverified.** `MemoryRegion::DESTROY` refuses a region that still holds a live
+thread, and `login_test_client`'s teardown role has a bounded patience for that refusal; a
+session-worth of threads takes longer to finish exiting on a 2x-oversubscribed host than that
+patience allows. That is the same shape as the reaper-count and address-space-frames verdicts
+above, which is why it is recorded in this note rather than in the test's own file. Whoever picks
+this up should start from those two sections' dispositions.
+
+**The three network checks fail in the same runs and recover in the same runs** (`inbound`,
+`multicast`, `smb`: connection refused or reset for the whole window), which is worth knowing so
+the cluster is read as one host-load event and not as four independent regressions.
