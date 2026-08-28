@@ -73,6 +73,15 @@ in the code or the conversation doesn't make sense, it belongs here.
   and an honest BUGS entry about the record that had to be re-derived because it lived in a pull
   request body.
 
+- [Every place that enumerates architectures, and whether the list is complete](architecture-list-sweep.md):
+  a one-time read of every list, match, `case`, CI step, TOML array, and per-architecture file set
+  in the tree, after `script/stack-frame-check` was found gating two of three architectures ten days
+  after the third became a test target. Ten silent gaps, nine recorded gaps that are working as
+  designed, and the split between them, which is the part worth reading. Also why everything that
+  stayed complete is a Rust `match` or a file whose absence a build notices, and everything that went
+  stale is a string in a shell script; and a priced proposal for deriving the one list the tree
+  already has in `rust-toolchain.toml`.
+
 - [Handing a session over](session-handoff.md): what a fresh context needs to pick this up:
   the standing autonomy grant, the merge and lane discipline, which gates are cheap and which
   are slow, and the traps that have cost real time more than once (leaked QEMU, fixed-iteration
