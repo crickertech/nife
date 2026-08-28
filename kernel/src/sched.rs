@@ -2536,20 +2536,23 @@ fn reap_region_objects(base: u64, end: u64) -> Result<(), ()> {
             .map(|(name, _)| name);
         let Some(name) = doomed else { break };
 
-        // Drain the rendezvous's waiters. `rendezvous_of` returns a `'static` reference, so it does not
-        // hold the `sched` borrow across the wakes below.
-        let mut waiters = [0u64; MAX_THREADS];
-        let mut nw = 0;
+        // Drain the rendezvous's waiters, **waking each one inside the drain rather than listing
+        // them into a `[u64; MAX_THREADS]` first**, which is the same rule the paragraph above
+        // states and this line did not follow: that array was 1 KiB at 128 threads and grows with
+        // the ceiling, on the frame this function's own comment calls the deepest in the kernel.
+        //
+        // The wake is safe here for the reason the collected version relied on one line later:
+        // `Rendezvous::drain_waiters` pops an entry off its queue *before* calling back, so the
+        // thread's one intrusive link is already free and `wake` may push it onto a run queue.
+        // `rendezvous_of` returns a `'static` reference, so the rendezvous does not hold the
+        // `sched` borrow the callback needs.
         if let Some(rendezvous) = rendezvous_of(sched, name) {
             rendezvous.drain_waiters(|w| {
                 // SAFETY: wait-queue entries are live Blocked threads; the id revalidates it.
-                waiters[nw] = unsafe { (*w.as_ptr()).id };
-                nw += 1;
+                let tid = unsafe { (*w.as_ptr()).id };
+                set_ipc_aborted(sched, tid);
+                wake(sched, tid);
             });
-        }
-        for &tid in &waiters[..nw] {
-            set_ipc_aborted(sched, tid);
-            wake(sched, tid); // the link is free (drained), so wake queues it onto a run queue
         }
         sched.rendezvous_table.remove(name);
     }
@@ -2619,17 +2622,22 @@ fn reap_region_objects(base: u64, end: u64) -> Result<(), ()> {
     }
     // --- Removal phase: every object in the region is reapable. ---
 
-    // Threads: collect before removing (`remove` mutates the table). Both Embryo and Finished go.
-    let mut doomed = [0u64; MAX_THREADS];
-    let mut n = 0;
-    for t in sched.threads.iter_mut() {
-        let phys = page_of(t);
-        if base <= phys && phys < end {
-            doomed[n] = t.id;
-            n += 1;
-        }
-    }
-    for &tid in &doomed[..n] {
+    // Threads: `remove` mutates the table, so this cannot remove while iterating. **Rescan for one
+    // at a time**, exactly as the rendezvous sweep above does and for the same reason it gives: the
+    // obvious `[u64; MAX_THREADS]` list is a scratch array on the kernel's deepest frame that grows
+    // every time the thread ceiling does. Each pass removes one resident, so the set shrinks and
+    // this terminates; the cost is O(live threads) per removal on a teardown path. Both Embryo and
+    // Finished go.
+    loop {
+        let doomed = sched
+            .threads
+            .iter_mut()
+            .find(|t| {
+                let phys = page_of(t);
+                base <= phys && phys < end
+            })
+            .map(|t| t.id);
+        let Some(tid) = doomed else { break };
         // **Unlink a corpse from its supervision rendezvous first.** A supervised thread that died
         // with nobody in `RECV` is parked on that rendezvous's *sender* queue holding its death
         // message (DECISIONS §26 implementation note 2), and that rendezvous is the supervisor's, so
