@@ -1610,9 +1610,9 @@ the cluster is read as one host-load event and not as four independent regressio
 ## The disposition, 2026-08-28: the teardown wait is a yield count, and now it is a clock
 
 The section above ends by saying nothing has been rescoped and the mechanism is a hypothesis rather
-than a verdict. This is the verdict. It is also the family's **first member in a user program**,
-which matters more than "one more assertion" would suggest: every fix on this page reaches for
-`smp.rs`'s `wait_for` or `testing::TickBudget`, and a process can call neither.
+than a verdict. This is the verdict. It is also the first one this page has had to write about a
+**user program**, which matters more than "one more assertion" would suggest: every fix above
+reaches for `smp.rs`'s `wait_for` or `testing::TickBudget`, and a process can call neither.
 
 **A correction this lane owes on its own account, because it got the record wrong in the other
 direction.** It was briefed from the section above and went looking for it here, found the newest
@@ -1621,9 +1621,10 @@ the observation had never been written down anywhere. That was false by about an
 the observation was on `milestone/142-terminal-size`, and that branch merged
 (`ac41c827`, in PR #545) while this lane was running its loaded runs. Both halves are worth keeping.
 The claim was checked against `main` and was right when it was checked, which is the honest part;
-and it was still wrong, because **a branch is not a record** and this file says so about itself
-three sections up ("nobody reads branches", AGENTS.md). A lane cannot see another lane's branch, so
-"I checked and it is not in the tree" means "not yet", and the merge is what decides.
+and it was still wrong, because **a branch is not a record**, which is AGENTS.md's own "nobody
+reads branches" arriving from the reader's side rather than the writer's. A lane cannot see another
+lane's branch, so "I checked and it is not in the tree" means "not yet", and the merge is what
+decides.
 
 The one trace that was on `main` the whole time is in a place a reader meets by accident:
 `kernel/src/testing.rs`'s `SUITE_PAGE_FRAME_BUDGET` takes its number from CI rather than from this
