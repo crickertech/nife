@@ -257,6 +257,60 @@ What is still **not** proven, to be exact about it: that a physical panel would 
 scanout is the last thing we can observe, and on real hardware there is a display controller past it.
 That is a silicon question (notes/target-hardware.md), not a QEMU one.
 
+### BUGS
+
+- **RESOLVED 2026-08-26, in the same lane, a few hours after it was first written below.** The
+  paragraph that follows was written mid-investigation and its conclusion was wrong: there is no
+  QEMU-side resize bug. Root cause was the guest driver, not the host: `user/src/display.rs`,
+  `user/src/painter.rs` and `user/src/display_terminal.rs` still looped over per-page capability
+  slots (`SLOT + k` for `k` in `0..N`) that increment one's move to a single run capability
+  (DECISIONS §102) had already removed. The second iteration always failed with `NoSuchSlot`, and
+  the driver called `die()` and exited *before* sending the "UP" report anything downstream was
+  waiting on. Whatever waited on that report hung, the hang looked exactly like a stuck
+  `screendump`, and every diagnostic below (the qtree check, `edid=off`, an explicit
+  `xres=1280,yres=720`) was chasing a symptom that had nothing to do with the display device: the
+  guest kernel test suite had genuinely hung and exited on the watchdog, and `display_tests::`
+  never appeared in the log at all, which the xtask summary's static pass/fail prose did not make
+  obvious. After replacing the three per-page loops with single `map_page_frame` calls, the full
+  suite passed clean on both architectures, including the host-side scanout referee reading back
+  1280x720 correctly. **The investigation below is kept verbatim as the record of a false lead**,
+  because it is a real account of what was checked and found (the qtree state, the two-witness
+  digest agreement, the ruled-out fixes), and because the project's own convention is to correct
+  the record rather than delete the wrong turn. Read every claim below that a QEMU resize bug
+  exists as superseded by this paragraph.
+
+- **The host-side scanout check does not currently confirm a grown scanout, on aarch64, under QEMU
+  11.0.2** (found 2026-08-26, milestone 142 increment 1, growing the surface from 128x64 to
+  1280x720 per DECISIONS §102). `screendump` consistently returns a 640x480 PPM for the whole
+  suite, never the requested 1280x720, even after the guest driver has completed `SET_SCANOUT`
+  many times across several real-device tests. This is isolated to the *host's* view, not the
+  guest's:
+  - The driver never reports failure: `RESOURCE_CREATE_2D`, `RESOURCE_ATTACH_BACKING` and
+    `SET_SCANOUT` all return their success codes (none of `E_CREATE_2D`/`E_ATTACH_BACKING`/
+    `E_SET_SCANOUT` fire), and `GET_DISPLAY_INFO` reports room for the requested size before any
+    of this runs.
+  - `info qtree` on a live monitor confirms the device model itself holds `xres = 1280`,
+    `yres = 720` (matching an explicit `-device virtio-gpu-pci,...,xres=1280,yres=720`, tried as a
+    fix and reverted: it changed nothing, since 1280x800 was already the device's own default and
+    evidently was never the constraint).
+  - The kernel's own two independent witnesses (the client's digest after the flush, the driver's
+    digest after the device reports the transfer complete, both against a value the kernel computed
+    itself) agree the correct pixels reached the correct frames. **The pixels are right; QEMU's own
+    console surface, the thing `screendump` reads, does not appear to resize with them.**
+  - `edid=off` (tried as a second fix, on the theory that EDID negotiation might bound the console
+    to a preferred mode) also changed nothing.
+  - Not root-caused further: this is QEMU-internal display-refresh behavior (`screendump` calling
+    into `dpy_gfx_replace_surface`/`qemu_console_resize`, or not), not something the guest driver's
+    protocol correctness can influence from where this was investigated.
+  - **The practical effect**: `cargo xtask`'s scanout referee (the third-party check that a real
+    device, not just our own frames, shows the picture) cannot currently confirm the resized
+    scanout, so it is graded on the guest's own two-witness proof alone for this milestone's
+    increment. That proof is real and independent of the driver grading itself, but it is one rung
+    short of the three-party proof this contract otherwise gets, until this is root-caused (a
+    different QEMU version is the first thing worth trying) or a different host-side probe replaces
+    `screendump`.
+  - **This paragraph is wrong; see the RESOLVED entry above it.**
+
 ## What rung two did with this contract (milestone 33)
 
 Written back here on 2026-07-29, because a contract's real test is what happened when the next thing
