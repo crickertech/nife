@@ -728,7 +728,14 @@ fn caretaker_teardown_reclaims_a_full_session_worth_of_memory() {
         assert_eq!(
             r[1] & ls::F_TEARDOWN_OK,
             ls::F_TEARDOWN_OK,
-            "login {i}'s logout ticket did not destroy the caretaker's construction region",
+            "login {i}'s logout ticket did not destroy the caretaker's construction region; the \
+             client waited {} us for the refusal to clear, against its own ceiling of {} us. A \
+             number near that ceiling means the caretaker never died, which is a kernel bug and \
+             not this host being slow; a number far under it means the client stopped waiting \
+             early, which is the defect that ceiling replaced. See \
+             user/src/login_test_client.rs's `destroy_with_retry`.",
+            r[2],
+            ls::DESTROY_WAIT_MICROS,
         );
         assert_eq!(
             r[1] & ls::F_DEAD_AFTER_TEARDOWN,

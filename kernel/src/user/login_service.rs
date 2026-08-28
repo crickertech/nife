@@ -63,6 +63,17 @@ pub const F_DEAD_AFTER_TEARDOWN: u64 = 1 << 5;
 pub const F_BUDGET_TEARDOWN_OK: u64 = 1 << 6;
 pub const F_BUDGET_DEAD_AFTER_TEARDOWN: u64 = 1 << 7;
 
+/// **[`ROLE_LOGOUT`]'s third report word is microseconds, not an identity hint**: how long that
+/// role's `MemoryRegion::DESTROY` on the caretaker region waited for §16's armed kill to land.
+/// Every other role that fills the third word puts a [`login_proto::identity_hint`] there; this one
+/// has no identity to report and a number a red run needs. Must match
+/// `user/src/login_test_client.rs`'s `waited_micros`.
+///
+/// This is that client's own ceiling in the same units, so a failure message can say how close to
+/// it the wait came, which is the difference between "the host was slow" and "the caretaker never
+/// died". Must match its `DESTROY_WAIT_SECS`.
+pub const DESTROY_WAIT_MICROS: u64 = 5 * 1_000_000;
+
 /// A running login service and the endpoints that reach it.
 pub struct Wiring {
     /// A client's login request, `WRITE`.
