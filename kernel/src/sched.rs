@@ -2296,14 +2296,7 @@ fn delete_page_frame_caps_where(matches: impl Fn(&crate::cap::Object) -> bool) {
         return;
     };
     for t in sched.threads.iter_mut() {
-        for slot in 0..t.capability_table.len() as u64 {
-            if t.capability_table
-                .get(slot)
-                .is_ok_and(|c| matches(&c.object))
-            {
-                let _ = t.capability_table.delete(slot);
-            }
-        }
+        t.capability_table.delete_matching(&matches);
     }
 }
 
