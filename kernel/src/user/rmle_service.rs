@@ -1,6 +1,7 @@
 use super::*;
 use crate::cap::{Rights, rendezvous_cap};
 use crate::sched::{self, RendezvousId};
+use crate::user::holding::Holding;
 
 /// The VAs `user/src/rmle.rs` hardcodes. Must match that file.
 const TERM_OUT_VA: u64 = 0x0000_0000_0080_0000;
@@ -52,7 +53,16 @@ pub struct Wiring {
 /// Spawn `rmle` against `dir_name` (a directory already in the test fixture tree, granted with
 /// [`filesystem_proto::dir::ALL`]) and `file_name` (the file inside it `rmle` edits, created if
 /// absent). `None` if there is no RedoxFS disk attached to this run.
-pub fn start(dir_name: &'static str, file_name: &str) -> Option<Wiring> {
+///
+/// **Returns a [`Holding`] alongside the wiring, and a caller must release it.** The fake console
+/// and `line_editor` underneath `rmle`'s terminal both block forever, exactly
+/// [`raw_mode_service::start`]'s own case and for the same reason (see its doc comment): neither
+/// exits on its own, so `TERM`/`CONREQ`/`CONREP` are minted from a region the `Holding` carries
+/// rather than from `sched::create_rendezvous`'s kernel-global pool, and reclaiming that region is
+/// what actually wakes them. `rmle` itself is not in the `Holding`: the test drives it to a clean
+/// exit over `^Q` and reads its own report, so by the time a caller would release this holding
+/// `rmle`'s thread is already gone.
+pub fn start(dir_name: &'static str, file_name: &str) -> Option<(Wiring, Holding)> {
     let image = program("rmle").expect("no rmle program in the initrd archive");
 
     // The terminal half: identical to raw_mode_service::start, duplicated rather than reused
@@ -61,9 +71,12 @@ pub fn start(dir_name: &'static str, file_name: &str) -> Option<Wiring> {
     // way fs_service::narrow_dir already is split from fs_service::start_granted_dir, and one
     // wiring function is enough plumbing for a milestone that is not itself about wiring.
     let term_img = program("line_editor").expect("no line_editor program in the initrd archive");
-    let term = sched::create_rendezvous();
-    let conreq = sched::create_rendezvous();
-    let conrep = sched::create_rendezvous();
+    // Four pages for three endpoints, one page each and one spare: `virtio_service`'s own
+    // `wire_net_server` carves the same shape for the same reason (see `raw_mode_service::start`).
+    let ep_region = crate::memory_region::create(4).expect("no endpoint region for rmle_service");
+    let term = sched::create_rendezvous_from(ep_region).expect("no TERM endpoint");
+    let conreq = sched::create_rendezvous_from(ep_region).expect("no CONREQ endpoint");
+    let conrep = sched::create_rendezvous_from(ep_region).expect("no CONREP endpoint");
     let console_phys = crate::memory::alloc()
         .expect("no frame for the fake console")
         .addr();
@@ -79,14 +92,14 @@ pub fn start(dir_name: &'static str, file_name: &str) -> Option<Wiring> {
             core::ptr::write_bytes(mmu::phys_to_virt(phys) as *mut u8, 0, FRAME_SIZE as usize);
         }
     }
-    sched::spawn(move || {
+    let console_tid = sched::spawn(move || {
         loop {
             sched::ipc_recv(conreq);
             sched::ipc_send(conrep, [0, 0, 0]);
         }
     })
     .expect("could not spawn the fake console");
-    sched::spawn(move || {
+    let line_editor_tid = sched::spawn(move || {
         run(
             term_img,
             Spawn {
@@ -171,11 +184,28 @@ pub fn start(dir_name: &'static str, file_name: &str) -> Option<Wiring> {
     })
     .expect("could not spawn rmle");
 
-    Some(Wiring {
-        term,
-        term_out_phys,
-        dir: dir_ep,
-        file_shared,
-        report,
-    })
+    let mut held = Holding::new();
+    held.add_thread(console_tid);
+    held.add_thread(line_editor_tid);
+    held.add_region(ep_region);
+
+    Some((
+        Wiring {
+            term,
+            term_out_phys,
+            dir: dir_ep,
+            file_shared,
+            report,
+        },
+        held,
+    ))
 }
+
+// BUGS: the console/line_editor terminal half is spawned before the two fallible calls below it
+// (`fs_service::fs_server_image()?`, `fs_service::narrow_dir(...)?`). If either ever refuses (no
+// RedoxFS disk attached to this run, the same condition `NO_FS_SERVER` skips a test for), this
+// function returns `None` with the terminal's two threads already spawned and no `Holding` to
+// release them: a real leak on that path, unreachable in any run where `fs_server_image` succeeds
+// (every run this fix was tested against). Not fixed here because it is orthogonal to the leak
+// this lane found and fixed (the *reachable* every-run case), and `raw_mode_service::start` has no
+// equivalent fallible step to compare it against.

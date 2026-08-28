@@ -78,7 +78,7 @@ fn read_raw(term: sched::RendezvousId) -> (usize, [u8; 8]) {
 /// an echo when there is one.
 #[test_case]
 fn raw_mode_suppresses_echo_and_delivers_bytes_unbuffered() {
-    let w = svc::start();
+    let (w, held) = svc::start();
 
     rawmode(w.term, true);
     fill(w.console_phys, SENTINEL, 8);
@@ -111,6 +111,7 @@ fn raw_mode_suppresses_echo_and_delivers_bytes_unbuffered() {
         b"hi",
         "canonical mode must still echo: the sentinel methodology itself is broken if this fails",
     );
+    held.release_or_fail("raw_mode_service");
 }
 
 /// **Raw mode delivers control bytes literally; it does not interpret them as editing commands.**
@@ -121,7 +122,7 @@ fn raw_mode_suppresses_echo_and_delivers_bytes_unbuffered() {
 /// (real kilo binds its own quit key, not SIGINT, because termios raw mode disables `ISIG`).
 #[test_case]
 fn raw_mode_delivers_control_bytes_literally() {
-    let w = svc::start();
+    let (w, held) = svc::start();
     rawmode(w.term, true);
     fill(w.console_phys, SENTINEL, 8);
 
@@ -161,6 +162,7 @@ fn raw_mode_delivers_control_bytes_literally() {
         b"\x1b[D",
         "the escape sequence must arrive byte for byte, unparsed"
     );
+    held.release_or_fail("raw_mode_service");
 }
 
 /// **The two input models refuse each other.** `OP_READLINE` while raw mode is on, and
@@ -169,7 +171,7 @@ fn raw_mode_delivers_control_bytes_literally() {
 /// fails fast rather than hanging on a reply that will never come.
 #[test_case]
 fn the_two_input_models_refuse_each_other() {
-    let w = svc::start();
+    let (w, held) = svc::start();
 
     let readraw_w0 = line_editor::proto::req(line_editor::proto::OP_READRAW, 0);
     let r = sched::ipc_call(w.term, [readraw_w0, 0]);
@@ -187,6 +189,7 @@ fn the_two_input_models_refuse_each_other() {
         line_editor::proto::BAD_REQUEST,
         "OP_READLINE while raw mode is on must be refused",
     );
+    held.release_or_fail("raw_mode_service");
 }
 
 /// **A read parked before any byte arrives is still answered correctly once one does.**
@@ -201,7 +204,7 @@ fn the_two_input_models_refuse_each_other() {
 /// cover.
 #[test_case]
 fn a_raw_read_parked_before_data_arrives_still_gets_it() {
-    let w = svc::start();
+    let (w, held) = svc::start();
     rawmode(w.term, true);
 
     let report = sched::create_rendezvous();
@@ -229,6 +232,7 @@ fn a_raw_read_parked_before_data_arrives_still_gets_it() {
         0x42,
         "the parked reader got the wrong byte"
     );
+    held.release_or_fail("raw_mode_service");
 }
 
 /// **Switching mode abandons the line in progress, in both directions**, so a session can never
@@ -239,7 +243,7 @@ fn a_raw_read_parked_before_data_arrives_still_gets_it() {
 /// with an `OP_READRAW` parked must fail that one the same way.
 #[test_case]
 fn switching_mode_abandons_a_parked_read_of_the_other_kind() {
-    let w = svc::start();
+    let (w, held) = svc::start();
 
     // A parked OP_READLINE, abandoned by entering raw mode.
     let report = sched::create_rendezvous();
@@ -281,6 +285,7 @@ fn switching_mode_abandons_a_parked_read_of_the_other_kind() {
         line_editor::proto::BAD_REQUEST,
         "leaving raw mode must fail a parked OP_READRAW rather than hang it",
     );
+    held.release_or_fail("raw_mode_service");
 }
 
 /// **`OP_WRITE` is not raw-mode-gated, and `OP_READLINE` works normally once raw mode is off
@@ -290,7 +295,7 @@ fn switching_mode_abandons_a_parked_read_of_the_other_kind() {
 /// program written before this milestone.
 #[test_case]
 fn op_write_ignores_raw_mode_and_op_readline_survives_a_round_trip() {
-    let w = svc::start();
+    let (w, held) = svc::start();
 
     rawmode(w.term, true);
     let text = b"kilo redraws through OP_WRITE while raw mode is on";
@@ -335,4 +340,5 @@ fn op_write_ignores_raw_mode_and_op_readline_survives_a_round_trip() {
         &got, b"hi",
         "OP_READLINE did not deliver the line line_editor assembled"
     );
+    held.release_or_fail("raw_mode_service");
 }

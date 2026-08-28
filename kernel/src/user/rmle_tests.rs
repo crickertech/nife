@@ -99,7 +99,7 @@ fn read_file_back(dir: sched::RendezvousId, file_shared: u64, name: &[u8]) -> Op
 /// split were broken, the saved file would not read `"hello\nrmle"`.
 #[test_case]
 fn rmle_edits_and_saves_a_real_file() {
-    let Some(w) = rmle_service::start(tree::SUB, "rmle_edit.txt") else {
+    let Some((w, held)) = rmle_service::start(tree::SUB, "rmle_edit.txt") else {
         crate::testing::skip!(fs_service::NO_FS_SERVER);
     };
 
@@ -139,6 +139,7 @@ fn rmle_edits_and_saves_a_real_file() {
         "saved content is wrong: {:?}",
         &got[..10],
     );
+    held.release_or_fail("rmle_service");
 }
 
 /// **Quitting a dirty document needs a second `^Q`, and refusing the first one does not save.**
@@ -147,7 +148,7 @@ fn rmle_edits_and_saves_a_real_file() {
 /// content" would be consistent with `rmle` saving on every keystroke rather than only on `^S`.
 #[test_case]
 fn rmle_refuses_to_quit_dirty_without_confirmation() {
-    let Some(w) = rmle_service::start(tree::SUB, "rmle_dirty.txt") else {
+    let Some((w, held)) = rmle_service::start(tree::SUB, "rmle_dirty.txt") else {
         crate::testing::skip!(fs_service::NO_FS_SERVER);
     };
     assert!(
@@ -182,4 +183,5 @@ fn rmle_refuses_to_quit_dirty_without_confirmation() {
         got.iter().all(|&b| b == 0),
         "quitting without saving must not have written anything",
     );
+    held.release_or_fail("rmle_service");
 }

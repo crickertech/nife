@@ -1,6 +1,7 @@
 use super::*;
 use crate::cap::{Rights, rendezvous_cap};
 use crate::sched::{self, RendezvousId};
+use crate::user::holding::Holding;
 
 /// The VAs `user/src/line_editor.rs` hardcodes for its console and application pages. Must match
 /// that file's `CONOUT_VA`, `APP_OUT_VA`, `APP_IN_VA`.
@@ -38,12 +39,28 @@ pub struct Wiring {
 /// that hop is safe with exactly one client). It never inspects the shared page; a test checks
 /// that directly through [`Wiring::console_phys`], which is the point: a fake that graded its own
 /// homework would prove nothing about echo suppression.
-pub fn start() -> Wiring {
+///
+/// **Returns a [`Holding`] alongside the wiring, and a caller must release it.** Both the fake
+/// console and `line_editor` block forever (the console in `RECV`, `line_editor` waiting on its
+/// next request): neither ever exits on its own, exactly `virtio_service`'s own `wire_net_server`
+/// shape (see its doc comment on `ep_region`). So `TERM`/`CONREQ`/`CONREP` are minted from a
+/// region the `Holding` also carries, not from `sched::create_rendezvous`'s kernel-global pool:
+/// reclaiming that region is what actually wakes a `Blocked` thread (`kill_thread`'s armed flag is
+/// only spent in `schedule()`, which a thread parked in `RECV` never reaches). Found the hard way
+/// on 2026-08-27: six tests calling this and none releasing it left twelve threads permanently
+/// `Blocked` at 128/128 in the whole-suite thread table, so the thirteenth spawn anywhere in the
+/// suite (an unrelated FS client, `fs_service.rs`) failed with `could not spawn`. See
+/// `notes/frames.md` and this module's own `BUGS`.
+pub fn start() -> (Wiring, Holding) {
     let image = program("line_editor").expect("no line_editor program in the initrd archive");
 
-    let term = sched::create_rendezvous();
-    let conreq = sched::create_rendezvous();
-    let conrep = sched::create_rendezvous();
+    // Four pages for three endpoints, one page each and one spare: `virtio_service`'s own
+    // `wire_net_server` carves the same shape for the same reason.
+    let ep_region =
+        crate::memory_region::create(4).expect("no endpoint region for raw_mode_service");
+    let term = sched::create_rendezvous_from(ep_region).expect("no TERM endpoint");
+    let conreq = sched::create_rendezvous_from(ep_region).expect("no CONREQ endpoint");
+    let conrep = sched::create_rendezvous_from(ep_region).expect("no CONREP endpoint");
 
     let console_phys = crate::memory::alloc()
         .expect("no frame for the fake console's shared page")
@@ -62,7 +79,7 @@ pub fn start() -> Wiring {
         }
     }
 
-    sched::spawn(move || {
+    let console_tid = sched::spawn(move || {
         loop {
             sched::ipc_recv(conreq);
             sched::ipc_send(conrep, [0, 0, 0]);
@@ -70,7 +87,7 @@ pub fn start() -> Wiring {
     })
     .expect("could not spawn the fake console");
 
-    sched::spawn(move || {
+    let line_editor_tid = sched::spawn(move || {
         run(
             image,
             Spawn {
@@ -104,10 +121,27 @@ pub fn start() -> Wiring {
     })
     .expect("could not spawn line_editor");
 
-    Wiring {
-        term,
-        console_phys,
-        app_out_phys,
-        app_in_phys,
-    }
+    let mut held = Holding::new();
+    held.add_thread(console_tid);
+    held.add_thread(line_editor_tid);
+    held.add_region(ep_region);
+
+    (
+        Wiring {
+            term,
+            console_phys,
+            app_out_phys,
+            app_in_phys,
+        },
+        held,
+    )
 }
+
+// BUGS: `console_phys`, `app_out_phys` and `app_in_phys` come from `crate::memory::alloc`
+// directly, not from a region this `Holding` knows about, so `release` does not reclaim them; a
+// released call still costs three page frames for the life of the boot. Same shape and same
+// judgment as `virtio_service`'s DMA page ("twenty page frames is not worth the hazard"): three
+// pages times six raw_mode_tests plus two rmle_tests call sites is eight tests' worth, already
+// inside `SUITE_PAGE_FRAME_BUDGET`'s headroom (`[that test kept N frames]` on this suite shows 31
+// or 33, not the ~112 that leaving the *threads* unreclaimed would have cost per call). Worth
+// fixing only if a future caller adds enough call sites to matter.
