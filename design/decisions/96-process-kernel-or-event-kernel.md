@@ -55,10 +55,33 @@ more expensive while nobody is looking. Which is precisely the state this tree w
 **1. Memory. Dead as an argument here, and it was the paper's headline.**
 
 Warton measured the event kernel's per-thread memory at a quarter of the process kernel's. Our
-exposure is bounded by construction: `MAX_THREADS` is 128, so kernel stacks total **3.00 MiB, static**.
-An event kernel would spend `MAX_CPUS` (8) stacks, 192 KiB, plus larger TCBs for the continuations.
-The saving is **2.81 MiB, or 0.069% of a 4 GiB board.** The original result came from resource-starved
-embedded systems. We are not one, and this argument should not be recycled as though we were.
+exposure is bounded by construction: `MAX_THREADS` is 256, so kernel stacks (6 pages, 24 KiB each)
+total **6.00 MiB, static**. An event kernel would spend `MAX_CPUS` (8) stacks, 192 KiB, plus larger
+TCBs for the continuations. The saving is **5.81 MiB**.
+
+**Against what, and this is the part the first draft got wrong.** That figure was originally written
+as "2.81 MiB, or 0.069% of a 4 GiB board", and the percentage was doing the persuading. **No board's
+memory size is recorded anywhere in this tree**, so 4 GiB was an assumption rather than a
+measurement, and it flattered the argument by two orders of magnitude. The number that is actually
+measured is the machine this kernel runs on: all three QEMU runners use `-m 256M`. So:
+
+| denominator | at the old 128 | at 256 |
+|---|---|---|
+| a 4 GiB board (assumed, no board recorded) | 0.069% | 0.14% |
+| **256 MiB, what the suite actually runs on** | **1.10%** | **2.27%** |
+
+**The conclusion survives, and it is worth being precise about why, because the honest denominator
+removes the easy version of the argument.** 2.27% is not a rounding error and should not be waved
+away as one. It is still not a reason to change kernel models: Warton's result came from
+resource-starved embedded systems, ours is a deliberate emulator setting rather than a hardware
+limit, and 5.81 MiB buys nothing if the performance case (input 3, the live one) does not hold. The
+memory argument is dead here because it is **not decisive**, not because it is **too small to see**.
+
+**A larger reservation sits behind this one and is worth naming**, since a reader who checks the
+stacks will find it: `kmem::KERNEL_OBJ_PAGES` is 2048 pages, and its carve is eager
+(`memory_region::create` takes the whole thing on the first kernel-object need and never returns
+it). That is **8.00 MiB, 3.1% of the 256 MiB machine**, and the kernel stacks above are a subset of
+it rather than additional to it.
 
 **2. Shrinking the stacks instead. Closed off, and checked rather than assumed.**
 

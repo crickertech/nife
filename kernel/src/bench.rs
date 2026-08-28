@@ -663,11 +663,17 @@ fn real_single_hart_or_skip(name: &str) -> bool {
 /// Pair counts for [`ipc_thread_scaling`] (E1): 1 to `SCALE_MAX_PAIRS` pairs, doubling.
 ///
 /// **The roadmap's own words say "N from 2 to 128"; this sweeps up to 2*`SCALE_MAX_PAIRS` = 96
-/// threads, not 128.** `sched::MAX_THREADS` is 128 for the WHOLE system (DECISIONS §96), so 128
-/// *pairs* (256 threads) cannot exist at all, and even 64 pairs (128 threads) would leave no
-/// headroom for the bench boot's own thread. Read "N" as the roadmap's own prediction text does,
-/// "distinct threads cycling through IPC" rather than pairs ("somewhere between 16 and 32
-/// threads"): 96 threads is 3x past the predicted knee with comfortable headroom below the cap.
+/// threads, not 128.** When this was written `sched::MAX_THREADS` was 128 for the WHOLE system
+/// (DECISIONS §96), so 128 *pairs* (256 threads) could not exist at all, and even 64 pairs (128
+/// threads) would have left no headroom for the bench boot's own thread. Read "N" as the
+/// roadmap's own prediction text does, "distinct threads cycling through IPC" rather than pairs
+/// ("somewhere between 16 and 32 threads"): 96 threads is 3x past the predicted knee.
+///
+/// **`MAX_THREADS` is 256 as of 2026-08-27 and this sweep did not move with it, deliberately.**
+/// The cap stopped being the binding reason, but the sweep is a published measurement: changing
+/// where it stops would make every future run incomparable with every recorded one, for a point
+/// well past the knee this experiment exists to find. The number to change if the knee ever moves
+/// is this one, and it should be changed for that reason rather than because more room appeared.
 #[cfg(target_arch = "aarch64")]
 const SCALE_MAX_PAIRS: usize = 48;
 #[cfg(target_arch = "aarch64")]

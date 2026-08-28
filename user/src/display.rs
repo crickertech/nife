@@ -197,6 +197,12 @@ fn mw(off: u64, v: u32) {
 /// Order our stores to the rings and buffers against the device's reads, and against the kernel's
 /// notify. `dmb ish` on aarch64, one full `fence` on RISC-V, the same conservative pair the other
 /// drivers and `arch::dma_wmb` use.
+// BUGS: two arms, three architectures, no fallback. On x86_64 both `cfg`s compile out and this
+// body is empty, so nothing constrains the compiler from sinking a descriptor store past the index
+// store. This program builds for `x86_64-unknown-none` (`cargo xtask initrd-x86`) and passes
+// `script/lint`'s x86_64 user pass, because an empty function is not a warning. Same hole in
+// `crates/virtio`, `user/src/kbd.rs` and `user/src/net_transport.rs`; see
+// notes/architecture-list-sweep.md, finding 9.
 fn barrier() {
     // SAFETY: a barrier has no operands and cannot be unsound.
     #[cfg(target_arch = "aarch64")]

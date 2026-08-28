@@ -30,6 +30,10 @@ target_toolchain="$1"
 if [ -n "$target_toolchain" ]; then
     echo "==> Checking $target_toolchain (not the pin)"
     rustup toolchain install "$target_toolchain" --profile minimal --component rust-src,llvm-tools
+    # BUGS: two of three targets. `x86_64-unknown-none` is missing here, and unlike
+    # script/bootstrap's copy of this list, `rust-toolchain.toml`'s `targets` array does not cover
+    # for it: this installs against a DIFFERENT toolchain than the pin, which is the whole point of
+    # the script. See notes/architecture-list-sweep.md.
     rustup target add --toolchain "$target_toolchain" \
         aarch64-unknown-none-softfloat riscv64imac-unknown-none-elf
     RUSTUP_TOOLCHAIN="$target_toolchain"
@@ -41,6 +45,11 @@ fi
 # The bare-metal build. `--exclude xtask` is load-bearing: xtask drives cargo and QEMU from the host
 # and uses `std` freely, so asking for it on a target without a standard library fails with
 # `can't find crate for std`. It is not part of what ships; it is what builds what ships.
+# BUGS: ONE architecture, where three are supported and two are installed four lines above. A
+# nightly that breaks only the riscv64 or x86_64 build is invisible to the toolchain-drift
+# workflow this script exists to make honest, which is the same class of blind spot its own header
+# describes: a command that no developer runs has no witness. See
+# notes/architecture-list-sweep.md.
 echo "==> Bare-metal build (aarch64)"
 cargo build --workspace --exclude xtask --target aarch64-unknown-none-softfloat
 

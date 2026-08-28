@@ -85,6 +85,26 @@ pub struct Table<T, const N: usize> {
     gens: [u32; N],
     /// Live-entry count, maintained so `len` is O(1).
     live: usize,
+    /// **One past the highest live slot**, and the reason a whole-table sweep costs what the table
+    /// holds rather than what it could hold.
+    ///
+    /// Every slot at or above this index is `None`, which is the invariant that makes bounding a
+    /// walk by it identical to walking all `N`. `insert_with` is first-fit, so occupancy packs
+    /// toward slot 0 and this stays close to [`len`](Self::len).
+    ///
+    /// It exists because the cost of a sweep was tracking `N`. `iter_mut` and friends yield only
+    /// live entries but *visited* every slot to filter them, so `sched::delete_page_frame_caps_where`
+    /// (which walks every thread's capability table on every `MemoryRegion::DESTROY`) got more
+    /// expensive when `sched::MAX_THREADS` was raised, even though the number of live threads had
+    /// not moved. Measured on the `spawn_el0` icount benchmark, doubling that ceiling from 128 to
+    /// 256 cost **+141,359 ticks** through this path alone, for slots nothing occupied. Worse, it
+    /// was a ratchet: every future raise would have paid again. See notes/benchmarks.md.
+    ///
+    /// It shrinks as well as grows, so the property is "tracks live occupancy" rather than the
+    /// weaker "tracks peak occupancy". The shrink walks down over slots that are already empty and
+    /// stops at the first live one, which is amortised O(1): a step down can only happen once per
+    /// slot that was filled and freed.
+    top: usize,
 }
 
 impl<T, const N: usize> Table<T, N> {
@@ -96,6 +116,7 @@ impl<T, const N: usize> Table<T, N> {
             slots: [const { None }; N],
             gens: [0; N],
             live: 0,
+            top: 0,
         }
     }
 
@@ -114,6 +135,10 @@ impl<T, const N: usize> Table<T, N> {
         let name = Self::name(slot, self.gens[slot]);
         self.slots[slot] = Some(f(name));
         self.live += 1;
+        // First-fit, so the free slot found is at most `top`, and this is the only way `top` grows.
+        if slot >= self.top {
+            self.top = slot + 1;
+        }
         Some(name)
     }
 
@@ -151,6 +176,24 @@ impl<T, const N: usize> Table<T, N> {
         let value = self.slots[slot].take()?;
         self.gens[slot] = self.gens[slot].wrapping_add(1);
         self.live -= 1;
+        // Removing anything below the top leaves a hole, which costs a walk nothing to skip.
+        // Removing the top one means the bound can come down, past however many holes are under it.
+        if slot + 1 == self.top {
+            // **Bounded by `N` rather than by `while`**, which is not style: CBMC cannot see that
+            // `top <= N` from the field alone, so a `while` here unwinds without limit and the
+            // Kani harness below never finishes. A `for` over the array's own length gives the
+            // prover the bound the type already guarantees, and the `break` means the runtime cost
+            // is unchanged (it stops at the first live slot, and can only step over a slot that
+            // was filled and freed, so it is amortised O(1)).
+            let mut top = self.top;
+            for _ in 0..N {
+                if top == 0 || self.slots[top - 1].is_some() {
+                    break;
+                }
+                top -= 1;
+            }
+            self.top = top;
+        }
         Some(value)
     }
 
@@ -168,13 +211,14 @@ impl<T, const N: usize> Table<T, N> {
     /// Every live entry, in slot order. For whole-table sweeps (revocation walks every capability table);
     /// nothing on a hot path iterates.
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
-        self.slots.iter_mut().filter_map(|s| s.as_mut())
+        let top = self.top;
+        self.slots[..top].iter_mut().filter_map(|s| s.as_mut())
     }
 
     /// The slot index of every live entry, in slot order; each index appears at most once. The
     /// pool-backed kernel table iterates its parallel storage with this.
     pub fn live_slots(&self) -> impl Iterator<Item = usize> + '_ {
-        self.slots
+        self.slots[..self.top]
             .iter()
             .enumerate()
             .filter_map(|(i, s)| s.as_ref().map(|_| i))
@@ -184,7 +228,7 @@ impl<T, const N: usize> Table<T, N> {
     /// storage (the kernel's page-resident TCB table stores a `*mut Thread` per name), this is
     /// how the caller reaches each without a second lookup.
     pub fn values(&self) -> impl Iterator<Item = &T> + '_ {
-        self.slots.iter().filter_map(|s| s.as_ref())
+        self.slots[..self.top].iter().filter_map(|s| s.as_ref())
     }
 
     /// Every live entry with its current name, in slot order. For sweeps that must *remove* what
@@ -233,7 +277,7 @@ impl<T, const N: usize> Table<T, N> {
     /// assert_eq!(t.iter_from(99).count(), 0);
     /// ```
     pub fn iter_from(&self, from: usize) -> impl Iterator<Item = (usize, u64, &T)> + '_ {
-        self.slots
+        self.slots[..self.top]
             .iter()
             .enumerate()
             .skip(from)
@@ -305,6 +349,44 @@ mod verification {
         let probe: u64 = kani::any();
         if t.get(probe).is_some() {
             assert_eq!(Some(probe), minted);
+        }
+    }
+
+    /// **The occupancy bound never hides a live entry.** The walks are bounded by `top` rather
+    /// than by `N`, which is sound only while every slot at or above `top` is empty. Fill a table,
+    /// then remove an arbitrary subset (all eight combinations, including the ones that leave a
+    /// hole under a live entry and the one that empties the table), and every walk must still
+    /// report exactly as many entries as `len` claims. A bound that had come down too far would
+    /// yield fewer, and the old unbounded walk could not go wrong this way, so this proof is new
+    /// with the bound.
+    ///
+    /// Three slots and a subset rather than a nondeterministic sequence of operations: the first
+    /// draft interleaved arbitrary inserts and removes and did not finish, which is a cost CI pays
+    /// on every run (`script/verify` is already the merge queue's long pole). This covers the same
+    /// cases the bound can get wrong.
+    #[kani::proof]
+    fn a_bounded_walk_yields_every_live_entry() {
+        let mut t: Table<u8, 3> = Table::new();
+        let names = [
+            t.insert_with(|_| 1).unwrap(),
+            t.insert_with(|_| 2).unwrap(),
+            t.insert_with(|_| 3).unwrap(),
+        ];
+
+        let drop_it: [bool; 3] = [kani::any(), kani::any(), kani::any()];
+        for (name, drop_it) in names.iter().zip(drop_it) {
+            if drop_it {
+                t.remove(*name);
+            }
+        }
+
+        assert_eq!(t.values().count(), t.len());
+        assert_eq!(t.live_slots().count(), t.len());
+        assert_eq!(t.iter_from(0).count(), t.len());
+
+        // And each survivor is still reachable by name, so the walk and the lookup agree.
+        for (name, dropped) in names.iter().zip(drop_it) {
+            assert_eq!(t.get(*name).is_some(), !dropped);
         }
     }
 }
@@ -427,6 +509,51 @@ mod tests {
         assert!(!t.is_empty());
         t.remove(a);
         assert!(t.is_empty(), "removing the last entry must empty the table");
+    }
+
+    /// **A hole below the bound is skipped, and the bound still reaches what is above it.** The
+    /// case the occupancy bound could get wrong: remove from the middle and the walk must still
+    /// find the entry in the higher slot, because `top` may only come down over slots that are
+    /// empty.
+    #[test]
+    fn a_hole_below_the_bound_does_not_truncate_the_walk() {
+        let mut t: Table<u32, 8> = Table::new();
+        let a = t.insert_with(|_| 10).unwrap();
+        let b = t.insert_with(|_| 20).unwrap();
+        let c = t.insert_with(|_| 30).unwrap();
+
+        t.remove(b);
+        assert_eq!(t.values().copied().collect::<Vec<_>>(), vec![10, 30]);
+        assert_eq!(t.live_slots().collect::<Vec<_>>(), vec![0, 2]);
+        assert_eq!(t.iter().map(|(n, _)| n).collect::<Vec<_>>(), vec![a, c]);
+
+        // Removing the top one lets the bound come down past the hole; what is left is still found.
+        t.remove(c);
+        assert_eq!(t.values().copied().collect::<Vec<_>>(), vec![10]);
+
+        // And it grows again on the next insert, which first-fit puts back in the hole.
+        let d = t.insert_with(|_| 40).unwrap();
+        assert_eq!(t.values().copied().collect::<Vec<_>>(), vec![10, 40]);
+        assert_eq!(t.get(d), Some(&40));
+        assert_eq!(
+            t.iter_from(1).count(),
+            1,
+            "a resumed sweep still reaches the refilled slot"
+        );
+    }
+
+    /// **An emptied table walks nothing at all**, which is the bound at its floor: `top` came all
+    /// the way back to zero rather than staying at the high-water mark.
+    #[test]
+    fn an_emptied_table_costs_a_walk_nothing() {
+        let mut t: Table<u32, 8> = Table::new();
+        let names: Vec<_> = (0..5).map(|i| t.insert_with(|_| i).unwrap()).collect();
+        for n in &names {
+            t.remove(*n);
+        }
+        assert_eq!(t.len(), 0);
+        assert_eq!(t.values().count(), 0);
+        assert_eq!(t.iter_from(0).count(), 0);
     }
 
     /// Out-of-range slots and wrong generations are both just `None`.

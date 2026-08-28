@@ -180,6 +180,12 @@ fn mw(off: u64, v: u32) {
     virtio_write_reg(VIRTIO, off, v as u64);
 }
 
+// BUGS: two arms, three architectures, no fallback. On x86_64 both `cfg`s compile out and this
+// body is empty, so the very reordering the comment below names is unconstrained on that ISA: the
+// machine half is covered by TSO, the compiler half by nothing. Builds and lints clean there
+// anyway, because an empty function is not a warning. Same hole in `crates/virtio`,
+// `user/src/display.rs` and `user/src/net_transport.rs`; see notes/architecture-list-sweep.md,
+// finding 9.
 fn barrier() {
     // The device reads what we wrote, so a store the compiler or the machine reordered past the
     // index that advertises it is a descriptor the device may act on before it is finished.
