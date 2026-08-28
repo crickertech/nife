@@ -154,6 +154,16 @@ fn mw(off: u64, v: u32) {
 /// notify. On QEMU DMA is coherent, but the barrier is still needed so neither the compiler nor
 /// the CPU reorders "publish the descriptor" past "tell the device." `dmb ish` on aarch64; on
 /// RISC-V one full `fence`, the same conservative choice the kernel's `arch::dma_wmb` makes.
+// BUGS: **two arms, three architectures, and no fallback.** On x86_64 both `cfg`s compile out and
+// this function's body is empty, so it emits nothing at all: not the machine barrier (which TSO
+// makes unnecessary) and not a compiler barrier (which nothing makes unnecessary, since the
+// compiler is free to sink a descriptor store past the index store that advertises it). It
+// compiles clean under `script/lint`'s x86_64 pass because an empty function is not a warning,
+// which is precisely the failure that pass's own comment says it exists to catch. Latent rather
+// than live today: `scripts/qemu-runner-x86_64.sh` attaches no virtio device, so no x86_64 boot
+// reaches a ring. Closing it means deciding what this is on x86_64 (a `compiler_fence` is the
+// likely answer) and is a rule 4 memory-ordering call rather than a sweep's. Three other copies of
+// this function have the identical hole; see notes/architecture-list-sweep.md, finding 9.
 fn barrier() {
     // SAFETY: a barrier has no operands and cannot be unsound.
     #[cfg(target_arch = "aarch64")]

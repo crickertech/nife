@@ -391,6 +391,11 @@ jobs:
         if: steps.scope.outputs.needed == 'true'
       - run: script/bench --riscv --check
         if: steps.scope.outputs.needed == 'true'
+      # BUGS: two legs, three architectures. `cargo xtask bench --x86 --check` exists and
+      # `bench/baseline-x86_64.txt` is committed, so the third tripwire is built and recorded and
+      # simply nothing pulls it: an x86_64 icount regression passes CI silently. Adding the step is
+      # one line and may fail the first time it runs against real drift, so it wants its own commit
+      # rather than riding along with something else. See notes/architecture-list-sweep.md.
 
       # The instruction-count instrument (milestone 78), here rather than in its own job because it
       # wants exactly what this job already has: the pinned QEMU, the same cache, and the same "a

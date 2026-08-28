@@ -35,6 +35,10 @@ echo "==> Bumping the pin: $old -> $new"
 # the tree has been touched.
 rustup toolchain install "$new" --profile minimal \
     --component rust-src,llvm-tools,rustfmt,clippy
+# BUGS: two of three targets. `x86_64-unknown-none` is missing, and `rust-toolchain.toml`'s
+# `targets` array does not cover for it here, because this installs against the NEW toolchain
+# before the pin has been raised to it. So the first x86_64 build after a bump is the one that
+# discovers the target was never added. See notes/architecture-list-sweep.md.
 rustup target add --toolchain "$new" \
     aarch64-unknown-none-softfloat riscv64imac-unknown-none-elf
 

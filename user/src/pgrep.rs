@@ -162,6 +162,16 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
     // Nothing here should panic: `ps::collect` is total for every reader and `pgrep::select` only
     // reads the rows it returned. A fault the kernel turns into a kill is the honest signal if one
     // ever does.
+    //
+    // BUGS: **two arms, three architectures, and the signal is lost on the third.** This program
+    // builds for `x86_64-unknown-none` (`cargo xtask initrd-x86`), where both `cfg`s compile out
+    // and control reaches the spin loop below with no trap taken. So a panic here does not become
+    // a kill on x86_64, it becomes a thread burning CPU forever, which is the opposite of the
+    // "honest signal" the paragraph above promises. It compiles clean because a `cfg` that matches
+    // nothing is not a warning. `pgrep` is the only program in `user/` with a hand-written panic
+    // handler of this shape; every other one goes through `crates/user_rt`, whose arms cover all
+    // three ISAs, so the fix is most likely to delete this and use that. See
+    // notes/architecture-list-sweep.md, finding 10.
     #[cfg(target_arch = "aarch64")]
     // SAFETY: `brk` traps; the kernel turns a trap from userspace into a kill.
     unsafe {
