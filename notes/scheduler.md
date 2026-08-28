@@ -338,6 +338,27 @@ It is still worth its own milestone: 101 of `MAX_THREADS = 128` is 79% of a hard
 failure, and the leak police only polices *runnable* leaks, so a blocked leak is invisible to it by
 construction. Nothing today would warn before the suite hit the wall.
 
+**Update, 2026-08-27: it hit the wall, and the warning now exists.** The paragraph above was
+written as a prediction; the aarch64 suite reached 128 of 128 with 121-123 `Blocked` and had spawns
+refused with no diagnostic, exactly as described. `sched::MAX_THREADS` is 256 now, on a measured
+peak of 130 (aarch64), 129 (riscv64) and 57 (x86_64), and that constant's own doc comment carries
+the ledger and the four coupled constants that moved with it. Two things closed the gap this
+section names:
+
+- **The occupancy is reported rather than invisible.** `sched::PEAK_THREADS` is a whole-boot
+  high-water mark and `kernel::testing` prints it in the closing summary beside the frame ledger
+  (`threads: N live at the peak, of M the image allows`). A blocked leak is still invisible to
+  `thread_leak_police`, which is a different question and correctly scoped to runnable spinners,
+  but nobody has to instrument the kernel to see the table filling any more. It reports and does
+  not gate, and `report_thread_peak`'s doc says why: what fills this table is what earlier tests
+  deliberately left running, so a gate would fire on every milestone that adds a service.
+- **The refusal says so.** `pipeline_service::start_with`'s second spawn had a bare `?`, which is
+  why the wall presented as "the test did not get a shell" rather than as a full thread table.
+
+The honest remainder: 130 of 256 is 51%, so the same growth curve reaches the same place again,
+and the answer then should be an account of what the boot keeps alive rather than another
+doubling. `notes/frames.md`'s "held" list is where that account would start.
+
 ### The general lesson
 
 **A call that returns `Err` may still have done something.** `reclaim_region(r).is_err()` reads like

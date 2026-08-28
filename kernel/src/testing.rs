@@ -488,6 +488,31 @@ fn report_page_frame_ledger() {
     }
 }
 
+/// **How close the boot came to the thread table's ceiling**, printed beside the frame ledger.
+///
+/// The same posture as that ledger and deliberately one rung weaker: it reports and does not gate.
+/// A frame budget can be gated because a suite that keeps more frames than it accounts for has a
+/// leak, and the number the gate compares against is the tree's own claim about what is permanent.
+/// A thread peak is not that. What fills this table is the services earlier tests started and
+/// meant to keep (`notes/frames.md`'s "held" list), so a peak that climbs is usually a boot doing
+/// more rather than a boot doing something wrong, and a gate here would fire on every milestone
+/// that adds a service. `sched::thread_leak_police` is the check that does catch the wrong kind of
+/// growth, and it is a different question (runnable spinners, not occupancy).
+///
+/// What this buys instead is that nobody has to instrument the kernel to learn the number again.
+/// It was invisible until a spawn was refused, and then the investigation cost two full runs. See
+/// `sched::MAX_THREADS`, whose doc comment reads these lines the way the frame budget's reads the
+/// `[that test kept N frames]` ones.
+fn report_thread_peak() {
+    let peak = crate::sched::peak_thread_count();
+    let max = crate::sched::MAX_THREADS;
+    println!(
+        "threads: {peak} live at the peak, of {max} the image allows ({} spare). \
+         See sched::MAX_THREADS.",
+        max.saturating_sub(peak)
+    );
+}
+
 /// Report a test's duration once it reaches this many seconds. Below it, silence: most tests are
 /// milliseconds and a duration on every line would bury the signal. Above it, the number is what makes
 /// a [`SLOW_TESTS`] entry an evidence-based declaration rather than a guess: until this existed, the
@@ -856,6 +881,7 @@ pub fn runner(tests: &[&dyn Testable]) {
     // the runner itself is compiled in every build; the instrument only exists in test
     crate::stack::report_high_water();
     report_page_frame_ledger();
+    report_thread_peak();
 
     println!();
     // "passed" counts only the tests that actually ran to an "ok"; a skipped test (skip!(), no

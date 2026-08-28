@@ -474,6 +474,11 @@ them). Both exhaustions surfaced the same way: an unrelated test's spawn failing
 aarch64 suite with a message that ORed two causes. The refusal sites in `kmem::page` and the shell
 wiring now print which budget said no.
 
+The carve moved again on 2026-08-27, to **2048 pages**, when `sched::MAX_THREADS` doubled to 256:
+seven pages a live thread (six of stack, one of TCB) is 1792, endpoints are about 60, and the rest
+is slack. The machine did not have to grow with it this time, because 256 MiB already had the room.
+See `kmem::KERNEL_OBJ_PAGES` for the arithmetic and `sched::MAX_THREADS` for why the ceiling moved.
+
 **The repeated fault address is a signature, not a coincidence.** Every guard-page fault in this
 family lands on the guard page's base (aarch64) or base and base+8 (riscv64), across days and
 across fixes, and that is arithmetic rather than evidence of one recurring caller: `sp` is 16-byte

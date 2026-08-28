@@ -138,6 +138,11 @@ pub type Cap = capability::Cap<Object>;
 // KiB a thread for 512 slots would now be 16 KiB. The refusal does not change (the decision's
 // argument was never really about the bytes), but the number a future reader quotes should be the
 // one the compiler agrees with. Update these two and re-read §102 when they fire.
+//
+// **The other half of §102's arithmetic also moved**: `MAX_THREADS` was raised from 128 to 256 on
+// 2026-08-27 (that constant's own doc comment carries the measurement), so the whole-machine
+// figures §102 quoted are doubled again on top of the widening above. Same conclusion, same
+// reason, larger numbers.
 const _: () = assert!(core::mem::size_of::<Object>() == 24);
 const _: () = assert!(core::mem::size_of::<Cap>() == 32);
 

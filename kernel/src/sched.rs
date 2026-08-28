@@ -74,8 +74,104 @@ type Rendezvous = ipc::Rendezvous<Thread>;
 
 /// The most threads that can be alive at once, whole machine (milestone 14 phase A). A documented
 /// limit of the image rather than a heap that can be exhausted: spawn past it fails cleanly, the
-/// same contract callers already have for out-of-memory. The table itself is ~2 KiB of pointers.
-pub(crate) const MAX_THREADS: usize = 128;
+/// same contract callers already have for out-of-memory.
+///
+/// # The ledger, and why 256
+///
+/// **128 until 2026-08-27, and the suite had been sitting on the ceiling for some time without
+/// anybody being able to see it.** Milestone 169's leak-fix lane found it the hard way: with its
+/// `raw_mode`/`rmle` leak fixed, the aarch64 run reached further than any run before it and
+/// stopped dead at `time_tests::a_shell_with_no_usable_clock_times_the_command_anyway`, with
+/// **128 of 128 live and 121-123 `Blocked`**, twice, at the same point both times. Not a leak:
+/// `thread_leak_police` (no runnable spinner left over) passed both runs. What is alive is the
+/// accumulated cost of this tree's many individually-reasonable services that are
+/// **intentionally permanent for the boot** (`notes/frames.md`'s "held" list: the FS servers,
+/// two credential store instances, `login`, both `net_stack` transports, SMB, mDNS, `display`,
+/// `compositor`, and more since), each accepted on its own merits over many milestones and never
+/// once priced against this shared ceiling collectively.
+///
+/// **What the measurement then showed, and it is worse than the report that prompted it.**
+/// [`PEAK_THREADS`] and `kernel::testing`'s closing `threads:` line were built for this raise, so
+/// the number is read rather than guessed. On `main`, at 128, the aarch64 suite reports a peak of
+/// **exactly 128 with zero spare and still passes**: it is not that the ceiling is about to bite,
+/// it is that the ceiling is already refusing spawns and the refusals were being swallowed. Raise
+/// the ceiling and nothing else, and the same suite says what it actually wanted:
+///
+/// | architecture | peak live threads | with the ceiling at 256 |
+/// |---|---|---|
+/// | aarch64 | **130** | 126 spare |
+/// | riscv64 | **129** | 127 spare |
+/// | `x86_64` | **57** | 199 spare (its userspace suite is smaller: 192 run, 56 skipped) |
+///
+/// So the tightest real demand is 130, and 256 is **1.97x it**. Headroom rather than a fitted
+/// number, deliberately, because every milestone that adds a boot service spends some of this and
+/// the failure mode is an unrelated test refusing a spawn far from the cause. What that headroom
+/// costs is measured below rather than asserted, which is the only reason it can be called cheap.
+///
+/// # What it costs, per slot, measured
+///
+/// Nothing here scales with the ceiling *except* through these, and each was checked at 256:
+///
+/// - **The boot stack, 20 bytes a slot.** [`init`] installs the tables, and an unoptimised build
+///   carries the thread table on its frame. That frame was 43,952 bytes at 128 (the deepest in the
+///   kernel) and the suite's boot-stack high-water was 54,336 of 65,504, 82%. Installing
+///   [`EMPTY_TABLES`] instead of building a `Threads` local and moving it in cut the frame to
+///   15,696 at 128 and made the slope 20 bytes rather than ~80; at 256 the high-water is **48,760
+///   (74%)**, lower than before the raise. `stack::report_high_water`'s gate is 61,440.
+/// - **`kmem::KERNEL_OBJ_PAGES`, 7 pages a *live* thread** (`thread::STACK_PAGES` = 6, plus the
+///   TCB page), which is why that carve went 1024 -> 2048. Spent per live thread, not per slot,
+///   so unused headroom costs only that constant's own `[u64; KERNEL_OBJ_PAGES]` free stack.
+/// - **`ps::MAX_ROWS`**, which `kernel::user::survey_tests` const-asserts is `>= MAX_THREADS`,
+///   because a `ps` holding the widest grant must have room for every row. It sizes stack-resident
+///   `[Row; MAX_ROWS]` arrays in `ps`, `watch` and `pgrep`; measured with `-Z emit-stack-sizes` at
+///   256, `_start` is 4,240 bytes in `ps`, 4,320 in `pgrep` and 8,464 in `watch` (which holds
+///   two), against the 12 pages (49,152 bytes) `system_initializer::CHILD_STACK_PAGES` gives every
+///   child. 17% at the worst.
+/// - **`revoke::MAX_SPACES`** and **`thread::FreeAddressSpace`**, both of which are now written as
+///   arithmetic on this constant rather than as a literal that has to be remembered. The second
+///   was a bare `[u64; 128]` with a `debug_assert` for a comment; it could have drifted silently.
+/// - **Two `[u64; MAX_THREADS]` scratch arrays in [`reap_region_objects`]**, which took that frame
+///   to 4,624 bytes at 256, over `script/stack-frame-check`'s 4,096-byte guard-page ceiling. Both
+///   are gone: the function's own comment already prescribed rescanning rather than collecting,
+///   for exactly this reason, and these two were the sites it had not been applied to.
+///
+/// # BUGS
+///
+/// - **`design/decisions/96-process-kernel-or-event-kernel.md` prices the confinement claim off
+///   the old number** ("`MAX_THREADS` is 128, so kernel stacks total 3.00 MiB, static"). The shape
+///   of that argument survives (the bound is still static and still the product of two constants)
+///   but the figure does not, and a decision record is not a lane's to edit. Whoever ratifies this
+///   raise owes §96 a corrected sentence.
+/// - **The peak is a whole-boot high-water, not a per-test charge.** It cannot say *which* test
+///   pushed the table up, only that something did, and for this table that is the honest shape:
+///   what fills it is what earlier tests deliberately left running. See
+///   `kernel::testing`'s `report_thread_peak`, which explains why it reports and does not gate.
+pub(crate) const MAX_THREADS: usize = 256;
+
+/// **The most threads that were ever alive at once on this boot.**
+///
+/// The instrument that makes [`MAX_THREADS`] a measured number rather than a felt one, and the
+/// reason a future lane does not have to repeat the two instrumented runs that found the
+/// ceiling in the first place. It answers the only question a capacity limit poses, "how close
+/// is the suite to it", which the refusal itself cannot: by the time a spawn is refused the
+/// table is full and every earlier number is gone.
+///
+/// A high-water mark rather than a ledger, deliberately. Attributing threads to tests the way
+/// `kernel::testing`'s frame ledger attributes frames would need a per-test reading, and the
+/// answer would be misleading anyway: what fills this table is not one test's spend but the
+/// services every earlier test left running on purpose (`notes/frames.md`'s "held" list). One
+/// number for the whole boot is the honest shape.
+///
+/// Updated on the two inserts that can grow the table, under `IPC_TABLES`, so it never races;
+/// `fetch_max` rather than a compare-store because the write is cheap and this is not a hot path
+/// (a spawn already costs a page).
+static PEAK_THREADS: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
+
+/// The high-water mark [`PEAK_THREADS`] holds. Printed by the test suite's closing summary.
+#[cfg_attr(not(test), allow(dead_code))] // the closing summary is the only reader
+pub fn peak_thread_count() -> usize {
+    PEAK_THREADS.load(Ordering::Relaxed)
+}
 
 /// The thread table: generational names (`crates/slots`, notes/generational-names.md) over
 /// **page-resident** TCBs (milestone 19c.2). Each `Thread` lives at the start of one page from
@@ -196,6 +292,7 @@ impl Threads {
             self.table.remove(name);
             return None;
         }
+        self.note_peak();
         Some(name)
     }
 
@@ -203,12 +300,16 @@ impl Threads {
     /// own `thread_control_block_kmem`, which `remove` reads to decide whether the page returns to `kmem`.
     fn insert_at(&mut self, page: u64, f: impl FnOnce(ThreadId) -> Thread) -> Option<ThreadId> {
         let ptr = crate::arch::mmu::phys_to_virt(page) as *mut Thread;
-        self.table.insert_with(|tid| {
+        let name = self.table.insert_with(|tid| {
             // SAFETY: a fresh, exclusively-ours page; `write` moves the Thread in, no drop of
             // uninitialized bytes.
             unsafe { ptr.write(f(tid)) };
             ThreadControlBlockPointer(ptr)
-        })
+        });
+        if name.is_some() {
+            self.note_peak();
+        }
+        name
     }
 
     /// Remove and destroy: drop the TCB in place (its stack, address space, and quota token go
@@ -234,6 +335,13 @@ impl Threads {
 
     fn len(&self) -> usize {
         self.table.len()
+    }
+
+    /// Record the table's occupancy against [`PEAK_THREADS`]. Called on the two paths that can
+    /// make the table grow, which is every insert: `insert_at` and `insert_at_in_place` are what
+    /// the three public inserts delegate to.
+    fn note_peak(&self) {
+        PEAK_THREADS.fetch_max(self.table.len(), Ordering::Relaxed);
     }
 
     /// Every live TCB, for whole-table sweeps (revocation). Each live name resolves to a
