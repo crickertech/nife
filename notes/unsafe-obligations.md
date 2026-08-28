@@ -474,7 +474,7 @@ decoration.
 
 **Lowered from 100 to 97 by milestone 139 (2026-08-23), cinching the ratchet behind a real
 reduction rather than the tree's own growth.** Seven userspace programs
-(`entropy`, `kbd`, `net_transport`, `mdns_responder`, `socket_test_client`, `smb_server`, `ntp`)
+(`entropy`, `keyboard_driver`, `net_transport`, `mdns_responder`, `socket_test_client`, `smb_server`, `ntp`)
 each hand-rolled the same `r8`/`w8`/`r16`/`w16`/`r32` volatile-access functions over a DMA page or
 a shared IPC frame, one hand-written `// SAFETY:` comment per function, asserting one invariant
 ("this offset is inside the page the kernel mapped here") by hand at every call site; `ntp.rs`'s

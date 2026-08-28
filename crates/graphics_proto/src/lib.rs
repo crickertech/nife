@@ -1,7 +1,7 @@
 //! **The framebuffer contract** (milestone 29, the display ladder's first rung).
 //!
-//! Written down as code in one place so the three parties cannot drift: the display driver
-//! (`user/src/display.rs`, which owns the virtio-gpu device), the client that draws
+//! Written down as code in one place so the three parties cannot drift: the GPU driver
+//! (`user/src/gpu_driver.rs`, which owns the virtio-gpu device), the client that draws
 //! (`user/src/painter.rs`, which owns no device at all), and the kernel-side test that checks the
 //! result. The prose contract is notes/framebuffer-contract.md; this crate is its machine-readable
 //! half, the same split `filesystem_proto` makes for the filesystem and `line_editor::proto` for the terminal.
@@ -10,7 +10,7 @@
 //!
 //! ```text
 //!   virtio-gpu ──virtio──►┌────────────────┐◄──display IPC──┐ client
-//!    (PCIe, behind        │ display driver │                │ (holds a surface + an endpoint,
+//!    (PCIe, behind        │   gpu_driver   │                │ (holds a surface + an endpoint,
 //!     the IOMMU)          └────────────────┘                │  no device, no DMA authority)
 //!                              ▲     ▲
 //!                              │     └── the surface: N frames of pixels, mapped in BOTH

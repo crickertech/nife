@@ -6,7 +6,7 @@ two multiplexed the screen among mutually distrusting clients ([compositor.md](c
 Neither could show a letter.
 
 The code halves are `crates/bitmap_font` (the font), `crates/video_terminal` (the grid engine, the keymap, and the
-test script), `user/src/display_terminal.rs` (the terminal component), and `user/src/kbd.rs` (the keyboard
+test script), `user/src/display_terminal.rs` (the terminal component), and `user/src/keyboard_driver.rs` (the keyboard
 driver). This is the prose half.
 
 ## The shape
@@ -464,7 +464,7 @@ One binary, two wirings, chosen by `arg0`:
 **That is `painter`'s authority in the first column and `window`'s in the second**, and it is the
 answer to the question this increment was asked to check: *did the framebuffer contract need
 changing to carry text?* No. Neither did the compositor's. Both carry pixels, and a terminal draws
-pixels; `display` cannot tell `display_terminal` from the client that painted a test pattern, and `compositor` cannot
+pixels; `gpu_driver` cannot tell `display_terminal` from the client that painted a test pattern, and `compositor` cannot
 tell it from the client that painted a coordinate function. The answer is a spawn literal rather than
 an argument.
 
@@ -499,7 +499,7 @@ to stall the compositor.
 
 ## Input: the ring is the authority, the doorbell is not
 
-`user/src/kbd.rs` is a confined userspace virtio-input driver. It holds the device, its interrupt,
+`user/src/keyboard_driver.rs` is a confined userspace virtio-input driver. It holds the device, its interrupt,
 its own DMA page, the doorbell, and **the input ring's mapping**. It holds no client's endpoint and
 cannot name a client.
 
@@ -721,7 +721,7 @@ property this increment was asked to keep and did.
 | the keymap | `crates/video_terminal/src/keymap.rs` |
 | the test script, shared by three witnesses | `crates/video_terminal/src/script.rs` |
 | the terminal component | `user/src/display_terminal.rs` |
-| the keyboard driver | `user/src/kbd.rs` |
+| the keyboard driver | `user/src/keyboard_driver.rs` |
 | enumeration | `kernel/src/pci.rs` (`find_input_device`) |
 | the wiring | `kernel/src/user/display_service.rs` (`start_terminal`), `kernel/src/user/compositor_service.rs` (`spawn_terminal`), `kernel/src/user/keyboard_service.rs` |
 | the tests | `kernel/src/user/display_tests.rs`, `kernel/src/user/compositor_tests.rs` |

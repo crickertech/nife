@@ -1297,13 +1297,15 @@ PYEOF
 echo "==> naming conventions"
 
 # 1. No `-d` suffix on a component or a crate. §39 made this a rule; without a check it lasts until
-#    the first inconvenient moment. Three characters or fewer is not a daemon name, it is an
-#    abbreviation (`kbd` is the keyboard driver), so the rule starts at four. Names that genuinely
-#    end in `d` go in the allow-list WITH a reason, the same shape as a per-item `#[allow]`.
+#    the first inconvenient moment. Three characters or fewer is not enough room to claim a Unix
+#    daemon model (`kbd`, before its 2026-08-27 rename to `keyboard_driver`, was the worked
+#    example: an ordinary abbreviation that happened to end in `d`, not a `-d` claim), so the rule
+#    starts at four. Names that genuinely end in `d` go in the allow-list WITH a reason, the same
+#    shape as a per-item `#[allow]`.
 #
 #    Allowed: `asid` is Address Space IDentifier, the aarch64/RISC-V hardware term (notes/asids.md).
-#    Allowed: `cred` is the abbreviation of "credential", the same shortening `kbd` is of "keyboard".
-#    The thing it names is a store and a verifier, not a long-running process; the long-running
+#    Allowed: `cred` is the abbreviation of "credential", the ordinary kind of shortening. The
+#    thing it names is a store and a verifier, not a long-running process; the long-running
 #    process that holds one is spelled out in full, as `credentialer` (notes/credentials.md).
 naming_allow=" asid cred "
 named_for_a_daemon=""

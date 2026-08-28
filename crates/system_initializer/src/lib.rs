@@ -93,7 +93,7 @@
 //!    server at all: `display_terminal` was already built kernel-side, before this process existed,
 //!    and `line_editor` prints through it directly instead.
 //! 2. **keystrokes**: the **input** driver, waiting on the UART receive interrupt and forwarding
-//!    bytes, in the same "no graphical stack" case. When there is one, `kbd` plays this role
+//!    bytes, in the same "no graphical stack" case. When there is one, `keyboard_driver` plays this role
 //!    instead, also built kernel-side, `CALL`ing `line_editor`'s own endpoint directly rather than
 //!    going through this process at all (option A's whole point: no compositor in this path).
 //! 3. the **line discipline** (`line_editor`, milestone 28): editing, echo, history, between
@@ -312,7 +312,7 @@ pub struct BootEndowment {
     /// capability-table slots, which does not fit this process's own budget). `WRITE | GRANT`, so
     /// this process can hand it to `line_editor` as the endpoint it prints through in place of the
     /// console. **Absent** (holds nothing) on a boot with no GPU, no keyboard, or no
-    /// `display`/`display_terminal`/`kbd` program in the archive, the same "0/empty means absent"
+    /// `gpu_driver`/`display_terminal`/`keyboard_driver` program in the archive, the same "0/empty means absent"
     /// shape [`fs_ep`](BootEndowment::fs_ep) already carries; [`boot`] probes for it the same way.
     pub disp_term_ep: u64,
     /// The physical page shared with `display_terminal`, written before an `OP_WRITE` on
@@ -930,9 +930,9 @@ pub fn boot(
 
     // The endpoints and shared pages we own and hand out, each retyped with full rights so we can
     // delegate narrowed views. `term_ep` is the terminal contract's one endpoint: the discipline
-    // serves it; the input driver (or `kbd`) and the shell only hold WRITE on it, and neither can
+    // serves it; the input driver (or `keyboard_driver`) and the shell only hold WRITE on it, and neither can
     // tell what is on the other side (notes/terminal-contract.md). In the graphical case it is not
-    // ours to create: `kbd` already holds `WRITE` on `g.kbd_ep`, fixed at its own kernel-side spawn
+    // ours to create: `keyboard_driver` already holds `WRITE` on `g.kbd_ep`, fixed at its own kernel-side spawn
     // time, so that is the endpoint `line_editor` has to serve instead of a fresh one.
     let term_out = must(retype_page_frame(ut)); // shell -> line_editor text and prompts
     let term_in = must(retype_page_frame(ut)); // line_editor -> shell completed lines
@@ -944,7 +944,7 @@ pub fn boot(
     };
 
     if has_graphical {
-        // No console, no input driver, no separate request/reply pair or shared page: `kbd` and
+        // No console, no input driver, no separate request/reply pair or shared page: `keyboard_driver` and
         // `display_terminal` are already running (built kernel-side, before this process existed),
         // and `line_editor` is their only client. It prints through `display_terminal`'s own
         // `OP_WRITE`/one-`CALL` contract (`g.disp_term_ep`/`g.disp_term_page`, `LINE_EDITOR_MODE_DISPLAY`)
@@ -1094,7 +1094,7 @@ pub fn boot(
     };
 
     // 3. Input driver: waits on the UART receive interrupt, forwards raw bytes to the terminal.
-    // **Skipped entirely in the graphical case**: `kbd` already plays this role, spawned
+    // **Skipped entirely in the graphical case**: `keyboard_driver` already plays this role, spawned
     // kernel-side and wired directly to `term_ep` before this process existed. `g.uart_dev`/
     // `g.uart_irq` are still granted either way (their slot numbers do not move; see
     // `BootEndowment`'s own doc), simply unused, and freed below regardless of mode.

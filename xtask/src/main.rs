@@ -4384,8 +4384,8 @@ fn riscv_initrd_path() -> String {
 /// the one asymmetry, and it is why `hello` appears here under its own name.
 ///
 /// **Not filtered per architecture, deliberately.** Several of these programs cannot do their job
-/// on `x86_64` (`console`, `input`, `kbd` and `display` all need a device a ring-3 process cannot
-/// reach, DECISIONS §121). They are packed anyway: an archive entry costs a directory slot and some
+/// on `x86_64` (`console`, `input`, `keyboard_driver` and `gpu_driver` all need a device a ring-3
+/// process cannot reach, DECISIONS §121). They are packed anyway: an archive entry costs a directory slot and some
 /// bytes, nothing spawns a program by accident, and the tests that would spawn them `skip!()` with
 /// the reason. A per-architecture filter here would put the same fact in two places and let them
 /// disagree.
@@ -4409,7 +4409,7 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         ("swish", "swish"),
         ("line_editor", "line_editor"),
         ("terminal_sink_caretaker", "terminal_sink_caretaker"),
-        ("blk", "blk"),
+        ("block_driver", "block_driver"),
         ("allocator_exerciser", "allocator_exerciser"),
         ("net_stack", "net_stack"),
         ("smb_server", "smb_server"),
@@ -4436,7 +4436,7 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         ("job_undertaker", "job_undertaker"),
         // The display pair (milestone 29): the confined virtio-gpu driver and the client that draws
         // into the surface it serves. Portable, so both archives carry both.
-        ("display", "display"),
+        ("gpu_driver", "gpu_driver"),
         ("painter", "painter"),
         // The C seam (milestone 36): the confiner and the Rust shell that links user/c/c_seam.c.
         // The C is compiled for this ISA by user/build.rs, so the riscv shell carries riscv C.
@@ -4451,7 +4451,7 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         // so both archives carry it and both ISAs run literally the same test.
         ("display_terminal", "display_terminal"),
         // The keyboard driver (milestone 29's input). Portable, so both archives carry it.
-        ("kbd", "kbd"),
+        ("keyboard_driver", "keyboard_driver"),
         // Live component replacement (milestone 23): the operator, the two instances of the
         // swappable component (the second computes its answers in C), the client that talks across
         // the swap, and the queue broker for the opt-in rung. Portable, so both archives carry all
@@ -4842,7 +4842,7 @@ fn initrd_aarch64() -> bool {
         ("job_undertaker", "job_undertaker"),
         // The display pair (milestone 29): the confined virtio-gpu driver and the client that draws
         // into the surface it serves.
-        ("display", "display"),
+        ("gpu_driver", "gpu_driver"),
         ("painter", "painter"),
         // The C seam (milestone 36): the confiner that builds, supervises and checks the foreign
         // component, and the Rust shell that links it.
@@ -4854,7 +4854,7 @@ fn initrd_aarch64() -> bool {
         // The display terminal (milestone 29's text increment): one binary, two wirings.
         ("display_terminal", "display_terminal"),
         // The keyboard driver (milestone 29's input).
-        ("kbd", "kbd"),
+        ("keyboard_driver", "keyboard_driver"),
         // Live component replacement (milestone 23): the operator, the two instances of the
         // swappable component (the second computes its answers in C), the client that talks across
         // the swap, and the queue broker for the opt-in rung.
@@ -6385,7 +6385,7 @@ fn test() -> bool {
     // threads. xtask is single-threaded here: this runs on the main thread before the child
     // that reads it is spawned, and the only thread xtask ever starts (the transcript reader
     // in shell_check_leg) copies pipe bytes into a String and never touches the environment.
-    unsafe { std::env::set_var("NIFE_KBD", "1") };
+    unsafe { std::env::set_var("NIFE_KEYBOARD", "1") };
     // And two virtio-rng devices, one per transport (milestone 56, the entropy half), on the same
     // terms again: a test-leg device only, both ISA legs, and the entropy tests ASSERT a device on
     // each bus rather than skipping. Out of the benchmark boot for the same reason as the GPU: it
@@ -7585,7 +7585,7 @@ fn shell_check_leg(riscv: bool) -> bool {
 /// one in this gate), and predicting it exactly is real work for no claim this milestone needs to
 /// make. What this leg proves is the thing milestone 177 actually adds: the graphical stack wires
 /// up with no capability-slot collision (a collision fails the boot in total silence, so *any*
-/// prompt reaching the screen disproves one) and a real keystroke, through `kbd`'s new direct
+/// prompt reaching the screen disproves one) and a real keystroke, through `keyboard_driver`'s new direct
 /// `CALL` to `line_editor` and back out through `display_terminal`, reaches the screen. Proving the
 /// rest of [`SHELL_CHECK_SCRIPT`] against a graphical prompt is real, scoped-out follow-on work,
 /// not a gap this leg pretends is closed.
@@ -7597,7 +7597,7 @@ fn shell_check_leg(riscv: bool) -> bool {
 /// console... no: that it built `line_editor`, `display_terminal` and the display driver, wired
 /// them to each other with no wrong slot, and that `swish` is alive and printing through them.
 /// Finding `$ a` after `sendkey "a"` is the proof that a keystroke makes the same round trip back:
-/// `kbd` (`MODE_DIRECT`) into `line_editor`, echoed out through `display_terminal`.
+/// `keyboard_driver` (`MODE_DIRECT`) into `line_editor`, echoed out through `display_terminal`.
 fn shell_check_leg_graphical(riscv: bool) -> bool {
     use std::time::{Duration, Instant};
 
@@ -7653,7 +7653,7 @@ fn shell_check_leg_graphical(riscv: bool) -> bool {
     // way they always have been (milestone 177 changed what *init* does with them existing, not
     // how they get attached).
     cmd.env("NIFE_GPU", "1");
-    cmd.env("NIFE_KBD", "1");
+    cmd.env("NIFE_KEYBOARD", "1");
     cmd.env("NIFE_GPU_MON", &sock);
     // No stdin/stdout piping: there is no UART client on this path to talk to. Kernel boot
     // messages before userspace exists still reach the host's own terminal, which is useful to a
@@ -7727,7 +7727,7 @@ fn shell_check_leg_graphical(riscv: bool) -> bool {
         Some(after) => {
             eprintln!(
                 "shell-check ({arch}, graphical): the prompt reached the screen through \
-                 `display_terminal`, and a real key press reached it back through `kbd`'s new \
+                 `display_terminal`, and a real key press reached it back through `keyboard_driver`'s new \
                  direct CALL to `line_editor`: {after:?}"
             );
             true
@@ -7735,7 +7735,7 @@ fn shell_check_leg_graphical(riscv: bool) -> bool {
         None => {
             eprintln!(
                 "shell-check ({arch}, graphical): the prompt appeared ({before:?}) but the key \
-                 press ({:?}) never echoed back within {SHELL_CHECK_LINE_SECS}s (see {}): `kbd` \
+                 press ({:?}) never echoed back within {SHELL_CHECK_LINE_SECS}s (see {}): `keyboard_driver` \
                  came up but its CALL to `line_editor` is not reaching it, or the host's `sendkey` \
                  is not reaching the device",
                 video_terminal::script::HOST_KEY,
@@ -8308,7 +8308,7 @@ fn icount_leg(arch: &str, runner: &str, target: &str) -> bool {
     // them, so a variable left set by an earlier `script/test` in the same shell must not reach it.
     for device in [
         "NIFE_GPU",
-        "NIFE_KBD",
+        "NIFE_KEYBOARD",
         "NIFE_RNG",
         "NIFE_NVME",
         "NIFE_NET",

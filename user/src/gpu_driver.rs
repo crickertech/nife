@@ -1,4 +1,4 @@
-//! **The display driver: virtio-gpu, at EL0, confined** (milestone 29, the display ladder's rung
+//! **The GPU driver: virtio-gpu, at EL0, confined** (milestone 29, the display ladder's rung
 //! one).
 //!
 //! The first pixels this system ever puts in a scanout, put there by an unprivileged process whose
@@ -47,8 +47,14 @@
 //! No fonts, no VT state, no scrollback, no input. Those are later increments and they arrive as
 //! *clients* of the contract this serves, not as code in here.
 //!
-//! Name: ratified 2026-07-30 (calef, DECISIONS §39, landed by milestone 46), replacing `gpud`.
-//! Refused `gpud` (the `-d` claim).
+//! Name: ratified 2026-08-27 (calef). Renamed from `display` to `gpu_driver`, matching the
+//! `<device>_driver` shape given to `block_driver` and `keyboard_driver` in the same pass. This
+//! module's own doc already said it above: it is specifically and only the GPU device driver, and
+//! does nothing without a GPU. The broader "manage what's on screen" role belongs to the separate
+//! `display_terminal.rs` program, not this one, so `gpu_driver` is more accurate than `display`
+//! was, not just more consistent. `display` itself was ratified 2026-07-30 (DECISIONS §39,
+//! landed by milestone 46), replacing `gpud` (refused for the `-d` claim); this supersedes that
+//! entry with the fuller, consistent name.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks
@@ -201,7 +207,7 @@ fn mw(off: u64, v: u32) {
 // body is empty, so nothing constrains the compiler from sinking a descriptor store past the index
 // store. This program builds for `x86_64-unknown-none` (`cargo xtask initrd-x86`) and passes
 // `script/lint`'s x86_64 user pass, because an empty function is not a warning. Same hole in
-// `crates/virtio`, `user/src/kbd.rs` and `user/src/net_transport.rs`; see
+// `crates/virtio`, `user/src/keyboard_driver.rs` and `user/src/net_transport.rs`; see
 // notes/architecture-list-sweep.md, finding 9.
 fn barrier() {
     // SAFETY: a barrier has no operands and cannot be unsound.

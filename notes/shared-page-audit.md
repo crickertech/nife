@@ -42,13 +42,13 @@ against one.
 
 | Contract | Server | Client(s) | Files |
 |---|---|---|---|
-| blk IPC | block server | FS server | `crates/fs_proto` (`blk`), `user/src/blk.rs`, `redoxfs_server/src/bin/redoxfs_server.rs` |
+| blk IPC | block server | FS server | `crates/fs_proto` (`blk`), `user/src/block_driver.rs`, `redoxfs_server/src/bin/redoxfs_server.rs` |
 | file IPC | FS server | every FS client | `crates/fs_proto` (`fs`, `xattr`), `redoxfs_server/src/bin/redoxfs_server.rs` |
 | file IPC, narrowed | the three caretakers | one confined program each | `user/src/fs_file_caretaker.rs`, `fs_subtree_caretaker.rs`, `fs_nameset_caretaker.rs` |
 | the sink | `user/src/sink.rs` | a redirected program | `crates/sink_proto` |
 | the serial terminal | `user/src/line_editor.rs` | the shell | `crates/line_editor` |
 | the console | `user/src/console.rs` | its client | `kernel/src/user/console_service.rs` |
-| the display | `user/src/display.rs` | painter, terminal, compositor | `crates/graphics_proto` |
+| the display | `user/src/gpu_driver.rs` | painter, terminal, compositor | `crates/graphics_proto` |
 | the compositor | `user/src/compositor.rs` | window clients, the input source | `crates/compositor` |
 | the display terminal | `user/src/display_terminal.rs` | an application | `crates/video_terminal` |
 | credentials | `user/src/credentialer.rs` | provisioner, verifier | `crates/cred_proto` |
@@ -355,7 +355,7 @@ Not a double fetch. It is what the enumeration the lens required turned up: to a
 checked twice" you must first list every value read from a page a hostile party writes, and two of
 those values are not checked at all.
 
-**(a) The window.** `user/src/net_transport.rs`'s `rx_take` and `user/src/kbd.rs`'s drain loop both
+**(a) The window.** `user/src/net_transport.rs`'s `rx_take` and `user/src/keyboard_driver.rs`'s drain loop both
 take a used-ring element and use its 32-bit `id` as a buffer index:
 
 ```rust
@@ -414,7 +414,7 @@ advertises it, each with a fence between and a comment explaining the fence:
   bump must be visible after the pixels and the rectangle it describes, or the compositor could
   composite a frame we have not finished writing."
 - `user/src/display_terminal.rs`: the same, with the same comment.
-- `user/src/kbd.rs`'s `ring_publish`: `fence(SeqCst)`, then writes `TAIL`. "The bytes must be visible
+- `user/src/keyboard_driver.rs`'s `ring_publish`: `fence(SeqCst)`, then writes `TAIL`. "The bytes must be visible
   before the tail that advertises them."
 
 `user/src/compositor.rs` is the reader of all three, and it read with `rd32`, a plain
@@ -531,7 +531,7 @@ no double fetch into one with a double fetch, and the diff will look like a tidy
 | 3 | The console server's byte count is unclamped, and its `SAFETY` comment blames the wrong party | **Fixed**, comment corrected |
 | 4 | `window.rs`: a `u32` overflow defeats its own geometry check, and an unclamped shift count | **Fixed**, both |
 | 5 | The compositor reads surfaces and damage rectangles of clients that are not blocked | **Recorded-accepted**, in notes/compositor.md's BUGS |
-| 6 | `net_transport` and `kbd` index a DMA buffer with a `u32` the device wrote, unchecked; the DMA validator covers the other direction | **Fixed**, fail-closed, with the hostile-device harness proposed |
+| 6 | `net_transport` and `keyboard_driver` index a DMA buffer with a `u32` the device wrote, unchecked; the DMA validator covers the other direction | **Fixed**, fail-closed, with the hostile-device harness proposed |
 | 7 | Three release-side fences in the compositor's subsystem whose acquire side did not exist | **Fixed**, two acquire fences |
 
 **Nothing found is a live privilege escalation reachable from a confined program on `main` today**,

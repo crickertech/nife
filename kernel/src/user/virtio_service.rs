@@ -9,10 +9,10 @@ use crate::user::holding::Holding;
 const DMA_VA: u64 = 0x0000_0000_0090_0000;
 
 const ROLE_VIRTIO_BLK: u64 = 3;
-/// The write-path roles (milestone 32 phase 1); must match user/src/hello.rs and blk.rs.
+/// The write-path roles (milestone 32 phase 1); must match `user/src/hello.rs` and `block_driver.rs`.
 const ROLE_VIRTIO_BLK_WRITE: u64 = 30;
 const ROLE_VIRTIO_BLK_WRITE_ABANDON: u64 = 31;
-/// The virtio-net driver role (milestone 30); must match user/src/hello.rs and blk.rs.
+/// The virtio-net driver role (milestone 30); must match `user/src/hello.rs` and `block_driver.rs`.
 const ROLE_VIRTIO_NET: u64 = 40;
 
 /// Start a driver role against a discovered transport. The shared body of [`start`] (mmio),

@@ -1052,7 +1052,7 @@ fn a_new_thread_holds_no_capabilities() {
 /// driver blocks waiting for that interrupt with nothing else to run, and the scheduler idles
 /// rather than declaring a deadlock.
 // RISC-V twin: `riscv_virtio_tests::a_userspace_driver_reads_a_file_from_a_virtio_disk`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `blk`/`net_stack` binaries, and a
+// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
 // second copy through hello's roles would double the suite's slowest tests to prove
 // nothing new. See this module's comment on the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
@@ -1097,7 +1097,7 @@ fn a_userspace_driver_reads_a_file_from_a_virtio_disk() {
 /// std, including the refusal of `..`, of an absolute path, and of a nested path. And the same
 /// binary run without slot 4 gets `Unsupported`, which the offline std test asserts.
 // RISC-V twin: `riscv_virtio_tests::std_fs_reads_a_file_through_a_granted_directory_capability`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `blk`/`net_stack` binaries, and a
+// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
 // second copy through hello's roles would double the suite's slowest tests to prove
 // nothing new. See this module's comment on the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
@@ -1132,7 +1132,7 @@ fn std_fs_reads_a_file_through_a_granted_directory_capability() {
 /// success here is the whole capability contract holding: designation is authorization, the
 /// handle is a server-minted token, and a real CoW filesystem we did not write runs confined.
 // RISC-V twin: `riscv_virtio_tests::the_redoxfs_server_serves_redoxfs_over_a_capability_contract`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `blk`/`net_stack` binaries, and a
+// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
 // second copy through hello's roles would double the suite's slowest tests to prove
 // nothing new. See this module's comment on the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
@@ -1188,7 +1188,7 @@ fn the_redoxfs_server_serves_redoxfs_over_a_capability_contract() {
 /// refused *everything* would pass it; that is what the writable twin below is for, and why the
 /// verdict is a bitmap rather than a boolean.
 // RISC-V twin: `riscv_virtio_tests::a_read_only_per_file_grant_survives_an_attacker`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `blk`/`net_stack` binaries, and a
+// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
 // second copy through hello's roles would double the suite's slowest tests to prove
 // nothing new. See this module's comment on the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
@@ -1255,7 +1255,7 @@ fn a_read_only_per_file_grant_reads_its_files_attributes_and_writes_none() {
 ///   same code, succeed. A confinement test with no witness that the thing being confined
 ///   *works* is a test that passes when the feature is missing entirely.
 // RISC-V twin: `riscv_virtio_tests::a_writable_per_file_grant_writes_that_file_and_still_only_that_file`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `blk`/`net_stack` binaries, and a
+// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
 // second copy through hello's roles would double the suite's slowest tests to prove
 // nothing new. See this module's comment on the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
@@ -1365,7 +1365,7 @@ fn describe_escape(v: u64) -> &'static str {
 /// FS-server process killed inside its own transaction, and a real second process recovering the
 /// disk it left behind. See `std_tests::assert_a_kill_mid_transaction_recovers`.
 // RISC-V twin: `riscv_virtio_tests::a_kill_mid_transaction_leaves_the_filesystem_consistent`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `blk`/`net_stack` binaries, and a
+// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
 // second copy through hello's roles would double the suite's slowest tests to prove
 // nothing new. See this module's comment on the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
@@ -1382,7 +1382,7 @@ fn a_kill_mid_transaction_leaves_the_filesystem_consistent() {
 }
 
 // RISC-V twin: `riscv_virtio_tests::the_redoxfs_servers_stack_still_has_headroom`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `blk`/`net_stack` binaries, and a
+// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
 // second copy through hello's roles would double the suite's slowest tests to prove
 // nothing new. See this module's comment on the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
@@ -1412,7 +1412,7 @@ fn the_redoxfs_servers_stack_still_has_headroom() {
 /// DISCOVER left (TX) and the OFFER returned (RX), across both queues and both directions of the
 /// confinement, with no TCP/IP stack in the loop.
 // RISC-V twin: `riscv_virtio_tests::a_userspace_driver_completes_a_dhcp_round_trip_over_virtio_net`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `blk`/`net_stack` binaries, and a
+// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
 // second copy through hello's roles would double the suite's slowest tests to prove
 // nothing new. See this module's comment on the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
@@ -1446,7 +1446,7 @@ fn a_userspace_driver_completes_a_dhcp_round_trip_over_virtio_net() {
 /// mmio one. Proves the multi-queue confinement and the net driver work over the bus real
 /// hardware uses.
 // RISC-V twin: `riscv_virtio_tests::a_userspace_driver_completes_a_dhcp_round_trip_over_virtio_net_pci`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `blk`/`net_stack` binaries, and a
+// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
 // second copy through hello's roles would double the suite's slowest tests to prove
 // nothing new. See this module's comment on the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
@@ -1473,7 +1473,7 @@ fn a_userspace_driver_completes_a_dhcp_round_trip_over_virtio_net_pci() {
 /// address, which must land in slirp's 10.0.2.0/24, so only a real DHCP round trip driven by
 /// smoltcp over the confined NIC can produce it.
 // RISC-V twin: `riscv_virtio_tests::the_net_server_acquires_a_dhcp_lease_over_smoltcp`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `blk`/`net_stack` binaries, and a
+// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
 // second copy through hello's roles would double the suite's slowest tests to prove
 // nothing new. See this module's comment on the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
@@ -1495,7 +1495,7 @@ fn the_net_server_acquires_a_dhcp_lease_over_smoltcp() {
 /// The net server over the PCIe transport, behind the IOMMU (milestone 30, §20): smoltcp drives
 /// a NIC confined in hardware and still gets its lease.
 // RISC-V twin: `riscv_virtio_tests::the_net_server_acquires_a_dhcp_lease_over_smoltcp_pci`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `blk`/`net_stack` binaries, and a
+// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
 // second copy through hello's roles would double the suite's slowest tests to prove
 // nothing new. See this module's comment on the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
@@ -1527,7 +1527,7 @@ fn the_net_server_acquires_a_dhcp_lease_over_smoltcp_pci() {
 /// nameserver, so the gate depended on the developer's DNS answering at that instant and flaked
 /// (~2.5% per query, measured). The real-resolution case still runs, non-gating, below.
 // RISC-V twin: `riscv_virtio_tests::a_client_completes_a_udp_round_trip_through_the_socket_contract`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `blk`/`net_stack` binaries, and a
+// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
 // second copy through hello's roles would double the suite's slowest tests to prove
 // nothing new. See this module's comment on the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
@@ -1552,7 +1552,7 @@ fn a_client_completes_a_udp_round_trip_through_the_socket_contract() {
 
 /// The same UDP round trip over the PCIe transport, behind the IOMMU.
 // RISC-V twin: `riscv_virtio_tests::a_client_completes_a_udp_round_trip_through_the_socket_contract_pci`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `blk`/`net_stack` binaries, and a
+// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
 // second copy through hello's roles would double the suite's slowest tests to prove
 // nothing new. See this module's comment on the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
@@ -1583,7 +1583,7 @@ fn a_client_completes_a_udp_round_trip_through_the_socket_contract_pci() {
 /// that arrives and is *wrong* (not our transaction id, or not a response), because that would be
 /// our defect. The deterministic UDP coverage is the TFTP pair above. See notes/net.md.
 // RISC-V twin: `riscv_virtio_tests::a_client_resolves_a_real_dns_name_when_the_host_resolver_answers`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `blk`/`net_stack` binaries, and a
+// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
 // second copy through hello's roles would double the suite's slowest tests to prove
 // nothing new. See this module's comment on the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
@@ -1619,7 +1619,7 @@ fn a_client_resolves_a_real_dns_name_when_the_host_resolver_answers() {
 /// bidirectional data to teardown, deterministic and zero-host-setup (nothing outlives QEMU),
 /// through the client, `net_stack`, smoltcp, and the confined NIC.
 // RISC-V twin: `riscv_virtio_tests::a_client_echoes_over_tcp_through_the_socket_contract`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `blk`/`net_stack` binaries, and a
+// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
 // second copy through hello's roles would double the suite's slowest tests to prove
 // nothing new. See this module's comment on the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
@@ -1644,7 +1644,7 @@ fn a_client_echoes_over_tcp_through_the_socket_contract() {
 
 /// The same TCP echo round trip over the PCIe transport, behind the IOMMU.
 // RISC-V twin: `riscv_virtio_tests::a_client_echoes_over_tcp_through_the_socket_contract_pci`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `blk`/`net_stack` binaries, and a
+// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
 // second copy through hello's roles would double the suite's slowest tests to prove
 // nothing new. See this module's comment on the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
@@ -1673,7 +1673,7 @@ fn a_client_echoes_over_tcp_through_the_socket_contract_pci() {
 /// the second connect stalled on a slirp flow that had not cleared; the rotating allocator hands
 /// the reopen a fresh port, so both connects complete. The client reports OK only if they do.
 // RISC-V twin: `riscv_virtio_tests::a_reopened_socket_id_connects_again_over_tcp`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `blk`/`net_stack` binaries, and a
+// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
 // second copy through hello's roles would double the suite's slowest tests to prove
 // nothing new. See this module's comment on the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
@@ -1943,7 +1943,7 @@ const STD_LISTEN_EXPECTED: &[u8] =
 /// reaching the same path the hand-written client does through std's blocking API. Its stdout
 /// is reassembled off the rendezvous and compared byte for byte, the `std_exerciser` discipline.
 // RISC-V twin: `riscv_virtio_tests::std_net_runs_over_the_socket_contract`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `blk`/`net_stack` binaries, and a
+// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
 // second copy through hello's roles would double the suite's slowest tests to prove
 // nothing new. See this module's comment on the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
@@ -2109,7 +2109,7 @@ fn a_process_spends_memory_region_and_the_kernel_never_allocates() {
 /// this one, so the device is never told to go and never touches the kernel. The driver
 /// reports `1` when it was refused.
 // RISC-V twin: `riscv_virtio_tests::the_kernel_refuses_a_dma_descriptor_that_escapes_the_drivers_region`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `blk`/`net_stack` binaries, and a
+// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
 // second copy through hello's roles would double the suite's slowest tests to prove
 // nothing new. See this module's comment on the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
@@ -2134,7 +2134,7 @@ fn the_kernel_refuses_a_dma_descriptor_that_escapes_the_drivers_region() {
 /// the device follow the table out. The kernel strips the feature and refuses the flag, so the
 /// device is never rung. The driver reports `1` when it was refused.
 // RISC-V twin: `riscv_virtio_tests::the_kernel_refuses_an_indirect_descriptor_escape`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `blk`/`net_stack` binaries, and a
+// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
 // second copy through hello's roles would double the suite's slowest tests to prove
 // nothing new. See this module's comment on the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
@@ -2159,7 +2159,7 @@ fn the_kernel_refuses_an_indirect_descriptor_escape() {
 /// the same subsystem, from the same portable crate and seam, on the second bus of the
 /// second interrupt controller.
 // RISC-V twin: `riscv_virtio_tests::a_userspace_driver_reads_a_file_over_the_pcie_transport`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `blk`/`net_stack` binaries, and a
+// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
 // second copy through hello's roles would double the suite's slowest tests to prove
 // nothing new. See this module's comment on the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
@@ -2193,7 +2193,7 @@ fn a_userspace_driver_reads_a_file_over_the_pcie_transport() {
 /// read-back head. A matching report therefore certifies the round trip AND that the write
 /// landed only on its own block.
 // RISC-V twin: `riscv_virtio_tests::a_userspace_driver_writes_a_block_and_reads_it_back`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `blk`/`net_stack` binaries, and a
+// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
 // second copy through hello's roles would double the suite's slowest tests to prove
 // nothing new. See this module's comment on the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
@@ -2215,7 +2215,7 @@ fn a_userspace_driver_writes_a_block_and_reads_it_back() {
 /// hold on both buses, exactly as the read path does, or the transport seam has a
 /// direction-shaped hole.
 // RISC-V twin: `riscv_virtio_tests::a_userspace_driver_writes_a_block_over_the_pcie_transport`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `blk`/`net_stack` binaries, and a
+// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
 // second copy through hello's roles would double the suite's slowest tests to prove
 // nothing new. See this module's comment on the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
@@ -2244,7 +2244,7 @@ fn a_userspace_driver_writes_a_block_over_the_pcie_transport() {
 /// round trip, which proves the abandoned request wedged nothing: not the device, not the
 /// validator's per-registration state, not the disk.
 // RISC-V twin: `riscv_virtio_tests::a_driver_killed_mid_write_leaves_the_device_and_transport_sane`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `blk`/`net_stack` binaries, and a
+// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
 // second copy through hello's roles would double the suite's slowest tests to prove
 // nothing new. See this module's comment on the two kinds of gate.
 #[cfg(target_arch = "aarch64")]

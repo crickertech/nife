@@ -103,7 +103,7 @@ const REG: u64 = 2;
 
 /// Where a future spawner maps the TRNG's register window (a `DeviceFrame` mapping, the same
 /// mechanism `console.rs`'s `UART_VA` uses). Provisional and distinct from the `0x0090_0000` DMA
-/// convention `entropy.rs` and `kbd.rs` share, so the two backends cannot collide if a future
+/// convention `entropy.rs` and `keyboard_driver.rs` share, so the two backends cannot collide if a future
 /// wiring ever needs both mapped in different processes at once.
 const TRNG_VA: u64 = 0x0000_0000_0094_0000;
 

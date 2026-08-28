@@ -508,7 +508,7 @@ fn input_reaches_only_the_focused_client_and_focus_is_the_compositors_call() {
 /// milestone, once at each rung.
 ///
 /// Uses the kernel's display stand-in rather than the GPU, deliberately: this test is about
-/// routing and composition, the device is proved elsewhere in this file, and a third `display`
+/// routing and composition, the device is proved elsewhere in this file, and a third `gpu_driver`
 /// against the same physical device would put the scanout's picture in a race with the
 /// host-side check that reads it.
 #[test_case]
@@ -624,7 +624,7 @@ fn focus_routes_a_keystroke_to_one_terminals_grid_and_not_its_neighbours() {
 /// **Three clients' surfaces become one screen, and the host confirms it.**
 ///
 /// The end-to-end picture, with a real virtio-gpu under it (rung one's driver, unchanged: the
-/// compositor takes `painter`'s place at that seam and `display` cannot tell). Four witnesses, which is
+/// compositor takes `painter`'s place at that seam and `gpu_driver` cannot tell). Four witnesses, which is
 /// the point, because a compositor's output is exactly the thing one digest cannot be trusted about:
 ///
 /// 1. **the driver**, digesting the frames it handed the device after the device said it had them.
@@ -654,8 +654,8 @@ fn three_clients_compose_into_one_scanout_and_the_host_sees_it() {
     // an honest, expected gap rather than a bug -- milestone 164's own shape (a scope gap named
     // where the reader meets the feature) rather than a loud panic. Skipping either way keeps the
     // one thing this test cannot tell apart from a hardware absence out of its own hands.
-    let display = program("display").expect("no display program in the initrd archive");
-    let Some((driver_report, display, screen)) = display_service::start_driver(display) else {
+    let gpu_driver = program("gpu_driver").expect("no gpu_driver program in the initrd archive");
+    let Some((driver_report, display, screen)) = display_service::start_driver(gpu_driver) else {
         crate::testing::skip!(
             "no virtio-gpu-pci function on the bus: either this kernel enumerated no PCI at all, \
              or (x86_64) the test runner has never wired a GPU device onto the bus it does \
@@ -671,7 +671,7 @@ fn three_clients_compose_into_one_scanout_and_the_host_sees_it() {
     assert_eq!(
         tag,
         graphics_proto::status::UP,
-        "the display driver did not come up (it reported {tag:#x})",
+        "the GPU driver did not come up (it reported {tag:#x})",
     );
     assert_eq!(
         geometry,

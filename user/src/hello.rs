@@ -74,7 +74,7 @@ const IRQ_CHILD: u64 = 26;
 // 23-25 and 27-29 are init roles, declared below with their functions.
 const VIRTIO_BLK_WRITE: u64 = 30;
 const VIRTIO_BLK_WRITE_ABANDON: u64 = 31;
-/// The virtio-net driver (milestone 30); matches `kernel/src/user/virtio_service.rs` and blk.rs.
+/// The virtio-net driver (milestone 30); matches `kernel/src/user/virtio_service.rs` and `block_driver.rs`.
 const VIRTIO_NET: u64 = 40;
 const VIRTIO_BLK_SERVER: u64 = 32;
 

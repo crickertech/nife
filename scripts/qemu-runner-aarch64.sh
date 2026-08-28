@@ -236,7 +236,7 @@ if [ -n "$NIFE_GPU" ]; then
     GPU="-device virtio-gpu-pci,disable-legacy=on,iommu_platform=on"
 fi
 
-# Attach a virtio keyboard when NIFE_KBD is set (milestone 29's input).
+# Attach a virtio keyboard when NIFE_KEYBOARD is set (milestone 29's input).
 #
 # PCIe here is a CHOICE, not a constraint: unlike the GPU, this machine does offer a
 # virtio-keyboard-device on the virtio-mmio bus. The keyboard rides PCIe anyway so it lands in the
@@ -247,7 +247,7 @@ fi
 # the guest can press one. QEMU drops key events until a driver sets DRIVER_OK, so xtask can send
 # them from the start of the run with nothing to synchronize.
 KBD=""
-if [ -n "$NIFE_KBD" ]; then
+if [ -n "$NIFE_KEYBOARD" ]; then
     KBD="-device virtio-keyboard-pci,disable-legacy=on,iommu_platform=on"
 fi
 

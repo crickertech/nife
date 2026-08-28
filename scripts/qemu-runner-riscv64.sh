@@ -168,12 +168,12 @@ if [ -n "$NIFE_GPU" ]; then
     GPU="-device virtio-gpu-pci,disable-legacy=on,iommu_platform=on"
 fi
 
-# A virtio keyboard when NIFE_KBD is set (milestone 29's input), the twin of the aarch64 runner's
+# A virtio keyboard when NIFE_KEYBOARD is set (milestone 29's input), the twin of the aarch64 runner's
 # block. PCIe by choice rather than by necessity here (this machine does have a virtio-keyboard-device
 # on the mmio bus), so the keyboard lands in the same IOMMU domain the GPU does. The keys come from
 # the host over the monitor below, because nothing in the guest can press one.
 KBD=""
-if [ -n "$NIFE_KBD" ]; then
+if [ -n "$NIFE_KEYBOARD" ]; then
     KBD="-device virtio-keyboard-pci,disable-legacy=on,iommu_platform=on"
 fi
 

@@ -48,7 +48,7 @@ const SURFACE_RUN: NonZeroU64 = page_frame_run_len(graphics_proto::SURFACE_PAGE_
 const DMA_RUN: NonZeroU64 = page_frame_run_len(DMA_PAGE_FRAMES);
 const ONE_PAGE_RUN: NonZeroU64 = NonZeroU64::MIN;
 
-/// The driver binary's escape-attempt role; must match user/src/display.rs `ROLE_BACKING_ESCAPE`.
+/// The driver binary's escape-attempt role; must match `user/src/gpu_driver.rs` `ROLE_BACKING_ESCAPE`.
 const ROLE_BACKING_ESCAPE: u64 = 1;
 
 /// **The budget every program on this path draws its page tables from** (milestone 108, widened for
@@ -64,7 +64,7 @@ const ROLE_BACKING_ESCAPE: u64 = 1;
 /// booted against.
 const MAP_BUDGET_PAGES: u64 = 24;
 
-// The driver's capability table. Must match user/src/display.rs.
+// The driver's capability table. Must match user/src/gpu_driver.rs.
 const DRIVER_SLOT_REPORT: u64 = 0;
 const DRIVER_SLOT_IRQ: u64 = 1;
 const DRIVER_SLOT_VIRTIO: u64 = 2;
@@ -123,7 +123,7 @@ fn grant_run(slot: u64, base: u64, count: NonZeroU64, what: &str) {
     .unwrap_or_else(|_| panic!("{what}: slot {slot} was occupied"));
 }
 
-/// **Wire and spawn the display driver and the painting client.** Returns
+/// **Wire and spawn the GPU driver and the painting client.** Returns
 /// `(driver report, client report)`, or `None` if no virtio-gpu function is on the bus.
 ///
 /// One spawn site for two processes on purpose: they are only meaningful together (a driver with
@@ -175,7 +175,7 @@ pub fn start(
     Some((driver_report, client_report))
 }
 
-/// **Spawn a driver that attacks its own confinement** (user/src/display.rs `run_backing_escape`):
+/// **Spawn a driver that attacks its own confinement** (`user/src/gpu_driver.rs` `run_backing_escape`):
 /// it asks the device to read pixels out of a frame outside its grant. Returns
 /// `(report endpoint, the victim frame's physical address)`, or `None` if no GPU is on the bus.
 ///
@@ -212,7 +212,7 @@ fn wire_driver(
     // range. Zeroed, so neither a stale descriptor nor a stale pixel is ever visible to the
     // device or to the client.
     let dma = crate::memory::alloc_contiguous(DMA_PAGE_FRAMES as usize)
-        .expect("no contiguous DMA region for the display driver")
+        .expect("no contiguous DMA region for the GPU driver")
         .addr();
     // SAFETY: a fresh contiguous run of frames, reachable through the direct map, owned by
     // nobody else.
@@ -269,24 +269,24 @@ fn wire_driver(
         .expect("driver slot 3 was occupied");
         crate::sched::grant_at(DRIVER_SLOT_BUDGET, memory_region_cap(budget))
             .expect("driver slot 4 was occupied");
-        grant_run(DRIVER_SLOT_DMA, dma, DMA_RUN, "the display driver");
+        grant_run(DRIVER_SLOT_DMA, dma, DMA_RUN, "the GPU driver");
         run(
             driver_image,
             Spawn {
-                arg0: role,  // 0 = the display driver; 1 = the escape attempt
+                arg0: role,  // 0 = the GPU driver; 1 = the escape attempt
                 arg1: dma,   // the DMA region's PHYSICAL base: descriptors speak physical
-                arg2,        // the escape role's victim frame; unused (0) by the display driver
+                arg2,        // the escape role's victim frame; unused (0) by the GPU driver
                 grants: &[], // every one of them is placed above, at its own slot
                 maps: &[],
             },
         )
     })
-    .expect("could not spawn the display driver");
+    .expect("could not spawn the GPU driver");
 
     Some((driver_report, display_ep, surface))
 }
 
-/// **Wire and spawn the display driver alone**, with no client: `(report endpoint, display
+/// **Wire and spawn the GPU driver alone**, with no client: `(report endpoint, display
 /// endpoint, the surface's physical base)`, or `None` if no virtio-gpu is on the bus.
 ///
 /// For rung two (milestone 33). The compositor takes `painter`'s place at this seam exactly as the
@@ -299,7 +299,7 @@ pub fn start_driver(driver_image: &'static [u8]) -> Option<(RendezvousId, Rendez
 
 /// What the kernel keeps after wiring a display terminal onto the scanout.
 pub struct TerminalWiring {
-    /// The display driver's status endpoint.
+    /// The GPU driver's status endpoint.
     pub driver_report: RendezvousId,
     /// The terminal's status endpoint.
     pub term_report: RendezvousId,
@@ -313,12 +313,12 @@ pub struct TerminalWiring {
     pub surface: u64,
 }
 
-/// **Wire and spawn the display driver with a terminal on the whole scanout** (milestone 29's
+/// **Wire and spawn the GPU driver with a terminal on the whole scanout** (milestone 29's
 /// remaining increment). `None` if no virtio-gpu function is on the bus.
 ///
 /// The terminal takes `painter`'s place at the display seam with **exactly `painter`'s
 /// authority**: a report endpoint, the display endpoint, and the surface frames. It holds no
-/// device, no interrupt, and no physical address, and `display` cannot tell it from the client that
+/// device, no interrupt, and no physical address, and `gpu_driver` cannot tell it from the client that
 /// drew a test pattern. That is the answer to "did the framebuffer contract need changing to
 /// carry text?", and it is an answer made of a spawn literal rather than an argument.
 ///
@@ -406,7 +406,7 @@ pub fn start_terminal(
 impl TerminalWiring {
     /// **Play the application**: put `text` in the output page and `OP_WRITE` it.
     ///
-    /// Returns when the terminal has drawn it and the display driver has put it on the scanout,
+    /// Returns when the terminal has drawn it and the GPU driver has put it on the scanout,
     /// because that is what the terminal contract says an `OP_WRITE` reply means (the bytes are
     /// on the console's side). So a test needs no polling and no sleep between writes.
     pub fn print(&self, text: &[u8]) {

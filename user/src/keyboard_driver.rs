@@ -3,12 +3,12 @@
 //!
 //! ```text
 //!   MODE_RING (rung two, a compositor scene):
-//!   virtio-input ──virtio (PCIe, behind the IOMMU)──► kbd ──the input ring──► compositor
-//!    (a keyboard)                                      │    (shared memory)
+//!   virtio-input ──virtio (PCIe, behind the IOMMU)──► keyboard_driver ──the input ring──► compositor
+//!    (a keyboard)                                      │                (shared memory)
 //!                                                      └──doorbell COMMIT──► "look at the surfaces"
 //!
 //!   MODE_DIRECT (milestone 177, option A: the boot's single-terminal case):
-//!   virtio-input ──virtio──► kbd ──OP_BYTES, one CALL──► line_editor
+//!   virtio-input ──virtio──► keyboard_driver ──OP_BYTES, one CALL──► line_editor
 //! ```
 //!
 //! # Two modes, chosen at spawn, the same shape `display_terminal`'s `MODE_DISPLAY`/`MODE_WINDOW`
@@ -60,13 +60,13 @@
 //! recorded in `crates/pci` rather than guessed at), and no configuration-space query: it drives the
 //! event queue and nothing else. The honest limits are in notes/glyphs.md.
 //!
-//! Name: provisional, corrected 2026-08-27. An earlier version of this comment claimed `kbd` was
-//! ratified 2026-07-30 alongside DECISIONS §39; checked directly against that section's own text
-//! and found false: §39 names `blk`, `spawner`, `console`, `input`, `shell`, `painter` and
-//! `window` as the names already right, and `kbd` is not among them. calef, 2026-08-27: he is not
-//! a fan of `kbd` for "keyboard" and this naming has not happened yet. Corrected here rather than
-//! left standing, per this project's own rule that a false name-claim is the same defect as a
-//! stale comment.
+//! Name: ratified 2026-08-27 (calef). Renamed from `kbd` to `keyboard_driver`, matching the
+//! `<device>_driver` shape given to `block_driver` and `gpu_driver` in the same pass, and settling
+//! the open question this comment used to carry: `kbd` was never ratified (an earlier version of
+//! this comment claimed it was ratified 2026-07-30 alongside DECISIONS §39; checked directly
+//! against that section's own text and found false, §39 names `blk`, `spawner`, `console`,
+//! `input`, `shell`, `painter` and `window` as the names already right, and `kbd` was never among
+//! them), and calef is not a fan of `kbd` for "keyboard" in the first place.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks
@@ -184,8 +184,8 @@ fn mw(off: u64, v: u32) {
 // body is empty, so the very reordering the comment below names is unconstrained on that ISA: the
 // machine half is covered by TSO, the compiler half by nothing. Builds and lints clean there
 // anyway, because an empty function is not a warning. Same hole in `crates/virtio`,
-// `user/src/display.rs` and `user/src/net_transport.rs`; see notes/architecture-list-sweep.md,
-// finding 9.
+// `user/src/gpu_driver.rs` and `user/src/net_transport.rs`; see
+// notes/architecture-list-sweep.md, finding 9.
 fn barrier() {
     // The device reads what we wrote, so a store the compiler or the machine reordered past the
     // index that advertises it is a descriptor the device may act on before it is finished.
@@ -326,7 +326,12 @@ pub extern "C" fn _start(mode: u64, dma_phys: u64, _arg2: u64) -> ! {
     // the device actually reads.
     virtio_notify(VIRTIO, EVENT_Q);
 
-    send(REPORT, video_terminal::status::KBD_UP, EVENTS as u64, 0);
+    send(
+        REPORT,
+        video_terminal::status::KEYBOARD_UP,
+        EVENTS as u64,
+        0,
+    );
 
     let mut keys = video_terminal::keymap::Keyboard::new();
     let mut seen: u16 = 0; // used-ring index already drained

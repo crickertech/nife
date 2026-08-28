@@ -56,7 +56,7 @@
 //! Name: ratified 2026-08-01 (calef, milestone 63), replacing `vterm`. Refused `vterm` (an
 //! abbreviation), `text_console` (`console` is already a program) and `video_terminal` for the
 //! program (the crate is named for the protocol it implements and this program for its role, next
-//! to `display`, the virtio-gpu driver it is a client of, so the display ladder reads straight from
+//! to `gpu_driver`, the virtio-gpu driver it is a client of, so the display ladder reads straight from
 //! the filenames).
 
 #![no_std]
@@ -253,7 +253,7 @@ impl Wiring {
         // on RISC-V), and it belongs in this userspace program rather than in arch code (rule 1).
         //
         // PAIR: whichever of the two paths below runs. `MODE_DISPLAY` pairs with `barrier()` in
-        // user/src/display.rs, the same as the compositor's `flush`; `MODE_WINDOW` pairs with
+        // user/src/gpu_driver.rs, the same as the compositor's `flush`; `MODE_WINDOW` pairs with
         // `serve_frame` in user/src/compositor.rs. Both are also ordered by the `call` each path
         // makes, when it makes one; the second fence below is the case where it does not.
         core::sync::atomic::fence(core::sync::atomic::Ordering::SeqCst);

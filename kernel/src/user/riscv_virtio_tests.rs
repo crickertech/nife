@@ -8,11 +8,11 @@ use super::std_tests::{
 use super::*;
 use crate::sched;
 
-/// The `blk` driver's ELF bytes from the riscv initrd archive. Absent means the initrd was
-/// built without it (or the aarch64 archive was handed to a riscv boot, the mix-up the xtask
+/// The `block_driver` program's ELF bytes from the riscv initrd archive. Absent means the initrd
+/// was built without it (or the aarch64 archive was handed to a riscv boot, the mix-up the xtask
 /// riscv test leg exists to prevent); fail loudly rather than skip.
 fn blk_image() -> &'static [u8] {
-    program("blk").expect("no blk program in the initrd archive")
+    program("block_driver").expect("no block_driver program in the initrd archive")
 }
 
 /// The `net_stack` program's ELF bytes (milestone 30, piece 3): the smoltcp net server.
@@ -189,7 +189,7 @@ fn a_userspace_driver_reads_a_file_from_a_virtio_disk() {
 /// The aarch64 twin's contract, proven identically on riscv by the same suite (the parity gate):
 /// a block server, an FS server over blk IPC, and a client that opens a file through a granted
 /// directory capability, reads it, round-trips a write, and reports. The block-server role rides
-/// the portable `blk` binary here instead of hello.
+/// the portable `block_driver` binary here instead of hello.
 #[test_case]
 fn the_redoxfs_server_serves_redoxfs_over_a_capability_contract() {
     let Some((readiness, report)) = fs_service::start(
@@ -279,7 +279,7 @@ fn a_writable_per_file_grant_writes_that_file_and_still_only_that_file() {
 }
 
 /// The riscv half of the aarch64 twin's helper; the only difference is the block-server binary
-/// (the portable `blk` here, the PL011-tied `hello` there).
+/// (the portable `block_driver` here, the PL011-tied `hello` there).
 fn attack_a_grant(rights: u64, writable: bool) -> Option<u64> {
     let Some(report) = fs_service::start_granted(
         blk_image(),

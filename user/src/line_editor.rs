@@ -11,7 +11,7 @@
 //!        application ◄─lines──└──────────┘◄──OP_WRITE / OP_READLINE── application
 //!
 //!   MODE_DISPLAY (milestone 177, the graphical boot):
-//!   kbd (direct) ──OP_BYTES──►┌──────────┐──OP_WRITE──► display_terminal
+//!   keyboard_driver (direct) ──OP_BYTES──►┌──────────┐──OP_WRITE──► display_terminal
 //!                             │ line_editor │
 //!        application ◄─lines──└──────────┘◄──OP_WRITE / OP_READLINE── application
 //! ```
@@ -60,14 +60,14 @@ use line_editor::{Event, LINE_MAX, LineDisc, PROMPT_MAX, Sink, proto};
 use user_rt::{call, recv, recv_cap, reply, send};
 
 /// The terminal endpoint (slot 0): clients CALL requests here; we serve it with `RECV_CAP`. Its
-/// clients differ by [`MODE_CONSOLE`]/[`MODE_DISPLAY`] (`input` or `kbd`, directly, for the
+/// clients differ by [`MODE_CONSOLE`]/[`MODE_DISPLAY`] (`input` or `keyboard_driver`, directly, for the
 /// keystroke half; `swish` either way), but this server never has to know which: an `OP_BYTES`
 /// CALL looks the same regardless of who is holding the other end (notes/ipc-naming.md).
 const TERM: u64 = 0;
 /// The output sink's request endpoint (slot 1): [`MODE_CONSOLE`] SENDs a byte count here
 /// ([`CONREQ`]'s own doc); [`MODE_DISPLAY`] CALLs it with `OP_WRITE` (`display_terminal`'s own
 /// served endpoint). One slot, two meanings, chosen by `mode` at spawn -- the same shape
-/// `display_terminal`'s own `PRESENT` slot and `kbd`'s own `OUT` slot already use.
+/// `display_terminal`'s own `PRESENT` slot and `keyboard_driver`'s own `OUT` slot already use.
 const CONREQ: u64 = 1;
 /// The console server's reply endpoint (slot 2): we RECV its ack here. The console speaks the
 /// pre-§12 two-endpoint protocol (it serves with plain RECV, which cannot answer a CALL), so

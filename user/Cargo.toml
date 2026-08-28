@@ -148,8 +148,8 @@ bench = false
 # hello's aarch64 roles compile) behind a dedicated-binary skeleton, so riscv runs the identical
 # driver, attacker included, without porting the PL011-wired hello multiplexer.
 [[bin]]
-name = "blk"
-path = "src/blk.rs"
+name = "block_driver"
+path = "src/block_driver.rs"
 test = false
 bench = false
 
@@ -291,12 +291,12 @@ path = "src/smb_server.rs"
 test = false
 bench = false
 
-# The display driver (milestone 29, the display ladder's rung one): drives the virtio-gpu device
-# over the confined transport and serves the framebuffer contract to clients. `initrd_aarch64` packs it as
-# "display" for both ISAs.
+# The GPU driver (milestone 29, the display ladder's rung one): drives the virtio-gpu device
+# over the confined transport and serves the framebuffer contract to clients. `initrd_aarch64` packs
+# it as "gpu_driver" for both ISAs.
 [[bin]]
-name = "display"
-path = "src/display.rs"
+name = "gpu_driver"
+path = "src/gpu_driver.rs"
 test = false
 bench = false
 
@@ -442,10 +442,10 @@ bench = false
 
 # The keyboard driver (milestone 29's input): a confined userspace virtio-input driver whose whole
 # power to inject a keystroke is the mapping of the compositor's input ring, not the doorbell every
-# client holds. `initrd_aarch64` packs it as "kbd" for both ISAs.
+# client holds. `initrd_aarch64` packs it as "keyboard_driver" for both ISAs.
 [[bin]]
-name = "kbd"
-path = "src/kbd.rs"
+name = "keyboard_driver"
+path = "src/keyboard_driver.rs"
 test = false
 bench = false
 

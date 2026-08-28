@@ -36,7 +36,7 @@ use crate::sched;
 /// notes/framebuffer-contract.md, "Proving the scanout, from the host".
 #[test_case]
 fn a_confined_userspace_driver_puts_a_known_pattern_in_a_framebuffer() {
-    let display = program("display").expect("no display program in the initrd archive");
+    let gpu_driver = program("gpu_driver").expect("no gpu_driver program in the initrd archive");
     let painter = program("painter").expect("no painter program in the initrd archive");
     let threads_before = sched::thread_count();
 
@@ -46,7 +46,7 @@ fn a_confined_userspace_driver_puts_a_known_pattern_in_a_framebuffer() {
     // `q35`, PCI enumeration (milestone 165, ACPI's MCFG) reaches real hardware windows the
     // runner has never populated with a GPU (`scripts/qemu-runner-x86_64.sh` wires no
     // `virtio-gpu-pci`), so `None` there is an honest, expected gap rather than a bug.
-    let Some((driver_report, client_report)) = display_service::start(display, painter) else {
+    let Some((driver_report, client_report)) = display_service::start(gpu_driver, painter) else {
         crate::testing::skip!(
             "no virtio-gpu-pci function on the bus: either this kernel enumerated no PCI at all, \
              or (x86_64) the test runner has never wired a GPU device onto the bus it does \
@@ -70,8 +70,8 @@ fn a_confined_userspace_driver_puts_a_known_pattern_in_a_framebuffer() {
     assert_eq!(
         tag,
         gfx::status::UP,
-        "the display driver did not come up (it reported {tag:#x}; a 0xDEAD_.. word's low byte \
-         is the bring-up step that failed, see user/src/display.rs)",
+        "the GPU driver did not come up (it reported {tag:#x}; a 0xDEAD_.. word's low byte \
+         is the bring-up step that failed, see user/src/gpu_driver.rs)",
     );
     assert_eq!(
         geometry,
@@ -190,12 +190,12 @@ fn a_confined_userspace_driver_puts_a_known_pattern_in_a_framebuffer() {
 /// fails the scanout check loudly, which is the right way to be wrong.
 #[test_case]
 fn a_backing_outside_the_grant_is_refused_by_the_iommu() {
-    let display = program("display").expect("no display program in the initrd archive");
+    let gpu_driver = program("gpu_driver").expect("no gpu_driver program in the initrd archive");
 
     // Drain any stale fault first, so what we observe is this test's.
     while crate::iommu::take_fault().is_some() {}
 
-    let Some((report, victim)) = display_service::start_backing_escape(display) else {
+    let Some((report, victim)) = display_service::start_backing_escape(gpu_driver) else {
         crate::testing::skip!("no virtio-gpu-pci function on the bus (NIFE_GPU not set?)");
     };
     assert!(
@@ -209,7 +209,7 @@ fn a_backing_outside_the_grant_is_refused_by_the_iommu() {
         tag,
         gfx::status::BACKING,
         "the escape driver did not reach its attach (it reported {tag:#x}; a 0xDEAD_.. word's \
-         low byte names the bring-up step, see user/src/display.rs)",
+         low byte names the bring-up step, see user/src/gpu_driver.rs)",
     );
 
     // The evidence. QEMU records the fault as it processes the command under TCG, so a bounded
@@ -243,7 +243,7 @@ fn a_backing_outside_the_grant_is_refused_by_the_iommu() {
     // Leave the fault queue as we found it. Not tidiness: the RISC-V IOMMU's queue holds 128
     // records and the driver does not clear its overflow bit, so records left behind here cost a
     // later test its own fault assertion. The escape above is sized to produce one fault for the
-    // same reason (user/src/display.rs).
+    // same reason (user/src/gpu_driver.rs).
     while crate::iommu::take_fault().is_some() {}
 }
 
@@ -280,7 +280,7 @@ fn a_backing_outside_the_grant_is_refused_by_the_iommu() {
 ///
 /// # And the picture the driver reports is the *blank* terminal, on purpose
 ///
-/// `display`'s one status report covers its first flush, which here is the terminal's blank grid
+/// `gpu_driver`'s one status report covers its first flush, which here is the terminal's blank grid
 /// before anything has been written. So it doubles as the check that an empty terminal is a
 /// *defined* picture (spaces on the default background, with the cursor) rather than whatever
 /// those frames held at boot, exactly as rung two used it for the empty compositor screen.
@@ -290,11 +290,11 @@ fn a_backing_outside_the_grant_is_refused_by_the_iommu() {
 /// one that stays up until QEMU exits. See notes/glyphs.md for the ordering and what breaks it.
 #[test_case]
 fn a_bitmap_font_and_a_vt_engine_put_readable_text_on_the_scanout() {
-    let display = program("display").expect("no display program in the initrd archive");
+    let gpu_driver = program("gpu_driver").expect("no gpu_driver program in the initrd archive");
     let display_terminal =
         program("display_terminal").expect("no display_terminal program in the initrd archive");
 
-    let Some(w) = display_service::start_terminal(display, display_terminal) else {
+    let Some(w) = display_service::start_terminal(gpu_driver, display_terminal) else {
         crate::testing::skip!("no virtio-gpu-pci function on the bus (NIFE_GPU not set?)");
     };
 
@@ -303,7 +303,7 @@ fn a_bitmap_font_and_a_vt_engine_put_readable_text_on_the_scanout() {
     assert_eq!(
         tag,
         gfx::status::UP,
-        "the display driver did not come up (it reported {tag:#x})",
+        "the GPU driver did not come up (it reported {tag:#x})",
     );
     assert_eq!(geometry, gfx::WIDTH as u64 | ((gfx::HEIGHT as u64) << 32),);
 
@@ -438,9 +438,10 @@ fn a_bitmap_font_and_a_vt_engine_put_readable_text_on_the_scanout() {
 /// character, because typing is a page it does not map.
 #[test_case]
 fn a_keystroke_from_a_virtio_keyboard_becomes_a_terminal_byte() {
-    let kbd = program("kbd").expect("no kbd program in the initrd archive");
-    let Some(mut w) = keyboard_service::start(kbd) else {
-        crate::testing::skip!("no virtio-input function on the bus (NIFE_KBD not set?)");
+    let keyboard_driver =
+        program("keyboard_driver").expect("no keyboard_driver program in the initrd archive");
+    let Some(mut w) = keyboard_service::start(keyboard_driver) else {
+        crate::testing::skip!("no virtio-input function on the bus (NIFE_KEYBOARD not set?)");
     };
     assert!(
         crate::iommu::active(),
@@ -451,9 +452,9 @@ fn a_keystroke_from_a_virtio_keyboard_becomes_a_terminal_byte() {
     let [tag, buffers, ..] = sched::ipc_recv(w.report);
     assert_eq!(
         tag,
-        video_terminal::status::KBD_UP,
+        video_terminal::status::KEYBOARD_UP,
         "the keyboard driver did not come up (it reported {tag:#x}; a 0xDEAD_.. word's low byte \
-         names the step, see user/src/kbd.rs)",
+         names the step, see user/src/keyboard_driver.rs)",
     );
     assert!(
         buffers > 0,

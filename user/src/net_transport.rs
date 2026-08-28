@@ -122,7 +122,7 @@ fn mw(off: u64, v: u32) {
 // BUGS: two arms, three architectures, no fallback. On x86_64 both `cfg`s compile out and this
 // body is empty, so it orders nothing against the compiler, which is the half TSO does not cover.
 // Builds and lints clean there, because an empty function is not a warning. Same hole in
-// `crates/virtio`, `user/src/display.rs` and `user/src/kbd.rs`; see
+// `crates/virtio`, `user/src/gpu_driver.rs` and `user/src/keyboard_driver.rs`; see
 // notes/architecture-list-sweep.md, finding 9.
 fn barrier() {
     #[cfg(target_arch = "aarch64")]
@@ -260,7 +260,7 @@ impl VirtioNet {
         //
         // Fail closed: a completion naming a buffer we never posted is consumed and dropped, and
         // one claiming more bytes than a buffer holds is truncated to the buffer. `entropy.rs`
-        // already clamps its length this way; this driver and `kbd.rs` were the two that did not.
+        // already clamps its length this way; this driver and `keyboard_driver.rs` were the two that did not.
         //
         // The dropped completion's buffer is NOT re-posted, because a bogus `id` does not say
         // which buffer it was. That costs a receive buffer per lie, which is the right trade: a

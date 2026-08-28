@@ -2,7 +2,7 @@
 //!
 //! One program, several roles, because the roles differ by one act each and sharing the honest path
 //! is what makes an attack a fair test rather than a different program failing for its own reasons
-//! (the same reason `display` carries its own escape role).
+//! (the same reason `gpu_driver` carries its own escape role).
 //!
 //! What an honest window holds:
 //!
