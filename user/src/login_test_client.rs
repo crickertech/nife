@@ -27,7 +27,8 @@
 //!   then calls `MemoryRegion::DESTROY` on the fourth delegated capability (`login_proto`'s own logout
 //!   ticket) and proves the *directory* came down with it: a further `READDIR` through it must fail.
 //!   This is milestone 49's caretaker-teardown fix, proven end to end rather than merely by the
-//!   syscall's own return code.
+//!   syscall's own return code. It reports how long that `DESTROY` waited (microseconds) in the
+//!   third report word, where the other roles put an identity hint; see `destroy_with_retry`.
 //!
 //! A role that succeeds does not stop at the verdict. It **uses** what it received: a directory
 //! read through the caretaker's endpoint, the file service's shared frame mapped and used for that
@@ -159,8 +160,9 @@ pub const F_NOT_SHARED_SUBTREE: u64 = 1 << 2;
 /// not get to run at all, which the kernel test must treat as its own failure rather than silence.
 pub const F_MARKER_WRITTEN: u64 = 1 << 3;
 /// **Set when the fourth capability's `MemoryRegion::DESTROY` returned success.** Set only by
-/// [`ROLE_LOGOUT`]; retried a bounded few times on refusal (`login_proto`'s own module docs, on the
-/// fourth capability, name the transient window this covers).
+/// [`ROLE_LOGOUT`]; retried on refusal until the region comes down or [`DESTROY_WAIT_SECS`] runs out
+/// (`login_proto`'s own module docs, on the fourth capability, name the transient window this
+/// covers, and `destroy_with_retry` says why the bound is a clock).
 pub const F_TEARDOWN_OK: u64 = 1 << 4;
 /// **Set when a `READDIR` through the directory capability failed *after* teardown.** Set only by
 /// [`ROLE_LOGOUT`]; this is the proof that the capability, not merely the syscall, came down: a
@@ -307,7 +309,14 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
                 // `budget` is already gone by construction (above); `region` is now the top of
                 // `CONSTRUCTION_UT`'s watermark, so this `DESTROY` un-bumps it too, and this
                 // login's whole 128-page contribution comes home.
-                ROLE_LOGOUT => flags |= teardown_directory(dir_ep, region),
+                ROLE_LOGOUT => {
+                    flags |= teardown_directory(dir_ep, region);
+                    // The third report word, for this role only: how many microseconds the
+                    // caretaker region's `DESTROY` waited (the budget's own wait is not reported;
+                    // nothing lives in that region, so it has never needed one). The kernel test
+                    // quotes it in the failure message.
+                    hint = waited_micros();
+                }
                 _ => {}
             }
         }
@@ -425,23 +434,94 @@ fn teardown_directory(dir: u64, region: u64) -> u64 {
     flags
 }
 
-/// **`MemoryRegion::DESTROY` on `ut`, retried a bounded few times.** Used on both the fourth delegated
-/// capability (the caretaker's construction region) and the third (the client's own budget, already
-/// held with `WRITE` by every role): `login_proto`'s own module docs, on the fourth capability, name
-/// the one transient refusal the *caretaker's* region can give (mid-`forward` to the file service,
-/// blocked on an endpoint the region does not own, at the exact instant `DESTROY` is attempted; that
-/// window closes on its own, so a short bounded retry, `crates/system_initializer::reclaim`'s own
-/// idiom, is enough). The budget has no such window: nothing else is ever running in it, so its own
-/// `DESTROY` is expected to succeed on the first attempt, and this loop costs it nothing to share.
+/// **How long [`destroy_with_retry`] waits for a refusal to clear, in seconds of counter time.**
+///
+/// A watchdog, deliberately, and not a rate: it is set so far above what the wait actually costs
+/// that only a region which will *never* come down can reach it. Measured on 2026-08-27, an
+/// eight-core Mac under TCG, ten logouts per run, 70 waits over seven full-suite runs:
+///
+/// | condition | worst single wait |
+/// |---|---|
+/// | quiet host, aarch64 | 12.8 ms |
+/// | one-minute load average 13 to 29, aarch64 | 44.3 ms |
+/// | one-minute load average 27 to 47, riscv64 | **126.4 ms** |
+///
+/// The tail grows with contention, which is the whole reason this is not a two-digit number: five
+/// seconds is 40x the worst of those. **Only a failing run ever pays it**, because the loop returns
+/// the moment the region comes down, and the test that drives this stops at its first bad logout, so
+/// the worst a wedged caretaker costs is this twice (the budget and the region) against the
+/// harness's 90 s per-test ceiling. That is the trade: a red run takes ten seconds to arrive and
+/// says which of the two things happened, instead of arriving in eight milliseconds and being wrong.
+const DESTROY_WAIT_SECS: u64 = 5;
+
+/// **`MemoryRegion::DESTROY` on `ut`, retried until the region actually becomes destroyable.** Used
+/// on both the fourth delegated capability (the caretaker's construction region) and the third (the
+/// client's own budget, already held with `WRITE` by every role): `login_proto`'s own module docs, on
+/// the fourth capability, name the one transient refusal the *caretaker's* region can give
+/// (mid-`forward` to the file service, blocked on an endpoint the region does not own, at the exact
+/// instant `DESTROY` is attempted; that window closes on its own). The budget has no such window:
+/// nothing else is ever running in it, so its own `DESTROY` is expected to succeed on the first
+/// attempt, and this loop costs it nothing to share.
+///
+/// # Why this is a clock and not a count of attempts
+///
+/// It was `for _ in 0..64 { destroy; yield }` until 2026-08-27, which is
+/// notes/load-sensitive-assertions.md's family in one line: **a yield count is not a duration.**
+/// What the refusal is waiting on is a timer tick. `sched::reap_region_objects` refuses while the
+/// caretaker is still live and *arms* DECISIONS §16's kill on it, and the kill lands at that
+/// thread's next preemption, so the wait is a tick period (10 ms at 100 Hz) rather than a number of
+/// syscalls. A `yield_now` that finds work on this core returns in ~130 us, so sixty-four of them
+/// can elapse in 8 ms and give up **before the tick that does the work arrives**; a `yield_now`
+/// that finds none parks until the next tick, and then two attempts are enough. Which of the two
+/// happens is a scheduling outcome the host decides, which is why the old form passed quiet, passed
+/// CI, and failed at about 2x oversubscription. Measured, both shapes, in one run: 23, 36, 2, then
+/// 64-and-refused, at 130 to 300 us per attempt.
+///
+/// So the loop waits on the property (the region genuinely coming down) and bounds itself with
+/// [`DESTROY_WAIT_SECS`] of counter time.
+///
+/// # BUGS
+///
+/// **The bound is wall clock, which is the unit milestone 62 argues against**, and it is used here
+/// because the better one is not reachable from a process. That milestone re-denominated
+/// `smp.rs`'s migration drain in *delivered timer ticks* precisely because a counter deadline keeps
+/// running while the guest is descheduled; userspace has no delivered-tick counter (`user_rt::now`
+/// is the raw counter and nothing publishes the kernel's per-core tick count), so what makes this
+/// safe is the 40x margin above rather than the unit. The margin is what would have to be
+/// re-measured if the wait ever grew. Giving a process a delivered-tick reading is an ABI addition
+/// and therefore calef's call, not a lane's.
 fn destroy_with_retry(ut: u64) -> bool {
-    const ATTEMPTS: usize = 64;
-    for _ in 0..ATTEMPTS {
+    let ceiling = user_rt::cntfrq().saturating_mul(DESTROY_WAIT_SECS);
+    let started = user_rt::now();
+    loop {
         if destroy_region(ut) == 0 {
+            record(user_rt::now().wrapping_sub(started));
             return true;
+        }
+        if user_rt::now().wrapping_sub(started) >= ceiling {
+            record(user_rt::now().wrapping_sub(started));
+            return false;
         }
         yield_now();
     }
-    false
+}
+
+/// How long the last [`destroy_with_retry`] waited, in counter ticks. [`ROLE_LOGOUT`] reports it as
+/// microseconds in the third report word (see [`_start`]), so a red run carries the observation the
+/// wait actually decided on instead of sending the reader back to re-run under load.
+static mut WAITED: u64 = 0;
+
+/// Store [`WAITED`]. Every role of this program is single-threaded and this is its only writer.
+fn record(ticks: u64) {
+    // SAFETY: one thread, one writer, and the only reader runs after it in the same thread.
+    unsafe { WAITED = ticks }
+}
+
+/// [`WAITED`] in microseconds, for the report.
+fn waited_micros() -> u64 {
+    // SAFETY: as `record`.
+    let ticks = unsafe { WAITED };
+    ticks.saturating_mul(1_000_000) / user_rt::cntfrq().max(1)
 }
 
 fn done(tag: u64, w1: u64, w2: u64) -> ! {
