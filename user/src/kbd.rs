@@ -356,15 +356,22 @@ pub extern "C" fn _start(mode: u64, dma_phys: u64, _arg2: u64) -> ! {
             let (kind, code, value) = (r16(at), r16(at + 2), r32(at + 4));
             seen = seen.wrapping_add(1);
 
-            if let Some(b) = keys.event(kind, code, value) {
-                if mode == MODE_DIRECT {
-                    direct_buf[direct_n] = b;
-                    direct_n += 1;
-                    if direct_n == direct_buf.len() {
-                        direct_send(&direct_buf, &mut direct_n);
+            if let Some(bytes) = keys.event(kind, code, value) {
+                // Most keys send one byte; an arrow key sends its three-byte `CSI` sequence
+                // (video_terminal::keymap::Bytes). Either way both delivery modes take them one at
+                // a time, in order, which is what makes a multi-byte key indistinguishable
+                // downstream from several single-byte keys typed fast -- true of the ring
+                // (MODE_RING) and just as true of the direct-batch buffer (MODE_DIRECT).
+                for &b in bytes.as_slice() {
+                    if mode == MODE_DIRECT {
+                        direct_buf[direct_n] = b;
+                        direct_n += 1;
+                        if direct_n == direct_buf.len() {
+                            direct_send(&direct_buf, &mut direct_n);
+                        }
+                    } else {
+                        ring_push(&mut tail, b);
                     }
-                } else {
-                    ring_push(&mut tail, b);
                 }
                 typed = true;
             }

@@ -6,17 +6,18 @@
              # Updating this file is a statement that a performance change is intended and
              # understood; do it in the commit that causes the change. Checked by --check, a coarse
              # 10% tripwire (icount counts drift across builds; see notes/benchmarks.md).
-yield_switch 182954 2000
-ipc_rtt 168479 1000
-relay_rtt 338515 1000
-call_reply 174357 1000
-broker_rtt 348136 1000
-spawn_reap 32550 64
-map_new 2362 64
-coremark 3654262 256
-null_syscall 72229 20000
-ctx_switch 487250 5000
-ipc_rtt_el0 1796142 5000
-sink_throughput 737352 80000
-map_el0 67400 500
-spawn_el0 310826 100
+yield_switch 183676 2000
+ipc_rtt 169961 1000
+relay_rtt 339304 1000
+call_reply 174916 1000
+broker_rtt 349282 1000
+spawn_reap 33202 64
+map_new 2397 64
+rfence_self 5991 512
+coremark 3654339 256
+null_syscall 72230 20000
+ctx_switch 492351 5000
+ipc_rtt_el0 1819877 5000
+sink_throughput 747005 80000
+map_el0 73990 500
+spawn_el0 330863 100
