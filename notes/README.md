@@ -1054,6 +1054,14 @@ in the code or the conversation doesn't make sense, it belongs here.
   `arch/` (42 missing names and four `cfg` arms; `crates/paging` needed nothing), the three things
   that genuinely do not fit the seam, the segment-reload bug that zeroes the per-CPU pointer, and an
   honest account of what the gates cover.
+- [Booting x86_64 from real firmware](x86-uefi-boot.md): milestone 87's answer to the `BUGS` entry
+  above (PVH is a hypervisor protocol and no machine speaks it). The fork priced by two commands
+  rather than argued (OVMF ships with the pinned QEMU; `brew info grub` has no formula at all), the
+  decision that the kernel is not modified and is entered through its existing `_start` with PVH's
+  own register contract, the mode switch out of long mode and why each step cannot move, the four
+  code paths that had never executed until firmware ran them, the 54 MiB of RAM deliberately left
+  reported as reserved and how to get it back, and **the bench procedure for the OptiPlex 7050**
+  with its failure-triage table.
 - [The VisionFive 2: first silicon](visionfive2.md): milestone 16a's board facts, every one with a
   source. The four real differences from QEMU `virt` (DRAM base, the DW-8250 UART, the PLIC context
   map, the disabled S7 hart), the Image-header load path through vendor U-Boot, the microSD payload

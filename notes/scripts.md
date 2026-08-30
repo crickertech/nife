@@ -80,6 +80,13 @@ directories an `s` apart is a little awkward, but each follows its own conventio
 runner where cargo already expects it (`.cargo/config.toml` points at `scripts/qemu-runner-aarch64.sh`)
 was cheaper than moving it.
 
+**One thing in `scripts/` is not internal plumbing, and it is worth naming so the rule above is not
+misread.** `scripts/qemu-uefi-x86_64.sh` (milestone 87) boots the x86_64 kernel under OVMF, the real
+UEFI firmware, from a staged EFI system partition. It is run by hand as well as by
+`cargo xtask uefi-boot`, and it lives beside the runners rather than in `script/` because it is a
+QEMU invocation of exactly their kind: it is not a cargo `runner` only because this boot path has no
+`-kernel` argument for cargo to pass it. See notes/x86-uefi-boot.md.
+
 **`bootstrap` installs system packages.** Running `script/bootstrap` will `brew install qemu` on
 macOS or `apt-get install` on Linux if QEMU is missing. That is the pattern's intent: a fresh
 clone should be one command from working, but it is also why `script/test` does *not* call
