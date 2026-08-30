@@ -57,10 +57,39 @@ that does not matter.
 undelivered-wake bug was found by a bench on three harts, invisible in QEMU, and no proof was
 positioned to see it.
 
-**The decisive experiment:** milestone 191 (did the proofs catch the bugs?). An afternoon of reading
-against this project's own defect history, with a second pass over the harnesses asking which prove
-a property that could plausibly have been false. That second pass is what stops a study that can
-only confirm.
+**The experiment:** milestone 191 (did the proofs catch the bugs?), against this project's own defect
+history, with a second pass over the harnesses asking which prove a property that could plausibly
+have been false.
+
+**Status: RUN, 2026-08-30. AMBER, and the red half is structural.** notes/proof-retrospective.md has
+the study; PR #589.
+
+- **No Kani harness in this tree has ever caught a defect after the day it was written.** All
+  eighteen defects in the corpus were found by something else: a flaky suite, a boot on real
+  silicon, a fuzzer, the mutation sweep, loom, a code read, or a CI lint. No red `script/verify` run
+  appears anywhere in the record.
+- **The cause is one line of `script/verify`'s own header**, verified rather than inferred:
+  *"`cargo kani -p <crate>` never compiles the kernel, the user programs, or xtask."* So **64,818
+  lines of `kernel/src` are out of reach by construction**, and that is exactly where every
+  concurrency, hardware-contract and resource-accounting defect lived. The proofs are not failing to
+  catch bugs in the code they cover; they do not cover the code the bugs are in.
+- **Why it is amber and not red.** Two real defects were caught *while harnesses were being written*
+  (`dtb::be32`'s unchecked `at + 4`, reachable from a corrupt device tree on the boot path;
+  `pci::intx_irq`'s pin-0 underflow). That is the survivorship asymmetry this file's rule 1 warned
+  about, showing up as evidence rather than as an excuse.
+- **The strongest counterfactual is nearly a measurement.** The milestone 6 timer re-arm drift (100
+  Hz configured, ~70 Hz delivered) has its property **already proved in this tree**, over
+  already-written code, in `crates/timetable`'s `next_after`. The timer does not call it.
+- **The numbers were wrong and are now counted:** **145** harnesses, not the roadmap's "112+";
+  `script/verify` runs **140**; 31,725 of 206,728 source lines are reachable; 19 `kani::cover!`
+  vacuity guards exist, in 4 of 24 harness crates, and a vacuous harness reports `SUCCESSFUL`.
+- **The reverse pass found real chaff**, which is what makes the green half credible:
+  `capability::subset_is_reflexive` proves `a & !a == 0`, a tautology no plausible implementation
+  error breaks, and twelve of the 26 `paging` harnesses are per-ISA restatements of six properties.
+
+**What it changes.** The verification claim should be stated as what it is: proofs over the pure
+crates, with the kernel itself unverified. Whether to make `kernel/src` Kani-reachable is a real
+piece of work and is not on this list yet.
 
 ## 3. The tests do not test anything, and the quality is illusory
 
@@ -217,7 +246,7 @@ Ranked by chance-of-fatal times cheapness-of-test, not by number.
 
 | order | risk | experiment | owner | cost |
 |---|---|---|---|---|
-| 1 | 2, the proofs | the retrospective against the defect history | milestone 191 | an afternoon, no hardware |
+| ~~1~~ | 2, the proofs | **RUN 2026-08-30: amber.** No harness has ever caught a defect after the day it was written, because `cargo kani` never compiles the kernel | milestone 191 | done |
 | 2 | 9, the HAL, on the board that already boots | the on-board test-suite exit, so silicon becomes gate-able rather than a human watching a console | milestone 16 | bench time, board proven since 2026-08-14 |
 | 3 | 9, the HAL, on the architecture that carries the risk | a GRUB Multiboot or UEFI entry path, then the OptiPlex prints a byte | milestone 87 | a lane, then bench time |
 | 4 | 1, the ecosystem | run `ripgrep`, unmodified | milestone 121 | one lane |
