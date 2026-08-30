@@ -5,7 +5,8 @@ real silicon) the way journey 1's trace discovered milestone 177 (wire the graph
 into the real interactive boot). *(Number provisional until the merge queue lands it.)*
 
 **Gate: DECISION.** The fork is in "what a keystroke arrives on", below, and it is calef's: one
-option is weeks of driver work on three architectures and the other changes what the story means.
+option is months of driver work on three architectures and the other changes what the story means. A
+recommendation is recorded below, because the fork is reversible; the call is still his.
 
 **In brief.** Every graphical story this project tells assumes a keyboard, and on real hardware there
 is no way to press a key. Milestone 29 (the framebuffer contract, bitmap font, VT engine and virtio
@@ -34,21 +35,44 @@ demonstration of a real system and is **not** the story journey 3's title claims
 
 **Option B: a USB HID stack.** An xHCI driver, enough USB core to enumerate and configure a device,
 and a HID keyboard driver, on three architectures. This is the honest version of "sit down at the
-machine", and it is large: xHCI alone is a substantial driver, and it lands in the most
-attacker-adjacent position in the system (a bus that enumerates whatever a stranger plugs in), which
-is either a problem or the best confinement demonstration available depending on how it is built.
+machine", and it is large: xHCI alone is a substantial driver against a substantial spec, so plan in
+months rather than weeks. It also lands in the most attacker-adjacent position in the system, a bus
+that enumerates whatever a stranger plugs in, which is either a problem or the best confinement
+demonstration available depending on how it is built.
 Note the peer project Atom keeps xHCI **in the kernel**, which is exactly the contrast DECISIONS §31
 (the foreign-language seam) already draws for FAT32.
 
-**Option C: split the difference by architecture.** Serial input on the boards, USB only where it is
-cheapest first. Rejected on sight rather than costed, because DECISIONS §19 (architectural parity is
-a gate) exists to stop precisely this, and an input path that differs per ISA would make "it works on
-aarch64" stop predicting anything. Recorded so the option is refused rather than forgotten.
+**Option C: split the difference by architecture.** Serial input on the boards, a cheaper native
+path where one exists. **This had exactly one candidate and it is now closed**: a PS/2 port on the
+OptiPlex would have been a few dozen lines against xHCI's spec, and calef confirmed on 2026-08-30
+that the 7050 Micro has no PS/2 port and that he owns neither a PS/2 keyboard nor an adapter. So
+there is no cheap native shortcut on any of the three machines, and the fork is genuinely binary.
+Recorded rather than deleted, because the next person will have the same idea.
 
-**No recommendation is offered**, deliberately. AGENTS.md's rule is to recommend on reversible forks
-and give options on irreversible ones, and this one sets the bar for what every graphical milestone
-in the project is claiming. It is also a scoping decision about how much of the project's remaining
-capacity goes into a bus driver.
+## The recommendation: option A, serial input, first
+
+**Recorded here rather than withheld**, correcting this block's own first draft. It said "no
+recommendation is offered, deliberately", and that was wrong by AGENTS.md's rule: recommend on
+reversible forks, give options only on irreversible ones. **This fork is reversible.** Choosing
+serial input forecloses nothing, because option B can be built at any point afterward, against the
+same `DECISIONS §21` line-discipline contract that both the UART console and `display_terminal`
+already speak identically.
+
+**The reasoning is about what journey 3 is for.** That journey exists to test two of the nine
+entries in design/fatal-risks.md: risk 9 (the HAL is a fiction and an architecture costs a
+restructure) and most of risk 6 (a confined driver cannot drive real hardware). **A framebuffer on
+real silicon tests both of those. A keyboard adds almost nothing to the test.** It adds to the
+story, and the story matters, but not enough to spend months on a bus driver before the other seven
+risks have been answered at all.
+
+**The honest cost, stated so it is a known trade rather than a hidden one:** the demonstration
+becomes *a person typing into the machine across a null-modem cable* rather than *a person sitting
+at the machine*. That is weaker, and anyone watching will notice. It is a real loss, taken
+deliberately, and it is the kind of thing this tree's `BUGS` convention exists to say out loud.
+
+**What would change the recommendation:** a customer, or an audience, for whom the difference
+between those two sentences is the product. Option B is also the better answer the moment nife has
+survived enough of the fatal-risk list that months of driver work is a reasonable thing to spend.
 
 ## What is true either way
 
@@ -64,6 +88,9 @@ capacity goes into a bus driver.
   nobody has looked at what the JH7110, the Jetson TX1 and the OptiPlex each expose.
 - **It says nothing about a mouse**, which milestone 33's compositor will eventually want and which
   the same stack would carry.
-- **The OptiPlex may or may not have a PS/2 port.** A 7050 Micro's front and rear IO has not been
-  checked against this question, and if it has one, the x86_64 leg of option B gets dramatically
-  cheaper while the other two do not. That is a two-minute check nobody has done.
+- **The recommendation is a sequencing call, not a claim that option B is wrong.** A demonstration
+  operating system that cannot accept a keyboard is limited in a way no scope note repairs, and this
+  block should not be read as saying otherwise.
+- **Option A has never been run either.** "Zero new drivers" is a reading of the code, not a boot:
+  nobody has yet displayed a terminal on a board's framebuffer while taking keystrokes over that
+  board's UART, and the first attempt is where the unglamorous problems live.
