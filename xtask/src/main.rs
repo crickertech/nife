@@ -162,6 +162,12 @@ fn main() -> ExitCode {
         "initrd-riscv" => initrd_riscv(),
         // The third archive (milestone 161). Same programs, built for x86_64.
         "initrd-x86" => initrd_x86(),
+        // The bootable UEFI image (milestone 87): the entry real firmware can start, staged at
+        // target/esp for a QEMU/OVMF boot or for a FAT32 stick. See notes/x86-uefi-boot.md.
+        "uefi-image" => uefi_image(),
+        // The same image, booted under OVMF and checked. Runs inside `script/test --arch x86_64`;
+        // exposed on its own because the bench procedure starts by watching this pass locally.
+        "uefi-boot" => uefi_boot(),
         // The documentation store (milestone 40): build it, print what it costs, and optionally
         // answer a query against it with the same reader the guest uses.
         "manual" => manual_store(std::env::args().nth(2)),
@@ -199,7 +205,7 @@ fn main() -> ExitCode {
                 eprintln!("unknown command: {other}\n");
             }
             eprintln!(
-                "usage: cargo xtask <build|run|shell|shell-check|initboot|smb-serve|initrd-aarch64|initrd-riscv|initrd-x86|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image> [--hvf]"
+                "usage: cargo xtask <build|run|shell|shell-check|initboot|smb-serve|initrd-aarch64|initrd-riscv|initrd-x86|uefi-image|uefi-boot|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image> [--hvf]"
             );
             eprintln!("       cargo xtask shell-check [--arch aarch64|riscv64]");
             eprintln!(
@@ -4770,6 +4776,171 @@ fn initrd_x86() -> bool {
     true
 }
 
+/// The `x86_64-unknown-uefi` target (milestone 87): PE/COFF rather than ELF, entered by real
+/// firmware in long mode. Only `uefi_loader`'s binary half is ever built for it.
+const UEFI_TARGET: &str = "x86_64-unknown-uefi";
+
+/// **The EFI system partition, staged as a directory** (milestone 87).
+///
+/// A directory rather than an image, because nothing here has to build a FAT filesystem: QEMU's
+/// vvfat driver synthesises one from a directory (`scripts/qemu-uefi-x86_64.sh`), and a USB stick
+/// is formatted by the person holding it. That is the same fact from both ends, and it is why this
+/// milestone needed no new host tooling at all.
+fn esp_dir() -> std::path::PathBuf {
+    workspace_root().join("target/esp")
+}
+
+/// **Build the bootable UEFI image** (milestone 87): the kernel, the userspace archive, and the
+/// loader that carries both, staged where firmware looks for them.
+///
+/// ```text
+/// cargo xtask uefi-image
+/// # then, under QEMU with real firmware:
+/// scripts/qemu-uefi-x86_64.sh target/esp
+/// # or, on the Dell OptiPlex: copy target/esp/EFI/BOOT/BOOTX64.EFI to a FAT32 stick, same path.
+/// ```
+///
+/// **The order is a dependency, not a preference.** `uefi_loader` embeds the kernel ELF and the
+/// archive with `include_bytes!`, so both have to exist and be current before it is compiled; its
+/// build script takes their paths from the environment and refuses to build without them, rather
+/// than guessing at `target/`. That refusal is the mechanism keeping a stale `.efi` from being
+/// possible to produce by hand.
+///
+/// # BUGS
+///
+/// - **`BOOTX64.EFI` is the removable-media fallback path**, which is what a USB stick uses and
+///   what OVMF finds with no configuration. Installing to the machine's own ESP with a boot entry
+///   of its own (`efibootmgr`'s job on Linux) is not done here, and is what a machine that boots
+///   nife by default would need.
+fn uefi_image() -> bool {
+    if !cargo_profiled(&["build", "-p", "kernel", "--target", X86_TARGET]) || !initrd_x86() {
+        return false;
+    }
+
+    let kernel = workspace_root()
+        .join(format!("target/{X86_TARGET}/{}/kernel", profile_dir()))
+        .display()
+        .to_string();
+
+    let mut args = std::vec![
+        "build",
+        "-p",
+        "uefi_loader",
+        "--bin",
+        "uefi_loader",
+        "--features",
+        "uefi",
+        "--target",
+        UEFI_TARGET,
+    ];
+    if RELEASE.load(Ordering::Relaxed) {
+        args.push("--release");
+    }
+    // Not `cargo()`: that helper exports the aarch64 runner's `NIFE_INITRD`/`NIFE_DISK`/`NIFE_NET`,
+    // none of which means anything to a UEFI build, and the two archive variables would then differ
+    // by one character in a way nothing would catch.
+    let built = Command::new("cargo")
+        .args(&args)
+        .env("NIFE_UEFI_KERNEL", &kernel)
+        .env("NIFE_UEFI_INITRD", x86_initrd_path())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or_else(|e| {
+            eprintln!("uefi-image: failed to run cargo: {e}");
+            false
+        });
+    if !built {
+        return false;
+    }
+
+    let efi = workspace_root().join(format!(
+        "target/{UEFI_TARGET}/{}/uefi_loader.efi",
+        profile_dir()
+    ));
+    // `\EFI\BOOT\BOOTX64.EFI` is the removable-media path every UEFI implementation looks for with
+    // no configuration at all, which is what makes the bench procedure "copy one file to a stick".
+    let boot_dir = esp_dir().join("EFI/BOOT");
+    if let Err(e) = std::fs::create_dir_all(&boot_dir) {
+        eprintln!("uefi-image: cannot create {}: {e}", boot_dir.display());
+        return false;
+    }
+    let target = boot_dir.join("BOOTX64.EFI");
+    if let Err(e) = std::fs::copy(&efi, &target) {
+        eprintln!(
+            "uefi-image: cannot copy {} to {}: {e}",
+            efi.display(),
+            target.display()
+        );
+        return false;
+    }
+    let size = std::fs::metadata(&target).map(|m| m.len()).unwrap_or(0);
+    eprintln!(
+        "wrote {} ({size} bytes: the loader, the kernel and the archive)",
+        target.display()
+    );
+    eprintln!(
+        "  under QEMU with real firmware: scripts/qemu-uefi-x86_64.sh {}",
+        esp_dir().display()
+    );
+    eprintln!("  on the bench: copy that file to a FAT32 stick as /EFI/BOOT/BOOTX64.EFI");
+    true
+}
+
+/// **Boot the UEFI image under OVMF and check the firmware path actually ran** (milestone 87).
+///
+/// This is the gate, and what it asserts is chosen so that it cannot pass for the wrong reason:
+///
+/// - **`(xsdt)` in the ACPI line.** Under QEMU's PVH loader the RSDP is found by *scanning* the
+///   BIOS area, and what turns up is an ACPI 1.0 pointer with an RSDT root. Real firmware hands
+///   over a revision-2 RSDP with an XSDT. So this string is only printable if the loader read the
+///   UEFI configuration table and the kernel walked the 64-bit root, which is a path that had never
+///   executed before this milestone.
+/// - **no `rsdp 0x0`.** The PVH handoff's own tell, and the thing this loader exists to fix.
+/// - **the tour's completion line.** Everything between the two: the fine page tables, the APIC,
+///   the timer, the scheduler and two ring-3 processes, on a memory map from firmware rather than
+///   from a hypervisor.
+///
+/// The boot is bounded by the runner script; a kernel that hangs fails this by producing none of
+/// the three rather than by hanging the gate.
+fn uefi_boot() -> bool {
+    if !uefi_image() {
+        return false;
+    }
+    eprintln!();
+    eprintln!("--- boot under real firmware, x86_64 (QEMU q35 + OVMF) ---");
+
+    let output = match Command::new("scripts/qemu-uefi-x86_64.sh")
+        .arg(esp_dir())
+        .current_dir(workspace_root())
+        .output()
+    {
+        Ok(o) => o,
+        Err(e) => {
+            eprintln!("uefi-boot: failed to run scripts/qemu-uefi-x86_64.sh: {e}");
+            return false;
+        }
+    };
+    let transcript = String::from_utf8_lossy(&output.stdout).into_owned()
+        + &String::from_utf8_lossy(&output.stderr);
+    print!("{transcript}");
+
+    let mut ok = true;
+    for wanted in ["nife x86_64: boot complete, halting.", "(xsdt)"] {
+        if !transcript.contains(wanted) {
+            eprintln!("uefi-boot: the boot transcript is missing {wanted:?}");
+            ok = false;
+        }
+    }
+    if transcript.contains("rsdp 0x0") {
+        eprintln!("uefi-boot: the kernel was handed a zero ACPI root pointer, which is PVH's tell");
+        ok = false;
+    }
+    if ok {
+        eprintln!("uefi-boot: booted under OVMF from \\EFI\\BOOT\\BOOTX64.EFI");
+    }
+    ok
+}
+
 /// **Build the aarch64 userspace archive.** Pack the built user ELF into the initrd archive the
 /// kernel hands init (milestone 19f).
 ///
@@ -6524,6 +6695,15 @@ fn test() -> bool {
         // copies pipe bytes into a String and never touches the environment.
         unsafe { std::env::set_var("NIFE_INITRD", x86_initrd_path()) };
         if !run("cargo", &["test", "-p", "kernel", "--target", X86_TARGET]) {
+            return false;
+        }
+        // **And the same kernel started by real firmware** (milestone 87). The suite above rides
+        // QEMU's PVH loader, which is a hypervisor protocol no machine speaks; this boots the same
+        // code through OVMF from `\EFI\BOOT\BOOTX64.EFI`, which is what the Dell OptiPlex does.
+        // It is the tour rather than the suite, and that is a cost decision stated where it is
+        // paid: the tour is ten seconds and covers the whole boot path, where re-running 200 tests
+        // under a second firmware buys coverage of the tests rather than of the firmware.
+        if !uefi_boot() {
             return false;
         }
     }

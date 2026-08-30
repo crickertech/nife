@@ -4,6 +4,7 @@ members = [
     "kernel",
     "xtask",
     "user",
+    "uefi_loader",
     "crates/abi",
     "crates/asid",
     "crates/bitmap_font",

@@ -1,0 +1,46 @@
+# Name: provisional (milestone 87, 2026-08-30). calef names crates and programs; this lane shipped
+# one to get the work moving and expects it to change. `uefi_loader` is a noun, `snake_case` like
+# every other Rust name in the tree, and `UEFI` is a standard term of art the naming tenet protects
+# rather than an abbreviation a reader has to decode, the same class as `elf`, `pci` and `dtb`.
+# Refused `efi_stub`, because "stub" says what it is small relative to rather than what it is, and
+# this is a loader by any reading; refused `bootloader`, because it is generic enough to name almost
+# anything in an operating system and says nothing about which firmware speaks to it.
+#
+# WHY IT IS A WORKSPACE MEMBER AND NOT AN EXCLUDED PACKAGE like `fuzz` or `vendor/redoxfs`. Its
+# library half is ordinary `no_std` Rust that compiles and tests on the host, so it belongs in the
+# workspace where `script/lint`, `script/fmt` and the host test suite already reach it. Only the
+# BINARY half is target-specific, and `required-features` below is what keeps that out of every
+# ordinary build: `cargo build --workspace` skips a `[[bin]]` whose required features are off, so
+# nothing has to remember not to build a UEFI application for macOS.
+
+[package]
+name = "uefi_loader"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+name = "uefi_loader"
+path = "src/lib.rs"
+
+# The UEFI application itself. `required-features` is the mechanism described above, and the feature
+# is the *only* thing that switches it on; `cargo xtask uefi-image` passes it along with
+# `--target x86_64-unknown-uefi` and nothing else does.
+[[bin]]
+name = "uefi_loader"
+path = "src/main.rs"
+required-features = ["uefi"]
+
+[features]
+# Build the UEFI application. Meaningless without `--target x86_64-unknown-uefi`.
+uefi = []
+
+[dev-dependencies]
+# The reader this loader is the writer for. Every encoder in `handoff` is tested by decoding its
+# output with the crate the KERNEL decodes with, so the two cannot drift apart without a host test
+# failing in milliseconds. This is the same rule `byte_sink_proto`, `grant_plan` and `clock_proto`
+# are held to: no party keeps its own copy of a layout two programs agree on.
+machine_discovery = { version = "0.1.0", path = "../crates/machine_discovery" }
