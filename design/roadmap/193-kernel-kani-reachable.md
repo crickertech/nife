@@ -1,10 +1,48 @@
 # 193. Put `kernel/src` within reach of the prover, because today the proofs cannot see it
 
-**Status: NOT-STARTED.** Minted 2026-08-30 by calef, from milestone 191's (did the proofs catch the
-bugs?) finding. *(Number provisional until the merge queue lands it.)*
+**Status: BUILT 2026-08-30.** Minted the same day by calef, from milestone 191's (did the proofs
+catch the bugs?) finding, and built in PR #591; notes/kernel-proofs.md is the record. *(Number
+provisional until the merge queue lands it.)*
 
-**Gate: NONE.** Nothing here needs deciding to start. The scoping fork below is real and arrives
-after the measurement rather than before it, which is the order that makes it answerable.
+## What was built, and it met the bar as stated
+
+**Two properties, over code that lives in `kernel/src/syscall.rs` today, proved by harnesses
+`script/verify` runs.** Nothing was moved into a crate first, which was the bar precisely so this
+milestone could not be satisfied by doing the other option under this name.
+
+- `the_run_end_is_exact_and_refuses_exactly_what_does_not_fit`: for every `va` and every
+  `count >= 1`, `run_end_va`'s `Some(last)` is exactly `va + (count-1)*PAGE_SIZE` with no wrap, and
+  `None` is exactly a run that does not fit in a `u64`. Stated in `u128` so the harness cannot repeat
+  the implementation back at itself.
+- `every_page_between_the_checked_ends_is_itself_a_user_page`: both mapping paths check the two ends
+  and then walk `va + k*PAGE_SIZE` with nothing re-checking the middle. `k` is symbolic, so every
+  page of every run is covered with no unwind bound.
+
+**Both were falsified before they were believed**, which is the point given milestone 191's finding
+that no harness in this tree had ever caught a defect. Re-introducing milestone 142's real
+`(count - 1).wrapping_mul(PAGE_SIZE)` defect turns both red. **That is the counterfactual milestone
+191 said the tree did not have**, and it arrived hours after the study that named its absence.
+
+**Five stoppers, four fixed by a `cfg`.** This block predicted three from `cargo check`; `cargo kani`
+found two more, a duplicate `panic_impl` lang item (Kani links `std`) and global asm, handled by
+`#[cfg(not(kani))]` and `--ignore-global-asm` in `script/verify`'s `kernel` case only. The list is
+short because DECISIONS §4 rule 1 held: three `asm!` sites outside `arch/`.
+
+**The x86_64-Linux worry below was a false premise.** Every job in `verify.yml` runs on
+`ubuntu-24.04-arm`, so `aarch64-cpu` compiles and the ELF section names were only ever rejected by
+the Mach-O host. The real constraint is its mirror image and is now recorded: the `kernel` row
+**needs an aarch64 host**, and if that runner label changes the row breaks.
+
+**Cost: about 10 seconds** on `script/verify`'s ~650, almost all compile rather than solver.
+
+**A second hole closed on the way.** `crates/jh7110_trng` carried three harnesses and appeared
+nowhere in `script/verify`. They were run first (all pass), then the row was added, and `script/lint`
+grew the check that makes it the last time: every crate with proof harnesses is in the verify table,
+derived from `cargo metadata`. The packer already asserted table to shards; this is the missing tree
+to table.
+
+**What it did not do**, and the BUGS below still stand: `kernel/src/arch/` remains unreachable, and
+so do `user/` and `xtask`, for exactly the reason the kernel was.
 
 **In brief.** Milestone 191 asked whether the Kani harnesses had ever caught a defect and found that
 none has, after the day it was written. The cause is not the harnesses. It is one line in

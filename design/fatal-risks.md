@@ -90,8 +90,15 @@ the study; PR #589.
   error breaks, and twelve of the 26 `paging` harnesses are per-ISA restatements of six properties.
 
 **What it changes.** The verification claim should be stated as what it is: proofs over the pure
-crates, with the kernel itself unverified. Whether to make `kernel/src` Kani-reachable is a real
-piece of work and is not on this list yet.
+crates, with the kernel itself largely unverified.
+
+**And the amber moved the same day.** Milestone 193 (put `kernel/src` within reach of the prover) was
+minted from this finding and built hours later: two properties proved over `kernel/src/syscall.rs`
+with nothing moved into a crate first, **both falsified before being believed** by re-introducing
+milestone 142's real wrapping-multiply defect and watching them turn red. That is the counterfactual
+this study said the tree did not have, and it now exists. It cost about 10 seconds of
+`script/verify`. `kernel/src/arch/`, `user/` and `xtask` are still out of reach, so the amber stands;
+what changed is that the reason is now a worklist rather than a wall.
 
 ## 3. The tests do not test anything, and the quality is illusory
 
