@@ -4,9 +4,30 @@
 real silicon) the way journey 1's trace discovered milestone 177 (wire the graphical terminal stack
 into the real interactive boot). *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION.** The fork is in "what a keystroke arrives on", below, and it is calef's: one
-option is months of driver work on three architectures and the other changes what the story means. A
-recommendation is recorded below, because the fork is reversible; the call is still his.
+**Gate: NONE.** **Decided 2026-08-30 by calef:** *"we will do Option A first and follow with Option B
+later."* Both options are in scope; the decision is their order, not a choice between them.
+
+## What done looks like, and option A does not meet it
+
+**calef, 2026-08-30, correcting this block within the hour it was written:** *"192 isn't done until
+we can sit down at the keyboard connected to the computer and display the OS on the dedicated
+monitor."*
+
+So the completion criterion is literal and it is option B: **a keyboard plugged into the machine, and
+the OS on a monitor plugged into the machine.** Option A is a first increment that reaches `PARTIAL`
+and nothing more. A block that let serial input close this milestone would be claiming a story the
+system cannot tell, which is what §39 says a name must never do and what a completion criterion must
+never do either.
+
+**Why A still goes first.** It gets pixels onto the real monitor and a usable keystroke path with no
+new driver, so every other step of journey 3 (login to `kilo` on real silicon, on all three
+architectures) can be exercised on real hardware while the USB work is still unwritten. It buys
+sequencing, not completion.
+
+**What that requires of A's implementation**, and this is the part that is easy to get wrong: nothing
+in A may assume keystrokes arrive on a UART. Both paths feed the same `DECISIONS §21`
+line-discipline contract, and **A is finished when the keystroke's source is the only thing B has to
+change.**
 
 **In brief.** Every graphical story this project tells assumes a keyboard, and on real hardware there
 is no way to press a key. Milestone 29 (the framebuffer contract, bitmap font, VT engine and virtio
@@ -49,7 +70,10 @@ that the 7050 Micro has no PS/2 port and that he owns neither a PS/2 keyboard no
 there is no cheap native shortcut on any of the three machines, and the fork is genuinely binary.
 Recorded rather than deleted, because the next person will have the same idea.
 
-## The recommendation: option A, serial input, first
+**When B starts is not decided here**, only that it is coming. The trigger is the fatal-risk list
+thinning out enough that months of bus-driver work is a reasonable thing to spend.
+
+## Why A goes first, which was the recommendation
 
 **Recorded here rather than withheld**, correcting this block's own first draft. It said "no
 recommendation is offered, deliberately", and that was wrong by AGENTS.md's rule: recommend on
@@ -65,14 +89,14 @@ real silicon tests both of those. A keyboard adds almost nothing to the test.** 
 story, and the story matters, but not enough to spend months on a bus driver before the other seven
 risks have been answered at all.
 
-**The honest cost, stated so it is a known trade rather than a hidden one:** the demonstration
-becomes *a person typing into the machine across a null-modem cable* rather than *a person sitting
-at the machine*. That is weaker, and anyone watching will notice. It is a real loss, taken
-deliberately, and it is the kind of thing this tree's `BUGS` convention exists to say out loud.
+**The honest cost, stated so it is a known trade rather than a hidden one:** while only A exists the
+demonstration is *a person typing into the machine across a null-modem cable* rather than *a person
+sitting at the machine*. That is weaker, and anyone watching will notice. It is why A cannot close
+this milestone.
 
-**What would change the recommendation:** a customer, or an audience, for whom the difference
-between those two sentences is the product. Option B is also the better answer the moment nife has
-survived enough of the fatal-risk list that months of driver work is a reasonable thing to spend.
+**What moves B up the queue:** a customer, or an audience, for whom the difference between those two
+sentences is the product. B is also the better answer the moment nife has survived enough of the
+fatal-risk list that months of driver work is a reasonable thing to spend.
 
 ## What is true either way
 
@@ -88,7 +112,7 @@ survived enough of the fatal-risk list that months of driver work is a reasonabl
   nobody has looked at what the JH7110, the Jetson TX1 and the OptiPlex each expose.
 - **It says nothing about a mouse**, which milestone 33's compositor will eventually want and which
   the same stack would carry.
-- **The recommendation is a sequencing call, not a claim that option B is wrong.** A demonstration
+- **The decision is a sequencing call, not a claim that option B is wrong.** A demonstration
   operating system that cannot accept a keyboard is limited in a way no scope note repairs, and this
   block should not be read as saying otherwise.
 - **Option A has never been run either.** "Zero new drivers" is a reading of the code, not a boot:
