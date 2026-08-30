@@ -188,11 +188,19 @@ x86_64 has no real interactive boot entry point at all, milestone 164 says its u
 `aes` and therefore has no `fs_server`, and 165, 166 and 167 are each a piece of the same unfinished
 edge.
 
-**The decisive experiment is the cheapest one in the project:** milestone 87 (the x86_64 bare-metal
-machine) completes when the OptiPlex prints a byte over serial. The machine, the serial module and the
-RS-232 chain have been installed since 2026-08-23 and nothing has ever been booted on it. Then boot
-the tour. If it needs driver work, that is schedule. If it needs the kernel restructured, that is the
-red result.
+**The decisive experiment is milestone 87 (the x86_64 bare-metal machine)**, which completes when the
+OptiPlex prints a byte over serial. The machine, the serial module and the RS-232 chain have been
+installed since 2026-08-23 and nothing has ever been booted on it. Then boot the tour. If it needs
+driver work, that is schedule. If it needs the kernel restructured, that is the red result.
+
+**It is not the free hour this file first called it**, and the correction is calef's, 2026-08-30,
+asking why it should outrank finishing milestone 16 (real hardware plus IOMMU-backed driver
+isolation). `notes/x86-port.md`'s own `BUGS` says why: *"PVH is a hypervisor protocol and no real
+firmware speaks it. Milestone 87's OptiPlex will need a UEFI stub or GRUB's Multiboot."* The kernel
+boots under QEMU by PVH, and the OptiPlex's firmware does not speak it, so **first light needs a boot
+entry path that does not exist yet.** It is bounded (the note says the 32-bit trampoline carries over
+unchanged, because GRUB enters the same way; only the header and the `ebx` contract differ) and it is
+a lane rather than a bench session.
 
 **Journey 3 (the same story, on real silicon, on all three architectures) is the full-strength
 version**, and it settles risk 6 along the way.
@@ -210,11 +218,12 @@ Ranked by chance-of-fatal times cheapness-of-test, not by number.
 | order | risk | experiment | owner | cost |
 |---|---|---|---|---|
 | 1 | 2, the proofs | the retrospective against the defect history | milestone 191 | an afternoon, no hardware |
-| 2 | 9, the HAL | the OptiPlex prints a byte over serial | milestone 87 | hardware already installed |
-| 3 | 1, the ecosystem | run `ripgrep`, unmodified | milestone 121 | one lane |
-| 4 | 3, the tests | re-run the mutation sweep against the baseline | milestone 85 | a day, mostly waiting |
-| 5 | 4, performance | the multi-tasking workload number | milestone 168 | one lane |
-| 6 | 9 and 6 together | journey 3, end to end on three boards | journey 3 | months, and it is the capstone |
+| 2 | 9, the HAL, on the board that already boots | the on-board test-suite exit, so silicon becomes gate-able rather than a human watching a console | milestone 16 | bench time, board proven since 2026-08-14 |
+| 3 | 9, the HAL, on the architecture that carries the risk | a GRUB Multiboot or UEFI entry path, then the OptiPlex prints a byte | milestone 87 | a lane, then bench time |
+| 4 | 1, the ecosystem | run `ripgrep`, unmodified | milestone 121 | one lane |
+| 5 | 3, the tests | re-run the mutation sweep against the baseline | milestone 85 | a day, mostly waiting |
+| 6 | 4, performance | the multi-tasking workload number | milestone 168 | one lane |
+| 7 | 9 and 6 together | journey 3, end to end on three boards | journey 3 | months, and it is the capstone |
 | -- | 5, multicore | sustained stress on three boards, assertions live | unowned | weeks, hardware |
 | -- | 7, confinement | an adversarial exercise | unowned, needs framing first | one lane after framing |
 | -- | 8, nobody needs it | none. This is principle 1 | -- | -- |
@@ -224,7 +233,9 @@ Ranked by chance-of-fatal times cheapness-of-test, not by number.
 - **Nothing gates this file.** No check compares it against the roadmap, so an entry can go stale the
   day a milestone lands, and a risk that was answered can sit here looking open. Risk 3 is already
   the worked example: it was on the list as unrun until someone checked and found a green number from
-  three weeks earlier.
+  three weeks earlier. Risk 9's cost line was the second, wrong on the day it was written: it priced
+  milestone 87 as bench time when `notes/x86-port.md` already recorded that no real firmware speaks
+  PVH. Both were caught by a person asking, which is rung zero, which is what this bullet is about.
 - **Two entries have no owner.** Risks 5 and 7 name experiments and no milestone, which is the exact
   shape AGENTS.md says identified work must not be left in. They are recorded here rather than minted
   because both need scoping decisions that are calef's, and this note is not a place to hide that.
