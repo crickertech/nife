@@ -1,5 +1,4 @@
-# Name: provisional (milestone 87, 2026-08-30). calef names crates and programs; this lane shipped
-# one to get the work moving and expects it to change. `uefi_loader` is a noun, `snake_case` like
+# Name: ratified 2026-08-30 (calef, in session, on milestone 87's lane report). `uefi_loader` is a noun, `snake_case` like
 # every other Rust name in the tree, and `UEFI` is a standard term of art the naming tenet protects
 # rather than an abbreviation a reader has to decode, the same class as `elf`, `pci` and `dtb`.
 # Refused `efi_stub`, because "stub" says what it is small relative to rather than what it is, and

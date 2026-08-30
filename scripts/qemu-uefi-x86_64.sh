@@ -1,5 +1,10 @@
 #!/bin/sh
 #
+# Name: ratified 2026-08-30 (calef, in session, on milestone 87's lane report). Hyphens because
+# shell commands are hyphenated everywhere, per AGENTS.md's per-domain naming table, and the ISA
+# suffix matches its sibling scripts/qemu-runner-x86_64.sh. NOTE: script/names scans script/ and
+# not scripts/, so nothing reads this block today; it is written where a reader meets the thing.
+#
 # Boot the x86_64 kernel under REAL FIRMWARE (milestone 87): OVMF, the open-source UEFI
 # implementation that ships with QEMU, loading `uefi_loader` from a FAT filesystem exactly the way
 # the Dell OptiPlex 7050's firmware loads it from a USB stick.

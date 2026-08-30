@@ -164,6 +164,9 @@ fn main() -> ExitCode {
         "initrd-x86" => initrd_x86(),
         // The bootable UEFI image (milestone 87): the entry real firmware can start, staged at
         // target/esp for a QEMU/OVMF boot or for a FAT32 stick. See notes/x86-uefi-boot.md.
+        // Name: `uefi-image` and `uefi-boot` ratified 2026-08-30 (calef, in session, on milestone
+        // 87's lane report). Hyphenated like every other subcommand, and each names what it
+        // produces rather than the tool that produces it.
         "uefi-image" => uefi_image(),
         // The same image, booted under OVMF and checked. Runs inside `script/test --arch x86_64`;
         // exposed on its own because the bench procedure starts by watching this pass locally.
