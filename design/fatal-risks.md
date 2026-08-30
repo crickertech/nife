@@ -81,7 +81,9 @@ the study; PR #589.
   Hz configured, ~70 Hz delivered) has its property **already proved in this tree**, over
   already-written code, in `crates/timetable`'s `next_after`. The timer does not call it.
 - **The numbers were wrong and are now counted:** **145** harnesses, not the roadmap's "112+";
-  `script/verify` runs **140**; 31,725 of 206,728 source lines are reachable; 19 `kani::cover!`
+  `script/verify` runs **140**; 31,725 of 206,728 source lines are reachable, though **both sides of
+  that ratio count comments**, and `kernel/src` is 40% comment by measurement (25,762 of 64,818
+  lines), so any published figure should be in code lines rather than raw ones; 19 `kani::cover!`
   vacuity guards exist, in 4 of 24 harness crates, and a vacuous harness reports `SUCCESSFUL`.
 - **The reverse pass found real chaff**, which is what makes the green half credible:
   `capability::subset_is_reflexive` proves `a & !a == 0`, a tautology no plausible implementation
