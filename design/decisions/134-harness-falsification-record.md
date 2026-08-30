@@ -1,10 +1,10 @@
 # 134. A harness carries a machine-replayable falsification record, or it is not evidence
 
-**Status: PROPOSED.** Raised 2026-08-30 by calef, from milestone 191's (did the proofs catch the
-bugs?) finding. The direction is his (*"It sounds like [option C] is where we want to land if we want
-to state that nife is proven"*); what remains open is the record's **format**, which is the only
-irreversible part and is his to settle. *(Section number provisional until the merge queue lands
-it.)*
+**Status: DECIDED.** calef, 2026-08-30, in two rulings. The direction: *"It sounds like [option C] is
+where we want to land if we want to state that nife is proven."* Then the format, after the options
+were costed: *"Go with the diff, weekly plus per-PR for touched harnesses."* **The spellings are
+still open** and are marked as such at the bottom; nothing else is. *(Section number provisional
+until the merge queue lands it.)*
 
 ## What is being decided
 
@@ -132,25 +132,93 @@ about benchmarks, applied to proofs: **these specific properties are proved, eac
 the falsification is replayed on a schedule, and here is what is not covered.** That sentence is
 honest at any size. It gets larger from milestone 193, not from this decision.
 
-## What calef must settle, because it is the irreversible part
+## The format, decided
 
-**The record's format.** Everything else here is reversible; the format is not, because it lands in
-145 places and in the head of everyone who writes the 146th.
+### The carrier: at the harness, derived by a script
 
-The requirement that decides it: **a script must be able to apply the mutation without a human
-reading it.** A prose record ("I broke the bounds check") makes option C impossible without redoing
-all 145. A precise, machine-applicable spec makes C a script that replays them and can sample a
-rotating subset per cycle.
+**This tree has solved this exact problem once and the answer transfers.** Milestone 115 needed a
+fact enumerable across the tree without a central registry, and `script/names`' own header records
+why the registry lost:
 
-Open, and his:
+> provenance lives **at the name**, in the header of the crate, program or script it belongs to,
+>
+> -- script/names
 
-1. **The carrier.** A doc-comment section, a custom attribute, or a sibling file per harness.
-2. **The mutation's spelling.** A unified diff, or a structured trio of (file, symbol, edit), or a
-   `cargo-mutants`-style operator name. A diff replays trivially and rots against refactors; an
-   operator name survives refactors and constrains what can be expressed.
-3. **The names.** The attribute or keyword, and the lint check's name.
-4. **Whether an exemption exists**, and how it is spelled. Some harnesses may be honestly
-   unfalsifiable; §75's posture says an exception must say it is one.
+The full argument there is worth reading and does not quote cleanly (a multi-line quote out of a
+shell comment carries its own `#` markers into `script/citations`' normalized text, which is a
+limitation of that check worth knowing before writing one). In summary: milestone 115's first draft
+proposed a single ratified-names table in `notes/naming.md`, calef rejected it on 2026-08-04 for
+scaling the way the original `DECISIONS.md` and `design/roadmap.md` scaled, and the decisive half was
+collisions rather than size, since every lane adding a name would edit one file and that is exactly
+what produced three section-number collisions in a day.
+
+Same argument, same shape: **a structured block immediately above the harness, and a script derives
+the report.** Same family as `script/names`, `script/roadmap` and `script/decisions`, and for the
+same reason: a computed report over the tree cannot drift from it.
+
+### Three states, and the unknown one is first-class
+
+The naming convention's second lesson, taken whole. `script/names` has three states because two
+questions were wearing one word, and it insists that *"`unrecorded` is a first-class answer and must
+stay one"*, since inventing a ratification to fill a row puts a false claim in the one record whose
+job is saying who claimed what. Exactly the same is true here:
+
+| state | means | what the sweep does |
+|---|---|---|
+| **replayable** `<path>` | a machine-applicable mutation exists beside the harness | applies it, runs that one harness, **requires red**, reverts |
+| **by hand** `<date>` | somebody broke the code and watched it fail, with no replay | counts it, and it is a worklist entry |
+| **never** | nobody has falsified this | counts it, and this is the claim's honest denominator |
+
+**This is what makes the convention shippable against 145 existing harnesses**, which the first draft
+of this section named as its largest cost. They land at `never` on day one, the lint passes
+immediately, and the worklist derives itself instead of being written.
+
+It also states the refusal precisely. **Prose is refused as the destination, not as a way-station.**
+`by hand` is honest and is how a falsification exists between being performed and being made
+replayable; what is refused is a convention whose *endpoint* is a claim nobody re-runs.
+
+### The mutation is a unified diff
+
+**calef, 2026-08-30**, choosing between three spellings that differ in what they cost later rather
+than now.
+
+- **A unified diff in a sibling file.** Replay is `git apply`, run the harness, require failure,
+  revert. No new tooling at all. **Chosen.**
+- A structured operator record (file, symbol, operator). Survives refactors, and needs a mutation
+  engine that can drive `cargo kani`, which `cargo-mutants` was not built for and nobody has tried.
+- A `cfg`-gated defect in the source. Cannot rot, because the compiler checks it, and it puts 145
+  blocks of deliberately wrong code into shipping source, each a path no normal build exercises.
+
+**Why the diff wins, and it is the elegance tenet rather than the convenience one.** It has the
+fewest moving parts, needs nothing that does not exist, and leaves the operator route open if a
+sweep ever proves cheap enough to want it.
+
+**Its rot is a feature, and this is the load-bearing claim.** A patch that no longer applies means
+the covered code moved, which is exactly when a falsification should be redone rather than trusted.
+A record that survives a refactor of the thing it falsifies is asserting something nobody checked.
+
+### Cadence: weekly, plus per-PR for touched harnesses
+
+**calef, 2026-08-30.** The full sweep is `script/mutation`'s posture, deliberately copied: a
+scheduled report against a baseline, not a per-commit gate, because a full run costs about one
+`script/verify` and a regression is a worklist entry rather than a defect in whatever landed that
+day.
+
+**The per-PR half is what the mutation sweep does not have**, and it is why this is not simply a copy.
+A lane that edits a harness or the code it covers re-falsifies **that harness only**, which is
+seconds rather than an hour, and it closes the window in which a refactor silently invalidates a
+record. `script/verify --affected-since` already computes the "can this change reach the proofs"
+question from `cargo metadata`, so the machinery to decide which harnesses a diff touches exists.
+
+## The spellings, which are still calef's
+
+Everything above is settled. These are not, and they are marked provisional wherever they appear:
+
+1. **The keyword.** `Falsified:` is the placeholder, sitting beside `Name:` in the same block.
+2. **The three state words**, placeholders above: `replayable`, `by hand`, `never`.
+3. **The script's name**, in the `script/verify` / `script/mutation` / `script/coverage` family, where
+   the convention is that the name says the job and never the tool.
+4. **Where the patch files live** and what they are called.
 
 ## BUGS
 
@@ -159,9 +227,11 @@ Open, and his:
   convention is free.
 - **A recorded falsification proves the harness catches *that* defect**, not that it catches the
   class. It is a floor, and a low one.
-- **Nothing here addresses the 145 existing harnesses**, which would all need records written
-  retroactively, by someone who did not write them. The implementing milestone owns that sweep and it
-  is the largest piece of work in this section.
+- **A diff rots against refactors**, and the section above argues that is correct rather than
+  defending it as harmless. It is still churn, and a heavily refactored crate will re-falsify often.
+- **The three states make the convention shippable and also make it easy to stall.** Every harness
+  may sit at `never` forever while the lint stays green, so the number that matters is the ratio, and
+  nothing forces it upward.
 - **The `kani::cover!` lint can be satisfied vacuously too**, by covering something trivially
   reachable. A gate that counts `cover!` sites is weaker than a human asking what the cover is for.
 - **`kernel/src/arch/` stays out of reach under every option here**, so the architecture layer, where

@@ -50,9 +50,9 @@ cordoba**, with **Immich** for images, built with the existing Linux ecosystem w
 ready; Time Machine and SMB are both out of that path. Journey 2 was retired the same day and
 milestone 55's premise went with it.
 
-Nobody should read that as the principle failing. The customer had a real deadline, this system
-could not meet it, and the customer went elsewhere: **that is the principle working, and it is the
-outcome it exists to make visible early rather than late.**
+That is not the principle failing. A customer with a real deadline went elsewhere because this
+system could not meet it, which is **the principle working**, and is the outcome it exists to make
+visible early rather than late.
 
 **calef is the first customer, not the audience** (his correction on this section, 2026-08-05:
 *"It isn't about me running it. It is about customers. I'm just the first customer."*). That
@@ -74,14 +74,12 @@ What that means concretely, and it is a reordering rather than a slogan:
   network protocol, crash consistency, and somebody's only copy. This principle said to rank by the
   shortest path to a customer, and the path chosen was one of the longest available. **A first
   customer should be something nife can plausibly be adequate at within a milestone or two.**
-- **While the path is vacant, the tie breaks toward finding out whether this can work at all**, which
-  is design/fatal-risks.md: nine claims that, if false, mean the project should stop, ranked by
-  chance-of-fatal times cheapness-of-test. That file is a stand-in for a customer and is not a
-  replacement for one. The moment a real workload with a real user exists, it outranks everything
-  there.
-- A milestone that is not on the path is not thereby worthless. Verification, parity and the
-  analysis tooling are what make the demonstrator a demonstrator. But when they compete for a lane,
-  the tie breaks toward the thing that gets a real workload running.
+- **While the path is vacant the tie breaks toward design/fatal-risks.md**, nine claims that, if
+  false, mean the project should stop. It is a stand-in for a customer, not a replacement: a real
+  workload with a real user outranks everything on it the moment one exists.
+- A milestone off the path is not thereby worthless. Verification, parity and the analysis tooling
+  are what make the demonstrator a demonstrator. But when they compete for a lane, the tie breaks
+  toward the thing that gets a real workload running.
 - **Security and performance are not separate goals; they are what "runs it" means.** No customer
   runs a backup server they do not trust with the only copy, and none runs one that takes a week.
   That is why the audit cadence, the confinement claims and the benchmark tripwire are on this path
@@ -101,13 +99,10 @@ principle and the fatal-risk list holding the ordering together.
 Measured on **2026-08-30**, from a first commit on 2026-07-12: **49 days, 103 milestones built of
 193, 65 crates, 69 user programs, ~194,000 lines of Rust, 145 Kani proof harnesses, 3,099
 commits**, on **three** architectures, with a booting kernel on real RISC-V silicon, a shell, a
-filesystem, a network stack and a compositor. (The 2026-08-05 figure this paragraph carried was 24
-days, 63 of 117 milestones, 43 crates, 54 user programs, ~124,000 lines, 112 harnesses, 1,303
-commits, on two architectures.)
+filesystem, a network stack and a compositor.
 
-**The line count includes comments and that matters more here than elsewhere**, because this tree
-comments deliberately heavily: `kernel/src` measures **40% comment** (25,762 of 64,818 lines).
-Anything published as a size comparison against another project should be in code lines.
+**That line count includes comments**, and `kernel/src` measures 40% of them, so a size comparison
+against another project belongs in code lines. (The superseded 2026-08-05 figures are in git.)
 
 That is not a normal rate for one architect, and the reason is that the work is done by many agents
 in parallel lanes with one person reviewing architecture and outcomes. **The demonstrator is

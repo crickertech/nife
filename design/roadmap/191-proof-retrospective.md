@@ -6,7 +6,7 @@
 **Gate: NONE.** Everything this needs is already in the tree: the harnesses, the notes, and the
 history. It reads, it does not build.
 
-**In brief.** DECISIONS §14 (the verification thesis) promises a verified core. There are 112+ Kani
+**In brief.** DECISIONS §14 (a verified-Rust capability microkernel) promises a verified core. There are 112+ Kani
 harnesses and `notes/verification.md` explains how they work. **Nothing in this tree asks whether
 they caught anything.** This milestone answers that against the only evidence that cannot be
 arranged: the project's own record of real defects.

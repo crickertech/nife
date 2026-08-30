@@ -122,7 +122,7 @@ thing exists in C and in Rust, take the Rust one) says so directly. The deadline
 in that recommendation, and the deadline is gone. DECISIONS §34's (RedoxFS as the primary store) own
 objection to littlefs applies too: it would put a foreign component in the storage path.
 
-**Writing our own with no reference, refused.** DECISIONS §46 (taking a dependency is a decision)
+**Writing our own with no reference, refused.** DECISIONS §46 (thin primitives or whole subsystems)
 rule 4 prefers depending where correctness is won by exposure rather than by reading a
 specification, and a filesystem's on-disk format is the exposure case. A young implementation of a
 hostile-input parser with nothing to check it against is not trustworthy, whatever language it is

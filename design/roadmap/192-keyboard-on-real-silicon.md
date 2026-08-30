@@ -30,8 +30,8 @@ line-discipline contract, and **A is finished when the keystroke's source is the
 change.**
 
 **In brief.** Every graphical story this project tells assumes a keyboard, and on real hardware there
-is no way to press a key. Milestone 29 (the framebuffer contract, bitmap font, VT engine and virtio
-keyboard driver) gets keystrokes from **virtio-input**, which is a QEMU device. None of the three
+is no way to press a key. Milestone 29 (a display terminal: framebuffer, virtio-gpu, and a foreign
+component) gets keystrokes from **virtio-input**, which is a QEMU device. None of the three
 boards has one. **A search of the entire roadmap for `usb`, `xhci`, `hid` and `ps/2` returns
 nothing**, so this is not a milestone that exists and is unscheduled; it is work nobody has written
 down at all.

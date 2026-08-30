@@ -192,7 +192,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 131 | DECIDED | [The competitor question: hold at rung two, prove text-mode usefulness first](131-hold-at-rung-two.md) |
 | 132 | DECIDED | [What `PageFrame::REVOKE` owes an overlapping run](132-overlapping-page-frame-runs.md) |
 | 133 | DECIDED | [Whether an idle core should drain its own inbox before parking](133-idle-core-self-rescue.md) |
-| 134 | PROPOSED | [A harness carries a machine-replayable falsification record, or it is not evidence](134-harness-falsification-record.md) |
+| 134 | DECIDED | [A harness carries a machine-replayable falsification record, or it is not evidence](134-harness-falsification-record.md) |
 | 135 | PROPOSED | [Running GPL software is aggregation, the capability boundary is what makes it so, and packages are how it arrives](135-running-gpl-software.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same

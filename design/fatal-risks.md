@@ -36,7 +36,7 @@ every piece of software anyone wants has to be rewritten.
 
 **Why it is the most dangerous one:** it is structural. Optimization cannot fix "nothing runs here",
 and no amount of kernel work changes it. A system in this state is a research demonstrator forever,
-which is a legitimate thing to be and is not what DECISIONS §14 (the demonstration OS) claims.
+which is a legitimate thing to be and is not what DECISIONS §14 (a verified-Rust capability microkernel that runs real workloads) claims.
 
 **Evidence today, both directions.** For: milestone 27 (Rust `std` on the native ABI) works, and
 milestone 64 sorted crates.io by build status. `kilo` runs. Against: DECISIONS §105
@@ -117,8 +117,7 @@ No new milestone; milestone 85 already owns it and the weekly workflow already p
 crossing, and on workloads that cross constantly the cost is architectural rather than a matter of
 tuning.
 
-**Evidence today, and this is the best-covered risk on the list.** Milestone 138 (file I/O
-throughput) measured 16x against where it started, including 5.67x on a read and 8.02x on a write
+**Evidence today, and this is the best-covered risk on the list.** Milestone 138 (close the read gap) measured 16x against where it started, including 5.67x on a read and 8.02x on a write
 from one wire change. `call_reply`'s steady state is measured and the live-replacement mechanism
 costs zero in it (DECISIONS §41). Milestone 25 (cross-OS performance comparison) has numbers against
 Linux and macOS with the honest ties recorded.
@@ -208,7 +207,7 @@ effort."*
 **Sharpened, because the ISA count is not the fatal part.** An OS that runs on two of three
 architectures is still an OS. What would be fatal is what a failure would reveal: that adding an
 architecture requires changing the kernel rather than adding a directory under `arch/`, which is
-exactly what DECISIONS §4 rule 1 and §19 (architectural parity is a gate) claim it does not.
+exactly what DECISIONS §4 rule 1 and §19 (architectural parity is a tenet) claim it does not.
 
 **The status is asymmetric, and that is the useful part.** riscv64 already disproves the strong form:
 the VisionFive 2 booted the full tour on three harts on 2026-08-14, which is the single strongest
@@ -225,7 +224,7 @@ installed since 2026-08-23 and nothing has ever been booted on it. Then boot the
 driver work, that is schedule. If it needs the kernel restructured, that is the red result.
 
 **It is not the free hour this file first called it**, and the correction is calef's, 2026-08-30,
-asking why it should outrank finishing milestone 16 (real hardware plus IOMMU-backed driver
+asking why it should outrank finishing milestone 16 (real hardware + IOMMU-backed driver
 isolation). `notes/x86-port.md`'s own `BUGS` says why: *"PVH is a hypervisor protocol and no real
 firmware speaks it. Milestone 87's OptiPlex will need a UEFI stub or GRUB's Multiboot."* The kernel
 boots under QEMU by PVH, and the OptiPlex's firmware does not speak it, so **first light needs a boot
