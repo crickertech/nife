@@ -7,10 +7,21 @@
 //! Our answer: say what went wrong, then stop the machine. Under `cargo test`, a
 //! panic is a failing test, so we exit QEMU with a failure status instead.
 
+// Both imports feed the handler below and nothing else, so a `cfg(kani)` build (which has no
+// handler; see the comment on it) has no use for them.
+#[cfg(not(kani))]
 use core::panic::PanicInfo;
 
+#[cfg(not(kani))]
 use crate::{arch, println};
 
+// **Absent under `cfg(kani)`, and that is a hole this milestone opened on purpose.** Kani links
+// `std` into the crate it proves, and `std` already defines the `panic_impl` lang item, so a second
+// definition here is a hard compile error rather than a choice. The shipping kernel is unaffected:
+// `cargo kani` is the only thing that ever sets this cfg. What it costs a reader is that a proof
+// cannot observe this handler's behaviour, so nothing proved about the kernel says anything about
+// what happens after a panic. See notes/kernel-proofs.md.
+#[cfg(not(kani))]
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     // SAFETY: we are dying. If we panicked while holding the console lock (a fault taken
