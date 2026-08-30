@@ -1,5 +1,21 @@
 # 2. Run a Time Machine backup host
 
+**RETIRED 2026-08-30 by calef.** The customer this journey served stopped using Time Machine. The
+family's backups are now **borg over SSH on cordoba**, with Immich for images, both built with the
+existing Linux ecosystem while nife was not ready; SMB is no longer in that path either. calef,
+2026-08-30: *"Journey 2 is dead so put a fork in it."*
+
+**This file is kept rather than deleted, because the steps below are still true statements about
+the tree** and because a retired journey is evidence about the project rather than clutter: it is
+the worked example of principle 1's own warning, a customer with a real deadline going elsewhere
+because the work did not land in time. Milestones 54, 55, 65, 107, 53 and 131 keep their own
+statuses and are repriced in their own blocks, not here. Nothing below should be read as current
+intent.
+
+**Journeys have no status field** (design/journeys/README.md says why), so retirement is recorded
+in prose here and in that README's index. If a second journey is ever retired, that is the point to
+ask calef whether the convention should grow a field rather than a paragraph.
+
 calef, 2026-08-26: a second journey, running a Time Machine backup host. Unlike journey 1, this
 story is not waiting on unwritten code for its first light: milestone 55's own 2026-08-22 scoping
 pass says outright, *"there is no fork left to bring him."* Every remaining step below is hardware
