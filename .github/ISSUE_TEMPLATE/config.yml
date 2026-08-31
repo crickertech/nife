@@ -1,0 +1,19 @@
+blank_issues_enabled: false
+contact_links:
+  - name: A vulnerability, or anything that lets a confined process escape
+    url: https://github.com/crickertech/nife/security/advisories/new
+    about: >-
+      Report it privately, never as a public issue. Confinement is the exact claim this project
+      makes, so this is the most valuable report it can receive. SECURITY.md has the scope and what
+      makes a report actionable.
+  - name: Intended work, and the only status in the tree
+    url: https://github.com/crickertech/nife/blob/main/design/roadmap/README.md
+    about: >-
+      Check here before filing a feature or scope request. Anywhere else that claims status is stale
+      by construction.
+  - name: How to propose a change, and what is not yours to decide
+    url: https://github.com/crickertech/nife/blob/main/CONTRIBUTING.md
+    about: >-
+      Getting it building, what a finished change looks like, and the five things (names, the syscall
+      surface, dependencies, wire formats, DECISIONS section numbers) that are cheaper to ask about
+      than to build.

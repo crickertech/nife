@@ -12,7 +12,8 @@ nickel-iron core. The full story, refused spellings included, is
 
 [![CI](https://github.com/crickertech/nife/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/crickertech/nife/actions/workflows/ci.yml)
 
-A capability microkernel for aarch64 and riscv64, written in Rust, from the first instruction.
+A capability microkernel for aarch64, riscv64 and x86_64, written in Rust, from the first
+instruction.
 
 The goal (DECISIONS §14): a verified-Rust capability microkernel that runs real workloads,
 built to stand next to Linux, macOS, and seL4 on the primitives that define an OS, and to win
@@ -50,8 +51,9 @@ Ctrl-C, or `pkill qemu-system-aarch64` from another terminal.
 
 ## Start here
 
-**A reading order, which is what this page used to leave you to guess at.** There are 427 markdown
-files here and 145 of them are notes; the problem a newcomer has is not missing documents, it is
+**A reading order, which is what this page used to leave you to guess at.** There are over
+500 markdown files <!--count-at-least:markdown-files--> here, and
+more than 150 of them are notes <!--count-at-least:notes-files-->; the problem a newcomer has is not missing documents, it is
 that nothing says which one is first. Read these in this order and stop when you have what you came
 for.
 
@@ -92,7 +94,7 @@ than a formality:
 
 | Gate | What it proves |
 |---|---|
-| `script/test` | The host-logic crates, then the kernel under QEMU on **both ISAs**, aarch64 and riscv64. Architectural parity is a gate, not an aspiration (DECISIONS §19). |
+| `script/test` | The host-logic crates, then the kernel under QEMU on **all three ISAs**: aarch64, riscv64 and x86_64. Architectural parity is a gate, not an aspiration (DECISIONS §19). |
 | `script/verify` | over 100 Kani harnesses <!--count-at-least:kani-harnesses--> across more than 20 crates <!--count-at-least:harness-crates-->: the capability model, IPC, MMU isolation, the DMA validator, the IOMMU domain, the NTP era pivot. |
 | `script/bench --check` | icount instruction counts against a committed baseline, on both ISAs, so a performance regression surfaces next to the change that caused it. |
 | `script/lint` | clippy at `-D warnings`, plus broken intra-doc links, stray conflict markers, the roadmap's status vocabulary, DECISIONS numbering and citations, and that every script is documented. |
@@ -125,7 +127,7 @@ previous version of this section did repeat them, and drifted twice inside three
 - **Two ISAs at parity.** Everything architecture-specific lives under `kernel/src/arch/`, and
   riscv64 proves it: SMP, the whole test suite, the interactive shell, and the benchmarks all run on
   both. Parity is a gate rather than an aspiration (DECISIONS §19).
-- **SMP.** Four cores via PSCI (aarch64) and SBI (riscv64), per-CPU run queues, cross-core
+- **SMP.** Four cores via PSCI (aarch64), SBI (riscv64) and the APIC's startup IPI (x86_64), per-CPU run queues, cross-core
   placement by inbox plus a reschedule IPI. No shared run-queue lock.
 - **Every driver and server is an EL0 process**, confined by the MMU and, for DMA, by a validator
   and an IOMMU. A driver that misbehaves faults; it does not take the kernel with it.
@@ -192,6 +194,7 @@ cargo xtask bench --riscv  # the benchmark suite on the second ISA
 kernel/
   src/arch/aarch64/    boot.s, vectors, MMU, GIC, timer, PSCI: everything ISA-specific
   src/arch/riscv64/    the same boundary, proved by a second ISA (SBI, Sv39, PLIC)
+  src/arch/x86_64/     and by a third (PVH and UEFI boot, IA-32e paging, APIC, VT-d)
   src/drivers/         pl011, ns16550: a driver gets a base address and nothing else
   src/                 capabilities, scheduler, IPC, untyped, revocation, the syscall surface
 user/                  EL0: init, the shell, the console/input/block drivers, servers
@@ -252,7 +255,7 @@ contact with month four. The short version:
 
 | | |
 |---|---|
-| **Architecture** | Three declared targets: aarch64 (first: clean exception model, weak ordering as a discipline), riscv64 (at parity), x86_64 (declared, not started). **Parity is a gate, not an aspiration** (DECISIONS §19): a capability ships on every supported ISA under the same suite, or the gap is on the record. |
+| **Architecture** | Three targets, all running: aarch64 (first: clean exception model, weak ordering as a discipline), riscv64 (at parity, and the first on real silicon), x86_64 (boots under PVH and under real UEFI firmware, runs ring-3 processes out of untyped memory, VT-d built). **Parity is a gate, not an aspiration** (DECISIONS §19): a capability ships on every supported ISA under the same suite, or the gap is on the record. |
 | **Target** | QEMU `virt` (TCG and HVF) for daily work; real hardware is milestone 16. |
 | **Kernel shape** | **Capability microkernel** (seL4-shaped, decided at milestone 7): no `open()`, no ambient authority, drivers are EL0 processes, and since milestone 14 the kernel allocates nothing. See DECISIONS §10 and §14. |
 | **Execution** | **Preemptive threads with real stacks.** Not async: async assumes "I compiled everything that runs", and an operating system's whole purpose is to run code it did not compile ([§5](design/decisions/05-preemptive-threads.md)). |

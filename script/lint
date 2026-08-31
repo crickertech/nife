@@ -1040,6 +1040,25 @@ def _agents_md_lines():
     return len(pathlib.Path('AGENTS.md').read_text(errors='replace').splitlines())
 
 
+def _markdown_files():
+    """Markdown files the tree owns: everything but `target/` and `vendor/`.
+
+    README.md tells a newcomer how large the corpus is, and that number rotted from 427 to 542
+    without anybody noticing, because a count in prose is a claim nobody re-derives. Same argument
+    counted-claims already makes everywhere else, applied to the one file a stranger reads first.
+
+    `vendor/` is excluded for the reason it is excluded from every other sweep here: it is upstream's
+    documentation, not ours, and a newcomer sent to read the corpus is not being sent there.
+    """
+    return sum(1 for p in pathlib.Path('.').rglob('*.md')
+               if not str(p).startswith(('target/', 'vendor/')))
+
+
+def _notes_files():
+    """Files under `notes/`, which is what README.md calls the glossary."""
+    return sum(1 for p in pathlib.Path('notes').glob('*.md'))
+
+
 REGISTRY = {
     'longest-markdown-line': (
         "how long the repository's longest markdown line is, in bytes, which is what "
@@ -1053,6 +1072,15 @@ REGISTRY = {
     'harness-crates': (
         'how many crates carry at least one Kani proof harness',
         lambda: len(_harness_hits()),
+    ),
+    'markdown-files': (
+        'how many markdown files the tree carries outside target/ and vendor/, which is the corpus '
+        "README.md's reading order sends a newcomer into",
+        _markdown_files,
+    ),
+    'notes-files': (
+        'how many notes there are, which is the glossary a newcomer is told the size of',
+        _notes_files,
     ),
     'sh-scripts': (
         'how many `#!/bin/sh` scripts there are under script/ and scripts/, which is the set '

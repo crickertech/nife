@@ -24,9 +24,11 @@ in the code or the conversation doesn't make sense, it belongs here.
   `setup`, `test`, `server`, `console`, and friends, thin wrappers over `cargo xtask` so every
   repo has the same first command. Also: why `script/` and `scripts/` both exist.
 
-- [The merge queue, and the two things that watch it](merge-queue.md): `scripts/merge-drain.sh`
+- [The merge queue, and the three things that watch it](merge-queue.md): `scripts/merge-drain.sh`
   lands every pull request that does not need calef; `scripts/trunk-health.sh` says when `main` goes
-  red and when it recovers. Both exist because three duties on 2026-08-04 belonged to whoever
+  red and when it recovers; `scripts/lane-claim-check.sh` names a pushed lane branch that opened no
+  pull request, which is the one state the other two are blind to because both start from
+  `gh pr list`. Both exist because three duties on 2026-08-04 belonged to whoever
   happened to notice, and the steward that was supposed to cover them reported without acting. Why
   the drain is deliberately serial (`cpu matrix` is load-sensitive, so parallel updates manufacture
   their own failures), and why the prevention half is a GitHub rule rather than either script.

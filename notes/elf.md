@@ -261,6 +261,73 @@ Our loader zeroes every page before copying, so the tail is free. **But only bec
 about it**, and the test binary deliberately has a `.bss` variable it checks is zero, and a
 `crates/elf` test asserts the test binary *has* a `.bss` at all, so the check cannot go vacuous.
 
+## `p_paddr` is not `p_vaddr`, and the trap is that it usually is
+
+A `PT_LOAD` header carries two addresses. `p_vaddr` is where the program wants the segment in its
+own address space; `p_paddr` is where it wants the segment in *physical* memory. `crates/elf`
+exposes both, but they answer different questions, and almost nothing here should ask the second
+one.
+
+**For every user program in this tree the two are equal.** The linker scripts say so, and nothing
+we build separates them. That is what makes this dangerous rather than tedious: a loader that
+reaches for the wrong field is correct in every test anyone will run, and wrong only on the one
+path where the distinction is real.
+
+That path is **the kernel image**. Measured on the `x86_64-unknown-none` release build of this
+tree:
+
+```
+PT_LOAD  R X  vaddr=0x101000            paddr=0x101000     .boot, linked low, VA == PA
+PT_LOAD  R X  vaddr=0xffffffff80109000  paddr=0x109000     .text, a fixed 0xffffffff80000000 offset
+PT_LOAD  R X  vaddr=0x8000              paddr=0x12b000     .ap_trampoline, neither of the above
+```
+
+**Three different relationships in one file**, which is why no caller can recover one address from
+the other by subtracting a constant. The trampoline is the interesting one, and it inverts the usual
+sense of both words: its bytes *ship* at `0x12b000`, because `AT()` places them after `.rodata`
+where nothing writes them at runtime, and they *execute* at `0x8000`, because a STARTUP IPI can only
+name a physical page below 1 MiB and the secondary core arrives there in real mode with paging off.
+Its VMA was chosen to be its eventual execution address; its LMA is merely where the image carries
+it until `ap_boot::prepare` copies it down.
+
+The rule that falls out:
+
+- **A loader mapping into a fresh address space wants `vaddr` and never `paddr`.** That is
+  `kernel/src/user.rs`. It takes frames wherever the allocator gives them and maps them where the
+  program asked, so the file's physical address is not merely unused, it is a claim about a
+  decision the loader is making itself.
+- **A loader placing an image at fixed physical addresses wants `paddr`.** That is firmware-shaped
+  work, and it is why the field is exposed at all (milestone 196): without it, such a loader has to
+  re-implement the ELF parse, and two readers of one format is what AGENTS.md rule 7 exists to
+  prevent.
+
+**Nothing in `parse` validates `paddr`.** The bounds checks, the overlap check, the entry-point
+check and the `vaddr + memsz` overflow guard are all about the virtual layout. A physical address
+that is zero, or that collides with another segment's, is a fact about the file rather than an
+error, and the loader placing images physically owns that judgment.
+
+### BUGS
+
+- **The field is a plain `u64`, so nothing stops a consumer using it as a virtual address**, and the
+  only guard is its doc comment. That is rung three of AGENTS.md's ladder, chosen deliberately:
+  milestone 200 gives virtual and physical addresses different types across the whole tree, and
+  typing these two fields alone would claim a distinction the rest of the tree does not make.
+  Until 200 lands, this note and that comment are the whole mechanism.
+- **Every test but one has them equal**, which is the hazard restated. `crates/elf`'s
+  `a_physical_address_may_differ_from_the_virtual_one` is the single case that would catch a
+  consumer conflating them, and it only covers the parse, not any consumer.
+- **The field did not, on its own, retire the second reader**, which was milestone 196's other half.
+  The UEFI loader (`uefi_loader/src/image.rs`, on milestone 87's branch) still cannot call
+  `Elf::parse`, and the reason is not `p_paddr`: it is that **`crates/elf` refuses the kernel image**
+  with `Error::WritableAndExecutable`. The `x86_64` linker script folds `.text.boot` and `.data.boot`
+  into one output section, so the 32-bit trampoline ships as a single `RWX` `PT_LOAD` at `0x101000`.
+  Measured rather than argued: patch that one segment's `p_flags` from `RWX` to `RX` in a copy of the
+  image and `Elf::parse` accepts the whole file, all ten `PT_LOAD`s, the three `NOLOAD` reservations
+  and the trampoline's split addresses included. **Nothing else in the validating parser objects**,
+  so the blocker is one linker-script line rather than a mismatch of purpose, and splitting `.boot`
+  in two would also make the kernel image obey the same W^X rule `crates/elf` and `paging::Flags`
+  enforce everywhere else. Raised for calef; see milestone 196's lane report.
+
 ## The loader honours permissions and does not widen them
 
 An ELF's `.rodata` segment is `PF_R` **alone**. The tempting shortcut is to map every
