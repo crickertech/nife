@@ -567,7 +567,7 @@ fn a_host_process_connects_to_the_guest_and_is_answered() {
     // is what "before this test wired anything" means, and the census below reports the delta
     // against it rather than an absolute reading contaminated by whatever ran first.
     let e2_baseline_threads = sched::thread_count();
-    let Some((report, mdns_report, net)) = virtio_service::start_net_stack_with_responder(
+    let Some((report, mdns_report, net)) = virtio_service::start_shared_net_stack(
         net_stack_image(),
         mdns_responder_image(),
         NET_TEST_TCP_ACCEPT,

@@ -456,7 +456,18 @@ fn spawn_stack_client(
 /// exactly what the composed packing has to be exercised on: this is the only spawn in the tree
 /// that hands out both at once, so it is the only place the machine checks that the listen grant
 /// and the UDP grant do not leak into each other.
-pub fn start_net_stack_with_responder(
+/// **Name: ratified 2026-08-30 (calef, in session).** It names the property this spawn exists to
+/// demonstrate, one stack with more than one client, rather than the identity of whichever client
+/// rides on it. That is the correction: this function was `start_net_stack_with_smb` until
+/// 2026-08-30, and it **named a client, and the client went away**. Renaming it after a different
+/// client would have repeated the defect the same week milestone 161 fixed `has_both_backends` to
+/// `has_every_backend`, whose own comment calls an arity in a name "the smallest possible version of
+/// a name going stale"; an identity in a name is that defect wearing a different coat. Refused
+/// `start_net_stack_with_responder` (names a client), `start_net_stack_with_two_clients` (an arity),
+/// `start_net_stack_with_mdns` (both, narrower), and `start_net_stack_with_second_client` (describes
+/// the mechanism rather than the claim). With one client nothing is shared, so `shared` does real
+/// work against its sibling `start_net_stack`.
+pub fn start_shared_net_stack(
     image: &'static [u8],
     mdns_image: &'static [u8],
     cli_arg: u64,

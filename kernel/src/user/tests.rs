@@ -1736,7 +1736,7 @@ fn a_host_process_connects_to_the_guest_and_is_answered() {
     // delta against this baseline is what isolates "how many threads did wiring THIS topology
     // create" from "how many threads exist in the boot at this point in the suite".
     let e2_baseline_threads = sched::thread_count();
-    let Some((report, mdns_report, net)) = virtio_service::start_net_stack_with_responder(
+    let Some((report, mdns_report, net)) = virtio_service::start_shared_net_stack(
         net_stack_image(),
         mdns_responder_image(),
         NET_TEST_TCP_ACCEPT,
