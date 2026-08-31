@@ -249,6 +249,17 @@ fn std_exerciser_elf(triple: &str) -> PathBuf {
     ))
 }
 
+/// **Unmodified `ripgrep` from crates.io, if somebody built it** (milestone 121).
+///
+/// `scripts/build-ripgrep.sh` puts it here. Nothing in this build produces it, and that is the
+/// point: fetching `ripgrep` and its transitive crates is a crates.io dependency tree, which
+/// DECISIONS §46 makes calef's decision rather than a gate's. So the initrd carries it when it is
+/// on disk and does not when it is not, exactly as `std_exerciser` rides along, and
+/// `kernel/src/user/ripgrep_tests.rs` skips rather than fails when the archive has no `rg`.
+fn ripgrep_elf(triple: &str) -> PathBuf {
+    workspace_root().join(format!("target/ripgrep/{triple}/rg"))
+}
+
 /// A cheap FNV-1a over a byte slice, folded into the running hash. No crypto, no dep: this only
 /// needs to notice when a PAL input changed so the farm (and thus the build-std cache) is rebuilt.
 fn fnv(mut h: u64, bytes: &[u8]) -> u64 {
@@ -3925,6 +3936,13 @@ fn initrd_aarch64() -> bool {
     let mkfs = read_stripped(&mkfs_elf(TARGET)).ok();
     if let Some(bytes) = &mkfs {
         files.push(("mkfs", bytes.as_slice()));
+    }
+    // **Unmodified `ripgrep`** (milestone 121), on exactly the terms above: present iff
+    // `scripts/build-ripgrep.sh` has been run, absent from every ordinary build and from CI. The
+    // archive name is `rg`, which is what the program is called everywhere else in the world.
+    let ripgrep = read_stripped(&ripgrep_elf("aarch64-unknown-nife").display().to_string()).ok();
+    if let Some(bytes) = &ripgrep {
+        files.push(("rg", bytes.as_slice()));
     }
     // **The measurement table, last, so it measures everything above it** (milestone 104). init
     // reads this entry out of the archive it already holds and refuses to load a program whose

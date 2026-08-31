@@ -1,9 +1,6 @@
 # 121. `ripgrep` on nife: enumeration as a capability, and what the walk costs
 
-**Status: NOT-STARTED.** Minted 2026-08-13 by calef. A third "somebody else's real application"
-target beside milestone 66's Vaultwarden and milestone 99's git, chosen for a reason neither of those
-has: it is the workload that pushes on **enumeration**, which is the one authority this system treats
-as dangerous.
+**Status: PARTIAL.** Minted 2026-08-13 by calef.
 
 **Gate: MILESTONE 64.** 64 measured the crates.io surface and bound `read_dir`. The second half of
 this gate was `MILESTONE 122`, which landed on 2026-08-18: `std` now holds a directory handle and a
@@ -13,6 +10,27 @@ the walk *is* this milestone's benchmark: **nobody has measured what per-compone
 whether the answer argues for a multi-component resolve in the contract. Every dependency this
 milestone needs was already measured as building, so the gate is about the platform rather than about
 the crates.
+
+**The experiment ran on 2026-08-31 and its result is not the one this block predicts** (lane
+`milestone/121-ripgrep`; notes/ripgrep-on-nife.md). Unmodified `ripgrep` 14.1.1 builds for
+`aarch64-unknown-nife` with **zero source changes**, loads, runs, resolves its own working directory
+through a granted directory capability, and exits cleanly. It never reaches DECISIONS §105: it asks
+`std::thread::available_parallelism()`, nife answers `1` honestly, and it selects its own
+single-threaded walker and searcher, so the caveat below about pinning the Linux side to one thread
+still holds but the thread *decline* costs nothing. What stops it is that the ABI has **no argument
+vector**, so it parses nothing and prints its own "requires at least one pattern". A second gap was
+found on the way: a program image has under 896 KiB before it collides with its own stack
+(`user/link.ld`'s `0x40_0000` against `USER_STACK_VA`'s `0x50_0000`), and `ripgrep`'s `.text` alone
+is 1.37 MiB.
+
+**What remains is everything the block calls the point**: the confined demonstration, the negative
+half against a capability lacking `ENUMERATE`, and the benchmark that prices the walk. All three need
+a way to tell a foreign program what to do, which is a wire-format decision and calef's.
+
+A third "somebody else's real application"
+target beside milestone 66's Vaultwarden and milestone 99's git, chosen for a reason neither of those
+has: it is the workload that pushes on **enumeration**, which is the one authority this system treats
+as dangerous.
 
 ## Why this workload rather than another
 
