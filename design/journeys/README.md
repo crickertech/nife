@@ -31,6 +31,14 @@ a human has to write it and a tool can only be told. It was added 2026-08-30 whe
 retired and the report kept listing it as live work, which is the record and the mechanism
 disagreeing, the thing AGENTS.md's ladder exists to stop.
 
+**Ratified as-is on 2026-08-31 (calef), against growing it into a status field.** The question was
+real, because `design/roadmap/` minted `REMOVED` the day before and three record types with two
+status vocabularies and one marker is an inconsistency a newcomer meets. It was declined on the
+roadmap vocabulary's own lesson: `IN-PROGRESS` earned its extra rule by being wrong every single
+time it was used, and **one journey has been retired**, so a field would be machinery built for a
+population of one. The paragraph below still stands as the trigger: ask again at the second
+retirement, when there is something to generalize from.
+
 **A journey has no status field of its own, and that is deliberate.** A hand-written "70% done" is
 exactly the kind of claim this tree's own `counted-claims` mechanism exists to replace: a number
 nobody re-derives drifts the moment one of its steps moves. `script/journeys` computes a journey's

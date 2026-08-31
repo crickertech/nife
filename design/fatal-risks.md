@@ -261,8 +261,8 @@ Ranked by chance-of-fatal times cheapness-of-test, not by number.
 | 5 | 3, the tests | re-run the mutation sweep against the baseline | milestone 85 | a day, mostly waiting |
 | 6 | 4, performance | the multi-tasking workload number | milestone 168 | one lane |
 | 7 | 9 and 6 together | journey 3, end to end on three boards | journey 3 | months, and it is the capstone |
-| -- | 5, multicore | sustained stress on three boards, assertions live | unowned | weeks, hardware |
-| -- | 7, confinement | an adversarial exercise | unowned, needs framing first | one lane after framing |
+| -- | 5, multicore | the defect-discovery curve: a linear one is the red result | milestone 201 | weeks, hardware |
+| -- | 7, confinement | falsify each confinement claim and watch the test go red | milestone 202 | one lane |
 | -- | 8, nobody needs it | none. This is principle 1 | -- | -- |
 
 ## BUGS
@@ -273,9 +273,10 @@ Ranked by chance-of-fatal times cheapness-of-test, not by number.
   three weeks earlier. Risk 9's cost line was the second, wrong on the day it was written: it priced
   milestone 87 as bench time when `notes/x86-port.md` already recorded that no real firmware speaks
   PVH. Both were caught by a person asking, which is rung zero, which is what this bullet is about.
-- **Two entries have no owner.** Risks 5 and 7 name experiments and no milestone, which is the exact
-  shape AGENTS.md says identified work must not be left in. They are recorded here rather than minted
-  because both need scoping decisions that are calef's, and this note is not a place to hide that.
+- ~~**Two entries have no owner.**~~ Closed 2026-08-31: risks 5 and 7 are milestones 201 and 202,
+  both scoped by calef, and both reframed in the process. Risk 5's experiment could not come back red
+  as written and now can; risk 7's needed framing before a lane, and got §134's. **Neither can return
+  a clean green**, and both blocks say so where a reader meets them.
 - **The ranking is a judgement, not a calculation.** "Chance of fatal" is nobody's measurement, and
   two readers could order this differently on the same evidence.
 - **A green result is not proof of anything.** Every experiment here can only fail to kill the

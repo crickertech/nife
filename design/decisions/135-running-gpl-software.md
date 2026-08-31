@@ -1,6 +1,7 @@
 # 135. Running GPL software is aggregation, the capability boundary is what makes it so, and packages are how it arrives
 
-**Status: PROPOSED.** Raised 2026-08-30 by calef, from the question of whether to delete the SMB
+**Status: DECIDED.** calef, 2026-08-30, ratifying the principle he raised himself and the two
+amendments below. Raised the same day, from the question of whether to delete the SMB
 implementation: *"Isn't delivering GPL software on nife as stand alone programs a worth
 demonstration in itself? There is a lot of GPL software we would want to run."* And then the
 sharpening that changed the answer: *"does GPL and LGPL need to be shipped in an image as
@@ -84,12 +85,38 @@ So the rule is a **base and packages split**:
   installing a program is granting it into a namespace. The licence boundary and the capability
   boundary turn out to be the same boundary, which is worth noticing rather than arranging.
 
-**The honest gap: the package manager does not exist.** Milestone 39 owns repository structure with
-four options and no decision, `design/haiku-bfs-and-packages.md` owns the activation shape, and
-`design/what-a-distribution-packages.md` is explicitly speculation. **Until one exists, the image is
-the only channel there is**, so the near-term answer for `git` and `nano` is either aggregation with
-its obligations accepted and recorded, or those milestones wait. This section does not decide which,
-and that is the first thing calef should settle after the principle.
+**The package manager does not exist**, which was this section's one open question and is no longer
+one. Milestone 198 (a package manager, and the trivial install that makes a second customer
+possible) now owns it, and calef dissolved the interim problem the same day rather than answering
+it:
+
+> I don't think we expose nife to third parties (aka other customers) until we have a package
+> manager and a trivial install process.
+>
+> -- calef, 2026-08-30
+
+**Nothing is conveyed, so no obligation exists.** The base-and-packages rule is therefore
+**forward-binding**: it says what must be true on the day this project first hands somebody a
+system, not what must be true today. `git` and `nano` need no interim channel because there is no
+interim distribution.
+
+## Two amendments, ratified with the principle
+
+**1. The rule binds on conveyance, not on building.** An earlier draft required that *the image*
+carry no copyleft, and that was too strict in the direction that matters: cross-compiling `nano`
+into a locally built test image is exactly what milestone 123 (the demonstration: somebody else's
+software, running narrow) needs, and it conveys nothing to anyone. The GPL's obligations attach to
+conveying. So:
+
+> **No artifact this project conveys carries copyleft until packages exist to carry it. What a build
+> produces on a developer's own machine is unconstrained.**
+
+**2. Fetch GPL source, do not vendor it.** `crickertech/nife` is public, so **source is already
+conveyed**, which is the permissive case and imposes essentially nothing. But vendoring would put
+copyleft in the tree itself, which costs a claim this project otherwise gets to make cleanly and
+grows the repository for no gain. A recipe that fetches upstream at build time keeps both. Note that
+this is a preference with a reason rather than a prohibition: vendoring GPL source would be legal
+and is what some ports trees do.
 
 ## GPLv3's replaceability clause, and the mechanism this system already has
 
@@ -116,7 +143,8 @@ for the same reason.
 
 **Requires.**
 
-1. **The image carries no copyleft**, and something should check it rather than a person remembering.
+1. **No conveyed artifact carries copyleft**, per amendment 1, and something should check it rather
+   than a person remembering.
 2. **Each packaged program's licence is recorded where a reader meets the program**, not in a registry.
 3. **A GPLv3 program is shipped only where the replaceability answer is written down**, per above.
 4. **The claim is stated with its limits**, the way this tree states benchmark ties: the boundary is
@@ -125,9 +153,9 @@ for the same reason.
 
 ## What was refused
 
-**Shipping GPL in the image as the default.** Legal, and it makes nife the distributor for no gain
-once a package manager exists. Kept as the *interim* answer only because there is no package manager
-yet, and marked as interim rather than allowed to become the design.
+**Shipping GPL in a conveyed image as the default.** Legal, and it makes nife the distributor for no
+gain once a package manager exists. The first draft kept it as the interim answer; amendment 1
+retired the need for one, so it is now simply refused.
 
 **Refusing GPL software outright**, which is where the tree's instinct was drifting. It would forfeit
 `git`, `nano`, and most of the corpus milestone 123 (the demonstration: somebody else's software,
@@ -145,10 +173,16 @@ use.
 - **This is not legal advice and nobody here is qualified to give it.** "Aggregation" is a conclusion
   drawn from how the FSF and every major distribution have treated separate programs for decades, not
   from counsel. Anyone shipping a product on nife should get their own.
-- **The package manager does not exist**, so the rule's preferred channel is unavailable today and
-  the section's own recommendation cannot yet be followed.
-- **Nothing enforces requirement 1.** "The image carries no copyleft" is prose until a gate reads the
-  manifest of what an image packs, which is rung three describing a rung two that should exist.
+- **The package manager does not exist**, so the rule's channel is unavailable today. That is
+  milestone 198's gap rather than this section's, and it is why the rule is written to bind forward.
+- **Nothing enforces requirement 1**, and amendment 1 makes it harder rather than easier to enforce:
+  a gate would have to know which artifacts are *conveyed*, and this project conveys none, so there
+  is nothing for a check to look at yet. Rung three describing a rung two that cannot exist until
+  198 does.
+- **Amendment 1 draws a line that a careless day could cross without noticing.** The difference
+  between a local build and a conveyed artifact is a decision somebody makes, not a property a tool
+  can see, and the first time an image is handed to anyone is the moment this section starts
+  applying in earnest.
 - **LGPL is treated as GPL throughout and they differ**, materially, for linking. A future case that
   wants to *link* LGPL rather than run it is not covered here and should not be decided by analogy.
 - **The demonstration claim is untested.** No GPL program runs on nife today. Milestone 121

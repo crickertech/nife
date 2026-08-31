@@ -1,6 +1,8 @@
 # 79. Holding password-equivalent material, and what a session key release means
 
-**Status: DECIDED.** calef approved both halves on 2026-08-04, on milestone 65's pull request. This
+**Status: AMENDED.** calef approved both halves on 2026-08-04, on milestone 65's pull request; both
+were removed from the tree on 2026-08-30 and the amendment at the bottom says why the section is kept
+rather than retired. This
 section exists because the reasoning is the part worth keeping: the decision itself is one word, and
 in two years the question a reader will have is *why*.
 
@@ -69,3 +71,34 @@ A deployment needing finer granularity runs more than one.
 you a credential", which still holds, but it is the secrets service now and the noun no longer
 describes the scope. `cred`, `cred_proto` and `credentialer_test_client` go with it. Recorded at the
 name; the rename is calef's.
+
+## Amendment, 2026-08-30: both halves are gone, and the reasoning is why this stays
+
+**calef removed the SMB implementation** (milestone 54, now `REMOVED`), and this section's subject
+went with it. `crates/ntlm` is deleted, the `NTOWFv2` and its `has_ntlm` flag are gone from
+`crates/cred`'s record, `credential_proto` lost `NTLM_PROOF` and its accessors, and **`md4`, `md-5`
+and `hmac` are out of `Cargo.lock` entirely**, verified after the merge rather than asserted.
+
+**The decision was right when it was made, and nothing here is a correction of it.** NTLMv2
+specifies MD4 and MD5; a system that spoke NTLMv2 had to compute them. What changed is not the
+reasoning but the requirement: **with no SMB implementation there is no protocol to comply with**,
+and the section's own justification, *"shipping them is protocol compliance in the way implementing
+DES to talk to old hardware would be"*, has nothing left to be compliant with.
+
+**The removal was cheap for a reason this section did not get to claim.** AGENTS.md cites §79 as its
+example of an irreversible decision, on the grounds that approving password-equivalent material
+*"cannot be unmade by deleting the code"*. That is true in general and was not true here, and the
+difference is worth knowing: **nothing was ever stored.** `crates/cred`'s own documentation says
+*"No persistence. A `Store` is memory only"*, and no checked-in fixture or image held an encoded
+record. So the material that could not have been un-stored never existed outside a running test.
+Had a single record been written to a disk image, this amendment would have been a migration
+instead of a deletion.
+
+**What survives, and it is the half worth keeping**, exactly as this section's own opening predicted:
+the argument about what password-equivalent material *is*, what may cross a boundary, and what a
+session key release means. The next protocol that wants a hash beside an Argon2id tag will raise the
+same question, and the answer is above rather than needing to be rediscovered.
+
+**Status is `AMENDED` rather than `SUPERSEDED BY`**, because nothing replaced it. A decision whose
+subject was deleted is not a decision that was overruled, and pointing this one at a successor that
+does not exist would be a worse record than saying plainly that the requirement went away.
