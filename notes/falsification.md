@@ -111,8 +111,8 @@ script and a separate workflow, and `script/verify` was not touched.
 
 | what | cost |
 |---|---|
-| `script/falsifications --check` (in `script/lint`) | 0.15 s, no build |
-| `script/falsifications --sweep`, six records, warm | 3.0 s of solving on top of the rebuilds |
+| `script/falsifications --check` (in `script/lint`) | 0.19 s, no build |
+| `script/falsifications --sweep`, six records, warm | 4.4 s end to end, rebuilds included |
 | one harness alone, `capability`, warm | 0.35 s |
 
 The sweep's cost is dominated by the **rebuild each patch forces**, so it scales with the number of
