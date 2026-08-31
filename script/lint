@@ -88,9 +88,27 @@ rustc --edition 2024 --crate-type proc-macro --crate-name kani_attributes \
     scripts/kani-lint-shim/kani_attributes.rs --out-dir "$shim"
 rustc --edition 2024 --crate-type lib --crate-name kani \
     scripts/kani-lint-shim/kani.rs --extern kani_attributes="$shim/$attrs" --out-dir "$shim"
-# Same package selection as the host pass above: every `#[cfg(kani)]` module in the tree is in
-# `crates/`, and kernel/user/user_rt hold none. `--all-targets` because a harness crate's `cfg(test)`
-# build compiles the harnesses too, and the two configurations are not the same compilation.
+# Same package selection as the host pass above. `--all-targets` because a harness crate's
+# `cfg(test)` build compiles the harnesses too, and the two configurations are not the same
+# compilation.
+#
+# **`kernel` is excluded and now holds a `#[cfg(kani)]` module anyway** (milestone 193's harnesses in
+# `syscall.rs`), so this pass has a hole in it and this is where a reader meets it. Two things block
+# closing it, and both are tooling rather than effort:
+#
+#  - `cargo clippy -- <args>` applies the trailing rustc arguments to **every workspace member in the
+#    build graph**, not to the selected package, which is why the line below is `--workspace` with
+#    excludes rather than `-p`. Adding `-p kernel --target aarch64-unknown-none-softfloat` therefore
+#    hands `--cfg kani` to `glob`, `dtb` and the rest with a shim rlib built for the wrong triple,
+#    and they fail to find the crate. Measured 2026-08-30, not assumed.
+#  - The kernel's `#[panic_handler]` is `cfg(not(kani))` (panic.rs says why: real Kani links `std`,
+#    which already defines the lang item). Under this shim there is no `std`, so a bare-metal
+#    `--cfg kani` build of the kernel binary has no panic handler at all.
+#
+# What the hole costs: clippy lints, `undocumented_unsafe_blocks` included, do not fire inside the
+# kernel's harnesses. What still covers them: `script/verify` builds them for real and gates rustc
+# lints through `RUSTFLAGS`, and `script/lint`'s aarch64 pass below compiles the same file without
+# the cfg. Keep kernel harnesses free of `unsafe` while this holds.
 cargo clippy --workspace --exclude kernel --exclude user --exclude user_rt \
     --exclude swap_proto --exclude virtio --exclude supervision_proto --exclude system_initializer \
     --all-targets -- \
@@ -2037,8 +2055,10 @@ echo "unused dependencies: none in our packages"
 # killed eleven mutants at once.
 #
 # `.cargo/mutants.toml` already records the same fact from the other side, which is why mutants
-# inside `mod verification` are excluded from the run. The tree has 18 `mod verification` blocks
-# and 3 `mod proofs`, so there are 21 places for this to happen again.
+# inside `mod verification` are excluded from the run. The tree has 22 `mod verification` blocks
+# and 7 `mod proofs`, so there are 29 places for this to happen again. (Was "18 and 3, so 21" when
+# this was written; nothing gates the number, and it went stale exactly as a hand-kept count does.
+# It is a sense of scale, not a claim, which is why it is not worth a gate of its own.)
 echo "==> tests the suite cannot see"
 python3 - <<'PY'
 import pathlib
@@ -2081,6 +2101,89 @@ blocks = sum(len(re.findall(r'#\[cfg\(kani\)\]\s*(?:pub\s+)?mod\s+\w+', p.read_t
              for p in pathlib.Path('.').rglob('*.rs')
              if 'target' not in p.parts and 'vendor' not in p.parts)
 print(f'kani modules: {blocks} blocks, none hiding a #[test]')
+PY
+
+# **A crate can carry proof harnesses and be proved by nothing, and the suite gets FASTER when it
+# happens.** `script/verify`'s own table comment records the first instance: `mdns_proto` landed
+# with milestone 55 carrying three harnesses, was never added to the crate list, and nothing said
+# so for three months. Milestone 193 found the second, `jh7110_trng`, the same way: by counting.
+#
+# Nothing in the tree could see either one. The `harness-crates` counted claim below is a
+# `count-at-least` floor measured against prose, and the shard packer's own partition assertion in
+# `script/verify` checks that the shards cover the TABLE, never that the table covers the TREE. Both
+# were green throughout.
+#
+# So this is the missing comparison, and it is the cheap half of the pair: the packer already
+# guarantees table -> shards, and this guarantees tree -> table. It runs here rather than in
+# `script/verify` on purpose, because a missing row costs nothing to find and 42 minutes to find
+# late.
+echo "==> every crate with proof harnesses is in the verify table"
+python3 - <<'PY'
+import json
+import os
+import re
+import subprocess
+import sys
+
+# The same package-ownership walk `script/verify --affected-since` does, and for the same reason:
+# derived from `cargo metadata` so it cannot drift as the workspace grows.
+meta = json.loads(subprocess.run(
+    ["cargo", "metadata", "--format-version", "1", "--locked", "--no-deps"],
+    capture_output=True, text=True, check=True,
+).stdout)
+root = meta["workspace_root"]
+prefixes = {}
+for p in meta["packages"]:
+    rel = os.path.relpath(os.path.dirname(p["manifest_path"]), root)
+    if rel.startswith(".."):
+        continue
+    prefixes[p["name"]] = "" if rel == "." else rel + "/"
+
+# Files that hold `#[kani::proof]` and belong to no workspace package. Both of these are deliberate
+# and neither is provable: the shim is source rustc compiles by hand for `script/lint`'s own
+# harness-clippy pass, and `vendor/redoxfs` is upstream code kept out of the workspace on purpose
+# (see the workspace Cargo.toml's own note). A new entry here should be argued for, not added.
+EXEMPT = {
+    "scripts/kani-lint-shim/kani_attributes.rs",
+    "vendor/redoxfs/src/node.rs",
+}
+
+files = subprocess.run(
+    ["git", "grep", "-lF", "#[kani::proof]", "--", "*.rs"],
+    capture_output=True, text=True,
+).stdout.split()
+
+carriers, orphans = set(), []
+for f in files:
+    if f in EXEMPT:
+        continue
+    owner = None
+    for name, prefix in prefixes.items():
+        if f.startswith(prefix) and (owner is None or len(prefix) > len(prefixes[owner])):
+            owner = name
+    if owner is None:
+        orphans.append(f)
+    else:
+        carriers.add(owner)
+
+table = set(re.findall(r"^(\w+)\t\d+\t", open("script/verify").read(), re.M))
+
+missing = sorted(carriers - table)
+stale = sorted(table - carriers)
+if missing or orphans or stale:
+    print("lint: script/verify's crate table and the tree's proof harnesses disagree:", file=sys.stderr)
+    for c in missing:
+        print(f"  {c} carries #[kani::proof] and is in no shard; NOTHING proves it", file=sys.stderr)
+    for f in orphans:
+        print(f"  {f} carries #[kani::proof] and belongs to no workspace package", file=sys.stderr)
+    for c in stale:
+        print(f"  {c} is in the table and carries no harness; the row wastes a runner", file=sys.stderr)
+    print("", file=sys.stderr)
+    print("Add the row to the CRATES table in script/verify (run the harnesses first: a row added "
+          "blind can turn main red on a 42-minute check), or delete a stale one.", file=sys.stderr)
+    sys.exit(1)
+
+print(f"verify table: {len(table)} crates, exactly the ones carrying harnesses")
 PY
 
 # Spelling, over prose AND code. The documentation is part of the deliverable here, so a typo in a

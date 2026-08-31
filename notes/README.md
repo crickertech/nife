@@ -705,6 +705,16 @@ in the code or the conversation doesn't make sense, it belongs here.
   smaller target, and of every new property being falsified before it was believed. Milestone 51's
   calendar added the finding that a 64-bit division and a symbolic-length slice cost far more than
   the logic wrapped around them.
+- [Proving things about `kernel/src`](kernel-proofs.md): milestone 193, and the other half of the
+  note above. Until 2026-08-30 `script/verify` could not compile the kernel at all, which milestone
+  191 measured the cost of: every proof in the tree was aimed at pure crates, and every concurrency,
+  hardware-contract and resource-accounting defect the corpus recorded lived somewhere else. The
+  five things that stopped it and the fix for each (three of them one-line `cfg`s), why DECISIONS §4
+  rule 1 is the reason the list is that short, and the **enumerated stub boundary**, because a proof
+  with an unexamined stub reads as coverage and is worse than no proof. The two properties proved
+  today, both over `syscall.rs`'s run arithmetic, both falsified against milestone 142's real
+  MAJOR 4 defect before being believed. A BUGS section that says plainly what is still unreachable:
+  all of `kernel/src/arch/`, `user/`, and `xtask`. Name provisional.
 - [Fuzzing the parse surface](fuzzing.md): milestone 42's second leg, and the complement to the
   proofs above. Starts with the question that decides whether it is worth having at all, given 107
   Kani harnesses: **what does fuzzing find that Kani does not**, answered against three worked cases
