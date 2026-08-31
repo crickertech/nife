@@ -741,6 +741,13 @@ how a kernel-only pull request stops paying the 42 minutes.
   fails. Every milestone 35 property was falsified this way, and one falsification corrected a claim in
   the code (the load-bearing guard was not the one the comment pointed at). A harness that cannot be
   made to fail is not evidence.
+  **Since milestone 194 this is written down rather than remembered** (DECISIONS §134): every
+  harness carries a `Falsification:` block saying whether the evidence is `replayable` (a patch a
+  script applies, requiring the harness to go red), `attested` (a person watched it fail, and nothing
+  can re-check that) or `unfalsified` (nobody has). `script/falsifications` reports the ratio and
+  `script/falsifications --sweep` replays the patches weekly. Read notes/falsification.md before
+  writing one, in particular for what six real records found: a harness can be green, falsifiable,
+  and still blind to the defect its own comment claims to rule out.
 - **Guard against vacuity with `kani::cover!`.** Assumptions and bounds can silently empty a harness's
   input set, and a vacuous harness reports `SUCCESSFUL`. A `cover!` fails when a state is unreachable,
   so it is the one check that catches this. See the non-vacuity section above.

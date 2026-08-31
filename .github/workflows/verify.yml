@@ -179,6 +179,46 @@ jobs:
         env:
           VERIFY_JOBS: 2
 
+  # The per-pull-request half of DECISIONS §134, and the half `script/mutation` has no equivalent
+  # for. A lane that touches a harness or the code it covers re-falsifies **that harness only**,
+  # which is seconds rather than the weekly sweep's minutes, and it closes the window in which a
+  # refactor silently invalidates a record while everything stays green.
+  #
+  # **A gate here, a report weekly, and the split is the one `script/lint`'s own comments draw.** A
+  # patch that no longer applies, or a harness that survives its own falsification, is a defect in
+  # the commit that caused it and not a fact about the tree that morning; the weekly sweep is the
+  # opposite, and is a report. This costs seconds because a falsification runs one harness.
+  #
+  # **Not a required check**, deliberately: the ruleset requires `verify (Kani proofs)` and nothing
+  # else from this workflow, and this must be able to fail loudly without being one more name in a
+  # ruleset somebody has to keep in sync. It rides `scope.needed` so a documentation-only change
+  # does not pay for a Kani install.
+  falsify:
+    name: re-falsify the harnesses this change can reach
+    needs: [gate, scope]
+    if: >-
+      always() &&
+      needs.scope.outputs.needed == 'true' &&
+      needs.gate.outputs.run != 'false'
+    runs-on: ubuntu-24.04-arm
+    # Kani's install dominates; the sweep itself is seconds today. Generous against growth in the
+    # record count, tight enough that a hung solver fails loudly.
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: Swatinem/rust-cache@v2
+      - name: Install Kani
+        run: |
+          cargo install --locked kani-verifier
+          cargo kani setup
+      - name: script/falsifications --affected-since
+        run: |
+          base="${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}"
+          [ -n "$base" ] || base="$(git rev-parse HEAD~1 2>/dev/null || git rev-parse HEAD)"
+          script/falsifications --affected-since "$base"
+
   verify:
     name: verify (Kani proofs)
     needs: [gate, scope, prove]
