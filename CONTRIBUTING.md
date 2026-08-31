@@ -138,7 +138,9 @@ is in the medium this project exists to get things out of.
 
 ## Reporting a bug, and reporting a security bug
 
-Ordinary bugs: open a GitHub issue, and say which **commit sha** you were on, because `main` moves.
+Ordinary bugs: open a GitHub issue. The bug template asks for the **commit sha** you were on,
+because `main` moves, and for which ISA and how you ran it, because parity is a gate here and one
+architecture working while the other does not is itself a finding.
 
 Anything you believe lets a confined process escape goes through [`SECURITY.md`](SECURITY.md)
 instead, privately. Escaping is the exact thing this project claims cannot happen, so that class of
@@ -160,8 +162,11 @@ is dual licensed the same way, with no additional terms. There is no CLA.
   a first-time reader and is known. `CLAUDE.md` at the root is a symlink to it, kept so agent tooling
   keeps finding it; a human who opens `CLAUDE.md` and a human who opens `AGENTS.md` get the same
   file.
-- **There is no issue template and no pull request template**, so nothing prompts you for the commit
-  sha or for which ISAs you tested. Until there is, this file is the prompt.
+- **The issue templates route more than they invite.** A bug report is a real channel and prompts
+  for the commit sha and the ISA. A feature request and a design argument both tell you the outcome
+  is a file in `design/roadmap/` or `design/decisions/` rather than a thread, which is honest about
+  where work lives here and is also more work than opening an issue elsewhere would be. Blank issues
+  are off, so there is no way to file something that skips the prompts.
 - **The contribution path assumes you can run QEMU on both ISAs.** A change that only touches the
   host-testable crates does not, but nothing here tells you which crates those are without reading
   `script/test`.
