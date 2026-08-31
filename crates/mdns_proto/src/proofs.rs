@@ -35,6 +35,7 @@ const OUT: usize = 32;
 /// label (advancing `pos` within a segment of at most `MSG` bytes) or follows a pointer (and the
 /// fence strictly decreases, so at most `MSG` follows). `MSG = 5` gives at most `5 + 6 * 3`
 /// iterations; 32 covers it with room, and Kani fails loudly if it does not.
+/// Falsification: unfalsified
 #[kani::proof]
 #[kani::unwind(32)]
 fn the_name_decoder_is_total_and_in_bounds() {
@@ -53,6 +54,7 @@ fn the_name_decoder_is_total_and_in_bounds() {
 /// **The header codec round-trips on every field value.** Six `u16`s in, the same six out; a
 /// byte-order slip or an offset collision cannot survive this and the counts are what every parse
 /// decision hangs off.
+/// Falsification: unfalsified
 #[kani::proof]
 #[kani::unwind(8)]
 fn the_header_round_trips_on_every_value() {
@@ -73,6 +75,7 @@ fn the_header_round_trips_on_every_value() {
 /// length-prefixed structure an attacker feeds; each step consumes at least one byte, so the
 /// iterator ends, and every yielded string lies inside the input (the slice arithmetic would
 /// panic otherwise, which is exactly what this harness rules out).
+/// Falsification: unfalsified
 #[kani::proof]
 #[kani::unwind(12)]
 fn the_txt_iterator_is_total() {

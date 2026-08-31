@@ -195,6 +195,7 @@ mod verification {
     use crate::{Half, PAGE_SIZE};
 
     /// **The walk never indexes past a table** (three levels here).
+    /// Falsification: unfalsified
     #[kani::proof]
     fn index_is_always_in_bounds() {
         let va: u64 = kani::any();
@@ -204,6 +205,7 @@ mod verification {
     }
 
     /// **The three indices and the offset tile the low 39 bits exactly.**
+    /// Falsification: unfalsified
     #[kani::proof]
     fn the_indices_and_offset_tile_the_address() {
         let va: u64 = kani::any();
@@ -215,6 +217,7 @@ mod verification {
     }
 
     /// **Distinct pages take distinct paths** within the 39-bit VA.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn distinct_pages_take_distinct_paths() {
         let a: u64 = kani::any::<u64>() & 0x0000_007f_ffff_f000;
@@ -228,6 +231,7 @@ mod verification {
     }
 
     /// **The two halves are disjoint** at the Sv39 split (bit 38).
+    /// Falsification: unfalsified
     #[kani::proof]
     fn the_two_halves_are_disjoint() {
         let va: u64 = kani::any();
@@ -235,6 +239,7 @@ mod verification {
     }
 
     /// **The user-VA gate admits exactly the aligned low half**, never the high one.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn the_user_va_gate_admits_only_the_aligned_low_half() {
         let va: u64 = kani::any();
@@ -248,6 +253,7 @@ mod verification {
     }
 
     /// **A leaf keeps the address and the permissions apart, and the permissions round-trip.**
+    /// Falsification: unfalsified
     #[kani::proof]
     fn the_leaf_keeps_address_and_permissions_apart() {
         // Page-aligned physical address within Sv39's 56-bit physical space.

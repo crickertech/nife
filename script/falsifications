@@ -1,0 +1,526 @@
+#!/bin/sh
+#
+# script/falsifications: what evidence each Kani harness carries that it can fail (milestone 194).
+#
+# PROVISIONAL beyond four names. DECISIONS §134 ratified `Falsification:`, the three states
+# `replayable`/`attested`/`unfalsified`, this script's name, and the patch path
+# `crates/<crate>/falsifications/<harness_fn_name>.patch`. Every other spelling here (the flags, the
+# column headings) is this lane's and calef names things.
+#
+# Why this exists. notes/verification.md has said "falsify a property before believing it" since
+# milestone 35, and milestone 191 measured what that produced: 141 harnesses and **not one of them
+# recording what was done to falsify it**. The rule was rung four, honoured by whoever remembered,
+# and the reverse pass found the predictable result. `capability::subset_is_reflexive` proves
+# `a & !a == 0`, a tautology no plausible implementation error breaks, and twelve of the 26 `paging`
+# harnesses restate six properties once per ISA.
+#
+# The forcing question is calef's and it is about a claim rather than about code: if this project is
+# going to say **proven**, the evidence that the proofs are load-bearing cannot itself be a written
+# claim that they are load-bearing. That is one level of indirection away from evidence, and it is
+# the same shape as the nine misrecorded roadmap statuses and the fabricated block quote that
+# survived twelve days of gates.
+#
+# **Inductive Validity Cores were checked first and are not available**, which is why this script
+# exists in the shape it does. §134 named them as the cheaper family: an IVC is the minimal set of
+# model elements a proof actually needed, so it gives coverage with no re-run at all. Neither Kani
+# 0.67.0 nor the CBMC 6.8.0 it ships exposes anything of the kind, and the reason is structural
+# rather than a missing feature: IVC is a technique of INDUCTIVE model checkers (JKind, Kind2, Sally)
+# that prove by k-induction over a transition system, where the core falls out of the unsatisfiable
+# induction step. Kani is a BOUNDED model checker that unrolls to a depth and hands one SAT formula
+# to CaDiCaL, and a bounded proof has no induction step to take a core from. `cargo kani --coverage`
+# is source-based REACHABILITY coverage (which regions symbolic execution touched), which catches
+# some vacuity and no tautology at all; `cbmc --slice-formula` drops assignments unrelated to the
+# property as a solver optimisation and reports nothing. See notes/verification.md.
+#
+# The three states, and the unknown one is first-class. This is `script/names`' lesson taken whole,
+# and for the same reason: inventing evidence to fill a row puts a false claim in the one record
+# whose entire job is saying what is actually known.
+#
+#   replayable <path>   a patch exists that a script applies to turn this harness red.
+#                       --sweep applies it, runs that one harness, REQUIRES red, reverts.
+#   attested <date>     a person broke the code and watched it fail; nothing can re-check it.
+#                       Counted, and a worklist entry. An assertion is not evidence.
+#   unfalsified         nobody has. This is the claim's honest denominator.
+#
+# The block, which is all the lint checks:
+#
+#   /// Falsification: replayable crates/capability/falsifications/subset_is_transitive.patch
+#   /// Falsification: attested 2026-08-30. Flipped the mask; the subset assertion failed.
+#   /// Falsification: unfalsified. Nobody has proposed a defect this would catch.
+#
+# It is the comment run immediately above `#[kani::proof]`, past any other attributes, in the shape
+# milestone 115 established for `Name:`: at the thing, never in a registry, so two lanes touching
+# two crates cannot collide and a computed report cannot drift from the tree.
+#
+#   script/falsifications                 the table, by crate, and the ratio
+#   script/falsifications --unfalsified   the worklist: harnesses with no evidence, biggest crate first
+#   script/falsifications --check         form only, non-zero on a problem (script/lint runs this)
+#   script/falsifications --sweep [crate] apply every recorded patch, require red, revert
+#   script/falsifications --affected-since <base>   sweep only what a diff can reach (the per-PR half)
+#
+# **The gate is presence, never `replayable`.** Nothing here fails a build because a harness has no
+# falsification yet, and it must stay that way, for exactly the reason `script/names --check` gates on
+# presence rather than on `ratified`: a lint demanding the queue be drained would block every
+# unrelated merge behind work nobody can hurry. The worklist is how the queue gets worked; the gate
+# only insists a harness say which of the three it is.
+#
+# **The sweep's posture is `script/mutation`'s, deliberately copied**: a report against a baseline,
+# not a per-commit gate, because a full run costs about one `script/verify` and a regression is a
+# worklist entry rather than a defect in whatever landed that day. `--affected-since` is the half
+# `script/mutation` has no equivalent for, and it is cheap because a falsification runs ONE harness.
+#
+# BUGS.
+#
+# - **Nothing forces the ratio upward.** Every harness may sit at `unfalsified` for ever while
+#   `--check` stays green. That is the honest cost of making the convention shippable against 141
+#   existing harnesses at all, and it is why the number that matters is the ratio rather than the
+#   gate.
+# - **A recorded falsification proves the harness catches THAT defect, not the class.** It is a
+#   floor, and a low one. A patch that flips a comparison proves the assertion is wired to the
+#   comparison; it says nothing about the property being the right property.
+# - **A patch rots against refactors**, and §134 argues that is correct rather than harmless: a patch
+#   that no longer applies means the covered code moved, which is exactly when a falsification should
+#   be redone rather than trusted. It is still churn, and a heavily refactored crate re-falsifies
+#   often. `--sweep` reports a patch that will not apply as a failure, not as a skip.
+# - **`--sweep` refuses to run on a dirty working tree**, because it applies and reverts patches with
+#   `git apply` and a failure mid-run would otherwise leave a deliberate defect in somebody's source.
+#   That is a real limit: you cannot sweep while you work.
+# - **The affected-since computation is crate-granular, not harness-granular.** A change anywhere in
+#   a harness crate's dependency closure re-falsifies every replayable harness in that crate, because
+#   nothing in this tree knows which lines a given harness actually covers (that is what an IVC would
+#   have bought). It fails toward doing too much.
+# - **`kernel/src/arch/` carries no harnesses and gains nothing here**, so the architecture layer,
+#   where the VisionFive 2's undelivered-wake defect actually lived, is outside this record entirely.
+#
+# Name: ratified 2026-08-30 (calef, DECISIONS §134). The `script/` family splits in a way nobody had
+# written down until that section: what DOES something is a verb (`verify`, `test`, `fuzz`, `bench`)
+# and what REPORTS is a noun (`names`, `citations`, `decisions`, `roadmap`, `coverage`, `mutation`).
+# §134 decided a report with a baseline rather than a gate, so this belongs in the noun half. Refused
+# `falsify`, whose verb form would promise the gate §134 deliberately did not build.
+
+set -e
+
+ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
+
+exec python3 - "$ROOT" "$@" <<'PY'
+import os
+import re
+import subprocess
+import sys
+
+root = sys.argv[1]
+args = sys.argv[2:]
+mode = args[0] if args else ""
+
+STATES = ("replayable", "attested", "unfalsified")
+
+# A `#[kani::proof]` attribute, with or without the `_for_contract` suffix and with or without
+# arguments. Matched on the stripped line so indentation inside `mod verification` does not matter.
+PROOF = re.compile(r"^#\[kani::proof")
+ATTR = re.compile(r"^#\[")
+FN = re.compile(r"^(?:pub\s+)?(?:unsafe\s+)?fn\s+(\w+)")
+COMMENT = re.compile(r"^//")
+RECORD = re.compile(r"^//[/!]?\s*Falsification:\s*(.*)$")
+
+
+def harnesses():
+    """Every Kani harness under `crates/`, with the falsification record it carries.
+
+    Derived from the tree by grep rather than from a list, for the reason `script/verify`'s own
+    scope computation gives: a harness that arrives tomorrow is covered without editing anything,
+    and a list that is one entry short fails silently and invisibly.
+    """
+    out = []
+    base = os.path.join(root, "crates")
+    for dirpath, dirnames, filenames in os.walk(base):
+        dirnames[:] = [d for d in dirnames if d != "target"]
+        for filename in sorted(filenames):
+            if not filename.endswith(".rs"):
+                continue
+            path = os.path.join(dirpath, filename)
+            rel = os.path.relpath(path, root)
+            crate = rel.split(os.sep)[1]
+            lines = open(path, errors="replace").read().split("\n")
+            for i, line in enumerate(lines):
+                if not PROOF.match(line.strip()):
+                    continue
+                # Downward past any further attributes (`#[kani::unwind(8)]`, `#[kani::solver(..)]`)
+                # to the function this proves.
+                name = None
+                for j in range(i + 1, len(lines)):
+                    s = lines[j].strip()
+                    if not s or ATTR.match(s) or COMMENT.match(s):
+                        continue
+                    hit = FN.match(s)
+                    name = hit.group(1) if hit else None
+                    break
+                if name is None:
+                    out.append(Harness(crate, "?", rel, i + 1, None, None))
+                    continue
+                # Upward past the other attributes to the comment run above them, which is where
+                # the block lives. Blank lines end it: a comment separated from the harness by a
+                # gap belongs to whatever is above the gap.
+                record, record_line = None, None
+                k = i - 1
+                while k >= 0 and ATTR.match(lines[k].strip()):
+                    k -= 1
+                while k >= 0 and COMMENT.match(lines[k].strip()):
+                    hit = RECORD.match(lines[k].strip())
+                    if hit:
+                        record, record_line = hit.group(1).strip(), k + 1
+                    k -= 1
+                out.append(Harness(crate, name, rel, i + 1, record, record_line))
+    out.sort(key=lambda h: (h.crate, h.name))
+    return out
+
+
+class Harness:
+    def __init__(self, crate, name, rel, line, record, record_line):
+        self.crate = crate
+        self.name = name
+        self.rel = rel
+        self.line = line
+        self.record = record
+        self.record_line = record_line
+
+    @property
+    def state(self):
+        if self.record is None:
+            return None
+        return self.record.split()[0] if self.record.split() else None
+
+    @property
+    def patch(self):
+        """The repo-relative patch path a `replayable` record names, or None."""
+        if self.state != "replayable":
+            return None
+        parts = self.record.split()
+        return parts[1] if len(parts) > 1 else None
+
+    @property
+    def conventional_patch(self):
+        return "crates/%s/falsifications/%s.patch" % (self.crate, self.name)
+
+
+def patch_files():
+    """Every patch under a crate's `falsifications/`, repo-relative."""
+    out = []
+    for crate in sorted(os.listdir(os.path.join(root, "crates"))):
+        d = os.path.join(root, "crates", crate, "falsifications")
+        if not os.path.isdir(d):
+            continue
+        for f in sorted(os.listdir(d)):
+            if f.endswith(".patch"):
+                out.append("crates/%s/falsifications/%s" % (crate, f))
+    return out
+
+
+def check(hs):
+    """Form, never truth. Exactly the line `script/names --check` draws, and for the same reason.
+
+    Both directions, which §134 asked for by name: every `replayable` path resolves AND every patch
+    under a crate's `falsifications/` has a harness that claims it. A one-directional check lets a
+    patch rot into a file nobody runs, which is the failure this record exists to end wearing
+    different clothes.
+    """
+    problems = []
+    claimed = {}
+    seen = {}
+    for h in hs:
+        seen[(h.crate, h.name)] = seen.get((h.crate, h.name), 0) + 1
+    for h in hs:
+        where = "%s:%d" % (h.rel, h.line)
+        if h.name == "?":
+            problems.append("%s: a `#[kani::proof]` whose function this script could not find"
+                            % where)
+            continue
+        if h.record is None:
+            problems.append("%s: harness `%s` carries no `Falsification:` block. One of: "
+                            "`replayable <path>`, `attested <YYYY-MM-DD>`, `unfalsified`."
+                            % (where, h.name))
+            continue
+        state = h.state
+        if state not in STATES:
+            problems.append("%s: harness `%s` has state `%s`; the three are %s"
+                            % (where, h.name, state, ", ".join("`%s`" % s for s in STATES)))
+            continue
+        if state == "replayable":
+            if seen[(h.crate, h.name)] > 1:
+                # **The patch path cannot name this harness, and that is a hole in the ratified
+                # spelling rather than in this tree.** §134 spells the file
+                # `crates/<crate>/falsifications/<harness_fn_name>.patch`, which assumes the function
+                # name is unique inside its crate. In `paging` it is not: six properties are stated
+                # once per ISA in `aarch64.rs`, `sv39.rs` and `x86_64.rs` under the same six function
+                # names, so eighteen of that crate's twenty-six harnesses share a path with two
+                # others. `cargo kani --harness <name>` cannot separate them either.
+                #
+                # This fires only when somebody actually records a `replayable` falsification for a
+                # colliding harness, deliberately: the convention breaks at the moment it is used
+                # and not before, so the 141 `unfalsified` records this shipped with are unaffected
+                # and no unrelated merge is blocked by a spelling calef has not ruled on yet.
+                problems.append(
+                    "%s: harness `%s` is `replayable`, and %d harnesses in `%s` share that function "
+                    "name, so `%s` cannot name one of them. This is DECISIONS §134's patch-path "
+                    "spelling meeting the per-ISA duplication milestone 191 found; it wants calef, "
+                    "and the proposal is in the milestone 194 report."
+                    % (where, h.name, seen[(h.crate, h.name)], h.crate, h.conventional_patch))
+                continue
+            path = h.patch
+            if not path:
+                problems.append("%s: harness `%s` is `replayable` and names no patch" % (where, h.name))
+            elif path != h.conventional_patch:
+                problems.append("%s: harness `%s` names `%s`; §134 spells it `%s`"
+                                % (where, h.name, path, h.conventional_patch))
+            elif not os.path.exists(os.path.join(root, path)):
+                problems.append("%s: harness `%s` names `%s`, which does not exist"
+                                % (where, h.name, path))
+            else:
+                claimed[path] = h.name
+                body = open(os.path.join(root, path), errors="replace").read()
+                head = body.split("diff --git")[0].strip()
+                if "diff --git" not in body:
+                    problems.append("%s: `%s` holds no `diff --git` hunk for `git apply`" % (where, path))
+                elif not head:
+                    problems.append(
+                        "%s: `%s` opens with no prose. A falsification that makes a harness fail "
+                        "for the wrong reason proves nothing, so the patch must say which property "
+                        "it expects to break, above the first `diff --git` line (git apply ignores it)."
+                        % (where, path))
+        elif state == "attested":
+            rest = h.record.split(None, 1)
+            date = rest[1].split(".")[0].strip() if len(rest) > 1 else ""
+            if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
+                problems.append("%s: harness `%s` is `attested` with no `YYYY-MM-DD` date"
+                                % (where, h.name))
+    for p in patch_files():
+        if p not in claimed:
+            fn = os.path.basename(p)[: -len(".patch")]
+            problems.append("%s: no harness claims this patch. §134 checks both directions: a "
+                            "patch is named `<harness_fn_name>.patch` and the harness `%s` must "
+                            "carry `Falsification: replayable %s`." % (p, fn, p))
+    return problems
+
+
+def table(hs):
+    counts = {s: 0 for s in STATES}
+    by_crate = {}
+    for h in hs:
+        counts[h.state] = counts.get(h.state, 0) + 1
+        by_crate.setdefault(h.crate, []).append(h)
+    width = max(len(h.name) for h in hs) if hs else 10
+    for crate in sorted(by_crate):
+        print("%s" % crate)
+        for h in by_crate[crate]:
+            rec = h.record or "(no block)"
+            print("  %-*s  %s" % (width, h.name, rec))
+        print("")
+    total = len(hs)
+    evidence = counts.get("replayable", 0)
+    print("%d harnesses in %d crates" % (total, len(by_crate)))
+    for s in STATES:
+        n = counts.get(s, 0)
+        print("  %-12s %3d  %4.0f%%" % (s, n, 100.0 * n / total if total else 0))
+    print("")
+    # The one number §134 asked this script to print, in the sentence it is honest in. Everything
+    # else here is a means to it.
+    print("%d of %d harnesses (%.0f%%) carry evidence a machine can replay." % (evidence, total, 100.0 * evidence / total if total else 0))
+    # Named here rather than only in --check, because a reader looking at the ratio should see which
+    # part of the denominator the convention cannot currently reach at all.
+    dupes = {}
+    for h in hs:
+        dupes.setdefault((h.crate, h.name), []).append(h)
+    blocked = sorted(k for k, v in dupes.items() if len(v) > 1)
+    if blocked:
+        n = sum(len(dupes[k]) for k in blocked)
+        print("")
+        print("%d of them cannot be recorded as `replayable` at all: their function names repeat "
+              "inside" % n)
+        print("their own crate, and §134's patch path is keyed on the function name alone.")
+        for crate, name in blocked:
+            print("  %s::%s  x%d" % (crate, name, len(dupes[(crate, name)])))
+
+
+def unfalsified(hs):
+    """The worklist. Biggest crate first, because §134's own examples of chaff are the crates with
+    the most harnesses, and because falsifying two harnesses in one crate is one context load."""
+    rows = [h for h in hs if h.state in (None, "unfalsified")]
+    by_crate = {}
+    for h in rows:
+        by_crate.setdefault(h.crate, []).append(h)
+    for crate in sorted(by_crate, key=lambda c: (-len(by_crate[c]), c)):
+        print("%s  (%d)" % (crate, len(by_crate[crate])))
+        for h in by_crate[crate]:
+            print("  %s  %s:%d" % (h.name, h.rel, h.line))
+    print("")
+    print("%d of %d harnesses have no falsification." % (len(rows), len(hs)))
+
+
+def dirty():
+    out = subprocess.run(["git", "-C", root, "status", "--porcelain"],
+                         capture_output=True, text=True).stdout.strip()
+    return out
+
+
+def sweep(hs, only=None):
+    """Apply each recorded patch, run that ONE harness, require red, revert.
+
+    A survivor here is a harness whose own recorded falsification failed to make it fail, which is
+    exactly the signal nothing in this tree could previously detect.
+    """
+    d = dirty()
+    if d:
+        print("script/falsifications --sweep refuses to run on a dirty working tree: it applies and")
+        print("reverts patches with `git apply`, and a failure mid-run would leave a deliberate")
+        print("defect in your source. Commit or set the change aside first.")
+        print("")
+        print(d)
+        return 2
+    todo = [h for h in hs if h.state == "replayable" and (only is None or h.crate in only)]
+    if not todo:
+        print("nothing to sweep" + (" in %s" % ", ".join(sorted(only)) if only else ""))
+        return 0
+    survivors, broken = [], []
+    for h in todo:
+        patch = os.path.join(root, h.patch)
+        print("==> %s::%s" % (h.crate, h.name))
+        applied = subprocess.run(["git", "-C", root, "apply", patch],
+                                 capture_output=True, text=True)
+        if applied.returncode != 0:
+            # A patch that will not apply is a FAILURE and not a skip. §134's claim is that this rot
+            # is the mechanism working: the covered code moved, so the falsification is stale and
+            # must be redone rather than trusted.
+            print("    STALE   the patch no longer applies; the covered code moved")
+            print("    " + applied.stderr.strip().replace("\n", "\n    "))
+            broken.append(h)
+            continue
+        try:
+            run = subprocess.run(
+                ["cargo", "kani", "-p", h.crate, "--harness", h.name, "--output-format=terse"],
+                cwd=root, capture_output=True, text=True)
+            out = run.stdout + run.stderr
+            hit = re.search(r"(\d+) successfully verified harnesses, (\d+) failures, (\d+) total",
+                            out)
+            if not hit:
+                print("    ERROR   could not read Kani's summary; ran with exit %d" % run.returncode)
+                print("    " + out.strip().splitlines()[-1] if out.strip() else "")
+                broken.append(h)
+            elif hit.group(3) != "1":
+                # The filter is a substring match, so two harnesses sharing a name prefix would both
+                # run and "one of them went red" would prove nothing about this one.
+                print("    ERROR   the filter matched %s harnesses, not 1" % hit.group(3))
+                broken.append(h)
+            elif hit.group(2) == "1":
+                print("    red     the harness caught it")
+            else:
+                print("    SURVIVOR the harness stayed green with its own falsification applied")
+                survivors.append(h)
+        finally:
+            rev = subprocess.run(["git", "-C", root, "apply", "-R", patch],
+                                 capture_output=True, text=True)
+        if rev.returncode != 0:
+            # Stop here rather than continue. Every later harness would be proved against a tree
+            # holding a deliberate defect, and a green result from that means nothing.
+            print("    COULD NOT REVERT %s; your tree is modified" % h.patch)
+            print("    " + rev.stderr.strip())
+            return 3
+    print("")
+    print("%d swept, %d survivors, %d stale or broken" % (len(todo), len(survivors), len(broken)))
+    for h in survivors:
+        print("  survivor  %s::%s" % (h.crate, h.name))
+    for h in broken:
+        print("  stale     %s::%s" % (h.crate, h.name))
+    return 1 if (survivors or broken) else 0
+
+
+def affected_crates(base):
+    """Which harness crates a diff can reach, by the rule `script/verify --affected-since` uses.
+
+    Crate-granular on purpose and stated in BUGS: nothing here knows which lines a harness covers,
+    so a change inside a harness crate's dependency closure re-falsifies every replayable harness in
+    that crate. It fails toward doing too much, which for a run measured in seconds is the right
+    direction.
+    """
+    import json
+    changed = subprocess.run(["git", "-C", root, "diff", "--name-only", base, "HEAD"],
+                             capture_output=True, text=True, check=True).stdout.split()
+    meta = json.loads(subprocess.run(
+        ["cargo", "metadata", "--format-version", "1", "--locked"],
+        cwd=root, capture_output=True, text=True, check=True).stdout)
+    ws = meta["workspace_root"]
+    pkgs = {}
+    for p in meta["packages"]:
+        rel = os.path.relpath(os.path.dirname(p["manifest_path"]), ws)
+        if rel == "." or rel.startswith(".."):
+            continue
+        pkgs[p["id"]] = (p["name"], rel + "/")
+
+    def owner(path):
+        best = None
+        for pid, (_, prefix) in pkgs.items():
+            if path.startswith(prefix) and (best is None or len(prefix) > len(pkgs[best][1])):
+                best = pid
+        return best
+
+    changed_ids = set()
+    unattributable = False
+    for f in changed:
+        if re.match(r"^(notes/|design/|[A-Z_]+\.md$|script/|scripts/|\.github/)", f):
+            continue
+        pid = owner(f)
+        if pid is None:
+            unattributable = True
+        else:
+            changed_ids.add(pid)
+    edges = {n["id"]: [d["pkg"] for d in n.get("deps", [])] for n in meta["resolve"]["nodes"]}
+    hcrates = {h.crate for h in harnesses()}
+    out = set()
+    for pid, (name, _) in pkgs.items():
+        if name not in hcrates:
+            continue
+        if unattributable:
+            out.add(name)
+            continue
+        closure, stack = set(), [pid]
+        while stack:
+            cur = stack.pop()
+            if cur in closure:
+                continue
+            closure.add(cur)
+            stack.extend(edges.get(cur, []))
+        if closure & changed_ids:
+            out.add(name)
+    return out
+
+
+hs = harnesses()
+if not hs:
+    sys.exit("script/falsifications: found no Kani harnesses under crates/, which cannot be right")
+
+if mode == "--check":
+    problems = check(hs)
+    for p in problems:
+        print("  " + p)
+    if problems:
+        print("")
+        print("%d problem(s). See the header of script/falsifications and DECISIONS §134." % len(problems))
+        sys.exit(1)
+    n = sum(1 for h in hs if h.state == "replayable")
+    print("  %d harnesses, every one carrying a Falsification: block (%d replayable)" % (len(hs), n))
+elif mode == "--unfalsified":
+    unfalsified(hs)
+elif mode == "--sweep":
+    sys.exit(sweep(hs, set(args[1:]) or None))
+elif mode == "--affected-since":
+    if len(args) < 2:
+        sys.exit("usage: script/falsifications --affected-since <base-ref>")
+    crates = affected_crates(args[1])
+    if not crates:
+        print("no harness crate is reachable from this change; nothing to re-falsify")
+        sys.exit(0)
+    print("reachable harness crates: %s" % ", ".join(sorted(crates)))
+    sys.exit(sweep(hs, crates))
+elif mode in ("", "--all"):
+    table(hs)
+else:
+    sys.exit("script/falsifications: unknown option %r (see the header)" % mode)
+PY

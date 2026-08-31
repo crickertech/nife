@@ -122,6 +122,7 @@ mod verification {
     /// **Zero is never handed out**, from any reachable allocator state. State is modeled
     /// symbolically: any bitmap with bit 0 set, which is every state `new` + any operation
     /// sequence can produce, since `alloc` only sets bits and `free` refuses ASID 0.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn the_kernel_asid_is_never_allocated() {
         let mut a = Allocator {
@@ -136,6 +137,7 @@ mod verification {
 
     /// **Two allocations never alias.** From any state, two back-to-back allocs return distinct
     /// numbers: alloc claims the bit before returning, so the second scan cannot find it.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn two_live_asids_are_distinct() {
         let mut a = Allocator {
@@ -148,6 +150,7 @@ mod verification {
 
     /// **Free really frees, and only its own bit.** From any state with `asid` live, freeing it
     /// makes it allocatable again and leaves every other bit exactly as it was.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn free_releases_exactly_its_own_asid() {
         let mut a = Allocator {

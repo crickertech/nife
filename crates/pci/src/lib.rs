@@ -427,6 +427,7 @@ mod verification {
     /// 256-bus window size (`0x1000_0000`), so `ecam_base + ecam_offset() + off` for off < 4096
     /// cannot escape a correctly-sized mapping. This is the arithmetic the kernel's volatile
     /// accessors trust.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn ecam_offset_stays_inside_the_window() {
         let bdf = Bdf {
@@ -443,6 +444,7 @@ mod verification {
     /// **`intx_irq` is total and lands on one of the four lines.** For any base, device, and
     /// pin, no underflow (the pin-0 case that used to panic in debug builds) and no overflow,
     /// and the result is within `base..=base+3` whenever that range exists.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn intx_irq_is_total_and_bounded() {
         let base: u32 = kani::any();
@@ -457,6 +459,7 @@ mod verification {
     /// on every call, standing in for a device that answers the size probe with garbage; the
     /// decode must never panic (the size arithmetic `!mask + 1` cannot overflow because the
     /// type bits are masked out of `mask` first, so it is never all-ones).
+    /// Falsification: unfalsified
     #[kani::proof]
     #[kani::unwind(8)]
     fn read_bars_is_total_for_any_device() {
@@ -473,6 +476,7 @@ mod verification {
     /// form any graph at all; the walk visits at most 64 entries and the callback fires at
     /// most that often. This is the bounded-walk discipline (the virtqueue chain walk's twin)
     /// proved rather than argued.
+    /// Falsification: unfalsified
     #[kani::proof]
     #[kani::unwind(66)]
     fn the_capability_walk_terminates_on_any_device() {
@@ -490,6 +494,7 @@ mod verification {
     /// the same hostile-input class as a device's config space: any byte string at all must
     /// come back as an answer or a `None`, never a panic. Three entries covers every branch
     /// (the loop is per-entry with no state across iterations).
+    /// Falsification: unfalsified
     #[kani::proof]
     #[kani::unwind(4)]
     fn the_ranges_parse_is_total() {

@@ -613,6 +613,7 @@ mod verification {
 
     /// **The completion head stays in bounds and flips the phase exactly at the wrap**, for every
     /// reachable state, not just the ones a test happened to walk.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn cq_pop_stays_in_bounds_and_flips_only_at_the_wrap() {
         let entries: u16 = kani::any();
@@ -633,6 +634,7 @@ mod verification {
 
     /// **A submission push from any non-full state lands in bounds**, and the doorbell value it
     /// leaves behind is a legal tail.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn sq_push_stays_in_bounds() {
         let entries: u16 = kani::any();
@@ -653,6 +655,7 @@ mod verification {
     /// **No two doorbells collide**, for any queue ids and any stride the controller can report:
     /// distinct (queue, role) pairs always compute distinct offsets, so a tail write can never
     /// land on a head register. This is the arithmetic the kernel's volatile writes trust.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn distinct_doorbells_never_collide() {
         let qa: u16 = kani::any();
@@ -677,6 +680,7 @@ mod verification {
     /// length and power-of-two page size, `prp_pair` either refuses or returns a pair whose two
     /// pointers cover the whole transfer: PRP2 is zero exactly when one page suffices, and is
     /// page-aligned whenever it is used (the spec's requirement on every pointer after the first).
+    /// Falsification: unfalsified
     #[kani::proof]
     fn prp_pair_is_total_and_page_disciplined() {
         let base: u64 = kani::any();
@@ -699,6 +703,7 @@ mod verification {
     /// **Identify parsing is total for any device response.** The 4096 bytes come from the
     /// controller's DMA; no contents may panic the parse, and an accepted answer always carries a
     /// shift the block driver's arithmetic (`blocks_per(4096)`) can serve.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn identify_parse_is_total_and_bounds_the_shift() {
         let data: [u8; 384] = kani::any();

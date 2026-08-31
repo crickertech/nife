@@ -393,6 +393,7 @@ mod verification {
         }
     }
 
+    /// Falsification: unfalsified
     #[kani::proof]
     fn send_preserves_the_invariant() {
         let (mut s, mut r, mut me) = (N::new(), N::new(), N::new());
@@ -407,6 +408,7 @@ mod verification {
         assert!(e.one_queue_invariant());
     }
 
+    /// Falsification: unfalsified
     #[kani::proof]
     fn recv_preserves_the_invariant() {
         let (mut s, mut r, mut me) = (N::new(), N::new(), N::new());
@@ -419,6 +421,7 @@ mod verification {
         assert!(e.one_queue_invariant());
     }
 
+    /// Falsification: unfalsified
     #[kani::proof]
     fn signal_preserves_the_invariant() {
         let (mut s, mut r) = (N::new(), N::new());
@@ -434,6 +437,7 @@ mod verification {
     /// **A send rendezvouses exactly when a receiver was waiting**, and with exactly *that*
     /// receiver, else blocks. So a message is never dropped, a sender never blocks past a ready
     /// receiver, and the rendezvous partner is the queued thread and no other.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn send_rendezvous_iff_a_receiver_waited() {
         let (mut s, mut r, mut me) = (N::new(), N::new(), N::new());
@@ -462,6 +466,7 @@ mod verification {
     /// **A pending signal is taken before a queued sender.** A receive drains a counted signal
     /// first, so an async signal delivered with nobody waiting is never lost behind a later
     /// synchronous sender.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn recv_drains_a_pending_signal_first() {
         let (mut s, mut r, mut me) = (N::new(), N::new(), N::new());
@@ -489,6 +494,7 @@ mod verification {
     /// queue cannot see: a blocked thread cannot run, so it cannot enqueue itself a second time.
     /// Stated through emptiness (the decision core's own vocabulary; a membership scan would hand
     /// the solver an unbounded loop for no added meaning).
+    /// Falsification: unfalsified
     #[kani::proof]
     fn a_collected_sender_is_forgotten() {
         let (mut s, mut r, mut me, mut me2) = (N::new(), N::new(), N::new(), N::new());

@@ -395,6 +395,7 @@ mod verification {
     /// bit says and regardless of what the `RAND` words happen to hold. This is the property the
     /// module doc's "Health testing" section argues for in prose; here it holds for the full
     /// `2^32` space of `istat`, not the two combinations the unit tests above pick.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn a_lockup_bit_is_never_overridden() {
         let istat: u32 = kani::any();
@@ -407,6 +408,7 @@ mod verification {
     /// bytes.** No `istat` value produces `Ready` unless `RAND_RDY` is set and `LFSR_LOCKUP` is
     /// clear, and when it is, the bytes are `rand`'s little-endian encoding with nothing dropped,
     /// substituted, or reordered.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn ready_requires_rand_rdy_and_carries_the_words_untouched() {
         let istat: u32 = kani::any();
@@ -418,6 +420,7 @@ mod verification {
     /// **`NotReady` is the only answer when neither bit is set**, whatever the rest of `istat` or
     /// the stale `RAND` words say: a device that has not finished is not accidentally read as done
     /// or as faulted because some other bit happened to be set.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn neither_bit_set_is_always_not_ready() {
         let istat: u32 = kani::any();

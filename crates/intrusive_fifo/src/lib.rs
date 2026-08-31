@@ -256,6 +256,7 @@ mod verification {
     /// model records the order tags went in; the queue must hand them back in exactly that
     /// order, agree about emptiness and length at every step, and never dereference a stale
     /// link (which Kani would report as an invalid pointer access).
+    /// Falsification: unfalsified
     #[kani::proof]
     fn any_push_pop_interleaving_is_fifo_and_lossless() {
         let mut nodes = [
