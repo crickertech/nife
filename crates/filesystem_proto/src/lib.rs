@@ -629,8 +629,10 @@ pub mod fs {
     ///   time is the authority, and this is a forecast. That is what `statfs` is everywhere.
     pub const STATFS: u64 = 18;
 
-    /// **Make everything this server has acknowledged durable** (milestone 55). The verb behind
-    /// SMB2's `FLUSH`, and the reason macOS's `VOLUME_FULL_SYNC` bit is claimable at all.
+    /// **Make everything this server has acknowledged durable** (milestone 55). Written as the
+    /// verb behind SMB2's `FLUSH`, which is what made macOS's `VOLUME_FULL_SYNC` bit claimable;
+    /// that implementation was removed on 2026-08-30 (notes/smb.md) and this verb was not, because
+    /// "make my writes durable" is a file service's question rather than a protocol's.
     ///
     /// [`req_len`] and the second word are both 0; [`req_handle`] is **any handle this server
     /// minted**, file or directory, [`ROOT`] included, exactly as [`STATFS`] takes one. Reply `r0`
@@ -1403,8 +1405,8 @@ pub mod verb {
         // than pointed at.** SYNC (milestone 55) landed after `LAST` was fixed at STATFS and was
         // never given a row, so `verb::of(fs::SYNC)` answered `None` and every caretaker refused it
         // with EINVAL: a program confined to a subtree or nameset grant could never SYNC through it.
-        // Nothing in this crate's own tree currently reaches SYNC that way (`fs_test_client` and
-        // `smb_server` both hold the raw FS-server endpoint), so the gap was latent rather than
+        // Nothing in this crate's own tree currently reaches SYNC that way (`fs_test_client` holds
+        // the raw FS-server endpoint), so the gap was latent rather than
         // observed, and it surfaced only because milestone 47's mtime verbs had to extend `LAST`
         // past it and the contiguity assert below would not let the gap stand unfilled. The row
         // matches SYNC's own doc: any handle qualifies, and it needs `dir::WRITE` for the reason
@@ -2463,95 +2465,30 @@ pub mod fixture {
     /// first. Any other value (or silence) fails the test.
     pub const SUCCESS: u64 = 0xF11E_600D;
 
-    /// **The file the SMB gate reads off the real filesystem** (milestone 54). The combined
-    /// inbound boot creates it through the FS server (`fs_test_client`'s seed role) *before* the
-    /// SMB adapter serves, and xtask's SMB prober then opens it by this name over the wire and
-    /// asserts these exact bytes came back, which is what proves the served bytes crossed
-    /// RedoxFS -> `filesystem_proto` -> the `Share` seam -> SMB2 -> TCP rather than a fixture baked into
-    /// the server binary. One constant, three readers (the seeding client, the kernel test, the
-    /// host prober), zero second copies of the expected contents.
+    /// **What the durability witness found** (milestone 55), sent as the report's third word by
+    /// the in-guest role that runs it.
     ///
-    /// Lower-case on purpose: the SMB server folds wire names to lower-case ASCII before lookup
-    /// (`smb_proto`'s BUGS), so an upper-case name here would be unreachable over the mount.
-    pub const SMB_SEED_NAME: &str = "smb_seed.txt";
-    /// Its exact contents. What the seed role writes and the SMB prober must read back.
-    pub const SMB_SEED: &[u8] =
-        b"these bytes crossed RedoxFS, filesystem_proto, and SMB2 on their way to you\n";
-
-    /// **The file the SMB gate writes, in the other direction** (milestone 54's write path). The
-    /// host's SMB prober creates it over the wire, writes [`SMB_WROTE`] plus a tail, shortens it
-    /// with `SET_INFO`, and closes; a *different* in-guest process (`fs_test_client`'s verify
-    /// role, holding a directory capability and nothing that names the network) then reads it
-    /// back through the FS server and reports what it found.
+    /// The classes are deliberately far apart: "this machine's device cannot flush" and "the flush
+    /// never left the server" are a hardware fact and a wiring bug, and a run that confused them
+    /// would send somebody chasing the wrong half of the stack.
     ///
-    /// Two readers, one constant, no second copy of the expectation, exactly as [`SMB_SEED`]
-    /// does for the read direction. Lower-case for the same reason: the wire folds names to
-    /// lower-case ASCII before lookup.
-    pub const SMB_WROTE_NAME: &str = "smb_wrote.txt";
-    /// Its exact contents after the prober has written and shortened it.
-    pub const SMB_WROTE: &[u8] =
-        b"these bytes crossed SMB2, filesystem_proto, and RedoxFS on their way in\n";
-
-    /// **The directory the SMB gate makes** (milestone 54's subdirectory half). The host's prober
-    /// creates it over the wire with `FILE_DIRECTORY_FILE`, puts [`SMB_NESTED`] inside it, and the
-    /// same in-guest verify role checks that a *directory* is what landed.
-    ///
-    /// That last check is the one worth having: a share that ignored the separator would create a
-    /// file literally called `tm_bands\band0`, which reads back as a missing directory and a
-    /// missing file, and is exactly what the flat share did. `.sparsebundle` is not in the name on
-    /// purpose, because nothing here is Time Machine specific yet; the *shape* is what milestone 55
-    /// needs.
-    pub const SMB_DIR_NAME: &str = "tm_bands";
-    /// The file the gate writes inside [`SMB_DIR_NAME`], by its name alone: the verify role opens
-    /// the directory and then the name under it, which is the path walk done from the other side.
-    pub const SMB_NESTED_NAME: &str = "band0";
-    /// Its exact contents. Distinct from [`SMB_WROTE`] so that a share which wrote both files to
-    /// the same place cannot pass by accident.
-    pub const SMB_NESTED: &[u8] = b"a band file, written one directory down over SMB2\n";
-
-    /// **What the verify role found**, sent as the report's second word. A classification rather
-    /// than a pass/fail, in [`escape`]'s spirit and for the same reason: "the file is not there"
-    /// and "the file is there and wrong" are different bugs, and a bare failure names neither.
-    pub mod smb_wrote {
-        /// The file holds exactly [`super::SMB_WROTE`]. The only passing verdict.
-        pub const EXACT: u64 = 1;
-        /// No such name: the write never reached the filesystem at all.
-        pub const ABSENT: u64 = 2;
-        /// The name is there and the length is wrong, which points at the truncate leg
-        /// (`SET_INFO` / `FileEndOfFileInformation`) rather than at the write.
-        pub const WRONG_SIZE: u64 = 3;
-        /// The right length and the wrong bytes: an offset or a chunking bug in the write path.
-        pub const WRONG_BYTES: u64 = 4;
-        /// **The subdirectory is not there** ([`super::SMB_DIR_NAME`]), so the client's `mkdir`
-        /// never reached the filesystem. Its own verdict rather than folded into [`ABSENT`],
-        /// because "the directory was not made" and "the directory was made and the file in it was
-        /// not" are different bugs in different halves of the path walk.
-        pub const DIR_ABSENT: u64 = 5;
-        /// The subdirectory is there and is not a directory, which means the adapter created a
-        /// *file* whose name happens to contain a separator: the exact failure a path-aware share
-        /// exists to prevent, and the one a flat share would produce.
-        pub const DIR_IS_A_FILE: u64 = 6;
-        /// The directory is there and the file inside it is not.
-        pub const NESTED_ABSENT: u64 = 7;
-        /// The nested file is there and holds the wrong bytes.
-        pub const NESTED_WRONG: u64 = 8;
-    }
-
-    /// **What the durability witness found** (milestone 55), sent as the report's third word by the
-    /// same in-guest role that reports [`smb_wrote`] in the second.
-    ///
-    /// It is a classification for [`smb_wrote`]'s reason, and the classes here are further apart
-    /// than that module's: "this machine's device cannot flush" and "the flush never left the SMB
-    /// server" are a hardware fact and a wiring bug, and a run that confused them would send
-    /// somebody chasing the wrong half of the stack.
+    /// **BUGS: nothing produces these verdicts today.** The only role that ran the witness was
+    /// `fs_test_client`'s SMB verify role, removed with the SMB implementation on 2026-08-30
+    /// (notes/smb.md), and the end-to-end leg it checked (the count already non-zero because
+    /// something *above* the guest process had flushed the device) needed a network client to
+    /// cause that flush. So [`crate::fs::SYNC`] and the block server's `VIRTIO_BLK_T_FLUSH` are
+    /// still wired and still correct, and nothing gates them any more. The vocabulary is kept
+    /// rather than deleted because the classification is the useful half and re-homing the witness
+    /// onto a role that does not need a network is a small piece of work with no design question
+    /// in it; see this lane's report.
     ///
     /// The witness asks [`crate::fs::SYNC`] twice and reads the count each answer carries.
     /// **Two independent things are being checked**, which is why one verdict is not enough:
     ///
     /// 1. The count was **already non-zero** when the witness first asked. Nothing in this process
-    ///    had synced yet, so the only thing that can have moved it is the SMB server answering the
-    ///    host prober's `FLUSH` over TCP. That is the end-to-end leg, and it is the one that cannot
-    ///    be faked from inside the guest.
+    ///    had synced yet, so the only thing that can have moved it is another process answering a
+    ///    flush. That was the end-to-end leg, and it is the one that cannot be faked from inside
+    ///    the guest.
     /// 2. The count **strictly increased** between the two calls. That is what separates a real
     ///    device round trip from a server that answers a constant, and it is the check that would
     ///    have caught the gap this milestone exists to close.
@@ -2560,8 +2497,7 @@ pub mod fixture {
         /// this process's own sync moved the count again. The only passing verdict.
         pub const DURABLE: u64 = 1;
         /// The count was zero when the witness first asked, so **no flush ever reached the
-        /// device** before it ran. The SMB `FLUSH` command is not reaching `filesystem_proto::fs::SYNC`,
-        /// which is precisely the state milestone 55 shipped `VOLUME_FULL_SYNC` in.
+        /// device** before it ran: nothing above this process reached `crate::fs::SYNC`.
         pub const NEVER_FLUSHED: u64 = 2;
         /// [`crate::fs::SYNC`] answered `EOPNOTSUPP`: this device offers no
         /// `VIRTIO_BLK_F_FLUSH`, so the claim cannot be backed here at all. **Not a bug in this

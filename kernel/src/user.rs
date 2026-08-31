@@ -1194,103 +1194,6 @@ pub fn boot_via_init(image: &'static [u8]) {
     let _ = spawn_init(image, INIT_BOOT_ROLE, report);
 }
 
-/// **The SMB serve boot** (milestone 54, `--features smb_serve`, `cargo xtask smb-serve`): wire
-/// the net server and the SMB adapter in serve-forever mode, print the mount instructions, and
-/// leave the machine to them. A demo boot in the spirit of `--features shell`, and deliberately
-/// minimal: no init, no console, no shell, because a file server's whole interface is its port.
-///
-/// Reached only on aarch64 (the riscv boot parks in its own tour first), which is scope rather
-/// than accident: the point of this boot is a Mac mounting the guest, and the SMB *protocol*
-/// path is gated on both ISAs by the test suite. See notes/smb.md.
-#[cfg(feature = "smb_serve")]
-pub fn smb_serve_boot() {
-    use crate::println;
-    let Some(net_stack) = program("net_stack") else {
-        println!("smb-serve: no net_stack program in the initrd");
-        return;
-    };
-    let Some(smb_server) = program("smb_server") else {
-        println!("smb-serve: no smb_server program in the initrd");
-        return;
-    };
-    // The share: the real filesystem when a RedoxFS disk is attached (`cargo xtask smb-serve`
-    // builds and attaches one), the baked-in fixture otherwise. Wired before the adapter exists,
-    // like every service-before-client here.
-    // Read-write, because the point of this boot is a real Mac exercising the whole adapter and
-    // the write path is half of it. That is a loud choice rather than a default: sessions are
-    // guest, guest means everyone (`smb_proto`'s BUGS), so anything reachable on the forwarded
-    // port may change the image. The banner below says so where the person about to mount it
-    // will read it.
-    let fs = program("redoxfs_server")
-        .and_then(|redoxfs_server| {
-            fs_service::root_directory(fs_service::blk_server_image(), redoxfs_server)
-        })
-        .map(|(ep, shared)| (ep, shared, virtio_service::SMB_SHARE_FS_READ_WRITE));
-    if fs.is_none() {
-        println!("smb-serve: no RedoxFS disk; serving the baked-in fixture share");
-    }
-    let Some(mdns_responder) = program("mdns_responder") else {
-        println!("smb-serve: no mdns_responder program in the initrd");
-        return;
-    };
-    let Some((ip, smb, mdns)) =
-        virtio_service::start_smb_serve(net_stack, smb_server, mdns_responder, fs)
-    else {
-        println!(
-            "smb-serve: no virtio-net device to serve on (the runner attaches one when NIFE_NET is set)"
-        );
-        return;
-    };
-    println!();
-    println!(
-        "smb-serve: DHCP lease {}.{}.{}.{}",
-        (ip >> 24) & 0xff,
-        (ip >> 16) & 0xff,
-        (ip >> 8) & 0xff,
-        ip & 0xff,
-    );
-    let word = crate::sched::ipc_recv(smb)[0];
-    if word == 1 {
-        println!("smb-serve: the SMB adapter is listening on guest port 445.");
-        println!("smb-serve: on the Mac (assuming xtask's default forward, 127.0.0.1:10445):");
-        println!(
-            "smb-serve:   Finder > Go > Connect to Server: smb://127.0.0.1:10445/share  (as Guest)"
-        );
-        println!(
-            "smb-serve:   or: mkdir /tmp/nife-share && mount_smbfs -N //GUEST@127.0.0.1:10445/share /tmp/nife-share"
-        );
-        println!(
-            "smb-serve: the share is READ-WRITE and every session is admitted as guest, so \
-             anything that can reach the forwarded port can change the image. See notes/smb.md, \
-             including its BUGS. The files are the RedoxFS image's (motd, scratch, doc/...) \
-             unless the fixture fallback was announced above, which is read-only."
-        );
-        println!(
-            "smb-serve: it answers Apple's AAPL create context claiming the Time Machine volume \
-             capability (milestone 55). Whether macOS accepts that is untested; nothing here has \
-             met a Mac's Time Machine UI, and durability stops at the block server (notes/smb.md)."
-        );
-    } else {
-        println!("smb-serve: the adapter failed to bind its port (code {word:#x})");
-    }
-    // The discovery half (milestone 55). A separate process holding a separate authority: this one
-    // has the UDP port and no share, the adapter has the share and no port a browser can find.
-    let word = crate::sched::ipc_recv(mdns)[0];
-    if word == 1 {
-        println!(
-            "smb-serve: the mDNS responder is advertising _smb._tcp, _adisk._tcp and \
-             _device-info._tcp on 5353."
-        );
-        println!(
-            "smb-serve:   on a Mac on the SAME SEGMENT: dns-sd -B _adisk._tcp   (QEMU's user-mode \
-             networking does not carry multicast, so this needs real hardware; see notes/mdns.md)"
-        );
-        println!("smb-serve:   what it advertises is user/mdns_responder.conf, not compiled-in.");
-    } else {
-        println!("smb-serve: the mDNS responder failed to start (code {word:#x})");
-    }
-}
-
 /// Load the initrd program and become it, handed the world described by `spawn`. Never returns.
 pub fn run(image: &[u8], spawn: Spawn) -> ! {
     let (mut space, entry) = match load(image) {
@@ -2861,7 +2764,7 @@ pub mod session_reviver_service;
 /// `session_reviver` reads back and `timetable::parse` accepts, that the manifest (§125's own answer
 /// to "which identities", read by name rather than by `READDIR`) carries that identity to the
 /// re-deriver without either program enumerating anything, that a session re-derived at boot has the
-/// identical §16 lifecycle a live login's `DurableSession` (`smb_server.rs`) already does, and that
+/// identical §16 lifecycle a live login's own durable session does, and that
 /// the re-deriver's own capabilities are gone and provably so once its one pass finishes.
 #[cfg(all(test, initrd))]
 mod session_reviver_tests;

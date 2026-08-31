@@ -86,7 +86,7 @@ type Rendezvous = ipc::Rendezvous<Thread>;
 /// `thread_leak_police` (no runnable spinner left over) passed both runs. What is alive is the
 /// accumulated cost of this tree's many individually-reasonable services that are
 /// **intentionally permanent for the boot** (`notes/frames.md`'s "held" list: the FS servers,
-/// two credential store instances, `login`, both `net_stack` transports, SMB, mDNS, `gpu_driver`,
+/// two credential store instances, `login`, both `net_stack` transports, mDNS, `gpu_driver`,
 /// `compositor`, and more since), each accepted on its own merits over many milestones and never
 /// once priced against this shared ceiling collectively.
 ///

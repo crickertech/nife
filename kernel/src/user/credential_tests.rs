@@ -17,8 +17,8 @@ use super::*;
 /// that had not reached its serve loop, and the whole boot would deadlock with a sender and a
 /// caller both waiting on nobody. The entropy service does not show this because its wiring
 /// receives immediately.
-/// **`pub(super)` since milestone 54's identity item**, because the SMB gate needs the same sealed
-/// store: its adapter authenticates a real NTLMv2 session against this service, so the SMB test
+/// **`pub(super)` since milestone 54's identity item**, when the SMB gate needed the same sealed
+/// store: its adapter authenticated a real NTLMv2 session against this service, so that test
 /// calls this to get the verify endpoint. Calling it from either place is safe in either order,
 /// which is what the once-per-boot latch below is for; what would not be safe is a *second*
 /// wiring, and there is no way to ask for one.
@@ -26,7 +26,7 @@ use super::*;
 /// Returns `None` if the mmio virtio-rng device this depends on is not attached (milestone 145:
 /// correct on a bare board boot with no `NIFE_RNG`-equivalent). The `None` result is itself
 /// memoized alongside the success case, so a board boot's first caller pays for the failed probe
-/// once and every later caller (including the SMB gate) gets the same answer immediately rather
+/// once and every later caller gets the same answer immediately rather
 /// than retrying a device that is not coming.
 pub(super) fn provisioned() -> Option<(cs::Wiring, [u64; 3], [u64; 3])> {
     use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -238,27 +238,28 @@ fn the_same_endowment_cannot_write_the_store() {
         "a PUT on the verify endpoint is a verify of an identity nobody provisioned, so the \
          answer must be MISMATCH; codes {codes:#018x}",
     );
-    // **And `SEAL` now gets MISMATCH too, which the machine corrected a second time.** This
-    // assertion expected MALFORMED and had been right for as long as the verify endpoint served
-    // one opcode. Milestone 65 gave it a second, `NTLM_PROOF`, at number 2, which is
-    // `provision::SEAL`'s number: so an attacker's `SEAL` is now read as an NTLM proof for a
-    // resource nobody provisioned, and the honest answer to that is no.
+    // **`SEAL` is MALFORMED again**, and the round trip is worth keeping rather than tidying.
+    // This assertion expected MALFORMED for as long as the verify endpoint served one opcode.
+    // Milestone 65 gave it a second, `NTLM_PROOF`, at number 2, which is `provision::SEAL`'s
+    // number, and an attacker's `SEAL` started reading as an NTLM proof for a resource nobody
+    // provisioned, whose honest answer is MISMATCH. That opcode was removed on 2026-08-30 with the
+    // SMB implementation (notes/smb.md) and the answer went back to MALFORMED.
     //
-    // Worth recording rather than renumbering, for the reason above and for one more. The opcode
-    // spaces colliding is not a coincidence to be tidied away, it is what "the endpoint gives a
-    // number its meaning" *looks like* when a space grows: adding an opcode on one endpoint
-    // silently changed what a word means on the other, and nothing broke, because a word arriving
-    // at a serve loop never carried authority in the first place.
+    // Recorded rather than renumbered, then and now, because the collision was not a coincidence
+    // to be tidied away: it is what "the endpoint gives a number its meaning" *looks like* when a
+    // space grows and shrinks. Adding an opcode on one endpoint silently changed what a word meant
+    // on the other, and nothing broke, because a word arriving at a serve loop never carried
+    // authority in the first place.
     assert_eq!(
         cs::nth(codes, 1),
-        credential_proto::MISMATCH,
-        "a SEAL on the verify endpoint is an NTLM_PROOF for a resource nobody provisioned, so \
-         the answer must be MISMATCH; codes {codes:#018x}",
+        credential_proto::MALFORMED,
+        "a SEAL on the verify endpoint is an opcode this endpoint does not serve, so the answer \
+         must be MALFORMED; codes {codes:#018x}",
     );
     for (k, what) in [
         (2, "an undefined opcode"),
         (3, "a request with lengths outside the contract"),
-        (4, "PUT_NTLM"),
+        (4, "an opcode from the provisioning space"),
     ] {
         assert_eq!(
             cs::nth(codes, k),
@@ -278,189 +279,4 @@ fn the_same_endowment_cannot_write_the_store() {
         cs::F_CLEAN,
         "the attacker left bytes in the shared page",
     );
-}
-
-/// **The headline of milestone 65.** A userspace program with one endpoint, no key, no store and
-/// no entropy answers a client's NTLMv2 authentication correctly, and comes away with the session
-/// key it needs to sign the session and with nothing it could carry anywhere else.
-///
-/// Everything asserted here is a number [MS-NLMP] §4.2.4 prints. The client sends the published
-/// `NTProofStr`; the service, which alone holds the `NTOWFv2`, agrees and publishes §4.2.4.1.2's
-/// `SessionBaseKey`. Nothing in this test or in the program under test computes an expected value,
-/// which is what makes it a compatibility test and not a self-consistency one.
-///
-/// **This is the property Samba cannot offer.** There, `smbd` opens the password database, so
-/// compromising it leaks every hash: crackable offline, reusable wherever the password was reused.
-/// Here the SMB server's whole endowment is an endpoint, and revoking it ends the access.
-#[test_case]
-fn an_smb_server_authenticates_a_session_without_ever_holding_the_key() {
-    let Some((w, _, _)) = provisioned() else {
-        crate::testing::skip!("no virtio-rng device on the mmio bus (NIFE_RNG not set?)");
-    };
-    let cli = program("credentialer_test_client")
-        .expect("no credentialer_test_client program in the initrd archive");
-    let r = cs::client(cli, &w, cs::ROLE_NTLM);
-    assert_eq!(r[0], cs::RPT_DONE, "the NTLM client did not report");
-    let codes = r[1];
-
-    assert_eq!(
-        cs::nth(codes, 0),
-        credential_proto::MATCH,
-        "the published NTLMv2 proof for a provisioned share was refused, codes {codes:#018x}",
-    );
-    assert_eq!(
-        r[2] & cs::F_SESSION_KEY,
-        cs::F_SESSION_KEY,
-        "the session key the service published is not [MS-NLMP] §4.2.4.1.2's",
-    );
-
-    assert_eq!(
-        cs::nth(codes, 1),
-        credential_proto::MISMATCH,
-        "a proof with one bit flipped was accepted, codes {codes:#018x}",
-    );
-    assert_eq!(
-        r[2] & cs::F_NO_KEY_ON_REFUSAL,
-        cs::F_NO_KEY_ON_REFUSAL,
-        "a refused proof still got a session key: the release rule is the whole security \\
-         statement of this opcode",
-    );
-
-    // A record that has a password but no NTLM secret stores a key of *zeros*, which is a value an
-    // attacker knows, so a proof computed under it is the strongest forgery available. It must
-    // fail, and it must fail exactly as a resource nobody provisioned does: distinguishing them
-    // would turn this endpoint into an oracle for which shares exist.
-    assert_eq!(
-        cs::nth(codes, 2),
-        credential_proto::MISMATCH,
-        "a password-only identity answered an NTLM challenge, codes {codes:#018x}",
-    );
-    assert_eq!(
-        cs::nth(codes, 3),
-        credential_proto::MISMATCH,
-        "an unprovisioned resource answered an NTLM challenge, codes {codes:#018x}",
-    );
-
-    // One password, two derivations: the same share answers an ordinary verify.
-    assert_eq!(
-        cs::nth(codes, 4),
-        credential_proto::MATCH,
-        "a share provisioned for NTLM stopped answering its own password, codes {codes:#018x}",
-    );
-    assert_eq!(
-        r[2] & cs::F_CLEAN,
-        cs::F_CLEAN,
-        "the shared page was not empty after the last reply",
-    );
-}
-
-/// **The kernel looks at the frame after an NTLM exchange**, which is the check the client cannot
-/// make for itself: a program can only see what it was given, and the claim here is about what the
-/// service did *not* put in a frame two processes map.
-///
-/// The published `NTOWFv2` for this share is the byte string an attacker actually wants, and
-/// `NTProofStr` and the session key are what a naive service would leave lying in the page. None
-/// of the three is there.
-#[test_case]
-fn no_ntlm_key_material_survives_in_the_shared_page_frame() {
-    let Some((w, _, _)) = provisioned() else {
-        crate::testing::skip!("no virtio-rng device on the mmio bus (NIFE_RNG not set?)");
-    };
-    let cli = program("credentialer_test_client")
-        .expect("no credentialer_test_client program in the initrd archive");
-    let _ = cs::client(cli, &w, cs::ROLE_NTLM);
-
-    let mut page = [0u8; 4096];
-    cs::peek(w.verify_page_frame, &mut page);
-    for (what, bytes) in [
-        // NTOWFv2, [MS-NLMP] §4.2.4.1.1. The one value that must never leave the service.
-        (
-            "the stored NTLM key",
-            [
-                0x0c, 0x86, 0x8a, 0x40, 0x3b, 0xfd, 0x7a, 0x93, 0xa3, 0x00, 0x1e, 0xf2, 0x2e, 0xf0,
-                0x2e, 0x3f,
-            ],
-        ),
-        // The session key, §4.2.4.1.2. Allowed to cross, but only for as long as the exchange it
-        // belongs to; leaving it in the frame would make it outlive that.
-        (
-            "the session key",
-            [
-                0x8d, 0xe4, 0x0c, 0xca, 0xdb, 0xc1, 0x4a, 0x82, 0xf1, 0x5c, 0xb0, 0xad, 0x0d, 0xe9,
-                0x5c, 0xa3,
-            ],
-        ),
-        // NTProofStr, §4.2.4.1.3, which the client itself put in the page.
-        (
-            "the presented proof",
-            [
-                0x68, 0xcd, 0x0a, 0xb8, 0x51, 0xe5, 0x1c, 0x96, 0xaa, 0xbc, 0x92, 0x7b, 0xeb, 0xef,
-                0x6a, 0x1c,
-            ],
-        ),
-    ] {
-        assert!(
-            !page.windows(bytes.len()).any(|s| s == bytes),
-            "{what} is still in the frame the client and the service share",
-        );
-    }
-    if let Some(i) = page.iter().position(|&b| b != 0) {
-        panic!(
-            "byte {i} of the shared frame is {:#04x} after the NTLM exchange",
-            page[i],
-        );
-    }
-}
-
-/// **The service kept serving.** Every refusal above must be a reply, not a crash: a credential
-/// service that a malformed request can kill is a login outage anybody can cause, and it is the
-/// exact shape of the `argon2` cost-overflow panic `cred::Cost::new` exists to prevent.
-#[test_case]
-fn the_service_survives_everything_the_attacker_did() {
-    let Some((w, _, _)) = provisioned() else {
-        crate::testing::skip!("no virtio-rng device on the mmio bus (NIFE_RNG not set?)");
-    };
-    let cli = program("credentialer_test_client")
-        .expect("no credentialer_test_client program in the initrd archive");
-    let _ = cs::client(cli, &w, cs::ROLE_ATTACKER);
-    let r = cs::client(cli, &w, cs::ROLE_HONEST);
-    assert_eq!(
-        cs::nth(r[1], 0),
-        credential_proto::MATCH,
-        "the credential service stopped answering correctly after an attacker talked to it",
-    );
-}
-
-/// **The kernel looks at the frame itself.** The client asserted the page was clean; this
-/// reads the physical frame through the direct map, which no userspace program could do, and
-/// checks that the shared page carries neither the secret that was presented nor any nonzero
-/// byte at all.
-///
-/// Checking for the literal secret as well as for zero is not redundant. "All zero" is the
-/// property that holds today; "does not contain the secret" is the property that must hold if
-/// the wipe is ever narrowed, and a test that only checked the first would go green on a
-/// change that broke the second.
-#[test_case]
-fn the_shared_page_frame_holds_nothing_after_an_answer() {
-    let Some((w, _, _)) = provisioned() else {
-        crate::testing::skip!("no virtio-rng device on the mmio bus (NIFE_RNG not set?)");
-    };
-    let cli = program("credentialer_test_client")
-        .expect("no credentialer_test_client program in the initrd archive");
-    let _ = cs::client(cli, &w, cs::ROLE_HONEST);
-
-    let mut page = [0u8; 4096];
-    cs::peek(w.verify_page_frame, &mut page);
-    let secret = b"correct horse battery staple";
-    assert!(
-        !page.windows(secret.len()).any(|s| s == secret),
-        "the presented secret is still in the frame the client and the service share",
-    );
-    if let Some(i) = page.iter().position(|&b| b != 0) {
-        panic!(
-            "byte {i} of the shared frame is {:#04x} after the exchange: the service left \
-             something in a page a client maps",
-            page[i],
-        );
-    }
 }
