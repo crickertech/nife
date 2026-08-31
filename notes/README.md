@@ -748,14 +748,15 @@ in the code or the conversation doesn't make sense, it belongs here.
   Core, and the answer is no for a structural reason (an IVC comes out of an induction step a bounded
   model checker does not have). Then the convention: a `Falsification:` block at the harness in three
   states, `replayable` / `attested` / `unfalsified`, with the patch at
-  `crates/<crate>/falsifications/<harness_fn_name>.patch`; `script/falsifications` as the reporter,
+  `crates/<crate>/falsifications/<module.path>.<harness_fn_name>.patch`; `script/falsifications` as the reporter,
   a weekly sweep that requires each recorded patch to turn its harness red, and a per-pull-request
   gate that re-falsifies only what a diff can reach. The findings are the part worth reading: the
   `capability` crate's central theorem is **blind to a defect in the predicate it states its property
   through** (ten of twelve harnesses stay green under the swapped-operand defect, and it is one of
-  them), `subset_is_reflexive` is falsifiable and still adds no discrimination, and §134's ratified
-  patch path cannot name eighteen of `paging`'s twenty-six harnesses because six function names
-  repeat once per ISA.
+  them), `subset_is_reflexive` is falsifiable and still adds no discrimination, and §134's first
+  patch path could not name eighteen of `paging`'s twenty-six harnesses, because six function names
+  repeat once per ISA; calef amended it the same day to carry the module path, which also turned the
+  sweep's harness filter from a substring match into Kani's own `--exact`.
 - [Did the proofs catch the bugs?](proof-retrospective.md): milestone 191, and the question none of
   the four legs above had been asked: **for every real defect this project recorded, could a proof
   have caught it, and did one exist?** Answered against eighteen defects from the tree's own notes and

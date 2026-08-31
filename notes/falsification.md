@@ -67,7 +67,8 @@ job is saying what is known.
 | `attested <date>` | a person broke the code and watched it fail; nothing can re-check it | counts it, and it is a worklist entry |
 | `unfalsified` | nobody has | counts it, and this is the claim's honest denominator |
 
-A patch lives at `crates/<crate>/falsifications/<harness_fn_name>.patch` and **opens with prose
+A patch lives at `crates/<crate>/falsifications/<module.path>.<harness_fn_name>.patch`
+(`crates/capability/falsifications/verification.subset_is_reflexive.patch`) and **opens with prose
 above its first `diff --git` line**, which `git apply` ignores and a reader does not. The prose says
 which property the patch expects to break, because a falsification that makes a harness fail for the
 wrong reason proves nothing. `script/falsifications --check` requires that header to be non-empty;
@@ -169,29 +170,43 @@ and there is no plausible defect that breaks it while leaving the depth-one harn
 red on the same one-character patch (`&` becoming `|`). Recorded in the patch prose rather than acted
 on.
 
-### §134's patch path cannot name eighteen of `paging`'s twenty-six harnesses
+### The patch path was wrong, and `paging` broke it on first contact
 
-The ratified spelling is `crates/<crate>/falsifications/<harness_fn_name>.patch`, which assumes a
+§134's first spelling was `crates/<crate>/falsifications/<harness_fn_name>.patch`, which assumes a
 harness function name is unique inside its crate. In `paging` it is not. Six properties are stated
 once per ISA, in `aarch64.rs`, `sv39.rs` and `x86_64.rs`, under six shared function names:
 
 ```
-paging::distinct_pages_take_distinct_paths                x3
-paging::index_is_always_in_bounds                         x3
-paging::the_indices_and_offset_tile_the_address           x3
-paging::the_leaf_keeps_address_and_permissions_apart      x3
-paging::the_two_halves_are_disjoint                       x3
-paging::the_user_va_gate_admits_only_the_aligned_low_half x3
+paging::{aarch64,sv39,x86_64}::verification::distinct_pages_take_distinct_paths
+paging::{aarch64,sv39,x86_64}::verification::index_is_always_in_bounds
+paging::{aarch64,sv39,x86_64}::verification::the_indices_and_offset_tile_the_address
+paging::{aarch64,sv39,x86_64}::verification::the_leaf_keeps_address_and_permissions_apart
+paging::{aarch64,sv39,x86_64}::verification::the_two_halves_are_disjoint
+paging::{aarch64,sv39,x86_64}::verification::the_user_va_gate_admits_only_the_aligned_low_half
 ```
 
-Three harnesses would share one patch file, and `cargo kani --harness index_is_always_in_bounds`
-cannot separate them either, so the sweep could not run one of them if the file existed. This is
-milestone 191's per-ISA duplication meeting a spelling ratified before anyone had tried to use it.
+Eighteen of that crate's twenty-six harnesses, three to a filename. `cargo kani --harness
+index_is_always_in_bounds` cannot separate them either, so the sweep could not have run one of them
+if the file had existed.
 
-`script/falsifications --check` **reports it only when somebody actually records a `replayable`
-falsification for a colliding harness**, so the convention breaks at the moment it is used and not
-before, and the 141 records this shipped with are unaffected. The spelling is calef's, so the
-proposal sits in milestone 194's report rather than being taken here.
+**calef amended §134 on 2026-08-31**: the module path is always included, with no branch. Refused,
+and it is the refusal worth keeping, was *unqualified when unique and module-qualified when not*,
+which is a branch keyed on an **unstable** property, since a harness added elsewhere would
+retroactively invalidate an existing path. That is the same shape as the two-tier program-naming rule
+calef rejected on 2026-08-01, one domain over.
+
+**The amendment buys more than uniqueness, and this is why it was the right answer rather than the
+adequate one.** The qualified path is Kani's own fully qualified harness name with the separators
+changed, so the sweep now filters with `--harness <qualified> --exact` instead of a substring match
+on a bare function name. Under the old filter, `paging`'s three `index_is_always_in_bounds` harnesses
+would all have run, and "one of them went red" would have proved nothing about the one being
+falsified. The path and the filter are one fact written twice, which is the shape of a convention
+that cannot drift.
+
+`script/falsifications --check` keeps a collision check, but it now guards **this script's own
+module-path tracking** rather than the tree: two harnesses cannot share a qualified name in Rust, so
+if two ever compute the same patch path, the brace counting that derives module paths is wrong and
+the sweep would prove the wrong harness.
 
 ## BUGS
 
@@ -212,10 +227,10 @@ proposal sits in milestone 194's report rather than being taken here.
   crate's dependency closure re-falsifies every replayable harness in that crate, because nothing in
   this tree knows which lines a harness covers. That is what an IVC would have bought. It fails
   toward doing too much, which for a run measured in seconds is the right direction.
-- **The sweep's harness filter is a substring match.** `cargo kani --harness <name>` has no exact
-  mode that does not want a fully qualified path, so the sweep asserts Kani ran exactly one harness
-  and reports an error otherwise. That assertion is what turns the `paging` collision above into a
-  loud failure instead of a silent wrong answer.
+- **Module paths come from brace counting, not from a Rust parser.** A brace inside a string or a
+  comment at module scope would miscount and produce a wrong patch path. Nothing in this tree does
+  that, and the failure surfaces as a path `--check` reports rather than as a silently wrong sweep,
+  but it is a real limit of a 30-line derivation standing in for `syn`.
 - **`kernel/src/arch/` carries no harnesses and gains nothing here.** The architecture layer, where
   the VisionFive 2's undelivered-wake defect actually lived, is outside this record entirely, the
   same scope gap §134 names.
