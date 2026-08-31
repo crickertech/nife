@@ -1,11 +1,17 @@
 # 203. Nothing will ever tell us RedoxFS moved
 
-**Status: NOT-STARTED.** Minted 2026-08-31 by calef: *"a regular process to check if RedoxFS has
+**Status: BUILT.** The detection half shipped 2026-08-31: `script/vendor-watch` and the monthly
+`.github/workflows/vendor-watch.yml`, with the report landing in `vendor/upstream-status.md` and the
+update procedure in `vendor/README.md`'s "Bumping a pin" section. The fork below was settled the way
+this block recommended, cheap first: the workflow raises the pin and lets `script/vendor-verify` go
+red, and does not try to re-apply the divergence patch. **The first run found something**, which was
+not the expected outcome: 0.9.1 is still the newest published version, and upstream git is 37
+non-merge commits ahead of the pinned sha, including `fix: do not hardcode # of sectors per block`.
+So the case this milestone was written for (a fix sitting on master long before it is published) was
+live on the day the watch was built. Acting on it is a bump lane's job, not this one's. Minted
+2026-08-31 by calef: *"a regular process to check if RedoxFS has
 changed and if it does then initiate work to update our version and our divergences."* *(Number
 provisional until the merge queue lands it.)*
-
-**Gate: NONE.** The detection half needs nothing that does not exist. The one fork below is about
-what the check produces, and it carries a recommendation rather than blocking a start.
 
 **In brief.** The vendored engine is pinned at `redoxfs` 0.9.1 and **no mechanism in this tree will
 ever report that a newer version exists.**

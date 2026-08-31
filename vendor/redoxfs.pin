@@ -26,3 +26,11 @@ vcs = 473b4baeb041ebe14504f30693393b1cae52558c
 # Every byte of difference from the tarball, in `patch -p1` form. Regenerate with
 # `script/vendor-verify --write-patch` after a deliberate change, and expect to explain the diff.
 divergence = vendor/redoxfs.divergence.patch
+
+# Upstream's source repository, read by script/vendor-watch (milestone 203) and by nothing else.
+# `vcs` above is the commit that produced the published tarball; these two say where to go and
+# ask what has landed since. The git half is checked as well as the published version because
+# releases here are months apart, so a correctness fix can sit on master long before anybody
+# publishes it, and that is the case the watch exists for.
+vcs_url = https://gitlab.redox-os.org/redox-os/redoxfs
+vcs_branch = master
