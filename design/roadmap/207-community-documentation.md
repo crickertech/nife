@@ -5,9 +5,9 @@ pull request template and the issue templates shipped the same day; the code of 
 content-reports setting are calef's and remain open. *(Number provisional until the merge queue
 lands it.)*
 
-**Gate: DECISION**, for what is left. Two of the four were policy rather than files. The first was
-answered on the day this was minted: **calef enabled issues**, so they are a channel. The second is
-still open, and is who a code of conduct names as its enforcement contact.
+**Gate: DECISION.** What is left is policy rather than files. Two of the four always were, and the
+first was answered on the day this was minted: **calef enabled issues**, so they are a channel. The
+second is still open, and it is who a code of conduct names as its enforcement contact.
 
 **In brief.** Measured against `repos/crickertech/nife/community/profile` on 2026-08-31: `README`,
 `CONTRIBUTING` and `LICENSE` are present; **`CODE_OF_CONDUCT`, an issue template and a pull request
