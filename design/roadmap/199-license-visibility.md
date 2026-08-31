@@ -1,6 +1,6 @@
-# 199. GitHub shows this public repository as having no licence
+# 199. GitHub shows this public repository as having no licence (it does not; retracted)
 
-**Status: NOT-STARTED.** Minted 2026-08-30, found while checking whether the repository was public
+**Status: RECORDED.** Minted and retracted the same day, 2026-08-31. Found while checking whether the repository was public
 for DECISIONS §135's (running GPL software is aggregation) distribution question. *(Number
 provisional until the merge queue lands it.)*
 
@@ -13,7 +13,12 @@ DECISIONS §87 (MIT OR Apache-2.0, and why the GPL's lesson does not transfer) r
 GitHub's licence detector does not recognise the dual-file Rust convention, so **a stranger opening
 this repository is shown a public project with no stated terms.**
 
-## Why it is worth a block rather than a shrug
+## What the block used to argue, kept for the record
+
+Below is the reasoning as written, and it is wrong in its premise rather than its values: had the
+sidebar been silent, this would all have held.
+
+## Why it would have been worth a block rather than a shrug
 
 AGENTS.md's third principle is that a newcomer must be able to succeed without asking anyone, and
 its test is whether a competent stranger with only this repository can get to a passing build and a
