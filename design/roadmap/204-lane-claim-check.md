@@ -4,9 +4,6 @@
 their branches and never opened the draft pull request their briefs named as the first act. *(Number
 provisional until the merge queue lands it.)*
 
-**Gate: NONE.** The two commands it needs both exist and the rule it enforces is already written in
-AGENTS.md; what is missing is anything that looks.
-
 **In brief.** AGENTS.md §90 says a lane's first act is a draft pull request, and says why: **the draft
 is the claim.** It is how two lanes cannot silently take the same milestone, the board is
 `gh pr list --draft`, it costs one command, and a draft cannot be stuck in the merge queue because a
