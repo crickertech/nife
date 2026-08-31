@@ -389,7 +389,7 @@ def sweep(hs, only=None):
             # A patch that will not apply is a FAILURE and not a skip. §134's claim is that this rot
             # is the mechanism working: the covered code moved, so the falsification is stale and
             # must be redone rather than trusted.
-            print("    STALE   the patch no longer applies; the covered code moved")
+            print("    STALE    the patch no longer applies; the covered code moved")
             print("    " + applied.stderr.strip().replace("\n", "\n    "))
             broken.append(h)
             continue
@@ -401,16 +401,18 @@ def sweep(hs, only=None):
             hit = re.search(r"(\d+) successfully verified harnesses, (\d+) failures, (\d+) total",
                             out)
             if not hit:
-                print("    ERROR   could not read Kani's summary; ran with exit %d" % run.returncode)
-                print("    " + out.strip().splitlines()[-1] if out.strip() else "")
+                print("    ERROR    could not read Kani's summary; ran with exit %d" % run.returncode)
+                last = out.strip().splitlines()
+                if last:
+                    print("    " + last[-1])
                 broken.append(h)
             elif hit.group(3) != "1":
                 # The filter is a substring match, so two harnesses sharing a name prefix would both
                 # run and "one of them went red" would prove nothing about this one.
-                print("    ERROR   the filter matched %s harnesses, not 1" % hit.group(3))
+                print("    ERROR    the filter matched %s harnesses, not 1" % hit.group(3))
                 broken.append(h)
             elif hit.group(2) == "1":
-                print("    red     the harness caught it")
+                print("    red      the harness caught it")
             else:
                 print("    SURVIVOR the harness stayed green with its own falsification applied")
                 survivors.append(h)
