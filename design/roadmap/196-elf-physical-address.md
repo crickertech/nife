@@ -9,7 +9,7 @@ tree and therefore calef's, not a lane's.
 
 **In brief.** The UEFI loader carries its own forty-line ELF reader for one reason: `crates/elf`'s
 `Segment` exposes no `p_paddr`, and in this kernel `p_vaddr` and `p_paddr` are genuinely unrelated
-(`.ap_trampoline` is at `0x8000` against `0x165000`). A loader placing an image in physical memory
+(`.ap_trampoline`'s `p_vaddr` is `0x8000` against a `p_paddr` of `0x12b000`, measured; see BUGS). A loader placing an image in physical memory
 needs the physical address, so it re-implements the parse.
 
 **Two readers of one format is the defect**, and it is the shape rule 7 exists to prevent: the
