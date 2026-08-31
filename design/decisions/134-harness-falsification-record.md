@@ -1,6 +1,8 @@
 # 134. A harness carries a machine-replayable falsification record, or it is not evidence
 
-**Status: DECIDED.** calef, 2026-08-30, in three rulings. The direction: *"It sounds like [option C] is
+**Status: AMENDED.** calef, 2026-08-30, in three rulings; the patch path amended 2026-08-31 when
+milestone 194's lane found the ratified spelling could not name eighteen of `paging`'s harnesses.
+Originally: The direction: *"It sounds like [option C] is
 where we want to land if we want to state that nife is proven."* Then the format, after the options
 were costed: *"Go with the diff, weekly plus per-PR for touched harnesses."* Then the spellings, ratified the
 same day and recorded at the bottom. Nothing here is open. *(Section number provisional
@@ -238,12 +240,36 @@ report with a baseline rather than a gate, so it belongs in the noun half, and t
 `citations` in shape. Refused `script/falsify`, whose verb form would promise the gate this section
 deliberately did not build.
 
-**`crates/<crate>/falsifications/<harness_fn_name>.patch`** is where a patch lives. Per-crate rather
-than central, which is the carrier argument this section already rests on: at the thing, so two lanes
-touching two crates cannot collide. Naming each file for its harness function makes the link
-mechanical, and lets the lint check both directions, that every `replayable` path resolves and that
-every patch has a harness. Refused a repository-root `falsifications/`, for the reason milestone 115
-refused a central names table on 2026-08-04.
+**`crates/<crate>/falsifications/<module.path>.<harness_fn_name>.patch`** is where a patch lives,
+for example `crates/paging/falsifications/sv39.index_is_always_in_bounds.patch` and
+`crates/capability/falsifications/verification.subset_is_reflexive.patch`. Per-crate rather than
+central, which is the carrier argument this section already rests on: at the thing, so two lanes
+touching two crates cannot collide. Naming each file for its harness makes the link mechanical, and
+lets the lint check both directions, that every `replayable` path resolves and that every patch has a
+harness. Refused a repository-root `falsifications/`, for the reason milestone 115 refused a central
+names table on 2026-08-04.
+
+**Amended 2026-08-31, and the first spelling was wrong.** It was
+`falsifications/<harness_fn_name>.patch`, which assumes a harness function name is unique within its
+crate. **In `paging` it is not**: six properties are stated once per ISA across `aarch64.rs`,
+`sv39.rs` and `x86_64.rs`, so eighteen harnesses share six names, three would collide on one file,
+and `cargo kani --harness index_is_always_in_bounds` cannot separate them either. Milestone 191 (did
+the proofs catch the bugs?) had already reported that duplication and the maintainer ratified the
+spelling without checking it against the tree. Found by milestone 194's lane on first contact.
+
+**The module path is always included, with no branch.** The reason is the one this section used to
+choose a unified diff: fewest moving parts and fewest places to be wrong. It is unique by
+construction, it is stable (a harness added elsewhere cannot retroactively invalidate an existing
+path), and it is **already the string the tooling needs**, since Kani's `--exact` takes the fully
+qualified harness name, so the path is the sweep's own filter with the separators changed.
+
+Refused, and this one matters more than the others: **unqualified when unique, module-qualified when
+not.** That is a branch keyed on an *unstable* property, since adding a harness elsewhere would
+retroactively invalidate an existing path, and it is the same shape as the two-tier program-naming
+rule calef rejected on 2026-08-01 one domain over. Also refused a subdirectory per module, which
+turns `filesystem_proto`'s three-deep nesting into a tree of near-empty directories, and renaming the
+eighteen harnesses to make a filename work, which would put the ISA in a function name the module
+already states and is a naming decision driven by a path.
 
 ## BUGS
 
