@@ -137,7 +137,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 76 | DECIDED | [What catches a milestone status that is wrong in both places?](76-roadmap-status-versus-tree.md) |
 | 77 | DECIDED | [The branch-prefix list now describes the tree](77-branch-prefixes.md) |
 | 78 | DECIDED | [Signed commits: worth doing, and not as a side effect](78-signed-commits.md) |
-| 79 | DECIDED | [Holding password-equivalent material, and what a session key release means](79-password-equivalent-material.md) |
+| 79 | AMENDED | [Holding password-equivalent material, and what a session key release means](79-password-equivalent-material.md) |
 | 80 | DECIDED | [One build for the kernel and everything that runs on it](80-one-build-for-everything.md) |
 | 81 | DECIDED | [A dependency stays upgradable; we suppress churn, never the upgrade](81-dependency-upgrades.md) |
 | 82 | DECIDED | [Ambient authority is the problem; replacing the ecosystem, not confining it, is the end state](82-ambient-authority-and-the-rewrite.md) |
@@ -192,6 +192,9 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 131 | DECIDED | [The competitor question: hold at rung two, prove text-mode usefulness first](131-hold-at-rung-two.md) |
 | 132 | DECIDED | [What `PageFrame::REVOKE` owes an overlapping run](132-overlapping-page-frame-runs.md) |
 | 133 | DECIDED | [Whether an idle core should drain its own inbox before parking](133-idle-core-self-rescue.md) |
+| 134 | DECIDED | [A harness carries a machine-replayable falsification record, or it is not evidence](134-harness-falsification-record.md) |
+| 135 | DECIDED | [Running GPL software is aggregation, the capability boundary is what makes it so, and packages are how it arrives](135-running-gpl-software.md) |
+| 136 | DECIDED | [A mature foreign implementation earns its place as an oracle, not as a dependency](136-foreign-implementation-as-oracle.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
 way milestone 76 moved four essays out of the roadmap: [the open design

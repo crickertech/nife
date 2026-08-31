@@ -27,8 +27,8 @@
 #     (the filed-under-an-essay class, and the appended-past-the-closer class);
 #   - two files claiming one milestone number is fatal, for the reason script/decisions records: as
 #     two files it would merge clean and silently where one file makes it a visible text conflict;
-#   - the **`Built` column**: five columns per row, a date on every BUILT row and on no other
-#     status. Added 2026-08-17 after calef found milestone 43 BUILT with an empty date by eye and
+#   - the **`Built` column**: five columns per row, a date on every BUILT and REMOVED row and on no
+#     other status. REMOVED keeps the date because the milestone did turn BUILT on it. Added 2026-08-17 after calef found milestone 43 BUILT with an empty date by eye and
 #     the sweep behind it found 23 defective rows, every one invisible to this script because the
 #     row regex anchors on the first four fields and stopped;
 #   - **`IN-PROGRESS` names its branch, and that branch has not already merged.** Added 2026-08-17,
@@ -84,7 +84,24 @@ root, mode = sys.argv[1], sys.argv[2]
 d = os.path.join(root, "design", "roadmap")
 index_path = os.path.join(d, "README.md")
 
-VOCAB = ["BUILT", "PARTIAL", "IN-PROGRESS", "NOT-STARTED", "OPTIONAL", "RECORDED"]
+VOCAB = ["BUILT", "REMOVED", "PARTIAL", "IN-PROGRESS", "NOT-STARTED", "OPTIONAL", "RECORDED"]
+
+# REMOVED KEEPS its Built date where it had one, and that is half the reason it is a status rather
+# than prose: a milestone built on a date turned BUILT on that date, nothing later makes that untrue,
+# and what changed is the present tense. So the column answers "where do we stand" while the date says
+# it once stood somewhere.
+#
+# **But the date is OPTIONAL for REMOVED, and that was a correction this gate made to its own
+# minting.** The rule was first written as "every REMOVED row carries a date", and milestone 55
+# failed it within the minute: 55 was PARTIAL and never turned BUILT, so it has no date to keep and
+# inventing one would be a lie in the column whose entire job is not lying. A REMOVED milestone
+# therefore carries the date it turned BUILT if it ever did, and none if it did not.
+#
+# Minted 2026-08-30 (calef) when milestone 54 lost its code: the six existing words could only lie
+# about it, since NOT-STARTED denies it was ever built, OPTIONAL reads as available to pick up,
+# RECORDED means the work was deliberately not taken, and leaving it BUILT makes the column claim a
+# network file service that no longer exists.
+DATED = ("BUILT", "REMOVED")
 
 # The readiness vocabulary. `NONE` is a claim that nothing stands in the way, so it stands alone;
 # the others name a gate and may be combined (milestone 74 waits on a decision AND on silicon).
@@ -148,14 +165,14 @@ for i, line in enumerate(index.split("\n"), start=1):
             problems.append(f"milestone {num}: BUILT with no date in the Built column. It is the "
                             f"date the milestone turned BUILT, from the milestone's own file where "
                             f"that file states one (line {i})")
-        elif status == "BUILT" and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", built):
+        elif status in DATED and built and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", built):
             problems.append(f"milestone {num}: Built column reads {built!r}, which is not an "
                             f"ISO date. Dates in this tree are UTC (line {i})")
-        elif status != "BUILT" and built:
+        elif status not in DATED and built:
             problems.append(f"milestone {num}: status is {status} and the Built column reads "
                             f"{built!r}. It is the date a milestone turned BUILT and is empty for "
-                            f"every other status; a first phase's date belongs in the block "
-                            f"(line {i})")
+                            f"every status but BUILT and REMOVED; a first phase's date belongs in "
+                            f"the block (line {i})")
     rows[num] = (status, title, target)
 
 if not rows:
@@ -246,10 +263,11 @@ for fname in sorted(os.listdir(d)):
     stray = [n for n, l in enumerate(lines, start=1) if l.startswith("**Gate:")]
     if letter or num not in rows:
         continue
-    if rows[num][0] == "BUILT":
+    if rows[num][0] in DATED:
         for n in stray:
-            problems.append(f"{fname}:{n}: a BUILT milestone carries a gate, which can only be "
-                            f"stale: nothing gates work that is finished")
+            problems.append(f"{fname}:{n}: a {rows[num][0]} milestone carries a gate, which can "
+                            f"only be stale: nothing gates work that is finished, and nothing "
+                            f"gates work that has been deleted")
         continue
 
     # Paragraph 1 is the title, paragraph 2 the status, paragraph 3 the gate.

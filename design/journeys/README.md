@@ -22,6 +22,23 @@ cited *from* elsewhere in the tree (it only ever points outward, at scopes that 
 so nothing yet depends on a journey number staying fixed the way `§N` citations depend on a decision
 number staying fixed; that may change once something cites one.
 
+**A journey may be RETIRED, and that is not the status field this refuses.** A line beginning
+`**RETIRED` anywhere in a journey file marks the story as one the project stopped telling;
+`script/journeys` reads it and prints `RETIRED` in place of the built count. The distinction is the
+one the paragraph below draws: what that paragraph refuses is a hand-written *progress* claim, which
+drifts because nobody re-derives it. Retirement is *intent*, and intent has no computable source, so
+a human has to write it and a tool can only be told. It was added 2026-08-30 when journey 2 was
+retired and the report kept listing it as live work, which is the record and the mechanism
+disagreeing, the thing AGENTS.md's ladder exists to stop.
+
+**Ratified as-is on 2026-08-31 (calef), against growing it into a status field.** The question was
+real, because `design/roadmap/` minted `REMOVED` the day before and three record types with two
+status vocabularies and one marker is an inconsistency a newcomer meets. It was declined on the
+roadmap vocabulary's own lesson: `IN-PROGRESS` earned its extra rule by being wrong every single
+time it was used, and **one journey has been retired**, so a field would be machinery built for a
+population of one. The paragraph below still stands as the trigger: ask again at the second
+retirement, when there is something to generalize from.
+
 **A journey has no status field of its own, and that is deliberate.** A hand-written "70% done" is
 exactly the kind of claim this tree's own `counted-claims` mechanism exists to replace: a number
 nobody re-derives drifts the moment one of its steps moves. `script/journeys` computes a journey's
@@ -38,7 +55,8 @@ is the identity mapping only, the same division `design/roadmap/README.md` and
 | # | journey |
 |---|---|
 | 1 | [Boot to a login prompt, into `swish`, to editing a file with `kilo`](01-login-to-kilo.md) |
-| 2 | [Run a Time Machine backup host](02-time-machine-backup-host.md) |
+| 2 | [Run a Time Machine backup host](02-time-machine-backup-host.md) **(RETIRED 2026-08-30: the customer moved to borg over SSH)** |
+| 3 | [The same story, on real silicon, on all three architectures](03-login-to-kilo-on-silicon.md) |
 
 ## The format
 
