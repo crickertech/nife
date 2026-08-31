@@ -24,12 +24,20 @@ loader depends on, which is what makes it calef's rather than small.
 - **Leave it.** The duplicate reader stays, and the next thing that loads an image physically writes
   a third.
 
-**Recommend widening**, on the grounds that the field is in the format and the crate is simply not
-exposing it, which makes this less a design change than a gap. Recorded as a recommendation because
-the fork is reversible; the call is still his.
+**Decided 2026-08-31: widen it, as a plain `u64`.** The field is in the format and the crate is
+simply not exposing it, which makes this a gap rather than a design change.
+
+**And the typed version is deliberately not done here.** Making the virtual/physical confusion
+unrepresentable is milestone 200 (a virtual address and a physical address stop being the same
+type), which is tree-wide and ratified its own names. Typing `elf::Segment`'s two fields alone would
+claim a distinction the rest of the tree does not make, and a newtype whose value every consumer
+immediately unwraps is not a mechanism. So this milestone adds the field with the hazard in its doc
+comment, and milestone 200 makes the mistake unsayable everywhere at once.
 
 ## BUGS
 
-- **Nobody has checked whether other `Segment` consumers would be confused** by a field that is
-  equal to `p_vaddr` in every case they handle. A field that is almost always redundant is a field
-  someone will eventually use wrongly.
+- **The field is redundant in every case but one**, and that is the hazard rather than a comfort:
+  `paddr == vaddr` for every user program in this tree, so a consumer that reaches for the wrong one
+  behaves correctly in testing and wrongly on the one path that matters, which is the kernel image
+  where `.ap_trampoline` sits at physical `0x8000` against virtual `0x165000`. The doc comment has
+  to carry that until milestone 200 lands, and a doc comment is rung three.
