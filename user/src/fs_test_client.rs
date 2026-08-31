@@ -195,15 +195,6 @@ const ROLE_DIR_ATTACKER: u64 = 5;
 /// Milestone 61: the attribute witness behind a **name-set** grant, the third caretaker. Told
 /// nothing; it tries a name the set carries and a name it does not, and reports what got through.
 const ROLE_SET_ATTRS: u64 = 6;
-/// Milestone 54: seed the file the SMB gate reads ([`fixture::SMB_SEED_NAME`]), so the bytes the
-/// host's SMB prober asserts were put on the filesystem through `filesystem_proto` by a different process
-/// than the one that serves them.
-const ROLE_SMB_SEED: u64 = 7;
-/// Milestone 54's write path: read back, through the FS server, the file the **host's** SMB
-/// prober wrote over the wire ([`fixture::SMB_WROTE_NAME`]). The seed role's mirror, and the leg
-/// that makes the write gate a gate: without it the only witness to a write is the client that
-/// performed it, which is the thing a protocol test must never be allowed to be.
-const ROLE_SMB_VERIFY: u64 = 8;
 /// Milestone 38: sequential and random read/write throughput through the FS server, the four
 /// phases `filesystem_proto::fixture::throughput` names. The `--real --smp` bench boot spawns it after
 /// [`ROLE_BENCH`], on the service that role already wired. The number lives in `filesystem_proto` because
@@ -221,10 +212,11 @@ const ROLE_TWO_DIR: u64 = 10;
 /// dialect unchanged) inside it, and record that identity in the manifest §125 proposes at the
 /// store's own root, so `session_reviver`'s read-at-boot path has something to find. The identity
 /// and the document are both `schedule_store::fixture` constants, matching every other seed role in
-/// this file's own fixed-fixture shape (`smb_seed`): this role's job is proving the write path
+/// this file's own fixed-fixture shape: this role's job is proving the write path
 /// works, not exercising a real per-user registration flow (#387, out of this lane's scope).
 const ROLE_SCHEDULE_SEED: u64 = 11;
-/// Milestone 152's write-path witness, `smb_seed`/`smb_verify`'s own seed/verify shape: read back
+/// Milestone 152's write-path witness, in the seed/verify shape milestone 54's SMB roles used
+/// (notes/smb.md): read back
 /// what [`ROLE_SCHEDULE_SEED`] wrote, through a **fresh** descent and fresh handles, and confirm the
 /// schedule file and the manifest both hold exactly those bytes. Independent of whether
 /// `session_reviver`'s own read path agrees, so a store holding the wrong bytes and a re-deriver
@@ -240,8 +232,6 @@ pub extern "C" fn _start(role: u64, a1: u64, _a2: u64) -> ! {
         ROLE_CRASH_VERIFY => crash_verify(),
         ROLE_DIR_ATTACKER => dir_attacker(a1),
         ROLE_SET_ATTRS => set_attrs(),
-        ROLE_SMB_SEED => smb_seed(),
-        ROLE_SMB_VERIFY => smb_verify(),
         ROLE_THROUGHPUT => throughput(),
         ROLE_TWO_DIR => two_dir(),
         ROLE_SCHEDULE_SEED => schedule_seed(),
@@ -267,7 +257,7 @@ const EEXIST: i32 = 17;
 /// Scratch page buffers for milestone 152's schedule-store roles ([`ROLE_SCHEDULE_SEED`],
 /// [`ROLE_SCHEDULE_VERIFY`]), in `.bss` rather than on the stack: this program's stack is small
 /// (`fs_service::spawn_fs_client`'s default, no extra pages granted to either role), the same
-/// reason `smb_server.rs`'s `DIR`/`RX`/`TX` buffers are `static mut` rather than local, and
+/// reason the SMB adapter's own buffers were `static mut` rather than local, and
 /// `filesystem_proto::PAGE` bytes does not fit it (this crashed under `script/test`'s aarch64 run
 /// before this fix landed: a data abort at the stack's guard page, from `schedule_verify` alone
 /// putting two page-sized arrays on the stack at once). `schedule_verify` needs both live
@@ -339,8 +329,7 @@ fn schedule_seed() -> ! {
 }
 
 /// `CREATE` a name under `dir_handle`, or open and `TRUNCATE` it if it is already there, matching
-/// [`smb_seed`]'s own inline idiom generalized to an arbitrary directory handle rather than only
-/// [`fs::ROOT`] (`smb_seed` never needs a subtree, so its own copy stays inline).
+/// The seed idiom generalized to an arbitrary directory handle rather than only [`fs::ROOT`].
 fn create_or_truncate(dir_handle: u64, name: &[u8]) -> u64 {
     put_page(name);
     let (r0, _) = call(FILE, fs::req(fs::CREATE, dir_handle, name.len() as u64), 0);
@@ -421,177 +410,6 @@ fn schedule_verify() -> ! {
         exit();
     }
 
-    send(REPORT, fixture::SUCCESS, 0, 0);
-    exit();
-}
-
-/// **Read back what came in over SMB** (milestone 54's write path): open
-/// [`fixture::SMB_WROTE_NAME`] through the FS server and check it holds exactly
-/// [`fixture::SMB_WROTE`].
-///
-/// This runs *after* the SMB adapter has finished serving, in a process that holds a directory
-/// capability and nothing that names the network. That separation is the whole point: the bytes
-/// were put there by a host process over TCP, and are read here by a different process through
-/// `filesystem_proto`, so "the write crossed SMB2 -> the `Share` seam -> `filesystem_proto` -> RedoxFS" is
-/// something the machine checks rather than something the writer asserts about itself.
-///
-/// It classifies rather than merely failing, in [`crash_verify`]'s shape: the second report word
-/// says what was found, because "the file is not there at all" and "the file is there and wrong"
-/// are different bugs and a bare failure would not say which.
-fn smb_verify() -> ! {
-    let name = fixture::SMB_WROTE_NAME;
-    put_page(name.as_bytes());
-    let (h, _) = call(FILE, fs::req(fs::OPEN, 0, name.len() as u64), 0);
-    if (h as i64) < 0 {
-        send(REPORT, fixture::SUCCESS, fixture::smb_wrote::ABSENT, 0);
-        exit();
-    }
-    let (size, _) = call(FILE, fs::req(fs::FSTAT, h, 0), 0);
-    let mut buf = [0u8; 256];
-    let want = fixture::SMB_WROTE;
-    let n = read(h, 0, want.len().min(buf.len()));
-    get_page(n, &mut buf);
-    let verdict = if size as usize != want.len() {
-        // A size mismatch is the truncate leg failing, which is worth its own word: the prober
-        // writes a long payload and then shortens it with SET_INFO, so a file of the wrong
-        // length means the shortening never reached the filesystem.
-        fixture::smb_wrote::WRONG_SIZE
-    } else if &buf[..n] != want {
-        fixture::smb_wrote::WRONG_BYTES
-    } else {
-        // The flat write landed. Now the nested one, which is milestone 54's subdirectory half:
-        // the prober made a directory over the wire and put a file in it, and the whole question
-        // is whether a *directory* is what reached RedoxFS.
-        smb_verify_nested()
-    };
-    let (c, _) = call(FILE, fs::req(fs::CLOSE, h, 0), 0);
-    check((c as i64) >= 0);
-    send(REPORT, fixture::SUCCESS, verdict, durability_witness());
-    exit();
-}
-
-/// **Did the flush the host asked for actually reach the device?** (milestone 55). The third word
-/// of the verify role's report, classified by [`fixture::durability`].
-///
-/// This is the one check in the tree that can tell an honest `VOLUME_FULL_SYNC` from a claimed one,
-/// and the reason it can is *where it runs*. The host prober sent SMB2 `FLUSH` and got a success,
-/// but a success is exactly what the server used to return while doing nothing at all, so that
-/// answer proves nothing about durability. What proves it is the block server's count of completed
-/// device flushes, which [`fs::SYNC`] hands back: nothing in **this** process has synced yet, so a
-/// count that is already past its own first call can only have been moved by the SMB server
-/// answering the host.
-///
-/// Then a second sync, which is a different claim: that each call is a fresh round trip to the
-/// device rather than a number the server remembers. A server that answered a constant passes the
-/// first check on a lucky boot and fails this one always.
-///
-/// It runs on the bound directory (handle 0), because the verb takes any handle the FS server
-/// minted and asks about the storage rather than the node, and this role holds the root.
-fn durability_witness() -> u64 {
-    use fixture::durability;
-
-    let (first, _) = call(FILE, fs::req(fs::SYNC, 0, 0), 0);
-    if (first as i64) < 0 {
-        return match filesystem_proto::reply_errno(first as i64) {
-            // The device offers no VIRTIO_BLK_F_FLUSH. An honest answer about the machine rather
-            // than a bug here, and it must be reported as its own thing.
-            Some(95) => durability::NO_DEVICE_FLUSH,
-            _ => durability::REFUSED,
-        };
-    }
-    // The count includes this call, so "one" means this process performed the first flush of the
-    // boot and nothing above it ever did. Two or more means somebody flushed before us, and the
-    // only somebody in this boot is the SMB server answering the host prober's FLUSH.
-    if first < 2 {
-        return durability::NEVER_FLUSHED;
-    }
-
-    let (second, _) = call(FILE, fs::req(fs::SYNC, 0, 0), 0);
-    if (second as i64) < 0 || second <= first {
-        return durability::NOT_ADVANCING;
-    }
-    durability::DURABLE
-}
-
-/// **Did the SMB client's `mkdir` make a directory, and is the file inside it?**
-///
-/// Descended rather than opened by path, deliberately: `filesystem_proto` has no paths, so reaching
-/// `tm_bands\band0` from here means an `OPENDIR` and then an `OPEN` under the handle it minted.
-/// That is the same walk the adapter performs, done from the other side of the machine by a
-/// process with nothing that names the network, which is what makes it a witness rather than an
-/// assertion.
-///
-/// **`OPENDIR` is what separates the two failures worth telling apart.** A share that ignored the
-/// separator would have created a *file* called `tm_bands\band0` in the root, and the descent
-/// answers `ENOTDIR` for it rather than `ENOENT`, so the verdict says which kind of wrong it is.
-fn smb_verify_nested() -> u64 {
-    let dir_name = fixture::SMB_DIR_NAME;
-    put_page(dir_name.as_bytes());
-    let (d, _) = call(
-        FILE,
-        fs::req(fs::OPENDIR, 0, dir_name.len() as u64),
-        dir::ALL,
-    );
-    if (d as i64) < 0 {
-        return match filesystem_proto::reply_errno(d as i64) {
-            // The name is there and is not a directory: the adapter wrote a file whose name
-            // contains a separator, which is the flat share's failure exactly.
-            Some(dir::ENOTDIR) => fixture::smb_wrote::DIR_IS_A_FILE,
-            _ => fixture::smb_wrote::DIR_ABSENT,
-        };
-    }
-
-    let name = fixture::SMB_NESTED_NAME;
-    put_page(name.as_bytes());
-    let (h, _) = call(FILE, fs::req(fs::OPEN, d, name.len() as u64), 0);
-    if (h as i64) < 0 {
-        let (c, _) = call(FILE, fs::req(fs::CLOSE, d, 0), 0);
-        check((c as i64) >= 0);
-        return fixture::smb_wrote::NESTED_ABSENT;
-    }
-
-    let want = fixture::SMB_NESTED;
-    let (size, _) = call(FILE, fs::req(fs::FSTAT, h, 0), 0);
-    let mut buf = [0u8; 256];
-    let n = read(h, 0, want.len().min(buf.len()));
-    get_page(n, &mut buf);
-    let verdict = if size as usize == want.len() && &buf[..n] == want {
-        fixture::smb_wrote::EXACT
-    } else {
-        fixture::smb_wrote::NESTED_WRONG
-    };
-    for handle in [h, d] {
-        let (c, _) = call(FILE, fs::req(fs::CLOSE, handle, 0), 0);
-        check((c as i64) >= 0);
-    }
-    verdict
-}
-
-/// **Seed the SMB gate's file** (milestone 54): put [`fixture::SMB_SEED`] at
-/// [`fixture::SMB_SEED_NAME`] under the granted directory, whole and exact, then report.
-///
-/// CREATE first, and on any refusal fall back to OPEN + TRUNCATE: create is create, not
-/// create-or-open (`filesystem_proto::fs::CREATE`), and this role must be idempotent because the HVF leg
-/// reboots the suite on the same disk image the first run already seeded. The truncate is what
-/// makes the fallback equal to the create: without it a shorter payload would leave the old tail
-/// behind, which is exactly the half-working write §27 warns about.
-fn smb_seed() -> ! {
-    let name = fixture::SMB_SEED_NAME;
-    put_page(name.as_bytes());
-    let (r0, _) = call(FILE, fs::req(fs::CREATE, 0, name.len() as u64), 0);
-    let h = if (r0 as i64) >= 0 {
-        r0
-    } else {
-        let h = open(name);
-        let (t, _) = call(FILE, fs::req(fs::TRUNCATE, h, 0), 0);
-        check((t as i64) >= 0);
-        h
-    };
-    write(h, 0, fixture::SMB_SEED);
-    let (size, _) = call(FILE, fs::req(fs::FSTAT, h, 0), 0);
-    check(size as usize == fixture::SMB_SEED.len());
-    let (c, _) = call(FILE, fs::req(fs::CLOSE, h, 0), 0);
-    check((c as i64) >= 0);
     send(REPORT, fixture::SUCCESS, 0, 0);
     exit();
 }
@@ -1732,7 +1550,7 @@ fn throughput() -> ! {
 
 /// Open the throughput file, creating it if this is the first run against this image and emptying
 /// it if it is not. `CREATE` answers `EEXIST` rather than opening (`filesystem_proto`'s note says why), so
-/// the fallback is an explicit open-and-truncate, the same shape [`smb_seed`] uses.
+/// the fallback is an explicit open-and-truncate.
 fn throughput_file() -> u64 {
     let name = fixture::THROUGHPUT_NAME;
     put_page(name.as_bytes());

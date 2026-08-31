@@ -162,7 +162,6 @@ name = "cred"
 version = "0.1.0"
 dependencies = [
  "argon2",
- "ntlm",
  "subtle",
 ]
 
@@ -324,15 +323,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hmac"
-version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e"
-dependencies = [
- "digest",
-]
-
-[[package]]
 name = "intrusive_fifo"
 version = "0.1.0"
 
@@ -472,25 +462,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "md-5"
-version = "0.10.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d89e7ee0cfbedfc4da3340218492196241d89eefb6dab27de5df917a6d2e78cf"
-dependencies = [
- "cfg-if",
- "digest",
-]
-
-[[package]]
-name = "md4"
-version = "0.10.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7da5ac363534dce5fabf69949225e174fbf111a498bf0ff794c8ea1fba9f3dda"
-dependencies = [
- "digest",
-]
-
-[[package]]
 name = "mdns_config"
 version = "0.1.0"
 dependencies = [
@@ -529,16 +500,6 @@ dependencies = [
 [[package]]
 name = "nifefs"
 version = "0.1.0"
-
-[[package]]
-name = "ntlm"
-version = "0.1.0"
-dependencies = [
- "digest",
- "hmac",
- "md-5",
- "md4",
-]
 
 [[package]]
 name = "ntp_proto"
@@ -678,13 +639,6 @@ name = "smallvec"
 version = "1.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ed6a63f02c8539c91a8685a86f4099661ba3da017932f6ebbea6de3f0fa7c90"
-
-[[package]]
-name = "smb_proto"
-version = "0.1.0"
-dependencies = [
- "ntlm",
-]
 
 [[package]]
 name = "smoltcp"
@@ -952,7 +906,6 @@ dependencies = [
  "pmap",
  "ps",
  "schedule_store",
- "smb_proto",
  "smoltcp",
  "socket_proto",
  "supervision_proto",
@@ -1057,7 +1010,6 @@ version = "0.1.0"
 dependencies = [
  "bitmap_font",
  "compositor",
- "credential_proto",
  "filesystem_proto",
  "gpt",
  "graphics_proto",
@@ -1065,8 +1017,6 @@ dependencies = [
  "mdns_config",
  "measured_boot",
  "nifefs",
- "ntlm",
- "smb_proto",
  "video_terminal",
 ]
 

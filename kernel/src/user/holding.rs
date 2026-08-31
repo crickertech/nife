@@ -46,26 +46,29 @@
 //! Name: **provisional** (this lane, 2026-08-16). `Holding` is a noun and says what the thing is:
 //! what a service holds. It is deliberately *not* `Lease`, which reads better in the abstract and
 //! would collide head-on with the DHCP lease this file's biggest caller talks about on every other
-//! line (`notes/net.md`, `start_smb_serve`'s `(lease, smb)`). Crate, module and type names are
+//! line (`notes/net.md`). Crate, module and type names are
 //! calef's call; expect this one to change.
 
 use crate::sched;
 use crate::thread::ThreadId;
 
-/// The most threads one holding covers. **Four is the widest service this boot builds**, and as of
-/// milestone 55's responder lane it builds exactly four: a `net_stack`, its socket client, the SMB
-/// adapter, and the mDNS responder. So the margin this number used to carry is spent, and a fifth
-/// client panics here rather than being silently dropped, which is the intended behaviour and worth
-/// knowing before adding one: raise this and [`MAX_REGIONS`] together, since each client costs one
-/// thread, one region and two after it.
+/// The most threads one holding covers. The widest service this boot builds is now **three**: a
+/// `net_stack`, its socket client, and the mDNS responder. It was four until 2026-08-30, when the
+/// SMB adapter that was the fourth went with the rest of the SMB implementation (notes/smb.md), so
+/// this number carries one slot of margin again rather than none. **The bound is kept at four
+/// deliberately**: it is a panic rather than a silent drop, and lowering it to the current width
+/// would buy nothing and make the next client a build failure for no reason. A fifth client still
+/// panics here, which is the intended behaviour and worth knowing before adding one: raise this and
+/// [`MAX_REGIONS`] together, since each client costs one thread, one region and two after it.
 const MAX_THREADS: usize = 4;
 
 /// The most untyped regions one holding covers, in **each** phase. The widest service this boot
-/// builds is `net_stack` with **three** clients (milestone 55's mDNS responder joined the socket
-/// client and the SMB adapter), which is four endpoint regions before death and **eight**
-/// budget-and-stack regions after it. That is exactly this number: the room the comment here used
-/// to claim is gone, and the next client added must raise it alongside [`MAX_THREADS`]. Failing the
-/// build is the point; dropping one silently would leak memory that looks reclaimed.
+/// builds is `net_stack` with **two** clients (the socket client and milestone 55's mDNS
+/// responder), which is three endpoint regions before death and six budget-and-stack regions after
+/// it. It was three clients until 2026-08-30, when the SMB adapter left (notes/smb.md), and this
+/// number is kept at the eight that width needed: it is the same deliberate margin
+/// [`MAX_THREADS`] keeps, and the next client added must raise both together. Failing the build is
+/// the point; dropping one silently would leak memory that looks reclaimed.
 const MAX_REGIONS: usize = 8;
 
 /// How long [`Holding::release`] waits for a teardown to land, in seconds of wall clock.

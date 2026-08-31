@@ -23,7 +23,9 @@ Measured 2026-08-17, against the block's 2026-08-02 numbers.
 the four crates the block named as the hard ones left (`dtb`, `nifefs`, `gpt`) got their examples in
 the following fortnight, and `machine_discovery`, `manual`, `swish` and `slots` gained theirs too. Meanwhile five
 crates arrived with none: `ntlm` and `system_initializer` (2026-08-04), `nvme` (2026-08-15), and
-`mdns_proto` and `smb_proto` (2026-08-15). A count of what is missing is a moving target in a tree
+`mdns_proto` and `smb_proto` (2026-08-15). `ntlm` and `smb_proto` were removed from the tree on
+2026-08-30 (notes/smb.md); their rows below are left as the record they always were. A count of
+what is missing is a moving target in a tree
 adding a crate every few days, which is the argument for a gate rather than a number in a block.
 
 **The coverage range is measured by `rustdoc --show-coverage`, and it is not the same measure as
@@ -41,7 +43,7 @@ recorded limitation rather than a pass:
    project's whole method is pure logic in host-testable crates. Each example was written to carry the
    crate's own argument rather than to restate a signature, so `elf` forges a writable-and-executable
    segment and watches it be refused, `paging` builds real page tables on the host and demonstrates
-   that break-before-make is forced, `smb_proto` performs a whole SMB2 mount, and `ntp_proto` shows an
+   that break-before-make is forced, `smb_proto` performed a whole SMB2 mount, and `ntp_proto` shows an
    off-path spoof failing the origin check before any of the packet is believed.
 
 2. **`no_run`, with the reason stated in the prose** (`user_rt`, `virtio`, `system_initializer`).
@@ -93,7 +95,7 @@ a hard gate, so those crates cannot regress:
 `abi`, `asid`, `bitmap_font`, `block_roster`, `c_seam`, `calendar`, `canary_gate`, `capability`,
 `clock_proto`, `component_plan`, `coremark`, `cpu_set`, `cred`, `cred_proto`, `dma_validator`, `dtb`,
 `elf`, `entropy_proto`, `frames`, `fs_proto`, `graphics_proto`, `glob`, `intrusive`, `ipc`, `line_editor`,
-`manual`, `mdns_config`, `measured_boot`, `nifefs`, `ntlm`, `ntp_proto`, `nvme`, `paging`, `pgrep`,
+`manual`, `mdns_config`, `measured_boot`, `nifefs`, `ntp_proto`, `nvme`, `paging`, `pgrep`,
 `ps`, `regions`, `sink_proto`, `slots`, `socket_proto`, `steal_request`, `supervision_proto`,
 `swap_proto`, `swish`, `system_initializer`, `timetable`, `user_heap`, `user_rt`, `video_terminal`,
 `virtio`, `wake_handshake`.
@@ -103,7 +105,7 @@ The worklist, largest first, so the next person can take one crate and turn its 
 | Crate | Items |
 |---|---|
 | `machine_discovery` | 54 |
-| `smb_proto` | 52 |
+| `smb_proto` (removed 2026-08-30) | 52 |
 | `mdns_proto` | 41 |
 | `pci` | 24 |
 | `gpt` | 23 |

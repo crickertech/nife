@@ -532,17 +532,13 @@ in the code or the conversation doesn't make sense, it belongs here.
   rather than guarded), why we depend on RustCrypto's `argon2` rather than write or vendor one and
   run the RFC 9106 vectors to prove it, the debug-build overflow panic our exhaustive corruption
   test found inside that dependency, and an honest list of what this does not protect against.
-- [NTLM](ntlm.md): milestone 65, the other half of the same store: **hold the key, expose the
-  operation, never the key.** NTLMv2 does not verify a presented secret, so "secret in, boolean
-  out" does not describe it: the server holds a key and computes a MAC, which is why this needed a
-  milestone rather than another opcode. Why the store holds `NTOWFv2` rather than the NT hash (the
-  account name and domain are bound at provisioning, so a caller cannot choose half the key
-  derivation), what crosses the shared frame and what never does, why the `SessionBaseKey` is
-  released only against a proof that verified, and why the client-side operation the roadmap named
-  is deliberately absent. Also three broken primitives shipped on purpose with their blast radius
-  stated, the published vectors from RFC 1320, RFC 2202 and [MS-NLMP] §4.2.4 that pin them, the
-  four-zero transcription error the machine caught, and an honest `BUGS` list starting with
-  revocation being per holder rather than per secret.
+- [NTLM](ntlm.md): milestone 65, the other half of the same store, **removed 2026-08-30** with the
+  SMB implementation that was its only consumer (see smb.md). Kept as a record: **hold the key,
+  expose the operation, never the key.** NTLMv2 does not verify a presented secret, so "secret in,
+  boolean out" did not describe it, which is why it needed a milestone rather than another opcode.
+  Why the store held `NTOWFv2` rather than the NT hash, what crossed the shared frame and what never
+  did, why the `SessionBaseKey` was released only against a proof that verified, and three broken
+  primitives shipped on purpose with their blast radius stated and their published vectors.
 - [Login](login.md): milestone 49's login half (DECISIONS §109 is the attribution half). Authenticates
   against the credential service unchanged and, on a match, **mints** a fresh directory capability (a
   `fs_subtree_caretaker` built for that principal) and a fresh budget rather than narrowing anything
@@ -616,22 +612,19 @@ in the code or the conversation doesn't make sense, it belongs here.
   contract proposal and its open fork, the smoltcp 0.13.1 pin, and the driver/server work that
   follows. The inbound half (milestone 107) is a listener that is not a connection and a port that
   is a grant; milestone 64 put `std::net::TcpListener` on it, so an ordinary Rust program can serve.
-- [SMB: the network file service a Mac can mount](smb.md): milestone 54, **BUILT 2026-08-17** and the
-  head of the customer path. The `smb_proto` wire crate (SMB 2.1, NTLMSSP under minimal SPNEGO, the
-  per-connection state machine as host-testable pure logic), the `smb_server` adapter holding one
-  network endpoint and one share, the wire decisions listed for review, the two-prober QEMU gate
-  that rides milestone 107's spawn, and the mount instructions a real macOS `mount_smbfs` has
-  already followed successfully (2026-08-15), with an honest BUGS section led by what Finder's
-  own dialog has not yet exercised. Since 2026-08-16 the share is a **tree** and the volume's
-  numbers are the image's: `smb_proto::path` parses a share-relative path once at the wire's edge
-  so `..` dies where the bytes arrive, and `fs_proto`'s `STATFS` reaches the volume classes a
-  Time Machine sparsebundle is sized against. And since 2026-08-17 a share can require an **NTLMv2
-  proof** while the server holds no key: the `authenticator` seam carries only public bytes and a
-  MAC, `ntlm` is a *dev*-dependency of the protocol crate so the shipping code cannot compute a
-  proof, and the gate has a host process authenticate for real over the challenge the guest chose
-  while the kernel checks the page between the adapter and the credential store. The BUGS section is
-  blunt that the *demo* boot still admits guests, because nothing can yet tell a running system a
-  password.
+- [SMB: the network file service a Mac mounted, and why it is no longer here](smb.md): milestone
+  54, built 2026-08-17 and **removed from the tree 2026-08-30** on calef's decision, after the
+  customer moved to borg over SSH. **The note is the evidence and is kept in full**, because this
+  was the project's only realized instance of principle 1: a real Mac's own `mount_smbfs` mounted a
+  share this kernel served (2026-08-15), read it byte-correct, remounted, and later wrote to it and
+  walked its subdirectories, with an NTLMv2 proof the adapter verified while holding no key. What
+  was demonstrated and when, the architecture, the measured throughput, the scale of what was
+  deleted, what never worked (no Mac ever saw the `AAPL` answer; the write path never met a real
+  Mac; the demo boot always admitted guests), and the full original BUGS list, which is where anyone
+  building a Mac-mountable share here again should start. It also records why the NTLM path went
+  with it, which is the transferable half: DECISIONS §79 approved password-equivalent material and
+  three broken hash functions for NTLMv2 protocol compliance, and with no protocol to comply with
+  the tree was carrying both for a consumer that no longer existed.
 - [mDNS/DNS-SD: the Time Machine advertisement](mdns.md): milestone 55's second protocol. The
   reference router's actual `_smb`/`_adisk`/`_device-info` records, captured 2026-08-15 and decoded
   (one `_adisk` instance with the disks inside its TXT, SRV port 0 on the flag services, and a
@@ -749,6 +742,19 @@ in the code or the conversation doesn't make sense, it belongs here.
   calibration verdict on the exhaustive crates (`ntp_proto`, `gpt`), the three-way triage rule
   (write the test, record the exclusion, or defer on the record), and why the weekly `mutation
   testing` workflow is a report rather than a gate.
+- [Did the proofs catch the bugs?](proof-retrospective.md): milestone 191, and the question none of
+  the four legs above had been asked: **for every real defect this project recorded, could a proof
+  have caught it, and did one exist?** Answered against eighteen defects from the tree's own notes and
+  `git log`. The result is amber. No Kani harness has ever caught a defect after the day it was
+  written; two were caught *while* harnesses were being written (`dtb`'s unchecked add, `pci`'s pin-0
+  underflow), which is the survivorship asymmetry the milestone predicted. The structural reason is one
+  line of `script/verify`'s own header: `cargo kani` never compiles the kernel, so 64,818 lines of
+  `kernel/src` are out of reach by construction, and that is where the concurrency, hardware-contract
+  and resource-accounting defects all were. Includes the reverse pass (which harnesses prove a property
+  that could plausibly have been false, and the one that provably could not), three near-misses in
+  crates that already had harnesses, the counts re-derived from the merged tree because the roadmap's
+  "112+" is now 145, a live hole found while counting (three harnesses in no shard of `script/verify`,
+  the `mdns_proto` defect recurred), and a nine-item worklist. Name provisional.
 - [Where an unsafe obligation is written, and where it is only implied](unsafe-obligations.md):
   milestone 82, and the two lints that are meant to compose into "every unsafe operation sits next
   to the written invariant that makes it sound". The survey found **zero violations before anything
