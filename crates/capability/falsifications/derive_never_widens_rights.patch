@@ -1,0 +1,34 @@
+Falsifies `capability::derive_never_widens_rights`.
+
+The defect: the `CannotWiden` guard removed from `CapabilityTable::derive`, so a derive
+stores whatever rights were requested. This is the "a refactor dropped the check"
+defect, which is the one this crate's whole doc comment is about: rights only narrow
+because `derive` is the only operation offered, and if the guard goes the type system
+notices nothing.
+
+Expected to fail: `assert!(requested.is_subset_of(src_rights))` in
+`derive_never_widens_rights`, on any request holding a bit the source lacks.
+
+**Why the defect is here and not in `is_subset_of`.** A mutation of the predicate does
+NOT falsify this harness, which was measured rather than assumed: the harness states its
+property by calling the same predicate `derive` calls, so a consistently wrong predicate
+satisfies both sides. The crate's central theorem is therefore load-bearing against the
+guard and blind to the comparison underneath it. That is a genuine gap in coverage and
+it is recorded in notes/falsification.md rather than fixed here, because closing it is a
+change to the harness and this lane does not rewrite proofs it is measuring.
+
+diff --git a/crates/capability/src/lib.rs b/crates/capability/src/lib.rs
+index 33b5819a..56c7f8b4 100644
+--- a/crates/capability/src/lib.rs
++++ b/crates/capability/src/lib.rs
+@@ -342,10 +342,6 @@ impl<O: Copy, const N: usize> CapabilityTable<O, N> {
+     pub fn derive(&mut self, from: u64, to: u64, rights: Rights) -> Result<(), Error> {
+         let src = self.get(from)?;
+ 
+-        if !rights.is_subset_of(src.rights) {
+-            return Err(Error::CannotWiden);
+-        }
+-
+         self.put(
+             to,
+             Cap {

@@ -1085,7 +1085,7 @@ pub mod dir {
         /// **Attenuation never widens, for every parent and every request.** `allows` is the only
         /// question the server asks a rights set, so the property is stated in its terms: anything
         /// the child permits, the parent permitted.
-        /// Falsification: unfalsified
+        /// Falsification: replayable crates/filesystem_proto/falsifications/attenuate_never_widens.patch
         #[kani::proof]
         fn attenuate_never_widens() {
             let parent = Rights(kani::any());
@@ -1112,7 +1112,7 @@ pub mod dir {
 
         /// A root is bounded by [`ALL`], so a caller that invents a mask with unknown bits set
         /// cannot smuggle one in and have some later version of this module give it a meaning.
-        /// Falsification: unfalsified
+        /// Falsification: replayable crates/filesystem_proto/falsifications/a_root_carries_nothing_undefined.patch
         #[kani::proof]
         fn a_root_carries_nothing_undefined() {
             let mask: u64 = kani::any();

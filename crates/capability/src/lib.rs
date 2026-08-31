@@ -394,7 +394,7 @@ mod verification {
     use super::*;
 
     /// Every capability is a subset of itself: the reflexive base case of the derivation order.
-    /// Falsification: unfalsified
+    /// Falsification: replayable crates/capability/falsifications/subset_is_reflexive.patch
     #[kani::proof]
     fn subset_is_reflexive() {
         let a = Rights(kani::any());
@@ -419,7 +419,7 @@ mod verification {
 
     /// **Userspace cannot forge a right.** `from_bits` takes an attacker-controlled syscall register
     /// (any u32) and the result holds only defined rights, for every possible input.
-    /// Falsification: unfalsified
+    /// Falsification: replayable crates/capability/falsifications/from_bits_cannot_forge_a_right.patch
     #[kani::proof]
     fn from_bits_cannot_forge_a_right() {
         let raw: u32 = kani::any();
@@ -428,7 +428,7 @@ mod verification {
 
     /// The two ways of asking the question agree: "a is no more than b" is exactly "b holds at
     /// least a". Proving them equivalent means a bug in one would show up against the other.
-    /// Falsification: unfalsified
+    /// Falsification: replayable crates/capability/falsifications/subset_matches_allows.patch
     #[kani::proof]
     fn subset_matches_allows() {
         let (a, b) = (Rights(kani::any()), Rights(kani::any()));
@@ -492,7 +492,7 @@ mod verification {
     /// if the derive succeeds then the capability it stored holds no more than the source did, and
     /// holds exactly what was asked (no silent grant of more). There is no reachable input that
     /// widens authority.
-    /// Falsification: unfalsified
+    /// Falsification: replayable crates/capability/falsifications/derive_never_widens_rights.patch
     #[kani::proof]
     fn derive_never_widens_rights() {
         let src_rights = Rights(kani::any());
