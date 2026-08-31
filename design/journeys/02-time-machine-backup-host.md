@@ -1,5 +1,15 @@
 # 2. Run a Time Machine backup host
 
+**RETIRED 2026-08-30.** calef decided that day to remove the SMB implementation this journey ran
+on: the customer backs up with borg over SSH on cordoba instead, so the story has no user. Milestone
+54's adapter, milestone 55's Time Machine half and the shares they served are gone from the tree;
+notes/smb.md is the record of what they did, and it is worth reading before anyone revives this.
+**RETIRED is this file's own word and is not roadmap vocabulary**, which has no term for it; whether
+`design/roadmap/`'s vocabulary should grow one is calef's call.
+
+*Everything below is the journey as it stood, kept because it records what was built and what was
+left, not as a plan anyone should follow.*
+
 calef, 2026-08-26: a second journey, running a Time Machine backup host. Unlike journey 1, this
 story is not waiting on unwritten code for its first light: milestone 55's own 2026-08-22 scoping
 pass says outright, *"there is no fork left to bring him."* Every remaining step below is hardware

@@ -9,7 +9,7 @@ fn redoxfs_server_image() -> &'static [u8] {
 }
 
 /// `user/src/fs_test_client.rs`'s own `ROLE_SCHEDULE_SEED`, matched by number the way every other
-/// FS-service seed role already is (`ROLE_SMB_SEED` = 7 in `kernel/src/user/tests.rs`): the role
+/// FS-service seed roles already were: the role
 /// numbers are bare integers both sides agree on by comment, not by a shared crate, following that
 /// same file's own convention.
 const ROLE_SCHEDULE_SEED: u64 = 11;
@@ -106,7 +106,8 @@ fn wired() -> Option<[u64; 3]> {
 
 /// **The headline: what `ROLE_SCHEDULE_SEED` wrote through `filesystem_proto`,
 /// `session_reviver` reads back, parses with the real `timetable::parse`, re-derives a session for
-/// in `smb_server.rs`'s own `DurableSession` shape, and then provably relinquishes.**
+/// in the durable-session shape milestone 152 first built for the SMB adapter, and then provably
+/// relinquishes.**
 ///
 /// Three properties, checked against `session_reviver`'s own report (`user/src/session_reviver.rs`'s
 /// `_start`, its final `send`), none of which the seed's own report or a passing build could fake:
@@ -160,7 +161,7 @@ fn the_schedule_store_write_path_and_the_boot_time_re_deriver_agree() {
 /// bytes the seed wrote.
 const ROLE_SCHEDULE_VERIFY: u64 = 12;
 
-/// **The write path, witnessed independently of the read-at-boot path** (the `smb_seed`/`smb_verify`
+/// **The write path, witnessed independently of the read-at-boot path** (the seed/verify
 /// shape, one level over): a second, freshly spawned client re-opens this suite's identity's own
 /// subtree and its `schedule` file, and the manifest at the store's own root, and confirms both hold
 /// exactly the bytes `ROLE_SCHEDULE_SEED` wrote. This is deliberately **not** the same read

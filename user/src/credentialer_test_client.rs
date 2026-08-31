@@ -5,7 +5,7 @@
 //! same endowment**: the verify endpoint, a report endpoint, and the page it writes its request
 //! into. No store, no provision endpoint, no entropy, no budget.
 //!
-//! - [`ROLE_HONEST`] is what an SMB adapter would be: it asks three questions and reports the
+//! - [`ROLE_HONEST`] is what any authenticating server would be: it asks three questions and reports the
 //!   three answers, plus whether the shared page came back clean.
 //! - [`ROLE_ATTACKER`] holds the identical endowment and tries to *write* the store through it:
 //!   `PUT`, `SEAL`, an opcode nobody defined, and lengths outside the contract. Then it asks
@@ -13,8 +13,6 @@
 //! - [`ROLE_PROVISIONER`] is the one that runs *before* either, on the **provision** endpoint, and
 //!   is a separate role rather than a separate binary so that the difference between provisioning
 //!   and verifying is visible as one field of a `Spawn` literal: which endpoint is in slot 0.
-//! - [`ROLE_NTLM`] is what an SMB server would be (milestone 65): it answers a client's NTLMv2
-//!   authentication holding no key at all, against [MS-NLMP] §4.2.4's published values.
 //!
 //! # What the attacker proves, and what it does not
 //!
@@ -71,20 +69,11 @@ pub const ROLE_HONEST: u64 = 0;
 pub const ROLE_ATTACKER: u64 = 1;
 /// Phase one: fill the store and seal it.
 pub const ROLE_PROVISIONER: u64 = 2;
-/// An SMB server's shape (milestone 65): answer a client's NTLMv2 authentication without ever
-/// holding the key that answers it.
-pub const ROLE_NTLM: u64 = 3;
-
 /// The report's first word, so the kernel test knows who is speaking.
 pub const RPT_DONE: u64 = 0x_c2ed_c11e_0000_0001;
 
 /// Bit 0 of the report's third word: the shared page came back empty after the last reply.
 pub const F_CLEAN: u64 = 1 << 0;
-/// Bit 1: the session key the service published is [MS-NLMP] §4.2.4.1.2's published one.
-pub const F_SESSION_KEY: u64 = 1 << 1;
-/// Bit 2: a refused proof published no session key at all.
-pub const F_NO_KEY_ON_REFUSAL: u64 = 1 << 2;
-
 /// The identities and secrets this milestone's tests use. Three, matching the three family members
 /// design/roadmap/56-secrets-and-entropy.md says the real deployment serves.
 const PEOPLE: [(&[u8], &[u8]); 3] = [
@@ -103,15 +92,12 @@ type Share = (&'static [u8], &'static [u8], &'static [u8], &'static [u8]);
 /// (design/roadmap/65-secrets-service.md). A leaked key here authenticates to one share and to
 /// nothing else, because there is nothing else it is the credential for.
 ///
-/// The **first** uses [MS-NLMP] §4.2.1's account (`Domain\User`, password `Password`) on purpose:
-/// that is the account Microsoft publishes every intermediate value for, so the kernel test can
-/// assert against printed numbers rather than against something this tree computed. It moved into
-/// `credential_proto::fixture` when milestone 54's SMB adapter and xtask's prober became its other two
-/// readers; this role is still the only thing that *stores* it.
+/// The **first** uses [MS-NLMP] §4.2.1's account (`Domain\User`, password `Password`), which is
+/// where it came from: milestone 65 stored it under that account because Microsoft publishes every
+/// intermediate NTLMv2 value for it. That path was removed on 2026-08-30 (notes/smb.md) and these
+/// are now three ordinary password records; the values are kept because nothing is served by
+/// changing them and `credential_proto::fixture` is still where they live.
 const SHARES: [Share; 3] = [
-    // Through `credential_proto::fixture` rather than spelled here, since milestone 54's identity item:
-    // the SMB adapter authenticates against this resource and xtask's prober computes a proof over
-    // this password, so three programs must agree on it down to the byte. The values did not change.
     (
         proto::fixture::SMB_RESOURCE,
         proto::fixture::SMB_PASSWORD,
@@ -132,36 +118,6 @@ const SHARES: [Share; 3] = [
     ),
 ];
 
-/// The share the NTLM role authenticates against, and its published answer.
-const SHARE: &[u8] = SHARES[0].0;
-
-/// [MS-NLMP] §4.2.4: the server challenge, the client's `temp` blob, the `NTProofStr` a holder of
-/// the password computes, and the `SessionBaseKey` that follows from it. Every one of these is a
-/// number the specification prints.
-const CHALLENGE: [u8; proto::CHALLENGE_LEN] = [0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef];
-
-#[rustfmt::skip]
-const BLOB: [u8; 68] = [
-    0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa,
-    0x00, 0x00, 0x00, 0x00,
-    0x02, 0x00, 0x0c, 0x00,
-    0x44, 0x00, 0x6f, 0x00, 0x6d, 0x00, 0x61, 0x00, 0x69, 0x00, 0x6e, 0x00,
-    0x01, 0x00, 0x0c, 0x00,
-    0x53, 0x00, 0x65, 0x00, 0x72, 0x00, 0x76, 0x00, 0x65, 0x00, 0x72, 0x00,
-    0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00,
-];
-
-const PROOF: [u8; proto::KEY_LEN] = [
-    0x68, 0xcd, 0x0a, 0xb8, 0x51, 0xe5, 0x1c, 0x96, 0xaa, 0xbc, 0x92, 0x7b, 0xeb, 0xef, 0x6a, 0x1c,
-];
-
-const SESSION_KEY: [u8; proto::KEY_LEN] = [
-    0x8d, 0xe4, 0x0c, 0xca, 0xdb, 0xc1, 0x4a, 0x82, 0xf1, 0x5c, 0xb0, 0xad, 0x0d, 0xe9, 0x5c, 0xa3,
-];
-
 /// The identity the attacker tries to install for itself.
 const IMPOSTOR: &[u8] = b"impostor";
 const IMPOSTOR_SECRET: &[u8] = b"let me in";
@@ -171,7 +127,6 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
     match role {
         ROLE_PROVISIONER => provisioner(),
         ROLE_ATTACKER => attacker(),
-        ROLE_NTLM => ntlm(),
         _ => honest(),
     }
 }
@@ -191,11 +146,18 @@ fn provisioner() -> ! {
             proto::provision::PUT,
         ));
     }
-    // Then the three shares, each bound to its own account and domain. A share's secret is scoped
-    // to the resource, so these are six independent secrets in one store rather than three people
-    // with two credentials each.
-    for (resource, password, user, domain) in SHARES {
-        codes.push(put_ntlm(resource, password, user, domain));
+    // Then the three shares. A share's secret is scoped to the resource, so these are six
+    // independent secrets in one store rather than three people with two credentials each. The
+    // account name and domain each share carries were bound into an NTLM key until 2026-08-30
+    // (notes/smb.md); they are kept in the table because they are what a share is *for*, and
+    // nothing stores them now.
+    for (resource, password, _user, _domain) in SHARES {
+        codes.push(request(
+            PROV_WINDOW,
+            resource,
+            password,
+            proto::provision::PUT,
+        ));
     }
     // A seventh secret in a six-slot store: FULL, not a silent overwrite of somebody.
     codes.push(request(
@@ -213,82 +175,6 @@ fn provisioner() -> ! {
         proto::provision::SEAL,
     ));
     done(codes, u64::from(page_is_clean(PROV_WINDOW)))
-}
-
-/// **An SMB server's shape**, and the whole point of milestone 65: this program answers a client's
-/// NTLMv2 authentication while holding no key at all. It has the challenge it issued, the blob and
-/// the proof the client sent, and one endpoint. It never sees an `NTOWFv2` and there is no message
-/// that would give it one.
-fn ntlm() -> ! {
-    let mut codes = Codes::new();
-    let mut flags = 0;
-
-    // The real thing: [MS-NLMP] §4.2.4's published proof against the share provisioned with
-    // §4.2.1's account. A match, and the published session key in the page.
-    codes.push(ntlm_request(SHARE, &PROOF));
-    if session_key() == SESSION_KEY {
-        flags |= F_SESSION_KEY;
-    }
-
-    // One bit off. The proof is a MAC, so this is what every forgery looks like.
-    let mut bad = PROOF;
-    bad[0] ^= 0x01;
-    codes.push(ntlm_request(SHARE, &bad));
-    if session_key() == [0u8; proto::KEY_LEN] {
-        flags |= F_NO_KEY_ON_REFUSAL;
-    }
-
-    // A resource that has a password but no NTLM secret. Its stored key is zeros, which is a value
-    // an attacker KNOWS, so this is the strongest form of the attack available and it must fail.
-    codes.push(ntlm_request(PEOPLE[0].0, &PROOF));
-    // And one nobody provisioned, which must be indistinguishable from the above.
-    codes.push(ntlm_request(b"no-such-share", &PROOF));
-
-    // One password, two derivations: the share also answers an ordinary verify. Deliberately last,
-    // because its reply leaves the page wiped, which is what makes the cleanliness check below say
-    // something rather than measuring a wipe this program did itself.
-    codes.push(request(
-        PAGE_WINDOW,
-        SHARE,
-        SHARES[0].1,
-        proto::verify::VERIFY,
-    ));
-    if page_is_clean(PAGE_WINDOW) {
-        flags |= F_CLEAN;
-    }
-    done(codes, flags)
-}
-
-/// A `PUT_NTLM`, which needs both request words because the account name's and the domain's
-/// lengths ride in the second one.
-fn put_ntlm(resource: &[u8], password: &[u8], user: &[u8], domain: &[u8]) -> u64 {
-    // SAFETY: forwarded from PROV_WINDOW's own contract.
-    let page = unsafe { PROV_WINDOW.as_mut_slice() };
-    let Some((w0, w1)) = proto::place_ntlm_put(page, resource, password, user, domain) else {
-        return u64::MAX;
-    };
-    let (r0, r1) = call(SERVICE, w0, w1);
-    if r1 != proto::NO_DATA { u64::MAX } else { r0 }
-}
-
-/// An `NTLM_PROOF`, with the challenge and the blob this program would have exchanged with a real
-/// client.
-fn ntlm_request(resource: &[u8], proof: &[u8; proto::KEY_LEN]) -> u64 {
-    // SAFETY: forwarded from PAGE_WINDOW's own contract.
-    let page = unsafe { PAGE_WINDOW.as_mut_slice() };
-    let Some(w0) = proto::place_ntlm_proof(page, resource, &CHALLENGE, &BLOB, proof) else {
-        return u64::MAX;
-    };
-    let (r0, r1) = call(SERVICE, w0, 0);
-    if r1 != proto::NO_DATA { u64::MAX } else { r0 }
-}
-
-/// The `SessionBaseKey` the service published, or zeros if the page is somehow too small (which it
-/// cannot be: the wiring maps a whole frame).
-fn session_key() -> [u8; proto::KEY_LEN] {
-    // SAFETY: forwarded from PAGE_WINDOW's own contract.
-    let page = unsafe { PAGE_WINDOW.as_slice() };
-    proto::session_key(page).unwrap_or([0; proto::KEY_LEN])
 }
 
 /// **The honest client**: the right secret, the wrong secret, and an identity nobody provisioned.
@@ -334,9 +220,11 @@ fn attacker() -> ! {
         IMPOSTOR_SECRET,
         proto::provision::PUT,
     ));
-    // Re-seal it, in case a service that had not sealed would accept one. Since milestone 65 this
-    // is `NTLM_PROOF`'s number on this endpoint, so the answer is MISMATCH rather than MALFORMED:
-    // what the attacker sent is a proof for a resource nobody provisioned. See the kernel test.
+    // Re-seal it, in case a service that had not sealed would accept one. `SEAL` is 2, and this
+    // endpoint implements no opcode 2, so the answer is MALFORMED. It was MISMATCH between
+    // milestone 65 and 2026-08-30, when `verify::NTLM_PROOF` also lived at 2 and what the attacker
+    // sent read as a proof for a resource nobody provisioned; notes/smb.md, and `credential_proto`'s
+    // module docs on why a number's meaning is the endpoint's rather than its own.
     codes.push(request(
         PAGE_WINDOW,
         IMPOSTOR,
@@ -358,15 +246,11 @@ fn attacker() -> ! {
         // A reply that carried a second word at all is a finding, whatever it said.
         u64::MAX
     });
-    // `PUT_NTLM`, the opcode milestone 65 added to the *provisioning* space. On this endpoint it
-    // is opcode 3, which no serve loop here implements, so it is MALFORMED rather than a refusal:
-    // there is still nothing to refuse.
-    codes.push(request(
-        PAGE_WINDOW,
-        IMPOSTOR,
-        IMPOSTOR_SECRET,
-        proto::provision::PUT_NTLM,
-    ));
+    // Opcode 3, which no serve loop here implements, so it is MALFORMED rather than a refusal:
+    // there is still nothing to refuse. It was `provision::PUT_NTLM` until 2026-08-30
+    // (notes/smb.md); the probe is kept because "an opcode from the other space" is the case it
+    // exercises, and 3 is still that.
+    codes.push(request(PAGE_WINDOW, IMPOSTOR, IMPOSTOR_SECRET, 3));
     // And now the question that matters: did any of that install a credential?
     codes.push(request(
         PAGE_WINDOW,
@@ -423,9 +307,9 @@ impl Codes {
 }
 
 /// Report: who spoke, the packed reply codes, and a **flag word**. Bit 0 is "the shared page came
-/// back empty", which every role sets; the NTLM role sets two more (see [`F_SESSION_KEY`] and
-/// [`F_NO_KEY_ON_REFUSAL`]). A flag word rather than a second bool because the third report word
-/// is the only one left and a role that learns two things has to say both.
+/// back empty", which every role sets. The NTLM role set two more bits until 2026-08-30
+/// (notes/smb.md). A flag word rather than a bool because the third report word is the only one
+/// left and a role that learns two things has to say both.
 fn done(codes: Codes, flags: u64) -> ! {
     send(REPORT, RPT_DONE, codes.packed, flags);
     exit()

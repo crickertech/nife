@@ -1,10 +1,23 @@
 # 54. A network file service a Mac can actually mount
 
-**Status: BUILT** (2026-08-17). A real Mac's own `mount_smbfs` mounts a share served by nife's
-userspace SMB adapter over its own TCP stack, reads files byte-correct, remounts, **writes**, reports
-the volume's real free space, serves **subdirectories**, and since 2026-08-17 **knows who is asking**.
-Four halves landed over three days and each is gated on both ISAs; the wire decisions of every one of
-them are listed in its pull request and in notes/smb.md, being the expensive category.
+**Status: BUILT** (2026-08-17). **The implementation was removed from the tree on 2026-08-30**, on
+calef's decision, after the customer it served moved to borg over SSH on cordoba; journey 2 is
+retired and milestone 55's premise went with it. The status word says BUILT because it was built,
+and the roadmap vocabulary has no word for "built, then removed"; minting one is calef's call and
+this block says so rather than inventing it.
+
+**Everything below is history, and is deliberately kept.** This milestone was the project's only
+realized instance of principle 1: a real Mac's own `mount_smbfs` mounted a share served by nife's
+userspace SMB adapter over its own TCP stack, read files byte-correct, remounted, **wrote**, reported
+the volume's real free space, served **subdirectories**, and from 2026-08-17 **knew who was asking**.
+Four halves landed over three days and each was gated on both ISAs.
+
+**notes/smb.md is the record**, kept in full: what was demonstrated and when, the architecture, what
+was measured, what never worked, the scale of what was deleted, and why. A future reader deciding
+whether to build a Mac-mountable share here again should start from that note's BUGS section, which
+is what the last attempt knew it had not solved.
+
+The pull requests, and the wire decisions in each, were:
 
 - **The mount** (#210, 2026-08-15): macOS 26's `mount_smbfs` against the QEMU guest, `ls`,
   byte-correct reads, a clean unmount and a second mount. `crates/smb_proto` carries the wire format

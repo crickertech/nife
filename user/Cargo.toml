@@ -281,16 +281,6 @@ path = "src/mdns_responder.rs"
 test = false
 bench = false
 
-# The SMB adapter (milestone 54): the network file service a Mac can mount. A client of the
-# socket contract (listen/accept, milestone 107) serving `smb_proto` over direct TCP; the share
-# is the fixture baked into `smb_proto` until the filesystem_proto-backed share lands (notes/smb.md).
-# Provisional name.
-[[bin]]
-name = "smb_server"
-path = "src/smb_server.rs"
-test = false
-bench = false
-
 # The GPU driver (milestone 29, the display ladder's rung one): drives the virtio-gpu device
 # over the confined transport and serves the framebuffer contract to clients. `initrd_aarch64` packs
 # it as "gpu_driver" for both ISAs.
@@ -670,7 +660,6 @@ component_plan = { version = "0.1.0", path = "../crates/component_plan" }
 swap_proto = { version = "0.1.0", path = "../crates/swap_proto" }
 virtio = { version = "0.1.0", path = "../crates/virtio" }
 socket_proto = { version = "0.1.0", path = "../crates/socket_proto" }
-smb_proto = { version = "0.1.0", path = "../crates/smb_proto" }
 mdns_proto = { version = "0.1.0", path = "../crates/mdns_proto" }
 mdns_config = { version = "0.1.0", path = "../crates/mdns_config" }
 bitmap_font = { version = "0.1.0", path = "../crates/bitmap_font" }

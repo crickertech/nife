@@ -38,7 +38,7 @@ is the identity mapping only, the same division `design/roadmap/README.md` and
 | # | journey |
 |---|---|
 | 1 | [Boot to a login prompt, into `swish`, to editing a file with `kilo`](01-login-to-kilo.md) |
-| 2 | [Run a Time Machine backup host](02-time-machine-backup-host.md) |
+| 2 | [Run a Time Machine backup host](02-time-machine-backup-host.md) **(RETIRED 2026-08-30)** |
 
 ## The format
 

@@ -1,11 +1,10 @@
 # 55. Time Machine: SMB3 with Apple's extensions, and mDNS
 
-**Status: PARTIAL.** The **discovery half is built** (pull request #246, 2026-08-16): a responder
-program binds UDP 5353 through a grant, announces `_smb._tcp`, `_adisk._tcp` and
-`_device-info._tcp` from a configuration document carrying the values measured off calef's router,
-and answers browses and legacy one-shot queries per RFC 6762 §6.7, gated on both ISAs. It holds a
-report endpoint, the stack endpoint and a budget and **nothing else**: no share, no file, no TCP
-port, where the reference implementation is one process with one config file.
+**Status: PARTIAL.** **The premise is retired as of 2026-08-30.** calef decided that day to remove
+the SMB implementation: the customer this milestone existed for backs up with borg over SSH on
+cordoba, so journey 2 is retired and there is no Time Machine target to finish. The status word is
+the vocabulary's closest fit rather than the right one; there is no word for "retired", and minting
+one is calef's.
 
 **Gate: NONE.** The scoping decision is made: **the subset of SMB3 that Time Machine needs**, not
 a general server (calef, 2026-08-15). Decided on the ranking principle: every part of a general
@@ -19,6 +18,27 @@ names was recorded here as unowned: `RENAME`. **That is no longer true** (correc
 `fs_proto::fs::RENAME` is op 11, fully specified with its rights (`REMOVE` on the source directory,
 `CREATE` on the destination) and its atomicity, and the std PAL implements `rename` against it. So
 this block's third gate has closed and only the decision, 65 and 107 remain.
+
+**What is built and stays**: the **discovery half** (pull request #246, 2026-08-16), a responder
+program that binds UDP 5353 through a grant, announces `_smb._tcp`, `_adisk._tcp` and
+`_device-info._tcp` from a configuration document carrying the values measured off calef's router,
+and answers browses and legacy one-shot queries per RFC 6762 §6.7, gated on both ISAs. It holds a
+report endpoint, the stack endpoint and a budget and **nothing else**. Service discovery is a
+standalone service and is useful without a share to advertise.
+
+**What is gone**: everything that needed an SMB server. The `AAPL` create context and the
+`FULL_SYNC` Time Machine flag, the throughput work, the authenticated share. notes/smb.md records
+all of it, including the two things this milestone most wanted and never got: no Mac ever saw the
+`AAPL` answer, and nobody ever proved macOS would offer the share as a backup destination. Those
+needed the kernel on hardware on a real network segment, which never happened.
+
+**What survived into the rest of the tree**, because it was file-service work rather than protocol
+work: `filesystem_proto`'s `STATFS`, `SYNC` and `RENAME`, and the block server's real
+`VIRTIO_BLK_T_FLUSH`. See notes/smb.md on the one gate that was lost with the SMB verify role.
+
+*Everything below this line is the block as it stood before the retirement, kept because it records
+decisions and measurements rather than plans.*
+
 
 **The `AAPL` create context and the Time Machine flag landed 2026-08-17** (pull request #292), which
 is the piece macOS refuses the share without. `crates/smb_proto` grew the create-context chain
@@ -115,7 +135,6 @@ shape, and a server that authenticates while holding no key. What it inherits as
 the boot a person runs still admits guests, because nothing can tell a running system a password: a
 Time Machine target is the first thing in this tree that genuinely needs a **provisioning path**, and
 that is milestone 56's shape rather than either of these two blocks'. See notes/smb.md's BUGS.
-
 
 **Nothing here has met a Mac.** QEMU's user-mode networking cannot carry multicast to the host, so
 `dns-sd -B` finds nothing under the emulator by construction; IGMP snooping, forwarding TTLs, a
@@ -302,7 +321,6 @@ here, because the SMB server consults `ShareAccess` nowhere and has neither oplo
 there is no sharing violation for POSIX semantics to be an exception to). This section's remaining
 value is the correction below and §42's atomicity split, which is still exactly what Time Machine's
 durability expectations will test.
-
 
 Rename over an open file, which is precisely the territory of §42 (a filesystem declares what it
 offers and must be truthful) and milestone 47's `mv` section.

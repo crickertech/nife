@@ -3,7 +3,7 @@ use core::sync::atomic::Ordering;
 // Shared with the aarch64 module so both ISAs assert a std transcript the same way.
 use super::std_tests::{
     assert_a_kill_mid_transaction_recovers, assert_attrs, assert_fs_service_ready,
-    assert_smb_held_no_key, assert_smb_write_landed, assert_std_transcript, std_fs_expected,
+    assert_std_transcript, std_fs_expected,
 };
 use super::*;
 use crate::sched;
@@ -544,12 +544,6 @@ fn a_reopened_socket_id_connects_again_over_tcp() {
     net.release_or_fail("a net test's net_stack");
 }
 
-/// The `smb_server` program's ELF bytes (milestone 54): the SMB adapter, spawned as a second
-/// client of the inbound gate's stack. See the aarch64 twin.
-fn smb_server_image() -> &'static [u8] {
-    program("smb_server").expect("no smb_server program in the initrd archive")
-}
-
 /// The `mdns_responder` program's ELF bytes (milestone 55): the discovery half, a third client of
 /// the same stack. See the aarch64 twin.
 fn mdns_responder_image() -> &'static [u8] {
@@ -562,19 +556,10 @@ fn mdns_responder_image() -> &'static [u8] {
 /// while the guest accepts, reads and answers each. **The mDNS-shaped exchange then rides in the
 /// same spawn** (milestone 55's stack half): the UDP bind grant refuses and admits, the joined
 /// group receives xtask's injected datagram with its spoofed source intact, and the guest answers
-/// the group. **Milestone 54's SMB adapter rides the same spawn on this ISA too**: a second stack
-/// client serving a real SMB2 exchange to xtask's SMB prober through a second `hostfwd`, both
-/// verdicts gating. See the aarch64 twin for the shape, for why all of it shares one exchange (a
-/// net server's spawn is frames nothing reclaims), and for what the stage codes mean.
-///
-/// **And the session is authenticated here too** (milestone 54's identity item): the share is wired
-/// `SMB_SHARE_FS_AUTHENTICATED` and the credential service is the same sealed one the credential
-/// tests use, so the parity claim covers identity and not only the wire.
-///
-/// **The share is the real filesystem here too**: the FS service is wired first, the seed role
-/// writes `filesystem_proto::fixture::SMB_SEED` through it, and the adapter gets the directory
-/// capability, so the parity gate covers the filesystem_proto-backed share and not only the wire. The
-/// aarch64 twin documents the shape, the fallback, and the free-frame print.
+/// the group. **Milestone 54's SMB adapter rode the same spawn on this ISA too**, with the same
+/// authenticated fs-backed share, until 2026-08-30; notes/smb.md records it. See the aarch64 twin
+/// for the shape, for why all of it shares one exchange (a net server's spawn is frames nothing
+/// reclaims), and for what the stage codes mean.
 #[test_case]
 fn a_host_process_connects_to_the_guest_and_is_answered() {
     // E2's baseline (milestone 134): see the aarch64 twin's comment at the same point. The full
@@ -582,87 +567,30 @@ fn a_host_process_connects_to_the_guest_and_is_answered() {
     // is what "before this test wired anything" means, and the census below reports the delta
     // against it rather than an absolute reading contaminated by whatever ran first.
     let e2_baseline_threads = sched::thread_count();
-    let fs = fs_service::start(
-        blk_image(),
-        program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),
-        program("fs_test_client").expect("no fs_test_client program in the initrd archive"),
-        7, // ROLE_SMB_SEED: write fixture::SMB_SEED at fixture::SMB_SEED_NAME, report, exit
-    )
-    .map(|(readiness, seed_report)| {
-        assert_fs_service_ready(readiness);
-        let status = sched::ipc_recv(seed_report)[0];
-        assert_eq!(
-            status,
-            filesystem_proto::fixture::SUCCESS,
-            "the seeding client could not put the SMB gate's file on the filesystem",
-        );
-        let (ep, shared) = fs_service::root_directory(
-            blk_image(),
-            program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),
-        )
-        .expect("the FS service was wired a moment ago");
-        // Read-write **and authenticated**, as on the aarch64 twin: the write half of the gate
-        // needs the adapter to accept a write, the read-only refusals are `smb_proto`'s host
-        // tests, and since milestone 54's identity item the prober proves who it is first.
-        (ep, shared, virtio_service::SMB_SHARE_FS_AUTHENTICATED)
-    });
-    if fs.is_none() {
-        crate::println!("    (no RedoxFS disk attached; the SMB adapter serves its fixture)");
-    }
-    crate::println!(
-        "    (combined boot wired: {} frames free before the net + SMB spawn)",
-        crate::memory::free_page_frames()
-    );
-    // Taken before `fs` is handed to the spawn below: the write verifier needs to know whether
-    // there was a filesystem at all, and the spawn consumes the capability.
-    let had_fs = fs.is_some();
-    // The credential service, milestone 65's, sealed: the aarch64 twin documents why this is here
-    // and what it proves. Parity is the whole point of this file (DECISIONS §19): the same
-    // credentialer binary, the same Argon2id, the same NTLMv2 arithmetic, the same host prober.
-    //
-    // `provisioned()` returning `None` (no virtio-rng device; milestone 145) folds into the same
-    // `Option` this closure already produces for `had_fs == false`: `start_net_stack_with_smb`
-    // takes `cred: Option<...>` for exactly this reason, so a board boot with no RNG runs the
-    // net/SMB exchange without NTLMv2 credentials rather than skipping the whole test.
-    let cred = had_fs
-        .then(super::credential_tests::provisioned)
-        .flatten()
-        .map(|(w, _, _)| (w.verify, w.verify_page_frame));
-    let Some((report, smb_report, mdns_report, net)) = virtio_service::start_net_stack_with_smb(
+    let Some((report, mdns_report, net)) = virtio_service::start_net_stack_with_responder(
         net_stack_image(),
-        smb_server_image(),
         mdns_responder_image(),
         NET_TEST_TCP_ACCEPT,
         NET_LISTEN_PORT,
-        NET_LISTEN_PORT + 1,
-        2,
         MDNS_QUERIES,
-        fs,
-        cred,
         socket_proto::udp_bind_grant(NET_MDNS_PORT, NET_MDNS_GRANT_TOP),
     ) else {
         crate::println!("    (no virtio-net device attached; skipping)");
         return;
     };
     // E2 (milestone 134, design/roadmap/134-the-measurements-that-decide.md): the thread census on
-    // the customer path. Every process this boot's customer-facing topology needs is already
-    // spawned by this point (the FS service's block server and FS server, if `had_fs`; `net_stack`;
-    // the echo client; the SMB adapter; the mDNS responder; the credential service, if `cred` is
-    // `Some`), and none of them spawns another kernel thread per connection or per request (each is
-    // a single-threaded event loop over its own endpoint), so this count is already the peak: it
-    // does not grow further as the host prober's connections arrive. See notes/benchmarks.md and
-    // this milestone's register entry for what this settles. Reported as a delta against
-    // `e2_baseline_threads` (see this function's top), not as the absolute reading: the absolute
-    // count includes whatever earlier tests in this suite's one continuous boot left allocated,
-    // which is not this measure's subject.
+    // the customer path. Every process this topology needs is already spawned by this point
+    // (`net_stack`, the echo client, the mDNS responder), and none of them spawns another kernel
+    // thread per connection or per request (each is a single-threaded event loop over its own
+    // endpoint), so this count is already the peak. Reported as a delta against
+    // `e2_baseline_threads`, not as the absolute reading. See the aarch64 twin, including its note
+    // on the wider topology this census covered until 2026-08-30 (notes/smb.md).
     crate::println!(
         "    (E2 thread census: {} threads created by wiring this customer-path topology \
-         ({} live now, {e2_baseline_threads} live before this test wired anything): main + block \
-         server + FS server (had_fs={had_fs}) + net_stack + echo client + SMB adapter + mDNS \
-         responder + credential service (present={}))",
+         ({} live now, {e2_baseline_threads} live before this test wired anything): main + \
+         net_stack + echo client + mDNS responder)",
         sched::thread_count().saturating_sub(e2_baseline_threads),
         sched::thread_count(),
-        cred.is_some(),
     );
     let verdict = sched::ipc_recv(report)[0];
     assert_eq!(
@@ -672,21 +600,6 @@ fn a_host_process_connects_to_the_guest_and_is_answered() {
          connected (the host side), 0xE082/0xE084 mean the UDP bind grant admitted or refused the \
          wrong port",
     );
-    let verdict = sched::ipc_recv(smb_report)[0];
-    assert_eq!(
-        verdict, NET_CLIENT_OK,
-        "the SMB adapter did not serve a mount-shaped exchange (code {verdict:#x}); 0xE11x is the \
-         listen grant, 0xE120 means no SMB connection arrived (the runner's \
-         NIFE_SMB_HOSTFWD_PORT hostfwd, or the prober), 0xE121 a connection with no SMB on it, \
-         0xE130 an arg2 share mode nobody defined. 0xE14x is milestone 152's durable-session \
-         self-proof (authenticated wiring only): 0xE140 could not open a session, 0xE141 could \
-         not mint the synthetic pending-job child, 0xE142 means DESTROY succeeded on a session \
-         that still had a live child, 0xE143 could not destroy the synthetic child, 0xE144 means \
-         DESTROY still refused a childless session, 0xE146 could not open the kept session (a \
-         distinct code from 0xE140's, once the scratch session has already proven the lifecycle \
-         rule holds), 0xE145 means the kept session could not be closed after serving real \
-         connections",
-    );
     let verdict = sched::ipc_recv(mdns_report)[0];
     assert_eq!(
         verdict, NET_CLIENT_OK,
@@ -695,10 +608,6 @@ fn a_host_process_connects_to_the_guest_and_is_answered() {
          held, 0xE240 nothing ever asked (RX acceptance, or NIFE_MCAST_PORT and the prober). See \
          the aarch64 twin",
     );
-    // Before the release: the verifier spawns a fresh FS client, and reclaiming the net
-    // service's regions is the last thing this test should do.
-    assert_smb_write_landed(had_fs);
-    assert_smb_held_no_key(had_fs);
     net.release_or_fail("a net test's net_stack");
 }
 

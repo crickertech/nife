@@ -109,7 +109,7 @@ fn file_channel() -> u64 {
 /// needs one page, and `filesystem_proto::fs::TRANSFER_PAGES` says so. The FS server is the one party that
 /// must map all of it.
 ///
-/// Visible to the rest of `user` because the SMB adapter is wired somewhere else entirely
+/// Visible to the rest of `user` because its callers are wired somewhere else entirely
 /// (`virtio_service`, since it is a client of the net stack rather than of this module) and shares
 /// the same channel with the same FS server. Two spellings of "map every page of it" is exactly the
 /// drift the foot gun at `filesystem_proto::fs::TRANSFER_PAGES` punishes, so there is one.
@@ -869,7 +869,7 @@ pub struct DirGrant {
 /// old name returns `None` everywhere, which reads exactly like "no fixture on this build" and
 /// skips 30 tests silently rather than failing loudly -- caught only because one of those thirty is
 /// `kernel::user::tests::a_host_process_connects_to_the_guest_and_is_answered`, whose absence took
-/// the SMB adapter, the mDNS responder and the inbound TCP listener down with it, which is what a
+/// the mDNS responder and the inbound TCP listener down with it, which is what a
 /// bisection of the resulting host-side network-check failures actually found.
 pub fn fs_server_image() -> Option<&'static [u8]> {
     program("redoxfs_server")

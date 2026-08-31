@@ -17,8 +17,8 @@ use super::*;
 /// that had not reached its serve loop, and the whole boot would deadlock with a sender and a
 /// caller both waiting on nobody. The entropy service does not show this because its wiring
 /// receives immediately.
-/// **`pub(super)` since milestone 54's identity item**, because the SMB gate needs the same sealed
-/// store: its adapter authenticates a real NTLMv2 session against this service, so the SMB test
+/// **`pub(super)` since milestone 54's identity item**, when the SMB gate needed the same sealed
+/// store: its adapter authenticated a real NTLMv2 session against this service, so that test
 /// calls this to get the verify endpoint. Calling it from either place is safe in either order,
 /// which is what the once-per-boot latch below is for; what would not be safe is a *second*
 /// wiring, and there is no way to ask for one.
@@ -26,7 +26,7 @@ use super::*;
 /// Returns `None` if the mmio virtio-rng device this depends on is not attached (milestone 145:
 /// correct on a bare board boot with no `NIFE_RNG`-equivalent). The `None` result is itself
 /// memoized alongside the success case, so a board boot's first caller pays for the failed probe
-/// once and every later caller (including the SMB gate) gets the same answer immediately rather
+/// once and every later caller gets the same answer immediately rather
 /// than retrying a device that is not coming.
 pub(super) fn provisioned() -> Option<(cs::Wiring, [u64; 3], [u64; 3])> {
     use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -291,7 +291,11 @@ fn the_same_endowment_cannot_write_the_store() {
 ///
 /// **This is the property Samba cannot offer.** There, `smbd` opens the password database, so
 /// compromising it leaks every hash: crackable offline, reusable wherever the password was reused.
-/// Here the SMB server's whole endowment is an endpoint, and revoking it ends the access.
+/// Here a server's whole endowment is an endpoint, and revoking it ends the access.
+///
+/// The name still says "an SMB server" because that is the server this property was demonstrated
+/// against; the implementation was removed on 2026-08-30 (notes/smb.md) and the property, and this
+/// test, are about the credential service rather than about it.
 #[test_case]
 fn an_smb_server_authenticates_a_session_without_ever_holding_the_key() {
     let Some((w, _, _)) = provisioned() else {
