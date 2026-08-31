@@ -22,7 +22,7 @@ added the field, then measured rather than assumed: it built the kernel for `x86
 dumped the program headers, and ran the real bytes through `Elf::parse`.
 
 `REFUSED: WritableAndExecutable`. Patching that one segment's `p_flags` from `RWX` to `RX` in a copy
-made **`Elf::parse` accept the whole file** — all ten `PT_LOAD`s, the three `NOLOAD` reservations,
+made **`Elf::parse` accept the whole file**: all ten `PT_LOAD`s, the three `NOLOAD` reservations,
 and the trampoline's split addresses. Nothing else in the validating parser objects.
 
 So the duplicate reader exists because of a W^X violation, not because of a missing field, and
