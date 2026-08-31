@@ -36,12 +36,11 @@ const _NO_CLIENT_BUDGET: () = ();
 pub const ROLE_HONEST: u64 = 0;
 pub const ROLE_ATTACKER: u64 = 1;
 pub const ROLE_PROVISIONER: u64 = 2;
-pub const ROLE_NTLM: u64 = 3;
 
 /// The flag bits a client packs into its report's third word; must match the same file.
 pub const F_CLEAN: u64 = 1 << 0;
-pub const F_SESSION_KEY: u64 = 1 << 1;
-pub const F_NO_KEY_ON_REFUSAL: u64 = 1 << 2;
+// Bits 1 and 2 were the NTLM role's, removed 2026-08-30 with the SMB implementation
+// (notes/smb.md). Not reused: the next flag takes bit 3, so an old transcript cannot be misread.
 
 /// The report words `credentialer_test_client` and the service send, likewise.
 pub const RPT_DONE: u64 = 0x_c2ed_c11e_0000_0001;
@@ -228,22 +227,11 @@ fn page_frame() -> u64 {
     phys
 }
 
-/// Read a shared frame directly, which is a thing only the kernel can do and is how a test checks
-/// a claim about what is *not* in a page.
-///
-/// **Takes the physical frame directly** (`w.verify_page_frame` on the `Wiring` a caller already holds),
-/// not a virtual address to look up: milestone 155 wired a second, independent credential service
-/// instance in the same boot, so a lookup keyed only on a virtual address (which reused the global
-/// `FRAMES` every instance's `start()` overwrites) could not tell one instance's frame from
-/// another's. The caller's own `Wiring` always can.
-pub fn peek(phys: u64, out: &mut [u8]) {
-    // SAFETY: a frame this module allocated and still owns, read through the direct map.
-    let page = unsafe {
-        core::slice::from_raw_parts(mmu::phys_to_virt(phys) as *const u8, FRAME_SIZE as usize)
-    };
-    let n = out.len().min(page.len());
-    out[..n].copy_from_slice(&page[..n]);
-}
+// `peek`, which read a shared frame through the direct map, lived here until 2026-08-30. Its only
+// caller was the check that no NTLM key material survived in the frame the adapter and this service
+// shared, and it went with the SMB implementation (notes/smb.md). It is worth knowing that the
+// technique exists: a kernel test can read a userspace shared frame directly, which is the only way
+// to assert what a program did *not* leave behind, and `git show 685900ec` has the ten lines.
 
 /// Unpack the `k`th reply code from a `credentialer_test_client` report's second word. One byte per code; see
 /// `user/src/credentialer_test_client.rs` `Codes`.
