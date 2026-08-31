@@ -13,7 +13,8 @@ the crates.
 
 **The experiment ran on 2026-08-31 and its result is not the one this block predicts** (lane
 `milestone/121-ripgrep`; notes/ripgrep-on-nife.md). Unmodified `ripgrep` 14.1.1 builds for
-`aarch64-unknown-nife` with **zero source changes**, loads, runs, resolves its own working directory
+**`aarch64-unknown-nife` and `riscv64-unknown-nife`** with **zero source changes**, loads, runs on
+both, prints the same 62 bytes on both, resolves its own working directory
 through a granted directory capability, and exits cleanly. It never reaches DECISIONS §105: it asks
 `std::thread::available_parallelism()`, nife answers `1` honestly, and it selects its own
 single-threaded walker and searcher, so the caveat below about pinning the Linux side to one thread
@@ -21,7 +22,12 @@ still holds but the thread *decline* costs nothing. What stops it is that the AB
 vector**, so it parses nothing and prints its own "requires at least one pattern". A second gap was
 found on the way: a program image has under 896 KiB before it collides with its own stack
 (`user/link.ld`'s `0x40_0000` against `USER_STACK_VA`'s `0x50_0000`), and `ripgrep`'s `.text` alone
-is 1.37 MiB.
+is 1.37 MiB (1.23 MiB on riscv64, over the same ceiling).
+
+**Parity, per DECISIONS §19: two of three.** aarch64 and riscv64 both built and both run. x86_64 is
+not a gap this milestone can close: milestone 27 shipped `std` for aarch64 and riscv64 only, so there
+is no `x86_64-unknown-nife` spec, no farm, and therefore no `ripgrep`. **`MILESTONE 184`** is what
+closes it, and when it lands this experiment is one more triple in the build script's loop.
 
 **What remains is everything the block calls the point**: the confined demonstration, the negative
 half against a capability lacking `ENUMERATE`, and the benchmark that prices the walk. All three need

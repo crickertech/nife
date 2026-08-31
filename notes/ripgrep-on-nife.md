@@ -1,7 +1,7 @@
 # `ripgrep` on nife: what a stranger's program actually hits
 
 *(Milestone 121, and `design/fatal-risks.md` risk 1's decisive experiment. Run 2026-08-31 on
-aarch64, QEMU virt, against `ripgrep` 14.1.1 from crates.io.)*
+**aarch64 and riscv64**, QEMU virt, against `ripgrep` 14.1.1 from crates.io.)*
 
 Risk 1 says the platform *"can run hand-written Rust and nothing else, so every piece of software
 anyone wants has to be rewritten."* It is the most dangerous of the nine because no amount of kernel
@@ -25,14 +25,39 @@ ok
 ```
 
 That line is `ripgrep`'s, word for word, from `crates/core/main.rs`. Somebody else's application
-reached its own error path on this kernel.
+reached its own error path on this kernel. **Byte for byte identical on both ISAs**, from two
+separately built binaries.
+
+## Parity (DECISIONS §19)
+
+| Target | `ripgrep` | Why |
+|---|---|---|
+| `aarch64-unknown-nife` | **built and run**, 4.7 MB ELF, 62-byte transcript | |
+| `riscv64-unknown-nife` | **built and run**, 10.7 MB ELF, same 62-byte transcript | |
+| x86_64 | **not built, and not buildable** | there is no `std` on x86_64. Milestone 27 shipped the PAL for aarch64 and riscv64 only; there is no `x86_64-unknown-nife` target spec and no farm. **Milestone 184** is the block that closes this, and until it lands there is no `ripgrep` on x86_64 to have. |
+
+The RISC-V leg was worth running rather than assuming, and it produced one difference worth
+recording and one non-difference worth recording:
+
+- **The ELF is 10.7 MB against aarch64's 4.7**, from near-identical loadable images (`.text` 1.23 MiB
+  against 1.37, `.rodata` 1.37 MiB against 1.29). The difference is file padding and section
+  alignment rather than code; nothing about it changes what is mapped.
+- **`PT_RISCV_ATTRIBUTES` at virtual address 0** appears in the program headers and is **not** a
+  `PT_LOAD`, so the loader ignores it. `std_exerciser` carries the same header, which is why nothing
+  had to change: this was checked rather than assumed, because a fourth segment at VA 0 is exactly
+  the shape that would have been refused.
+- **The 896 KiB image ceiling is the same number on both**, by construction rather than by
+  measurement: `USER_STACK_VA` is one architecture-independent constant and `user/link.ld` is one
+  file. `ripgrep`'s riscv64 `.text` is 1.23 MiB, over the ceiling, so the relink below is load-bearing
+  on both legs. Only the aarch64 refusal was actually observed as `Unmappable(AlreadyMapped)`.
 
 ## The four questions, answered
 
 ### 1. Does it build?
 
-**Yes, with no patch, no vendored copy and no fork.** `scripts/build-ripgrep.sh` downloads the
-published crate and builds it. Everything that differs from a Linux build is on the command line:
+**Yes, on both ISAs, with no patch, no vendored copy and no fork.** `scripts/build-ripgrep.sh`
+downloads the published crate and builds it for both targets in one pass. Everything that differs
+from a Linux build is on the command line:
 
 | What | Why |
 |---|---|
@@ -41,7 +66,7 @@ published crate and builds it. Everything that differs from a Linux build is on 
 | `-Clink-arg=-T…link.ld -Clink-arg=-u_start -Clink-arg=--build-id=none` | what `std_exerciser/build.rs` supplies in-tree |
 | `-Copt-level=s -Cstrip=debuginfo` | ripgrep's own release profile sets `debug = 1`, and a 25 MB ELF rides into RAM in the initrd |
 
-Build time from cold: about 24 seconds. Every crate in the tree compiled, including the four that
+Build time from cold: about 24 seconds per target. Every crate in the tree compiled, including the four that
 milestone 64 flagged as interesting (`ignore`, `crossbeam-deque`, `memmap2`, `walkdir`). Two crates
 resolve to non-Unix implementations without being asked to: `memmap2` compiles its `stub.rs`, and
 `std::sys::args` compiles `unsupported.rs`. Neither is an error; both are the reason the link
@@ -49,11 +74,13 @@ succeeds.
 
 ### 2. Does it run, and on what subset?
 
-**It runs.** `kernel/src/user/ripgrep_tests.rs` spawns it exactly as milestone 27's `std` demo is
+**It runs, on both ISAs.** `kernel/src/user/ripgrep_tests.rs` is one test body serving both, because
+nothing it asserts is architecture-specific; it spawns `rg` exactly as milestone 27's `std` demo is
 spawned, with a heap untyped at slot 0, an output endpoint at slot 1, and the FS service's directory
 capability at slot 4. What that proves, layer by layer, and none of it written for `ripgrep`:
 
-- the ELF loader maps a **4.7 MB, three-segment** program;
+- the ELF loader maps a **multi-megabyte, three-segment** program (4.7 MB on aarch64, 10.7 MB on
+  riscv64);
 - `std`'s allocator grows a heap one page at a time out of an untyped budget, under `regex`'s and
   `ignore`'s allocation patterns rather than a demo's;
 - `std::env::current_dir()` answers `/`, the root of this process's own namespace, **because it holds
@@ -170,8 +197,8 @@ learned, and the cost is still unmeasured because no search ran.
 ## How to reproduce
 
 ```
-scripts/build-ripgrep.sh      # fetches ripgrep 14.1.1 from crates.io, builds for aarch64-unknown-nife
-script/test                   # kernel::user::ripgrep_tests now runs instead of skipping
+scripts/build-ripgrep.sh      # fetches ripgrep 14.1.1 from crates.io, builds for both nife targets
+script/test                   # kernel::user::ripgrep_tests now runs instead of skipping, on both legs
 ```
 
 **Nothing in the ordinary build does this, on purpose.** Making `script/test` fetch `ripgrep` and its
@@ -196,8 +223,11 @@ pass for everyone else.
 - **The relink to `0x100_0000` is invisible to anyone who does not read the build script.** It is
   recorded here and in the script, and nowhere a stranger would meet it, which is rung four of
   AGENTS.md's ladder. Gap B is the fix.
-- **One version, one architecture, one run.** `ripgrep` 14.1.1 on aarch64. The RISC-V leg was not
-  built, and no other version was tried.
+- **One version.** `ripgrep` 14.1.1. No other version was tried, and no other program: one
+  application building and running is evidence about this platform, not a survey of crates.io.
+- **x86_64 is a gap with a plan, not a result.** Nothing here was tried on it and nothing could be.
+  Milestone 184 is what closes it, and when it does, this experiment is one more triple in the build
+  script's loop.
 - **`ripgrep` never allocated much**, because it stopped before searching. The 256-page heap was
   sized from `std_exerciser` and is untested against a real workload; a search may want far more, and
   what a std program does when its untyped budget is exhausted is not exercised here.
