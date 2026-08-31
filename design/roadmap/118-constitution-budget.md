@@ -413,7 +413,7 @@ fires when the tree exceeds it and stays silent when the tree falls below. `scri
 `agents-md-lines` registry entry (the file's own `wc -l`-equivalent line count) and the claim lives
 here, since a developer lane may not edit `AGENTS.md` to carry its own marker:
 
-**`AGENTS.md` carries at most 1012 lines** <!--count-at-most:agents-md-lines-->, written at the
+**`AGENTS.md` carries at most 1019 lines** <!--count-at-most:agents-md-lines-->, written at the
 tree's exact value with **zero headroom**, deliberately: the point, per this section's own words
 above, is that every line added should replace one removed, or be a considered act that says why the
 growth was worth it. That is the same choice `unsafe-thread-safety-claims` made for a different
@@ -438,6 +438,15 @@ every number in them had drifted since 2026-08-05.
 which is the order the rule intends: the superseded figures went to git, two bullets saying one
 thing became one, and a paragraph lost a clause. A ceiling raised without that pass is a ceiling that
 is not doing anything.
+
+**Raised again to 1019 on 2026-08-30, seven lines, and the rule's own test is why they were worth
+it.** calef: *"I don't think we expose nife to third parties (aka other customers) until we have a
+package manager and a trivial install process."* That is a **precondition on principle 1's ranking
+function**, not an item ranked by it, and a roadmap that ranks by the shortest path to a customer
+while being unable to accept one is ranking against a door it has not built. The seven lines say
+that, say it is ours rather than the customer's constraint, and record that he wants package
+management early for the builders' sake and not only for a stranger's. Nothing was cut this time:
+the bullet it extends is the shortest in the section and had nothing spare in it.
 
 **Raised from 942 to 947, 2026-08-23**: milestone 160's naming-tenet extension (three lines
 recording that calef's crate/program/module naming authority now also covers public function
