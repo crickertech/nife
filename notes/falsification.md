@@ -49,7 +49,7 @@ tree.
 ```rust
 /// **Userspace cannot forge a right.** `from_bits` takes an attacker-controlled syscall
 /// register (any u32) and the result holds only defined rights, for every possible input.
-/// Falsification: replayable crates/capability/falsifications/from_bits_cannot_forge_a_right.patch
+/// Falsification: replayable 
 #[kani::proof]
 fn from_bits_cannot_forge_a_right() {
     let raw: u32 = kani::any();
@@ -63,13 +63,17 @@ job is saying what is known.
 
 | state | means | what the sweep does |
 |---|---|---|
-| `replayable <path>` | a patch exists that turns this harness red | applies it, runs that one harness, **requires red**, reverts |
+| `replayable <path>` | a patch exists that turns this harness red (backtick the path in a `///` comment; `clippy::doc_markdown` rejects a bare one) | applies it, runs that one harness, **requires red**, reverts |
 | `attested <date>` | a person broke the code and watched it fail; nothing can re-check it | counts it, and it is a worklist entry |
 | `unfalsified` | nobody has | counts it, and this is the claim's honest denominator |
 
 A patch lives at `crates/<crate>/falsifications/<module.path>.<harness_fn_name>.patch`
-(`crates/capability/falsifications/verification.subset_is_reflexive.patch`) and **opens with prose
-above its first `diff --git` line**, which `git apply` ignores and a reader does not. The prose says
+(`crates/capability/falsifications/verification.subset_is_reflexive.patch`). **Backtick the path in
+the record.** These harnesses live in `#[cfg(kani)]` modules, which `script/lint`'s kani-shim pass
+compiles with `-D warnings`, and `clippy::doc_markdown` rejects a bare dotted path in a `///`
+comment as an unmarked item; that pass is what found it. The reporter strips backticks rather than
+requiring them, so a `//` comment, which has no such rule, can carry the same form. Each patch
+**opens with prose above its first `diff --git` line**, which `git apply` ignores and a reader does not. The prose says
 which property the patch expects to break, because a falsification that makes a harness fail for the
 wrong reason proves nothing. `script/falsifications --check` requires that header to be non-empty;
 it cannot check that it is true, which is the same limit `script/names` records for its own

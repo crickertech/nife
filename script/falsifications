@@ -44,7 +44,7 @@
 #
 # The block, which is all the lint checks:
 #
-#   /// Falsification: replayable crates/capability/falsifications/subset_is_transitive.patch
+#   /// Falsification: replayable `crates/capability/falsifications/verification.subset_is_transitive.patch`
 #   /// Falsification: attested 2026-08-30. Flipped the mask; the subset assertion failed.
 #   /// Falsification: unfalsified. Nobody has proposed a defect this would catch.
 #
@@ -243,7 +243,12 @@ class Harness:
         if self.state != "replayable":
             return None
         parts = self.record.split()
-        return parts[1] if len(parts) > 1 else None
+        # Backticks are stripped rather than required or forbidden. The path must be backticked in
+        # a `///` doc comment or `clippy::doc_markdown` rejects it as an unmarked item path, and
+        # `script/lint`'s kani-shim pass compiles exactly these `#[cfg(kani)]` modules, so it is the
+        # gate that finds it. A `//` comment has no such rule. Accepting both keeps one form in the
+        # record rather than one form per comment style.
+        return parts[1].strip("`") if len(parts) > 1 else None
 
     @property
     def qualified(self):
