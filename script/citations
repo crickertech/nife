@@ -209,8 +209,18 @@ CITE = re.compile(r"(§|(?<![a-zA-Z])[Mm]ilestone )(\d+)[a-z]?,? \(([^)\n]{0,160
 # `git grep -I` skips binary files, which is the defect script/decisions records: for a binary,
 # git grep prints the SENTENCE "Binary file <path> matches" into the same stream as the matches, and
 # a parser that trusts its input reads "Binary" as a citation.
+#
+# **`--untracked`, because without it this check cannot see a file that has just been written**, and
+# a new decision or milestone block is exactly the case it most needs to see. `git grep` searches
+# TRACKED files by default, so a lane writing a new section got a green local run and a red CI, one
+# full queue cycle later, with the failure attributed to the merge rather than to the file. Found
+# 2026-08-30, when DECISIONS §136 shipped a gloss of §34 that said "RedoxFS as the primary store"
+# against a title reading "RedoxFS is the primary filesystem, on three conditions": local lint passed
+# because the file was not staged yet, and CI failed on it minutes later. That is this tree's
+# recurring shape, a check invisible at the moment it is needed, and one word fixes it.
+# `--untracked` still honours .gitignore, so target/ and build output stay out.
 candidates = subprocess.run(
-    ["git", "-C", root, "grep", "-I", "-l", "-E", r"(§[0-9]+|[Mm]ilestone [0-9]+),? \(",
+    ["git", "-C", root, "grep", "-I", "--untracked", "-l", "-E", r"(§[0-9]+|[Mm]ilestone [0-9]+),? \(",
      "--", ":!vendor/", ":!patches/", ":!*.lock", ":!script/citations"],
     capture_output=True, text=True,
 ).stdout.split()

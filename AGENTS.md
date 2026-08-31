@@ -37,15 +37,22 @@ care, so the work has to carry the standard on its own.
 
 ### 1. The ranking function is the shortest path to a system a customer runs
 
-Milestone 55's block already says it, in its own first line: **"The actual goal, and probably the
-largest single piece of work in the project."** A Time Machine target the family's Macs back up to,
-served by this kernel, on hardware in this house. The roadmap has said that for weeks and has never
-used it to order anything.
+**A customer running it is the only test that cannot be gamed.** A benchmark can be chosen, a gate
+can be written to pass, a note can describe a system that no longer exists. A backup somebody
+depends on either works on a Tuesday or it does not, and the failure arrives as their own data
+missing rather than as a red check.
 
-It should. **A customer running it is the only test that cannot be gamed.** A benchmark can be
-chosen, a gate can be written to pass, a note can describe a system that no longer exists. A backup
-somebody depends on either works on a Tuesday or it does not, and the failure arrives as their own
-data missing rather than as a red check.
+**This principle has now been confirmed in the only way that counts, which is by failing.** It was
+written on 2026-08-05 pointing at milestone 55, a Time Machine target the family's Macs back up to,
+whose own block called it *"The actual goal, and probably the largest single piece of work in the
+project."* On **2026-08-30** calef reported that the family's backups run on **borg over SSH on
+cordoba**, with **Immich** for images, built with the existing Linux ecosystem while nife was not
+ready; Time Machine and SMB are both out of that path. Journey 2 was retired the same day and
+milestone 55's premise went with it.
+
+That is not the principle failing. A customer with a real deadline went elsewhere because this
+system could not meet it, which is **the principle working**, and is the outcome it exists to make
+visible early rather than late.
 
 **calef is the first customer, not the audience** (his correction on this section, 2026-08-05:
 *"It isn't about me running it. It is about customers. I'm just the first customer."*). That
@@ -58,12 +65,21 @@ worth writing now.
 
 What that means concretely, and it is a reordering rather than a slogan:
 
-- When two milestones are both ready, **the one on the customer path goes first.** As of 2026-08-05
-  that path is 54 (a network file service a Mac can mount) and 55, whose remaining gates are a
-  scoping decision and real concurrency, `MILESTONE 65` and `MILESTONE 107` having cleared.
-- A milestone that is not on the path is not thereby worthless. Verification, parity and the
-  analysis tooling are what make the demonstrator a demonstrator. But when they compete for a lane,
-  the tie breaks toward the thing that gets a real workload running.
+- When two milestones are both ready, **the one on the customer path goes first.** **As of
+  2026-08-30 that path is vacant**, and saying so plainly is the point: a roadmap that still named
+  one would be ranking by a workload nobody runs. It was 54 (a network file service a Mac can mount)
+  and 55 (Time Machine) until that date; both are repriced in their own blocks.
+- **The first customer was too big, and that is the lesson worth carrying.** A family backup server
+  is among the largest things a home system can be asked to be: a filesystem it did not format, a
+  network protocol, crash consistency, and somebody's only copy. This principle said to rank by the
+  shortest path to a customer, and the path chosen was one of the longest available. **A first
+  customer should be something nife can plausibly be adequate at within a milestone or two.**
+- **While the path is vacant the tie breaks toward design/fatal-risks.md**, nine claims that, if
+  false, mean the project should stop. It is a stand-in for a customer, not a replacement: a real
+  workload with a real user outranks everything on it the moment one exists.
+- A milestone off the path is not thereby worthless. Verification, parity and the analysis tooling
+  are what make the demonstrator a demonstrator. But when they compete for a lane, the tie breaks
+  toward the thing that gets a real workload running.
 - **Security and performance are not separate goals; they are what "runs it" means.** No customer
   runs a backup server they do not trust with the only copy, and none runs one that takes a week.
   That is why the audit cadence, the confinement claims and the benchmark tripwire are on this path
@@ -72,15 +88,21 @@ What that means concretely, and it is a reordering rather than a slogan:
   name before they meet anything else, and in a capability system the name is often the only thing
   that says what a program may *do*.
 
-**The honest caveat: the system is not ready for a customer, this one included, and will not be for
-a while.** Saying the principle out loud now is what stops the roadmap drifting into a collection of
-interesting kernels.
+**The honest caveat: the system is not ready for a customer, this one included, and 2026-08-30
+settled how far off that is rather than leaving it as a feeling.** Saying the principle out loud is
+what stops the roadmap drifting into a collection of interesting kernels, and the drift is a live
+risk now rather than a hypothetical one, because with no customer named there is nothing but this
+principle and the fatal-risk list holding the ordering together.
 
 ### 2. The method is a result, and it is currently undocumented
 
-Measured on 2026-08-05, from a first commit on 2026-07-12: **24 days, 63 milestones built of 117,
-43 crates, 54 user programs, ~124,000 lines of Rust, 112 Kani proof harnesses, 1,303 commits**, on
-two architectures, with a booting kernel, a shell, a filesystem, a network stack and a compositor.
+Measured on **2026-08-30**, from a first commit on 2026-07-12: **49 days, 103 milestones built of
+193, 65 crates, 69 user programs, ~194,000 lines of Rust, 145 Kani proof harnesses, 3,099
+commits**, on **three** architectures, with a booting kernel on real RISC-V silicon, a shell, a
+filesystem, a network stack and a compositor.
+
+**That line count includes comments**, and `kernel/src` measures 40% of them, so a size comparison
+against another project belongs in code lines. (The superseded 2026-08-05 figures are in git.)
 
 That is not a normal rate for one architect, and the reason is that the work is done by many agents
 in parallel lanes with one person reviewing architecture and outcomes. **The demonstrator is
