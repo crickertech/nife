@@ -42,13 +42,17 @@ if [ -z "$ESP" ] || [ ! -d "$ESP" ]; then
 fi
 shift
 
-# OVMF, wherever this machine keeps it. It ships WITH QEMU rather than beside it, which is the fact
-# that decided milestone 87's fork: nothing had to be installed for this to work. NIFE_OVMF_CODE
-# names it explicitly on a machine that puts it somewhere else.
+# OVMF, wherever this machine keeps it. On macOS it ships WITH QEMU rather than beside it, which is
+# the fact that decided milestone 87's fork: nothing had to be installed for this to work.
+# **That is a Homebrew fact and not a universal one**, learned when this gate first ran in CI:
+# Debian packages the firmware separately, so `script/bootstrap` installs `ovmf` on Linux, and
+# Ubuntu 24.04 names the file `OVMF_CODE_4M.fd` rather than `OVMF_CODE.fd`, which is why both
+# spellings are searched. NIFE_OVMF_CODE names it explicitly on a machine that puts it elsewhere.
 if [ -z "$NIFE_OVMF_CODE" ]; then
     for candidate in \
         /opt/homebrew/share/qemu/edk2-x86_64-code.fd \
         /usr/local/share/qemu/edk2-x86_64-code.fd \
+        /usr/share/OVMF/OVMF_CODE_4M.fd \
         /usr/share/OVMF/OVMF_CODE.fd \
         /usr/share/edk2/x64/OVMF_CODE.fd
     do
