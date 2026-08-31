@@ -1,9 +1,19 @@
 # 194. Build §134: the falsification record, its lint, and the sweep that replays it
 
-**Status: NOT-STARTED.** Minted 2026-08-30. DECISIONS §134 (a harness carries a machine-replayable
-falsification record, or it is not evidence) was decided the same day and had no tracked work, which
-is the state AGENTS.md says a finding may never be left in. *(Number provisional until the merge
-queue lands it.)*
+**Status: BUILT.** Minted 2026-08-30, built 2026-08-31. DECISIONS §134 (a harness carries a
+machine-replayable falsification record, or it is not evidence) was decided the same day and had no
+tracked work, which is the state AGENTS.md says a finding may never be left in. All five increments
+landed: the record and its two-directional lint, `script/falsifications`, the weekly sweep, the
+per-pull-request half in `verify.yml`, and the retroactive pass putting all 141 harnesses at
+`unfalsified` with six real falsifications on top. *(Number provisional until the merge queue lands
+it.)*
+
+**The Inductive Validity Core check came back no**, which this block asked for first: an IVC comes
+out of an induction step, and Kani is a bounded model checker that has none. `notes/falsification.md`
+records what was looked at. So the milestone did not shrink, and options C and D collapse to C.
+
+**One finding changed §134**: the ratified patch path could not name eighteen of `paging`'s
+twenty-six harnesses, and calef amended it to carry the module path the same day.
 
 **Gate: NONE.** §134 settled the mechanism and, on 2026-08-30, the spellings. Nothing is open.
 
