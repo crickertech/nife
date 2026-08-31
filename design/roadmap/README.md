@@ -39,6 +39,7 @@ milestones. `script/roadmap` validates this column and fails on anything outside
 | `BUILT` | Complete, and proven by the gate on every supported ISA. |
 | `PARTIAL` | Some phases shipped and more remains, with nobody currently on it. The block says which phases. |
 | `IN-PROGRESS` | Active work on a branch right now. **The block must name the branch, in backticks**, and `script/roadmap --check` fails if that branch has already merged. |
+| `REMOVED` | Was built, in whole or in part, and the code was deliberately deleted. The block must record when it went and why. The row keeps its `Built` date if it ever had one. |
 | `NOT-STARTED` | Specified, nothing built. |
 | `OPTIONAL` | Deliberately off the thesis path; not a backlog item. |
 | `RECORDED` | Analysis captured and the decision deliberately *not* taken. |
@@ -46,6 +47,26 @@ milestones. `script/roadmap` validates this column and fails on anything outside
 A detail block may narrate its state in prose (that is where the evidence and the dates belong), but the
 column is what answers "where do we stand". If the two disagree, the column is wrong and the block is
 right, because the block is where the work was written down; fix the column.
+
+**`REMOVED` was minted 2026-08-30** (calef), when milestone 54's code was deleted and the six words
+then available could only lie about it. `NOT-STARTED` denies it was ever built, which erases the one
+demonstration this project has that a real Mac mounted a share served by this kernel. `OPTIONAL`
+reads as available to pick up. `RECORDED` means the work was deliberately *not* taken, and here it
+was taken and then reversed. Leaving it `BUILT` makes the column claim a network file service that
+does not exist, and this table's own rule says that when column and block disagree the column is
+wrong.
+
+**It carries the same extra obligation `IN-PROGRESS` does, and for the same reason**: the block must
+say **when** the code went and **why**. A status that records a deletion is the one nobody will
+remember to explain, and a year later the difference between "removed because the customer left" and
+"removed because it never worked" is the entire content of the row.
+
+**One word, not two.** Built-then-deleted and specified-then-abandoned are genuinely different, and
+splitting them was refused: the case has occurred once, and this vocabulary's own history is that a
+word earns its keep by being used correctly. Milestones 54 and 55 both take `REMOVED` and their
+blocks say which kind they were. **The cost of that choice showed up immediately** and is why the
+date is optional: 54 was `BUILT` and has one, 55 was `PARTIAL` and has none, and the gate rejected
+the first draft of this rule within a minute of it being written.
 
 **`IN-PROGRESS` earned its extra rule by being wrong every single time it was used** (2026-08-17). A
 sweep checked all six rows carrying it and found six false: milestones 58, 80, 112 and 115 had
@@ -62,7 +83,7 @@ lane's first act a draft pull request, so `gh pr list --draft` already answers "
 now" and cannot go stale, because merging removes the row. A status token duplicating that fact is the
 lower rung by construction. Until that is decided, the check above is the tripwire.
 
-**The `Built` column is the date a milestone turned `BUILT`**, and it is empty for every other status. **Dates in this tree are UTC** (calef, 2026-08-04), because they arrive from three
+**The `Built` column is the date a milestone turned `BUILT`**, and it is empty for every other status but `REMOVED`, which keeps it: the milestone did turn `BUILT` on that date and nothing later makes that untrue. **Dates in this tree are UTC** (calef, 2026-08-04), because they arrive from three
 sources that disagree: a git author date is local to whoever committed, a lane deriving a date reads
 whatever `git log` gives it, and a maintainer typing "today" means their own midnight. An evening
 commit in California is already tomorrow in UTC, which is how milestone 22's row came to read a day
@@ -123,7 +144,7 @@ gated headline: milestone 88's stage 1 boots UEFI locally with no cloud account,
 overflow-bit fix needs no decision. Where that is true the prose says so, and no gate can check that
 the prose is right.
 
-**The `Built` column is the date a milestone turned `BUILT`**, and it is empty for every other status.
+**The `Built` column is the date a milestone turned `BUILT`**, and it is empty for every other status but `REMOVED`, which keeps it: the milestone did turn `BUILT` on that date and nothing later makes that untrue.
 It sits last on purpose: `script/roadmap`'s row parser anchors on the first four fields, so a column
 appended at the end cannot break it, where one inserted in the middle would.
 
@@ -237,8 +258,8 @@ besides, being built for dated release grouping; these are capability-shaped and
 | 51 | BUILT | [Wall-clock time, the `date` command, and an NTP service](51-wall-clock-time.md) | the machine knows what time it is: two RTC drivers, the clock service (§43), `crates/calendar`, `crates/ntp_proto`, `date`, and an NTP client holding **propose and not set**. `date` prints the time at the interactive prompt on both ISAs, the clock delegated read-only by both boot paths. Continuous polling waits on the timed-wait kernel fork, which the block records as tracked separately | 2026-08-03 |
 | 52 | RECORDED | [Subshells without `fork`, and what copying an endowment means](52-subshells.md) | `( ... )` is fork, we deliberately have no fork, and **capability duplication is not a total function** | |
 | 53 | PARTIAL | [The board's own peripherals: network and storage on real silicon](53-board-peripherals.md) | 16a boots the board; this is what makes it able to *do* anything, and it is where virtio stops carrying us | |
-| 54 | BUILT | [A network file service a Mac can actually mount](54-network-file-service.md) | **Built 2026-08-17 and removed from the tree 2026-08-30**, on calef's decision, after the customer it served moved to borg over SSH. It was the project's only realized instance of principle 1: a real Mac's own `mount_smbfs` mounted a share this kernel served, read and wrote it, walked its subdirectories, and proved who it was against milestone 65's store while the adapter held no key. What it demonstrated, what it never reached, and why it went are recorded in full in notes/smb.md. The status word is the vocabulary's closest fit and is not right; see that note | 2026-08-17 |
-| 55 | PARTIAL | [Time Machine: SMB3 with Apple's extensions, and mDNS](55-time-machine.md) | **Premise retired 2026-08-30**: the customer moved to borg over SSH, journey 2 is retired, and the SMB half was removed with milestone 54. The mDNS discovery half is built and stays. What the backup path reached, and the several things it never did, are in notes/smb.md | |
+| 54 | REMOVED | [A network file service a Mac can actually mount](54-network-file-service.md) | **Built 2026-08-17 and removed from the tree 2026-08-30**, on calef's decision, after the customer it served moved to borg over SSH. It was the project's only realized instance of principle 1: a real Mac's own `mount_smbfs` mounted a share this kernel served, read and wrote it, walked its subdirectories, and proved who it was against milestone 65's store while the adapter held no key. What it demonstrated, what it never reached, and why it went are recorded in full in notes/smb.md. The status word is the vocabulary's closest fit and is not right; see that note | 2026-08-17 |
+| 55 | REMOVED | [Time Machine: SMB3 with Apple's extensions, and mDNS](55-time-machine.md) | **Premise retired 2026-08-30**: the customer moved to borg over SSH, journey 2 is retired, and the SMB half was removed with milestone 54. The mDNS discovery half is built and stays. What the backup path reached, and the several things it never did, are in notes/smb.md | |
 | 56 | BUILT | [Secrets, credentials, and the entropy to make them safe](56-secrets-and-entropy.md) | **built 2026-08-01**: entropy (§44), the Argon2id crypto taken as a dependency per §46, and the credentialer, a store with no getter that verifies and never reads back (§54). The thesis-level gap it named, that *a secret is still a bearer token where a capability is an unforgeable reference*, is **milestone 65's** subject: hold the key, expose the operation | 2026-07-31 |
 | 57 | BUILT | [Partitioning and formatting a real drive, and extended attributes](57-partitioning-and-xattrs.md) | you cannot find a partition without reading the table, and all of it is testable in QEMU before the board lands. Built: the host recovery tool (`ls`/`cat`/`extract`/`xattr`), `crates/gpt`, the **extended-attribute layer**, and (2026-08-03) **reading a real table on the target** plus **block-device enumeration**, which is a read-only roster page. What is left is the **write** half, and it is one decision rather than a task: partitioning and on-target `mkfs` both need randomness, and the `mkfs` half needs a new divergence from the RedoxFS pin | 2026-08-03 |
 | 58 | BUILT | [RISC-V TLB shootdown, and the flush that makes ASIDs pointless](58-riscv-tlb-shootdown.md) | every riscv context switch discards the whole TLB; the fix needs a **software** shootdown protocol, because `sfence.vma` does not broadcast | 2026-08-05 |

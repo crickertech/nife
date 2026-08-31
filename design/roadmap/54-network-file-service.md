@@ -1,6 +1,6 @@
 # 54. A network file service a Mac can actually mount
 
-**Status: BUILT** (2026-08-17). **The implementation was removed from the tree on 2026-08-30**, on
+**Status: REMOVED 2026-08-30.** Built 2026-08-17, and the implementation was deleted from the tree on 2026-08-30, on
 calef's decision, after the customer it served moved to borg over SSH on cordoba; journey 2 is
 retired and milestone 55's premise went with it. The status word says BUILT because it was built,
 and the roadmap vocabulary has no word for "built, then removed"; minting one is calef's call and

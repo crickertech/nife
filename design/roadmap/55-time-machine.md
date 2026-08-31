@@ -1,23 +1,11 @@
 # 55. Time Machine: SMB3 with Apple's extensions, and mDNS
 
-**Status: PARTIAL.** **The premise is retired as of 2026-08-30.** calef decided that day to remove
+**Status: REMOVED 2026-08-30.** The premise was retired the same day. calef decided to remove
 the SMB implementation: the customer this milestone existed for backs up with borg over SSH on
 cordoba, so journey 2 is retired and there is no Time Machine target to finish. The status word is
 the vocabulary's closest fit rather than the right one; there is no word for "retired", and minting
 one is calef's.
 
-**Gate: NONE.** The scoping decision is made: **the subset of SMB3 that Time Machine needs**, not
-a general server (calef, 2026-08-15). Decided on the ranking principle: every part of a general
-server the subset omits serves no customer this project has, and the subset's ceiling is
-measurable against the working router where a general server's is a guess. The choice forecloses
-little: milestone 54's mountable-share core and its protocol crate are the shared substrate, and
-a general server would grow from the same crates. (The former MILESTONE 65 and 107 halves cleared
-2026-08-04; found stale 2026-08-15 with the statuses that hid them.) Milestone 65 holds the key
-`ntlm_response` computes with, and 107 is what lets a Mac connect at all. One dependency this block
-names was recorded here as unowned: `RENAME`. **That is no longer true** (corrected 2026-08-14):
-`fs_proto::fs::RENAME` is op 11, fully specified with its rights (`REMOVE` on the source directory,
-`CREATE` on the destination) and its atomicity, and the std PAL implements `rename` against it. So
-this block's third gate has closed and only the decision, 65 and 107 remain.
 
 **What is built and stays**: the **discovery half** (pull request #246, 2026-08-16), a responder
 program that binds UDP 5353 through a grant, announces `_smb._tcp`, `_adisk._tcp` and
