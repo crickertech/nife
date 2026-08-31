@@ -62,8 +62,15 @@ else
         # qemu-system-riscv64, and qemu-system-x86 carries qemu-system-x86_64; ipxe-qemu
         # supplies efi-virtio.rom, the option ROM the -device virtio-blk-device (our disk)
         # loads at startup.
+        #
+        # `ovmf` is milestone 87's UEFI firmware, and it is here because CI is not macOS.
+        # Homebrew's QEMU ships edk2-x86_64-code.fd inside the QEMU keg, which is what made
+        # milestone 87 pick the UEFI path over GRUB (nothing had to be installed). Debian packages
+        # the firmware separately, so on Linux it does. The package is architecture-independent
+        # firmware, so it installs on the arm64 runners this project's CI uses even though the
+        # firmware it carries is x86_64's.
         sudo apt-get update
-        sudo apt-get install -y qemu-system-arm qemu-system-misc qemu-system-x86 ipxe-qemu
+        sudo apt-get install -y qemu-system-arm qemu-system-misc qemu-system-x86 ipxe-qemu ovmf
         ;;
     *)
         echo "bootstrap: unknown OS '$os'; install qemu-system-aarch64 by hand." >&2
