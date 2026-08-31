@@ -15,7 +15,7 @@ ever report that a newer version exists.**
 - **Dependabot cannot see it.** `vendor/redoxfs` is deliberately its own workspace, kept out of the
   nife workspace so the `-D warnings` clippy gate and `cargo fmt` never touch upstream code, so it is
   outside the graph dependabot watches. `.github/dependabot.yml` does not mention it.
-- DECISIONS §81 (a dependency stays reachable by an upgrade) governs exactly this failure and covers
+- DECISIONS §81 (a dependency stays upgradable) governs exactly this failure and covers
   only the Cargo graph. **`vendor/` is §81's blind spot**, and the same argument applies: an upgrade
   nothing surfaces is an upgrade nobody takes.
 
