@@ -81,10 +81,23 @@ The blast radius is `paging`, `memory_regions`, three `arch/*/mmu.rs`, `kernel/s
 `syscall.rs`, and `kernel/src/user/tests.rs` is the merge hotspot AGENTS.md already names. **Do this
 when `kernel/src` is quiet**, not while lanes are open in it.
 
-**Check Kani first.** Milestone 193 (put `kernel/src` within reach of the prover) landed harnesses
-proving run arithmetic over `syscall.rs` in `u64`. A `repr(transparent)` newtype should be invisible
-to CBMC, and this tree's rule is to verify rather than assume, so verify it before touching the
-mapping code.
+**Kani was checked first, and it is clear.** Milestone 193 (put `kernel/src` within reach of the
+prover) landed harnesses proving run arithmetic over `syscall.rs` in `u64`, so a newtype that
+confused CBMC would cost this milestone those proofs. Measured 2026-08-31 rather than assumed: a
+probe crate stated milestone 193's own `run_end_va` property twice, once on bare `u64` and once
+through a `repr(transparent)` `VirtualCpuAddress`, both in `u128` so neither harness could repeat its
+implementation back at itself.
+
+**`VERIFICATION:- SUCCESSFUL`, 2 of 2, 0.068s for both.** The wrapper adds no measurable solver cost,
+which is the number that mattered against `script/verify`'s ~650 seconds.
+
+Two things the probe settles for whoever builds this:
+
+- **`kani::any()` needs no new shape.** `VirtualCpuAddress::new(kani::any())` generates the raw
+  `u64` symbolically and wraps it, which is what a converted harness would write. No `Arbitrary`
+  implementation is required, though deriving one would read better across 145 harnesses.
+- **No unwind or bound effects.** The arithmetic is identical to the solver either way, which is what
+  `repr(transparent)` promises about layout and is now observed rather than trusted.
 
 ## BUGS
 
