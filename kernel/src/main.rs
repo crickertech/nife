@@ -1132,12 +1132,17 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
 
     #[cfg(not(any(test, feature = "bench")))]
     {
-        use aarch64_cpu::registers::CurrentEL;
-        use tock_registers::interfaces::Readable;
-
         println!();
         println!("nife");
-        println!("  exception level : EL{}", CurrentEL.read(CurrentEL::EL));
+        // The exception level is an aarch64 concept and reads an aarch64 system register, so the
+        // line is gated rather than the whole banner. This is also what keeps `aarch64-cpu` out of
+        // the other two architectures' dependency graphs; see the target table in kernel/Cargo.toml.
+        #[cfg(target_arch = "aarch64")]
+        {
+            use aarch64_cpu::registers::CurrentEL;
+            use tock_registers::interfaces::Readable;
+            println!("  exception level : EL{}", CurrentEL.read(CurrentEL::EL));
+        }
         arch::isa::print_summary();
         println!("  stack top       : {:#018x}", stack_top());
         println!("  device tree     : {boot_info_pointer:#018x}");
