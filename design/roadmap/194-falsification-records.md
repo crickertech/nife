@@ -1,6 +1,6 @@
 # 194. Build §134: the falsification record, its lint, and the sweep that replays it
 
-**Status: BUILT.** Minted 2026-08-30, built 2026-08-31. DECISIONS §134 (a harness carries a
+**Status: BUILT 2026-08-31.** Minted 2026-08-30. DECISIONS §134 (a harness carries a
 machine-replayable falsification record, or it is not evidence) was decided the same day and had no
 tracked work, which is the state AGENTS.md says a finding may never be left in. All five increments
 landed: the record and its two-directional lint, `script/falsifications`, the weekly sweep, the
@@ -14,8 +14,6 @@ records what was looked at. So the milestone did not shrink, and options C and D
 
 **One finding changed §134**: the ratified patch path could not name eighteen of `paging`'s
 twenty-six harnesses, and calef amended it to carry the module path the same day.
-
-**Gate: NONE.** §134 settled the mechanism and, on 2026-08-30, the spellings. Nothing is open.
 
 **In brief.** §134 decided that every Kani harness carries evidence it can fail, as a unified diff a
 script can replay, checked weekly and per-pull-request for touched harnesses. This is that work.
