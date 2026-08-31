@@ -13,6 +13,11 @@
 # the three link arguments `std_exerciser/build.rs` supplies for a program built in-tree (the shared
 # linker script, `-u_start`, and no build id).
 #
+# Both architectures, because DECISIONS §19 makes parity a gate rather than an aspiration: a
+# capability ships on every supported target or a scope note records the gap and the plan. x86_64 is
+# the recorded gap, and it is milestone 184's rather than this experiment's: milestone 27 shipped
+# `std` for aarch64 and riscv64 only, so there is no `std` on x86_64 and therefore no `ripgrep`.
+#
 # Usage: scripts/build-ripgrep.sh [version]     (default 14.1.1)
 #
 # See notes/ripgrep-on-nife.md for what it does and does not do once it is running.
@@ -20,7 +25,6 @@ set -euo pipefail
 
 VERSION="${1:-14.1.1}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TRIPLE="aarch64-unknown-nife"
 # The source tree is unpacked OUTSIDE this repository on purpose. `ripgrep` carries no
 # `[workspace]` table, so cargo walks up and finds this repo's root manifest, then refuses to
 # build a package that "believes it's in a workspace when it's not". Unpacking under `target/`
@@ -59,15 +63,17 @@ mkdir -p "$OUT"
 sed 's/^    \. = 0x400000;$/    . = 0x1000000;/' "$ROOT/user/link.ld" > "$OUT/link-high.ld"
 grep -q '0x1000000' "$OUT/link-high.ld" || { echo "build-ripgrep: user/link.ld no longer sets 0x400000 where this script expects it"; exit 1; }
 
-cd "$SRC"
-RUSTUP_TOOLCHAIN=nife-dev \
-RUSTFLAGS="-Clink-arg=-T$OUT/link-high.ld -Clink-arg=-u_start -Clink-arg=--build-id=none -Cstrip=debuginfo -Copt-level=s" \
-  cargo build --release \
-    -Zjson-target-spec \
-    -Zbuild-std=core,alloc,std,panic_abort \
-    -Zbuild-std-features=compiler-builtins-mem \
-    --target "$ROOT/targets/$TRIPLE.json"
+for TRIPLE in aarch64-unknown-nife riscv64-unknown-nife; do
+  cd "$SRC"
+  RUSTUP_TOOLCHAIN=nife-dev \
+  RUSTFLAGS="-Clink-arg=-T$OUT/link-high.ld -Clink-arg=-u_start -Clink-arg=--build-id=none -Cstrip=debuginfo -Copt-level=s" \
+    cargo build --release \
+      -Zjson-target-spec \
+      -Zbuild-std=core,alloc,std,panic_abort \
+      -Zbuild-std-features=compiler-builtins-mem \
+      --target "$ROOT/targets/$TRIPLE.json"
 
-mkdir -p "$OUT/$TRIPLE"
-cp "target/$TRIPLE/release/rg" "$OUT/$TRIPLE/rg"
-echo "build-ripgrep: $OUT/$TRIPLE/rg ($(wc -c < "$OUT/$TRIPLE/rg") bytes)"
+  mkdir -p "$OUT/$TRIPLE"
+  cp "$SRC/target/$TRIPLE/release/rg" "$OUT/$TRIPLE/rg"
+  echo "build-ripgrep: $OUT/$TRIPLE/rg ($(wc -c < "$OUT/$TRIPLE/rg") bytes)"
+done

@@ -66,11 +66,30 @@ rides in `ebx`. `hvm_start_info` carries the memory map **and the ACPI RSDP addr
 root of every table x86 uses in place of a device tree. One pointer in, everything discoverable from
 it: exactly the shape `kernel_main(dtb)` already has.
 
+### And real firmware, since 2026-08-30
+
+**PVH is a hypervisor protocol and no real firmware speaks it**, which is what milestone 87 was for.
+The answer turned out to need no change to this file's subject at all: `uefi_loader` is a UEFI
+application that places this kernel at its `p_paddr`, builds an `hvm_start_info` out of what the
+firmware knows, leaves long mode, and enters **the same `_start`** with the same register contract
+QEMU's PVH loader delivers. So there is one entry point and one handoff structure rather than two,
+which is why the suite above cannot regress under it.
+
+What that buys, beyond a bootable stick: four code paths on *this* side of the boundary had never
+executed, because a hypervisor never took them. `rsdp` arrives non-zero, so `find_rsdp`'s BIOS-area
+scan is skipped; the RSDP is revision 2 with an **XSDT** root rather than revision 0 with an RSDT;
+the MCFG's ECAM window is `0xe0000000` rather than the `0xb0000000` that `arch::mmu::PCI_ECAM_PHYS`
+also happens to say, so "read the table" is finally distinguishable from "used the constant"; and
+the memory map is **118 regions** rather than nine. See notes/x86-uefi-boot.md, which also carries
+the bench procedure for the OptiPlex.
+
 ### BUGS
 
-- **PVH is a hypervisor protocol and no real firmware speaks it.** Milestone 87's OptiPlex will need
-  a UEFI stub or GRUB's Multiboot. The trampoline itself carries over unchanged, because GRUB also
-  enters in 32-bit protected mode with paging off; only the header and the `ebx` contract differ.
+- **Multiboot is still not an option, and nothing here added a header.** The refusal above is a
+  property of QEMU's loader rather than of this kernel, so it stands. GRUB Multiboot 2 remains the
+  path for a BIOS-only machine and would cost a header plus a second handoff decoder; it was priced
+  against UEFI and lost on testability (`brew info grub`: no formula on this machine at all). See
+  notes/x86-uefi-boot.md's fork.
 
 ## The trampoline, and why this file is three times its RISC-V twin
 

@@ -1,19 +1,51 @@
 # 87. The x86_64 bare-metal machine
 
-**Status: NOT-STARTED.** Raised 2026-08-03. The selection is made and recorded here; the milestone
-completes when the machine is on the desk and has printed a byte over serial.
+**Status: PARTIAL.** Raised 2026-08-03. The selection is made and recorded here, and as of
+2026-08-30 **the software side is done and proved under real firmware in QEMU**; the milestone
+completes when the machine on the desk has printed a byte over serial, which only calef can do.
 
-**Gate: HARDWARE.** **As of 2026-08-23, the hardware side is complete**: the OptiPlex arrived
-2026-08-15, and the Dell C4PDJ serial module and the dev-side RS-232 chain have now arrived and
-are installed (calef). What remains is the actual bring-up -- boot code and a UART driver that
-prints a byte over real serial, which is downstream of milestone 161's own boot/console work
-reaching a point worth trying on the box, not blocked on any further purchase.
+**Gate: HARDWARE.** It is now the only gate. The hardware side finished 2026-08-23 (the
+OptiPlex arrived 2026-08-15; the Dell C4PDJ serial module and the dev-side RS-232 chain arrived and
+are installed). The *software* blocker closed 2026-08-30: the kernel could not be started by any
+real firmware at all until then, because the x86_64 port boots by PVH, a hypervisor direct-boot
+protocol no machine speaks. That is what "What was built" below fixed.
 
-**What a lane could do meanwhile: something adjacent, now potentially something on this box
-directly.** The x86_64 port is milestone 161's scope and was never gated on the purchase, because
-it starts under QEMU TCG the way riscv64 did. With the serial chain installed, once 161 has boot
-code that reaches a console prompt under QEMU, trying it on the real OptiPlex is this milestone's
-own remaining work.
+**What remains is one person, one USB stick and a serial console**, and the procedure is written
+out step by step, with a failure-triage table, in notes/x86-uefi-boot.md's "The bench" section. It
+is deliberately one file to copy: `target/esp/EFI/BOOT/BOOTX64.EFI`, which `cargo xtask uefi-image`
+writes and which carries the kernel and the userspace archive inside itself.
+
+## What was built (2026-08-30)
+
+**A UEFI entry, chosen over GRUB Multiboot 2 on a fork this lane priced rather than argued.** Both
+were real and both could coexist; two commands decided it. OVMF, the open-source UEFI
+implementation, **ships with the QEMU this project already pins**
+(`/opt/homebrew/share/qemu/edk2-x86_64-code.fd`), and QEMU's `vvfat` driver synthesises the FAT
+filesystem out of a host directory, so the whole path is testable today with nothing installed.
+GRUB is not installable on the development machine at all (`brew info grub`: no formula), so that
+path could have been written on patagonia but not *proved* there. The OptiPlex is also UEFI-native,
+so UEFI is the shorter path at both ends. GRUB stays cheap to add for a BIOS-only machine.
+
+**The kernel is not modified**, and that is the design rather than an economy. `uefi_loader` places
+the kernel at its `p_paddr`, synthesises an `hvm_start_info` out of what the firmware knows, leaves
+long mode, and enters **the same `_start`** with the same register contract QEMU's PVH loader
+delivers. One entry point, one handoff structure, one decoder, one set of tests; two of each would
+have diverged, and the divergence would first show up on hardware nobody can attach a debugger to.
+It also means `script/test --arch x86_64` cannot regress under it, which was this milestone's
+sharpest hazard.
+
+**Proved under OVMF, and it exercised four paths that had never run**, because a hypervisor never
+takes them: the ACPI root pointer arrives non-zero (so the BIOS-area `"RSD PTR "` scan is skipped),
+it is revision 2 with an **XSDT** root rather than revision 0 with an RSDT, the MCFG's ECAM window
+is `0xe0000000` where the hardcoded constant says `0xb0000000` (so "read the table" is finally
+distinguishable from "used the constant", which milestone 165 could not show), and the memory map is
+**118 regions** against PVH's nine. The userspace archive arrives too, through the module list the
+loader writes.
+
+`cargo xtask uefi-boot` gates it and runs inside `script/test --arch x86_64`. See
+notes/x86-uefi-boot.md for the whole account, the measured numbers, and the honest limitations
+(the bench procedure itself is untested, the suite has not been run under firmware, and SMP under
+UEFI has never been exercised).
 
 **Purchased 2026-08-15 (calef), all arrived and installed as of 2026-08-23**: the OptiPlex 7050
 Micro (i5-7500T, 16GB, 256GB NVMe, with its AC adapter, $139), the Dell C4PDJ serial module with
