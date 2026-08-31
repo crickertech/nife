@@ -24,9 +24,11 @@ in the code or the conversation doesn't make sense, it belongs here.
   `setup`, `test`, `server`, `console`, and friends, thin wrappers over `cargo xtask` so every
   repo has the same first command. Also: why `script/` and `scripts/` both exist.
 
-- [The merge queue, and the two things that watch it](merge-queue.md): `scripts/merge-drain.sh`
+- [The merge queue, and the three things that watch it](merge-queue.md): `scripts/merge-drain.sh`
   lands every pull request that does not need calef; `scripts/trunk-health.sh` says when `main` goes
-  red and when it recovers. Both exist because three duties on 2026-08-04 belonged to whoever
+  red and when it recovers; `scripts/lane-claim-check.sh` names a pushed lane branch that opened no
+  pull request, which is the one state the other two are blind to because both start from
+  `gh pr list`. Both exist because three duties on 2026-08-04 belonged to whoever
   happened to notice, and the steward that was supposed to cover them reported without acting. Why
   the drain is deliberately serial (`cpu matrix` is load-sensitive, so parallel updates manufacture
   their own failures), and why the prevention half is a GitHub rule rather than either script.
@@ -241,6 +243,15 @@ in the code or the conversation doesn't make sense, it belongs here.
   used to abort the process. Five std calls have now been found that **compile perfectly and kill
   the process**, the last of them `std::process::exit`, which is why the reading that found them is
   a check now (`cargo xtask std-aborts`, described in std.md).
+- [`ripgrep` on nife](ripgrep-on-nife.md): milestone 121, and `design/fatal-risks.md` risk 1's
+  decisive experiment. Unmodified `ripgrep` 14.1.1 from crates.io, forty transitive crates, **builds
+  with zero source changes**, loads, runs, resolves its own directory through a granted capability
+  and exits cleanly. It never reaches DECISIONS §105, because it *asks* the platform how much
+  parallelism it has and nife's PAL answers `1` honestly rather than refusing. What stops it is that
+  the ABI has **no argument vector**, so it parses nothing and prints its own "requires at least one
+  pattern". Also the 896 KiB ceiling a program's image hits against its own stack, found as
+  `Unmappable(AlreadyMapped)` and worked around by relinking, and why that address is ABI-shaped
+  rather than a kernel detail.
 - [The `thread::spawn` fork](thread-spawn-fork.md): milestone 64's rank-3 gap, written up against
   the six-questions framework ahead of a decision (pull request #394). Why a std thread needs one
   shared, growable heap and nife gives every TCB a privately owned, consumed `AddressSpace`; the
@@ -705,6 +716,16 @@ in the code or the conversation doesn't make sense, it belongs here.
   smaller target, and of every new property being falsified before it was believed. Milestone 51's
   calendar added the finding that a 64-bit division and a symbolic-length slice cost far more than
   the logic wrapped around them.
+- [Proving things about `kernel/src`](kernel-proofs.md): milestone 193, and the other half of the
+  note above. Until 2026-08-30 `script/verify` could not compile the kernel at all, which milestone
+  191 measured the cost of: every proof in the tree was aimed at pure crates, and every concurrency,
+  hardware-contract and resource-accounting defect the corpus recorded lived somewhere else. The
+  five things that stopped it and the fix for each (three of them one-line `cfg`s), why DECISIONS §4
+  rule 1 is the reason the list is that short, and the **enumerated stub boundary**, because a proof
+  with an unexamined stub reads as coverage and is worse than no proof. The two properties proved
+  today, both over `syscall.rs`'s run arithmetic, both falsified against milestone 142's real
+  MAJOR 4 defect before being believed. A BUGS section that says plainly what is still unreachable:
+  all of `kernel/src/arch/`, `user/`, and `xtask`. Name provisional.
 - [Fuzzing the parse surface](fuzzing.md): milestone 42's second leg, and the complement to the
   proofs above. Starts with the question that decides whether it is worth having at all, given 107
   Kani harnesses: **what does fuzzing find that Kani does not**, answered against three worked cases
@@ -1075,6 +1096,14 @@ in the code or the conversation doesn't make sense, it belongs here.
   `arch/` (42 missing names and four `cfg` arms; `crates/paging` needed nothing), the three things
   that genuinely do not fit the seam, the segment-reload bug that zeroes the per-CPU pointer, and an
   honest account of what the gates cover.
+- [Booting x86_64 from real firmware](x86-uefi-boot.md): milestone 87's answer to the `BUGS` entry
+  above (PVH is a hypervisor protocol and no machine speaks it). The fork priced by two commands
+  rather than argued (OVMF ships with the pinned QEMU; `brew info grub` has no formula at all), the
+  decision that the kernel is not modified and is entered through its existing `_start` with PVH's
+  own register contract, the mode switch out of long mode and why each step cannot move, the four
+  code paths that had never executed until firmware ran them, the 54 MiB of RAM deliberately left
+  reported as reserved and how to get it back, and **the bench procedure for the OptiPlex 7050**
+  with its failure-triage table.
 - [The VisionFive 2: first silicon](visionfive2.md): milestone 16a's board facts, every one with a
   source. The four real differences from QEMU `virt` (DRAM base, the DW-8250 UART, the PLIC context
   map, the disabled S7 hart), the Image-header load path through vendor U-Boot, the microSD payload

@@ -230,6 +230,19 @@ set -- -j "${VERIFY_JOBS:-4}" --output-format=terse
 # from a CI log, which is the wrong machine for this column and is why the row is a slight
 # underestimate; replace it from the first CI run that includes it.
 #
+# **It happened a second time, and the fix is a gate rather than another paragraph** (milestone 193,
+# 2026-08-30). `jh7110_trng` had carried three harnesses since the board work and appeared nowhere in
+# this file; the three pass, and now they run. Nothing in the tree could have found either it or
+# `mdns_proto`, because the packer's partition assertion below checks that the shards cover this
+# TABLE and never that this table covers the TREE. `script/lint`'s "every crate with proof harnesses
+# is in the verify table" check is that missing comparison, and it costs a second instead of 42
+# minutes. Its 6 seconds, like `mdns_proto`'s 21, are a dev-Mac number and the wrong machine for this
+# column; replace both from the first CI log that carries them.
+#
+# `kernel`'s 5 seconds are the same kind of number and carry one extra caveat: what the solver spends
+# is milliseconds, and the row is almost entirely the crate's own compile. It will grow with the
+# harnesses rather than with the kernel.
+#
 # **No apostrophes in this table, anywhere, ever** (found 2026-08-24). The `paging` row used to read
 # "the IOMMU domain's page set"; that one apostrophe, alone, made the dev Mac's `/bin/sh` (bash
 # 3.2.57) fail to parse this whole file with "unexpected EOF looking for matching `)'", despite the
@@ -261,6 +274,8 @@ credential_proto	4	no request word reads outside the page; nothing but MATCH aut
 mdns_proto	21	the name decoder terminates and stays in bounds on every byte string
 component_plan	10	no wiring grants a right its declaration did not ask for
 timetable	5	the scheduler's fire arithmetic: strictly forward, minimal, and a stall costs one fire
+jh7110_trng	6	the board TRNG's status decode, and that a lockup bit is never overridden
+kernel	5	the run arithmetic in the kernel's own syscall dispatch, on words a user program chose
 TABLE
 )"
 
@@ -321,8 +336,26 @@ else
     crates="$(printf '%s\n' "$CRATES" | cut -f1 | tr '\n' ' ')"
 fi
 
+# **`kernel` is the one row that needs flags of its own** (milestone 193), and they are here rather
+# than in a fourth table column because there is exactly one of them and a column would invite more.
+#
+# Kani refuses a crate containing `global_asm!` outright unless told to ignore it, and the kernel has
+# eleven such blocks: the boot entry, the vector table and the context switch on all three
+# architectures. None of them is reachable from any harness, and none is reachable from any harness
+# that could ever be written, because the same restriction applies to `asm!` one level down. So this
+# flag does not weaken a proof that would otherwise hold; it converts a refusal to compile into a
+# stub whose boundary is written down. **Read `notes/kernel-proofs.md` before adding a harness to
+# `kernel/src`**: it enumerates every stub, and the whole hazard of proving a crate like this one is
+# that a stub reads as coverage.
 for c in $crates; do
     desc="$(printf '%s\n' "$CRATES" | awk -F'\t' -v c="$c" '$1 == c { print $3 }')"
+    case "$c" in
+        kernel) extra="-Z unstable-options --ignore-global-asm" ;;
+        *)      extra="" ;;
+    esac
     echo "==> kani: $c ($desc)"
-    cargo kani -p "$c" "$@"
+    # Unquoted on purpose: `extra` is either empty or two flags, and quoting it would hand cargo one
+    # argument that is the empty string.
+    # shellcheck disable=SC2086
+    cargo kani -p "$c" $extra "$@"
 done

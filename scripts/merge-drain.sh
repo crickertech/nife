@@ -240,6 +240,13 @@ blocked_by() {
 # is armed on every pass. Under the merge queue that is the whole job: an armed pull request enters
 # the queue when its checks go green, and the queue lands them one at a time against the tip.
 pass() {
+	# A pushed lane branch with no pull request is invisible to everything below, because
+	# everything below starts from `gh pr list`. Reported first, and before the empty-queue
+	# return, because an empty queue is exactly when an unclaimed lane is easiest to miss:
+	# nothing else on this pass will print a word. Milestone 204; the script owns its own
+	# grace period and its own false-positive shapes.
+	sh scripts/lane-claim-check.sh || true
+
 	q=$(queue)
 	n=$(printf '%s' "$q" | jq -r 'length' 2>/dev/null || echo 0)
 	if [ "$n" = "0" ] || [ -z "$n" ]; then

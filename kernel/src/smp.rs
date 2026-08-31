@@ -68,7 +68,7 @@ struct Stacks(core::cell::UnsafeCell<[[u8; SECONDARY_STACK_SLOT]; MAX_CPUS]>);
 // bytes. The cell exists to place the stacks in writable memory, not to share them.
 unsafe impl Sync for Stacks {}
 
-#[unsafe(link_section = ".secondary_stacks")]
+#[cfg_attr(target_os = "none", unsafe(link_section = ".secondary_stacks"))]
 static SECONDARY_STACKS: Stacks = Stacks(core::cell::UnsafeCell::new(
     [[0; SECONDARY_STACK_SLOT]; MAX_CPUS],
 ));

@@ -2864,6 +2864,12 @@ pub mod std_service;
 #[cfg(all(test, initrd))]
 mod std_tests;
 
+/// **Unmodified `ripgrep` from crates.io** (milestone 121), which skips unless somebody ran
+/// `scripts/build-ripgrep.sh`. Both ISAs the `std` port ships on, per DECISIONS §19; x86_64 has no
+/// `std` at all until milestone 184, so it has no `ripgrep` either.
+#[cfg(all(test, initrd, any(target_arch = "aarch64", target_arch = "riscv64")))]
+mod ripgrep_tests;
+
 /// **Capability delegation: authority moves between processes at runtime.**
 ///
 /// Every other capability in nife is minted by the kernel and handed to a process at spawn.

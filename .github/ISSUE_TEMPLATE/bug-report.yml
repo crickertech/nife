@@ -1,0 +1,85 @@
+name: Bug report
+description: Something the kernel, a server, a program, or a script does wrong.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **If you believe a confined process can escape, do not open this.** That goes through
+        [`SECURITY.md`](https://github.com/crickertech/nife/blob/main/SECURITY.md) privately, because
+        escaping is the exact thing this project claims cannot happen and it is the most valuable
+        report it can receive.
+
+        Everything else belongs here, and most things are everything else.
+
+  - type: input
+    id: sha
+    attributes:
+      label: Commit sha
+      description: "`git rev-parse HEAD`. `main` moves, so a version number would not identify anything."
+      placeholder: 7683bf58d4a2624b6ad8b84c99fc5b9b40649997
+    validations:
+      required: true
+
+  - type: dropdown
+    id: arch
+    attributes:
+      label: Architecture
+      description: >-
+        Parity is a gate here (DECISIONS §19), so one ISA working and the other not is itself a
+        finding rather than a detail.
+      multiple: true
+      options:
+        - aarch64
+        - riscv64
+        - x86_64
+        - "Not architecture-specific, or I do not know"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: how
+    attributes:
+      label: How you ran it
+      description: The boundaries are not the same under emulation as on a board.
+      options:
+        - "script/test (QEMU)"
+        - "script/test --hvf (Apple Silicon, physical core)"
+        - "script/console or script/server"
+        - "On real hardware"
+        - "Host crate tests only (cargo test)"
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: >-
+        Paste the output. A panic message, a failed assertion, or a hang with the last line it
+        printed are all useful; "it did not work" is not.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead, and why
+      description: >-
+        Name the thing that told you to expect it, if there was one: a note, a `BUGS` section, a
+        roadmap block, a comment. If the documentation said something false, that is a second bug and
+        we want it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: >-
+        The commands, in order. A failing test is the most useful thing you can send (a `#[test_case]`
+        under `kernel/src/`, or a host-crate test), because it is how a fix gets proven rather than
+        asserted.
+    validations:
+      required: false

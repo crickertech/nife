@@ -93,7 +93,7 @@ struct Stacks(UnsafeCell<[[u8; SLOT]; MAX_CPUS]>);
 // touch the same bytes; the cell exists to place the stacks in writable memory, not to share them.
 unsafe impl Sync for Stacks {}
 
-#[unsafe(link_section = ".interrupt_stacks")]
+#[cfg_attr(target_os = "none", unsafe(link_section = ".interrupt_stacks"))]
 static STACKS: Stacks = Stacks(UnsafeCell::new([[0; SLOT]; MAX_CPUS]));
 
 /// Whether the switch is live.

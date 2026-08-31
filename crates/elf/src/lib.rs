@@ -42,6 +42,7 @@
 //!     v[p + 4..p + 8].copy_from_slice(&flags.to_le_bytes());
 //!     v[p + 8..p + 16].copy_from_slice(&((EHDR + PHDR) as u64).to_le_bytes()); // p_offset
 //!     v[p + 16..p + 24].copy_from_slice(&0x40_0000u64.to_le_bytes()); // p_vaddr
+//!     v[p + 24..p + 32].copy_from_slice(&0x40_0000u64.to_le_bytes()); // p_paddr, equal here
 //!     v[p + 40..p + 48].copy_from_slice(&4096u64.to_le_bytes()); // p_memsz; p_filesz stays 0
 //!     v
 //! }
@@ -54,6 +55,10 @@
 //! let seg = elf.segments().next().unwrap();
 //! assert!(seg.is_readable() && seg.is_executable() && !seg.is_writable());
 //! assert_eq!(seg.page_range(4096), (0x40_0000, 0x40_1000));
+//!
+//! // `paddr` is carried but is almost never what you want: it equals `vaddr` for every program in
+//! // this tree, and a loader mapping into a fresh address space wants `vaddr`. See `Segment::paddr`.
+//! assert_eq!(seg.paddr, seg.vaddr);
 //!
 //! // The refusal that matters most, and an ELF is perfectly capable of *asking* for it: a segment
 //! // both writable and executable is how a buffer overflow becomes code execution. Same W^X rule
@@ -201,6 +206,40 @@ pub enum Error {
 pub struct Segment<'a> {
     /// The virtual address the program wants this at. Its choice, and we honour it or refuse.
     pub vaddr: u64,
+
+    /// `p_paddr`: where the segment wants to sit in **physical** memory. Only a loader placing an
+    /// image at fixed physical addresses (a firmware loader, a bootloader) has any use for this.
+    ///
+    /// **Read the hazard before you reach for it, because the field is redundant in every case but
+    /// the one that matters.** For every user program in this tree `paddr == vaddr`, because the
+    /// linker scripts say so and nothing here builds a program that separates them. So a consumer
+    /// that reaches for the wrong one of the two behaves *correctly* in every test it will ever run
+    /// and wrongly on the single path where the distinction is real: **the kernel image**. Measured
+    /// on the `x86_64-unknown-none` release build, `.text` is `p_vaddr` `0xffffffff80109000`
+    /// against `p_paddr` `0x109000`, a fixed offset; but `.ap_trampoline` is `p_vaddr` `0x8000`
+    /// against `p_paddr` `0x12b000`, which is a *different* relationship in the same file, so no
+    /// caller can recover one from the other by subtracting anything.
+    ///
+    /// That segment is worth understanding rather than memorising, because it inverts the usual
+    /// sense of both words. Its bytes **ship** at `0x12b000` (`AT()` puts them after `.rodata`,
+    /// in ordinary file-backed memory nothing writes at runtime) and they **execute** at `0x8000`,
+    /// because a STARTUP IPI can only name a physical page below 1 MiB and the secondary core
+    /// arrives there in real mode with no paging at all. So its VMA was chosen to be its eventual
+    /// execution address and its LMA is merely where the image carries it. See
+    /// `kernel/link-x86_64.ld`.
+    ///
+    /// **A loader mapping into a fresh address space wants [`vaddr`](Self::vaddr) and never this.**
+    /// That is `kernel/src/user.rs`, and it is the common case: it allocates frames wherever the
+    /// allocator likes and maps them at the virtual address the program asked for, so the physical
+    /// address in the file is not merely unused, it is a lie about a decision the loader is making
+    /// itself.
+    ///
+    /// This is a plain `u64` on purpose, and it is a stopgap at rung three of AGENTS.md's ladder: a
+    /// doc comment, read by whoever is already looking. Milestone 200 is what makes the mistake
+    /// unsayable, by giving a virtual address and a physical address different types across the
+    /// whole tree. A newtype on these two fields alone would claim a distinction the rest of the
+    /// tree does not make, and one every consumer would immediately unwrap.
+    pub paddr: u64,
 
     /// How much **memory** it occupies. May exceed `data.len()`.
     pub memsz: u64,
@@ -383,6 +422,7 @@ impl<'a> Elf<'a> {
         let flags = u32le(ph, 4);
         let p_offset = u64le(ph, 8) as usize;
         let vaddr = u64le(ph, 16);
+        let paddr = u64le(ph, 24);
         let filesz = u64le(ph, 32) as usize;
         let memsz = u64le(ph, 40);
 
@@ -394,6 +434,7 @@ impl<'a> Elf<'a> {
 
         Ok(Some(Segment {
             vaddr,
+            paddr,
             memsz,
             flags,
             data: &self.bytes[p_offset..end],
@@ -539,6 +580,7 @@ mod verification {
     fn page_range_is_panic_free_and_ordered() {
         let seg = Segment {
             vaddr: kani::any(),
+            paddr: kani::any(),
             memsz: kani::any(),
             flags: kani::any(),
             data: &[],
@@ -568,7 +610,7 @@ mod tests {
         version: u8,
         magic: [u8; 4],
         entry: u64,
-        segments: Vec<(u32, u64, Vec<u8>, u64)>, // flags, vaddr, bytes, memsz
+        segments: Vec<(u32, u64, u64, Vec<u8>, u64)>, // flags, vaddr, paddr, bytes, memsz
         lie_about_filesz: Option<u64>,
         lie_about_offset: Option<u64>,
     }
@@ -589,8 +631,24 @@ mod tests {
             }
         }
 
-        fn seg(mut self, flags: u32, vaddr: u64, bytes: &[u8], memsz: u64) -> Self {
-            self.segments.push((flags, vaddr, bytes.to_vec(), memsz));
+        /// A segment whose physical address equals its virtual one, which is what every real
+        /// program in this tree looks like. Use `seg_at_paddr` for the kernel-image shape.
+        fn seg(self, flags: u32, vaddr: u64, bytes: &[u8], memsz: u64) -> Self {
+            self.seg_at_paddr(flags, vaddr, vaddr, bytes, memsz)
+        }
+
+        /// A segment whose `p_paddr` and `p_vaddr` genuinely differ, the way the kernel image's
+        /// `.ap_trampoline` does.
+        fn seg_at_paddr(
+            mut self,
+            flags: u32,
+            vaddr: u64,
+            paddr: u64,
+            bytes: &[u8],
+            memsz: u64,
+        ) -> Self {
+            self.segments
+                .push((flags, vaddr, paddr, bytes.to_vec(), memsz));
             self
         }
 
@@ -613,13 +671,14 @@ mod tests {
 
             let mut phdrs = vec![];
             let mut body = vec![];
-            for (flags, vaddr, bytes, memsz) in &self.segments {
+            for (flags, vaddr, paddr, bytes, memsz) in &self.segments {
                 let mut ph = vec![0u8; PHDR_SIZE];
                 ph[0..4].copy_from_slice(&PT_LOAD.to_le_bytes());
                 ph[4..8].copy_from_slice(&flags.to_le_bytes());
                 let off = self.lie_about_offset.unwrap_or(body_off as u64);
                 ph[8..16].copy_from_slice(&off.to_le_bytes());
                 ph[16..24].copy_from_slice(&vaddr.to_le_bytes());
+                ph[24..32].copy_from_slice(&paddr.to_le_bytes());
                 let fsz = self.lie_about_filesz.unwrap_or(bytes.len() as u64);
                 ph[32..40].copy_from_slice(&fsz.to_le_bytes());
                 ph[40..48].copy_from_slice(&memsz.to_le_bytes());
@@ -654,6 +713,7 @@ mod tests {
         assert_eq!(segs.len(), 2);
 
         assert_eq!(segs[0].vaddr, 0x40_0000);
+        assert_eq!(segs[0].paddr, 0x40_0000);
         assert!(segs[0].is_executable() && !segs[0].is_writable());
         assert_eq!(segs[0].data, &[0xaa; 16]);
 
@@ -916,10 +976,47 @@ mod tests {
         );
     }
 
+    /// The kernel image's own shape, and the reason this field exists at all: `p_paddr` and
+    /// `p_vaddr` are separately readable, and neither is derived from the other. Every other test in
+    /// this file has them equal, which is exactly the hazard the field's doc comment names.
+    #[test]
+    fn a_physical_address_may_differ_from_the_virtual_one() {
+        let bytes = Builder::new()
+            .seg_at_paddr(PF_R | PF_X, 0x40_0000, 0x40_0000, &[0xaa; 16], 16)
+            .seg_at_paddr(PF_R | PF_W, 0x16_5000, 0x8000, &[0xbb; 8], 4096)
+            .build();
+        let elf = Elf::parse(&bytes).expect("should parse");
+        let segs: Vec<_> = elf.segments().collect();
+
+        assert_eq!(segs[1].vaddr, 0x16_5000);
+        assert_eq!(segs[1].paddr, 0x8000);
+    }
+
+    /// **Nothing validates `paddr`, on purpose.** Every check in `parse` (bounds, overlap, the entry
+    /// point, the `vaddr + memsz` overflow guard) is about the virtual layout, because that is what
+    /// this kernel's loader maps. A physical address that overlaps another segment's, or that is
+    /// zero because the file never set the field, is a fact about the file rather than an error, and
+    /// a loader that places images physically owns that judgment.
+    #[test]
+    fn a_nonsense_physical_address_is_not_a_parse_error() {
+        let bytes = Builder::new()
+            .seg_at_paddr(PF_R | PF_X, 0x40_0000, u64::MAX, &[0xaa; 16], 16)
+            .seg_at_paddr(PF_R | PF_W, 0x41_0000, 0, &[0xbb; 8], 8)
+            .build();
+        let elf = Elf::parse(&bytes).expect("paddr is carried, not judged");
+        let segs: Vec<_> = elf.segments().collect();
+
+        assert_eq!(segs[0].paddr, u64::MAX);
+        assert_eq!(segs[1].paddr, 0);
+        // And `page_range` is the *virtual* range, which is the other half of the same trap.
+        assert_eq!(segs[0].page_range(4096), (0x40_0000, 0x40_1000));
+    }
+
     #[test]
     fn page_range_covers_the_whole_segment() {
         let seg = Segment {
             vaddr: 0x40_0800,
+            paddr: 0x40_0800,
             memsz: 0x900,
             flags: PF_R,
             data: &[],
