@@ -14,10 +14,8 @@ license.workspace = true
 workspace = true
 
 [dependencies]
-# Typed wrappers over aarch64 system registers, so we write
-# `SCTLR_EL1.modify(SCTLR_EL1::M::Enable)` instead of hand-rolling `msr` and getting
-# a bit position wrong. DECISIONS §3.
-aarch64-cpu = "11"
+# NOTE: `aarch64-cpu` is NOT here. It is target-gated at the bottom of this file, and the reason is
+# recorded there rather than by its absence.
 abi = { version = "0.1.0", path = "../crates/abi" }
 asid = { version = "0.1.0", path = "../crates/asid" }
 # The bitmap font and the VT engine (milestone 29's text increment). The kernel does not draw
@@ -197,3 +195,19 @@ watchdog_probe = []
 # the two run byte-identical IPC work. Off by default: an ordinary build never links the padding
 # in. See kernel/src/fastpath_pad.rs. Name provisional.
 fastpath_pad = []
+
+# Typed wrappers over aarch64 system registers, so we write
+# `SCTLR_EL1.modify(SCTLR_EL1::M::Enable)` instead of hand-rolling `msr` and getting a bit position
+# wrong. DECISIONS §3.
+#
+# **Target-gated since 2026-08-31, and it was unconditional before by accident rather than by
+# design.** The crate compiles for any target, so nothing ever complained, and the cost was invisible
+# until milestone 193 put `kernel/src` within reach of Kani: `cargo kani` compiles the crate for the
+# HOST, so an unconditional aarch64 register crate pinned the prover, and therefore CI, to an aarch64
+# runner. Milestone 193's lane recorded that constraint and named this as the fix.
+#
+# riscv64 and x86_64 never took an equivalent crate. They use `core::arch::asm!` and `crates/paging`
+# directly, so the asymmetry was history rather than a decision: aarch64 was the first architecture
+# and §3 chose typed registers for it before the in-tree pattern existed.
+[target.'cfg(target_arch = "aarch64")'.dependencies]
+aarch64-cpu = "11"
