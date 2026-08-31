@@ -1,4 +1,27 @@
-# NTLMv2, and the operation a secret exposes
+# NTLMv2, and the operation a secret exposes (removed 2026-08-30)
+
+**`crates/ntlm` and the NTLM path through `crates/cred` and `crates/credential_proto` were removed
+from the tree on 2026-08-30**, with the SMB implementation that was their only consumer. Read
+everything below in the past tense; none of it can be built from `main`. `685900ec` is the last
+commit that holds the code.
+
+**Why this note is kept.** The design argument in it is the transferable part and it is not about
+NTLM: *hold the key, expose the operation, never the key* is what a credential service is for, and
+the password half of that service (Argon2id, `verify::VERIFY`) still ships and still works that way.
+What went is one protocol's arithmetic.
+
+**And the removal is itself the lesson.** DECISIONS §79 approved holding password-equivalent
+material (an `NTOWFv2`, crackable at roughly the speed of MD4, beside an Argon2id tag that is not)
+and approved three known-broken hash functions to go with it. Its justification was **NTLMv2
+protocol compliance**: nothing here chose MD4 and MD5, the specification did. That reasoning was
+sound and entirely contingent on there being a protocol to comply with. When the customer moved and
+the SMB implementation went, the premise evaporated and nothing noticed: every gate stayed green,
+`cargo-deny` stayed happy, and the crate's documented security property was still true of the crate.
+A dependency taken for a stated reason has to be re-checked when the reason changes, and a decision
+record naming its own premise is what makes that possible. **§79 is now stale and needs amending;
+that is calef's.** See notes/smb.md for the whole account.
+
+*What follows is the note as it stood before the removal.*
 
 Milestone 65: **hold the key, expose the operation, never the key.** The half of the secrets
 service that lets an SMB server authenticate a Mac without ever holding the thing that

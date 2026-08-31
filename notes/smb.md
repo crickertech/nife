@@ -1,4 +1,145 @@
-# SMB: the network file service a Mac can mount (milestone 54)
+# SMB: the network file service a Mac mounted, and why it is no longer here (milestone 54)
+
+**The code this note describes was removed from the tree on 2026-08-30, on calef's decision.** Every
+present tense below is the tree as it stood at commit `685900ec`, which is the last commit that holds
+it; nothing described here can be built or run from `main` any more. The note is kept, and kept in
+full, because the thing it records is evidence rather than documentation: **milestone 54 is the only
+time this project's first principle was realised end to end**, a real customer's real machine running
+a real workload against this kernel, and AGENTS.md's own rule is that a finding worth keeping lands in
+`notes/` rather than in a commit nobody will check out. Read it in the past tense. It is a record of
+what this system did.
+
+## What was demonstrated, and when
+
+| date | what a machine did, not what a test asserted |
+|---|---|
+| 2026-08-15 | **A real Mac mounted it.** macOS 26's own `mount_smbfs` against the QEMU guest: the share mounted, `ls` listed it, both fixture files read back byte-correct, the volume arrived read-only (macOS honoured `READ_ONLY_VOLUME` and refused a write client-side), a clean unmount worked, and a second mount proved the listener re-armed for a real client rather than only for the test prober. |
+| 2026-08-15 | The `filesystem_proto`-backed share: bytes a *different in-guest process* had put on RedoxFS came back over TCP, so the chain RedoxFS -> `filesystem_proto` -> `Share` -> SMB2 -> TCP was checkable rather than asserted. |
+| 2026-08-16 | The write path, gated on both ISAs by a file the host wrote over SMB2 and a different in-guest process read back through the FS server. Never met a real Mac (see BUGS). |
+| 2026-08-16 | `filesystem_proto` grew `STATFS` (op 18); subdirectories, with `smb_proto::path` parsing a share-relative path once at the wire's edge. |
+| 2026-08-17 | The `AAPL` create context and the `FULL_SYNC` Time Machine flag. Never met a real Mac. |
+| 2026-08-17 | **Identity**: an NTLMv2 proof verified against milestone 65's credential service, with the kernel reading the shared frame through the direct map afterwards and requiring the key to be absent. |
+| 2026-08-19 | Throughput measured through a real SMB client: **write 4.8x, read 2.4x** from raising the file transfer from 4 KiB to 64 KiB. See the throughput section. |
+| 2026-08-24 | The session/connection split (milestone 152's first buildable piece), the shape `session_reviver` still carries. |
+
+**The one number that survives the removal**, because it was measured rather than argued: raising
+`filesystem_proto`'s transfer from one page to sixteen took an SMB write from **0.065 to 0.31 MiB/s**
+and a read from **0.15 to 0.36 MiB/s**, debug build under QEMU. The ratio transfers; the rate does
+not, and the note refused to convert it into a backup's wall clock for that reason. That refusal is
+still the right call and is worth copying.
+
+## The scale of what was deleted
+
+Counted from the tree at `685900ec`, by the lane that removed it:
+
+| piece | lines |
+|---|---|
+| `crates/smb_proto/` (10 modules: framing, server state machine, `share`, `path`, `ntlmssp`, `spnego`, `create_context`, `apple`, `authenticator`, a client) | 7,218 |
+| `user/src/smb_server.rs` (the adapter program) | 1,279 |
+| `bench/smb-throughput.sh` | 100 |
+| `crates/ntlm/` (removed in the same pass; 10 host tests, all [MS-NLMP] published vectors) | 469 |
+| the host prober and `smb-serve` subcommand in `xtask/src/main.rs` | ~226 referencing lines |
+| the two-ISA QEMU gate wiring in `kernel/src/user/` | ~170 referencing lines |
+
+86 `#[test]` host tests in `smb_proto` and 10 in `ntlm` went with it, plus one QEMU check per ISA
+and the `assert_smb_write_landed` / `assert_smb_held_no_key` kernel-side assertions. Four external
+dependency crates left the graph: `md4`, `md-5`, `hmac` and `digest`, each of which had `ntlm` as
+its only consumer.
+
+## Why it was removed
+
+The customer moved. Milestone 55's premise was a Time Machine target for the family's Macs, served by
+this kernel; that customer now backs up with borg over SSH on cordoba, so journey 2 is retired and the
+workload SMB existed to serve does not exist. calef ruled on 2026-08-30 to remove the implementation.
+The maintainer argued for keeping the working core as evidence and he reaffirmed. What that argument
+was reaching for is this note, which is the cheaper form of the same thing: 8,600 lines of protocol
+code carried on `main` cost every future refactor, every dependency audit and every parity sweep,
+where the record of what it proved costs a file.
+
+**What was deliberately kept, and why**, because the boundary is the interesting part of a removal:
+
+- **`crates/mdns_proto` and `user/src/mdns_responder.rs`.** Service discovery is a standalone service
+  and is useful without a share to advertise.
+- **`crates/cred`, `credentialer`, `session_reviver`**, and milestone 49's and 65's identity work,
+  minus the NTLM half (see the section below). The credential service's headline property (a server
+  answers an authentication without ever holding the key) is proven by `credentialer_test_client`
+  against the password verifier and never needed the SMB adapter.
+- **Milestone 107's socket work**, which is what lets anything accept a connection.
+- **`filesystem_proto`'s `STATFS`, `SYNC` and `RENAME`**, and the block server's
+  `VIRTIO_BLK_T_FLUSH`. SMB is what motivated them; they are file-service verbs and stand on their
+  own.
+
+## The NTLM half went with it, and that is the transferable lesson
+
+**Removed in the same pass, 2026-08-30**: `crates/ntlm` entirely, the NTLM path through
+`crates/cred` (`Record`'s `nt` field and `has_ntlm` flag, `derive_ntlm`, `put_ntlm`, `ntlm_proof`
+and the `NTLM_CHALLENGE_LEN`/`NTLM_KEY_LEN` re-exports), the `provision::PUT_NTLM` and
+`verify::NTLM_PROOF` opcodes in `crates/credential_proto` with their request accessors, and the
+four dependency crates that existed only underneath them: `md4`, `md-5`, `hmac` and `digest`.
+
+**Why this is worth a section rather than a line in a commit message.** DECISIONS §79 approved
+holding password-equivalent material, and it approved three known-broken hash functions to go with
+it. The justification was **NTLMv2 protocol compliance**: MD4 and MD5 are what the specification
+names, nothing here chose them, and shipping them was the same act as implementing DES to talk to
+old hardware. That reasoning was sound and it was entirely contingent on there being a protocol to
+comply with.
+
+With the SMB implementation gone there is no such protocol. So between the moment the customer moved
+and the moment this was noticed, **the tree was carrying an `NTOWFv2` (a password equivalent,
+crackable at roughly the speed of MD4, sitting beside an Argon2id tag that is not) and two broken
+hash functions in its shipping dependency graph, for a consumer that no longer existed.** Nothing
+was wrong with the code. What went stale was the *reason*, and a reason going stale is invisible in
+a way that a broken build is not: every gate stayed green, `cargo-deny` stayed happy, and the
+security property the crate documented was still true of the crate.
+
+**The lesson for a future reader**: a dependency taken for a stated reason should be re-checked when
+that reason changes, and the place that check can actually happen is a decision record naming its
+own premise. §79 named its premise plainly, which is what made this removal easy to argue for; it is
+now stale and needs amending, and the amendment is calef's.
+
+**Two facts that made the removal safe**, verified in the tree rather than assumed:
+
+- **Nothing was ever stored.** `crates/cred`'s own module docs say it outright: *"No persistence. A
+  `Store` is memory only, and everything in it dies with the process."* No checked-in fixture and no
+  disk image ever held an encoded `Record`, so changing `Record`'s layout migrated nothing.
+- **The opcode spaces are not positional.** `verify::VERIFY` is 1 and `verify::NTLM_PROOF` was 2;
+  `provision::PUT` is 1, `SEAL` 2 and `PUT_NTLM` was 3. Removing the NTLM opcodes renumbered
+  nothing. It is still a change to a wire contract two programs agree on (AGENTS.md rule 7), and it
+  was only safe because both programs are in this tree and nothing outside speaks it.
+
+One casualty worth naming, because it was a good piece of writing: `credential_proto`'s module docs
+argued "an opcode is not an authority" using the *collision* between `provision::SEAL` and
+`verify::NTLM_PROOF` at opcode 2 as its worked example, and recorded that milestone 65 demonstrated
+the principle by breaking a kernel test when the collision appeared. The principle is unchanged and
+the example is gone. The argument now stands on `PUT`/`VERIFY` at 1, which is a weaker illustration
+of the same true thing.
+
+## What never worked, and it is the honest half
+
+Recorded here rather than lost with the code, because a future reader deciding whether to build this
+again should know what the last attempt did not reach:
+
+- **The write path never met a real Mac.** The 2026-08-15 mount was read-only. The write half was
+  gated by a conforming client this tree wrote, which is not `smbfs`.
+- **No Mac ever saw the `AAPL` answer**, so nobody knows whether macOS's Time Machine UI would have
+  offered the share. That needed the kernel on hardware on a real network segment; slirp carries no
+  multicast, so the mDNS discovery half was equally unproven in situ.
+- **Finder's Connect to Server dialog was never clicked through.** Only the command-line mount ruled.
+- **The demo boot admitted guests to a writable share**, and no boot could be told a password: the
+  only provisioner in the tree was a test program carrying [MS-NLMP]'s published fixture. That was
+  milestone 131's whole subject and it never landed.
+- **Sessions were never signed**, so a proven session was unprotected afterwards.
+- **The server challenge was a clock, not entropy**, so two connections in one tick repeated it.
+- Apple metadata (streams, forks, `READ_DIR_ATTR`) was never implemented; §99 deferred the decision
+  and milestone 137 was minted to hold it.
+
+Everything else the implementation did not do is still listed in the BUGS section below, unedited,
+which is where a reader should go for the full list.
+
+---
+
+*What follows is the note as it stood before the removal, unaltered except for this header. Read
+every present tense in it as "as of `685900ec`".*
 
 The head of the customer path. macOS speaks SMB natively and the Time Machine target (milestone
 55) requires it, so SMB is the one network file protocol this tree carries; the roadmap block
@@ -426,8 +567,9 @@ times faster to write and about twice as fast to read, and does not say how long
    region is never reclaimed; see `virtio::MAX_DEVICES` for the recorded failure). The test
    wires the FS service, seeds the gate's file through it, grants the adapter the directory
    capability, **and hands it the credential service's verify endpoint** (the same sealed store the
-   milestone-56 tests use, latched once per boot); the runner adds a second `hostfwd`
-   (`NIFE_SMB_HOSTFWD_PORT`) and xtask's SMB prober performs the mount-shaped exchange end to end
+   milestone-56 tests use, latched once per boot); the runner adds a second `hostfwd` (on an
+   SMB-specific host-forward environment variable, removed with the runners' SMB block) and xtask's
+   SMB prober performs the mount-shaped exchange end to end
    (asserting the seeded file's bytes) while the echo prober runs beside it. Both verdicts gate.
    This is the first boot that holds the block server, the FS server, `net_stack`, the SMB adapter
    **and the credentialer** at once, so the test prints the free-frame count where it wires them;
@@ -435,49 +577,38 @@ times faster to write and about twice as fast to read, and does not say how long
 
 ## EXAMPLES
 
-Run the gate the way CI does:
+**None of these commands exist any more.** They are kept because what they *were* is part of the
+record: this is what running the thing looked like, and the second one is the only place the mount
+instructions a real Mac was given were ever written down.
 
 ```sh
-script/test               # both ISAs; the smb check reports beside the inbound check
+script/test               # both ISAs; the smb check reported beside the inbound check
+cargo xtask smb-serve     # booted the kernel under QEMU, SMB forwarded to 127.0.0.1:10445
 ```
 
-Serve the share to a real Mac (see BUGS for what to expect):
+With `smb-serve` running, the Mac side was either Finder's Go > Connect to Server (Cmd-K) at
+`smb://127.0.0.1:10445/share`, choosing **Guest**, or:
 
 ```sh
-cargo xtask smb-serve     # boots the kernel under QEMU, SMB forwarded to 127.0.0.1:10445
+mkdir /tmp/nife-share && mount_smbfs -N //GUEST@127.0.0.1:10445/share /tmp/nife-share
 ```
 
-Then, on the Mac (which can be the same machine):
+The share was the RedoxFS image and it was read-write, so `cat /tmp/nife-share/motd` read bytes that
+had come off a virtual block device, through the block server, the FS server and the SMB adapter,
+over this kernel's own TCP stack. That sentence is the demonstration this note exists to preserve.
 
-- Finder, Go > Connect to Server (Cmd-K), server address `smb://127.0.0.1:10445/share`, and
-  choose **Guest** when asked how to connect; or
-- `mkdir /tmp/nife-share && mount_smbfs -N //GUEST@127.0.0.1:10445/share /tmp/nife-share`
-
-The share is the RedoxFS image (`smb-serve` builds a fresh one) and it is **read-write**, which
-the boot's banner says too: `cat /tmp/nife-share/motd` and you are reading bytes that came off a
-real (virtual) block device, through the block server, the FS server, and the SMB adapter, over
-this kernel's own TCP stack; `echo hello > /tmp/nife-share/scratch` and they go back the same
-way. Every session is admitted as guest, so anything that can reach the forwarded port can
-change the image; on loopback that is this machine, and on a real network it would be everyone. If the boot printed the
-fixture-fallback line instead (no RedoxFS disk), the files are `hello.txt` and `readme.md`,
-baked into the adapter. Unmount before stopping QEMU, or Finder will beat against a dead forward
-for a while.
-
-**Why this says Guest when the milestone shipped identity.** The demo boot has no way to be told a
-password (BUGS, first entry), so it wires the guest share on purpose and its banner says so. The
-authenticated share is what both ISAs' gates run, and the way to watch it work is the gate's own
-transcript:
+**To read the code**, check out `685900ec`, the last commit that holds it:
 
 ```sh
-script/test 2>&1 | grep -A3 'smb check'
+git show 685900ec:user/src/smb_server.rs
+git log --oneline 685900ec -- crates/smb_proto user/src/smb_server.rs   # 35 commits
 ```
-
-which reports the anonymous login refused, the one-bit forgery refused, and a real NTLMv2 proof
-accepted. If you want to try an authenticated mount by hand today you would have to boot the gate's
-wiring rather than `smb-serve`, and the account would be the published fixture in
-`cred_proto::fixture`, which is exactly why the demo does not ship it.
 
 ## BUGS
+
+*The limitations of a program that no longer exists, kept in full. This is the list a future reader
+should start from if anyone ever decides to build a Mac-mountable share here again: it is what the
+last attempt knew it had not solved, written while the code was in front of someone.*
 
 - **A 64 KiB SMB message still crosses the socket contract seventeen times in each direction.**
   `socket_proto::DATA_MAX` is 4080 bytes, because a client and `net_stack` share one frame, so
@@ -491,8 +622,9 @@ wiring rather than `smb-serve`, and the account would be the published fixture i
   will be in the way there and this entry is the evidence that it is known rather than discovered.
   Nothing has been sized: a socket frame is per socket where the file channel is per FS server, so
   the memory question is a real one and is not answered here.
-- **The throughput leg is not in the gate.** `smb_throughput_leg` runs only with
-  `NIFE_SMB_THROUGHPUT` set, because a timing is not a pass or a fail on a laptop under an emulator,
+- **The throughput leg is not in the gate.** `smb_throughput_leg` ran only with its own
+  SMB-throughput environment variable set (removed with the prober), because a timing is not a pass
+  or a fail on a laptop under an emulator,
   so a regression in this path fails nothing. What guards it instead is `bench/smb-throughput.sh`
   being cheap to rerun; that is rung four of AGENTS.md's ladder and it is written down as such.
 - **`mount_smbfs` has ruled; Finder's dialog has not.** The command-line mount (which uses the
