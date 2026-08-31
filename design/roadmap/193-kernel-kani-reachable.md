@@ -35,6 +35,13 @@ the Mach-O host. The real constraint is its mirror image and is now recorded: th
 
 **Cost: about 10 seconds** on `script/verify`'s ~650, almost all compile rather than solver.
 
+**A note on how this landed, because a gate caught it.** The status was flipped to `BUILT` on the
+records pull request that minted this block, one merge ahead of the work itself. `script/lint`
+refused the work's own branch for changing nothing here, and it was right to: §90's rule is that a
+milestone branch lands its status flip in the same merge as the work, precisely so `main` never
+claims something is built while its code is still on a branch. For about an hour, `main` did. The
+ordering was the integrator's mistake rather than the lane's.
+
 **A second hole closed on the way.** `crates/jh7110_trng` carried three harnesses and appeared
 nowhere in `script/verify`. They were run first (all pass), then the row was added, and `script/lint`
 grew the check that makes it the last time: every crate with proof harnesses is in the verify table,
