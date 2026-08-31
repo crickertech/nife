@@ -59,10 +59,11 @@ That is the one where not knowing is not merely untidy.
 `.github/workflows/toolchain-bump.yml` watches the Rust nightly pin on a cron, and its own header
 states the rule that answers the idempotence question above:
 
-> One PR, updated in place on a fixed branch, rather than one per day. Silent when there is nothing
-> to do.
+> One PR, updated in place on a fixed branch, rather than one per day.
 >
 > -- .github/workflows/toolchain-bump.yml
+
+The same header goes on to say it is silent when there is nothing to do.
 
 It force-pushes a fixed branch and opens or updates a single pull request. Pull request #587, which
 merged 2026-08-31, is what that looks like in practice. `toolchain-drift.yml` is the sibling that
