@@ -77,6 +77,13 @@ What that means concretely, and it is a reordering rather than a slogan:
 - **While the path is vacant the tie breaks toward design/fatal-risks.md**, nine claims that, if
   false, mean the project should stop. It is a stand-in for a customer, not a replacement: a real
   workload with a real user outranks everything on it the moment one exists.
+- **And the path is vacant for a second reason, which is ours rather than the customer's** (calef,
+  2026-08-30): *"I don't think we expose nife to third parties (aka other customers) until we have a
+  package manager and a trivial install process."* So there is a **precondition on the ranking
+  function itself**. Package management and an install story are not items on the customer path; they
+  are what makes one possible, and until they exist a second customer cannot be accepted if one
+  appeared. He wants them **early, for our own sake as much as anyone's**: the people building this
+  are the ones repeatedly hand-wiring what a package would install.
 - A milestone off the path is not thereby worthless. Verification, parity and the analysis tooling
   are what make the demonstrator a demonstrator. But when they compete for a lane, the tie breaks
   toward the thing that gets a real workload running.
