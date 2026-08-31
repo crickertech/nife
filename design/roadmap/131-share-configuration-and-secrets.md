@@ -1,14 +1,25 @@
 # 131. A share is configured, not compiled, and its secret arrives from somewhere
 
-**Status: NOT-STARTED.** Minted 2026-08-17 by calef, from the question "how do we configure the
-shares today?" asked while ruling on milestone 54's identity item. The answer was that we do not:
-every fact about a share is a compile-time constant, and the deliverable he named in the same
-breath was "a configuration file in the future along with a secret stored".
+**Status: NOT-STARTED.** **The subject was removed on 2026-08-30**: this milestone was about
+configuring an SMB share and provisioning its secret, and calef decided that day to remove the SMB
+implementation (notes/smb.md). There is no share to configure. The status word is unchanged because
+the vocabulary has no word for a block whose subject is gone, and minting one is calef's.
 
 **Gate: DECISION.** The configuration half needs nothing and has a precedent to copy. The secret
 half is a fork calef must rule on, stated in full below: **where a secret physically comes from on a
 real boot.** The two are one milestone because they are one act, and because splitting them would
 ship a document with a hole where the only value that matters goes.
+
+**What is still live in it, and why it is not simply deleted.** Two of the four deliverables were
+never really about SMB. The **configuration document** half generalizes to any service that is
+currently a set of compile-time constants, and `mdns_responder.conf` is still the shape. The
+**provisioning path** fork is still unanswered and still matters: nothing in the tree can tell a
+running system a secret, and the only provisioner is a test program carrying a published fixture.
+That is a real gap in the credential service regardless of who its clients are. The other two
+deliverables (per-resource credential endpoints for the SMB adapter, and the boot that stops
+admitting guests to the share) have no subject left. **Re-aiming or retiring this block is calef's
+call.**
+
 
 ## What "configured" means today, measured rather than characterised
 

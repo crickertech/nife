@@ -1,5 +1,12 @@
 # Credentials
 
+**Scope note, 2026-08-30.** This service held **two** kinds of secret until that day: a password
+verifier and an NTLM key. The NTLM half was removed with the SMB implementation that was its only
+consumer (notes/smb.md), so what ships now is the password verifier alone: `provision::PUT`,
+`provision::SEAL`, `verify::VERIFY`, and a reply that is one word carrying no data. Everything below
+that describes `put_ntlm`, `ntlm_proof`, `PUT_NTLM`, `NTLM_PROOF` or a `SessionBaseKey` is history;
+notes/ntlm.md carries that half's own record and the reason its removal is worth reading about.
+
 An identity, a secret, and a way to check the second against the first without ever being able to
 read it. Milestone 56's second half; the first half is [entropy](entropy.md), and this depends on
 it for every salt it uses.
