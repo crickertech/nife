@@ -1,8 +1,10 @@
-# The merge queue, and the two things that watch it
+# The merge queue, and the three things that watch it
 
-Two scripts, both maintainer tools rather than front doors, both born on 2026-08-04 out of the same
-evening's failures. `scripts/merge-drain.sh` lands what does not need calef.
-`scripts/trunk-health.sh` says when `main` is red. Names are provisional.
+Three scripts, all maintainer tools rather than front doors. Two were born on 2026-08-04 out of the
+same evening's failures: `scripts/merge-drain.sh` lands what does not need calef, and
+`scripts/trunk-health.sh` says when `main` is red. `scripts/lane-claim-check.sh` joined them on
+2026-08-31 and watches one step earlier, for work that has not reached the queue at all. Names are
+provisional.
 
 ## Why they exist rather than being someone's job
 
@@ -50,6 +52,63 @@ surface, adds a dependency, or owes a `DECISIONS` section.
 check is reported with the pull request named, and the pass carries on arming the others. Both need
 a person, and a loop that retries them just burns CI. A pass where nothing could be armed ends the
 loop, because re-printing the same stall lines every 150 seconds is not watching.
+
+## `scripts/lane-claim-check.sh`
+
+```console
+$ scripts/lane-claim-check.sh
+lane-claim-check: LEFTOVER. milestone/121-ripgrep's #600 is MERGED; delete the branch
+lane-claim-check: UNCLAIMED. milestone/194-falsification-roadmap-status has no pull request after 16 minutes. AGENTS.md §90: gh pr create --draft
+```
+
+Both of those lines are from the first run it ever did, which is the only evidence worth quoting.
+
+**It watches the gap the two scripts above cannot see.** Everything they do starts from
+`gh pr list`, so a lane that pushed a branch and opened nothing is invisible to both, and invisible
+is exactly what it was: on 2026-08-31 two lanes did that and it was noticed because calef asked. The
+rule they broke is AGENTS.md §90, *a lane's first act is a draft pull request*, and the reason that
+rule exists is that the draft **is** the claim: it is the whole mechanism preventing two lanes from
+silently taking the same milestone, and the board is one command.
+
+Both briefs said so, in a section headed *First act*, with the command spelled out. That is rung
+four behaving the way AGENTS.md says rung four behaves, and it was the second instance of the shape
+in this project's history; the first was lanes ending their turn mid-gate.
+
+**It runs from `merge-drain.sh`'s pass**, once, before the drain's own empty-queue return. The
+ordering is not cosmetic: an empty queue is exactly when an unclaimed lane is easiest to miss,
+because nothing else on that pass prints a word. The drain is also the only unattended runner this
+project has (`launchd`, every five minutes, patagonia), so siting it there is the difference between
+a report and a report that happens.
+
+**Three false positives were designed out**, because a report that cries wolf gets ignored and then
+the real case goes unread with it.
+
+| Shape | Why it is not a missing claim | What the script does |
+|---|---|---|
+| A branch pushed seconds ago | The lane is between its push and its create | 15-minute grace period |
+| A merged lane's leftover branch | Hygiene, not a claim | Its own `LEFTOVER` line, with the pull request number |
+| A branch with a ready (non-draft) pull request | A louder claim than a draft, not a quieter one | Any open pull request counts |
+
+**The grace period was measured, not picked.** The branch that built this took three minutes from
+`branch_creation` to its draft, and that included writing the file that made the branch non-empty:
+GitHub refuses a pull request with no commits between the head and `main`, so the literal first-act
+command block cannot be run straight through and every lane has that delay. Fifteen minutes is five
+times the observed case, and comfortably under the 75 minutes `stale_drafts` waits, which is the
+neighbouring report and the one this must not shadow.
+
+**The clock runs from the branch's birth, and a later push does not reset it.** That is the opposite
+of `stale_drafts` next door, and the pair is worth reading together: a stale draft is one that
+stopped moving, so it watches the last commit; a missing claim is due from the moment the branch
+exists, and a lane hard at work committing is precisely the one whose absent claim matters most. A
+last-commit clock would go quiet for the branches being worked hardest, which is backwards. The
+birth time comes from the repository activity feed (`repos/{owner}/{repo}/activity`), because a
+commit date cannot answer the question at all: a branch pushed empty carries `main`'s commit date
+and would be reported the instant it existed.
+
+**It is a report and not a gate**, and `script/lint` was refused for a stated reason rather than by
+taste: the lane that most needs telling is one mid-work and about to open its pull request anyway,
+and failing its build would be the least useful moment to interrupt it. Nothing was missing from the
+enforcement; what was missing was anything that looks.
 
 ## What the merge queue took over, and the four shapes that preceded it
 
@@ -393,6 +452,12 @@ is a fact about two branches.
   pull request's own checks. A candidate that fails *inside* the merge queue, against the tip rather
   than against its own base, is ejected by GitHub and this script says nothing about it; the next
   pass simply arms it again.
+- **`lane-claim-check.sh` is only as alive as the drain is.** It runs from the drain's pass and has
+  no schedule of its own, so it inherits the recorded gap AGENTS.md already accepts: patagonia
+  asleep means nobody is watching. It also reports to stdout only, because a branch with no pull
+  request has nowhere to be commented on, so its findings reach whoever reads the drain's log and
+  nobody else. Its own header carries the rest (`milestone/*` only, one page of activity feed, and
+  that it sees a missing claim rather than the duplicate claim §90 actually fears).
 - **`trunk-health.sh` polls at 90 seconds and reads only `main`.** A release branch, if this tree ever
   grows one, is invisible to it.
 - **Neither reports its own death, and on 2026-08-18 that cost hours of red trunk.** If the process
