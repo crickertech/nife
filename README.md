@@ -205,6 +205,7 @@ design/                the roadmap and worked designs
 design/decisions/      what we chose, what we rejected, and why
 design/journeys/       end-to-end user stories, tracked as a bundle of the milestones they need
 design/audit-reports/  every audit, its lens, and when the next one is due
+design/fatal-risks.md  the nine claims that, if false, mean the project should stop
 ```
 
 ## The notes are the point

@@ -22,12 +22,18 @@ need all of these some day and we deliver them all eventually.**
 | **RedoxFS** | the backup volume. Vendored, working, and the only store here with crash-consistency evidence (186 injected lying-device cases: 112 recovered, 74 refused, **0 silently wrong**) | **kept**, and this milestone does not touch it |
 | **FAT32** | **USB sticks.** The format removable media actually arrives in, so it is the one a person meets first | first |
 | **ext2** | Linux-native, simple, and a real interop story for a data volume. **Not a backup volume**: ext2 is ext3 without the journal, and that is the property a backup cannot give up | second |
-| **ext4** | what a Linux drive is actually formatted as today | some day |
+| **ext4** | what a Linux drive is actually formatted as today | **milestone 190** (ext4, read and write) |
 | **ZFS** | what a serious storage box runs | some day |
 
 **RedoxFS was chosen because it could be vendored**, which let the project skip building a
 filesystem and get a working one immediately. That decision stands and this block does not reopen
 it. What it says is that a vendored store solved one requirement and the others were never asked.
+
+**The ext4 row was promoted on 2026-08-30** and is now milestone 190 (ext4, read and write),
+after calef said his own drives hold the family's borg repositories and nife has to read and write
+them eventually. That block carries the survey of every candidate implementation, the refusals with
+their reasons, and the four-phase arc. It does not change this milestone's ordering: FAT32 is still
+first and ext2 second.
 
 ## One program per filesystem, not one server that speaks five
 

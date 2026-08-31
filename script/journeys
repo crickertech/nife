@@ -118,7 +118,15 @@ for fname in sorted(os.listdir(jd)):
         steps.append((step, ms, dec, need))
     if not steps:
         problems.append(f"{fname}: no parseable step rows (| step | milestone | decision | need |)")
-    journeys[num] = (slug, title, steps)
+    # A retired journey is a story the project stopped telling, and it is the one thing about a
+    # journey that a human must write and a tool cannot derive. It is NOT the status field
+    # design/journeys/README.md refuses: that refusal is about hand-written *progress* ("70% done"),
+    # which drifts because nobody re-derives it. Retirement is intent, and intent has no computable
+    # source. Recorded as a `**RETIRED` marker in the file so the record and the report cannot
+    # disagree, which is what happened for one run on 2026-08-30 when journey 2 was retired in prose
+    # and this script kept listing it as live work.
+    retired = any(line.startswith("**RETIRED") for line in lines)
+    journeys[num] = (slug, title, steps, retired)
     slugs[slug] = num
 
 if mode == "--check":
@@ -126,7 +134,8 @@ if mode == "--check":
         print(f"journeys: {p}", file=sys.stderr)
     if problems:
         sys.exit(1)
-    print(f"journeys: {len(journeys)} journeys, {sum(len(s) for _, _, s in journeys.values())} steps, "
+    print(f"journeys: {len(journeys)} journeys ({sum(1 for j in journeys.values() if j[3])} retired), "
+          f"{sum(len(j[2]) for j in journeys.values())} steps, "
           f"every cited milestone and decision resolves")
     sys.exit(0)
 
@@ -155,21 +164,25 @@ if mode and mode != "--check":
         known = ", ".join(f"{n} ({s})" for n, (s, _, _) in sorted(journeys.items()))
         print(f"journeys: no journey matching {mode!r}. Known: {known}", file=sys.stderr)
         sys.exit(2)
-    slug, title, steps = journeys[num]
+    slug, title, steps, retired = journeys[num]
     built, total = rollup(steps)
-    print(f"journey {num}: {title}\n")
+    print(f"journey {num}: {title}")
+    if retired:
+        print("  RETIRED. The steps below are a record, not current intent; see the file.")
+    print()
     for step, ms, dec, need in steps:
         mstatus = milestones.get(ms, "?")
         line = f"  {step}. milestone {ms:<4} {mstatus:<11} {need}"
         if dec is not None:
             line += f"  [decision {dec}: {decisions.get(dec, '?')}]"
         print(line)
-    print(f"\n{built}/{total} steps on a BUILT milestone")
+    print(f"\n{built}/{total} steps on a BUILT milestone" + ("  (retired)" if retired else ""))
     sys.exit(0)
 
 for num in sorted(journeys):
-    slug, title, steps = journeys[num]
+    slug, title, steps, retired = journeys[num]
     built, total = rollup(steps)
-    print(f"  {num:>2}  {slug:<24} {built}/{total} built   {title}")
+    state = "RETIRED    " if retired else f"{built}/{total} built"
+    print(f"  {num:>2}  {slug:<24} {state}   {title}")
 print(f"\n{len(journeys)} journeys. `script/journeys <number|slug>` for detail.")
 PY
