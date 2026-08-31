@@ -136,6 +136,12 @@ is in the medium this project exists to get things out of.
   turned out to be load-bearing.
 - [`design/audit-reports/`](design/audit-reports/) is every audit, its lens, and when the next is due.
 
+## Conduct
+
+[`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) is Contributor Covenant 2.1, with one honest change: its
+enforcement section says plainly that reports go to one person, that there is no committee or rota,
+and that no reply window is promised. The file says why, and what it costs.
+
 ## Reporting a bug, and reporting a security bug
 
 Ordinary bugs: open a GitHub issue, and say which **commit sha** you were on, because `main` moves.
