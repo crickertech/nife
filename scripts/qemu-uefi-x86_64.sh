@@ -48,6 +48,25 @@ shift
 # Debian packages the firmware separately, so `script/bootstrap` installs `ovmf` on Linux, and
 # Ubuntu 24.04 names the file `OVMF_CODE_4M.fd` rather than `OVMF_CODE.fd`, which is why both
 # spellings are searched. NIFE_OVMF_CODE names it explicitly on a machine that puts it elsewhere.
+#
+# **Ask QEMU where it lives, first.** The header above says the firmware ships WITH QEMU, and that is
+# the fact to act on rather than a list of places QEMU has been seen. CI builds QEMU from source into
+# a cached prefix (`script/ci-qemu`, `$HOME/.cache/nife-qemu`), so no absolute path in a list can
+# ever name it, and the hardcoded list is exactly why this gate failed on its first CI run while
+# passing on every developer machine. `<prefix>/share/qemu/edk2-x86_64-code.fd` is where QEMU's own
+# build puts it, which is also what makes the Homebrew entry below work.
+if [ -z "$NIFE_OVMF_CODE" ]; then
+    qemu_bin="$(command -v qemu-system-x86_64 2>/dev/null || true)"
+    if [ -n "$qemu_bin" ]; then
+        qemu_prefix="$(dirname "$(dirname "$qemu_bin")")"
+        for candidate in \
+            "$qemu_prefix/share/qemu/edk2-x86_64-code.fd" \
+            "$qemu_prefix/share/edk2-x86_64-code.fd"
+        do
+            [ -f "$candidate" ] && NIFE_OVMF_CODE="$candidate" && break
+        done
+    fi
+fi
 if [ -z "$NIFE_OVMF_CODE" ]; then
     for candidate in \
         /opt/homebrew/share/qemu/edk2-x86_64-code.fd \
