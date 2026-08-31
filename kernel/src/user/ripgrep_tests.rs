@@ -13,6 +13,13 @@
 //! **It skips when the archive has no `rg`**, which is every ordinary build and all of CI, because
 //! making the gate fetch a crates.io dependency tree is DECISIONS §46's decision and calef's rather
 //! than a lane's. See notes/ripgrep-on-nife.md.
+//!
+//! **Both ISAs run it**, which is DECISIONS §19 rather than thoroughness: a capability ships on
+//! every supported architecture or a scope note records the gap and the plan. `scripts/build-ripgrep.sh`
+//! builds for `aarch64-unknown-nife` and `riscv64-unknown-nife` in one pass, and one test body
+//! serves both because nothing it asserts is architecture-specific. **x86_64 is the recorded gap
+//! and it is not this milestone's**: milestone 27 shipped `std` for aarch64 and riscv64 only, so
+//! there is no `std` on x86_64 and therefore no `ripgrep`. Milestone 184 is what closes it.
 
 use super::*;
 
@@ -20,11 +27,23 @@ use super::*;
 const NO_RIPGREP: &str = "no rg in this archive: build it with scripts/build-ripgrep.sh, which \
                           fetches the published ripgrep crate from crates.io (milestone 121)";
 
+/// **The block server's ELF**, which the two archives pack under different names. aarch64 packs
+/// `hello` as `init` because on that ISA hello *is* the boot program (`tests::HELLO_ENTRY`);
+/// RISC-V's `init` is the portable `builder` demo, so its block server is `block_driver`
+/// (`riscv_virtio_tests::blk_image`). Same reasoning as those two, restated here rather than
+/// reached for across a module boundary, because both accessors are private to theirs.
+fn block_server_image() -> &'static [u8] {
+    #[cfg(target_arch = "aarch64")]
+    return program("init").expect("no init program in the initrd archive");
+    #[cfg(target_arch = "riscv64")]
+    return program("block_driver").expect("no block_driver program in the initrd archive");
+}
+
 /// **Somebody else's forty-crate application loads, runs, reaches a real filesystem through a
 /// capability it was handed, and then cannot be told what to search for.**
 ///
-/// Every layer below the last clause works, and none of it was written for `ripgrep`. A 4.7 MB ELF
-/// the loader maps; a heap std grows one page at a time under `regex`'s and `ignore`'s allocation
+/// Every layer below the last clause works, and none of it was written for `ripgrep`. A multi-megabyte
+/// ELF the loader maps (4.7 MB on aarch64, 10.7 MB on riscv64); a heap std grows one page at a time under `regex`'s and `ignore`'s allocation
 /// patterns; `std::env::current_dir` answering `/` because this process holds a directory; output
 /// through the one endpoint it was granted. `ripgrep` did all of that without a line of nife in it.
 ///
@@ -53,8 +72,7 @@ fn unmodified_ripgrep_runs_and_has_no_arguments_to_run_on() {
     let image = program("rg").expect("no rg program in the initrd archive");
     let faults_before = USER_FAULTS.load(Ordering::Relaxed);
     let Some(rg) = fs_service::start_std_full(
-        // The block server, which on aarch64 is packed as `init` (`tests::HELLO_ENTRY`).
-        program("init").expect("no init program in the initrd archive"),
+        block_server_image(),
         program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),
         image,
     ) else {
