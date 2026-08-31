@@ -130,6 +130,11 @@ in. That objection is real, and phase 2 exists to answer it.
 
 ## The decision: Rust on the target, C on the host as the oracle
 
+**Generalized 2026-08-30 into DECISIONS §136 (a mature foreign implementation earns its place as an
+oracle, not as a dependency)**, at calef's direction, because the position is not about filesystems
+and was discoverable only by reading this block. What follows is the ext4 application of it; §136
+carries the argument, what it refuses, and what it does not license.
+
 **libext2fs's real value here is as an oracle, not as a dependency.** It runs on the host, in
 `tools/`, its own workspace, `std`, never in the shipping graph. That is the pattern
 `tools/redoxfs_host` already establishes, for the same reason.
