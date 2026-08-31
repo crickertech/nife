@@ -241,6 +241,15 @@ in the code or the conversation doesn't make sense, it belongs here.
   used to abort the process. Five std calls have now been found that **compile perfectly and kill
   the process**, the last of them `std::process::exit`, which is why the reading that found them is
   a check now (`cargo xtask std-aborts`, described in std.md).
+- [`ripgrep` on nife](ripgrep-on-nife.md): milestone 121, and `design/fatal-risks.md` risk 1's
+  decisive experiment. Unmodified `ripgrep` 14.1.1 from crates.io, forty transitive crates, **builds
+  with zero source changes**, loads, runs, resolves its own directory through a granted capability
+  and exits cleanly. It never reaches DECISIONS §105, because it *asks* the platform how much
+  parallelism it has and nife's PAL answers `1` honestly rather than refusing. What stops it is that
+  the ABI has **no argument vector**, so it parses nothing and prints its own "requires at least one
+  pattern". Also the 896 KiB ceiling a program's image hits against its own stack, found as
+  `Unmappable(AlreadyMapped)` and worked around by relinking, and why that address is ABI-shaped
+  rather than a kernel detail.
 - [The `thread::spawn` fork](thread-spawn-fork.md): milestone 64's rank-3 gap, written up against
   the six-questions framework ahead of a decision (pull request #394). Why a std thread needs one
   shared, growable heap and nife gives every TCB a privately owned, consumed `AddressSpace`; the

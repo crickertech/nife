@@ -1288,6 +1288,35 @@ pub fn start_std(
     fs_server_image: &'static [u8],
     std_image: &'static [u8],
 ) -> Option<(Option<(RendezvousId, RendezvousId)>, RendezvousId)> {
+    let spawned = start_std_full(blk_image, fs_server_image, std_image)?;
+    Some((spawned.readiness, spawned.report))
+}
+
+/// What [`start_std_full`] hands back: the service's readiness endpoints if this call wired it, the
+/// program's stdout endpoint, the untyped region its heap was drawn from, and the thread it runs as.
+// `heap` and `thread` have exactly one reader (`user::ripgrep_tests`), which is aarch64-only
+// because `rg` is packed into that archive alone. They are not dead on the leg that has one.
+#[cfg_attr(not(target_arch = "aarch64"), allow(dead_code))]
+pub struct StdSpawn {
+    pub readiness: Option<(RendezvousId, RendezvousId)>,
+    pub report: RendezvousId,
+    pub heap: u64,
+    pub thread: crate::thread::ThreadId,
+}
+
+/// The same spawn, **also handing back the heap region and the thread**, so a caller that knows the
+/// program exits can give the memory back (`user::holding`'s reasoning, milestone 121).
+///
+/// [`start_std`] deliberately does not: `std_exerciser` is spawned once and its 256 pages are a
+/// charge this suite's frame ledger has always carried. A program built outside this tree is
+/// different, because it is present only when somebody built it, so leaving its pages spoken for
+/// would make the ledger fail for whoever ran the experiment and pass for everyone else. Rather than
+/// budget for a test that usually does not run, its caller reclaims.
+pub fn start_std_full(
+    blk_image: &'static [u8],
+    fs_server_image: &'static [u8],
+    std_image: &'static [u8],
+) -> Option<StdSpawn> {
     let (file_ep, file_shared, readiness) = ensure(blk_image, fs_server_image)?;
     let report = crate::sched::create_rendezvous();
     let heap =
@@ -1311,7 +1340,7 @@ pub fn start_std(
         m.phys = page_frame();
     }
 
-    crate::sched::spawn(move || {
+    let tid = crate::sched::spawn(move || {
         // The directory capability goes in at its named slot BEFORE `run` grants in order, so
         // `run`'s two grants land at 0 and 1 and slots 2 and 3 stay empty. See `grant_at`.
         crate::sched::grant_at(FS_DIR_SLOT, rendezvous_cap(file_ep, Rights::WRITE))
@@ -1332,7 +1361,12 @@ pub fn start_std(
     })
     .expect("could not spawn the std fs program");
 
-    Some((readiness, report))
+    Some(StdSpawn {
+        readiness,
+        report,
+        heap,
+        thread: tid,
+    })
 }
 
 /// **Two directory grants to one process** (milestone 154,
