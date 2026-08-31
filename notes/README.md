@@ -749,6 +749,19 @@ in the code or the conversation doesn't make sense, it belongs here.
   calibration verdict on the exhaustive crates (`ntp_proto`, `gpt`), the three-way triage rule
   (write the test, record the exclusion, or defer on the record), and why the weekly `mutation
   testing` workflow is a report rather than a gate.
+- [Did the proofs catch the bugs?](proof-retrospective.md): milestone 191, and the question none of
+  the four legs above had been asked: **for every real defect this project recorded, could a proof
+  have caught it, and did one exist?** Answered against eighteen defects from the tree's own notes and
+  `git log`. The result is amber. No Kani harness has ever caught a defect after the day it was
+  written; two were caught *while* harnesses were being written (`dtb`'s unchecked add, `pci`'s pin-0
+  underflow), which is the survivorship asymmetry the milestone predicted. The structural reason is one
+  line of `script/verify`'s own header: `cargo kani` never compiles the kernel, so 64,818 lines of
+  `kernel/src` are out of reach by construction, and that is where the concurrency, hardware-contract
+  and resource-accounting defects all were. Includes the reverse pass (which harnesses prove a property
+  that could plausibly have been false, and the one that provably could not), three near-misses in
+  crates that already had harnesses, the counts re-derived from the merged tree because the roadmap's
+  "112+" is now 145, a live hole found while counting (three harnesses in no shard of `script/verify`,
+  the `mdns_proto` defect recurred), and a nine-item worklist. Name provisional.
 - [Where an unsafe obligation is written, and where it is only implied](unsafe-obligations.md):
   milestone 82, and the two lints that are meant to compose into "every unsafe operation sits next
   to the written invariant that makes it sound". The survey found **zero violations before anything
