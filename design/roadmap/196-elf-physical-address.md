@@ -1,6 +1,7 @@
 # 196. A physical address on `elf::Segment`, or a second ELF reader forever
 
-**Status: NOT-STARTED.** Minted 2026-08-30 from milestone 87's (the x86_64 bare-metal machine) lane.
+**Status: PARTIAL.** The field shipped (`milestone/196-elf-paddr`, 2026-08-31). **The second reader
+did not go**, for a reason nobody predicted; see BUGS. Minted 2026-08-30 from milestone 87's (the x86_64 bare-metal machine) lane.
 *(Number provisional until the merge queue lands it.)*
 
 **Gate: DECISION.** `crates/elf` is a shared definition, which AGENTS.md rule 7 makes global to the
@@ -38,6 +39,23 @@ comment, and milestone 200 makes the mistake unsayable everywhere at once.
 
 - **The field is redundant in every case but one**, and that is the hazard rather than a comfort:
   `paddr == vaddr` for every user program in this tree, so a consumer that reaches for the wrong one
-  behaves correctly in testing and wrongly on the one path that matters, which is the kernel image
-  where `.ap_trampoline` sits at physical `0x8000` against virtual `0x165000`. The doc comment has
-  to carry that until milestone 200 lands, and a doc comment is rung three.
+  behaves correctly in testing and wrongly on the one path that matters, which is the kernel image.
+  The doc comment has to carry that until milestone 200 lands, and a doc comment is rung three.
+
+- **The addresses in the paragraph above were backwards and stale**, and the lane found it by
+  building the image rather than by reading anything. `.ap_trampoline` is `p_vaddr` `0x8000` against
+  `p_paddr` `0x12b000`, not the reverse: its bytes *ship* high (`AT()` puts them after `.rodata`) and
+  *execute* low (a STARTUP IPI can only name a page below 1 MiB). `0x165000` was a number from an
+  older build. Corrected here and in notes/elf.md, which now shows the measured headers.
+
+- **Widening `Segment` did not, on its own, retire the UEFI loader's reader, and `p_paddr` was never
+  the blocker.** `crates/elf` refuses the kernel image with `Error::WritableAndExecutable`, because
+  `kernel/link-x86_64.ld` folds `.text.boot` and `.data.boot` into one output section and the 32-bit
+  trampoline therefore ships as a single `RWX` `PT_LOAD` at `0x101000`. Measured: patch that one
+  segment's `p_flags` to `RX` in a copy of the image and `Elf::parse` accepts the entire file, all
+  ten `PT_LOAD`s, the three `NOLOAD` reservations and the trampoline's split addresses included.
+  Nothing else in the validating parser objects. So the remaining work is one linker-script change
+  rather than an argument about whether a validating parser suits a boot loader, and it would also
+  make the kernel image obey the W^X rule `crates/elf` and `paging::Flags` enforce everywhere else.
+  It belongs to whoever owns `kernel/link-x86_64.ld` (milestone 87's lane held it while this ran),
+  not to `crates/elf`.
