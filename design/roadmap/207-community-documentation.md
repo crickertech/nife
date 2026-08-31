@@ -31,9 +31,9 @@ rung four, and it is the cheapest item here.
 can reach.
 
 Behind that is a real question this project has never answered: **is an issue a channel here at
-all?** Work lives in `design/roadmap/` and in pull requests, deliberately, and DECISIONS §203's own
-option list refused an issue as an output on the grounds that this project does not read them. Two
-coherent answers:
+all?** Work lives in `design/roadmap/` and in pull requests, deliberately, and milestone 203's
+(nothing will ever tell us RedoxFS moved) own option list refused an issue as an output on the
+grounds that this project does not read them. Two coherent answers:
 
 - **Keep issues off**, and say so where a stranger looks, so the absence reads as a decision rather
   than neglect. `CONTRIBUTING.md` is the place.
