@@ -3586,6 +3586,13 @@ fn initrd_riscv() -> bool {
     ) {
         blobs.push(("std_exerciser", bytes));
     }
+    // **Unmodified `ripgrep`** (milestone 121), on the same terms as aarch64's: present iff
+    // `scripts/build-ripgrep.sh` has been run, absent from every ordinary build and from CI.
+    // DECISIONS §19 is why this leg exists at all: the same experiment on both ISAs, or a scope
+    // note says which one it skipped and why.
+    if let Ok(bytes) = read_stripped(&ripgrep_elf("riscv64-unknown-nife").display().to_string()) {
+        blobs.push(("rg", bytes));
+    }
     // The FS server (milestone 32 phase 2), built for the riscv bare target, rides along when
     // present, exactly as std_exerciser does; `test` builds it first.
     if let Ok(bytes) = read_stripped(&redoxfs_server_elf(RISCV_TARGET)) {
@@ -7557,10 +7564,17 @@ fn read_stripped(path: &str) -> std::io::Result<Vec<u8>> {
     // The order matters too. `X86_TARGET` is `x86_64-unknown-none`, and a *host* path on an x86
     // Linux CI runner contains `x86_64-unknown-linux-gnu`, which the naive `contains` would also
     // match. The check is anchored on the full triple, so the two cannot be confused.
+    //
+    // **The two `*-unknown-nife` triples need separating too, for the same reason** (milestone
+    // 121). `std_exerciser` is built for both and lands here under one name; `rg` now is as well.
+    // Sequentially that is harmless, because each call writes the file it then reads, but it is
+    // the same shape of latent bug the paragraph above describes and it costs one arm to close.
     let tag = if path.contains(RISCV_TARGET) {
         "riscv"
     } else if path.contains(X86_TARGET) {
         "x86"
+    } else if path.contains("riscv64-unknown-nife") {
+        "std-riscv"
     } else if path.contains("nife") {
         "std"
     } else {
