@@ -1,9 +1,9 @@
 # 134. A harness carries a machine-replayable falsification record, or it is not evidence
 
-**Status: DECIDED.** calef, 2026-08-30, in two rulings. The direction: *"It sounds like [option C] is
+**Status: DECIDED.** calef, 2026-08-30, in three rulings. The direction: *"It sounds like [option C] is
 where we want to land if we want to state that nife is proven."* Then the format, after the options
-were costed: *"Go with the diff, weekly plus per-PR for touched harnesses."* **The spellings are
-still open** and are marked as such at the bottom; nothing else is. *(Section number provisional
+were costed: *"Go with the diff, weekly plus per-PR for touched harnesses."* Then the spellings, ratified the
+same day and recorded at the bottom. Nothing here is open. *(Section number provisional
 until the merge queue lands it.)*
 
 ## What is being decided
@@ -152,8 +152,8 @@ scaling the way the original `DECISIONS.md` and `design/roadmap.md` scaled, and 
 collisions rather than size, since every lane adding a name would edit one file and that is exactly
 what produced three section-number collisions in a day.
 
-Same argument, same shape: **a structured block immediately above the harness, and a script derives
-the report.** Same family as `script/names`, `script/roadmap` and `script/decisions`, and for the
+Same argument, same shape: **a `Falsification:` block immediately above the harness, beside `Name:`
+in the same family, and a script derives the report.** Same family as `script/names`, `script/roadmap` and `script/decisions`, and for the
 same reason: a computed report over the tree cannot drift from it.
 
 ### Three states, and the unknown one is first-class
@@ -165,17 +165,18 @@ job is saying who claimed what. Exactly the same is true here:
 
 | state | means | what the sweep does |
 |---|---|---|
-| **replayable** `<path>` | a machine-applicable mutation exists beside the harness | applies it, runs that one harness, **requires red**, reverts |
-| **by hand** `<date>` | somebody broke the code and watched it fail, with no replay | counts it, and it is a worklist entry |
-| **never** | nobody has falsified this | counts it, and this is the claim's honest denominator |
+| **`replayable <path>`** | a patch exists that a script applies to turn this harness red | applies it, runs that one harness, **requires red**, reverts |
+| **`attested <date>`** | a person broke the code and watched it fail; nothing can re-check it | counts it, and it is a worklist entry |
+| **`unfalsified`** | nobody has | counts it, and this is the claim's honest denominator |
 
 **This is what makes the convention shippable against 145 existing harnesses**, which the first draft
 of this section named as its largest cost. They land at `never` on day one, the lint passes
 immediately, and the worklist derives itself instead of being written.
 
 It also states the refusal precisely. **Prose is refused as the destination, not as a way-station.**
-`by hand` is honest and is how a falsification exists between being performed and being made
-replayable; what is refused is a convention whose *endpoint* is a claim nobody re-runs.
+`attested` is honest and is how a falsification exists between being performed and being made
+replayable; what is refused is a convention whose *endpoint* is a claim nobody re-runs. The word
+carries that: an attestation is an assertion, and an assertion is not evidence.
 
 ### The mutation is a unified diff
 
@@ -210,15 +211,39 @@ seconds rather than an hour, and it closes the window in which a refactor silent
 record. `script/verify --affected-since` already computes the "can this change reach the proofs"
 question from `cargo metadata`, so the machinery to decide which harnesses a diff touches exists.
 
-## The spellings, which are still calef's
+## The spellings, ratified
 
-Everything above is settled. These are not, and they are marked provisional wherever they appear:
+**calef, 2026-08-30**, with the refusals kept because they are the half a future proposer needs.
 
-1. **The keyword.** `Falsified:` is the placeholder, sitting beside `Name:` in the same block.
-2. **The three state words**, placeholders above: `replayable`, `by hand`, `never`.
-3. **The script's name**, in the `script/verify` / `script/mutation` / `script/coverage` family, where
-   the convention is that the name says the job and never the tool.
-4. **Where the patch files live** and what they are called.
+**`Falsification:`** is the keyword, beside `Name:` in the same block. `Name:` labels the block with
+the noun for the thing it records, and the thing here is a falsification; in `Name: ratified
+2026-08-30` the noun is the label and the participle is the state, which gives `Falsification:
+replayable <path>`. Refused `Falsified:`, which reads more naturally at the site and breaks that
+parallel; refused `Evidence:` as too broad, since every block in this tree is evidence of something;
+refused `Coverage:`, which collides with what `script/coverage` already owns.
+
+**`replayable` / `attested` / `unfalsified`** are the three states. `attested` is the load-bearing
+one: it says a person asserts this, and an assertion is not evidence, which is the distinction this
+whole section exists to draw. `unfalsified` mirrors what `unrecorded` does in `script/names`, the
+honest negative, greppable, first-class rather than a gap. Refused `witnessed`, reluctantly, because
+DECISIONS §31 (the foreign-language seam) already spends "witness" on the confinement pages and a
+second sense would cost a reader the recognition; refused `manual` (says how, not what), `never` (a
+bare adverb reads as a verdict on the harness rather than a state of the record), and `by hand` (two
+tokens, worse to grep and worse to align).
+
+**`script/falsifications`** is the sweep. The `script/` family splits in a way nobody had written
+down: what *does* something is a verb (`verify`, `test`, `fuzz`, `bench`) and what *reports* is a
+noun (`names`, `citations`, `decisions`, `roadmap`, `coverage`, `mutation`). This section decided a
+report with a baseline rather than a gate, so it belongs in the noun half, and the name matches
+`citations` in shape. Refused `script/falsify`, whose verb form would promise the gate this section
+deliberately did not build.
+
+**`crates/<crate>/falsifications/<harness_fn_name>.patch`** is where a patch lives. Per-crate rather
+than central, which is the carrier argument this section already rests on: at the thing, so two lanes
+touching two crates cannot collide. Naming each file for its harness function makes the link
+mechanical, and lets the lint check both directions, that every `replayable` path resolves and that
+every patch has a harness. Refused a repository-root `falsifications/`, for the reason milestone 115
+refused a central names table on 2026-08-04.
 
 ## BUGS
 

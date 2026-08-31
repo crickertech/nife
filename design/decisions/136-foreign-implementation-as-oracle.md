@@ -49,7 +49,7 @@ The objections that make a mature C implementation unusable are objections to **
 every one of them evaporates on the host.
 
 For ext4 that is the worked example: `libext2fs` is LGPLv2, needs a libc, and is C in the storage
-path, which §34 (RedoxFS as the primary store) refused for littlefs on exactly those grounds. As a
+path, which §34 (RedoxFS is the primary filesystem) refused for littlefs on exactly those grounds. As a
 host tool in `tools/`, none of the three is true. What survives is thirty years of exposure to real
 images, which is the half worth having.
 
