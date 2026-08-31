@@ -4,7 +4,7 @@
 #
 # PROVISIONAL beyond four names. DECISIONS §134 ratified `Falsification:`, the three states
 # `replayable`/`attested`/`unfalsified`, this script's name, and the patch path
-# `crates/<crate>/falsifications/<harness_fn_name>.patch`. Every other spelling here (the flags, the
+# `crates/<crate>/falsifications/<module.path>.<harness_fn_name>.patch`. Every other spelling here (the flags, the
 # column headings) is this lane's and calef names things.
 #
 # Why this exists. notes/verification.md has said "falsify a property before believing it" since
@@ -123,6 +123,52 @@ COMMENT = re.compile(r"^//")
 RECORD = re.compile(r"^//[/!]?\s*Falsification:\s*(.*)$")
 
 
+MOD_OPEN = re.compile(r"^(?:pub(?:\([^)]*\))?\s+)?mod\s+(\w+)\s*\{")
+
+
+def module_path_by_line(rel, lines):
+    """For each line, the module path from the crate root, as a list of segments.
+
+    Two sources, and both are needed. The **file** contributes segments for anything below
+    `src/lib.rs`: `src/sv39.rs` is `sv39`, `src/net/tcp.rs` is `net::tcp`, `src/net/mod.rs` is
+    `net`. The **inline `mod X {` blocks** contribute the rest, which is where `verification` comes
+    from, since every harness in this tree lives in a `#[cfg(kani)] mod verification`.
+
+    Brace counting rather than a Rust parser, which is the right size of tool here and is honest
+    about its limit: a brace inside a string or a comment would miscount. Nothing in this tree does
+    that at module scope, and a miscount surfaces as a patch path that does not match, which
+    `--check` reports rather than silently accepting.
+    """
+    parts = rel.split(os.sep)
+    # crates/<crate>/src/a/b.rs -> ["a", "b"]; crates/<crate>/src/lib.rs -> []
+    file_mods = []
+    if len(parts) > 3 and parts[2] == "src":
+        tail = parts[3:]
+        tail[-1] = tail[-1][: -len(".rs")]
+        if tail[-1] in ("lib", "mod", "main"):
+            tail = tail[:-1]
+        file_mods = tail
+
+    out = []
+    stack = []       # [(depth_at_open, name), ...]
+    depth = 0
+    for line in lines:
+        out.append(file_mods + [n for _, n in stack])
+        hit = MOD_OPEN.match(line.strip())
+        opened = hit.group(1) if hit else None
+        for ch in line:
+            if ch == "{":
+                depth += 1
+                if opened is not None:
+                    stack.append((depth, opened))
+                    opened = None
+            elif ch == "}":
+                while stack and stack[-1][0] == depth:
+                    stack.pop()
+                depth -= 1
+    return out
+
+
 def harnesses():
     """Every Kani harness under `crates/`, with the falsification record it carries.
 
@@ -141,6 +187,7 @@ def harnesses():
             rel = os.path.relpath(path, root)
             crate = rel.split(os.sep)[1]
             lines = open(path, errors="replace").read().split("\n")
+            mods = module_path_by_line(rel, lines)
             for i, line in enumerate(lines):
                 if not PROOF.match(line.strip()):
                     continue
@@ -155,7 +202,7 @@ def harnesses():
                     name = hit.group(1) if hit else None
                     break
                 if name is None:
-                    out.append(Harness(crate, "?", rel, i + 1, None, None))
+                    out.append(Harness(crate, "?", rel, i + 1, None, None, mods[i]))
                     continue
                 # Upward past the other attributes to the comment run above them, which is where
                 # the block lives. Blank lines end it: a comment separated from the harness by a
@@ -169,14 +216,15 @@ def harnesses():
                     if hit:
                         record, record_line = hit.group(1).strip(), k + 1
                     k -= 1
-                out.append(Harness(crate, name, rel, i + 1, record, record_line))
+                out.append(Harness(crate, name, rel, i + 1, record, record_line, mods[i]))
     out.sort(key=lambda h: (h.crate, h.name))
     return out
 
 
 class Harness:
-    def __init__(self, crate, name, rel, line, record, record_line):
+    def __init__(self, crate, name, rel, line, record, record_line, mods):
         self.crate = crate
+        self.mods = mods
         self.name = name
         self.rel = rel
         self.line = line
@@ -198,8 +246,25 @@ class Harness:
         return parts[1] if len(parts) > 1 else None
 
     @property
+    def qualified(self):
+        """The harness's fully qualified name inside its crate, `::`-joined.
+
+        This is the string `cargo kani --harness ... --exact` wants, which is why the patch path is
+        keyed on it: the path and the sweep's own filter are one fact with the separators changed.
+        """
+        return "::".join(self.mods + [self.name])
+
+    @property
     def conventional_patch(self):
-        return "crates/%s/falsifications/%s.patch" % (self.crate, self.name)
+        # DECISIONS §134 as amended 2026-08-31: `<module.path>.<harness_fn_name>.patch`, with the
+        # module path ALWAYS included and no branch. The first spelling keyed on the function name
+        # alone, which `paging` broke on contact: six properties stated once per ISA share six
+        # function names across `aarch64.rs`, `sv39.rs` and `x86_64.rs`, so three harnesses would
+        # collide on one file. Qualifying only when a name repeats was refused for being a branch on
+        # an unstable property, since a harness added elsewhere would retroactively invalidate an
+        # existing path.
+        return "crates/%s/falsifications/%s.patch" % (
+            self.crate, ".".join(self.mods + [self.name]))
 
 
 def patch_files():
@@ -225,9 +290,12 @@ def check(hs):
     """
     problems = []
     claimed = {}
+    # A duplicate qualified name is impossible in Rust, so this is a guard on the PARSER rather than
+    # on the tree: if brace counting ever miscomputes a module path, two harnesses collapse onto one
+    # patch path and the sweep would prove the wrong one. Cheap to assert, invisible if it drifts.
     seen = {}
     for h in hs:
-        seen[(h.crate, h.name)] = seen.get((h.crate, h.name), 0) + 1
+        seen[h.conventional_patch] = seen.get(h.conventional_patch, 0) + 1
     for h in hs:
         where = "%s:%d" % (h.rel, h.line)
         if h.name == "?":
@@ -245,25 +313,12 @@ def check(hs):
                             % (where, h.name, state, ", ".join("`%s`" % s for s in STATES)))
             continue
         if state == "replayable":
-            if seen[(h.crate, h.name)] > 1:
-                # **The patch path cannot name this harness, and that is a hole in the ratified
-                # spelling rather than in this tree.** §134 spells the file
-                # `crates/<crate>/falsifications/<harness_fn_name>.patch`, which assumes the function
-                # name is unique inside its crate. In `paging` it is not: six properties are stated
-                # once per ISA in `aarch64.rs`, `sv39.rs` and `x86_64.rs` under the same six function
-                # names, so eighteen of that crate's twenty-six harnesses share a path with two
-                # others. `cargo kani --harness <name>` cannot separate them either.
-                #
-                # This fires only when somebody actually records a `replayable` falsification for a
-                # colliding harness, deliberately: the convention breaks at the moment it is used
-                # and not before, so the 141 `unfalsified` records this shipped with are unaffected
-                # and no unrelated merge is blocked by a spelling calef has not ruled on yet.
+            if seen[h.conventional_patch] > 1:
                 problems.append(
-                    "%s: harness `%s` is `replayable`, and %d harnesses in `%s` share that function "
-                    "name, so `%s` cannot name one of them. This is DECISIONS §134's patch-path "
-                    "spelling meeting the per-ISA duplication milestone 191 found; it wants calef, "
-                    "and the proposal is in the milestone 194 report."
-                    % (where, h.name, seen[(h.crate, h.name)], h.crate, h.conventional_patch))
+                    "%s: %d harnesses compute the patch path `%s`, which cannot happen in Rust and "
+                    "so means this script's module-path tracking is wrong. Do not record a "
+                    "falsification against it until that is fixed; the sweep would prove the wrong "
+                    "harness." % (where, seen[h.conventional_patch], h.conventional_patch))
                 continue
             path = h.patch
             if not path:
@@ -296,8 +351,8 @@ def check(hs):
         if p not in claimed:
             fn = os.path.basename(p)[: -len(".patch")]
             problems.append("%s: no harness claims this patch. §134 checks both directions: a "
-                            "patch is named `<harness_fn_name>.patch` and the harness `%s` must "
-                            "carry `Falsification: replayable %s`." % (p, fn, p))
+                            "patch is named `<module.path>.<harness_fn_name>.patch` and the harness "
+                            "`%s` must carry `Falsification: replayable %s`." % (p, fn, p))
     return problems
 
 
@@ -324,21 +379,6 @@ def table(hs):
     # The one number §134 asked this script to print, in the sentence it is honest in. Everything
     # else here is a means to it.
     print("%d of %d harnesses (%.0f%%) carry evidence a machine can replay." % (evidence, total, 100.0 * evidence / total if total else 0))
-    # Named here rather than only in --check, because a reader looking at the ratio should see which
-    # part of the denominator the convention cannot currently reach at all.
-    dupes = {}
-    for h in hs:
-        dupes.setdefault((h.crate, h.name), []).append(h)
-    blocked = sorted(k for k, v in dupes.items() if len(v) > 1)
-    if blocked:
-        n = sum(len(dupes[k]) for k in blocked)
-        print("")
-        print("%d of them cannot be recorded as `replayable` at all: their function names repeat "
-              "inside" % n)
-        print("their own crate, and §134's patch path is keyed on the function name alone.")
-        for crate, name in blocked:
-            print("  %s::%s  x%d" % (crate, name, len(dupes[(crate, name)])))
-
 
 def unfalsified(hs):
     """The worklist. Biggest crate first, because §134's own examples of chaff are the crates with
@@ -394,8 +434,14 @@ def sweep(hs, only=None):
             broken.append(h)
             continue
         try:
+            # `--exact` against the fully qualified name, which is what the amended patch path
+            # buys beyond uniqueness: the path and this filter are one fact with the separators
+            # changed. Before the amendment this was a substring match on the bare function name,
+            # and `paging`'s three `index_is_always_in_bounds` harnesses would all have run, so
+            # "one of them went red" proved nothing about the one being falsified.
             run = subprocess.run(
-                ["cargo", "kani", "-p", h.crate, "--harness", h.name, "--output-format=terse"],
+                ["cargo", "kani", "-p", h.crate,
+                 "--harness", h.qualified, "--exact", "--output-format=terse"],
                 cwd=root, capture_output=True, text=True)
             out = run.stdout + run.stderr
             hit = re.search(r"(\d+) successfully verified harnesses, (\d+) failures, (\d+) total",
@@ -407,9 +453,10 @@ def sweep(hs, only=None):
                     print("    " + last[-1])
                 broken.append(h)
             elif hit.group(3) != "1":
-                # The filter is a substring match, so two harnesses sharing a name prefix would both
-                # run and "one of them went red" would prove nothing about this one.
-                print("    ERROR    the filter matched %s harnesses, not 1" % hit.group(3))
+                # Belt and braces over `--exact`: if Kani ever matched none (a renamed harness) or
+                # more than one, "something went red" would prove nothing about this harness.
+                print("    ERROR    `--exact %s` matched %s harnesses, not 1"
+                      % (h.qualified, hit.group(3)))
                 broken.append(h)
             elif hit.group(2) == "1":
                 print("    red      the harness caught it")
