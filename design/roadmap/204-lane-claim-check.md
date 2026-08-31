@@ -1,11 +1,8 @@
 # 204. A pushed lane branch with no draft pull request is a claim nobody can see
 
-**Status: NOT-STARTED.** Minted 2026-08-31 by calef, after two lanes in one session pushed their
-branches and never opened the draft pull request their briefs named as the first act. *(Number
+**Status: BUILT** (2026-08-31). Minted 2026-08-31 by calef, after two lanes in one session pushed
+their branches and never opened the draft pull request their briefs named as the first act. *(Number
 provisional until the merge queue lands it.)*
-
-**Gate: NONE.** The two commands it needs both exist and the rule it enforces is already written in
-AGENTS.md; what is missing is anything that looks.
 
 **In brief.** AGENTS.md §90 says a lane's first act is a draft pull request, and says why: **the draft
 is the claim.** It is how two lanes cannot silently take the same milestone, the board is
@@ -51,6 +48,39 @@ current arrangement lacks entirely.
   people to ignore the report.
 - **It must not be a gate.** See above.
 
+## What shipped
+
+`scripts/lane-claim-check.sh` (provisional name), called once per pass from `scripts/merge-drain.sh`
+before its own empty-queue return. That siting is the answer to the open question below, and the
+reason is that the drain is **the only unattended runner this project has**: it fires every five
+minutes under `launchd` on patagonia, and a report nothing runs is the state this milestone was
+minted to end. A GitHub Actions cron was the alternative and is strictly better on one axis (it
+survives patagonia being asleep, which AGENTS.md records as an accepted gap rather than a solved
+one); it was not taken because the branch that built this was fenced out of `.github/workflows/`,
+and because adding a second unattended runner to say one more sentence is more machinery than the
+sentence is worth. If the drain's own launchd job ever goes away, this goes with it, and that is the
+coupling to know.
+
+**The grace period is 15 minutes, and the number was measured rather than picked.** The branch that
+built this took **3 minutes** from `branch_creation` to its draft pull request, and that included
+writing the file that made the branch non-empty, which is not optional: GitHub refuses a pull
+request with no commits between the head and `main`, so the literal first-act command block in every
+brief cannot be run straight through. 15 is five times the observed case and well under
+`merge-drain.sh`'s 75-minute stale-draft threshold, which is the neighbouring report and the one
+this must not shadow.
+
+**The clock runs from branch creation and a later push does not reset it**, which is the opposite
+choice from `stale_drafts` next door and is deliberate: a lane that keeps committing is exactly the
+lane whose missing claim matters, so a last-commit clock would go quiet for the branches being
+worked hardest. The birth time comes from the repository activity feed, because a commit date cannot
+answer the question (a branch pushed empty carries `main`'s commit date and would be reported the
+instant it existed).
+
+It found a live case on its first run, which is the only evidence worth having:
+`milestone/194-falsification-roadmap-status` had been pushed with no pull request, and
+`milestone/121-ripgrep` was correctly reported as a merged lane's leftover branch rather than as a
+missing claim.
+
 ## BUGS
 
 - **It detects the absence of a claim, not a collision.** Two lanes on the same milestone with two
@@ -60,6 +90,14 @@ current arrangement lacks entirely.
 - **It cannot see a lane that has not pushed at all**, which is the more dangerous state, because
   AGENTS.md says a lane's pushed branch is the only ledger another session can read and uncommitted
   work in a worktree is the one thing no part of this system protects.
-- **Where it runs is not decided here.** `script/lint` is wrong (it is a gate), and the `launchd`
-  watchers die with the session that started them; a GitHub Actions cron cannot see local worktrees
-  but can see pushed branches, which is all this check needs.
+- **It is only as alive as `merge-drain.sh` is.** Where it runs was decided by siting it inside the
+  drain's pass, so it inherits the drain's own recorded gap: patagonia asleep or shut down means
+  nobody is watching. A GitHub Actions cron would close that and remains available.
+- **`milestone/*` only.** A lane on `fix/`, `roadmap/` or `maintainer/` is invisible to it, and
+  those are legitimate lane prefixes `script/lint` accepts. Widening the pattern would also sweep in
+  short-lived maintainer branches that are not claims, so the narrow version shipped.
+- **The activity feed is read one page deep**, so a branch created more than 100 repository events
+  ago has no visible birth. Such a branch is reported rather than skipped: the fallback errs loud,
+  because an old branch with no claim is the case worth seeing.
+- **It reports to stdout only.** The drain can comment on the pull request it is complaining about;
+  a branch with no pull request has nowhere to be told.

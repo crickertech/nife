@@ -1,10 +1,13 @@
 # 207. The four things GitHub asks for, and which of them this project actually wants
 
-**Status: NOT-STARTED.** Minted 2026-08-31 by calef, from GitHub's Community Standards checklist.
-*(Number provisional until the merge queue lands it.)*
+**Status: PARTIAL.** Minted 2026-08-31 by calef, from GitHub's Community Standards checklist. The
+pull request template and the issue templates shipped the same day; the code of conduct and the
+content-reports setting are calef's and remain open. *(Number provisional until the merge queue
+lands it.)*
 
-**Gate: DECISION.** Two of the four are policy rather than files: whether issues are a channel at all,
-and who a code of conduct names as its enforcement contact.
+**Gate: DECISION.** What is left is policy rather than files. Two of the four always were, and the
+first was answered on the day this was minted: **calef enabled issues**, so they are a channel. The
+second is still open, and it is who a code of conduct names as its enforcement contact.
 
 **In brief.** Measured against `repos/crickertech/nife/community/profile` on 2026-08-31: `README`,
 `CONTRIBUTING` and `LICENSE` are present; **`CODE_OF_CONDUCT`, an issue template and a pull request
@@ -25,7 +28,43 @@ branches and opened no draft pull request, though both briefs named it as the fi
 A template makes the line the default rather than a thing to remember, which is rung two replacing
 rung four, and it is the cheapest item here.
 
-## The issue template is premature, and the reason is worth deciding rather than defaulting
+## What shipped, and what the premise turned out to be
+
+**`.github/pull_request_template.md`.** The lane line as default text, then what changed and why
+(the diff shows what), the five gates named individually so "not run" is a visible answer rather
+than a silence, where identified work went, and a `## Needs the architect` section deleted unless it
+applies. The gates are listed by name rather than as one "did you run the gates" line because a
+checklist somebody ticks without reading is the thing this was replacing.
+
+**`.github/ISSUE_TEMPLATE/`**, three forms and a `config.yml`. The section below was written when
+issues were disabled and its premise expired within hours of being written, which is the useful part
+of the record rather than an embarrassment: **calef enabled issues on 2026-08-31**, and that picked
+the second of the two answers it lays out. So the forms **route**, which is what that option asked
+for:
+
+- A **bug report** is welcome and prompts for the commit sha, the architecture, and how it was run.
+  `CONTRIBUTING.md`'s own `BUGS` section had recorded that nothing prompted for the sha while its
+  body told people to supply one, and it had been pointing at a disabled tracker the whole time.
+- A **feature or scope request** says outright that the outcome is a `design/roadmap/` block, links
+  the directory, and asks for the material a block needs, including which existing blocks were
+  checked.
+- A **design argument** says the outcome is a `design/decisions/` file and asks that file's own
+  questions: what is being decided, what the tree does today, the options with a refusal for each,
+  and how reversible it is.
+- A **vulnerability** is a `contact_link` to private reporting rather than a form, so it is visible
+  on the chooser **before** somebody opens the wrong thing. A template that says "do not file this
+  here" has already failed by being opened.
+
+**Blank issues are off.** A blank issue is a way to skip every prompt, and the prompts are the
+entire reason the forms exist.
+
+**Labels are existing ones only** (`bug`, `enhancement`, `needs-architect`). A lane does not mint
+names global to the tree, and a label is one.
+
+## The issue template was premature, and then it was not
+
+*(Written when `has_issues=false`. Kept because the question it raises is real and was answered
+rather than defaulted, and because the answer is what the shipped templates implement.)*
 
 **Issues are disabled on this repository** (`has_issues=false`). A template would be a file nobody
 can reach.
@@ -64,6 +103,13 @@ project has no third-party contributors.
 
 ## BUGS
 
+- **The three routing forms are more work to fill in than an issue elsewhere would be**, on purpose,
+  and that is a cost rather than a free win: a stranger with a small good idea may not write four
+  paragraphs about reversibility, and this project will never hear it. The alternative was hearing
+  it and having nowhere to put it, which is worse, but the trade is real and unmeasured.
+- **Nothing verifies the forms render.** GitHub validates issue-form YAML when it lands on the
+  default branch, so a schema mistake surfaces as a broken chooser rather than as a red check. They
+  parse as YAML locally and follow the documented schema, which is not the same claim.
 - **Three of the four are checklist items and one is a mechanism.** The pull request template earns
   its place on its own; the rest are worth doing because a stranger meets them, which is a weaker
   reason and should be said out loud rather than dressed up.
