@@ -33,7 +33,7 @@ to a fraction, so it comes before any code.
    both directions of the path: every `replayable` resolves, and every patch under a crate's
    `falsifications/` has a harness.
 2. **The reporter**, `script/falsifications`, printing the ratio that is the claim's honest
-   denominator. Patches live at `crates/<crate>/falsifications/<module.path>.<harness_fn_name>.patch`, amended
+   denominator. Patches live at `<package>/falsifications/<module.path>.<harness_fn_name>.patch`, amended
    2026-08-31 because the first spelling assumed a harness name is unique in its crate and `paging`'s
    eighteen ISA-parity harnesses share six names.
 3. **The sweep.** Apply each recorded diff, run that one harness, require red, revert. Weekly,

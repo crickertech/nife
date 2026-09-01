@@ -240,7 +240,7 @@ report with a baseline rather than a gate, so it belongs in the noun half, and t
 `citations` in shape. Refused `script/falsify`, whose verb form would promise the gate this section
 deliberately did not build.
 
-**`crates/<crate>/falsifications/<module.path>.<harness_fn_name>.patch`** is where a patch lives,
+**`<package>/falsifications/<module.path>.<harness_fn_name>.patch`** is where a patch lives,
 for example `crates/paging/falsifications/sv39.index_is_always_in_bounds.patch` and
 `crates/capability/falsifications/verification.subset_is_reflexive.patch`. Per-crate rather than
 central, which is the carrier argument this section already rests on: at the thing, so two lanes
@@ -248,6 +248,16 @@ touching two crates cannot collide. Naming each file for its harness makes the l
 lets the lint check both directions, that every `replayable` path resolves and that every patch has a
 harness. Refused a repository-root `falsifications/`, for the reason milestone 115 refused a central
 names table on 2026-08-04.
+
+**Clarified 2026-09-01: the path is beside the *package*, not under `crates/`.** The ratified
+wording said `crates/<crate>/`, which was true of every case that existed when it was written and is
+not the rule. `kernel/` and `user/` are packages at the repository root, and within a day of the
+mechanism landing both had falsification patches: milestone 202 (every confinement test is a ritual until somebody breaks the confinement)
+created `kernel/falsifications/` and milestone 197 (`user/` and `xtask` are out of reach of the
+prover) created `user/falsifications/`. Both follow this section's stated reason, which is per-package
+rather than central so that two lanes touching two packages cannot collide; both were outside its
+words. A rule three of whose own instances violate it teaches the next reader to guess whether that
+was sloppiness or intent, so the words now say what the reason always meant.
 
 **Amended 2026-08-31, and the first spelling was wrong.** It was
 `falsifications/<harness_fn_name>.patch`, which assumes a harness function name is unique within its
