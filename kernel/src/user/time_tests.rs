@@ -171,13 +171,9 @@ fn a_shell_with_no_usable_clock_times_the_command_anyway() {
 
     // A frame nobody has published to, which is what a reader on a machine with no believable RTC
     // holds. Zeroed, which `clock_proto`'s `a_zeroed_page_reads_as_unknown` pins as UNKNOWN.
-    let blank = crate::memory::alloc()
+    let blank = crate::memory::alloc_zeroed()
         .expect("no frame for a blank clock page")
         .addr();
-    // SAFETY: freshly allocated, named through the direct map, owned by nobody else.
-    unsafe {
-        core::ptr::write_bytes(mmu::phys_to_virt(blank) as *mut u8, 0, FRAME_SIZE as usize);
-    };
 
     // Ten seconds, the sibling test's bound and for its reason: this proves a stopwatch exists,
     // it does not benchmark one.

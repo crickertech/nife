@@ -56,19 +56,11 @@ pub const NO_RTC: &str = "this machine has no working real-time clock (no RTC bi
 
 /// Wire and spawn the clock service.
 pub fn start(image: &'static [u8]) -> Wiring {
-    let page_phys = crate::memory::alloc()
-        .expect("no frame for the clock page")
-        .addr();
     // Zeroed, which is also the honest starting state: a page nobody has published to reads as
     // `state::UNKNOWN` rather than as 1970 (clock_proto's `a_zeroed_page_reads_as_unknown`).
-    // SAFETY: freshly allocated, reachable through the direct map, owned by nobody yet.
-    unsafe {
-        core::ptr::write_bytes(
-            mmu::phys_to_virt(page_phys) as *mut u8,
-            0,
-            FRAME_SIZE as usize,
-        );
-    };
+    let page_phys = crate::memory::alloc_zeroed()
+        .expect("no frame for the clock page")
+        .addr();
 
     let report = crate::sched::create_rendezvous();
     let propose = crate::sched::create_rendezvous();

@@ -200,11 +200,8 @@ static DESCRIBED: AtomicUsize = AtomicUsize::new(0);
 /// If the blob is unreadable. Both callers run after `memory::init` has already parsed the same
 /// pointer, so a failure here means something un-mapped the tree between the two, which is a kernel
 /// bug rather than a machine we should tolerate.
-pub fn read_cpu_list(dtb_ptr: usize) {
-    // SAFETY: the pointer firmware handed us, whose magic `memory::init` has already checked, named
-    // through the boot map's direct region because we are running virtual. Same call, same window.
-    let dt = unsafe { dtb::Dtb::from_ptr(arch::mmu::phys_to_virt(dtb_ptr as u64) as *const u8) }
-        .expect("device tree is unreadable");
+pub fn read_cpu_list() {
+    let dt = crate::device_tree().expect("device tree is unreadable");
     let list = CpuList::from_device_tree(&dt).expect("cannot read /cpus");
 
     // Seat each described core at the slot its own hardware id names. A slot IS a hart id:
@@ -739,10 +736,7 @@ mod tests {
                  independent device-tree re-read to check it against yet)"
             );
         }
-        let ptr = crate::DTB.load(Ordering::Relaxed);
-        // SAFETY: the pointer firmware handed us, already parsed twice on this boot.
-        let dt = unsafe { dtb::Dtb::from_ptr(arch::mmu::phys_to_virt(ptr as u64) as *const u8) }
-            .expect("device tree is unreadable");
+        let dt = crate::device_tree().expect("device tree is unreadable");
         let list = CpuList::from_device_tree(&dt).expect("cannot read /cpus");
 
         assert_eq!(

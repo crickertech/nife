@@ -31,14 +31,11 @@ fn wire(
     // A DMA page: physical memory the device can reach, mapped into the driver, whose
     // physical address the driver must know (a process sees only virtual addresses). We hand
     // that physical address over in `arg1`.
-    let dma = crate::memory::alloc()
+    // Zeroed so stale RAM cannot look like a valid descriptor to the device before the driver
+    // writes the real ones.
+    let dma = crate::memory::alloc_zeroed()
         .expect("no DMA frame for the virtio driver")
         .addr();
-    // SAFETY: fresh frame, reachable through the direct map. Zero it so stale RAM cannot look
-    // like a valid descriptor to the device before the driver writes the real ones.
-    unsafe {
-        core::ptr::write_bytes(mmu::phys_to_virt(dma) as *mut u8, 0, FRAME_SIZE as usize);
-    }
 
     // Route the device's interrupt to an endpoint and enable it, so the driver's `WAIT` on
     // its Irq capability will receive it. See milestone 9a.
@@ -209,14 +206,11 @@ fn wire_net_server(
 ) -> (RendezvousId, RendezvousId, Holding) {
     use crate::cap::memory_region_cap;
 
-    let dma = crate::memory::alloc()
+    // Zeroed so stale RAM cannot look like a valid descriptor to the device before the driver
+    // writes the real ones.
+    let dma = crate::memory::alloc_zeroed()
         .expect("no DMA frame for the net server")
         .addr();
-    // SAFETY: fresh frame via the direct map; zero it so stale RAM cannot look like a valid
-    // descriptor to the device before the driver writes the real ones.
-    unsafe {
-        core::ptr::write_bytes(mmu::phys_to_virt(dma) as *mut u8, 0, FRAME_SIZE as usize);
-    }
 
     // **The three endpoints come out of a region of their own, and that is what makes this service
     // reclaimable at all.** `net_stack` blocks in `recv_cap(STACK)` forever, and DECISIONS §16's
@@ -624,11 +618,7 @@ const ROLE_VIRTIO_ATTACK: u64 = 8;
 /// kernel image. Returns the endpoint on which it reports whether the kernel refused it.
 pub fn start_attacker(image: &'static [u8]) -> Option<RendezvousId> {
     let dev = crate::virtio::find_block_device()?;
-    let dma = crate::memory::alloc().expect("no DMA frame").addr();
-    // SAFETY: fresh frame via the direct map.
-    unsafe {
-        core::ptr::write_bytes(mmu::phys_to_virt(dma) as *mut u8, 0, FRAME_SIZE as usize);
-    }
+    let dma = crate::memory::alloc_zeroed().expect("no DMA frame").addr();
     let vid = crate::virtio::register(
         crate::virtio::Transport::Mmio {
             mmio_phys: dev.mmio_phys,
@@ -673,11 +663,7 @@ const ROLE_VIRTIO_ATTACK_INDIRECT: u64 = 13;
 /// report endpoint.
 pub fn start_attacker_indirect(image: &'static [u8]) -> Option<RendezvousId> {
     let dev = crate::virtio::find_block_device()?;
-    let dma = crate::memory::alloc().expect("no DMA frame").addr();
-    // SAFETY: fresh frame via the direct map.
-    unsafe {
-        core::ptr::write_bytes(mmu::phys_to_virt(dma) as *mut u8, 0, FRAME_SIZE as usize);
-    }
+    let dma = crate::memory::alloc_zeroed().expect("no DMA frame").addr();
     let vid = crate::virtio::register(
         crate::virtio::Transport::Mmio {
             mmio_phys: dev.mmio_phys,

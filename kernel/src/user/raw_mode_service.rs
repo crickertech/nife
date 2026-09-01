@@ -62,22 +62,16 @@ pub fn start() -> (Wiring, Holding) {
     let conreq = sched::create_rendezvous_from(ep_region).expect("no CONREQ endpoint");
     let conrep = sched::create_rendezvous_from(ep_region).expect("no CONREP endpoint");
 
-    let console_phys = crate::memory::alloc()
+    // Zeroed, so no stale RAM leaks into the test.
+    let console_phys = crate::memory::alloc_zeroed()
         .expect("no frame for the fake console's shared page")
         .addr();
-    let app_out_phys = crate::memory::alloc()
+    let app_out_phys = crate::memory::alloc_zeroed()
         .expect("no frame for line_editor's app-output page")
         .addr();
-    let app_in_phys = crate::memory::alloc()
+    let app_in_phys = crate::memory::alloc_zeroed()
         .expect("no frame for line_editor's app-input page")
         .addr();
-    for phys in [console_phys, app_out_phys, app_in_phys] {
-        // SAFETY: each frame was just allocated, is direct-mapped, and is owned by nobody else
-        // yet, so zeroing it here cannot race or leak stale RAM into the test.
-        unsafe {
-            core::ptr::write_bytes(mmu::phys_to_virt(phys) as *mut u8, 0, FRAME_SIZE as usize);
-        }
-    }
 
     let console_tid = sched::spawn(move || {
         loop {

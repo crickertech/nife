@@ -113,18 +113,10 @@ pub fn start(n: usize, focusable: usize, display: RendezvousId, screen: u64) -> 
         per_client[i] = 1 + win.page_frames() as u64; // a control page, then the surface
         total += per_client[i];
     }
-    let run_base = crate::memory::alloc_contiguous(total as usize)
+    // Zeroed so no client and no test ever reads a stale pixel.
+    let run_base = crate::memory::alloc_contiguous_zeroed(total as usize)
         .expect("no contiguous run for the compositor's client surfaces")
         .addr();
-    // SAFETY: a fresh contiguous run of frames, reachable through the direct map, owned by nobody
-    // else. Zeroed so no client and no test ever reads a stale pixel.
-    unsafe {
-        core::ptr::write_bytes(
-            mmu::phys_to_virt(run_base) as *mut u8,
-            0,
-            (total * FRAME_SIZE) as usize,
-        );
-    }
 
     let mut client = [0u64; compositor::MAX_WINDOWS];
     let mut client_report = [0; compositor::MAX_WINDOWS];
@@ -453,13 +445,9 @@ impl Wiring {
             "window {i} is too small for one character cell",
         );
 
-        let out = crate::memory::alloc()
+        let out = crate::memory::alloc_zeroed()
             .expect("no output-page frame for a display terminal")
             .addr();
-        // SAFETY: a fresh frame, direct-mapped, owned by nobody yet.
-        unsafe {
-            core::ptr::write_bytes(mmu::phys_to_virt(out) as *mut u8, 0, FRAME_SIZE as usize);
-        };
 
         let frames = SCENE[i].page_frames() as u64;
         let mut maps = [Mapping {
@@ -557,10 +545,7 @@ const COMP_INPUT_BASE: u64 = 5;
 
 /// A fresh zeroed frame, for a page the kernel hands two processes to share.
 fn zeroed_page_frame() -> u64 {
-    let f = crate::memory::alloc()
+    crate::memory::alloc_zeroed()
         .expect("no frame for the compositor's shared pages")
-        .addr();
-    // SAFETY: a fresh frame, direct-mapped, owned by nobody yet.
-    unsafe { core::ptr::write_bytes(mmu::phys_to_virt(f) as *mut u8, 0, FRAME_SIZE as usize) };
-    f
+        .addr()
 }

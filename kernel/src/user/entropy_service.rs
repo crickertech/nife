@@ -129,19 +129,12 @@ fn start(image: &'static [u8], bus: Bus) -> Option<Wiring> {
         }
     };
 
-    let dma = crate::memory::alloc_contiguous(DMA_PAGE_FRAMES as usize)
+    // Zeroed so no stale descriptor is visible to the device, and so a buffer the service has not
+    // filled yet reads as zeros rather than as somebody's old page contents pretending to be
+    // entropy.
+    let dma = crate::memory::alloc_contiguous_zeroed(DMA_PAGE_FRAMES as usize)
         .expect("no DMA region for the entropy service")
         .addr();
-    // SAFETY: a fresh frame, direct-mapped, owned by nobody else. Zeroed so no stale descriptor
-    // is visible to the device, and so a buffer the service has not filled yet reads as zeros
-    // rather than as somebody's old page contents pretending to be entropy.
-    unsafe {
-        core::ptr::write_bytes(
-            mmu::phys_to_virt(dma) as *mut u8,
-            0,
-            (DMA_PAGE_FRAMES * FRAME_SIZE) as usize,
-        );
-    }
 
     let irq_ep = crate::sched::create_rendezvous();
     crate::sched::bind_irq(intid, irq_ep);
