@@ -113,6 +113,28 @@ the study; PR #589.
 **What it changes.** The verification claim should be stated as what it is: proofs over the pure
 crates, with the kernel itself largely unverified.
 
+**Milestone 197 (`user/` and `xtask` are out of reach of the prover) closed the second half on
+2026-08-31, and half-refuted its own premise.** `user/` was argued to deserve the prover more than
+the kernel did, because it holds parsers over bytes this system did not produce. **It mostly does not
+any more**: rule 7 and the host-testability discipline already lifted the initrd, ELF, GPT, mDNS,
+directory-entry, terminal-escape, shell and glob parsers into crates, **every one already in
+`script/verify`'s table**. The prize had been collected under other numbers, which is the tree
+working as designed rather than a disappointment.
+
+**It still found a live defect, and found it before any harness ran.** `rmle`'s save buffer was sized
+for the document's text while `save` writes rows `\n`-joined, so a full document staged 3,231 bytes
+into a 3,200-byte buffer and **panicked the editor on `^S`**. Eight months old and invisible to any
+test that does not hit both limits at once. It came out of *writing the property down*, which was the
+first time the two constants were compared, and the fix is a `const` assertion beside the buffer
+rather than a harness: rung one, because the claim is a relationship between compile-time constants.
+
+**And it measured a trap worth more than the proof.** Three properties were tried and abandoned with
+numbers: a sum over 32 symbolic values (no answer in 20 minutes on two solvers), a symbolic index into
+a 3.5 KB struct (CBMC out of memory in 3m23s), and any claim downstream of 20 divisions (no answer in
+10 minutes). The last is the lesson: **the same harness asserting only a length bound returns in 0.3
+seconds, because `--slice-formula` discards the divisions.** A fast harness can be evidence that the
+assertion asked nothing, and nothing in this tree currently distinguishes those two cases.
+
 **And the amber moved the same day.** Milestone 193 (put `kernel/src` within reach of the prover) was
 minted from this finding and built hours later: two properties proved over `kernel/src/syscall.rs`
 with nothing moved into a crate first, **both falsified before being believed** by re-introducing
