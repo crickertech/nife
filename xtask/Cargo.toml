@@ -36,6 +36,11 @@ graphics_proto = { version = "0.1.0", path = "../crates/graphics_proto" }
 # shell-check leg to decode a screendump's cells back into characters: the same glyph table the
 # guest drew from, so a mismatch is the guest's picture being wrong rather than the host guessing.
 bitmap_font = { version = "0.1.0", path = "../crates/bitmap_font" }
+# The real board's serial console (milestone 216): the recogniser that says how far a boot got, and
+# the loop that stops instead of hanging. A crate rather than code in here for the reason every
+# host-logic crate in this tree gives: the interesting half is text, and text is worth a thousand
+# tests in milliseconds. This file keeps the argument parsing and the report.
+board_console = { version = "0.1.0", path = "../crates/board_console" }
 # The mDNS responder's configuration document (milestone 55). The gate's expectations are DERIVED
 # from the same file the guest ships, so editing what this machine advertises moves the assertion
 # with it and the two cannot drift. The wire-format side is deliberately NOT shared: the prober

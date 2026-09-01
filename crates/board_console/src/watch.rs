@@ -180,7 +180,6 @@ where
     let mut progress = BootProgress::new();
     let mut bytes = 0u64;
     let mut spoke_at: Option<Instant> = None;
-    #[allow(unused_assignments)]
     let mut outcome = Outcome::RanOut;
     let mut error: Option<io::Error> = None;
 

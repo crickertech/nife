@@ -13,6 +13,7 @@
 //!     cargo xtask gdb      boot paused, waiting for a debugger on :1234
 //!     cargo xtask objdump  disassemble the kernel
 //!     cargo xtask image    build the flat arm64 Image and dump its header
+//!     cargo xtask board-console  read a real board's serial console, log it, and stop on a deadline
 //!
 //! Note that `run` and `test` do NOT invoke QEMU themselves. They just call cargo,
 //! which invokes `scripts/qemu-runner-aarch64.sh` via the runner setting in
@@ -172,12 +173,15 @@ fn main() -> ExitCode {
         "gdb" => gdb(),
         "objdump" => objdump(),
         "image" => image(),
+        // The real board's serial console (milestone 216). Returns its own exit code rather than a
+        // bool, so a bench script can tell "reached the banner" from "went quiet" from "ran out".
+        "board-console" => return board_console(),
         other => {
             if !other.is_empty() {
                 eprintln!("unknown command: {other}\n");
             }
             eprintln!(
-                "usage: cargo xtask <build|run|shell|shell-check|initboot|initrd-aarch64|initrd-riscv|initrd-x86|uefi-image|uefi-boot|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image> [--hvf]"
+                "usage: cargo xtask <build|run|shell|shell-check|initboot|initrd-aarch64|initrd-riscv|initrd-x86|uefi-image|uefi-boot|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image|board-console> [--hvf]"
             );
             eprintln!("       cargo xtask shell-check [--arch aarch64|riscv64]");
             eprintln!(
@@ -190,6 +194,9 @@ fn main() -> ExitCode {
                 "       cargo xtask test [--arch aarch64|riscv64|x86_64] [--cpu <qemu-cpu-model>] [--hvf] [--test <substring>]"
             );
             eprintln!("       cargo xtask icount [--arch aarch64|riscv64]");
+            eprintln!(
+                "       cargo xtask board-console [--port <dev>] [--replay <log>] [--log <file>] [--for <duration>] [--until spl|opensbi|uboot|handoff|banner|none] [--quiet-after <duration>]"
+            );
             return ExitCode::FAILURE;
         }
     };
@@ -8226,6 +8233,249 @@ fn module_doc(src: &str) -> String {
         }
     }
     out
+}
+
+// ---------------------------------------------------------------------------
+// board-console (milestone 216)
+// ---------------------------------------------------------------------------
+
+/// Open a real board's serial console, log every byte, and stop on a deadline.
+///
+/// The engine is `crates/board_console`; this is argument parsing and a report, deliberately, for
+/// the reason every host-logic crate in this tree exists: the interesting half is a recogniser
+/// over text, and a recogniser wants a thousand host tests in milliseconds, not a board.
+///
+/// It returns an [`ExitCode`] of its own rather than the `bool` the rest of `main` uses, because
+/// this command has four answers and not two: reached, announced a failure, went quiet, ran out.
+/// A caller scripting a bench run wants to tell those apart, and squeezing them into
+/// success/failure is exactly the loss of information the milestone is about.
+fn board_console() -> ExitCode {
+    use std::io::Write;
+
+    use board_console::watch::{Policy, watch};
+
+    let args: Vec<String> = std::env::args().skip(2).collect();
+    let mut port: Option<PathBuf> = std::env::var_os("NIFE_BOARD_PORT").map(PathBuf::from);
+    let mut replay: Option<PathBuf> = None;
+    let mut log: Option<PathBuf> = None;
+    let mut policy = Policy::default();
+
+    let mut i = 0;
+    while i < args.len() {
+        let value = |i: usize| -> Result<&str, ExitCode> {
+            args.get(i + 1).map(String::as_str).ok_or_else(|| {
+                eprintln!("board-console: {} wants a value", args[i]);
+                ExitCode::from(4)
+            })
+        };
+        match args[i].as_str() {
+            "--port" => match value(i) {
+                Ok(v) => port = Some(PathBuf::from(v)),
+                Err(code) => return code,
+            },
+            "--replay" => match value(i) {
+                Ok(v) => replay = Some(PathBuf::from(v)),
+                Err(code) => return code,
+            },
+            "--log" => match value(i) {
+                Ok(v) => log = Some(PathBuf::from(v)),
+                Err(code) => return code,
+            },
+            "--for" | "--timeout" => match value(i).map(parse_duration) {
+                Ok(Some(d)) => policy.total = d,
+                Ok(None) => {
+                    eprintln!("board-console: --for wants a duration like 90, 90s, 30m or 2h");
+                    return ExitCode::from(4);
+                }
+                Err(code) => return code,
+            },
+            "--quiet-after" => match value(i).map(parse_duration) {
+                // Zero disables it: on a long sustained watch, a board that is legitimately quiet
+                // for a while is not a hang, and the operator is the one who knows which.
+                Ok(Some(d)) => policy.quiet_after = if d.is_zero() { None } else { Some(d) },
+                Ok(None) => {
+                    eprintln!("board-console: --quiet-after wants a duration, or 0 to disable");
+                    return ExitCode::from(4);
+                }
+                Err(code) => return code,
+            },
+            "--until" => match value(i).map(parse_stage) {
+                Ok(Some(stage)) => policy.until = stage,
+                Ok(None) => {
+                    eprintln!(
+                        "board-console: --until wants spl, opensbi, uboot, handoff, banner, or none"
+                    );
+                    return ExitCode::from(4);
+                }
+                Err(code) => return code,
+            },
+            other => {
+                eprintln!("board-console: unknown argument {other}");
+                eprintln!(
+                    "usage: cargo xtask board-console [--port <dev>] [--replay <log>] \
+                     [--log <file>] [--for <duration>] [--until <stage>] [--quiet-after <duration>]"
+                );
+                return ExitCode::from(4);
+            }
+        }
+        i += 2;
+    }
+
+    // The log path is chosen before anything can fail, and it is never optional. A console session
+    // whose evidence exists only in a terminal that has since scrolled is the rung-four failure
+    // this tree keeps writing down; the file is the artifact.
+    let log_path = log.unwrap_or_else(|| {
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
+        PathBuf::from(format!("target/board-console-{stamp}.log"))
+    });
+    if let Some(parent) = log_path.parent()
+        && let Err(e) = std::fs::create_dir_all(parent)
+    {
+        eprintln!("board-console: cannot create {}: {e}", parent.display());
+        return ExitCode::from(4);
+    }
+    let file = match std::fs::File::create(&log_path) {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("board-console: cannot write {}: {e}", log_path.display());
+            return ExitCode::from(4);
+        }
+    };
+    let mut sink = Tee {
+        file,
+        terminal: std::io::stdout(),
+    };
+
+    // A replayed log ends; a serial port does not. That single bit is the difference between
+    // "the file is over" and "the board has not said anything yet", and getting it wrong turns
+    // one of them into the other.
+    let session = if let Some(path) = &replay {
+        let captured = match std::fs::File::open(path) {
+            Ok(f) => f,
+            Err(e) => {
+                eprintln!("board-console: cannot read {}: {e}", path.display());
+                return ExitCode::from(4);
+            }
+        };
+        eprintln!("--- replaying {} ---", path.display());
+        watch(captured, &mut sink, &policy, false)
+    } else {
+        let path = match board_console::port::choose(port.as_deref()) {
+            Ok(p) => p,
+            Err(e) => {
+                eprintln!("board-console: {e}");
+                return ExitCode::from(4);
+            }
+        };
+        let (device, complaint) = match board_console::port::open(&path) {
+            Ok(pair) => pair,
+            Err(e) => {
+                eprintln!("board-console: cannot open {}: {e}", path.display());
+                return ExitCode::from(4);
+            }
+        };
+        if let Some(complaint) = complaint {
+            // Not fatal: an adapter whose driver refused one of the flags still delivers bytes,
+            // and the deadline does not depend on the read timeout.
+            eprintln!("board-console: {complaint} (continuing; the deadline does not need it)");
+        }
+        eprintln!(
+            "--- {} at {} baud, logging to {}, up to {:?} ---",
+            path.display(),
+            board_console::port::BAUD,
+            log_path.display(),
+            policy.total
+        );
+        watch(device, &mut sink, &policy, true)
+    };
+
+    let session = match session {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("board-console: {e}");
+            eprintln!("board-console: log at {}", log_path.display());
+            return ExitCode::from(4);
+        }
+    };
+
+    let _ = sink.flush();
+    eprintln!();
+    eprintln!("board-console: {}", session.summary());
+    if let Some(line) = session.progress.banner_line() {
+        eprintln!("board-console: banner: {line}");
+    }
+    if session.bytes == 0 && replay.is_none() {
+        // The runbook's first triage row, said here so nobody starts by suspecting the kernel.
+        eprintln!(
+            "board-console: not one byte arrived. Check TX/RX are crossed, that the board has \
+             power, that the DIP switches are on QSPI, and that this is the cu.* device."
+        );
+    }
+    eprintln!("board-console: log at {}", log_path.display());
+    ExitCode::from(u8::try_from(session.exit_code()).unwrap_or(4))
+}
+
+/// Write every byte to the log and to this terminal at once.
+///
+/// Both, not either. The file is the artifact a later reader needs and the terminal is what makes
+/// a person at the bench willing to use the tool at all.
+struct Tee {
+    file: std::fs::File,
+    terminal: std::io::Stdout,
+}
+
+impl std::io::Write for Tee {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        // The file first, and its error is the one that propagates: losing the terminal copy is a
+        // cosmetic loss, losing the log is the whole evidence.
+        self.file.write_all(buf)?;
+        let _ = self.terminal.write_all(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        let _ = self.terminal.flush();
+        self.file.flush()
+    }
+}
+
+/// `90`, `90s`, `30m`, `2h`. Bare digits are seconds.
+fn parse_duration(text: &str) -> Option<std::time::Duration> {
+    let (digits, scale) = match text.strip_suffix(['s', 'm', 'h']) {
+        Some(rest) => (
+            rest,
+            match text.as_bytes()[text.len() - 1] {
+                b's' => 1,
+                b'm' => 60,
+                _ => 3600,
+            },
+        ),
+        None => (text, 1),
+    };
+    digits
+        .parse::<u64>()
+        .ok()
+        .map(|n| std::time::Duration::from_secs(n * scale))
+}
+
+/// The stage to wait for, or `none` to watch for the whole duration.
+///
+/// `none` is not a formality: sustained watching with nothing to wait for is what
+/// `design/fatal-risks.md`'s multicore entry (risk 5) needs, and it is the case a boot check
+/// cannot cover.
+fn parse_stage(text: &str) -> Option<Option<board_console::progress::Stage>> {
+    use board_console::progress::Stage;
+    match text {
+        "none" => Some(None),
+        "spl" => Some(Some(Stage::Spl)),
+        "opensbi" => Some(Some(Stage::OpenSbi)),
+        "uboot" => Some(Some(Stage::UBoot)),
+        "handoff" => Some(Some(Stage::Handoff)),
+        "banner" => Some(Some(Stage::Banner)),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
