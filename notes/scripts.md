@@ -33,7 +33,7 @@ uses `cargo xtask` and that one uses `make` and the next uses `npm`.
 | `script/ci-qemu` | CI only, Linux only: build the pinned QEMU into a cacheable prefix, because Ubuntu 24.04's 8.2 has no `riscv-iommu-pci` and apt cannot go newer. |
 | `script/drift [nightly-YYYY-MM-DD]` | Does a toolchain still build us? Bare-metal build plus the host-logic tests. With no argument it checks the pin, which makes it a fast health check; given a nightly it checks that one, which is what the daily `toolchain drift` workflow does with the newest. |
 | `script/toolchain-bump [YYYY-MM-DD]` | Raise the pinned nightly, with evidence: install, rebuild the std farm from scratch, run every gate. Restores the old pin if anything fails, because a half-applied toolchain bump is worse than none. Run it when the daily `toolchain drift` workflow goes red. |
-| `script/test` | Run the suite: the host-logic crates in milliseconds, then the kernel under QEMU. The fast inner loop; assumes `setup` has run. `--arch aarch64\|riscv64` runs one ISA leg instead of both (the default is still both, so the parity gate cannot be weakened by forgetting it); `--cpu <model>` picks the emulated CPU (notes/cpu-models.md); `--hvf` runs the aarch64 kernel leg on the physical Apple Silicon core instead of under TCG (aarch64 only, `-cpu host` mandatory, and it skips the host-logic crates because no accelerator exists on that path; notes/hvf-leg.md). |
+| `script/test` | Run the suite: the host-logic crates in milliseconds, then the kernel under QEMU. The fast inner loop; assumes `setup` has run. `--arch aarch64\|riscv64` runs one ISA leg instead of both (the default is still both, so the parity gate cannot be weakened by forgetting it); `--cpu <model>` picks the emulated CPU (notes/cpu-models.md); `--hvf` runs the aarch64 kernel leg on the physical Apple Silicon core instead of under TCG (aarch64 only, `-cpu host` mandatory, and it skips the host-logic crates because no accelerator exists on that path; notes/hvf-leg.md); `--test <substring>` runs only the kernel tests whose path contains it (milestone 210, see below). |
 | `script/cpu-matrix` | Run the riscv64 suite against every QEMU CPU model in the matrix (`rv64`, `sifive-u54`, `rva22s64`, `rva23s64`, `thead-c906`), because the default `rv64` is QEMU's maximalist model and the board is an RV64GC U74. A CI gate. Preflights that `-cpu` is enforced rather than merely advertised, then runs every model without stopping at the first failure. See notes/cpu-models.md. |
 | `script/repeat-under-load [-n runs] [-s spinners] [-- <script/test args>]` | Run the suite N times with one busy-loop spinner per core, and record what the load actually was: elapsed seconds per run, the one-minute load average sampled every ten seconds (minimum, mean, peak), and how many QEMU processes were up, so a neighbouring lane gating on the same laptop is separable from the contention the script manufactures. Milestone 62's acceptance instrument, and the answer to that block's own BUGS line: a flake that fires one run in six is indistinguishable from a fixed one until you have run it many times, so the evidence is a repeat count under load rather than a green run. **Load causes false failures, not false passes**, which is what makes a green result here conclusive and a red one a lead; the failure text says so, and says not to widen the bound. `-s 0` is the quiet control. Not a gate and never in CI: it costs hours by construction. **Name provisional.** See notes/load-sensitive-assertions.md. |
 | `script/runner-container [-n runs] [--arch A] [--build-only] [--shell]` | Boot the suite over and over inside an approximation of the CI runner, because `inbound check (riscv64)` has gone red three times on `ubuntu-24.04-arm` and never once on macOS. An ubuntu 24.04 aarch64 container, running **native** on an aarch64 laptop so nothing is emulated but the guest, with the emulator built by `script/ci-qemu` from `.qemu-version`'s pin rather than apt-installed, provisioning by `script/bootstrap`, and the core count narrowed by affinity rather than by a CFS quota (a quota throttles without changing what `nproc` says, which is not the runner's shape). The loop is `script/repeat-under-load -s 0`: no induced load, because both CI observations had a load average near 1 and spinners would be manufacturing a different bug. The tree is mounted **read-only** and cloned inside, so a fifty-boot run cannot write into a lane's worktree and cannot take the account-global `nife-dev` link; QEMU cannot leak, because the emulators die with the container. Not a gate and never in CI. **Name provisional.** See notes/net.md's inbound BUGS section for what fifty boots found and what the container does not carry. |
@@ -145,3 +145,98 @@ An existing clone installs it by rerunning `script/setup`, or by hand with the c
   this to be wrong in.
 - **It checks the whole tree, not the pushed range.** Cheap enough at this size that the
   precision is not worth the complexity, and a tree that is unformatted anywhere fails CI anyway.
+
+## Running one kernel test (`script/test --test`)
+
+Milestone 210. A host crate's test is a function a harness calls, so `cargo test <name>` has always
+worked there. A kernel test is not: it runs inside a booted kernel under QEMU, the runner is
+`kernel/src/testing.rs`'s `runner`, and until this flag existed that runner took no filter at all.
+So the only way to see one kernel test was to run all 312 of them.
+
+```
+script/test --arch aarch64 --test frames_are_zeroed
+```
+
+The substring is matched against the test's full path (`core::any::type_name` of the
+`#[test_case]` function), which is the same shape `cargo test <name>` matches, so a module name
+selects a module's worth and a full path selects exactly one.
+
+### What it costs, measured
+
+The block that minted this guessed that "the boot is most of the four minutes", which would have
+made the flag worth much less than it sounds. It is not. Timed on patagonia, aarch64,
+`cargo xtask test --arch aarch64`:
+
+| | |
+|---|---|
+| QEMU start to `running 312 tests` (objcopy, QEMU, the whole kernel boot) | **0.50 s** |
+| the 312 tests themselves | **53.1 s** |
+| the whole `--arch aarch64` run, host crates and builds included | **174 s** |
+| the same run with `--test <one test>`, warm | **8.6 s** |
+
+So the boot is about **1%** of the QEMU leg, not most of it, and the flag is worth more than the
+block expected rather than less. What is left in the 8.6 s is the fixture work `test` does before
+any leg (the userspace archive, the `std` exerciser, and five disk images), not the boot.
+
+### How the filter reaches the kernel, and why it is compile-time
+
+`kernel/build.rs` bakes `NIFE_TEST_FILTER` into the test binary as a `rustc-env`, and `runner`
+reads it as a `const`. That is not the obvious design (a boot argument is), and the reason is
+parity: a runtime channel means the boot protocol, and there are three of them. aarch64 and riscv64
+arrive with a device tree whose `/chosen/bootargs` this kernel does not parse; x86_64 arrives
+through PVH with no device tree at all. One `env!` is identical on all three and needs no parsing.
+The price is a kernel relink, measured at about 2.3 s, when the filter *changes*.
+
+### What the flag turns off, and why
+
+A filtered run is not the suite, so three things that assert what unselected tests would have
+written are suppressed rather than allowed to fail for an unrelated reason:
+
+- **the host-logic crates** do not run at all (they already have `cargo test <name>`, and running
+  their 72 s to reach one kernel test would keep most of the cost the flag removes);
+- **the post-run RedoxFS, crash and blank image checks** are skipped, the same guard `--arch
+  x86_64` already has: they would open a stale image from a previous run and report a true fact
+  about a leftover file as a false one about this run;
+- **the scanout, inbound and multicast referees** still run (the scanout referee is also what
+  presses keys over QEMU's monitor, which the keyboard test needs) but their verdicts become
+  advisory, and the run says so on a line of its own.
+
+### EXAMPLES
+
+```
+$ script/test --arch aarch64 --test the_asid_width_supports_the_allocator
+--- test filter: the_asid_width_supports_the_allocator (kernel legs only; the host crates have `cargo test`) ---
+--- kernel tests, aarch64 (QEMU) ---
+
+running 1 of 312 tests (filter: the_asid_width_supports_the_allocator)
+
+test kernel::arch::aarch64::isa::tests::the_asid_width_supports_the_allocator ... ok
+
+test result: ok. 1 passed
+```
+
+A filter that matches nothing fails the run, rather than reporting a green `0 passed`:
+
+```
+$ script/test --arch aarch64 --test no_such_test_anywhere
+running 0 of 312 tests (filter: no_such_test_anywhere)
+no test matches the filter `no_such_test_anywhere`
+  (a test only this architecture lacks? `--test` runs every leg; add `--arch`)
+```
+
+### BUGS
+
+- **`--test` selects tests, not architectures, and that is deliberate** (DECISIONS §19). A filter
+  naming an architecture-specific test and no `--arch` runs all three legs and fails on the two
+  that do not have it. Failing is the honest outcome, because the alternative (skipping a leg with
+  no matches) makes a typo indistinguishable from a green run; the message names the fix.
+- **A filtered run proves nothing about the whole-suite instruments.** The frame ledger's
+  kept-frames ceiling, the thread peak and the stack high-water are all totals over 312 tests, so a
+  one-test run's readings sit far under them and cannot fail. Read a green filtered run as "this
+  test passes", never as "the suite would".
+- **Tests are not independent, and running one alone can fail honestly.** A test that only passes
+  because an earlier one wired a service will fail on its own. That is a true finding about the
+  test rather than a defect in the flag, and it is worth reading as one.
+- **The fixture work is not filtered.** The 8.6 s above is almost entirely archive and image
+  building that happens whether or not the selected test needs a disk. Filtering that too would
+  need `test` to know which fixtures a given test wants, which nothing records.

@@ -187,7 +187,7 @@ fn main() -> ExitCode {
                 "       cargo xtask bench [--riscv | --x86] [--real] [--release] [--smp] [--check] [--save]"
             );
             eprintln!(
-                "       cargo xtask test [--arch aarch64|riscv64|x86_64] [--cpu <qemu-cpu-model>] [--hvf]"
+                "       cargo xtask test [--arch aarch64|riscv64|x86_64] [--cpu <qemu-cpu-model>] [--hvf] [--test <substring>]"
             );
             eprintln!("       cargo xtask icount [--arch aarch64|riscv64]");
             return ExitCode::FAILURE;
@@ -1880,10 +1880,24 @@ fn cargo_test_with_scanout_check(arch: &str, test_args: &[&str]) -> bool {
     }
     // All four, and not short-circuited: a run that lost the scanout AND a network answer should
     // say so once rather than making the reader run it again to find the next failure.
+    // **Under `--test` the three host-side referees are advisory** (milestone 210). Each asserts
+    // something a particular guest test does (pixels on the scanout, an inbound connection
+    // accepted, a multicast answer), so a filter that did not select that test fails them for a
+    // reason that has nothing to do with what was run. They still RUN, because the referee is also
+    // what presses keys over the monitor and the keyboard test needs that; only their verdict is
+    // dropped. The guest's own verdict (`child_ok`) is never advisory.
+    let filtered = std::env::var_os("NIFE_TEST_FILTER").is_some_and(|v| !v.is_empty());
+    if filtered {
+        eprintln!();
+        eprintln!(
+            "--- the host-side checks below are ADVISORY under --test: they assert what particular \
+             guest tests write, and a filter may not have selected those ---"
+        );
+    }
     let scanout = referee.report();
     let inbound = prober.report();
     let multicast = mcast.report();
-    let ok = child_ok && scanout && inbound && multicast;
+    let ok = child_ok && (filtered || (scanout && inbound && multicast));
     load.report_if_failed(ok, arch);
     ok
 }
@@ -5359,7 +5373,7 @@ impl ArchLegs {
 /// emulator, so they fail fast and cheap. Only once they pass is it worth spending twenty
 /// seconds booting QEMU. See DECISIONS.md §7.
 ///
-/// Three flags narrow what runs, and all three default to today's behaviour:
+/// Four flags narrow what runs, and all four default to today's behaviour:
 ///
 /// - `--arch aarch64|riscv64|x86_64` runs one ISA leg instead of all three (milestone 59; the
 ///   third arrived with milestone 161).
@@ -5368,6 +5382,24 @@ impl ArchLegs {
 /// - `--hvf` runs the aarch64 kernel leg on the physical Apple Silicon core (milestone 81). It is
 ///   aarch64-only by construction, so it narrows the run to that leg and refuses `--cpu`; see
 ///   [`hvf_kernel_leg`] for the mechanism and notes/hvf-leg.md for what differs.
+/// - `--test <substring>` runs only the kernel tests whose full path contains `<substring>`, the
+///   same shape `cargo test <name>` has (milestone 210). It selects TESTS, not architectures: every
+///   leg still runs, because a filter that quietly narrowed to one ISA is what DECISIONS §19
+///   distrusts. It skips the host pass (those crates already have `cargo test`), skips the post-run
+///   image checks, and drops the host-side referees' verdicts, all because those assert what the
+///   unselected tests would have written. A filter matching nothing fails the run rather than
+///   reporting a green zero.
+///
+/// # EXAMPLES
+///
+/// ```text
+/// $ script/test --arch aarch64 --test frames_are_zeroed
+/// --- test filter: frames_are_zeroed (kernel legs only; the host crates have `cargo test`) ---
+/// --- kernel tests, aarch64 (QEMU) ---
+/// running 1 of 312 tests (filter: frames_are_zeroed)
+/// test kernel::memory::tests::frames_are_zeroed ... ok
+/// test result: ok. 1 passed
+/// ```
 ///
 /// `script/cpu_matrix` is the caller that needs the first two (notes/cpu-models.md); `script/gates`
 /// is the caller that needs the third.
@@ -5428,6 +5460,34 @@ fn test() -> bool {
         None => unsafe { std::env::remove_var("NIFE_CPU") },
     }
 
+    // **`--test <substring>`: run one kernel test rather than the suite** (milestone 210).
+    //
+    // It rides to the kernel through the environment like `--cpu` does, but it lands in a different
+    // place: `kernel/build.rs` bakes it into the test binary as a `rustc-env`, because a kernel test
+    // runs inside a booted kernel and there is no command line to hand it. Changing it costs a
+    // kernel relink (~2.3 s) and buys the ~53 s the aarch64 suite spends running 312 tests. Unset it
+    // when no flag was given, on `--cpu`'s reasoning exactly: a stale value in the caller's shell
+    // must not silently change what a plain `script/test` means.
+    //
+    // **It does not narrow the architectures**, and that is deliberate (DECISIONS §19). A filter
+    // that quietly ran one ISA would be the parity hole the tenet distrusts; say `--arch aarch64`
+    // as well when one leg is what you want.
+    let filter = flag_value("--test");
+    match filter.as_deref() {
+        Some(f) => {
+            eprintln!(
+                "--- test filter: {f} (kernel legs only; the host crates have `cargo test`) ---"
+            );
+            // SAFETY: `set_var`/`remove_var` became unsafe in edition 2024 because they race other
+            // threads. xtask is single-threaded here: this runs on the main thread before the child
+            // that reads it is spawned, and the only thread xtask ever starts (the transcript reader
+            // in shell_check_leg) copies pipe bytes into a String and never touches the environment.
+            unsafe { std::env::set_var("NIFE_TEST_FILTER", f) };
+        }
+        // SAFETY: as above.
+        None => unsafe { std::env::remove_var("NIFE_TEST_FILTER") },
+    }
+
     // Nothing cargo starts inherits an accelerator choice. The default leg is TCG, which is the
     // right place for reproducible tests (deterministic, identical on any host), and the HVF leg
     // does not go through cargo at all: it sets `NIFE_ACCEL` on the one child that needs it
@@ -5448,7 +5508,11 @@ fn test() -> bool {
              is the part an accelerator can change: the kernel, under QEMU."
         );
     }
-    if !hvf {
+    // `filter.is_none()` because `--test` names a KERNEL test: the host crates already have
+    // `cargo test <name>`, which is what milestone 210 exists to give the kernel, and running the
+    // whole host pass (about 72 s here) to reach one kernel test would keep most of the cost the
+    // flag is meant to remove.
+    if !hvf && filter.is_none() {
         eprintln!("--- host tests (pure logic, no emulator) ---");
         // Every host crate, by asking cargo which ones those are instead of listing them.
         //
@@ -5740,6 +5804,14 @@ fn test() -> bool {
     // file and a false statement about the run. A check whose subject did not happen is worse than
     // no check, because it fails for a reason unrelated to what was tested.
     if !legs.aarch64() && !legs.riscv64() {
+        return true;
+    }
+    // **And not under a filter** (milestone 210), for the same reason the `--arch x86_64` guard
+    // above exists: these checks assert what the FS tests WROTE, so a run that did not select them
+    // would open a stale image and report "motd did not read back", which is a true statement about
+    // a leftover file and a false one about this run. A check whose subject did not happen is worse
+    // than no check.
+    if filter.is_some() {
         return true;
     }
     eprintln!();
