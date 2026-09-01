@@ -188,11 +188,19 @@ it.
   discovery query (`starfive,jh7110-trng`, `reg = <0x1600C000 0x4000>`, PLIC interrupt 30, from the
   device-tree binding's own worked example), both host-tested against fixtures, never against
   silicon. `user/src/jh7110_trng.rs` is a full `entropy_proto` backend built on that logic, over a
-  raw `DeviceFrame` mapping rather than a virtqueue (this device has no DMA and no queue, only
-  registers), but it is **not wired to `entropy_service`'s `Bus` enum and nothing spawns it**. What
-  the datasheet does not settle: whether the VisionFive 2's own shipped device tree actually
-  carries the TRNG node the mainline one does (nobody has captured one from the board to check),
-  and the whole question below.
+  raw device mapping rather than a virtqueue (this device has no DMA and no queue, only registers).
+  **Wired on 2026-09-01**: `entropy_service`'s `Bus` enum grew a `Jh7110` variant and the riscv64
+  boot tour spawns the driver when the machine's device tree describes the device, which on every
+  machine this repository boots it does not, so what CI exercises is the skip. Its authority is the
+  smallest of any backend here: two rendezvous capabilities and one page of device memory, no DMA
+  page, no `Irq` capability, no `Virtio` capability. The buffer that hands bytes to clients moved
+  into the crate the same day (`jh7110_trng::Pool`), so the one part of the driver that could serve
+  a byte twice is host-tested rather than merely written; what is left in the program is the
+  volatile accesses and two unmeasured polling bounds. What the datasheet still does not settle:
+  whether radon's own shipped device tree carries the TRNG node the mainline one does (nobody has
+  captured one from the board to check), whether the block's clocks and reset are left running by
+  U-Boot (this tree drives neither, and Linux's driver takes two clocks and a reset line before it
+  touches a register; see `user/src/jh7110_trng.rs`'s `BUGS`), and the whole question below.
 - **The health-test story got sharper, not answered.** The datasheet (§2.8.2) documents "Support
   LFSR based digital post process" and "Support self re-seeding" but claims no NIST SP 800-90B,
   FIPS 140, or AIS-31 compliance anywhere reachable. The Linux driver names exactly one hardware

@@ -619,6 +619,13 @@ Facts documentation could not settle, each an explicit measurement, none guessed
 7. **UART reality check**: that byte-wide access at unshifted offsets truly fails (predicted, not
    yet observed), and the DW busy quirk's visibility.
 8. **Boot-to-banner wall time**, once there is a banner, as the first real-hardware number.
+9. **Whether the board's own device tree carries the TRNG node** mainline's binding describes
+   (`starfive,jh7110-trng` at `0x1600_C000`), and whether its clocks and reset are left running by
+   U-Boot. Both are milestone 159's, and both are read off the `hw entropy` line the riscv64 boot
+   tour now prints last; `design/roadmap/159-jh7110-trng-driver.md` carries the ordered bench
+   procedure and a table of what each of the five possible lines means. This is the first real,
+   non-virtio device a confined userspace process on this project has been asked to drive, which
+   makes it `design/fatal-risks.md`'s risk 6 rather than a driver.
 
 ## BUGS
 

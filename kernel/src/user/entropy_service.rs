@@ -28,7 +28,7 @@ const MODE_INSTRUCTION: u64 = 1;
 /// other two sources are. Provisional; flagged for calef the same as the other new names here.
 ///
 /// **`Jh7110` is not a bus either** (milestone 159), and it is here for `Instruction`'s reason
-/// rather than by analogy to it: the JH7110's TRNG is a plain MMIO register block on the SoC's
+/// rather than by analogy to it: the JH7110's TRNG is a plain MMIO register block on the `SoC`'s
 /// own fabric, with no transport to negotiate, no virtqueue, and no PCIe function. Naming it a
 /// `Bus` variant buys the same four things the variant above buys (pick which source `ensure`
 /// wires, index the once-per-boot state, name the source a failure came from, and reuse
