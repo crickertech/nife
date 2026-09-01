@@ -98,7 +98,7 @@ value. `pci::intx_irq(0, 4, 1)` is therefore `0`, and `arch::x86_64::irq::enable
 through `isa_routing` to the **PIT's** legacy line: the confined block server was armed on the
 timer and waited forever for an interrupt that was never going to be its. Nothing about that is
 specific to the FS server; it is the first userspace PCI driver this architecture has ever been
-asked to run. See milestone 213 (provisional), on x86_64 PCI interrupt routing.
+asked to run. See milestone 215 (provisional), on x86_64 PCI interrupt routing.
 
 ## What this unblocks
 
@@ -116,5 +116,5 @@ architecture costs a restructure rather than a port") named this as a piece of.
 
 - **`mkfs` is packed but has nothing to format on this architecture.** Milestone 57's two
   `disk_service` wirings want the GPT and blank fixtures, which no x86_64 runner attaches; those
-  tests skip with an accurate reason and no plan of their own. They ride milestone 213, on x86_64 PCI interrupt routing.
+  tests skip with an accurate reason and no plan of their own. They ride milestone 215, on x86_64 PCI interrupt routing.
 - **The soft-AES cost is unmeasured**, above.
