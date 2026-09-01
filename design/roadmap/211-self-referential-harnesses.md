@@ -25,7 +25,7 @@ Milestone 202's lane then found the same shape in `component_plan`'s proof, inde
 The defect is invisible to everything this project has. The harness passes. `kani::cover!` passes,
 because the input set is not empty. Mutation testing does not reach `cfg(kani)` code at all. And
 until DECISIONS §134 (a harness carries a machine-replayable falsification record) landed, nothing
-even asked the question — **it was found only because somebody broke the code and watched what stayed
+even asked the question: **it was found only because somebody broke the code and watched what stayed
 green.**
 
 It is also the most dangerous shape a proof can have, because it is *load-bearing in one direction*.
