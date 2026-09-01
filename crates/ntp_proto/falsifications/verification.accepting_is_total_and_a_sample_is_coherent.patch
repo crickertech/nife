@@ -1,0 +1,31 @@
+Falsifies `ntp_proto::verification::accepting_is_total_and_a_sample_is_coherent`.
+
+The defect: `Interval::is_negative` compares against `i128::MIN` instead of zero, so it
+answers false for every value there is. `accept` refuses a reply on
+`delay.is_negative()`, so with this diff a negative round-trip delay is accepted and
+handed to a client, which then computes a ±δ/2 confidence bound from a delay that says
+the reply arrived before it was sent.
+
+Expected to fail: `assert!(s.delay.0 >= 0)`, on a reply whose timestamps put the round
+trip below the server's own processing interval.
+
+**Measured blind before milestone 211.** The harness used to assert
+`!s.delay.is_negative()`, which is the predicate `accept` guards on, so the guard and the
+assertion were the same call and a defect in it satisfied both. Confirmed by applying this
+diff against the old phrasing and watching it stay green. Stating the claim as
+`s.delay.0 >= 0` puts it in terms the implementation does not choose. The same rewrite
+covers `transmit`, whose `is_zero` guard had the identical shape.
+
+diff --git a/crates/ntp_proto/src/lib.rs b/crates/ntp_proto/src/lib.rs
+index 5577729d..5631e9d7 100644
+--- a/crates/ntp_proto/src/lib.rs
++++ b/crates/ntp_proto/src/lib.rs
+@@ -468,7 +468,7 @@ impl Interval {
+ 
+     /// Is this interval negative?
+     pub const fn is_negative(self) -> bool {
+-        self.0 < 0
++        self.0 < i128::MIN
+     }
+ 
+     /// The magnitude, in ticks.

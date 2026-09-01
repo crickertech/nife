@@ -1,34 +1,35 @@
 Falsifies `capability::derive_never_widens_rights`.
 
-The defect: the `CannotWiden` guard removed from `CapabilityTable::derive`, so a derive
-stores whatever rights were requested. This is the "a refactor dropped the check"
-defect, which is the one this crate's whole doc comment is about: rights only narrow
-because `derive` is the only operation offered, and if the guard goes the type system
-notices nothing.
+The defect: the two operands swapped inside `Rights::is_subset_of`, so the predicate
+answers "does `other` fit inside `self`" while every caller reads it as the opposite.
+This is the single most plausible error in a one-line bitwise predicate.
 
-Expected to fail: `assert!(requested.is_subset_of(src_rights))` in
-`derive_never_widens_rights`, on any request holding a bit the source lacks.
+Expected to fail: `assert_eq!(derived.rights.0 & !src_rights.0, 0)` in
+`derive_never_widens_rights`, on a request holding a bit the source lacks.
 
-**Why the defect is here and not in `is_subset_of`.** A mutation of the predicate does
-NOT falsify this harness, which was measured rather than assumed: the harness states its
-property by calling the same predicate `derive` calls, so a consistently wrong predicate
-satisfies both sides. The crate's central theorem is therefore load-bearing against the
-guard and blind to the comparison underneath it. That is a genuine gap in coverage and
-it is recorded in notes/falsification.md rather than fixed here, because closing it is a
-change to the harness and this lane does not rewrite proofs it is measuring.
+**This is the record that could not exist before milestone 211.** Milestone 194 applied
+exactly this diff and measured ten of the crate's twelve harnesses staying green under
+it, the central theorem among them, because the theorem asserted
+`derived.rights.is_subset_of(src_rights)` while `derive` guards on
+`rights.is_subset_of(src.rights)`: one wrong predicate satisfied both sides. The harness
+now states the subset relation as `x & !y == 0`, which the implementation does not get
+to choose, and this diff turns it red.
+
+The record it replaces was the `CannotWiden` guard deleted from `derive`. The rewritten
+harness still catches that (`requested.0 & !src_rights.0` goes red on it); it is replaced
+rather than kept because a harness carries one record and the guard-drop was never the
+blind spot.
 
 diff --git a/crates/capability/src/lib.rs b/crates/capability/src/lib.rs
-index 33b5819a..56c7f8b4 100644
+index 86709e0e..d63c7fca 100644
 --- a/crates/capability/src/lib.rs
 +++ b/crates/capability/src/lib.rs
-@@ -342,10 +342,6 @@ impl<O: Copy, const N: usize> CapabilityTable<O, N> {
-     pub fn derive(&mut self, from: u64, to: u64, rights: Rights) -> Result<(), Error> {
-         let src = self.get(from)?;
+@@ -140,7 +140,7 @@ impl Rights {
  
--        if !rights.is_subset_of(src.rights) {
--            return Err(Error::CannotWiden);
--        }
--
-         self.put(
-             to,
-             Cap {
+     /// Is `self` no more than `other`? The subset test that [`CapabilityTable::derive`] turns on.
+     pub const fn is_subset_of(self, other: Rights) -> bool {
+-        self.0 & !other.0 == 0
++        other.0 & !self.0 == 0
+     }
+ }
+ 

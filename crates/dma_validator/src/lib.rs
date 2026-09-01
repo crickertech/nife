@@ -381,6 +381,28 @@ mod verification {
             word: kani::any(),
         };
         if check_descriptor(base, size, QS, d) {
+            // **The indirect bit and the containment stated over the word** (milestone 211).
+            // `check_descriptor` refuses on `d.is_indirect()` and on `!in_region(..)`, so a
+            // harness phrased only through those two calls proves that the guard and the
+            // assertion agree. `in_region` is pinned independently by `in_region_is_sound`
+            // just above; `is_indirect` was pinned by nothing, and an `is_indirect` stuck at
+            // false would let an indirect descriptor reach the device with this harness green.
+            assert_eq!(
+                d.word & ((F_INDIRECT as u64) << 32),
+                0,
+                "an indirect descriptor was accepted",
+            );
+            let end = d
+                .addr
+                .checked_add(d.word & 0xffff_ffff)
+                .expect("an accepted descriptor's buffer cannot overflow");
+            let limit = base
+                .checked_add(size)
+                .expect("acceptance implies the region has an end");
+            assert!(
+                d.addr >= base && end <= limit,
+                "an accepted descriptor escapes the region"
+            );
             assert!(!d.is_indirect(), "an indirect descriptor was accepted");
             assert!(
                 in_region(base, size, d.addr, d.buf_len()),

@@ -1,35 +1,36 @@
-Falsifies `component_plan::a_plan_never_grants_a_right_the_declaration_did_not_ask_for`.
+Falsifies `component_plan::proofs::a_plan_never_grants_a_right_the_declaration_did_not_ask_for`.
 
-The defect: `Direction::rights` adds `GRANT` to every wiring. It reads as the
-convenience it would be sold as, a component that can pass its rendezvous on to a
-worker it spawns, and it is the one right this plan must never mint: a component
-holding `GRANT` can hand its authority to anything it can reach, so the
-supervisor's routing stops being the whole story of who can talk to whom. The
-declaration has no way to ask for it, which is why the plan is where it has to be
-refused.
+The defect: `Direction::rights` returns `READ` for `Use` as well as for `Serve`. A
+component that declared it *uses* a rendezvous is routed a capability it can only receive
+on, so it parks itself in `RECV_CAP` on the rendezvous it is a client of and steals its
+server's requests. That is precisely the confinement failure DECISIONS §41 names, produced
+by one word in a two-arm match.
 
-Expected to fail: `assert!(p.caps()[i].1 & abi::rights::GRANT == 0)`, the third of
-the four assertions in the loop, for every declaration in `SHAPES`. The two above
-it, `p.caps()[i].1 == reqs.caps[i].direction.rights()` and the READ-or-WRITE
-disjunction, are stated against `rights()` itself and so are blind to a change
-inside it, which is worth knowing: the equality assertion follows the defect and
-only the explicit `GRANT` check catches it. That is the same shape the
-`derive_never_widens_rights` record found one crate over, a property stated
-through the function it is testing, and here it is the reason a redundant-looking
-assertion is not redundant.
+Expected to fail: `assert!(p.caps()[i].1 == expected)`, where `expected` is the mapping
+written out in the harness, on any declaration containing a `Use`.
+
+**Measured blind before milestone 211.** The harness asserted
+`p.caps()[i].1 == reqs.caps[i].direction.rights()`, and `plan` fills that word by calling
+`direction.rights()`, so both sides moved together. The two assertions beside it survive
+the defect as well: `READ` is still one of `READ | WRITE`, and it still carries no `GRANT`.
+Confirmed by applying this diff against the old phrasing and watching the whole harness
+stay green.
+
+The record this replaces was `Direction::rights` adding `GRANT` to everything, which the
+`& GRANT == 0` line beside it caught; milestone 202 recorded that this harness's *first*
+assertion was blind to it and left the rewrite to a later lane. This is that rewrite, and
+the defect the first assertion is now load-bearing against.
 
 diff --git a/crates/component_plan/src/lib.rs b/crates/component_plan/src/lib.rs
-index b0a208f6..9c1739bd 100644
+index 6332eb8f..61bc12d5 100644
 --- a/crates/component_plan/src/lib.rs
 +++ b/crates/component_plan/src/lib.rs
-@@ -198,8 +198,8 @@ impl Direction {
-     /// the tree a component's rendezvous rights are decided.
+@@ -199,7 +199,7 @@ impl Direction {
      pub const fn rights(self) -> u64 {
          match self {
--            Direction::Serve => abi::rights::READ,
+             Direction::Serve => abi::rights::READ,
 -            Direction::Use => abi::rights::WRITE,
-+            Direction::Serve => abi::rights::READ | abi::rights::GRANT,
-+            Direction::Use => abi::rights::WRITE | abi::rights::GRANT,
++            Direction::Use => abi::rights::READ,
          }
      }
  }
