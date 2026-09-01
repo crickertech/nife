@@ -8406,6 +8406,11 @@ fn board_console() -> ExitCode {
     if let Some(line) = session.progress.banner_line() {
         eprintln!("board-console: banner: {line}");
     }
+    // The difference between the two captured successes, and the one a reader would otherwise have
+    // to go back to the log for: whether there was an archive on the card at all.
+    if session.progress.userspace_ran() {
+        eprintln!("board-console: userspace init built its child");
+    }
     if session.bytes == 0 && replay.is_none() {
         // The runbook's first triage row, said here so nobody starts by suspecting the kernel.
         eprintln!(

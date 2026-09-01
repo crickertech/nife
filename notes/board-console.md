@@ -24,7 +24,7 @@ script/board-console --replay target/board-console-1756744000.log   # re-read a 
 | `--log <file>` | `target/board-console-<epoch>.log` | Where the bytes go. There is no way to turn it off. |
 | `--for <duration>` | `120s` | The hard cap. `90`, `90s`, `30m`, `2h`. |
 | `--until <stage>` | `banner` | Stop early at `spl`, `opensbi`, `uboot`, `handoff`, `banner`, `tour`, or `none` to watch the whole duration. |
-| `--quiet-after <duration>` | `15s` | Give up if the board speaks and then stops. `0` disables it. |
+| `--quiet-after <duration>` | `15s` | Give up if the board speaks and then stops. `0` disables it. Suppressed once the tour completes, always. |
 
 ## The exit statuses, which are the point
 
@@ -54,17 +54,53 @@ now live in `crates/board_console/tests/fixtures/captured/` and are asserted on 
 | `banner` | `nife on ` | `kernel/src/main.rs`, confirmed |
 | `tour` | `nife: the capability core runs on ` | `kernel/src/main.rs`, confirmed |
 
+One more thing is reported and is deliberately **not** a stage: `init/build`, meaning userspace init
+built its child. It cannot be a stage without breaking the ladder, because a card with no archive
+runs the whole tour and never reaches it, so putting it below `tour` would make reaching the tour
+imply something that did not happen. It is a detail of a successful boot, like `Moving Image from`,
+and it is the only difference between the two successful captures.
+
 And five things that end a session early rather than waiting the clock out:
 
 | what | marker | source |
 |---|---|---|
 | **U-Boot giving up**, with the reason on the line before | `### ERROR ### Please RESET the board ###` | **captured 2026-09-01**; no documentation in this tree named it |
 | a stale or wrong card | `Bad Linux RISCV Image magic!` | triage ladder row 3, never seen at a bench |
-| the trust boundary refusing | `MEASURED BOOT REFUSED` | `notes/trusted-init.md`, boot 12, not captured |
+| the trust boundary refusing | `MEASURED BOOT REFUSED` | `kernel/src/trust.rs`, **captured 2026-09-01** |
 | our own panic, with its message | `[PANIC] ` | `kernel/src/panic.rs` |
 | U-Boot relocating (a note, not a stage) | `Moving Image from` | triage ladder row 4, confirmed |
 
-### The third outcome, which documentation did not have
+### Four outcomes, three of them real
+
+The captures of 2026-09-01 turned this from a two-way question into a four-way one, and three of
+the four are things a board actually did.
+
+| outcome | what it looks like | exit |
+|---|---|---|
+| **Success** | the tour reaches `nife: the capability core runs on RISC-V.`, then the board goes quiet because the kernel halts in `wfi` | 0 |
+| **U-Boot refused before the kernel ran** | the image loads and relocates, then `### ERROR ### Please RESET the board ###` | 1 |
+| **The kernel booted and then halted on purpose** | `MEASURED BOOT REFUSED`, after the banner and most of a tour | 1 |
+| **A genuine hang** | it starts, says a few lines, and stops before the tour | 2 |
+
+Three of those four are traps for a naive recogniser, and each got a fix:
+
+**Both successes and the measured-boot refusal contain the banner.** The refusal prints
+`Starting kernel ...`, the whole nife banner, and most of a tour before halting, so a watcher that
+returned the moment `--until banner` was satisfied would report it as a success, in the case a
+bench script most needs to be right about. So reaching the wanted stage starts a **settle window**
+(`settle`, two seconds) rather than ending the session, and a failure arriving inside it wins.
+
+**Silence after the tour is how a good boot ends.** The kernel halts in `wfi`, so the board goes
+quiet and stays quiet. Treating silence alone as a hang would fail every successful boot, so the
+quiet timer is suppressed once the tour completes, whatever `--quiet-after` says. The synthetic hang
+fixture stops *before* the tour, which is exactly the difference.
+
+**A measured-boot refusal is the gate working, not a crash.** It exits 1, because the board did not
+boot and a script asking "did it boot" needs a no. But the message says what actually happened and
+what to do, because a report that read like a crash would send somebody debugging the boot mechanism
+when what is wrong is that two files on the card came from different builds.
+
+### The extlinux outcome, which documentation did not have
 
 The capture that mattered most is the one that failed. From power-on, the extlinux path ends:
 
@@ -243,11 +279,16 @@ $ script/board-console --replay target/board-console-1756744100.log
 
 ## BUGS
 
-**The markers are checked against one board, on one day, in two states.** That is much better than
+**The markers are checked against one board, on one day, in four states.** That is much better than
 where this started, which was documentation only, and it is not the same as proven. Not covered:
 every other way this board can behave, a different vendor firmware build with differently worded
 banners, the two synthetic cases nobody has yet seen at a bench, and the aarch64 and x86_64 boards,
-which have not been looked at at all. A marker whose real text differs by a word is missed, and a
+which have not been looked at at all.
+
+**There is no real sample of a hang**, which is the outcome this tool exists for, since a hang is
+what a multicore defect looks like from the far end of a serial cable. The synthetic fixture is a
+real capture truncated before the tour. If risk 5 ever produces a genuine one at a bench, capture
+it; it would be worth more than every other fixture here. A marker whose real text differs by a word is missed, and a
 missed marker reports a healthy board as having got less far than it did.
 
 **A missed marker fails toward pessimism; a matched one does not.** Matching is `contains`
@@ -281,10 +322,11 @@ A tool that power-cycles is a different and more dangerous object than one that 
 board wants the same shape with different banners, and whether that is one tool with a board
 profile or three tools is an open question that milestone 216's block names and does not answer.
 
-**`--until banner` returns the moment the banner appears**, so a failure printed one line later is
-not seen. The exception is a failure in the *same* read as the banner, which does win, because
-that is what boot 12's measured-boot refusal looked like. For sustained watching use `--until
-none`, which has no early exit and sees everything up to the cap.
+**The settle window is two seconds, and two seconds is a guess.** It is long enough for the
+captured measured-boot refusal, which follows the banner within a tour's worth of printing, and
+there is no principle behind it beyond that. A failure that a board announces three seconds after
+the awaited stage would still be reported as a success. `--until none` has no early exit at all and
+sees everything up to the cap, which is the answer when being right matters more than being quick.
 
 **No test opens a real serial device.** A pseudo-terminal pair would be the honest stand-in, and
 making one needs `posix_openpt` and its `ioctl`s, which is `libc`, which is §46's decision and not

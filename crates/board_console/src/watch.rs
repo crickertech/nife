@@ -46,7 +46,21 @@ pub struct Policy {
     /// `Starting kernel ...`-then-nothing row, which is what a multicore hang looks like.
     ///
     /// `None` disables it.
+    ///
+    /// **Suppressed once the boot tour completes**, whatever this says. The kernel halts in `wfi`
+    /// after its last line, so quiet after [`Stage::Tour`] is normal termination and reporting it
+    /// as a hang would fail every good boot.
     pub quiet_after: Option<Duration>,
+    /// After [`Self::until`] is reached, keep reading this long before calling it a success.
+    ///
+    /// **This exists because the two captured successes and the captured refusal all contain the
+    /// nife banner.** A boot that halts at the measured-boot gate prints `Starting kernel ...`,
+    /// the banner, and most of a tour before refusing, so a watcher that returned the instant its
+    /// stage arrived would report a refusal as a success, and would do it in the case a bench
+    /// script most needs to be right about. Two seconds of extra reading buys the difference.
+    ///
+    /// Zero disables it, at that cost.
+    pub settle: Duration,
 }
 
 impl Default for Policy {
@@ -55,6 +69,7 @@ impl Default for Policy {
             total: Duration::from_secs(120),
             until: Some(Stage::Banner),
             quiet_after: Some(Duration::from_secs(15)),
+            settle: Duration::from_secs(2),
         }
     }
 }
@@ -180,6 +195,9 @@ where
     let mut progress = BootProgress::new();
     let mut bytes = 0u64;
     let mut spoke_at: Option<Instant> = None;
+    // Set when the wanted stage arrives; the session then ends when the settle window closes, or
+    // sooner if a failure turns up inside it, which is the whole reason for waiting.
+    let mut settling: Option<Instant> = None;
     let mut outcome = Outcome::RanOut;
     let mut error: Option<io::Error> = None;
 
@@ -215,15 +233,18 @@ where
                     outcome = Outcome::Announced(failure.clone());
                     break;
                 }
-                if let Some(wanted) = policy.until
+                if settling.is_none()
+                    && let Some(wanted) = policy.until
                     && progress.reached() >= wanted
                 {
-                    outcome = Outcome::Reached(progress.reached());
-                    break;
+                    settling = Some(Instant::now());
                 }
             }
             Ok(Read1::Ended) => {
-                outcome = Outcome::Ended;
+                // A source that ends after the wanted stage arrived has answered the question;
+                // only one that ends before it has run out. This is the replay case, where the
+                // settle window would otherwise turn every capture into two seconds of waiting.
+                outcome = settled_or(&settling, &progress, Outcome::Ended);
                 break;
             }
             Ok(Read1::Failed(e)) => {
@@ -233,17 +254,33 @@ where
             }
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => {
-                outcome = Outcome::Ended;
+                outcome = settled_or(&settling, &progress, Outcome::Ended);
                 break;
             }
         }
 
+        if let Some(since) = settling
+            && since.elapsed() >= policy.settle
+        {
+            outcome = Outcome::Reached(progress.reached());
+            break;
+        }
+
+        // Silence, and the two things that are not it. A board still inside its settle window is
+        // quiet because we asked it to be. A board that finished its tour is quiet because the
+        // kernel halted in `wfi`, which is how a good boot ends.
         if let (Some(limit), Some(last)) = (policy.quiet_after, spoke_at)
+            && settling.is_none()
+            && progress.reached() < Stage::Tour
             && last.elapsed() >= limit
         {
             outcome = Outcome::WentQuiet;
             break;
         }
+    }
+
+    if settling.is_some() && matches!(outcome, Outcome::RanOut | Outcome::WentQuiet) {
+        outcome = Outcome::Reached(progress.reached());
     }
 
     // Nothing more is coming, so the tail is as complete as it will ever be. This is what catches
@@ -274,6 +311,15 @@ where
             format!("{}: {e}", session.summary()),
         )),
         None => Ok(session),
+    }
+}
+
+/// `Reached` if the wanted stage had already arrived, otherwise whatever the caller says.
+fn settled_or(settling: &Option<Instant>, progress: &BootProgress, otherwise: Outcome) -> Outcome {
+    if settling.is_some() {
+        Outcome::Reached(progress.reached())
+    } else {
+        otherwise
     }
 }
 
@@ -322,22 +368,30 @@ mod tests {
         }
     }
 
-    /// Speaks once, then blocks forever: the runbook's `Starting kernel ...`-then-silence row, and
-    /// what a multicore hang looks like from the far end of a serial cable.
-    struct SpeaksThenStops(Option<&'static [u8]>);
+    /// Says everything it has, in whatever chunks the caller's buffer allows, then blocks forever.
+    ///
+    /// The chunking is not incidental. A real UART hands over whatever has arrived, so a source
+    /// that assumed the reader's buffer could take a whole transcript would be testing a stream
+    /// nothing produces (and would panic the moment a capture outgrew 4 KiB, which is how this was
+    /// found).
+    struct SpeaksThenStops(Vec<u8>);
+
+    impl SpeaksThenStops {
+        fn new(text: impl Into<Vec<u8>>) -> Self {
+            Self(text.into())
+        }
+    }
 
     impl Read for SpeaksThenStops {
         fn read(&mut self, out: &mut [u8]) -> io::Result<usize> {
-            match self.0.take() {
-                Some(text) => {
-                    out[..text.len()].copy_from_slice(text);
-                    Ok(text.len())
-                }
-                None => {
-                    thread::sleep(Duration::from_secs(3600));
-                    Ok(0)
-                }
+            if self.0.is_empty() {
+                thread::sleep(Duration::from_secs(3600));
+                return Ok(0);
             }
+            let n = self.0.len().min(out.len());
+            out[..n].copy_from_slice(&self.0[..n]);
+            self.0.drain(..n);
+            Ok(n)
         }
     }
 
@@ -346,6 +400,7 @@ mod tests {
             total: Duration::from_millis(1500),
             until,
             quiet_after,
+            settle: Duration::from_millis(50),
         }
     }
 
@@ -358,7 +413,7 @@ mod tests {
             ..Policy::default()
         };
         let session = watch(&log[..], &mut sink, &policy, false).unwrap();
-        assert_eq!(session.outcome, Outcome::Reached(Stage::Banner));
+        assert_eq!(session.outcome, Outcome::Reached(Stage::Tour));
         assert_eq!(session.exit_code(), 0);
         assert!(!sink.is_empty());
     }
@@ -373,19 +428,6 @@ mod tests {
         assert_eq!(session.outcome, Outcome::Announced(Failure::BadImageMagic));
         assert_eq!(session.exit_code(), 1);
         assert!(String::from_utf8_lossy(&sink).contains("Bad Linux RISCV Image magic!"));
-    }
-
-    /// The banner arrives and the refusal is on the next line. Stopping at the banner would report
-    /// a boot that halted at the trust boundary as a success, which is boot 12 exactly.
-    #[test]
-    fn a_failure_beats_the_stage_it_was_waiting_for() {
-        let log = include_bytes!("../tests/fixtures/synthetic/vf2-measured-refusal.log");
-        let mut sink = Vec::new();
-        let session = watch(&log[..], &mut sink, &Policy::default(), false).unwrap();
-        assert_eq!(
-            session.outcome,
-            Outcome::Announced(Failure::MeasuredBootRefused)
-        );
     }
 
     /// The property the milestone is actually about: whatever the board does, the tool returns.
@@ -423,8 +465,10 @@ mod tests {
             total: Duration::from_secs(10),
             until: Some(Stage::Banner),
             quiet_after: Some(Duration::from_millis(300)),
+            settle: Duration::from_millis(50),
         };
-        let source = SpeaksThenStops(Some(b"Moving Image from 0x40200000\nStarting kernel ...\n"));
+        let source =
+            SpeaksThenStops::new(&b"Moving Image from 0x40200000\nStarting kernel ...\n"[..]);
         let session = watch(source, &mut sink, &policy, true).unwrap();
         assert_eq!(session.outcome, Outcome::WentQuiet);
         assert_eq!(session.exit_code(), 2);
@@ -463,6 +507,69 @@ mod tests {
         assert_eq!(session.outcome, Outcome::Ended);
         assert_eq!(session.exit_code(), 3);
         assert_eq!(session.progress.reached(), Stage::Handoff);
+    }
+
+    /// **The case the third capture forced.** A boot that halts at the measured-boot gate prints
+    /// `Starting kernel ...`, the whole banner, and most of a tour before refusing, so a watcher
+    /// that returned the instant `--until banner` was satisfied would call it a success. Two
+    /// seconds of settle is what buys the right answer, and this is the case a bench script most
+    /// needs to be right about.
+    #[test]
+    fn a_refusal_after_the_banner_is_not_a_success() {
+        let log =
+            include_bytes!("../tests/fixtures/captured/vf2-2026-09-01-measured-boot-refused.log");
+        let mut sink = Vec::new();
+        let session = watch(&log[..], &mut sink, &Policy::default(), false).unwrap();
+        assert_eq!(
+            session.outcome,
+            Outcome::Announced(crate::progress::Failure::MeasuredBootRefused)
+        );
+        assert_eq!(session.exit_code(), 1);
+        assert!(
+            session.progress.reached() >= Stage::Banner,
+            "it really did get past the banner, which is what makes this hard"
+        );
+    }
+
+    /// **Silence after the tour is how a good boot ends**, because the kernel halts in `wfi`. A
+    /// watcher that called that a hang would fail every successful boot, and this one runs with a
+    /// quiet timer far shorter than the watch itself to prove the suppression is real.
+    #[test]
+    fn quiet_after_the_tour_is_normal_termination_and_not_a_hang() {
+        let full =
+            include_bytes!("../tests/fixtures/captured/vf2-2026-09-01-userspace.log").to_vec();
+        let mut sink = Vec::new();
+        let policy = Policy {
+            total: Duration::from_millis(900),
+            until: None,
+            quiet_after: Some(Duration::from_millis(100)),
+            settle: Duration::from_millis(10),
+        };
+        // Speaks the whole successful boot, then stops, exactly as the board does.
+        let session = watch(SpeaksThenStops::new(full), &mut sink, &policy, true).unwrap();
+        assert_eq!(session.outcome, Outcome::RanOut);
+        assert_eq!(session.exit_code(), 0, "a good boot must not exit 2");
+        assert_eq!(session.progress.reached(), Stage::Tour);
+        assert!(session.progress.userspace_ran());
+    }
+
+    /// The genuine hang, which is the one outcome with no real sample: the kernel starts, says a
+    /// few lines, and stops before the tour. Nothing suppresses the quiet timer here, because the
+    /// tour never completed.
+    #[test]
+    fn a_kernel_that_stops_before_the_tour_is_a_hang() {
+        let full = include_bytes!("../tests/fixtures/synthetic/vf2-handoff-hang.log").to_vec();
+        let mut sink = Vec::new();
+        let policy = Policy {
+            total: Duration::from_secs(10),
+            until: Some(Stage::Tour),
+            quiet_after: Some(Duration::from_millis(200)),
+            settle: Duration::from_millis(10),
+        };
+        let session = watch(SpeaksThenStops::new(full), &mut sink, &policy, true).unwrap();
+        assert_eq!(session.outcome, Outcome::WentQuiet);
+        assert_eq!(session.exit_code(), 2);
+        assert_eq!(session.progress.reached(), Stage::Banner);
     }
 
     /// The captured failure, end to end: exit 1, not exit 2. U-Boot refusing is a failure the

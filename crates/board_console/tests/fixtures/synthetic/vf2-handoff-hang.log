@@ -1,0 +1,22 @@
+U-Boot SPL 2021.10 (Feb 12 2023 - 18:15:33 +0800)
+DDR version: dc2e84f0.
+Trying to boot from SPI
+
+OpenSBI v1.2
+Platform Name             : StarFive VisionFive V2
+Platform HART Count       : 5
+Boot HART ID              : 1
+
+U-Boot 2021.10 (Feb 12 2023 - 18:15:33 +0800), Build: jenkins-VF2_515_Branch_SDK_Release-24
+
+Model: StarFive VisionFive V2
+DRAM:  8 GiB
+StarFive # booti ${kernel_addr_r} - 0x86000000
+Moving Image from 0x40200000 to 0x80200000, end=802ff000
+## Flattened Device Tree blob at 86000000
+
+Starting kernel ...
+
+nife on RISC-V (rv64, S-mode, Sv39)
+  hart 0 booted: high-half kernel, .bss, and the NS16550 console are up.
+  smp: 4 core(s) online

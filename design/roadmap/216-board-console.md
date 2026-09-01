@@ -22,6 +22,10 @@ committed under `crates/board_console/tests/fixtures/captured/` as raw bytes off
 both are asserted on. The documentation was right about the seven markers it named, which is the
 part worth recording: the recogniser needed no correction, only additions.
 
+**Four outcomes, three of them captured.** Success, U-Boot refusing before the kernel runs, the
+kernel booting and then halting on purpose at the measured-boot gate, and a genuine hang. The last
+has no real sample and its fixture is synthetic and says so; the other three are bytes off the wire.
+
 **Two things the board knew that this tree's documentation did not.**
 
 The first is a **third outcome**. From power-on, the extlinux path ends `Moving Image from ...` /
@@ -35,6 +39,15 @@ are three outcomes, and the tool now exits 1 for the refusal and 2 for a hang.
 The second is that `nife: the capability core runs on ...` exists and is a **stronger claim than
 the banner**, which is printed before the device tree is touched. `--until tour` is the one to want
 when the question is "did it work".
+
+**And two traps that only the fourth capture exposed.** The measured-boot refusal prints
+`Starting kernel ...`, the whole banner, and most of a tour *before* halting, so a watcher that
+returned the instant its stage arrived would report the trust boundary refusing as a successful
+boot. Reaching the wanted stage now opens a two-second settle window instead of ending the session,
+and a failure inside it wins. And a successful boot ends in `wfi`, so the board goes quiet and stays
+quiet: treating silence as a hang would fail every good boot, so the quiet timer is suppressed once
+the tour completes. Both were wrong before the captures arrived and neither would have been found by
+reasoning about the runbook.
 
 **And a port-handling fact that cost a power cycle.** calef's first capture was garbage, because
 `stty` configured the port and then `cat` reopened it, and a new open on a macOS `cu` device puts

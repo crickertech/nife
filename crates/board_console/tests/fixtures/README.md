@@ -13,9 +13,25 @@ his desk. CRLF and control bytes are preserved exactly as they arrived, includin
 before our banner and the `\b` backspaces U-Boot's autoboot countdown overwrites itself with.
 Nothing has been cleaned up; cleaning it would remove the parts a recogniser has to survive.
 
-- **`vf2-2026-09-01-manual-boot.log`** is a **successful** boot, all the way from the SPL banner to
-  `nife: the capability core runs on RISC-V.` Autoboot was interrupted and the four manual commands
-  from `notes/visionfive2.md` were typed, which is the only way this board reaches nife today.
+- **`vf2-2026-09-01-userspace.log`** is the **full success**: the measured-boot gate passes, `init`
+  loads `worker` from the archive and builds it as a child, the child's IPC round-trips, and a
+  userspace driver comes up holding an `Irq` cap. This is what a working board looks like.
+- **`vf2-2026-09-01-manual-boot.log`** is a successful boot with **no archive on the card**, so the
+  tour runs to its end and `init` never builds anything. Kept beside the one above because the pair
+  is the only thing that shows what `userspace_ran` distinguishes.
+- **`vf2-2026-09-01-measured-boot-refused.log`** is the kernel **halting at the trust boundary**,
+  because the card's kernel and archive came from different builds:
+
+  ```
+  MEASURED BOOT REFUSED: 'init' is not what this kernel image was built against
+    expected sha256 d63054330191625f54db33110bdf3882d6f81bc5c97877f32f574c2e8cc798b1
+    measured sha256 dfd6a05381ab613cfc6cbcdb007ed4c67316e60229347f87e8b05be7643dbc11
+  halting rather than handing the archive to init.
+  ```
+
+  **This is the gate working, not a crash**, and it is the subtlest fixture here. It contains
+  `Starting kernel ...`, the whole nife banner, and most of a tour before it refuses, so anything
+  keying on the banner calls it a success. It is why the watcher has a settle window.
 - **`vf2-2026-09-01-extlinux-refused.log`** is the **extlinux** path from power-on, and it fails:
 
   ```
@@ -51,8 +67,11 @@ vendor firmware prints so that a chunk boundary lands somewhere other than on a 
 asserts on the filler.
 
 - **`vf2-bad-magic.log`**: U-Boot rejecting the payload's header (triage ladder row three).
-- **`vf2-measured-refusal.log`**: the kernel refusing the archive at the trust boundary, which
-  really happened on 2026-08-15 as boot 12, but was not captured.
+- **`vf2-handoff-hang.log`**: the kernel starting, saying a few lines, and stopping before the tour.
+  **This is the one outcome with no real sample and the one the tool exists for**, since a hang is
+  what a multicore defect looks like from the far end of a serial cable. Constructed from the real
+  captures' own opening lines, truncated. If risk 5 ever produces one at a bench, capture it: a
+  real hang is worth more than every other fixture here.
 
 These prove the recogniser finds the markers **it was told about**, in a stream that behaves like a
 stream. They prove nothing about whether those markers are the text the board prints. If either

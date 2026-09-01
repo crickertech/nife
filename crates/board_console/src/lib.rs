@@ -48,15 +48,25 @@
 //!
 //! # BUGS
 //!
-//! **The markers are checked against one board, on one day, in two states.** calef captured a
-//! successful boot and an extlinux failure on 2026-09-01; both are in
-//! `tests/fixtures/captured/` and both are asserted on, which is what turned "quoted from
+//! **The markers are checked against one board, on one day, in four states.** calef captured two
+//! successful boots, an extlinux refusal and a measured-boot refusal on 2026-09-01; all four are
+//! in `tests/fixtures/captured/` and all four are asserted on, which is what turned "quoted from
 //! documentation" into "printed by a machine". What that does not cover is every other way this
-//! board can behave and every other board: the two synthetic fixtures are cases nobody has yet
-//! seen at a bench, a different vendor firmware build could word its banners differently, and the
-//! aarch64 and `x86_64` boards have not been looked at at all. A marker whose real text differs by
-//! a word is missed, and a missed marker reports a healthy board as having got less far than it
-//! did.
+//! board can behave and every other board: a different vendor firmware build could word its
+//! banners differently, and the aarch64 and `x86_64` boards have not been looked at at all. A
+//! marker whose real text differs by a word is missed, and a missed marker reports a healthy board
+//! as having got less far than it did.
+//!
+//! **There is no real sample of a hang**, which is the outcome this tool exists for, since a hang
+//! is what a multicore defect looks like from the far end of a serial cable. The synthetic fixture
+//! is a real capture truncated before the tour. A genuine one, if risk 5 ever produces one, would
+//! be worth more than every other fixture here.
+//!
+//! **The settle window is two seconds, and two seconds is a guess.** It is what stops a failure
+//! printed just after the awaited stage being reported as a success, which the captured
+//! measured-boot refusal is: it prints the banner and most of a tour before halting. A failure
+//! announced three seconds later would still slip through. `--until none` has no early exit at all
+//! and is the answer when being right matters more than being quick.
 //!
 //! **A missed marker fails toward pessimism, which is the safe direction, and a *matched* one does
 //! not.** The recogniser matches substrings anywhere in a line, so a board that echoes the word

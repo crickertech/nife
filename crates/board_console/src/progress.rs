@@ -108,9 +108,16 @@ impl Failure {
             Failure::BadImageMagic => {
                 "U-Boot rejected the image header (Bad Linux RISCV Image magic!)".to_string()
             }
-            Failure::MeasuredBootRefused => {
-                "the kernel refused the archive at the measured-boot trust boundary".to_string()
-            }
+            // Worded carefully, because this is the one failure that is not a defect. The gate
+            // did its job: it noticed that the archive on the card is not the one this kernel was
+            // built to vouch for, and halted instead of running it. A report that read like a
+            // crash would send somebody debugging the boot mechanism, when what is wrong is that
+            // two files came from different builds.
+            Failure::MeasuredBootRefused => "the measured-boot gate refused the archive and \
+                 halted, which is the gate working rather than a crash: the kernel and the archive \
+                 on the card are from different builds. Rebuild both with script/board-image, \
+                 which orders those steps"
+                .to_string(),
             Failure::KernelPanic(message) => format!("the kernel panicked: {message}"),
             Failure::UBootRefused(reason) if reason.is_empty() => {
                 "U-Boot gave up before the kernel ran and wants the board reset".to_string()
@@ -132,6 +139,7 @@ pub struct BootProgress {
     reached: Stage,
     failure: Option<Failure>,
     relocated: bool,
+    userspace_ran: bool,
     banner_line: Option<String>,
     /// The last complete non-empty line, kept for exactly one reason: U-Boot's `### ERROR ###`
     /// says that it gave up and the line before it says why, and a reader handed only the first
@@ -156,6 +164,18 @@ impl BootProgress {
     #[must_use]
     pub fn failure(&self) -> Option<&Failure> {
         self.failure.as_ref()
+    }
+
+    /// Whether userspace init built its child (`init/build  : ...`, `kernel/src/main.rs`).
+    ///
+    /// Not a stage, and deliberately, because the ladder has to stay a ladder: a kernel with no
+    /// archive on the card runs its whole tour and never reaches this, so putting it below
+    /// [`Stage::Tour`] would make reaching the tour imply something that did not happen. It is a
+    /// detail of a successful boot, like [`Self::relocated`], and it is the difference between the
+    /// two successful captures.
+    #[must_use]
+    pub fn userspace_ran(&self) -> bool {
+        self.userspace_ran
     }
 
     /// Whether U-Boot said it moved the image (`Moving Image from ...`).
@@ -235,6 +255,9 @@ impl BootProgress {
 
         if line.contains("Moving Image from") {
             self.relocated = true;
+        }
+        if line.contains("init/build") {
+            self.userspace_ran = true;
         }
         if let Some(at) = line.find("nife: the capability core runs on ") {
             self.reach(Stage::Tour);
@@ -389,6 +412,10 @@ mod tests {
         assert_eq!(progress.reached(), Stage::Tour);
         assert_eq!(progress.failure(), None);
         assert!(progress.relocated());
+        assert!(
+            !progress.userspace_ran(),
+            "this card carried no archive, and the tour says so"
+        );
         assert_eq!(
             progress.banner_line(),
             Some("nife on RISC-V (rv64, S-mode, Sv39)")
@@ -426,13 +453,37 @@ mod tests {
         assert_eq!(progress.reached(), Stage::Tour);
     }
 
+    /// The trust boundary refusing, captured rather than imagined. Note where it got to: past the
+    /// banner and well into the tour, which is what makes "reached the banner" a useless test for
+    /// whether a boot worked.
     #[test]
-    fn a_refused_archive_is_named_rather_than_timed_out() {
+    fn the_captured_refusal_gets_past_the_banner_before_refusing() {
         let progress = run(include_str!(
-            "../tests/fixtures/synthetic/vf2-measured-refusal.log"
+            "../tests/fixtures/captured/vf2-2026-09-01-measured-boot-refused.log"
         ));
         assert_eq!(progress.reached(), Stage::Banner);
         assert_eq!(progress.failure(), Some(&Failure::MeasuredBootRefused));
+        assert!(
+            !progress.userspace_ran(),
+            "it halted rather than handing the archive to init"
+        );
+        // The wording is load-bearing: this is the gate working, and a message that read like a
+        // crash would send somebody debugging the boot mechanism instead of their build.
+        let said = progress.failure().unwrap().describe();
+        assert!(said.contains("the gate working"));
+        assert!(said.contains("script/board-image"));
+    }
+
+    /// The other successful capture, and the difference between the two: this one had an archive
+    /// on the card, so `init` built a child and a userspace driver came up.
+    #[test]
+    fn the_captured_userspace_boot_ran_a_child() {
+        let progress = run(include_str!(
+            "../tests/fixtures/captured/vf2-2026-09-01-userspace.log"
+        ));
+        assert_eq!(progress.reached(), Stage::Tour);
+        assert_eq!(progress.failure(), None);
+        assert!(progress.userspace_ran());
     }
 
     #[test]
