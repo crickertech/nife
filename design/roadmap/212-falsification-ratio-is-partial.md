@@ -1,12 +1,33 @@
 # 212. `script/falsifications` walks `crates/` only, so the ratio it prints is not the tree's
 
-**Status: NOT-STARTED.** Minted 2026-08-31 from milestone 197's (`user/` and `xtask` are out of reach
-of the prover) lane. *(Number provisional until the merge queue lands it.)*
+**Status: BUILT** 2026-09-01. Minted 2026-08-31 from milestone 197's (`user/` and `xtask` are out of
+reach of the prover) lane. *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** Everything it needs exists; the walk is wrong rather than missing.
+**What it found.** The walk comes from `cargo metadata` now, and the correction is smaller than the
+block expected and worth reporting as measured rather than as feared: **141 harnesses in 24 crates
+became 145 in 26 packages, and 25 replayable (18%) became 27 (19%)**. `crates/` held 97% of the
+harnesses. The number was still a claim about a scope nobody had stated, which is the defect, and
+three things follow from fixing it. A file's module path now comes from the Cargo target it belongs
+to rather than from counting path components, because `user/src/printenv.rs` is a `[[bin]]` root and
+contributes no module segment where `crates/paging/src/sv39.rs` contributes `sv39`. `--sweep` derives
+two package-shaped flags rather than listing them: `--bin` for a package of many binaries, and
+`--ignore-global-asm` for a package containing `global_asm!`. And a falsification record can exist
+for something no sweep can run, which is told apart from rot mechanically rather than by a hardcoded
+exemption; see the BUGS below and notes/falsification.md.
 
-**In brief.** DECISIONS §134 (a harness carries a machine-replayable falsification record) says the
-`unfalsified` count is *"the claim's honest denominator"*. **It is currently the wrong denominator.**
+**Two records were written here rather than deferred**, both to answer this block's own "decide what
+a kernel record costs before promising one". Milestone 193's two kernel harnesses now carry blocks:
+one `unfalsified`, and one `replayable` against milestone 142's MAJOR 4 itself. A kernel *Kani*
+falsification costs an ordinary sweep entry, **3.1 seconds**; a kernel *test* falsification stays
+unsweepable and stays milestone 210's (no kernel test can be run by name).
+
+**`script/lint`'s `kani-harnesses` and `harness-crates` counts carried the same defect** and are
+rescoped in the same change, because leaving them would have put two derived answers to one question
+in the tree, 141 and 145.
+
+**In brief**, and written before the work, in the present tense it was written in. DECISIONS §134
+(a harness carries a machine-replayable falsification record) says the `unfalsified` count is
+*"the claim's honest denominator"*. **It was the wrong denominator.**
 
 `script/falsifications` walks `crates/` and nothing else. So:
 
@@ -38,9 +59,18 @@ quietly excludes them.
 
 ## BUGS
 
-- **This makes the ratio worse before it makes it better.** Counting `user/` and `kernel/` will drop
-  the percentage, because those harnesses have fewer records, and that is the point: the current
-  number flatters by omission.
-- **It does not fix the kernel sweep**, which is milestone 210's. Until then a kernel record can be
-  written and not replayed, which is exactly the `attested` state §134 defines and should be used
-  rather than worked around.
+- **The ratio was expected to get worse and went up by a point.** Of the four harnesses the old walk
+  could not see, one was already `replayable` (milestone 197's) and one was made so here, so 25 of
+  141 became 27 of 145. The prediction was not wrong about the direction of the argument, only about
+  its size, and the honest reading is that `crates/` held 97% of the harnesses all along.
+- **It does not fix the kernel *test* sweep**, which is milestone 210's (no kernel test can be run by
+  name). Milestone 202's record under `kernel/falsifications/` is now reported by name as a record
+  nothing can replay, counted in neither half of the ratio, rather than being invisible. Kernel
+  *Kani* harnesses do sweep, and one now does.
+- **A patch that declares no `Falsifies` target and has no harness is reported as rot**, which is
+  right for a patch that rotted and wrong for a future non-Kani record whose author does not know the
+  convention. The message names the convention; nothing teaches it before the failure.
+- **A harness in a `#[path]` module of a binary would get a wrong patch path.** The module path comes
+  from the Cargo target, and a `#[path]` module contributes whatever the including file calls it.
+  `user/src` holds two such files today and neither carries a harness; `--check` reports the mismatch
+  rather than accepting it silently.
