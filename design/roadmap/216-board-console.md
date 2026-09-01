@@ -133,36 +133,23 @@ invocation:
   beside the fixture so nobody reads those lines as a defect in our payload. Whether to repair the
   environment is not this milestone.
 
-## Proposed: driving U-Boot, which is the other half and is a scope decision
+## Driving U-Boot: mostly answered elsewhere, and a small residue that is not
 
-**Provisional, and it is calef's call rather than a lane's**, because it decides what this tool
-*is* rather than how it works.
+This block proposed a milestone for making the console drive U-Boot. **Milestones 217 (the card
+carries a kernel and an archive from different builds, and the gate is the only thing that noticed)
+and 218 (every boot of the VisionFive 2 needs a human typing four commands into U-Boot) were minted
+the same day and take most of it**, so the proposal is withdrawn rather than left duplicating them.
+218 is the better framing: a rig that works by typing at U-Boot's prompt is recreating in a script
+what the boot loader is supposed to do, and depends on catching a two-second window. Fix the boot
+path and nothing needs to type.
 
-**The problem.** Reading is not enough to reach nife on this board. The extlinux path fails at the
-DTB, so every boot needs autoboot interrupted and the four manual commands typed. A console that
-only reads therefore cannot, on its own, get the board into the state the hardware-gated milestones
-need, which is the whole reason milestone 216 exists.
+**What is left over, and it is calef's**, is smaller than the proposal was: *should this tool ever
+be able to write to the port at all?* 218 may remove the need entirely, in which case the answer is
+no and this stays a reader. If 218's routes all fail, something has to type, and then the question
+is whether it is this tool with an explicit mode or a second one. The argument for one tool is that
+the port can only be held once and a driver contains a reader; the argument for two is that a tool
+which writes to a board is a more dangerous object than one that reads, which is the reasoning this
+block already applies to power.
 
-**It is proven to work.** calef drove it on 2026-09-01, and the mechanism is small: tap `\r` every
-150 ms until `StarFive # ` appears, then send one command per prompt sighting, taking the commands
-from notes/visionfive2.md's manual path. The successful capture in `captured/` is that run.
-
-**The fork, and it is a naming and scope question rather than a technical one.** Either
-`script/board-console` grows the ability to write (a `--drive` mode, or a boot recipe it follows),
-or a second entry point owns it and this one stays a reader. The arguments:
-
-- *One tool.* The two halves are inseparable in practice: you cannot drive without watching for the
-  prompt, so a driver contains a reader. Two tools would mean two things holding the same port, and
-  a port can only be held once.
-- *Two tools.* A tool that writes to a board is a more dangerous object than one that reads, which
-  is the same reasoning this block already applies to power. The names would then say which is
-  which, and a lane that only wants a log would reach for the safe one.
-
-**The recommendation is one tool with an explicit mode**, because the port cannot be shared and a
-driver that cannot watch is not a thing that can exist. The danger the two-tool split is reaching
-for is better served by making writing opt-in and loud than by a second binary that duplicates the
-reader.
-
-**What is blocked until this is answered**: nothing that this milestone claimed, and every
-hardware-gated milestone that needs an unattended boot, which is the four in
-design/fatal-risks.md.
+**Nothing is blocked on the answer**, which is why it is a paragraph and not a milestone: the tool
+as built serves every read-only use, and 218 is the thing to do first either way.
