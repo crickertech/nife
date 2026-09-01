@@ -335,7 +335,28 @@ impl Editor {
 /// (or comes from) the FS page: another `.bss` static rather than a stack local, [`Editor::new`]'s
 /// own reason. Never used concurrently (this process has one thread, and `load` runs once at
 /// startup while `save` never nests inside it), so one buffer serves both.
-static mut FILE_SCRATCH: [u8; MAX_ROWS * MAX_COLS] = [0; MAX_ROWS * MAX_COLS];
+///
+/// **The `+ 1` is the row separator, and leaving it out was a real defect** (milestone 197). This
+/// was `MAX_ROWS * MAX_COLS`, which is the size of the *text* and not the size of what [`save`]
+/// writes: `save` joins the rows with `\n`, so a full document costs `MAX_ROWS - 1` bytes more than
+/// its text. A document at both bounds (32 rows of 100 columns, which the editor's own limits
+/// permit and which typing 31 characters onto the last line of a freshly loaded full file reaches)
+/// staged 3231 bytes into a 3200-byte buffer and panicked the editor on `^S`. Budgeting one
+/// separator per row rather than per gap costs one byte and removes the off-by-`MAX_ROWS - 1`
+/// entirely.
+const FILE_SCRATCH_LEN: usize = MAX_ROWS * (MAX_COLS + 1);
+
+// **Rung one, and deliberately not a proof** (AGENTS.md's ladder; milestone 197). The defect above
+// is a relationship between three constants, and the compiler can hold it for nothing: raise
+// `MAX_ROWS` or `MAX_COLS` without raising the buffer and this build stops, at the line that is
+// wrong, with no test to run and no harness to remember. A Kani harness stating the same thing over
+// a symbolic document was written first and measured: it is a bounded sum of `MAX_ROWS` symbolic
+// values, which is a cardinality argument, and CBMC did not finish it in twenty minutes on either
+// CaDiCaL or Z3. notes/user-proofs.md records that, because "we chose the cheaper mechanism" and
+// "the expensive one does not work" are different sentences and only one of them is true here.
+const _: () = assert!(FILE_SCRATCH_LEN >= MAX_ROWS * MAX_COLS + (MAX_ROWS - 1));
+
+static mut FILE_SCRATCH: [u8; FILE_SCRATCH_LEN] = [0; FILE_SCRATCH_LEN];
 
 /// Open the granted name, creating it if absent. Loads its content (bounded, see the module doc)
 /// on the existing-file path; a fresh file starts with one empty row.
@@ -359,8 +380,9 @@ fn load(ed: &mut Editor, name: &[u8]) {
         let buf = unsafe { &mut *scratch_p };
         let n = read_at(ed.handle, buf.len(), 0).max(0) as usize;
         get_fs_page(n.min(filesystem_proto::PAGE), buf);
-        // A read past one page needs more rounds; MAX_ROWS * MAX_COLS is under one page today
-        // (32 * 100 = 3200), so this is exact rather than an approximation that happens to work.
+        // A read past one page needs more rounds; the whole scratch buffer is under one page today
+        // (`FILE_SCRATCH_LEN` is 32 * 101 = 3232), so this is exact rather than an approximation
+        // that happens to work.
         let mut row = 0usize;
         let mut col = 0usize;
         for &b in &buf[..n] {
@@ -386,21 +408,59 @@ fn load(ed: &mut Editor, name: &[u8]) {
     }
 }
 
+/// **How many bytes staging this document takes**: every row's text, plus one `\n` between each
+/// adjacent pair.
+///
+/// Its own function because it is the *claim* rather than a step: [`FILE_SCRATCH`] has to be at
+/// least this large for every document the editor's own limits allow, which is what the `const`
+/// assertion beside that buffer says. Naming the quantity is what let the two constants be compared
+/// at all, and comparing them is how the defect recorded there was found.
+///
+/// Name provisional (milestone 197): calef names functions (AGENTS.md, extended 2026-08-23).
+fn staged_len(ed: &Editor) -> usize {
+    let mut n = 0usize;
+    for i in 0..ed.nrows {
+        n += ed.rows[i].len;
+        if i + 1 < ed.nrows {
+            n += 1;
+        }
+    }
+    n
+}
+
+/// **Stage the document into `buf` as `\n`-joined rows**, and return how many bytes that took.
+///
+/// [`save`]'s loop, with the two capability calls left behind it: this is arithmetic over the
+/// document's own bounds, and `save` is that arithmetic plus a write to a shared page and two
+/// `CALL`s to the FS server.
+///
+/// **The bounds check is hoisted to the top on purpose.** `buf[..staged_len(ed)]` is one check
+/// against a number that has a name and a `const` assertion about it, rather than a dozen implicit
+/// ones inside the copies where nothing says what they are protecting. If that slice exists the
+/// writes fit, because `n` never runs past the sum it is accumulating toward.
+///
+/// Name provisional (milestone 197). `stage` is the verb [`save`]'s own doc already used for this.
+fn stage(ed: &Editor, buf: &mut [u8]) -> usize {
+    let out = &mut buf[..staged_len(ed)];
+    let mut n = 0usize;
+    for i in 0..ed.nrows {
+        let row = &ed.rows[i];
+        out[n..n + row.len].copy_from_slice(&row.buf[..row.len]);
+        n += row.len;
+        if i + 1 < ed.nrows {
+            out[n] = b'\n';
+            n += 1;
+        }
+    }
+    n
+}
+
 /// `^S`: write every row back, `\n`-joined, and truncate to exactly that length.
 fn save(ed: &mut Editor) {
     let scratch_p = &raw mut FILE_SCRATCH;
     // SAFETY: single-threaded (DECISIONS §33); see `Editor::new`'s doc for the same reasoning.
     let buf = unsafe { &mut *scratch_p };
-    let mut n = 0usize;
-    for i in 0..ed.nrows {
-        let row = &ed.rows[i];
-        buf[n..n + row.len].copy_from_slice(&row.buf[..row.len]);
-        n += row.len;
-        if i + 1 < ed.nrows {
-            buf[n] = b'\n';
-            n += 1;
-        }
-    }
+    let n = stage(ed, buf);
     put_fs_page(&buf[..n]);
     let w = write_at(ed.handle, n, 0);
     if w < 0 || w as usize != n {

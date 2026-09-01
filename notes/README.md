@@ -726,6 +726,21 @@ in the code or the conversation doesn't make sense, it belongs here.
   today, both over `syscall.rs`'s run arithmetic, both falsified against milestone 142's real
   MAJOR 4 defect before being believed. A BUGS section that says plainly what is still unreachable:
   all of `kernel/src/arch/`, `user/`, and `xtask`. Name provisional.
+- [Proving things about `user/`](user-proofs.md): milestone 197, and the third of that set. The
+  block's premise was that `user/` had a better claim on the prover than the kernel did, because it
+  holds parsers over bytes this system did not produce; **half of that turned out to be false**, and
+  the reason is the tree working as designed: rule 7 and the host-testability discipline have
+  already lifted almost every parser into a crate that `script/verify` proves today, leaving IO glue
+  behind. The valuable half arrived anyway, before a harness ran: writing the property down found a
+  **live defect** in `rmle`, whose save buffer was sized for the document's text and not for the
+  separators `save` writes between its rows, so a full document panicked the editor on `^S`. Also
+  the three property shapes that did NOT work, with numbers (a bound on a sum of 32 symbolic values,
+  unfinished on CaDiCaL and Z3 alike, because counting is what resolution is worst at; a symbolic
+  index into a 3.5 KB struct, out of memory; any claim about values downstream of a division chain),
+  the enumerated stub boundary, why the `--bin` selection is derived from the tree rather than
+  listed, and a **reasoned refusal of `xtask`** on four grounds, the sharpest being that its
+  hand-written decoders exist to be a second opinion and proving both halves of a deliberately
+  independent pair narrows the independence. Name provisional.
 - [Fuzzing the parse surface](fuzzing.md): milestone 42's second leg, and the complement to the
   proofs above. Starts with the question that decides whether it is worth having at all, given 107
   Kani harnesses: **what does fuzzing find that Kani does not**, answered against three worked cases
