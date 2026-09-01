@@ -3729,6 +3729,17 @@ fn initrd_x86() -> bool {
             }
         }
     }
+    // The FS server and `mkfs` (milestone 164), on exactly the terms `initrd_riscv` carries them:
+    // present iff something built them for this target, absent from a bare `initrd-x86`, and
+    // `test` builds them first. Until milestone 164 they could not be built for this target at
+    // all, because the vendored RedoxFS engine's `aes` dependency would not codegen without SSE;
+    // `.cargo/config.toml`'s `--cfg aes_force_soft` on this target is what changed that.
+    if let Ok(bytes) = read_stripped(&redoxfs_server_elf(X86_TARGET)) {
+        blobs.push(("redoxfs_server", bytes));
+    }
+    if let Ok(bytes) = read_stripped(&mkfs_elf(X86_TARGET)) {
+        blobs.push(("mkfs", bytes));
+    }
     let mut files: Vec<(&str, &[u8])> = blobs.iter().map(|(n, b)| (*n, b.as_slice())).collect();
     // The measurement table (milestone 104), on the same terms as the other two: last, so it
     // measures everything above it, and vouched for by the kernel's trust root so init's refusals
@@ -5680,7 +5691,11 @@ fn test() -> bool {
     if legs.x86_64() {
         eprintln!();
         eprintln!("--- kernel tests, x86_64 (QEMU q35) ---");
-        if !initrd_x86() || !mknvmedisk() {
+        // The FS server for this target BEFORE the archive that packs it (milestone 164), the same
+        // order the aarch64 and riscv64 legs use, and the fresh RedoxFS fixture beside it for the
+        // same reason the riscv64 leg regenerates one: a leg that runs after another leg wrote the
+        // shared image would otherwise be testing whatever that leg left behind.
+        if !redoxfs_server_build(X86_TARGET) || !initrd_x86() || !mkredoxfs() || !mknvmedisk() {
             return false;
         }
         // SAFETY: `set_var` became unsafe in edition 2024 because it races other threads. xtask is
@@ -5688,6 +5703,17 @@ fn test() -> bool {
         // spawned, and the only thread xtask ever starts (the transcript reader in shell_check_leg)
         // copies pipe bytes into a String and never touches the environment.
         unsafe { std::env::set_var("NIFE_INITRD", x86_initrd_path()) };
+        // **`NIFE_DISK` names the fixture set, not the disk attached** (milestone 164). This
+        // runner derives `-redoxfs.img` from it exactly as the other two do, and attaches only
+        // that one; the nifefs image the variable literally names is not attached here, because
+        // q35 has no virtio-mmio bus and the FS service takes the FIRST virtio-blk PCI function it
+        // finds. `scripts/qemu-runner-x86_64.sh` carries the reason at the device.
+        //
+        // SAFETY: `set_var` became unsafe in edition 2024 because it races other threads. xtask is
+        // single-threaded here: this runs on the main thread before the child that reads it is
+        // spawned, and the only thread xtask ever starts (the transcript reader in
+        // shell_check_leg) copies pipe bytes into a String and never touches the environment.
+        unsafe { std::env::set_var("NIFE_DISK", disk_path()) };
         if !run("cargo", &["test", "-p", "kernel", "--target", X86_TARGET]) {
             return false;
         }

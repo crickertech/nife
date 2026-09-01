@@ -8,12 +8,12 @@
 # RISC-V's OpenSBI): QEMU's `q35` reads the PVH note in our ELF, loads the segments at their
 # physical addresses and enters the 32-bit trampoline directly. See kernel/src/arch/x86_64/boot.s.
 #
-# WHAT IS NOT HERE YET, and it is still most of what the other two runners do: no virtio disks, no
-# NIC, no GPU, no RNG. NVMe is wired (below, decisions §86's x86_64/VT-d data point), because the
-# kernel-resident NVMe driver is arch-neutral and VT-d confinement landed this session; the rest
-# are wired one at a time as the port reaches them, and adding a device to this file before the
-# kernel can drive it only produces a boot that looks richer than it is. See
-# design/roadmap/161-x86-64-kernel-port.md.
+# WHAT IS NOT HERE YET, and it is still most of what the other two runners do: no NIC, no GPU, no
+# RNG. NVMe is wired (below, decisions §86's x86_64/VT-d data point), because the kernel-resident
+# NVMe driver is arch-neutral and VT-d confinement landed this session; ONE virtio-blk is wired
+# (milestone 164, below); the rest are wired one at a time as the port reaches them, and adding a
+# device to this file before the kernel can drive it only produces a boot that looks richer than it
+# is. See design/roadmap/161-x86-64-kernel-port.md.
 #
 # The kernel halts with `hlt` (arch::halt), so QEMU does not exit on its own. Bound any interactive
 # run with scripts/qemu-bounded.sh (see CLAUDE.md, "Never leave QEMU running").
@@ -100,6 +100,32 @@ if [ -n "$NIFE_NVME" ]; then
     NVME="-drive file=$NIFE_NVME,if=none,format=raw,id=nvme0 -device nvme,serial=nife-nvme,drive=nvme0"
 fi
 
+# **The RedoxFS disk, over PCIe** (milestone 164). One virtio-blk and no more, and the count is the
+# contract rather than an accident: `q35` has no virtio-mmio bus at all (`VIRTIO_SLOTS` is 0 in
+# `arch/x86_64/mmu.rs`), so the FS service cannot ask for "the second mmio disk" the way it does on
+# the other two runners and instead takes the first virtio-blk PCI function it enumerates. Attach a
+# second one here and the FS server would mount whichever QEMU happened to put first. The matching
+# half is `kernel::user::fs_service::block_device`, and its comment names this file.
+#
+# The image path is derived from NIFE_DISK the same way both other runners derive theirs, so one
+# variable still names the whole fixture set and xtask's `mkredoxfs` remains its only writer. The
+# nifefs disk NIFE_DISK itself names is deliberately NOT attached, for the paragraph above.
+#
+# `disable-legacy=on` for the reason the riscv runner gives at its own virtio-blk-pci: the modern
+# device (0x1042) rather than the transitional one (0x1001), whose legacy register layout this tree
+# does not drive. `iommu_platform=on` because `-device intel-iommu` is on this machine
+# unconditionally, so the device must offer VIRTIO_F_ACCESS_PLATFORM for the confined userspace
+# driver to negotiate it and for its DMA to survive VT-d translation.
+REDOXFS=""
+if [ -n "$NIFE_DISK" ]; then
+    REDOXFS_DISK="${NIFE_DISK%.img}-redoxfs.img"
+    if [ ! -f "$REDOXFS_DISK" ]; then
+        echo "qemu-runner-x86_64: $REDOXFS_DISK does not exist (xtask's mkredoxfs writes it)" >&2
+        exit 1
+    fi
+    REDOXFS="-drive file=$REDOXFS_DISK,if=none,format=raw,id=hd0 -device virtio-blk-pci,drive=hd0,disable-legacy=on,iommu_platform=on"
+fi
+
 # `-no-reboot` turns a triple fault into an exit instead of a silent reset loop, which is the
 # difference between seeing that early boot died and watching a blank terminal. Every failure in
 # this port's bring-up so far has been a triple fault; add `-d int,cpu_reset` to see the state.
@@ -118,6 +144,7 @@ qemu-system-x86_64 \
     $DEBUG_EXIT \
     $IOMMU \
     $NVME \
+    $REDOXFS \
     -kernel "$ELF" \
     $INITRD \
     "$@"

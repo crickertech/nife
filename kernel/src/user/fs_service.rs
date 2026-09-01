@@ -247,8 +247,7 @@ fn wire_servers(
     blk_image: &'static [u8],
     fs_server_image: &'static [u8],
 ) -> Option<(RendezvousId, RendezvousId, RendezvousId, u64)> {
-    let (blk_ep, blk_ready, blk_shared) =
-        spawn_block_server(blk_image, crate::virtio::find_block_device_n(1)?);
+    let (blk_ep, blk_ready, blk_shared) = spawn_block_server(blk_image, block_device(1)?);
     let file_shared = file_channel();
     let file_ep = crate::sched::create_rendezvous(); // client WRITE (CALL) -> FS server READ
     let ready = crate::sched::create_rendezvous(); // FS server WRITE -> the kernel test RECVs
@@ -266,6 +265,76 @@ fn wire_servers(
         },
     );
     Some((blk_ready, ready, file_ep, file_shared))
+}
+
+/// **One virtio block device, whichever bus it turned out to be on** (milestone 164).
+///
+/// Everything below this type is transport-blind already: `virtio::register` takes a
+/// [`crate::virtio::Transport`], the confined userspace block server drives the device through a
+/// `Virtio` capability and cannot tell the two buses apart, and the IOMMU wants a requester id on
+/// PCIe and has nothing to key on over mmio. The only thing that was mmio-shaped was the *lookup*,
+/// and that is what this collapses.
+///
+/// Provisional name (this lane): calef settles type names.
+pub(super) struct BlockDevice {
+    transport: crate::virtio::Transport,
+    /// The interrupt the device raises, in whatever numbering this machine's controller uses.
+    intid: u32,
+    /// The PCIe requester id the IOMMU keys its per-device tables on, or `None` on a bus that has
+    /// no such id (virtio-mmio has neither an IOMMU in front of it nor a requester to name).
+    rid: Option<u32>,
+}
+
+/// **The `ordinal`-th disk in this machine's virtio-blk roster**, `None` if it has no such disk.
+///
+/// # The roster, and why the number means the same thing on three machines
+///
+/// One numbering, defined by the order the runner script attaches disks, so a wiring can say
+/// "disk 1 is the RedoxFS fixture" once and have it be true everywhere:
+///
+/// | ordinal | image | who wires it |
+/// |---|---|---|
+/// | 0 | `nifefs.img` | the phase-1 driver tests (`virtio_service`) |
+/// | 1 | `nifefs-redoxfs.img` | this module's [`wire_servers`] |
+/// | 2 | `nifefs-redoxfs-crash.img` | milestone 37's [`start_crash`] |
+/// | 3 | `nifefs-gpt.img` | milestone 57's `disk_service` |
+/// | 4 | `nifefs-blank.img` | milestone 57's `disk_service` |
+///
+/// # Which bus, and why that is not the caller's business
+///
+/// **aarch64 and riscv64 put every one of those on virtio-mmio**; `q35` has no virtio-mmio bus at
+/// all (`arch::x86_64::mmu::VIRTIO_SLOTS` is 0 and the base address is 0, so the mmio walk
+/// correctly probes nothing), and its disks arrive as PCI functions instead. So this asks the mmio
+/// bus first and falls through to the PCIe one, which on the first two machines finds the separate
+/// PCIe disk the runner attaches for the transport-parity tests and on the third finds the roster.
+///
+/// # BUGS
+///
+/// - **On a machine with both buses populated the two rosters are concatenated, mmio first**, and
+///   nothing enforces that the images behind a given ordinal match across machines. Today they do,
+///   because each runner script attaches them in this order and the tables above and in the three
+///   runners are the record; there is no gate comparing them. A disk inserted in the middle of one
+///   runner's list and not the others' would silently hand a wiring somebody else's image.
+/// - **`x86_64` populates only ordinals 0 and 1.** The crash, GPT and blank fixtures are not attached
+///   there yet, so milestone 37's crash test and milestone 57's two `disk_service` wirings still
+///   find nothing and skip on that architecture. See design/roadmap/164-x86-64-fs-server-aes.md.
+pub(super) fn block_device(ordinal: usize) -> Option<BlockDevice> {
+    if let Some(dev) = crate::virtio::find_block_device_n(ordinal) {
+        return Some(BlockDevice {
+            transport: crate::virtio::Transport::Mmio {
+                mmio_phys: dev.mmio_phys,
+            },
+            intid: dev.intid,
+            rid: None,
+        });
+    }
+    let n = ordinal - crate::virtio::count_block_devices();
+    let d = crate::pci::find_block_device_n(n)?;
+    Some(BlockDevice {
+        transport: crate::virtio::Transport::pci(&d),
+        intid: d.intid,
+        rid: Some(d.rid),
+    })
 }
 
 /// **Spawn a block server on one virtio block device.** Extracted from [`wire_servers`] because
@@ -290,7 +359,7 @@ fn wire_servers(
 /// by the region's growth, the same compatibility [`filesystem_proto::blk::TRANSFER_BLOCKS`] documents.
 pub(super) fn spawn_block_server(
     blk_image: &'static [u8],
-    dev: crate::virtio::VirtioMmioDevice,
+    dev: BlockDevice,
 ) -> (RendezvousId, RendezvousId, u64) {
     let dma = crate::memory::alloc_contiguous(1 + BLK_PAGES)
         .expect("no DMA region for the block server")
@@ -313,12 +382,10 @@ pub(super) fn spawn_block_server(
     crate::sched::bind_irq(dev.intid, irq_ep);
     crate::arch::irq::enable(dev.intid);
     let vid = crate::virtio::register(
-        crate::virtio::Transport::Mmio {
-            mmio_phys: dev.mmio_phys,
-        },
+        dev.transport,
         dma,
         (1 + BLK_PAGES) as u64 * FRAME_SIZE, // every page: the device may touch the rings AND the data buffer
-        None,                                // virtio-mmio has no IOMMU in front of it
+        dev.rid, // `None` over mmio (no IOMMU in front of it), the requester id over PCIe
     );
     crate::sched::spawn(move || {
         // The rings page, then the BLK_PAGES data pages, contiguous at DMA_VA.
@@ -488,8 +555,7 @@ pub fn start_crash(
     client_image: &'static [u8],
 ) -> Option<CrashRun> {
     use core::sync::atomic::Ordering;
-    let (blk_ep, blk_ready, blk_shared) =
-        spawn_block_server(blk_image, crate::virtio::find_block_device_n(2)?);
+    let (blk_ep, blk_ready, blk_shared) = spawn_block_server(blk_image, block_device(2)?);
     CRASH_BLK_EP.store(blk_ep, Ordering::Relaxed);
     CRASH_BLK_SHARED.store(blk_shared, Ordering::Relaxed);
 
