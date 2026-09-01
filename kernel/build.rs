@@ -20,6 +20,26 @@ fn main() {
         other => panic!("nife has no linker script for target arch {other}"),
     };
 
+    // **The kernel test filter** (milestone 210). `cargo xtask test --test <substring>` sets
+    // `NIFE_TEST_FILTER`, and this is what carries it into the kernel: the value is baked into the
+    // binary as a `rustc-env` and read by `testing::runner`.
+    //
+    // **Compile-time rather than a boot argument, and the reason is parity.** A runtime channel
+    // means the boot protocol, and there are three of them: aarch64 and riscv64 take a device tree
+    // (`/chosen/bootargs`, which this kernel does not parse), x86_64 arrives through PVH with no
+    // device tree at all. One `env!` is the same mechanism on all three, needs no parsing, and
+    // costs a kernel relink (measured at about 2.3 s) when the filter changes, against the 53 s of
+    // suite it replaces. See design/roadmap/210-run-one-kernel-test.md.
+    //
+    // `rerun-if-env-changed` is what makes changing the filter actually rebuild; without it a
+    // second run with a different filter would silently reuse the first one's binary, which is the
+    // manufactured-fact shape this tree already fails loudly on elsewhere.
+    println!("cargo::rerun-if-env-changed=NIFE_TEST_FILTER");
+    println!(
+        "cargo::rustc-env=NIFE_TEST_FILTER={}",
+        std::env::var("NIFE_TEST_FILTER").unwrap_or_default()
+    );
+
     println!("cargo::rerun-if-changed={link_script}");
     println!("cargo::rerun-if-changed={boot_asm}");
     println!("cargo::rustc-link-arg=-T{manifest_dir}/{link_script}");

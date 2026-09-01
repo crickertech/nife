@@ -62,6 +62,25 @@ use crate::{print, println};
 //     timer IRQ itself stops. It did NOT fire in the reported case because that run invoked `cargo`
 //     directly instead of going through the wrapper: **a bypassable backstop is not a backstop**,
 //     which is precisely why the ceiling belongs in the kernel, where nothing can route around it.
+/// **Which tests this binary runs** (milestone 210): a substring of the full test path, or empty
+/// for the whole suite.
+///
+/// Baked in by `kernel/build.rs` from `NIFE_TEST_FILTER`, which `cargo xtask test --test <s>` sets.
+/// It is a compile-time constant rather than a boot argument because that is the only channel
+/// identical on all three architectures: two of them boot with a device tree this kernel does not
+/// parse, and the third boots through PVH with no device tree at all. The cost is a kernel relink
+/// per filter change (about 2.3 s), against the ~53 s of aarch64 suite it replaces.
+///
+/// # BUGS
+///
+/// A filtered run **is not the suite**, and nothing here says so twice. Tests are not independent:
+/// the frame ledger's kept-frames ceiling, the thread peak and the stack high-water are all
+/// whole-suite numbers, and a one-test run's readings are far under them, so they cannot fail here
+/// and a filtered run proves nothing about them. Order coupling runs the other way too: a test that
+/// only passes because an earlier one wired a service will fail alone, which is a true finding
+/// about the test rather than about the code, and is worth reading as one.
+const TEST_FILTER: &str = env!("NIFE_TEST_FILTER");
+
 static HEARTBEAT: AtomicU64 = AtomicU64::new(0);
 static WATCH_LAST_HB: AtomicU64 = AtomicU64::new(0);
 static WATCH_STALL_TICKS: AtomicU64 = AtomicU64::new(0);
@@ -824,11 +843,20 @@ impl TickBudget {
 /// the full path of the function, which is close enough to a test name.
 pub trait Testable {
     fn run(&self);
+
+    /// This test's name, without running it. [`runner`] needs it to decide whether a filter
+    /// selects this test, and that decision has to happen *before* `run` prints a line or charges
+    /// the frame ledger, so it cannot be the `type_name` call inside `run`.
+    fn name(&self) -> &'static str;
 }
 
 impl<T: Fn()> Testable for T {
+    fn name(&self) -> &'static str {
+        core::any::type_name::<T>()
+    }
+
     fn run(&self) {
-        let name = core::any::type_name::<T>();
+        let name = self.name();
 
         // The frame ledger, before this test's name is printed: the reading closes the *previous*
         // test's account (and prints its charge under its own `ok` line) and opens this one's. The
@@ -959,12 +987,50 @@ fn a_livelock_that_keeps_doing_ipc_trips_the_per_test_ceiling() {
 /// assertion terminates the run. Crude, but a kernel with a failed invariant has no
 /// business continuing anyway.
 pub fn runner(tests: &[&dyn Testable]) {
+    // **The filter** (milestone 210), baked in at compile time by `kernel/build.rs` from
+    // `NIFE_TEST_FILTER`. Empty means the whole suite, which is the default and the only thing CI
+    // and `script/test` ever produce.
+    //
+    // The match is a substring of the test's full path, the same shape `cargo test <name>` uses, so
+    // `--test frames` selects a module's worth and
+    // `--test kernel::memory::tests::frames_are_zeroed` selects exactly one. There is no `--exact`
+    // here because there is nothing to disambiguate: a full path is already unique.
+    let filter = TEST_FILTER;
+    let selected = if filter.is_empty() {
+        tests.len()
+    } else {
+        tests.iter().filter(|t| t.name().contains(filter)).count()
+    };
+
     println!();
-    println!("running {} tests", tests.len());
+    if filter.is_empty() {
+        println!("running {selected} tests");
+    } else {
+        println!(
+            "running {selected} of {} tests (filter: {filter})",
+            tests.len()
+        );
+    }
     println!();
 
+    // **A filter that selects nothing fails the run.** Reporting "ok. 0 passed" for a typo would be
+    // a green result that proves nothing, which is exactly the manufactured fact the `skip!()`
+    // accounting and the NIFE_DISK check elsewhere in this tree exist to refuse.
+    if selected == 0 {
+        println!("no test matches the filter `{filter}`");
+        // The likeliest cause on a multi-leg run, named here because the reader is looking at one
+        // leg's transcript and cannot see that another leg passed. `--test` selects tests, not
+        // architectures (DECISIONS §19), so a filter naming an aarch64-only test runs the riscv64
+        // and x86_64 legs too and lands here on both. Say `--arch` as well when that is what you
+        // meant.
+        println!("  (a test only this architecture lacks? `--test` runs every leg; add `--arch`)");
+        semihosting::exit(semihosting::EXIT_FAILURE)
+    }
+
     for test in tests {
-        test.run();
+        if filter.is_empty() || test.name().contains(filter) {
+            test.run();
+        }
     }
 
     println!();
@@ -983,10 +1049,10 @@ pub fn runner(tests: &[&dyn Testable]) {
     if skipped > 0 {
         println!(
             "test result: ok. {} passed, {skipped} skipped",
-            tests.len() - skipped
+            selected - skipped
         );
     } else {
-        println!("test result: ok. {} passed", tests.len());
+        println!("test result: ok. {selected} passed");
     }
 
     semihosting::exit(semihosting::EXIT_SUCCESS)
