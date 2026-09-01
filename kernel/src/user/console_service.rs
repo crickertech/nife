@@ -32,19 +32,10 @@ pub fn start() -> Console {
     let image = program("console").expect("no console program in the initrd");
     let request = crate::sched::create_rendezvous();
     let reply = crate::sched::create_rendezvous();
-    let shared_phys = crate::memory::alloc()
+    // Zeroed so a client's first print cannot leak stale RAM.
+    let shared_phys = crate::memory::alloc_zeroed()
         .expect("no frame for the shared console buffer")
         .addr();
-
-    // Zero the shared page so a client's first print cannot leak stale RAM.
-    // SAFETY: freshly allocated, reachable through the direct map, owned by nobody yet.
-    unsafe {
-        core::ptr::write_bytes(
-            mmu::phys_to_virt(shared_phys) as *mut u8,
-            0,
-            FRAME_SIZE as usize,
-        );
-    }
 
     crate::sched::spawn(move || {
         run(

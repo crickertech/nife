@@ -518,11 +518,7 @@ mod tests {
             );
         };
 
-        let ptr = crate::DTB.load(core::sync::atomic::Ordering::Relaxed);
-        // SAFETY: the pointer firmware handed us, already parsed several times on this boot.
-        let dt =
-            unsafe { dtb::Dtb::from_ptr(crate::arch::mmu::phys_to_virt(ptr as u64) as *const u8) }
-                .expect("device tree is unreadable");
+        let dt = crate::device_tree().expect("device tree is unreadable");
         let mut regs = [dtb::Region { start: 0, size: 0 }; 1];
         let n = dt
             .node_reg_compatible(b"pci-host-ecam-generic", &mut regs)

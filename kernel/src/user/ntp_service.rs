@@ -70,13 +70,10 @@ fn stack_pages() -> [Mapping; STACK_PAGES as usize] {
         flags: Flags::user_data(),
     }; STACK_PAGES as usize];
     for (k, m) in maps.iter_mut().enumerate() {
-        let phys = crate::memory::alloc()
+        // Zeroed so the process starts clean.
+        let phys = crate::memory::alloc_zeroed()
             .expect("no frame for an ntp role's stack")
             .addr();
-        // SAFETY: a fresh frame through the direct map; zero it so the process starts clean.
-        unsafe {
-            core::ptr::write_bytes(mmu::phys_to_virt(phys) as *mut u8, 0, FRAME_SIZE as usize);
-        }
         m.va = USER_STACK_VA - (k as u64 + 1) * FRAME_SIZE;
         m.phys = phys;
     }

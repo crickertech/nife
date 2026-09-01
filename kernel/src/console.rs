@@ -112,15 +112,12 @@ pub fn init() {
 /// yields divisor 0: leave the divisor and line controls exactly as U-Boot programmed them, which
 /// is the correct move on a board whose firmware just printed a prompt at 115200.
 #[cfg(target_arch = "riscv64")]
-pub fn configure_from_dtb(dtb_ptr: usize) {
+pub fn configure_from_dtb() {
     use crate::drivers::ns16550::Shape;
 
-    // SAFETY: the pointer firmware handed us in a1. Nothing has parsed it yet on this boot; the
-    // magic check inside `from_ptr` is what makes a garbage pointer survivable, and on failure the
-    // console simply keeps its defaults.
-    let Ok(dt) = (unsafe {
-        dtb::Dtb::from_ptr(crate::arch::mmu::phys_to_virt(dtb_ptr as u64) as *const u8)
-    }) else {
+    // Nothing has parsed the tree yet on this boot; the magic check inside `device_tree` is what
+    // makes a garbage pointer survivable, and on failure the console simply keeps its defaults.
+    let Ok(dt) = crate::device_tree() else {
         return;
     };
 
