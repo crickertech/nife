@@ -205,9 +205,32 @@ different questions. `notes/untrusted-input-audit.md` surveys the attack surface
 targets.
 
 **What is missing:** every one of those is a test written by the same people who wrote the thing
-being tested. **The decisive experiment is adversarial**, someone trying to escape rather than
-demonstrating that a planned escape fails. Nobody owns that today and it needs framing before it
-needs a lane, because an adversarial exercise with no rules produces a story rather than a result.
+being tested.
+
+**Status: RUN, 2026-08-31, and it found the thing this risk exists to find.**
+notes/confinement-claims.md; PR #614.
+
+- **26 claims enumerated**, each with where it is stated, which test checks it, and whether that test
+  has been shown to fail when the claim is broken. **Three were stated nowhere**, including one the
+  system deliberately does *not* make: a confined device's **values** are not confined, only its
+  reach. The IOMMU and the DMA validator constrain placement, never content.
+- **25 harnesses now carry a replayable falsification**, up from 6. The sweep is 25 swept, 0
+  survivors, and every patch names the assertion it expects to fail.
+- **DECISIONS §31's headline assertion never runs.** Mapping `WITNESS_RO` read/write does turn the C
+  seam test red, but `assert_eq!(v[2], CONFINED)`, the line that prints *"read-only witness intact"*,
+  is not what catches it: **a component that is not confined does not fault, no fault means no death
+  report, and the witness check is reachable only by an escape that faults anyway.** The sentence the
+  seam is quoted for is not the sentence doing the work.
+- **And the first attempt failed for the wrong reason**, which is the hazard this milestone's own
+  block warned about, on the day it was written: the break surfaced as a 234-second watchdog timeout
+  reading *"a livelock, not a lost wakeup"*, a correct red with nothing in it about confinement.
+
+**What it does not say.** Nothing here says the confinement holds. What it supports is narrower and
+was the point: these named claims are tested, and each has been shown to fail when the claim is
+broken. **Six kernel confinement rows still have no mechanism at all**, and the adversarial exercise
+this entry originally called for is still unbuilt: an outsider trying to escape, rather than us
+demonstrating that a planned escape fails. That wants outside eyes and is gated behind milestone 198
+by calef's no-third-parties position.
 
 ## 8. Nobody needs it
 
@@ -283,7 +306,7 @@ Ranked by chance-of-fatal times cheapness-of-test, not by number.
 | 6 | 4, performance | the multi-tasking workload number | milestone 168 | one lane |
 | 7 | 9 and 6 together | journey 3, end to end on three boards | journey 3 | months, and it is the capstone |
 | -- | 5, multicore | the defect-discovery curve: a linear one is the red result | milestone 201 | weeks, hardware |
-| -- | 7, confinement | falsify each confinement claim and watch the test go red | milestone 202 | one lane |
+| ~~7~~ | 7, confinement | **RUN 2026-08-31.** 26 claims enumerated, 25 falsifications replaying red, and §31's headline assertion found unreachable in the case it exists to catch | milestone 202 | done; the adversarial half remains |
 | -- | 8, nobody needs it | none. This is principle 1 | -- | -- |
 
 ## BUGS
