@@ -4,8 +4,8 @@
 #
 # PROVISIONAL beyond four names. DECISIONS §134 ratified `Falsification:`, the three states
 # `replayable`/`attested`/`unfalsified`, this script's name, and the patch path
-# `crates/<crate>/falsifications/<module.path>.<harness_fn_name>.patch`. Every other spelling here (the flags, the
-# column headings) is this lane's and calef names things.
+# `<package>/falsifications/<module.path>.<harness_fn_name>.patch`. Every other spelling here (the
+# flags, the column headings) is this lane's and calef names things.
 #
 # Why this exists. notes/verification.md has said "falsify a property before believing it" since
 # milestone 35, and milestone 191 measured what that produced: 141 harnesses and **not one of them
@@ -42,6 +42,15 @@
 #                       Counted, and a worklist entry. An assertion is not evidence.
 #   unfalsified         nobody has. This is the claim's honest denominator.
 #
+# And a fourth thing that is not a state, because it is not a harness. A `falsifications/` directory
+# may hold a patch against something `cargo kani` cannot run at all: milestone 202 (every confinement
+# test is a ritual until somebody breaks the confinement) recorded one against a kernel `#[test_case]`
+# that boots under QEMU. It is a real falsification of a real claim and no sweep can replay it until
+# milestone 210 (no kernel test can be run by name) lands. Those are printed after the ratio and
+# counted in neither half of it, which milestone 212 chose deliberately: a denominator that quietly
+# excludes them is the defect, and a numerator that quietly includes evidence nothing re-runs is the
+# same defect facing the other way.
+#
 # The block, which is all the lint checks:
 #
 #   /// Falsification: replayable `crates/capability/falsifications/verification.subset_is_transitive.patch`
@@ -52,11 +61,22 @@
 # milestone 115 established for `Name:`: at the thing, never in a registry, so two lanes touching
 # two crates cannot collide and a computed report cannot drift from the tree.
 #
-#   script/falsifications                 the table, by crate, and the ratio
-#   script/falsifications --unfalsified   the worklist: harnesses with no evidence, biggest crate first
-#   script/falsifications --check         form only, non-zero on a problem (script/lint runs this)
-#   script/falsifications --sweep [crate] apply every recorded patch, require red, revert
+#   script/falsifications                   the table, by package, and the ratio
+#   script/falsifications --unfalsified     the worklist: harnesses with no evidence, biggest first
+#   script/falsifications --check           form only, non-zero on a problem (script/lint runs this)
+#   script/falsifications --sweep [package] apply every recorded patch, require red, revert
 #   script/falsifications --affected-since <base>   sweep only what a diff can reach (the per-PR half)
+#
+# **The scope is every workspace package, and it was `crates/` until milestone 212.** That is the
+# whole of that milestone and it was not an undercount so much as a mislabelled fraction: the ratio
+# below is printed as a statement about the tree's proofs, and it described one directory. Milestone
+# 193 (put `kernel/src` within reach of the prover) and milestone 197 (`user/` and `xtask` are out of
+# reach of the prover) each put a package outside `crates/` into `script/verify`'s crate table, and
+# both then grew harnesses and falsification records this script could not see. The package list now
+# comes from `cargo metadata`, which is where `script/lint`'s verify-table check already gets the
+# same fact, because a hand-maintained list is the same defect one iteration later: `script/verify`
+# has recorded that failure twice (`mdns_proto`, then `jh7110_trng`), and it is the invisible
+# direction, since a suite whose scope is too small goes green FASTER.
 #
 # **The gate is presence, never `replayable`.** Nothing here fails a build because a harness has no
 # falsification yet, and it must stay that way, for exactly the reason `script/names --check` gates on
@@ -91,6 +111,19 @@
 #   have bought). It fails toward doing too much.
 # - **`kernel/src/arch/` carries no harnesses and gains nothing here**, so the architecture layer,
 #   where the VisionFive 2's undelivered-wake defect actually lived, is outside this record entirely.
+# - **A file's module path is derived from the Cargo target it belongs to, and one shape defeats
+#   that.** `user/src` holds 68 `[[bin]]` roots and two single-consumer `#[path]` modules that rule 7
+#   permits (`net_transport.rs`, `socket_test_client.rs`). A root contributes no module segment and a
+#   `#[path]` module contributes whatever the including file calls it, which need not be its
+#   filename. Neither carries a harness today; one that arrived in a `#[path]` module would get a
+#   patch path naming the file rather than the module, and `--check` would report it as a path that
+#   does not match rather than accept it silently.
+# - **Two files carrying `#[kani::proof]` are in no workspace package and are skipped**: the
+#   `scripts/kani-lint-shim` source `script/lint` compiles by hand, and `vendor/redoxfs`, kept out of
+#   the workspace on purpose. Neither is provable, so neither belongs in a ratio about proofs.
+#   `script/lint`'s verify-table check is what keeps that honest, by failing on any harness file
+#   belonging to no package with exactly those two argued as exemptions; this script does not keep a
+#   second copy of the list.
 #
 # Name: ratified 2026-08-30 (calef, DECISIONS §134). The `script/` family splits in a way nobody had
 # written down until that section: what DOES something is a verb (`verify`, `test`, `fuzz`, `bench`)
@@ -103,6 +136,7 @@ set -e
 ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 
 exec python3 - "$ROOT" "$@" <<'PY'
+import json
 import os
 import re
 import subprocess
@@ -122,33 +156,131 @@ FN = re.compile(r"^(?:pub\s+)?(?:unsafe\s+)?fn\s+(\w+)")
 COMMENT = re.compile(r"^//")
 RECORD = re.compile(r"^//[/!]?\s*Falsification:\s*(.*)$")
 
+# The first line of a patch that falsifies something `cargo kani` cannot run: `Falsifies
+# `kernel::user::c_seam_tests::a_c_out_of_bounds_write_faults...``. See `unclaimed()`.
+FALSIFIES = re.compile(r"^Falsifies\s+`?([A-Za-z_][\w:]*)`?", re.M)
 
 MOD_OPEN = re.compile(r"^(?:pub(?:\([^)]*\))?\s+)?mod\s+(\w+)\s*\{")
 
 
-def module_path_by_line(rel, lines):
+_META = {}
+
+
+def metadata(no_deps):
+    """`cargo metadata`, cached, because three code paths here want it and it is not cheap.
+
+    This is the whole of milestone 212. The walk used to be `os.walk("crates")`, so the ratio this
+    script prints described one directory and was printed as a fraction of the tree. `kernel` and
+    `user` are workspace packages at the repository root, both are rows in `script/verify`'s crate
+    table since milestones 193 (put `kernel/src` within reach of the prover) and 197 (`user/` and
+    `xtask` are out of reach of the prover), and both carry harnesses the old walk could not see.
+
+    Derived rather than listed, for the reason `script/verify`'s own table comment gives twice over:
+    `mdns_proto` and then `jh7110_trng` each carried harnesses nothing ran, and that failure is the
+    invisible one, because the suite goes green FASTER when a scope is too small.
+    """
+    key = bool(no_deps)
+    if key not in _META:
+        cmd = ["cargo", "metadata", "--format-version", "1", "--locked"]
+        if no_deps:
+            cmd.append("--no-deps")
+        _META[key] = json.loads(subprocess.run(
+            cmd, cwd=root, capture_output=True, text=True, check=True).stdout)
+    return _META[key]
+
+
+class Package:
+    """A workspace package: its name, the directory it lives in, and its Cargo targets.
+
+    The targets are what make the module path right for a package of binaries. `user` is 68
+    `[[bin]]` targets sharing one `src/` directory, so `user/src/printenv.rs` is a CRATE ROOT and
+    contributes no module segment, where `crates/paging/src/sv39.rs` sits below a `lib` root and
+    contributes `sv39`. The old derivation read the path (`parts[2] == "src"`) and would have
+    called the first one `printenv::proofs::...`, which is not a path Kani would answer to.
+    """
+
+    def __init__(self, name, reldir, targets, has_global_asm):
+        self.name = name
+        self.reldir = reldir            # "crates/paging", "kernel", "user"
+        self.prefix = reldir + "/"
+        self.targets = targets          # [(target_name, kind, rel_src_path), ...]
+        self.has_global_asm = has_global_asm
+
+    @property
+    def bins(self):
+        return [t for t in self.targets if t[1] == "bin"]
+
+    def target_of(self, rel):
+        """The target whose sources `rel` belongs to, and whether `rel` is that target's root."""
+        if rel.endswith(".rs"):
+            for t in self.targets:
+                if t[2] == rel:
+                    return t, True
+        best = None
+        for t in self.targets:
+            d = os.path.dirname(t[2]) + "/"
+            if rel.startswith(d) and (best is None or len(d) > len(os.path.dirname(best[2]) + "/")):
+                best = t
+        return best, False
+
+    def file_mods(self, rel):
+        """The module segments a FILE contributes, from the crate root down.
+
+        `crates/paging/src/sv39.rs` under a `lib.rs` root is `["sv39"]`; `user/src/printenv.rs`,
+        which IS a root, is `[]`. The rest of a harness's path comes from the inline `mod X {`
+        blocks, which is where `verification` and `proofs` come from.
+        """
+        target, is_root = self.target_of(rel)
+        if target is None or is_root:
+            return []
+        base = os.path.dirname(target[2]) + "/"
+        tail = rel[len(base):].split("/")
+        tail[-1] = tail[-1][: -len(".rs")]
+        if tail[-1] in ("lib", "mod", "main"):
+            tail = tail[:-1]
+        return tail
+
+
+def packages():
+    """Every workspace package, longest-prefix-first so ownership of a path is unambiguous."""
+    meta = metadata(no_deps=True)
+    ws = meta["workspace_root"]
+    out = []
+    for p in meta["packages"]:
+        rel = os.path.relpath(os.path.dirname(p["manifest_path"]), ws)
+        if rel == "." or rel.startswith(".."):
+            continue
+        targets = []
+        for t in p["targets"]:
+            src = os.path.relpath(t["src_path"], ws)
+            if src.startswith(".."):
+                continue
+            targets.append((t["name"], t["kind"][0] if t["kind"] else "?", src))
+        # One `cargo kani` flag depends on this and it is derived rather than named, because a
+        # package list in this file is the defect milestone 212 exists to remove. Kani refuses a
+        # crate containing `global_asm!` outright unless told to ignore it, and `script/verify`
+        # carries the same exception for the same reason; see its `kernel)` case and
+        # notes/kernel-proofs.md for what the resulting stubs do and do not cover.
+        asm = subprocess.run(["git", "-C", root, "grep", "-l", "global_asm!", "--", rel + "/*.rs"],
+                             capture_output=True, text=True).returncode == 0
+        out.append(Package(p["name"], rel, targets, asm))
+    out.sort(key=lambda p: -len(p.prefix))
+    return out
+
+
+def module_path_by_line(file_mods, lines):
     """For each line, the module path from the crate root, as a list of segments.
 
-    Two sources, and both are needed. The **file** contributes segments for anything below
-    `src/lib.rs`: `src/sv39.rs` is `sv39`, `src/net/tcp.rs` is `net::tcp`, `src/net/mod.rs` is
-    `net`. The **inline `mod X {` blocks** contribute the rest, which is where `verification` comes
-    from, since every harness in this tree lives in a `#[cfg(kani)] mod verification`.
+    Two sources, and both are needed. The **file** contributes what `Package.file_mods` computed
+    from the Cargo target it belongs to. The **inline `mod X {` blocks** contribute the rest, which
+    is where `verification` comes from, since almost every harness in this tree lives in a
+    `#[cfg(kani)] mod verification`.
 
     Brace counting rather than a Rust parser, which is the right size of tool here and is honest
     about its limit: a brace inside a string or a comment would miscount. Nothing in this tree does
     that at module scope, and a miscount surfaces as a patch path that does not match, which
     `--check` reports rather than silently accepting.
     """
-    parts = rel.split(os.sep)
-    # crates/<crate>/src/a/b.rs -> ["a", "b"]; crates/<crate>/src/lib.rs -> []
-    file_mods = []
-    if len(parts) > 3 and parts[2] == "src":
-        tail = parts[3:]
-        tail[-1] = tail[-1][: -len(".rs")]
-        if tail[-1] in ("lib", "mod", "main"):
-            tail = tail[:-1]
-        file_mods = tail
-
     out = []
     stack = []       # [(depth_at_open, name), ...]
     depth = 0
@@ -169,61 +301,77 @@ def module_path_by_line(rel, lines):
     return out
 
 
-def harnesses():
-    """Every Kani harness under `crates/`, with the falsification record it carries.
+def harness_files():
+    """Every tracked `.rs` file carrying a `#[kani::proof]`, from `git grep` rather than a walk.
 
-    Derived from the tree by grep rather than from a list, for the reason `script/verify`'s own
-    scope computation gives: a harness that arrives tomorrow is covered without editing anything,
-    and a list that is one entry short fails silently and invisibly.
+    Two files in this tree hold the attribute and belong to no workspace package: the
+    `scripts/kani-lint-shim` source `script/lint` compiles by hand for its harness-clippy pass, and
+    `vendor/redoxfs`, upstream code kept out of the workspace on purpose. Neither is provable, so
+    neither belongs in a ratio about proofs. They are skipped here rather than listed, because
+    `script/lint` already gates that direction: its verify-table check reports any file carrying
+    `#[kani::proof]` that belongs to no workspace package, with those two named as the argued
+    exemptions. A second copy of that list here would be a second thing to keep true.
     """
+    out = subprocess.run(["git", "-C", root, "grep", "-lE", r"#\[kani::proof", "--", "*.rs"],
+                         capture_output=True, text=True)
+    return sorted(out.stdout.split())
+
+
+def harnesses():
+    """Every Kani harness in a workspace package, with the falsification record it carries.
+
+    Derived from the tree rather than from a list, for the reason `script/verify`'s own scope
+    computation gives: a harness that arrives tomorrow is covered without editing anything, and a
+    list that is one entry short fails silently and invisibly.
+    """
+    pkgs = packages()
     out = []
-    base = os.path.join(root, "crates")
-    for dirpath, dirnames, filenames in os.walk(base):
-        dirnames[:] = [d for d in dirnames if d != "target"]
-        for filename in sorted(filenames):
-            if not filename.endswith(".rs"):
+    for rel in harness_files():
+        pkg = next((p for p in pkgs if rel.startswith(p.prefix)), None)
+        if pkg is None:
+            continue
+        path = os.path.join(root, rel)
+        lines = open(path, errors="replace").read().split("\n")
+        mods = module_path_by_line(pkg.file_mods(rel), lines)
+        target, _ = pkg.target_of(rel)
+        for i, line in enumerate(lines):
+            if not PROOF.match(line.strip()):
                 continue
-            path = os.path.join(dirpath, filename)
-            rel = os.path.relpath(path, root)
-            crate = rel.split(os.sep)[1]
-            lines = open(path, errors="replace").read().split("\n")
-            mods = module_path_by_line(rel, lines)
-            for i, line in enumerate(lines):
-                if not PROOF.match(line.strip()):
+            # Downward past any further attributes (`#[kani::unwind(8)]`, `#[kani::solver(..)]`)
+            # to the function this proves.
+            name = None
+            for j in range(i + 1, len(lines)):
+                s = lines[j].strip()
+                if not s or ATTR.match(s) or COMMENT.match(s):
                     continue
-                # Downward past any further attributes (`#[kani::unwind(8)]`, `#[kani::solver(..)]`)
-                # to the function this proves.
-                name = None
-                for j in range(i + 1, len(lines)):
-                    s = lines[j].strip()
-                    if not s or ATTR.match(s) or COMMENT.match(s):
-                        continue
-                    hit = FN.match(s)
-                    name = hit.group(1) if hit else None
-                    break
-                if name is None:
-                    out.append(Harness(crate, "?", rel, i + 1, None, None, mods[i]))
-                    continue
-                # Upward past the other attributes to the comment run above them, which is where
-                # the block lives. Blank lines end it: a comment separated from the harness by a
-                # gap belongs to whatever is above the gap.
-                record, record_line = None, None
-                k = i - 1
-                while k >= 0 and ATTR.match(lines[k].strip()):
-                    k -= 1
-                while k >= 0 and COMMENT.match(lines[k].strip()):
-                    hit = RECORD.match(lines[k].strip())
-                    if hit:
-                        record, record_line = hit.group(1).strip(), k + 1
-                    k -= 1
-                out.append(Harness(crate, name, rel, i + 1, record, record_line, mods[i]))
-    out.sort(key=lambda h: (h.crate, h.name))
+                hit = FN.match(s)
+                name = hit.group(1) if hit else None
+                break
+            if name is None:
+                out.append(Harness(pkg, target, "?", rel, i + 1, None, None, mods[i]))
+                continue
+            # Upward past the other attributes to the comment run above them, which is where
+            # the block lives. Blank lines end it: a comment separated from the harness by a
+            # gap belongs to whatever is above the gap.
+            record, record_line = None, None
+            k = i - 1
+            while k >= 0 and ATTR.match(lines[k].strip()):
+                k -= 1
+            while k >= 0 and COMMENT.match(lines[k].strip()):
+                hit = RECORD.match(lines[k].strip())
+                if hit:
+                    record, record_line = hit.group(1).strip(), k + 1
+                k -= 1
+            out.append(Harness(pkg, target, name, rel, i + 1, record, record_line, mods[i]))
+    out.sort(key=lambda h: (h.package, h.name))
     return out
 
 
 class Harness:
-    def __init__(self, crate, name, rel, line, record, record_line, mods):
-        self.crate = crate
+    def __init__(self, pkg, target, name, rel, line, record, record_line, mods):
+        self.pkg = pkg
+        self.package = pkg.name
+        self.target = target
         self.mods = mods
         self.name = name
         self.rel = rel
@@ -271,35 +419,103 @@ class Harness:
 
     @property
     def conventional_patch(self):
-        # DECISIONS §134 as amended 2026-08-31: `<module.path>.<harness_fn_name>.patch`, with the
-        # module path ALWAYS included and no branch. The first spelling keyed on the function name
-        # alone, which `paging` broke on contact: six properties stated once per ISA share six
-        # function names across `aarch64.rs`, `sv39.rs` and `x86_64.rs`, so three harnesses would
-        # collide on one file. Qualifying only when a name repeats was refused for being a branch on
-        # an unstable property, since a harness added elsewhere would retroactively invalidate an
-        # existing path.
-        return "crates/%s/falsifications/%s.patch" % (
-            self.crate, ".".join(self.mods + [self.name]))
+        # DECISIONS §134 as amended 2026-08-31 and clarified 2026-09-01:
+        # `<package>/falsifications/<module.path>.<harness_fn_name>.patch`, with the module path
+        # ALWAYS included and no branch. The first spelling keyed on the function name alone, which
+        # `paging` broke on contact: six properties stated once per ISA share six function names
+        # across `aarch64.rs`, `sv39.rs` and `x86_64.rs`, so three harnesses would collide on one
+        # file. Qualifying only when a name repeats was refused for being a branch on an unstable
+        # property, since a harness added elsewhere would retroactively invalidate an existing path.
+        #
+        # The directory is the PACKAGE's, not `crates/<crate>`: `kernel` and `user` are packages at
+        # the repository root and both already hold `falsifications/`, which §134's clarification
+        # recognises.
+        return "%s/falsifications/%s.patch" % (
+            self.pkg.reldir, ".".join(self.mods + [self.name]))
+
+    def kani_argv(self):
+        """What `cargo kani` needs to run this ONE harness and nothing else.
+
+        Two package-shaped facts, both derived. A package of many binaries needs `--bin`, because
+        `cargo kani -p user` compiles all 68 and fails on the first `#![no_std]` root that does not
+        mention Kani; `script/verify` solves the same problem by deriving a `--bin` list, and a
+        sweep wants exactly one. A package carrying `global_asm!` needs it ignored, or Kani refuses
+        to compile the crate at all.
+        """
+        argv = ["cargo", "kani", "-p", self.package]
+        if self.pkg.has_global_asm:
+            argv += ["-Z", "unstable-options", "--ignore-global-asm"]
+        if self.target is not None and self.target[1] == "bin" and len(self.pkg.bins) > 1:
+            argv += ["--bin", self.target[0]]
+        return argv + ["--harness", self.qualified, "--exact", "--output-format=terse"]
 
 
-def patch_files():
-    """Every patch under a crate's `falsifications/`, repo-relative."""
+def patch_files(pkgs):
+    """Every patch under a package's `falsifications/`, repo-relative."""
     out = []
-    for crate in sorted(os.listdir(os.path.join(root, "crates"))):
-        d = os.path.join(root, "crates", crate, "falsifications")
+    for pkg in sorted(pkgs, key=lambda p: p.reldir):
+        d = os.path.join(root, pkg.reldir, "falsifications")
         if not os.path.isdir(d):
             continue
         for f in sorted(os.listdir(d)):
             if f.endswith(".patch"):
-                out.append("crates/%s/falsifications/%s" % (crate, f))
+                out.append("%s/falsifications/%s" % (pkg.reldir, f))
     return out
 
 
-def check(hs):
+def unclaimed(path, pkgs):
+    """Classify a patch no harness claims: a known gap, or rot.
+
+    §134 checks both directions, and the reason a patch with no harness is normally a PROBLEM is
+    rot: the harness was renamed or deleted and the patch is now a file nobody runs.
+
+    **One patch in this tree is neither**, and pretending otherwise would put a hardcoded exemption
+    in the script whose whole milestone was removing a hardcoded scope. Milestone 202 (every
+    confinement test is a ritual until somebody breaks the confinement) recorded a falsification of
+    `kernel::user::c_seam_tests::a_c_out_of_bounds_write_faults_and_changes_nothing_outside_its_grant`,
+    which is a `#[test_case]` that boots under QEMU rather than a Kani harness. It is a real record
+    of a real falsification and nothing can sweep it until milestone 210 (no kernel test can be run
+    by name) lands.
+
+    So the distinction is drawn mechanically rather than by name. A patch may open with
+    `Falsifies `<fully::qualified::name>``, and it is a **known gap** when that name agrees with the
+    filename and resolves to a function that exists in the package and carries no `#[kani::proof]`.
+    Everything else is rot. That keeps the rot check sharp in the direction that matters: a renamed
+    or deleted harness fails, because the name no longer resolves to a function at all.
+
+    Returns (kind, detail), where kind is "gap" or "rot".
+    """
+    body = open(os.path.join(root, path), errors="replace").read()
+    head = body.split("diff --git")[0]
+    hit = FALSIFIES.search(head)
+    stem = os.path.basename(path)[: -len(".patch")]
+    pkgdir = os.path.dirname(os.path.dirname(path))
+    pkg = next((p for p in pkgs if p.reldir == pkgdir), None)
+    if hit is None or pkg is None:
+        return "rot", "no harness claims it and it declares no `Falsifies` target"
+    target = hit.group(1)
+    segments = target.split("::")
+    if segments and segments[0] == pkg.name:
+        segments = segments[1:]
+    if ".".join(segments) != stem:
+        return "rot", ("it declares `Falsifies %s`, which spells the filename `%s.patch`, not `%s`"
+                       % (target, ".".join(segments), os.path.basename(path)))
+    fn = segments[-1] if segments else ""
+    found = subprocess.run(
+        ["git", "-C", root, "grep", "-lE",
+         r"fn[[:space:]]+%s[[:space:]]*[(<]" % re.escape(fn), "--", pkg.reldir],
+        capture_output=True, text=True)
+    if found.returncode != 0:
+        return "rot", ("it falsifies `%s`, and no function of that name exists in `%s` any more"
+                       % (target, pkg.reldir))
+    return "gap", "%s (%s), which no Kani harness declares" % (target, found.stdout.split()[0])
+
+
+def check(hs, pkgs):
     """Form, never truth. Exactly the line `script/names --check` draws, and for the same reason.
 
     Both directions, which §134 asked for by name: every `replayable` path resolves AND every patch
-    under a crate's `falsifications/` has a harness that claims it. A one-directional check lets a
+    under a package's `falsifications/` has a harness that claims it. A one-directional check lets a
     patch rot into a file nobody runs, which is the failure this record exists to end wearing
     different clothes.
     """
@@ -362,31 +578,37 @@ def check(hs):
             if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
                 problems.append("%s: harness `%s` is `attested` with no `YYYY-MM-DD` date"
                                 % (where, h.name))
-    for p in patch_files():
-        if p not in claimed:
+    gaps = []
+    for p in patch_files(pkgs):
+        if p in claimed:
+            continue
+        kind, detail = unclaimed(p, pkgs)
+        if kind == "gap":
+            gaps.append((p, detail))
+        else:
             fn = os.path.basename(p)[: -len(".patch")]
-            problems.append("%s: no harness claims this patch. §134 checks both directions: a "
-                            "patch is named `<module.path>.<harness_fn_name>.patch` and the harness "
-                            "`%s` must carry `Falsification: replayable %s`." % (p, fn, p))
-    return problems
+            problems.append("%s: %s. §134 checks both directions: a patch is named "
+                            "`<module.path>.<harness_fn_name>.patch` and the harness `%s` must "
+                            "carry `Falsification: replayable %s`." % (p, detail, fn, p))
+    return problems, gaps
 
 
-def table(hs):
+def table(hs, pkgs):
     counts = {s: 0 for s in STATES}
-    by_crate = {}
+    by_pkg = {}
     for h in hs:
         counts[h.state] = counts.get(h.state, 0) + 1
-        by_crate.setdefault(h.crate, []).append(h)
+        by_pkg.setdefault(h.package, []).append(h)
     width = max(len(h.name) for h in hs) if hs else 10
-    for crate in sorted(by_crate):
-        print("%s" % crate)
-        for h in by_crate[crate]:
+    for pkg in sorted(by_pkg):
+        print("%s" % pkg)
+        for h in by_pkg[pkg]:
             rec = h.record or "(no block)"
             print("  %-*s  %s" % (width, h.name, rec))
         print("")
     total = len(hs)
     evidence = counts.get("replayable", 0)
-    print("%d harnesses in %d crates" % (total, len(by_crate)))
+    print("%d harnesses in %d packages" % (total, len(by_pkg)))
     for s in STATES:
         n = counts.get(s, 0)
         print("  %-12s %3d  %4.0f%%" % (s, n, 100.0 * n / total if total else 0))
@@ -394,17 +616,30 @@ def table(hs):
     # The one number §134 asked this script to print, in the sentence it is honest in. Everything
     # else here is a means to it.
     print("%d of %d harnesses (%.0f%%) carry evidence a machine can replay." % (evidence, total, 100.0 * evidence / total if total else 0))
+    # Records that exist, that a person performed, and that no sweep can replay, printed rather
+    # than folded into either number above. Milestone 212 decided this explicitly: a denominator
+    # that quietly excludes them is what it was written to end, and so is a numerator that quietly
+    # includes evidence nothing re-runs.
+    _, gaps = check(hs, pkgs)
+    if gaps:
+        print("")
+        print("%d falsification record(s) nothing here can sweep, because the thing they falsify is"
+              % len(gaps))
+        print("not a Kani harness. They are outside both numbers above:")
+        for p, detail in gaps:
+            print("  %s" % p)
+            print("      %s" % detail)
 
 def unfalsified(hs):
-    """The worklist. Biggest crate first, because §134's own examples of chaff are the crates with
+    """The worklist. Biggest package first, because §134's own examples of chaff are the crates with
     the most harnesses, and because falsifying two harnesses in one crate is one context load."""
     rows = [h for h in hs if h.state in (None, "unfalsified")]
-    by_crate = {}
+    by_pkg = {}
     for h in rows:
-        by_crate.setdefault(h.crate, []).append(h)
-    for crate in sorted(by_crate, key=lambda c: (-len(by_crate[c]), c)):
-        print("%s  (%d)" % (crate, len(by_crate[crate])))
-        for h in by_crate[crate]:
+        by_pkg.setdefault(h.package, []).append(h)
+    for pkg in sorted(by_pkg, key=lambda c: (-len(by_pkg[c]), c)):
+        print("%s  (%d)" % (pkg, len(by_pkg[pkg])))
+        for h in by_pkg[pkg]:
             print("  %s  %s:%d" % (h.name, h.rel, h.line))
     print("")
     print("%d of %d harnesses have no falsification." % (len(rows), len(hs)))
@@ -430,14 +665,14 @@ def sweep(hs, only=None):
         print("")
         print(d)
         return 2
-    todo = [h for h in hs if h.state == "replayable" and (only is None or h.crate in only)]
+    todo = [h for h in hs if h.state == "replayable" and (only is None or h.package in only)]
     if not todo:
         print("nothing to sweep" + (" in %s" % ", ".join(sorted(only)) if only else ""))
         return 0
     survivors, broken = [], []
     for h in todo:
         patch = os.path.join(root, h.patch)
-        print("==> %s::%s" % (h.crate, h.name))
+        print("==> %s::%s" % (h.package, h.name))
         applied = subprocess.run(["git", "-C", root, "apply", patch],
                                  capture_output=True, text=True)
         if applied.returncode != 0:
@@ -454,10 +689,7 @@ def sweep(hs, only=None):
             # changed. Before the amendment this was a substring match on the bare function name,
             # and `paging`'s three `index_is_always_in_bounds` harnesses would all have run, so
             # "one of them went red" proved nothing about the one being falsified.
-            run = subprocess.run(
-                ["cargo", "kani", "-p", h.crate,
-                 "--harness", h.qualified, "--exact", "--output-format=terse"],
-                cwd=root, capture_output=True, text=True)
+            run = subprocess.run(h.kani_argv(), cwd=root, capture_output=True, text=True)
             out = run.stdout + run.stderr
             hit = re.search(r"(\d+) successfully verified harnesses, (\d+) failures, (\d+) total",
                             out)
@@ -490,26 +722,23 @@ def sweep(hs, only=None):
     print("")
     print("%d swept, %d survivors, %d stale or broken" % (len(todo), len(survivors), len(broken)))
     for h in survivors:
-        print("  survivor  %s::%s" % (h.crate, h.name))
+        print("  survivor  %s::%s" % (h.package, h.name))
     for h in broken:
-        print("  stale     %s::%s" % (h.crate, h.name))
+        print("  stale     %s::%s" % (h.package, h.name))
     return 1 if (survivors or broken) else 0
 
 
-def affected_crates(base):
-    """Which harness crates a diff can reach, by the rule `script/verify --affected-since` uses.
+def affected_packages(base, hs):
+    """Which harness packages a diff can reach, by the rule `script/verify --affected-since` uses.
 
-    Crate-granular on purpose and stated in BUGS: nothing here knows which lines a harness covers,
-    so a change inside a harness crate's dependency closure re-falsifies every replayable harness in
-    that crate. It fails toward doing too much, which for a run measured in seconds is the right
+    Package-granular on purpose and stated in BUGS: nothing here knows which lines a harness covers,
+    so a change inside a harness package's dependency closure re-falsifies every replayable harness
+    in it. It fails toward doing too much, which for a run measured in seconds is the right
     direction.
     """
-    import json
     changed = subprocess.run(["git", "-C", root, "diff", "--name-only", base, "HEAD"],
                              capture_output=True, text=True, check=True).stdout.split()
-    meta = json.loads(subprocess.run(
-        ["cargo", "metadata", "--format-version", "1", "--locked"],
-        cwd=root, capture_output=True, text=True, check=True).stdout)
+    meta = metadata(no_deps=False)
     ws = meta["workspace_root"]
     pkgs = {}
     for p in meta["packages"]:
@@ -536,10 +765,10 @@ def affected_crates(base):
         else:
             changed_ids.add(pid)
     edges = {n["id"]: [d["pkg"] for d in n.get("deps", [])] for n in meta["resolve"]["nodes"]}
-    hcrates = {h.crate for h in harnesses()}
+    carriers = {h.package for h in hs}
     out = set()
     for pid, (name, _) in pkgs.items():
-        if name not in hcrates:
+        if name not in carriers:
             continue
         if unattributable:
             out.add(name)
@@ -556,12 +785,14 @@ def affected_crates(base):
     return out
 
 
+pkgs = packages()
 hs = harnesses()
 if not hs:
-    sys.exit("script/falsifications: found no Kani harnesses under crates/, which cannot be right")
+    sys.exit("script/falsifications: found no Kani harnesses in any workspace package, which cannot "
+             "be right")
 
 if mode == "--check":
-    problems = check(hs)
+    problems, gaps = check(hs, pkgs)
     for p in problems:
         print("  " + p)
     if problems:
@@ -569,7 +800,10 @@ if mode == "--check":
         print("%d problem(s). See the header of script/falsifications and DECISIONS §134." % len(problems))
         sys.exit(1)
     n = sum(1 for h in hs if h.state == "replayable")
-    print("  %d harnesses, every one carrying a Falsification: block (%d replayable)" % (len(hs), n))
+    print("  %d harnesses in %d packages, every one carrying a Falsification: block (%d replayable)"
+          % (len(hs), len({h.package for h in hs}), n))
+    for p, _ in gaps:
+        print("  %s falsifies something that is not a Kani harness; nothing sweeps it" % p)
 elif mode == "--unfalsified":
     unfalsified(hs)
 elif mode == "--sweep":
@@ -577,14 +811,14 @@ elif mode == "--sweep":
 elif mode == "--affected-since":
     if len(args) < 2:
         sys.exit("usage: script/falsifications --affected-since <base-ref>")
-    crates = affected_crates(args[1])
-    if not crates:
-        print("no harness crate is reachable from this change; nothing to re-falsify")
+    names = affected_packages(args[1], hs)
+    if not names:
+        print("no harness package is reachable from this change; nothing to re-falsify")
         sys.exit(0)
-    print("reachable harness crates: %s" % ", ".join(sorted(crates)))
-    sys.exit(sweep(hs, crates))
+    print("reachable harness packages: %s" % ", ".join(sorted(names)))
+    sys.exit(sweep(hs, names))
 elif mode in ("", "--all"):
-    table(hs)
+    table(hs, pkgs)
 else:
     sys.exit("script/falsifications: unknown option %r (see the header)" % mode)
 PY

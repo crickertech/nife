@@ -858,6 +858,8 @@ mod proofs {
     ///
     /// The claim is stated against `u128` arithmetic, which cannot wrap in this range, so the
     /// harness does not repeat the implementation's own expression back to it.
+    ///
+    /// Falsification: replayable `kernel/falsifications/syscall.proofs.the_run_end_is_exact_and_refuses_exactly_what_does_not_fit.patch`
     #[kani::proof]
     fn the_run_end_is_exact_and_refuses_exactly_what_does_not_fit() {
         let va: u64 = kani::any();
@@ -896,6 +898,10 @@ mod proofs {
     /// Sound, but not obviously so, and the loop is where a future widening of `Half::Low` would
     /// break it silently. `k` is chosen by the solver rather than iterated, so this covers every
     /// page of every run without an unwind bound.
+    ///
+    /// Falsification: unfalsified. Same standing as the harness above, and the same handoff: no
+    /// defect has been proposed against it yet, and inventing one to fill this row is exactly what
+    /// §134's three states exist to refuse.
     #[kani::proof]
     fn every_page_between_the_checked_ends_is_itself_a_user_page() {
         let va: u64 = kani::any();

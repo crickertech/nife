@@ -756,6 +756,8 @@ echo "script docs: every script documented, every README reference resolves"
 # never that every number be marked.
 echo "==> counted claims"
 python3 - <<'PYEOF' || exit 1
+import json
+import os
 import pathlib
 import re
 import subprocess
@@ -784,20 +786,61 @@ import sys
 # high one when the prose is copying it.
 HARNESS = re.compile(r'^[ \t]*#\[kani::proof\b.*\][ \t]*$', re.M)
 
+# Files holding `#[kani::proof]` that belong to no workspace package. Both are deliberate and
+# neither is provable: the shim is source rustc compiles by hand for this file's harness-clippy
+# pass, and `vendor/redoxfs` is upstream code kept out of the workspace on purpose (see the
+# workspace Cargo.toml's own note). The verify-table check further down this file states the same
+# two names in its own `EXEMPT`, and the duplication is deliberate rather than missed: the two checks
+# are separate `python3` heredocs in a shell script, so there is no scope they could share. A new
+# entry should be argued for rather than added, and it belongs in both.
+_HARNESS_EXEMPT = {
+    'scripts/kani-lint-shim/kani_attributes.rs',
+    'vendor/redoxfs/src/node.rs',
+}
+
 
 def _harness_hits():
-    """(crate directory name, number of harnesses) for every crate under crates/ that has any.
+    """(workspace package, number of harnesses) for every package that has any.
 
-    Scoped to `crates/` because that is where `cargo kani` can reach: script/verify proves
-    packages, and the kernel, the user programs and xtask are not packages it compiles. The
-    vendored RedoxFS carries two harnesses of its own that this suite has never run, and counting
-    them would make the number describe a suite nobody executes.
+    Scoped to the workspace because that is what `cargo kani` can reach, and **it was scoped to
+    `crates/` until milestone 212**, with a docstring here that gave the reason as "the kernel, the
+    user programs and xtask are not packages it compiles". That stopped being true a milestone
+    later: 193 (put `kernel/src` within reach of the prover) and 197 (`user/` and `xtask` are out of
+    reach of the prover) each added a row to `script/verify`'s crate table, and this count went on
+    excluding both, so the tree carried two derived numbers for one question. That is precisely the
+    failure `<!--count:-->` exists to prevent, one level up: the derivation was a snapshot of a
+    scope somebody last checked.
+
+    The package list comes from the same `cargo metadata` walk this file's verify-table check uses,
+    with its EXEMPT set doing the work it already does: the `scripts/kani-lint-shim` source and
+    `vendor/redoxfs` carry harnesses this suite has never run, and counting them would make the
+    number describe a suite nobody executes.
     """
+    meta = json.loads(subprocess.run(
+        ['cargo', 'metadata', '--format-version', '1', '--locked', '--no-deps'],
+        capture_output=True, text=True, check=True,
+    ).stdout)
+    ws = meta['workspace_root']
+    prefixes = {}
+    for pkg in meta['packages']:
+        rel = os.path.relpath(os.path.dirname(pkg['manifest_path']), ws)
+        if rel == '.' or rel.startswith('..'):
+            continue
+        prefixes[pkg['name']] = rel + '/'
     hits = {}
-    for path in pathlib.Path('crates').rglob('*.rs'):
-        n = len(HARNESS.findall(path.read_text(errors='replace')))
+    for f in subprocess.run(['git', 'grep', '-lE', r'#\[kani::proof', '--', '*.rs'],
+                            capture_output=True, text=True).stdout.split():
+        if f in _HARNESS_EXEMPT:
+            continue
+        owner = None
+        for name, prefix in prefixes.items():
+            if f.startswith(prefix) and (owner is None or len(prefix) > len(prefixes[owner])):
+                owner = name
+        if owner is None:
+            continue
+        n = len(HARNESS.findall(pathlib.Path(f).read_text(errors='replace')))
         if n:
-            hits[path.parts[1]] = hits.get(path.parts[1], 0) + n
+            hits[owner] = hits.get(owner, 0) + n
     return hits
 
 
@@ -1070,7 +1113,7 @@ REGISTRY = {
         lambda: sum(_harness_hits().values()),
     ),
     'harness-crates': (
-        'how many crates carry at least one Kani proof harness',
+        'how many workspace packages carry at least one Kani proof harness',
         lambda: len(_harness_hits()),
     ),
     'markdown-files': (
