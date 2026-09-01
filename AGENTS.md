@@ -472,6 +472,19 @@ this lane touch, and who else is in them"**. Concretely:
   discovered: the attention to read reports and resolve conflicts, the token budget, and runner
   concurrency, since group builds and per-branch CI compete for the same machines.
 
+**And there is a second ceiling, which is the machine and not the collision surface** (2026-08-31,
+learned three times in one day). Lane count is bounded by files; **concurrent heavy jobs are bounded
+by memory**, and the two are independent. `script/verify` defaults to four parallel solver jobs
+because its own header records a harness reaching **3.5 GB** and four fitting the dev Mac, so two
+lanes gating at once is eight solvers against a budget tuned for four. That day cost an
+out-of-memory kill that took the session with it, a `ci-build` whose timing assertions failed at 2.7x
+oversubscription and told nobody anything, and two `script/verify` runs killed by SIGTERM mid-CBMC.
+
+**So: at most one full `script/verify` at a time on this machine, and never a mutation sweep beside
+lanes.** When two lanes must gate together, `VERIFY_JOBS=2` each shares the budget rather than
+doubling it. The tell is the same every time and is easy to misread: a heavy job dying with no
+failing assertion, reported as a cancellation or a timing failure rather than as memory.
+
 **The prover is the queue's long pole**, not the queue itself: a group's CI goes green while
 `verify` is still running, every time. Milestone 119's remaining half is measuring exactly that.
 

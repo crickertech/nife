@@ -413,7 +413,7 @@ fires when the tree exceeds it and stays silent when the tree falls below. `scri
 `agents-md-lines` registry entry (the file's own `wc -l`-equivalent line count) and the claim lives
 here, since a developer lane may not edit `AGENTS.md` to carry its own marker:
 
-**`AGENTS.md` carries at most 1019 lines** <!--count-at-most:agents-md-lines-->, written at the
+**`AGENTS.md` carries at most 1032 lines** <!--count-at-most:agents-md-lines-->, written at the
 tree's exact value with **zero headroom**, deliberately: the point, per this section's own words
 above, is that every line added should replace one removed, or be a considered act that says why the
 growth was worth it. That is the same choice `unsafe-thread-safety-claims` made for a different
@@ -447,6 +447,16 @@ while being unable to accept one is ranking against a door it has not built. The
 that, say it is ours rather than the customer's constraint, and record that he wants package
 management early for the builders' sake and not only for a stranger's. Nothing was cut this time:
 the bullet it extends is the shortest in the section and had nothing spare in it.
+
+**Raised again to 1032 on 2026-08-31, thirteen lines, and this one is a cost the file did not know
+it had.** The lane-count section bounds concurrency by *collision surface*, which is correct and
+incomplete: it says nothing about memory, so a maintainer obeying it exactly ran two lanes whose
+gates were eight parallel SAT solvers against a budget `script/verify`'s own header tunes at four.
+That cost an out-of-memory kill which took the session with it, a `ci-build` invalidated by 2.7x
+oversubscription, and two proof runs killed by SIGTERM, all in one day, all read as three unrelated
+problems. The addition is thirteen lines because the failure is easy to misread: it never arrives as
+"out of memory", it arrives as a cancellation or a timing failure, and naming that tell is most of
+what the lines buy.
 
 **Raised from 942 to 947, 2026-08-23**: milestone 160's naming-tenet extension (three lines
 recording that calef's crate/program/module naming authority now also covers public function
