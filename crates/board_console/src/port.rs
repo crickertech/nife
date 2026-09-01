@@ -113,10 +113,20 @@ pub fn candidates() -> Vec<PathBuf> {
 /// If no candidate exists, or if more than one does and the caller named none. Both messages list
 /// what was found and what to pass.
 pub fn choose(asked: Option<&Path>) -> io::Result<PathBuf> {
+    pick(&candidates(), asked)
+}
+
+/// [`choose`]'s decision, over a candidate list rather than over `/dev`.
+///
+/// Separate so the three cases can be tested on any machine. They cannot be tested through
+/// `choose`, because which of them fires depends on what happens to be plugged into the machine
+/// running the tests: this lane's own Mac has the CH343 attached and takes the one-candidate
+/// branch, and CI has nothing and takes the zero branch, so neither ever sees the other's message
+/// or the ambiguous one at all.
+fn pick(found: &[PathBuf], asked: Option<&Path>) -> io::Result<PathBuf> {
     if let Some(path) = asked {
         return Ok(path.to_path_buf());
     }
-    let found = candidates();
     match found.len() {
         1 => Ok(found[0].clone()),
         0 => Err(io::Error::new(
@@ -141,10 +151,18 @@ pub fn choose(asked: Option<&Path>) -> io::Result<PathBuf> {
     }
 }
 
+/// `-f` on BSD and macOS, `-F` on GNU. Nothing else about `stty` differs between them, which is
+/// why this is one constant and not two code paths.
+const DEVICE_FLAG: &str = if cfg!(target_os = "linux") {
+    "-F"
+} else {
+    "-f"
+};
+
 /// Open the port and put it in raw mode at [`BAUD`], in that order.
 ///
-/// Returns the open descriptor and whatever `stty` had to say. A configuration failure is
-/// **reported, not fatal**: an adapter whose driver refuses one of these flags still delivers
+/// Returns the open descriptor and whatever the configuration had to say. A configuration failure
+/// is **reported, not fatal**: an adapter whose driver refuses one of these flags still delivers
 /// bytes, and a tool that refused to log them would be worse than one that logs them with a
 /// warning attached. The read timeout is only ever belt to `watch`'s braces, so losing it costs
 /// nothing but a spinning worker thread.
@@ -155,56 +173,22 @@ pub fn choose(asked: Option<&Path>) -> io::Result<PathBuf> {
 /// an adapter that was unplugged, a `/dev/tty.*` path (see this module's header), and another
 /// program already holding the port.
 pub fn open(path: &Path) -> io::Result<(File, Option<String>)> {
-    warn_if_dial_in(path);
+    if let Some(warning) = dial_in_warning(path) {
+        eprintln!("board-console: {warning}");
+    }
     let file = OpenOptions::new().read(true).write(true).open(path)?;
     let complaint = configure(path).or_else(|| confirm_speed(path));
     Ok((file, complaint))
 }
 
-/// Ask the device what speed it is actually at, and complain if it is not the one we asked for.
+/// The `stty` arguments that put a port in the mode this tool wants.
 ///
-/// The whole reason this function exists is in the module header: a port left at its default rate
-/// delivers bytes that look like a hardware fault, and nothing else in the system would say
-/// otherwise. Returning `None` when the speed cannot be read is deliberate; an unreadable `stty`
-/// is not evidence that the port is wrong, and a false alarm here would train the reader to ignore
-/// a real one.
-fn confirm_speed(path: &Path) -> Option<String> {
-    let flag = if cfg!(target_os = "linux") {
-        "-F"
-    } else {
-        "-f"
-    };
-    let out = Command::new("stty").arg(flag).arg(path).output().ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    let said = String::from_utf8_lossy(&out.stdout);
-    if said.contains(&format!("{BAUD} baud")) {
-        return None;
-    }
-    let reported = said
-        .lines()
-        .find(|line| line.contains("baud"))
-        .unwrap_or("(no speed reported)")
-        .trim();
-    Some(format!(
-        "the port is not at {BAUD} after configuring it; stty says: {reported}. \
-         Bytes at the wrong rate look exactly like a wiring fault, so fix this before \
-         suspecting the cable"
-    ))
-}
-
-/// Run `stty` over an already-open device. Returns its complaint, if it had one.
-fn configure(path: &Path) -> Option<String> {
-    // `-f` on BSD and macOS, `-F` on GNU. Nothing else differs, which is why this is one flag and
-    // not two code paths.
-    let flag = if cfg!(target_os = "linux") {
-        "-F"
-    } else {
-        "-f"
-    };
+/// Pure, and separate from running it, because the argument list is the part worth asserting on:
+/// every flag here is a decision with a reason, and a silent drop of `-icrnl` would corrupt the
+/// bare `\r` the recogniser splits on without failing anything.
+fn set_args(path: &str) -> Vec<String> {
     let speed = BAUD.to_string();
-    let mut args: Vec<String> = vec![flag.to_string(), path.to_str()?.to_string()];
+    let mut args = vec![DEVICE_FLAG.to_string(), path.to_string()];
     args.extend(
         [
             // 115200 8N1, no flow control: the wiring table's line, spelled out.
@@ -231,35 +215,104 @@ fn configure(path: &Path) -> Option<String> {
         .iter()
         .map(|s| (*s).to_string()),
     );
+    args
+}
 
-    match Command::new("stty").args(&args).output() {
-        Ok(out) if out.status.success() => None,
-        Ok(out) => Some(format!(
-            "stty exited {}: {}",
-            out.status,
-            String::from_utf8_lossy(&out.stderr).trim()
-        )),
-        Err(e) => Some(format!("could not run stty: {e}")),
+/// What one `stty` run has to say for itself, or `None` if it had nothing to complain about.
+///
+/// Pure, taking the outcome rather than producing it, so the wording a person reads at a bench is
+/// asserted on by a host test rather than only by whoever last ran it against hardware.
+fn run_complaint(ok: bool, status: &str, stderr: &str) -> Option<String> {
+    if ok {
+        return None;
+    }
+    Some(format!("stty exited {status}: {}", stderr.trim()))
+}
+
+/// Read `stty`'s report of a port and say whether the speed is the one we asked for.
+///
+/// Pure for the same reason, and this is the one whose exact behaviour cost somebody a power
+/// cycle. Three cases, all of them tested: the speed is right and nothing is said; the speed is
+/// wrong and the message quotes what the device actually reported; and `stty` said nothing about
+/// speed at all, which is reported rather than silently passed, because a report with no speed in
+/// it is not evidence that the speed is right.
+fn speed_complaint(said: &str) -> Option<String> {
+    if said.contains(&format!("{BAUD} baud")) {
+        return None;
+    }
+    let reported = said
+        .lines()
+        .find(|line| line.contains("baud"))
+        .unwrap_or("(no speed reported)")
+        .trim();
+    Some(format!(
+        "the port is not at {BAUD} after configuring it; stty says: {reported}. \
+         Bytes at the wrong rate look exactly like a wiring fault, so fix this before \
+         suspecting the cable"
+    ))
+}
+
+/// The one line a `/dev/tty.*` path deserves, or `None` if the path is fine.
+///
+/// Returned rather than printed so a test can read it. See this module's header for why the
+/// dial-in device is the wrong one: it blocks in `open`, before any deadline of ours exists.
+fn dial_in_warning(path: &Path) -> Option<String> {
+    if !cfg!(target_os = "macos") {
+        return None;
+    }
+    let name = path.file_name().and_then(OsStr::to_str)?;
+    if !name.starts_with("tty.") {
+        return None;
+    }
+    Some(format!(
+        "{} is the dial-in device; open() blocks on carrier detect and a three-wire console \
+         cable never asserts it. Use the cu.* name instead.",
+        path.display()
+    ))
+}
+
+/// Run `stty` and hand back its outcome as plain data.
+///
+/// The whole IO residue of this module is these five lines, on purpose: everything a host test
+/// could reach has been lifted above it.
+fn stty(args: &[String]) -> Option<(bool, String, String, String)> {
+    let out = Command::new("stty").args(args).output().ok()?;
+    Some((
+        out.status.success(),
+        out.status.to_string(),
+        String::from_utf8_lossy(&out.stdout).into_owned(),
+        String::from_utf8_lossy(&out.stderr).into_owned(),
+    ))
+}
+
+/// Configure an already-open device. Returns its complaint, if it had one.
+fn configure(path: &Path) -> Option<String> {
+    let Some(path) = path.to_str() else {
+        return Some("the device path is not valid UTF-8, so stty cannot be given it".to_string());
+    };
+    match stty(&set_args(path)) {
+        Some((ok, status, _, stderr)) => run_complaint(ok, &status, &stderr),
+        None => Some("could not run stty; is it on PATH?".to_string()),
     }
 }
 
-fn warn_if_dial_in(path: &Path) {
-    if cfg!(target_os = "macos")
-        && path
-            .file_name()
-            .and_then(OsStr::to_str)
-            .is_some_and(|name| name.starts_with("tty."))
-    {
-        eprintln!(
-            "board-console: {} is the dial-in device; open() blocks on carrier detect and a \
-             three-wire console cable never asserts it. Use the cu.* name instead.",
-            path.display()
-        );
+/// Ask the device what speed it is actually at, and complain if it is not the one we asked for.
+///
+/// Returning `None` when `stty` cannot be read is deliberate: an unreadable report is not evidence
+/// that the port is wrong, and a false alarm here would train the reader to ignore a real one.
+fn confirm_speed(path: &Path) -> Option<String> {
+    let path = path.to_str()?;
+    let (ok, _, stdout, _) = stty(&[DEVICE_FLAG.to_string(), path.to_string()])?;
+    if !ok {
+        return None;
     }
+    speed_complaint(&stdout)
 }
 
 #[cfg(test)]
 mod tests {
+    use std::io::Write;
+
     use super::*;
 
     #[test]
@@ -268,17 +321,33 @@ mod tests {
         assert_eq!(choose(Some(&asked)).unwrap(), asked);
     }
 
-    /// The message a person actually hits, and the two things it has to tell them.
+    /// All three candidate cases, on any machine. The messages are what a person meets when the
+    /// tool will not start, so they are asserted on rather than left to whoever hits them.
     #[test]
-    fn no_adapter_says_what_it_looked_for_and_what_to_pass() {
-        // Only meaningful on a machine with no adapter attached, which is every CI runner and was
-        // this lane's own machine; on a bench with one plugged in, `choose` correctly succeeds.
-        if !candidates().is_empty() {
-            return;
-        }
-        let e = choose(None).unwrap_err();
-        assert_eq!(e.kind(), io::ErrorKind::NotFound);
-        assert!(e.to_string().contains("--port"));
+    fn the_candidate_list_decides_and_says_why_when_it_cannot() {
+        let one = PathBuf::from("/dev/cu.usbmodemONE");
+        let two = PathBuf::from("/dev/cu.usbmodemTWO");
+        assert_eq!(pick(std::slice::from_ref(&one), None).unwrap(), one);
+
+        let none = pick(&[], None).unwrap_err();
+        assert_eq!(none.kind(), io::ErrorKind::NotFound);
+        assert!(none.to_string().contains("--port"));
+        assert!(
+            none.to_string().contains(PREFIXES[0]),
+            "it must say what it looked for"
+        );
+
+        let both = pick(&[one, two], None).unwrap_err();
+        assert_eq!(both.kind(), io::ErrorKind::InvalidInput);
+        assert!(both.to_string().contains("cu.usbmodemONE"));
+        assert!(both.to_string().contains("cu.usbmodemTWO"));
+
+        // An explicit choice wins over an ambiguity, which is the whole point of having one.
+        let asked = PathBuf::from("/dev/cu.usbmodemTHREE");
+        assert_eq!(
+            pick(&[PathBuf::from("a"), PathBuf::from("b")], Some(&asked)).unwrap(),
+            asked
+        );
     }
 
     #[test]
@@ -287,5 +356,134 @@ mod tests {
         let mut sorted = found.clone();
         sorted.sort();
         assert_eq!(found, sorted);
+    }
+
+    /// Every flag in here is a decision with a reason, and the one that would hurt most if it went
+    /// missing is `-icrnl`: without it the line discipline rewrites the bare `\r` the recogniser
+    /// splits on, and nothing would fail, it would just quietly stop seeing U-Boot's countdown.
+    #[test]
+    fn the_configuration_asks_for_the_mode_the_bench_needs() {
+        let args = set_args("/dev/cu.usbmodemDEADBEEF");
+        assert_eq!(args[0], DEVICE_FLAG);
+        assert_eq!(args[1], "/dev/cu.usbmodemDEADBEEF");
+        for wanted in [
+            "115200", "cs8", "-cstopb", "-parenb", "-crtscts", "-icanon", "-echo", "-icrnl",
+            "-ixon", "-opost", "min", "0", "time", "1",
+        ] {
+            assert!(args.contains(&wanted.to_string()), "missing {wanted}");
+        }
+    }
+
+    #[test]
+    fn a_successful_run_says_nothing_and_a_failed_one_quotes_the_tool() {
+        assert_eq!(run_complaint(true, "exit status: 0", ""), None);
+        let complaint = run_complaint(false, "exit status: 1", "stty: not a terminal\n").unwrap();
+        assert!(complaint.contains("exit status: 1"));
+        assert!(complaint.contains("not a terminal"));
+    }
+
+    /// The case that cost calef a power cycle on 2026-09-01: a port sitting at its default rate
+    /// delivers bytes that look exactly like a wiring fault. Real `stty` output, all three shapes.
+    #[test]
+    fn the_wrong_speed_is_named_rather_than_left_to_look_like_a_bad_cable() {
+        let right = "speed 115200 baud;\nlflags: -icanon -echo\n";
+        assert_eq!(speed_complaint(right), None);
+
+        let wrong = speed_complaint("speed 9600 baud;\nlflags: -icanon -echo\n").unwrap();
+        assert!(wrong.contains("115200"), "it must say what was wanted");
+        assert!(wrong.contains("9600"), "and what the device actually said");
+        assert!(wrong.contains("wiring fault"), "and why it matters");
+
+        // A report with no speed line in it is not evidence that the speed is right.
+        let silent = speed_complaint("lflags: -icanon -echo\n").unwrap();
+        assert!(silent.contains("(no speed reported)"));
+    }
+
+    #[test]
+    fn the_dial_in_device_is_warned_about_and_the_call_out_one_is_not() {
+        assert_eq!(dial_in_warning(Path::new("/dev/cu.usbmodemDEADBEEF")), None);
+        if cfg!(target_os = "macos") {
+            let warning = dial_in_warning(Path::new("/dev/tty.usbmodemDEADBEEF")).unwrap();
+            assert!(warning.contains("carrier detect"));
+            assert!(warning.contains("cu.*"));
+        }
+    }
+
+    /// **The open path, against something a host actually has.**
+    ///
+    /// A regular file is not a serial port, and this test does not pretend otherwise: what it
+    /// exercises is that `open` opens what it was given, that a device `stty` cannot configure
+    /// produces a *complaint* rather than a failure, and that the descriptor it hands back reads
+    /// the bytes that are there. That last one is checked against the real 2026-09-01 capture, so
+    /// the whole path from `port::open` to a recognised boot runs in a host test.
+    ///
+    /// What no host test can reach is whether `tcsetattr` actually took, since nothing here is a
+    /// tty. That was checked by hand against the CH343 dongle (9600 before, 115200 while held,
+    /// reverting on exit) and is what `confirm_speed` gates at runtime.
+    #[test]
+    fn open_hands_back_a_readable_descriptor_and_a_complaint_it_can_survive() {
+        let captured = include_bytes!("../tests/fixtures/captured/vf2-2026-09-01-manual-boot.log");
+        let path = std::env::temp_dir().join(format!(
+            "board_console-open-{}-{:?}.log",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        File::create(&path).unwrap().write_all(captured).unwrap();
+
+        let (device, complaint) = open(&path).unwrap();
+        assert!(
+            complaint.is_some(),
+            "stty cannot configure a regular file, and that must be survivable"
+        );
+
+        let mut sink = Vec::new();
+        let session =
+            crate::watch::watch(device, &mut sink, &crate::watch::Policy::default(), false)
+                .unwrap();
+        assert_eq!(
+            session.progress.reached(),
+            crate::progress::Stage::Banner,
+            "the descriptor `open` returned is the one the capture is in"
+        );
+        std::fs::remove_file(&path).ok();
+    }
+
+    /// The one genuinely fatal case, and the one a bench hits by unplugging the adapter. The
+    /// second path also drives the dial-in warning, which is printed on the way past.
+    #[test]
+    fn a_device_that_is_not_there_is_an_error_and_not_a_complaint() {
+        let e = open(Path::new("/dev/cu.usbmodem-nothing-is-here")).unwrap_err();
+        assert_eq!(e.kind(), io::ErrorKind::NotFound);
+        let e = open(Path::new("/dev/tty.usbmodem-nothing-is-here")).unwrap_err();
+        assert_eq!(e.kind(), io::ErrorKind::NotFound);
+    }
+
+    /// A path `stty` cannot be handed at all. Rare, and the branch exists because the alternative
+    /// is `unwrap` on a conversion that can fail: a device name is whatever the kernel put in
+    /// `/dev`, not necessarily UTF-8.
+    #[test]
+    fn a_path_that_is_not_utf8_is_a_complaint_rather_than_a_panic() {
+        use std::os::unix::ffi::OsStrExt;
+        let bad = Path::new(OsStr::from_bytes(b"/dev/cu.\xff\xfe"));
+        assert!(
+            configure(bad).unwrap().contains("not valid UTF-8"),
+            "it has to say which of the several things could be wrong"
+        );
+        assert_eq!(
+            confirm_speed(bad),
+            None,
+            "and it cannot check a speed either"
+        );
+    }
+
+    /// Reading a speed back from something that is not a tty says nothing, deliberately: an
+    /// unreadable report is not evidence that the port is wrong, and a false alarm here would
+    /// train the reader to ignore the real one.
+    #[test]
+    fn a_speed_that_cannot_be_read_is_not_reported_as_wrong() {
+        let path = std::env::temp_dir().join(format!("board_console-speed-{}", std::process::id()));
+        File::create(&path).unwrap();
+        assert_eq!(confirm_speed(&path), None);
+        std::fs::remove_file(&path).ok();
     }
 }

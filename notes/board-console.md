@@ -178,9 +178,21 @@ involved a booting machine.
   looks like through a port whose read timeout did not take.
 - **A real descriptor**: a FIFO standing in for a port covers `stty` failing (a warning, not
   fatal) and a source that speaks and then stops (caught as silence, exit 2).
+- **The port layer**, which is the part that looks untestable and mostly is not. The argument list
+  `stty` is given, the complaint it produces when it fails, the speed read back afterwards, the
+  dial-in warning, and the choice between zero, one and several adapters are all pure functions
+  with the IO lifted off them, so a host test asserts on the exact words a person meets at a bench.
+  `open` itself is exercised against a temporary file holding the real capture, so the path from
+  `port::open` to a recognised boot runs in a host test.
 - **The real adapter**, with the board off, covers everything except the board: discovery finds
   `/dev/cu.usbmodem*`, the `stty` moves it to 115200 and it reverts on exit, and the deadline
   returns with zero bytes and exit 3.
+
+**The residue no host test reaches is one claim: that `tcsetattr` actually took.** Nothing on a
+host is a tty, so a test can prove the right arguments were sent and cannot prove the device
+listened. That was checked by hand against the CH343 (9600 before, 115200 while held, reverting on
+exit), and it is what `confirm_speed` gates at runtime, which is the better answer anyway: the
+check runs on every real session rather than only when somebody runs the tests.
 
 ## EXAMPLES
 
@@ -273,6 +285,12 @@ profile or three tools is an open question that milestone 216's block names and 
 not seen. The exception is a failure in the *same* read as the banner, which does win, because
 that is what boot 12's measured-boot refusal looked like. For sustained watching use `--until
 none`, which has no early exit and sees everything up to the cap.
+
+**No test opens a real serial device.** A pseudo-terminal pair would be the honest stand-in, and
+making one needs `posix_openpt` and its `ioctl`s, which is `libc`, which is §46's decision and not
+a lane's. So the port layer is tested as pure logic plus a regular file, and the one claim that
+leaves unproven is named in the testing section above. If this crate ever takes a serial
+dependency, a pty test should arrive with it.
 
 **Neither the tool nor this note knows whether a session was interrupted.** Ctrl-C kills the
 process, the descriptor closes, and the log holds every byte that had arrived, but no summary line

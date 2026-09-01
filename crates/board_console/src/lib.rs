@@ -89,6 +89,14 @@
 //! this tool should ever drive it. A tool that power-cycles is a different and more dangerous
 //! object than one that reads.
 //!
+//! **No test opens a real serial device.** A pseudo-terminal pair would be the honest stand-in,
+//! and making one needs `posix_openpt` and its `ioctl`s, which is `libc`, which is §46's decision
+//! (thin primitives or whole subsystems; we write everything in between) and not a lane's. So the
+//! port layer is tested as pure logic plus a regular file, and the single claim that leaves
+//! unproven is that `tcsetattr` actually took. That was checked by hand against the CH343 and is
+//! gated at runtime by the speed read-back, which runs on every real session rather than only when
+//! somebody runs the tests.
+//!
 //! **One board's vocabulary.** The stages are the VisionFive 2's boot chain. An aarch64 or `x86_64`
 //! board would want the same shape with different banners, and whether that is one tool with a
 //! profile or three tools is an open design question the roadmap block names and does not answer.
