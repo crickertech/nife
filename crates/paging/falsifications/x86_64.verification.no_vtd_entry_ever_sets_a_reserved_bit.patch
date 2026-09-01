@@ -1,0 +1,28 @@
+Falsifies `paging::x86_64::no_vtd_entry_ever_sets_a_reserved_bit`.
+
+The defect: `Vtd::leaf_entry` also sets the Accessed bit, copying the habit two
+hundred lines up in this same file where `Ia32e::attrs` opens with `let mut bits =
+A`. Bit 8 is defined in an IA-32e paging entry and reserved in a VT-d second-level
+entry, and the harness's own doc comment says why that difference is not cosmetic:
+QEMU's model and real silicon fault a transaction over a reserved bit rather than
+ignoring it. So the failure mode is a confined device whose every DMA is rejected,
+which reads as broken hardware rather than as a bad table.
+
+Expected to fail: `assert_eq!(leaf & !(VTD_ADDR_MASK | VTD_R | VTD_W), 0)`, the
+first of the harness's three assertions, for every physical address and every
+`Flags` constructor. The `table_entry` assertion below it stays green, which is
+what makes this a falsification of the leaf encoding specifically.
+
+diff --git a/crates/paging/src/x86_64.rs b/crates/paging/src/x86_64.rs
+index ff9b8488..faa4bfa5 100644
+--- a/crates/paging/src/x86_64.rs
++++ b/crates/paging/src/x86_64.rs
+@@ -217,7 +217,7 @@ impl PageFormat for Vtd {
+     /// would be reserved-bit violations here rather than the extra permissiveness they are on the
+     /// CPU's own format.
+     fn leaf_entry(pa: u64, flags: Flags) -> u64 {
+-        let mut bits = VTD_R;
++        let mut bits = VTD_R | A;
+         if flags.is_writable() {
+             bits |= VTD_W;
+         }
