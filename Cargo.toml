@@ -8,6 +8,7 @@ members = [
     "crates/abi",
     "crates/asid",
     "crates/bitmap_font",
+    "crates/board_console",
     "crates/block_roster",
     "crates/calendar",
     "crates/memory_corruption_canary_gate",

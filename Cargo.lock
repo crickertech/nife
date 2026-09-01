@@ -79,6 +79,10 @@ name = "block_roster"
 version = "0.1.0"
 
 [[package]]
+name = "board_console"
+version = "0.1.0"
+
+[[package]]
 name = "byte_sink_proto"
 version = "0.1.0"
 dependencies = [
