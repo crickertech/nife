@@ -1,10 +1,15 @@
 # 210. No kernel test can be run by name, so one falsification costs a whole suite
 
-**Status: NOT-STARTED.** Minted 2026-08-31 from milestone 202's (falsify the confinement claims)
+**Status: BUILT** (2026-08-31). Minted 2026-08-31 from milestone 202's (falsify the confinement claims)
 lane, which paid the cost twenty-five times. *(Number provisional until the merge queue lands it.)*
+`cargo xtask test --test <substring>` filters the kernel suite; the filter is baked into the test
+binary by `kernel/build.rs` and read by `kernel/src/testing.rs`'s runner. See notes/scripts.md.
 
-**Gate: NONE.** The runner already knows the test names; nothing has to be discovered, only passed
-through.
+**The boot was measured and the premise below is wrong**, in the direction that makes this worth
+more rather than less. QEMU start to `running 312 tests` is **0.50 s**; the 312 tests are **53.1
+s**. Boot is about 1% of the QEMU leg, not "most of the four minutes". A warm filtered run of one
+test is 8.6 s end to end, and what remains is fixture building (the archive, the `std` exerciser,
+five disk images), not the boot.
 
 **In brief.** `kernel/src/testing.rs`'s runner takes no filter, `cargo xtask test` parses only
 `--arch`, `--cpu` and `--hvf`, and arguments after `--` go to QEMU. **So there is no way to run one
@@ -39,11 +44,24 @@ cheap, which is worth knowing before anybody promises a fast inner loop.
 
 ## BUGS
 
-- **This block does not price the boot.** If booting dominates, a filter turns four minutes into
-  something closer to the boot time rather than into seconds, and the win is real but smaller than it
-  sounds.
-- **It says nothing about the three architectures.** A filter that runs one test on one ISA is what a
-  lane wants and is exactly the shape DECISIONS §19 (architectural parity is a tenet) distrusts, so
-  the default should stay all three and the narrowing should be explicit.
+- ~~**This block does not price the boot.**~~ Priced: 0.50 s of boot against 53.1 s of tests, so
+  the feared outcome did not happen. What bounds a filtered run instead is fixture building, which
+  nothing here filters and nothing records which test needs.
+- **A filtered run cannot fail the whole-suite instruments**: the frame ledger's kept-frames
+  ceiling, the thread peak and the stack high-water are totals over 312 tests. And tests are not
+  independent, so one that only passes after an earlier test wired a service fails alone. Both are
+  in notes/scripts.md's BUGS beside the flag.
+- ~~**It says nothing about the three architectures.**~~ Settled: `--test` selects tests and never
+  architectures, so all three legs still run and `--arch` remains the explicit narrowing. The cost
+  is that filtering an architecture-specific test without `--arch` fails on the other two legs,
+  which the failure message names.
 - **`kernel/falsifications/` is a provisional path** that milestone 202 created and nothing reads.
-  Whoever builds the sweep decides whether it stays there or moves.
+  Whoever builds the sweep decides whether it stays there or moves. **Not built here**, on purpose:
+  the runner filter is the missing capability and it now exists, but a kernel sweep still needs
+  three things this lane did not touch, and each is a decision rather than plumbing. The
+  `Falsification:` comment convention (§134) has to extend from `#[kani::proof]` to `#[test_case]`,
+  which is where the annotation would live. `script/falsifications` has to learn a second replay
+  verb: today `--sweep` runs `cargo kani --harness <name> --exact`, and a kernel record needs
+  `cargo xtask test --arch <a> --test <name>` instead, per architecture. And the patch path has to
+  be decided against §134's per-crate rule, which `kernel/falsifications/` already reads as a
+  refusal of.
