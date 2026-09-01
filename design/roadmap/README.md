@@ -424,6 +424,7 @@ besides, being built for dated release grouping; these are capability-shaped and
 | 217 | NOT-STARTED | [The card carries a kernel and an archive from different builds, and the gate is the only thing that noticed](217-matched-pair-on-the-card.md) | `script/board-image` builds a matched pair and then prints card steps that copy only half of it, calling the archive optional | |
 | 218 | NOT-STARTED | [Every boot of the VisionFive 2 needs a human typing four commands into U-Boot](218-hands-free-board-boot.md) | the extlinux path dies on the DTB address, so the board cannot boot unattended and fatal risk 5 wants sustained runs | |
 | 219 | NOT-STARTED | [The boot tour ends and the kernel halts, so there is nothing to soak](219-a-workload-that-does-not-stop.md) | fatal risk 5's decisive experiment is sustained multi-core stress, and no workload in this tree lasts longer than the boot tour | |
+| 220 | NOT-STARTED | [This kernel drives no clock or reset controller, and the first real device will need one](220-jh7110-clock-and-reset.md) | Linux's JH7110 TRNG driver takes two clocks and a reset line before touching a register; nife has never programmed either | |
 
 The order §14 sets: **verify the core and make it verifiable first** (18 and 14, the thesis), then the
 road to running real workloads on real machines (15, 21, 16, 19; 25 extends 21 into cross-OS
