@@ -582,15 +582,33 @@ mod trace {
         Served = 10,
     }
 
+    /// How many discriminants [`Event`] has, which sizes the per-core totals below.
+    ///
+    /// One more than the largest variant, because the discriminants start at 1 so that a zeroed
+    /// ring slot is distinguishable from a recorded `SwitchTo`.
+    pub const KINDS: usize = 11;
+
     struct Ring {
         seq: AtomicU64,
         slots: [AtomicU64; DEPTH],
+        /// **A total per event kind, beside the ring** (milestone 219). The ring holds sixteen
+        /// events, which is the right depth for reading the final approach to a wedge and the
+        /// wrong one for a soak: a refused wake three hours into an eight-hour run has scrolled
+        /// out of it long before anyone looks. A counter cannot scroll.
+        ///
+        /// Per core, in the same cache line neighbourhood as that core's own ring, for the reason
+        /// the ring is per core: one shared counter array would put a contended atomic on the IPC
+        /// fastpath, and a soak whose instrument slows the thing it measures is measuring the
+        /// instrument. The reader sums across cores and accepts that the sum is a moment that
+        /// never quite existed, which is what [`counted`] says out loud.
+        counts: [AtomicU64; KINDS],
     }
 
     #[allow(clippy::declare_interior_mutable_const)]
     const EMPTY_RING: Ring = Ring {
         seq: AtomicU64::new(0),
         slots: [const { AtomicU64::new(0) }; DEPTH],
+        counts: [const { AtomicU64::new(0) }; KINDS],
     };
 
     static RINGS: [Ring; crate::cpu::MAX_CPUS] = [EMPTY_RING; crate::cpu::MAX_CPUS];
@@ -606,6 +624,32 @@ mod trace {
         // plenty to disambiguate in a dump.
         let entry = ((kind as u64) << 56) | ((aux as u64) << 48) | (tid & 0x0000_FFFF_FFFF_FFFF);
         ring.slots[(seq as usize) % DEPTH].store(entry, Ordering::Relaxed);
+        // The running total, on this core's own line. Relaxed and non-atomic-read-modify-write in
+        // effect (one writer per core), so it costs a load, an add and a store next to the two
+        // stores above it.
+        let total = &ring.counts[kind as usize];
+        total.store(
+            total.load(Ordering::Relaxed).wrapping_add(1),
+            Ordering::Relaxed,
+        );
+    }
+
+    /// **How many times `kind` has happened on this machine since boot**, summed over every core.
+    ///
+    /// The one number the soak's heartbeat is actually watching is `WakeRefused`
+    /// (`soak`), and the reason it can be watched at all is that this is a total rather than a
+    /// window: a refusal at minute nine of an eight-hour run is still in this number at hour eight.
+    ///
+    /// **The sum is racy and deliberately so.** Cores keep counting while it is read, so the value
+    /// is not a snapshot of any single instant. Nothing here needs one: the soak asks "is this
+    /// still zero" and "how much did it grow since the last beat", and both survive a reader that
+    /// is a few events behind.
+    pub fn counted(kind: Event) -> u64 {
+        let mut total = 0u64;
+        for ring in &RINGS {
+            total = total.wrapping_add(ring.counts[kind as usize].load(Ordering::Relaxed));
+        }
+        total
     }
 
     /// Print core `cpu`'s ring, oldest first. Racy against that core's own writes, by design.
@@ -666,7 +710,54 @@ mod trace {
     #[inline]
     pub fn record(_kind: Event, _tid: u64, _aux: u8) {}
 
+    /// Always zero here, because nothing is recorded. The bench boot runs no soak (both diverge
+    /// before the other could start), so no caller can be misled by it.
+    pub fn counted(_kind: Event) -> u64 {
+        0
+    }
+
     pub fn dump(_cpu: usize) {}
+}
+
+/// **Scheduler anomaly and activity totals, for a run long enough that a sixteen-event ring is no
+/// use** (milestone 219). Every one is a sum over the per-core counters `trace::record` keeps; see
+/// [`trace::counted`] for why the sum is racy and why that is fine.
+///
+/// These are the kernel's numbers, read by the kernel's soak supervisor. They are deliberately not
+/// reachable from userspace: a workload that could read its own tripwire is one step from a
+/// workload that could clear it.
+///
+/// Names provisional (this lane's, 2026-09-01; public function names are calef's call, DECISIONS
+/// naming tenet as extended on 2026-08-23).
+///
+/// **The one that is a finding rather than a statistic.** A refused wake means a waker made a
+/// parked receiver `Ready` without delivering anything, and the gate stopped it. It has never
+/// fired in the field (see `thread_wake_handshake`'s crate doc, which is honest that the boot-8
+/// reading it was built against was later overturned), so a nonzero here on a board is the single
+/// most interesting number this kernel can produce.
+pub fn wake_refusals() -> u64 {
+    trace::counted(trace::Event::WakeRefused)
+}
+
+/// How many wakes were parked because the target was still standing on a CPU. Ordinary, and
+/// expected to be nonzero under load; a soak reports it so that "the machine was genuinely
+/// contended" is a number rather than an assurance.
+pub fn wakes_deferred() -> u64 {
+    trace::counted(trace::Event::WakeDeferred)
+}
+
+/// How many wakes and placements landed a thread on a core other than the waker's. **This is the
+/// number that says the workload actually crossed cores**, which is the whole premise of a
+/// multicore soak; a run reporting zero here soaked one core very thoroughly and proved nothing
+/// about the others.
+pub fn remote_placements() -> u64 {
+    trace::counted(trace::Event::PlaceRemote)
+}
+
+/// How many threads this machine handed from one core's run queue to another's on request. The
+/// work-steal protocol's activity level, and the second of the two cross-core paths a soak is for.
+pub fn steals_served() -> u64 {
+    trace::counted(trace::Event::StealServe)
 }
 
 /// **The boot tour's last-reached stage**, printed in every [`dump_threads`] header (first-silicon

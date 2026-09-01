@@ -176,12 +176,15 @@ fn main() -> ExitCode {
         // The real board's serial console (milestone 216). Returns its own exit code rather than a
         // bool, so a bench script can tell "reached the banner" from "went quiet" from "ran out".
         "board-console" => return board_console(),
+        // The sustained multicore run under QEMU (milestone 219), judged by the same recogniser
+        // `board-console` points at a board. Returns its own exit code for the same reason.
+        "soak" => return soak(),
         other => {
             if !other.is_empty() {
                 eprintln!("unknown command: {other}\n");
             }
             eprintln!(
-                "usage: cargo xtask <build|run|shell|shell-check|initboot|initrd-aarch64|initrd-riscv|initrd-x86|uefi-image|uefi-boot|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image|board-console> [--hvf]"
+                "usage: cargo xtask <build|run|shell|shell-check|initboot|initrd-aarch64|initrd-riscv|initrd-x86|uefi-image|uefi-boot|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image|board-console|soak> [--hvf]"
             );
             eprintln!("       cargo xtask shell-check [--arch aarch64|riscv64]");
             eprintln!(
@@ -3433,6 +3436,10 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         ("fs_nameset_caretaker", "fs_nameset_caretaker"),
         ("heeder", "heeder"),
         ("spinner", "spinner"),
+        // The sustained multicore workload (milestone 219): the program `--features soak` builds a
+        // pool of, so that design/fatal-risks.md risk 5 has something to run. In every archive,
+        // because the whole premise is that the same workload runs on QEMU and on all three boards.
+        ("soaker", "soaker"),
         // The authority-shrinking supervision tree (milestone 22 phase B.2): an init that hands its
         // construction authority to a spawner and its restart policy to a supervisor, then drops the
         // budget. Portable, so both archives carry all four.
@@ -4030,6 +4037,10 @@ fn initrd_aarch64() -> bool {
         ("fs_subtree_caretaker", "fs_subtree_caretaker"),
         ("heeder", "heeder"),
         ("spinner", "spinner"),
+        // The sustained multicore workload (milestone 219): the program `--features soak` builds a
+        // pool of, so that design/fatal-risks.md risk 5 has something to run. In every archive,
+        // because the whole premise is that the same workload runs on QEMU and on all three boards.
+        ("soaker", "soaker"),
         // The authority-shrinking supervision tree (milestone 22 phase B.2): an init that hands its
         // construction authority to a spawner and its restart policy to a supervisor, then drops
         // the budget.
@@ -8869,4 +8880,249 @@ pub const GET: u64 = 1;
         assert!(scanout_holds_the_pattern(&ppm(text_rgb)).is_err());
         assert!(scanout_holds_the_composed_screen(&ppm(text_rgb)).is_err());
     }
+}
+
+/// **The QEMU half of milestone 219's sustained run.** Boot a `--features soak` kernel, watch it
+/// with the same recogniser and the same policy `script/board-console` points at a real board, and
+/// return the same exit statuses.
+///
+/// One recogniser, two sources, is the whole design. The alternative was a QEMU-side checker of its
+/// own, and it would have drifted from the board-side one the first time either changed; milestone
+/// 219's block is explicit that the workload and the console must agree about what a hang is, and
+/// the cheapest way for two things to agree is for there to be one of them.
+///
+/// What this adds over `board_console` is only what a board does not need: building the kernel and
+/// the archive, starting QEMU, and killing it afterwards. See `script/soak`.
+fn soak() -> ExitCode {
+    use std::io::Write;
+    use std::time::Duration;
+
+    use board_console::watch::{Outcome, Policy, watch};
+
+    let args: Vec<String> = std::env::args().skip(2).collect();
+    let mut arch = "aarch64".to_string();
+    let mut smp: Option<String> = None;
+    let mut log: Option<PathBuf> = None;
+    // A minute by default: long enough that the beat, the rate and the cross-core counters are all
+    // real numbers rather than a first sample, and short enough that nobody is tempted to skip it.
+    // The runs that matter are hours long and happen on a board.
+    let mut policy = Policy {
+        total: Duration::from_secs(60),
+        until: None,
+        quiet_after: Some(Duration::from_secs(15)),
+        settle: Duration::from_secs(0),
+    };
+
+    let mut i = 0;
+    while i < args.len() {
+        let value = |i: usize| -> Result<&str, ExitCode> {
+            args.get(i + 1).map(String::as_str).ok_or_else(|| {
+                eprintln!("soak: {} wants a value", args[i]);
+                ExitCode::from(4)
+            })
+        };
+        match args[i].as_str() {
+            "--arch" => match value(i) {
+                Ok(v) => arch = v.to_string(),
+                Err(code) => return code,
+            },
+            "--smp" => match value(i) {
+                Ok(v) => smp = Some(v.to_string()),
+                Err(code) => return code,
+            },
+            "--log" => match value(i) {
+                Ok(v) => log = Some(PathBuf::from(v)),
+                Err(code) => return code,
+            },
+            "--for" | "--timeout" => match value(i).map(parse_duration) {
+                Ok(Some(d)) => policy.total = d,
+                Ok(None) => {
+                    eprintln!("soak: --for wants a duration like 90, 90s, 30m or 2h");
+                    return ExitCode::from(4);
+                }
+                Err(code) => return code,
+            },
+            "--quiet-after" => match value(i).map(parse_duration) {
+                Ok(Some(d)) => policy.quiet_after = if d.is_zero() { None } else { Some(d) },
+                Ok(None) => {
+                    eprintln!("soak: --quiet-after wants a duration, or 0 to disable");
+                    return ExitCode::from(4);
+                }
+                Err(code) => return code,
+            },
+            other => {
+                eprintln!("soak: unknown argument {other}");
+                eprintln!(
+                    "usage: cargo xtask soak [--arch aarch64|riscv64|x86_64] [--for <duration>] \
+                     [--smp <n>] [--quiet-after <duration>] [--log <file>]"
+                );
+                return ExitCode::from(4);
+            }
+        }
+        i += 2;
+    }
+
+    let (target, runner, initrd) = match arch.as_str() {
+        "aarch64" => {
+            if !(mkdisk() && user()) {
+                return ExitCode::from(4);
+            }
+            (TARGET, "scripts/qemu-runner-aarch64.sh", initrd_path())
+        }
+        "riscv64" => {
+            if !initrd_riscv() {
+                return ExitCode::from(4);
+            }
+            (
+                RISCV_TARGET,
+                "scripts/qemu-runner-riscv64.sh",
+                riscv_initrd_path(),
+            )
+        }
+        "x86_64" => {
+            if !initrd_x86() {
+                return ExitCode::from(4);
+            }
+            (
+                X86_TARGET,
+                "scripts/qemu-runner-x86_64.sh",
+                x86_initrd_path(),
+            )
+        }
+        other => {
+            eprintln!("soak: unknown architecture {other} (aarch64, riscv64 or x86_64)");
+            return ExitCode::from(4);
+        }
+    };
+
+    if !cargo_profiled(&[
+        "build",
+        "-p",
+        "kernel",
+        "--features",
+        "soak",
+        "--target",
+        target,
+    ]) {
+        return ExitCode::from(4);
+    }
+
+    let log_path = log.unwrap_or_else(|| {
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
+        PathBuf::from(format!("target/soak-{arch}-{stamp}.log"))
+    });
+    if let Some(parent) = log_path.parent()
+        && let Err(e) = std::fs::create_dir_all(parent)
+    {
+        eprintln!("soak: cannot create {}: {e}", parent.display());
+        return ExitCode::from(4);
+    }
+    let file = match std::fs::File::create(&log_path) {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("soak: cannot write {}: {e}", log_path.display());
+            return ExitCode::from(4);
+        }
+    };
+    let mut sink = Tee {
+        file,
+        terminal: std::io::stdout(),
+    };
+
+    let mut cmd = Command::new(runner);
+    cmd.arg(format!(
+        "{}/target/{target}/{}/kernel",
+        workspace_root().display(),
+        profile_dir()
+    ));
+    cmd.env("NIFE_INITRD", &initrd);
+    if let Some(n) = &smp {
+        cmd.env("NIFE_SMP", n);
+    }
+    cmd.stdout(std::process::Stdio::piped());
+    // The runner's own diagnostics stay on this terminal rather than joining the captured stream:
+    // the log is meant to be the guest's console and nothing else, so that a replay through
+    // `script/board-console --replay` sees what a serial cable would have seen.
+    cmd.stderr(std::process::Stdio::inherit());
+
+    eprintln!(
+        "--- soak: {arch}, up to {:?}, logging to {} ---",
+        policy.total,
+        log_path.display()
+    );
+    let mut child = match cmd.spawn() {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("soak: cannot start {runner}: {e}");
+            return ExitCode::from(4);
+        }
+    };
+    let Some(stdout) = child.stdout.take() else {
+        eprintln!("soak: the runner gave us no stdout to read");
+        let _ = child.kill();
+        return ExitCode::from(4);
+    };
+
+    // `false`, not `true`: a pipe from a process really does end when that process dies, which a
+    // serial port never does. Getting this bit wrong turns a QEMU that died into a board that has
+    // not spoken yet.
+    let session = watch(stdout, &mut sink, &policy, false);
+
+    // Kill it whatever happened. A nife kernel that has finished its work sits in `wfi` forever and
+    // QEMU with it, and this one never even finishes: leaving it running is the leak `AGENTS.md`
+    // spends a whole section on.
+    let _ = child.kill();
+    let _ = child.wait();
+    let _ = sink.flush();
+
+    let session = match session {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("soak: {e}");
+            eprintln!("soak: log at {}", log_path.display());
+            return ExitCode::from(4);
+        }
+    };
+
+    eprintln!();
+    eprintln!("soak: {}", session.summary());
+    match session.progress.soak() {
+        Some(beat) => {
+            eprintln!(
+                "soak: {} round trips in {}s ({} /s at the last beat), {} cross-core handoffs",
+                beat.rounds, beat.seconds, beat.rate, beat.remote
+            );
+            eprintln!(
+                "soak: refused={} mismatch={} stalled={} (each must be 0)",
+                beat.refused, beat.mismatches, beat.stalled
+            );
+            // Said on every clean run, on purpose, because this is the sentence the milestone's own
+            // BUGS section says will otherwise be dropped when the number is quoted.
+            eprintln!(
+                "soak: a clean run is a number to compare against, NOT evidence that the \
+                 concurrency is correct."
+            );
+        }
+        None => eprintln!("soak: no heartbeat was seen; the workload never started"),
+    }
+    eprintln!("soak: log at {}", log_path.display());
+
+    // The one judgement that is this driver's rather than the watcher's, because it is about a
+    // process and not about a board. A serial port cannot end; a pipe can, and QEMU exiting before
+    // the deadline means the guest is gone. `board_console` scores `Ended` as success when nothing
+    // was being waited for, which is right for a replayed capture and wrong here.
+    if session.outcome == Outcome::Ended && session.elapsed + Duration::from_secs(1) < policy.total
+    {
+        eprintln!(
+            "soak: QEMU exited after {:?}, before the deadline",
+            session.elapsed
+        );
+        return ExitCode::from(3);
+    }
+    if session.progress.soak().is_none() {
+        return ExitCode::from(3);
+    }
+    ExitCode::from(u8::try_from(session.exit_code()).unwrap_or(4))
 }

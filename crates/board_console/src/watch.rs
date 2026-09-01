@@ -47,9 +47,18 @@ pub struct Policy {
     ///
     /// `None` disables it.
     ///
-    /// **Suppressed once the boot tour completes**, whatever this says. The kernel halts in `wfi`
-    /// after its last line, so quiet after [`Stage::Tour`] is normal termination and reporting it
-    /// as a hang would fail every good boot.
+    /// **Suppressed once the boot tour completes, and re-armed if a soak starts** (milestone 219).
+    /// The kernel halts in `wfi` after its last line, so quiet at exactly [`Stage::Tour`] is normal
+    /// termination and reporting it as a hang would fail every good boot. A `--features soak`
+    /// kernel does not halt: it prints a heartbeat on the wall clock every five seconds whatever
+    /// the workload is doing, and reaching [`Stage::Soak`] says so, so from there silence means the
+    /// thing that prints is wedged.
+    ///
+    /// **That asymmetry is the whole of how this tool tells a hang from a slow run**, and it works
+    /// because the heartbeat is not on the work: a machine crawling at one round trip a second
+    /// still speaks on time, with a rate that says it is crawling. `kernel/src/soak.rs` is the
+    /// other half of the agreement and its beat interval (five seconds) is chosen against this
+    /// field's default (fifteen), so a run is called a hang after three missed beats.
     pub quiet_after: Option<Duration>,
     /// After [`Self::until`] is reached, keep reading this long before calling it a success.
     ///
@@ -269,9 +278,13 @@ where
         // Silence, and the two things that are not it. A board still inside its settle window is
         // quiet because we asked it to be. A board that finished its tour is quiet because the
         // kernel halted in `wfi`, which is how a good boot ends.
+        //
+        // `!= Tour` rather than `< Tour` (milestone 219): the exemption belongs to that one stage
+        // and not to everything past it. A soak has started and is under contract to keep speaking,
+        // so its silence is the hang this tool exists to name.
         if let (Some(limit), Some(last)) = (policy.quiet_after, spoke_at)
             && settling.is_none()
-            && progress.reached() < Stage::Tour
+            && progress.reached() != Stage::Tour
             && last.elapsed() >= limit
         {
             outcome = Outcome::WentQuiet;

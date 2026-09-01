@@ -47,6 +47,15 @@ pub enum Stage {
     /// **not** the default to wait for, because only the milestone-tour build prints it; a shell
     /// or a test build reaches its banner and then does something else entirely.
     Tour,
+    /// A sustained workload announced itself and is expected to keep speaking (milestone 219).
+    ///
+    /// **This is the only stage after which silence is a failure again.** Every stage below it is
+    /// a step in a boot that ends with the kernel halting in `wfi`, so quiet after [`Stage::Tour`]
+    /// is how a good boot ends and reporting it as a hang would fail every one. A soak is the
+    /// opposite contract: `kernel/src/soak.rs` prints a heartbeat on the wall clock every five
+    /// seconds whatever the workload is doing, so a gap says the thing that prints is itself
+    /// wedged. See `watch::Policy::quiet_after`, which is where that asymmetry is implemented.
+    Soak,
 }
 
 impl Stage {
@@ -61,6 +70,7 @@ impl Stage {
             Stage::Handoff => "kernel handoff",
             Stage::Banner => "kernel banner",
             Stage::Tour => "boot tour complete",
+            Stage::Soak => "soak running",
         }
     }
 }
@@ -129,6 +139,35 @@ impl Failure {
     }
 }
 
+/// One soak heartbeat's numbers (milestone 219), as the kernel printed them.
+///
+/// Every field is cumulative except [`rate`](Self::rate), which is the last interval's. The one a
+/// later run is compared against is [`rounds`](Self::rounds); the rest are what make it
+/// interpretable, and [`refused`](Self::refused) is the one that is a finding rather than a
+/// statistic.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct SoakBeat {
+    /// Seconds since the soak started, by the kernel's own timer.
+    pub seconds: u64,
+    /// Which heartbeat this is. A gap in this sequence means console output was lost, which is a
+    /// different fault from the workload stopping and is worth being able to tell apart.
+    pub beat: u64,
+    /// **Cumulative IPC round trips completed by every worker.** The comparable number.
+    pub rounds: u64,
+    /// Round trips per second over the last interval.
+    pub rate: u64,
+    /// Cumulative refused wakes. Expected to be zero, and a nonzero value is the defect
+    /// `design/fatal-risks.md`'s multicore entry exists for.
+    pub refused: u64,
+    /// Cumulative wrong replies seen by callers. Expected to be zero.
+    pub mismatches: u64,
+    /// How many workers made no progress in the last interval. Expected to be zero.
+    pub stalled: u64,
+    /// Cumulative cross-core wakes and placements. **Expected to be large**, and a soak reporting
+    /// zero here soaked one core thoroughly and said nothing about the others.
+    pub remote: u64,
+}
+
 /// The ratchet: how far the boot got, and the first failure it announced.
 ///
 /// It only ever moves forward. That is what lets the caller re-offer a partial line as more bytes
@@ -141,6 +180,10 @@ pub struct BootProgress {
     relocated: bool,
     userspace_ran: bool,
     banner_line: Option<String>,
+    /// The most recent soak heartbeat's numbers (milestone 219), so the tool can put the run's own
+    /// figure in its summary instead of making a reader go back to a log for it. `None` until a
+    /// heartbeat has been seen and parsed.
+    soak: Option<SoakBeat>,
     /// The last complete non-empty line, kept for exactly one reason: U-Boot's `### ERROR ###`
     /// says that it gave up and the line before it says why, and a reader handed only the first
     /// half has to go back to the log to learn anything.
@@ -185,6 +228,17 @@ impl BootProgress {
     #[must_use]
     pub fn relocated(&self) -> bool {
         self.relocated
+    }
+
+    /// The latest soak heartbeat, if this session saw one.
+    ///
+    /// **This is the number milestone 219 is for.** A soak that ends with nothing printed proves
+    /// very little; one that ends with a round-trip total is something a later run can be compared
+    /// against. It is a progress figure and nothing else: see
+    /// `design/roadmap/219-a-workload-that-does-not-stop.md` for why a clean run is weak evidence.
+    #[must_use]
+    pub fn soak(&self) -> Option<&SoakBeat> {
+        self.soak.as_ref()
     }
 
     /// Our banner line exactly as it arrived, which is how the reader learns which architecture
@@ -265,6 +319,17 @@ impl BootProgress {
                 self.banner_line = Some(line[at..].to_string());
             }
         }
+        // The soak (milestone 219). `soak: started` is `kernel/src/soak.rs`'s `START_MARKER`, and
+        // the two agree by one of them being tested against the other's text rather than by both
+        // being remembered. Ratcheting on the START line rather than on any `soak:` line is
+        // deliberate: a `soak: FAILED` line reaches the failure arm below and should not also be
+        // read as the workload having got going.
+        if line.contains("soak: started") {
+            self.reach(Stage::Soak);
+        }
+        if complete && line.contains("soak: t=") {
+            self.observe_soak_beat(line);
+        }
 
         // Failures. Recorded once: the first thing that went wrong is the one worth reporting,
         // and everything after it is downstream.
@@ -288,6 +353,38 @@ impl BootProgress {
         // partial here would hand the refusal a truncated reason.
         if complete && !line.trim().is_empty() {
             self.last_line = line.trim().to_string();
+        }
+    }
+
+    /// Pull the numbers out of one `soak: t=... beat=... rounds=...` line.
+    ///
+    /// Field-name-directed rather than positional, so adding a field to the kernel's heartbeat does
+    /// not silently shift what this reads. A field that is missing or unparseable leaves the
+    /// previous value in place rather than zeroing it, because a garbled line on a serial link is
+    /// a lost measurement, not a measurement of zero.
+    fn observe_soak_beat(&mut self, line: &str) {
+        let field = |name: &str| -> Option<u64> {
+            let at = line.find(name)?;
+            let rest = &line[at + name.len()..];
+            let end = rest
+                .find(|c: char| !c.is_ascii_digit())
+                .unwrap_or(rest.len());
+            rest[..end].parse().ok()
+        };
+        let beat = self.soak.get_or_insert_with(SoakBeat::default);
+        for (name, slot) in [
+            ("t=", &mut beat.seconds),
+            ("beat=", &mut beat.beat),
+            ("rounds=", &mut beat.rounds),
+            ("rate=", &mut beat.rate),
+            ("refused=", &mut beat.refused),
+            ("mismatch=", &mut beat.mismatches),
+            ("stalled=", &mut beat.stalled),
+            ("remote=", &mut beat.remote),
+        ] {
+            if let Some(v) = field(name) {
+                *slot = v;
+            }
         }
     }
 

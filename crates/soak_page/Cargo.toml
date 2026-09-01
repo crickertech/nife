@@ -1,0 +1,14 @@
+# Name: provisional, minted by milestone 219's lane on 2026-09-01 and not yet put to calef. A noun
+# for the thing it describes (the one page the soak workload and the kernel share), in the shape
+# the tree already uses for a layout two binaries agree on: `block_roster`, `clock_proto`,
+# `timebase_proto`, `grant_plan::job_page_frame`. `soak_proto` was considered and refused: nothing
+# here is a wire protocol, it is a memory layout, and the `_proto` suffix in this tree names
+# request/reply vocabularies. `soak_counters` was refused as naming half the content.
+[package]
+name = "soak_page"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[lints]
+workspace = true

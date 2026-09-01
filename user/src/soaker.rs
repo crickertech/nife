@@ -1,0 +1,144 @@
+//! The soaker: the workload that does not stop (milestone 219).
+//!
+//! `design/fatal-risks.md`'s fifth entry ("it cannot be made reliable on multicore, and the bugs
+//! appear only on silicon") names its decisive experiment as sustained multi-core stress with the
+//! load-sensitive assertions live. Nothing in this tree could sustain anything: the boot tour ran
+//! its checks and the kernel halted. This is the thing that keeps running.
+//!
+//! # What it stresses, and why this and not something else
+//!
+//! **Cross-core IPC rendezvous, at the highest rate the machine will do them.** That is not a
+//! guess about where the bugs are. It is where the one bug this risk has actually produced was: a
+//! receiver made `Ready` with nothing delivered, on three harts of a VisionFive 2, in
+//! `sched::wake_load_aware`. Every other candidate workload (a compute loop, an allocator churn, a
+//! filesystem soak) exercises paths that a hundred other tests already cover; this one drives the
+//! exact code the risk points at, through the real syscall boundary, from user mode.
+//!
+//! One round trip is `CALL` -> `RECV_CAP` -> `REPLY` -> the caller waking. That is **two** block/wake
+//! handshakes, and each one may place its peer on a *different* core (`sched::pick_wake_target`,
+//! `place_on`, the migration inbox, the reschedule IPI). With two runnable threads per core the run
+//! queues also go empty often enough that `serve_steal_request` fires, so the work-steal protocol
+//! is under load too rather than merely present.
+//!
+//! # Why the pairs do not run in lockstep
+//!
+//! A soak that repeats one interleaving a billion times has explored one interleaving. Each worker
+//! spins a small, pseudo-random number of iterations between round trips (an xorshift seeded from
+//! `arg2`, which the kernel makes distinct per worker), so the phase relationship between pairs
+//! drifts continuously instead of locking. That is the difference between a long run and a wide
+//! one, and it costs four instructions.
+//!
+//! # The soaker's world
+//!
+//! - **slot 0**: the request endpoint. `WRITE` for a caller (it `CALL`s), `READ` for a responder
+//!   (it `RECV_CAP`s). Nothing else. A soaker cannot name the console, the clock, or its peer.
+//! - **the shared page**, mapped read/write at [`soak_page::VA`], where it publishes its own two
+//!   counters and reads nothing. The kernel is the reader.
+//!
+//! It never exits. That is the whole point, and it is why the kernel spawns it rather than init:
+//! the operator ends the run by taking the power away or by the watcher's deadline expiring.
+//!
+//! # BUGS
+//!
+//! - **A green soak proves nothing about the concurrency being correct.** It reports a number, and
+//!   the number's only use is comparison against another run. `design/roadmap/219-a-workload-that-does-not-stop.md`
+//!   says this at more length and says it as the milestone's own headline caveat.
+//! - **The counters are not synchronised with the kernel's read.** The kernel samples the page
+//!   while workers are writing it, so a heartbeat's `rounds` total may be a few short. It is a
+//!   progress measure, not an audit; a systematic error of a handful of round trips against tens of
+//!   millions changes no verdict this workload can reach.
+//! - **A responder cannot detect a caller that stops calling.** It simply blocks in `RECV_CAP`
+//!   forever, and its own counter stops moving, which is what the kernel's stall check sees. The
+//!   report cannot say which half of the pair wedged; the thread dump can.
+//!
+//! Name: provisional, this lane's coinage (2026-09-01, milestone 219), and calef's call. An agent
+//! noun in the family this directory already has (`spinner`, `heeder`, `builder`, `swapper`,
+//! `painter`): the thing that soaks. `stressor` was considered and refused, because "stress" in
+//! this tree already names `script/repeat-under-load`'s *induced host load*, which is a different
+//! thing pointed the other way. `churner` was refused for naming the motion rather than the
+//! purpose.
+
+#![no_std]
+// Program entry points, not the crates/ library surface milestone 68's ratchet tracks
+// (DECISIONS §107): each `[[bin]]` is its own crate root with one `_start`.
+#![allow(missing_docs)]
+#![no_main]
+
+use user_rt::mapped_window::{self, MappedWindow};
+use user_rt::{call, recv_cap, reply};
+
+/// The one capability a soaker holds: the request endpoint, in slot 0.
+const ENDPOINT: u64 = 0;
+
+/// `arg0`: this soaker answers calls.
+const ROLE_RESPONDER: u64 = 0;
+
+// SAFETY: the kernel's `soak::run` maps one page read/write at `soak_page::VA` in every worker's
+// address space before starting it, and `soak_page`'s host tests prove every offset this program
+// uses lands inside that page.
+const PAGE: MappedWindow = unsafe { MappedWindow::new(soak_page::VA, mapped_window::PAGE) };
+
+/// The soaker's entry.
+///
+/// `x0` is the role, `x1` the worker index (which slot of the shared page is this one's), and `x2`
+/// the seed for the jitter. The kernel gives every worker a distinct index and a distinct seed.
+#[unsafe(no_mangle)]
+pub extern "C" fn _start(role: u64, index: u64, seed: u64) -> ! {
+    let index = index as usize;
+    let rounds_at = soak_page::rounds(index);
+    let mismatches_at = soak_page::mismatches(index);
+
+    // Never zero: an xorshift seeded with zero produces zeros forever, and a worker that never
+    // jitters would silently drop out of the widening this program exists to do.
+    let mut state = if seed == 0 {
+        0x243F_6A88_85A3_08D3
+    } else {
+        seed
+    };
+    let mut rounds: u64 = 0;
+    let mut mismatches: u64 = 0;
+    // Start from the seed rather than from zero, so two callers sharing an index-derived sequence
+    // are not sending each other's words at the same moment by construction.
+    let mut sequence: u64 = seed;
+
+    loop {
+        if role == ROLE_RESPONDER {
+            // `recv_cap`, not `recv`: a CALL arrives with a reply capability, and answering it is
+            // what completes the caller's parked rendezvous. A responder that used `recv` would
+            // leave every caller blocked forever, which is a hang this workload would then report
+            // as a finding about the kernel.
+            let (word, reply_slot, _) = recv_cap(ENDPOINT);
+            if reply_slot != abi::rendezvous::NO_CAP {
+                reply(reply_slot, soak_page::answer(word), 0);
+            } else {
+                // Nobody to answer. Counted as a mismatch rather than ignored: a CALL that arrived
+                // without its reply capability is exactly the shape of defect this workload is
+                // looking for, and swallowing it would be the soak lying about itself.
+                mismatches = mismatches.wrapping_add(1);
+                PAGE.write(mismatches_at, mismatches);
+            }
+        } else {
+            sequence = sequence.wrapping_add(1);
+            let (got, _) = call(ENDPOINT, sequence, 0);
+            if got != soak_page::answer(sequence) {
+                mismatches = mismatches.wrapping_add(1);
+                PAGE.write(mismatches_at, mismatches);
+            }
+        }
+
+        rounds = rounds.wrapping_add(1);
+        PAGE.write(rounds_at, rounds);
+
+        // The jitter. xorshift64, four instructions, no memory traffic; the low bits decide how
+        // many spins to burn before the next round trip. 0..63 is enough to slide a pair's phase
+        // against its neighbours without meaningfully lowering the round-trip rate.
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        for _ in 0..(state & 0x3f) {
+            core::hint::spin_loop();
+        }
+    }
+}
+
+user_rt::panic_handler!();

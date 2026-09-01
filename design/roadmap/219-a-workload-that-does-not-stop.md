@@ -1,6 +1,6 @@
 # 219. The boot tour ends and the kernel halts, so there is nothing to soak
 
-**Status: NOT-STARTED.** Minted 2026-09-01 by the maintainer, after radon booted under script
+**Status: IN-PROGRESS.** Minted 2026-09-01 by the maintainer, after radon booted under script
 control and the gap became obvious: everything needed for a sustained run exists except a workload
 that lasts. *(Number provisional until the merge queue lands it.)*
 

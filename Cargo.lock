@@ -401,6 +401,7 @@ dependencies = [
  "pgrep",
  "pmap",
  "ps",
+ "soak_page",
  "socket_proto",
  "spin",
  "thread_wake_handshake",
@@ -673,6 +674,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "soak_page"
+version = "0.1.0"
+
+[[package]]
 name = "socket_proto"
 version = "0.1.0"
 
@@ -925,6 +930,7 @@ dependencies = [
  "ps",
  "schedule_store",
  "smoltcp",
+ "soak_page",
  "socket_proto",
  "supervision_proto",
  "swap_proto",
