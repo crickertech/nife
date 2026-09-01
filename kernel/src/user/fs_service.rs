@@ -58,12 +58,9 @@ const FS_PAGE_STD: u64 = 0x0000_0000_1100_0000;
 /// A fresh, zeroed frame, returned by physical address. Zeroed so no stale RAM is ever visible
 /// across a share, and (for the DMA frame) so the device never reads a stale descriptor.
 fn page_frame() -> u64 {
-    let p = crate::memory::alloc()
+    crate::memory::alloc_zeroed()
         .expect("no frame for the fs service")
-        .addr();
-    // SAFETY: fresh frame, reachable through the direct map.
-    unsafe { core::ptr::write_bytes(mmu::phys_to_virt(p) as *mut u8, 0, FRAME_SIZE as usize) };
-    p
+        .addr()
 }
 
 /// **How many pages the file channel spans**, straight from the contract, so this wiring cannot
@@ -86,18 +83,9 @@ const BLK_PAGES: usize = filesystem_proto::blk::TRANSFER_BLOCKS;
 ///
 /// It is zeroed for the same reason one frame was: no stale RAM is ever visible across a share.
 fn file_channel() -> u64 {
-    let p = crate::memory::alloc_contiguous(FILE_PAGES)
+    crate::memory::alloc_contiguous_zeroed(FILE_PAGES)
         .expect("no contiguous run for the fs service's file channel")
-        .addr();
-    // SAFETY: a fresh run of FILE_PAGES frames, reachable through the direct map.
-    unsafe {
-        core::ptr::write_bytes(
-            mmu::phys_to_virt(p) as *mut u8,
-            0,
-            FILE_PAGES * FRAME_SIZE as usize,
-        );
-    };
-    p
+        .addr()
 }
 
 /// Write the file channel's mappings into `maps`, `va` upward against `phys` upward, and answer how
@@ -292,18 +280,11 @@ pub(super) fn spawn_block_server(
     blk_image: &'static [u8],
     dev: crate::virtio::VirtioMmioDevice,
 ) -> (RendezvousId, RendezvousId, u64) {
-    let dma = crate::memory::alloc_contiguous(1 + BLK_PAGES)
+    // Zeroed so neither stale descriptors nor stale file bytes are ever visible to the device
+    // or the FS server.
+    let dma = crate::memory::alloc_contiguous_zeroed(1 + BLK_PAGES)
         .expect("no DMA region for the block server")
         .addr();
-    // SAFETY: 1 + BLK_PAGES fresh contiguous frames via the direct map; zero so neither stale
-    // descriptors nor stale file bytes are ever visible to the device or the FS server.
-    unsafe {
-        core::ptr::write_bytes(
-            mmu::phys_to_virt(dma) as *mut u8,
-            0,
-            (1 + BLK_PAGES) * FRAME_SIZE as usize,
-        );
-    };
     let blk_shared = dma + FRAME_SIZE; // the data pages start right after the rings page
 
     let blk_ep = crate::sched::create_rendezvous(); // FS server WRITE (CALL) -> block server READ

@@ -29,25 +29,13 @@ pub struct Wiring {
 pub fn start(image: &'static [u8]) -> Option<Wiring> {
     let d = crate::pci::find_input_device()?;
 
-    let dma = crate::memory::alloc_contiguous(DMA_PAGE_FRAMES as usize)
+    // Zeroed so no stale descriptor and no stale event is ever visible to the device or to us.
+    let dma = crate::memory::alloc_contiguous_zeroed(DMA_PAGE_FRAMES as usize)
         .expect("no DMA region for the keyboard driver")
         .addr();
-    // SAFETY: a fresh frame, direct-mapped, owned by nobody else. Zeroed so no stale descriptor
-    // and no stale event is ever visible to the device or to us.
-    unsafe {
-        core::ptr::write_bytes(
-            mmu::phys_to_virt(dma) as *mut u8,
-            0,
-            (DMA_PAGE_FRAMES * FRAME_SIZE) as usize,
-        );
-    }
-    let ring = crate::memory::alloc()
+    let ring = crate::memory::alloc_zeroed()
         .expect("no frame for the input ring")
         .addr();
-    // SAFETY: as above.
-    unsafe {
-        core::ptr::write_bytes(mmu::phys_to_virt(ring) as *mut u8, 0, FRAME_SIZE as usize);
-    };
 
     let irq_ep = crate::sched::create_rendezvous();
     crate::sched::bind_irq(d.intid, irq_ep);
@@ -123,18 +111,10 @@ const MODE_DIRECT: u64 = 1;
 pub fn start_direct(image: &'static [u8], target: RendezvousId) -> Option<RendezvousId> {
     let d = crate::pci::find_input_device()?;
 
-    let dma = crate::memory::alloc_contiguous(DMA_PAGE_FRAMES as usize)
+    // Zeroed so no stale descriptor and no stale event is ever visible to the device.
+    let dma = crate::memory::alloc_contiguous_zeroed(DMA_PAGE_FRAMES as usize)
         .expect("no DMA region for the keyboard driver")
         .addr();
-    // SAFETY: a fresh frame, direct-mapped, owned by nobody else. Zeroed so no stale descriptor
-    // and no stale event is ever visible to the device.
-    unsafe {
-        core::ptr::write_bytes(
-            mmu::phys_to_virt(dma) as *mut u8,
-            0,
-            (DMA_PAGE_FRAMES * FRAME_SIZE) as usize,
-        );
-    }
 
     let irq_ep = crate::sched::create_rendezvous();
     crate::sched::bind_irq(d.intid, irq_ep);

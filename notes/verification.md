@@ -637,11 +637,13 @@ script/verify
 ```
 
 Self-installs Kani on first run (its own nightly toolchain and a CBMC backend, a minute of
-download), then runs `cargo kani` over every crate carrying harnesses:
-**141 harnesses** <!--count:kani-harnesses--> **across 24 crates** <!--count:harness-crates-->. (This line said 67 for
+download), then runs `cargo kani` over every package carrying harnesses:
+**145 harnesses** <!--count:kani-harnesses--> **across 26 packages** <!--count:harness-crates-->. (This line said 67 for
 a while after it was 69, then "a few minutes" for a month after that stopped being true, then 107
 after it was 119. Both counts now carry a `<!--count:-->` marker and `script/lint` re-derives them
-from the tree on every build, so they cannot drift again; the timing below is still a dated
+from the tree on every build, so they cannot drift again; what they could still do, and did, is
+answer a narrower question than the prose asks, which is what milestone 212 found: the derivation
+walked `crates/` and so excluded `kernel` and `user`, both of which are rows in the table below; the timing below is still a dated
 measurement, because a wall clock is not a thing a gate can cheaply re-derive. See
 notes/counted-claims.md.)
 Harnesses within a crate verify in parallel, `-j 4` by default (`VERIFY_JOBS` overrides; the

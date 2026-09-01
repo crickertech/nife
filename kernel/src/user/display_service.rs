@@ -211,18 +211,9 @@ fn wire_driver(
     // device's backing to be a single memory entry and for the IOMMU domain to cover it as one
     // range. Zeroed, so neither a stale descriptor nor a stale pixel is ever visible to the
     // device or to the client.
-    let dma = crate::memory::alloc_contiguous(DMA_PAGE_FRAMES as usize)
+    let dma = crate::memory::alloc_contiguous_zeroed(DMA_PAGE_FRAMES as usize)
         .expect("no contiguous DMA region for the GPU driver")
         .addr();
-    // SAFETY: a fresh contiguous run of frames, reachable through the direct map, owned by
-    // nobody else.
-    unsafe {
-        core::ptr::write_bytes(
-            mmu::phys_to_virt(dma) as *mut u8,
-            0,
-            (DMA_PAGE_FRAMES * FRAME_SIZE) as usize,
-        );
-    }
     let surface = dma + FRAME_SIZE; // page 1 onward: the frames the client also maps
 
     // The device's interrupt, routed to an endpoint so the driver's WAIT receives it as a
@@ -349,13 +340,9 @@ pub fn start_terminal(
 
     let (driver_report, display_ep, surface) = wire_driver(driver_image, 0, 0)?;
 
-    let out = crate::memory::alloc()
+    let out = crate::memory::alloc_zeroed()
         .expect("no output-page frame for the display terminal")
         .addr();
-    // SAFETY: a fresh frame, direct-mapped, owned by nobody yet.
-    unsafe {
-        core::ptr::write_bytes(mmu::phys_to_virt(out) as *mut u8, 0, FRAME_SIZE as usize);
-    };
 
     let term_report = crate::sched::create_rendezvous();
     let term = crate::sched::create_rendezvous();

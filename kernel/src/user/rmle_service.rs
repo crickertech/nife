@@ -17,16 +17,13 @@ const RMLE_STACK_PAGES: usize = 4;
 /// but private to that module; this is the source it is itself defined from.
 const FILE_PAGES: usize = filesystem_proto::fs::TRANSFER_PAGES;
 
-/// A fresh, zeroed frame, for `rmle`'s own extra stack pages. `fs_service`'s own `page_frame` does
-/// the same thing and is private to that module; this is a second copy of three lines rather than
-/// a visibility change to a helper whose whole point is to stay unexported.
+/// A fresh, zeroed frame, for `rmle`'s own extra stack pages. The zeroing and its soundness
+/// argument now live once in [`crate::memory::alloc_zeroed`] (milestone 139 round 8); what stays
+/// here is this module's own "no frame for rmle's stack" panic message.
 fn page_frame() -> u64 {
-    let p = crate::memory::alloc()
+    crate::memory::alloc_zeroed()
         .expect("no frame for rmle's stack")
-        .addr();
-    // SAFETY: fresh frame, reachable through the direct map.
-    unsafe { core::ptr::write_bytes(mmu::phys_to_virt(p) as *mut u8, 0, FRAME_SIZE as usize) };
-    p
+        .addr()
 }
 
 /// A running `rmle`, wired with a real terminal (`line_editor` and a fake console, exactly
@@ -77,21 +74,15 @@ pub fn start(dir_name: &'static str, file_name: &str) -> Option<(Wiring, Holding
     let term = sched::create_rendezvous_from(ep_region).expect("no TERM endpoint");
     let conreq = sched::create_rendezvous_from(ep_region).expect("no CONREQ endpoint");
     let conrep = sched::create_rendezvous_from(ep_region).expect("no CONREP endpoint");
-    let console_phys = crate::memory::alloc()
+    let console_phys = crate::memory::alloc_zeroed()
         .expect("no frame for the fake console")
         .addr();
-    let term_out_phys = crate::memory::alloc()
+    let term_out_phys = crate::memory::alloc_zeroed()
         .expect("no frame for rmle's terminal-output page")
         .addr();
-    let term_app_in_phys = crate::memory::alloc()
+    let term_app_in_phys = crate::memory::alloc_zeroed()
         .expect("no frame for line_editor's unused app-input page")
         .addr();
-    for phys in [console_phys, term_out_phys, term_app_in_phys] {
-        // SAFETY: each just allocated, direct-mapped, owned by nobody else yet.
-        unsafe {
-            core::ptr::write_bytes(mmu::phys_to_virt(phys) as *mut u8, 0, FRAME_SIZE as usize);
-        }
-    }
     let console_tid = sched::spawn(move || {
         loop {
             sched::ipc_recv(conreq);

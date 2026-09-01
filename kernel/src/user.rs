@@ -2358,16 +2358,9 @@ fn boot_clock_page() -> u64 {
         }
         // No `clock` program packed: allocate the page anyway and leave it zeroed. This is the
         // honest unknown clock, and it is the same state `date`'s test allocates deliberately.
-        None => {
-            let phys = crate::memory::alloc()
-                .expect("no frame for the clock page")
-                .addr();
-            // SAFETY: freshly allocated, reachable through the direct map, owned by nobody yet.
-            unsafe {
-                core::ptr::write_bytes(mmu::phys_to_virt(phys) as *mut u8, 0, FRAME_SIZE as usize);
-            };
-            phys
-        }
+        None => crate::memory::alloc_zeroed()
+            .expect("no frame for the clock page")
+            .addr(),
     }
 }
 
@@ -2426,18 +2419,21 @@ const VIRTIO_RNG_DMA_PHYS_OFFSET: u64 = FRAME_SIZE - 8;
 /// the wrong shape.
 fn boot_virtio_rng_device() -> Option<VirtioRngGrant> {
     let d = crate::virtio::find_entropy_device()?;
-    let dma = crate::memory::alloc_contiguous(1)
+    // Zeroed first, so no stale descriptor or buffer content is visible to the device or to
+    // entropy's own first read.
+    let dma = crate::memory::alloc_contiguous_zeroed(1)
         .expect("no DMA frame for virtio-rng")
         .addr();
-    // SAFETY: a fresh frame, direct-mapped, owned by nobody else yet. Zeroed first, so no stale
-    // descriptor or buffer content is visible to the device or to entropy's own first read; the
-    // physical base is then written into the tail of the same page, at an offset entropy's own
+    // The physical base is written into the tail of the same page, at an offset entropy's own
     // ring-and-buffer layout never reaches (see [`VIRTIO_RNG_DMA_PHYS_OFFSET`]'s own doc).
+    //
+    // SAFETY: `dma` is a fresh frame, direct-mapped and owned by nobody else yet, and
+    // `VIRTIO_RNG_DMA_PHYS_OFFSET + 8` is inside `FRAME_SIZE`, so the write stays in the frame.
     unsafe {
-        let base = mmu::phys_to_virt(dma) as *mut u8;
-        core::ptr::write_bytes(base, 0, FRAME_SIZE as usize);
         core::ptr::write_unaligned(
-            base.add(VIRTIO_RNG_DMA_PHYS_OFFSET as usize).cast::<u64>(),
+            (mmu::phys_to_virt(dma) as *mut u8)
+                .add(VIRTIO_RNG_DMA_PHYS_OFFSET as usize)
+                .cast::<u64>(),
             dma,
         );
     }
@@ -2484,18 +2480,21 @@ fn boot_config_page() -> u64 {
         .term("dumb")
         .expect("dumb is not a recognized environment_proto::domain::KNOWN_TERM member")
         .build();
-    let phys = crate::memory::alloc()
-        .expect("no frame for the config page")
-        .addr();
-    // SAFETY: freshly allocated, reachable through the direct map, owned by nobody yet. Zero the
-    // whole frame before writing the assembled bytes so nothing left behind by a previous
+    // Zeroed before the assembled bytes are written, so nothing left behind by a previous
     // occupant of this physical page is visible through the reserved tail past `PAGE_BYTES`
     // (`ConfigPage` only ever reads the first `PAGE_BYTES`, but a frame's contents are otherwise
     // unspecified until written; the same shape `std_service::start_on` uses).
+    let phys = crate::memory::alloc_zeroed()
+        .expect("no frame for the config page")
+        .addr();
+    // SAFETY: `phys` names that frame, direct-mapped and owned by nobody else yet, and `bytes` is
+    // `PAGE_BYTES` long, far under `FRAME_SIZE`, so the copy does not run past the frame.
     unsafe {
-        let dst = mmu::phys_to_virt(phys) as *mut u8;
-        core::ptr::write_bytes(dst, 0, FRAME_SIZE as usize);
-        core::ptr::copy_nonoverlapping(bytes.as_ptr(), dst, bytes.len());
+        core::ptr::copy_nonoverlapping(
+            bytes.as_ptr(),
+            mmu::phys_to_virt(phys) as *mut u8,
+            bytes.len(),
+        );
     }
     phys
 }

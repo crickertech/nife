@@ -124,35 +124,23 @@ fn start_with(
         crate::println!("start_with: memory_region::create({SH_BUDGET_PAGES}) refused");
         return None;
     };
-    let out_phys = match crate::memory::alloc() {
+    // Both zeroed, so neither page starts with somebody else's bytes in it.
+    let out_phys = match crate::memory::alloc_zeroed() {
         Some(f) => f,
         None => {
-            crate::println!("start_with: memory::alloc (out) refused");
+            crate::println!("start_with: memory::alloc_zeroed (out) refused");
             return None;
         }
     }
     .addr();
-    let line_phys = match crate::memory::alloc() {
+    let line_phys = match crate::memory::alloc_zeroed() {
         Some(f) => f,
         None => {
-            crate::println!("start_with: memory::alloc (line) refused");
+            crate::println!("start_with: memory::alloc_zeroed (line) refused");
             return None;
         }
     }
     .addr();
-    // SAFETY: two freshly allocated frames, named through the direct map, owned by nobody yet.
-    unsafe {
-        core::ptr::write_bytes(
-            mmu::phys_to_virt(out_phys) as *mut u8,
-            0,
-            FRAME_SIZE as usize,
-        );
-        core::ptr::write_bytes(
-            mmu::phys_to_virt(line_phys) as *mut u8,
-            0,
-            FRAME_SIZE as usize,
-        );
-    }
     WRITTEN.store(0, Ordering::SeqCst);
 
     // init first, so a shell that spawns before the service is listening merely blocks in a

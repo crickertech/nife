@@ -325,7 +325,10 @@ are new.
   because the name has to predict the authority: this role writes code, resolves conflicts and
   merges, and a coordinate-only reading of it would leave the tree unowned.
 - **Developer.** A subagent executing exactly one milestone. Reports; never merges, never mints,
-  never edits `DECISIONS.md`, `design/` or this file. Names anything new provisionally and says so.
+  never edits `DECISIONS.md`, `design/` or this file, **except its own milestone's roadmap block,
+  which `script/lint` 4b requires it to edit** (calef, 2026-08-23, reaffirmed 2026-09-01 after two
+  lanes read the flat prohibition and reported the gate as impossible; the reason is beside the
+  check). Names anything new provisionally and says so.
   **A developer polls its own background work to completion**; ending a turn to "wait for the
   notification" while your own gate is running is the failure mode, not patience (calef,
   2026-08-14, after five lanes in one day stopped mid-gate and each needed a manual resume). The

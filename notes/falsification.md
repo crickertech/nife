@@ -1,7 +1,8 @@
 # Falsification records: what a harness proves it can catch
 
-Milestone 194, building DECISIONS §134. The convention, the tooling, and what running it on six
-real harnesses actually found, which was more than the mechanism was expected to show.
+Milestone 194, building DECISIONS §134, rescoped by milestone 212. The convention, the tooling,
+and what running it on six real harnesses actually found, which was more than the mechanism was
+expected to show.
 
 `notes/verification.md` has said the rule since milestone 35:
 
@@ -67,9 +68,10 @@ job is saying what is known.
 | `attested <date>` | a person broke the code and watched it fail; nothing can re-check it | counts it, and it is a worklist entry |
 | `unfalsified` | nobody has | counts it, and this is the claim's honest denominator |
 
-A patch lives at `crates/<crate>/falsifications/<module.path>.<harness_fn_name>.patch`
-(`crates/capability/falsifications/verification.subset_is_reflexive.patch`). **Backtick the path in
-the record.** These harnesses live in `#[cfg(kani)]` modules, which `script/lint`'s kani-shim pass
+A patch lives at `<package>/falsifications/<module.path>.<harness_fn_name>.patch`
+(`crates/capability/falsifications/verification.subset_is_reflexive.patch`,
+`kernel/falsifications/syscall.proofs.the_run_end_is_exact_and_refuses_exactly_what_does_not_fit.patch`).
+**Backtick the path in the record.** These harnesses live in `#[cfg(kani)]` modules, which `script/lint`'s kani-shim pass
 compiles with `-D warnings`, and `clippy::doc_markdown` rejects a bare dotted path in a `///`
 comment as an unmarked item; that pass is what found it. The reporter strips backticks rather than
 requiring them, so a `//` comment, which has no such rule, can carry the same form. Each patch
@@ -82,10 +84,10 @@ citations.
 ## Running it
 
 ```
-script/falsifications                       the table, by crate, and the ratio
-script/falsifications --unfalsified         the worklist, biggest crate first
+script/falsifications                       the table, by package, and the ratio
+script/falsifications --unfalsified         the worklist, biggest package first
 script/falsifications --check               form only; script/lint runs this
-script/falsifications --sweep [crate...]    apply every recorded patch, require red, revert
+script/falsifications --sweep [package...]  apply every recorded patch, require red, revert
 script/falsifications --affected-since <base>   sweep only what a diff can reach
 ```
 
@@ -118,6 +120,79 @@ script and a separate workflow, and `script/verify` was not touched.
 The sweep's cost is dominated by the **rebuild each patch forces**, so it scales with the number of
 distinct crates carrying records rather than with the record count. That is why the weekly workflow
 is unsharded, and it is a measurement to re-take rather than a rule.
+
+## Milestone 212: the ratio was a fraction of one directory
+
+The walk was `os.walk("crates")`, so the number this script prints as a statement about the tree's
+proofs described `crates/` and said nothing about saying so. That is not an undercount, it is a
+mislabelled fraction, and §134's whole argument is that a claim about proofs must not rest on an
+unstated scope.
+
+Three things were invisible to it by the time it was noticed, all within two days of the mechanism
+landing. Milestone 197 (`user/` and `xtask` are out of reach of the prover) put a replayable record
+under `user/`. Milestone 193 (put `kernel/src` within reach of the prover) wrote the first two
+proofs over the kernel's own source and neither carried a `Falsification:` block, which nothing
+reported. Milestone 202 (every confinement test is a ritual until somebody breaks the confinement)
+created `kernel/falsifications/` and nothing swept it.
+
+**The scope now comes from `cargo metadata`**, which is where `script/lint`'s verify-table check
+already gets the same fact. A hand-kept list is the same defect one iteration later, and
+`script/verify` has recorded that failure twice: `mdns_proto` and then `jh7110_trng`, each carrying
+harnesses nothing ran, each invisible because a suite whose scope is too small goes green *faster*.
+
+Three things fell out of following packages rather than a directory.
+
+**The module path now comes from the Cargo target rather than from counting path components.** The
+old derivation read `crates/<crate>/src/<...>` and would have called `user/src/printenv.rs`'s
+harness `printenv::proofs::push_never_writes_past_the_buffer_it_was_given`. It is a `[[bin]]` root,
+so it contributes no module segment at all, and the qualified name Kani answers to is
+`proofs::push_never_writes_past_the_buffer_it_was_given`. The path and the sweep's `--exact` filter
+are one fact with the separators changed, so getting this wrong would have produced a patch path
+that could not be swept.
+
+**The sweep learned two package-shaped facts, both derived rather than listed.** A package with more
+than one binary needs `--bin`, because `cargo kani -p user` compiles all 68 programs and fails on
+the first `#![no_std]` root that does not mention Kani; `script/verify` solves the same problem by
+deriving a `--bin` list from the tree, and a sweep wants exactly one of them. A package containing
+`global_asm!` needs `-Z unstable-options --ignore-global-asm`, or Kani refuses to compile it; that is
+the kernel, and it is found by grepping for the macro rather than by naming the package.
+
+**A record can exist for something no sweep can run, and that is not rot.** Milestone 202's patch
+falsifies a kernel `#[test_case]` that boots under QEMU. §134 checks both directions precisely so a
+patch cannot rot into a file nobody runs, so a patch with no harness is normally a failure. This one
+is neither, and hardcoding an exemption in the script whose milestone was removing a hardcoded scope
+would have been the joke it sounds like. The distinction is drawn mechanically instead: a patch may
+open with ``Falsifies `<fully::qualified::name>` ``, and it is a **known gap** when that name agrees
+with the filename and resolves to a function that exists in the package and carries no
+`#[kani::proof]`. Everything else is rot, and the rot check stays sharp in the direction that
+matters, because a renamed or deleted harness no longer resolves to a function at all. Known gaps
+are printed after the ratio and counted in neither half of it.
+
+### What the correction cost, measured
+
+| | before | after |
+|---|---|---|
+| harnesses seen | 141 | 145 |
+| packages seen | 24 | 26 |
+| replayable | 25 (18%) | 27 (19%) |
+| records nothing can sweep | 0, and one existed | 1, printed |
+
+**The ratio was expected to get worse and barely moved, which is worth stating rather than
+enjoying.** The four harnesses the old walk could not see are two in `user` (one already replayable,
+from milestone 197) and two in `kernel`. One kernel record was written here to measure what a kernel
+falsification costs, which milestone 212's block asked for before promising one: it is an ordinary
+sweep entry, **3.1 seconds**, restoring milestone 142's MAJOR 4 itself (`run_end_va` checking only
+the addition while the multiply wraps). The `user` sweep, which exercises the `--bin` path, is 4.4
+seconds. So the honest reading is not that the denominator was fine. It is that `crates/` held 97%
+of the harnesses, and the number was still a claim about a scope nobody had stated.
+
+**`script/lint`'s `kani-harnesses` and `harness-crates` counts had the same defect and are fixed in
+the same breath.** Their derivation walked `crates/` too, with a docstring giving the reason as "the
+kernel, the user programs and xtask are not packages it compiles", which stopped being true one
+milestone later. Left alone, the tree would have carried two derived numbers for one question, 141
+and 145, which is exactly what `<!--count:-->` exists to prevent one level up. The marker name
+`harness-crates` now counts packages; it is a name and therefore calef's, and renaming it is
+tracked in milestone 212's report rather than done here.
 
 ## What six real records found
 
@@ -214,7 +289,7 @@ the sweep would prove the wrong harness.
 
 ## BUGS
 
-- **Nothing forces the ratio upward.** 6 of 141 today. Every remaining harness may sit at
+- **Nothing forces the ratio upward.** 27 of 145 today. Every remaining harness may sit at
   `unfalsified` for ever while `script/lint` stays green. That is the honest cost of making the
   convention shippable against an existing tree at all, and it is why the number that matters is the
   ratio the reporter prints rather than the gate's exit code.
@@ -238,6 +313,15 @@ the sweep would prove the wrong harness.
 - **`kernel/src/arch/` carries no harnesses and gains nothing here.** The architecture layer, where
   the VisionFive 2's undelivered-wake defect actually lived, is outside this record entirely, the
   same scope gap §134 names.
+- **A file's module path comes from the Cargo target it belongs to, and one shape defeats that.**
+  `user/src` holds 68 `[[bin]]` roots and two single-consumer `#[path]` modules that rule 7 permits.
+  A root contributes no module segment; a `#[path]` module contributes whatever the including file
+  calls it, which need not be its filename. Neither carries a harness today, and one that arrived in
+  a `#[path]` module would get a patch path naming the file, which `--check` reports as a mismatch
+  rather than accepting.
+- **A kernel `#[test_case]` falsification is recorded and unswept**, and the section above says how
+  it is told apart from rot. It stays that way until milestone 210 (no kernel test can be run by
+  name) lands.
 - **Vacuity is still unguarded.** §134 recommended option A (a lint requiring `kani::cover!`)
   alongside option C, and this milestone built only C. 23 `cover!` sites across 4 of 24 harness
   crates is the current state, from milestone 191. That wants a lane.

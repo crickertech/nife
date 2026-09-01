@@ -23,13 +23,10 @@ pub fn start(image: &'static [u8]) -> RendezvousId {
         flags: Flags::user_data(),
     }; EXTRA_STACK_PAGES as usize];
     for (k, m) in stack.iter_mut().enumerate() {
-        let phys = crate::memory::alloc()
+        // Zeroed so the new process starts clean.
+        let phys = crate::memory::alloc_zeroed()
             .expect("no frame for allocator_exerciser stack")
             .addr();
-        // SAFETY: fresh frame via the direct map; zero it so the new process starts clean.
-        unsafe {
-            core::ptr::write_bytes(mmu::phys_to_virt(phys) as *mut u8, 0, FRAME_SIZE as usize);
-        }
         m.va = USER_STACK_VA - (k as u64 + 1) * FRAME_SIZE;
         m.phys = phys;
     }

@@ -390,18 +390,11 @@ impl Nvme {
 /// boots all have one, so the proven configuration is the confined one.
 pub fn bring_up() -> Option<Nvme> {
     let dev = crate::pci::find_nvme_device()?;
-    let dma = crate::memory::alloc_contiguous(DMA_PAGES as usize)
+    // Zeroing is load-bearing for the completion rings: the phase discipline starts from
+    // all-zero entries.
+    let dma = crate::memory::alloc_contiguous_zeroed(DMA_PAGES as usize)
         .expect("no DMA region for the NVMe driver")
         .addr();
-    // SAFETY: fresh contiguous frames via the direct map, owned by nobody yet. Zeroing is
-    // load-bearing for the completion rings: the phase discipline starts from all-zero entries.
-    unsafe {
-        core::ptr::write_bytes(
-            mmu::phys_to_virt(dma) as *mut u8,
-            0,
-            (DMA_PAGES * page_frames::FRAME_SIZE) as usize,
-        );
-    }
     if crate::iommu::active() {
         crate::iommu::confine(
             dev.rid,

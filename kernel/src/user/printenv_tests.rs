@@ -79,14 +79,9 @@ fn line(out: RendezvousId, buf: &mut [u8; 128]) -> usize {
 /// A page nobody assembled: allocated and left zeroed, exactly `date_tests`'s unpublished-clock
 /// shape and `environment_proto`'s own `a_zeroed_page_reads_as_no_configuration`.
 fn blank_page() -> u64 {
-    let phys = crate::memory::alloc()
+    crate::memory::alloc_zeroed()
         .expect("no frame for a blank config page")
-        .addr();
-    // SAFETY: freshly allocated, named through the direct map, owned by nobody else.
-    unsafe {
-        core::ptr::write_bytes(mmu::phys_to_virt(phys) as *mut u8, 0, FRAME_SIZE as usize);
-    };
-    phys
+        .addr()
 }
 
 /// Assemble a page with `builder`, into a fresh frame, and return its physical address.
@@ -96,14 +91,17 @@ fn assembled_page(
     ) -> environment_proto::PageBuilder<'static>,
 ) -> u64 {
     let bytes = builder(environment_proto::PageBuilder::new()).build();
-    let phys = crate::memory::alloc()
+    let phys = crate::memory::alloc_zeroed()
         .expect("no frame for a config page")
         .addr();
-    // SAFETY: freshly allocated, named through the direct map, owned by nobody else.
+    // SAFETY: `phys` is that fresh frame, named through the direct map and owned by nobody else,
+    // and `bytes` is a `PageBuilder`'s output, far under `FRAME_SIZE`.
     unsafe {
-        let dst = mmu::phys_to_virt(phys) as *mut u8;
-        core::ptr::write_bytes(dst, 0, FRAME_SIZE as usize);
-        core::ptr::copy_nonoverlapping(bytes.as_ptr(), dst, bytes.len());
+        core::ptr::copy_nonoverlapping(
+            bytes.as_ptr(),
+            mmu::phys_to_virt(phys) as *mut u8,
+            bytes.len(),
+        );
     }
     phys
 }
