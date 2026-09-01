@@ -1,10 +1,55 @@
 # 211. A harness that states its property through the function under test cannot see that function break
 
-**Status: NOT-STARTED.** Minted 2026-08-31 after the pattern was found twice in two days, by two
-different lanes, in two different crates. *(Number provisional until the merge queue lands it.)*
+**Status: BUILT.** Minted 2026-08-31 after the pattern was found twice in two days, by two
+different lanes, in two different crates. Swept 2026-09-01: **146 harnesses read, 11 measured
+blind, all 11 rewritten, and each now carries a machine-replayable record of the defect its old
+phrasing could not see.** The result and its method are in notes/falsification.md, under "The
+sweep for self-referential harnesses". *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** The harnesses and §134s falsification machinery both exist; what is missing is
-somebody asking the question of all of them.
+It never had a gate and could not have one, which turned out to be the right call: no check
+distinguishes "asserts through the function under test" from "legitimately asserts agreement", so
+the sweep's output is eleven falsification patches rather than a lint. `script/falsifications`
+went from 25 of 141 replayable to 33 of 141 on this lane's own base, and the merged tree reads
+**35 of 145**: milestone 212 (`script/falsifications` walks `crates/` only, so the ratio it prints is not the tree's) landed first and widened
+the denominator under it.
+
+## What the sweep found
+
+**The number, for `design/fatal-risks.md` risk 2: 11 of 146.** Not "11 harnesses that look
+suspicious": for each of the eleven there is a patch in the tree, and the pre-211 phrasing was run
+against that patch and observed to stay **green** while the rewritten harness goes **red**. Both
+directions, every time, because a claim about a proof is not evidence about a proof.
+
+The eleven span seven crates and are listed with their defects in notes/falsification.md. Three
+kinds, and the third is the one nothing predicted:
+
+- **The guard's own predicate.** `capability::derive_never_widens_rights` (`is_subset_of`),
+  `dma_validator::an_accepted_descriptor_is_confined` (`is_indirect`),
+  `ntp_proto::accepting_is_total_and_a_sample_is_coherent` (`is_negative`, `is_zero`). The harness
+  asserts the thing the code refuses on, through the call it refuses with.
+- **The value's own producer.** `component_plan`'s three (`Direction::rights`, `PageKind::mode`,
+  `str_eq`), `credential_proto::no_request_word_makes_the_parse_read_outside_the_page` (`id_len`),
+  `jh7110_trng::ready_requires_rand_rdy_and_carries_the_words_untouched` (`assemble`). The harness
+  checks a field against the function that filled it.
+- **An encoder round-tripped through its own decoder.** `the_leaf_keeps_address_and_permissions_apart`,
+  once per ISA. `leaf_entry` and `entry_pa` never call each other, so **no call-graph test finds
+  this one**, and it is the most dangerous of the three because the artefact is a hardware format:
+  a shift wrong in both directions leaves the round trip perfect and the MMU reading the wrong
+  page. The rewrite states the bit positions the architecture assigns, as literals rather than
+  through the crate's own `ADDR_MASK` or `PPN_SHIFT`, since a harness citing those constants moves
+  with a defect in them.
+
+**Three more harnesses were rewritten and recorded as *not* findings**, which is the discipline
+the whole exercise turns on. `filesystem_proto`'s two attenuation proofs and
+`capability::a_deleted_capability_stays_deleted` have the shape and are not blind: the sweep tried
+to exhibit a defect their original phrasing misses and could not. They were made more direct
+anyway, and their comments say so. Writing "fixed a blind spot" over a hole nobody found is the
+same one-step-from-evidence failure §134 exists to end.
+
+**The mechanical narrowing was weaker than its hit rate.** 23 candidates out of 146 and all eleven
+findings among them, but three of those eleven were flagged by a bug in the extractor rather than
+by a real call-graph edge, and a correct implementation of the test would have missed the whole
+encoder/decoder family. Every harness was read.
 
 **In brief.** Milestone 194's lane found it in `capability`, and `notes/falsification.md` states the
 generalisation rather than the instance:
@@ -59,4 +104,15 @@ implementation back at itself.
   "legitimately asserts agreement", so this is a sweep with a worklist, not a lint.
 - **The sweep's own output can rot.** A harness found fine today can become self-referential when the
   code it covers is refactored, and nothing will say so. §134's falsification records are the closest
-  mechanism, and they only catch it if somebody re-falsifies after the refactor.
+  mechanism, and they only catch it if somebody re-falsifies after the refactor. The eleven findings
+  are now protected by exactly that (each carries a patch the weekly sweep replays); the 135 cleared
+  harnesses carry no artefact at all, so a refactor into the cleared shape goes unnoticed.
+- **Eleven is a floor, not a count.** Each finding is a defect somebody thought of. "No blind spot
+  demonstrated" means nobody has broken it the right way yet, which is why the three harnesses this
+  milestone rewrote without a finding are recorded as exactly that rather than as clean.
+- **Five harnesses outside `crates/` were read by hand and are outside the machinery.**
+  `script/falsifications` walks `crates/` only (milestone 212 fixes that), so the two in
+  `kernel/src/syscall.rs`, the two in `user/src/printenv.rs` and the one in
+  `vendor/redoxfs/src/node.rs` were swept as prose and could not be swept as patches. All five are
+  fine; the kernel pair are in fact the tree's model of the good shape, stating run arithmetic in
+  `u128`.

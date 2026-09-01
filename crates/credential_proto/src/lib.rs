@@ -578,7 +578,7 @@ mod proofs {
     ///
     /// This is the property that lets the credential service's serve loop have no arithmetic in it
     /// that could go wrong. It is also the one an attacker probes first.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/credential_proto/falsifications/proofs.no_request_word_makes_the_parse_read_outside_the_page.patch`
     #[kani::proof]
     fn no_request_word_makes_the_parse_read_outside_the_page() {
         let page = [0u8; SECRET_OFF + MAX_SECRET];
@@ -586,6 +586,15 @@ mod proofs {
         match read(&page, w0) {
             None => {}
             Some((identity, secret)) => {
+                // **The two lengths read straight out of the word** (milestone 211). `read`
+                // slices using `id_len(w0)` and `secret_len(w0)`, so asserting the slice
+                // lengths against those same two accessors proves only that `read` used them:
+                // an `id_len` that returned the wrong sixteen bits would satisfy both sides and
+                // the doc above claims the lengths are "the lengths the word claimed", which
+                // this phrasing could not see break. The shifts are the wire format, stated
+                // where the implementation does not choose them.
+                assert!(identity.len() == ((w0 >> 16) & 0xffff) as usize);
+                assert!(secret.len() == (w0 & 0xffff) as usize);
                 assert!(identity.len() == id_len(w0));
                 assert!(secret.len() == secret_len(w0));
                 assert!(!identity.is_empty() && identity.len() <= MAX_IDENTITY);

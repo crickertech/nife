@@ -487,7 +487,7 @@ mod verification {
     }
 
     /// **A leaf keeps the address and the permissions apart, and the permissions round-trip.**
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/paging/falsifications/x86_64.verification.the_leaf_keeps_address_and_permissions_apart.patch`
     #[kani::proof]
     fn the_leaf_keeps_address_and_permissions_apart() {
         let pa: u64 = kani::any();
@@ -508,6 +508,22 @@ mod verification {
         let flags = all[i];
 
         let leaf = Ia32e::leaf_entry(pa, flags);
+        // **The address field read out of the word, not through `entry_pa`** (milestone 211).
+        // `leaf_entry` and `entry_pa` are an encoder and its own decoder, so a round trip
+        // between them is satisfied by any pair that agree: a shift wrong in both would leave
+        // this green while the hardware read the wrong page. The line below states where the
+        // architecture puts the address, which is the one thing the implementation does not
+        // get to choose, and it is spelled as a literal rather than through this crate's own
+        // ADDR_MASK or PPN_SHIFT: a defect in one of those constants moves the implementation
+        // and any harness that cited it together, which is the same trap one level down.
+        // `no_vtd_entry_ever_sets_a_reserved_bit` in this crate already works this way; this
+        // is the same move on the portable leaf.
+        assert_eq!(
+            leaf & 0x000f_ffff_ffff_f000,
+            pa,
+            "the address left bits 12..52 of the entry"
+        );
+        assert_eq!(leaf & 1, 1, "a leaf must have the present bit set");
         assert_eq!(Ia32e::entry_pa(leaf), pa);
         assert_eq!(Ia32e::leaf_flags(leaf), flags);
     }

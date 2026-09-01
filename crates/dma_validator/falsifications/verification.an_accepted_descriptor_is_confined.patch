@@ -1,31 +1,38 @@
-Falsifies `dma_validator::an_accepted_descriptor_is_confined`.
+Falsifies `dma_validator::verification::an_accepted_descriptor_is_confined`.
 
-The defect: `check_descriptor` no longer refuses `F_INDIRECT`. The bounds check
-stays, so the descriptor's own buffer is still inside the region, and that is
-precisely why it is the dangerous defect rather than an obvious one: an indirect
-descriptor's buffer is a *table of further descriptors*, which the validator does
-not walk and never copies into the shadow, so the device follows addresses nothing
-checked. The crate's own comment at `F_INDIRECT` says the feature is also
-negotiated off in the kernel, which means this refusal is the second of two locks
-and losing it is silent.
+The defect: `Desc::is_indirect` tests the wrong bit, so it answers false for every
+descriptor. `check_descriptor` refuses an indirect descriptor because that is a table the
+device would follow unchecked, outside anything the shadow ring copied; with this diff
+the refusal never fires and a driver can hand the device an indirect table pointing
+anywhere in physical memory.
 
-Expected to fail: `assert!(!d.is_indirect(), "an indirect descriptor was
-accepted")`, on any descriptor whose flags carry bit 2 and whose buffer is
-in-region. The companion `assert!(in_region(...), "an accepted descriptor escapes
-the region")` stays green under this patch, which is what separates the two claims
-this harness makes.
+Expected to fail: `assert_eq!(d.word & ((F_INDIRECT as u64) << 32), 0)`, on any
+descriptor with the indirect flag set.
+
+**Measured blind before milestone 211.** The harness used to assert `!d.is_indirect()`,
+which is the predicate `check_descriptor` guards on, so the guard and the assertion were
+one call and a defect in it satisfied both. Confirmed by applying this diff against the
+old phrasing and watching it stay green. The flag's position in the descriptor word is
+now written out. Its sibling assertion, the containment claim, is phrased through
+`in_region`, and that predicate is pinned independently one harness up by
+`in_region_is_sound`; the containment is restated over the addresses here anyway, so the
+two claims stand on the same footing.
+
+The record this replaces was the `F_INDIRECT` refusal deleted from `check_descriptor`.
+The harness still catches that, and it is the more obvious of the two defects; it is
+replaced rather than kept because a harness carries one record and the guard-drop was
+never the blind spot.
 
 diff --git a/crates/dma_validator/src/lib.rs b/crates/dma_validator/src/lib.rs
-index 9a6d0500..f9c37305 100644
+index 32d8aa80..97c00b8d 100644
 --- a/crates/dma_validator/src/lib.rs
 +++ b/crates/dma_validator/src/lib.rs
-@@ -154,9 +154,6 @@ impl Desc {
- /// first, so it is the property the whole confinement rests on, isolated as a loopless function the
- /// `an_accepted_descriptor_is_confined` proof can quantify over all inputs.
- pub fn check_descriptor(base: u64, size: u64, qsize: u16, d: Desc) -> bool {
--    if d.is_indirect() {
--        return false; // an indirect table is never copied, so the device would follow it unchecked
--    }
-     if !in_region(base, size, d.addr, d.buf_len()) {
-         return false; // the buffer escapes the driver's region
+@@ -140,7 +140,7 @@ impl Desc {
+     /// Whether `F_INDIRECT` is set: the buffer holds a table of further descriptors rather than
+     /// data, which this validator refuses to chase (see the confinement decision above).
+     pub const fn is_indirect(self) -> bool {
+-        self.flags() & F_INDIRECT != 0
++        self.flags() & F_INDIRECT == F_INDIRECT << 1
      }
+     /// Whether `F_NEXT` is set: [`next`](Self::next) names another descriptor in the chain.
+     pub const fn has_next(self) -> bool {
