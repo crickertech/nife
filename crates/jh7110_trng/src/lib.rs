@@ -408,13 +408,30 @@ mod verification {
     /// bytes.** No `istat` value produces `Ready` unless `RAND_RDY` is set and `LFSR_LOCKUP` is
     /// clear, and when it is, the bytes are `rand`'s little-endian encoding with nothing dropped,
     /// substituted, or reordered.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/jh7110_trng/falsifications/verification.ready_requires_rand_rdy_and_carries_the_words_untouched.patch`
     #[kani::proof]
     fn ready_requires_rand_rdy_and_carries_the_words_untouched() {
         let istat: u32 = kani::any();
         kani::assume(istat & ISTAT_LFSR_LOCKUP == 0 && istat & ISTAT_RAND_RDY != 0);
         let rand: [u32; 8] = kani::any();
-        assert_eq!(interpret(istat, rand), Outcome::Ready(assemble(rand)));
+        let Outcome::Ready(bytes) = interpret(istat, rand) else {
+            panic!("RAND_RDY set and LFSR_LOCKUP clear did not read as Ready");
+        };
+        // **The layout written out, not `assemble` compared with itself** (milestone 211).
+        // `interpret` calls `assemble`, so `assert_eq!(interpret(..), Ready(assemble(rand)))`
+        // is satisfied by any consistently wrong `assemble`: a byte-swap, a word reversal or a
+        // silent truncation would leave both sides equal and this harness green, while the doc
+        // above claims the bytes are little-endian with nothing reordered. Indexing the words
+        // by hand states that claim in terms the implementation cannot pick.
+        let mut i = 0;
+        while i < 32 {
+            assert_eq!(
+                bytes[i],
+                (rand[i / 4] >> (8 * (i % 4))) as u8,
+                "a RAND word reached the caller reordered, truncated or substituted",
+            );
+            i += 1;
+        }
     }
 
     /// **`NotReady` is the only answer when neither bit is set**, whatever the rest of `istat` or

@@ -1092,6 +1092,19 @@ pub mod dir {
             let requested: u64 = kani::any();
             let needed: u64 = kani::any();
             let child = parent.attenuate(requested);
+            // **Raw bits beside the `allows` phrasing** (milestone 211's sweep). This is a
+            // strengthening rather than a finding, and the distinction is worth keeping: the
+            // sweep looked for a defect the `allows`-only phrasing would miss and did not find
+            // one. `attenuate` does not call `allows`, and every wrong `allows` tried (any-of
+            // for all-of, a guard refusing the empty set) still exhibits the widening on some
+            // input, so the implication goes red. The line below is here because a claim about
+            // subsets is cheaper to read as `x & !y == 0` than as a double negation over a
+            // predicate, not because the double negation was blind.
+            assert_eq!(
+                child.bits() & !parent.bits(),
+                0,
+                "a child carries a bit the parent did not",
+            );
             assert!(!child.allows(needed) || parent.allows(needed));
         }
 
@@ -1107,6 +1120,11 @@ pub mod dir {
             let b: u64 = kani::any();
             let needed: u64 = kani::any();
             let grandchild = root.attenuate(a).attenuate(b);
+            assert_eq!(
+                grandchild.bits() & !root.bits(),
+                0,
+                "a grandchild carries a bit the root did not",
+            );
             assert!(!grandchild.allows(needed) || root.allows(needed));
         }
 

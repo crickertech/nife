@@ -1250,7 +1250,19 @@ mod proofs {
             assert!(p.caps().len() == 2);
             let mut i = 0;
             while i < 2 {
-                assert!(p.caps()[i].1 == reqs.caps[i].direction.rights());
+                // **The mapping written out, not `rights()` compared with itself** (milestone
+                // 211, and milestone 202 found this shape here first). `plan` fills the rights
+                // word from `direction.rights()`, so an equality against that same call is
+                // satisfied by any consistently wrong `rights()`: one that returned
+                // `READ | GRANT` for both directions passes it. The two assertions below it
+                // were already independent, and they are what caught the defect; this makes the
+                // first one independent too, so the harness states the whole claim rather than
+                // two thirds of it.
+                let expected = match reqs.caps[i].direction {
+                    Direction::Serve => abi::rights::READ,
+                    Direction::Use => abi::rights::WRITE,
+                };
+                assert!(p.caps()[i].1 == expected);
                 assert!(p.caps()[i].1 == abi::rights::READ || p.caps()[i].1 == abi::rights::WRITE);
                 assert!(p.caps()[i].1 & abi::rights::GRANT == 0);
                 assert!(p.caps()[i].0 == held[i].1);
@@ -1351,7 +1363,7 @@ mod proofs {
     /// revoke, so an entry falling in both would be mapped twice and one falling in neither would
     /// leave a component reading an unmapped page. Proved for every arrangement of kinds, including
     /// a device declared first, which is what the sort exists for.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/component_plan/falsifications/proofs.the_device_split_partitions_the_mappings.patch`
     #[kani::proof]
     #[kani::unwind(10)]
     fn the_device_split_partitions_the_mappings() {
@@ -1373,12 +1385,17 @@ mod proofs {
             assert!(late.len() == declared_devices);
             // The late half is all devices and the early half is all ordinary shared pages, so the
             // operator's two-step endowment cannot install one of them at the wrong moment.
+            // The two mode words spelled out rather than fetched from `kind.mode()`, which is
+            // the call `plan` itself makes to fill them (milestone 211): a `mode()` returning
+            // one constant for both kinds would satisfy an assertion phrased through it while
+            // the operator mapped a device register page writable.
             for m in late {
-                assert!(m.2 == PageKind::DeviceRegisters.mode());
+                assert!(m.2 == abi::address_space::MAP_RO);
             }
             for m in early {
-                assert!(m.2 == PageKind::Shared.mode());
+                assert!(m.2 == abi::address_space::MAP_RW);
             }
+            const { assert!(abi::address_space::MAP_RO != abi::address_space::MAP_RW) };
         }
     }
 
@@ -1413,10 +1430,13 @@ mod proofs {
     /// and an unrelated instance that does. Three, so "for every registry of this width" is exact.
     const REG_SHAPES: [Requirements; 3] = [TARGET_SELF, OTHER_NODEP, OTHER_DEP];
 
-    fn declares(depends_on: &[&str], name: &str) -> bool {
+    /// Membership, decided by `core`'s string equality rather than by this crate's `str_eq`.
+    /// The distinction is the whole point of the helper: see the note in
+    /// `dependents_finds_exactly_the_non_target_instances_that_declared_it`.
+    fn declares_by_core_eq(depends_on: &[&str], name: &str) -> bool {
         let mut i = 0;
         while i < depends_on.len() {
-            if str_eq(depends_on[i], name) {
+            if depends_on[i] == name {
                 return true;
             }
             i += 1;
@@ -1432,7 +1452,7 @@ mod proofs {
     /// told fewer than exist (a component left unwarned mid-swap) or more (a component quiesced for
     /// no reason). Proved over every arrangement two live instances can be in, at every id a
     /// supervisor could have chosen for them.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/component_plan/falsifications/proofs.dependents_finds_exactly_the_non_target_instances_that_declared_it.patch`
     #[kani::proof]
     #[kani::unwind(10)]
     fn dependents_finds_exactly_the_non_target_instances_that_declared_it() {
@@ -1450,8 +1470,13 @@ mod proofs {
                     },
                 ];
                 let d = dependents("a", &live).expect("two instances is under MAX_LIVE");
-                let expect0 = !str_eq(r0.contract, "a") && declares(r0.depends_on, "a");
-                let expect1 = !str_eq(r1.contract, "a") && declares(r1.depends_on, "a");
+                // **The expectation is computed with Rust's own `==`, never with `str_eq`**
+                // (milestone 211). `dependents` decides membership by calling `str_eq`, so an
+                // expectation that called it too would prove the two agree rather than that
+                // either is right: a `str_eq` stuck at `true` would make `dependents` return
+                // every instance and make this harness expect every instance.
+                let expect0 = r0.contract != "a" && declares_by_core_eq(r0.depends_on, "a");
+                let expect1 = r1.contract != "a" && declares_by_core_eq(r1.depends_on, "a");
                 let out = d.quiesce_order();
 
                 let mut want_len = 0;
