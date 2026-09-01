@@ -110,6 +110,16 @@ fn key_line(_page: &ConfigPage, key: &[u8], value: Option<&str>) {
     line(&buf[..n]);
 }
 
+/// **Append what fits and silently drop the rest**, advancing `*n` by what was taken.
+///
+/// The truncation is deliberate and is this program's whole answer to a value it did not write:
+/// `TZ`, `LANG` and `TERM` come out of a page `system_initializer` filled, and a line that will not
+/// fit is a short line rather than a fault. What must never happen is the other thing, which is
+/// this writing past the array; the proof at the bottom of this file is that claim, stated for
+/// every starting offset including ones no caller here produces.
+///
+/// The guard is per byte rather than per call on purpose: a length check up front would have to
+/// know `bytes.len()` and `*n` are both trustworthy, and one of them comes from the page.
 fn push(buf: &mut [u8; 96], n: &mut usize, bytes: &[u8]) {
     for &b in bytes {
         if *n < buf.len() {
@@ -168,4 +178,114 @@ fn line(bytes: &[u8]) {
     }
 }
 
+// Kani links `std`, which already defines `panic_impl`, and a second definition is a duplicate lang
+// item that does not compile. Milestone 193 took exactly this `cfg` on `kernel/src/panic.rs` for
+// exactly this reason. What it costs is item 3 of notes/user-proofs.md's stub list: nothing proved
+// below says anything about what this program does after a panic.
+#[cfg(not(kani))]
 user_rt::panic_handler!();
+
+/// **What the prover can see of `printenv`, and what it cannot** (milestone 197).
+///
+/// Read notes/user-proofs.md before adding a harness here; it enumerates the stub boundary, and the
+/// hazard of proving a program like this one is that a stub reads as coverage. The short version:
+/// the boundary is **hard rather than soft**, because every capability this program holds is
+/// reached through `user_rt`, whose calls are `asm!`, and Kani refuses an unsupported construct
+/// instead of proving past it. A harness that wandered into [`line`], [`granted`] or
+/// [`config_page`] would fail loudly rather than report a proof about a fiction. What is left is
+/// [`push`], which is the only thing here that decides anything.
+#[cfg(kani)]
+mod proofs {
+    /// The buffer every caller of [`super::push`] gives it.
+    const CAP: usize = 96;
+    /// A byte [`super::push`] never writes on its own, so an untouched cell is distinguishable
+    /// from a written one without keeping a second copy of the buffer to compare against.
+    const UNTOUCHED: u8 = 0xAA;
+
+    /// **`push` writes only inside its buffer, appends only at the offset it was given, and never
+    /// leaves that offset past the end.**
+    ///
+    /// The one thing standing between a value this program did not write and a byte past the end of
+    /// a fixed array is the `*n < buf.len()` inside [`super::push`]. `key_line` calls it up to
+    /// three times against one 96-byte buffer, with two of the three arguments coming out of the
+    /// configuration page (`ConfigPage::tz`, `lang`, `term`), so the running offset is a function
+    /// of somebody else's bytes. This says the guard holds for **every** offset it could be handed
+    /// and every content, rather than for the three the program happens to produce.
+    ///
+    /// Four claims, none implied by the others:
+    ///
+    /// - Nothing outside `buf` is written. Kani checks that for free on any run, which is why the
+    ///   starting offset below is left **unconstrained**: `push` must be memory-safe even when
+    ///   handed an offset already past the end, and it is, because the guard is a comparison rather
+    ///   than a subtraction.
+    /// - The offset never *becomes* out of range. Conditional on starting in range, which is the
+    ///   precondition every call site here satisfies by starting at zero.
+    /// - It appends: nothing below the starting offset moves.
+    /// - It reports what it wrote: nothing at or above the final offset moves either, so a caller
+    ///   that keeps pushing lands on ground nobody has touched.
+    ///
+    /// **The unwind bound is `bytes.len() == 4`, and here is what it does and does not cost.** The
+    /// loop body is one comparison and one store per byte, and the starting offset is symbolic over
+    /// the whole of `usize`, so four bytes already exercise every way a push can meet the
+    /// boundary: entirely below it, crossing it, sitting exactly on it, and entirely past it. What
+    /// four bytes cannot see is a defect that only appears at some larger length, and no such
+    /// defect is expressible in a loop whose state is a single `usize` that only ever increments.
+    /// Stating the bound rather than raising it is the honest trade; raising it costs solver time
+    /// and buys nothing this argument does not already give.
+    ///
+    /// Falsification: replayable `user/falsifications/proofs.push_never_writes_past_the_buffer_it_was_given.patch`
+    #[kani::proof]
+    fn push_never_writes_past_the_buffer_it_was_given() {
+        let mut buf = [UNTOUCHED; CAP];
+        let start: usize = kani::any();
+        let mut n = start;
+        let bytes: [u8; 4] = kani::any();
+
+        super::push(&mut buf, &mut n, &bytes);
+
+        if start <= CAP {
+            assert!(n <= CAP);
+            assert!(n >= start);
+            // Both walks are written over the whole buffer with the interesting range selected
+            // inside, rather than as `0..start` and `n..CAP`. A range whose endpoint is symbolic
+            // has no unwinding bound CBMC can find, and the harness simply never terminates; this
+            // shape costs `CAP` iterations of a byte comparison and finishes in a tenth of a
+            // second. Found the slow way, and recorded in notes/user-proofs.md.
+            for k in 0..CAP {
+                if k < start || k >= n {
+                    assert!(buf[k] == UNTOUCHED);
+                }
+            }
+        } else {
+            // Handed a nonsense offset it must still not write anything, and must not move it.
+            assert!(n == start);
+            for k in 0..CAP {
+                assert!(buf[k] == UNTOUCHED);
+            }
+        }
+    }
+
+    /// **The buffer can actually be filled**, so the assertion above is not proved by an assumption
+    /// set that never reaches the boundary.
+    ///
+    /// DECISIONS §134's note is that this tree carried 23 `cover` sites against 141 harnesses, and
+    /// a bound nothing approaches is how a proof becomes decoration. This says an offset and four
+    /// bytes exist that leave the buffer exactly full with bytes still to place, which is the
+    /// truncation [`super::push`]'s own doc describes.
+    ///
+    /// Falsification: unfalsified. A `cover` states reachability, so the defect it catches is an
+    /// assumption set that quietly stops admitting the full-buffer case; nothing has proposed one,
+    /// and inventing a patch to fill this row is what §134's three states exist to refuse.
+    #[kani::proof]
+    fn the_buffer_can_be_filled_exactly() {
+        let mut buf = [UNTOUCHED; CAP];
+        let start: usize = kani::any();
+        kani::assume(start <= CAP);
+        let mut n = start;
+        let bytes: [u8; 4] = kani::any();
+
+        super::push(&mut buf, &mut n, &bytes);
+
+        kani::cover!(n == CAP && start < CAP);
+    }
+}

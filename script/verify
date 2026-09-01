@@ -276,6 +276,7 @@ component_plan	10	no wiring grants a right its declaration did not ask for
 timetable	5	the scheduler's fire arithmetic: strictly forward, minimal, and a stall costs one fire
 jh7110_trng	6	the board TRNG's status decode, and that a lockup bit is never overridden
 kernel	5	the run arithmetic in the kernel's own syscall dispatch, on words a user program chose
+user	3	the EL0 programs: a bounded append that a configuration page this system did not write feeds
 TABLE
 )"
 
@@ -351,6 +352,27 @@ for c in $crates; do
     desc="$(printf '%s\n' "$CRATES" | awk -F'\t' -v c="$c" '$1 == c { print $3 }')"
     case "$c" in
         kernel) extra="-Z unstable-options --ignore-global-asm" ;;
+        # `user` is 68 `[[bin]]` targets and one package, so a bare `cargo kani -p user` compiles
+        # all 68. Kani refuses every `#![no_std]` crate root that does not mention it ("Failed to
+        # detect Kani functions"), so that run fails on the first binary carrying no harness, and
+        # the alternative -- `extern crate kani` in 68 files -- would be an edit in every program in
+        # the tree to prove logic in one of them.
+        #
+        # So the binaries are SELECTED, and the selection is **derived from the tree** rather than
+        # written here. A list would be one name short the first time somebody adds a harness to a
+        # 69th program, and that failure is the invisible one this file has now recorded twice
+        # (`mdns_proto`, `jh7110_trng`): the suite goes green faster and nothing says a harness
+        # stopped running. `script/lint` catches a whole crate missing from the table above; only
+        # this can catch a binary missing from within one.
+        #
+        # It selects on the FILE name, and `user/src` holds two files that are not binaries
+        # (`net_transport.rs` and `socket_test_client.rs`, `net_stack`'s single-consumer
+        # `#[path]` modules, which rule 7 permits). A harness in one of those would produce a
+        # `--bin` cargo does not know, and cargo says so and stops; the failure is loud, which
+        # is the direction that is safe to leave alone.
+        user)   extra="$(git grep -lF '#[kani::proof]' -- 'user/src/*.rs' \
+                    | sed 's|user/src/||; s|\.rs$||' \
+                    | sed 's|^|--bin |' | tr '\n' ' ')" ;;
         *)      extra="" ;;
     esac
     echo "==> kani: $c ($desc)"

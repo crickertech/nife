@@ -1,0 +1,39 @@
+Falsifies `printenv::proofs::push_never_writes_past_the_buffer_it_was_given`
+(and `printenv::proofs::the_buffer_can_be_filled_exactly`, which is the `cover` beside it).
+
+The defect: `<` relaxed to `<=` in `push`'s per-byte guard. One character, in a comparison
+against a length, which is the classic off-by-one and is invisible to the compiler because
+both spellings type-check and both read as "there is room". The guard's whole job is to
+decide whether `buf[*n]` is a legal index; `<=` admits `*n == buf.len()`, which is one past
+the end of a 96-byte array.
+
+Expected to fail: `index out of bounds: the length is less than or equal to the given index`,
+at the `buf[*n] = b` the guard is protecting. Both harnesses go red, which is the right shape
+rather than a redundancy: the assertion harness finds the write, and the `cover` harness finds
+it too because the state it is covering is exactly the boundary.
+
+Run on 2026-08-31, on a dev Mac (aarch64), Kani 0.67.0. Both harnesses are green in 2.4
+seconds with the guard as written and red in 2.5 with it relaxed.
+
+**Applying this by hand, because no script will.** `script/falsifications --sweep` walks
+`crates/` only, so it never sees this file, and its per-harness rerun shells
+`cargo kani -p <crate>`, which for the `user` package selects 68 binaries rather than one.
+notes/user-proofs.md's BUGS section carries that gap and what closing it needs. Until then:
+
+    git apply user/falsifications/proofs.push_never_writes_past_the_buffer_it_was_given.patch
+    cargo kani -p user --bin printenv --output-format=terse   # expect 2 failures
+    git apply -R user/falsifications/proofs.push_never_writes_past_the_buffer_it_was_given.patch
+
+diff --git a/user/src/printenv.rs b/user/src/printenv.rs
+index 7a383756..951469ce 100644
+--- a/user/src/printenv.rs
++++ b/user/src/printenv.rs
+@@ -122,7 +122,7 @@ fn key_line(_page: &ConfigPage, key: &[u8], value: Option<&str>) {
+ /// know `bytes.len()` and `*n` are both trustworthy, and one of them comes from the page.
+ fn push(buf: &mut [u8; 96], n: &mut usize, bytes: &[u8]) {
+     for &b in bytes {
+-        if *n < buf.len() {
++        if *n <= buf.len() {
+             buf[*n] = b;
+             *n += 1;
+         }
