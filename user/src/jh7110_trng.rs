@@ -46,6 +46,31 @@
 //!   the page as a `Mapping` rather than as a capability the driver holds, so the slot was
 //!   describing a thing nobody hands over.
 //!
+//! # BUGS
+//!
+//! **This driver programs no clock and deasserts no reset, and that is the likeliest way its
+//! first hardware boot fails.** The binding names two clock inputs (`hclk`, `ahb`) and one reset
+//! line, and Linux's `jh7110-trng.c` takes all three through the clock and reset frameworks before
+//! it touches a register. Nothing in this tree drives the JH7110's clock and reset generator, so
+//! this driver depends on the block being left running and out of reset by whatever ran before it
+//! (U-Boot), which is an assumption nobody has checked. **The symptom is specific and worth
+//! knowing in advance**: register reads come back as zeros, the first refill fails, and the
+//! bring-up diagnostic in [`_start`]'s readiness message is `0x0000_0000_0000_0000`. A device
+//! whose registers answer at all will show a nonzero `STAT` there instead. If the zeros are what
+//! the bench sees, the next piece of work is a clock/reset driver for the `SoC`, not a change
+//! here; that is a milestone of its own and is proposed rather than assumed.
+//!
+//! **The polling bounds below are guesses.** [`POLL_TRIES`] and [`LOCKUP_RETRIES`] have no board
+//! measurement behind them. A bound that is too small reports `NO_ENTROPY` on a working device;
+//! too large, and a dead device stalls the boot tour for as long as the loop takes. Nothing has
+//! measured which side of that this lands on.
+//!
+//! **`ISTAT` is never cleared.** How this device acknowledges a status bit (write-1-to-clear
+//! against write-back) was not confirmed from the summarized Linux source, so this driver reads
+//! `ISTAT` and never writes it. If `RAND_RDY` latches, the second generation will appear ready
+//! before it is, and the tour's two-draw check is the thing that would catch it: two identical
+//! draws.
+//!
 //! # Why polling, not the completion interrupt
 //!
 //! [binding] names `interrupts = <30>`, and the Linux driver is interrupt-driven. This program
@@ -87,7 +112,7 @@ register_structs! {
     /// doc), this device's layout has no runtime-variable stride or width: [binding] gives one
     /// `reg` window (`reg = <0x1600C000 0x4000>`) with no `reg-shift`/`reg-io-width` knob, so there
     /// is nothing here `register_structs!`'s compile-time-fixed layout cannot express. Only the
-    /// registers this driver touches are named (`CTRL`, `ISTAT`, `RAND0..RAND7`); `STAT`, `MODE`,
+    /// registers this driver touches are named (`CTRL`, `STAT`, `ISTAT`, `RAND0..RAND7`); `MODE`,
     /// `SMODE`, `IE`, `AUTO_RQSTS` and `AUTO_AGE` are reserved padding here, the same "not
     /// otherwise used" status `jh7110_trng::regs`'s own doc gives several of them.
     ///
@@ -95,7 +120,10 @@ register_structs! {
     #[allow(non_snake_case)]
     RegisterBlock {
         (0x00 => CTRL: WriteOnly<u32>),
-        (0x04 => _reserved_stat_mode_smode_ie),
+        // `STAT` is read for exactly one reason: the bring-up diagnostic in `_start`. A device
+        // that never answered is otherwise indistinguishable from a device that is not there.
+        (0x04 => STAT: ReadOnly<u32>),
+        (0x08 => _reserved_mode_smode_ie),
         (0x14 => ISTAT: ReadOnly<u32>),
         (0x18 => _reserved_pad),
         (0x20 => RAND0: ReadOnly<u32>),
@@ -197,12 +225,21 @@ pub extern "C" fn _start(_arg0: u64, _arg1: u64, _arg2: u64) -> ! {
     // "the service is up" should mean "a client that asks will be answered", not just that the
     // handshake completed.
     let first = pool.refill(&mut generate);
-    send(
-        READY,
-        proto::READY,
-        u64::from(first),
-        pool.remaining() as u64,
-    );
+    // Word 2 is two different facts depending on word 1, and that is deliberate: `send` carries
+    // three words and the useful third one changes with the answer. On success it is how many
+    // bytes are in hand (0 would mean a refill that reported success and produced nothing). On
+    // failure it is the raw `(STAT << 32) | ISTAT` snapshot, which is the only diagnostic that
+    // separates the bring-up failures a bench session cannot otherwise tell apart: an all-zero
+    // pair says the register window read as nothing (a gated clock, an undeasserted reset, or a
+    // base address that is not the TRNG), while a nonzero `STAT` with `SEEDED` clear says the
+    // device is alive and the seeding sequence is what did not finish. See the roadmap doc's
+    // bench procedure, which is written to read this number.
+    let diagnostic = if first {
+        pool.remaining() as u64
+    } else {
+        (u64::from(regs().STAT.get()) << 32) | u64::from(regs().ISTAT.get())
+    };
+    send(READY, proto::READY, u64::from(first), diagnostic);
 
     serve(pool)
 }

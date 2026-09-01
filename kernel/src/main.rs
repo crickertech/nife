@@ -1121,10 +1121,17 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                                     device.reg_base, a[0], a[1], a[2], a[3],
                                 );
                             } else {
+                                // `report[2]` is the driver's bring-up diagnostic and it is the
+                                // number a bench session reads first: on a failed first refill it
+                                // is the raw `(STAT << 32) | ISTAT`, and all zeros there means the
+                                // register window read as nothing at all (a gated clock, an
+                                // undeasserted reset, or a base that is not the TRNG) rather than
+                                // a device that answered wrongly. See user/src/jh7110_trng.rs.
                                 println!(
-                                    "  hw entropy  : FAILED: JH7110 TRNG at {:#x}: report {:#x}, draws {na}/{nb} bytes, first-all-zero {zeros}, draws-differ {}",
+                                    "  hw entropy  : FAILED: JH7110 TRNG at {:#x}: report {:#x}, bring-up diagnostic {:#018x}, draws {na}/{nb} bytes, first-all-zero {zeros}, draws-differ {}",
                                     device.reg_base,
                                     report[0],
+                                    report[2],
                                     a != b,
                                 );
                             }
