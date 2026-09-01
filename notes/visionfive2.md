@@ -574,6 +574,17 @@ Setup, in order:
    when you need to *type* at U-Boot, which the tool deliberately cannot do.
 4. Power: USB-C. The board boots on power, there is no power button.
 
+**Both halves of this were captured on 2026-09-01** and the transcripts are committed under
+`crates/board_console/tests/fixtures/captured/`: a successful manual boot, and the extlinux path
+failing. Read those rather than re-deriving what the board prints. Two facts they settled that this
+note did not have. **The extlinux path does not work**: it loads and relocates the image and then
+prints `Device tree not found or missing FDT support` and `### ERROR ### Please RESET the board
+###`, which is the fallback-DTB caveat above arriving as a firmware error rather than as a kernel
+fault, so the manual commands are the only path today rather than merely the first-boot path. And
+**the card's U-Boot environment is degraded** (`bad CRC, using default environment`, repeated
+`Invalid partition 3`, `"boot2" not defined`); the board boots through all of it and none of it is
+our payload's doing.
+
 What appears, in order, on a good day: the SPL banner, OpenSBI's banner (version line included:
 record it), U-Boot's banner and countdown, then either the extlinux menu or the `StarFive #`
 prompt for the manual commands, then `## Flattened Device Tree`/`Starting kernel ...`, then ours:

@@ -351,7 +351,7 @@ mod tests {
 
     #[test]
     fn a_good_boot_is_recognised_and_stops_early() {
-        let log = include_bytes!("../tests/fixtures/vf2-good-boot.log");
+        let log = include_bytes!("../tests/fixtures/captured/vf2-2026-09-01-manual-boot.log");
         let mut sink = Vec::new();
         let policy = Policy {
             total: Duration::from_secs(10),
@@ -367,7 +367,7 @@ mod tests {
     /// most: the session failed and the only account of it is the log.
     #[test]
     fn the_log_is_written_even_when_the_boot_fails() {
-        let log = include_bytes!("../tests/fixtures/vf2-bad-magic.log");
+        let log = include_bytes!("../tests/fixtures/synthetic/vf2-bad-magic.log");
         let mut sink = Vec::new();
         let session = watch(&log[..], &mut sink, &Policy::default(), false).unwrap();
         assert_eq!(session.outcome, Outcome::Announced(Failure::BadImageMagic));
@@ -379,7 +379,7 @@ mod tests {
     /// a boot that halted at the trust boundary as a success, which is boot 12 exactly.
     #[test]
     fn a_failure_beats_the_stage_it_was_waiting_for() {
-        let log = include_bytes!("../tests/fixtures/vf2-measured-refusal.log");
+        let log = include_bytes!("../tests/fixtures/synthetic/vf2-measured-refusal.log");
         let mut sink = Vec::new();
         let session = watch(&log[..], &mut sink, &Policy::default(), false).unwrap();
         assert_eq!(
@@ -442,15 +442,41 @@ mod tests {
         assert_eq!(session.exit_code(), 0);
     }
 
-    /// A replayed log that ends before the banner is not a hang, and saying so keeps the two
-    /// apart in the exit status.
+    /// A replayed log that ends before the stage asked for is not a hang, and saying so keeps the
+    /// two apart in the exit status.
     #[test]
     fn a_replay_that_runs_out_ends_rather_than_going_quiet() {
-        let log = include_bytes!("../tests/fixtures/vf2-handoff-silence.log");
+        let log = include_bytes!("../tests/fixtures/captured/vf2-2026-09-01-manual-boot.log");
         let mut sink = Vec::new();
-        let session = watch(&log[..], &mut sink, &Policy::default(), false).unwrap();
+        let policy = Policy {
+            until: Some(Stage::Tour),
+            ..Policy::default()
+        };
+        // Truncated just after the handoff, which is the shape of a capture that was stopped
+        // early: everything before `Starting kernel ...` and nothing after it.
+        let at = log
+            .windows(19)
+            .position(|w| w == b"Starting kernel ...")
+            .unwrap()
+            + 19;
+        let session = watch(&log[..at], &mut sink, &policy, false).unwrap();
         assert_eq!(session.outcome, Outcome::Ended);
         assert_eq!(session.exit_code(), 3);
         assert_eq!(session.progress.reached(), Stage::Handoff);
+    }
+
+    /// The captured failure, end to end: exit 1, not exit 2. U-Boot refusing is a failure the
+    /// board announced, and the whole point of telling it from a hang is that a person reading
+    /// exit 2 goes looking for a kernel bug while a person reading exit 1 resets the board.
+    #[test]
+    fn the_captured_extlinux_failure_exits_as_a_failure_not_a_hang() {
+        let log = include_bytes!("../tests/fixtures/captured/vf2-2026-09-01-extlinux-refused.log");
+        let mut sink = Vec::new();
+        let session = watch(&log[..], &mut sink, &Policy::default(), false).unwrap();
+        assert_eq!(session.exit_code(), 1);
+        assert!(matches!(
+            session.outcome,
+            Outcome::Announced(crate::progress::Failure::UBootRefused(_))
+        ));
     }
 }

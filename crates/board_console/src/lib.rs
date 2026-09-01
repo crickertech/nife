@@ -48,13 +48,15 @@
 //!
 //! # BUGS
 //!
-//! **The markers have never been checked against a board.** Every one is quoted from
-//! `notes/visionfive2.md`'s bench runbook or from this tree's own source, and none was taken from
-//! a capture, because no capture exists in this repository. The bench sessions of 2026-08-14 and
-//! 2026-08-15 are recorded as prose. So a marker whose real text differs by a word (vendor OpenSBI
-//! printing something other than `OpenSBI v`, say) will be missed, and a missed marker reports a
-//! healthy board as having got less far than it did. The first real capture should be committed
-//! and the fixtures replaced; see `tests/fixtures/README.md`.
+//! **The markers are checked against one board, on one day, in two states.** calef captured a
+//! successful boot and an extlinux failure on 2026-09-01; both are in
+//! `tests/fixtures/captured/` and both are asserted on, which is what turned "quoted from
+//! documentation" into "printed by a machine". What that does not cover is every other way this
+//! board can behave and every other board: the two synthetic fixtures are cases nobody has yet
+//! seen at a bench, a different vendor firmware build could word its banners differently, and the
+//! aarch64 and `x86_64` boards have not been looked at at all. A marker whose real text differs by
+//! a word is missed, and a missed marker reports a healthy board as having got less far than it
+//! did.
 //!
 //! **A missed marker fails toward pessimism, which is the safe direction, and a *matched* one does
 //! not.** The recogniser matches substrings anywhere in a line, so a board that echoes the word
@@ -74,10 +76,13 @@
 //! message is a line nobody has yet agreed to cross, and `Outcome::Reached` is deliberately named
 //! for what it observed rather than for a verdict.
 //!
-//! **It reads and never writes.** A first boot needs the four `StarFive #` commands typed by hand
-//! (`script/board-image` prints them), so a person is still at the bench for that; what this
-//! removes is the *watching*, not the typing. Sending U-Boot commands is a coherent next step and
-//! is not here.
+//! **It reads and never writes, and on this board that is not enough to boot.** The capture proves
+//! it: the extlinux path ends at `### ERROR ### Please RESET the board ###`, so reaching nife
+//! requires interrupting autoboot and typing the four `StarFive #` commands
+//! `script/board-image` prints. A console that only reads therefore cannot, on its own, get this
+//! board to the state the hardware-gated milestones need. Driving U-Boot is proven to work (calef
+//! did it on 2026-09-01) and is deliberately not here, because whether that is this tool or a
+//! second one is a scope decision that belongs to calef; see the roadmap block.
 //!
 //! **It does not touch power.** The board is powered by a Kasa strip that was not reachable from
 //! either machine when milestone 216 was written, and the roadmap block declines to decide whether

@@ -23,7 +23,7 @@ script/board-console --replay target/board-console-1756744000.log   # re-read a 
 | `--port <dev>` | the only USB serial adapter in `/dev` | Which device to open. `NIFE_BOARD_PORT` sets it too. Two adapters with no `--port` is an error, not a guess. |
 | `--log <file>` | `target/board-console-<epoch>.log` | Where the bytes go. There is no way to turn it off. |
 | `--for <duration>` | `120s` | The hard cap. `90`, `90s`, `30m`, `2h`. |
-| `--until <stage>` | `banner` | Stop early at `spl`, `opensbi`, `uboot`, `handoff`, `banner`, or `none` to watch the whole duration. |
+| `--until <stage>` | `banner` | Stop early at `spl`, `opensbi`, `uboot`, `handoff`, `banner`, `tour`, or `none` to watch the whole duration. |
 | `--quiet-after <duration>` | `15s` | Give up if the board speaks and then stops. `0` disables it. |
 
 ## The exit statuses, which are the point
@@ -40,26 +40,64 @@ A bench script needs to tell a hang from a refusal, and a tool with two exit cod
 
 ## What it recognises, and where each marker came from
 
-Every marker is quoted from `notes/visionfive2.md`'s bench runbook ("What appears, in order, on a
-good day" and the failure-triage ladder) or from this tree's own source. **None was taken from a
-capture**, because no VisionFive 2 console capture exists in this repository; see BUGS.
+Every marker was first quoted from `notes/visionfive2.md`'s bench runbook ("What appears, in order,
+on a good day" and the failure-triage ladder) or from this tree's own source. **They were then
+checked against the board**, on 2026-09-01, against a captured success and a captured failure that
+now live in `crates/board_console/tests/fixtures/captured/` and are asserted on by the tests.
 
 | stage | marker | source |
 |---|---|---|
-| `spl` | `U-Boot SPL` | runbook |
-| `opensbi` | `OpenSBI v` | runbook ("record the version line") |
-| `uboot` | `U-Boot ` followed by a word that is not `SPL`/`TPL`, or `StarFive #` | runbook |
-| `handoff` | `Starting kernel ...` | runbook |
-| `banner` | `nife on ` | `kernel/src/main.rs` |
+| `spl` | `U-Boot SPL` | runbook, confirmed on the board |
+| `opensbi` | `OpenSBI v` | runbook ("record the version line"), confirmed: `OpenSBI v1.2` |
+| `uboot` | `U-Boot ` followed by a word that is not `SPL`/`TPL`, or `StarFive #` | runbook, confirmed both ways |
+| `handoff` | `Starting kernel ...` | runbook, confirmed |
+| `banner` | `nife on ` | `kernel/src/main.rs`, confirmed |
+| `tour` | `nife: the capability core runs on ` | `kernel/src/main.rs`, confirmed |
 
-And four things that end a session early rather than waiting the clock out:
+And five things that end a session early rather than waiting the clock out:
 
 | what | marker | source |
 |---|---|---|
-| a stale or wrong card | `Bad Linux RISCV Image magic!` | triage ladder row 3 |
-| the trust boundary refusing | `MEASURED BOOT REFUSED` | `notes/trusted-init.md`, boot 12 |
+| **U-Boot giving up**, with the reason on the line before | `### ERROR ### Please RESET the board ###` | **captured 2026-09-01**; no documentation in this tree named it |
+| a stale or wrong card | `Bad Linux RISCV Image magic!` | triage ladder row 3, never seen at a bench |
+| the trust boundary refusing | `MEASURED BOOT REFUSED` | `notes/trusted-init.md`, boot 12, not captured |
 | our own panic, with its message | `[PANIC] ` | `kernel/src/panic.rs` |
-| U-Boot relocating (a note, not a stage) | `Moving Image from` | triage ladder row 4 |
+| U-Boot relocating (a note, not a stage) | `Moving Image from` | triage ladder row 4, confirmed |
+
+### The third outcome, which documentation did not have
+
+The capture that mattered most is the one that failed. From power-on, the extlinux path ends:
+
+```
+Moving Image from 0x40200000 to 0x80200000, end=802ff000
+Device tree not found or missing FDT support
+### ERROR ### Please RESET the board ###
+```
+
+That is exactly the caveat `notes/visionfive2.md` records about U-Boot's fallback DTB addresses,
+and it arrives **after** the image has loaded and relocated and **before** the kernel has run a
+single instruction. A recogniser that knew only the stages would have watched the image load, seen
+nothing more, and called the silence a hang, which is the worst available answer: it sends somebody
+hunting a multicore bug in a kernel that never started. **Booted, hung, and refused-before-the-
+kernel are three outcomes, not two.** The tool exits 1 for the refusal and 2 for a hang, and the
+difference is the difference between resetting the board and opening a debugger.
+
+### And `tour` is a stronger claim than `banner`
+
+`nife on RISC-V (rv64, S-mode, Sv39)` is printed before the device tree is touched, so it says the
+console works and nothing else. `nife: the capability core runs on RISC-V.` is the last line of the
+boot tour, so it says paging, traps, the timer, the frame allocator, SMP and the scheduler all came
+up. `--until tour` is the one to want when the question is "did it work"; the default stays
+`banner` because only the milestone-tour build prints the other, and a shell build would wait for a
+line that is never coming.
+
+### The card's U-Boot environment is degraded, and that is not ours
+
+Both captures carry `*** Warning - bad CRC, using default environment`, several
+`** Invalid partition 3 **` / `Couldn't find partition mmc 1:3` / `Can't set block device`
+complaints, and `## Error: "boot2" not defined`, before U-Boot finds `mmc 1:1` and gets on with it.
+The board boots through all of it. Nobody should read those lines as a defect in our payload, and
+whether the environment is worth repairing is somebody else's milestone.
 
 ## Two things in the design that are not obvious
 
@@ -85,13 +123,29 @@ exits, and the descriptor goes with it. This is `CLAUDE.md`'s *Never leave QEMU 
 wearing different clothes. An emulator that never exits and a board that never speaks are the same
 bug seen from the tool's side.
 
-**Open the device first, then run `stty` on it.** Opening a tty nobody currently holds resets its
-termios to the driver's initial state, so an `stty` before the open is undone by the open; and
-holding the descriptor is what keeps the settings alive, because they revert when the last user
-closes. Measured on the rig: the CH343 sits at 9600 when nobody holds it and reads 115200 while
-this tool does. Getting the order backwards would produce a session at the wrong baud logging
-plausible garbage, which the triage ladder's second row would then send somebody chasing a bad
-adapter.
+**Open the device first, then run `stty` on it, then check that the speed took.** Opening a macOS
+`cu` device resets its termios towards the driver's default, so a configuration made before the
+read descriptor exists is undone by the open that follows it; and holding the descriptor is what
+keeps the setting alive, because it reverts when the last user closes. Measured on the rig: the
+CH343 sits at 9600 when nobody holds it and reads 115200 while this tool does.
+
+**This is not a theory, and somebody already paid for it.** calef's first capture of the board on
+2026-09-01 was pure garbage, because it configured the port with `stty` and then ran `cat`, and
+`cat`'s open put the device back to the default rate. It looks exactly like a wiring fault, which
+is the triage ladder's second row, and it cost a power cycle to diagnose. So the tool now reads the
+speed back after configuring and says loudly when it is not 115200: an invisible wrong baud sends
+the next person chasing hardware, and a stated one takes a second to fix.
+
+The residual hazard, stated rather than hidden: because the configuration is a separate process
+rather than a `tcsetattr` on our own descriptor, any *other* process that opens the device
+mid-session can put it back, and nothing here would notice. That is the honest cost of having no
+dependency, and it is the case that would justify taking one.
+
+**`O_NONBLOCK` is not used, and that is a decision rather than an oversight.** Its job would be to
+stop a silent board hanging the tool in `read`, and the worker thread above already guarantees
+that. The thread's guarantee is the stronger one: it holds even when the `stty` fails outright,
+where a non-blocking read on its own would not, because a non-blocking read returns immediately but
+only a deadline decides when to stop asking.
 
 **And `cu.`, never `tty.`** On macOS the `tty.*` name is the dial-in side and blocks in `open`
 until carrier detect asserts, which a three-wire console cable never does. That hangs *before* any
@@ -116,8 +170,10 @@ involved a booting machine.
 
 - **The recogniser** runs against four fixtures under `crates/board_console/tests/fixtures/`, fed
   one byte at a time, which is the worst case a real UART delivers and the case that catches a
-  recogniser depending on chunk boundaries. Read that directory's README first: **the fixtures are
-  synthetic**, constructed from documented markers rather than captured.
+  recogniser depending on chunk boundaries. Two of them are in `captured/` and are **raw bytes off
+  the wire on 2026-09-01**, control characters and all; two are in `synthetic/` and are cases
+  nobody has yet seen at a bench. The directory split is the provenance, deliberately, because a
+  claim in a README is a weaker record than a path.
 - **The deadline** runs against sources that block forever, which is what a powered-off board
   looks like through a port whose read timeout did not take.
 - **A real descriptor**: a FIFO standing in for a port covers `stty` failing (a warning, not
@@ -175,12 +231,12 @@ $ script/board-console --replay target/board-console-1756744100.log
 
 ## BUGS
 
-**The markers have never been checked against a board.** Every one is quoted from the runbook or
-from this tree's source, and none from a capture, because no capture exists here: the bench
-sessions of 2026-08-14 and 2026-08-15 are recorded in `notes/visionfive2.md` as prose and quoted
-fragments, and the transcripts were never committed. So a marker whose real text differs by a word
-will be missed, and a missed marker reports a healthy board as having got less far than it did.
-**The first real capture should be committed and the fixtures replaced.**
+**The markers are checked against one board, on one day, in two states.** That is much better than
+where this started, which was documentation only, and it is not the same as proven. Not covered:
+every other way this board can behave, a different vendor firmware build with differently worded
+banners, the two synthetic cases nobody has yet seen at a bench, and the aarch64 and x86_64 boards,
+which have not been looked at at all. A marker whose real text differs by a word is missed, and a
+missed marker reports a healthy board as having got less far than it did.
 
 **A missed marker fails toward pessimism; a matched one does not.** Matching is `contains`
 anywhere in a line, so a console that echoed `Starting kernel ...` back would be read as having
@@ -198,8 +254,12 @@ repeating where the tool is: this reports how far a boot got, and deciding a mil
 the strength of a vendor's boot message is a line nobody has agreed to cross. `Reached` is named
 for what was observed rather than for a verdict.
 
-**It reads and never writes.** A first boot still needs the four `StarFive #` commands typed by
-hand, which `script/board-image` prints. What this removes is the watching, not the typing.
+**It reads and never writes, and on this board that is not enough to boot.** The captured failure
+is the proof: the extlinux path from power-on ends at `### ERROR ###`, so reaching nife means
+interrupting autoboot and typing the four `StarFive #` commands. So a console that only reads
+cannot, on its own, get this board into the state the hardware-gated milestones need. Driving
+U-Boot is proven to work and is deliberately absent here, because whether it belongs in this tool
+or a second one is a scope question for calef; see milestone 216's block for the proposal.
 
 **It does not touch power.** The board's Kasa strip was not reachable from either machine when
 this was written, and the roadmap block declines to decide whether this tool should ever drive it.

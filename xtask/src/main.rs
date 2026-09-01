@@ -195,7 +195,7 @@ fn main() -> ExitCode {
             );
             eprintln!("       cargo xtask icount [--arch aarch64|riscv64]");
             eprintln!(
-                "       cargo xtask board-console [--port <dev>] [--replay <log>] [--log <file>] [--for <duration>] [--until spl|opensbi|uboot|handoff|banner|none] [--quiet-after <duration>]"
+                "       cargo xtask board-console [--port <dev>] [--replay <log>] [--log <file>] [--for <duration>] [--until spl|opensbi|uboot|handoff|banner|tour|none] [--quiet-after <duration>]"
             );
             return ExitCode::FAILURE;
         }
@@ -8303,7 +8303,7 @@ fn board_console() -> ExitCode {
                 Ok(Some(stage)) => policy.until = stage,
                 Ok(None) => {
                     eprintln!(
-                        "board-console: --until wants spl, opensbi, uboot, handoff, banner, or none"
+                        "board-console: --until wants spl, opensbi, uboot, handoff, banner, tour, or none"
                     );
                     return ExitCode::from(4);
                 }
@@ -8474,6 +8474,7 @@ fn parse_stage(text: &str) -> Option<Option<board_console::progress::Stage>> {
         "uboot" => Some(Some(Stage::UBoot)),
         "handoff" => Some(Some(Stage::Handoff)),
         "banner" => Some(Some(Stage::Banner)),
+        "tour" => Some(Some(Stage::Tour)),
         _ => None,
     }
 }

@@ -12,11 +12,35 @@ five-way answer is the deliverable rather than a nicety, because a bench script'
 exist is telling a hang from a refusal. See notes/board-console.md, which carries the runbook, the
 marker table with each marker's source, and the BUGS.
 
-**Tested with the board powered off**, which is the condition this milestone was built under.
-Fixtures fed one byte at a time cover the recogniser; sources that block forever cover the
-deadline; a FIFO standing in for a port covers a failing `stty` and a source that speaks and then
-stops; and the real CH343 dongle covers everything except the board itself, including that `stty`
-on the already-open descriptor moves it from 9600 to 115200 and that it reverts on exit.
+**Built with the board powered off, then checked against the board.** The tool was written and
+tested with no hardware: fixtures fed one byte at a time for the recogniser, sources that block
+forever for the deadline, a FIFO standing in for a port to cover a failing `stty` and a source that
+speaks and then stops, and the real CH343 dongle for everything except the board, including that
+`stty` on the already-open descriptor moves it from 9600 to 115200 and reverts on exit. **Then
+calef powered the board on**, on 2026-09-01, and captured a full boot and a full failure. Both are
+committed under `crates/board_console/tests/fixtures/captured/` as raw bytes off the wire, and
+both are asserted on. The documentation was right about the seven markers it named, which is the
+part worth recording: the recogniser needed no correction, only additions.
+
+**Two things the board knew that this tree's documentation did not.**
+
+The first is a **third outcome**. From power-on, the extlinux path ends `Moving Image from ...` /
+`Device tree not found or missing FDT support` / `### ERROR ### Please RESET the board ###`,
+exactly the caveat notes/visionfive2.md records about U-Boot's fallback DTB addresses. That arrives
+after the image loads and before the kernel runs, so a recogniser that knew only the stages would
+have called the silence after it a hang, which is the worst available answer: it sends somebody
+hunting a multicore bug in a kernel that never started. Booted, hung, and refused-before-the-kernel
+are three outcomes, and the tool now exits 1 for the refusal and 2 for a hang.
+
+The second is that `nife: the capability core runs on ...` exists and is a **stronger claim than
+the banner**, which is printed before the device tree is touched. `--until tour` is the one to want
+when the question is "did it work".
+
+**And a port-handling fact that cost a power cycle.** calef's first capture was garbage, because
+`stty` configured the port and then `cat` reopened it, and a new open on a macOS `cu` device puts
+it back to the default rate. It looks exactly like a wiring fault. The tool opens first and
+configures second, which avoids it, and now also reads the speed back and complains loudly when it
+is not 115200, because an invisible wrong baud sends the next person chasing hardware.
 
 **The one finding worth carrying out of the lane**, because reasoning did not produce it and a
 byte-at-a-time test did: a partial line is weaker evidence than a complete one. `U-Boot ` reads as
@@ -75,6 +99,10 @@ invocation:
   reachable. A tool that power-cycles is a different and more dangerous object than one that reads.
   **The built tool reads and never writes**, to the port or to the outlet, so this stayed undecided
   rather than being settled by an implementation.
+- **Reading alone cannot boot this board, and the capture proves it.** The extlinux path fails, so
+  reaching nife means interrupting autoboot and typing four commands at `StarFive #`. That is not a
+  gap in the tool as specified; it is this block's specification being incomplete, and it is
+  written up as a proposal below rather than fixed here, because it is a scope decision.
 - **It says nothing about the aarch64 or x86_64 boards**, which will want the same thing with
   different banners. Whether that is one tool with a board profile or three is a real design
   question and is not answered here.
@@ -82,7 +110,46 @@ invocation:
   ends up asserting on a vendor's boot message; where that line sits is worth naming before it is
   crossed. The tool names its outcome `Reached`, for what it observed, rather than `Passed`; that
   is a wording, not a mechanism, and the line is still uncrossed rather than defended.
-- **Every marker is quoted from documentation, and none from a board.** No VisionFive 2 console
-  capture exists in this repository, so the fixtures are synthetic and say so in their own README.
-  A marker whose real text differs by a word will be missed. The first bench session should commit
-  its capture and replace them.
+- **The markers are checked against one board, on one day, in two states.** Better than
+  documentation alone, and not the same as proven. Uncovered: other firmware builds, the two
+  synthetic fixtures nobody has yet seen at a bench, and the aarch64 and x86_64 boards. The
+  fixtures split into `captured/` and `synthetic/` so the provenance is a path rather than a claim
+  in a README.
+- **The card's U-Boot environment is degraded** (`bad CRC, using default environment`, several
+  `Invalid partition 3`, `"boot2" not defined`) and the board boots through all of it. Recorded
+  beside the fixture so nobody reads those lines as a defect in our payload. Whether to repair the
+  environment is not this milestone.
+
+## Proposed: driving U-Boot, which is the other half and is a scope decision
+
+**Provisional, and it is calef's call rather than a lane's**, because it decides what this tool
+*is* rather than how it works.
+
+**The problem.** Reading is not enough to reach nife on this board. The extlinux path fails at the
+DTB, so every boot needs autoboot interrupted and the four manual commands typed. A console that
+only reads therefore cannot, on its own, get the board into the state the hardware-gated milestones
+need, which is the whole reason milestone 216 exists.
+
+**It is proven to work.** calef drove it on 2026-09-01, and the mechanism is small: tap `\r` every
+150 ms until `StarFive # ` appears, then send one command per prompt sighting, taking the commands
+from notes/visionfive2.md's manual path. The successful capture in `captured/` is that run.
+
+**The fork, and it is a naming and scope question rather than a technical one.** Either
+`script/board-console` grows the ability to write (a `--drive` mode, or a boot recipe it follows),
+or a second entry point owns it and this one stays a reader. The arguments:
+
+- *One tool.* The two halves are inseparable in practice: you cannot drive without watching for the
+  prompt, so a driver contains a reader. Two tools would mean two things holding the same port, and
+  a port can only be held once.
+- *Two tools.* A tool that writes to a board is a more dangerous object than one that reads, which
+  is the same reasoning this block already applies to power. The names would then say which is
+  which, and a lane that only wants a log would reach for the safe one.
+
+**The recommendation is one tool with an explicit mode**, because the port cannot be shared and a
+driver that cannot watch is not a thing that can exist. The danger the two-tool split is reaching
+for is better served by making writing opt-in and loud than by a second binary that duplicates the
+reader.
+
+**What is blocked until this is answered**: nothing that this milestone claimed, and every
+hardware-gated milestone that needs an unattended boot, which is the four in
+design/fatal-risks.md.

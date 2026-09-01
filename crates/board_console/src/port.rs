@@ -14,14 +14,35 @@
 //! If this ever needs to *write* to the board with flow control, or set a non-standard baud, the
 //! trade changes and the dependency is worth proposing. It does not need either today.
 //!
-//! # The ordering that is not arbitrary
+//! # The ordering that is not arbitrary, and the thing it cost somebody
 //!
-//! **Open the device first, then run `stty` on it.** Opening a tty that nobody currently holds
-//! resets its termios to the driver's initial state, so an `stty` before the open is undone by the
-//! open. Holding the descriptor open is also what keeps the settings alive: they revert when the
-//! last user closes. Getting this backwards produces a session at the wrong baud that logs
-//! plausible-looking garbage, which the runbook's second triage row would then send someone
-//! chasing a bad adapter.
+//! **Open the device first, then run `stty` on it, then check that the speed took.** Opening a
+//! macOS `cu` device resets its termios towards the driver's default, so a configuration made
+//! before the read descriptor exists is undone by the open that follows it. Holding the descriptor
+//! is also what keeps the setting alive: it reverts when the last user closes.
+//!
+//! **This is not a theory.** calef's first capture of the VisionFive 2 on 2026-09-01 was pure
+//! garbage, because it configured the port with `stty` and then ran `cat`, and `cat`'s open put
+//! the device back to the default rate. It looks exactly like a wiring fault or a bad adapter,
+//! which is the runbook's second triage row, and it cost a power cycle to diagnose.
+//!
+//! So the read-back below is a gate rather than a nicety: it asks the device what speed it is
+//! actually at and says so loudly when the answer is not 115200. An invisible wrong baud produces
+//! plausible-looking bytes and sends the next person chasing hardware; a stated one takes a
+//! second to fix.
+//!
+//! **The residual hazard, stated rather than hidden.** Because the configuration is a separate
+//! process rather than a `tcsetattr` on our own descriptor, any *other* process that opens this
+//! device mid-session can put it back to the default, and nothing here would notice. That is the
+//! honest cost of having no dependency, and it is the case that would justify taking one.
+//!
+//! # `O_NONBLOCK`
+//!
+//! Not used, and the reason is that it would be redundant here. Its job would be to stop a silent
+//! board hanging the tool in `read`, and `watch` already guarantees that structurally by doing the
+//! read on a worker thread while the deadline runs on a channel timeout. That guarantee holds even
+//! when the `stty` above fails outright, which `O_NONBLOCK` on its own would not: a non-blocking
+//! read returns immediately, but only a deadline decides when to stop asking.
 //!
 //! # And why `cu.` rather than `tty.`
 //!
@@ -136,8 +157,41 @@ pub fn choose(asked: Option<&Path>) -> io::Result<PathBuf> {
 pub fn open(path: &Path) -> io::Result<(File, Option<String>)> {
     warn_if_dial_in(path);
     let file = OpenOptions::new().read(true).write(true).open(path)?;
-    let complaint = configure(path);
+    let complaint = configure(path).or_else(|| confirm_speed(path));
     Ok((file, complaint))
+}
+
+/// Ask the device what speed it is actually at, and complain if it is not the one we asked for.
+///
+/// The whole reason this function exists is in the module header: a port left at its default rate
+/// delivers bytes that look like a hardware fault, and nothing else in the system would say
+/// otherwise. Returning `None` when the speed cannot be read is deliberate; an unreadable `stty`
+/// is not evidence that the port is wrong, and a false alarm here would train the reader to ignore
+/// a real one.
+fn confirm_speed(path: &Path) -> Option<String> {
+    let flag = if cfg!(target_os = "linux") {
+        "-F"
+    } else {
+        "-f"
+    };
+    let out = Command::new("stty").arg(flag).arg(path).output().ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let said = String::from_utf8_lossy(&out.stdout);
+    if said.contains(&format!("{BAUD} baud")) {
+        return None;
+    }
+    let reported = said
+        .lines()
+        .find(|line| line.contains("baud"))
+        .unwrap_or("(no speed reported)")
+        .trim();
+    Some(format!(
+        "the port is not at {BAUD} after configuring it; stty says: {reported}. \
+         Bytes at the wrong rate look exactly like a wiring fault, so fix this before \
+         suspecting the cable"
+    ))
 }
 
 /// Run `stty` over an already-open device. Returns its complaint, if it had one.

@@ -2,9 +2,17 @@
 //!
 //! Every marker below is quoted from something in this tree rather than remembered: the bench
 //! runbook in `notes/visionfive2.md` ("What appears, in order, on a good day" and the
-//! failure-triage ladder), and `kernel/src/main.rs` and `kernel/src/panic.rs` for the two lines
-//! that are ours. Nothing here was invented, which matters more than usual, because a recogniser
-//! that matches text no board ever prints fails in the direction that looks like success.
+//! failure-triage ladder), and `kernel/src/main.rs` and `kernel/src/panic.rs` for the lines that
+//! are ours. Nothing here was invented, which matters more than usual, because a recogniser that
+//! matches text no board ever prints fails in the direction that looks like success.
+//!
+//! **And every one of them has now been checked against the board**, which is a different and
+//! better claim than "quoted from documentation" and was not available when this was written.
+//! calef captured a full boot and a full failure on 2026-09-01; both are in
+//! `tests/fixtures/captured/` and both are asserted on. The documentation was right about the
+//! seven markers it named. It was silent about two things the board does, and both are here now:
+//! U-Boot refusing outright before the kernel runs, and the line that means our whole boot tour
+//! finished rather than merely started.
 
 use core::fmt;
 
@@ -31,6 +39,14 @@ pub enum Stage {
     /// Our own banner. The kernel's console works, which on this board is not a given: the runbook
     /// is explicit that this line is the *second* target, after the DW-8250 driver work.
     Banner,
+    /// The boot tour ran to its end (`nife: the capability core runs on ...`).
+    ///
+    /// A stronger signal than the banner and a different claim: the banner is printed before the
+    /// device tree is touched, so it says the console works and nothing else, while this says
+    /// paging, traps, the timer, the frame allocator, SMP and the scheduler all came up. It is
+    /// **not** the default to wait for, because only the milestone-tour build prints it; a shell
+    /// or a test build reaches its banner and then does something else entirely.
+    Tour,
 }
 
 impl Stage {
@@ -44,6 +60,7 @@ impl Stage {
             Stage::UBoot => "U-Boot",
             Stage::Handoff => "kernel handoff",
             Stage::Banner => "kernel banner",
+            Stage::Tour => "boot tour complete",
         }
     }
 }
@@ -70,6 +87,17 @@ pub enum Failure {
     MeasuredBootRefused,
     /// `[PANIC] ...`: our own panic handler (`kernel/src/panic.rs`), carrying its message.
     KernelPanic(String),
+    /// `### ERROR ### Please RESET the board ###`: U-Boot gave up before the kernel ever ran,
+    /// carrying the line before it, which is where U-Boot says why.
+    ///
+    /// **This is the third outcome, and it is the one documentation did not have.** Captured on
+    /// 2026-09-01 from the extlinux path, where `Device tree not found or missing FDT support` is
+    /// the reason and is exactly the caveat `notes/visionfive2.md` records about U-Boot's fallback
+    /// DTB addresses. It follows `Moving Image from`, so a recogniser that stopped at the stages
+    /// would have watched the image load and then called the silence a hang. It is not a hang. The
+    /// board is sitting at a firmware error waiting to be reset, and saying so is the difference
+    /// between resetting it and going looking for a multicore bug.
+    UBootRefused(String),
 }
 
 impl Failure {
@@ -84,6 +112,12 @@ impl Failure {
                 "the kernel refused the archive at the measured-boot trust boundary".to_string()
             }
             Failure::KernelPanic(message) => format!("the kernel panicked: {message}"),
+            Failure::UBootRefused(reason) if reason.is_empty() => {
+                "U-Boot gave up before the kernel ran and wants the board reset".to_string()
+            }
+            Failure::UBootRefused(reason) => {
+                format!("U-Boot gave up before the kernel ran and wants the board reset: {reason}")
+            }
         }
     }
 }
@@ -99,6 +133,10 @@ pub struct BootProgress {
     failure: Option<Failure>,
     relocated: bool,
     banner_line: Option<String>,
+    /// The last complete non-empty line, kept for exactly one reason: U-Boot's `### ERROR ###`
+    /// says that it gave up and the line before it says why, and a reader handed only the first
+    /// half has to go back to the log to learn anything.
+    last_line: String,
 }
 
 impl BootProgress {
@@ -198,20 +236,35 @@ impl BootProgress {
         if line.contains("Moving Image from") {
             self.relocated = true;
         }
+        if let Some(at) = line.find("nife: the capability core runs on ") {
+            self.reach(Stage::Tour);
+            if complete && self.banner_line.is_none() {
+                self.banner_line = Some(line[at..].to_string());
+            }
+        }
 
         // Failures. Recorded once: the first thing that went wrong is the one worth reporting,
         // and everything after it is downstream.
-        if self.failure.is_some() {
-            return;
+        if self.failure.is_none() {
+            if line.contains("Bad Linux RISCV Image magic!") {
+                self.failure = Some(Failure::BadImageMagic);
+            } else if line.contains("MEASURED BOOT REFUSED") {
+                self.failure = Some(Failure::MeasuredBootRefused);
+            } else if line.contains("### ERROR ### Please RESET the board ###") {
+                // Deliberately reads `last_line` before the update below, because U-Boot puts the
+                // refusal on one line and its reason on the one before.
+                self.failure = Some(Failure::UBootRefused(self.last_line.clone()));
+            } else if complete && let Some(at) = line.find("[PANIC] ") {
+                self.failure = Some(Failure::KernelPanic(
+                    line[at + "[PANIC] ".len()..].to_string(),
+                ));
+            }
         }
-        if line.contains("Bad Linux RISCV Image magic!") {
-            self.failure = Some(Failure::BadImageMagic);
-        } else if line.contains("MEASURED BOOT REFUSED") {
-            self.failure = Some(Failure::MeasuredBootRefused);
-        } else if complete && let Some(at) = line.find("[PANIC] ") {
-            self.failure = Some(Failure::KernelPanic(
-                line[at + "[PANIC] ".len()..].to_string(),
-            ));
+
+        // Last, and only for a complete line: this is what the NEXT line may need, so recording a
+        // partial here would hand the refusal a truncated reason.
+        if complete && !line.trim().is_empty() {
+            self.last_line = line.trim().to_string();
         }
     }
 
@@ -325,10 +378,15 @@ mod tests {
         progress
     }
 
+    /// **The real thing**: bytes off the wire on 2026-09-01, control characters and all, fed one
+    /// byte at a time. Everything else in this file is a unit test; this is the only one that
+    /// says the markers are the text a board prints.
     #[test]
-    fn a_good_boot_reaches_our_banner() {
-        let progress = run(include_str!("../tests/fixtures/vf2-good-boot.log"));
-        assert_eq!(progress.reached(), Stage::Banner);
+    fn the_captured_boot_runs_the_whole_tour() {
+        let progress = run(include_str!(
+            "../tests/fixtures/captured/vf2-2026-09-01-manual-boot.log"
+        ));
+        assert_eq!(progress.reached(), Stage::Tour);
         assert_eq!(progress.failure(), None);
         assert!(progress.relocated());
         assert_eq!(
@@ -337,23 +395,51 @@ mod tests {
         );
     }
 
+    /// The third outcome, and the one no documentation in this tree described: U-Boot gives up
+    /// **after** loading and relocating the image and **before** the kernel runs. It is not a
+    /// hang, and reporting it as one would send somebody hunting a multicore bug in a kernel that
+    /// never executed an instruction.
     #[test]
-    fn silence_after_handoff_is_the_stage_it_stopped_at() {
-        let progress = run(include_str!("../tests/fixtures/vf2-handoff-silence.log"));
-        assert_eq!(progress.reached(), Stage::Handoff);
-        assert_eq!(progress.failure(), None);
+    fn the_captured_extlinux_failure_is_u_boot_giving_up() {
+        let progress = run(include_str!(
+            "../tests/fixtures/captured/vf2-2026-09-01-extlinux-refused.log"
+        ));
+        assert_eq!(progress.reached(), Stage::UBoot);
+        assert!(progress.relocated(), "the image did load and relocate");
+        assert_eq!(
+            progress.failure(),
+            Some(&Failure::UBootRefused(
+                "Device tree not found or missing FDT support".to_string()
+            )),
+            "the reason is the line before the ERROR, and a reader needs it"
+        );
+    }
+
+    /// The banner is not the end of the story, and the two captures differ by exactly this: both
+    /// reach U-Boot, one reaches the banner and then the tour, the other never reaches either.
+    #[test]
+    fn the_tour_line_outranks_the_banner() {
+        let mut progress = BootProgress::new();
+        progress.observe_line("nife on RISC-V (rv64, S-mode, Sv39)");
+        assert_eq!(progress.reached(), Stage::Banner);
+        progress.observe_line("nife: the capability core runs on RISC-V.");
+        assert_eq!(progress.reached(), Stage::Tour);
     }
 
     #[test]
     fn a_refused_archive_is_named_rather_than_timed_out() {
-        let progress = run(include_str!("../tests/fixtures/vf2-measured-refusal.log"));
+        let progress = run(include_str!(
+            "../tests/fixtures/synthetic/vf2-measured-refusal.log"
+        ));
         assert_eq!(progress.reached(), Stage::Banner);
         assert_eq!(progress.failure(), Some(&Failure::MeasuredBootRefused));
     }
 
     #[test]
     fn a_stale_card_is_named_at_u_boot() {
-        let progress = run(include_str!("../tests/fixtures/vf2-bad-magic.log"));
+        let progress = run(include_str!(
+            "../tests/fixtures/synthetic/vf2-bad-magic.log"
+        ));
         assert_eq!(progress.reached(), Stage::UBoot);
         assert_eq!(progress.failure(), Some(&Failure::BadImageMagic));
     }
