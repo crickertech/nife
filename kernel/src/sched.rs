@@ -688,7 +688,8 @@ pub fn note_boot_stage(stage: u32) {
 }
 
 /// Read the tour stage back. The hang watcher uses it to fall silent once the tour has
-/// finished (stage 10): boot 13 completed healthily and still printed five dumps of a
+/// finished (stage 11, and it was 10 until milestone 159 added the hardware-entropy step after
+/// what used to be the last one): boot 13 completed healthily and still printed five dumps of a
 /// quiescent machine, which reads as a hang to anyone who has not memorized the watcher.
 #[cfg_attr(target_arch = "aarch64", allow(dead_code))] // the riscv tour is the caller today
 pub fn boot_stage() -> u32 {

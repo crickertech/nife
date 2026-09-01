@@ -26,11 +26,20 @@ const MODE_INSTRUCTION: u64 = 1;
 /// once-per-boot state below, name the source a failure came from) is exactly what an instruction
 /// source also needs, and "no bus" is itself the fact worth a reader seeing in the same place the
 /// other two sources are. Provisional; flagged for calef the same as the other new names here.
+///
+/// **`Jh7110` is not a bus either** (milestone 159), and it is here for `Instruction`'s reason
+/// rather than by analogy to it: the JH7110's TRNG is a plain MMIO register block on the `SoC`'s
+/// own fabric, with no transport to negotiate, no virtqueue, and no PCIe function. Naming it a
+/// `Bus` variant buys the same four things the variant above buys (pick which source `ensure`
+/// wires, index the once-per-boot state, name the source a failure came from, and reuse
+/// [`Wiring`]'s client half unchanged), and the alternative was a parallel enum with a parallel
+/// registry saying the same thing twice. Provisional; flagged for calef with the rest.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Bus {
     Mmio,
     Pci,
     Instruction,
+    Jh7110,
 }
 
 pub struct Wiring {
@@ -53,17 +62,20 @@ pub struct Wiring {
 /// endpoint; later callers get the same request endpoint and `None` for it.
 ///
 /// Plain atomics rather than a lock: the only writer is the boot/test thread that calls this.
-static WIRED: [core::sync::atomic::AtomicBool; 3] = [
+static WIRED: [core::sync::atomic::AtomicBool; 4] = [
+    core::sync::atomic::AtomicBool::new(false),
     core::sync::atomic::AtomicBool::new(false),
     core::sync::atomic::AtomicBool::new(false),
     core::sync::atomic::AtomicBool::new(false),
 ];
-static REQUEST: [core::sync::atomic::AtomicU64; 3] = [
+static REQUEST: [core::sync::atomic::AtomicU64; 4] = [
+    core::sync::atomic::AtomicU64::new(0),
     core::sync::atomic::AtomicU64::new(0),
     core::sync::atomic::AtomicU64::new(0),
     core::sync::atomic::AtomicU64::new(0),
 ];
-static CONFINED: [core::sync::atomic::AtomicBool; 3] = [
+static CONFINED: [core::sync::atomic::AtomicBool; 4] = [
+    core::sync::atomic::AtomicBool::new(false),
     core::sync::atomic::AtomicBool::new(false),
     core::sync::atomic::AtomicBool::new(false),
     core::sync::atomic::AtomicBool::new(false),
@@ -75,6 +87,7 @@ impl Bus {
             Bus::Mmio => 0,
             Bus::Pci => 1,
             Bus::Instruction => 2,
+            Bus::Jh7110 => 3,
         }
     }
 }
@@ -106,12 +119,15 @@ fn start(image: &'static [u8], bus: Bus) -> Option<Wiring> {
     if bus == Bus::Instruction {
         return start_instruction(image);
     }
+    if bus == Bus::Jh7110 {
+        return start_jh7110(image);
+    }
     // The two buses differ in exactly two things: where the registers are, and whether there is
     // a requester id for the IOMMU to confine. Everything below is shared, which is the §18
     // seam doing its job.
     let (transport, intid, rid) = match bus {
-        Bus::Instruction => {
-            unreachable!("start_instruction handles this bus; see the early return above")
+        Bus::Instruction | Bus::Jh7110 => {
+            unreachable!("the two early returns above handle these; see start()'s first lines")
         }
         Bus::Mmio => {
             let d = crate::virtio::find_entropy_device()?;
@@ -241,6 +257,95 @@ fn start_instruction(image: &'static [u8]) -> Option<Wiring> {
         // Nothing here is a device, so there is nothing an IOMMU could confine. `false` states
         // that rather than leaving the virtio path's field to be misread as "not confined" in the
         // sense that matters for a real device.
+        confined_by_iommu: false,
+    })
+}
+
+/// Where the service maps the TRNG's register page. **Must match `user/src/jh7110_trng.rs`'s
+/// `TRNG_VA`**, and deliberately distinct from [`DMA_VA`] so the two entropy backends could be
+/// mapped into different processes at once without either constant meaning two things.
+const TRNG_VA: u64 = 0x0000_0000_0094_0000;
+
+/// **Does this machine have a JH7110 TRNG?** The device tree's answer, decoded by
+/// `jh7110_trng::discover` (the crate that owns the `compatible` string and the `reg` decode, so
+/// this file keeps no second copy of either).
+///
+/// riscv64 only, and that is a statement rather than a shortcut: the JH7110 is a RISC-V `SoC`, so
+/// on the other two architectures the honest answer is "no" without reading anything. On riscv64
+/// it is "no" too under QEMU's `virt` board, which carries no such node; that is the skip path
+/// this tree's whole CI runs through, and `crates/jh7110_trng`'s own
+/// `discover_finds_nothing_on_qemus_virt_board` test pins it against the same blob.
+#[cfg(target_arch = "riscv64")]
+pub fn jh7110_trng_device() -> Option<jh7110_trng::Discovered> {
+    jh7110_trng::discover(&crate::device_tree().ok()?)
+        .ok()
+        .flatten()
+}
+
+/// See the riscv64 arm: no JH7110 anywhere but a JH7110.
+#[cfg(not(target_arch = "riscv64"))]
+pub fn jh7110_trng_device() -> Option<jh7110_trng::Discovered> {
+    None
+}
+
+/// **Wire and spawn the entropy service against the JH7110's TRNG** (milestone 159): no virtio
+/// device, no DMA page, no IRQ, and no transport. `None` when this machine's device tree does not
+/// describe the device, which is every machine this repository's CI boots.
+///
+/// **The authority here is the point, and it is smaller than any other entropy backend's.** The
+/// driver is granted two rendezvous capabilities (a request endpoint it RECVs on, a readiness
+/// endpoint it SENDs once) and **one page of device memory**: the TRNG's register block, mapped
+/// user-device-typed at [`TRNG_VA`]. Not a DMA page, because the device writes nothing to memory;
+/// not an `Irq` capability, because the driver polls (`user/src/jh7110_trng.rs` records why);
+/// not a `Virtio` capability, because there is no transport. The binding's `reg` window is
+/// `0x4000` and this maps `0x1000` of it, since `jh7110_trng::regs` reaches only `0x68`: a driver
+/// that cannot name a register cannot touch it.
+///
+/// **Fatal risk 6's experiment is exactly this shape** (`design/fatal-risks.md`): an unprivileged
+/// userspace process, holding one device page and two endpoints, driving a real non-virtio device.
+/// Whether it does so at real speed is the part the bench measures, not the part this wires.
+fn start_jh7110(image: &'static [u8]) -> Option<Wiring> {
+    let device = jh7110_trng_device()?;
+
+    let ready = crate::sched::create_rendezvous();
+    let request = crate::sched::create_rendezvous();
+
+    // One page of the register window, device-typed. `map_physical` maps exactly one frame, which
+    // is the whole grant: see this function's doc for why 0x1000 of a 0x4000 window is not a
+    // rounding error.
+    let maps = [Mapping {
+        va: TRNG_VA,
+        phys: device.reg_base,
+        flags: Flags::user_device(),
+    }];
+    crate::sched::spawn(move || {
+        run(
+            image,
+            Spawn {
+                // No role to choose and no address to pass: this program serves one device whose
+                // registers it reaches through its own mapping, and it is a different binary from
+                // `entropy`, so there is nothing for `arg0`'s mode convention to select between.
+                arg0: 0,
+                arg1: 0,
+                arg2: 0,
+                grants: &[
+                    rendezvous_cap(request, Rights::READ), // slot 0: RECV client requests
+                    rendezvous_cap(ready, Rights::WRITE),  // slot 1: signal readiness once
+                ],
+                maps: &maps,
+            },
+        )
+    })
+    .expect("could not spawn the JH7110 TRNG entropy service");
+
+    Some(Wiring {
+        ready: Some(ready),
+        request,
+        bus: Bus::Jh7110,
+        // No PCIe requester id, so nothing an IOMMU could confine, and no DMA for it to confine
+        // *of*: this device never touches memory. Same `false` as the instruction path's, for a
+        // related reason, and it is not a weaker confinement claim than the virtio path's; it is a
+        // narrower attack surface than the one an IOMMU exists to close.
         confined_by_iommu: false,
     })
 }

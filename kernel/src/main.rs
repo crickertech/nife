@@ -1072,8 +1072,80 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         }
         sched::note_boot_stage(9);
 
-        println!("nife: the capability core runs on RISC-V.");
+        // **A real, non-virtio device, driven by a confined userspace process** (milestone 159,
+        // design/roadmap/159-jh7110-trng-driver.md; fatal risk 6 in design/fatal-risks.md). The
+        // JH7110's TRNG is a register block on the `SoC`'s own fabric: no transport to negotiate,
+        // no queue, no DMA. The kernel's whole part is the two lines below (ask the device tree
+        // whether the device exists, then hand a userspace program one page of its registers and
+        // two endpoints) and then playing a client over the same request endpoint any other client
+        // would hold. The kernel never reads a `RAND` register.
+        //
+        // **The skip is the honest answer on every machine CI boots.** QEMU's riscv64 `virt` board
+        // has no `starfive,jh7110-trng` node, so `jh7110_trng_device` returns `None` there and this
+        // prints the skip rather than a claim. Only radon (the `StarFive` VisionFive 2) can print
+        // the other line, and the line only prints when bytes actually arrived.
+        match user::entropy_service::jh7110_trng_device() {
+            None => println!(
+                "  hw entropy  : skipped (this machine's tree describes no starfive,jh7110-trng; QEMU virt has none)"
+            ),
+            Some(device) => match user::program("jh7110_trng") {
+                None => println!(
+                    "  hw entropy  : JH7110 TRNG at {:#x}, but no 'jh7110_trng' in the initrd (run `cargo xtask initrd-riscv`)",
+                    device.reg_base,
+                ),
+                Some(image) => {
+                    match user::entropy_service::ensure(image, user::entropy_service::Bus::Jh7110) {
+                        None => println!(
+                            "  hw entropy  : JH7110 TRNG at {:#x}, but the service would not wire",
+                            device.reg_base,
+                        ),
+                        Some(w) => {
+                            // The bring-up report first: `[READY, first_refill_ok, bytes_in_hand]`,
+                            // or a 0xDEAD_.. word. A device that never answered says so here.
+                            let report = w.wait_for_ready().unwrap_or([0; 5]);
+                            // Then two draws through the request endpoint, as a client. Two,
+                            // because one proves only that *something* was returned: a stuck
+                            // register file, a driver serving its buffer twice, and a device that
+                            // never started all present as a repeat.
+                            let (mut a, mut b) = ([0u8; 32], [0u8; 32]);
+                            let (na, nb) = (w.get(32, &mut a), w.get(32, &mut b));
+                            let zeros = a.iter().all(|&x| x == 0);
+                            if report[0] == entropy_proto::READY
+                                && na == 32
+                                && nb == 32
+                                && !zeros
+                                && a != b
+                            {
+                                println!(
+                                    "  hw entropy  : JH7110 TRNG at {:#x} served 32+32 bytes to a client through a capability that names no device; first draw {:02x}{:02x}{:02x}{:02x}.., second differs",
+                                    device.reg_base, a[0], a[1], a[2], a[3],
+                                );
+                            } else {
+                                // `report[2]` is the driver's bring-up diagnostic and it is the
+                                // number a bench session reads first: on a failed first refill it
+                                // is the raw `(STAT << 32) | ISTAT`, and all zeros there means the
+                                // register window read as nothing at all (a gated clock, an
+                                // undeasserted reset, or a base that is not the TRNG) rather than
+                                // a device that answered wrongly. See user/src/jh7110_trng.rs.
+                                println!(
+                                    "  hw entropy  : FAILED: JH7110 TRNG at {:#x}: report {:#x}, bring-up diagnostic {:#018x}, draws {na}/{nb} bytes, first-all-zero {zeros}, draws-differ {}",
+                                    device.reg_base,
+                                    report[0],
+                                    report[2],
+                                    a != b,
+                                );
+                            }
+                        }
+                    }
+                }
+            },
+        }
         sched::note_boot_stage(10);
+
+        println!("nife: the capability core runs on RISC-V.");
+        // 11, not 10: the hang watcher falls silent at "the tour has finished" and milestone 159
+        // added a stage after what used to be the last one. See `user.rs`'s `boot_stage() >= 11`.
+        sched::note_boot_stage(11);
         arch::halt();
     }
 

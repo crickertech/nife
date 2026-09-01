@@ -94,6 +94,34 @@ fn a_client_obtains_unpredictable_bytes_from_a_virtio_rng_over_pcie() {
     assert_unpredictable(&words, "pcie");
 }
 
+/// **The JH7110 backend refuses to wire on a machine that has no JH7110** (milestone 159), which
+/// is every machine this suite boots. That is worth a test rather than a comment because the
+/// failure it guards is silent: a wiring that spawned the driver anyway would hand a userspace
+/// process a device mapping of an address nobody described, and the first symptom would be a load
+/// fault (or worse, a read of some unrelated peripheral) on the one machine nobody can run this
+/// suite on.
+///
+/// On radon (the `StarFive` VisionFive 2) this test skips and the boot tour's `hw entropy` line is
+/// what speaks instead; see `design/roadmap/159-jh7110-trng-driver.md` for the bench procedure.
+#[test_case]
+fn the_jh7110_backend_refuses_to_wire_where_there_is_no_jh7110() {
+    if entropy_service::jh7110_trng_device().is_some() {
+        crate::testing::skip!(
+            "this machine describes a starfive,jh7110-trng: the boot tour's hw entropy line is \
+             the test that matters here, not this one"
+        );
+    }
+    let Some(image) = program("jh7110_trng") else {
+        crate::testing::skip!("no jh7110_trng program in this archive (the aarch64 one has none)");
+    };
+    assert!(
+        entropy_service::ensure(image, Bus::Jh7110).is_none(),
+        "the JH7110 entropy backend wired itself on a machine whose device tree describes no \
+         such device: something spawned a driver holding a device mapping of an address nobody \
+         named",
+    );
+}
+
 /// **Two independent sources do not agree**, which is what says the bytes came from the devices
 /// rather than from anything shared underneath them (a fixed seed, a counter, the DMA page's
 /// previous contents). Also the cheapest proof that two services can hold two devices at once.
