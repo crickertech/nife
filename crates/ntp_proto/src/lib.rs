@@ -1408,7 +1408,7 @@ mod verification {
     /// then the delay is non-negative, so the ±δ/2 bound a client reasons with is never derived
     /// from a nonsense δ. This is the proof that a hostile packet cannot make the arithmetic
     /// misbehave, which is the property the `i128` intervals exist for.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/ntp_proto/falsifications/verification.accepting_is_total_and_a_sample_is_coherent.patch`
     #[kani::proof]
     #[kani::unwind(49)]
     fn accepting_is_total_and_a_sample_is_coherent() {
@@ -1419,10 +1419,21 @@ mod verification {
 
         let q = Query::with_nonce(Timestamp::from_bits(sent), Timestamp::from_bits(nonce));
         if let Ok(s) = q.accept(&wire, Timestamp::from_bits(dest)) {
-            assert!(!s.delay.is_negative());
+            // **The two predicate-shaped claims are stated over the numbers** (milestone 211).
+            // `accept` refuses on `delay.is_negative()` and on `p.transmit.is_zero()`, so
+            // asserting through those same two predicates proves only that the guard and the
+            // assertion agree: an `is_negative` stuck at false satisfies both sides and a
+            // negative delay reaches the caller with this harness still green.
+            assert!(
+                s.delay.0 >= 0,
+                "an accepted sample carries a negative delay"
+            );
+            assert!(
+                s.response.transmit.0 != 0,
+                "an accepted sample carries an unset transmit timestamp",
+            );
             assert!(s.response.stratum >= 1 && s.response.stratum <= MAX_STRATUM);
             assert!(s.response.mode == mode::SERVER);
-            assert!(!s.response.transmit.is_zero());
         }
     }
 }

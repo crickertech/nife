@@ -1,0 +1,37 @@
+Falsifies `credential_proto::proofs::no_request_word_makes_the_parse_read_outside_the_page`.
+
+The defect: `id_len` reads the identity length from bits 20..36 of the request word
+instead of bits 16..32, so client and server disagree about where that field is. The
+client's `req` packs it at 16; the server slices the identity at whatever the shifted read
+returns, so a login is attempted against a prefix, a suffix, or an empty identity, and the
+wire format quietly has two readings.
+
+Expected to fail: `assert!(identity.len() == ((w0 >> 16) & 0xffff) as usize)`, on any word
+whose bits 16..20 are not zero.
+
+**Measured blind before milestone 211.** The harness asserted
+`identity.len() == id_len(w0)`, and `read` slices the page using `id_len(w0)`, so the
+assertion could only ever say that `read` used the accessor. Confirmed by applying this
+diff against the old phrasing and watching it stay green. The rewrite states the two
+shifts, which is the wire format itself: DECISIONS' *move fast on what can be undone*
+puts anything two programs agree on in the irreversible column, and a field offset is
+exactly that.
+
+The bounds assertions beside it (`identity.len() <= MAX_IDENTITY`,
+`ID_OFF + identity.len() <= SECRET_OFF`) were independent already, and they are why this
+defect is a correctness failure rather than a memory-safety one: the parse still stays
+inside the page.
+
+diff --git a/crates/credential_proto/src/lib.rs b/crates/credential_proto/src/lib.rs
+index 39fae307..0a92d3de 100644
+--- a/crates/credential_proto/src/lib.rs
++++ b/crates/credential_proto/src/lib.rs
+@@ -238,7 +238,7 @@ pub const fn op(w0: u64) -> u64 {
+ /// The identity length a request word claims. Not yet checked against [`MAX_IDENTITY`]; that is
+ /// [`read`]'s job, and it is the reason [`read`] exists rather than two accessors.
+ pub const fn id_len(w0: u64) -> usize {
+-    ((w0 >> 16) & 0xffff) as usize
++    ((w0 >> 20) & 0xffff) as usize
+ }
+ 
+ /// The secret length a request word claims. Same caveat as [`id_len`].

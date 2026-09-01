@@ -466,6 +466,16 @@ mod verification {
         let mut cs = any_small_capability_table();
         let slot: u64 = kani::any();
         if cs.delete(slot).is_ok() {
+            // The storage itself, before the accessors (milestone 211's sweep). A
+            // strengthening rather than a finding: `delete` does not call `get`, and the sweep
+            // found no defect the two-accessor phrasing misses, because a `delete` that
+            // returned `Ok` without clearing the slot is caught by the `get` line and a `get`
+            // stuck at `NoSuchSlot` is caught by `derive_never_widens_rights` next door. It is
+            // here so the claim rests on the array rather than on two readers of it.
+            assert!(
+                cs.slots[slot as usize].is_none(),
+                "the slot still holds a capability"
+            );
             assert_eq!(cs.get(slot).err(), Some(Error::NoSuchSlot));
             assert_eq!(cs.delete(slot).err(), Some(Error::NoSuchSlot));
         }
@@ -509,9 +519,28 @@ mod verification {
         .unwrap();
 
         if cs.derive(0, 1, requested).is_ok() {
-            let derived = cs.get(1).unwrap();
-            assert!(derived.rights.is_subset_of(src_rights));
-            assert!(requested.is_subset_of(src_rights));
+            let derived = cs.slots[1].expect("a successful derive filled the destination slot");
+            // **Stated in raw bits, not through `is_subset_of`** (milestone 211). `derive` guards
+            // on `rights.is_subset_of(src.rights)`, so a phrasing that asserted
+            // `derived.rights.is_subset_of(src_rights)` would be satisfied by any consistently
+            // wrong `is_subset_of` and could not see the predicate underneath the guard break.
+            // Milestone 194 measured exactly that: swapping the operands inside `is_subset_of`
+            // left this harness green. `x & !y == 0` is the definition the predicate is supposed
+            // to implement, written where the implementation cannot choose it.
+            assert_eq!(
+                derived.rights.0 & !src_rights.0,
+                0,
+                "a derived capability holds a right the source did not",
+            );
+            assert_eq!(
+                requested.0 & !src_rights.0,
+                0,
+                "a request wider than the source got past the guard",
+            );
+            // And it holds exactly what was asked: no silent grant of more, no silent clamp to
+            // less. Field equality, so no predicate stands between the claim and the bits.
+            assert_eq!(derived.rights.0, requested.0);
+            assert_eq!(derived.object, 0u8);
         }
     }
 

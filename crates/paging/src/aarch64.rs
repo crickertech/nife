@@ -337,7 +337,7 @@ mod verification {
     /// `leaf_entry` writes address + attrs + valid/type; `entry_pa` and `leaf_flags` read the two
     /// halves back exactly. No permission bit can redirect the address, no address bit can grant a
     /// permission, and decoding a freshly-encoded leaf returns the same `Flags`.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/paging/falsifications/aarch64.verification.the_leaf_keeps_address_and_permissions_apart.patch`
     #[kani::proof]
     fn the_leaf_keeps_address_and_permissions_apart() {
         let pa: u64 = kani::any();
@@ -358,6 +358,22 @@ mod verification {
         let flags = all[i];
 
         let leaf = Aarch64::leaf_entry(pa, flags);
+        // **The address field read out of the word, not through `entry_pa`** (milestone 211).
+        // `leaf_entry` and `entry_pa` are an encoder and its own decoder, so a round trip
+        // between them is satisfied by any pair that agree: a shift wrong in both would leave
+        // this green while the hardware read the wrong page. The line below states where the
+        // architecture puts the address, which is the one thing the implementation does not
+        // get to choose, and it is spelled as a literal rather than through this crate's own
+        // ADDR_MASK or PPN_SHIFT: a defect in one of those constants moves the implementation
+        // and any harness that cited it together, which is the same trap one level down.
+        // `no_vtd_entry_ever_sets_a_reserved_bit` in this crate already works this way; this
+        // is the same move on the portable leaf.
+        assert_eq!(
+            leaf & 0x0000_ffff_ffff_f000,
+            pa,
+            "the address left bits 12..48 of the descriptor"
+        );
+        assert_eq!(leaf & 0b11, 0b11, "a leaf must be a valid page descriptor");
         assert_eq!(Aarch64::entry_pa(leaf), pa);
         assert_eq!(Aarch64::leaf_flags(leaf), flags);
     }
