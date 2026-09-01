@@ -80,6 +80,12 @@ graphics_proto = { version = "0.1.0", path = "../crates/graphics_proto" }
 # tests are its clients, speaking the same request/reply the std PAL does, so no party has its own
 # copy of the wire format.
 entropy_proto = { version = "0.1.0", path = "../crates/entropy_proto" }
+# The JH7110 TRNG's register logic and DTB discovery (milestone 159), the same
+# pure-logic/volatile-shell split `pci` and `nvme` below already use. The kernel takes it for one
+# thing only: `discover`, the device-tree query that says whether this machine has a TRNG at all,
+# so `entropy_service` can wire the userspace driver for it (`user/src/jh7110_trng.rs`) instead of
+# keeping a second copy of the `compatible` string and the `reg` decode.
+jh7110_trng = { version = "0.1.0", path = "../crates/jh7110_trng" }
 dtb = { version = "0.1.0", path = "../crates/dtb" }
 pci = { version = "0.1.0", path = "../crates/pci" }
 # The NVMe queue mechanics (milestone 53's storage half): pure logic, host-tested and proved; the

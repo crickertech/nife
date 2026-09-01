@@ -1760,7 +1760,7 @@ pub fn riscv_initrd_demo(archive: &'static [u8]) -> Result<u64, LoadError> {
             // A finished tour needs no witness: boot 13 reached the final banner and the five
             // dumps that followed showed only a quiescent machine waiting for input, five times.
             // A stalled tour still gets all five.
-            if crate::sched::boot_stage() >= 10 {
+            if crate::sched::boot_stage() >= 11 {
                 break;
             }
             // svc is the machine-wide ecall count; tx is console::_print's byte count. Together

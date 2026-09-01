@@ -296,6 +296,116 @@ pub fn assemble(rand: [u32; 8]) -> [u8; 32] {
     out
 }
 
+/// How many bytes fit in the one word [`Pool::take`] answers with. The same 8 as
+/// `entropy_proto::MAX_BYTES`, stated here rather than depended on: this crate is the device's
+/// logic and knows nothing about the wire format, and the two agreeing is a fact the driver
+/// program (which depends on both) is where a reader can check.
+pub const WORD_BYTES: u64 = 8;
+
+/// **The 32 bytes in hand, and how many are still ours to give** (milestone 159), lifted out of
+/// `user/src/jh7110_trng.rs` so it can be tested somewhere a register does not have to exist.
+///
+/// This is the one piece of the driver that can serve a byte twice, hand back a byte it already
+/// zeroed, or lose the seam between two generations, and none of that is visible in the register
+/// decode above. It has no idea where its bytes come from: [`take`](Pool::take) is handed a
+/// generator, which in the program is a poll of a real device and in the tests below is a counter.
+///
+/// **Not a pool in the "reservoir" sense.** `cursor` only ever moves forward, so no byte is served
+/// twice, and each byte is zeroed as it leaves: a byte a client now holds is not also still
+/// sitting in a buffer a long-lived process keeps for the rest of the boot. The same shape
+/// `user/src/entropy.rs`'s virtio-rng `Pool` has, at a quarter the size, because there is no
+/// device round trip here to amortize over.
+///
+/// # Examples
+///
+/// ```
+/// use jh7110_trng::Pool;
+///
+/// // A device that answers with 32 bytes of 0xAB, forever.
+/// let mut generate = || Some([0xab; 32]);
+/// let mut pool = Pool::new();
+/// assert_eq!(pool.take(4, &mut generate), (4, 0xabab_abab));
+///
+/// // A device that never answers: the caller is told, rather than spun on.
+/// let mut dry = || None;
+/// let mut pool = Pool::new();
+/// assert_eq!(pool.take(4, &mut dry), (0, 0));
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Pool {
+    buf: [u8; 32],
+    cursor: usize,
+    filled: usize,
+}
+
+impl Default for Pool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Pool {
+    /// An empty pool: the first [`take`](Pool::take) generates.
+    #[must_use]
+    pub const fn new() -> Self {
+        Pool {
+            buf: [0; 32],
+            cursor: 0,
+            filled: 0,
+        }
+    }
+
+    /// How many bytes are left before the next generation. Test and diagnostic support; the
+    /// program reports it once, in its readiness message.
+    #[must_use]
+    pub const fn remaining(&self) -> usize {
+        self.filled - self.cursor
+    }
+
+    /// Fill from `generate`, discarding whatever was left. `false` when the generator would not
+    /// answer, which the caller reports rather than retries forever.
+    pub fn refill(&mut self, generate: &mut impl FnMut() -> Option<[u8; 32]>) -> bool {
+        match generate() {
+            Some(bytes) => {
+                self.buf = bytes;
+                self.cursor = 0;
+                self.filled = 32;
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Take `n` bytes, as a little-endian word plus a count. Gathers across a refill boundary, so
+    /// a request can straddle two generations without the client ever seeing the seam, and returns
+    /// a **short count** rather than zeros when the device stops answering mid-gather.
+    ///
+    /// **`n` is clamped to [`WORD_BYTES`]**, because the answer is one 64-bit word and there is
+    /// nowhere to put a ninth byte. `entropy_proto::want` already clamps to the same 8 before the
+    /// driver ever calls this, so in the program the clamp is unreachable; it is here because a
+    /// public function that shifts by `8 * n` must not be callable into an overflow, and the first
+    /// host test written against this API found exactly that edge.
+    pub fn take(&mut self, n: u64, generate: &mut impl FnMut() -> Option<[u8; 32]>) -> (u64, u64) {
+        let n = n.min(WORD_BYTES);
+        let mut word = 0u64;
+        let mut got = 0u64;
+        while got < n {
+            if self.cursor == self.filled && !self.refill(generate) {
+                break;
+            }
+            let run = (n - got).min((self.filled - self.cursor) as u64);
+            for i in 0..run {
+                let at = self.cursor + i as usize;
+                word |= u64::from(self.buf[at]) << (8 * (got + i));
+                self.buf[at] = 0;
+            }
+            self.cursor += run as usize;
+            got += run;
+        }
+        (got, word)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -372,6 +482,98 @@ mod tests {
     /// itself, the same bytes `crates/dtb/tests/qemu_riscv64_virt.rs` already boot-verifies, so a
     /// green result here is a claim about the tree this project actually runs, not a claim about a
     /// tree nobody has looked at.
+    /// **No byte is ever served twice**, across as many refills as it takes to drain several
+    /// generations. The generator hands out a distinct byte per call, so a cursor that wrapped
+    /// instead of refilling, or a refill that did not reset the cursor, shows up as a repeat here
+    /// rather than as a security property nobody checked.
+    #[test]
+    fn no_byte_is_served_twice_across_refills() {
+        let mut next = 1u8;
+        let mut generate = || {
+            let block = core::array::from_fn(|i| next.wrapping_add(i as u8));
+            next = next.wrapping_add(32);
+            Some(block)
+        };
+        let mut pool = Pool::new();
+        let mut seen = [0u32; 256];
+        // 40 draws of 8 bytes is 320 bytes, ten generations, so the seam is crossed nine times.
+        for _ in 0..40 {
+            let (got, word) = pool.take(8, &mut generate);
+            assert_eq!(got, 8);
+            for b in word.to_le_bytes() {
+                seen[b as usize] += 1;
+            }
+        }
+        // The generator's byte stream is 1, 2, 3, ... wrapping, so 320 bytes visits every value
+        // once or twice and never three times; a repeat from the pool would push one to three.
+        for (value, &count) in seen.iter().enumerate() {
+            assert!(count <= 2, "byte {value} came back {count} times");
+        }
+    }
+
+    /// **A request that straddles a generation gets all of its bytes**, in order, with the seam
+    /// invisible: the last four of one block and the first four of the next.
+    #[test]
+    fn a_request_straddles_the_seam_without_losing_bytes() {
+        let mut which = 0u8;
+        let mut generate = || {
+            which += 1;
+            Some([which; 32])
+        };
+        let mut pool = Pool::new();
+        // Five-byte draws: the seventh starts at byte 30 of a 32-byte block, so it takes two
+        // bytes from block 1 and three from block 2.
+        for _ in 0..6 {
+            assert_eq!(pool.take(5, &mut generate).0, 5);
+        }
+        let (got, word) = pool.take(5, &mut generate);
+        assert_eq!(got, 5);
+        assert_eq!(word.to_le_bytes()[..5], [1, 1, 2, 2, 2]);
+    }
+
+    /// **A device that stops answering produces a short count, not zeros.** The distinction is the
+    /// whole of `entropy_proto`'s honesty: a client that asked for eight bytes and got four must
+    /// be told four, or it will treat four zeros as entropy.
+    #[test]
+    fn a_dry_device_shortens_the_count_rather_than_padding() {
+        let mut answers = 1;
+        let mut generate = || {
+            if answers > 0 {
+                answers -= 1;
+                Some([0xff; 32])
+            } else {
+                None
+            }
+        };
+        let mut pool = Pool::new();
+        assert_eq!(pool.take(8, &mut generate).0, 8);
+        // Drain the one block this generator will ever give: 32 bytes, so three more eights.
+        for _ in 0..3 {
+            assert_eq!(pool.take(8, &mut generate).0, 8);
+        }
+        assert_eq!(pool.take(8, &mut generate), (0, 0));
+    }
+
+    /// **A served byte is not still sitting in the buffer.** Reading the same region back after a
+    /// take must not reproduce it; the pool zeroes behind its cursor.
+    #[test]
+    fn a_served_byte_is_zeroed_behind_the_cursor() {
+        let mut generate = || Some([0xa5; 32]);
+        let mut pool = Pool::new();
+        assert_eq!(pool.take(8, &mut generate), (8, 0xa5a5_a5a5_a5a5_a5a5));
+        assert_eq!(pool.buf[..8], [0u8; 8]);
+        assert_eq!(pool.remaining(), 24);
+    }
+
+    /// **A caller asking for more than a word gets a word**, not a shift-left overflow. The wire
+    /// format clamps first, so this is defence at the API rather than a live path.
+    #[test]
+    fn a_request_larger_than_the_word_is_clamped() {
+        let mut generate = || Some([0x11; 32]);
+        let mut pool = Pool::new();
+        assert_eq!(pool.take(64, &mut generate), (8, 0x1111_1111_1111_1111));
+    }
+
     #[test]
     fn discover_finds_nothing_on_qemus_virt_board() {
         let tree = dtb::Dtb::from_bytes(QEMU_RISCV64_VIRT).expect("fixture parses");

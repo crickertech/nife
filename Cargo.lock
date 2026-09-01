@@ -381,6 +381,7 @@ dependencies = [
  "graphics_proto",
  "intrusive_fifo",
  "ipc",
+ "jh7110_trng",
  "line_editor",
  "login_proto",
  "machine_discovery",

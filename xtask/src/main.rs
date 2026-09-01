@@ -3485,6 +3485,12 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         // The entropy service (milestone 56). Portable, so both archives carry it: it holds the
         // virtio-rng driver, and the wiring tells it which bus the device came off.
         ("entropy", "entropy"),
+        // The JH7110 TRNG driver (milestone 159): the entropy backend for real riscv64 hardware,
+        // beside `entropy`'s virtio-rng one. Packed into both archives for the reason the list's
+        // header gives: nothing spawns a program by accident, and the boot tour's wiring resolves
+        // to a skip on any machine whose device tree has no `starfive,jh7110-trng` node, which is
+        // every machine but radon (the `StarFive` VisionFive 2).
+        ("jh7110_trng", "jh7110_trng"),
         // The credential service and its clients (milestone 56, the credential half). Portable, so
         // both archives carry both: the claim is that holding the verify endpoint does not let you
         // read or write the store, and that has to hold on either instruction set or it is not a
