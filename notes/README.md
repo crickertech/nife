@@ -778,6 +778,20 @@ in the code or the conversation doesn't make sense, it belongs here.
   patch path could not name eighteen of `paging`'s twenty-six harnesses, because six function names
   repeat once per ISA; calef amended it the same day to carry the module path, which also turned the
   sweep's harness filter from a substring match into Kani's own `--exact`.
+- [What nife claims a confined component cannot do](confinement-claims.md): milestone 202, scoping
+  `design/fatal-risks.md`'s risk 7, and the enumeration is the deliverable: **twenty-six confinement
+  claims, where each is stated, which test checks it, and whether that test has been shown to fail
+  when the claim is broken.** Twenty-five Kani harnesses now carry a replayable falsification, up
+  from six. Three findings are worth more than the count. DECISIONS §31's headline sentence, that
+  two witness pages are unchanged after a C component's out-of-bounds write, is **not** what catches
+  a broken confinement: map `WITNESS_RO` read/write and the verdict assertion never runs, because a
+  component that is not confined does not fault and a run missing a death report stalls before any
+  verdict is computed. The first run of that experiment failed for the wrong reason, as a watchdog
+  timeout reading `a livelock, not a lost wakeup`, which is the hazard the milestone's own block
+  names. And `component_plan`'s wiring proof is blind to a defect in the function it states its
+  property through, the same shape milestone 194 measured one crate over. Also: three claims this
+  system makes nowhere, six kernel tests with no mechanism to falsify them, and why the DMA
+  time-of-check/time-of-use harness has no patch and should not.
 - [Did the proofs catch the bugs?](proof-retrospective.md): milestone 191, and the question none of
   the four legs above had been asked: **for every real defect this project recorded, could a proof
   have caught it, and did one exist?** Answered against eighteen defects from the tree's own notes and

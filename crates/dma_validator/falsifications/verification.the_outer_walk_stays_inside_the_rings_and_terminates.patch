@@ -1,0 +1,29 @@
+Falsifies `dma_validator::the_outer_walk_stays_inside_the_rings_and_terminates`.
+
+The defect: `validate_and_shadow` no longer refuses a head index that names a slot
+outside the descriptor table. The head is a `u16` the driver writes into its own
+available ring, so this is attacker-chosen, and without the guard the walk reads
+descriptor `head` at `driver_desc + head * 16`, up to a megabyte past the table
+the driver was granted. The confinement checks that follow are unaffected and
+still run; they run on bytes read from outside the ring.
+
+Expected to fail: the read closure's `assert!(off < 16 * QS as u64, "a descriptor
+read past the end of the table")`. The harness models the ring's bounds in its
+closures rather than in its body, so that assertion is where this property is
+actually stated. Confirmed: one failing check, located in this harness's
+`read64` closure at the line holding that assertion.
+
+diff --git a/crates/dma_validator/src/lib.rs b/crates/dma_validator/src/lib.rs
+index 9a6d0500..a049d19d 100644
+--- a/crates/dma_validator/src/lib.rs
++++ b/crates/dma_validator/src/lib.rs
+@@ -212,9 +212,6 @@ pub fn validate_and_shadow(
+     while idx != to_idx {
+         let slot = (idx % qsize) as u64;
+         let head = read16(driver_avail + 4 + slot * 2);
+-        if head >= qsize {
+-            return false; // head index out of the descriptor table
+-        }
+ 
+         // Walk this head's chain, validate every descriptor, and copy the validated ones into the
+         // shadow. The confinement theorem is proved against `shadow_one_head` directly, so refuse the

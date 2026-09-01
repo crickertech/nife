@@ -460,7 +460,7 @@ mod verification {
     /// the mechanism that makes the one-shot Reply one-shot (DECISIONS §12): the syscall layer
     /// deletes the Reply capability the instant it is invoked, and this proof says no state exists
     /// in which the deleted slot can be invoked again.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/capability/falsifications/verification.a_deleted_capability_stays_deleted.patch`
     #[kani::proof]
     fn a_deleted_capability_stays_deleted() {
         let mut cs = any_small_capability_table();
@@ -474,7 +474,7 @@ mod verification {
     /// **Delete is slot-local.** Deleting any slot, in bounds or not, leaves every other slot
     /// exactly as it was. A server holding one-shot Reply capabilities for two callers consumes
     /// one and must still hold the other, or answering caller A would silently orphan caller B.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/capability/falsifications/verification.delete_touches_only_its_slot.patch`
     #[kani::proof]
     fn delete_touches_only_its_slot() {
         let mut cs = any_small_capability_table();
@@ -534,7 +534,7 @@ mod verification {
     /// holds, `CAP_INSERT` narrows on the way into a child. Rights down a budget tree are monotonically
     /// non-increasing from the root, a child holds `GRANT` only because the root did, and a spend-only
     /// untyped provably cannot split itself a `GRANT`-bearing child.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/capability/falsifications/verification.split_never_widens_rights.patch`
     #[kani::proof]
     fn split_never_widens_rights() {
         let parent = Cap {
@@ -565,7 +565,7 @@ mod verification {
     /// reap" hold: authorization consumes no capability and produces none. `reap_decision` takes no
     /// `Cap` and returns no `Cap`, so there is no channel through which authority could flow to the
     /// reaper. The proof pins the *gate*; the type pins the absence of a grant.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/capability/falsifications/verification.reap_is_permitted_only_to_the_supervising_rendezvous.patch`
     #[kani::proof]
     fn reap_is_permitted_only_to_the_supervising_rendezvous() {
         let invoked: u64 = kani::any();
@@ -596,7 +596,7 @@ mod verification {
     /// supervisor cannot use `REAP` to learn whether some other supervisor's child (or a recycled
     /// tid) is alive. The two facts §32 wants distinguishable are distinguishable only *inside* the
     /// relationship.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/capability/falsifications/verification.a_stranger_reveals_nothing_about_its_liveness.patch`
     #[kani::proof]
     fn a_stranger_reveals_nothing_about_its_liveness() {
         let invoked: u64 = kani::any();
@@ -621,7 +621,7 @@ mod verification {
     /// thread that really is in the domain is reported**, so a monitor that sees an entry missing
     /// can conclude the thread is gone rather than hidden. A view that could silently omit its own
     /// children would be worse than no view.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/capability/falsifications/verification.a_survey_shows_exactly_the_endpoints_own_children.patch`
     #[kani::proof]
     fn a_survey_shows_exactly_the_endpoints_own_children() {
         let invoked: u64 = kani::any();
@@ -637,7 +637,7 @@ mod verification {
     /// input, a thread is in the survey exactly when a reap of it would get past the supervision
     /// check, whatever its liveness. So the domain `ps` reports and the domain a supervisor may
     /// reap from cannot diverge, which is the property that lets one predicate answer both.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/capability/falsifications/verification.the_view_and_the_reap_have_the_same_scope.patch`
     #[kani::proof]
     fn the_view_and_the_reap_have_the_same_scope() {
         let invoked: u64 = kani::any();

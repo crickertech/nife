@@ -1,0 +1,32 @@
+Falsifies `dma_validator::an_oversized_batch_is_refused`.
+
+The defect: the batch-size guard is gone, so `validate_and_shadow` walks whatever
+gap the driver publishes between `from_idx` and `to_idx`. Nothing about
+confinement changes: every descriptor the loop reaches is still validated and still
+shadowed, so every escape test still passes and the property this defect breaks is
+liveness rather than isolation. The available ring holds only `qsize` slots, so a
+larger gap is malformed or hostile, and the loop then runs up to 65535 times under
+the caller's lock with interrupts masked, which is a userspace driver stalling the
+kernel.
+
+Expected to fail: the read closure's `panic!("a descriptor was read before the
+batch-size guard refused the batch")`. That is the assertion this harness is built
+around: it passes closures that panic on any access, so *reaching memory at all* is
+the failure, and `assert!(!ok, "an oversized batch was accepted instead of
+refused")` at the end is the weaker backstop that is never reached.
+
+diff --git a/crates/dma_validator/src/lib.rs b/crates/dma_validator/src/lib.rs
+index 9a6d0500..7d46a9ca 100644
+--- a/crates/dma_validator/src/lib.rs
++++ b/crates/dma_validator/src/lib.rs
+@@ -203,9 +203,7 @@ pub fn validate_and_shadow(
+     // device consuming some. A larger jump in avail.idx is malformed or hostile, and walking it would
+     // spin this loop up to 65535 times under the caller's lock with interrupts masked. Refuse it
+     // before touching a single descriptor. (wrapping_sub because avail.idx wraps at u16.)
+-    if to_idx.wrapping_sub(from_idx) > qsize {
+-        return false;
+-    }
++
+ 
+     // avail: { u16 flags; u16 idx; u16 ring[qsize]; }
+     let mut idx = from_idx;

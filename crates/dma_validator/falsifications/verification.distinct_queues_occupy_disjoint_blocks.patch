@@ -1,0 +1,39 @@
+Falsifies `dma_validator::distinct_queues_occupy_disjoint_blocks`.
+
+The defect: `queue_block` returns the same base for every queue, which is what a
+single-queue driver would have written before a second queue existed and what an
+"the offsets are already in the ring structure, the block is redundant" cleanup
+would restore. A NIC drives receive on queue 0 and transmit on queue 1; with this,
+validating the receive queue writes into the transmit queue's shadow descriptor
+table, so one queue's confinement is decided by the other's descriptors.
+
+Expected to fail: `assert!(queue_block(q1) + RING_END <= queue_block(q2))`, the
+disjointness assertion, for the only pair the harness admits (`q1 = 0, q2 = 1`).
+The two constant-folded assertions around it, `RING_END <= RING_BLOCK` and
+`DESC_OFF + 16 * LAYOUT_QSIZE <= AVAIL_OFF`, are facts about the layout rather
+than about `queue_block` and stay green, which is what makes this a falsification
+of the isolation claim specifically. Confirmed: one failing check, described by
+Kani as `assertion failed: queue_block(q1) + RING_END <= queue_block(q2)`.
+
+**Why the defect is not the obvious one.** Shrinking `RING_BLOCK` below `RING_END`
+would be the more natural way to overlap two queues, and it cannot be recorded
+here: the harness states that particular fact as `const { assert!(RING_END <=
+RING_BLOCK) }`, deliberately, so the layout error is a build failure rather than a
+proof failure. A patch expressing it would not compile, and a falsification that
+does not run proves nothing.
+
+diff --git a/crates/dma_validator/src/lib.rs b/crates/dma_validator/src/lib.rs
+index 9a6d0500..365f8a5a 100644
+--- a/crates/dma_validator/src/lib.rs
++++ b/crates/dma_validator/src/lib.rs
+@@ -320,8 +320,8 @@ pub const MAX_QUEUES: u64 = 2;
+ /// Queue `q`'s ring block base, relative to a region (driver DMA or shadow) base. Queue `q`'s
+ /// descriptor table, available ring, and used ring sit at `queue_block(q) + {DESC,AVAIL,USED}_OFF`,
+ /// so distinct queues validate on disjoint blocks and never read or write each other's rings.
+-pub const fn queue_block(q: u16) -> u64 {
+-    q as u64 * RING_BLOCK
++pub const fn queue_block(_q: u16) -> u64 {
++    0
+ }
+ 
+ // =============================================================================================

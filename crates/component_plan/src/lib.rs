@@ -1240,7 +1240,7 @@ mod proofs {
     /// It is needed at all because `SHAPES[i]` with a symbolic `i` makes the slice CBMC reads a
     /// symbolic pointer, so the lengths it walks are symbolic to the solver even though only four
     /// concrete declarations exist. Without a bound `str_eq` unwinds forever.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/component_plan/falsifications/proofs.a_plan_never_grants_a_right_the_declaration_did_not_ask_for.patch`
     #[kani::proof]
     #[kani::unwind(10)]
     fn a_plan_never_grants_a_right_the_declaration_did_not_ask_for() {
