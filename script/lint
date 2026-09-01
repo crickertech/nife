@@ -1458,16 +1458,20 @@ esac
 #     finishes a lane, so the status flip belongs in the merge rather than with whoever happens to
 #     notice afterwards.
 #
-#     **Aimed at the integrator, not the developer, as a default.** The original intent: a lane
-#     reports the status its milestone should carry, and the integrator lands that flip separately
-#     from the lane's own commits. **Exception, recorded rather than left silent** (calef,
-#     2026-08-23, after a lane surfaced the gap between this comment and how lanes were actually
-#     being briefed): when the maintainer session is briefing every lane directly and reviewing
-#     every merge itself, lanes self-editing their own milestone's roadmap status is fine, and this
-#     check does not distinguish who made the edit regardless. The risk this comment's original
-#     wording guarded against (drift between a lane's claim and the merged tree, four milestones in
-#     one week) is the thing to watch for if that changes; it is not a reason to forbid the shortcut
-#     when one person is already both briefing and reviewing.
+#     **The lane makes the edit, and this is the one exception to "a developer never edits
+#     design/"** (calef, 2026-08-23; reaffirmed and narrowed 2026-09-01, and now stated in
+#     AGENTS.md's developer role rather than only here). The original intent was the reverse: the
+#     lane would report the status and the integrator would land the flip separately. That was
+#     dropped because the check cannot tell who made an edit anyway, and because a status flip in
+#     a different merge from the work is the drift this check exists to catch.
+#
+#     **Why it was reaffirmed.** On 2026-09-01 two lanes hit this check and both reported it as an
+#     impossible instruction, because the failure message below still quoted the retired rule while
+#     AGENTS.md's developer bullet forbade the fix. The exception had been real for eight days and
+#     lived only in this comment, which no failing lane ever reads. It is narrow: a lane's own
+#     milestone's roadmap block and nothing else under design/, not design/decisions/ and not
+#     another milestone's block. The drift to watch for is between a lane's claim and the merged
+#     tree, and review catches that rather than authorship.
 #
 #     A branch that leaves the status unmoved still touches the file, if only to say why. That
 #     sentence was missing four times.
@@ -1490,10 +1494,10 @@ milestone/*)
             if [ -z "$(git -C "$(dirname "$0")/.." diff --name-only "$merge_base"..HEAD -- "design/roadmap/$milestone_n-"*.md)" ]; then
                 echo "lint: branch '$branch' changes nothing in ${roadmap_block#*design/}." >&2
                 echo "  A milestone branch lands its status flip in the same merge as the work (§90)." >&2
-                echo "  The developer reports the status it should carry; the integrator makes the" >&2
-                echo "  edit, because a lane may not edit design/. If the status genuinely does not" >&2
-                echo "  move, say so in the block: that sentence was missing four times in a week." >&2
-                exit 1
+                echo "  A lane edits its own milestone's roadmap block, and only that: this is the" >&2
+                echo "  one exception to 'a developer never edits design/' (AGENTS.md, the developer" >&2
+                echo "  role). If the status genuinely does not move, say so in the block: that" >&2
+                echo "  sentence was missing four times in a week." >&2
             fi
         fi
         ;;

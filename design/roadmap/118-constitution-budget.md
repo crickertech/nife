@@ -413,7 +413,7 @@ fires when the tree exceeds it and stays silent when the tree falls below. `scri
 `agents-md-lines` registry entry (the file's own `wc -l`-equivalent line count) and the claim lives
 here, since a developer lane may not edit `AGENTS.md` to carry its own marker:
 
-**`AGENTS.md` carries at most 1032 lines** <!--count-at-most:agents-md-lines-->, written at the
+**`AGENTS.md` carries at most 1035 lines** <!--count-at-most:agents-md-lines-->, written at the
 tree's exact value with **zero headroom**, deliberately: the point, per this section's own words
 above, is that every line added should replace one removed, or be a considered act that says why the
 growth was worth it. That is the same choice `unsafe-thread-safety-claims` made for a different
@@ -447,6 +447,14 @@ while being unable to accept one is ranking against a door it has not built. The
 that, say it is ours rather than the customer's constraint, and record that he wants package
 management early for the builders' sake and not only for a stranger's. Nothing was cut this time:
 the bullet it extends is the shortest in the section and had nothing spare in it.
+
+**Raised to 1035 on 2026-09-01, three lines, and the cheapest raise this file has taken.** The
+developer role said a lane never edits `design/`. `script/lint` check 4b requires a `milestone/N-*`
+branch to edit `design/roadmap/N-*.md`, and calef had made that exception on 2026-08-23, but it was
+written only in a comment above the check. So the rule a failing lane could read forbade the only
+edit that clears the gate. Two lanes hit it on one day and both reported the gate as impossible,
+correctly. The three lines are the exception itself; the reasoning stays beside the check, which is
+where the next person meets it.
 
 **Raised again to 1032 on 2026-08-31, thirteen lines, and this one is a cost the file did not know
 it had.** The lane-count section bounds concurrency by *collision surface*, which is correct and
