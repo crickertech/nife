@@ -1,6 +1,6 @@
 # 202. Every confinement test is a ritual until somebody breaks the confinement and watches it fail
 
-**Status: NOT-STARTED.** Minted 2026-08-31 by calef, scoping `design/fatal-risks.md`'s risk 7, which
+**Status: IN-PROGRESS** on `milestone/202-confinement`. Minted 2026-08-31 by calef, scoping `design/fatal-risks.md`'s risk 7, which
 its own `BUGS` recorded as unowned and needing framing before a lane. *(Number provisional until the
 merge queue lands it.)*
 
