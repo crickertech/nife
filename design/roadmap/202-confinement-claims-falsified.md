@@ -1,11 +1,19 @@
 # 202. Every confinement test is a ritual until somebody breaks the confinement and watches it fail
 
-**Status: IN-PROGRESS** on `milestone/202-confinement`. Minted 2026-08-31 by calef, scoping `design/fatal-risks.md`'s risk 7, which
-its own `BUGS` recorded as unowned and needing framing before a lane. *(Number provisional until the
-merge queue lands it.)*
+**Status: BUILT 2026-08-31.** Minted 2026-08-31 by calef, scoping `design/fatal-risks.md`'s risk 7,
+which its own `BUGS` recorded as unowned and needing framing before a lane. *(Number provisional
+until the merge queue lands it.)*
 
-**Gate: NONE.** The claims and the tests both exist; what is missing is the evidence that the tests
-would notice a break, and nothing has to be decided to go and find out.
+**What landed.** The enumeration is in notes/confinement-claims.md: **twenty-six confinement
+claims**, where each is stated, which test checks it, and whether that test has been shown to fail
+when the claim is broken. Twenty-five Kani harnesses now carry a replayable falsification in
+milestone 194's shape, up from six, and `script/falsifications --sweep` turns every one of them red
+in about thirty seconds. The §31 worked example this block names was run by hand, twice, and the
+second run is the one that counts.
+
+**Say it the narrow way.** Nothing here supports "the confinement holds." What it supports is that
+*these named claims are tested, and each test has been shown to fail when the claim is broken*, and
+the six kernel rows still marked "no" in that table are the honest denominator.
 
 **In brief.** Risk 7 is *"the confinement claim is false."* The evidence against it is a set of tests
 this project wrote about attacks this project chose, and **a passing confinement test is consistent
@@ -52,16 +60,74 @@ milestone 198 (a package manager, and the trivial install that makes a second cu
 narrower and worth having: *these named claims are tested, and each test has been shown to fail when
 the claim is broken.*
 
+## What breaking them found, which is the part worth reading
+
+**§31's headline sentence is not what catches a broken confinement.** The worked example above
+works: map `WITNESS_RO` read/write into the C component, rebuild, run, and the test goes red. It
+does **not** go red on the assertion anybody would name. The verdict equality, `assert_eq!(v[2],
+CONFINED, ...)`, which prints all four bits including `read-only witness intact`, never runs. A
+component that is not confined does not fault; a component that does not fault produces no death
+report; and `run_seam` collects every report before the test inspects any of them, so the run stalls
+at the collection. The witness check, which is the sentence §31 leads with, is reached only by an
+escape that faults anyway.
+
+**And the first run of it failed for the wrong reason**, which is this block's own second `BUGS`
+entry firing on the day it was written. `run_seam`'s blocking receive had nothing to take, so the
+break surfaced as a watchdog timeout at 234 seconds reading `a livelock, not a lost wakeup`: right
+answer, useless diagnostic, and nothing in it says the word confinement. A bounded wait now reports
+the stall where it means something, and the second run fails at report 4 of 12 with a sentence about
+what a missing death report means.
+
+**A proof can be blind to the predicate it is stated in, and it happened twice.**
+`component_plan::a_plan_never_grants_a_right_the_declaration_did_not_ask_for` asserts equality
+against `direction.rights()`, so a `rights()` that adds `GRANT` to everything satisfies it; only the
+explicit `& GRANT == 0` beside it catches the defect. That is the shape milestone 194 measured in
+`capability::derive_never_widens_rights`, one crate over, and it is the argument for keeping an
+assertion that looks redundant.
+
+**One prediction was measured false and the record says so.** The
+`the_view_and_the_reap_have_the_same_scope` patch claimed its defect was caught by that harness
+alone; it also reaches `reap_is_permitted_only_to_the_supervising_rendezvous`. Writing the
+prediction down is what made it checkable.
+
 ## BUGS
 
 - **Breaking confinement deliberately means writing code that must never ship.** The falsification
-  diffs are, by construction, patches that disable security checks, and they will live in the tree
-  next to the checks they disable.
+  diffs are, by construction, patches that disable security checks, and they live in the tree next
+  to the checks they disable.
+- **Six kernel confinement tests are enumerated and cannot be falsified by machine**, and this is
+  the gap this milestone leaves behind rather than closes. `script/falsifications` walks `crates/`
+  and keys on `#[kani::proof]`, so a `#[test_case]` that boots under QEMU is outside it entirely.
+  The §31 patch was applied, run and reverted by hand and lives at `kernel/falsifications/`, a
+  **provisional** path nothing sweeps. The blocker underneath is smaller and sharper than it looks:
+  **there is no way to run one kernel test by name.** `kernel/src/testing.rs`'s runner takes no
+  filter, `cargo xtask test` parses only `--arch`, `--cpu` and `--hvf`, and anything after `--`
+  reaches QEMU rather than the kernel, so one falsification costs a whole suite run (about four
+  minutes, and 234 seconds of that was one hung test). A filter would make the kernel half of this
+  table affordable and is worth a milestone of its own; it is also useful to every lane that has
+  ever waited out the full suite to see one test.
 - **A test can go red for the wrong reason.** Widening a grant may break a test through an unrelated
   assertion, which looks like success and proves nothing, so each falsification has to name which
-  assertion it expects to fail.
+  assertion it expects to fail. **This fired twice on the day it was written**, which is why it is
+  worth keeping rather than a caution: once as the watchdog timeout above, and once as a claim about
+  which harnesses a defect discriminates that measurement contradicted. Both are recorded in the
+  patches themselves.
 - **It duplicates milestone 194's machinery if the two are built separately**, which is why item 4
-  points at whatever 194 lands rather than specifying a format here.
+  points at whatever 194 lands rather than specifying a format here. It did not: the Kani half is
+  194's convention unchanged, and the kernel half invented no second one, it recorded that 194's
+  does not reach there.
+- **`script/falsifications --check` rejected the block its own header documents.** An `unfalsified`
+  state followed by prose parsed as a state token with a full stop attached, so the reference
+  example in that script's own header failed its own gate. Fixed where the token is read, since
+  `attested` already tolerated its trailing prose, and noted here because a convention whose
+  documented example does not work teaches the wrong thing to whoever meets it first.
 - **The enumeration in step 1 is the hard part and is not a lane's to finish alone.** What this
   system claims about confinement is spread across DECISIONS §31, §14, the DMA validator and
-  `notes/untrusted-input-audit.md`, and assembling it will surface claims nobody has stated plainly.
+  `notes/untrusted-input-audit.md`, and assembling it did surface claims nobody had stated plainly:
+  that a confined device's *values* are not confined but only its reach, that a `SURVEY` cursor
+  counts threads the viewer cannot name, and that init's bytes are unsigned. The first two are in
+  the table as claims this system deliberately does **not** make, so that nobody reads the DMA rows
+  as covering them.
+- **The table inherits the blind spots of the tests it enumerates**, because every row in it was
+  found by reading what this project already wrote. That is the same limit as the section above and
+  it is why nothing here retires risk 7.

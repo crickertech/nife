@@ -1,0 +1,68 @@
+Falsifies `kernel::user::c_seam_tests::a_c_out_of_bounds_write_faults_and_changes_nothing_outside_its_grant`.
+
+This is the worked example milestone 202's block names, and it is here rather than
+under a crate's `falsifications/` because the test is a `#[test_case]` that boots
+under QEMU and not a Kani harness. **The path is provisional and nothing sweeps
+it**: `script/falsifications` walks `crates/` and keys on `#[kani::proof]`, and
+DECISIONS §134's convention does not reach a kernel test. The proposal that would
+is in design/roadmap/202-confinement-claims-falsified.md, and it needs a way to
+run one kernel test by name, which today does not exist.
+
+The defect: `c_confiner` maps `WITNESS_RO` into the C component's address space
+read/**write** instead of read-only. Nothing else changes: the same C runs, the
+same deliberate off-by-one store executes, the same checker reads the same bytes
+through the confiner's own mappings afterwards. What changes is whether the MMU was
+ever asked the question.
+
+**Why this falsification is the one worth having.** DECISIONS §31 asserts that
+after the C component's out-of-bounds write, two witness pages are unchanged. That
+passes in two very different worlds: the component reached the page and the
+hardware stopped it, or the component never got near the address and the assertion
+is decorative. `WITNESS_RO` is deliberately the *same physical frame* the confiner
+holds read/write, so an unchanged page is supposed to mean "reachable, and the
+store did not happen". This patch is how that sentence gets checked.
+
+Expected to fail: `assert!(wait_for_report(report), "report {i} of
+{EXPECTED_REPORTS} never arrived...")` in `run_seam`. Confirmed: it fires at
+report 4 of 12, which is attempt 1's first report, and the suite stops there.
+
+**And that is not the assertion anyone would have guessed, which is this record's
+real content.** The obvious answer is the verdict equality, `assert_eq!(v[2],
+CONFINED, "attempt {attempt}: the C component was not confined...")`, the
+assertion that prints all four bits including `read-only witness intact`. It never
+runs, and the measured shape is worth stating exactly. Attempt 0 still produces
+all four of its reports, so its verdict *is* computed, and by construction it
+cannot be `CONFINED`: the store now lands in `WITNESS_RO` before running off the
+end of that page into the address the confiner deliberately leaves unmapped, so
+both `WITNESS_RO_INTACT` and `FAULT_ADDR_AS_EXPECTED` are false. Attempt 1 then
+never reports at all, and `run_seam` collects every report before the test looks
+at any of them, so the run dies at the collection and the verdict assertion is
+never evaluated.
+
+The general fact underneath that: a component which is not confined does not
+fault, a component that does not fault produces no death report, and a run
+missing a death report stalls. So **the witness check, which is the sentence §31
+leads with, is not what catches a broken confinement in practice; the absence of
+a fault is.** The witness bits are reached only by an escape that faults anyway,
+and this design makes that hard to construct.
+
+**Measured twice, 2026-08-31, `script/test --arch aarch64`.** The first run was
+against `run_seam`'s original blocking receive, and it went red as a **watchdog
+timeout at 234 seconds** reading `a livelock, not a lost wakeup`: right answer,
+useless diagnostic, and exactly the wrong-reason red milestone 202's block warns
+about. `wait_for_report` was added in the same lane so the stall is reported where
+it means something, and the second run is the one this record names.
+
+diff --git a/user/src/c_confiner.rs b/user/src/c_confiner.rs
+index 4649cb2b..5d851fe2 100644
+--- a/user/src/c_confiner.rs
++++ b/user/src/c_confiner.rs
+@@ -138,7 +138,7 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
+                 // instead of a corruption. Nothing maps WITNESS_FAR here, deliberately.
+                 maps: &[
+                     (c_seam::GRANT_VA, grant, abi::address_space::MAP_RW),
+-                    (c_seam::WITNESS_RO_VA, wit_ro, abi::address_space::MAP_RO),
++                    (c_seam::WITNESS_RO_VA, wit_ro, abi::address_space::MAP_RW),
+                 ],
+                 blobs: &[],
+                 fault: Some(faultep),
