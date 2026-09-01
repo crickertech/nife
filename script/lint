@@ -585,11 +585,16 @@ echo "==> roadmap status"
 # Split three ways because the workspace is not one target: the bare crates document for aarch64
 # (riscv64 would refuse `xtask`, which needs std), `xtask` is a host tool, and redoxfs_server is its
 # own workspace.
+#
+# `board_console` (milestone 216) is the second host-only member and joins `xtask` on the host
+# line. It opens a serial port and spawns `stty`, so it is `std` by nature and cannot document for
+# a bare-metal target any more than `xtask` can. Both are still documented, on the pass that suits
+# them; the exclusion is about the target, not about skipping them.
 echo "==> rustdoc (broken intra-doc links)"
 DOCFLAGS="-D rustdoc::broken_intra_doc_links -D rustdoc::invalid_html_tags"
 RUSTDOCFLAGS="$DOCFLAGS" cargo doc --no-deps --quiet --workspace --exclude xtask \
-    --target aarch64-unknown-none-softfloat
-RUSTDOCFLAGS="$DOCFLAGS" cargo doc --no-deps --quiet -p xtask
+    --exclude board_console --target aarch64-unknown-none-softfloat
+RUSTDOCFLAGS="$DOCFLAGS" cargo doc --no-deps --quiet -p xtask -p board_console
 RUSTDOCFLAGS="$DOCFLAGS" cargo doc --no-deps --quiet --manifest-path redoxfs_server/Cargo.toml --lib
 
 # The decision index (design/decisions/README.md and one file per decision, milestone 114): its

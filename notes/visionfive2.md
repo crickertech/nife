@@ -567,8 +567,23 @@ Setup, in order:
    the card.
 2. DIP switches to QSPI: RGPIO_1 = 0 (L), RGPIO_0 = 0 (L) [QSG].
 3. Serial: pins 6/8/10 as wired above, 115200 8N1, terminal attached **before** power so the SPL
-   banner is not missed.
+   banner is not missed. `script/board-console` (milestone 216) is that terminal, and it recognises
+   the sequence below rather than leaving it to your eyes: it logs every byte to a file, stops on a
+   deadline, and returns a different exit status for a hang than for a refusal. See
+   notes/board-console.md. A `screen /dev/cu.usbmodem* 115200` still works and is what to reach for
+   when you need to *type* at U-Boot, which the tool deliberately cannot do.
 4. Power: USB-C. The board boots on power, there is no power button.
+
+**Both halves of this were captured on 2026-09-01** and the transcripts are committed under
+`crates/board_console/tests/fixtures/captured/`: a successful manual boot, and the extlinux path
+failing. Read those rather than re-deriving what the board prints. Two facts they settled that this
+note did not have. **The extlinux path does not work**: it loads and relocates the image and then
+prints `Device tree not found or missing FDT support` and `### ERROR ### Please RESET the board
+###`, which is the fallback-DTB caveat above arriving as a firmware error rather than as a kernel
+fault, so the manual commands are the only path today rather than merely the first-boot path. And
+**the card's U-Boot environment is degraded** (`bad CRC, using default environment`, repeated
+`Invalid partition 3`, `"boot2" not defined`); the board boots through all of it and none of it is
+our payload's doing.
 
 What appears, in order, on a good day: the SPL banner, OpenSBI's banner (version line included:
 record it), U-Boot's banner and countdown, then either the extlinux menu or the `StarFive #`

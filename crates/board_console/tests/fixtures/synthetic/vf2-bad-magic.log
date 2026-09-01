@@ -1,0 +1,12 @@
+U-Boot SPL 2021.10 (Feb 12 2023 - 20:24:34 +0800)
+
+OpenSBI v1.2
+Boot HART ID              : 1
+
+U-Boot 2021.10 (Feb 12 2023 - 20:24:34 +0800), Build: jenkins-github_visionfive2-49
+
+StarFive # load mmc 1:1 ${kernel_addr_r} /nife-vf2.img
+4501232 bytes read in 195 ms (22.0 MiB/s)
+StarFive # booti ${kernel_addr_r} - 0x86000000
+Bad Linux RISCV Image magic!
+StarFive # 

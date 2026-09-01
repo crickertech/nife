@@ -1,0 +1,34 @@
+#!/bin/sh
+# script/board-console: read a real board's serial console, log every byte, and stop on a
+# deadline (milestone 216).
+#
+#   script/board-console                      # watch until the kernel banner, 120s cap
+#   script/board-console --for 30m --until none   # sustained watching, for a stress run
+#   script/board-console --replay target/board-console-1756...log   # re-read a capture
+#
+# `script/console` is QEMU. This is the other one: an actual serial port on an actual board, at
+# 115200 8N1, with the log written to a file whatever happens. It recognises the boot sequence
+# notes/visionfive2.md's bench runbook records (SPL, OpenSBI, U-Boot, `Starting kernel ...`, ours)
+# and returns a different exit status for each way a session can end, so a bench script can tell
+# them apart:
+#
+#   0  reached the stage asked for (or watched the whole duration with nothing announced)
+#   1  the board announced a failure: a bad image header, a measured-boot refusal, a kernel panic
+#   2  it spoke and then went quiet, which is what a hang looks like from this end
+#   3  the time ran out with the stage unreached
+#   4  the port could not be opened, or the arguments were wrong
+#
+# It reads and never writes to the board, and it does not touch power. See notes/board-console.md
+# for the runbook and for what the recognition can and cannot tell apart.
+#
+# Name: provisional, this lane's coinage (2026-09-01, milestone 216). Hyphens because script/
+# entry points are hyphenated (AGENTS.md's naming table), and the `board-` prefix to sit beside
+# `board-image`, the other entry point here that is about a real board; the pair now reads as one
+# family, build the payload and then watch it boot. `console` alone was already taken by the QEMU
+# one and could not be reused. `serial` was refused as a word for the wire rather than for the
+# thing. Expect the integrator to surface it.
+
+set -e
+cd "$(dirname "$0")/.."
+
+exec cargo xtask board-console "$@"

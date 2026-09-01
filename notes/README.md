@@ -1138,6 +1138,11 @@ in the code or the conversation doesn't make sense, it belongs here.
   map, the disabled S7 hart), the Image-header load path through vendor U-Boot, the microSD payload
   and `script/board-image`, the bench runbook with its failure-triage ladder, and the honest list of
   what only the bench can measure.
+- [Reading a board, without a person watching it](board-console.md): milestone 216's
+  `script/board-console`, the other half of the pair above. How it recognises the runbook's boot
+  sequence from the serial text, why the read is on its own thread so the deadline holds whatever
+  the board does, why the device is opened *before* `stty` configures it, why there is no serial
+  dependency, and how the whole thing was tested with the board powered off.
 - [Scoping RISC-V / aarch64 parity](riscv-parity-scope.md): aarch64 is a strict superset once the
   port proved the capability core; this scopes the remaining gap (SMP, an in-kernel test run,
   virtio+DMA, the full boot/shell, benchmarks), what each proves, and the order to close them.
