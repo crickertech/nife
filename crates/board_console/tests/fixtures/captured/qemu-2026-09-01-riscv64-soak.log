@@ -1,0 +1,101 @@
+
+OpenSBI v1.8.1
+   ____                    _____ ____ _____
+  / __ \                  / ____|  _ \_   _|
+ | |  | |_ __   ___ _ __ | (___ | |_) || |
+ | |  | | '_ \ / _ \ '_ \ \___ \|  _ < | |
+ | |__| | |_) |  __/ | | |____) | |_) || |_
+  \____/| .__/ \___|_| |_|_____/|____/_____|
+        | |
+        |_|
+
+Platform Name               : riscv-virtio,qemu
+Platform Features           : medeleg
+Platform HART Count         : 4
+Platform HART Protection    : pmp
+Platform IPI Device         : aclint-mswi
+Platform Timer Device       : aclint-mtimer @ 10000000Hz
+Platform Console Device     : uart8250
+Platform HSM Device         : ---
+Platform PMU Device         : ---
+Platform Reboot Device      : syscon-reboot
+Platform Shutdown Device    : syscon-poweroff
+Platform Suspend Device     : ---
+Platform CPPC Device        : ---
+Firmware Base               : 0x80000000
+Firmware Size               : 357 KB
+Firmware RW Offset          : 0x40000
+Firmware RW Size            : 101 KB
+Firmware Heap Offset        : 0x4d000
+Firmware Heap Size          : 49 KB (total), 0 KB (reserved), 12 KB (used), 35 KB (free)
+Firmware Scratch Size       : 4096 B (total), 1464 B (used), 2632 B (free)
+Runtime SBI Version         : 3.0
+Standard SBI Extensions     : time,rfnc,ipi,base,hsm,srst,pmu,dbcn,fwft,legacy,dbtr,sse
+Experimental SBI Extensions : none
+
+Domain0 Name                : root
+Domain0 Boot HART           : 0
+Domain0 HARTs               : 0*,1*,2*,3*
+Domain0 Region00            : 0x0000000080040000-0x000000008005ffff M: (F,R,W) S/U: ()
+Domain0 Region01            : 0x0000000080000000-0x000000008003ffff M: (F,R,X) S/U: ()
+Domain0 Region02            : 0x0000000000100000-0x0000000000100fff M: (I,R,W) S/U: (R,W)
+Domain0 Region03            : 0x0000000010000000-0x0000000010000fff M: (I,R,W) S/U: (R,W)
+Domain0 Region04            : 0x0000000002000000-0x000000000200ffff M: (I,R,W) S/U: ()
+Domain0 Region05            : 0x000000000c400000-0x000000000c5fffff M: (I,R,W) S/U: (R,W)
+Domain0 Region06            : 0x000000000c000000-0x000000000c3fffff M: (I,R,W) S/U: (R,W)
+Domain0 Region07            : 0x0000000000000000-0xffffffffffffffff M: () S/U: (R,W,X)
+Domain0 Next Address        : 0x0000000080200000
+Domain0 Next Arg1           : 0x000000008fe00000
+Domain0 Next Mode           : S-mode
+Domain0 SysReset            : yes
+Domain0 SysSuspend          : yes
+
+Boot HART ID                : 0
+Boot HART Domain            : root
+Boot HART Priv Version      : v1.12
+Boot HART Base ISA          : rv64imafdch
+Boot HART ISA Extensions    : sstc,zicntr,zihpm,zicboz,zicbom,sdtrig,svadu
+Boot HART PMP Count         : 16
+Boot HART PMP Granularity   : 2 bits
+Boot HART PMP Address Bits  : 54
+Boot HART MHPM Info         : 16 (0x0007fff8)
+Boot HART Debug Triggers    : 2 triggers
+Boot HART MIDELEG           : 0x0000000000001666
+Boot HART MEDELEG           : 0x0000000000f4b509
+
+nife on RISC-V (rv64, S-mode, Sv39)
+  hart 0 booted: high-half kernel, .bss, and the NS16550 console are up.
+  running at  : 0xffffffc08021cd52  (high half: Sv39 paging is on)
+  device tree : 0x000000008fe00000
+  traps       : stvec set; a breakpoint was caught and stepped over (1)
+  timer       : 20 ticks in ~0.2s (SBI timer + S-mode interrupt at 100 Hz)
+  memory      : device tree parsed, frame allocator up (first frame 0x80062000)
+  smp: 4 core(s) in the device tree
+  paging      : fine-grained W^X Sv39 tables installed, satp switched (paging on: true)
+  isa         : rv64i m a c f d h zicsr zifencei sstc zicbom
+              : 4 hart(s), mmu sv57 declared and sv39 in use, satp.ASID 16 bits measured
+  firmware    : OpenSBI 0x10008, SBI 3.0, TIME IPI RFENCE HSM
+  smp: sbi hsm hart_start (the only mechanism RISC-V defines)
+  smp: 4 core(s) online
+  kmap test   : mapped 0xffffffc0d0000000->0x800f3000 (w:true), rw=0xc0ffee, unmapped->0x800f3000
+  scheduler   : 2 of 2 kernel threads ran (RISC-V context switch works)
+  user address space : process satp activated (kernel half shared), user 0x400000 -> Some((80107000, Flags(3)))
+  userspace   : a program ran at U-mode and made 0 syscalls (yield/yield/exit via ecall)
+    init : measured, built, started; waiting for the child's word
+  init/build  : userspace init loaded 'worker' from a 7689216-byte archive and built it as a child; the child sent 81 (expected 81)
+  preemption  : two never-yield threads ran 1143726 and 1092674 iterations, 81 preemptions (a thread that refuses to yield is preempted anyway)
+  uart irq    : source 10 (machine description)
+  device IRQ  : userspace driver started (holds an Irq cap + a UART mapping); pipe a byte to see it
+  virtio      : block device found at 0x10008000, PLIC IRQ 8 (kernel owns the transport)
+  pcie        : virtio-blk at 00:02.0, common 0x40004000, notify 0x40007000 (mult 4), isr 0x40005000, PLIC IRQ 34
+  hw entropy  : skipped (this machine's tree describes no starfive,jh7110-trng; QEMU virt has none)
+nife: the capability core runs on RISC-V.
+
+soak: started 4 groups of one responder and 3 callers (20 user threads) on 4 online core(s), beating every 5s
+soak: silence longer than a few beats is a hang, not a slow run; the beat is on the wall clock and does not depend on the workload making progress
+soak: a clean run is a number to compare against, NOT evidence that the concurrency is correct (design/roadmap/219-a-workload-that-does-not-stop.md)
+soak: t=5s beat=1 rounds=117498 rate=23499/s workers=20 refused=0 mismatch=0 stalled=0 crossings=21 remote=20 steals=4 deferred=0
+soak: t=10s beat=2 rounds=236294 rate=23759/s workers=20 refused=0 mismatch=0 stalled=0 crossings=21 remote=20 steals=4 deferred=0
+soak: t=15s beat=3 rounds=353751 rate=23491/s workers=20 refused=0 mismatch=0 stalled=0 crossings=21 remote=20 steals=4 deferred=0
+soak: t=20s beat=4 rounds=474628 rate=24175/s workers=20 refused=0 mismatch=0 stalled=0 crossings=21 remote=20 steals=4 deferred=0
+soak: t=25s beat=5 rounds=595432 rate=24160/s workers=20 refused=0 mismatch=0 stalled=0 crossings=21 remote=20 steals=4 deferred=0

@@ -590,6 +590,50 @@ mod tests {
         assert!(progress.userspace_ran());
     }
 
+    /// **The soak stage and its numbers, from a real QEMU riscv64 run** (milestone 219). Fed one
+    /// byte at a time by `run`, which is the case that catches a field parser depending on chunk
+    /// boundaries.
+    #[test]
+    fn the_captured_soak_reaches_the_soak_stage_and_its_last_beat_is_read() {
+        let progress = run(include_str!(
+            "../tests/fixtures/captured/qemu-2026-09-01-riscv64-soak.log"
+        ));
+        assert_eq!(progress.reached(), Stage::Soak);
+        assert!(
+            progress.reached() > Stage::Tour,
+            "a soak is a stage past the tour, which is what re-arms the quiet check"
+        );
+        assert_eq!(progress.failure(), None);
+        let beat = progress.soak().expect("the heartbeats must be parsed");
+        assert_eq!(beat.beat, 5);
+        assert_eq!(beat.seconds, 25);
+        assert_eq!(beat.rounds, 595_432);
+        assert_eq!(beat.rate, 24_160);
+        assert_eq!(beat.refused, 0);
+        assert_eq!(beat.crossings, 21);
+    }
+
+    /// **A soak failure is a failure, not a stage.** The kernel prints `soak: FAILED` and then
+    /// panics, and it is the panic the recogniser names, carrying the reason; the `FAILED` line
+    /// must not be mistaken for a heartbeat or for the workload starting.
+    #[test]
+    fn a_soak_failure_is_reported_as_the_panic_it_becomes() {
+        let progress = run(concat!(
+            "soak: started 4 groups of one responder and 3 callers (20 user threads)\n",
+            "soak: t=5s beat=1 rounds=100 rate=20/s workers=20 refused=1 mismatch=0 stalled=0\n",
+            "soak: FAILED at t=5s beat=1: the wake gate refused a wake\n",
+            "[PANIC] soak failed at t=5s beat=1\n",
+        ));
+        assert_eq!(progress.reached(), Stage::Soak);
+        assert_eq!(
+            progress.failure(),
+            Some(&Failure::KernelPanic(
+                "soak failed at t=5s beat=1".to_string()
+            ))
+        );
+        assert_eq!(progress.soak().map(|b| b.refused), Some(1));
+    }
+
     #[test]
     fn a_stale_card_is_named_at_u_boot() {
         let progress = run(include_str!(

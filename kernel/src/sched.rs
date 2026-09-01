@@ -650,6 +650,7 @@ mod trace {
     /// is not a snapshot of any single instant. Nothing here needs one: the soak asks "is this
     /// still zero" and "how much did it grow since the last beat", and both survive a reader that
     /// is a few events behind.
+    #[cfg_attr(not(feature = "soak"), allow(dead_code))]
     pub fn counted(kind: Event) -> u64 {
         let mut total = 0u64;
         for ring in &RINGS {
@@ -720,6 +721,7 @@ mod trace {
 
     /// Always zero here, because nothing is recorded. The bench boot runs no soak (both diverge
     /// before the other could start), so no caller can be misled by it.
+    #[cfg_attr(not(feature = "soak"), allow(dead_code))]
     pub fn counted(_kind: Event) -> u64 {
         0
     }
@@ -743,6 +745,12 @@ mod trace {
 /// fired in the field (see `thread_wake_handshake`'s crate doc, which is honest that the boot-8
 /// reading it was built against was later overturned), so a nonzero here on a board is the single
 /// most interesting number this kernel can produce.
+// Read only by `soak` (milestone 219), so an ordinary build has no caller. Kept COMPILED rather
+// than `cfg`-gated, so that clippy and the type checker still see them in every configuration:
+// milestone 113 found the Kani harnesses invisible to the lint gate for exactly this shape of
+// reason, and a counter accessor that only compiles under one feature is a counter accessor that
+// rots under the others.
+#[cfg_attr(not(feature = "soak"), allow(dead_code))]
 pub fn wake_refusals() -> u64 {
     trace::counted(trace::Event::WakeRefused)
 }
@@ -750,6 +758,12 @@ pub fn wake_refusals() -> u64 {
 /// How many wakes were parked because the target was still standing on a CPU. Ordinary, and
 /// expected to be nonzero under load; a soak reports it so that "the machine was genuinely
 /// contended" is a number rather than an assurance.
+// Read only by `soak` (milestone 219), so an ordinary build has no caller. Kept COMPILED rather
+// than `cfg`-gated, so that clippy and the type checker still see them in every configuration:
+// milestone 113 found the Kani harnesses invisible to the lint gate for exactly this shape of
+// reason, and a counter accessor that only compiles under one feature is a counter accessor that
+// rots under the others.
+#[cfg_attr(not(feature = "soak"), allow(dead_code))]
 pub fn wakes_deferred() -> u64 {
     trace::counted(trace::Event::WakeDeferred)
 }
@@ -758,21 +772,39 @@ pub fn wakes_deferred() -> u64 {
 /// number that says the workload actually crossed cores**, which is the whole premise of a
 /// multicore soak; a run reporting zero here soaked one core very thoroughly and proved nothing
 /// about the others.
+// Read only by `soak` (milestone 219), so an ordinary build has no caller. Kept COMPILED rather
+// than `cfg`-gated, so that clippy and the type checker still see them in every configuration:
+// milestone 113 found the Kani harnesses invisible to the lint gate for exactly this shape of
+// reason, and a counter accessor that only compiles under one feature is a counter accessor that
+// rots under the others.
+#[cfg_attr(not(feature = "soak"), allow(dead_code))]
 pub fn remote_placements() -> u64 {
     trace::counted(trace::Event::PlaceRemote)
 }
 
 /// **How many times a thread ran on a different core than the one it last ran on.**
 ///
-/// The cross-core handoff number, and the one a soak reports. See [`thread::Thread::last_cpu`] for
+/// The cross-core handoff number, and the one a soak reports. See [`crate::thread::Thread::last_cpu`] for
 /// why [`remote_placements`] could not be it: a rendezvous wake queues its peer on the waker's own
 /// core (DECISIONS §28.2), so the placement is local even though the thread has moved.
+// Read only by `soak` (milestone 219), so an ordinary build has no caller. Kept COMPILED rather
+// than `cfg`-gated, so that clippy and the type checker still see them in every configuration:
+// milestone 113 found the Kani harnesses invisible to the lint gate for exactly this shape of
+// reason, and a counter accessor that only compiles under one feature is a counter accessor that
+// rots under the others.
+#[cfg_attr(not(feature = "soak"), allow(dead_code))]
 pub fn migrations() -> u64 {
     trace::counted(trace::Event::Migrated)
 }
 
 /// How many threads this machine handed from one core's run queue to another's on request. The
 /// work-steal protocol's activity level, and the second of the two cross-core paths a soak is for.
+// Read only by `soak` (milestone 219), so an ordinary build has no caller. Kept COMPILED rather
+// than `cfg`-gated, so that clippy and the type checker still see them in every configuration:
+// milestone 113 found the Kani harnesses invisible to the lint gate for exactly this shape of
+// reason, and a counter accessor that only compiles under one feature is a counter accessor that
+// rots under the others.
+#[cfg_attr(not(feature = "soak"), allow(dead_code))]
 pub fn steals_served() -> u64 {
     trace::counted(trace::Event::StealServe)
 }

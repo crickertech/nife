@@ -20,6 +20,13 @@
 //! that could write them could also lie about them, and a soak whose tripwire the subject can
 //! reach is not a tripwire.
 //!
+//! Name: provisional, this lane's coinage (2026-09-01, milestone 219), and calef's call. A noun for
+//! the thing it describes (the one page the soak workload and the kernel share), in the shape the
+//! tree already uses for a layout two binaries agree on: `block_roster`, `clock_proto`,
+//! `timebase_proto`, `grant_plan::job_page_frame`. `soak_proto` was considered and refused, because
+//! nothing here is a wire protocol: it is a memory layout, and the `_proto` suffix in this tree
+//! names request/reply vocabularies. `soak_counters` was refused for naming half the content.
+//!
 //! # BUGS
 //!
 //! - **A worker that dies stops writing and looks exactly like a worker that wedged.** Both are

@@ -2,6 +2,7 @@
 # script/board-image: build the VisionFive 2 microSD boot payload (milestone 16a).
 #
 #   script/board-image
+#   script/board-image --soak      # the sustained multicore workload instead of a halt (219)
 #
 # Builds the riscv64 release kernel, strips it to the flat Image format U-Boot's `booti` loads
 # (the RISC-V Linux Image header sits at offset 0; boot.s emits it), verifies the header magic,
@@ -22,6 +23,19 @@
 set -eu
 cd "$(dirname "$0")/.."
 
+# **The soak payload** (milestone 219): the same image, with the kernel feature that replaces the
+# halt at the end of the boot tour with a pool of user-mode IPC workers and a heartbeat. It is a
+# flag here rather than a second script because everything else about the payload is identical, and
+# because the archive/kernel ORDER below is the thing that must not be re-derived by hand: a lane
+# that built the soak kernel separately would rebuild it against the previous archive and meet
+# MEASURED BOOT REFUSED at the bench, which is boot 12 all over again. See notes/soak.md.
+FEATURES=board
+case "${1:-}" in
+    --soak) FEATURES="board,soak"; shift ;;
+    "") ;;
+    *) echo "board-image: unknown argument $1 (only --soak)" >&2; exit 2 ;;
+esac
+
 TARGET=riscv64imac-unknown-none-elf
 ELF="target/$TARGET/release/kernel"
 OUT="target/board"
@@ -37,7 +51,7 @@ cargo xtask initrd-riscv
 mkdir -p "$OUT/extlinux"
 cp target/initrd-riscv.img "$OUT/nife-initrd.img"
 
-cargo build -p kernel --release --target "$TARGET" --features board
+cargo build -p kernel --release --target "$TARGET" --features "$FEATURES"
 
 # llvm-objcopy from the pinned toolchain's llvm-tools component, found the same way xtask finds it
 # (rustc --print sysroot). The Homebrew/system objcopy is deliberately not a fallback: a silent
