@@ -104,15 +104,11 @@ pub fn start(image: &'static [u8], entropy: RendezvousId) -> Wiring {
     // docs): correct for *this* instance no matter how many others are wired in the same boot.
     let (provision_page_frame, verify_page_frame) = (maps[0].phys, maps[1].phys);
     for k in 0..CRED_STACK_PAGES as usize {
-        let phys = crate::memory::alloc()
+        // Zeroed so the process starts clean, which for this process also means it does not
+        // start with somebody else's bytes where its key material will go.
+        let phys = crate::memory::alloc_zeroed()
             .expect("no frame for the credential service's stack")
             .addr();
-        // SAFETY: fresh frame via the direct map; zero it so the process starts clean, which
-        // for this process also means it does not start with somebody else's bytes where its
-        // key material will go.
-        unsafe {
-            core::ptr::write_bytes(mmu::phys_to_virt(phys) as *mut u8, 0, FRAME_SIZE as usize);
-        }
         maps[k + 2] = Mapping {
             va: USER_STACK_VA - (k as u64 + 1) * FRAME_SIZE,
             phys,
@@ -215,16 +211,11 @@ fn spawn_cli(
 /// global keyed on nothing but "the credential service" cannot distinguish two independently wired
 /// instances in the same boot, and after that milestone there can be more than one.
 fn page_frame() -> u64 {
-    let phys = crate::memory::alloc()
+    // Zeroed so a client's first look at the page cannot find somebody else's memory, which for
+    // this contract would mean finding it where a secret is supposed to go.
+    crate::memory::alloc_zeroed()
         .expect("no frame for a credential page")
-        .addr();
-    // SAFETY: a fresh frame, direct-mapped, owned by nobody else. Zeroed so a client's first
-    // look at the page cannot find somebody else's memory, which for this contract would mean
-    // finding it where a secret is supposed to go.
-    unsafe {
-        core::ptr::write_bytes(mmu::phys_to_virt(phys) as *mut u8, 0, FRAME_SIZE as usize);
-    }
-    phys
+        .addr()
 }
 
 // `peek`, which read a shared frame through the direct map, lived here until 2026-08-30. Its only

@@ -9,7 +9,7 @@
 //! §7). What's left here is the part that can only happen on the real machine: the
 //! **bootstrap**.
 
-use dtb::{Dtb, Region};
+use dtb::Region;
 use page_frames::{FRAME_SIZE, PageFrame, PageFrameAllocator, Stats};
 
 use crate::arch::mmu::{phys_to_virt, virt_to_phys};
@@ -36,14 +36,11 @@ static ALLOCATOR: IrqSafeMutex<Option<PageFrameAllocator<'static>>> =
 /// prerequisite for.
 const MAX_REGIONS: usize = 16;
 
-pub fn init(dtb_ptr: usize) {
-    // SAFETY: QEMU handed us this pointer in x0 under the Linux boot protocol, and two
-    // tests assert that it is nonzero and carries the DTB magic. `from_ptr` re-checks
-    // the magic before trusting anything else in the blob.
-    // `dtb_ptr` is PHYSICAL: boot.s passed it straight through from x0, and QEMU speaks in
-    // physical addresses. We are running virtual now, so name it through the direct map.
-    let dtb = unsafe { Dtb::from_ptr(phys_to_virt(dtb_ptr as u64) as *const u8) }
-        .expect("device tree is unreadable");
+pub fn init() {
+    // The blob's own physical address, which is claimed as forbidden below so the frame allocator
+    // never hands out the tree it was built from.
+    let dtb_phys = crate::DTB.load(core::sync::atomic::Ordering::Relaxed) as u64;
+    let dtb = crate::device_tree().expect("device tree is unreadable");
 
     let mut ram = [Region { start: 0, size: 0 }; MAX_REGIONS];
     let ram_count = dtb
@@ -178,7 +175,7 @@ pub fn init(dtb_ptr: usize) {
         size: image_end() - image_start(),
     });
     claim(Region {
-        start: dtb_ptr as u64,
+        start: dtb_phys,
         size: dtb.total_size() as u64,
     });
     if let Some(initrd) = dtb.initrd().expect("cannot read /chosen") {
@@ -372,6 +369,55 @@ pub fn alloc() -> Option<PageFrame> {
 /// scattered buffer behind. Milestone 8 needs this.
 pub fn alloc_contiguous(count: usize) -> Option<PageFrame> {
     ALLOCATOR.lock().as_mut()?.alloc_contiguous(count)
+}
+
+/// A freshly allocated frame, zeroed.
+///
+/// **This exists so the "is it sound to write over this frame" argument is made once, here,
+/// rather than at every caller.** Thirty-seven sites across the kernel used to allocate a frame
+/// and then hand-write the same `// SAFETY:` comment over `core::ptr::write_bytes`: a fresh frame
+/// is exclusively ours and the direct map reaches it, so zeroing it cannot race and cannot be seen
+/// by anyone else. That is not thirty-seven facts, it is one fact about what [`alloc`] returns,
+/// and the allocator is the only thing in the tree that can actually check it. Two of those
+/// comments had already noticed they were copies (`user/rmle_service.rs`: *"a second copy of three
+/// lines"*; `user/session_reviver_service.rs`: *"matches `fs_service::frame`'s own shape"*)
+/// without anyone lifting it out. Milestone 139 round 8, and DECISIONS §94's rule that a body
+/// copied verbatim into every caller is not per-caller, only its declaration is.
+///
+/// Callers who want the frame's bytes left alone still call [`alloc`]; nothing here is mandatory.
+/// Zeroing is a `FRAME_SIZE` memory touch and it happens after the allocator lock is released,
+/// which is why this is written as two statements rather than one expression.
+pub fn alloc_zeroed() -> Option<PageFrame> {
+    let frame = alloc()?;
+    zero_frames(frame, 1);
+    Some(frame)
+}
+
+/// Physically contiguous frames, zeroed. [`alloc_contiguous`] plus [`alloc_zeroed`]'s argument,
+/// for the DMA regions that need both: contiguous because the device has no MMU to hide a
+/// scattered buffer behind, zeroed because a stale word in a descriptor ring is a word the device
+/// will act on.
+pub fn alloc_contiguous_zeroed(count: usize) -> Option<PageFrame> {
+    let frame = alloc_contiguous(count)?;
+    zero_frames(frame, count);
+    Some(frame)
+}
+
+/// The one hand-written assertion the two functions above exist to hold.
+///
+/// `frame` came out of this module's own allocator moments ago and `count` is the run length that
+/// allocator returned, so nothing else in the system holds a reference to these bytes yet.
+fn zero_frames(frame: PageFrame, count: usize) {
+    // SAFETY: `frame` is a run of `count` frames the allocator has just marked used and handed to
+    // this caller alone, so no other reference to these bytes exists; `phys_to_virt` is the direct
+    // map, which covers all of RAM, so the destination is writable for the whole run.
+    unsafe {
+        core::ptr::write_bytes(
+            phys_to_virt(frame.addr()) as *mut u8,
+            0,
+            count * FRAME_SIZE as usize,
+        );
+    }
 }
 
 pub fn free(frame: PageFrame) {

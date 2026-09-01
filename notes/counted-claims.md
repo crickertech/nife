@@ -57,8 +57,8 @@ answers, in the prose's own words**, and a derivation.
 
 | name | the question it answers | derived from |
 |---|---|---|
-| `kani-harnesses` | how many Kani proof harnesses the tree carries, which is what `script/verify` proves | `#[kani::proof…]` alone on its line, in `crates/**/*.rs` |
-| `harness-crates` | how many crates carry at least one Kani proof harness | distinct crate directories among those files |
+| `kani-harnesses` | how many Kani proof harnesses the tree carries, which is what `script/verify` proves | `#[kani::proof…]` alone on its line, in any workspace package |
+| `harness-crates` | how many workspace packages carry at least one Kani proof harness | distinct packages among those files |
 | `sh-scripts` | how many `#!/bin/sh` scripts there are under `script/` and `scripts/`, which is the set shellcheck gates | files whose first line is exactly `#!/bin/sh` |
 | `longest-markdown-line` | how long the repository's longest markdown line is, in bytes, which is what `manual::render::LINE_MAX` is sized against | tracked `*.md`, vendor excluded |
 | `syscalls` | how many syscall numbers the ABI defines, which is the whole width of the trap | `pub const SYS_*: u64` in `crates/abi/src/lib.rs` |
@@ -198,7 +198,7 @@ mistake:
 ```markdown
 **124 harnesses** <!--count:kani-harnesses-->                  a census: must EQUAL the tree
 **over 100 harnesses** <!--count-at-least:kani-harnesses-->    a floor: fires when the count DROPS
-**at most 94** <!--count-at-most:unsafe-density-outside-arch--> a ceiling: fires when it RISES
+**at most 88** <!--count-at-most:unsafe-density-outside-arch--> a ceiling: fires when it RISES
 ```
 
 **Why the second exists, measured 2026-08-17.** `kani-harnesses` was marked at four claim sites and
@@ -287,6 +287,22 @@ hand-editing is cheap and thinking is the point.
   beside a sentence about harnesses rather than about crates; the gate matches the number, not the
   noun. Same limit `script/names --check` records: presence is checkable, meaning is prose, and prose
   is checked by reading.
+
+- **A derivation can quietly answer a narrower question than its own name asks**, which is the same
+  defect one level in, and it is not hypothetical. `kani-harnesses` and `harness-crates` both walked
+  `crates/` until milestone 212 (`script/falsifications` walks `crates/` only, so the ratio it prints
+  is not the tree's), with a docstring giving the reason as "the kernel, the user programs and xtask
+  are not packages it compiles". Milestones 193 (put `kernel/src` within reach of the prover) and 197
+  (`user/` and `xtask` are out of reach of the prover) made that false a milestone later, and every
+  marker stayed green throughout, because a derivation that is wrong in the same way everywhere
+  agrees with itself. **The question sentence in the registry is the only thing that catches this,
+  and only when somebody reads it against the tree.**
+
+- **`harness-crates` counts packages and is still called `harness-crates`.** Milestone 212 rescoped
+  the derivation and left the name, because a marker name is a name and so calef's, and renaming it
+  means editing every site that carries it. It is a live example of the bug above: the name asks a
+  narrower question than the derivation answers, in the one place that is supposed to keep them
+  honest.
 
 - **A marker works in a `.rs` doc comment, and the fence exemption does not follow it there.** The
   2026-08-17 sweep put four in `crates/abi/src/lib.rs` and `kernel/src/syscall.rs`, because the

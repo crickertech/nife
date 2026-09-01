@@ -14,16 +14,12 @@ const FS_VA: u64 = 0x0000_0000_00e6_0000;
 /// this was added (a data abort at the stack's guard page).
 const REVIVER_EXTRA_STACK_PAGES: u64 = 2;
 
-/// A fresh, zeroed frame, returned by physical address. Matches `fs_service::frame`'s own shape
-/// (that one is private to its own module); zeroed so no stale RAM is visible in this process's
-/// extra stack pages.
+/// A fresh, zeroed frame, returned by physical address; zeroed so no stale RAM is visible in this
+/// process's extra stack pages. The zeroing itself is [`crate::memory::alloc_zeroed`]'s.
 fn page_frame() -> u64 {
-    let p = crate::memory::alloc()
+    crate::memory::alloc_zeroed()
         .expect("no frame for session_reviver's extra stack")
-        .addr();
-    // SAFETY: a fresh frame, reachable through the direct map, not yet mapped anywhere else.
-    unsafe { core::ptr::write_bytes(mmu::phys_to_virt(p) as *mut u8, 0, FRAME_SIZE as usize) };
-    p
+        .addr()
 }
 
 /// Report words `session_reviver.rs` sends; must match that file.

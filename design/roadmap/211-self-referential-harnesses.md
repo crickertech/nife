@@ -9,7 +9,9 @@ sweep for self-referential harnesses". *(Number provisional until the merge queu
 It never had a gate and could not have one, which turned out to be the right call: no check
 distinguishes "asserts through the function under test" from "legitimately asserts agreement", so
 the sweep's output is eleven falsification patches rather than a lint. `script/falsifications`
-went from 25 of 141 replayable to 33 of 141.
+went from 25 of 141 replayable to 33 of 141 on this lane's own base, and the merged tree reads
+**35 of 145**: milestone 212 (`script/falsifications` walks `crates/` only, so the ratio it prints is not the tree's) landed first and widened
+the denominator under it.
 
 ## What the sweep found
 

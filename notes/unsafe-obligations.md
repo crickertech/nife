@@ -163,10 +163,13 @@ cargo clippy --workspace --exclude kernel --exclude user --exclude user_rt --all
 without the crate that provides them rustc stops at `use of unresolved module or unlinked crate
 kani`. `scripts/kani-lint-shim/` is that crate, built by `script/lint` with two plain `rustc`
 invocations before the pass runs. The surface it has to cover is small, which is what makes this
-cheap: across 24 crates <!--count:harness-crates--> and 141 harnesses <!--count:kani-harnesses-->
-the tree uses exactly **five** Kani items, `any` (287 uses), `proof` (141) <!--count:kani-harnesses-->,
-`assume` (71), `unwind` (33) and `cover!` (21), and no `Arbitrary` derive, no contracts, no
-`any_where`.
+cheap: across 26 packages <!--count:harness-crates--> and 145 harnesses <!--count:kani-harnesses-->
+the tree uses exactly **five** Kani items, `any`, `proof` (145) <!--count:kani-harnesses-->,
+`assume`, `unwind` and `cover!`, and no `Arbitrary` derive, no contracts, no
+`any_where`. The four unmarked counts that used to sit here (287, 71, 33 and 21) were taken over
+`crates/` on one day and were stale before milestone 212 rescoped the two that carry markers; the
+claim this paragraph is making is that the surface is **five items**, which is what the shim has to
+cover, and that does not move when a harness is added.
 
 **It is two crates because an attribute macro can only come from a proc-macro crate.** The
 one-crate route was tried and does not work: registering `kani` as a tool namespace with
@@ -429,13 +432,20 @@ Measured over the Rust that runs on nife, which is every tracked `.rs` file exce
 Each exclusion's reason is in `script/lint` beside the derivation; `patches/` is a real hole rather
 than a boundary and the register's BUGS says so.
 
-| | 2026-07-15 | 2026-07-28 | 2026-08-04 | 2026-08-14 | 2026-08-18 | 2026-08-23 |
-|---|---|---|---|---|---|---|
-| `unsafe {}` outside `kernel/src/arch/` | 171 | 426 | 728 | 763 | 747 | 777 |
-| code lines outside it | 7,508 | 19,223 | 58,351 | 64,452 | 80,359 | 85,530 |
-| **blocks per 10,000 lines** | 227.8 | 221.6 | 124.8 | 118.4 | 93.0 | **90.8** |
-| `unsafe {}` inside `kernel/src/arch/` | 34 | 102 | 128 | 134 | 139 | 141 |
-| `unsafe impl Send`/`Sync` | 7 | 12 | 15 | 15 | 17 | 20 |
+| | 2026-07-15 | 2026-07-28 | 2026-08-04 | 2026-08-14 | 2026-08-18 | 2026-08-23 | 2026-09-01 |
+|---|---|---|---|---|---|---|---|
+| `unsafe {}` outside `kernel/src/arch/` | 171 | 426 | 728 | 763 | 747 | 777 | 698 |
+| code lines outside it | 7,508 | 19,223 | 58,351 | 64,452 | 80,359 | 85,530 | 88,596 |
+| **blocks per 10,000 lines** | 227.8 | 221.6 | 124.8 | 118.4 | 93.0 | **90.8** | **78.8** |
+| `unsafe {}` inside `kernel/src/arch/` | 34 | 102 | 128 | 134 | 139 | 141 | 248 |
+| `unsafe impl Send`/`Sync` | 7 | 12 | 15 | 15 | 17 | 20 | 23 |
+
+**The 2026-09-01 column is the first one taken after a round worked the kernel** (milestone 139
+round 8, below). Two things in it are worth reading together rather than separately. The
+outside-`arch/` count is the lowest since 2026-08-04 while the tree is at its largest, which is the
+density's whole point. And `arch/` nearly doubled between the last two columns (141 to 248) without
+anything drifting: milestone 161's `x86_64` port is a third architecture's worth of assembly,
+system registers and MMU code, which is exactly the population this measurement excludes on purpose.
 
 **The 2026-08-23 column mixes two different things and the density is what separates them.** The
 raw count outside `arch/` rose by 30 (747 to 777) between 2026-08-18 and this lane starting,
@@ -464,7 +474,7 @@ invariant **96 times** and now asserts it once.
 
 ### What each number is held to, and why the answers differ
 
-**At most 94** <!--count-at-most:unsafe-density-outside-arch--> unsafe blocks per 10,000 lines
+**At most 88** <!--count-at-most:unsafe-density-outside-arch--> unsafe blocks per 10,000 lines
 outside `kernel/src/arch/`. The direction is down, because unsafe outside `arch/` is not paying
 for hardware access: it is a raw syscall, a shared page, or a hand-rolled data structure, and each
 of those has a safe wrapper somebody could write. The ceiling is written at a threshold the tree
@@ -682,6 +692,59 @@ isolation.
 ceiling stays 94: there is nothing to cinch that round 4 had not already cinched. The block count
 is real and lower, and it is recorded as such above; the ceiling tracks density, not a raw block
 count, and density is what a growing tree's line count keeps honest.
+
+**Lowered a sixth time, 94 to 88, by milestone 139 round 8 (2026-09-01), and the six-point step is
+the first one this measurement's own history argues for rather than the convention.** Rounds 6 and
+7 worked `user/` and left the ceiling at 94; round 8 is the first round to work `kernel/src` outside
+`arch/`, which had been the largest unworked pool in the tree (242 blocks, against `user/`'s 162
+after round 7) and which is also the part DECISIONS §14 calls verified. Two collapses, both the §94
+shape and both measured from the diff against this round's own base commit (`8fc30efb`):
+
+*Page zeroing, thirty-seven sites.* Every service, driver and test fixture that allocated a frame
+went on to zero it by hand, each with its own `// SAFETY:` comment over `core::ptr::write_bytes`
+asserting the same two facts: a frame just handed back by `memory::alloc` is exclusively the
+caller's, and the direct map reaches it. That is one fact about what the allocator returns, and the
+allocator is the only thing that can check it. Two of the copies had already noticed they were
+copies (`user/rmle_service.rs`: *"a second copy of three lines"*; `user/session_reviver_service.rs`:
+*"matches `fs_service::frame`'s own shape"*) without anyone lifting it out, the same tell `ntp.rs`
+carried for round 1's cluster and `timetable.rs` for round 6's. `memory::alloc_zeroed` and
+`memory::alloc_contiguous_zeroed` (both new; **ratified by calef 2026-09-01**) hold it once, in the module that
+owns the allocator; every migrated call site is now ordinary safe code.
+
+*The device tree, five sites.* `memory.rs`, `console.rs`, `pci.rs` and `smp.rs` (twice) each took
+the boot pointer (from `crate::DTB`, or as an argument that was always that same value) and handed
+it to `dtb::Dtb::from_ptr` under a hand-written comment rewording the same two facts: it is the
+pointer firmware put in `x0`/`a1` and `kernel_main` stashed before anything else ran, and it is
+physical, so the direct map names it. `crate::device_tree` (new; **ratified by calef 2026-09-01**) holds that once,
+beside the static it is a fact about. Three functions lost a `dtb_ptr` parameter that was always
+`crate::DTB` in the bargain, which is the same one-source-of-truth gain one level out.
+
+**Measured from the diff: 42 `unsafe {` blocks removed, 2 added, net -40**, taking `kernel/src`
+outside `arch/` from 242 to 202 and the tree-wide count from 738 to 698. Density 83 to 78
+(truncated; 78.8 exactly).
+
+**Why 88 and not something tighter. Ratified by calef, 2026-09-01.** An earlier draft of this
+paragraph argued against a "seven-point convention" and there is no such convention: the actual
+headroom on record is six points at round 1 (100 against a density of 90.8) and seventeen at round
+7 (94 against 77), with round 6's own "the 7-point cushion every prior round preserved" true of the
+run of rounds it was written about and not of the milestone. What the rounds have really held to is
+this block's own stated rule, which is that the ceiling falls whenever a real reduction lands and
+the headroom is argued beside the marker rather than read off a table. So 88 is not a departure; it
+is that argument, made here.
+
+The argument is a measurement none of the earlier rounds had. Round 7 reached density 77 on
+2026-08-26; this round found 83 on 2026-09-01, **six points of unrelated growth in six days**, the
+steepest stretch on record and by some distance. A ceiling seven points over the current density is
+therefore about one week of ordinary lane traffic before it fires on somebody's honest work, which
+is not a ratchet, it is the exact "only ever rejects legitimate work" signature `script/lint` has
+already had three checks deleted for. 88 keeps ten points over the 78 this round reached, which at
+the observed rate is roughly ten days, and it still cinches six of the eleven points that were
+standing above the tree when this round started.
+
+**The gain is more than kept**, and the arithmetic is worth stating exactly in a note whose whole
+subject is a measurement: the density fell **five** points (83 to 78, truncated) and the ceiling
+fell **six** (94 to 88), so this round cinched one point further than it gained and nobody can
+spend the reduction back up to 94 quietly.
 
 **At most 23 `unsafe impl Send`/`Sync` claims** <!--count-at-most:unsafe-thread-safety-claims-->,
 and this one has no headroom at all. Each is a hand-written assertion that the compiler is wrong

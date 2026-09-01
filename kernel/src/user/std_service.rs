@@ -120,17 +120,20 @@ pub fn start_on(
         .term("dumb")
         .expect("dumb is not a recognized environment_proto::domain::KNOWN_TERM member")
         .build();
-    let config_phys = crate::memory::alloc()
+    // Zeroed, so nothing left behind by a previous occupant of this physical page is visible
+    // through the reserved tail past `PAGE_BYTES` (`ConfigPage` only ever reads the first
+    // `PAGE_BYTES`, but a frame's contents are otherwise unspecified until written).
+    let config_phys = crate::memory::alloc_zeroed()
         .expect("no frame for the std program's config page")
         .addr();
-    // SAFETY: fresh frame via the direct map; write the assembled page and zero the remainder of
-    // the frame past `PAGE_BYTES`, so nothing left behind by a previous occupant of this physical
-    // page is visible through the reserved tail (`ConfigPage` only ever reads the first
-    // `PAGE_BYTES`, but a frame's contents are otherwise unspecified until written).
+    // SAFETY: `config_phys` is that fresh frame, direct-mapped and owned by nobody else, and
+    // `config_bytes` is `PAGE_BYTES` long, far under `FRAME_SIZE`.
     unsafe {
-        let dst = mmu::phys_to_virt(config_phys) as *mut u8;
-        core::ptr::write_bytes(dst, 0, FRAME_SIZE as usize);
-        core::ptr::copy_nonoverlapping(config_bytes.as_ptr(), dst, config_bytes.len());
+        core::ptr::copy_nonoverlapping(
+            config_bytes.as_ptr(),
+            mmu::phys_to_virt(config_phys) as *mut u8,
+            config_bytes.len(),
+        );
     }
 
     // The clock page and the config page read-only, then the deep stack std needs.
@@ -150,13 +153,10 @@ pub fn start_on(
         flags: Flags::user_rodata(), // same shape as the clock page: a READER, never a writer
     };
     for (k, m) in maps[2..].iter_mut().enumerate() {
-        let phys = crate::memory::alloc()
+        // Zeroed so the new process starts clean.
+        let phys = crate::memory::alloc_zeroed()
             .expect("no frame for std_exerciser stack")
             .addr();
-        // SAFETY: fresh frame via the direct map; zero it so the new process starts clean.
-        unsafe {
-            core::ptr::write_bytes(mmu::phys_to_virt(phys) as *mut u8, 0, FRAME_SIZE as usize);
-        }
         m.va = USER_STACK_VA - (k as u64 + 1) * FRAME_SIZE;
         m.phys = phys;
     }

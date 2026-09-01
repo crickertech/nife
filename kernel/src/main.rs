@@ -80,6 +80,31 @@ mod testing;
 /// See notes/boot-protocol.md.
 pub static DTB: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
 
+/// **The boot device tree, parsed**, or the parse error if this machine did not hand us one.
+///
+/// **This exists so the "is that pointer real" argument is made once.** Five places used to read
+/// [`DTB`] (or take the same value as an argument) and hand it to `dtb::Dtb::from_ptr` under a
+/// hand-written `// SAFETY:` comment, each rewording the same two facts: the pointer is the one
+/// firmware put in `x0`/`a1` and [`kernel_main`] stashed here before anything else ran, and it is
+/// physical, so it is named through the direct map. That is one fact about this module's own
+/// static, and this module is the only place it can be checked. Milestone 139 round 8, and
+/// DECISIONS §94's rule about a body copied verbatim into every caller.
+///
+/// Returns `Err` rather than panicking, because two of the callers legitimately continue without a
+/// tree: the early RISC-V console keeps its defaults, and `x86_64` stores a PVH `hvm_start_info`
+/// pointer in [`DTB`] rather than an FDT, so the magic check inside `from_ptr` is what tells those
+/// callers apart from a real failure. Callers that cannot continue keep their own `expect`.
+pub fn device_tree() -> Result<dtb::Dtb<'static>, dtb::Error> {
+    let phys = DTB.load(core::sync::atomic::Ordering::Relaxed) as u64;
+    // SAFETY: `kernel_main` stores the boot pointer here as its first statement, before any of
+    // this function's callers can run, and firmware's blob stays where it is for the life of the
+    // kernel, which is what `'static` claims. The value is physical (the boot protocol speaks in
+    // physical addresses and we are running virtual), so the direct map names it. `from_ptr`
+    // re-checks the magic before trusting anything else in the blob, which is what makes a wrong
+    // pointer survivable rather than fatal.
+    unsafe { dtb::Dtb::from_ptr(arch::mmu::phys_to_virt(phys) as *const u8) }
+}
+
 /// The kernel's Rust entry point, called from `_start` once we have a stack and a
 /// zeroed `.bss`.
 ///
@@ -118,7 +143,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
     // (notes/visionfive2.md; console::configure_from_dtb). On QEMU the tree restates the defaults
     // and this is a no-op in effect.
     #[cfg(target_arch = "riscv64")]
-    console::configure_from_dtb(boot_info_pointer);
+    console::configure_from_dtb();
 
     // **The x86_64 boot is a self-contained tour and it halts at the end**, the same shape the
     // RISC-V boot took on its first day and for the same reason: the arch layer beneath the shared
@@ -572,7 +597,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // memory::init and everything after it can push frames into it.
         #[cfg(test)]
         stack::paint_boot_stack();
-        memory::init(boot_info_pointer);
+        memory::init();
         let f = memory::alloc().expect("no frame from the allocator");
         println!(
             "  memory      : device tree parsed, frame allocator up (first frame {:#x})",
@@ -589,7 +614,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // Which harts does this machine have (milestone 100)? Here, while the device tree is still
         // reachable through the boot map, rather than at bring-up time after `mmu::init` has
         // replaced it. The list used to be `0..cpu::MAX_CPUS`, a constant.
-        smp::read_cpu_list(boot_info_pointer);
+        smp::read_cpu_list();
 
         // And how does the PLIC number their S-mode contexts? Read here, in the same window and
         // before anything touches a context: the `2*hart + 1` formula this replaces is QEMU's
@@ -1061,7 +1086,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
 
     // Now that faults are reportable, go find out how much RAM we actually have. A bug
     // in here is a fault, and a fault is now legible rather than fatal-and-silent.
-    memory::init(boot_info_pointer);
+    memory::init();
 
     // What machine is this (milestone 60). Three `mrs` reads, and the reason they happen HERE is
     // the line below: `mmu::init` takes `TCR_EL1.IPS` from this record and builds tables on a 4 KiB
@@ -1075,7 +1100,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
     // coarse boot map, and the blob is only reachable through that one. The list used to be
     // `0..cpu::MAX_CPUS` and the PSCI conduit used to be `hvc`, compiled in; `isa::init` above took
     // the `/psci` half.
-    smp::read_cpu_list(boot_info_pointer);
+    smp::read_cpu_list();
 
     // And now the sketchiest moment in the kernel. The instant SCTLR_EL1.M is set, the very
     // next instruction is fetched through the MMU. See arch/aarch64/mmu.rs.

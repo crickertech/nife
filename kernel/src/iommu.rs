@@ -44,18 +44,9 @@ pub fn active() -> bool {
 /// of the same device leaks the previous domain's tables, which is acceptable because `confine`
 /// runs once per device per boot (see notes/iommu.md).
 fn zeroed_page_frame() -> u64 {
-    let pa = crate::memory::alloc()
+    crate::memory::alloc_zeroed()
         .expect("no frame for an IOMMU DMA domain")
-        .addr();
-    // SAFETY: a fresh frame, reachable through the direct map, owned by this module from here on.
-    unsafe {
-        core::ptr::write_bytes(
-            phys_to_virt(pa) as *mut u8,
-            0,
-            page_frames::FRAME_SIZE as usize,
-        );
-    }
-    pa
+        .addr()
 }
 
 /// **Confine PCI device `rid` to exactly `regions`.** Builds a DMA domain in this architecture's

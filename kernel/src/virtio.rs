@@ -619,18 +619,11 @@ static DEVICES: IrqSafeMutex<Devices> = IrqSafeMutex::new(
 pub fn register(transport: Transport, dma_base: u64, dma_size: u64, rid: Option<u32>) -> usize {
     // The shadow page the device reads its rings from. One frame per device, kernel-owned and never
     // mapped into the driver, so the driver cannot touch what the device sees.
-    let shadow_base = crate::memory::alloc()
+    // Zeroed so a stale word can never look like a valid descriptor before the first copy fills
+    // it.
+    let shadow_base = crate::memory::alloc_zeroed()
         .expect("no frame for the virtio shadow ring")
         .addr();
-    // SAFETY: a fresh frame, reachable through the direct map, owned by nobody yet. Zero it so a
-    // stale word can never look like a valid descriptor before the first copy fills it.
-    unsafe {
-        core::ptr::write_bytes(
-            mmu::phys_to_virt(shadow_base) as *mut u8,
-            0,
-            page_frames::FRAME_SIZE as usize,
-        );
-    }
 
     // Confine the device in hardware before it is entered in the table. Done outside the DEVICES
     // lock: building the domain allocates page-table frames, and the IOMMU attach takes its own
@@ -1442,15 +1435,7 @@ mod tests {
         );
 
         // Register (and thereby confine) the device to its DMA region + shadow page.
-        let dma = crate::memory::alloc().expect("no DMA frame").addr();
-        // SAFETY: fresh frame via the direct map.
-        unsafe {
-            core::ptr::write_bytes(
-                mmu::phys_to_virt(dma) as *mut u8,
-                0,
-                page_frames::FRAME_SIZE as usize,
-            );
-        }
+        let dma = crate::memory::alloc_zeroed().expect("no DMA frame").addr();
         let id = register(
             Transport::pci(&d),
             dma,

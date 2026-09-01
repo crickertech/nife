@@ -40,17 +40,9 @@ static FLUSH_COUNT: AtomicUsize = AtomicUsize::new(0);
 /// screen every frame would fail a test rather than merely be slow.
 fn kernel_display() -> (sched::RendezvousId, u64) {
     let frames = graphics_proto::SURFACE_PAGE_FRAMES as u64;
-    let screen = crate::memory::alloc_contiguous(frames as usize)
+    let screen = crate::memory::alloc_contiguous_zeroed(frames as usize)
         .expect("no contiguous screen frames for the compositor")
         .addr();
-    // SAFETY: a fresh contiguous run, direct-mapped, owned by nobody else.
-    unsafe {
-        core::ptr::write_bytes(
-            mmu::phys_to_virt(screen) as *mut u8,
-            0,
-            (frames * FRAME_SIZE) as usize,
-        );
-    }
     LAST_FLUSH.store(u64::MAX, Ordering::SeqCst);
     FLUSH_COUNT.store(0, Ordering::SeqCst);
 

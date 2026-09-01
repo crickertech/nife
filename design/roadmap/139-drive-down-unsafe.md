@@ -745,6 +745,165 @@ calef would rather. Reverting any single wrapper (moving its call sites back to 
 nothing but that one function and its call sites; none of this touches the syscall surface, a wire
 format, or anything else two programs must agree on.
 
+## Round 8 (2026-09-01): the kernel, which seven rounds had never touched, categorised and two
+clusters collapsed
+
+Rounds 1 through 7 worked `user/` and `crates/`. **None of them went near `kernel/src`**, and by
+2026-09-01 that had become the largest unworked pool in the tree: **242 blocks outside
+`kernel/src/arch/`**, against `user/`'s 162 after round 7, `crates/user_rt`'s 64 and `crates/ipc`'s
+44 (settled in round 2). This block's own opening measurement recorded the kernel at 203 on
+2026-08-18; it had grown to 242 while six rounds went through userspace. It is also the part
+DECISIONS §14 (the project's direction: a verified-Rust capability microkernel) calls verified, which is what this milestone's own "Why
+it matters" says the number is measuring.
+
+**Round 8 was possible in a way earlier rounds were not**, because milestone 193 (put `kernel/src`
+within reach of the prover) landed the day before: `cargo kani` can compile the kernel now, so this
+milestone's criterion 2 ("a typed abstraction whose invariant the compiler **or Kani** holds") is
+available inside the kernel for the first time. In the event neither collapse below needed the
+prover, because both turned out to be criterion 1, but the categorisation below says where the
+prover is the tool for what remains.
+
+### The per-category table for the kernel's 242, so nobody re-derives it
+
+Categorised by what the first token inside each block is (the same stripping-and-counting regex
+`script/lint`'s census uses, so these add up to its number rather than a grep's).
+
+| shape | blocks | verdict |
+|---|---|---|
+| `core::ptr::write_bytes` | 41 | **the §94 shape; 37 collapsed this round** (see below). The 4 left have different provenance: `kmem.rs`'s pool recycle, `memory_region.rs`'s two retype paths, and one partial-page write in `user.rs` |
+| `core::ptr::read_volatile` | 34 | mixed. MMIO (`ns16550.rs`, `plic.rs`, `pci.rs`, `nvme.rs`, `virtio.rs`) is not a target; the rest read a shared frame the kernel just handed a process, in test fixtures that each read a different field |
+| `core::ptr::write_volatile` | 23 | same split as the row above, same verdict |
+| `&`-first (a reference built from a raw pointer) | 25 | mostly `sched.rs` (10) and the graphical test fixtures; each names a different object at a different lifetime |
+| `(`-first (a call through a raw pointer or a cast) | 16 | 13 of them `sched.rs`'s thread-control-block pointer arithmetic; see the design fork below |
+| `let`-first | 13 | multi-statement blocks, each doing something particular |
+| `core::slice::from_raw_parts[_mut]` | 11 | whole-page and whole-region slices, one per distinct region |
+| `log_page(...)` | 6 | **a real §94 shape, not taken this round**; see the proposed follow-on |
+| `q.push_back` / `inbox.push_back` | 8 | `sched.rs`'s run-queue handoff; a design fork, see below |
+| `mmu::activate_user` | 6 | test fixtures in `user/tests.rs`, which another lane holds this session |
+| `dtb::Dtb::from_ptr` | 5 | **the §94 shape; all 5 collapsed this round** (see below) |
+| `crate::stack::paint` / `high_water` | 9 | three stacks, three different facts each; the `crates/ipc` shape, no collapse available |
+| `drivers::plic::init` | 3 | MMIO init, one per boot path |
+| everything else | 42 | one-offs: `force_unlock`, `ManuallyDrop::drop`, `from_utf8_unchecked`, `assume_init`, the fastpath pad, `Thread::spawn_into` |
+
+### What collapsed
+
+**Page zeroing: thirty-seven sites, one declaration.** Every service, driver and test fixture that
+allocated a frame went on to zero it by hand, each with its own `// SAFETY:` comment over
+`core::ptr::write_bytes` asserting the same two facts: a frame just handed back by `memory::alloc`
+or `memory::alloc_contiguous` is exclusively the caller's, and the direct map reaches it. That is
+not thirty-seven facts, it is one fact about what the allocator returns, and the allocator is the
+only thing in the tree that can actually check it. Two of the copies had already said out loud that
+they were copies, without anyone lifting it out: `user/rmle_service.rs`'s *"`fs_service`'s own
+`page_frame` does the same thing... this is a second copy of three lines"* and
+`user/session_reviver_service.rs`'s *"matches `fs_service::frame`'s own shape"*, the same tell
+`ntp.rs` carried for round 1's cluster and `timetable.rs` for round 6's.
+`crate::memory::alloc_zeroed` and `crate::memory::alloc_contiguous_zeroed` (both new; **ratified by
+calef 2026-09-01**) hold it once. Every migrated call site is ordinary safe code afterwards: a caller cannot
+violate a Rust invariant by asking the allocator for a zeroed frame, whatever it then does with it,
+which is what makes this a collapse rather than the relocation this block refuses. The four sites
+left behind are named in the table above and are genuinely different provenance rather than an
+oversight: `kmem.rs` zeroes a page recycled through its own pool (the ownership half of the
+assertion is the pool's, not the allocator's), `memory_region.rs` zeroes a page carved out of a
+memory region (likewise), and `user.rs`'s timebase arm writes `PAGE_BYTES` into a frame it already
+holds rather than a whole fresh one.
+
+**The device tree: five sites, one declaration.** `memory.rs`, `console.rs`, `pci.rs` and `smp.rs`
+(twice) each took the boot pointer and handed it to `dtb::Dtb::from_ptr` under a hand-written
+comment rewording the same two facts: it is the pointer firmware put in `x0`/`a1`, which
+`kernel_main` stashes in `crate::DTB` as its first statement before any of these can run, and it is
+physical, so the direct map names it. `crate::device_tree` (new; **ratified by calef 2026-09-01**) holds that
+once, in the module the static lives in. It returns `Result` rather than panicking, because two
+callers legitimately continue without a tree: the early RISC-V console keeps its defaults, and
+`x86_64` stores a PVH `hvm_start_info` pointer in `crate::DTB` rather than an FDT, so `from_ptr`'s
+magic check is what tells those apart from a real failure (`smp.rs`'s own fixture already documents
+that hazard). Three functions (`memory::init`, `smp::read_cpu_list`, `console::configure_from_dtb`)
+lost a `dtb_ptr` parameter that was always `crate::DTB`'s value at every one of their call sites,
+which is the same one-source-of-truth gain one level out.
+
+**Measured from the diff against this round's own base commit (`8fc30efb`): 42 `unsafe {` blocks
+removed, 2 added, net -40.** `kernel/src` outside `arch/` goes 242 to 202; tree-wide outside
+`arch/`, 738 to 698. Density 83 to 78 (78.8 exactly). The tree-wide census confirms the diff
+exactly, nothing else having landed on this branch in between, the same discipline every round since
+round 2 has used.
+
+**The ratchet, cinched a sixth time**: `<!--count-at-most:unsafe-density-outside-arch-->` lowered
+from 94 to 88 (`notes/unsafe-obligations.md`, `notes/counted-claims.md`), **ratified by calef
+2026-09-01**, ten points of headroom over the 78 this round reached.
+
+An earlier draft of this paragraph called that a departure from a "seven-point convention". There is
+no such convention, and the correction is worth carrying because it makes the case simpler rather
+than weaker: the headroom actually on record is six points at round 1 (100 against 90.8) and
+seventeen at round 7 (94 against 77). What every round has really held to is this block's own rule,
+that the ceiling falls when a real reduction lands and the headroom is argued beside the marker. So
+this is that argument.
+
+It rests on a measurement none of the earlier rounds had: round 7 reached 77 on 2026-08-26 and this
+round found 83 on 2026-09-01, **six points of unrelated growth in six days**, the steepest stretch
+on record. A ceiling seven points over the current density is therefore about one week of ordinary
+lane traffic before it fires on honest work, which is the "only ever rejects legitimate work"
+signature BUGS item 1 below exists to keep this milestone from producing. Ten points is roughly ten
+days at the observed rate.
+
+**And the gain is more than kept**, stated exactly because this is a measurement: the density fell
+**five** points (83 to 78, truncated) and the ceiling fell **six** (94 to 88), one point further
+cinched than was gained.
+
+### What this round deliberately did not take, and why, so nobody re-derives it
+
+- **`kernel/src/arch/` (248 blocks, up from 141 on 2026-08-23).** Not a target, per this block's own
+  text. The growth is milestone 161's `x86_64` port, which is a third architecture's worth of
+  assembly and system registers: exactly the population the measurement excludes on purpose.
+- **MMIO and device-register access** (`ns16550.rs`, `plic.rs`, `gic.rs`, `pl011.rs`, `pci.rs`,
+  `nvme.rs`, `virtio.rs`). The same finding round 3 and round 5 reached for the userspace drivers,
+  and for the same reasons: each block names a different device at a different offset table, and the
+  one file that could carry a compile-time layout already does (`pl011.rs` uses
+  `tock_registers::register_structs!`; `ns16550.rs`'s own module doc explains why it cannot, the
+  runtime-variable register stride). No §94 shape.
+- **The three stack helpers** (`crate::stack::paint`, `high_water`, 9 blocks across
+  `interrupt_stack.rs`, `smp.rs`, `thread.rs`, `stack.rs`). The comments rhyme and the facts do not:
+  an interrupt-stack slot, a not-yet-handed-out `KernelStack`, and a secondary core's boot stack are
+  three different ownership arguments. The `crates/ipc` shape from round 2.
+- **`kernel/src/user/tests.rs` (14 blocks) and the `mmu::activate_user` fixtures.** Left alone for a
+  scheduling reason rather than a technical one: AGENTS.md names that file the tree's merge hotspot
+  and another lane held it this session. A later round should read it; nothing here says it is
+  irreducible.
+- **The prover.** Milestone 193's harnesses reach `kernel/src/syscall.rs`; `arch/`, `asm!` and MMIO
+  are still out of reach, and a stub is a hole in a proof, so criterion 2's Kani half was not
+  available for either of the clusters this round found. It is the right tool for the `sched.rs`
+  fork below, which is the reason that fork is worth raising rather than guessing at.
+
+### Two things identified and not done, in the two shapes this project accepts
+
+**A proposed milestone (provisional number, the integrator mints it at merge): give the revocation
+log's page chain a safe iterator.** `kernel/src/revoke.rs` walks its per-space chain of log pages in
+six places, every one of them `let mut page_phys = space.head; while page_phys != 0 { let page =
+unsafe { log_page(page_phys) }; ... }`, and every one asserting the identical fact that `log_page`'s
+own `# Safety` already states: the page is one this module linked into a chain, and `SPACES` is
+held. Six hand-written copies of one invariant, the §94 shape exactly. The collapse is not the
+trivial one, which is why it wants a lane rather than a paragraph here: making the call sites safe
+means the *chain itself* has to carry the "`SPACES` is held" half, as an iterator borrowing the lock
+guard and yielding `&mut LogPage`, and the six loops are not uniform (two mutate entries in place,
+one carries an index cursor across calls, two break early). Wrapping `log_page` in another function
+would move the assertion and not collapse it, which this block refuses. Worth roughly 6 blocks and,
+more to the point, worth removing the one place in the kernel where a future edit could walk a chain
+without the lock and nothing but a comment would notice.
+
+**A recorded limitation, in this block's own BUGS section below rather than invented as scope:
+`sched.rs` is 47 of the kernel's 202 and the largest single share, and it is a design fork rather
+than a migration.** Its blocks are the run-queue handoff (`cpu::current().with_runq(|q| unsafe {
+q.push_back(ptr) })`, 6 sites, plus 2 inbox pushes) and the raw thread-control-block pointer
+arithmetic underneath it (13 `(`-first sites). Every one of the eight queue pushes asserts the same
+sentence: *this thread is live, Ready, and on no other queue.* That reads like the §94 shape and it
+is not, because unlike `alloc_zeroed`'s invariant, this one is not a fact the callee can establish;
+it is a fact the **caller** established two lines earlier by transitioning the thread. A safe
+`enqueue_ready(ptr)` would carry the identical argument in a different place, which is this block's
+named anti-pattern. The reduction that would be real is rung one of AGENTS.md's ladder: make the
+wrong state unrepresentable, so a thread pointer can only reach `push_back` by way of a type that
+only a Ready-transition can mint. That is a scheduler-core typestate change, it touches the one
+subsystem where a mistake is an intermittent hang rather than a compile error, and it is exactly the
+kind of thing milestone 193's prover should be pointed at first. **calef's call**, not a lane's to
+invent.
+
 ## What is still open
 
 **`crates/ipc`'s unsafe is settled**: read in full, genuinely per-call-site distinct, no further work
@@ -792,6 +951,13 @@ sorted the non-FS hits into rough categories a follow-on lane can use rather tha
   identical probe), and a new opt-in `user_rt::virtio` module; one call site (`window.rs`'s refusal
   probe) stays raw, with the reason recorded there. See round 7 above for the full per-method
   accounting.
+
+- **The kernel outside `arch/` is read and categorised** (round 8, the per-shape table above), and
+  two of its clusters are collapsed: 37 page-zeroing sites onto `memory::alloc_zeroed`/
+  `alloc_contiguous_zeroed`, and 5 device-tree parses onto `crate::device_tree`. What is
+  deliberately left there, and why, is the "did not take" list in round 8; what is identified and
+  not done is one proposed milestone (`revoke.rs`'s log-page chain) and one recorded limitation
+  (`sched.rs`'s run-queue handoff, a typestate fork for calef), both written up in round 8 above.
 
 **This block still sets no target number**, per its own original text -- the ratchet moves by
 measured reduction, not by picking a floor in advance. Round 6's own reading of what a realistic
@@ -896,6 +1062,14 @@ proofs and the type system are standing aside and a person's comment is the whol
   the C ABI shim, deliberate `.bss`/`.data` probes) are unchanged by this round. What was "how much
   of the `invoke` cluster is real" is now answered: essentially none of it, in the sense that
   mattered for whether a safe wrapper could exist.
+- **`sched.rs` is the kernel's largest remaining share (47 of 202) and it is a design fork, not a
+  migration.** Its run-queue handoff pushes a thread-control-block pointer under eight
+  hand-written copies of one sentence (*live, Ready, on no other queue*), which looks like the §94
+  shape and is not: unlike the allocator's postcondition that round 8 collapsed, this invariant is
+  established by the **caller** two lines earlier, so a safe `enqueue_ready` wrapper would relocate
+  the argument rather than collapse it. The real reduction is rung one of AGENTS.md's ladder, a
+  typestate that only a Ready-transition can mint, in the one subsystem where a mistake is an
+  intermittent hang rather than a compile error. Named here rather than attempted; see round 8.
 - **A reduction can be real and still not show in the count**, and round 6 is the sharpest example
   on record of the inverse: a real reduction (eighteen independently worded page-sharing
   invariants collapsed to six canonical declarations) that shows as a raw block-count **increase**

@@ -228,13 +228,9 @@ fn an_unknown_clock_is_said_plainly_rather_than_printed_as_1970() {
 
     // A clock page nobody has published to. Zeroed, which is what the frame allocator hands
     // out and what `clock_proto`'s `a_zeroed_page_reads_as_unknown` pins as UNKNOWN.
-    let blank = crate::memory::alloc()
+    let blank = crate::memory::alloc_zeroed()
         .expect("no frame for a blank clock page")
         .addr();
-    // SAFETY: freshly allocated, named through the direct map, owned by nobody else.
-    unsafe {
-        core::ptr::write_bytes(mmu::phys_to_virt(blank) as *mut u8, 0, FRAME_SIZE as usize);
-    };
 
     let out = spawn_date(Some(blank), FMT_HUMAN, 0, PROVENANCE);
     let n = line(out, &mut buf);
