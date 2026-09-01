@@ -247,7 +247,8 @@ fn wire_servers(
     blk_image: &'static [u8],
     fs_server_image: &'static [u8],
 ) -> Option<(RendezvousId, RendezvousId, RendezvousId, u64)> {
-    let (blk_ep, blk_ready, blk_shared) = spawn_block_server(blk_image, block_device(1)?);
+    let (blk_ep, blk_ready, blk_shared) =
+        spawn_block_server(blk_image, crate::virtio::find_block_device_n(1)?);
     let file_shared = file_channel();
     let file_ep = crate::sched::create_rendezvous(); // client WRITE (CALL) -> FS server READ
     let ready = crate::sched::create_rendezvous(); // FS server WRITE -> the kernel test RECVs
@@ -265,76 +266,6 @@ fn wire_servers(
         },
     );
     Some((blk_ready, ready, file_ep, file_shared))
-}
-
-/// **One virtio block device, whichever bus it turned out to be on** (milestone 164).
-///
-/// Everything below this type is transport-blind already: `virtio::register` takes a
-/// [`crate::virtio::Transport`], the confined userspace block server drives the device through a
-/// `Virtio` capability and cannot tell the two buses apart, and the IOMMU wants a requester id on
-/// PCIe and has nothing to key on over mmio. The only thing that was mmio-shaped was the *lookup*,
-/// and that is what this collapses.
-///
-/// Provisional name (this lane): calef settles type names.
-pub(super) struct BlockDevice {
-    transport: crate::virtio::Transport,
-    /// The interrupt the device raises, in whatever numbering this machine's controller uses.
-    intid: u32,
-    /// The PCIe requester id the IOMMU keys its per-device tables on, or `None` on a bus that has
-    /// no such id (virtio-mmio has neither an IOMMU in front of it nor a requester to name).
-    rid: Option<u32>,
-}
-
-/// **The `ordinal`-th disk in this machine's virtio-blk roster**, `None` if it has no such disk.
-///
-/// # The roster, and why the number means the same thing on three machines
-///
-/// One numbering, defined by the order the runner script attaches disks, so a wiring can say
-/// "disk 1 is the RedoxFS fixture" once and have it be true everywhere:
-///
-/// | ordinal | image | who wires it |
-/// |---|---|---|
-/// | 0 | `nifefs.img` | the phase-1 driver tests (`virtio_service`) |
-/// | 1 | `nifefs-redoxfs.img` | this module's [`wire_servers`] |
-/// | 2 | `nifefs-redoxfs-crash.img` | milestone 37's [`start_crash`] |
-/// | 3 | `nifefs-gpt.img` | milestone 57's `disk_service` |
-/// | 4 | `nifefs-blank.img` | milestone 57's `disk_service` |
-///
-/// # Which bus, and why that is not the caller's business
-///
-/// **aarch64 and riscv64 put every one of those on virtio-mmio**; `q35` has no virtio-mmio bus at
-/// all (`arch::x86_64::mmu::VIRTIO_SLOTS` is 0 and the base address is 0, so the mmio walk
-/// correctly probes nothing), and its disks arrive as PCI functions instead. So this asks the mmio
-/// bus first and falls through to the PCIe one, which on the first two machines finds the separate
-/// PCIe disk the runner attaches for the transport-parity tests and on the third finds the roster.
-///
-/// # BUGS
-///
-/// - **On a machine with both buses populated the two rosters are concatenated, mmio first**, and
-///   nothing enforces that the images behind a given ordinal match across machines. Today they do,
-///   because each runner script attaches them in this order and the tables above and in the three
-///   runners are the record; there is no gate comparing them. A disk inserted in the middle of one
-///   runner's list and not the others' would silently hand a wiring somebody else's image.
-/// - **`x86_64` populates only ordinals 0 and 1.** The crash, GPT and blank fixtures are not attached
-///   there yet, so milestone 37's crash test and milestone 57's two `disk_service` wirings still
-///   find nothing and skip on that architecture. See design/roadmap/164-x86-64-fs-server-aes.md.
-pub(super) fn block_device(ordinal: usize) -> Option<BlockDevice> {
-    if let Some(dev) = crate::virtio::find_block_device_n(ordinal) {
-        return Some(BlockDevice {
-            transport: crate::virtio::Transport::Mmio {
-                mmio_phys: dev.mmio_phys,
-            },
-            intid: dev.intid,
-            rid: None,
-        });
-    }
-    let n = ordinal - crate::virtio::count_block_devices();
-    let d = crate::pci::find_block_device_n(n)?;
-    Some(BlockDevice {
-        transport: crate::virtio::Transport::pci(&d),
-        intid: d.intid,
-        rid: Some(d.rid),
-    })
 }
 
 /// **Spawn a block server on one virtio block device.** Extracted from [`wire_servers`] because
@@ -359,7 +290,7 @@ pub(super) fn block_device(ordinal: usize) -> Option<BlockDevice> {
 /// by the region's growth, the same compatibility [`filesystem_proto::blk::TRANSFER_BLOCKS`] documents.
 pub(super) fn spawn_block_server(
     blk_image: &'static [u8],
-    dev: BlockDevice,
+    dev: crate::virtio::VirtioMmioDevice,
 ) -> (RendezvousId, RendezvousId, u64) {
     let dma = crate::memory::alloc_contiguous(1 + BLK_PAGES)
         .expect("no DMA region for the block server")
@@ -382,10 +313,12 @@ pub(super) fn spawn_block_server(
     crate::sched::bind_irq(dev.intid, irq_ep);
     crate::arch::irq::enable(dev.intid);
     let vid = crate::virtio::register(
-        dev.transport,
+        crate::virtio::Transport::Mmio {
+            mmio_phys: dev.mmio_phys,
+        },
         dma,
         (1 + BLK_PAGES) as u64 * FRAME_SIZE, // every page: the device may touch the rings AND the data buffer
-        dev.rid, // `None` over mmio (no IOMMU in front of it), the requester id over PCIe
+        None,                                // virtio-mmio has no IOMMU in front of it
     );
     crate::sched::spawn(move || {
         // The rings page, then the BLK_PAGES data pages, contiguous at DMA_VA.
@@ -555,7 +488,8 @@ pub fn start_crash(
     client_image: &'static [u8],
 ) -> Option<CrashRun> {
     use core::sync::atomic::Ordering;
-    let (blk_ep, blk_ready, blk_shared) = spawn_block_server(blk_image, block_device(2)?);
+    let (blk_ep, blk_ready, blk_shared) =
+        spawn_block_server(blk_image, crate::virtio::find_block_device_n(2)?);
     CRASH_BLK_EP.store(blk_ep, Ordering::Relaxed);
     CRASH_BLK_SHARED.store(blk_shared, Ordering::Relaxed);
 
@@ -915,20 +849,23 @@ pub struct DirGrant {
     pub stack_pages: usize,
 }
 
-/// **The FS server's binary, or `None` because this target could not build one** (milestone 161).
+/// **The FS server's binary, or `None` because nothing packed one into this archive** (milestone
+/// 161; the reason changed under milestone 164 and this comment with it).
 ///
-/// Every other missing fixture in this tree is a *machine* fact: no disk attached, no virtio-rng on
-/// the bus, no second core. This one is a **toolchain** fact, which is why it gets a named helper
-/// rather than an `.expect` somebody reads once. `fs_server` links the vendored RedoxFS engine,
-/// which pulls in the `aes` crate unconditionally (its encrypted-volume support is not behind a
-/// feature), and building `aes` for `x86_64-unknown-none` ends in
-/// `rustc-LLVM ERROR: Do not know how to split the result of this operator!` at every optimisation
-/// level including zero. The target spec is the cause: it is `-mmx,-sse,+soft-float`, so there is
-/// no 128-bit vector register for LLVM to legalise an AES block into and no scalar fallback for
-/// that operator. Nothing on this side fixes it; see `xtask`'s `initrd_x86` and notes/x86-port.md.
+/// It exists as a named helper rather than an `.expect` somebody reads once because for two
+/// months this was a **toolchain** fact rather than a machine one, unlike every other missing
+/// fixture in this tree (no disk attached, no virtio-rng on the bus, no second core). The engine
+/// this server links pulls in `aes` unconditionally, and `aes` would not codegen for
+/// `x86_64-unknown-none` at any optimisation level: that target is `-mmx,-sse,+soft-float`, so
+/// there was no 128-bit vector register for LLVM to legalise an AES block into.
 ///
-/// So on `x86_64` the archive carries no `redoxfs_server`, and every test that needs a filesystem
-/// skips with [`NO_FS_SERVER`] rather than panicking on a lookup.
+/// **That is fixed** (milestone 164): `--cfg aes_force_soft` in `.cargo/config.toml` selects the
+/// portable software backend `aes` already ships, and all three architectures build the server
+/// and pack it. So `None` is once again an ordinary build fact: nothing built the binary before
+/// the archive was packed. A test that needs a filesystem still skips with [`NO_FS_SERVER`]
+/// rather than panicking on a lookup, and on `x86_64` it now more often skips one step later,
+/// inside [`start`], for want of a disk this machine's runner does not attach yet
+/// (design/roadmap/164-x86-64-fs-server-aes.md).
 ///
 /// **The archive entry is `redoxfs_server`, not `fs_server`, on every architecture that has one**
 /// (milestone 140 increment zero renamed the crate and its packed name together). A lookup for the
@@ -941,13 +878,19 @@ pub fn fs_server_image() -> Option<&'static [u8]> {
     program("redoxfs_server")
 }
 
-/// The reason a test gives when [`fs_server_image`] is `None`. One string, because a dozen files
-/// share one cause and a reader comparing two runs should not have to decide whether two wordings
-/// mean the same thing.
-pub const NO_FS_SERVER: &str = "no fs_server in this archive: it links the vendored RedoxFS \
-                                engine, whose unconditional `aes` dependency does not compile for \
-                                x86_64-unknown-none (LLVM cannot legalise an AES block with SSE \
-                                disabled)";
+/// The reason a test gives when there is no FS service to talk to. One string, because a dozen
+/// files share one cause and a reader comparing two runs should not have to decide whether two
+/// wordings mean the same thing.
+///
+/// **It names two causes, and that is deliberate rather than vague** (milestone 164). Most callers
+/// reach it from [`fs_server_image`] being `None`, which is only the first; `rmle_tests` reaches
+/// it from `rmle_service::start` returning `None`, which on a machine whose archive *does* carry
+/// the binary means the second. Until milestone 164 the first cause was the only one that ever
+/// fired on `x86_64` and the string named only it, which would now be a false statement in two
+/// tests rather than an imprecise one in none.
+pub const NO_FS_SERVER: &str = "no RedoxFS service on this boot: either nothing packed a \
+                                redoxfs_server into this archive, or this machine has no RedoxFS \
+                                disk for one to serve";
 
 /// **`mkfs`'s binary, or `None`** (milestone 161). Same package as [`fs_server_image`], same
 /// vendored engine underneath it, so it is absent for exactly the same reason and on exactly the
@@ -957,9 +900,8 @@ pub fn mkfs_image() -> Option<&'static [u8]> {
 }
 
 /// The reason a test gives when [`mkfs_image`] is `None`. [`NO_FS_SERVER`]'s cause, one binary over.
-pub const NO_MKFS: &str = "no mkfs in this archive: it is built from the same package as \
-                           fs_server, which does not compile for x86_64-unknown-none (the \
-                           vendored RedoxFS engine's `aes` dependency)";
+pub const NO_MKFS: &str = "no mkfs in this archive (nothing built one for this target before \
+                           the archive was packed)";
 
 /// **The binary carrying the block server's role**, which is the one thing the two ISAs
 /// disagree about here: on aarch64 it is a role of the `init`/hello binary, on riscv the

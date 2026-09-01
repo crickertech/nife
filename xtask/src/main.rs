@@ -5676,8 +5676,10 @@ fn test() -> bool {
     // **It builds a userspace archive and one disk image**, which is where it now sits between the
     // other two rather than below both. `initrd_x86` compiles every program in `user/` for this
     // target and packs the same table RISC-V's archive uses, so the thirty `cfg(initrd)` test
-    // modules are in this binary; what it still does not build is an FS server or a `std` farm, so
-    // the runner attaches no virtio drives and the tests wanting one `skip!()`. The one exception
+    // modules are in this binary; since milestone 164 it packs the FS server and `mkfs` too. What
+    // it still does not build is a `std` farm, and the runner still attaches no virtio-blk, so the
+    // tests wanting a filesystem `skip!()` for want of a DISK rather than of a server. The one
+    // exception
     // is the NVMe image (decisions §86's x86_64/VT-d data point, milestone 161's VT-d having
     // landed): `mknvmedisk` writes it here the same way the aarch64 and riscv64 legs do, since
     // NIFE_NVME names this leg's image too (set unconditionally above) and the runner now attaches
@@ -5692,10 +5694,10 @@ fn test() -> bool {
         eprintln!();
         eprintln!("--- kernel tests, x86_64 (QEMU q35) ---");
         // The FS server for this target BEFORE the archive that packs it (milestone 164), the same
-        // order the aarch64 and riscv64 legs use, and the fresh RedoxFS fixture beside it for the
-        // same reason the riscv64 leg regenerates one: a leg that runs after another leg wrote the
-        // shared image would otherwise be testing whatever that leg left behind.
-        if !redoxfs_server_build(X86_TARGET) || !initrd_x86() || !mkredoxfs() || !mknvmedisk() {
+        // order the aarch64 and riscv64 legs use. No RedoxFS fixture beside it, and no `mkdisk`:
+        // this runner still attaches no virtio-blk, so the FS tests reach `start()` and take its
+        // "no RedoxFS disk attached" arm. What that costs and what it needs is milestone 165.
+        if !redoxfs_server_build(X86_TARGET) || !initrd_x86() || !mknvmedisk() {
             return false;
         }
         // SAFETY: `set_var` became unsafe in edition 2024 because it races other threads. xtask is
@@ -5703,11 +5705,10 @@ fn test() -> bool {
         // spawned, and the only thread xtask ever starts (the transcript reader in shell_check_leg)
         // copies pipe bytes into a String and never touches the environment.
         unsafe { std::env::set_var("NIFE_INITRD", x86_initrd_path()) };
-        // **`NIFE_DISK` names the fixture set, not the disk attached** (milestone 164). This
-        // runner derives `-redoxfs.img` from it exactly as the other two do, and attaches only
-        // that one; the nifefs image the variable literally names is not attached here, because
-        // q35 has no virtio-mmio bus and the FS service takes the FIRST virtio-blk PCI function it
-        // finds. `scripts/qemu-runner-x86_64.sh` carries the reason at the device.
+        // **`NIFE_DISK` names the fixture set, not one disk** (milestone 164), exactly as it does
+        // on both other runners: this one attaches the image it names AND the `-redoxfs.img` it
+        // derives from it, as the first two entries of the roster `fs_service::block_device`
+        // indexes. `scripts/qemu-runner-x86_64.sh` carries the ordering contract at the devices.
         //
         // SAFETY: `set_var` became unsafe in edition 2024 because it races other threads. xtask is
         // single-threaded here: this runs on the main thread before the child that reads it is

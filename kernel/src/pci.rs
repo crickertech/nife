@@ -187,30 +187,6 @@ pub fn find_block_device() -> Option<PciVirtioDevice> {
     bring_up(bdf, pci::VIRTIO_TYPE_BLOCK)
 }
 
-/// **Find the `n`-th (0-based) modern virtio-blk function on the bus and bring it up**, the PCIe
-/// twin of [`crate::virtio::find_block_device_n`] and minted for the same reason it was: a machine
-/// with several disks attached needs to say WHICH one a wiring gets, and "the first" is only an
-/// answer while there is one.
-///
-/// The ordinal counts in enumeration order (bus, then device, then function ascending), which is
-/// the order QEMU assigns slots in, which is the order the `-device` arguments appear on the
-/// runner's command line. So the runner and this function agree on the numbering by construction,
-/// exactly as the mmio pair does; `scripts/qemu-runner-x86_64.sh` is where the roster is written
-/// down.
-///
-/// A transitional function is counted the same way [`find_block_device`] refuses one: it is not a
-/// device this tree drives, so it is not in the roster and cannot shift the ordinals.
-#[cfg_attr(not(test), allow(dead_code))] // fs_service is the caller, and the FS tests drive it
-pub fn find_block_device_n(n: usize) -> Option<PciVirtioDevice> {
-    let bdf = find_virtio_bdf_n(
-        pci::VIRTIO_BLK_MODERN,
-        Some(pci::VIRTIO_BLK_TRANSITIONAL),
-        "virtio-blk",
-        n,
-    )?;
-    bring_up(bdf, pci::VIRTIO_TYPE_BLOCK)
-}
-
 /// Find the first modern virtio-net function on the bus and bring it up. `None` if there is no
 /// PCI NIC. Same bring-up as the disk; the transport seam and the DMA confinement do not know or
 /// care that a NIC sits behind them (milestone 30).
@@ -300,28 +276,17 @@ pub fn count_block_devices() -> usize {
 /// (virtio-gpu): there is then no such warning to give, and inventing an id to compare against
 /// would be a fact nobody checked.
 fn find_virtio_bdf(modern: u16, transitional: Option<u16>, kind: &str) -> Option<Bdf> {
-    find_virtio_bdf_n(modern, transitional, kind, 0)
-}
-
-/// [`find_virtio_bdf`] with an ordinal: the `n`-th matching function rather than the first. One
-/// walk with a counter rather than two nearly identical walks, so the roster the ordinals index
-/// cannot drift between the two callers.
-fn find_virtio_bdf_n(modern: u16, transitional: Option<u16>, kind: &str, n: usize) -> Option<Bdf> {
     if !host_bridge_present() {
         return None;
     }
     let mut found: Option<Bdf> = None;
-    let mut seen = 0usize;
     pci::enumerate(
         PCI_ECAM_BUSES,
         &mut |b, o| cfg_read32(b, o),
         &mut |bdf, vendor, device| {
             if found.is_none() && vendor == pci::VIRTIO_VENDOR {
                 if device == modern {
-                    if seen == n {
-                        found = Some(bdf);
-                    }
-                    seen += 1;
+                    found = Some(bdf);
                 } else if Some(device) == transitional {
                     crate::println!(
                         "  pci: {kind} at {:02x}:{:02x}.{} is transitional (legacy); \
