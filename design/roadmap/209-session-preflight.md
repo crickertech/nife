@@ -25,17 +25,44 @@ computed view of what changed; this is a computed view of whether the machine is
 | **No unclaimed lane branch** | two lanes can take one milestone | three of five lanes today pushed a branch and opened no draft pull request |
 | **Disk and load headroom** | the 2026-07-31 zero-bytes incident; today's OOM | load hit 83 on eight cores with three lanes and a mutation sweep |
 
-## The distinction that decides the design
+## Everything here is session-scoped, and that is calef's correction to this block's first draft
 
-**Machine-scoped things belong to `launchd` and this script only verifies them.** `merge-drain` and
-`trunk-health` already work that way and were right to; the script must not start them silently,
-because loading a `launchd` job is a machine-global act and a session should not take one without
-saying so.
+The first version said machine-scoped things belong to `launchd` and the session only verifies them.
+**calef, 2026-08-31, rejected that**: *"I don't want launchd without a means to disable all of the
+environment if there isn't an active Claude session. The Claude session drives so much of the
+remediation of issues."*
 
-**Session-scoped things are this script's to hold.** `caffeinate` is the clear case: holding sleep
-forever on a laptop is wrong, and holding it while lanes are running is right. That is a property of
-the session rather than of the machine, which is exactly why it does not belong in `launchd` next to
-the watchers.
+He is resolving a contradiction the record already carried rather than stating a new preference. On
+2026-08-26 he declined an unattended scheduled agent for the merge drain, saying he *"would rather
+this shut down when the session driving it does than run standing on a timer with nobody watching."*
+**The same day, the watchers moved to `launchd`, which does precisely the opposite.** That move was
+made for a good reason, a session having read the instruction and not acted, and it chose
+machine-persistence over the stated preference without anybody noticing the two disagreed.
+
+**The tension is not theoretical.** `scripts/merge-drain.sh`'s `notify()` posts once per stall and
+then goes quiet by design, so a stall found with no session running lands in a pull request comment
+nobody reads. That is the steward failure AGENTS.md already records in its own words: *"it reported
+and never acted."* A watcher whose remediation requires a session, running when no session exists,
+manufactures exactly that.
+
+### The shape that satisfies both
+
+The reason `launchd` was adopted is worth keeping: **nothing should have to remember to start these.**
+The reason to scope them to a session is equally worth keeping: **nothing should run when nobody can
+act on what it finds.**
+
+Both hold if the `launchd` job stays loaded and **each invocation first asks whether a session is
+alive**, exiting silently when none is. A heartbeat the preflight refreshes is enough: the watchers
+no-op once it goes stale.
+
+**A heartbeat beats a teardown**, and this is the design point worth defending. A session that ends
+cleanly could unload its jobs; a session that is killed by an out-of-memory event or a sleeping
+machine cannot, and both happened on 2026-08-31. A staleness check needs no cooperation from the
+dying session, which is the only kind of cleanup that survives the failures this project actually
+has.
+
+`caffeinate` follows the same rule for the same reason, and needs no heartbeat because it dies with
+the session that holds it.
 
 ## What it must not do, and each of these has bitten
 
@@ -47,6 +74,9 @@ the watchers.
 - **Never start a second `caffeinate`.** Check the assertion (`pmset -g assertions`) rather than the
   process, since a timed one from elsewhere may already be holding it and will expire.
 - **Never load a `launchd` job silently.** Say it is unloaded and how to load it.
+- **Never let a watcher act with no session alive.** That is the point above, stated as a
+  prohibition: the heartbeat is what enforces it, and a watcher that runs anyway is worse than one
+  that does not run at all, because its silence reads as "nothing is wrong".
 
 ## The rung it should reach
 
@@ -62,6 +92,10 @@ what it is.
 
 - **This is operational hygiene and is on no fatal risk's path.** It buys back attention and prevents
   losses; it moves none of the nine.
+- **The heartbeat is a new thing that can be wrong.** A stale one silences the watchers when work is
+  in flight, and a fresh one left by a crashed session lets them run unattended for its lifetime.
+  Whatever window is chosen is a guess until somebody measures how long a session's gaps actually
+  are.
 - **A preflight that reports six things nobody reads is worse than none.** The output has to be
   silent when everything is fine, which is `merge-drain`'s own posture, or it becomes noise within a
   week.
