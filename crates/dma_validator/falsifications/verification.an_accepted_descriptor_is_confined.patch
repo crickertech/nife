@@ -1,0 +1,31 @@
+Falsifies `dma_validator::an_accepted_descriptor_is_confined`.
+
+The defect: `check_descriptor` no longer refuses `F_INDIRECT`. The bounds check
+stays, so the descriptor's own buffer is still inside the region, and that is
+precisely why it is the dangerous defect rather than an obvious one: an indirect
+descriptor's buffer is a *table of further descriptors*, which the validator does
+not walk and never copies into the shadow, so the device follows addresses nothing
+checked. The crate's own comment at `F_INDIRECT` says the feature is also
+negotiated off in the kernel, which means this refusal is the second of two locks
+and losing it is silent.
+
+Expected to fail: `assert!(!d.is_indirect(), "an indirect descriptor was
+accepted")`, on any descriptor whose flags carry bit 2 and whose buffer is
+in-region. The companion `assert!(in_region(...), "an accepted descriptor escapes
+the region")` stays green under this patch, which is what separates the two claims
+this harness makes.
+
+diff --git a/crates/dma_validator/src/lib.rs b/crates/dma_validator/src/lib.rs
+index 9a6d0500..f9c37305 100644
+--- a/crates/dma_validator/src/lib.rs
++++ b/crates/dma_validator/src/lib.rs
+@@ -154,9 +154,6 @@ impl Desc {
+ /// first, so it is the property the whole confinement rests on, isolated as a loopless function the
+ /// `an_accepted_descriptor_is_confined` proof can quantify over all inputs.
+ pub fn check_descriptor(base: u64, size: u64, qsize: u16, d: Desc) -> bool {
+-    if d.is_indirect() {
+-        return false; // an indirect table is never copied, so the device would follow it unchecked
+-    }
+     if !in_region(base, size, d.addr, d.buf_len()) {
+         return false; // the buffer escapes the driver's region
+     }
