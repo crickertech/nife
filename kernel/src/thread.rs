@@ -344,6 +344,20 @@ pub struct Thread {
     /// the protocol's rules, its races and its BUGS.
     pub handshake: thread_wake_handshake::Handshake<Wait>,
 
+    /// **Which core this thread last ran on** (milestone 219), or [`u8::MAX`] if it has never run.
+    ///
+    /// One byte, written at every `switch_in`, read at the same place to decide whether this turn
+    /// is a migration. It exists because nothing else in the kernel could answer "did this
+    /// workload actually cross cores", and the number that looked like it could does not: a
+    /// rendezvous wake makes its peer `Ready` on the **waker's** core (DECISIONS §28.2), which is
+    /// local by construction, so `trace::Event::PlaceRemote` never fires for the migration it
+    /// nonetheless performs. Measured on 2026-09-01: a four-core IPC soak doing 65,000 round trips
+    /// a second reported `remote` frozen at 23 while threads moved between cores continuously.
+    ///
+    /// Not part of the block/wake protocol, so deliberately not in `Handshake`: that crate models
+    /// the transitions loom searches, and this is an observation about them.
+    pub last_cpu: u8,
+
     /// **The entire saved CPU state of this thread**: one stack pointer.
     ///
     /// Everything else lives on the stack it points at, pushed there by `switch_to`. Eight
@@ -499,6 +513,7 @@ impl Thread {
         Thread {
             id: UNNAMED, // named 0 by the table's first insert (see generational_table::Table)
             handshake: thread_wake_handshake::Handshake::on_cpu_now(), // adopted mid-run: standing on its CPU
+            last_cpu: u8::MAX,
             context: core::ptr::null_mut(),
             stack: None,
             space: None,
@@ -528,6 +543,7 @@ impl Thread {
         Thread {
             id: UNNAMED, // named at insert, like every thread
             handshake: thread_wake_handshake::Handshake::on_cpu_now(), // adopted mid-run: standing on its CPU
+            last_cpu: u8::MAX,
             context: core::ptr::null_mut(),
             stack: None,
             space: None,
@@ -630,6 +646,7 @@ impl Thread {
             dst.write(Thread {
                 id,
                 handshake: thread_wake_handshake::Handshake::ready(),
+                last_cpu: u8::MAX,
                 context,
                 stack: Some(stack),
                 space: None, // a kernel thread until it calls `user::exec`
@@ -674,6 +691,7 @@ impl Thread {
         Thread {
             id: UNNAMED,
             handshake: thread_wake_handshake::Handshake::embryo(),
+            last_cpu: u8::MAX,
             context: core::ptr::null_mut(),
             stack: None,
             space: None,

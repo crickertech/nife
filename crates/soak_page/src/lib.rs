@@ -39,10 +39,12 @@ pub const PAGE: u64 = 4096;
 
 /// How many workers the page has room for.
 ///
-/// Two `u64` per worker in a 4 KiB page leaves enormous headroom; this is capped well under that
-/// on purpose, because the kernel indexes its own arrays by the same number and a worker count
-/// that large would be a mistake rather than a configuration.
-pub const MAX_WORKERS: usize = 32;
+/// Two `u64` per worker costs 1 KiB of the 4 KiB page at this ceiling, which is the headroom the
+/// host test below checks rather than assumes. It is far above any machine this project has: the
+/// kernel builds one group of five per online core, so 64 covers a twelve-core board with room to
+/// spare, and the cap exists so that the kernel's own fixed-size arrays have a bound rather than
+/// because anything is near it.
+pub const MAX_WORKERS: usize = 64;
 
 /// Byte offset of worker `i`'s completed-round-trip counter.
 ///

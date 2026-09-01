@@ -9059,6 +9059,7 @@ fn soak() -> ExitCode {
             return ExitCode::from(4);
         }
     };
+    let runner_pid = child.id();
     let Some(stdout) = child.stdout.take() else {
         eprintln!("soak: the runner gave us no stdout to read");
         let _ = child.kill();
@@ -9073,6 +9074,15 @@ fn soak() -> ExitCode {
     // Kill it whatever happened. A nife kernel that has finished its work sits in `wfi` forever and
     // QEMU with it, and this one never even finishes: leaving it running is the leak `AGENTS.md`
     // spends a whole section on.
+    //
+    // **The children first, then the wrapper**, the same order and for the same reason as
+    // `run_bench` above: `scripts/qemu-runner-x86_64.sh` runs QEMU as a plain foreground child
+    // rather than `exec`-ing into it, so killing the wrapper alone orphans the emulator. Found on
+    // 2026-09-01 by an x86 soak that returned 0 and left a `qemu-system-x86_64` behind holding this
+    // pipe. The other two runners `exec`, so `pkill -P` finds nothing there and costs one process.
+    let _ = Command::new("pkill")
+        .args(["-9", "-P", &runner_pid.to_string()])
+        .status();
     let _ = child.kill();
     let _ = child.wait();
     let _ = sink.flush();
@@ -9092,7 +9102,7 @@ fn soak() -> ExitCode {
         Some(beat) => {
             eprintln!(
                 "soak: {} round trips in {}s ({} /s at the last beat), {} cross-core handoffs",
-                beat.rounds, beat.seconds, beat.rate, beat.remote
+                beat.rounds, beat.seconds, beat.rate, beat.crossings
             );
             eprintln!(
                 "soak: refused={} mismatch={} stalled={} (each must be 0)",
@@ -9104,6 +9114,17 @@ fn soak() -> ExitCode {
                 "soak: a clean run is a number to compare against, NOT evidence that the \
                  concurrency is correct."
             );
+            // The gap this milestone measured rather than assumed, said on every run because a
+            // reader who does not know it will read the round-trip total as covering more than it
+            // does. See notes/soak.md.
+            if beat.crossings < beat.rounds / 1000 {
+                eprintln!(
+                    "soak: and it barely crossed cores ({} handoffs against {} round trips): this \
+                     scheduler does not rebalance, so a saturated workload stays where it was \
+                     placed. See notes/soak.md.",
+                    beat.crossings, beat.rounds
+                );
+            }
         }
         None => eprintln!("soak: no heartbeat was seen; the workload never started"),
     }

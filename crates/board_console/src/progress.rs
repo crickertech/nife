@@ -163,8 +163,14 @@ pub struct SoakBeat {
     pub mismatches: u64,
     /// How many workers made no progress in the last interval. Expected to be zero.
     pub stalled: u64,
-    /// Cumulative cross-core wakes and placements. **Expected to be large**, and a soak reporting
-    /// zero here soaked one core thoroughly and said nothing about the others.
+    /// **Cumulative times a thread ran on a different core than the one it last ran on.** The
+    /// honest cross-core handoff count; see `kernel/src/soak.rs` and `notes/soak.md` for the
+    /// measured reason a steady-state workload barely moves this at all.
+    pub crossings: u64,
+    /// Cumulative wakes and placements that named a remote core. Narrower than
+    /// [`crossings`](Self::crossings) and kept beside it because the two disagreeing is the
+    /// finding: a rendezvous wake queues its peer locally, so a migration it performs is invisible
+    /// here.
     pub remote: u64,
 }
 
@@ -380,6 +386,7 @@ impl BootProgress {
             ("refused=", &mut beat.refused),
             ("mismatch=", &mut beat.mismatches),
             ("stalled=", &mut beat.stalled),
+            ("crossings=", &mut beat.crossings),
             ("remote=", &mut beat.remote),
         ] {
             if let Some(v) = field(name) {

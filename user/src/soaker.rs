@@ -72,6 +72,10 @@ const ENDPOINT: u64 = 0;
 
 /// `arg0`: this soaker answers calls.
 const ROLE_RESPONDER: u64 = 0;
+/// `arg0`: this soaker calls.
+const ROLE_CALLER: u64 = 1;
+/// `arg0`: this soaker computes and never blocks.
+const ROLE_GRINDER: u64 = 2;
 
 // SAFETY: the kernel's `soak::run` maps one page read/write at `soak_page::VA` in every worker's
 // address space before starting it, and `soak_page`'s host tests prove every offset this program
@@ -102,7 +106,11 @@ pub extern "C" fn _start(role: u64, index: u64, seed: u64) -> ! {
     let mut sequence: u64 = seed;
 
     loop {
-        if role == ROLE_RESPONDER {
+        if role == ROLE_GRINDER {
+            for _ in 0..2048 {
+                core::hint::spin_loop();
+            }
+        } else if role == ROLE_RESPONDER {
             // `recv_cap`, not `recv`: a CALL arrives with a reply capability, and answering it is
             // what completes the caller's parked rendezvous. A responder that used `recv` would
             // leave every caller blocked forever, which is a hang this workload would then report
@@ -118,6 +126,7 @@ pub extern "C" fn _start(role: u64, index: u64, seed: u64) -> ! {
                 PAGE.write(mismatches_at, mismatches);
             }
         } else {
+            debug_assert!(role == ROLE_CALLER);
             sequence = sequence.wrapping_add(1);
             let (got, _) = call(ENDPOINT, sequence, 0);
             if got != soak_page::answer(sequence) {

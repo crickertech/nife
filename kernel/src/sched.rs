@@ -574,6 +574,12 @@ mod trace {
         /// delivered nothing (no message, no signal, no abort). The boot-8 gate firing; on a
         /// healthy boot this event never appears, so its presence in a bench dump is the finding.
         WakeRefused = 9,
+        /// This core switched into `tid`, and the core it last ran on was a different one
+        /// (milestone 219). **The cross-core handoff count**, and the only honest one: a rendezvous
+        /// wake makes its peer Ready on the *waker's* core, which is local by construction, so
+        /// [`Event::PlaceRemote`] misses every migration a pure IPC workload performs. `aux` is the
+        /// core it came from.
+        Migrated = 11,
         /// This core set `ipc_served` on `tid`: a delivery completed the thread's parked IPC.
         /// `aux` names the delivering site (1 send, 2 recv-collect, 3 `send_cap`, 4 `recv_cap`-collect,
         /// 5 call, 6 reply, 7 irq signal, 8 death message), so a bench dump answers "who served
@@ -586,7 +592,7 @@ mod trace {
     ///
     /// One more than the largest variant, because the discriminants start at 1 so that a zeroed
     /// ring slot is distinguishable from a recorded `SwitchTo`.
-    pub const KINDS: usize = 11;
+    pub const KINDS: usize = 12;
 
     struct Ring {
         seq: AtomicU64,
@@ -675,10 +681,11 @@ mod trace {
                 8 => "drain",
                 9 => "refuse",
                 10 => "serve",
+                11 => "moved",
                 _ => "?",
             };
             crate::print!(" {name}:{tid:#x}");
-            if matches!(kind, 2 | 6 | 7 | 10) {
+            if matches!(kind, 2 | 6 | 7 | 10 | 11) {
                 crate::print!("/{aux}");
             }
         }
@@ -705,6 +712,7 @@ mod trace {
         InboxDrain,
         WakeRefused,
         Served,
+        Migrated,
     }
 
     #[inline]
@@ -752,6 +760,15 @@ pub fn wakes_deferred() -> u64 {
 /// about the others.
 pub fn remote_placements() -> u64 {
     trace::counted(trace::Event::PlaceRemote)
+}
+
+/// **How many times a thread ran on a different core than the one it last ran on.**
+///
+/// The cross-core handoff number, and the one a soak reports. See [`thread::Thread::last_cpu`] for
+/// why [`remote_placements`] could not be it: a rendezvous wake queues its peer on the waker's own
+/// core (DECISIONS §28.2), so the placement is local even though the thread has moved.
+pub fn migrations() -> u64 {
+    trace::counted(trace::Event::Migrated)
 }
 
 /// How many threads this machine handed from one core's run queue to another's on request. The
@@ -1724,6 +1741,20 @@ pub fn schedule() {
         }
 
         // Running, with on_cpu set until ITS successor's finish_switch, one switch from now.
+        let here = cpu::id();
+        {
+            // **Did this thread just cross cores?** Recorded here rather than at any wake site,
+            // because this is the one place every path to a CPU passes through, whatever moved the
+            // thread: a rendezvous wake onto the waker's core, a work steal, a load-aware
+            // placement, or spawn. See `thread::Thread::last_cpu` for why the placement counter
+            // could not answer this.
+            let t = sched.threads.get_mut(next).unwrap();
+            let from = t.last_cpu;
+            t.last_cpu = here as u8;
+            if from != u8::MAX && from as usize != here {
+                trace::record(trace::Event::Migrated, next, from);
+            }
+        }
         sched.threads.get_mut(next).unwrap().handshake.switch_in();
         set_current_thread_id(next);
         trace::record(trace::Event::SwitchTo, next, 0);

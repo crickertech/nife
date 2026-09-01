@@ -103,16 +103,9 @@ const START_MARKER: &str = "soak: started";
 ///
 /// The caller is the boot thread at the end of the tour, and this replaces its `arch::halt()`.
 pub fn run() -> ! {
-    // Two workers per core, so every core has a runnable thread and every run queue still goes
-    // empty often enough for the work-steal path to fire. One pair per core is the smallest
-    // configuration that puts a rendezvous *between* cores rather than inside one; more pairs than
-    // that buys queue depth rather than crossings, and queue depth is not what the risk is about.
-    //
-    // At least two pairs even on a single-core boot, because the QEMU legs run with one vCPU on
-    // some architectures and a soak that cannot start there is a soak nobody runs before a bench
-    // trip.
     let cores = smp::online_count();
-    let pairs = cores.max(2).min(MAX_WORKERS / 2);
+    let groups = topology_groups(cores);
+    let callers = CALLERS_PER_GROUP;
 
     let Some(image) = user::program("soaker") else {
         println!("soak: FAILED: no 'soaker' program in the initrd archive; nothing to run");
@@ -126,13 +119,20 @@ pub fn run() -> ! {
     };
     let shared = frame.addr();
 
-    for pair in 0..pairs {
+    for group in 0..groups {
         let endpoint = sched::create_rendezvous();
         // The responder first. A caller whose responder is not yet receiving simply parks on the
         // rendezvous, so the order is not load-bearing; starting the answering half first keeps a
         // fresh boot's first few beats from reading as a stall.
-        for role in [ROLE_RESPONDER, ROLE_CALLER] {
-            let index = worker_index(pair, role);
+        for member in 0..(1 + callers + GRINDERS_PER_GROUP) {
+            let role = if member == 0 {
+                ROLE_RESPONDER
+            } else if member <= CALLERS_PER_GROUP {
+                ROLE_CALLER
+            } else {
+                ROLE_GRINDER
+            };
+            let index = worker_index(group, member);
             let rights = if role == ROLE_RESPONDER {
                 Rights::READ
             } else {
@@ -162,18 +162,18 @@ pub fn run() -> ! {
             if started.is_none() {
                 println!(
                     "soak: FAILED: could not spawn worker {index} of {}",
-                    pairs * 2
+                    groups * (1 + callers + GRINDERS_PER_GROUP)
                 );
                 arch::halt();
             }
         }
     }
 
-    let workers = pairs * 2;
+    let workers = groups * (1 + callers + GRINDERS_PER_GROUP);
     println!();
     println!(
-        "{START_MARKER} {pairs} caller/responder pairs ({workers} user threads) on {cores} online \
-         core(s), beating every {BEAT_SECONDS}s"
+        "{START_MARKER} {groups} groups of one responder and {callers} callers ({workers} user \
+         threads) on {cores} online core(s), beating every {BEAT_SECONDS}s"
     );
     println!(
         "soak: silence longer than a few beats is a hang, not a slow run; the beat is on the wall \
@@ -191,13 +191,30 @@ pub fn run() -> ! {
 const ROLE_RESPONDER: u64 = 0;
 /// `arg0` for the half that calls.
 const ROLE_CALLER: u64 = 1;
+/// `arg0` for the half that only computes.
+const ROLE_GRINDER: u64 = 2;
 
-/// Which slot of the shared page belongs to this pair's half.
+/// How many callers share one responder.
+const CALLERS_PER_GROUP: usize = 3;
+
+/// How many pure-compute threads share a group.
+const GRINDERS_PER_GROUP: usize = 1;
+
+/// How many groups to build on a machine with `cores` cores.
 ///
-/// Pairs are laid out consecutively (`0` and `1` are the first pair) so that a stalled index in a
-/// report names its partner by arithmetic a reader can do in their head.
-fn worker_index(pair: usize, role: u64) -> usize {
-    pair * 2 + if role == ROLE_RESPONDER { 0 } else { 1 }
+/// One group per core, and at least two so a single-core QEMU leg still runs something with more
+/// than one endpoint in it. Capped by what the shared page has slots for.
+fn topology_groups(cores: usize) -> usize {
+    let groups = cores.max(2);
+    groups.min(MAX_WORKERS / (1 + CALLERS_PER_GROUP + GRINDERS_PER_GROUP))
+}
+
+/// Which slot of the shared page belongs to this group's `member`.
+///
+/// Members are laid out consecutively, member 0 being the group's responder, so a stalled index in
+/// a report names its group by arithmetic a reader can do in their head.
+fn worker_index(group: usize, member: usize) -> usize {
+    group * (1 + CALLERS_PER_GROUP + GRINDERS_PER_GROUP) + member
 }
 
 /// Read one `u64` out of the shared page through the direct map.
@@ -254,8 +271,9 @@ fn watch(shared: u64, workers: usize) -> ! {
         // than a table that lines up on a terminal nobody kept.
         println!(
             "soak: t={elapsed}s beat={beat} rounds={total} rate={rate}/s workers={workers} \
-             refused={refused} mismatch={mismatches} stalled={stalled} remote={} steals={} \
-             deferred={}",
+             refused={refused} mismatch={mismatches} stalled={stalled} crossings={} remote={} \
+             steals={} deferred={}",
+            sched::migrations(),
             sched::remote_placements(),
             sched::steals_served(),
             sched::wakes_deferred(),
