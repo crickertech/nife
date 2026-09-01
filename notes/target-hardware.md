@@ -7,6 +7,29 @@
 > parity and stands as the aarch64-side record; its "the ISA is almost never the constraint"
 > thesis is exactly why the cheaper-contract board wins.
 
+## The three machines have names: argon, radon, xenon
+
+Ratified by calef, 2026-09-01, once all three existed and "the board" had stopped being an
+unambiguous phrase in a conversation. One noble gas per architecture:
+
+| name | architecture | machine | state, 2026-09-01 |
+|---|---|---|---|
+| **argon** | aarch64 | NVIDIA Jetson (milestone 127) | in hand |
+| **radon** | riscv64 | StarFive VisionFive 2, JH7110 | boots nife, wired as a bench target |
+| **xenon** | x86_64 | Dell OptiPlex, serial port and null modem (milestone 87) | in hand, no first light yet |
+
+**Why they earn names rather than descriptions.** This project's own tenet is that a name is a
+claim and a reader meets it before anything else. "The board" was serviceable while there was
+one; with three it silently means whichever the speaker had in mind, and the cost lands on
+whoever reads the sentence later. The names are also stable in a way the descriptions are not:
+the aarch64 board may not always be a Jetson, but argon stays argon.
+
+They are deliberately not architecture names. `riscv64` already names the ISA, and a machine
+name has to survive the day a second machine of the same architecture arrives.
+
+The development machines keep their existing names and are not part of this scheme:
+**patagonia** (the Mac everything is built on) and **cordoba** (the always-on x86 box).
+
 ## The ISA is almost never the constraint
 
 "Does it run aarch64" is the wrong question. Three things decide whether you can boot your
