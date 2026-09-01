@@ -1,11 +1,64 @@
 # 197. `user/` and `xtask` are out of reach of the prover, for exactly the reason the kernel was
 
-**Status: NOT-STARTED.** Minted 2026-08-30 from milestone 193's (put `kernel/src` within reach of the
-prover) lane. *(Number provisional until the merge queue lands it.)*
+**Status: BUILT 2026-08-31**, the `user/` half; `xtask` is refused with an argument, and the timer
+seam below is untouched and still a fork. Minted 2026-08-30 from milestone 193's (put `kernel/src`
+within reach of the prover) lane. notes/user-proofs.md is the record. *(Number provisional until the
+merge queue lands it.)*
 
-**Gate: NONE.** The `user/` half needs nothing that does not exist, milestone 193 having established
-the mechanics. The timer seam further down is a genuine fork and is marked as one there rather than
-gating this whole block on it.
+## What was built, and where the block was wrong
+
+**One property, over code that lives in `user/src/printenv.rs` today, proved by two harnesses
+`script/verify` runs, and falsified before it was believed.** `push_never_writes_past_the_buffer_it_was_given`
+says that for every starting offset in the whole of `usize` and every content, the bounded append
+that renders a configuration page this program did not write stays inside its 96-byte line buffer,
+appends only at the offset it was given, and reports exactly what it wrote;
+`the_buffer_can_be_filled_exactly` is the `kani::cover!` that the boundary is reached, so the
+assertion is not proved by an assumption set that never gets near it. Relaxing one `<` to `<=` turns
+both red, and the patch is recorded (`user/falsifications/`). **Cost: 2.4 seconds** on
+`script/verify`'s ~650.
+
+**The premise above is half false, and that is the finding.** This block argued `user/` had a better
+claim on the prover than the kernel because it holds real parsers over untrusted bytes. It mostly
+does not, any more: rule 7 and the host-testability discipline have already lifted the initrd, ELF,
+GPT, mDNS, directory-entry, terminal-escape, shell and glob parsers into crates, **every one of
+which is in `script/verify`'s table today**. What is left in `user/src` is overwhelmingly IO glue.
+The prize this block was reaching for had largely been collected under other numbers.
+
+**A live defect fell out anyway, and it fell out before any harness ran.** `rmle`'s save buffer was
+`MAX_ROWS * MAX_COLS`, the size of the document's *text*, while `save` joins the rows with `\n` and
+so writes up to `MAX_ROWS - 1` bytes more. A document at both bounds staged 3231 bytes into a
+3200-byte buffer and panicked the editor on `^S`, and nothing had found it. It was found by writing
+the property down, which is the first time the two constants were compared. The fix is the buffer
+sized `MAX_ROWS * (MAX_COLS + 1)` **plus a `const` assertion**, not a harness: the claim is a
+relationship between compile-time constants, so rung one of the ladder holds it for nothing.
+
+**Three property shapes did not work, and the numbers are the deliverable.** A bound on a sum of 32
+symbolic values did not finish in twenty minutes on CaDiCaL or Z3, because it is a cardinality
+argument and that is what resolution-based SAT is worst at. A symbolic index into the editor's
+3.5 KB document struct exhausted CBMC's memory in 3m23s. Any assertion about a value downstream of
+`render`'s twenty chained divisions stopped finishing, while the same harness asserting only a
+length bound returns in 0.3 seconds because `--slice-formula` throws the divisions away: **a fast
+harness can be evidence that the assertion asked nothing.**
+
+**Mechanically it was cheaper than the kernel.** No `--ignore-global-asm`, because there is no
+`global_asm!` under `user/` at all (rule 1 again). Two changes: `#[cfg(not(kani))]` on the one
+binary's `user_rt::panic_handler!()`, and `--bin` selection, because `cargo kani -p user` compiles
+all 68 programs and Kani refuses any `#![no_std]` root that never mentions it. The `--bin` list is
+**derived from a grep of the tree** in `script/verify` rather than written there, for the reason that
+file has already recorded twice: a list one name short fails invisibly and the suite just goes green
+faster.
+
+**`xtask` is refused**, and the argument is in notes/user-proofs.md rather than left as a shrug. Its
+front door is already open (`cargo kani -p xtask` compiles with no changes at all, measured), so the
+refusal is on value: a defect there cannot reach anything that runs, it is host `std` code with
+tests and a debugger where Kani is least differentiated, its pure logic already lives in crates the
+suite proves, and its hand-written decoders **exist to be a second opinion** on the crates they
+check, so aiming one prover at both halves narrows the independence that justifies them.
+
+*This block carried `Gate: NONE` while it was open, and correctly: the `user/` half needed nothing
+that did not exist, milestone 193 having established the mechanics. The line is gone because a BUILT
+milestone cannot have one. The timer seam further down was and is a genuine fork, marked as one
+there rather than gating this block.*
 
 **In brief.** `script/verify`'s header names three things `cargo kani` never compiles: the kernel, the
 user programs, and xtask. Milestone 193 removed the first for about ten seconds of run time. The
@@ -36,7 +89,20 @@ half of the same observation and is untouched.
 
 ## BUGS
 
-- **`xtask` is named here and not argued for.** It is host code with a test suite already, so the
-  case for proving it is weaker than for `user/`, and this block does not make it.
-- **Nothing here estimates the run-time cost.** The kernel's two harnesses cost ten seconds; a parser
-  over symbolic input can cost far more, and `script/verify` is already about 650 seconds.
+- **`xtask` was named here and not argued for**, and it is now argued and refused; see above and
+  notes/user-proofs.md. What would reverse the refusal is `xtask` growing logic the target then
+  trusts, and the shape to watch is the measured-boot digest, which already lives in
+  `crates/measured_boot` for exactly this reason.
+- **The run-time cost was not estimated here** and is now measured: 2.4 seconds for the two
+  harnesses that shipped, against `script/verify`'s ~650. The worry that "a parser over symbolic
+  input can cost far more" was right in a way this block did not predict: the expensive shapes are
+  not parsers but sums, symbolic indices into large structs, and values downstream of division, and
+  three such properties were abandoned with the measurements recorded.
+- **`script/falsifications` walks `crates/` only.** This milestone's falsification record and patch
+  live under `user/`, and `kernel`'s two harnesses from milestone 193 carry no record at all, so the
+  ratio that script prints is over `crates/` rather than over the tree and it does not know it.
+  Closing it needs the walk derived from `cargo metadata` and `--sweep` taught that a package can
+  have binaries; proposed as its own milestone in this lane's report.
+- **Two harnesses is not coverage of 68 programs.** The editor's editing operations are the richest
+  untrusted-input surface left in `user/` and are out of reach as the document is laid out today;
+  moving a row's length out of the row would fix that and is a data-layout question, not a lane's.
