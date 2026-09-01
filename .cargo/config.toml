@@ -43,4 +43,29 @@ runner = "scripts/qemu-runner-x86_64.sh"
 # loader happened to pick as the base. The other two kernel targets are static already; this one
 # has to be told. The target's `code-model: kernel` is what fixes KERNEL_VA_BASE at
 # 0xffffffff80000000, and link-x86_64.ld's header explains why that is not a free choice.
-rustflags = ["-C", "relocation-model=static"]
+#
+# `--cfg aes_force_soft` (milestone 164) is the second flag, and it is here rather than scoped to
+# one package because cargo has no way to ADD a flag: `RUSTFLAGS` and `--config
+# target.*.rustflags` both REPLACE this list, so scoping the cfg to the FS-server build would mean
+# restating `relocation-model=static` in `xtask/src/main.rs`, away from the paragraph above that
+# explains why the kernel needs it. One copy in one place, and the cost of that choice is stated
+# here rather than left to be discovered: EVERY crate built for this target gets the cfg, the
+# kernel included, because unlike aarch64 and riscv64 this architecture has one target for both
+# the kernel and userspace.
+#
+# It is inert everywhere but one crate. `aes` 0.8.4 picks its backend in `src/lib.rs` with
+# `cfg_if`, and every architecture-specific arm is gated `not(aes_force_soft)`; setting the cfg
+# selects the portable constant-time software backend in `aes/src/soft/` instead. Nothing else in
+# this tree reads the name. Without it, `aes` (which the vendored RedoxFS engine depends on
+# unconditionally) fails to codegen at every optimization level with
+# `rustc-LLVM ERROR: Do not know how to split the result of this operator!`, because this target is
+# `-mmx,-sse,+soft-float` and there is no 128-bit vector register to legalize an AES block into.
+# That is milestone 164's whole blocker; see design/roadmap/164-x86-64-fs-server-aes.md.
+#
+# BUGS: a typo in the cfg name is silent. `--cfg` on the command line is not checked against
+# `--check-cfg` by `unexpected_cfgs` (measured: `--cfg aes_force_sotf` on a clean rebuild of
+# `crates/abi` warns about nothing), and pairing a `--check-cfg cfg(aes_force_soft)` here does not
+# change that, so the pairing was dropped rather than kept as a comment claiming a guard it does
+# not provide. What actually catches a typo is the FS-server build failing with the LLVM error
+# above, which is loud, immediate, and the only consumer there is.
+rustflags = ["-C", "relocation-model=static", "--cfg", "aes_force_soft"]

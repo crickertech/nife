@@ -830,20 +830,23 @@ pub struct DirGrant {
     pub stack_pages: usize,
 }
 
-/// **The FS server's binary, or `None` because this target could not build one** (milestone 161).
+/// **The FS server's binary, or `None` because nothing packed one into this archive** (milestone
+/// 161; the reason changed under milestone 164 and this comment with it).
 ///
-/// Every other missing fixture in this tree is a *machine* fact: no disk attached, no virtio-rng on
-/// the bus, no second core. This one is a **toolchain** fact, which is why it gets a named helper
-/// rather than an `.expect` somebody reads once. `fs_server` links the vendored RedoxFS engine,
-/// which pulls in the `aes` crate unconditionally (its encrypted-volume support is not behind a
-/// feature), and building `aes` for `x86_64-unknown-none` ends in
-/// `rustc-LLVM ERROR: Do not know how to split the result of this operator!` at every optimisation
-/// level including zero. The target spec is the cause: it is `-mmx,-sse,+soft-float`, so there is
-/// no 128-bit vector register for LLVM to legalise an AES block into and no scalar fallback for
-/// that operator. Nothing on this side fixes it; see `xtask`'s `initrd_x86` and notes/x86-port.md.
+/// It exists as a named helper rather than an `.expect` somebody reads once because for two
+/// months this was a **toolchain** fact rather than a machine one, unlike every other missing
+/// fixture in this tree (no disk attached, no virtio-rng on the bus, no second core). The engine
+/// this server links pulls in `aes` unconditionally, and `aes` would not codegen for
+/// `x86_64-unknown-none` at any optimisation level: that target is `-mmx,-sse,+soft-float`, so
+/// there was no 128-bit vector register for LLVM to legalise an AES block into.
 ///
-/// So on `x86_64` the archive carries no `redoxfs_server`, and every test that needs a filesystem
-/// skips with [`NO_FS_SERVER`] rather than panicking on a lookup.
+/// **That is fixed** (milestone 164): `--cfg aes_force_soft` in `.cargo/config.toml` selects the
+/// portable software backend `aes` already ships, and all three architectures build the server
+/// and pack it. So `None` is once again an ordinary build fact: nothing built the binary before
+/// the archive was packed. A test that needs a filesystem still skips with [`NO_FS_SERVER`]
+/// rather than panicking on a lookup, and on `x86_64` it now more often skips one step later,
+/// inside [`start`], for want of a disk this machine's runner does not attach yet
+/// (design/roadmap/164-x86-64-fs-server-aes.md).
 ///
 /// **The archive entry is `redoxfs_server`, not `fs_server`, on every architecture that has one**
 /// (milestone 140 increment zero renamed the crate and its packed name together). A lookup for the
@@ -856,13 +859,19 @@ pub fn fs_server_image() -> Option<&'static [u8]> {
     program("redoxfs_server")
 }
 
-/// The reason a test gives when [`fs_server_image`] is `None`. One string, because a dozen files
-/// share one cause and a reader comparing two runs should not have to decide whether two wordings
-/// mean the same thing.
-pub const NO_FS_SERVER: &str = "no fs_server in this archive: it links the vendored RedoxFS \
-                                engine, whose unconditional `aes` dependency does not compile for \
-                                x86_64-unknown-none (LLVM cannot legalise an AES block with SSE \
-                                disabled)";
+/// The reason a test gives when there is no FS service to talk to. One string, because a dozen
+/// files share one cause and a reader comparing two runs should not have to decide whether two
+/// wordings mean the same thing.
+///
+/// **It names two causes, and that is deliberate rather than vague** (milestone 164). Most callers
+/// reach it from [`fs_server_image`] being `None`, which is only the first; `rmle_tests` reaches
+/// it from `rmle_service::start` returning `None`, which on a machine whose archive *does* carry
+/// the binary means the second. Until milestone 164 the first cause was the only one that ever
+/// fired on `x86_64` and the string named only it, which would now be a false statement in two
+/// tests rather than an imprecise one in none.
+pub const NO_FS_SERVER: &str = "no RedoxFS service on this boot: either nothing packed a \
+                                redoxfs_server into this archive, or this machine has no RedoxFS \
+                                disk for one to serve";
 
 /// **`mkfs`'s binary, or `None`** (milestone 161). Same package as [`fs_server_image`], same
 /// vendored engine underneath it, so it is absent for exactly the same reason and on exactly the
@@ -872,9 +881,8 @@ pub fn mkfs_image() -> Option<&'static [u8]> {
 }
 
 /// The reason a test gives when [`mkfs_image`] is `None`. [`NO_FS_SERVER`]'s cause, one binary over.
-pub const NO_MKFS: &str = "no mkfs in this archive: it is built from the same package as \
-                           fs_server, which does not compile for x86_64-unknown-none (the \
-                           vendored RedoxFS engine's `aes` dependency)";
+pub const NO_MKFS: &str = "no mkfs in this archive (nothing built one for this target before \
+                           the archive was packed)";
 
 /// **The binary carrying the block server's role**, which is the one thing the two ISAs
 /// disagree about here: on aarch64 it is a role of the `init`/hello binary, on riscv the

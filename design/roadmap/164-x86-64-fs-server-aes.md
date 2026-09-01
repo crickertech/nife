@@ -1,98 +1,120 @@
 # 164. x86_64 userspace can't build `aes` (and therefore `fs_server`): no SSE, no scalar fallback
 
-**Status: NOT-STARTED.** Minted 2026-08-25, provisional number pending the integrator (mint against
-the current index at merge). Found by milestone 161's x86_64 userspace lane (pull request #476),
-which named it plainly as "the finding that is not our bug" and proposed it as its own milestone
-rather than routing around it. This block gives that debt a home.
+**Status: BUILT 2026-09-01.** Minted 2026-08-25 from milestone 161's x86_64 userspace lane (pull
+request #476), which named the `aes` failure plainly as "the finding that is not our bug" and
+proposed it as its own milestone rather than routing around it. It was minted **Gate: NONE**, on
+the grounds that this was a toolchain and dependency problem rather than a hardware one, and that
+held: a lane made the whole of it without a board.
 
-**Gate: NONE.** Unlike milestone 163 (the JH7110's PCIe root complex), minted the same day for a
-similarly orphaned finding, this is a toolchain and dependency problem, not a hardware one. A lane
-can make real progress here without a board.
+**The title is now a statement about the past.** x86_64 userspace builds `aes`, `redoxfs_server`
+and `mkfs`, and the x86_64 archive carries the last two. Both routes this block sized are
+superseded and neither was taken; the section below says why, and is kept rather than deleted
+because the sizing was wrong in an instructive direction.
 
-## What it needs
+## What it turned out to need: one build flag
 
-`fs_server` does not compile for `x86_64-unknown-none` at all, which is **21 of PR #476's 67
-skipped tests on its own**. It links the vendored RedoxFS engine, which depends on the `aes` crate
-unconditionally (the crypto is not behind a feature flag). `aes` fails at every optimization level,
-including zero, with:
+`aes` 0.8.4 selects its backend in `src/lib.rs` with `cfg_if`, and **every architecture-specific
+arm is gated `not(aes_force_soft)`**. The crate ships a portable constant-time software backend in
+`src/soft/`, reachable by setting that cfg. Measured against this tree's own FS-server build
+command, on `x86_64-unknown-none`:
 
 ```
-rustc-LLVM ERROR: Do not know how to split the result of this operator!
+(no flag)              exit 101, rustc-LLVM ERROR: Do not know how to split the result of this operator!
+--cfg aes_force_soft   exit 0, redoxfs_server and mkfs both linked
 ```
 
-The cause is the target spec, not the crate: `x86_64-unknown-none` is built with
-`-mmx,-sse,+soft-float` (`.cargo/config.toml`'s own comment on the target explains why the kernel
-needs a static relocation model, but the SSE-disabling is inherited from the target's `none` base,
-not something this tree chose deliberately for this reason). With no 128-bit vector register to
-legalize an AES block into and no scalar fallback path, LLVM has nothing to emit. PR #476's own
-words: "Nothing on our side fixes it, and it means there is no point attaching a disk to the x86
-runner until it is solved."
+That is this block's exact error, reproduced and then cleared. The flag lives in
+`.cargo/config.toml`'s `[target.x86_64-unknown-none]` block, beside the `relocation-model=static`
+the kernel needs.
 
-**A fact worth knowing before scoping either route below**: `x86_64-unknown-none` is not a
-userspace-only target the way it might first appear. Reading `.cargo/config.toml`, this is the
-*same* target the kernel itself builds under on this architecture (`[target.x86_64-unknown-none]`
-carries the kernel's own `relocation-model=static` flag), and `fs_server` builds against it via the
-same `TARGET` constant every other `user/` program uses (`xtask/src/main.rs`'s `fs_server_build`).
-Unlike aarch64 and riscv64, x86_64 has no separate kernel-vs-userspace split at the target level
-today. That matters for Route 2 below.
+**It is on the target rather than on the one package that needs it, and the coupling was noticed
+rather than inherited.** This block's own "fact worth knowing" is correct: `x86_64-unknown-none` is
+the *same* target the kernel builds under, so a `rustflags` entry there reaches the kernel too.
+Cargo has no way to ADD a flag (`RUSTFLAGS` and `--config target.*.rustflags` both REPLACE the
+list), so scoping the cfg to `redoxfs_server_build` would have meant restating
+`relocation-model=static` in `xtask/src/main.rs`, away from the paragraph explaining why the kernel
+needs it. One copy in one place, with the cost written down where a reader meets it: every crate on
+this target gets the cfg, and it is inert in all of them but `aes`, which is the only thing in this
+tree or its dependency graph that reads the name. `cargo clippy` at the bars `script/lint` already
+sets passes for the kernel, for `bench`, and for `user` + `user_rt` with it on.
 
-## The two routes, as named by PR #476, sized here rather than guessed at
+## Why both sized routes are superseded
 
-### Route 1: patch the vendored `aes` crate
+**Route 1 (patch the vendored `aes` for a scalar fallback) is unnecessary**, and `patches/` does not
+grow a third entry. This block named the right next step ("is it a feature flag this tree isn't
+enabling, or a genuine gap in the crate's own portable path") and it took five minutes to answer:
+the portable path is not a gap, it is a cfg nobody had set.
 
-`patches/README.md` is the right home for this: "one file per patch, in `git format-patch` form,
-applied with `git am`... each exists to be upstreamed." Two existing patches already carry fixes
-against vendored dependencies this tree needs on a bare-metal target (`redoxfs-no-std-vec-import.patch`,
-`redoxfs-no-std-create-uuid.patch`), so the mechanism and submission path are proven; this would be
-a third entry of the same shape.
+**Route 2 (an SSE-enabled x86 userspace target) is not owed for this blocker**, and its sizing was
+the accurate half of this block: `kernel/src/arch/x86_64/` saves and restores no FPU/SSE state
+anywhere, so enabling SSE would mean an `FXSAVE` area per thread and save/restore in the
+context-switch path. None of that was built, because none of it is needed to compile `aes`.
 
-The patch itself would need to give `aes` a scalar (non-SIMD) fallback implementation for whatever
-operation currently has none: `aes`'s own upstream likely already has a portable/software
-backend selectable by feature flag or `cfg`, since SIMD-less targets are not unique to this project;
-sizing that precisely (is it a feature flag this tree isn't enabling, or a genuine gap in the
-crate's own portable path) is the first thing whoever picks this up should check, before assuming a
-patch is needed at all.
+**The honest cost of not taking Route 2 is speed, and this block should not let a reader assume
+parity.** The software backend is a bitsliced constant-time implementation; upstream RustCrypto's
+own figures put AES-NI roughly an order of magnitude ahead of it. **Unmeasured here**, and
+deliberately so: nothing on x86_64 mounts an encrypted RedoxFS volume yet, so there is no workload
+to measure and a synthetic number would be a fact leaving the machine with nothing behind it. When
+an x86_64 workload touches the crypto path, that is when the number is owed, and Route 2 is what it
+would be weighed against.
 
-### Route 2: an x86 userspace target that keeps SSE
+## What it delivered, measured
 
-**This is a materially bigger change than it might look, because of the shared-target fact above.**
-Simply flipping `x86_64-unknown-none`'s features to re-enable SSE would affect the kernel build
-too, not just `fs_server` and other userspace programs: LLVM would then be free to use SSE/vector
-instructions anywhere in kernel code (codegen for `memcpy`/`memset` is the usual culprit), which is
-unsafe without SSE properly enabled and saved/restored, kernel-side, from the earliest boot code
-onward.
+`script/test --arch x86_64`, before and after, on the same tree:
 
-The safer shape, matching precedent already in this tree: a **separate** target, distinct from the
-kernel's own `x86_64-unknown-none`, for EL0 programs specifically. This tree already has exactly
-this kind of custom target for two other architectures: `targets/aarch64-unknown-nife.json` and
-its riscv64 twin, both minted for milestone 27/64's `std`-support farm ("nife-os userspace,
-aarch64 (softfloat EL0, native capability ABI)", `"std": true`), though those are for the
-crates.io-crate-compatibility farm specifically, not for `user/`'s own programs, so a new
-`x86_64-unknown-nife.json` (or similarly named) target for `fs_server` and friends would be a new
-use of an existing mechanism, not a copy of an existing target.
+| | passed | skipped |
+|---|---|---|
+| before | 200 | 55 |
+| after | 211 | 44 |
 
-**The real, currently-unbuilt cost this route needs, checked rather than assumed**: nothing in
-`kernel/src/arch/x86_64/` saves or restores FPU/SSE register state anywhere: no `FXSAVE`/`XSAVE`,
-no `CR0.TS`/`CR4.OSFXSR` handling, nothing in `kernel/src/sched.rs` or `kernel/src/thread.rs`'s
-context-switch path. The other two architectures' own float/vector state handling was not checked
-by this milestone (out of scope; note only that x86 currently has none). Enabling SSE for even one
-userspace program means every thread's kernel-side state needs an FXSAVE area and the context
-switch path needs to save and restore it, or one thread's floating-point registers will silently
-corrupt another's the first time two SSE-using threads interleave. This is not a target-spec
-change alone; it is new scheduler-adjacent kernel work.
+**Zero tests were recovered, and reading that table as though eleven were is the mistake this
+paragraph exists to prevent.** All eleven that moved do not skip through `skip!` at all: they
+`println!` a line and `return`, which the harness counts as a pass. They were honestly skipped for
+want of an FS server and are now silently green for want of a disk, which is *less* signal than
+before. Forty-six sites across sixteen files share that shape; see milestone 214 (provisional), on tests that print a skip line and return.
 
-## Why it matters, and what it unblocks
+What did change, and is real: the FS server and `mkfs` are in the x86_64 archive, so **the reason
+those tests do not run is now a machine fact rather than a toolchain one**, which is what the next
+milestone can act on. `kernel::user::disk_tests::the_write_half_...` now skips with "no blank-disk
+fixture attached" instead of blaming `aes`, and the two `fs_service` constants that stated the old
+blocker as fact have been corrected: they claimed `aes` does not compile for this target, which is
+exactly what stopped being true.
 
-Directly: 21 of PR #476's 67 skips, and, in that lane's own words, "there is no point attaching a
-disk to the x86 runner" until this is solved: no real filesystem testing is possible on the
-x86_64 leg at all today. Indirectly: any future x86_64 work that needs `fs_server` blocks on this
-the same way, which is most real storage or network-service work on that architecture once ported,
-matching what milestones 53 and 55 already need on the other two.
+## What broke after `aes`, and what it costs
 
-## What this does not decide
+**The disk.** With the server packed, `fs_service::wire_servers` still asks
+`virtio::find_block_device_n(1)` for its disk, and `q35` has no virtio-mmio bus at all
+(`arch::x86_64::mmu::VIRTIO_SLOTS` is 0). Attaching the fixtures as `virtio-blk-pci` and making the
+lookup transport-blind was built in this lane, run, and **reverted**, because it does not work and
+the reason is structural rather than a bug:
 
-Which route to take. Route 1 is cheaper if `aes` genuinely has an unused portable fallback; Route 2
-is the more general fix (any future crate with the same SSE assumption hits the identical wall) but
-carries real, currently-unbuilt scheduler cost that Route 1 does not. Sizing Route 1 precisely
-(reading `aes`'s own source for what a scalar path would need) is the cheapest next step before
-committing to either, and is not done by this block.
+- `qemu-system-x86_64: Interrupt Mask set, irq is not generated`
+- `qemu-system-x86_64: vtd_iommu_translate: detected translation failure (dev=00:04:00, iova=0xffde000)`
+- the suite then wedged with no verdict.
+
+The first line is the whole story and it is already written down in the tree, at
+`arch::x86_64::mmu::PCI_IRQ_BASE`, which is `0` and says honestly that it is a marker rather than a
+value. `pci::intx_irq(0, 4, 1)` is therefore `0`, and `arch::x86_64::irq::enable(0)` resolves that
+through `isa_routing` to the **PIT's** legacy line: the confined block server was armed on the
+timer and waited forever for an interrupt that was never going to be its. Nothing about that is
+specific to the FS server; it is the first userspace PCI driver this architecture has ever been
+asked to run. See milestone 215 (provisional), on x86_64 PCI interrupt routing.
+
+## What this unblocks
+
+**Milestone 87** (x86_64 on the Dell OptiPlex) is the one that matters, and this moves it by
+removing the toolchain wall and leaving a machine wall in its place. When calef sits down at the
+null modem, the archive that boots carries a real filesystem server rather than nothing above the
+kernel; what it still cannot do is find a disk, and that is one bounded piece of interrupt routing
+rather than an open-ended port.
+
+Any future x86_64 work needing `fs_server` is likewise no longer blocked on a dependency that will
+not compile, which is what fatal risk 9 (`design/fatal-risks.md`, "The HAL is a fiction, and an
+architecture costs a restructure rather than a port") named this as a piece of.
+
+## BUGS
+
+- **`mkfs` is packed but has nothing to format on this architecture.** Milestone 57's two
+  `disk_service` wirings want the GPT and blank fixtures, which no x86_64 runner attaches; those
+  tests skip with an accurate reason and no plan of their own. They ride milestone 215, on x86_64 PCI interrupt routing.
+- **The soft-AES cost is unmeasured**, above.
