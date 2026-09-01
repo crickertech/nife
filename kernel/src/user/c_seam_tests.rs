@@ -104,6 +104,32 @@ fn spawn_confiner() -> sched::RendezvousId {
     report
 }
 
+/// **Wait, with a deadline, for the next report to be parked on the endpoint.**
+///
+/// A bounded wait rather than a bare blocking receive, and the difference is the whole reason
+/// this function exists. Milestone 202 broke the confinement on purpose (`WITNESS_RO` mapped
+/// read/write, so the deliberate out-of-bounds store lands instead of faulting) to check that
+/// this file's load-bearing test would notice. It noticed, and it noticed as a **watchdog
+/// timeout at 234 seconds** whose diagnostic reads `a livelock, not a lost wakeup`, because the
+/// confiner reports a death only when one is delivered and the blocking receive here had
+/// nothing to take. The test failed for the right reason and said the wrong thing, which is
+/// the failure mode `design/roadmap/202-confinement-claims-falsified.md` calls out by name.
+///
+/// Thirty seconds against a 90-second per-test budget: long enough that a loaded host cannot
+/// make an honest run look stalled (a healthy run's largest gap is a shim build and start, well
+/// under a second), short enough that a stalled one fails here with a sentence about
+/// confinement rather than there with a thread dump.
+fn wait_for_report(report: sched::RendezvousId) -> bool {
+    let deadline = crate::arch::timer::now() + 30 * crate::arch::timer::frequency();
+    while crate::arch::timer::now() < deadline {
+        if sched::rendezvous_waiting_senders(report) > 0 {
+            return true;
+        }
+        sched::yield_now();
+    }
+    sched::rendezvous_waiting_senders(report) > 0
+}
+
 /// **Run one confiner from spawn to quiescence**, returning every report it made.
 ///
 /// Run to the end rather than stopping at the first interesting message, for the reason
@@ -112,7 +138,16 @@ fn spawn_confiner() -> sched::RendezvousId {
 fn run_seam() -> [[u64; 5]; EXPECTED_REPORTS] {
     let report = spawn_confiner();
     let mut msgs = [[0u64; 5]; EXPECTED_REPORTS];
-    for slot in msgs.iter_mut() {
+    for (i, slot) in msgs.iter_mut().enumerate() {
+        assert!(
+            wait_for_report(report),
+            "report {i} of {EXPECTED_REPORTS} never arrived, so the run stalled rather than \
+             finishing. The likeliest cause is that an attempt did not fault: the confiner \
+             reports a death only when one is delivered, so a store that was supposed to be \
+             refused and was not leaves this receive with nothing to take. That is the \
+             confinement failing, and it is reported here rather than as a watchdog timeout \
+             because a timeout says livelock and means nothing to whoever reads it.",
+        );
         let msg = sched::ipc_recv(report);
         assert_ne!(
             msg[0], RPT_FAILED,

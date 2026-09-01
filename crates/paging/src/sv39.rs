@@ -239,7 +239,7 @@ mod verification {
     }
 
     /// **The user-VA gate admits exactly the aligned low half**, never the high one.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/paging/falsifications/sv39.verification.the_user_va_gate_admits_only_the_aligned_low_half.patch`
     #[kani::proof]
     fn the_user_va_gate_admits_only_the_aligned_low_half() {
         let va: u64 = kani::any();

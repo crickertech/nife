@@ -1,0 +1,46 @@
+Falsifies `dma_validator::validate_and_shadow_confines_every_chain`.
+
+The defect: `shadow_one_head` copies the descriptor into the shadow *before*
+validating it, and returns false afterwards. The refusal is unchanged, so
+`validate_and_shadow` still answers "no" to a hostile chain and the caller still
+declines to publish the head; what changed is that the bytes are already sitting in
+the table the device reads. It is the ordering mistake a reader would not see,
+because the function still contains every check it did before, and the comment on
+`shadow_one_head` already admits the honest version copies earlier validated
+descriptors on a failing chain, which is exactly the reasoning this defect abuses.
+
+Expected to fail: the write closure's two invariants, `assert!(
+!landed.is_indirect(), "an indirect descriptor reached the shadow the device
+reads")` and `assert!(in_region(self.base, self.size, landed.addr,
+landed.buf_len()), "a descriptor that escapes the DMA region reached the shadow
+the device reads")`. The harness's own body has no assertion; the whole property
+is checked as each descriptor lands, so those two carry it. Confirmed: Kani
+reports exactly two failing checks, at `ChainMem::write64` lines 468 and 472,
+which are those two assertions and nothing else.
+
+diff --git a/crates/dma_validator/src/lib.rs b/crates/dma_validator/src/lib.rs
+index 9a6d0500..8ab9fdde 100644
+--- a/crates/dma_validator/src/lib.rs
++++ b/crates/dma_validator/src/lib.rs
+@@ -274,16 +274,15 @@ fn shadow_one_head(
+             word: read64(src + 8),
+         };
+ 
+-        if !check_descriptor(dma_base, dma_size, qsize, desc) {
+-            return false;
+-        }
+-
+-        // Copy the validated descriptor into the shadow, byte-for-byte. From here the device reads
+-        // this, not the driver's copy.
++        // Copy first, refuse after. The refusal is unchanged; the bytes are already visible.
+         let dst = shadow_desc + d as u64 * 16;
+         write64(dst, desc.addr);
+         write64(dst + 8, desc.word);
+ 
++        if !check_descriptor(dma_base, dma_size, qsize, desc) {
++            return false;
++        }
++
+         if !desc.has_next() {
+             break;
+         }

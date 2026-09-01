@@ -21,9 +21,9 @@ Pinned at **0.9.1**, upstream git sha `473b4baeb041`.
 
 **Releases: current.** 0.9.1 is still the newest published version that is neither yanked nor a prerelease.
 
-**Upstream git: 37 non-merge commits** since the pinned sha (plus 13 merge commits, dropped), head `b63c23137349`.
+**Upstream git: 40 non-merge commits** since the pinned sha (plus 16 merge commits, dropped), head `c684a743f07c`.
 
-Full comparison: https://gitlab.redox-os.org/redox-os/redoxfs/-/compare/473b4baeb041ebe14504f30693393b1cae52558c...b63c2313734947de5b68d58473c605bef3dffac5
+Full comparison: https://gitlab.redox-os.org/redox-os/redoxfs/-/compare/473b4baeb041ebe14504f30693393b1cae52558c...c684a743f07c82e9d05519c9cf58fda4d5f765f4
 
 - 2026-07-05 `57ad275d` Update redox-path
 - 2026-07-07 `d807dd3e` Fix following symlink
@@ -62,6 +62,9 @@ Full comparison: https://gitlab.redox-os.org/redox-os/redoxfs/-/compare/473b4bae
 - 2026-08-26 `6f9651fb` fuse: Option for sharing mount from root
 - 2026-08-27 `28ea0278` Adapt relibc symlink resolve
 - 2026-08-29 `fa1ca5f9` Bump redox-scheme
+- 2026-08-30 `8ecdf1b0` Restore O_NOFOLLOW returning ELOOP upon symlink
+- 2026-08-31 `f0f1cf90` CI: Actually wait for mount for linux
+- 2026-08-31 `cf3ad1db` Fix rename with scheme path
 
 **Upstream has edited files our divergence patch also touches**, so a bump is likely to conflict there:
 

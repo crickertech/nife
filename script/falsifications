@@ -233,9 +233,19 @@ class Harness:
 
     @property
     def state(self):
+        """The first word of the record, with any trailing punctuation off it.
+
+        The strip is load-bearing rather than tidy, and milestone 202 found it by writing the
+        block this script's own header offers as an example: `unfalsified. Nobody has proposed a
+        defect this would catch.` `attested` already tolerated the prose after its date, so only
+        the bare states rejected the documented form, and the rejection read as a state nobody
+        defined rather than as a punctuation rule. A convention whose reference example fails its
+        own gate teaches the wrong thing to whoever hits it first.
+        """
         if self.record is None:
             return None
-        return self.record.split()[0] if self.record.split() else None
+        words = self.record.split()
+        return words[0].rstrip(".,;:") if words else None
 
     @property
     def patch(self):

@@ -473,7 +473,7 @@ mod verification {
     }
 
     /// **The user-VA gate admits exactly the aligned low half**, never the high one.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/paging/falsifications/x86_64.verification.the_user_va_gate_admits_only_the_aligned_low_half.patch`
     #[kani::proof]
     fn the_user_va_gate_admits_only_the_aligned_low_half() {
         let va: u64 = kani::any();
@@ -515,7 +515,7 @@ mod verification {
     /// **No encoded leaf is both writable and executable**, over every constructor. The W^X
     /// property is enforced by the portable `Flags` constructors; this proves the x86 encoder does
     /// not reintroduce the combination while translating them.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/paging/falsifications/x86_64.verification.no_encoded_leaf_is_both_writable_and_executable.patch`
     #[kani::proof]
     fn no_encoded_leaf_is_both_writable_and_executable() {
         let pa: u64 = kani::any();
@@ -544,7 +544,7 @@ mod verification {
     /// for every address and every flag combination the type accepts, which matters here more than
     /// on `Ia32e` because QEMU's model (and real silicon) faults a transaction over a reserved bit
     /// rather than merely ignoring it.
-    /// Falsification: unfalsified
+    /// Falsification: replayable `crates/paging/falsifications/x86_64.verification.no_vtd_entry_ever_sets_a_reserved_bit.patch`
     #[kani::proof]
     fn no_vtd_entry_ever_sets_a_reserved_bit() {
         let pa: u64 = kani::any();

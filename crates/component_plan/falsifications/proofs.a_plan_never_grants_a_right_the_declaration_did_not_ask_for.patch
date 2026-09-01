@@ -1,0 +1,35 @@
+Falsifies `component_plan::a_plan_never_grants_a_right_the_declaration_did_not_ask_for`.
+
+The defect: `Direction::rights` adds `GRANT` to every wiring. It reads as the
+convenience it would be sold as, a component that can pass its rendezvous on to a
+worker it spawns, and it is the one right this plan must never mint: a component
+holding `GRANT` can hand its authority to anything it can reach, so the
+supervisor's routing stops being the whole story of who can talk to whom. The
+declaration has no way to ask for it, which is why the plan is where it has to be
+refused.
+
+Expected to fail: `assert!(p.caps()[i].1 & abi::rights::GRANT == 0)`, the third of
+the four assertions in the loop, for every declaration in `SHAPES`. The two above
+it, `p.caps()[i].1 == reqs.caps[i].direction.rights()` and the READ-or-WRITE
+disjunction, are stated against `rights()` itself and so are blind to a change
+inside it, which is worth knowing: the equality assertion follows the defect and
+only the explicit `GRANT` check catches it. That is the same shape the
+`derive_never_widens_rights` record found one crate over, a property stated
+through the function it is testing, and here it is the reason a redundant-looking
+assertion is not redundant.
+
+diff --git a/crates/component_plan/src/lib.rs b/crates/component_plan/src/lib.rs
+index b0a208f6..9c1739bd 100644
+--- a/crates/component_plan/src/lib.rs
++++ b/crates/component_plan/src/lib.rs
+@@ -198,8 +198,8 @@ impl Direction {
+     /// the tree a component's rendezvous rights are decided.
+     pub const fn rights(self) -> u64 {
+         match self {
+-            Direction::Serve => abi::rights::READ,
+-            Direction::Use => abi::rights::WRITE,
++            Direction::Serve => abi::rights::READ | abi::rights::GRANT,
++            Direction::Use => abi::rights::WRITE | abi::rights::GRANT,
+         }
+     }
+ }

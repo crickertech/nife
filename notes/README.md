@@ -726,6 +726,21 @@ in the code or the conversation doesn't make sense, it belongs here.
   today, both over `syscall.rs`'s run arithmetic, both falsified against milestone 142's real
   MAJOR 4 defect before being believed. A BUGS section that says plainly what is still unreachable:
   all of `kernel/src/arch/`, `user/`, and `xtask`. Name provisional.
+- [Proving things about `user/`](user-proofs.md): milestone 197, and the third of that set. The
+  block's premise was that `user/` had a better claim on the prover than the kernel did, because it
+  holds parsers over bytes this system did not produce; **half of that turned out to be false**, and
+  the reason is the tree working as designed: rule 7 and the host-testability discipline have
+  already lifted almost every parser into a crate that `script/verify` proves today, leaving IO glue
+  behind. The valuable half arrived anyway, before a harness ran: writing the property down found a
+  **live defect** in `rmle`, whose save buffer was sized for the document's text and not for the
+  separators `save` writes between its rows, so a full document panicked the editor on `^S`. Also
+  the three property shapes that did NOT work, with numbers (a bound on a sum of 32 symbolic values,
+  unfinished on CaDiCaL and Z3 alike, because counting is what resolution is worst at; a symbolic
+  index into a 3.5 KB struct, out of memory; any claim about values downstream of a division chain),
+  the enumerated stub boundary, why the `--bin` selection is derived from the tree rather than
+  listed, and a **reasoned refusal of `xtask`** on four grounds, the sharpest being that its
+  hand-written decoders exist to be a second opinion and proving both halves of a deliberately
+  independent pair narrows the independence. Name provisional.
 - [Fuzzing the parse surface](fuzzing.md): milestone 42's second leg, and the complement to the
   proofs above. Starts with the question that decides whether it is worth having at all, given 107
   Kani harnesses: **what does fuzzing find that Kani does not**, answered against three worked cases
@@ -778,6 +793,20 @@ in the code or the conversation doesn't make sense, it belongs here.
   patch path could not name eighteen of `paging`'s twenty-six harnesses, because six function names
   repeat once per ISA; calef amended it the same day to carry the module path, which also turned the
   sweep's harness filter from a substring match into Kani's own `--exact`.
+- [What nife claims a confined component cannot do](confinement-claims.md): milestone 202, scoping
+  `design/fatal-risks.md`'s risk 7, and the enumeration is the deliverable: **twenty-six confinement
+  claims, where each is stated, which test checks it, and whether that test has been shown to fail
+  when the claim is broken.** Twenty-five Kani harnesses now carry a replayable falsification, up
+  from six. Three findings are worth more than the count. DECISIONS §31's headline sentence, that
+  two witness pages are unchanged after a C component's out-of-bounds write, is **not** what catches
+  a broken confinement: map `WITNESS_RO` read/write and the verdict assertion never runs, because a
+  component that is not confined does not fault and a run missing a death report stalls before any
+  verdict is computed. The first run of that experiment failed for the wrong reason, as a watchdog
+  timeout reading `a livelock, not a lost wakeup`, which is the hazard the milestone's own block
+  names. And `component_plan`'s wiring proof is blind to a defect in the function it states its
+  property through, the same shape milestone 194 measured one crate over. Also: three claims this
+  system makes nowhere, six kernel tests with no mechanism to falsify them, and why the DMA
+  time-of-check/time-of-use harness has no patch and should not.
 - [Did the proofs catch the bugs?](proof-retrospective.md): milestone 191, and the question none of
   the four legs above had been asked: **for every real defect this project recorded, could a proof
   have caught it, and did one exist?** Answered against eighteen defects from the tree's own notes and
