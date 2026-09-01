@@ -1,11 +1,32 @@
 # 216. Nothing in this tree can read a board, so every hardware milestone waits on a person
 
-**Status: NOT-STARTED.** Minted 2026-09-01 by the maintainer, from calef wiring the VisionFive 2
-as a remote target and the gap becoming concrete the same hour. *(Number provisional until the
-merge queue lands it.)*
+**Status: BUILT** 2026-09-01. Minted the same day by the maintainer, from calef wiring the
+VisionFive 2 as a remote target and the gap becoming concrete the same hour.
 
-**Gate: NONE.** No board is needed to build this, which is the point: the tool is what lets a lane
-use a board it cannot see.
+**What was built.** `script/board-console` (name provisional), over `cargo xtask board-console`
+and `crates/board_console` (both names provisional). It opens the port at 115200 8N1, tees every
+byte to a log file that is never optional, recognises the runbook's boot sequence, and returns a
+different exit status for each way a session can end: reached the stage asked for, the board
+announced a failure, it spoke and then went quiet, the time ran out, the port would not open. That
+five-way answer is the deliverable rather than a nicety, because a bench script's whole reason to
+exist is telling a hang from a refusal. See notes/board-console.md, which carries the runbook, the
+marker table with each marker's source, and the BUGS.
+
+**Tested with the board powered off**, which is the condition this milestone was built under.
+Fixtures fed one byte at a time cover the recogniser; sources that block forever cover the
+deadline; a FIFO standing in for a port covers a failing `stty` and a source that speaks and then
+stops; and the real CH343 dongle covers everything except the board itself, including that `stty`
+on the already-open descriptor moves it from 9600 to 115200 and that it reverts on exit.
+
+**The one finding worth carrying out of the lane**, because reasoning did not produce it and a
+byte-at-a-time test did: a partial line is weaker evidence than a complete one. `U-Boot ` reads as
+U-Boot proper right up until the next three bytes turn out to be `SPL`, and a marker carrying a
+payload captures a truncated one. So a tail may ratchet a stage and may not settle a word boundary
+or capture text.
+
+**Nothing gated this**, which was the point when it was minted and is now a fact rather than a
+plan: no board was needed to build the thing that lets a lane use a board it cannot see, and none
+was available while it was built.
 
 **In brief.** `script/console` runs `cargo xtask shell`, which is QEMU. `script/board-image` builds
 the VisionFive 2 payload and prints the `dd` commands for a card, deliberately running nothing
@@ -52,9 +73,16 @@ invocation:
 
 - **This block does not decide whether the tool drives power**, and it should not until the plug is
   reachable. A tool that power-cycles is a different and more dangerous object than one that reads.
+  **The built tool reads and never writes**, to the port or to the outlet, so this stayed undecided
+  rather than being settled by an implementation.
 - **It says nothing about the aarch64 or x86_64 boards**, which will want the same thing with
   different banners. Whether that is one tool with a board profile or three is a real design
   question and is not answered here.
 - **A captured log is not a test result.** Deciding pass or fail from console text is how a harness
   ends up asserting on a vendor's boot message; where that line sits is worth naming before it is
-  crossed.
+  crossed. The tool names its outcome `Reached`, for what it observed, rather than `Passed`; that
+  is a wording, not a mechanism, and the line is still uncrossed rather than defended.
+- **Every marker is quoted from documentation, and none from a board.** No VisionFive 2 console
+  capture exists in this repository, so the fixtures are synthetic and say so in their own README.
+  A marker whose real text differs by a word will be missed. The first bench session should commit
+  its capture and replace them.

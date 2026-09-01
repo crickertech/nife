@@ -13,7 +13,7 @@
 //!     cargo xtask gdb      boot paused, waiting for a debugger on :1234
 //!     cargo xtask objdump  disassemble the kernel
 //!     cargo xtask image    build the flat arm64 Image and dump its header
-//!     cargo xtask board-console  read a real board's serial console, log it, and stop on a deadline
+//!     cargo xtask board-console  read the serial console of a real board, log it, stop on a deadline
 //!
 //! Note that `run` and `test` do NOT invoke QEMU themselves. They just call cargo,
 //! which invokes `scripts/qemu-runner-aarch64.sh` via the runner setting in

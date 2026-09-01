@@ -88,6 +88,21 @@
 //! board would want the same shape with different banners, and whether that is one tool with a
 //! profile or three tools is an open design question the roadmap block names and does not answer.
 
+//! # Name
+//!
+//! Name: provisional, this lane's coinage (2026-09-01, milestone 216). Two nouns for what it is,
+//! a console for a board, in the `snake_case` the crate rule asks for. `serial` was refused as a
+//! generic word that names a wire rather than this thing, and because the tree already spends
+//! `console` on the kernel's own (`kernel/src/console.rs`) and on `script/console`, which makes
+//! the qualifier the load-bearing half. `board_serial` was refused for the same reason in
+//! reverse: it names the transport, and the transport is the least interesting part. `bench` was
+//! refused as a place rather than a thing.
+//!
+//! **The open question is not the word, it is the scope**, and milestone 216's block names it:
+//! whether this stays one crate that learns a board profile, or becomes one per board. A name
+//! chosen before that is answered is a name that may be answering it by accident. Not put to
+//! calef.
+
 pub mod port;
 pub mod progress;
 pub mod watch;

@@ -4,8 +4,9 @@
 //!
 //! Configuring a UART is one `tcsetattr` call, and the two ordinary ways to make it from Rust are
 //! the `serialport` crate or `libc` plus the `termios` struct by hand. Both are new dependencies in
-//! the shipping graph, and `DECISIONS.md` §46 makes taking one a decision rather than a
-//! convenience; this is a lane, and a lane does not take that decision. `stty(1)` makes the same
+//! the shipping graph, and §46 (thin primitives or whole subsystems; we write everything in
+//! between) makes taking one a decision rather than a convenience; this is a lane, and a lane does
+//! not take that decision. `stty(1)` makes the same
 //! call, is in every base system, and has been since the 1970s. The price is a process spawn per
 //! session and a diagnostic that is a program's stderr rather than an `errno`, which is a fair
 //! trade for a tool that runs once a boot.

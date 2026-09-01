@@ -21,10 +21,12 @@
 # It reads and never writes to the board, and it does not touch power. See notes/board-console.md
 # for the runbook and for what the recognition can and cannot tell apart.
 #
-# Name: PROVISIONAL, this lane's coinage (2026-09-01, milestone 216). Hyphens because
-# script/ entry points are hyphenated (AGENTS.md's naming table), and `board-` to sit beside
-# `board-image`, which is the other thing here that is about a real board. Expect the integrator
-# to surface it; `script/console` is already taken by the QEMU one.
+# Name: provisional, this lane's coinage (2026-09-01, milestone 216). Hyphens because script/
+# entry points are hyphenated (AGENTS.md's naming table), and the `board-` prefix to sit beside
+# `board-image`, the other entry point here that is about a real board; the pair now reads as one
+# family, build the payload and then watch it boot. `console` alone was already taken by the QEMU
+# one and could not be reused. `serial` was refused as a word for the wire rather than for the
+# thing. Expect the integrator to surface it.
 
 set -e
 cd "$(dirname "$0")/.."
