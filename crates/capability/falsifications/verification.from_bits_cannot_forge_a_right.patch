@@ -1,0 +1,23 @@
+Falsifies `capability::from_bits_cannot_forge_a_right`.
+
+The defect: the mask dropped from `Rights::from_bits`, `Rights(bits)` instead of
+`Rights(bits & Rights::ALL.0)`. `from_bits` takes an attacker-controlled syscall
+register, so this is the exact shape of a real hole: userspace hands the kernel a u32 and
+the kernel believes all 32 bits of it.
+
+Expected to fail: `assert!(Rights::from_bits(raw).is_subset_of(Rights::ALL))`, on any
+`raw` with a bit above bit 3 set.
+
+diff --git a/crates/capability/src/lib.rs b/crates/capability/src/lib.rs
+index 33b5819a..b161f763 100644
+--- a/crates/capability/src/lib.rs
++++ b/crates/capability/src/lib.rs
+@@ -119,7 +119,7 @@ impl Rights {
+     /// this turns those bits back into a `Rights` the subset check can vet. Undefined bits are
+     /// dropped, so a caller cannot conjure a right that does not exist.
+     pub const fn from_bits(bits: u32) -> Rights {
+-        Rights(bits & Rights::ALL.0)
++        Rights(bits)
+     }
+ 
+     /// Every right either side holds.

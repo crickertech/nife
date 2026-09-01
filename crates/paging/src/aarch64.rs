@@ -272,6 +272,7 @@ mod verification {
     use crate::{Half, PAGE_SIZE};
 
     /// **The walk never indexes past a table.** For every address and level, the index is < 512.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn index_is_always_in_bounds() {
         let va: u64 = kani::any();
@@ -282,6 +283,7 @@ mod verification {
 
     /// **The four indices and the offset tile the address exactly**, which is what proves the shift
     /// arithmetic: if two levels shared a bit, two addresses could walk to one entry.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn the_indices_and_offset_tile_the_address() {
         let va: u64 = kani::any();
@@ -295,6 +297,7 @@ mod verification {
 
     /// **Distinct pages take distinct paths.** Two page-aligned addresses with the same four indices
     /// are the same page: the arithmetic core of address-space isolation.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn distinct_pages_take_distinct_paths() {
         let a: u64 = kani::any::<u64>() & ADDR_MASK;
@@ -309,6 +312,7 @@ mod verification {
     }
 
     /// **The two halves are disjoint.** No address belongs to both the low and high half.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn the_two_halves_are_disjoint() {
         let va: u64 = kani::any();
@@ -316,6 +320,7 @@ mod verification {
     }
 
     /// **The user-VA gate admits exactly the aligned low half**, and never the high one.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn the_user_va_gate_admits_only_the_aligned_low_half() {
         let va: u64 = kani::any();
@@ -332,6 +337,7 @@ mod verification {
     /// `leaf_entry` writes address + attrs + valid/type; `entry_pa` and `leaf_flags` read the two
     /// halves back exactly. No permission bit can redirect the address, no address bit can grant a
     /// permission, and decoding a freshly-encoded leaf returns the same `Flags`.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn the_leaf_keeps_address_and_permissions_apart() {
         let pa: u64 = kani::any();

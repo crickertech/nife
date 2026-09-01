@@ -1602,6 +1602,23 @@ echo "        every name carries its provenance"
 #    hold unrelated merges behind a review nobody can hurry. A malformed index is the opposite: it is
 #    a defect in the commit that malformed it, and it silently breaks the tripwire, which reads the
 #    newest row of both tables. Same split as the toolchain-drift workflow.
+#    **And every Kani harness says what evidence it carries that it can fail** (milestone 194,
+#    DECISIONS §134). Form only, and presence of a STATE rather than the state `replayable`, which is
+#    the same line `script/names --check` draws two checks up and for the same reason: 135 of 141
+#    harnesses have no falsification today, and a gate keyed on having one would hold every unrelated
+#    merge behind proof work nobody can hurry. `script/falsifications --unfalsified` is how that queue
+#    gets worked; the sweep that actually replays the patches is `script/falsifications --sweep` and
+#    is scheduled, not gated, for `script/mutation`'s reason.
+#
+#    It checks both directions, which is the half a one-directional check would lose: a `replayable`
+#    record names a patch that exists at the path §134 spells (as amended 2026-08-31,
+#    `<module.path>.<harness_fn_name>.patch`, after this milestone's lane found the original spelling
+#    could not name eighteen of `paging`'s harnesses), AND every patch under a crate's
+#    `falsifications/` is claimed by a harness. Without the second, a patch rots into a file nothing
+#    runs, which is the failure this whole record exists to end wearing different clothes.
+echo "==> every Kani harness carries a falsification record"
+"$(dirname "$0")/falsifications" --check
+
 echo "==> the audit index"
 "$(dirname "$0")/audits" --check
 

@@ -1158,6 +1158,7 @@ mod verification {
     /// **`be32` is total: no offset panics.** For any bytes and any offset, `be32` returns `Ok` or
     /// `Err(Truncated)`, never panicking, even at `usize::MAX` where the old `at + 4` would have
     /// wrapped. This is the hardening proved.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn be32_is_total() {
         let bytes: [u8; N] = kani::any();
@@ -1166,6 +1167,7 @@ mod verification {
     }
 
     /// **`be64` is total: no offset panics.** As `be32`, for the 8-byte read.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn be64_is_total() {
         let bytes: [u8; N] = kani::any();
@@ -1176,6 +1178,7 @@ mod verification {
     /// **An in-bounds `be32` reads four big-endian bytes.** When it returns `Ok`, the value is
     /// exactly `bytes[at..at+4]` most-significant-byte first, so the endianness conversion the whole
     /// crate depends on is correct, for every input.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn be32_reads_big_endian_when_in_bounds() {
         let bytes: [u8; N] = kani::any();
@@ -1192,6 +1195,7 @@ mod verification {
     /// **`align4` rounds up to a multiple of four.** For any realistic length, `align4(n)` is a
     /// multiple of 4, at least `n`, and less than `n + 4`. The bound is far above any device-tree
     /// field length and only rules out the overflow point of the internal `* 4`.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn align4_rounds_up_to_a_multiple_of_four() {
         let n: usize = kani::any();

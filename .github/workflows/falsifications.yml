@@ -1,0 +1,86 @@
+name: falsification sweep
+
+# **Does each harness's own recorded falsification still turn it red?** Asked weekly, of every Kani
+# harness carrying a `replayable` record (DECISIONS §134, milestone 194).
+#
+# The mutation job next door asks "would any TEST notice if this line were wrong". This asks the
+# same question of the PROOFS, and it is not the same question: a proof that cannot be made to fail
+# is not evidence, and nothing in this tree could detect one until this ran. A **survivor** here is
+# a harness that stayed green with its own falsification applied. A **stale** one is a patch that no
+# longer applies, which §134 argues is the mechanism working rather than a nuisance: the covered
+# code moved, so the falsification must be redone rather than trusted.
+#
+# **A report, not a gate**, deliberately copying `script/mutation`'s posture for the reason §134
+# gives: a survivor is a worklist entry rather than a defect in whatever commit happened to precede
+# the cron. The per-pull-request half is `script/falsifications --affected-since`, which re-falsifies
+# only the harnesses a diff can reach and costs seconds; it lives in ci.yml, not here.
+#
+# **Unsharded, and that is a measurement rather than an oversight.** A falsification runs ONE
+# harness, so the sweep costs one harness-run per record and not one `script/verify` per record.
+# Today's six take under three seconds of solving on top of the builds. Shard this when the record
+# count makes it worth the machinery, not before, and re-measure rather than guessing: the cost is
+# dominated by the rebuild each patch forces, so it scales with patches touching distinct crates.
+
+on:
+  schedule:
+    # 06:00 UTC Monday, an hour behind the mutation cron so the two weekly reports do not contend
+    # for runners, and still ahead of the toolchain-drift daily at 07:00.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+# Least privilege, the same decision every workflow here makes: this reads the source, applies and
+# reverts patches in its own checkout, and writes nothing but its own summary.
+permissions:
+  contents: read
+
+# A queued weekly run has nothing to say that the newer one will not say better.
+concurrency:
+  group: falsifications
+  cancel-in-progress: true
+
+jobs:
+  sweep:
+    name: replay every recorded falsification
+    runs-on: ubuntu-24.04-arm
+    # Kani's own install is the long pole today, not the solving. Generous enough that growth in the
+    # record count does not need this touched every month, and low enough that a hang fails loudly.
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install the pinned toolchain
+        run: rustup show active-toolchain || rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+
+      # script/verify installs Kani on first run; do it here as its own step so an install failure
+      # is not reported as a sweep failure.
+      - name: Install Kani
+        run: cargo kani --version || (cargo install --locked kani-verifier && cargo kani setup)
+
+      # `continue-on-error`, because a survivor is a finding to publish rather than a red check
+      # somebody has to silence. The summary below carries the verdict.
+      - name: Sweep
+        id: sweep
+        continue-on-error: true
+        run: script/falsifications --sweep 2>&1 | tee sweep.txt
+
+      - name: Publish the report
+        if: always()
+        run: |
+          {
+            echo '### Falsification sweep'
+            echo
+            echo '```'
+            cat sweep.txt || echo '(the sweep produced no output)'
+            echo '```'
+            echo
+            echo '```'
+            script/falsifications | tail -20
+            echo '```'
+            echo
+            echo 'A **survivor** stayed green with its own falsification applied; a **stale** patch'
+            echo 'no longer applies, which means the covered code moved and the falsification wants'
+            echo 'redoing. Both are worklist entries, not failures of this commit. The convention is'
+            echo 'DECISIONS §134; the worklist is `script/falsifications --unfalsified`.'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -578,6 +578,7 @@ mod proofs {
     ///
     /// This is the property that lets the credential service's serve loop have no arithmetic in it
     /// that could go wrong. It is also the one an attacker probes first.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn no_request_word_makes_the_parse_read_outside_the_page() {
         let page = [0u8; SECRET_OFF + MAX_SECRET];
@@ -599,6 +600,7 @@ mod proofs {
     /// out is the worst one this contract could permit: a caller holding no credential capability,
     /// or talking to a service that died, reading the kernel's refusal as a successful login. The
     /// host test sweeps a few dozen values around the boundary; this sweeps all of them.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn no_reply_word_but_match_ever_authenticates() {
         let r0: u64 = kani::any();
@@ -616,6 +618,7 @@ mod proofs {
     /// parses are the lengths the client meant. Bounded to the ranges `place` can produce, because
     /// outside them the packing is deliberately lossy (the fields are masked) and there is nothing
     /// to prove.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn a_request_word_round_trips_every_field() {
         let op_in: u64 = kani::any();

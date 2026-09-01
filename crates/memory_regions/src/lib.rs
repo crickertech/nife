@@ -121,6 +121,7 @@ mod proofs {
     /// A successful carve stays within budget, does not overflow, and strictly progresses (so the
     /// run it hands out, `[parent_watermark, new)`, is fresh and disjoint from every earlier carve).
     /// A refused carve is exactly: empty, overflowing, or beyond budget.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn split_stays_within_budget_and_progresses() {
         let parent_pages: u64 = kani::any();
@@ -159,6 +160,7 @@ mod proofs {
     /// **The no-double-free crux:** a region with a live object or a live child refuses; a root frees
     /// to the allocator; and a child NEVER frees to the allocator (its pages return to the parent).
     /// So a page reaches the allocator only through the root that owns it, exactly once.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn destroy_never_frees_a_child_to_the_allocator() {
         let pinned: bool = kani::any();

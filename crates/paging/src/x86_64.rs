@@ -427,6 +427,7 @@ mod verification {
     use crate::{Half, PAGE_SIZE};
 
     /// **The walk never indexes past a table** (four levels here).
+    /// Falsification: unfalsified
     #[kani::proof]
     fn index_is_always_in_bounds() {
         let va: u64 = kani::any();
@@ -436,6 +437,7 @@ mod verification {
     }
 
     /// **The four indices and the offset tile the low 48 bits exactly.**
+    /// Falsification: unfalsified
     #[kani::proof]
     fn the_indices_and_offset_tile_the_address() {
         let va: u64 = kani::any();
@@ -448,6 +450,7 @@ mod verification {
     }
 
     /// **Distinct pages take distinct paths** within the 48-bit VA.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn distinct_pages_take_distinct_paths() {
         let a: u64 = kani::any::<u64>() & 0x0000_ffff_ffff_f000;
@@ -462,6 +465,7 @@ mod verification {
     }
 
     /// **The two halves are disjoint** at the canonical split (bit 47).
+    /// Falsification: unfalsified
     #[kani::proof]
     fn the_two_halves_are_disjoint() {
         let va: u64 = kani::any();
@@ -469,6 +473,7 @@ mod verification {
     }
 
     /// **The user-VA gate admits exactly the aligned low half**, never the high one.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn the_user_va_gate_admits_only_the_aligned_low_half() {
         let va: u64 = kani::any();
@@ -482,6 +487,7 @@ mod verification {
     }
 
     /// **A leaf keeps the address and the permissions apart, and the permissions round-trip.**
+    /// Falsification: unfalsified
     #[kani::proof]
     fn the_leaf_keeps_address_and_permissions_apart() {
         let pa: u64 = kani::any();
@@ -509,6 +515,7 @@ mod verification {
     /// **No encoded leaf is both writable and executable**, over every constructor. The W^X
     /// property is enforced by the portable `Flags` constructors; this proves the x86 encoder does
     /// not reintroduce the combination while translating them.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn no_encoded_leaf_is_both_writable_and_executable() {
         let pa: u64 = kani::any();
@@ -537,6 +544,7 @@ mod verification {
     /// for every address and every flag combination the type accepts, which matters here more than
     /// on `Ia32e` because QEMU's model (and real silicon) faults a transaction over a reserved bit
     /// rather than merely ignoring it.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn no_vtd_entry_ever_sets_a_reserved_bit() {
         let pa: u64 = kani::any();

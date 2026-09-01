@@ -647,6 +647,7 @@ mod verification {
     /// the slice bounds `read` computes satisfy `start <= end <= image_len`, so the indexing
     /// cannot panic and the returned bytes lie inside the image. This is the kernel-facing
     /// guarantee, free of any bound on the image size.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn the_validation_implies_reads_slice_is_in_bounds() {
         let start_block: u32 = kani::any();
@@ -672,6 +673,7 @@ mod verification {
     /// **A short image is always `Truncated`, never indexed**: for any image under the directory
     /// span, parse refuses before touching a byte past the length check (which is what keeps the
     /// entry reads, up to offset 12 + `MAX_FILES`*32 inside `DIR_BLOCKS`, in bounds).
+    /// Falsification: unfalsified
     #[kani::proof]
     fn a_short_image_is_refused_not_indexed() {
         const SHORT: usize = DIR_BLOCKS * BLOCK - 1;

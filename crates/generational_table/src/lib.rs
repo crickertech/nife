@@ -306,6 +306,7 @@ mod verification {
     /// old name and the new occupant's name differ (the generation moved), so `get`, `get_mut`,
     /// and `remove` all refuse the old one. The one stated precondition: the slot's generation
     /// has not wrapped all the way around (see the crate doc on 2^32).
+    /// Falsification: unfalsified
     #[kani::proof]
     fn a_removed_name_never_resolves_again() {
         let mut t: Table<u8, 2> = Table::new();
@@ -326,6 +327,7 @@ mod verification {
 
     /// **Two live entries never share a name**, and each name resolves to its own entry: the
     /// packing cannot alias two occupants.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn live_names_are_distinct_and_resolve_to_their_own_entry() {
         let mut t: Table<u8, 2> = Table::new();
@@ -342,6 +344,7 @@ mod verification {
     /// or lands on an entry whose minted name is exactly that u64: there is no input that
     /// reaches an entry through a name the table never issued. (The u64 arrives in syscall
     /// registers by way of capability bookkeeping; this is the "cannot forge" claim for names.)
+    /// Falsification: unfalsified
     #[kani::proof]
     fn a_name_the_table_never_minted_resolves_to_nothing() {
         let mut t: Table<u8, 2> = Table::new();
@@ -364,6 +367,7 @@ mod verification {
     /// draft interleaved arbitrary inserts and removes and did not finish, which is a cost CI pays
     /// on every run (`script/verify` is already the merge queue's long pole). This covers the same
     /// cases the bound can get wrong.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn a_bounded_walk_yields_every_live_entry() {
         let mut t: Table<u8, 3> = Table::new();

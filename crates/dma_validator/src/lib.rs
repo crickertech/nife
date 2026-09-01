@@ -344,6 +344,7 @@ mod verification {
     /// and `base <= addr` and `addr + len <= base + size`. This is the arithmetic the whole boundary
     /// rests on, quantified over all 2^256 input combinations at once, and it also proves totality
     /// (the hardened checked adds never panic on any input).
+    /// Falsification: unfalsified
     #[kani::proof]
     fn in_region_is_sound() {
         let base: u64 = kani::any();
@@ -370,6 +371,7 @@ mod verification {
     /// the device-readable TX shape are both covered) and every region, if [`check_descriptor`]
     /// accepts it then it carries no indirect flag and its whole buffer is in-region. This is the
     /// per-descriptor core of the walk, isolated so it is proved without any loop.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn an_accepted_descriptor_is_confined() {
         let base: u64 = kani::any();
@@ -506,6 +508,7 @@ mod verification {
     /// and position. The outer loop of [`validate_and_shadow`] only repeats this validated single-head
     /// processing for each further head (its bound proved by [`an_oversized_batch_is_refused`]), so it
     /// reaches no new descriptor state.
+    /// Falsification: unfalsified
     #[kani::proof]
     #[kani::unwind(10)]
     fn validate_and_shadow_confines_every_chain() {
@@ -524,6 +527,7 @@ mod verification {
     /// [`validate_and_shadow`] returns false having read and written nothing: the memory closures
     /// panic if called, so reaching one is a proof failure. This is the outer-loop bound the
     /// single-head main theorem factors out.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn an_oversized_batch_is_refused() {
         let from: u16 = kani::any();
@@ -553,6 +557,7 @@ mod verification {
     /// addresses, exactly the time-of-check/time-of-use move real async-DMA hardware would allow. The
     /// device reads the shadow, which is unchanged and still confined: the mutation touched only the
     /// driver's copy, which nothing reads.
+    /// Falsification: unfalsified
     #[kani::proof]
     #[kani::unwind(10)]
     fn a_descriptor_mutated_after_validation_cannot_reach_the_device() {
@@ -619,6 +624,7 @@ mod verification {
     /// here is one descriptor), and Kani's unwinding assertion fails if a loop could run longer. So
     /// no index pair, wrapped or not, makes this loop spin: the property that keeps a hostile
     /// `avail.idx` from holding the `DEVICES` lock with interrupts masked.
+    /// Falsification: unfalsified
     #[kani::proof]
     #[kani::unwind(11)]
     fn the_outer_walk_stays_inside_the_rings_and_terminates() {
@@ -732,6 +738,7 @@ mod verification {
     /// in both the driver region and the shadow, so validating one queue never reads or writes
     /// another's rings. For any two distinct in-range queues, the lower queue's whole ring area ends
     /// before the higher queue's block begins, and a queue's ring area fits inside its own block.
+    /// Falsification: unfalsified
     #[kani::proof]
     fn distinct_queues_occupy_disjoint_blocks() {
         let q1: u16 = kani::any();

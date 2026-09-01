@@ -52,6 +52,7 @@ const HORIZON: u64 = 1 << 50;
 /// This is the property the `+ 1` in `next_after` exists for, and the one a `>=` comparison would
 /// have broken exactly on period boundaries: the case a hand-written test is least likely to pick
 /// and a polling scheduler hits constantly.
+/// Falsification: unfalsified
 #[kani::proof]
 fn a_fire_is_strictly_in_the_future() {
     let prev: u64 = kani::any();
@@ -72,6 +73,7 @@ fn a_fire_is_strictly_in_the_future() {
 /// Its own harness rather than a second assertion on the one above, because the two claims have
 /// very different costs and pairing them would make the cheap one wait for the expensive one every
 /// time the suite runs.
+/// Falsification: unfalsified
 #[kani::proof]
 fn a_fire_is_at_least_one_whole_period_on() {
     let prev: u64 = kani::any();
@@ -90,6 +92,7 @@ fn a_fire_is_at_least_one_whole_period_on() {
 /// The bound is the whole claim: `next <= now + period` says that no matter how far behind the
 /// scheduler fell, exactly one occurrence survives the gap. Without it the honest implementation
 /// and a catch-up implementation would satisfy every other property here.
+/// Falsification: unfalsified
 #[kani::proof]
 fn a_stall_costs_one_fire_and_not_a_backlog() {
     let prev: u64 = kani::any();
@@ -111,6 +114,7 @@ fn a_stall_costs_one_fire_and_not_a_backlog() {
 ///
 /// Stated as: one period earlier is not in the future. Together with the phase property above, that
 /// pins the answer exactly, and it is the property that would catch a `+ 2` where the `+ 1` is.
+/// Falsification: unfalsified
 #[kani::proof]
 fn nothing_on_the_beat_is_skipped_between_now_and_the_answer() {
     let prev: u64 = kani::any();
@@ -133,6 +137,7 @@ fn nothing_on_the_beat_is_skipped_between_now_and_the_answer() {
 /// `parse` refuses `every 0s`, so no document reaches this; the proof is here because the function
 /// is `pub` and a caller who did not read the doc comment is exactly the caller a total function
 /// exists for.
+/// Falsification: unfalsified
 #[kani::proof]
 fn a_zero_period_is_never_due() {
     let prev: u64 = kani::any();

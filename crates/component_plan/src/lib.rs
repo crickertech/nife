@@ -1240,6 +1240,7 @@ mod proofs {
     /// It is needed at all because `SHAPES[i]` with a symbolic `i` makes the slice CBMC reads a
     /// symbolic pointer, so the lengths it walks are symbolic to the solver even though only four
     /// concrete declarations exist. Without a bound `str_eq` unwinds forever.
+    /// Falsification: unfalsified
     #[kani::proof]
     #[kani::unwind(10)]
     fn a_plan_never_grants_a_right_the_declaration_did_not_ask_for() {
@@ -1264,6 +1265,7 @@ mod proofs {
     /// child with whatever the supervisor keeps in slot 0, which in every program in this tree is its
     /// construction budget. Proved over every arrangement of the two names being routed or not, and
     /// over arbitrary slots.
+    /// Falsification: unfalsified
     #[kani::proof]
     #[kani::unwind(10)]
     fn a_missing_route_refuses_rather_than_falling_through_to_a_slot() {
@@ -1349,6 +1351,7 @@ mod proofs {
     /// revoke, so an entry falling in both would be mapped twice and one falling in neither would
     /// leave a component reading an unmapped page. Proved for every arrangement of kinds, including
     /// a device declared first, which is what the sort exists for.
+    /// Falsification: unfalsified
     #[kani::proof]
     #[kani::unwind(10)]
     fn the_device_split_partitions_the_mappings() {
@@ -1429,6 +1432,7 @@ mod proofs {
     /// told fewer than exist (a component left unwarned mid-swap) or more (a component quiesced for
     /// no reason). Proved over every arrangement two live instances can be in, at every id a
     /// supervisor could have chosen for them.
+    /// Falsification: unfalsified
     #[kani::proof]
     #[kani::unwind(10)]
     fn dependents_finds_exactly_the_non_target_instances_that_declared_it() {
@@ -1478,6 +1482,7 @@ mod proofs {
     /// check is a single `>` against a fixed constant, but the point of proving it at all is that a
     /// truncated answer here is the dangerous failure: a supervisor that got fewer dependents back
     /// than exist would swap out from under an unwarned client).
+    /// Falsification: unfalsified
     #[kani::proof]
     fn too_many_live_instances_never_silently_truncates() {
         let entries: [LiveInstance; MAX_LIVE + 1] = [LiveInstance {

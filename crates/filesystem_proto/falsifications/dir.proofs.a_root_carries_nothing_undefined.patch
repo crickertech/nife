@@ -1,0 +1,23 @@
+Falsifies `filesystem_proto::dir::Rights::a_root_carries_nothing_undefined`.
+
+The defect: the mask dropped from `Rights::root`, `Rights(mask)` instead of
+`Rights(mask & ALL)`. The caller of `root` is holding a mask that came off the wire, so
+this is the same shape as `capability`'s `from_bits` hole one protocol along: an
+undefined bit smuggled in today acquires a meaning the day somebody defines that bit.
+
+Expected to fail: `assert!(Rights::root(mask).bits() & !ALL == 0)`, on any mask with an
+undefined bit set.
+
+diff --git a/crates/filesystem_proto/src/lib.rs b/crates/filesystem_proto/src/lib.rs
+index a52f1ef1..02a62d47 100644
+--- a/crates/filesystem_proto/src/lib.rs
++++ b/crates/filesystem_proto/src/lib.rs
+@@ -1042,7 +1042,7 @@ pub mod dir {
+         /// The rights the endpoint's bound directory carries. This is the only place a rights set is
+         /// made out of thin air, and the only caller is the code that binds a server to a directory.
+         pub const fn root(mask: u64) -> Self {
+-            Rights(mask & ALL)
++            Rights(mask)
+         }
+ 
+         /// **The child's rights: what the parent has, intersected with what was asked for.**
