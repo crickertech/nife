@@ -1,0 +1,372 @@
+#!/bin/sh
+#
+# script/vendor-watch: ask what upstream has done since each vendor/*.pin was taken.
+#
+# **Why this exists.** `script/vendor-verify` proves the vendored tree is the published tarball plus
+# our recorded patches. It is a claim about the past and it never asks what upstream published
+# since. Dependabot cannot cover the gap either: `vendor/redoxfs` is deliberately its own workspace
+# (divergence 2 in vendor/README.md), so it is outside the Cargo graph dependabot walks. So until
+# this script existed, **nothing in the tree would ever report that RedoxFS had moved**, and
+# design/decisions/81-dependency-upgrades.md's rule that a dependency stays upgradable had
+# `vendor/` as its blind spot. See design/roadmap/203-vendored-engine-upgrades.md.
+#
+# **Both pins are checked, and that is the point rather than thoroughness for its own sake.** A pin
+# names a crates.io version AND the upstream git sha that produced it. Releases here are months
+# apart (0.9.0 to 0.9.1 spanned five months), so a correctness fix can sit in upstream git long
+# before anybody publishes it, and the narrow case this whole mechanism exists for is a correctness
+# fix in the engine holding backups. Watching only the published version misses exactly that case.
+#
+# **It reports what changed, not that it changed.** A version number tells nobody whether to act.
+# The report carries the release dates and the upstream commit subjects, with merge commits dropped,
+# because "fix: do not hardcode # of sectors per block" and "misc: update dependencies" want
+# different amounts of attention and only the subject line says which is which.
+#
+#   script/vendor-watch           report to stdout, change nothing
+#   script/vendor-watch --write   also make the tree say it: regenerate vendor/upstream-status.md,
+#                                 and raise the pin's version/url/sha256 if a newer release exists
+#
+# **Exit codes, because the workflow branches on them:**
+#
+#   0  current: nothing upstream that the pin does not already have
+#   1  behind: there is something to report (and, with --write, something to commit)
+#   2  could not check, transiently (a timeout, a connection reset, a 5xx, a rate limit)
+#   3  could not check, permanently (a 404 or a 410: the crate or the project moved or was removed)
+#
+# **Why 2 and 3 are different codes, which is the only interesting design decision in here.** A
+# watcher that fails silently when the network is down is worse than none, and a watcher that cries
+# every time GitLab is slow gets muted inside a week. Splitting the failure is what lets the caller
+# be quiet about the first and loud about the second. A single missed monthly run costs at most a
+# month of lag against release gaps measured in months, so a transient failure is a red run in the
+# Actions tab and nothing more; a 404 means the watch itself is broken and will stay broken every
+# month from now on with nobody prompted, so that one escalates into a pull request. Each endpoint
+# is retried three times with backoff before either verdict is reached.
+#
+# **It reports; it cannot decide.** A newer version is not automatically a better one and this tree
+# pinned deliberately. Nothing here bumps anything on `main`, and `--write` only ever prepares a
+# branch for a human to judge, the same posture notes/merge-queue.md's watchers hold.
+#
+# Name: provisional, minted by milestone 203's lane 2026-08-31. Pairs with `script/vendor-verify`,
+# which owns the same pins; "watch" is what the tree already calls a thing that runs on a cron and
+# reports (the merge and trunk watchers). It is a verb, which the naming tenet's noun rule is
+# written for crates, programs and modules rather than for `script/` commands. calef names it.
+
+set -e
+
+ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
+
+exec python3 - "$ROOT" "${1:-}" <<'PY'
+import glob
+import json
+import os
+import re
+import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+
+root, mode = sys.argv[1], sys.argv[2]
+if mode not in ("", "--write"):
+    sys.exit(f"vendor-watch: unknown argument {mode!r} (want --write or nothing)")
+write = mode == "--write"
+
+STATUS_PATH = os.path.join(root, "vendor", "upstream-status.md")
+
+# A courtesy rather than a requirement: crates.io asks that automated clients identify themselves,
+# and an anonymous poller is the kind of thing a registry blocks first when it needs to.
+AGENT = "nife-vendor-watch (https://github.com/crickertech/nife)"
+
+TRANSIENT, PERMANENT = "transient", "permanent"
+
+
+class Unreachable(Exception):
+    """An endpoint we could not read. `kind` is TRANSIENT or PERMANENT; the caller turns that into
+    an exit code, and the difference decides whether a human is interrupted."""
+
+    def __init__(self, what, kind, detail):
+        super().__init__(f"{what}: {detail}")
+        self.what, self.kind, self.detail = what, kind, detail
+
+
+def get_json(url, what, attempts=3):
+    last = None
+    for attempt in range(attempts):
+        try:
+            request = urllib.request.Request(url, headers={"User-Agent": AGENT})
+            with urllib.request.urlopen(request, timeout=60) as response:
+                return json.loads(response.read())
+        except urllib.error.HTTPError as e:
+            # 404/410 is the endpoint telling us the thing is not there, and retrying will not
+            # change its mind. A crate renamed or a GitLab project moved lands here, and that is
+            # the case where the watch is broken rather than the network.
+            if e.code in (404, 410):
+                raise Unreachable(what, PERMANENT, f"HTTP {e.code} from {url}")
+            last = f"HTTP {e.code} from {url}"
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as e:
+            last = f"{type(e).__name__}: {e}"
+        if attempt + 1 < attempts:
+            time.sleep(2 * (attempt + 1))
+    raise Unreachable(what, TRANSIENT, last or "no response")
+
+
+def read_pin(path):
+    fields = {}
+    for line in open(path):
+        line = line.split("#", 1)[0].strip()
+        if not line:
+            continue
+        key, _, value = line.partition("=")
+        fields[key.strip()] = value.strip()
+    return fields
+
+
+def version_key(text):
+    """Sort key for a semver-ish version, prereleases excluded by the caller. Digits only, so
+    `0.10.0` beats `0.9.1`, which string comparison gets backwards and which is the whole reason
+    this function exists rather than a `sorted()` call."""
+    return tuple(int(part) for part in re.findall(r"\d+", text))
+
+
+def is_prerelease(text):
+    return "-" in text
+
+
+# --- the two halves -------------------------------------------------------------------------------
+
+
+def releases_since(pin):
+    """Published versions newer than the pin, newest first, as (version, date). Yanked and
+    prerelease versions are excluded: a yank is upstream saying do not use it, and a prerelease is
+    not something this tree would pin to without being asked."""
+    data = get_json(f"https://crates.io/api/v1/crates/{pin['name']}", f"crates.io/{pin['name']}")
+    pinned = version_key(pin["version"])
+    out = []
+    for v in data.get("versions", []):
+        num = v["num"]
+        if v.get("yanked") or is_prerelease(num):
+            continue
+        if version_key(num) > pinned:
+            out.append({
+                "version": num,
+                "date": (v.get("created_at") or "")[:10],
+                "checksum": v.get("checksum", ""),
+            })
+    out.sort(key=lambda r: version_key(r["version"]), reverse=True)
+    return out
+
+
+GITLAB_HOST = "gitlab.redox-os.org"
+
+
+def commits_since(pin):
+    """Upstream commits on `vcs_branch` that the pinned sha does not have, oldest first, with merge
+    commits dropped.
+
+    **GitLab only, deliberately.** RedoxFS is the only vendored engine, so a general forge
+    abstraction here would be machinery ahead of a second consumer; a second forge gets support the
+    day a second pin needs it, and an unrecognised host says so rather than guessing.
+    """
+    url = pin.get("vcs_url", "")
+    match = re.match(rf"https://{re.escape(GITLAB_HOST)}/(.+?)/?$", url)
+    if not match:
+        raise Unreachable(
+            f"{pin['name']} vcs_url", PERMANENT,
+            f"{url!r} is not a {GITLAB_HOST} project URL, and this script speaks no other forge")
+    project = urllib.parse.quote(match.group(1).removesuffix(".git"), safe="")
+    branch = pin.get("vcs_branch", "master")
+    api = f"https://{GITLAB_HOST}/api/v4/projects/{project}/repository/compare"
+    data = get_json(f"{api}?from={pin['vcs']}&to={branch}", f"{GITLAB_HOST}/{match.group(1)}")
+
+    head = (data.get("commit") or {}).get("id", "")
+    commits = data.get("commits", [])
+    # GitLab caps the commit list on a compare. If the last one it returned is not the branch head,
+    # we are seeing a prefix, and reporting "12 commits" when the truth is "at least 12" would be a
+    # number a reader could act on wrongly.
+    truncated = bool(commits) and head and commits[-1]["id"] != head
+    merges = [c for c in commits if len(c.get("parent_ids", [])) > 1]
+    real = [c for c in commits if len(c.get("parent_ids", [])) <= 1]
+    return {
+        "head": head,
+        "truncated": truncated,
+        "merges": len(merges),
+        "commits": [{"id": c["short_id"], "date": (c.get("created_at") or "")[:10],
+                     "title": c.get("title", "").strip()} for c in real],
+        "files": sorted({d.get("new_path") or d.get("old_path") for d in data.get("diffs", [])}
+                        - {None}),
+        "web_url": data.get("web_url", ""),
+    }
+
+
+def patched_files(pin):
+    """The files our divergence patch touches, so the report can say which of them upstream has also
+    been editing. That overlap is the cheapest available predictor of how much a bump will hurt, and
+    vendor/README.md already warns that three of the five divergences are re-applied forever and can
+    conflict."""
+    path = os.path.join(root, pin.get("divergence", ""))
+    if not pin.get("divergence") or not os.path.exists(path):
+        return []
+    return sorted({m.group(1) for m in re.finditer(r"^\+\+\+ b/(.+)$", open(path).read(), re.M)})
+
+
+# --- the report -----------------------------------------------------------------------------------
+
+
+def render(pin, releases, git, overlap):
+    """One pin's section of the status file, in markdown.
+
+    **Nothing in here is a timestamp, and that is load-bearing.** The file is regenerated on every
+    run and committed only when it changes; a "checked on <date>" line would make every run a diff,
+    which would make every month a pull request, which is exactly the per-day noise
+    toolchain-bump.yml's header set out to avoid. Everything below is a fact about upstream, so an
+    unchanged upstream regenerates a byte-identical file and the watcher is silent.
+    """
+    out = [f"## {pin['name']}\n"]
+
+    out.append(f"Pinned at **{pin['version']}**, upstream git sha `{pin['vcs'][:12]}`.\n")
+
+    if releases is None:
+        out.append("**Releases: could not be checked.** See the run log.\n")
+    elif not releases:
+        out.append(f"**Releases: current.** {pin['version']} is still the newest published "
+                   "version that is neither yanked nor a prerelease.\n")
+    else:
+        newest = releases[0]["version"]
+        out.append(f"**Releases: {len(releases)} newer than the pin**, the newest being "
+                   f"**{newest}**.\n")
+        for r in releases:
+            out.append(f"- `{r['version']}` published {r['date']}")
+        out.append("")
+
+    if git is None:
+        out.append("**Upstream git: could not be checked.** See the run log.\n")
+    elif not git["commits"] and not git["merges"]:
+        out.append("**Upstream git: current.** No commits on the tracked branch since the pinned "
+                   "sha.\n")
+    else:
+        at_least = "at least " if git["truncated"] else ""
+        out.append(f"**Upstream git: {at_least}{len(git['commits'])} non-merge commits** since the "
+                   f"pinned sha (plus {git['merges']} merge commits, dropped), head "
+                   f"`{git['head'][:12]}`.")
+        if git["truncated"]:
+            out.append("")
+            out.append("The forge capped the comparison, so this is a prefix rather than the whole "
+                       "list.")
+        if git["web_url"]:
+            out.append("")
+            out.append(f"Full comparison: {git['web_url']}")
+        out.append("")
+        for c in git["commits"]:
+            out.append(f"- {c['date']} `{c['id']}` {c['title']}")
+        out.append("")
+        if overlap:
+            hit = [f for f in overlap if f in git["files"]]
+            if hit:
+                out.append("**Upstream has edited files our divergence patch also touches**, so a "
+                           "bump is likely to conflict there:")
+                out.append("")
+                for f in hit:
+                    out.append(f"- `{f}`")
+                out.append("")
+            else:
+                out.append("Upstream has not touched any file our divergence patch touches.\n")
+
+    return "\n".join(out).rstrip() + "\n"
+
+
+HEADER = """<!-- Generated by script/vendor-watch. Do not edit by hand; edit the script. -->
+
+# What upstream has done since each pin was taken
+
+`vendor/README.md` says what we vendor and why we diverge from it. This file says what has happened
+*upstream* since, which is the question `script/vendor-verify` deliberately does not ask: it proves
+the tree is the published tarball plus our patches, and a proof about the past cannot notice that a
+newer past exists.
+
+Regenerated by `script/vendor-watch --write`, which the monthly `vendor watch` workflow runs. It
+carries no timestamp on purpose, so an unchanged upstream regenerates a byte-identical file and the
+watcher stays silent; a diff here means upstream moved.
+
+**This file reports. It decides nothing.** A newer version is not automatically a better one, and
+the pins in this directory were taken deliberately. What to do about a gap is in
+`vendor/README.md`'s "Bumping a pin" section.
+"""
+
+
+# --- run --------------------------------------------------------------------------------------
+
+
+pins = sorted(glob.glob(os.path.join(root, "vendor", "*.pin")))
+if not pins:
+    sys.exit("vendor-watch: no vendor/*.pin files; nothing claims to be vendored")
+
+sections, failures, behind = [], [], False
+bumps = []
+
+for pin_path in pins:
+    pin = read_pin(pin_path)
+    missing = {"name", "version", "vcs"} - set(pin)
+    if missing:
+        sys.exit(f"{pin_path}: missing field(s) vendor-watch needs: {', '.join(sorted(missing))}")
+    print(f"==> {pin['name']} {pin['version']}", file=sys.stderr)
+
+    try:
+        releases = releases_since(pin)
+    except Unreachable as e:
+        print(f"  {e.kind}: {e}", file=sys.stderr)
+        failures.append(e)
+        releases = None
+
+    try:
+        git = commits_since(pin)
+    except Unreachable as e:
+        print(f"  {e.kind}: {e}", file=sys.stderr)
+        failures.append(e)
+        git = None
+
+    if releases:
+        behind = True
+        bumps.append((pin_path, pin, releases[0]))
+        print(f"  behind: {len(releases)} newer release(s), newest {releases[0]['version']}",
+              file=sys.stderr)
+    if git and (git["commits"] or git["merges"]):
+        behind = True
+        print(f"  behind: {len(git['commits'])} non-merge commit(s) upstream", file=sys.stderr)
+
+    sections.append(render(pin, releases, git, patched_files(pin)))
+
+report = HEADER + "\n" + "\n".join(sections)
+
+if write:
+    with open(STATUS_PATH, "w") as f:
+        f.write(report)
+    print(f"  wrote {os.path.relpath(STATUS_PATH, root)}", file=sys.stderr)
+
+    # Raise the pin to the newest release, and stop there. This is the cheap output the roadmap
+    # block asked for first: bumping version/url/sha256 makes `script/vendor-verify` fail on the
+    # resulting branch, and that red check IS the deliverable, because it is the upgrade become a
+    # visible object. Deliberately NOT re-applying the divergence patch: nobody has performed that
+    # job by hand yet, so automating it would be guessing at the shape of work nobody has done.
+    for pin_path, pin, newest in bumps:
+        if not newest["checksum"]:
+            print(f"  NOT bumping {pin['name']}: the registry gave no checksum for "
+                  f"{newest['version']}", file=sys.stderr)
+            continue
+        text = open(pin_path).read()
+        text = re.sub(r"^version = .*$", f"version = {newest['version']}", text, flags=re.M)
+        text = re.sub(r"^url = .*$",
+                      f"url = https://static.crates.io/crates/{pin['name']}/"
+                      f"{pin['name']}-{newest['version']}.crate", text, flags=re.M)
+        text = re.sub(r"^sha256 = .*$", f"sha256 = {newest['checksum']}", text, flags=re.M)
+        with open(pin_path, "w") as f:
+            f.write(text)
+        print(f"  raised {os.path.relpath(pin_path, root)} to {newest['version']}; "
+              f"script/vendor-verify will now fail, which is the point", file=sys.stderr)
+else:
+    sys.stdout.write(report)
+
+if any(f.kind == PERMANENT for f in failures):
+    sys.exit(3)
+if failures:
+    sys.exit(2)
+sys.exit(1 if behind else 0)
+PY

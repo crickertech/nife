@@ -1,0 +1,239 @@
+name: vendor watch
+
+# **Has RedoxFS moved?** Asked monthly, answered before somebody has to remember to ask.
+#
+# `script/vendor-verify` proves the vendored tree is the published tarball plus our recorded
+# patches, which is a claim about the past; it never asks what upstream has published since.
+# Dependabot cannot cover the gap either, because `vendor/redoxfs` is deliberately its own
+# workspace and so sits outside the Cargo graph dependabot walks. Milestone 203 is that gap, and
+# design/decisions/81-dependency-upgrades.md's rule that a dependency stays upgradable had
+# `vendor/` as its blind spot until this ran.
+#
+# **This is toolchain-bump.yml's shape, on purpose.** One PR, updated in place on a fixed branch,
+# rather than one per run. Silent when there is nothing to do. It proposes; it never applies, and it
+# must never push to `main`: a newer version is not automatically a better one, this tree pinned
+# deliberately, and what to do about a gap (which of the five divergences still apply, whether the
+# store's safety claim survives) is a judgment nothing here can make.
+#
+# **Monthly rather than weekly, measured rather than chosen.** Releases are irregular and clustered:
+# 0.8.5 and 0.8.6 landed the same day, 0.9.0 to 0.9.1 spanned five months. Weekly would mostly
+# report the same thing four times. Monthly's worst-case lag is shorter than the gaps it is watching
+# for, and clustering is the reason the check has to be idempotent rather than incremental: two
+# releases in a week must produce one pull request, not two.
+#
+# **Idempotence is a property of the artifact, not of a memory.** `vendor/upstream-status.md`
+# carries no timestamp, so an unchanged upstream regenerates a byte-identical file and `git diff`
+# is empty. That is the whole state machine: a diff means something moved, no diff means silence.
+# Nothing here has to remember what it reported last month, which is what a state file would have
+# been and what would then have been the thing to go stale.
+
+on:
+  schedule:
+    # 09:00 UTC on the 1st. An hour after the daily toolchain jobs, for no reason beyond keeping the
+    # morning's scheduled runs from starting on the same minute.
+    - cron: "0 9 1 * *"
+  workflow_dispatch:
+
+concurrency:
+  group: vendor-watch
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  watch:
+    name: has upstream moved
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    steps:
+      # **Why a token other than the default `GITHUB_TOKEN`.** GitHub's anti-recursion rule means a
+      # push or PR made with the workflow's own token triggers no further workflow runs, so the PR
+      # this job opens would sit with every required check stuck on "Expected", permanently
+      # unmergeable. That matters more here than almost anywhere, because when this job raises a pin
+      # the deliverable IS a check result: `script/supply-chain` runs `vendor-verify`, which fails
+      # against the new tarball, and that red is the upgrade become a visible object. A PR whose CI
+      # never ran would show a green nothing instead.
+      #
+      # `TOOLCHAIN_BUMP_PAT` is reused rather than duplicated: it is a repo-scoped bot identity with
+      # `contents: write` and `pull-requests: write`, and nothing about it is toolchain-specific
+      # except the name it was given when it was the only consumer. Renaming a secret is calef's
+      # call and costs a rotation, so this records the mismatch instead of making it.
+      - uses: actions/checkout@v7
+        with:
+          token: ${{ secrets.TOOLCHAIN_BUMP_PAT || github.token }}
+
+      # No toolchain, no build. The script is stdlib python over two HTTP endpoints.
+      #
+      # `set +e` because the exit code is the answer rather than a failure: 0 current, 1 behind,
+      # 2 transiently unreachable, 3 permanently unreachable. See script/vendor-watch's header.
+      - name: Ask what upstream has done
+        id: watch
+        run: |
+          set +e
+          script/vendor-watch --write
+          echo "code=$?" >> "$GITHUB_OUTPUT"
+
+      # **A transient failure is deliberately quiet, and this is the one judgment call in the file.**
+      # The hazard runs both ways: a watcher that fails silently when the network is down is worse
+      # than none, and a watcher that shouts every time GitLab is slow gets muted inside a week. The
+      # split is by cost. One missed monthly run adds at most a month of lag against release gaps
+      # measured in months, so it is a red run in the Actions tab and nothing more. A 404 is not
+      # that: the crate was renamed or the project moved, it will fail identically every month from
+      # now on, and nobody is prompted to look at the Actions tab (which is exactly how
+      # toolchain-drift's red went unseen on 2026-07-31). So that case escalates to a pull request,
+      # below, and this step only fails the run.
+      - name: A transient failure fails the run and nothing more
+        if: steps.watch.outputs.code == '2'
+        run: |
+          echo "vendor-watch could not reach an endpoint after three attempts. This run is red and"
+          echo "no pull request was opened. One missed month is within tolerance; if this repeats,"
+          echo "the failure is not transient and the 404 path above should have caught it."
+          exit 1
+
+      - name: Open or update the pull request
+        if: steps.watch.outputs.code == '1' || steps.watch.outputs.code == '3'
+        env:
+          GH_TOKEN: ${{ secrets.TOOLCHAIN_BUMP_PAT || github.token }}
+          CODE: ${{ steps.watch.outputs.code }}
+        run: |
+          set -e
+          branch="vendor/upstream-moved"
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+
+          # Did the script raise a pin? That is what decides draft vs ready below, and asking git is
+          # more robust than having the script report it: the tree is the fact.
+          bumped=no
+          git diff --name-only -- 'vendor/*.pin' | grep -q . && bumped=yes
+
+          git add -A vendor
+          if git diff --cached --quiet; then
+            echo "Nothing changed in vendor/; upstream moved but the report is identical. Silent."
+            exit 0
+          fi
+
+          procedure="**What to do about it** is \`vendor/README.md\`'s \"Bumping a pin\" section, and
+          the short version is that none of it is mechanical: raise the pin, re-apply the five
+          divergences, regenerate with \`script/vendor-verify --write-patch\`, extend
+          \`vendor/README.md\`'s exhaustive list, then run the suite and milestone 37's crash
+          injector, because the store's safety claim is the thing a bump risks.
+
+          A bump is also allowed to *fail*, and that is a result rather than a defect: three of the
+          five divergences are re-applied forever and can stop applying outright if upstream
+          restructures what they touch. If that happens, the honest outcome is a decision (take the
+          new version and rewrite the divergences, stay put and record why, or fork permanently and
+          stop pretending the pin tracks upstream), and that decision is calef's rather than a
+          lane's."
+
+          if [ "$CODE" = "3" ]; then
+            title="vendor: the RedoxFS upstream watch is BROKEN (it can no longer see upstream)"
+            draft="--draft"
+            git commit -m "vendor: the upstream watch can no longer reach upstream
+
+          NOT a proposal to merge. script/vendor-watch got a 404 or a 410, which means the crate or
+          the GitLab project moved or was removed rather than that the network was slow. It will
+          fail identically every month until somebody fixes the pin's coordinates.
+
+          Opened as a pull request because the alternative was a red run in the Actions tab, which
+          has no badge and notifies nobody."
+            body="**Lane:** $branch, opened by a scheduled workflow; calef's account is the author GitHub shows.
+
+          **The watch itself is broken.** \`script/vendor-watch\` exited 3, which it reserves for a
+          404 or a 410: the crates.io crate or the \`vcs_url\` GitLab project has moved, been renamed,
+          or been removed. Retrying will not help, and every future monthly run fails the same way.
+
+          This is a **draft on purpose.** The fix is a commit to this branch correcting the pin's
+          coordinates in \`vendor/*.pin\` (\`name\`, \`vcs_url\`, \`vcs_branch\`). See the run log for
+          which endpoint answered 404.
+
+          You are reading this instead of nothing because a red run in the Actions tab has no badge
+          and sends no notification. A transient failure (exit 2) deliberately does NOT get a pull
+          request, because a watcher that cries whenever GitLab is slow is one nobody reads."
+          elif [ "$bumped" = "yes" ]; then
+            title="vendor: RedoxFS has published a newer version (pin raised, do not merge as-is)"
+            draft="--draft"
+            git commit -m "vendor: raise the RedoxFS pin, and let vendor-verify say what that costs
+
+          The pin's version, url and sha256 now name the newest published release. The divergence
+          patch is deliberately UNTOUCHED, so script/vendor-verify fails on this branch, and that
+          failure is the deliverable: it is the upgrade become a visible object rather than a
+          version number in a log.
+
+          Automating the patch re-application was refused rather than skipped. Nobody has performed
+          that job by hand yet, so a script for it would be guessing at the shape of work nobody has
+          done; the first real bump is what tells us whether it is mechanical."
+            body="**Lane:** $branch, opened by a scheduled workflow; calef's account is the author GitHub shows.
+
+          **Upstream has published a newer RedoxFS.** \`vendor/upstream-status.md\` in this diff says
+          which versions, when, and what has landed in upstream git alongside them.
+
+          The pin's \`version\`, \`url\` and \`sha256\` are raised and **the divergence patch is
+          untouched**, so \`script/supply-chain\` (which runs \`script/vendor-verify\`) will be red
+          here. That red is the point, not a defect in the PR: it is the exact list of what stops
+          matching when the tarball changes underneath our five recorded divergences.
+
+          **Draft on purpose and must not be merged as-is.**
+
+          $procedure"
+          else
+            title="vendor: RedoxFS upstream has moved since the pin"
+            draft=""
+            git commit -m "vendor: record what RedoxFS upstream has done since the pin
+
+          No new release, so nothing to bump; upstream git has moved. This lands the report where a
+          reader of vendor/ meets it rather than leaving it in a run log nobody opens, which is the
+          same reason the divergences are written in vendor/README.md rather than tracked elsewhere.
+
+          Merging this asserts only that we have looked."
+            body="**Lane:** $branch, opened by a scheduled workflow; calef's account is the author GitHub shows.
+
+          **RedoxFS upstream git has moved since our pin**, though nothing new has been published to
+          crates.io. The diff is \`vendor/upstream-status.md\`: the commit subjects, merge commits
+          dropped, and whether upstream has touched any file our divergence patch also touches.
+
+          Nothing in the tree changes behaviour. **Merging this asserts only that we have looked**,
+          and lands the gap where a reader of \`vendor/\` meets it instead of in a run log.
+
+          Read the subjects rather than the count. A \`fix:\` in the record layer is a different
+          prompt from a dependency bump, and telling those apart is the whole reason this reports
+          subjects instead of a number.
+
+          $procedure"
+          fi
+
+          git push --force origin "$branch"
+          # One PR, updated in place. Force-pushing updates an existing PR's diff but not its title
+          # or body, so both are refreshed explicitly: a PR still saying "the watch is broken" after
+          # the watch was fixed is worse than no PR at all. Same reasoning, same failure, as
+          # toolchain-bump.yml's.
+          existing="$(gh pr list --head "$branch" --state open --json number --jq '.[].number')"
+          if [ -z "$existing" ]; then
+            # shellcheck disable=SC2086 # $draft is a deliberate word-split: either --draft or empty.
+            gh pr create --head "$branch" --base main --title "$title" --body "$body" $draft
+          else
+            gh pr edit "$existing" --title "$title" --body "$body"
+            # Draft state has to move BOTH ways: last month's run may have left a mergeable
+            # report PR that this month's pin bump must un-ready.
+            if [ -n "$draft" ]; then
+              gh pr ready "$existing" --undo || true
+            else
+              gh pr ready "$existing" || true
+            fi
+            echo "Updated PR #$existing in place."
+          fi
+
+      # **A broken watch stays red, not just the month it broke.** The step above opens a pull
+      # request the first time a 404 appears, because the status file changes. It would then go
+      # quiet: the second month regenerates the same "could not be checked" report, `git diff` is
+      # empty, and a permanently broken watch would report success forever. That is the exact
+      # failure this milestone exists to prevent, one level up, so the run stays red for as long as
+      # the watch cannot see upstream.
+      - name: A broken watch keeps the run red
+        if: steps.watch.outputs.code == '3'
+        run: |
+          echo "vendor-watch cannot see upstream and retrying will not help. See the pull request"
+          echo "on vendor/upstream-moved, and fix the pin's coordinates."
+          exit 1

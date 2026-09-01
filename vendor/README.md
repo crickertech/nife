@@ -128,3 +128,51 @@ and priced it is notes/redoxfs-audit.md).
   `--manifest-path`, since it is outside the main workspace their `--workspace`/`--all` sweeps see.
   `script/vendor-verify` asks the different question those cannot: not "does it still build" but
   "is this tree what we say it is".
+
+## Bumping a pin
+
+**Nothing here bumps itself, and that is deliberate.** A newer version is not automatically a better
+one, and each pin above was taken on purpose. What the tree does do, since milestone 203, is refuse
+to let a gap go unnoticed: `script/vendor-watch` asks crates.io and upstream git what has landed
+since, the monthly `vendor watch` workflow runs it, and `upstream-status.md` in this directory is
+the answer. `script/vendor-verify` is the complement and answers a different question: not "has
+upstream moved" but "is this tree what we say it is".
+
+When the watch says upstream has moved and somebody decides to follow it, this is the job. **None of
+it is mechanical**, which is why nothing automates past the first step:
+
+1. Raise `version`, `url` and `sha256` in the pin. (`script/vendor-watch --write` does this much,
+   and stops there.)
+2. Re-apply the divergences. Numbers 1 and 2 above drop the day upstream ships them; 3, 4 and 5 are
+   re-applied forever and are where the work is.
+3. Regenerate the patch: `script/vendor-verify --write-patch`.
+4. Extend this file's divergence list, which claims to be exhaustive and has been wrong once.
+5. Run `script/test` and milestone 37's crash injector. **The store's safety claim is the thing a
+   bump risks**, so a green build is not the bar.
+
+### BUGS
+
+- **A bump is allowed to fail, and that is a result rather than a defect.** Divergences 3, 4 and 5
+  can stop applying outright if upstream restructures what they touch. The honest outcome then is a
+  decision rather than a fix: take the new version and rewrite the divergences, stay put and record
+  why, or fork permanently and stop pretending the pin tracks upstream. Which of the three is right
+  is calef's call, not a lane's, so a lane that meets this writes it up and stops.
+- **The divergence list above is not exhaustive, and it says it is.** Found 2026-08-31 by milestone
+  203's lane, which had to read the patch to report which files upstream had also touched.
+  `redoxfs.divergence.patch` modifies eight files; the five numbered divergences account for seven.
+  The eighth is `src/transaction.rs`, where `err` is renamed `_err` in the lz4 decompression failure
+  path so the no-`log` build has no unused-variable warning. It is small and it ages like
+  divergence 1 (it drops the day upstream writes it that way), but an "exhaustive" list with an
+  entry missing is the same defect this file already recorded once about the lockfile: nobody
+  edited the filesystem, and nobody could prove it either. Whoever takes the next bump should
+  number it and say where it came from; this lane did not, because inventing provenance for a
+  change it did not make would be worse than naming the gap.
+- **The watch reports; it cannot decide.** A prompt nobody acts on is the same silence with more
+  steps, and nothing in this tree measures whether anyone acted.
+- **`script/vendor-watch` speaks GitLab and nothing else.** RedoxFS is the only vendored engine, so
+  a second forge gets support the day a second pin needs one. An unrecognised `vcs_url` says so and
+  exits rather than guessing.
+- **The git half compares against a branch head, which moves.** So "37 commits behind" is a fact
+  about the day it was generated, and `upstream-status.md` carries no date by design (a timestamp
+  would make every monthly run a diff, and therefore a pull request). Read it as "as of the last
+  time this file changed".
