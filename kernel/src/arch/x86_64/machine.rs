@@ -218,19 +218,46 @@ impl Default for Acpi {
 /// Read `len` bytes at physical address `at` through the direct map.
 ///
 /// # Safety
-/// `at..at + len` must be inside the direct map (the low gigabyte) and must be memory rather than a
-/// device register block, since this is an ordinary read.
+/// `at..at + len` must be inside the boot map's direct map (the low [`BOOT_DIRECT_MAP_LIMIT`],
+/// which is what [`reachable`] checks) and must be memory rather than a device register block,
+/// since this is an ordinary read.
 unsafe fn phys_slice<'a>(at: u64, len: usize) -> &'a [u8] {
     // SAFETY: the caller's obligation, restated: an in-range physical address naming memory.
     unsafe { core::slice::from_raw_parts(phys_to_virt(at) as *const u8, len) }
 }
 
-/// Is the direct map able to reach this physical address? The boot map aliases only the low
-/// gigabyte, so anything above it would compute an address that is arithmetically right and not
-/// mapped, which faults a long way from here. Checked rather than assumed because these addresses
-/// come from firmware.
+/// **How far the boot page tables' direct map reaches: the low 4 GiB.**
+///
+/// `boot.s` builds 2048 page-directory entries of 2 MiB each, hangs them off a four-entry PDPT,
+/// and points both PML4[0] (identity) and PML4[273] (the direct map `phys_to_virt` names) at that
+/// same PDPT. Everything the ACPI walk reads happens before `mmu::init` installs the fine tables,
+/// so this, and not the fine map, is the bound that applies.
+///
+/// **This constant was `0x4000_0000` (1 GiB) until 2026-09-02, and the 4x was not a rounding
+/// error, it was a machine that could not boot.** The comment claimed the boot map "aliases only
+/// the low gigabyte", which `boot.s` has not done since it was written: its own comment says 4 GiB
+/// "because everything x86 talks to early is above 1 GiB and below 4". Nothing caught the
+/// disagreement because both QEMU runners pass `-m 256M`, and firmware puts its tables just under
+/// the top of RAM: at 256 MiB the RSDP lands at `0x0fb7e014` and passes a 1 GiB test. Booted with
+/// `-m 2048` under OVMF it lands at `0x7fb7e014`, every table was refused as unreachable, and the
+/// kernel came up with no MADT, no MCFG and no DMAR: no APIC, no timer, no PCI, no VT-d, on a
+/// machine that had described all four. Every real x86 machine has more than 1 GiB of RAM, so this
+/// was unconditional on hardware and invisible in the suite. `cargo xtask uefi-boot` now boots at
+/// [`crate::arch::x86_64::machine`]'s witness size instead; see `uefi_boot`'s own gate.
+const BOOT_DIRECT_MAP_LIMIT: u64 = 0x1_0000_0000;
+
+/// Is the direct map able to reach this physical address? Anything above
+/// [`BOOT_DIRECT_MAP_LIMIT`] would compute an address that is arithmetically right and not mapped,
+/// which faults a long way from here. Checked rather than assumed because these addresses come
+/// from firmware.
+///
+/// **A refusal here is not a table this kernel may ignore**, which is what the bug above cost: an
+/// unreachable ACPI table is a machine whose APICs, PCIe window and IOMMU are all undiscoverable,
+/// so `read_acpi` says so per table rather than skipping quietly. A machine that puts its tables
+/// above 4 GiB (none seen; firmware keeps ACPI in low memory precisely so 32-bit loaders can read
+/// it) needs the boot map widened, not this loosened.
 fn reachable(at: u64, len: usize) -> bool {
-    at != 0 && at.saturating_add(len as u64) <= 0x4000_0000
+    at != 0 && at.saturating_add(len as u64) <= BOOT_DIRECT_MAP_LIMIT
 }
 
 /// **Find the ACPI root pointer.**
@@ -291,12 +318,24 @@ fn scan_for_rsdp(range: core::ops::Range<u64>) -> Option<(u64, Rsdp)> {
 /// reading: a corrupt MADT would hand out an APIC address, and there is nothing downstream that
 /// could notice it was wrong.
 fn table_at(at: u64) -> Option<(SdtHeader, &'static [u8])> {
+    // Out of the boot map's reach is said out loud, and separately from a bad checksum, because
+    // the two ask for opposite things from whoever reads the line: a checksum failure is a table
+    // to distrust, an unreachable address is a boot map to widen. Conflating them is what let the
+    // 1 GiB bound above sit unnoticed.
     if !reachable(at, acpi::SDT_HEADER_LEN) {
+        crate::println!(
+            "                {at:#012x}  outside the boot map's low {} GiB, cannot be read",
+            BOOT_DIRECT_MAP_LIMIT / (1024 * 1024 * 1024),
+        );
         return None;
     }
     // SAFETY: `reachable` checked the header's range.
     let header = parse_sdt_header(unsafe { phys_slice(at, acpi::SDT_HEADER_LEN) }).ok()?;
     if !reachable(at, header.length as usize) {
+        crate::println!(
+            "                {at:#012x}  {} bytes long, which runs past the boot map",
+            header.length,
+        );
         return None;
     }
     // SAFETY: `reachable` checked the whole table's range, using the length the header states.
