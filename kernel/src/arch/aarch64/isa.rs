@@ -216,19 +216,57 @@ mod tests {
     /// **The PSCI conduit and function id came from `/psci`, and they are what used to be compiled
     /// in** (milestone 100).
     ///
-    /// Two assertions and they are doing different jobs. The first is that discovery ran at all: a
-    /// build that skipped the parse leaves `psci()` at `None`, and every secondary would then fail
-    /// to start with `PSCI_NOT_DISCOVERED` rather than with a firmware error. The second holds the
-    /// retired hardcodes against the machine, which is `crates/pci`'s discipline: on QEMU `virt` the
-    /// old constants were right, and the value of saying so here is that the day they stop being
-    /// right, this line says which one moved.
+    /// Three assertions and they are doing different jobs. The first is that discovery ran at all:
+    /// a build that skipped the parse leaves `psci()` at `None`, and every secondary would then
+    /// fail to start with `PSCI_NOT_DISCOVERED` rather than with a firmware error. The other two
+    /// hold the retired hardcodes against the machine, which is `crates/pci`'s discipline: on QEMU
+    /// `virt` the old constants were right, and the value of saying so here is that the day they
+    /// stop being right, this line says which one moved.
+    ///
+    /// **The conduit is keyed on the entry exception level, and that is a fact rather than a
+    /// hedge** (milestone 127's EL2 entry work). `hvc` was asserted as a constant here until a
+    /// rehearsal boot on `virt,virtualization=on` failed it. It should have: with an EL2 present
+    /// below nothing, an `hvc` from EL1 lands in that EL2, so QEMU implements PSCI on `smc` and
+    /// says so in the tree. TF-A does the same on a board. So the pairing is the assertion, and it
+    /// is a stronger one than the constant was: the machine is not free to say either.
     #[test_case]
     fn the_psci_call_was_read_from_the_machine() {
         let (conduit, cpu_on) = super::psci().expect("QEMU virt has a usable /psci node");
 
-        assert_eq!(conduit, Conduit::Hvc, "the method /psci states on virt");
+        let expected = if super::super::entry_el() == 2 {
+            Conduit::Smc
+        } else {
+            Conduit::Hvc
+        };
+        assert_eq!(
+            conduit,
+            expected,
+            "the method /psci states, given entry at EL{}",
+            super::super::entry_el(),
+        );
         assert_eq!(cpu_on, 0xC400_0003, "the id smp.rs used to hold as a const");
         assert_eq!(cpu_on, machine_discovery::aarch64::PSCI_CPU_ON_64);
+    }
+
+    /// **`boot.s` recorded the exception level firmware entered at, and it is one this kernel
+    /// knows how to start from** (milestone 127, the seL4 machine).
+    ///
+    /// The number is not decoration. `main.rs`'s `running_at_el1` proves where the kernel is; this
+    /// proves the entry was seen and handled rather than assumed, which is the half that differs
+    /// between QEMU's default `virt` (EL1, and the drop is a branch not taken) and both
+    /// `virt,virtualization=on` and a board's U-Boot (EL2, and the drop ran).
+    ///
+    /// A zero here is the specific regression worth catching: it means `.bss` was zeroed after the
+    /// store rather than before it, or that the store was dropped, and the reader of the boot
+    /// banner would be told the machine entered at "EL0", which is impossible and therefore
+    /// exactly the kind of manufactured fact this tree keeps hunting.
+    #[test_case]
+    fn the_entry_exception_level_was_recorded() {
+        let entered = super::super::entry_el();
+        assert!(
+            entered == 1 || entered == 2,
+            "boot.s recorded entry at EL{entered}, which no firmware can deliver"
+        );
     }
 
     /// **The ASID width the part reports is enough for the allocator built on it.**

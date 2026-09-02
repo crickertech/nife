@@ -51,6 +51,36 @@ milestone 7 runs at EL1. Milestone 7 is the moment we construct a world at EL0, 
 it, and catch it when it asks us for something. That transition *is* what an operating
 system is.
 
+**But the kernel does not always *arrive* at EL1, and until 2026-09-02 this tree assumed it
+did.** QEMU's `virt` starts a payload at EL1; every real aarch64 bootloader starts one at EL2,
+because that is where a hypervisor would go and firmware does not know you are not one. U-Boot
+on the Jetson TX1 (milestone 127, the seL4 machine) does exactly this, with TF-A's tegra210 BL31
+at EL3 below it providing PSCI.
+
+So `boot.s` reads `CurrentEL` and drops itself to EL1 when it finds itself at EL2, and continues
+unchanged when it is already there. Detection rather than a build-time switch, because a switch
+would mean one binary for QEMU and a different one for the board, which is how you get a defect
+nobody can reproduce on the machine they have.
+
+The drop is `enter_el1` in `kernel/src/arch/aarch64/boot.s`, and its interesting half is not the
+`eret` but the list of registers configured before it. Each one is there because its reset value
+is UNKNOWN or because a bootloader may leave it however it liked, which means that at EL1 it is
+either invisible or reads as something the kernel would then believe. Two are worth knowing
+about away from the code:
+
+- **`CNTVOFF_EL2`** is subtracted from the physical counter to produce the virtual one, and
+  `arch/aarch64/timer.rs` uses the *virtual* timer deliberately (it is the one an EL1 kernel can
+  always reach). Leaving `CNTVOFF_EL2` as found is leaving the system clock offset by an
+  arbitrary 64-bit number.
+- **`VPIDR_EL2` and `VMPIDR_EL2`** are what `MIDR_EL1` and `MPIDR_EL1` *return* once EL2 is
+  implemented and you are reading them from EL1. Not copying the real values across would have
+  the core-parking branch, `arch::isa`'s refusal check and the SMP bring-up all reading garbage,
+  each failing somewhere far from the cause.
+
+`arch::entry_el` records which level the entry was, and the boot banner prints both numbers,
+because on a board's first boot they are the two different questions. See
+[boot-protocol.md](boot-protocol.md) for how the entry level pairs with the PSCI conduit.
+
 ## Registers
 
 **General purpose:** `x0`–`x30`, 64-bit. (`w0`–`w30` are the lower 32 bits of the same
@@ -68,6 +98,7 @@ A kernel does almost nothing else.
 | `SCTLR_EL1` | Master system control, including "is the MMU on?" | 4 |
 | `MPIDR_EL1` | Which CPU core am I? (used to park cores 1-3 at boot) | 1 |
 | `CurrentEL` | Which exception level am I running at? | 2 |
+| `HCR_EL2`, `SPSR_EL2`, `ELR_EL2`, `CNTVOFF_EL2`, `VMPIDR_EL2` (and the rest of `enter_el1`'s list) | Only touched when firmware entered us at EL2, on the way down to EL1 | 127 |
 
 The `aarch64-cpu` crate is a typed Rust wrapper over exactly these, so we write
 `SCTLR_EL1.modify(SCTLR_EL1::M::Enable)` instead of hand-writing assembly and getting a
