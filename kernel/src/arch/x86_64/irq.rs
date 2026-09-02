@@ -450,7 +450,8 @@ pub fn alloc_msi_vector() -> Option<(u32, pci::MsiTarget)> {
 /// The base of the local APIC's message address space, which is where an MSI write goes.
 const LOCAL_APIC_MSI_BASE: u64 = 0xfee0_0000;
 
-/// **Is `vector` one this kernel handed out for an MSI?** The trap handler asks so that an MSI can
+/// **Is `vector` one this kernel handed out for an MSI?** **Provisional name** (milestone 215).
+/// The trap handler asks so that an MSI can
 /// become a message the way a self-IPI already does. Bounded by what has actually been allocated,
 /// so an unclaimed vector in the band is still counted as spurious rather than routed.
 pub fn is_msi_vector(vector: u64) -> bool {

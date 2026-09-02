@@ -413,6 +413,8 @@ pub const VIRTIO_MSIX_NO_VECTOR: u16 = 0xffff;
 /// the destination CPU, and an arm `GICv3` ITS takes an event id at a doorbell register in the
 /// interrupt translation service.
 /// The kernel's enumerator writes whatever pair the machine hands it and understands neither.
+///
+/// **Provisional name** (milestone 215), with [`MsixCap`] and [`msix_cap`]: calef names public items.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MsiTarget {
     /// The address the device writes to. 64-bit, written to the entry's low two dwords.
