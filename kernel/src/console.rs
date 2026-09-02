@@ -227,6 +227,11 @@ impl core::fmt::Write for CountedWrites<'_> {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
         self.0.write_str(s)?;
         TX_BYTES.fetch_add(s.len() as u64, core::sync::atomic::Ordering::Relaxed);
+        // What a test says about itself is evidence the harness can act on: a test that announces
+        // a skip and then returns is counted as a pass, and this is where that becomes visible.
+        // Test builds only. See testing::note_printed.
+        #[cfg(test)]
+        crate::testing::note_printed(s);
         Ok(())
     }
 }
