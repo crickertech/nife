@@ -110,18 +110,28 @@ if [ ! -f "$VARS" ]; then
     exit 1
 fi
 
-# `q35`, `-cpu max`, `-m 256M` and `isa-debug-exit` are deliberately the same as
+# `q35`, `-cpu max` and `isa-debug-exit` are deliberately the same as
 # scripts/qemu-runner-x86_64.sh's, so a difference between the two boots is the FIRMWARE and not the
 # machine. One core, because AP bring-up under UEFI has never been exercised (src/main.rs's BUGS).
+#
+# THE MEMORY SIZE IS THE ONE THING THAT IS NOT THE PVH RUNNER'S, and it is a bound rather than a
+# preference. Firmware places its ACPI tables just under the top of RAM, so the memory size decides
+# what physical addresses the kernel is asked to read. At `-m 256M` they land at 0x0fb7e014 and any
+# reach bug hides; at 2 GiB they land at 0x7fb7e014, which is where a real machine puts them.
+# `arch::x86_64::machine`'s BOOT_DIRECT_MAP_LIMIT was wrong by 4x for exactly as long as this
+# script matched its sibling, and that bug cost the APICs, the timer, PCI and VT-d on any machine
+# with real RAM. NIFE_MEM sets it back to 256M for a like-for-like memory-map comparison against
+# the PVH runner (notes/x86-uefi-boot.md's table was measured that way).
 SMP="${NIFE_SMP:-1}"
 CPU="${NIFE_CPU:-max}"
+MEM="${NIFE_MEM:-2048}"
 TIMEOUT="${NIFE_UEFI_TIMEOUT:-90}"
 
 exec scripts/qemu-bounded.sh "$TIMEOUT" qemu-system-x86_64 \
     -machine q35 \
     -cpu "$CPU" \
     -smp "$SMP" \
-    -m 256M \
+    -m "$MEM" \
     -display none \
     -serial stdio \
     -no-reboot \

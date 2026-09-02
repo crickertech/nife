@@ -214,12 +214,26 @@ Three things to take from that.
 which is now confirmed twice over (the PVH memory map reports the same range as reserved). **Milestone
 165 wired the consumer**: `memory::record_pci_regions` fills `memory::pci_regions()` from this table's
 answer, the same static `kernel/src/pci.rs`'s probes already read on the other two architectures, so
-`PCI_ECAM_PHYS` is now only the print-time reference value above rather than what gets mapped. Reading
-the table alone was not enough: QEMU's ECAM decode is off until the host bridge's `PCIEXBAR` register
-is programmed, which real firmware does and PVH does not, so `arch::x86_64::machine::enable_pcie_ecam`
-does it through the legacy `0xcf8`/`0xcfc` ports before the window above is trusted. See milestone
-165's own text for the measurement that found this (a monitor `xp` on the address faults before the
-register is written, and reads the host bridge's real id after).
+`PCI_ECAM_PHYS` is now only the print-time reference value above rather than what gets mapped.
+
+**The window also has to be decoding, and `arch::x86_64::machine::enable_pcie_ecam` is where that is
+settled**, through the legacy `0xcf8`/`0xcfc` ports, which are the only way to bootstrap: nothing can
+read the ECAM window to turn the ECAM window on. It **reads the host bridge's `PCIEXBAR` register
+before writing it**, and writes only when the register is not already enabled at the base the MCFG
+itself reports. Firmware may have sized the window at 128 or 64 MiB where an unconditional write puts
+256, and that write then widens the chipset's decode over whatever physical addresses sit above it;
+some chipsets also lock the register once firmware has written it, so the value read back is the only
+thing that would ever have said the write was dropped.
+
+**And the complication that function was written for does not reproduce, which is a correction rather
+than a detail.** Milestone 165's block records QEMU's monitor answering "Cannot access memory" at the
+MCFG's base before the kernel ran, read as the decode being off under PVH. Re-measured 2026-09-02 on
+QEMU 11.1.1 **from inside the guest**, which is the side being served: the register reads
+`0xb0000001` before anything writes it, and every PCI test passes with `enable_pcie_ecam` writing
+nothing at all. The monitor still answers "Cannot access memory" on that same boot, so the two
+disagree. Nothing here needs to decide which changed, because the register is now asked rather than
+assumed; what follows from it is that the **writing** arm is unexercised on both paths this kernel
+boots, and stays for the machine that genuinely arrives with the decode off.
 
 **`8259s present (must be masked)`** is the MADT's `PCAT_COMPAT` flag, and it is a real obligation
 rather than trivia: the legacy PICs are still wired and still raise interrupts, so whoever brings the
@@ -1008,6 +1022,36 @@ Every item is a device or a toolchain, and none is `user_rt` any more.
   read and written by a driver at ring 3. What is still not attached is a NIC, a GPU, a keyboard,
   an RNG, or a second disk: each is a line in `scripts/qemu-runner-x86_64.sh` and a wiring, not a
   mechanism.
+- **The ACPI walk reads the boot map, and the boot map ends at 4 GiB.**
+  `arch::x86_64::machine::BOOT_DIRECT_MAP_LIMIT` is that bound, and it said 1 GiB until 2026-09-02
+  on a comment `boot.s` had never matched. Firmware puts its tables just under the top of RAM, both
+  QEMU runners passed `-m 256M`, and so every gate booted a machine whose tables happened to fit:
+  at 2 GiB under OVMF the same kernel found **no RSDP, no MADT, no MCFG and no DMAR**, and came up
+  with no APIC, no timer, no PCI and no VT-d on a machine that described all four. That was
+  unconditional on any real machine. `cargo xtask uefi-boot` now boots at 2 GiB for exactly this
+  reason (`NIFE_MEM` sets it back), and an unreachable table says so during the walk rather than
+  being skipped with the checksum failures. A machine that put its tables **above** 4 GiB (none
+  seen; firmware keeps ACPI low so 32-bit loaders can read it) needs `boot.s` widened, not the
+  bound loosened.
+- **The 32-bit BAR window is a constant, and this kernel moves most of the bus into it.**
+  `arch::mmu::PCI_BAR_PHYS` is `0xc000_0000` with 2 MiB mapped, checked once against QEMU's
+  `info mtree`, because the window a real machine wants BARs in is in its host bridge's `_CRS` and
+  `_CRS` is AML. `place_bars` relocates every BAR outside it, which is correct and exercised;
+  `pci::bar_census` prints how many that is on the boot line, and it is not a corner case:
+  **5 of 8 functions under PVH, 3 of 6 under OVMF, 4 of 7 with a `virtio-blk-pci` disk attached**
+  (2026-09-02). On xenon that number is the first thing to read: a machine whose RAM reaches above
+  `0xc000_0000` would have this kernel move most of its bus on top of memory.
+- **No MCFG means no PCI, deliberately.** There is no fallback to the legacy `0xcf8`/`0xcfc`
+  configuration mechanism, which this kernel could reach and which would enumerate bus 0. Those
+  ports see only the first 256 bytes of a function's configuration space, so a machine that fell
+  back would enumerate a **different** set of capabilities than one that did not, every extended
+  capability absent, and a driver that then failed would fail somewhere else entirely. Milestone
+  215 refused the same shape one level down (a machine that wants MSI and meets a function without
+  MSI-X fails loudly rather than falling back to a pin).
+- **An MCFG whose first bus is not 0 is refused rather than adjusted.** `kernel/src/pci.rs`
+  addresses a function as `base + (bus << 20 | ...)` with an absolute bus number, and the
+  subtraction that looks like the fix names a base below the window `mmu::map_everything` maps.
+  Every machine seen reports 0; none is required to.
 - **No RedoxFS image is attached**, so the FS server (packed since milestone 164) has nothing to
   open. The nifefs disk above is the only fixture on this bus.
 - **No `std`**: there is no `x86_64-unknown-nife` target spec and no farm (milestone 27).

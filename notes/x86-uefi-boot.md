@@ -161,6 +161,12 @@ trampoline zeroes its own page tables on top of it.
 
 ## What it proves, measured
 
+The table below was measured with both boots at `-m 256M`. **The runner's default is now 2 GiB**
+(`NIFE_MEM=256M` reproduces the table): firmware places its ACPI tables just under the top of RAM, so
+the memory size decides what physical addresses the kernel is asked to read, and at 256 MiB they land
+low enough that a reach bug in the ACPI walk cannot show. One did, for as long as this script matched
+its PVH sibling; see notes/x86-port.md's BUGS.
+
 The same kernel, same machine model, same `-m 256M`, booted twice. Everything that differs is the
 firmware.
 

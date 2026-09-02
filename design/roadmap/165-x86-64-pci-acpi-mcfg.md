@@ -1,6 +1,8 @@
 # 165. x86_64 PCI enumeration: wire `kernel/src/pci.rs` to ACPI's MCFG
 
-**Status: PARTIAL.** Minted 2026-08-24, provisional number pending the integrator (mint against the
+**Status: BUILT 2026-09-02.** Was PARTIAL from 2026-08-24 until then; the three things it owed are
+either built elsewhere (PCI interrupt routing by milestone 215, VT-d by milestone 161's item 6) or
+closed below (a real BAR placement, now measured under real firmware). Minted 2026-08-24, provisional number pending the integrator (mint against the
 current index at merge; two other numbers in this neighborhood were already taken by open pull
 requests when this was written, one of them proposing a milestone for the JH7110's PLDA PCIe root
 complex driver, unmerged as of this writing so not cited here by number). Scoped the same day as
@@ -9,9 +11,9 @@ that other proposal, as a parallel check of whether x86_64 can reach a real-hard
 driver would, given that x86's PCIe discovery is ACPI-described and architecturally identical
 between QEMU's `q35` and real x86 hardware (unlike RISC-V's QEMU-only fake ECAM device).
 
-**Gate: NONE.** What is built here needs no syscall surface, no new dependency, and no
-`DECISIONS.md` section of its own. What it unblocks (real NVMe-behind-IOMMU on x86) is gated on
-VT-d, roadmap item 6 of milestone 161, unbuilt.
+It never needed a syscall surface, a new dependency or a `DECISIONS.md` section of its own, and it
+took none. What it unblocks (real NVMe-behind-IOMMU on x86) was gated on VT-d, roadmap item 6 of
+milestone 161, which has since been built.
 
 ## The gap, as `notes/x86-port.md` already named it
 
@@ -108,14 +110,121 @@ harder half (confinement over a real, non-fake root complex) for its own archite
 VT-d built first to catch up on that half here. Neither path alone gives §86 the full data point it
 is holding out for.**
 
+## What 2026-09-02 found, and what it corrects
+
+Three things, and the first of them is why this block did not stay closed as a wiring exercise.
+
+### The ACPI walk refused every table on a machine with real RAM
+
+`arch::x86_64::machine::reachable` bounded the walk at 1 GiB, on a comment saying the boot map
+"aliases only the low gigabyte". `boot.s` has never done that: it builds 2048 page-directory
+entries of 2 MiB covering the low 4 GiB, points both the identity entry and the direct map at them,
+and says so in its own comment, because the APICs and the ECAM window are all above 1 GiB.
+
+Nothing caught the disagreement, and the reason is the interesting part. **Firmware places its ACPI
+tables just under the top of RAM**, and both QEMU runners pass `-m 256M`, so the tables landed at
+`0x0fb7e014` and fit under a bound four times too small. Booted under OVMF with `-m 2048` they land
+at `0x7fb7e014`, and the same kernel came up with **no RSDP, no MADT, no MCFG and no DMAR**:
+no APIC, no timer, no PCI, no VT-d, on a machine that had described all four. Every real x86 machine
+has more than 1 GiB, so this was unconditional on xenon and invisible in every gate.
+
+With the bound at the boot map's real extent the same 2 GiB boot reads the XSDT, the MADT and the
+MCFG, enables the ECAM window at `0xe0000000`, brings up both APICs and the timer, and completes.
+
+**The gate moved to where the bug was**, rather than a test being added beside it: the UEFI runner
+now boots at 2 GiB by default (`NIFE_MEM` sets it back for the memory-map comparison in
+notes/x86-uefi-boot.md), and `cargo xtask uefi-boot` asserts the end of the chain, a PCIe window
+enabled from an MCFG entry read at a high physical address. Falsified rather than assumed: with the
+bound put back to 1 GiB that gate fails on all three of its assertions. It also fails on the
+"outside the boot map" line the walk now prints, because this is the one failure that looks like a
+healthy boot from outside, a tour that completes on a machine that simply has no devices.
+
+### The PCIEXBAR write was unconditional, and the fault that justified it does not reproduce
+
+`enable_pcie_ecam` wrote the register unconditionally with a 256 MiB length field, reasoning (in
+this block, above) that rewriting the same base under real firmware "should be a no-op". It is a
+no-op only if the length agrees too. Firmware may size the window at 128 or 64 MiB, and the write
+then **widens the chipset's decode over whatever physical addresses sit above it**, which on xenon
+is discovered at a null modem. Chipsets that lock the register after firmware writes it are the
+other half: there the write is dropped and only a read back would ever say so.
+
+It now reads first, treats "enabled at the base the MCFG itself reports" as firmware's own work, and
+writes only otherwise, with the length derived from the MCFG's bus count. A bus count the register
+cannot encode leaves the window as found and says so.
+
+**And the measurement above is corrected.** Re-measured on QEMU 11.1.1 from inside the guest, which
+is the side being served, the register reads `0xb0000001` on the PVH path **before anything writes
+it**, and the whole suite's PCI half (the MCFG witness, NVMe, both userspace PCIe driver tests)
+passes with this function writing nothing. The monitor still answers "Cannot access memory" at that
+address on the same boot, so the monitor and the guest disagree, and this block's original reading
+of the monitor as evidence about the guest's decode does not hold. Nothing needs to decide whether
+QEMU changed or the inference was always wrong, because the register is asked rather than assumed.
+The consequence to record is that **the writing arm is now unexercised on both paths this kernel
+boots**, and stays for the machine that genuinely arrives with the decode off.
+
+### The BAR window: measured under real firmware, and it is not a corner case
+
+Item 3 above called the hardcoded BAR window "a real, permanent limitation" and noted it was not
+exercised by an actual placement. It is exercised now (milestone 215 drives a `virtio-blk-pci` disk
+whose BARs this kernel places), so the open question changed shape: not whether the placement works,
+but **how much of the machine it moves, and whether the place it moves things to is free there.**
+
+`pci::bar_census` (provisional name) answers both in one read-only pass of config space, printed on
+the x86 boot line: functions on the bus, and functions carrying a BAR outside the window
+`mmu::map_everything` maps. Measured 2026-09-02: **5 of 8 under PVH, 3 of 6 under OVMF, 4 of 7 with
+a `virtio-blk-pci` disk attached.** Real firmware placing the addresses does not change the shape of
+the problem, only which addresses, and `place_bars` relocates them all into `PCI_BAR_PHYS`
+(`0xc000_0000`, 2 MiB mapped), a constant checked once against QEMU's `info mtree`.
+
+That is the number to read first on xenon's first boot: a machine whose RAM reaches above
+`0xc000_0000` would have this kernel move most of its bus on top of memory, and the line says so
+before anything is driven.
+
+## Two decisions this block had left open, now made
+
+- **No MCFG means no PCI, with no fallback to the legacy `0xcf8`/`0xcfc` mechanism**, which this
+  kernel could reach (`enable_pcie_ecam` uses it) and which would enumerate bus 0 with no ACPI at
+  all. Those ports see only the first 256 bytes of a function's configuration space, so a machine
+  that fell back would enumerate a **different** set of capabilities than one that did not, every
+  extended capability simply absent, and a driver that then failed would fail somewhere else
+  entirely. This is milestone 215's own refusal one level up: when a machine wants MSI and meets a
+  function without MSI-X, bring-up fails loudly rather than degrading into the original bug.
+- **An MCFG whose first bus is not 0 is refused rather than adjusted.** `kernel/src/pci.rs`
+  addresses a function as `base + (bus << 20 | ...)` with an absolute bus number, and subtracting
+  `lo << 20` (the arithmetic that looks like the fix) names a base below the window
+  `mmu::map_everything` maps, turning config reads into reads of whatever is underneath it. Every
+  machine seen reports 0 and none is required to, so it is checked and said out loud.
+
+## What is proven where
+
+**On patagonia, under QEMU:** enumeration through an ACPI-sourced ECAM window on both boot paths,
+including one where the MCFG's base (`0xe0000000`) differs from the constant, and including tables
+read at a physical address a real machine would use. Real firmware leaving the ECAM decode already
+enabled, so this kernel writes nothing. A count of how much of the bus this kernel relocates, under
+both firmware and no firmware.
+
+**Only xenon can confirm:** that `PCI_BAR_PHYS` is free on that machine, which is the census's whole
+point; that its firmware presents an MCFG with first bus 0 and a bus count `PCIEXBAR` can encode;
+and that its ACPI tables are below 4 GiB, which every machine's are and none promises.
+
+**One of milestone 215's three xenon-only questions is now half answered.** That block owed "that a
+real function's MSI-X table is reachable once *firmware* rather than this kernel has placed its
+BARs". Under OVMF firmware does place them, and the census says where: outside this kernel's window,
+so `place_bars` moves them and the MSI-X table is reached through the kernel's own address rather
+than firmware's. What is still unproven is the same thing on silicon, and the reason it cannot be
+proven here is the handoff below: the suite does not run under real firmware, only the tour does.
+
 ## What is owed
 
-- **VT-d** (roadmap item 6 of milestone 161): DMAR table parsing (the root-table walk is already
-  generic; finding the DMAR is adding a signature arm the same way `read_mcfg`/`read_madt` are),
-  translation domain setup, and fault handling. Without it, x86 cannot supply §86's confinement half
-  at all, on any device.
-- **PCI interrupt routing** (INTx via `_PRT`, or MSI): named as owed by milestone 161 already,
-  unaffected by this milestone. `PCI_IRQ_BASE = 0` stays honest.
-- **An actual BAR placement**, proven rather than merely mapped-and-disjoint: needs either a real
-  device attached (which the NVMe/VT-d gap above blocks for NVMe specifically) or a smaller device
-  that needs no confinement to test against.
+- **The 32-bit MMIO window should come from the machine, not from a constant.** Proposed milestone,
+  unnumbered (numbers are the integrator's). `_CRS` is AML and stays refused, but AML is not the
+  only source: the memory map firmware already hands over names the gaps, and Intel's host bridge
+  reports `TOLUD` in its own configuration space. Its measure is `pci::bar_census`'s second number
+  becoming zero, or the window being one this machine agreed to.
+- **Run the x86_64 suite under real firmware, not only the tour.** Proposed milestone, unnumbered.
+  `cargo xtask uefi-image` stages the boot-tour kernel; the test kernel is a different binary and
+  nothing stages it. Doing so would close two of milestone 215's three xenon-only questions on
+  patagonia rather than at a null modem, because OVMF places BARs and enables interrupt remapping
+  the same way real firmware does.
+- **VT-d and PCI interrupt routing**, which this block owed and no longer does: milestone 161's item
+  6 and milestone 215 respectively.
