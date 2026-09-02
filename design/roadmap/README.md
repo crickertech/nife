@@ -432,6 +432,7 @@ besides, being built for dated release grouping; these are capability-shaped and
 | 225 | NOT-STARTED | [Run the soak on radon, argon and xenon, which is the only place its answer means anything](225-run-the-soak-on-the-boards.md) | fatal risk 5's premise is that these defects appear only on silicon, and every tool it needs now exists | |
 | 226 | NOT-STARTED | [`qemu-bounded.sh` leaves an emulator behind, and the next run blames the wrong thing](226-qemu-bounded-orphans.md) | a leaked emulator holds a disk image's write lock, and the next run fails with a lock error naming nothing | |
 | 227 | NOT-STARTED | [A GICv3 driver, because GICv2 boots and silently loses every interrupt](227-gicv3-driver.md) | measured 2026-09-02: under GICv3 the kernel boots, brings four cores up, and takes zero interrupts with nothing faulting | |
+| 228 | NOT-STARTED | [The cycle counters are closed by assumption, and on two architectures the assumption is a comment](228-close-what-we-claim-is-closed.md) | `PMUSERENR_EL0` is never written and resets architecturally UNKNOWN; riscv64's comment says CY and IR stay closed while nothing closes them | |
 
 The order §14 sets: **verify the core and make it verifiable first** (18 and 14, the thesis), then the
 road to running real workloads on real machines (15, 21, 16, 19; 25 extends 21 into cross-OS
