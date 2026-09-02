@@ -65,6 +65,12 @@ unsafe extern "C" {
 /// deliverable. The boot banner prints this line first.
 ///
 /// The name is provisional (AGENTS.md: names are calef's).
+///
+/// Its two callers are the banner in `main.rs` and `isa`'s conduit test, and the `bench` boot
+/// compiles the banner out, so it has no caller in exactly that configuration. Same shape and same
+/// exemption as `isa::print_summary` beside it. Not `any(test, feature = "bench")` like that one:
+/// the test build does have a caller here.
+#[cfg_attr(feature = "bench", allow(dead_code))]
 pub fn entry_el() -> u64 {
     // SAFETY: an 8-byte aligned word in .bss, written once by `_boot_el1` on core 0 before any
     // Rust runs and never again. Volatile because nothing in the Rust program writes it, and a

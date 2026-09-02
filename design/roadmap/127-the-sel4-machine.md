@@ -35,6 +35,129 @@ entry EL and the DTB register from this U-Boot; PSCI visibility to a non-Linux p
 firmware; PMCCNTR readable at EL1; what pins the 1.9 GHz clock; sel4bench booting from SD rather
 than the Foundation's rig; the A57 errata sheet negative-check.
 
+## Prerequisite 1 (2026-09-02): the EL2 to EL1 entry drop, built and rehearsed on QEMU
+
+**Built, and milestone 127 stays NOT-STARTED**: this is one of the two pre-board prerequisites
+the block above names, not the milestone, and nothing here has run on argon.
+
+nife had only ever been started by QEMU's `virt`, which puts a payload at EL1. No real aarch64
+bootloader does. `boot.s` now reads `CurrentEL` and drops itself to EL1 when it finds itself at
+EL2, and continues unchanged when it is already there. Detection rather than a build-time switch,
+because a switch means one binary for QEMU and a different one for argon, which is the arrangement
+that produces a defect nobody can reproduce on the machine they have.
+
+**Both entries take the drop, and the second is not defensive symmetry.** PSCI starts a core at
+the highest implemented non-secure exception level whichever level called `CPU_ON`, so under an
+EL2 the secondaries arrive at EL2 even though EL1 asked. A kernel that dropped only core 0 would
+come up single-core-correct and fault on its second, which is the worst shape a bug can have.
+
+**The registers configured before the `eret`, and where the list comes from.** Every one is a
+register whose reset value is UNKNOWN or which a bootloader may leave however it liked, so at EL1
+it is either invisible (the kernel cannot write `HCR_EL2`) or reads as something the kernel would
+then believe. The register semantics are Arm DDI 0487 (the Arm Architecture Reference Manual for
+A-profile); the choice of which ones was checked against Linux's `arch/arm64/kernel/head.S`
+`init_el2`, which is the same list arrived at independently by people who have booted on
+everything.
+
+| register | why it is on the list |
+|---|---|
+| `SCTLR_EL1` = `0x30d0_0800` | RES1 bits only: MMU, caches and alignment checking off, little-endian. The MMU-enable further down `boot.s` read-modify-writes this register, so entering at EL2 without it would `orr` three bits into garbage. Linux's `INIT_SCTLR_EL1_MMU_OFF`. |
+| `HCR_EL2.RW` | EL1 is AArch64. Zero means AArch32, which is what a cleared `HCR_EL2` gives. Every other bit stays zero, which is what says stage-2 is off and EL1 does not trap up. |
+| `CPTR_EL2` = `0x33ff` | RES1 with `TFP` clear, so FP and SIMD work at EL1 and EL0. A set `TFP` faults the first floating-point instruction anywhere in the system, which on this ISA includes the compiler's own `q`-register `memcpy`. |
+| `HSTR_EL2` = 0 | No AArch32 system-register traps. One instruction to make the answer definite rather than inherited. |
+| `MDCR_EL2` = 0 | No debug or PMU traps to EL2. **This one is on the other prerequisite's path**: `MDCR_EL2.TPM` traps every EL1 access to `PMCCNTR_EL0`, which is exactly what milestone 74's aarch64 half reads. |
+| `MDSCR_EL1` = 0 | No EL1 debug exceptions armed. A bootloader that was itself debugged can leave single-stepping on. |
+| `CNTHCTL_EL2` bits 0-1 | `EL1PCTEN` and `EL1PCEN`: EL1 access to the physical counter and timer does not trap. |
+| `CNTVOFF_EL2` = 0 | Subtracted from the physical counter to make the **virtual** one, which is the counter `arch/aarch64/timer.rs` deliberately uses. Leaving it is leaving the system clock offset by an arbitrary 64-bit number. |
+| `VPIDR_EL2`, `VMPIDR_EL2` | **These are what `MIDR_EL1` and `MPIDR_EL1` return at EL1 once EL2 is implemented.** Not copying the real values across leaves the core-parking branch, `arch::isa`'s refusal check and the SMP bring-up all reading garbage, each failing far from the cause. |
+| `VTTBR_EL2` = 0 | Stage-2 is off, but this register's VMID still tags the EL1 TLB entries about to be created, so a stale value tags them with a number nothing invalidates by name. |
+| `SPSR_EL2` = `0x3c5` | D, A, I, F masked, `M[3:0]` = EL1h. Masked interrupts are what EL1 entry looks like on the QEMU path too, and nothing can take one until `exceptions::init` writes `VBAR_EL1`. |
+| `ELR_EL2` | The continuation, as a physical address (`adr`, not `ldr =`: the MMU is off). |
+
+**Deliberately not on the list, each for a stated reason.** `SCTLR_EL2` is left alone, because
+the arm64 boot protocol requires the MMU and caches off on entry and this kernel takes that
+contract rather than re-proving it. `ICC_SRE_EL2` is a GICv3 register and `drivers/gic.rs` speaks
+GICv2 only (notes/aarch64-board-survey.md), which is the same reason this board was chosen.
+`CNTFRQ_EL0` is writable only at the highest implemented level and is firmware's to set; writing
+our own guess would replace a real number with an invented one.
+
+### QEMU could rehearse it, which is much better than reasoning
+
+`qemu-system-aarch64 -machine virt,virtualization=on` gives the machine a hypervisor level and
+starts the payload there, which is what U-Boot does on a board. `NIFE_EL2=1` in the aarch64 runner
+turns it on (TCG only; HVF has no nested virtualization to offer, and asking for both fails loudly
+rather than silently ignoring one).
+
+What was run and what it showed:
+
+- `script/test`, default: green on all three architectures, `smp: psci over hvc`, four cores
+  online. The unchanged path.
+- `NIFE_EL2=1 script/test`: green on all three architectures, `smp: psci over smc`, **four cores
+  online**, which is the secondaries' drop working and not merely core 0's.
+- The boot banner, both ways: `exception level : EL1  (entered here)` by default, and
+  `exception level : EL1  (entered at EL2, dropped in boot.s)` under `NIFE_EL2=1`. Two numbers
+  because on a board's first boot they are the two different questions.
+
+**The rehearsal corrected an assertion, which is the part that could not have been reasoned to.**
+`the_psci_call_was_read_from_the_machine` asserted the conduit was `hvc` as a constant, and the
+EL2 run failed it. It should have: with a real EL2, an `hvc` from EL1 lands in that EL2 rather
+than in firmware, so QEMU implements PSCI on `smc` and says so in the tree, and TF-A will do the
+same on argon. The test now asserts the *pairing* of entry level and conduit, which is stronger
+than the constant was, because the machine is not free to say either.
+
+### What only argon can confirm
+
+The rehearsal proves the mechanism on an emulator whose EL2 QEMU implements. It cannot prove
+anything about NVIDIA's boot chain. These stay open and are the first items on the bench list:
+
+- **The entry level from this U-Boot really is EL2**, rather than EL1 with a hypervisor already
+  installed, or something a JetPack-specific chain does differently.
+- **`x0` really holds the DTB pointer.** Linux's `Documentation/arch/arm64/booting.rst` says a
+  `booti` payload gets the device tree's physical address in `x0` and zero in `x1`-`x3`. That is a
+  **firmware contract, not a measurement**, and this project has a scar exactly here: it once told
+  calef QEMU passed a device tree in `x0`, printed it, and got zero. What is verified today is
+  QEMU's behaviour, continuously, by `device_tree_pointer_was_provided`.
+- **PSCI states `smc` and answers a non-Linux payload** on the shipped TF-A revision.
+- **`PMCCNTR_EL0` is readable at EL1** once `MDCR_EL2` is cleared, with the shipped secure-world
+  settings. `MDCR_EL2.TPM` is the EL2 half; `MDCR_EL3`/`SDCR` is TF-A's and is not ours to write.
+- **Whether U-Boot leaves the MMU on.** The boot protocol says off, and `enter_el1` takes that
+  contract rather than checking `SCTLR_EL2.M`.
+
+### The bench procedure, in order
+
+Run with a 3.3 V USB-TTL cable on the J21 header at 115200, per the survey's cost table.
+
+1. **Power on with no SD card** and capture U-Boot's own banner. Expected: a U-Boot version and
+   an autoboot countdown. Failure: silence means the cable, the baud, or a boot chain too old to
+   reach U-Boot, and the flashed-L4T-revision detour the block above budgets for. Nothing below
+   is meaningful until this prints.
+2. **Interrupt autoboot** and run `bdinfo` and `printenv fdt_addr_r kernel_addr_r`. Records the
+   DRAM base and where U-Boot intends to place things, which is what the board memory map in
+   `boot.s` will be written against. Expected: DRAM at `0x8000_0000` on tegra210, not the
+   `0x4000_0000` QEMU `virt` hardcodes.
+3. **Boot the image with `booti`**, kernel image and DTB loaded from the SD card. Expected: the
+   banner, and specifically `exception level : EL1  (entered at EL2, dropped in boot.s)`. **This
+   line is the milestone's deliverable**: a byte over serial from argon, and it happens to be the
+   byte that reports this prerequisite worked.
+   - Failure, silence: the machine faulted before the UART came up. The map in step 2 is the first
+     suspect, then the entry level in step 4.
+   - Failure, `(entered here)` with `EL1`: U-Boot entered at EL1 after all, the drop was a branch
+     not taken, and everything below still holds. Record it; it makes the board *less* interesting
+     as a rehearsal, not broken.
+   - Failure, garbage characters: the UART divisor, not the kernel. The survey expects
+     `ns16550` with `reg-shift=2` and a board clock.
+4. **Read the device tree line** in the same banner (`device tree : 0x...`). A zero is the `x0`
+   contract failing, which is the one item on this list with a scar behind it. If it is zero, print
+   `x1`-`x3` too before concluding anything, because `booti` and `go` differ here and the survey
+   left which one open.
+5. **Confirm four cores.** Expected `smp: psci over smc, CPU_ON 0xc4000003` and `4 core(s)
+   online`. One core online with a PSCI error is TF-A refusing the call; one core online with no
+   error is `/psci` absent from the DTB U-Boot passed. Four cores online is the secondaries' drop
+   confirmed on real firmware, which is the claim the QEMU rehearsal can only make about QEMU.
+6. **Then, and only then, milestone 74's half**: read `PMCCNTR_EL0` at EL1 and see whether the
+   secure world left it readable. It is listed last because a trap here is a hang, and hanging
+   before step 3 has printed would make every step above unreadable.
+
 ## Scope note
 
 This is the machine and its serial byte, nothing else; milestones 25 (the comparison) and 74 (the
