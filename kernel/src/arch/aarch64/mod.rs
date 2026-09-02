@@ -44,6 +44,40 @@ global_asm!(include_str!("vectors.s"));
 // The context switch, and where a new thread begins. Milestone 6.
 global_asm!(include_str!("context.s"));
 
+unsafe extern "C" {
+    /// The exception level core 0 was entered at, written by `boot.s` before anything else runs.
+    /// See [`entry_el`].
+    static boot_entry_el: u64;
+}
+
+/// **Which exception level did firmware enter this kernel at?** 1 or 2.
+///
+/// The kernel always *runs* at EL1: `boot.s` drops itself when it finds itself at EL2, which is
+/// where U-Boot enters a payload on the boards this project is headed for (milestone 127, the seL4
+/// machine). This is the record of what the entry actually was, and it is worth having as more
+/// than trivia, because two other facts follow from it.
+///
+/// **The PSCI conduit follows it.** A machine that runs the kernel below an EL2 states `smc` in
+/// `/psci`, because an `hvc` from EL1 would arrive at an EL2 with no vector table; a machine that
+/// enters at EL1 states `hvc`. `isa`'s test asserts exactly that pairing rather than a constant.
+///
+/// **And so does what a stranger reads at a serial console**, which is milestone 127's entire
+/// deliverable. The boot banner prints this line first.
+///
+/// The name is provisional (AGENTS.md: names are calef's).
+///
+/// Its two callers are the banner in `main.rs` and `isa`'s conduit test, and the `bench` boot
+/// compiles the banner out, so it has no caller in exactly that configuration. Same shape and same
+/// exemption as `isa::print_summary` beside it. Not `any(test, feature = "bench")` like that one:
+/// the test build does have a caller here.
+#[cfg_attr(feature = "bench", allow(dead_code))]
+pub fn entry_el() -> u64 {
+    // SAFETY: an 8-byte aligned word in .bss, written once by `_boot_el1` on core 0 before any
+    // Rust runs and never again. Volatile because nothing in the Rust program writes it, and a
+    // compiler that noticed that would be entitled to fold the read to the zero .bss began at.
+    unsafe { core::ptr::read_volatile(&raw const boot_entry_el) }
+}
+
 /// Point `TPIDR_EL1` at this core's per-CPU block.
 ///
 /// `TPIDR_EL1` is a scratch system register the architecture reserves for software's own use;
