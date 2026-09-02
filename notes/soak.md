@@ -1,7 +1,7 @@
 # The workload that does not stop, and what a clean run of it is worth
 
-*(Milestone 219. `kernel/src/soak.rs`, `user/src/soaker.rs`, `crates/soak_page`, `script/soak`, and
-the `Stage::Soak` half of `crates/board_console`.)*
+*(Milestones 219 and 221. `kernel/src/soak.rs`, `user/src/soaker.rs`, `crates/soak_page`,
+`script/soak`, and the `Stage::Soak` half of `crates/board_console`.)*
 
 `design/fatal-risks.md`'s fifth entry, *it cannot be made reliable on multicore, and the bugs appear
 only on silicon*, names its decisive experiment as **sustained multi-core stress on the boards with
@@ -18,12 +18,15 @@ One kernel feature (`--features soak`) replaces the halt at the end of the boot 
 user-mode workers and a supervisor that watches them forever.
 
 - **The workload is a user program** (`user/src/soaker.rs`), so the pressure goes through the real
-  syscall boundary. Groups of one responder, three callers and one pure-compute grinder, one group
-  per online core.
+  syscall boundary. Groups of one responder, three callers, one pure-compute grinder and one tick
+  waiter, one group per online core.
 - **The detection is in the kernel** (`kernel/src/soak.rs`), because a user program cannot assert
   about kernel internals and a workload that could reach its own tripwire is not a tripwire.
-- **The two share one page** (`crates/soak_page`), one `u64` per worker with exactly one writer, so
-  the supervisor reads progress without asking for it.
+- **The two share one page** (`crates/soak_page`), three `u64` per worker with exactly one writer
+  each, so the supervisor reads progress without asking for it.
+- **The tick waiter is milestone 221's** and has its own section below. It is the one worker that
+  completes no IPC: it blocks on a rendezvous the kernel signals from `sched::on_tick`, which is
+  what makes anything on this machine cross cores at all.
 
 A round trip is `CALL` -> `RECV_CAP` -> `REPLY` -> the caller waking: two block/wake handshakes, the
 protocol `crates/thread_wake_handshake` models and the one the risk's only real defect was in
@@ -38,7 +41,7 @@ the jitter keeps the pairs' phase drifting instead of locking.
 Every five seconds the supervisor prints one line:
 
 ```
-soak: t=25s beat=5 rounds=595432 rate=24160/s workers=20 refused=0 mismatch=0 stalled=0 crossings=21 remote=20 steals=4 deferred=0
+soak: t=25s beat=5 rounds=1151772 rate=43031/s wakes=10032 wakerate=401/s workers=24 refused=0 mismatch=0 stalled=0 crossings=2252 remote=3584 steals=3 deferred=99
 ```
 
 `rounds` is **the** figure: cumulative IPC round trips completed by every worker. It exists so that
@@ -48,6 +51,12 @@ a run can be compared, and it has three honest uses:
 2. **Between QEMU and silicon**, which is the comparison risk 5 is actually about.
 3. **Against the same machine later**, where a large drop is an IPC-path regression no functional
    test would fail on.
+
+`wakes` is **not** part of `rounds` and never will be: a tick-route wake is not a round trip, and
+folding the two together would make the one comparable figure mean something different depending on
+which build produced it. Its own rate is pinned to the machine (`TICK_HZ` times the online cores, so
+about 400 a second on a four-core QEMU), which makes it a useful liveness check in its own right: a
+`wakerate` well under that is the timer or the wake path falling behind, not the workload.
 
 `refused`, `mismatch` and `stalled` must all be zero, and any of them nonzero fails the run: the
 supervisor prints `soak: FAILED`, dumps the threads (so the per-core event rings are on the log) and
@@ -65,6 +74,39 @@ benchmark**; `script/bench` is the instrument for cost.
 | riscv64 | 4 | 20 | ~24,000 | 21 |
 | x86_64 | 1 | 10 | ~3,900 | 0 |
 
+### With the tick route, 2026-09-02, patagonia, QEMU (milestone 221)
+
+Same command, same host, one day later, and **these rows are not comparable with the rows above**
+for a reason larger than the date: the build changed. Each pair below was measured back to back, the
+"before" leg from the exact commit this work branched from, so the two halves of a row *are*
+comparable with each other.
+
+| Architecture | Cores | Round trips/s before | after | Crossings in 25s before | after |
+|---|---|---|---|---|---|
+| aarch64 | 4 | 47,864 | 43,031 | 14, frozen from beat 1 | 2,252, rising linearly |
+| riscv64 | 4 | 26,469 | 27,933 | 20, frozen from beat 1 | 5,476, rising linearly |
+| x86_64 | 1 | not run | 2,508 | n/a | 0, and one core is the whole reason |
+
+The cumulative round-trip totals are the cleaner comparison, because the tick waiters complete none
+of them and the set of workers that does is identical in both legs: aarch64 did **1,153,348** round
+trips in 25 seconds before and **1,151,772** after, a difference of 0.14%.
+
+**The round-trip rate was expected to fall and did not measurably.** DECISIONS 138's spike saw about
+30% on aarch64 and about 55% on riscv64, and this implementation reproduced neither: aarch64's
+last-beat rate is 10% lower and riscv64's is 6% higher, both inside the run-to-run spread visible in
+these same logs (one aarch64 baseline beat read 39,211 against its own neighbours' 48,000). **The
+honest reading is that a 25-second pair on a laptop cannot resolve a few per cent**, so what this
+supports is "no large cost", not "no cost". The spike was thrown away and cannot be re-measured, so
+why it was slower is not recoverable; the difference in worker mix is the obvious candidate and is a
+guess. A board run is where a number worth quoting comes from.
+
+**`wakes` and `crossings` are the two figures milestone 221 added, and the second is not a
+throughput number.** The tick route wakes at `TICK_HZ` times the core count, which is a property of
+the machine rather than of the workload, and the crossings are however many of those wakes
+`wake_load_aware` chose to place on another core. Roughly a quarter of them on aarch64 and rather
+more than half on riscv64, on these runs. That ratio is a fact about the placement policy under this
+load and nothing in this tree yet says what it should be.
+
 **Which build these came from, and it is not the one that ships.** Every figure above is from a
 `--features soak` kernel, which is the only build in which the counters and `Thread::last_cpu`
 exist at all. That is not free, and the size of it is measured rather than assumed:
@@ -80,6 +122,20 @@ round-trip rates are therefore soak-build rates. Compare a soak number with anot
 which is what the three comparisons above are; never with `script/bench`, and never as a statement
 about how fast this kernel does IPC.
 
+**Milestone 221 added nothing to that table, and it was checked rather than assumed.** Its kernel
+change is a `#[cfg(feature = "soak")]` call in `sched::on_tick` and a module that is not compiled
+otherwise, so a production build should be untouched; "should be" is what this tree does not accept.
+Built at the base commit and at the merge candidate, on all three architectures, without the
+feature: every symbol has the same size, every section has the same size except `.strtab`, which is
+not loaded, and `ipc_fastpath` and `syscall_entry` are unchanged at 6,687 and 1,637 bytes.
+
+The loadable image (`llvm-objcopy -O binary`) differs by 45 bytes on aarch64, and all of them are
+`core::panic::Location` line numbers below the insertion point, each larger by exactly the ten lines
+added to that file. The proof is that rebuilding the base commit with **ten comment lines** at the
+same point gives an image that is byte-for-byte identical to the merge candidate's, on all three
+architectures. Any comment added to `sched.rs` would move those bytes, and a hash comparison that
+called that a change would be measuring the file's line count.
+
 That the instrumentation is behind a feature at all is a thing this milestone got wrong first and
 was caught by a gate. Shipping the counters and the `last_cpu` write unconditionally put
 `ipc_fastpath` **5.7% over milestone 132's 5% bound on aarch64** (5,788 -> 6,120), with riscv64 and
@@ -92,7 +148,9 @@ warnings in `kernel/src/soak.rs`, which had never been linted).
 ## The finding: a saturated workload does not migrate under this scheduler
 
 This is the part worth reading, and it is the reason the milestone was worth running rather than
-merely worth building.
+merely worth building. **It is still true**, and milestone 221 did not repeal it: what that
+milestone added is a thread that is *not* part of the saturated workload, precisely because nothing
+inside the workload can be made to move.
 
 **The cross-core handoff count freezes within the first second and never moves again.** Measured
 across three topologies (one caller per responder, three callers per responder, twice as many groups
@@ -143,10 +201,71 @@ Saying so is the point. A run that quietly covered one and was quoted as coverin
 exactly the misuse `design/roadmap/219-a-workload-that-does-not-stop.md`'s BUGS section warns about,
 and `script/soak` prints the gap on every run so that nobody has to have read this note to know.
 
-Closing the second half needs a decision that is not a lane's: thread affinity (so a responder can
-be forced to answer callers on other cores), a periodic rebalancer, or a device-interrupt source the
-workload can drive at rate. Each is a scheduler-policy or syscall-surface change. See the milestone
-block's handoff.
+**The second half is now runnable, which is a different claim from "has been run".** See the next
+section.
+
+## The tick route: how the soak was made to cross cores (milestone 221)
+
+`design/decisions/138-cross-core-handoff-under-load.md` (*how a saturated workload is made to hand
+threads across cores*) put four options in front of calef and he approved option D on 2026-09-02.
+
+**The mechanism, and it is short.** Under `--features soak` and nowhere else, `sched::on_tick`
+signals a rendezvous, and one worker per group blocks on that rendezvous through the `Irq::WAIT` a
+device driver already uses. `on_tick` is called by all three architectures' timer dispatchers in
+real interrupt context on every core, so a tick runs the identical sequence a device interrupt runs:
+
+```
+soak::signal_waiters -> sched::irq_notify -> Rendezvous::signal -> handshake.serve
+                     -> sched::wake_load_aware -> pick_wake_target -> place_on -> the reschedule IPI
+```
+
+That last chain is why this was worth building rather than the alternatives. `wake_load_aware` is
+where risk 5's one observed defect lived, on radon, and it had **exactly one caller**
+(`sched::irq_notify`) that no user workload could reach.
+
+**Four properties, each of which was a requirement rather than a bonus:**
+
+- **No syscall is added.** The userspace half already existed: `abi::irq::WAIT` is a method on an
+  `Irq` capability and `user_rt::irq_wait` calls it. Only the *raise* was missing, and the kernel is
+  already the thing that raises interrupts.
+- **Nothing exists in a production build.** Proved above, not asserted.
+- **It is architecture-neutral, and that is load-bearing.** riscv64 has no software-raisable line
+  that reaches `irq_route` at all, so an aarch64 `send_sgi` or an x86 self-IPI would have left
+  **radon** out, and radon is the machine that produced the defect. The timer is the one source all
+  three share, through a function that is already portable.
+- **The timer is the one event a saturated workload cannot starve**, which is the whole reason this
+  works where three existing balancing moments do not.
+
+**What crosses is the waiters, not the pairs, and this must not be misquoted.** Rendezvous wakes are
+local by design whatever else is happening, so the callers and responders are as pinned as they ever
+were. This sustains the **wake protocol** across cores under load; it does not make the IPC workload
+migrate, and only a periodic rebalancer would, which DECISIONS 138 declines on
+DECISIONS §28's own reopening trigger (*a real workload where fairness visibly fails*), which has
+not fired. The kernel says this in words at the start of every run and `script/soak` says it again
+in its summary, because the flattering reading is available and a summary gets quoted.
+
+**The soak-only interrupt number.** The tick route is bound to intid 255, which names no hardware
+and none of the three architectures can deliver: on aarch64 and riscv64 a routed interrupt arrives
+only if something enabled it at the controller and nothing enables this one, and on x86_64 it is the
+local APIC's spurious vector, which the trap handler answers in its own arm before `irq_route` is
+ever asked. `soak::arm_tick_route` does not take that on trust; it asks `sched::irq_route` first and
+refuses to start a soak whose tick route would steal somebody else's interrupt.
+
+### What it establishes about risk 5, and what it does not
+
+- **It makes the second experiment runnable. It does not run it.** The run needs an evening at a
+  bench on radon, argon or xenon. QEMU cannot show the defects this risk is about; that is the
+  risk's premise, not a limitation of the tooling.
+- **It says nothing about what a crossing rate should be.** The numbers above are a shape. There is
+  no baseline to compare a board against until a board has produced one, and the first board run is
+  what creates it.
+- **The hook fires on a timer, which is why it works and why it proves nothing about the machine
+  without it.** A soak with the tick route live is evidence about the wake path under sustained
+  cross-core traffic. It is not evidence that a workload would ever generate that traffic on its
+  own; measurement says it would not.
+- **The interrupt controller is not on this path.** The timer is not a controller-routed source, so
+  the claim, mask and complete sequence (the GIC, the PLIC, the local APIC) is untouched. The
+  experiment is about the wake protocol, and that is what it runs.
 
 ## Why this extends `board_console` and not the other two instruments
 
@@ -229,15 +348,40 @@ and the U-Boot commands, and changes only two things about it.
 4. **Power the board and type the four U-Boot commands** the runbook gives (milestone 218 is about
    removing this step).
 
-5. **Watch for `soak: started`.** If it does not appear, the kernel was built without the feature or
-   the archive has no `soaker` entry; the tour's last line will be there either way.
+5. **Watch for `soak: started`.** Its own line names the worker mix, and on a four-hart JH7110 it
+   should read four groups and 24 user threads. If it does not appear at all, the kernel was built
+   without the feature or the archive has no `soaker` entry; the tour's last line will be there
+   either way.
 
-6. **Leave it.** The watcher stops at the deadline, or the moment the board announces a failure, or
+6. **Check the first heartbeat before you walk away**, which takes five seconds and is the whole of
+   milestone 221's bench procedure. Two fields decide whether the cross-core experiment is actually
+   running:
+
+   - **`wakerate` should be about `100 * harts`**, so roughly 400 on radon. `TICK_HZ` is 100 and
+     every online hart signals the tick route on its own timer, so a rate well under that means the
+     timer or the wake path is falling behind and the run is measuring something else.
+   - **`crossings` must be *rising* between beats.** Frozen is the pre-221 state and means the tick
+     route is not armed: a kernel built without `--features soak` cannot get this far, so the
+     realistic cause is that the intid was already routed, and the kernel says so and refuses to
+     start rather than soaking silently without it.
+
+   If either is wrong, stop and fix it. Eight hours of a soak that is not crossing cores is eight
+   hours of the experiment milestone 219 already ran.
+
+7. **Leave it.** The watcher stops at the deadline, or the moment the board announces a failure, or
    after three missed beats. The log is the artifact; the last `soak:` line in it is the number.
 
-7. **Record the number in this note's table**, beside the QEMU rows, with the date and the duration.
-   That is what makes the next run comparable, and it is the only thing that makes an eight-hour
-   vigil worth having sat through.
+8. **Record the numbers in this note's table**, beside the QEMU rows, with the date and the
+   duration: `rounds`, `rate`, `wakes` and `crossings`, and all four rather than the first two,
+   because a later run cannot be compared on a figure this one did not write down. That is the only
+   thing that makes an eight-hour vigil worth having sat through.
+
+**What a green run on radon would license, stated before it happens so that nobody writes it
+afterwards.** One sentence: *this board did N cross-core IPC round trips and M cross-core thread
+handoffs over H hours without the wake gate refusing a wake, without a wrong reply, and without a
+worker stalling.* That is the first evidence this project will have had about the wake protocol on
+real silicon under sustained cross-core traffic, and it is a confidence rather than a verdict, which
+is what `design/fatal-risks.md` says about this whole class.
 
 To confirm a build soaks at all without waiting: `script/board-console --for 3m --until soak`
 returns as soon as the workload announces itself.
@@ -273,6 +417,17 @@ The same procedure works on **argon** and **xenon**, with their own architecture
   numbers.
 - **A worker that dies looks exactly like a worker that wedged** from the shared page. Both fail the
   run; the thread dump the supervisor prints before panicking is what separates them.
+- **A tick waiter's wakes are not round trips**, and mixing the two figures is the misreading this
+  workload is most likely to suffer. `rounds` counts IPC round trips and `wakes` counts tick-route
+  wakes; they are separate fields because they are separate quantities.
+- **The crossings are the waiters, never the pairs.** Repeated here because it is the claim a reader
+  most wants this tool to be making and it is not making it.
+- **`wakerate` is a property of the machine, not of the workload**, so it is not a throughput number
+  and a run cannot be tuned to raise it. It is `TICK_HZ` times the online cores, and its use is as a
+  liveness check on the timer and the wake path.
+- **A waiter whose `Irq::WAIT` is refused spins instead of saying so.** It has no channel to report
+  on, so it stops counting and the stall check speaks for it one beat later; the report then says
+  "stalled" where "refused" would be more use.
 - **Nothing runs a soak in `script/test`.** A twenty-second leg per architecture would gate the
   build against bitrot, and it is not there: the soak is exercised by `script/soak` and by
   `board_console`'s host tests over a real capture. If the feature stops compiling, nothing will say

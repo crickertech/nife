@@ -102,7 +102,7 @@
 //!   `soak_page`'s own `BUGS`.
 //! - **The tick route does not exercise an interrupt controller.** The timer is not a
 //!   controller-routed source, so the claim, mask and complete sequence (the GIC on aarch64, the
-//!   PLIC on riscv64, the local APIC on x86_64) is not on this path. What is on it is the wake
+//!   PLIC on riscv64, the local APIC on `x86_64`) is not on this path. What is on it is the wake
 //!   protocol, which is what the defect was on.
 //! - **The hook fires on a timer, which is the one thing the workload cannot starve.** That is why
 //!   it works, and it is also why a run with it on says nothing about what happens without it.
@@ -302,7 +302,7 @@ const MEMBERS_PER_GROUP: usize = 1 + CALLERS_PER_GROUP + GRINDERS_PER_GROUP + WA
 /// **255, and each architecture rules it out for its own reason.** On aarch64 and riscv64 a routed
 /// interrupt is delivered only if something enabled it at the controller, and nothing enables this
 /// one; the highest number either architecture's device tree actually hands out is two orders of
-/// magnitude below it. On x86_64 the vector is `arch::x86_64::irq::SPURIOUS_VECTOR`, which the trap
+/// magnitude below it. On `x86_64` the vector is `arch::x86_64::irq::SPURIOUS_VECTOR`, which the trap
 /// handler answers in its own arm before `irq_route` is ever asked, and it sits above the MSI band
 /// (`MSI_VECTOR_BASE`..0xff), so no device can be handed it either.
 ///

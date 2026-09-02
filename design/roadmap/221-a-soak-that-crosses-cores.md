@@ -1,10 +1,8 @@
 # 221. The soak never crosses cores, so build the hook that makes it
 
-**Status: NOT-STARTED.** Minted 2026-09-02 by the maintainer, the moment calef approved option D in
-DECISIONS 138 (how a saturated workload is made to hand threads across cores). *(Number provisional
-until the merge queue lands it.)*
-
-**Gate: NONE.** The decision is made, the mechanism is measured, and nothing here needs a board.
+**Status: BUILT** (2026-09-02). Minted 2026-09-02 by the maintainer, the moment calef approved
+option D in DECISIONS 138 (how a saturated workload is made to hand threads across cores). *(Number
+provisional until the merge queue lands it.)*
 
 **In brief.** Milestone 219 (the boot tour ends and the kernel halts, so there is nothing to soak)
 built a workload that lasts and then found something nobody expected: **a saturated workload never
@@ -57,6 +55,39 @@ as proof the concurrency is correct.
 **A soak build is already not a production build** (milestone 219 measured the fastpath at about
 1.05x with instrumentation compiled in), and this widens that gap. A soak number compares only with
 another soak number.
+
+## What was built
+
+`sched::on_tick` gained one `#[cfg(feature = "soak")]` call. `kernel/src/soak.rs` gained the tick
+route (a rendezvous, a soak-only intid, and the signal the tick sends it), `user/src/soaker.rs`
+gained a waiter role that loops on `user_rt::irq_wait`, `crates/soak_page` gained a third counter
+array so a wake is never mistaken for a round trip, and `crates/board_console` and the `script/soak`
+summary carry the new field and the sentence that says what the crossings are.
+
+No syscall, no architecture-specific code, and no new feature: it is all behind the `soak` feature
+milestone 219 already had.
+
+**Measured on patagonia under QEMU, 2026-09-02, `script/soak --for 30s`, each pair back to back
+against the commit this branched from:**
+
+| Architecture | Cores | Round trips/s before | after | Crossings in 25s before | after |
+|---|---|---|---|---|---|
+| aarch64 | 4 | 47,864 | 43,031 | 14, frozen from beat 1 | 2,252, rising linearly |
+| riscv64 | 4 | 26,469 | 27,933 | 20, frozen from beat 1 | 5,476, rising linearly |
+| x86_64 | 1 | not run | 2,508 | n/a | 0, and one core is the whole reason |
+
+**The round-trip rate was expected to fall and did not measurably**, which is recorded as a
+difference from the spike rather than smoothed over: the spike saw about 30% on aarch64 and 55% on
+riscv64. The cumulative totals are the cleaner comparison, since the waiters complete none of them
+and the set of workers that does is identical: aarch64 did 1,153,348 round trips in 25 seconds
+before and 1,151,772 after. A 25-second pair on a laptop cannot resolve a few per cent, so this
+supports "no large cost" and not "no cost"; notes/soak.md carries the caveat in full.
+
+**A production build is unchanged**, checked rather than asserted. Without the feature, on all three
+architectures, every symbol and every loaded section has the same size and `ipc_fastpath` and
+`syscall_entry` are unchanged at 6,687 and 1,637 bytes. The loadable image differs by 45 bytes on
+aarch64, all of them panic-location line numbers below the insertion point, and rebuilding the base
+commit with ten comment lines at the same place gives a byte-identical image on all three.
 
 ## BUGS
 

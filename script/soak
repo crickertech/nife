@@ -17,6 +17,10 @@
 # pool of user-mode IPC workers and a supervisor that prints a heartbeat every five seconds. See
 # kernel/src/soak.rs and user/src/soaker.rs.
 #
+# Milestone 221 added the tick route: the kernel signals a rendezvous from `sched::on_tick` and one
+# worker per group blocks on it through `Irq::WAIT`, which is what makes the run cross cores at all.
+# Before it, `crossings` froze inside the first second and stayed frozen; see notes/soak.md.
+#
 # Exit statuses are `script/board-console`'s, because the judging is literally the same code:
 #
 #   0  watched the whole duration with the workload beating and nothing announced
@@ -36,7 +40,15 @@
 # - **A soak build is not a production build.** The counters and `Thread::last_cpu` exist only under
 #   `--features soak`, and they are not free: `ipc_fastpath` measures 1.05 to 1.06x its production
 #   size with them in. So these round-trip rates are soak-build rates, comparable with other soak
-#   runs and with nothing else. `script/bench` is the instrument for IPC cost.
+#   runs and with nothing else. `script/bench` is the instrument for IPC cost. Milestone 221 added
+#   nothing to that figure, which was measured rather than assumed (notes/soak.md).
+# - **The crossings are tick waiters, not the IPC pairs.** The summary says so on every run that has
+#   any, because the flattering reading (that the workload itself is migrating) is available and
+#   wrong: rendezvous wakes stay local whatever else is happening. Only a periodic rebalancer would
+#   move the pairs, and design/decisions/138-cross-core-handoff-under-load.md declines one.
+# - **`wakes` is not part of `rounds`** and the two rates are not comparable with each other. A wake
+#   is not a round trip, and `wakerate` is a property of the machine (TICK_HZ times the online
+#   cores) rather than of the workload.
 # - **`--arch x86_64` soaks one core** unless `--smp` says otherwise, because that runner defaults
 #   to one and its SMP bring-up has two open bugs (`arch::x86_64::ap_boot`'s BUGS #1 and #3). A
 #   single-core soak is not a multicore soak, and `remote=0` in its report is how it says so.
