@@ -169,7 +169,7 @@ core is the right to create a dispatcher on it.
 ### QNX and Linux, for the authority question specifically
 
 **QNX** (`ThreadCtl`, https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/t/threadctl.html)
-requires no privilege at all and instead makes the dangerous case unreachable: `_NTO_TCTL_RUNMASK`
+requires no privilege at all and instead makes the dangerous case unreachable: its runmask control
 sets the affinity of *the calling thread*, and doing it to a thread in another process is not
 supported. The legal masks are further constrained to boot-defined clusters, which is a bounding set
 expressed as static configuration.
