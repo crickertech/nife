@@ -462,6 +462,24 @@ static CRASH_BLK_SHARED: core::sync::atomic::AtomicU64 = core::sync::atomic::Ato
 /// that block torn in half. One is the count that cannot miss, because a write transaction always
 /// issues at least one block write and a larger count is a server that never dies and a test that
 /// hangs.
+/// The mmio slot the crash test's dedicated disk arrives on, named once so [`start_crash`] and
+/// [`crash_disk_present`] cannot drift apart about which device this test owns.
+const CRASH_DISK_INDEX: usize = 2;
+
+/// **Is the crash test's own disk attached to this boot?**
+///
+/// Milestone 214 (design/roadmap/214-print-and-return-skips.md), on a test that prints
+/// "skipping" and returns being counted as passed: the fixture check used to live inside
+/// `std_tests::assert_a_kill_mid_transaction_recovers`, which printed "skipping" and returned.
+/// A helper cannot skip on a test's behalf, because `skip!()` returns from the function it is
+/// written in, so the two callers asked their question one frame too late and were counted as
+/// passes. This is the same guard-then-run shape those tests already use for
+/// [`NO_FS_SERVER`], and it belongs in this module because the device index does.
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn crash_disk_present() -> bool {
+    crate::virtio::find_block_device_n(CRASH_DISK_INDEX).is_some()
+}
+
 #[cfg_attr(not(test), allow(dead_code))]
 pub fn start_crash(
     blk_image: &'static [u8],
@@ -469,8 +487,10 @@ pub fn start_crash(
     client_image: &'static [u8],
 ) -> Option<CrashRun> {
     use core::sync::atomic::Ordering;
-    let (blk_ep, blk_ready, blk_shared) =
-        spawn_block_server(blk_image, crate::virtio::find_block_device_n(2)?);
+    let (blk_ep, blk_ready, blk_shared) = spawn_block_server(
+        blk_image,
+        crate::virtio::find_block_device_n(CRASH_DISK_INDEX)?,
+    );
     CRASH_BLK_EP.store(blk_ep, Ordering::Relaxed);
     CRASH_BLK_SHARED.store(blk_shared, Ordering::Relaxed);
 

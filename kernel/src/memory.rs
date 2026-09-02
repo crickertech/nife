@@ -932,15 +932,21 @@ mod tests {
     /// If the bootloader gave us an initrd, the allocator must never hand it out.
     ///
     /// Only meaningful when QEMU is run with `-initrd`, which the default test run isn't.
-    /// It asserts the invariant when there IS one, and passes trivially when there isn't,
-    /// which is the right shape: the check exists so that the day someone adds `-initrd`
-    /// to the runner, this catches it rather than milestone 10 catching it.
+    /// It asserts the invariant when there IS one and **skips** when there isn't, which is the
+    /// right shape: the check exists so that the day someone adds `-initrd` to the runner, this
+    /// catches it rather than milestone 10 catching it.
+    ///
+    /// It used to say "passes trivially when there isn't", and did: it returned, and the harness
+    /// counted a pass for a boot where the invariant was never looked at. That is the defect
+    /// milestone 214 (design/roadmap/214-print-and-return-skips.md) swept, in its silent form:
+    /// a test that prints "skipping" and returns is counted as passed, and one that prints
+    /// nothing at all is counted as passed too.
     #[test_case]
     fn initrd_is_reserved_if_present() {
         use page_frames::{FRAME_SIZE, PageFrame};
 
         let Some((start, size)) = crate::memory::initrd_region() else {
-            return;
+            crate::testing::skip!("no initrd region on this boot (no -initrd passed)");
         };
 
         let mut addr = start - start % FRAME_SIZE;

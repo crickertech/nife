@@ -65,8 +65,11 @@ const NIFE_FIRST_LBA: u64 = 30720;
 fn the_disk_surveyor_reads_a_table_gptfdisk_wrote() {
     let Some(w) = disk_service::start(fs_service::blk_server_image(), surveyor_image()) else {
         // No fourth mmio block device: this boot did not build the GPT image. A fact about the
-        // machine, not a failure.
-        return;
+        // machine, not a failure, and a fact the final line has to carry: this used to return
+        // silently and be counted as a pass (milestone 214,
+        // design/roadmap/214-print-and-return-skips.md); the silent form is the same defect with
+        // the line left out.
+        crate::testing::skip!("no GPT disk attached (this boot did not build the GPT image)");
     };
     // Past device bring-up, so a hang below is a hang in a read rather than in the driver.
     let [ready, ..] = crate::sched::ipc_recv(w.ready);
