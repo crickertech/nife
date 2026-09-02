@@ -14,6 +14,7 @@
 //!     cargo xtask objdump  disassemble the kernel
 //!     cargo xtask image    build the flat arm64 Image and dump its header
 //!     cargo xtask board-console  read the serial console of a real board, log it, stop on a deadline
+//!     cargo xtask board-script   write the U-Boot script that boots the board without a person at its prompt
 //!
 //! Note that `run` and `test` do NOT invoke QEMU themselves. They just call cargo,
 //! which invokes `scripts/qemu-runner-aarch64.sh` via the runner setting in
@@ -179,12 +180,16 @@ fn main() -> ExitCode {
         // The sustained multicore run under QEMU (milestone 219), judged by the same recogniser
         // `board-console` points at a board. Returns its own exit code for the same reason.
         "soak" => return soak(),
+        // The card's U-Boot script (milestone 218): what makes the board boot without a person at
+        // its prompt. `script/board-image` calls this; it is a separate verb so the script it
+        // produces can be rebuilt and read on its own.
+        "board-script" => board_script(),
         other => {
             if !other.is_empty() {
                 eprintln!("unknown command: {other}\n");
             }
             eprintln!(
-                "usage: cargo xtask <build|run|shell|shell-check|initboot|initrd-aarch64|initrd-riscv|initrd-x86|uefi-image|uefi-boot|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image|board-console|soak> [--hvf]"
+                "usage: cargo xtask <build|run|shell|shell-check|initboot|initrd-aarch64|initrd-riscv|initrd-x86|uefi-image|uefi-boot|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image|board-console|soak|board-script> [--hvf]"
             );
             eprintln!("       cargo xtask shell-check [--arch aarch64|riscv64]");
             eprintln!(
@@ -8779,6 +8784,157 @@ fn soak() -> ExitCode {
     ExitCode::from(u8::try_from(session.exit_code()).unwrap_or(4))
 }
 
+// ===========================================================================================
+// The board's boot script (milestone 218).
+//
+// The VisionFive 2 cannot boot this kernel from an `extlinux.conf`. With no `fdt` line in the
+// label, U-Boot's pxe path hands `bootm` no device tree at all, and RISC-V's `boot_prep_linux`
+// refuses rather than guessing: `Device tree not found or missing FDT support`, then
+// `### ERROR ### Please RESET the board ###`, which is a `hang()` that only the reset button
+// clears. Captured on the board 2026-09-01;
+// crates/board_console/tests/fixtures/captured/vf2-2026-09-01-extlinux-refused.log is the transcript,
+// and it is evidence about U-Boot rather than about this kernel: the payload never ran.
+//
+// So the card carries a U-Boot script instead. `scan_dev_for_scripts` sources it, and it issues
+// exactly the commands a person types at the `StarFive #` prompt today, which is the sequence the
+// same day's successful boot proves (vf2-2026-09-01-manual-boot.log). Nothing about the boot
+// changes; only who types it. See notes/visionfive2.md.
+// ===========================================================================================
+
+/// The script the board runs, verbatim.
+///
+/// **Every line of this is a line already proven on silicon.** It is the manual sequence from
+/// notes/visionfive2.md with two edits, both of which remove a dependency rather than add one:
+/// the load device comes from the variables distro boot has already set for the script it is
+/// running (`boot_a_script` sets `devtype`, `devnum` and `distro_bootpart` before sourcing this),
+/// and the archive's length is stashed under a name of ours the moment `load` reports it, so that
+/// a later command which happens to set `filesize` cannot change what `booti` is told.
+///
+/// Two addresses stay literal because they are choices rather than discoveries, and
+/// notes/visionfive2.md carries the arithmetic for both: `0x8600_0000` for the device tree, inside
+/// the kernel's boot gigapage 2 and clear of both the image and `kernel_comp_addr_r`, and
+/// `0x9000_0000` for the archive, clear of the moved tree.
+///
+/// **No `#` comment lines, deliberately.** U-Boot's parser is a cut-down hush and this file is the
+/// one thing that has to work with nobody watching, so it uses only verbs the bench transcript
+/// already shows working. The explanation lives here instead.
+const BOARD_BOOT_SCRIPT: &str = "\
+echo nife: boot.scr is driving this boot, milestone 218
+load ${devtype} ${devnum}:${distro_bootpart} ${kernel_addr_r} /nife-vf2.img
+load ${devtype} ${devnum}:${distro_bootpart} 0x90000000 /nife-initrd.img
+setenv nife_archive_size ${filesize}
+fdt addr ${fdtcontroladdr}
+fdt move ${fdtcontroladdr} 0x86000000
+booti ${kernel_addr_r} 0x90000000:${nife_archive_size} 0x86000000
+";
+
+/// The name in the image header. `iminfo` prints it and nothing else reads it.
+const BOARD_BOOT_SCRIPT_NAME: &str = "nife board boot";
+
+/// `0x27051956`, the legacy U-Boot image magic, big-endian at offset 0 (u-boot `include/image.h`).
+const UIMAGE_MAGIC: u32 = 0x2705_1956;
+/// The 64-byte header in front of every legacy image.
+const UIMAGE_HEADER_LEN: usize = 64;
+/// The header's fixed-width name field, NUL-padded.
+const UIMAGE_NAME_LEN: usize = 32;
+/// `IH_OS_LINUX`. `source` does not check it; mkimage writes it for scripts and so do we.
+const IH_OS_LINUX: u8 = 5;
+/// `IH_ARCH_RISCV`.
+const IH_ARCH_RISCV: u8 = 26;
+/// `IH_TYPE_SCRIPT`. This one **is** checked: `source` refuses any other type.
+const IH_TYPE_SCRIPT: u8 = 6;
+/// `IH_COMP_NONE`.
+const IH_COMP_NONE: u8 = 0;
+
+/// Wrap `script` in a legacy U-Boot script image, the thing `mkimage -T script` produces.
+///
+/// Written here rather than shelled out to `mkimage` because `mkimage` is a host package this
+/// project does not otherwise need, and a build step that works on the machine that has it and
+/// fails on the machine that does not is exactly the newcomer trap AGENTS.md's third principle
+/// names. The format is 64 bytes and two CRCs, so writing it costs less than requiring it.
+///
+/// The CRC is `gpt`'s, which is the tree's one definition of IEEE CRC-32 and is Kani-proved equal
+/// to its own bitwise form. Reaching into the partition-table crate for it reads oddly and is
+/// still the right call: a second copy of a checksum is a second place to be wrong.
+fn uboot_script_image(name: &str, script: &str) -> Vec<u8> {
+    // A script image's payload is a size table, then the text. `source` reads the first u32 as the
+    // script's length and skips two u32s to reach the bytes (u-boot `cmd/source.c`), so one script
+    // is `[len, 0]` followed by it.
+    let mut data = Vec::new();
+    data.extend_from_slice(
+        &u32::try_from(script.len())
+            .expect("script fits in u32")
+            .to_be_bytes(),
+    );
+    data.extend_from_slice(&0u32.to_be_bytes());
+    data.extend_from_slice(script.as_bytes());
+
+    let mut header: Vec<u8> = Vec::with_capacity(UIMAGE_HEADER_LEN);
+    header.extend_from_slice(&UIMAGE_MAGIC.to_be_bytes());
+    // The header CRC covers the header with this field read as zero, so it is written zero here
+    // and patched below, the same shape `gpt`'s header CRC has.
+    header.extend_from_slice(&0u32.to_be_bytes());
+    // Timestamp. Zero rather than the wall clock, so rebuilding the same payload produces the same
+    // bytes and a card can be diffed against the tree. Nothing on the boot path reads it.
+    header.extend_from_slice(&0u32.to_be_bytes());
+    header.extend_from_slice(
+        &u32::try_from(data.len())
+            .expect("payload fits in u32")
+            .to_be_bytes(),
+    );
+    // Load address and entry point: meaningless for a script, and zero is what mkimage writes.
+    header.extend_from_slice(&0u32.to_be_bytes());
+    header.extend_from_slice(&0u32.to_be_bytes());
+    header.extend_from_slice(&gpt::crc::crc32(&data).to_be_bytes());
+    header.push(IH_OS_LINUX);
+    header.push(IH_ARCH_RISCV);
+    header.push(IH_TYPE_SCRIPT);
+    header.push(IH_COMP_NONE);
+    let mut name_field = [0u8; UIMAGE_NAME_LEN];
+    let truncated = name.len().min(UIMAGE_NAME_LEN - 1);
+    name_field[..truncated].copy_from_slice(&name.as_bytes()[..truncated]);
+    header.extend_from_slice(&name_field);
+    assert_eq!(
+        header.len(),
+        UIMAGE_HEADER_LEN,
+        "the legacy header is 64 bytes"
+    );
+
+    let header_crc = gpt::crc::crc32(&header);
+    header[4..8].copy_from_slice(&header_crc.to_be_bytes());
+
+    header.extend_from_slice(&data);
+    header
+}
+
+/// Write `target/board/boot.scr.uimg`, and the script's text beside it as `target/board/boot.cmd`
+/// so that what the board will run can be read without a hex dump.
+fn board_script() -> bool {
+    let out = Path::new("target/board");
+    if let Err(e) = std::fs::create_dir_all(out) {
+        eprintln!("board-script: cannot create {}: {e}", out.display());
+        return false;
+    }
+    let image = uboot_script_image(BOARD_BOOT_SCRIPT_NAME, BOARD_BOOT_SCRIPT);
+    let image_path = out.join("boot.scr.uimg");
+    let text_path = out.join("boot.cmd");
+    if let Err(e) = std::fs::write(&image_path, &image) {
+        eprintln!("board-script: cannot write {}: {e}", image_path.display());
+        return false;
+    }
+    if let Err(e) = std::fs::write(&text_path, BOARD_BOOT_SCRIPT) {
+        eprintln!("board-script: cannot write {}: {e}", text_path.display());
+        return false;
+    }
+    println!(
+        "  {}  ({} bytes, legacy U-Boot script image)",
+        image_path.display(),
+        image.len()
+    );
+    println!("  {}  (the same script as text)", text_path.display());
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -9157,5 +9313,85 @@ pub const GET: u64 = 1;
         assert!(scanout_holds_the_terminals_text(&ppm(composed_rgb)).is_err());
         assert!(scanout_holds_the_pattern(&ppm(text_rgb)).is_err());
         assert!(scanout_holds_the_composed_screen(&ppm(text_rgb)).is_err());
+    }
+
+    /// **The card's boot script is a legacy U-Boot image or it is nothing**, and this reads the
+    /// bytes back the way `source` does rather than trusting the writer that just produced them:
+    /// magic, the type field `source` actually checks, both CRCs recomputed, and the size table
+    /// that tells it where the text starts.
+    #[test]
+    fn the_board_script_is_a_legacy_uboot_script_image() {
+        let image = uboot_script_image("nife test", "echo hi\n");
+        assert!(image.len() > UIMAGE_HEADER_LEN);
+
+        let be = |at: usize| u32::from_be_bytes(image[at..at + 4].try_into().unwrap());
+        assert_eq!(be(0), UIMAGE_MAGIC);
+        assert_eq!(image[UIMAGE_HEADER_LEN - 32 - 4], IH_OS_LINUX);
+        assert_eq!(image[UIMAGE_HEADER_LEN - 32 - 3], IH_ARCH_RISCV);
+        assert_eq!(image[UIMAGE_HEADER_LEN - 32 - 2], IH_TYPE_SCRIPT);
+        assert_eq!(image[UIMAGE_HEADER_LEN - 32 - 1], IH_COMP_NONE);
+
+        let data = &image[UIMAGE_HEADER_LEN..];
+        assert_eq!(
+            be(12) as usize,
+            data.len(),
+            "the header states the payload length"
+        );
+        assert_eq!(be(24), gpt::crc::crc32(data), "data CRC");
+
+        // The header CRC is over the header with its own field zeroed, so the check has to zero it
+        // again; a test that compared the stored value with a CRC of the stored value would pass on
+        // any number at all.
+        let mut header = image[..UIMAGE_HEADER_LEN].to_vec();
+        let stored = u32::from_be_bytes(header[4..8].try_into().unwrap());
+        header[4..8].copy_from_slice(&0u32.to_be_bytes());
+        assert_eq!(stored, gpt::crc::crc32(&header), "header CRC");
+
+        // `source` reads the first u32 as the script length and starts the text after the pair.
+        assert_eq!(
+            u32::from_be_bytes(data[0..4].try_into().unwrap()) as usize,
+            "echo hi\n".len()
+        );
+        assert_eq!(u32::from_be_bytes(data[4..8].try_into().unwrap()), 0);
+        assert_eq!(&data[8..], b"echo hi\n");
+    }
+
+    /// **The script must not reach for anything the bench transcript has not already shown
+    /// working.** Nobody is watching when this runs, and U-Boot's parser is a cut-down hush whose
+    /// failures are silent, so the guard is on the vocabulary rather than on the outcome: no
+    /// comments, no parentheses, no shell forms this project has never seen the board execute. It
+    /// also pins the two addresses whose arithmetic notes/visionfive2.md carries.
+    #[test]
+    fn the_board_script_stays_inside_the_proven_vocabulary() {
+        let script = BOARD_BOOT_SCRIPT;
+        assert!(script.ends_with('\n'), "every line is terminated");
+        assert!(
+            !script.contains('#'),
+            "no comments: hush's handling of them is untested here"
+        );
+        for forbidden in ['(', ')', '`', '\'', '&', '|', '<', '>'] {
+            assert!(
+                !script.contains(forbidden),
+                "{forbidden} is not in the proven vocabulary"
+            );
+        }
+        for line in script.lines() {
+            let verb = line.split_whitespace().next().expect("no blank lines");
+            assert!(
+                matches!(verb, "echo" | "load" | "setenv" | "fdt" | "booti"),
+                "{verb} is a verb the bench transcript does not show"
+            );
+        }
+        assert!(script.contains("fdt move ${fdtcontroladdr} 0x86000000"));
+        assert!(
+            script.contains("booti ${kernel_addr_r} 0x90000000:${nife_archive_size} 0x86000000")
+        );
+        // The archive's length is captured under our own name the moment `load` reports it, so no
+        // later command that happens to set `filesize` can change what `booti` is handed.
+        let stash = script
+            .find("setenv nife_archive_size")
+            .expect("the archive length is stashed");
+        let boot = script.find("booti").expect("the script boots something");
+        assert!(stash < boot);
     }
 }

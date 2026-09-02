@@ -1,9 +1,7 @@
 # 217. The card carries a kernel and an archive from different builds, and the gate is the only thing that noticed
 
-**Status: NOT-STARTED.** Minted 2026-09-01 by the maintainer, from a boot driven over the serial
-console the same hour. *(Number provisional until the merge queue lands it.)*
-
-**Gate: NONE.** The fix is in `script/board-image`, and the evidence is already captured.
+**Status: BUILT** 2026-09-02. Minted 2026-09-01 by the maintainer, from a boot driven over the
+serial console the same hour. *(Number provisional until the merge queue lands it.)*
 
 **In brief.** The VisionFive 2 boots, starts a user program at U-mode, and then halts:
 
@@ -57,12 +55,64 @@ started instructing one.
   question this milestone should answer rather than assume**: copying files onto a mounted
   filesystem is not `dd` to a raw device, and the two may not deserve the same caution.
 
+## What it got, 2026-09-02
+
+**The printed steps no longer instruct a mismatch, and the stronger form was available**, so both
+halves of "What it needs" landed rather than the documented one alone.
+
+`script/board-image --card /Volumes/NIFE` copies the kernel, the archive and (milestone 218's) boot
+script onto a card as one act, after every build step has succeeded, so a failed build cannot leave
+a card holding half a pair. Without `--card` the printed steps say to run it rather than listing
+three `cp` commands a reader can do two of.
+
+### The design question, answered rather than assumed
+
+This block set the script's deliberate refusal to run anything destructive against rung one of
+AGENTS.md's ladder and asked which wins. **Copying wins, and the boundary is not "does it write to
+a disk".**
+
+Formatting names a *whole device*. `diskutil eraseDisk /dev/diskN` and `dd` destroy everything on
+whatever that name resolves to, the name is easy to get wrong, and the person at the bench is the
+one looking at it. Copying names a *mounted filesystem the operator already chose and mounted*, and
+its worst outcome is three unexpected files somewhere. Those are different acts, and the original
+refusal was written about the first one; the header comment now says so explicitly instead of
+leaving the distinction to be re-derived.
+
+The argument that decides it is that only the script can make the set indivisible. A printed step
+is rung four whatever it says, and this milestone exists because rung four failed: the steps were
+correct about the kernel and silent about the archive, and a card came apart. Prose warning a
+reader to copy three files is the same rung as the prose that told them to copy two.
+
+The refusals stay narrow rather than clever. `--card` requires an existing directory and declines
+`/`; it does not try to prove the path is really a memory card, because a check that guesses at
+intent fails the person with an unusual mount and protects nobody else.
+
+### The one deletion, and why it is content-matched
+
+`--card` removes `<card>/extlinux/extlinux.conf`, and only that path, and only when the file
+contains a `label nife` line. An extlinux config on this board does not fail, it **hangs** U-Boot
+before the kernel runs (milestone 218), so a stale one left beside a working boot script would
+quietly undo that fix, and "somebody will notice" is rung zero. Matching the content first is what
+keeps this from being a script that deletes a stranger's boot configuration: an extlinux.conf that
+is not one of ours is left alone, which was checked both ways on the host.
+
+### Proven, and where
+
+On the host, against a directory standing in for a card: the three files arrive together, a nife
+extlinux config is removed and a Debian-looking one is not, a nonexistent path is refused before
+the build rather than after it. What no host check covers is a real card's filesystem, which is
+`cp` into FAT32 and is the least surprising thing here.
+
 ## BUGS
 
 - **This block does not fix any card.** Re-flashing is a bench action and the pair on the card is
-  stale until somebody does it.
+  stale until somebody does it, and radon was powered down on the day this landed.
+- **`--card` has only ever written to a directory on a Mac's own disk.** Nothing here has touched a
+  real microSD card, and the `sync` it issues afterwards is the ordinary defence against pulling a
+  card too early rather than a tested one.
 - **Nothing here checks a card after the fact.** A tool that reads a mounted volume and reports
   whether its kernel and archive match would catch this before a power cycle rather than after, and
-  is not in scope.
+  is not in scope. `--card` narrows who needs it rather than removing the need: a card written by
+  any other means is still unverifiable without booting it.
 - **The measured-boot refusal is only as good as the manifest.** This milestone treats the gate as
   correct because it fired on a real mismatch; it makes no claim about what the gate would miss.
