@@ -8,11 +8,12 @@
 # RISC-V's OpenSBI): QEMU's `q35` reads the PVH note in our ELF, loads the segments at their
 # physical addresses and enters the 32-bit trampoline directly. See kernel/src/arch/x86_64/boot.s.
 #
-# WHAT IS NOT HERE YET, and it is still most of what the other two runners do: no virtio disks, no
-# NIC, no GPU, no RNG. NVMe is wired (below, decisions §86's x86_64/VT-d data point), because the
-# kernel-resident NVMe driver is arch-neutral and VT-d confinement landed this session; the rest
-# are wired one at a time as the port reaches them, and adding a device to this file before the
-# kernel can drive it only produces a boot that looks richer than it is. See
+# WHAT IS NOT HERE YET: no NIC, no GPU, no RNG. NVMe is wired (below, decisions §86's x86_64/VT-d
+# data point), because the kernel-resident NVMe driver is arch-neutral and VT-d confinement landed
+# this session, and since milestone 215 (a PCI function's interrupt on x86_64) so is one virtio-blk-pci
+# disk, because a PCI function's interrupt can now reach a userspace driver here. The rest are
+# wired one at a time as the port reaches them, and adding a device to this file before the kernel
+# can drive it only produces a boot that looks richer than it is. See
 # design/roadmap/161-x86-64-kernel-port.md.
 #
 # The kernel halts with `hlt` (arch::halt), so QEMU does not exit on its own. Bound any interactive
@@ -91,6 +92,39 @@ IOMMU="-device intel-iommu"
 # (kernel/src/nvme.rs). serial= is mandatory (QEMU refuses the device without one). A set
 # NIFE_NVME naming a missing file is an error, the same NIFE_INITRD lesson above: a silently
 # absent controller would read as a machine fact when it is a build-order mistake.
+# The PCIe transport's disk (milestone 215). `q35` has no virtio-mmio bus at all
+# (`arch::x86_64::mmu::VIRTIO_SLOTS` is 0), so unlike the other two runners this attaches the PCI
+# image and nothing else, and `NIFE_DISK` names the fixture set the same way it does there: the
+# sibling `-pci.img` mkdisk writes beside it. A separate file rather than the main image because
+# both are attached writable elsewhere and QEMU's image locking refuses one file to two writers.
+#
+# disable-legacy=on makes the function MODERN (device id 0x1042); the transitional 0x1001 device's
+# register layout is one this tree deliberately does not drive.
+#
+# iommu_platform=on is what puts the disk BEHIND VT-d, and on this machine it is the difference
+# between a confinement claim and a decoration: QEMU's virtio-pci device uses the *system* address
+# space unless the flag is set, so without it the device would bypass `-device intel-iommu`
+# silently and every DMA would land wherever the driver asked. With it the device emits IOVAs the
+# unit translates through the domain `virtio::register` builds, and a stray address faults at the
+# IOMMU instead of reaching RAM. The same flag, for the same reason, is on the riscv64 runner's PCI
+# disk. NVMe below needs no such flag: a real PCI device model always goes through the PCI address
+# space.
+#
+# A missing sibling is a stale build, so it fails loud, the same rule the main image gets.
+DISK=""
+if [ -n "$NIFE_DISK" ]; then
+    if [ ! -f "$NIFE_DISK" ]; then
+        echo "qemu-runner-x86_64: NIFE_DISK=$NIFE_DISK does not exist (run mkdisk first)" >&2
+        exit 1
+    fi
+    PCI_DISK="${NIFE_DISK%.img}-pci.img"
+    if [ ! -f "$PCI_DISK" ]; then
+        echo "qemu-runner-x86_64: $PCI_DISK does not exist (run mkdisk first; it writes both images)" >&2
+        exit 1
+    fi
+    DISK="-drive file=$PCI_DISK,if=none,format=raw,id=hd1 -device virtio-blk-pci,drive=hd1,disable-legacy=on,iommu_platform=on"
+fi
+
 NVME=""
 if [ -n "$NIFE_NVME" ]; then
     if [ ! -f "$NIFE_NVME" ]; then
@@ -117,6 +151,7 @@ qemu-system-x86_64 \
     -no-reboot \
     $DEBUG_EXIT \
     $IOMMU \
+    $DISK \
     $NVME \
     -kernel "$ELF" \
     $INITRD \

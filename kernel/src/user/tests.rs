@@ -2035,17 +2035,24 @@ fn the_kernel_refuses_an_indirect_descriptor_escape() {
     );
 }
 
-/// **The PCIe transport on aarch64, end to end** (DECISIONS §18): the same driver reads the
-/// same file off the disk QEMU attached as `virtio-blk-pci`, found by ECAM enumeration in
-/// the highmem window, BARs placed by the kernel, the completion arriving as INTx through
-/// the GIC (SPI 3 + swizzle). The riscv twin proved the seam on the PLIC board; this proves
-/// the same subsystem, from the same portable crate and seam, on the second bus of the
-/// second interrupt controller.
+/// **The PCIe transport end to end** (DECISIONS §18): the same driver reads the same file off
+/// the disk QEMU attached as `virtio-blk-pci`, found by ECAM enumeration, BARs placed by the
+/// kernel, and the completion arriving as an interrupt the kernel turned into a message. The
+/// riscv twin proved the seam on the PLIC board; this proves the same subsystem, from the same
+/// portable crate and seam, on two more interrupt controllers.
+///
+/// **It runs on `x86_64` too since milestone 215** (`x86_64` PCI interrupt routing), and there it is
+/// the whole of that milestone's claim rather than one more transport: the completion arrives as
+/// an **MSI-X** message the device writes straight to the local APIC, because a legacy INTx pin on
+/// `q35` goes through a PIRQ router only ACPI's `_PRT` describes. On aarch64 the same completion
+/// arrives as INTx through the GIC (SPI 3 + swizzle). The assertion below is the same either way,
+/// which is the point: a driver binds an intid and waits, and how the machine delivers it is the
+/// arch layer's business.
 // RISC-V twin: `riscv_virtio_tests::a_userspace_driver_reads_a_file_over_the_pcie_transport`. Gated here rather than run twice: that
 // module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
 // second copy through hello's roles would double the suite's slowest tests to prove
 // nothing new. See this module's comment on the two kinds of gate.
-#[cfg(target_arch = "aarch64")]
+#[cfg(any(target_arch = "aarch64", target_arch = "x86_64"))]
 #[test_case]
 fn a_userspace_driver_reads_a_file_over_the_pcie_transport() {
     use crate::arch::exceptions::ROUTED_IRQS;
@@ -2065,7 +2072,7 @@ fn a_userspace_driver_reads_a_file_over_the_pcie_transport() {
     );
     assert!(
         ROUTED_IRQS.load(Ordering::Relaxed) > irqs_before,
-        "the read completed but no INTx interrupt was delivered through the GIC",
+        "the read completed but the device's interrupt was never delivered to this kernel",
     );
 }
 
@@ -2101,7 +2108,7 @@ fn a_userspace_driver_writes_a_block_and_reads_it_back() {
 // module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
 // second copy through hello's roles would double the suite's slowest tests to prove
 // nothing new. See this module's comment on the two kinds of gate.
-#[cfg(target_arch = "aarch64")]
+#[cfg(any(target_arch = "aarch64", target_arch = "x86_64"))]
 #[test_case]
 fn a_userspace_driver_writes_a_block_over_the_pcie_transport() {
     let Some(report) = virtio_service::start_writer_pci(init_image()) else {
