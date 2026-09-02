@@ -113,7 +113,7 @@
 //!   goes away. The watcher decides when enough is enough, which is what makes the QEMU run and the
 //!   bench run the same experiment with a different deadline.
 
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
 use paging::Flags;
 use soak_page::MAX_WORKERS;
@@ -156,12 +156,24 @@ pub fn run() -> ! {
     };
     let shared = frame.addr();
 
-    // **One tick rendezvous for the whole machine, not one per group** (milestone 221). A tick
-    // raises one signal and one signal wakes one waiter, so a single rendezvous is what makes
-    // `pick_wake_target` choose between all of them; per-group routes would turn one choice among
-    // `cores` threads into `cores` choices among one, which is the same thing with the interesting
-    // part removed.
-    let tick_endpoint = sched::create_rendezvous();
+    // **One tick rendezvous per group** (milestone 221), for the reason `signal_waiters` gives at
+    // length: a shared one lets whichever waiter is already running drain a burst of signals through
+    // `Rendezvous`'s `pending` path while its queued peers starve, and a loaded host produces
+    // exactly those bursts. Measured rather than feared: the shared version failed a run.
+    let mut tick_endpoints = [0u64; MAX_GROUPS];
+    for slot in tick_endpoints.iter_mut().take(groups) {
+        *slot = sched::create_rendezvous();
+    }
+    // Routed before any waiter exists, so none can meet an unbound route; the signalling itself is
+    // still switched on last, below. See `bind_tick_routes`.
+    if !bind_tick_routes(&tick_endpoints[..groups]) {
+        println!(
+            "soak: FAILED: one of interrupts {}..={TICK_INTID_TOP} is already routed, so a tick \
+             route would steal it; see TICK_INTID_TOP in kernel/src/soak.rs",
+            tick_intid(groups - 1)
+        );
+        arch::halt();
+    }
 
     for group in 0..groups {
         let endpoint = sched::create_rendezvous();
@@ -183,7 +195,7 @@ pub fn run() -> ! {
             // the group's endpoint and must not be able to. That is the same least-authority rule
             // the other three roles get from their rights, one object over.
             let grant = if role == ROLE_WAITER {
-                irq_cap(TICK_INTID)
+                irq_cap(tick_intid(group))
             } else if role == ROLE_RESPONDER {
                 rendezvous_cap(endpoint, Rights::READ)
             } else {
@@ -220,17 +232,11 @@ pub fn run() -> ! {
         }
     }
 
-    // **Last, and after every worker exists** (milestone 221). Arming earlier would signal a
-    // rendezvous nothing is waiting on, which is not harmful (the signal is counted, not lost) but
-    // would hand the first waiter a backlog to drain before it ever blocks, so the first beat would
-    // measure setup rather than the machine.
-    if !arm_tick_route(tick_endpoint) {
-        println!(
-            "soak: FAILED: interrupt {TICK_INTID} is already routed, so the tick route would steal \
-             it; see TICK_INTID in kernel/src/soak.rs"
-        );
-        arch::halt();
-    }
+    // **Last, and after every worker exists** (milestone 221). Signalling earlier would hand the
+    // first waiter a backlog to drain before it ever blocked, so the first beat would measure setup
+    // rather than the machine. Harmless either way (a signal is counted, not lost), which is why
+    // this is the half that waits and the routing above is the half that does not.
+    arm_tick_hook(groups);
 
     let workers = groups * MEMBERS_PER_GROUP;
     println!();
@@ -293,37 +299,57 @@ const WAITERS_PER_GROUP: usize = 1;
 /// term to it.
 const MEMBERS_PER_GROUP: usize = 1 + CALLERS_PER_GROUP + GRINDERS_PER_GROUP + WAITERS_PER_GROUP;
 
-/// **The interrupt number the tick route is bound to** (milestone 221).
+/// **The highest interrupt number the tick routes are bound to** (milestone 221). Group `g` uses
+/// `TICK_INTID_TOP - g`.
 ///
-/// It names no hardware and none of the three architectures can deliver it, which is the whole
+/// These name no hardware and none of the three architectures can deliver them, which is the whole
 /// requirement: `sched::bind_irq` writes a slot in a flat array that `sched::irq_route` reads, and
-/// this only has to be a slot nothing else in a soak boot claims.
+/// these only have to be slots nothing else in a soak boot claims.
 ///
-/// **255, and each architecture rules it out for its own reason.** On aarch64 and riscv64 a routed
-/// interrupt is delivered only if something enabled it at the controller, and nothing enables this
-/// one; the highest number either architecture's device tree actually hands out is two orders of
-/// magnitude below it. On `x86_64` the vector is `arch::x86_64::irq::SPURIOUS_VECTOR`, which the trap
-/// handler answers in its own arm before `irq_route` is ever asked, and it sits above the MSI band
-/// (`MSI_VECTOR_BASE`..0xff), so no device can be handed it either.
+/// **Counting down from 255, and each architecture rules the band out for its own reason.** On
+/// aarch64 and riscv64 a routed interrupt is delivered only if something enabled it at the
+/// controller, and nothing enables these; the highest number either architecture's device tree
+/// actually hands out is two orders of magnitude below them. On `x86_64` the top of the band is
+/// `arch::x86_64::irq::SPURIOUS_VECTOR`, which the trap handler answers in its own arm before
+/// `irq_route` is ever asked, and the rest of it sits at the far end of the MSI band, which is
+/// allocated upward from `MSI_VECTOR_BASE` (0xc0) and would need more than fifty devices to reach.
 ///
-/// [`arm_tick_route`] does not take this on trust: it asks `sched::irq_route` first and refuses to
-/// start a soak whose tick route would steal somebody else's interrupt.
+/// **None of that is what makes this safe**, and saying so is the point: the arithmetic is an
+/// argument and [`arm_tick_routes`] is a mechanism. It asks `sched::irq_route` about every number
+/// it is about to take, and refuses to start a soak whose tick routes would steal somebody else's
+/// interrupt. A soak boot runs the whole tour first, so every device that is going to claim an
+/// interrupt has already claimed it by the time that check runs.
 ///
 /// Name provisional (milestone 221): calef names public items.
-const TICK_INTID: u32 = 255;
+const TICK_INTID_TOP: u32 = 255;
 
-/// **The rendezvous [`signal_waiters`] signals, plus one; zero means the hook is not armed.**
+/// The most groups the shared page has room for, and so the most tick routes there can be.
+const MAX_GROUPS: usize = MAX_WORKERS / MEMBERS_PER_GROUP;
+
+/// The interrupt number group `g`'s waiter holds. See [`TICK_INTID_TOP`].
+const fn tick_intid(g: usize) -> u32 {
+    TICK_INTID_TOP - g as u32
+}
+
+/// **The rendezvous [`signal_waiters`] signals, one per group, each plus one; zero means empty.**
 ///
 /// Plus one for the same reason `sched::IRQ_ROUTES` does it: a rendezvous name may legitimately be
 /// zero, and this needs a value that means "nothing here" without a second word to say so.
 ///
-/// A plain atomic rather than anything under a lock, because the reader is an interrupt handler on
+/// Plain atomics rather than anything under a lock, because the reader is an interrupt handler on
 /// every core: taking a lock to find out *whether there is anything to do* is a thing that can go
-/// wrong, and a single load cannot be. Written exactly once, by the boot thread, after every worker
+/// wrong, and a single load cannot be. Written once each, by the boot thread, after every worker
 /// exists.
-static TICK_ROUTE: AtomicU64 = AtomicU64::new(0);
+static TICK_ROUTES: [AtomicU64; MAX_GROUPS] = [const { AtomicU64::new(0) }; MAX_GROUPS];
 
-/// **Signal the tick route. Called from `sched::on_tick`, in interrupt context, on every core.**
+/// How many of [`TICK_ROUTES`] are armed. Zero until [`arm_tick_routes`] has bound them all, which
+/// is what keeps the hook inert during setup and what [`signal_waiters`] loads first.
+static TICK_GROUPS: AtomicUsize = AtomicUsize::new(0);
+
+/// Which route the next tick signals, anywhere on the machine. See [`signal_waiters`].
+static TICK_CURSOR: AtomicUsize = AtomicUsize::new(0);
+
+/// **Signal one tick route. Called from `sched::on_tick`, in interrupt context, on every core.**
 ///
 /// This is the whole of milestone 221's kernel-side mechanism, and it is short because the path it
 /// wants was already built: `sched::irq_notify` is the function a device interrupt goes through, it
@@ -332,30 +358,78 @@ static TICK_ROUTE: AtomicU64 = AtomicU64::new(0);
 /// interesting is downstream of it.
 ///
 /// Not armed on an ordinary boot, because there is no ordinary boot: the whole module is behind
-/// `--features soak`. Within a soak boot it is unarmed until [`arm_tick_route`] runs, which is
+/// `--features soak`. Within a soak boot it stays inert until [`arm_tick_routes`] runs, which is
 /// after every worker has been spawned, so the ticks that land during setup are not counted against
 /// a waiter that does not exist yet.
 ///
+/// # One route per group, round-robin, and it is a fix rather than a flourish
+///
+/// The first version signalled **one** rendezvous that every waiter blocked on, and it failed a run
+/// on a loaded host: three of four waiters made no progress for a whole beat and the soak reported
+/// them as wedged. The cause is in `crates/ipc`'s `Rendezvous`, and it is correct behaviour there:
+/// `recv` takes a **pending** signal before it looks at the receiver queue, because a driver must
+/// never miss an interrupt that already happened. So when ticks arrive in a burst, which is what a
+/// guest on a busy host sees, whichever waiter is already running drains the whole backlog through
+/// the `pending` path and never queues, while its peers sit at the head of a queue nothing pops.
+/// One waiter is fed and the rest starve.
+///
+/// A rendezvous per group removes the shared resource, so a backlog can only ever belong to the
+/// waiter it accumulated for. The cursor is global rather than derived from `cpu::id()` so that
+/// every route is covered whatever the topology: [`topology_groups`] builds at least two groups even
+/// on a single-core machine, where a scheme keyed on the core would leave the second waiter to
+/// starve for the whole run.
+///
 /// Name provisional (milestone 221): calef names public items.
 pub fn signal_waiters() {
-    match TICK_ROUTE.load(Ordering::Acquire) {
+    let groups = TICK_GROUPS.load(Ordering::Acquire);
+    if groups == 0 {
+        return;
+    }
+    // Relaxed: all this counter has to do is differ from its neighbours over time. It may skip or
+    // repeat a number under contention without anything being wrong, because the routes are
+    // equivalent and the fairness it buys is statistical rather than exact.
+    let which = TICK_CURSOR.fetch_add(1, Ordering::Relaxed) % groups;
+    match TICK_ROUTES[which].load(Ordering::Relaxed) {
         0 => {}
         route => sched::irq_notify(route - 1),
     }
 }
 
-/// Route [`TICK_INTID`] to `ep` and arm [`signal_waiters`]. Returns `false` if the interrupt slot
-/// is already spoken for, which is a refusal to start rather than a thing to work around.
-fn arm_tick_route(ep: sched::RendezvousId) -> bool {
-    if sched::irq_route(TICK_INTID).is_some() {
+/// Bind one tick route per group. `false` if any of the interrupt numbers is already spoken for,
+/// which is a refusal to start rather than a thing to work around.
+///
+/// Every number is checked **before** any of them is bound, so a refusal leaves the tree as it found
+/// it rather than half-routed.
+///
+/// **Called before the first waiter is spawned, and the order is a bug fix.** It was called after,
+/// so that ticks would not accumulate against waiters that did not exist yet, and that reasoning was
+/// right about the backlog and wrong about the race: a waiter that reached `Irq::WAIT` before its
+/// route existed got `WrongObject`, and a refused waiter has nowhere to report to, so it stopped
+/// counting and the run failed one beat later with four workers "wedged". Binding first closes the
+/// window entirely, because [`TICK_GROUPS`] is what actually starts the signalling and that is still
+/// stored last. The backlog this used to avoid is now bounded and harmless: each route is its own,
+/// its waiter drains it at once, and the first beat absorbs it.
+fn bind_tick_routes(endpoints: &[sched::RendezvousId]) -> bool {
+    if endpoints.is_empty() || endpoints.len() > MAX_GROUPS {
         return false;
     }
-    sched::bind_irq(TICK_INTID, ep);
-    // Release against [`signal_waiters`]'s acquire, which is the edge that matters: a core that
-    // reads a name out of this word must also see the `bind_irq` above, or a waiter could reach
-    // `Irq::WAIT` and find no route while ticks were already being signalled at the rendezvous.
-    TICK_ROUTE.store(ep + 1, Ordering::Release);
+    if (0..endpoints.len()).any(|g| sched::irq_route(tick_intid(g)).is_some()) {
+        return false;
+    }
+    for (g, &ep) in endpoints.iter().enumerate() {
+        sched::bind_irq(tick_intid(g), ep);
+        TICK_ROUTES[g].store(ep + 1, Ordering::Relaxed);
+    }
     true
+}
+
+/// Start the signalling: from here on, every tick on every core signals a route.
+///
+/// Release against [`signal_waiters`]'s acquire, and it is the edge that matters: a core that reads
+/// a nonzero group count must also see every route [`bind_tick_routes`] stored and every `bind_irq`
+/// behind them, or a tick could signal a slot that is still empty.
+fn arm_tick_hook(groups: usize) {
+    TICK_GROUPS.store(groups, Ordering::Release);
 }
 
 /// How many groups to build on a machine with `cores` cores.

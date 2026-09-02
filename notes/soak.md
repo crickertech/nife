@@ -78,34 +78,44 @@ benchmark**; `script/bench` is the instrument for cost.
 
 Same command, same host, one day later, and **these rows are not comparable with the rows above**
 for a reason larger than the date: the build changed. Each pair below was measured back to back, the
-"before" leg from the exact commit this work branched from, so the two halves of a row *are*
-comparable with each other.
+"before" leg from the exact commit this work branched from, on an otherwise idle machine, and read
+at the 25-second beat (20 seconds on x86, whose beat count is lower).
 
-| Architecture | Cores | Round trips/s before | after | Crossings in 25s before | after |
+| Architecture | Cores | Round trips before | after | Crossings before | after |
 |---|---|---|---|---|---|
-| aarch64 | 4 | 47,864 | 43,031 | 14, frozen from beat 1 | 2,252, rising linearly |
-| riscv64 | 4 | 26,469 | 27,933 | 20, frozen from beat 1 | 5,476, rising linearly |
-| x86_64 | 1 | not run | 2,508 | n/a | 0, and one core is the whole reason |
+| aarch64 | 4 | 1,623,764 and 1,630,605 | 1,632,746 and 1,632,803 | 15, frozen from beat 1 | 1,452 and 3,779, both rising linearly |
+| riscv64 | 4 | 871,047 and 886,428 | 662,787 and 823,783 | 10 and 14, frozen | 2,573 and 4,358, rising |
+| x86_64 | 1 | 77,372 | 51,749 | 0 | 0, and one core is the whole reason |
 
-The cumulative round-trip totals are the cleaner comparison, because the tick waiters complete none
-of them and the set of workers that does is identical in both legs: aarch64 did **1,153,348** round
-trips in 25 seconds before and **1,151,772** after, a difference of 0.14%.
+**Two runs of each leg on the multicore architectures, because one would have been misleading**, and
+the first pass of these measurements *was* misleading: it was taken while another lane's test suite
+was running on the same laptop, and the numbers it produced (aarch64 47,864 against 43,031 a second)
+were the host's load rather than this change. Everything above is from an idle machine.
 
-**The round-trip rate was expected to fall and did not measurably.** DECISIONS 138's spike saw about
-30% on aarch64 and about 55% on riscv64, and this implementation reproduced neither: aarch64's
-last-beat rate is 10% lower and riscv64's is 6% higher, both inside the run-to-run spread visible in
-these same logs (one aarch64 baseline beat read 39,211 against its own neighbours' 48,000). **The
-honest reading is that a 25-second pair on a laptop cannot resolve a few per cent**, so what this
-supports is "no large cost", not "no cost". The spike was thrown away and cannot be re-measured, so
-why it was slower is not recoverable; the difference in worker mix is the obvious candidate and is a
-guess. A board run is where a number worth quoting comes from.
+**What the numbers support:**
 
-**`wakes` and `crossings` are the two figures milestone 221 added, and the second is not a
-throughput number.** The tick route wakes at `TICK_HZ` times the core count, which is a property of
-the machine rather than of the workload, and the crossings are however many of those wakes
-`wake_load_aware` chose to place on another core. Roughly a quarter of them on aarch64 and rather
-more than half on riscv64, on these runs. That ratio is a fact about the placement policy under this
-load and nothing in this tree yet says what it should be.
+- **aarch64 pays nothing measurable.** 0.6% more round trips after than before, in the direction of
+  faster, which is noise. The tick waiters complete no round trips and the set of workers that does
+  is identical in both legs, so the totals are directly comparable.
+- **riscv64 pays about 7%** on the closest-matched pair (886,428 against 823,783) and more on the
+  looser one. It is the architecture where a migration costs the most under TCG, and it is the one
+  crossing most often, so a cost showing up here and not on aarch64 is consistent rather than
+  puzzling.
+- **x86_64 pays about a third, and that is arithmetic rather than a finding.** Its runner is
+  single-core, so the two extra waiter threads are two more shares of the one core in a round-robin
+  scheduler, and `crossings=0` is what one core means.
+
+**The round-trip rate fell far less than DECISIONS 138's spike saw**, which reported about 30% on
+aarch64 and about 55% on riscv64. That difference is recorded rather than explained away: the spike
+was thrown away and cannot be re-measured, so why it was slower is not recoverable, and the worker
+mix is the obvious candidate and is a guess.
+
+**`wakes` and `crossings` are the two figures milestone 221 added, and neither is a throughput
+number.** The tick route wakes at `TICK_HZ` times the core count, which is a property of the machine
+rather than of the workload, and the crossings are however many of those wakes `wake_load_aware`
+chose to place on another core. Somewhere between a seventh and a half of them, varying by run more
+than by architecture. That ratio is a fact about the placement policy under this load and nothing in
+this tree yet says what it should be.
 
 **Which build these came from, and it is not the one that ships.** Every figure above is from a
 `--features soak` kernel, which is the only build in which the counters and `Thread::last_cpu`
@@ -219,6 +229,9 @@ soak::signal_waiters -> sched::irq_notify -> Rendezvous::signal -> handshake.ser
                      -> sched::wake_load_aware -> pick_wake_target -> place_on -> the reschedule IPI
 ```
 
+Each group has its own route and each tick signals one of them, round-robin across the machine.
+Both halves of that are fixes rather than flourishes, and the section below says what they fix.
+
 That last chain is why this was worth building rather than the alternatives. `wake_load_aware` is
 where risk 5's one observed defect lived, on radon, and it had **exactly one caller**
 (`sched::irq_notify`) that no user workload could reach.
@@ -244,12 +257,39 @@ DECISIONS §28's own reopening trigger (*a real workload where fairness visibly 
 not fired. The kernel says this in words at the start of every run and `script/soak` says it again
 in its summary, because the flattering reading is available and a summary gets quoted.
 
-**The soak-only interrupt number.** The tick route is bound to intid 255, which names no hardware
-and none of the three architectures can deliver: on aarch64 and riscv64 a routed interrupt arrives
-only if something enabled it at the controller and nothing enables this one, and on x86_64 it is the
-local APIC's spurious vector, which the trap handler answers in its own arm before `irq_route` is
-ever asked. `soak::arm_tick_route` does not take that on trust; it asks `sched::irq_route` first and
-refuses to start a soak whose tick route would steal somebody else's interrupt.
+**The soak-only interrupt numbers.** Group `g`'s route is bound to intid `255 - g`, and none of
+those names hardware or can be delivered on any of the three architectures: on aarch64 and riscv64 a
+routed interrupt arrives only if something enabled it at the controller and nothing enables these,
+and on x86_64 the top of the band is the local APIC's spurious vector (answered in its own arm
+before `irq_route` is asked) with the rest at the far end of an MSI band allocated upward from 0xc0.
+**None of that is what makes it safe**: `soak::bind_tick_routes` asks `sched::irq_route` about every
+number before it takes any of them, and refuses to start a soak whose routes would steal somebody
+else's interrupt. A soak boot runs the whole tour first, so every device has already claimed what it
+is going to claim by the time that check runs.
+
+### Two bugs this mechanism had, both found by running it, both about ordering
+
+Worth writing down because neither was visible in review and both produced the same symptom, which
+is a soak reporting workers as wedged when the defect was in the instrument.
+
+**One rendezvous for every waiter starves all but one, on a loaded host.** The first version had a
+single tick route and four waiters blocked on it. `crates/ipc`'s `Rendezvous::recv` takes a
+**pending** signal before it looks at the receiver queue, which is right for a driver (an interrupt
+that already happened must not be missed), and wrong for four peers sharing a source: when ticks
+arrive in a burst, whichever waiter is already running drains the whole backlog through the pending
+path and never queues, while the others sit at the head of a queue nothing pops. Three of four
+stalled, and the run failed. The fix is a rendezvous per group, so a backlog can only ever belong to
+the waiter it accumulated for. The shared version passed several idle-machine runs first, which is
+the part worth remembering: the bug needed a busy host to appear at all.
+
+**Binding the routes after spawning the waiters is a race, and the reasoning that put it there was
+right about the wrong thing.** Arming last is correct for the *signalling*, because a route signalled
+before anyone waits on it hands the first waiter a backlog and makes the first beat measure setup.
+It is wrong for the *routing*: a waiter that reached `Irq::WAIT` before its route existed got
+`WrongObject`, and a waiter has no channel to report a refusal on, so it stopped counting and the
+run failed a beat later with four workers apparently wedged. aarch64 got away with it and riscv64 did
+not, which is the ordinary shape of this class. The two halves are now separate: routes are bound
+before the first waiter is spawned, and the signalling is switched on last.
 
 ### What it establishes about risk 5, and what it does not
 
@@ -425,6 +465,10 @@ The same procedure works on **argon** and **xenon**, with their own architecture
 - **`wakerate` is a property of the machine, not of the workload**, so it is not a throughput number
   and a run cannot be tuned to raise it. It is `TICK_HZ` times the online cores, and its use is as a
   liveness check on the timer and the wake path.
+- **The crossing count varies by more than a factor of two between otherwise identical runs**
+  (1,452 and 3,779 on the same aarch64 build, same command, same host). Whether a wake goes remote is
+  `wake_load_aware`'s call and it depends on where everything happened to be; nothing here is wrong,
+  and it means a single run's crossing count is not a figure to compare two builds on.
 - **A waiter whose `Irq::WAIT` is refused spins instead of saying so.** It has no channel to report
   on, so it stops counting and the stall check speaks for it one beat later; the report then says
   "stalled" where "refused" would be more use.
