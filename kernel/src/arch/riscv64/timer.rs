@@ -566,7 +566,12 @@ mod tests {
                 now.saturating_sub(next),
                 timer::interval(),
             );
-            return;
+            // The diagnostic above is the detail; this is the verdict, and it has to reach the
+            // final line. A test that measures nothing is not a pass (milestone 214,
+            // design/roadmap/214-print-and-return-skips.md).
+            crate::testing::skip!(
+                "no miss-free window in which to measure the re-arm law this run"
+            );
         };
 
         assert_eq!(

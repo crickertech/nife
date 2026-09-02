@@ -99,8 +99,7 @@ fn rm_r_takes_the_subtree_it_was_granted_and_a_narrower_grant_cannot_begin() {
         crate::testing::skip!(fs_service::NO_FS_SERVER);
     }
     let Some(refused) = run_rm(dir::REMOVE_TREE, tree::RM_DOOMED, 0) else {
-        crate::println!("    (no RedoxFS disk attached; skipping)");
-        return;
+        crate::testing::skip!("no RedoxFS disk attached");
     };
     assert_eq!(
         refused.status,
@@ -163,8 +162,7 @@ fn rm_f_ignores_a_name_that_is_not_there_and_success_says_nothing() {
         crate::testing::skip!(fs_service::NO_FS_SERVER);
     }
     let Some(loud) = run_rm(dir::REMOVE_TREE, tree::RM_MISSING, 0) else {
-        crate::println!("    (no RedoxFS disk attached; skipping)");
-        return;
+        crate::testing::skip!("no RedoxFS disk attached");
     };
     assert_eq!(loud.status, rr::status(2), "a missing name is ENOENT");
     assert!(loud.printed > 0, "and it says so");

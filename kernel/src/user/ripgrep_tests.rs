@@ -76,8 +76,7 @@ fn unmodified_ripgrep_runs_and_has_no_arguments_to_run_on() {
         program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),
         image,
     ) else {
-        crate::println!("    (no RedoxFS disk attached; skipping)");
-        return;
+        crate::testing::skip!("no RedoxFS disk attached");
     };
     super::std_tests::assert_fs_service_ready(rg.readiness);
 

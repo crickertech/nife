@@ -139,8 +139,7 @@ fn a_shell_navigates_its_own_subtree_and_clamps_at_its_root() {
         crate::testing::skip!(fs_service::NO_FS_SERVER);
     }
     let Some(v) = navigate(tree::SUB, 4) else {
-        crate::println!("    (no RedoxFS disk attached; skipping)");
-        return;
+        crate::testing::skip!("no RedoxFS disk attached");
     };
     assert_report(
         v,
@@ -174,8 +173,7 @@ fn two_shells_with_different_roots_cannot_name_each_others_files() {
         crate::testing::skip!(fs_service::NO_FS_SERVER);
     }
     let Some(a) = navigate(tree::SUB, 5) else {
-        crate::println!("    (no RedoxFS disk attached; skipping)");
-        return;
+        crate::testing::skip!("no RedoxFS disk attached");
     };
     let b = navigate(tree::OTHER, 6).expect("the service was wired for the first shell");
 

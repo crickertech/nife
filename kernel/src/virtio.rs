@@ -1423,7 +1423,7 @@ mod tests {
         let Some(d) = crate::pci::find_block_device() else {
             // No PCIe disk attached: nothing to confine, nothing to prove. (The test runners always
             // attach one, so this branch is for a bare boot, not the parity gate.)
-            return;
+            crate::testing::skip!("no PCIe disk on the bus, so there is nothing to confine");
         };
 
         // The IOMMU must be up. If it is not while a PCIe disk is present, every PCIe DMA is
