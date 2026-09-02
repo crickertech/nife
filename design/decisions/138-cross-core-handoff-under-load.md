@@ -85,10 +85,13 @@ the production binary is byte-identical.
 
 ## The prior art, read rather than recalled
 
-Every quote below was fetched and read on 2026-09-01, and every one was re-checked against the
-downloaded source before it went in this file. The seL4 manual quotes are from the PDF's extracted
-text (the ligature in "affinity" is why a naive grep misses them); the source quotes are from
-`raw.githubusercontent.com`.
+Every quote below was fetched and read, and every one was re-checked against the downloaded source
+before it went in this file: the seL4, Barrelfish, L4Re and QNX material on 2026-09-01, the Linux
+material on 2026-09-02. The seL4 manual quotes are from the PDF's extracted text (the ligature in
+"affinity" is why a naive grep misses them); the source quotes are from `raw.githubusercontent.com`.
+**Every Linux claim in this document names the version it was checked against**, because a function
+name in that tree is a fact with an expiry date and three of the ones in this argument expired in
+v6.10.
 
 ### seL4 does not migrate threads at all, and says why
 
@@ -166,6 +169,118 @@ second dispatcher there, and thread migration is a userspace protocol between th
 schedulers. There is no affinity call because there is nothing to set, and the right to run on a
 core is the right to create a dispatcher on it.
 
+### Linux balances continuously, at four moments, because nothing ever tells it anything
+
+**Version, because "Linux does X" without one rots.** Everything below is **Linux v6.12**
+(`Makefile`: `VERSION = 6`, `PATCHLEVEL = 12`), fetched from
+`raw.githubusercontent.com/torvalds/linux/v6.12` on 2026-09-02 and read. Three of the names a
+reader may have in their head were changed in **v6.10** and are wrong for any tree newer than that:
+`rebalance_domains` became `sched_balance_domains`, `newidle_balance` became
+`sched_balance_newidle`, and `scheduler_tick` became `sched_tick`. All three carry the old names in
+v6.9 and the new ones in v6.10, checked in both. The rot is not hypothetical either: the comment
+above `sched_balance_softirq` in v6.12 still says `scheduler_tick()`, two releases after that
+function was renamed.
+
+**EEVDF did not change this.** `Documentation/scheduler/sched-eevdf.rst`: *"The Linux kernel began
+transitioning to EEVDF in version 6.6 (as a new option in 2024), moving away from the earlier
+Completely Fair Scheduler (CFS)"*. Every function named below is still in `kernel/sched/fair.c` in
+v6.12 under `fair_sched_class`. That EEVDF replaced the *pick* rather than the *balancer* is an
+inference from the file rather than a quoted claim, and is marked as one.
+
+**1. Periodically, off the tick.** `sched_tick()` in `kernel/sched/core.c` ends, under
+`CONFIG_SMP`, with `rq->idle_balance = idle_cpu(cpu); sched_balance_trigger(rq);`, and
+`sched_balance_trigger` in `kernel/sched/fair.c` raises the softirq only when the deadline has
+arrived (`if (time_after_eq(jiffies, rq->next_balance)) raise_softirq(SCHED_SOFTIRQ);`).
+`Documentation/scheduler/sched-domains.rst` states the whole chain:
+
+> In kernel/sched/core.c, sched_balance_trigger() is run periodically on each CPU through
+> sched_tick(). It raises a softirq after the next regularly scheduled rebalancing event for the
+> current runqueue has arrived. The actual load balancing workhorse,
+> sched_balance_softirq()->sched_balance_domains(), is then run in softirq context (SCHED_SOFTIRQ).
+
+**2. When a CPU is about to go idle.** The comment on `sched_balance_newidle` in
+`kernel/sched/fair.c`: *"sched_balance_newidle is called by schedule() if this_cpu is about to
+become idle. Attempts to pull tasks from other CPUs."* Its two callers are `balance_fair` and the
+`idle:` arm of `pick_next_task_fair`, both in `kernel/sched/fair.c`.
+
+**3. On behalf of a tickless idle CPU, by a different CPU.** A CPU with its tick stopped cannot
+reach moment 1, so someone else reaches it for them. The comment on `sched_balance_softirq`:
+
+> This softirq handler is triggered via SCHED_SOFTIRQ from two places:
+>
+> - directly from the local scheduler_tick() for periodic load balancing
+>
+> - indirectly from a remote scheduler_tick() for NOHZ idle balancing through the SMP cross-call
+>   nohz_csd_func()
+
+and inside it, *"If this CPU has a pending NOHZ_BALANCE_KICK, then do the balancing on behalf of
+the other idle CPUs whose ticks are stopped."*
+
+**4. At wake-up, fork and exec.** `select_task_rq_fair`'s comment: *"Select target runqueue for the
+waking task in domains that have the relevant SD flag set. In practice, this is SD_BALANCE_WAKE,
+SD_BALANCE_FORK, or SD_BALANCE_EXEC. Balances load by selecting the idlest CPU in the idlest group,
+or under certain conditions an idle sibling CPU if the domain has SD_WAKE_AFFINE set."* The
+affine heuristic is deliberately cheap, and says so: *"The purpose of wake_affine() is to quickly
+determine on which CPU we can run soonest. For the purpose of speed we only consider the waking and
+previous CPU."*
+
+**And a push, for the thread a pull cannot reach.** A running task is not on a run queue to be
+stolen from, so `sched_balance_rq` asks `need_active_balance` and, if it says yes, queues work on
+the busiest CPU with `stop_one_cpu_nowait`: *"active_load_balance_cpu_stop is run by the CPU
+stopper. It pushes running tasks off the busiest CPU onto idle CPUs."* The stopper thread really is
+the migration thread of the folklore; `kernel/stop_machine.c` names it `"migration/%u"`.
+
+**All of it hangs off a per-CPU domain hierarchy, and every level carries its own constants.**
+`sched-domains.rst`: *"Balancing within a sched domain occurs between groups"*, and
+`sched_balance_domains` *"checks each scheduling domain to see if it is due to be balanced, and
+initiates a balancing operation if so"*, walking `for_each_domain(cpu, sd)` up the parent chain.
+The tuning surface is four fields per level in `include/linux/sched/topology.h`:
+
+```
+	unsigned long min_interval;	/* Minimum balance interval ms */
+	unsigned long max_interval;	/* Maximum balance interval ms */
+	unsigned int imbalance_pct;	/* No balance until over watermark */
+	unsigned int balance_interval;	/* initialise to 1. units in ms. */
+```
+
+**One correction to the shape of the hierarchy**, which a maintainer stated from memory as "SMT,
+then cache-sharing cores, then NUMA nodes". `kernel/sched/topology.c` names three default levels,
+not two, and NUMA is not one of them:
+
+> By default (default_topology[]) these include:
+>
+>  - Simultaneous multithreading (SMT)
+>  - Multi-Core Cache (MC)
+>  - Package (PKG)
+>
+> Where the last one more or less denotes everything up to a NUMA node.
+
+NUMA levels are built above `PKG` from the distance table, and an architecture may replace the
+array entirely with `set_sched_topology()`.
+
+**The maintainer's three-moment summary was substantively right**, and this is a re-cut rather
+than a correction: it folded the tickless case into the idle one, where the source puts it beside
+the periodic one, since a NOHZ kick makes a *busy* CPU run the balancer for idle neighbours.
+`sched_setaffinity` is not on this list because it is a request from userspace rather than a moment
+the kernel chooses.
+
+**What this is evidence of, and it is not that Linux is careless.** Linux has to guess continuously
+because almost nothing ever tells it anything. It schedules unknown binaries for users who never
+declare a placement. The interface that would let them exists (`sched_setaffinity`), but the kernel
+cannot assume it was called, so its working inputs are load, topology and history. Four sampling
+points plus a push is what it takes to keep an arbitrary workload spread without being told. That is a harder
+scheduling problem than nife has, and the machinery is proportionate to it rather than excessive.
+The contrast with seL4 and Barrelfish is about the **premise**, not about the quality of either
+answer: they assume the application knows where its threads belong and make that a right it holds,
+so there is nothing left for the kernel to infer. nife's §28 sits on the second premise, and
+milestone 219's frozen counter is what the second premise looks like from a bench.
+
+**And Linux itself treats "do not balance this" as a supported request rather than an escape
+hatch**, which is the half of the comparison that argues against reading its balancer as
+unconditional. `cpuset.cpus.partition` accepts `"isolated"`, documented in
+`Documentation/admin-guide/cgroup-v2.rst` as *"Partition root without load balancing"*, and cgroup
+v1's `cpuset.sched_load_balance` is the older spelling of the same control.
+
 ### QNX and Linux, for the authority question specifically
 
 **QNX** (`ThreadCtl`, https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/t/threadctl.html)
@@ -175,8 +290,9 @@ supported. The legal masks are further constrained to boot-defined clusters, whi
 expressed as static configuration.
 
 **Linux** is the one to argue against, and it is walking away from itself. `sched_setaffinity(2)`
-needs *"an effective user ID equal to the real user ID or effective user ID of the thread identified
-by `pid`, or it must possess the `CAP_SYS_NICE` capability"*: one coarse ambient bit that also gates
+(man-pages 6.9.1, fetched 2026-09-02) needs *"an effective user ID equal to the real user ID or
+effective user ID of the thread identified by `pid`, or it must possess the `CAP_SYS_NICE`
+capability in the user namespace of the thread `pid`"*: one coarse ambient bit that also gates
 `nice` and I/O priority, with **nothing bounding which CPUs may be requested**. The bounding lives in
 a different subsystem, and the manual page is candid that it does not fail loudly:
 *"These restrictions on the actual set of CPUs on which the thread will run are silently imposed by
@@ -191,6 +307,17 @@ capability system gets for free.
   refuse implicit migration on purpose, and seL4's stated reasons (user control of resources,
   real-time analysability) are reasons this project already holds. **That is a strong argument
   against option B** and it did not come from this tree.
+- **Linux is the instructive contrast rather than the cautionary tale, and reading it sharpened
+  what option B actually is.** nife is not innocent of load balancing: `pick_spawn_target` is the
+  fork-time placement Linux does in `select_task_rq_fair` under `SD_BALANCE_FORK`,
+  `try_initiate_steal` in `run_idle` is the going-idle pull Linux does in `sched_balance_newidle`,
+  and `wake_load_aware` off `irq_notify` is a narrow version of its wake-time placement. **Three of
+  Linux's four moments already have a counterpart here.** The one nife does not have is the
+  periodic one, and it is the only one of the four that fires whether or not anything happened.
+  That is exactly why the counter freezes: a saturated rendezvous workload starves the other three
+  of their triggers (nothing forks, no core goes idle, no device interrupt lands), and an
+  event-driven balancer with no events does nothing. **This is a point in option B's favour and it
+  is recorded as one**, below.
 - **If affinity is built, the shape has a clear winner in the family this project belongs to:** the
   core is a property of a capability, not an argument in a message. seL4 MCS and L4Re agree, from
   opposite directions (a singleton per core, a narrowable set), and seL4's own history is a
@@ -252,16 +379,29 @@ so: *"this is scheduler-internal policy. No ABI, no capability semantics, no bas
 **No capability microkernel read for this proposal rebalances threads at all.** seL4 does not, on the
 record and in the source, and its authors' stated reason is *"seL4's general philosophy of having all
 resource management under user control (and also helps reasoning about real-time properties)"*.
-Barrelfish does not, structurally. Linux does, and offers turning it off as a first-class control.
+Barrelfish does not, structurally. Linux does, and offers turning it off as a first-class control
+(`cpuset.cpus.partition` set to `"isolated"`, *"Partition root without load balancing"*).
 So the behaviour milestone 219 measured and read as a gap is **the design position of the kernel this
 project measures itself against**, and B would be the one option that moves nife away from it in
 order to run a test.
 
-**What it costs.** A timer-driven path in the hottest subsystem, and tuning constants (how often,
-how big an imbalance, what hysteresis) that are a permanent maintenance surface with nothing to
-measure them against. This tree has no workload whose fairness visibly fails, which is the trigger
-§28 named for reopening scheduling policy, so B would be adding policy to make a test possible and
-then living with it in every boot forever.
+**The point in its favour, which reading Linux produced and which nothing in this tree had said.**
+B is not "add balancing to a kernel that has none". nife already balances at three of the four
+moments Linux does; all three are event-driven, and B is the fourth, the one that fires on a clock
+whether or not anything happened. Stated that way it is a smaller change than it looked, and it is
+the *only* one of the four that a saturated workload cannot starve of its trigger. Anyone arguing
+for B later should start here rather than from the numbers.
+
+**What it costs.** A timer-driven path in the hottest subsystem, and tuning constants that are a
+permanent maintenance surface with nothing to measure them against. Linux is the measurement of that
+surface rather than an assertion about it: `include/linux/sched/topology.h` carries `min_interval`,
+`max_interval`, `balance_interval` and `imbalance_pct` **per domain level**, and
+`sched_balance_domains` walks the whole chain deciding at each level whether its interval has
+elapsed. That is the shape the constants take once the mechanism exists, and Linux is where they
+have a topology and thirty years of workloads to be tuned against. nife has neither. This tree also
+has no workload whose fairness visibly fails, which is the trigger §28 named for reopening
+scheduling policy, so B would be adding policy to make a test possible and then living with it in
+every boot forever.
 
 **What it buys the experiment.** Real migration of the workload's own threads, which is more than A
 or D give. But it moves threads for reasons the defect had nothing to do with, and it changes the
@@ -365,6 +505,15 @@ experiment possible, and §28 named the trigger for reopening scheduling policy 
 where fairness visibly fails*; there is no such workload. And the prior art says the thing it would
 add is the thing seL4 and Barrelfish deliberately do not have, for reasons this project shares. If one appears, B comes back on its own merits with something to
 tune against, which it does not have today.
+
+**The Linux reading weakened that refusal without overturning it, and the weakening is stated here
+rather than buried.** B is the fourth of four balancing moments, three of which nife already has, so
+"importing Linux's answer" overstates it; and it is the only moment a saturated workload cannot
+starve, which is a real argument that nothing in this tree had made. What survives is the second
+reason and not the first: the cost is not the mechanism, it is the tuning surface, and Linux is the
+evidence for how large that surface gets and for the fact that it is only tunable against workloads.
+The refusal now rests on §28's trigger alone. **A reader who thinks that trigger has been met should
+reopen B, and this paragraph is the invitation.**
 
 **C is declined in favour of D**, having established that its userspace half already exists and its
 kernel half does not need a syscall.
