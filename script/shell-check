@@ -3,7 +3,8 @@
 #
 #   script/shell-check                     both architectures
 #   script/shell-check --arch aarch64      one leg
-#   script/shell-check --graphical         both architectures, GPU and keyboard attached, no UART
+#   script/shell-check --graphical         both architectures, GPU and keyboard attached
+#   script/shell-check --graphical-serial  both architectures, GPU only, typing over the UART
 #
 # `--graphical` (milestone 177, option A) boots the same `--features shell` kernel with a virtio-gpu
 # and a virtio-keyboard instead of the plain UART pair, and verifies it by reading the screen back
@@ -12,6 +13,14 @@
 # prompt reached the screen and a real keystroke round-tripped through `keyboard_driver`'s direct `CALL` to
 # `line_editor`; it does not run the full console leg's script (echo, redirects, `wc <`, ...), which
 # is real, scoped-out follow-on work. See `shell_check_leg_graphical`'s own doc in `xtask/src/main.rs`.
+#
+# `--graphical-serial` (milestone 192, option A) is the same boot with the keyboard left off, so the
+# keystroke source is the guest's own UART. That is the configuration all three target boards have:
+# argon, radon and xenon each have a serial line and none has a virtio-input device, so this is the
+# closest QEMU can stand to what a real board will do. Both legs make the same two assertions and
+# neither can tell which program typed, which is the property milestone 192's option A is finished
+# by. It is NOT a substitute for a bench run: QEMU has neither board's framebuffer handoff
+# (milestone 157) nor its real UART timing.
 #
 # This is the gate for `user/src/system_initializer.rs`. Every other test that runs the shell has
 # the KERNEL play init, so a broken init fails nothing; the interactive boot is the only thing that
