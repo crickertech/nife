@@ -10,7 +10,7 @@
 #
 # WHAT IS NOT HERE YET: no NIC, no GPU, no RNG. NVMe is wired (below, decisions §86's x86_64/VT-d
 # data point), because the kernel-resident NVMe driver is arch-neutral and VT-d confinement landed
-# this session, and since milestone 215 (x86_64 PCI interrupt routing) so is one virtio-blk-pci
+# this session, and since milestone 215 (a PCI function's interrupt on x86_64) so is one virtio-blk-pci
 # disk, because a PCI function's interrupt can now reach a userspace driver here. The rest are
 # wired one at a time as the port reaches them, and adding a device to this file before the kernel
 # can drive it only produces a boot that looks richer than it is. See

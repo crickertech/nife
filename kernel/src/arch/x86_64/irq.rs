@@ -16,7 +16,9 @@
 //!
 //! Built: the local APIC (enable, EOI, the timer's LVT), masking the legacy 8259 PICs, the
 //! calibration counter `timer.rs` needs, **the IO APIC's redirection table**, so a real device
-//! line reaches the kernel on a vector this module chose, and **INIT-SIPI-SIPI** ([`send_init`],
+//! line reaches the kernel on a vector this module chose, **MSI vector allocation**
+//! ([`alloc_msi_vector`], milestone 215), which is how a PCI function's interrupt reaches a
+//! userspace driver here, and **INIT-SIPI-SIPI** ([`send_init`],
 //! [`send_startup`]), which is what starts a second logical CPU (milestone 161's SMP item; see
 //! `arch::x86_64::ap_boot`). The boot tour proves the interrupt-controller half: the local APIC's
 //! own timer, and the PIT arriving through the IO APIC.
@@ -57,7 +59,23 @@
 //!   device-typed by name; see `arch/x86_64/mmu.rs`.
 //! - **Nothing masks a routed line on the way out.** A GSI armed by [`enable`] stays armed until
 //!   something calls [`mask_gsi`]; there is no owner registry and no revocation, because there is
-//!   no device driver on this architecture to own one yet.
+//!   no driver on this architecture that owns an IO APIC line (a PCI function reaches its driver
+//!   by MSI-X instead, and an MSI has no line to mask).
+//! - **An MSI vector is never handed back.** [`alloc_msi_vector`] is a bump counter, so a device
+//!   brought up twice (which the test suite does) consumes two of the sixty-three in the band. It
+//!   has not run out, and a free list with no free path would be machinery nothing calls; the
+//!   number to watch is the count of `find_*_device` calls in one boot.
+//! - **Interrupt remapping is not implemented, and this code assumes it is off.** A VT-d unit with
+//!   remapping enabled reinterprets a write to `0xfee0_0000..0xfef0_0000` as an index into a
+//!   remapping table, and the message [`alloc_msi_vector`] builds is a *compatibility-format*
+//!   message that such a unit rejects. `scripts/qemu-runner-x86_64.sh` runs `-device intel-iommu`
+//!   without `intremap=on`, and firmware leaves it off by default, so this holds today on QEMU and
+//!   is the thing to check first if MSI stops arriving on a machine whose firmware turns it on.
+//!   The fix is a remapping table plus remappable-format messages, and it is a milestone rather
+//!   than a patch.
+//! - **Nothing distributes MSI vectors across cores.** Every message is addressed to the local
+//!   APIC id of whichever core ran [`alloc_msi_vector`], which is the boot core, exactly as
+//!   [`route_gsi`]'s destination is.
 
 use core::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 

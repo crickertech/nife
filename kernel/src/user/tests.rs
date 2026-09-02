@@ -2041,7 +2041,7 @@ fn the_kernel_refuses_an_indirect_descriptor_escape() {
 /// riscv twin proved the seam on the PLIC board; this proves the same subsystem, from the same
 /// portable crate and seam, on two more interrupt controllers.
 ///
-/// **It runs on x86_64 too since milestone 215** (x86_64 PCI interrupt routing), and there it is
+/// **It runs on `x86_64` too since milestone 215** (`x86_64` PCI interrupt routing), and there it is
 /// the whole of that milestone's claim rather than one more transport: the completion arrives as
 /// an **MSI-X** message the device writes straight to the local APIC, because a legacy INTx pin on
 /// `q35` goes through a PIRQ router only ACPI's `_PRT` describes. On aarch64 the same completion

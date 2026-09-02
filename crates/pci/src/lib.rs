@@ -410,7 +410,8 @@ pub const VIRTIO_MSIX_NO_VECTOR: u16 = 0xffff;
 ///
 /// It is in this crate rather than in an arch module because the pair is the PCI specification's,
 /// not any one architecture's: x86's local APIC takes a vector in `data` at an address encoding
-/// the destination CPU, and an arm GICv3 ITS takes an event id at the redistributor's `GITS_TRANSLATER`.
+/// the destination CPU, and an arm `GICv3` ITS takes an event id at a doorbell register in the
+/// interrupt translation service.
 /// The kernel's enumerator writes whatever pair the machine hands it and understands neither.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MsiTarget {

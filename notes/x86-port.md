@@ -230,8 +230,11 @@ is driving.
 no fixed table, including PCI interrupt routing (`_PRT`). AML needs an interpreter, which is a
 project rather than a parser. That is the reason `arch::mmu::PCI_IRQ_BASE` is zero and honest about
 it: a PCI function's legacy interrupt goes through a router the `_PRT` describes, and MSI bypasses
-the routing entirely by writing a vector straight to the local APIC. The MSI path is the one worth
-building here, precisely because it needs no AML.
+the routing entirely by writing a vector straight to the local APIC.
+
+**The MSI path is the one that got built** (milestone 215), and the sentence above predicted it
+before there was a device on the bus to need it. See "How a PCI function's interrupt reaches a
+driver" below.
 
 ## The discovery seam milestone 20 promised and did not build
 
@@ -940,16 +943,68 @@ Every item is a device or a toolchain, and none is `user_rt` any more.
   capability and every role that names it, and there is nothing better to put there until §121 is
   answered. Nothing reaches it: every fixture that would map it asks
   `user::machine_has_no_device_page_for_the_console()` first.
-- **No PCI bus is enumerated**, so no virtio function of any kind is found: no disk, NIC, GPU,
-  keyboard or RNG. ACPI's MCFG names the ECAM window and `arch::x86_64::irq` is handed it directly,
-  but `memory::pci_regions()` still answers `None` because nothing plumbs that into the discovery
-  seam's device windows. That is roadmap item 0, and it is the single change that would unlock the
-  most skips.
-- **No filesystem**, for the `aes` reason above, which is upstream of attaching a disk rather than
-  downstream of it.
+- **The PCI bus is enumerated, and one function is driven** (milestones 165 and 215). ACPI's MCFG
+  fills `memory::pci_regions()`, and a `virtio-blk-pci` disk is attached, confined behind VT-d, and
+  read and written by a driver at ring 3. What is still not attached is a NIC, a GPU, a keyboard,
+  an RNG, or a second disk: each is a line in `scripts/qemu-runner-x86_64.sh` and a wiring, not a
+  mechanism.
+- **No RedoxFS image is attached**, so the FS server (packed since milestone 164) has nothing to
+  open. The nifefs disk above is the only fixture on this bus.
 - **No `std`**: there is no `x86_64-unknown-nife` target spec and no farm (milestone 27).
 - **No second core** (item 5), and **no ASID tags**, because `CR4.PCIDE` is off (item 3, calef's
   call, and it wants a number rather than an argument).
+
+### How a PCI function's interrupt reaches a driver, and why it is not the legacy pin
+
+Milestone 215, and it is the piece that turned this port's PCI bus from a thing the kernel can
+enumerate into a thing a userspace driver can operate.
+
+**The failure it fixed was a wrong answer that looked like a right one.** `pci::intx_irq(base, dev,
+pin)` is `base + ((dev + pin - 1) % 4)`, and `arch::mmu::PCI_IRQ_BASE` was `0`, so the virtio-blk
+function at device 4 pin 1 resolved to intid `0`, and `irq::enable(0)` put that through
+`isa_routing` to the **PIT's** line. A confined block server was armed on the timer and waited
+forever. Nothing anywhere said so: the wiring succeeded, the driver blocked, and the suite wedged.
+
+**The two candidate answers, and why one lost.**
+
+*Legacy INTx.* On `q35` a function's pin goes through the ICH9 LPC bridge's PIRQ router to an IO
+APIC input, and what states the mapping is ACPI's `_PRT`, which is AML. Two versions were
+available: read `_PRT` (an AML interpreter, which is a project and one this tree should not grow
+for four numbers) or hardcode what QEMU does. The hardcode is the one that fails badly rather than
+loudly: it would pass every gate on this machine and be wrong on the OptiPlex, and milestone 87
+would discover it at a null modem, which is the most expensive place in this project to discover
+anything.
+
+*MSI-X.* The device is handed the address to write and the value to write there, so **there is no
+board-specific routing table to be wrong about**. It is more code than the hardcode and much less
+than the interpreter, every device this port would ever attach has it (virtio-pci, NVMe), and it is
+the direction real x86 systems went twenty years ago. It won on the OptiPlex risk, not on effort;
+it happens to also be less work than the honest version of the alternative.
+
+**The design that fell out, and it is the part worth stealing.** An x86 intid was already two
+things: a *vector* for a local APIC source (there is no controller input to name) and a *legacy IRQ
+number* for an IO APIC line. An MSI is a local APIC source in the only sense that matters, because
+the device writes the vector straight to the APIC. So **an MSI intid is its vector**, and three
+things collapse:
+
+- `irq::enable` has nothing to do for one, which is correct rather than a stub: the message is
+  edge-delivered and already over. A driver's `Irq::ACK` is correspondingly a no-op.
+- The trap handler can ask `sched::irq_route(vector)` directly. The vector-to-intid **inversion**
+  an IO APIC line would need (and which `exceptions.rs` still records as owed for one) never
+  arises, because there is no line in between to have named it.
+- Nothing above `arch/` changed shape. `kernel/src/pci.rs` asks `arch::irq::alloc_msi_vector`,
+  which answers `None` on both `virt` boards and leaves their INTx swizzle exactly as it was.
+
+**A refusal, not a fallback.** If a machine answers `Some` and the function has no MSI-X, bring-up
+fails and says so. Falling back to `intx_irq(0, ..)` there is the original bug, and it is the kind
+that reads as a graceful degradation.
+
+**What only real hardware can confirm.** Three things, all in `arch::x86_64::irq`'s BUGS section:
+that the OptiPlex's firmware leaves VT-d interrupt remapping off (a unit with it on rejects the
+compatibility-format message this builds); that a real device's MSI-X table is where its capability
+says it is once *firmware* rather than this kernel has placed the BARs; and that a machine with
+more than one local APIC still delivers to the boot core's id. None of the three is a QEMU
+question, and all three are cheap to check: see notes/x86-uefi-boot.md's bench procedure.
 
 ## The three things that genuinely do not fit
 

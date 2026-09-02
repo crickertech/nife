@@ -1273,9 +1273,9 @@ pub const VIRTIO_IRQ_BASE: u32 = 0;
 /// notes/x86-port.md, "What is deliberately not decoded"). Hardcoded to q35's conventional 32-bit
 /// PCI hole, confirmed disjoint from RAM, the ECAM window, the HPET and both APICs by reading
 /// QEMU's own `info mtree` on 2026-08-24 with `-m 256M` (nothing decodes
-/// `0xc000_0000..0xfec0_0000` until a BAR is placed there). **Not yet exercised by an actual BAR
-/// write**: no PCI function that needs one is on the bus without a change to
-/// `scripts/qemu-runner-x86_64.sh`, which attaches none by default.
+/// `0xc000_0000..0xfec0_0000` until a BAR is placed there). **Exercised since milestone 215**: the
+/// runner attaches a `virtio-blk-pci` function, whose BARs arrive unassigned and are placed here,
+/// and whose MSI-X table is read and written through one of them.
 #[cfg_attr(not(test), allow(dead_code))]
 pub const PCI_BAR_PHYS: u64 = 0xc000_0000;
 
@@ -1286,10 +1286,18 @@ pub const PCI_BAR_MAPPED: u64 = 0x20_0000;
 
 /// The first interrupt a PCI function raises.
 ///
-/// **Zero, and honestly so.** On the other two machines this is a fixed base the device tree states
-/// and legacy INTx lines land at base + pin. On q35 a PCI function's legacy interrupt goes through
-/// the PIRQ router to an IO APIC input the ACPI `_PRT` names, and MSI/MSI-X bypasses the routing
-/// entirely by writing a vector straight to the local APIC. Neither answer is a constant, and this
-/// port reads neither table; zero is the marker for that rather than a value to trust.
+/// **Zero, and nothing on this architecture reads it any more** (milestone 215, `x86_64` PCI
+/// interrupt routing). On the other two machines this is a fixed base the device tree states and
+/// legacy INTx lines land at base + pin. On q35 a PCI function's legacy interrupt goes through the
+/// PIRQ router to an IO APIC input the ACPI `_PRT` names, `_PRT` is AML, and this tree has no
+/// interpreter for it; zero was the marker for that rather than a value to trust.
+///
+/// What replaced it is not a better constant, it is **not a constant at all**: a function's
+/// interrupt is bound by `arch::x86_64::irq::alloc_msi_vector`, which reserves a vector and hands
+/// `kernel/src/pci.rs` the address and data to write into the function's own MSI-X table. The
+/// device is told where to deliver, so there is no board-specific routing to encode here. The
+/// constant survives because the arch contract's other two implementations are real and the
+/// portable code names it; `kernel/src/pci.rs` reaches it only on a machine whose
+/// `alloc_msi_vector` answers `None`, which this one never does.
 #[cfg_attr(not(test), allow(dead_code))]
 pub const PCI_IRQ_BASE: u32 = 0;

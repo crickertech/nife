@@ -5782,8 +5782,8 @@ fn test() -> bool {
         eprintln!();
         eprintln!("--- kernel tests, x86_64 (QEMU q35) ---");
         // The FS server for this target BEFORE the archive that packs it (milestone 164), the same
-        // order the aarch64 and riscv64 legs use. `mkdisk` since milestone 215 (x86_64 PCI
-        // interrupt routing), because this runner now attaches the sibling `-pci.img` as a
+        // order the aarch64 and riscv64 legs use. `mkdisk` since milestone 215 (a PCI function's
+        // interrupt on x86_64), because this runner now attaches the sibling `-pci.img` as a
         // virtio-blk-pci function; there is still no RedoxFS fixture beside it, so the FS tests
         // reach `start()` and take its "no RedoxFS disk attached" arm.
         //
