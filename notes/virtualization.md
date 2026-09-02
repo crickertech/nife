@@ -20,7 +20,12 @@ The runner swaps two things and nothing else:
   revision.
 
 Everything else is identical. QEMU still provides the `virt` machine, so the PL011, the GICv2, and
-virtio-mmio all keep working; only the CPU execution moves from software to hardware. Boot goes
+virtio-mmio all keep working; only the CPU execution moves from software to hardware.
+
+**That last sentence stopped being true on QEMU 11.1.1**, which refuses to pair HVF with a GICv2 at
+all (`HVF does not support GICv2 emulation`), so none of this runs on this machine today. Milestone
+222 made the refusal legible rather than fatal; see [hvf-leg.md](hvf-leg.md) for what a contributor
+now sees, and [interrupts.md](interrupts.md) for the GICv3 driver that would bring it back. Boot goes
 from about a second to instant, and **the whole stack runs**: both userspace drivers, the
 filesystem read, and the shell spawning processes, all on the M3.
 

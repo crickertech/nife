@@ -9,6 +9,36 @@ rather than four cores running at once. Apple's Hypervisor.framework runs the sa
 EL1 on the physical Apple Silicon core, four vCPUs on four host threads, and until the RISC-V board
 arrives it is the only real silicon this project can test on at all.
 
+## This leg does not run on QEMU 11.1.1, and the reason is the GIC
+
+Read this before the rest of the page, because everything below it describes runs from QEMU 11.0.2
+and they no longer happen on this machine.
+
+```
+qemu-system-aarch64: HVF does not support GICv2 emulation
+```
+
+That is QEMU refusing `virt,gic-version=2,accel=hvf`, reproduced on 2026-09-02 with **no nife
+kernel involved at all**. HVF wants a GICv3; `kernel/src/drivers/gic.rs` speaks GICv2 and only
+GICv2 (see the BUGS section of [interrupts.md](interrupts.md)), so there is no GIC version this
+QEMU and this kernel both accept, and the leg has no machine to run on.
+
+**What happens now** (milestone 222):
+
+- `script/gates` **skips the leg and says so**, in the same line it already used for a host with no
+  Hypervisor.framework, naming QEMU's own refusal. Its closing line says the run was TCG only.
+- `script/test --hvf` **still fails**, because you asked for it by name, but it fails with a
+  paragraph saying the breakage is not yours and pointing here.
+- `cargo xtask test --hvf` asks the same question **before** it constructs the scanout referee and
+  the two network probers, which otherwise each report their own failure about a QEMU that never
+  started, burying the real reason under three that are not.
+- All of these answers come from one probe in `scripts/qemu-runner-aarch64.sh`, which starts that script's
+  own machine string paused and quits it. Nothing tests a QEMU version number, so the day QEMU or
+  this kernel changes, the answer changes with it and nobody has to remember to update a check.
+
+**What it would take to get the leg back**: a GICv3 driver, which is a milestone rather than a flag.
+See [interrupts.md](interrupts.md) for the measurement and what it found.
+
 ## How to run it
 
 ```sh
@@ -201,6 +231,11 @@ silence for a clean bill.
 
 ## BUGS
 
+- **The leg does not run at all on QEMU 11.1.1**, for the GIC reason at the top of this page, and
+  everything measured below was measured on 11.0.2. Until a GICv3 driver exists there is **no
+  accelerated coverage on this machine**: every gate a contributor can run is TCG. `script/gates`
+  says so out loud rather than passing quietly, which is milestone 222's whole content, but a loud
+  skip is a record of a gap and not a substitute for one.
 - **A failing run leaves an exception storm behind it.** The kernel has no way to know its
   semihosting exit will not be answered, so any failure under HVF ends in an unbounded panic loop
   on four cores. The host stops reading and kills the child, so the cost is bounded in practice,
@@ -225,6 +260,7 @@ silence for a clean bill.
 ## See also
 
 - design/roadmap/81-hvf-leg.md (the block)
+- design/roadmap/222-hvf-leg-fails-silently.md (milestone 222, why the leg skips rather than fails)
 - notes/scripts.md (`script/gates` and `script/test`, and where the leg sits in them)
 - notes/load-sensitive-assertions.md (milestone 78: the family both failures belong to)
 - notes/benchmarks.md (`--real`, the other HVF caller, and the exit trick this leg reuses)

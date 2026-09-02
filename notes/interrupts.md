@@ -491,9 +491,62 @@ reordering**, so no `-cpu` value tests it. That class is covered by a different 
 `ci.yml` says so: CI runs on a real aarch64 runner, because a missing barrier passes on an x86_64
 host and fails only on real ARM. Real silicon is the test; an emulator cannot be.
 
-### The measurement nobody has taken
+### The measurement, taken 2026-09-02, and it is worse than an error message
 
-`-machine virt,gic-version=3` has never been booted here. It is one command, and it would turn "our
-driver does not support it" from an assumption into a recorded failure with an error message
-attached. Worth doing on the day an aarch64 board is actually chosen, and not before: there is none
-arriving, the VisionFive 2 is RISC-V, and the Raspberry Pi port is a stated future with no date.
+This section used to say `-machine virt,gic-version=3` had never been booted here, that it was one
+command, and that it would turn "our driver does not support it" from an assumption into a recorded
+failure with an error message attached. Milestone 222 ran the command. There is no error message.
+
+```
+  timer       : 100 Hz tick, counter at 62 MHz, interrupts ON
+  scheduler   : 5 thread(s), round robin, preemptive
+  ...
+    thread 1 (hostile) :          0 iterations
+    thread 2 (polite)  :          0 iterations
+    preemptions        :          0
+```
+
+Under `-machine virt,gic-version=3,iommu=smmuv3 -cpu cortex-a72 -smp 4` the kernel **boots all the
+way through the tour**, brings four cores online over PSCI, prints that the timer's interrupts are
+on, and then never receives one. Nothing faults and nothing says anything is wrong.
+
+The reason is that a GICv3 device tree node carries two register blocks like a GICv2 one does, so
+`memory::gic_regions()` finds a pair and hands them over without complaint. The second block is the
+**redistributor** rather than a CPU interface, and `gic::init_this_cpu` writes `GICC_CTLR` and
+`GICC_PMR` into it. Those are device-memory writes to registers that are not there: they land, they
+do nothing, and the real CPU interface (`ICC_*`, system registers) is never enabled. Every interrupt
+the distributor routes is then delivered to a core that has not agreed to receive any.
+
+**So the honest statement of the limitation is not "GICv3 is unsupported", it is "GICv3 boots and
+silently loses every interrupt".** That is the more dangerous shape, and it is why the QEMU runner's
+`gic-version=2` pin is load-bearing rather than tidy: without it, a QEMU that changed its default
+would produce a kernel that came up and then quietly stopped preempting anything.
+
+### What a GICv3 driver would actually be
+
+Measured from the failure above rather than estimated from the specification, and recorded here
+because milestone 222 declined to build it under its own number and proposed it instead:
+
+- **A version decision at init.** `memory::gic_regions()` returns two blocks whichever version is
+  present, so nothing today reads the `compatible` string. Discovery has to come first, or the wrong
+  driver is chosen silently, which is exactly the failure above.
+- **A redistributor per core.** `GICR_WAKER` (clear `ProcessorSleep`, wait for `ChildrenAsleep`),
+  then the SGI/PPI frame at a fixed offset for `IGROUPR0`, `ISENABLER0` and `IPRIORITYR`. GICv2 had
+  all of this in one banked page; GICv3 gives every core its own frame at its own address.
+- **A system-register CPU interface.** `ICC_SRE_EL1`, `ICC_PMR_EL1`, `ICC_IGRPEN1_EL1`,
+  `ICC_IAR1_EL1`, `ICC_EOIR1_EL1`, `ICC_SGI1R_EL1`. This is the part that is a different driver
+  rather than a different base address, and it puts `msr`/`mrs` in the path, so it belongs under
+  `arch/aarch64/` by rule 1 rather than in `drivers/` where the MMIO GICv2 lives.
+- **Affinity routing.** `GICD_CTLR.ARE_NS`, and SPI targets move from `GICD_ITARGETSR` (an
+  eight-bit CPU-interface mask, and therefore eight cores) to `GICD_IROUTER` (an affinity value).
+  `send_sgi` stops being an MMIO write and becomes an `ICC_SGI1R_EL1` write with an affinity-encoded
+  target list.
+- **Both drivers live at once**, since GICv2 is what the runner, the CI matrix and every recorded
+  measurement use, and argon's generation is GICv2. Roughly ten call sites across `arch/aarch64/`,
+  `sched.rs` and `user/tests.rs` reach `drivers::gic::` directly and would need to reach a chosen
+  implementation instead.
+
+That is a driver with its own tests and its own dispatch, not a runner flag, which is why milestone
+222 took the loud skip and left this to be minted deliberately. The immediate payoff is real: it is
+what would put the HVF leg back, since HVF refuses GICv2 outright on QEMU 11.1.1 (see
+[hvf-leg.md](hvf-leg.md)).
