@@ -90,8 +90,12 @@ fi
 # nothing executes, and `quit` on the monitor's stdin exits immediately, which matters because a
 # nife kernel that reaches `halt()` never exits and neither would QEMU. Machine init still happens,
 # which is where a refusal comes from, so the answer is QEMU's own rather than a version test we
-# would have to keep current. It costs about fifty milliseconds. QEMU's words go to stdout on
-# failure, because a refusal we paraphrased would go stale the first time QEMU reworded it.
+# would have to keep current. It costs about fifty milliseconds.
+#
+# QEMU's words go to STDOUT on failure and the explanation goes to STDERR, and the split is what
+# lets one probe serve two readers. `script/gates` captures stdout for its one-line skip message and
+# discards stderr; a person, and `cargo xtask test --hvf`, get the paragraph. A refusal we
+# paraphrased would go stale the first time QEMU reworded it, so the one-line half is never ours.
 probe_machine() {
     set +e
     probe_err="$(echo quit | qemu-system-aarch64 -machine "$MACHINE" -cpu "$CPU" -m 32M \
@@ -104,23 +108,33 @@ probe_machine() {
     return "$probe_status"
 }
 
+explain_probe_failure() {
+    echo "qemu-runner-aarch64: QEMU refused $MACHINE (its own message is above)." >&2
+    echo "qemu-runner-aarch64: THIS IS NOT YOUR CHANGE. HVF and the GIC version this kernel drives" >&2
+    echo "  are not compatible in this QEMU: kernel/src/drivers/gic.rs speaks GICv2 only, HVF wants" >&2
+    echo "  GICv3. See the BUGS section of notes/interrupts.md, which carries the measurement and" >&2
+    echo "  what a GICv3 driver would be. script/gates skips this leg out loud rather than failing;" >&2
+    echo "  run it if you want the rest of the suite." >&2
+}
+
 # NIFE_PROBE asks the question and answers nothing else: exit 0 if this machine starts, non-zero
-# with QEMU's reason on stdout if it does not. `script/gates` uses it to decide whether to run the
-# HVF leg or to skip it out loud, which is the whole of milestone 222.
+# otherwise. `script/gates` uses it to decide whether to run the HVF leg or to skip it out loud, and
+# `xtask`'s `--hvf` leg uses it to fail before it stands up a scanout referee and two network
+# probers, each of which would otherwise report its own failure about a QEMU that never started.
+# That cascade is the ambiguity milestone 222 exists to remove, one level up.
 if [ -n "$NIFE_PROBE" ]; then
-    probe_machine
-    exit $?
+    if probe_machine; then
+        exit 0
+    fi
+    explain_probe_failure
+    exit 1
 fi
 
 # And the same question asked on the way in, so that a person who typed `script/test --hvf` is told
 # what is wrong rather than left to read a bare QEMU line. Before milestone 222 that line was all
 # they got, and it does not say whether the breakage is theirs.
 if [ "$NIFE_ACCEL" = "hvf" ] && ! probe_machine >&2; then
-    echo "qemu-runner-aarch64: QEMU refused $MACHINE (its own message is above)." >&2
-    echo "qemu-runner-aarch64: THIS IS NOT YOUR CHANGE. HVF and the GIC version this kernel drives" >&2
-    echo "  are not compatible in this QEMU: kernel/src/drivers/gic.rs speaks GICv2 only, HVF wants" >&2
-    echo "  GICv3. See the BUGS section of notes/interrupts.md. script/gates skips this leg out loud" >&2
-    echo "  rather than failing; run it if you want the rest of the suite." >&2
+    explain_probe_failure
     exit 1
 fi
 

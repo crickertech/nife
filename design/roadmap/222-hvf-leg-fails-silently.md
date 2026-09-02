@@ -76,6 +76,15 @@ fails**, because that is a thing a person typed by name and a skip would be answ
 question than the one asked, but it fails with the refusal, the sentence `THIS IS NOT YOUR CHANGE`,
 and a pointer to `notes/interrupts.md`.
 
+**And `xtask` asks the probe before it stands anything up**, which turned out to matter more than it
+sounds. The HVF leg constructs a scanout referee and two network probers before the child, because
+each sets an environment variable the runner reads. Against a QEMU that never started, all three
+then reported their own failures: *"QEMU's scanout never held the composed screen"*, *"could not
+connect to 127.0.0.1:52846"*, *"is the runner's NIFE_MCAST_PORT block attaching the injection
+hub?"*. Four confident messages about monitors and forwarded ports, not one of them the reason, on
+top of the correct one. That is the same defect this milestone is about, one level up, and it was
+only visible by running the thing.
+
 ## BUGS
 
 - **This machine now has no accelerated coverage at all.** Every gate a contributor can run is TCG,

@@ -5904,6 +5904,32 @@ fn hvf_kernel_leg() -> bool {
     eprintln!();
     eprintln!("--- kernel tests, aarch64, ON THE PHYSICAL CORE (QEMU + Hypervisor.framework) ---");
 
+    // Ask whether QEMU will start this machine at all, BEFORE standing up the referee and the two
+    // probers (milestone 222). If it will not, each of those reports its own failure about a QEMU
+    // that never existed, and the transcript then carries four confident-sounding messages about
+    // monitors and forwarded ports, none of which is the reason. The runner owns the question and
+    // the words; this only decides when to ask. See scripts/qemu-runner-aarch64.sh.
+    let probe = Command::new(RUNNER)
+        .env("NIFE_PROBE", "1")
+        .env("NIFE_ACCEL", "hvf")
+        .output();
+    match probe {
+        Ok(out) if !out.status.success() => {
+            eprint!("{}", String::from_utf8_lossy(&out.stdout));
+            eprint!("{}", String::from_utf8_lossy(&out.stderr));
+            eprintln!(
+                "test --hvf: nothing ran. `script/gates` skips this leg and says so; only an \
+                 explicit --hvf fails."
+            );
+            return false;
+        }
+        Ok(_) => {}
+        Err(e) => {
+            eprintln!("test --hvf: failed to start {RUNNER} for the machine probe: {e}");
+            return false;
+        }
+    }
+
     // Constructed before the child, because it is what sets `NIFE_GPU_MON`: the runner reads
     // that when it builds the QEMU command line, so a referee born later would find no monitor.
     let referee = ScanoutReferee::new("aarch64");

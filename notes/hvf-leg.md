@@ -29,7 +29,10 @@ QEMU and this kernel both accept, and the leg has no machine to run on.
   Hypervisor.framework, naming QEMU's own refusal. Its closing line says the run was TCG only.
 - `script/test --hvf` **still fails**, because you asked for it by name, but it fails with a
   paragraph saying the breakage is not yours and pointing here.
-- Both answers come from one probe in `scripts/qemu-runner-aarch64.sh`, which starts that script's
+- `cargo xtask test --hvf` asks the same question **before** it constructs the scanout referee and
+  the two network probers, which otherwise each report their own failure about a QEMU that never
+  started, burying the real reason under three that are not.
+- All of these answers come from one probe in `scripts/qemu-runner-aarch64.sh`, which starts that script's
   own machine string paused and quits it. Nothing tests a QEMU version number, so the day QEMU or
   this kernel changes, the answer changes with it and nobody has to remember to update a check.
 
