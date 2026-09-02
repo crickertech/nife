@@ -1,11 +1,26 @@
 # 196. A physical address on `elf::Segment`, or a second ELF reader forever
 
-**Status: PARTIAL.** The field shipped (`milestone/196-elf-paddr`, 2026-08-31). **The second reader
-did not go**, for a reason nobody predicted; see BUGS. Minted 2026-08-30 from milestone 87's (the x86_64 bare-metal machine) lane.
+**Status: BUILT 2026-09-02.** The field shipped (`milestone/196-elf-paddr`, 2026-08-31). **The
+second reader did not go then**, for a reason nobody predicted, and milestone 208 (the x86_64 kernel
+image ships an RWX segment, and it is the reason a second ELF reader exists) is what removed it: the
+image was refused by `Elf::parse` as writable-and-executable, so the loader could not use the shared
+parser however many fields it had. With the linker script split, `uefi_loader` now calls
+`elf::Elf::parse` and its own reader is gone, proved by booting under OVMF rather than by reading.
+
+What survives in `uefi_loader/src/image.rs` is not a reader: it is `physical_span` over
+`elf::Segment::paddr` plus this loader's own wording for every `elf::Error`, in an exhaustive match
+so growing the enum breaks the build. `Elf::parse` deliberately does not provide `physical_span`,
+because a program loader maps at `p_vaddr` and a firmware loader places at `p_paddr`, and on this
+image they are unrelated.
+
+**The original PARTIAL text and its reason are below**, unchanged, because the reason nobody
+predicted is the useful half of this block. Minted 2026-08-30 from milestone 87's (the x86_64 bare-metal machine) lane.
 *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION.** `crates/elf` is a shared definition, which AGENTS.md rule 7 makes global to the
-tree and therefore calef's, not a lane's.
+**The gate is discharged**, and is recorded here rather than deleted. It read
+`Gate: DECISION`, because `crates/elf` is a shared definition, which AGENTS.md rule 7 makes global
+to the tree and therefore calef's rather than a lane's. It was answered when the `paddr` field
+shipped on 2026-08-31.
 
 **In brief.** The UEFI loader carries its own forty-line ELF reader for one reason: `crates/elf`'s
 `Segment` exposes no `p_paddr`, and in this kernel `p_vaddr` and `p_paddr` are genuinely unrelated
