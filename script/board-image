@@ -2,23 +2,39 @@
 # script/board-image: build the VisionFive 2 microSD boot payload (milestone 16a).
 #
 #   script/board-image
-#   script/board-image --soak      # the sustained multicore workload instead of a halt (219)
+#   script/board-image --soak                 # the sustained multicore workload instead of a halt (219)
+#   script/board-image --card /Volumes/NIFE   # and copy the matched set onto an already-formatted card
 #
 # Builds the riscv64 release kernel, strips it to the flat Image format U-Boot's `booti` loads
 # (the RISC-V Linux Image header sits at offset 0; boot.s emits it), verifies the header magic,
-# writes an extlinux.conf beside it under target/board/, and PRINTS the commands that put both on
-# a card. It runs nothing destructive itself: `dd` to a device is a decision the person at the
-# bench makes, with the device name in front of them. See notes/visionfive2.md for the boot path,
-# the DTB caveat, and the bench runbook.
+# packs the userspace archive the kernel measures, writes the U-Boot boot script beside them under
+# target/board/, and either copies all three onto a card you name or prints the commands that do.
+# See notes/visionfive2.md for the boot path, the DTB caveat, and the bench runbook.
+#
+# **What it will and will not do to a disk** (milestone 217 answered this deliberately). Formatting
+# is still yours: `dd` and `diskutil eraseDisk` name a whole device, they destroy everything on it,
+# and the person at the bench is the one looking at the device name. Copying three files onto a
+# filesystem you have already mounted and named is not that, and treating the two the same had a
+# cost: the printed steps used to copy the kernel without the archive and call the archive
+# optional, which is how a card ends up carrying a pair from two different builds and the board
+# halts with MEASURED BOOT REFUSED. So `--card` copies the set, as a set, and the mismatch stops
+# being something a reader can express.
+#
+# The one thing it deletes, and only this: a `/extlinux/extlinux.conf` on the card that we wrote.
+# An extlinux config on this board does not fail, it **hangs** U-Boot before our kernel runs (see
+# milestone 218), so leaving a stale one beside a working boot script would quietly undo the fix.
+# It is matched by its content before removal, so somebody else's extlinux config is left alone.
 #
 # Name: unrecorded. Provisional, this lane's coinage (2026-08-14, milestone 16a): it builds the
 # payload image a board loads, named for the artifact. Expect the integrator to surface it.
 #
-# Exception, on the record: this entry point does not delegate to `cargo xtask` the way its
-# siblings do. It is a build-and-print step with no QEMU, no test harness, and no shared engine
-# code to reuse; a `sh` script that calls cargo and llvm-objcopy directly was judged cheaper than
-# an xtask subcommand. If it ever grows logic (partitioning, image assembly), move it into xtask
-# and make this the usual thin wrapper.
+# Exception, on the record: this entry point only partly delegates to `cargo xtask`. It is a
+# build-and-copy step with no QEMU, no test harness, and no shared engine code to reuse; a `sh`
+# script that calls cargo and llvm-objcopy directly was judged cheaper than an xtask subcommand.
+# The line has since moved once, in the direction the original note predicted: the boot script's
+# legacy U-Boot header is two CRCs over a 64-byte layout, which is logic with a right answer and a
+# wrong one, so it lives in `cargo xtask board-script` where it has tests, and this script calls
+# it. Anything else that grows a right answer belongs there for the same reason.
 
 set -eu
 cd "$(dirname "$0")/.."
@@ -30,11 +46,29 @@ cd "$(dirname "$0")/.."
 # that built the soak kernel separately would rebuild it against the previous archive and meet
 # MEASURED BOOT REFUSED at the bench, which is boot 12 all over again. See notes/soak.md.
 FEATURES=board
-case "${1:-}" in
-    --soak) FEATURES="board,soak"; shift ;;
-    "") ;;
-    *) echo "board-image: unknown argument $1 (only --soak)" >&2; exit 2 ;;
-esac
+CARD=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --soak) FEATURES="board,soak"; shift ;;
+        --card)
+            [ $# -ge 2 ] || { echo "board-image: --card needs a path" >&2; exit 2; }
+            CARD="$2"; shift 2 ;;
+        *) echo "board-image: unknown argument $1 (--soak, --card <dir>)" >&2; exit 2 ;;
+    esac
+done
+
+# Checked before the build rather than after it, so a typo costs a message instead of four minutes
+# of cargo. The refusals are narrow on purpose: this writes into a directory somebody named, and
+# the only paths it declines are the ones where "somebody named it" is not plausible.
+if [ -n "$CARD" ]; then
+    if [ ! -d "$CARD" ]; then
+        echo "board-image: --card $CARD is not a directory (mount the card first)" >&2
+        exit 1
+    fi
+    case "$CARD" in
+        /) echo "board-image: refusing to write the payload to /" >&2; exit 1 ;;
+    esac
+fi
 
 TARGET=riscv64imac-unknown-none-elf
 ELF="target/$TARGET/release/kernel"
@@ -48,7 +82,7 @@ IMG="$OUT/nife-vf2.img"
 # gate working, aimed at our own build script. QEMU never hit it because xtask orders these
 # correctly; this script did not.
 cargo xtask initrd-riscv
-mkdir -p "$OUT/extlinux"
+mkdir -p "$OUT"
 cp target/initrd-riscv.img "$OUT/nife-initrd.img"
 
 cargo build -p kernel --release --target "$TARGET" --features "$FEATURES"
@@ -65,7 +99,6 @@ if [ ! -x "$OBJCOPY" ]; then
     exit 1
 fi
 
-mkdir -p "$OUT/extlinux"
 "$OBJCOPY" -O binary "$ELF" "$IMG"
 
 # The one field U-Boot checks before agreeing to boot this file: the u32 magic 0x05435352
@@ -77,56 +110,83 @@ if [ "$MAGIC" != "05435352" ]; then
     exit 1
 fi
 
-# The extlinux U-Boot's distro boot finds by scanning FAT/ext partitions for
-# /extlinux/extlinux.conf. No `fdt` line: U-Boot then falls back to its own control DTB
-# ($fdtcontroladdr), which describes the board. CAVEAT, from notes/visionfive2.md: that address
-# sits outside the kernel's boot page table, so until the gigapage-1 fix lands, first boots should
-# use the manual commands printed below, which move the DTB somewhere the kernel can read.
-cat > "$OUT/extlinux/extlinux.conf" <<'EOF'
-default nife
-timeout 3
-
-label nife
-    kernel /nife-vf2.img
-EOF
+# The card used to carry an `extlinux.conf`, and it could never have worked (milestone 218). With
+# no `fdt` line in the label U-Boot hands `bootm` no device tree at all, and RISC-V refuses rather
+# than guessing: `Device tree not found or missing FDT support`, then `### ERROR ### Please RESET
+# the board ###`, which is a hang, before a single instruction of ours runs. What goes on the card
+# instead is a U-Boot script carrying the exact commands the 2026-09-01 bench boot proves, so the
+# boot sequence is unchanged and only the typing is gone. See notes/visionfive2.md.
+cargo xtask board-script
 
 SIZE="$(wc -c < "$IMG" | tr -d ' ')"
+ARCHIVE_SIZE="$(wc -c < "$OUT/nife-initrd.img" | tr -d ' ')"
 echo
 echo "built:"
 echo "  $IMG  ($SIZE bytes, Image header verified)"
-echo "  $OUT/extlinux/extlinux.conf"
-echo "  $OUT/nife-initrd.img  (the userspace archive; optional third file on the card)"
+echo "  $OUT/nife-initrd.img  ($ARCHIVE_SIZE bytes, the userspace archive this kernel measures)"
 echo
+echo "The kernel and the archive are ONE pair. The kernel compiles in a hash of the archive it was"
+echo "built against and halts rather than hand init an archive that does not match, so a card that"
+echo "carries a new kernel over an old archive stops at MEASURED BOOT REFUSED. Copy all three files"
+echo "or none, which is what --card is for."
+echo
+# The copy, when a card was named. It happens here, after every build step has succeeded, so a
+# failed build cannot leave a card holding half a pair.
+if [ -n "$CARD" ]; then
+    # A stale nife extlinux config hangs this board (milestone 218). Matched by content first: an
+    # extlinux.conf that is not one of ours belongs to whoever put it there.
+    STALE="$CARD/extlinux/extlinux.conf"
+    if [ -f "$STALE" ] && grep -q '^label nife$' "$STALE"; then
+        rm "$STALE"
+        rmdir "$CARD/extlinux" 2>/dev/null || true
+        echo "removed $STALE"
+        echo "  a nife extlinux config on this board hangs U-Boot before the kernel runs (218)."
+    fi
+
+    cp "$IMG" "$CARD/nife-vf2.img"
+    cp "$OUT/nife-initrd.img" "$CARD/nife-initrd.img"
+    cp "$OUT/boot.scr.uimg" "$CARD/boot.scr.uimg"
+    sync
+
+    echo "copied onto $CARD, as one set:"
+    echo "  nife-vf2.img, nife-initrd.img, boot.scr.uimg"
+    echo
+    echo "Eject before pulling the card, then power the board; it needs nothing typed at it:"
+    echo "  diskutil eject \"$CARD\"    # macOS; umount elsewhere"
+    echo "  script/board-console --until banner --for 120s --log target/board/boot.log"
+    echo
+    exit 0
+fi
+
 cat <<'EOF'
-To prepare a microSD card (macOS; nothing below has been run for you):
+To prepare a microSD card (macOS). Steps 1 and 2 are yours: they name a whole device and destroy
+everything on it. Step 3 is this script's, so the kernel and the archive cannot be copied apart.
 
   1. Find the card, and be certain of the name; dd to the wrong disk destroys it:
        diskutil list
   2. One FAT32 partition is all U-Boot needs (this erases the card):
        diskutil eraseDisk FAT32 NIFE MBR /dev/diskN
-  3. Copy the payload:
-       cp target/board/nife-vf2.img /Volumes/NIFE/
-       mkdir -p /Volumes/NIFE/extlinux
-       cp target/board/extlinux/extlinux.conf /Volumes/NIFE/extlinux/
+  3. Copy the matched set, and eject:
+       script/board-image --card /Volumes/NIFE
        diskutil eject /dev/diskN
 
-First boots: interrupt U-Boot's countdown and drive it by hand, so the DTB lands inside the
-kernel's boot map (see notes/visionfive2.md, "The microSD payload"):
+Then power the board with a terminal already attached. Nothing has to be typed at U-Boot: the
+boot script on the card runs the sequence below by itself.
 
-  StarFive # load mmc 1:1 ${kernel_addr_r} /nife-vf2.img
-  StarFive # fdt addr ${fdtcontroladdr}
-  StarFive # fdt move ${fdtcontroladdr} 0x86000000
-  StarFive # booti ${kernel_addr_r} - 0x86000000
+  script/board-console --until banner --for 120s --log target/board/boot.log
 
-With the userspace archive (the kernel's boot tour then runs user programs, the console server
-included; U-Boot writes /chosen/linux,initrd-* exactly as QEMU's -initrd does). 0x90000000 is
-clear of the kernel (ends ~0x8029_0000) and the moved DTB (0x8600_0000):
+If the board reaches the `StarFive #` prompt instead, the script did not run, and the same
+commands typed by hand are still the fallback (this is what boot.scr.uimg contains):
 
   StarFive # load mmc 1:1 ${kernel_addr_r} /nife-vf2.img
   StarFive # load mmc 1:1 0x90000000 /nife-initrd.img
+  StarFive # setenv nife_archive_size ${filesize}
   StarFive # fdt addr ${fdtcontroladdr}
   StarFive # fdt move ${fdtcontroladdr} 0x86000000
-  StarFive # booti ${kernel_addr_r} 0x90000000:${filesize} 0x86000000
+  StarFive # booti ${kernel_addr_r} 0x90000000:${nife_archive_size} 0x86000000
+
+...and the two things to read out while you are there, because they are what says why the script
+did not run: `printenv scriptaddr` and `printenv fdt_addr_r`.
 
 TFTP instead of the card (cordoba serves; board side only, see the note):
 
