@@ -1,10 +1,8 @@
 # 221. The soak never crosses cores, so build the hook that makes it
 
-**Status: NOT-STARTED.** Minted 2026-09-02 by the maintainer, the moment calef approved option D in
-DECISIONS 138 (how a saturated workload is made to hand threads across cores). *(Number provisional
-until the merge queue lands it.)*
-
-**Gate: NONE.** The decision is made, the mechanism is measured, and nothing here needs a board.
+**Status: BUILT** (2026-09-02). Minted 2026-09-02 by the maintainer, the moment calef approved
+option D in DECISIONS 138 (how a saturated workload is made to hand threads across cores). *(Number
+provisional until the merge queue lands it.)*
 
 **In brief.** Milestone 219 (the boot tour ends and the kernel halts, so there is nothing to soak)
 built a workload that lasts and then found something nobody expected: **a saturated workload never
@@ -57,6 +55,48 @@ as proof the concurrency is correct.
 **A soak build is already not a production build** (milestone 219 measured the fastpath at about
 1.05x with instrumentation compiled in), and this widens that gap. A soak number compares only with
 another soak number.
+
+## What was built
+
+`sched::on_tick` gained one `#[cfg(feature = "soak")]` call. `kernel/src/soak.rs` gained the tick
+route (a rendezvous, a soak-only intid, and the signal the tick sends it), `user/src/soaker.rs`
+gained a waiter role that loops on `user_rt::irq_wait`, `crates/soak_page` gained a third counter
+array so a wake is never mistaken for a round trip, and `crates/board_console` and the `script/soak`
+summary carry the new field and the sentence that says what the crossings are.
+
+No syscall, no architecture-specific code, and no new feature: it is all behind the `soak` feature
+milestone 219 already had.
+
+**Measured on patagonia under QEMU, 2026-09-02, `script/soak --for 30s`, each pair back to back on
+an otherwise idle machine, read at the 25-second beat (20 on x86, whose runner is single-core):**
+
+| Architecture | Cores | Round trips before | after | Crossings before | after |
+|---|---|---|---|---|---|
+| aarch64 | 4 | 1,623,764 and 1,630,605 | 1,632,746 and 1,632,803 | 15, frozen from beat 1 | 1,452 and 3,779, rising |
+| riscv64 | 4 | 871,047 and 886,428 | 662,787 and 823,783 | 10 and 14, frozen | 2,573 and 4,358, rising |
+| x86_64 | 1 | 77,372 | 51,749 | 0 | 0, and one core is the whole reason |
+
+**Two runs of each leg, because one would have been misleading and the first pass was**: it was taken
+while another lane's suite ran on the same laptop and measured the host's load rather than this
+change. aarch64 pays nothing measurable (0.6% *more* round trips after, which is noise, and the
+workers that complete them are the same set in both legs). riscv64 pays about 7% on the
+closest-matched pair. x86_64 pays about a third, which is arithmetic: two more threads on one core
+in a round-robin scheduler. **All three are far below DECISIONS 138's spike, which saw 30% and 55%**,
+and the difference is recorded rather than explained away: the spike was thrown away and cannot be
+re-measured.
+
+**A production build is unchanged**, checked rather than asserted. Without the feature, on all three
+architectures, every symbol and every loaded section has the same size and `ipc_fastpath` and
+`syscall_entry` are unchanged at 6,687 and 1,637 bytes. The loadable image differs by 45 bytes on
+aarch64, all of them panic-location line numbers below the insertion point, and rebuilding the base
+commit with ten comment lines at the same place gives a byte-identical image on all three.
+
+**Two bugs, both found by running it, both about ordering, both recorded in `notes/soak.md`.** A
+single shared tick rendezvous starves all but one waiter on a loaded host, because `Rendezvous::recv`
+takes a pending signal before it looks at the receiver queue (right for a driver, wrong for four
+peers); each group has its own route now. And binding the routes *after* spawning the waiters races:
+a waiter reaching `Irq::WAIT` before its route exists is refused and has nowhere to report it. Routes
+are bound before the first waiter; only the signalling is switched on last.
 
 ## BUGS
 

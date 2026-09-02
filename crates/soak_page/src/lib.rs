@@ -13,6 +13,11 @@
 //! lock: each `u64` has exactly one writer, and a `u64` store does not tear on any of the three
 //! architectures.
 //!
+//! Milestone 221 added the third array. A waiter blocks on the tick route the soak build signals
+//! from `sched::on_tick` and counts its wakes here, apart from the round-trip total, because the
+//! two are not the same quantity and a reader comparing runs must not have to guess which they are
+//! holding.
+//!
 //! # What is NOT in here
 //!
 //! The anomaly counters (refused wakes, deferred wakes, remote placements, steals) are the
@@ -46,9 +51,9 @@ pub const PAGE: u64 = 4096;
 
 /// How many workers the page has room for.
 ///
-/// Two `u64` per worker costs 1 KiB of the 4 KiB page at this ceiling, which is the headroom the
-/// host test below checks rather than assumes. It is far above any machine this project has: the
-/// kernel builds one group of five per online core, so 64 covers a twelve-core board with room to
+/// Three `u64` per worker costs 1.5 KiB of the 4 KiB page at this ceiling, which is the headroom
+/// the host test below checks rather than assumes. It is far above any machine this project has:
+/// the kernel builds one group of six per online core, so 64 covers a ten-core board with room to
 /// spare, and the cap exists so that the kernel's own fixed-size arrays have a bound rather than
 /// because anything is near it.
 pub const MAX_WORKERS: usize = 64;
@@ -70,6 +75,21 @@ pub const fn rounds(i: usize) -> u64 {
 #[must_use]
 pub const fn mismatches(i: usize) -> u64 {
     ((MAX_WORKERS + i) as u64) * 8
+}
+
+/// Byte offset of worker `i`'s tick-wake counter (milestone 221).
+///
+/// Written by a waiter, read by the kernel, and **separate from [`rounds`] on purpose**: a waiter
+/// completes no IPC round trip, so folding its wakes into the round-trip total would make the one
+/// number a later run is compared against mean two different things depending on which build
+/// produced it. It is its own field in the heartbeat for the same reason.
+///
+/// A waiter leaves [`rounds`] at zero and a caller, responder or grinder leaves this at zero, so
+/// the kernel's stall check can ask one question of every worker (did either counter move?)
+/// without holding a table of who plays which role.
+#[must_use]
+pub const fn wakes(i: usize) -> u64 {
+    ((2 * MAX_WORKERS + i) as u64) * 8
 }
 
 /// The transform a responder applies to the word a caller sent.
@@ -99,14 +119,16 @@ mod tests {
                 mismatches(i) + 8 <= PAGE,
                 "mismatches({i}) escapes the page"
             );
+            assert!(wakes(i) + 8 <= PAGE, "wakes({i}) escapes the page");
         }
     }
 
-    /// The two counter arrays do not overlap, which a hand-written offset scheme gets wrong exactly
-    /// once and then reports as a workload that never makes progress.
+    /// The three counter arrays do not overlap, which a hand-written offset scheme gets wrong
+    /// exactly once and then reports as a workload that never makes progress.
     #[test]
-    fn the_two_counter_arrays_are_disjoint() {
+    fn the_three_counter_arrays_are_disjoint() {
         assert!(rounds(MAX_WORKERS - 1) + 8 <= mismatches(0));
+        assert!(mismatches(MAX_WORKERS - 1) + 8 <= wakes(0));
     }
 
     /// **Neighbouring sequence numbers give unrelated answers**, which is the property that makes a

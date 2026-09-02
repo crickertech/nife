@@ -620,9 +620,14 @@ mod tests {
         assert_eq!(beat.refused, 0);
         assert_eq!(beat.mismatches, 0);
         assert_eq!(beat.stalled, 0);
-        // The finding this milestone measured rather than assumed: a saturated workload does not
+        // The finding milestone 219 measured rather than assumed: a saturated workload does not
         // migrate under this scheduler. Asserted so that a future run which DOES cross cores fails
         // this test and makes somebody read notes/soak.md.
+        //
+        // Milestone 221 did not change this number and could not: this is a captured log from
+        // before the tick route existed, frozen on purpose, and its `wakes` parses as zero. A
+        // fixture is a record of what a machine said, so it is the one thing here a later
+        // mechanism must not update.
         assert_eq!(
             beat.crossings, 21,
             "this capture crossed cores 21 times in 25 seconds and then stopped; see notes/soak.md"

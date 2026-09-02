@@ -172,6 +172,18 @@ pub struct SoakBeat {
     /// finding: a rendezvous wake queues its peer locally, so a migration it performs is invisible
     /// here.
     pub remote: u64,
+    /// **Cumulative tick-route wakes** (milestone 221), and the reason a soak crosses cores at all.
+    ///
+    /// A soak build signals a rendezvous from `sched::on_tick`, and one worker per group blocks on
+    /// it through `Irq::WAIT`; every wake takes the real device-interrupt path down through
+    /// `sched::wake_load_aware`, which is where this project's one observed multicore defect was.
+    ///
+    /// Zero in a log from before milestone 221, which is exactly how a reader (and the summary
+    /// below) tells a run whose scheduler had nothing to make it cross from a run that did and
+    /// still did not.
+    ///
+    /// It is **not** part of [`rounds`](Self::rounds), because a wake is not a round trip.
+    pub wakes: u64,
 }
 
 /// The ratchet: how far the boot got, and the first failure it announced.
@@ -388,6 +400,7 @@ impl BootProgress {
             ("stalled=", &mut beat.stalled),
             ("crossings=", &mut beat.crossings),
             ("remote=", &mut beat.remote),
+            ("wakes=", &mut beat.wakes),
         ] {
             if let Some(v) = field(name) {
                 *slot = v;
@@ -611,6 +624,10 @@ mod tests {
         assert_eq!(beat.rate, 24_160);
         assert_eq!(beat.refused, 0);
         assert_eq!(beat.crossings, 21);
+        // The fixture is a pre-221 capture and has no `wakes=` field, so the parser leaves it at
+        // zero. That is the case the summary keys on to tell "nothing made it cross" apart from
+        // "something did and it still did not".
+        assert_eq!(beat.wakes, 0);
     }
 
     /// **A soak failure is a failure, not a stage.** The kernel prints `soak: FAILED` and then

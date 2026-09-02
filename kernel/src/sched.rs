@@ -1660,6 +1660,16 @@ pub fn on_tick() {
     // The answer is ignored on purpose: a sampling instrument may skip a beat when another
     // core's pass (or an arm) holds the gate, and the tick must never spin in IRQ context.
     let _ = canary::check();
+
+    // **The soak's cross-core hook** (milestone 221, DECISIONS 138's option D). A saturated
+    // workload never migrates, because a rendezvous wake is local (§28.2), `wake_load_aware` is
+    // reachable only from a device interrupt, and a work steal needs an idle core the machine does
+    // not have. The timer is the one event that workload cannot starve, and this is the one
+    // architecture-neutral place all three dispatchers already reach in real interrupt context, so
+    // a soak build signals a rendezvous from here and its waiters take the whole real wake path
+    // down through `irq_notify`. It compiles to nothing anywhere else; see kernel/src/soak.rs.
+    #[cfg(feature = "soak")]
+    crate::soak::signal_waiters();
 }
 
 pub fn take_need_resched() -> bool {
