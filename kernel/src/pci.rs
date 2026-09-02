@@ -289,6 +289,59 @@ pub fn count_block_devices() -> usize {
     n
 }
 
+/// **A read-only census of what the machine left on the bus**, provisional name (milestone 165).
+///
+/// Returns `(functions, outside)`: how many functions answer at all, and how many carry at least
+/// one memory BAR the machine placed **outside** the window `mmu::map_everything` maps, which is
+/// the pair of numbers that says whether this port's hardcoded BAR window is adequate on the
+/// machine it is running on.
+///
+/// **Why this is worth a boot line rather than a comment.** [`place_bars`] leaves a nonzero BAR
+/// alone only when it already lies inside that window, and **moves it** otherwise. That arm is
+/// exercised and correct (its own doc records the `-device nvme` case that found it), so the open
+/// question is not whether the move works but **how much of the machine it moves and whether the
+/// place it moves things to is free.** `mmu::PCI_BAR_PHYS` is a hardcoded `0xc000_0000`, checked
+/// once against QEMU's `info mtree` and against nothing else, because the window a real machine
+/// wants BARs in is in its host bridge's `_CRS` and `_CRS` is AML.
+///
+/// So the second number is the count of functions this kernel will relocate, measured 2026-09-02:
+/// **5 of 8 under PVH, 3 of 6 under OVMF, 4 of 7 with a `virtio-blk-pci` disk attached**. It is
+/// the first thing to read on xenon's first boot (milestone 87): a machine whose RAM reaches above
+/// `PCI_BAR_PHYS` would have this kernel move most of its bus on top of memory, and that number
+/// says so on the line before anything is driven.
+///
+/// Counting only, like [`count_block_devices`] and for the same reason: no sizing writes, no
+/// command-register changes, nothing a function's existing owner could notice.
+pub fn bar_census() -> (usize, usize) {
+    if !host_bridge_present() {
+        return (0, 0);
+    }
+    let lo = BAR_NEXT.load(Ordering::Relaxed);
+    let hi = BAR_LIMIT.load(Ordering::Relaxed);
+    let (mut functions, mut outside) = (0usize, 0usize);
+    pci::enumerate(
+        PCI_ECAM_BUSES,
+        &mut |b, o| cfg_read32(b, o),
+        &mut |bdf, _, _| {
+            functions += 1;
+            // The raw BAR registers, not `pci::read_bars`, which sizes them by writing all-ones.
+            // A BAR is out of the window when it is nonzero, is a memory BAR (bit 0 clear), and
+            // its base falls outside it. Its length is unknown without sizing, so this counts the
+            // base only: a BAR that starts inside and runs past the end is `place_bars`' problem
+            // and is already handled there.
+            let out = (0..6).any(|i| {
+                let raw = cfg_read32(bdf, pci::BAR0 + i * 4);
+                let base = u64::from(raw & !0xf);
+                raw & 1 == 0 && base != 0 && !(lo..hi).contains(&base)
+            });
+            if out {
+                outside += 1;
+            }
+        },
+    );
+    (functions, outside)
+}
+
 /// Enumerate the bus for the first function matching `modern`, warning (once) if only a
 /// `transitional` (legacy) twin is present, since we drive modern only. `kind` names the device for
 /// that warning. `transitional` is `None` for a device type that has no legacy id at all

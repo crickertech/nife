@@ -251,6 +251,17 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                             "LEFT AS FOUND: this bus count has no PCIEXBAR length field",
                     }
                 );
+                // The census is here, in the x86 arm, because this is the only architecture whose
+                // BARs may already be placed by something else when the kernel arrives. Both
+                // `virt` boards boot with `-bios default` and every BAR is zero, so there would be
+                // nothing to report. See `pci::bar_census` for why the second number is the one to
+                // watch on real firmware.
+                let (functions, outside) = pci::bar_census();
+                println!(
+                    "                {functions} function(s) on the bus, {outside} with a BAR outside {:#x}..{:#x}",
+                    arch::mmu::PCI_BAR_PHYS,
+                    arch::mmu::PCI_BAR_PHYS + arch::mmu::PCI_BAR_MAPPED,
+                );
             }
             // **No MCFG means no PCI, and deliberately no fallback to the legacy 0xcf8/0xcfc
             // configuration mechanism**, which this kernel could reach (`enable_pcie_ecam` uses it)
