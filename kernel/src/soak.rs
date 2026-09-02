@@ -21,6 +21,34 @@
 //! `user/src/soaker.rs` is the workload and its header carries the argument for *what* it stresses.
 //! This file is the supervisor: it wires the pairs, samples them, and decides.
 //!
+//! # The tick route, and what it is for (milestone 221)
+//!
+//! The workload above is saturated, and a saturated workload **never crosses cores**. Milestone
+//! 219 measured that and DECISIONS 138 (*how a saturated workload is made to hand threads across
+//! cores*) explained it: a rendezvous wake is local by design (DECISIONS §28.2),
+//! `sched::wake_load_aware` is reachable only from a device interrupt, and a work steal needs an
+//! idle core and a queued thread at the same moment, which a busy machine never has. So the
+//! `crossings` count froze at fifteen inside the first second and stayed there through two million
+//! round trips.
+//!
+//! That mattered because `design/fatal-risks.md`'s fifth entry has two halves and only one of them
+//! was runnable. The half that was not is the one the risk's single observed defect lived on: a
+//! receiver made `Ready` with nothing delivered, on radon, in `wake_load_aware`, reached from
+//! `sched::irq_notify`.
+//!
+//! **So this module signals a rendezvous from `sched::on_tick`**, which all three architectures'
+//! timer dispatchers call in real interrupt context on every core, and adds one worker role that
+//! blocks on that rendezvous through the `Irq::WAIT` a device driver already uses. A tick then runs
+//! the identical sequence a device interrupt runs: [`signal_waiters`] -> `sched::irq_notify` ->
+//! `Rendezvous::signal` -> `handshake.serve` -> `wake_load_aware` -> `pick_wake_target` ->
+//! `place_on` -> the reschedule IPI.
+//!
+//! **What crosses is the waiters, not the pairs**, and nothing here may be read as saying
+//! otherwise. Rendezvous wakes stay local whatever else is happening, so the callers and responders
+//! are exactly as pinned as they were before. This sustains the *wake protocol* across cores under
+//! load. It does not make the IPC workload migrate, and only a periodic rebalancer would, which
+//! DECISIONS 138 declines. The heartbeat says so in words on every run.
+//!
 //! # What "it passed" means
 //!
 //! A soak that ends with nothing printed proves very little, so this one does not end with nothing
@@ -72,16 +100,25 @@
 //!   and would blur what the run is measuring.
 //! - **The round-trip total is sampled while workers are writing it** and may be a few short. See
 //!   `soak_page`'s own `BUGS`.
+//! - **The tick route does not exercise an interrupt controller.** The timer is not a
+//!   controller-routed source, so the claim, mask and complete sequence (the GIC on aarch64, the
+//!   PLIC on riscv64, the local APIC on x86_64) is not on this path. What is on it is the wake
+//!   protocol, which is what the defect was on.
+//! - **The hook fires on a timer, which is the one thing the workload cannot starve.** That is why
+//!   it works, and it is also why a run with it on says nothing about what happens without it.
+//! - **A soak with the tick route on is a different soak.** Every waiter is one more thread and
+//!   every migration is real work, so the round-trip rate falls. The rate is comparable with
+//!   another run of this same build and with nothing else; see notes/soak.md's table.
 //! - **Nothing here sets a duration, and nothing here should.** The kernel soaks until the power
 //!   goes away. The watcher decides when enough is enough, which is what makes the QEMU run and the
 //!   bench run the same experiment with a different deadline.
 
-use core::sync::atomic::Ordering;
+use core::sync::atomic::{AtomicU64, Ordering};
 
 use paging::Flags;
 use soak_page::MAX_WORKERS;
 
-use crate::cap::{Rights, rendezvous_cap};
+use crate::cap::{Rights, irq_cap, rendezvous_cap};
 use crate::user::{self, Mapping, Spawn};
 use crate::{arch, memory, println, sched, smp};
 
@@ -119,24 +156,38 @@ pub fn run() -> ! {
     };
     let shared = frame.addr();
 
+    // **One tick rendezvous for the whole machine, not one per group** (milestone 221). A tick
+    // raises one signal and one signal wakes one waiter, so a single rendezvous is what makes
+    // `pick_wake_target` choose between all of them; per-group routes would turn one choice among
+    // `cores` threads into `cores` choices among one, which is the same thing with the interesting
+    // part removed.
+    let tick_endpoint = sched::create_rendezvous();
+
     for group in 0..groups {
         let endpoint = sched::create_rendezvous();
         // The responder first. A caller whose responder is not yet receiving simply parks on the
         // rendezvous, so the order is not load-bearing; starting the answering half first keeps a
         // fresh boot's first few beats from reading as a stall.
-        for member in 0..(1 + callers + GRINDERS_PER_GROUP) {
+        for member in 0..MEMBERS_PER_GROUP {
             let role = if member == 0 {
                 ROLE_RESPONDER
             } else if member <= CALLERS_PER_GROUP {
                 ROLE_CALLER
-            } else {
+            } else if member <= CALLERS_PER_GROUP + GRINDERS_PER_GROUP {
                 ROLE_GRINDER
+            } else {
+                ROLE_WAITER
             };
             let index = worker_index(group, member);
-            let rights = if role == ROLE_RESPONDER {
-                Rights::READ
+            // A waiter holds an `Irq` capability and nothing else; it never sends or receives on
+            // the group's endpoint and must not be able to. That is the same least-authority rule
+            // the other three roles get from their rights, one object over.
+            let grant = if role == ROLE_WAITER {
+                irq_cap(TICK_INTID)
+            } else if role == ROLE_RESPONDER {
+                rendezvous_cap(endpoint, Rights::READ)
             } else {
-                Rights::WRITE
+                rendezvous_cap(endpoint, Rights::WRITE)
             };
             let started = sched::spawn(move || {
                 user::run(
@@ -150,7 +201,7 @@ pub fn run() -> ! {
                         arg2: (index as u64)
                             .wrapping_mul(0x9E37_79B9_7F4A_7C15)
                             .wrapping_add(1),
-                        grants: &[rendezvous_cap(endpoint, rights)],
+                        grants: &[grant],
                         maps: &[Mapping {
                             va: soak_page::VA,
                             phys: shared,
@@ -162,17 +213,30 @@ pub fn run() -> ! {
             if started.is_none() {
                 println!(
                     "soak: FAILED: could not spawn worker {index} of {}",
-                    groups * (1 + callers + GRINDERS_PER_GROUP)
+                    groups * MEMBERS_PER_GROUP
                 );
                 arch::halt();
             }
         }
     }
 
-    let workers = groups * (1 + callers + GRINDERS_PER_GROUP);
+    // **Last, and after every worker exists** (milestone 221). Arming earlier would signal a
+    // rendezvous nothing is waiting on, which is not harmful (the signal is counted, not lost) but
+    // would hand the first waiter a backlog to drain before it ever blocks, so the first beat would
+    // measure setup rather than the machine.
+    if !arm_tick_route(tick_endpoint) {
+        println!(
+            "soak: FAILED: interrupt {TICK_INTID} is already routed, so the tick route would steal \
+             it; see TICK_INTID in kernel/src/soak.rs"
+        );
+        arch::halt();
+    }
+
+    let workers = groups * MEMBERS_PER_GROUP;
     println!();
     println!(
-        "{START_MARKER} {groups} groups of one responder and {callers} callers ({workers} user \
+        "{START_MARKER} {groups} groups of one responder, {callers} callers, \
+         {GRINDERS_PER_GROUP} grinder and {WAITERS_PER_GROUP} tick waiter ({workers} user \
          threads) on {cores} online core(s), beating every {BEAT_SECONDS}s"
     );
     println!(
@@ -182,6 +246,16 @@ pub fn run() -> ! {
     println!(
         "soak: a clean run is a number to compare against, NOT evidence that the concurrency is \
          correct (design/roadmap/219-a-workload-that-does-not-stop.md)"
+    );
+    println!(
+        "soak: the threads that cross cores are the tick waiters, NOT the rendezvous pairs; a \
+         rising crossings count is the wake protocol sustained across cores under load, not the \
+         IPC workload migrating (design/roadmap/221-a-soak-that-crosses-cores.md)"
+    );
+    println!(
+        "soak: rounds counts IPC round trips and wakes counts tick-route wakes; they are separate \
+         because they are separate quantities, and neither rate compares with a soak built \
+         differently"
     );
 
     watch(shared, workers)
@@ -193,6 +267,8 @@ const ROLE_RESPONDER: u64 = 0;
 const ROLE_CALLER: u64 = 1;
 /// `arg0` for the half that only computes.
 const ROLE_GRINDER: u64 = 2;
+/// `arg0` for the role that blocks on the tick route (milestone 221).
+const ROLE_WAITER: u64 = 3;
 
 /// How many callers share one responder.
 const CALLERS_PER_GROUP: usize = 3;
@@ -200,13 +276,95 @@ const CALLERS_PER_GROUP: usize = 3;
 /// How many pure-compute threads share a group.
 const GRINDERS_PER_GROUP: usize = 1;
 
+/// How many tick waiters share a group (milestone 221).
+///
+/// One, and the number is doing real work rather than being a placeholder. Every waiter is blocked
+/// on the *same* rendezvous, and a tick raises one signal, which wakes one of them; so the number
+/// of waiters is the number of threads the wake protocol has to choose between, and it wants to be
+/// comparable with the core count so that `pick_wake_target` has somewhere to put them. One per
+/// group is one per core, since [`topology_groups`] builds a group per core.
+const WAITERS_PER_GROUP: usize = 1;
+
+/// How many worker threads one group has.
+///
+/// One responder, its callers, its grinders and its waiter. Spelled once because it is the divisor
+/// in [`worker_index`], the multiplier in the spawn loop, and the bound [`topology_groups`] fits
+/// under: three places that were three copies of the same sum before milestone 221 added a fourth
+/// term to it.
+const MEMBERS_PER_GROUP: usize = 1 + CALLERS_PER_GROUP + GRINDERS_PER_GROUP + WAITERS_PER_GROUP;
+
+/// **The interrupt number the tick route is bound to** (milestone 221).
+///
+/// It names no hardware and none of the three architectures can deliver it, which is the whole
+/// requirement: `sched::bind_irq` writes a slot in a flat array that `sched::irq_route` reads, and
+/// this only has to be a slot nothing else in a soak boot claims.
+///
+/// **255, and each architecture rules it out for its own reason.** On aarch64 and riscv64 a routed
+/// interrupt is delivered only if something enabled it at the controller, and nothing enables this
+/// one; the highest number either architecture's device tree actually hands out is two orders of
+/// magnitude below it. On x86_64 the vector is `arch::x86_64::irq::SPURIOUS_VECTOR`, which the trap
+/// handler answers in its own arm before `irq_route` is ever asked, and it sits above the MSI band
+/// (`MSI_VECTOR_BASE`..0xff), so no device can be handed it either.
+///
+/// [`arm_tick_route`] does not take this on trust: it asks `sched::irq_route` first and refuses to
+/// start a soak whose tick route would steal somebody else's interrupt.
+///
+/// Name provisional (milestone 221): calef names public items.
+const TICK_INTID: u32 = 255;
+
+/// **The rendezvous [`signal_waiters`] signals, plus one; zero means the hook is not armed.**
+///
+/// Plus one for the same reason `sched::IRQ_ROUTES` does it: a rendezvous name may legitimately be
+/// zero, and this needs a value that means "nothing here" without a second word to say so.
+///
+/// A plain atomic rather than anything under a lock, because the reader is an interrupt handler on
+/// every core: taking a lock to find out *whether there is anything to do* is a thing that can go
+/// wrong, and a single load cannot be. Written exactly once, by the boot thread, after every worker
+/// exists.
+static TICK_ROUTE: AtomicU64 = AtomicU64::new(0);
+
+/// **Signal the tick route. Called from `sched::on_tick`, in interrupt context, on every core.**
+///
+/// This is the whole of milestone 221's kernel-side mechanism, and it is short because the path it
+/// wants was already built: `sched::irq_notify` is the function a device interrupt goes through, it
+/// documents itself as safe from interrupt context (`IPC_TABLES` is an `IrqSafeMutex`, DECISIONS
+/// §9, so the interrupted code on this core cannot have been holding it), and everything
+/// interesting is downstream of it.
+///
+/// Not armed on an ordinary boot, because there is no ordinary boot: the whole module is behind
+/// `--features soak`. Within a soak boot it is unarmed until [`arm_tick_route`] runs, which is
+/// after every worker has been spawned, so the ticks that land during setup are not counted against
+/// a waiter that does not exist yet.
+///
+/// Name provisional (milestone 221): calef names public items.
+pub fn signal_waiters() {
+    match TICK_ROUTE.load(Ordering::Acquire) {
+        0 => {}
+        route => sched::irq_notify(route - 1),
+    }
+}
+
+/// Route [`TICK_INTID`] to `ep` and arm [`signal_waiters`]. Returns `false` if the interrupt slot
+/// is already spoken for, which is a refusal to start rather than a thing to work around.
+fn arm_tick_route(ep: sched::RendezvousId) -> bool {
+    if sched::irq_route(TICK_INTID).is_some() {
+        return false;
+    }
+    sched::bind_irq(TICK_INTID, ep);
+    // Release against [`signal_waiters`]'s acquire, which is the edge that matters: a core that
+    // reads a name out of this word must also see the `bind_irq` above, or a waiter could reach
+    // `Irq::WAIT` and find no route while ticks were already being signalled at the rendezvous.
+    TICK_ROUTE.store(ep + 1, Ordering::Release);
+    true
+}
+
 /// How many groups to build on a machine with `cores` cores.
 ///
 /// One group per core, and at least two so a single-core QEMU leg still runs something with more
 /// than one endpoint in it. Capped by what the shared page has slots for.
 fn topology_groups(cores: usize) -> usize {
     let groups = cores.max(2);
-    groups.min(MAX_WORKERS / (1 + CALLERS_PER_GROUP + GRINDERS_PER_GROUP))
+    groups.min(MAX_WORKERS / MEMBERS_PER_GROUP)
 }
 
 /// Which slot of the shared page belongs to this group's `member`.
@@ -214,7 +372,7 @@ fn topology_groups(cores: usize) -> usize {
 /// Members are laid out consecutively, member 0 being the group's responder, so a stalled index in
 /// a report names its group by arithmetic a reader can do in their head.
 fn worker_index(group: usize, member: usize) -> usize {
-    group * (1 + CALLERS_PER_GROUP + GRINDERS_PER_GROUP) + member
+    group * MEMBERS_PER_GROUP + member
 }
 
 /// Read one `u64` out of the shared page through the direct map.
@@ -231,6 +389,7 @@ fn watch(shared: u64, workers: usize) -> ! {
     let started = arch::timer::now();
     let mut previous = [0u64; MAX_WORKERS];
     let mut last_total = 0u64;
+    let mut last_wakes = 0u64;
     let mut last_at = started;
     let mut beat = 0u64;
 
@@ -249,36 +408,47 @@ fn watch(shared: u64, workers: usize) -> ! {
         let window = (now.wrapping_sub(last_at) / hz.max(1)).max(1);
 
         let mut total = 0u64;
+        let mut wakes = 0u64;
         let mut mismatches = 0u64;
         let mut stalled = 0usize;
         let mut first_stalled = usize::MAX;
         for (i, last) in previous.iter_mut().take(workers).enumerate() {
             let rounds = read_counter(shared, soak_page::rounds(i));
+            let woken = read_counter(shared, soak_page::wakes(i));
             mismatches = mismatches.wrapping_add(read_counter(shared, soak_page::mismatches(i)));
             total = total.wrapping_add(rounds);
-            if rounds == *last {
+            wakes = wakes.wrapping_add(woken);
+            // **One question for every role** (milestone 221): did *either* of this worker's two
+            // progress counters move? A waiter leaves `rounds` at zero forever and the other three
+            // roles leave `wakes` at zero forever, so summing them is a progress measure that needs
+            // no table of who plays which part, and cannot be fooled: neither counter ever goes
+            // down, so a sum that is unchanged means both terms were.
+            let progress = rounds.wrapping_add(woken);
+            if progress == *last {
                 stalled += 1;
                 if first_stalled == usize::MAX {
                     first_stalled = i;
                 }
             }
-            *last = rounds;
+            *last = progress;
         }
 
         let refused = sched::wake_refusals();
         let rate = total.wrapping_sub(last_total) / window;
+        let wake_rate = wakes.wrapping_sub(last_wakes) / window;
         // One line, one beat, every field named. A log a person greps six weeks later is worth more
         // than a table that lines up on a terminal nobody kept.
         println!(
-            "soak: t={elapsed}s beat={beat} rounds={total} rate={rate}/s workers={workers} \
-             refused={refused} mismatch={mismatches} stalled={stalled} crossings={} remote={} \
-             steals={} deferred={}",
+            "soak: t={elapsed}s beat={beat} rounds={total} rate={rate}/s wakes={wakes} \
+             wakerate={wake_rate}/s workers={workers} refused={refused} mismatch={mismatches} \
+             stalled={stalled} crossings={} remote={} steals={} deferred={}",
             sched::migrations(),
             sched::remote_placements(),
             sched::steals_served(),
             sched::wakes_deferred(),
         );
         last_total = total;
+        last_wakes = wakes;
         last_at = now;
 
         // The three verdicts, in the order a reader would want them: the one that is a finding
@@ -310,9 +480,16 @@ fn watch(shared: u64, workers: usize) -> ! {
         if let Some(why) = verdict {
             println!("soak: FAILED at t={elapsed}s beat={beat}: {why}");
             if first_stalled != usize::MAX {
+                // Group and member, not a partner index. The old line printed `first_stalled ^ 1`
+                // and called it the partner, which was arithmetic from a two-member group that no
+                // longer exists; naming the group points a reader at every thread that could have
+                // wedged this one, which is what they actually need.
                 println!(
-                    "soak: first stalled worker is {first_stalled} (its partner is {})",
-                    first_stalled ^ 1
+                    "soak: first stalled worker is {first_stalled}: group {}, member {} of \
+                     {MEMBERS_PER_GROUP} (member 0 is the responder, then {CALLERS_PER_GROUP} \
+                     callers, then {GRINDERS_PER_GROUP} grinder, then the tick waiter)",
+                    first_stalled / MEMBERS_PER_GROUP,
+                    first_stalled % MEMBERS_PER_GROUP,
                 );
             }
             // The thread dump before the panic, because the panic handler does not print one and

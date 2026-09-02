@@ -20,6 +20,23 @@
 //! queues also go empty often enough that `serve_steal_request` fires, so the work-steal protocol
 //! is under load too rather than merely present.
 //!
+//! # The waiter, and what it is for (milestone 221)
+//!
+//! The workload above is saturated, and milestone 219 measured that a saturated workload **never
+//! crosses cores**: the `crossings` count froze inside the first second and stayed frozen through
+//! two million round trips. DECISIONS 138 (*how a saturated workload is made to hand threads across
+//! cores*) explains why, and calef approved the fix on 2026-09-02: a soak build signals a
+//! rendezvous from `sched::on_tick`, and one role per group blocks on it through `Irq::WAIT`.
+//!
+//! **A waiter is deliberately the least interesting program in this file.** All of the mechanism is
+//! in the kernel's wake path, which is where the one defect this risk has produced lived; the
+//! waiter's job is only to be a thread that is blocked when a real interrupt handler decides where
+//! to put it.
+//!
+//! **What crosses is the waiters, not the pairs.** Rendezvous wakes stay local whatever else is
+//! happening, so the callers and responders are as pinned as they ever were. This sustains the wake
+//! protocol across cores under load; it does not make the IPC workload migrate.
+//!
 //! # Why the pairs do not run in lockstep
 //!
 //! A soak that repeats one interleaving a billion times has explored one interleaving. Each worker
@@ -31,7 +48,9 @@
 //! # The soaker's world
 //!
 //! - **slot 0**: the request endpoint. `WRITE` for a caller (it `CALL`s), `READ` for a responder
-//!   (it `RECV_CAP`s). Nothing else. A soaker cannot name the console, the clock, or its peer.
+//!   (it `RECV_CAP`s). Nothing else. A soaker cannot name the console, the clock, or its peer. A
+//!   **waiter** (milestone 221) holds an `Irq` in the same slot instead, naming the tick route and
+//!   nothing else, so it can `WAIT` and cannot touch its group's IPC at all.
 //! - **the shared page**, mapped read/write at [`soak_page::VA`], where it publishes its own two
 //!   counters and reads nothing. The kernel is the reader.
 //!
@@ -47,6 +66,14 @@
 //!   while workers are writing it, so a heartbeat's `rounds` total may be a few short. It is a
 //!   progress measure, not an audit; a systematic error of a handful of round trips against tens of
 //!   millions changes no verdict this workload can reach.
+//! - **A waiter's wakes are not round trips and are counted apart from them.** Its `rounds` stays
+//!   at zero forever and its `wakes` is its own field in the heartbeat, because folding the two
+//!   together would make the number a later run is compared against mean something different
+//!   depending on which build produced it.
+//! - **A waiter whose `WAIT` is refused spins instead of reporting.** It cannot print and has no
+//!   channel to say anything on, so it stops counting and lets the kernel's stall check speak for
+//!   it one beat later. The report then says "stalled" where "refused" would be more use, which is
+//!   the same limitation the role above it already has.
 //! - **A responder cannot detect a caller that stops calling.** It simply blocks in `RECV_CAP`
 //!   forever, and its own counter stops moving, which is what the kernel's stall check sees. The
 //!   report cannot say which half of the pair wedged; the thread dump can.
@@ -65,10 +92,17 @@
 #![no_main]
 
 use user_rt::mapped_window::{self, MappedWindow};
-use user_rt::{call, recv_cap, reply};
+use user_rt::{call, irq_wait, recv_cap, reply};
 
 /// The one capability a soaker holds: the request endpoint, in slot 0.
 const ENDPOINT: u64 = 0;
+
+/// The one capability a **waiter** holds: the tick route's `Irq`, also in slot 0 (milestone 221).
+///
+/// The same slot, a different object, and that is the point rather than a collision: a waiter can
+/// no more `CALL` its group's endpoint than a caller can `WAIT` on the tick route, because neither
+/// holds the other's capability. One slot each is the least authority the role needs.
+const TICK_IRQ: u64 = 0;
 
 /// `arg0`: this soaker answers calls.
 const ROLE_RESPONDER: u64 = 0;
@@ -76,6 +110,8 @@ const ROLE_RESPONDER: u64 = 0;
 const ROLE_CALLER: u64 = 1;
 /// `arg0`: this soaker computes and never blocks.
 const ROLE_GRINDER: u64 = 2;
+/// `arg0`: this soaker blocks on the tick route and counts its wakes (milestone 221).
+const ROLE_WAITER: u64 = 3;
 
 // SAFETY: the kernel's `soak::run` maps one page read/write at `soak_page::VA` in every worker's
 // address space before starting it, and `soak_page`'s host tests prove every offset this program
@@ -91,6 +127,7 @@ pub extern "C" fn _start(role: u64, index: u64, seed: u64) -> ! {
     let index = index as usize;
     let rounds_at = soak_page::rounds(index);
     let mismatches_at = soak_page::mismatches(index);
+    let wakes_at = soak_page::wakes(index);
 
     // Never zero: an xorshift seeded with zero produces zeros forever, and a worker that never
     // jitters would silently drop out of the widening this program exists to do.
@@ -100,12 +137,35 @@ pub extern "C" fn _start(role: u64, index: u64, seed: u64) -> ! {
         seed
     };
     let mut rounds: u64 = 0;
+    let mut wakes: u64 = 0;
     let mut mismatches: u64 = 0;
     // Start from the seed rather than from zero, so two callers sharing an index-derived sequence
     // are not sending each other's words at the same moment by construction.
     let mut sequence: u64 = seed;
 
     loop {
+        if role == ROLE_WAITER {
+            // **The whole of the waiter role** (milestone 221): block on the tick route, count the
+            // wake, block again. `irq_wait` is the same `Irq::WAIT` a device driver uses, and the
+            // kernel's soak build is what signals the route, from `sched::on_tick` on every core.
+            //
+            // No `irq_ack`. A driver acknowledges because its controller masked a line that a
+            // device is still asserting; there is no line here and nothing was masked, so an ack
+            // would be a real controller write for an interrupt that does not exist.
+            //
+            // A negative return is a refusal (`abi::Error`), and the honest response is to stop
+            // counting rather than to spin: the counter stops moving, and the kernel's stall check
+            // reports it at the next beat, which is the same way every other failure in this
+            // workload surfaces.
+            if irq_wait(TICK_IRQ) < 0 {
+                loop {
+                    core::hint::spin_loop();
+                }
+            }
+            wakes = wakes.wrapping_add(1);
+            PAGE.write(wakes_at, wakes);
+            continue;
+        }
         if role == ROLE_GRINDER {
             for _ in 0..2048 {
                 core::hint::spin_loop();
