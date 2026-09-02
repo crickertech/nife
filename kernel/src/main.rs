@@ -1298,7 +1298,19 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         {
             use aarch64_cpu::registers::CurrentEL;
             use tock_registers::interfaces::Readable;
-            println!("  exception level : EL{}", CurrentEL.read(CurrentEL::EL));
+            // Two numbers, because on a board they are the two different questions. Where the
+            // kernel is now, and where firmware put it: U-Boot enters a payload at EL2 and
+            // `boot.s` drops itself, and on the first boot of a new board this line is how
+            // anyone finds out which of those happened. See milestone 127 (the seL4 machine).
+            let entered = arch::entry_el();
+            let now = CurrentEL.read(CurrentEL::EL);
+            if entered == now {
+                println!("  exception level : EL{now}  (entered here)");
+            } else {
+                println!(
+                    "  exception level : EL{now}  (entered at EL{entered}, dropped in boot.s)"
+                );
+            }
         }
         arch::isa::print_summary();
         println!("  stack top       : {:#018x}", stack_top());
@@ -1669,9 +1681,13 @@ mod tests {
 
     /// Proves we are where we think we are.
     ///
-    /// QEMU's `virt` machine drops us at EL1 by default, which is exactly where a
-    /// kernel belongs. If this ever reads EL2, we've been handed the hypervisor
-    /// level and will need to drop down ourselves. See notes/aarch64.md.
+    /// QEMU's `virt` machine starts a kernel at EL1 by default, which is exactly where a kernel
+    /// belongs. **A machine can hand us EL2 instead, and then this test is the one that proves
+    /// the drop worked** (milestone 127, the seL4 machine): `virt,virtualization=on` starts the
+    /// kernel at EL2 the way U-Boot does on a board, `boot.s` reads `CurrentEL` and `eret`s down,
+    /// and the assertion below is unchanged either way. The older comment here said that if this
+    /// ever read EL2 "we will need to drop down ourselves"; that is now what happens, and the
+    /// entry level is recorded rather than lost (`arch::entry_el`). See notes/aarch64.md.
     ///
     /// EL is an aarch64 concept, so this is gated. **RISC-V needs no twin, and the older
     /// comment here promising one "with the RISC-V boot path" outlived the boot path it

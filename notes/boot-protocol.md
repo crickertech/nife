@@ -52,7 +52,16 @@ first time we push a stack frame. So `link-aarch64.ld` computes it as `__stack_t
 
 **`code0` must not touch `x0`.** The entry point is the first byte of the image, so `code0`
 executes before anything else in the kernel. Ours is a single `b _boot`, which leaves the
-device tree pointer sitting exactly where QEMU left it.
+device tree pointer sitting exactly where QEMU left it. `_boot`'s own first instruction stashes
+it in `x19`, which the `eret` in `enter_el1` preserves along with every other general register.
+
+**What is verified here and what is only promised.** That QEMU puts a device tree in `x0` is
+verified on every run: `device_tree_pointer_was_provided` fails on a zero, and it exists because
+milestone 1 printed `x0` and got one. That U-Boot's `booti` does the same is Linux's boot
+protocol in the same document as the header above (x0 is the DTB's physical address, x1 to x3
+zero), which is a **firmware contract this project has not yet held a board to**. Milestone 127's
+bench list checks it first, for the reason this file exists at all: the last time this tree
+believed a boot-register claim without printing it, the claim was wrong.
 
 ### The failure mode has no diagnostics
 
@@ -61,6 +70,43 @@ blob, boots it anyway, and hands you a zero in `x0`. Which looks exactly like a 
 own code.
 
 That is why `cargo xtask image` exists, and why there are two tests.
+
+## The other half of the handoff: which exception level
+
+The header settles what QEMU does with the file. It says nothing about **which exception level
+the payload starts at**, and that is a separate fact from a separate source: the machine, not
+the image.
+
+| What starts us | Entry level | `/psci` method |
+|---|---|---|
+| QEMU `virt` (the default, and every run in this tree until 2026-09-02) | **EL1** | `hvc` |
+| QEMU `virt,virtualization=on` (`NIFE_EL2=1 script/test`) | **EL2** | `smc` |
+| U-Boot on a board, with TF-A's BL31 below it | **EL2** | `smc` |
+
+The two columns are not independent, and the reason is worth holding onto because it looks
+like a QEMU quirk and is not. PSCI has to be implemented *below* whoever calls it. When the
+kernel runs at EL1 with nothing at EL2, an `hvc` traps up to a vacant EL2 that the emulator
+can implement PSCI in, so `hvc` is the conduit. When there is a real EL2 (a board's, or
+`virtualization=on`'s) the kernel drops itself into EL1 *underneath* it, an `hvc` would now
+arrive at that EL2 rather than at firmware, and the conduit has to be `smc`. The machine says
+which in `/psci`, the kernel reads it (milestone 100), and `arch::aarch64::isa`'s test asserts
+the pairing rather than either value alone.
+
+**PSCI starts secondaries at the highest implemented non-secure level, whichever level called
+`CPU_ON`.** So under an EL2 the secondaries arrive at EL2 even though EL1 asked for them, and
+`secondary_boot` takes the same drop `_boot` does. A kernel that dropped only core 0 would come
+up single-core-correct and fault on its second core.
+
+`boot.s` reads `CurrentEL` and drops itself rather than being built two ways; `arch::entry_el`
+is the record of what the entry was, and the boot banner prints it:
+
+```
+  exception level : EL1  (entered at EL2, dropped in boot.s)
+```
+
+See `kernel/src/arch/aarch64/boot.s` (`enter_el1`) for which registers the drop configures and
+why each one is on the list, and milestone 127 (the seL4 machine) for the board this was built
+for.
 
 ## Why the tests boot the same way the real thing does
 
