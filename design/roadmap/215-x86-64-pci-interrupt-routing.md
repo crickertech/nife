@@ -117,8 +117,14 @@ handoff below.
 **The rest of the fixtures.** One `virtio-blk-pci` disk is attached. The RedoxFS image, the GPT and
 blank disks, the NIC, the GPU, the keyboard and the RNG are each a line in
 `scripts/qemu-runner-x86_64.sh` plus a wiring, and every one of them now has a working interrupt
-underneath it. Milestone 216 (provisional) is that work; the 36 tests taking a "no RedoxFS disk
-attached" arm are its measure.
+underneath it. That is a **proposed milestone** and this lane deliberately does not number it
+(numbers are the integrator's, and 216 is already the board console): its measure is the 36 tests
+taking a "no RedoxFS disk attached" arm, and its first item is making the FS server's disk lookup
+transport-blind, which is the half of milestone 164's revert that outlived the interrupt bug.
+
+**The `NIFE_DISK` comment in `xtask` still claims more than the runner attaches**, in the sense
+that both other runners derive four sibling images from it and this one derives one. That is the
+same proposed milestone, not a separate defect.
 
 **Interrupt remapping.** A VT-d unit with `intremap=on` reinterprets a write to
 `0xfee0_0000..0xfef0_0000` as an index into a remapping table and rejects the compatibility-format
