@@ -1,0 +1,154 @@
+#!/bin/sh
+#
+# script/image-permissions: the shipped kernel images obey W^X.
+#
+#   script/image-permissions              build all three kernels, then check them
+#   script/image-permissions --no-build   check whatever is already built
+#
+# WHY THIS EXISTS, and it is a real finding rather than a hypothetical. `crates/elf` refuses a
+# writable-executable segment (`Error::WritableAndExecutable`) and `paging::Flags` has no
+# constructor that can build such a page, so W^X is enforced on every ELF this system LOADS. Nothing
+# parsed the ELF this system IS. On 2026-08-31 milestone 196's lane ran the x86_64 kernel through
+# the tree's own parser, for no reason but to delete a duplicate, and the parser refused it:
+# `kernel/link-x86_64.ld` folded `.text.boot` and `.data.boot` into one output section, so the
+# 32-bit trampoline shipped as a single RWX PT_LOAD at 0x101000. The kernel's own image was the one
+# thing in the tree breaking the rule the tree enforces everywhere else, and it had been that way
+# since the port. Milestone 208 fixed it; this is what stops it coming back, because a linker script
+# has no type system and nothing else would notice.
+#
+# WHY IT IS NOT `Elf::parse`, which is the obvious question and deserves a straight answer.
+# `crates/elf` binds the `e_machine` it accepts at COMPILE time (`EXPECTED_MACHINE`, chosen by
+# `target_arch`), deliberately: a kernel only ever loads binaries for its own architecture, and
+# threading a runtime parameter through every caller to serve one gate would be the tail wagging the
+# dog. So a host tool built once can accept exactly one of the three kernels, and a W^X gate that
+# covered one architecture would fail DECISIONS §19 (architectural parity is a tenet) on the day it
+# was written. `Elf::parse` DOES check all this, on the two paths where it can: the kernel's
+# user-program loader, and `uefi_loader`, which since milestone 208 parses the x86_64 kernel image
+# with it at every real-firmware boot. This gate is the third path, the one no build of that crate
+# can reach.
+#
+# So this reads two fields, `p_type` and `p_flags`, at the offsets the ELF64 specification fixes.
+# It is an auditor rather than a reader: it never places anything, maps anything, or trusts
+# anything. It also reports EVERY violation rather than the first, which a parser returning one
+# error cannot.
+#
+# FALSE POSITIVES: it asserts a property the artifacts genuinely have, so a failure means the
+# property is gone. It is not the shape `script/lint` has had three checks deleted for (a rule that
+# only ever rejected legitimate work), because there is no legitimate reason for a nife kernel image
+# to carry a writable-executable segment: the kernel installs fine-grained W^X page tables over its
+# own image on all three architectures, so a segment asking for both is asking for something the
+# kernel will not honour anyway. If one is ever wanted, this gate is the place the argument has to
+# be made and written down.
+#
+# Name: provisional, minted by milestone 208's lane on 2026-09-02 and not yet put to calef, who
+# names things. Hyphenated per AGENTS.md's naming table (`script/` entry points are shell commands).
+# Considered and set aside: `wx-check`, which spends its only two words on an abbreviation a reader
+# has to decode; `image-wx`, same objection with the noun first.
+
+set -e
+cd "$(dirname "$0")/.."
+ROOT="$(pwd)"
+
+BUILD=1
+case "${1:-}" in
+    "") ;;
+    --no-build) BUILD=0 ;;
+    *)
+        echo "script/image-permissions: unknown argument '$1'" >&2
+        echo "  usage: script/image-permissions [--no-build]" >&2
+        exit 2
+        ;;
+esac
+
+if [ "$BUILD" = 1 ]; then
+    for target in aarch64-unknown-none-softfloat riscv64imac-unknown-none-elf x86_64-unknown-none; do
+        echo "==> building kernel for $target"
+        cargo build -q -p kernel --target "$target"
+    done
+fi
+
+exec python3 - "$ROOT" <<'PY'
+import struct
+import sys
+
+root = sys.argv[1]
+
+# The three shipped kernel images, one per architecture DECISIONS §19 holds to parity. Debug
+# profile, which is what every gate in this tree builds; the linker script is the same either way,
+# and it is the linker script that decides a segment's permissions.
+IMAGES = [
+    ("aarch64", "target/aarch64-unknown-none-softfloat/debug/kernel"),
+    ("riscv64", "target/riscv64imac-unknown-none-elf/debug/kernel"),
+    ("x86_64", "target/x86_64-unknown-none/debug/kernel"),
+]
+
+PT_LOAD = 1
+PF_X, PF_W, PF_R = 1, 2, 4
+
+def program_headers(data):
+    """Every program header, as (p_type, p_flags, p_vaddr, p_paddr, p_memsz).
+
+    ELF64 fixes all of these offsets: e_phoff at 32, e_phentsize at 54, e_phnum at 56, and within a
+    program header p_type at 0, p_flags at 4, p_vaddr at 16, p_paddr at 24, p_memsz at 40.
+    """
+    (phoff,) = struct.unpack_from("<Q", data, 32)
+    phentsize, phnum = struct.unpack_from("<HH", data, 54)
+    for i in range(phnum):
+        at = phoff + i * phentsize
+        typ, flags = struct.unpack_from("<II", data, at)
+        vaddr, paddr = struct.unpack_from("<Q", data, at + 16)[0], struct.unpack_from("<Q", data, at + 24)[0]
+        (memsz,) = struct.unpack_from("<Q", data, at + 40)
+        yield typ, flags, vaddr, paddr, memsz
+
+def rwx(flags):
+    return ("R" if flags & PF_R else "-") + ("W" if flags & PF_W else "-") + ("X" if flags & PF_X else "-")
+
+failures = []
+missing = []
+
+for arch, relative in IMAGES:
+    path = f"{root}/{relative}"
+    try:
+        with open(path, "rb") as handle:
+            data = handle.read()
+    except FileNotFoundError:
+        missing.append((arch, relative))
+        continue
+
+    if data[:4] != b"\x7fELF" or data[4] != 2 or data[5] != 1:
+        failures.append(f"{arch}: {relative} is not a little-endian ELF64")
+        continue
+
+    loads = [h for h in program_headers(data) if h[0] == PT_LOAD]
+    if not loads:
+        failures.append(f"{arch}: {relative} has no PT_LOAD segments, which cannot be a kernel image")
+        continue
+
+    bad = [h for h in loads if (h[1] & PF_W) and (h[1] & PF_X)]
+    print(f"{arch:8} {len(loads):2} PT_LOAD, {len(bad)} writable-executable  ({relative})")
+    for _typ, flags, vaddr, paddr, memsz in bad:
+        failures.append(
+            f"{arch}: a PT_LOAD is {rwx(flags)}: vaddr {vaddr:#x}, paddr {paddr:#x}, memsz {memsz:#x}"
+        )
+
+if missing:
+    for arch, relative in missing:
+        print(f"script/image-permissions: {arch}'s kernel is not built ({relative})", file=sys.stderr)
+    print("  Build it, or drop --no-build.", file=sys.stderr)
+    sys.exit(1)
+
+if failures:
+    print(file=sys.stderr)
+    print("script/image-permissions: FAILED", file=sys.stderr)
+    for line in failures:
+        print(f"  {line}", file=sys.stderr)
+    print(file=sys.stderr)
+    print("  A kernel image must not ship a segment that is both writable and executable.", file=sys.stderr)
+    print("  A program header's permissions are the union of what its output section holds, so this", file=sys.stderr)
+    print("  is almost always one linker script folding code and data into one output section.", file=sys.stderr)
+    print("  See kernel/link-x86_64.ld's `.boot_text`/`.boot_data` split, which is this exact fix.", file=sys.stderr)
+    sys.exit(1)
+
+print()
+print("script/image-permissions: three kernel images, no writable-executable segment.")
+PY

@@ -317,16 +317,21 @@ error, and the loader placing images physically owns that judgment.
   `a_physical_address_may_differ_from_the_virtual_one` is the single case that would catch a
   consumer conflating them, and it only covers the parse, not any consumer.
 - **The field did not, on its own, retire the second reader**, which was milestone 196's other half.
-  The UEFI loader (`uefi_loader/src/image.rs`, on milestone 87's branch) still cannot call
-  `Elf::parse`, and the reason is not `p_paddr`: it is that **`crates/elf` refuses the kernel image**
-  with `Error::WritableAndExecutable`. The `x86_64` linker script folds `.text.boot` and `.data.boot`
-  into one output section, so the 32-bit trampoline ships as a single `RWX` `PT_LOAD` at `0x101000`.
-  Measured rather than argued: patch that one segment's `p_flags` from `RWX` to `RX` in a copy of the
-  image and `Elf::parse` accepts the whole file, all ten `PT_LOAD`s, the three `NOLOAD` reservations
-  and the trampoline's split addresses included. **Nothing else in the validating parser objects**,
-  so the blocker is one linker-script line rather than a mismatch of purpose, and splitting `.boot`
-  in two would also make the kernel image obey the same W^X rule `crates/elf` and `paging::Flags`
-  enforce everywhere else. Raised for calef; see milestone 196's lane report.
+  The blocker was not `p_paddr`: **`crates/elf` refused the kernel image** with
+  `Error::WritableAndExecutable`, because the `x86_64` linker script folded `.text.boot` and
+  `.data.boot` into one output section and the 32-bit trampoline shipped as a single `RWX` `PT_LOAD`
+  at `0x101000`. Measured rather than argued, twice: 196's lane patched that one segment's `p_flags`
+  to `RX` in a copy and watched the whole file become acceptable, and milestone 208 (the x86_64
+  kernel image ships an RWX segment) then split the section and ran the **shipped** artifact through
+  `Elf::parse`, which accepts it: all ten `PT_LOAD`s, the three `NOLOAD` reservations and the
+  trampoline's split addresses included. **Nothing else in the validating parser objected**, so the
+  blocker really was one linker-script line.
+- **The second reader is gone** (milestone 208). `uefi_loader/src/image.rs` is now a physical-span
+  helper and a refusal-wording table over `elf::Elf`, and the loader validates the kernel it places
+  instead of trusting it. What made the deletion possible was a security fix rather than an API
+  change, which is the part worth remembering: the kernel's own image was the one thing in the tree
+  breaking the W^X rule `crates/elf` and `paging::Flags` enforce everywhere else, and the parser
+  refusing it is that rule catching the tree. `script/image-permissions` is what keeps it caught.
 
 ## The loader honours permissions and does not widen them
 

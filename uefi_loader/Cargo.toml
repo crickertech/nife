@@ -37,6 +37,17 @@ required-features = ["uefi"]
 # Build the UEFI application. Meaningless without `--target x86_64-unknown-uefi`.
 uefi = []
 
+[dependencies]
+# The tree's one ELF reader (milestone 208). This loader used to carry a second one because
+# `elf::Segment` had no `p_paddr` and, once it did, because `Elf::parse` refused the kernel image
+# for shipping an RWX segment. Both are fixed, so there is one reader again, and this loader
+# validates the image it places instead of trusting it.
+#
+# It is not "in between" the two shapes §46 allows: `elf` is ours, in this workspace, with no
+# dependencies of its own, and the alternative to depending on it is the duplicate this milestone
+# deleted.
+elf = { version = "0.1.0", path = "../crates/elf" }
+
 [dev-dependencies]
 # The reader this loader is the writer for. Every encoder in `handoff` is tested by decoding its
 # output with the crate the KERNEL decodes with, so the two cannot drift apart without a host test

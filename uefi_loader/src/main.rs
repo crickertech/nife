@@ -64,7 +64,7 @@ use uefi_loader::handoff::{
     MEMMAP_ENTRY_LEN, MODULE_ENTRY_LEN, START_INFO_LEN, StartInfo, e820_kind, encode_memmap_entry,
     encode_module,
 };
-use uefi_loader::image::Image;
+use uefi_loader::image;
 
 /// The kernel ELF and the userspace archive, embedded by `build.rs`.
 mod embedded {
@@ -142,8 +142,12 @@ fn load(handle: Handle, table: &SystemTable, services: &BootServices) -> Result<
     let rsdp = find_rsdp(table).ok_or("the firmware's configuration table has no ACPI RSDP")?;
 
     // --- 2. Place the kernel at the physical addresses its linker script chose ---
-    let kernel = Image::parse(embedded::KERNEL).map_err(|e| e.text())?;
-    let (span_start, span_end) = kernel.physical_span(PAGE).map_err(|e| e.text())?;
+    // `elf::Elf::parse` validates everything before this loader moves a byte: bounds, overlap,
+    // W^X, the entry point inside an executable segment. Until milestone 208 the kernel image could
+    // not pass it (an RWX boot section), which is why this module used to carry its own reader.
+    let kernel = image::parse(embedded::KERNEL)?;
+    let (span_start, span_end) = image::physical_span(kernel.segments(), PAGE)
+        .ok_or("the embedded kernel has no loadable segments")?;
 
     // `AllocateAddress`, not `AllocateMaxAddress`: the kernel is linked for exactly this range
     // (`kernel/link-x86_64.ld`'s `PHYS_START`) and there is nowhere else to put it. A firmware that
@@ -167,8 +171,10 @@ fn load(handle: Handle, table: &SystemTable, services: &BootServices) -> Result<
     // SAFETY: the firmware just granted this whole range exclusively.
     unsafe { ptr::write_bytes(span_start as *mut u8, 0, (span_end - span_start) as usize) };
 
-    for segment in kernel.load_segments() {
-        let segment = segment.map_err(|e| e.text())?;
+    // `Segment::data` is `p_filesz` bytes, which is empty for a `NOLOAD` section: `.boot_scratch`
+    // (the boot page tables) and the two per-CPU stack areas arrive that way, as address space to
+    // reserve rather than bytes to copy. The zeroing above is what makes their memory correct.
+    for segment in kernel.segments() {
         // SAFETY: `physical_span` covers every segment, and the range it covers was just allocated;
         // the source is a slice of this binary's own `.rodata`. They cannot overlap: the source is
         // in the firmware's allocation for this image and the destination is a range the firmware
@@ -278,7 +284,7 @@ fn load(handle: Handle, table: &SystemTable, services: &BootServices) -> Result<
 
     // Everything the kernel is handed has to be reachable from 32 bits. Checked here, with a
     // console still available, rather than discovered as a triple fault on somebody's desk.
-    if kernel.entry >= BELOW_4G || start_info_at >= BELOW_4G {
+    if kernel.entry() >= BELOW_4G || start_info_at >= BELOW_4G {
         return Err("the kernel entry or the handoff landed above 4 GiB");
     }
 
@@ -358,7 +364,7 @@ fn load(handle: Handle, table: &SystemTable, services: &BootServices) -> Result<
     // leave_long_mode.s. It does not return, so this expression's type is `!` and the `Ok` arm of
     // this function's signature is unreachable.
     (trampoline.enter)(
-        kernel.entry,
+        kernel.entry(),
         start_info_at,
         trampoline.gdtr,
         trampoline.pmode32,
