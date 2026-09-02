@@ -8745,16 +8745,42 @@ fn soak() -> ExitCode {
                 "soak: a clean run is a number to compare against, NOT evidence that the \
                  concurrency is correct."
             );
-            // The gap this milestone measured rather than assumed, said on every run because a
-            // reader who does not know it will read the round-trip total as covering more than it
-            // does. See notes/soak.md.
-            if beat.crossings < beat.rounds / 1000 {
+            // **What the crossings are, said on every run that has any** (milestone 221). The
+            // kernel prints this at the start of a soak, but a reader quoting this summary never
+            // saw that, and the wrong reading is available and flattering: that the IPC workload
+            // itself is migrating. It is not, and only a periodic rebalancer would make it, which
+            // DECISIONS 138 (how a saturated workload is made to hand threads across cores)
+            // declines.
+            if beat.wakes > 0 {
                 eprintln!(
-                    "soak: and it barely crossed cores ({} handoffs against {} round trips): this \
-                     scheduler does not rebalance, so a saturated workload stays where it was \
-                     placed. See notes/soak.md.",
-                    beat.crossings, beat.rounds
+                    "soak: the {} crossings are tick waiters being placed by the wake protocol \
+                     ({} tick wakes drove them), NOT the IPC pairs migrating. See notes/soak.md.",
+                    beat.crossings, beat.wakes
                 );
+            }
+            // The gap milestone 219 measured rather than assumed, said on every run that shows it
+            // because a reader who does not know it will read the round-trip total as covering
+            // more than it does. See notes/soak.md.
+            if beat.crossings < beat.rounds / 1000 {
+                if beat.wakes == 0 {
+                    eprintln!(
+                        "soak: and it barely crossed cores ({} handoffs against {} round trips): \
+                         this scheduler does not rebalance, so a saturated workload stays where it \
+                         was placed. See notes/soak.md.",
+                        beat.crossings, beat.rounds
+                    );
+                } else {
+                    // The tick route was live and the machine still did not cross, which on one
+                    // core is the only possible answer and on several is a finding. Both are named
+                    // rather than one being assumed, because this summary cannot see the core
+                    // count and the kernel's own banner can.
+                    eprintln!(
+                        "soak: and it barely crossed cores ({} handoffs against {} tick wakes), \
+                         which on a single-core run is arithmetic and on a multicore one is a \
+                         finding: check the core count in the soak's own start line.",
+                        beat.crossings, beat.wakes
+                    );
+                }
             }
         }
         None => eprintln!("soak: no heartbeat was seen; the workload never started"),
