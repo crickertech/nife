@@ -1,7 +1,32 @@
 # 138. How a saturated workload is made to hand threads across cores
 
-**Status: PROPOSED.** Written by a research lane on 2026-09-01, after milestone 219 (the boot tour
-ends and the kernel halts, so there is nothing to soak) measured that it never happens today.
+**Status: DECIDED.** Answered by calef on 2026-09-02, on the one question that was blocking.
+Written by a research lane
+on 2026-09-01, after milestone 219 (the boot tour ends and the kernel halts, so there is nothing to
+soak) measured that it never happens today.
+
+**calef approved option D**, the `--features soak` hook that signals a routed rendezvous from
+`sched::on_tick`, so soak workers block on it through the `Irq::WAIT` that already exists. It adds
+no syscall and nothing of it exists in a production build. That unblocks the second half of fatal
+risk 5's decisive experiment, which had never been runnable.
+
+**Two things stay open on purpose and neither is blocking.**
+
+**Option A, thread affinity, is not refused; it is not yet asked.** It is syscall surface, so this
+section gives options rather than a recommendation, and it should be taken on its own merits rather
+than carried in on the back of an experiment D can run without it. What the prior art narrowed:
+the core belongs in a capability rather than in a message, and DECISIONS §28 already chose the shape
+at ratification. What is still calef's: singleton per core or narrowable set, and whether it is a
+new object or a field of one that exists.
+
+**Option B, a periodic rebalancer, is declined rather than dismissed, and the Linux sourcing
+weakened the case against it.** nife already has counterparts for three of Linux v6.12's four
+balancing moments, all event-driven, and a saturated rendezvous workload starves all three of their
+triggers, which is why the crossing count freezes. B is the fourth moment, the only one that fires
+on a clock and the only one that workload cannot starve, so calling it "importing Linux's answer"
+overstated what it is. The refusal now rests on DECISIONS §28's own reopening trigger, a real
+workload where fairness visibly fails, which has not fired. **A reader who believes it has should
+reopen B**, and that sentence is here so nobody has to relitigate the whole section to do it.
 
 **The number is provisional.** This lane cannot see the other lanes running beside it, so the
 integrator mints the real section number at merge, the same as every other name global to the tree.
@@ -519,6 +544,9 @@ reopen B, and this paragraph is the invitation.**
 kernel half does not need a syscall.
 
 ## What is blocked until this is answered
+
+**Answered 2026-09-02: D approved.** The list below is what was blocked, kept because it records
+what the decision bought rather than what remains.
 
 - **The second half of risk 5's decisive experiment.** Until one of these exists, sustained
   cross-core handoff cannot be run on radon, argon or xenon at all, and the soak on those boards
