@@ -312,6 +312,10 @@ pub fn count_block_devices() -> usize {
 ///
 /// Counting only, like [`count_block_devices`] and for the same reason: no sizing writes, no
 /// command-register changes, nothing a function's existing owner could notice.
+// The x86 boot tour is the only caller, for the reason its own comment gives: on both `virt`
+// boards every BAR arrives zero and there would be nothing to report. The function itself is
+// arch-neutral and stays here rather than in `arch/`, so this allow is the cost of that.
+#[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
 pub fn bar_census() -> (usize, usize) {
     if !host_bridge_present() {
         return (0, 0);

@@ -273,7 +273,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             // entirely. A machine that describes no MCFG is a machine this port does not run on
             // yet, and saying so here costs less than discovering it downstream.
             None => {
-                println!("  pci         : skipped, no MCFG: no PCI at all (no legacy fallback)")
+                println!("  pci         : skipped, no MCFG: no PCI at all (no legacy fallback)");
             }
         }
 
