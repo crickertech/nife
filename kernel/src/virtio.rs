@@ -210,6 +210,16 @@ pub enum Transport {
         /// the queue is set up. Indexed by queue number; see `MAX_QUEUES`.
         notify_addr: [u64; MAX_QUEUES],
         isr: u64,
+        /// **Which MSI-X table entry this function's queues should raise**, or
+        /// `pci::VIRTIO_MSIX_NO_VECTOR` when the function delivers INTx (both `virt` boards; see
+        /// `crate::pci::enable_msix`).
+        ///
+        /// It is carried here rather than programmed once at bring-up because virtio puts the
+        /// field **inside the common config, behind the queue selector**, and clears it on device
+        /// reset. Every driver resets the device on the way in, so the only correct moment to
+        /// write it is [`Transport::setup_queue`], which is also the only place the queue is
+        /// already selected.
+        msix_vector: u16,
     },
 }
 
@@ -223,6 +233,10 @@ const PCI_QUEUE_SEL: u64 = 0x16;
 const PCI_QUEUE_SIZE: u64 = 0x18;
 const PCI_QUEUE_ENABLE: u64 = 0x1c;
 const PCI_QUEUE_NOTIFY_OFF: u64 = 0x1e;
+/// The MSI-X vector the **selected queue** raises, `0xffff` for none. Behind the queue selector,
+/// and reset to `0xffff` by a device reset, which is why the kernel rewrites it at every
+/// `setup_queue` rather than once at bring-up.
+const PCI_QUEUE_MSIX_VECTOR: u64 = 0x1a;
 const PCI_QUEUE_DESC: u64 = 0x20;
 const PCI_QUEUE_DRIVER: u64 = 0x28;
 const PCI_QUEUE_DEVICE: u64 = 0x30;
@@ -281,6 +295,7 @@ impl Transport {
             device_type: d.device_type,
             notify_addr: [0; MAX_QUEUES],
             isr: d.isr,
+            msix_vector: d.msix_vector,
         }
     }
 
@@ -371,10 +386,27 @@ impl Transport {
                 notify_base,
                 notify_mult,
                 notify_addr,
+                msix_vector,
                 ..
             } => {
                 pwrite::<u16>(*common + PCI_QUEUE_SEL, q);
                 pwrite::<u16>(*common + PCI_QUEUE_SIZE, num);
+                // **Tell the queue which MSI-X vector to raise** (milestone 215), while it is
+                // selected and after the driver's reset has cleared the field to `NO_VECTOR`. On a
+                // function delivering INTx this writes `NO_VECTOR`, which is exactly what is
+                // already there, so both boards see no change at all. The read-back is the
+                // specification's own way of asking whether the device accepted the vector (it
+                // answers `NO_VECTOR` when it could not), and a device that refused would
+                // otherwise present as a driver that hangs on its first completion.
+                if *msix_vector != pci::VIRTIO_MSIX_NO_VECTOR {
+                    pwrite::<u16>(*common + PCI_QUEUE_MSIX_VECTOR, *msix_vector);
+                    let accepted = pread::<u16>(*common + PCI_QUEUE_MSIX_VECTOR);
+                    if accepted != *msix_vector {
+                        crate::println!(
+                            "  virtio: queue {q} refused msi-x vector {msix_vector} (answered {accepted})",
+                        );
+                    }
+                }
                 pwrite::<u64>(*common + PCI_QUEUE_DESC, desc);
                 pwrite::<u64>(*common + PCI_QUEUE_DRIVER, avail);
                 pwrite::<u64>(*common + PCI_QUEUE_DEVICE, used);
@@ -1252,6 +1284,7 @@ mod tests {
             device_type: 2,
             notify_addr: [0; MAX_QUEUES],
             isr: 0x4010_2000,
+            msix_vector: pci::VIRTIO_MSIX_NO_VECTOR,
         };
         assert!(
             !t.doorbell_ready(0),
@@ -1423,7 +1456,7 @@ mod tests {
         let Some(d) = crate::pci::find_block_device() else {
             // No PCIe disk attached: nothing to confine, nothing to prove. (The test runners always
             // attach one, so this branch is for a bare boot, not the parity gate.)
-            return;
+            crate::testing::skip!("no PCIe disk on the bus, so there is nothing to confine");
         };
 
         // The IOMMU must be up. If it is not while a PCIe disk is present, every PCIe DMA is

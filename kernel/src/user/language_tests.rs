@@ -21,8 +21,7 @@ fn said<'a>(t: &'a [u8], line: &[u8]) -> &'a str {
 fn a_name_with_a_space_in_it_can_be_written_and_read_back() {
     let mut buf = [0u8; TRANSCRIPT_MAX];
     let Some(n) = transcript(&mut buf) else {
-        crate::println!("    (no RedoxFS disk attached; skipping)");
-        return;
+        crate::testing::skip!("no RedoxFS disk attached");
     };
     let t = &buf[..n];
 
@@ -54,8 +53,7 @@ fn a_name_with_a_space_in_it_can_be_written_and_read_back() {
 fn a_quoted_name_is_the_grant_with_the_operator_left_out() {
     let mut buf = [0u8; TRANSCRIPT_MAX];
     let Some(n) = transcript(&mut buf) else {
-        crate::println!("    (no RedoxFS disk attached; skipping)");
-        return;
+        crate::testing::skip!("no RedoxFS disk attached");
     };
     let t = &buf[..n];
     let operand = counts(&answer(t, b"wc \"my notes.txt\"")[2..]);
@@ -79,8 +77,7 @@ fn a_quoted_name_is_the_grant_with_the_operator_left_out() {
 fn the_same_word_is_a_name_quoted_and_a_set_unquoted() {
     let mut buf = [0u8; TRANSCRIPT_MAX];
     let Some(n) = transcript(&mut buf) else {
-        crate::println!("    (no RedoxFS disk attached; skipping)");
-        return;
+        crate::testing::skip!("no RedoxFS disk attached");
     };
     let t = &buf[..n];
 
@@ -113,8 +110,7 @@ fn the_same_word_is_a_name_quoted_and_a_set_unquoted() {
 fn a_connector_runs_the_second_command_only_when_it_should() {
     let mut buf = [0u8; TRANSCRIPT_MAX];
     let Some(n) = transcript(&mut buf) else {
-        crate::println!("    (no RedoxFS disk attached; skipping)");
-        return;
+        crate::testing::skip!("no RedoxFS disk attached");
     };
     let t = &buf[..n];
 
@@ -155,8 +151,7 @@ fn a_connector_runs_the_second_command_only_when_it_should() {
 fn a_refusal_and_a_success_report_different_numbers() {
     let mut buf = [0u8; TRANSCRIPT_MAX];
     let Some(n) = transcript(&mut buf) else {
-        crate::println!("    (no RedoxFS disk attached; skipping)");
-        return;
+        crate::testing::skip!("no RedoxFS disk attached");
     };
     let t = &buf[..n];
 
@@ -203,8 +198,7 @@ fn a_refusal_and_a_success_report_different_numbers() {
 fn a_line_the_grammar_cannot_read_runs_nothing() {
     let mut buf = [0u8; TRANSCRIPT_MAX];
     let Some(n) = transcript(&mut buf) else {
-        crate::println!("    (no RedoxFS disk attached; skipping)");
-        return;
+        crate::testing::skip!("no RedoxFS disk attached");
     };
     let t = &buf[..n];
 

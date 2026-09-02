@@ -85,8 +85,7 @@ fn listing_counts(printed: &[u8]) -> (u64, u64, u64) {
 fn one_builtin_two_destinations_and_the_same_bytes() {
     let mut buf = [0u8; TRANSCRIPT_MAX];
     let Some(n) = transcript(&mut buf) else {
-        crate::println!("    (no RedoxFS disk attached; skipping)");
-        return;
+        crate::testing::skip!("no RedoxFS disk attached");
     };
     let t = &buf[..n];
 
@@ -132,8 +131,7 @@ fn one_builtin_two_destinations_and_the_same_bytes() {
 fn naming_a_file_to_a_reader_is_the_operator_left_out() {
     let mut buf = [0u8; TRANSCRIPT_MAX];
     let Some(n) = transcript(&mut buf) else {
-        crate::println!("    (no RedoxFS disk attached; skipping)");
-        return;
+        crate::testing::skip!("no RedoxFS disk attached");
     };
     let t = &buf[..n];
     let operand = counts(&answer(t, b"wc out.txt")[2..]);
@@ -167,8 +165,7 @@ fn naming_a_file_to_a_reader_is_the_operator_left_out() {
 fn a_named_file_reaches_the_head_of_a_pipeline() {
     let mut buf = [0u8; TRANSCRIPT_MAX];
     let Some(n) = transcript(&mut buf) else {
-        crate::println!("    (no RedoxFS disk attached; skipping)");
-        return;
+        crate::testing::skip!("no RedoxFS disk attached");
     };
     let t = &buf[..n];
     let printed = &answer(t, b"wc out.txt")[2..];
@@ -191,8 +188,7 @@ fn a_named_file_reaches_the_head_of_a_pipeline() {
 fn one_program_two_destinations_and_the_same_bytes() {
     let mut buf = [0u8; TRANSCRIPT_MAX];
     let Some(n) = transcript(&mut buf) else {
-        crate::println!("    (no RedoxFS disk attached; skipping)");
-        return;
+        crate::testing::skip!("no RedoxFS disk attached");
     };
     let t = &buf[..n];
 
@@ -243,8 +239,7 @@ fn one_program_two_destinations_and_the_same_bytes() {
 fn append_keeps_what_truncate_throws_away() {
     let mut buf = [0u8; TRANSCRIPT_MAX];
     let Some(n) = transcript(&mut buf) else {
-        crate::println!("    (no RedoxFS disk attached; skipping)");
-        return;
+        crate::testing::skip!("no RedoxFS disk attached");
     };
     let t = &buf[..n];
 
@@ -293,8 +288,7 @@ fn append_keeps_what_truncate_throws_away() {
 fn a_redirection_that_cannot_be_backed_is_still_refused() {
     let mut buf = [0u8; TRANSCRIPT_MAX];
     let Some(n) = transcript(&mut buf) else {
-        crate::println!("    (no RedoxFS disk attached; skipping)");
-        return;
+        crate::testing::skip!("no RedoxFS disk attached");
     };
     let t = &buf[..n];
 

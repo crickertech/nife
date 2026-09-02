@@ -1045,8 +1045,7 @@ fn a_userspace_driver_reads_a_file_from_a_virtio_disk() {
 
     let Some(report) = virtio_service::start(init_image()) else {
         // No disk attached to this run. Nothing to test; do not fail.
-        crate::println!("    (no virtio disk attached; skipping)");
-        return;
+        crate::testing::skip!("no virtio disk attached");
     };
 
     let irqs_before = ROUTED_IRQS.load(Ordering::Relaxed);
@@ -1097,8 +1096,7 @@ fn std_fs_reads_a_file_through_a_granted_directory_capability() {
         program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),
         std_exerciser_image(),
     ) else {
-        crate::println!("    (no RedoxFS disk attached; skipping)");
-        return;
+        crate::testing::skip!("no RedoxFS disk attached");
     };
     assert_fs_service_ready(readiness);
 
@@ -1131,8 +1129,7 @@ fn the_redoxfs_server_serves_redoxfs_over_a_capability_contract() {
         0, // the end-to-end proof role, not the benchmark loop
     ) else {
         // No RedoxFS disk attached to this run. Nothing to test; do not fail.
-        crate::println!("    (no RedoxFS disk attached; skipping)");
-        return;
+        crate::testing::skip!("no RedoxFS disk attached");
     };
 
     // The two servers' readiness sentinels, if this test is the one that wired them (the
@@ -1181,7 +1178,7 @@ fn a_read_only_per_file_grant_survives_an_attacker() {
         crate::testing::skip!(fs_service::NO_FS_SERVER);
     }
     let Some(verdict) = attack_a_grant(filesystem_proto::grant::READ, false) else {
-        return;
+        crate::testing::skip!("no RedoxFS disk attached");
     };
     assert_eq!(
         verdict,
@@ -1211,7 +1208,7 @@ fn a_read_only_per_file_grant_reads_its_files_attributes_and_writes_none() {
     }
     use filesystem_proto::fixture::escape;
     let Some(verdict) = attack_a_grant(filesystem_proto::grant::READ, false) else {
-        return;
+        crate::testing::skip!("no RedoxFS disk attached");
     };
     assert_eq!(
         verdict & escape::GRANTED_ATTRS_FAILED,
@@ -1252,7 +1249,7 @@ fn a_writable_per_file_grant_writes_that_file_and_still_only_that_file() {
         filesystem_proto::grant::READ | filesystem_proto::grant::WRITE,
         true,
     ) else {
-        return;
+        crate::testing::skip!("no RedoxFS disk attached");
     };
     // `WROTE_ATTR` joined the expected set in milestone 61, and it is the third way to change a
     // file: bytes, length, and what is attached to it. A direction check that covered only the
@@ -1289,7 +1286,9 @@ fn attack_a_grant(rights: u64, writable: bool) -> Option<u64> {
             arg: writable as u64,
         },
     ) else {
-        crate::println!("    (no RedoxFS disk attached; skipping)");
+        // No print, no skip!() here: this is a helper, and `skip!()` returns from the function it
+        // is written in, which would leave the test running. `None` is the fixture's absence
+        // travelling to the `#[test_case]`, which is the only place that can honestly skip.
         return None;
     };
     // The two handshakes happened inside `start_granted`, before this attacker existed: they
@@ -1357,6 +1356,9 @@ fn a_kill_mid_transaction_leaves_the_filesystem_consistent() {
     if fs_service::fs_server_image().is_none() {
         crate::testing::skip!(fs_service::NO_FS_SERVER);
     }
+    if !fs_service::crash_disk_present() {
+        crate::testing::skip!("no crash disk attached");
+    }
     assert_a_kill_mid_transaction_recovers(
         init_image(),
         program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),
@@ -1372,8 +1374,7 @@ fn a_kill_mid_transaction_leaves_the_filesystem_consistent() {
 #[test_case]
 fn the_redoxfs_servers_stack_still_has_headroom() {
     let Some((used, total)) = fs_service::fs_stack_used() else {
-        crate::println!("    (no FS service wired this boot; skipping)");
-        return;
+        crate::testing::skip!("no FS service wired this boot");
     };
     crate::println!("    (FS server stack high-water: {used} of {total} bytes) ");
     assert!(
@@ -1404,8 +1405,7 @@ fn a_userspace_driver_completes_a_dhcp_round_trip_over_virtio_net() {
     let Some(report) = virtio_service::start_net(init_image()) else {
         // No NIC on this run (a bare boot). The test runners always attach one, so this
         // branch is not the parity gate. See scripts/qemu-runner-*.sh (NIFE_NET).
-        crate::println!("    (no virtio-net device attached; skipping)");
-        return;
+        crate::testing::skip!("no virtio-net device attached");
     };
 
     let yiaddr = sched::ipc_recv(report)[0] as u32;
@@ -1436,8 +1436,7 @@ fn a_userspace_driver_completes_a_dhcp_round_trip_over_virtio_net() {
 #[test_case]
 fn a_userspace_driver_completes_a_dhcp_round_trip_over_virtio_net_pci() {
     let Some(report) = virtio_service::start_net_pci(init_image()) else {
-        crate::println!("    (no virtio-net-pci device attached; skipping)");
-        return;
+        crate::testing::skip!("no virtio-net-pci device attached");
     };
 
     let yiaddr = sched::ipc_recv(report)[0] as u32;
@@ -1463,8 +1462,7 @@ fn a_userspace_driver_completes_a_dhcp_round_trip_over_virtio_net_pci() {
 #[test_case]
 fn the_net_server_acquires_a_dhcp_lease_over_smoltcp() {
     let Some((report, net)) = virtio_service::start_net_server(net_stack_image()) else {
-        crate::println!("    (no virtio-net device attached; skipping)");
-        return;
+        crate::testing::skip!("no virtio-net device attached");
     };
     let addr = sched::ipc_recv(report)[0] as u32;
     assert_eq!(
@@ -1485,8 +1483,7 @@ fn the_net_server_acquires_a_dhcp_lease_over_smoltcp() {
 #[test_case]
 fn the_net_server_acquires_a_dhcp_lease_over_smoltcp_pci() {
     let Some((report, net)) = virtio_service::start_net_server_pci(net_stack_image()) else {
-        crate::println!("    (no virtio-net-pci device attached; skipping)");
-        return;
+        crate::testing::skip!("no virtio-net-pci device attached");
     };
     let addr = sched::ipc_recv(report)[0] as u32;
     assert_eq!(
@@ -1522,8 +1519,7 @@ fn a_client_completes_a_udp_round_trip_through_the_socket_contract() {
         false,
         socket_proto::NO_LISTEN_GRANT,
     ) else {
-        crate::println!("    (no virtio-net device attached; skipping)");
-        return;
+        crate::testing::skip!("no virtio-net device attached");
     };
     let verdict = sched::ipc_recv(report)[0];
     assert_eq!(
@@ -1547,8 +1543,7 @@ fn a_client_completes_a_udp_round_trip_through_the_socket_contract_pci() {
         true,
         socket_proto::NO_LISTEN_GRANT,
     ) else {
-        crate::println!("    (no virtio-net-pci device attached; skipping)");
-        return;
+        crate::testing::skip!("no virtio-net-pci device attached");
     };
     let verdict = sched::ipc_recv(report)[0];
     assert_eq!(
@@ -1578,15 +1573,17 @@ fn a_client_resolves_a_real_dns_name_when_the_host_resolver_answers() {
         false,
         socket_proto::NO_LISTEN_GRANT,
     ) else {
-        crate::println!("    (no virtio-net device attached; skipping)");
-        return;
+        crate::testing::skip!("no virtio-net device attached");
     };
     let verdict = sched::ipc_recv(report)[0];
     if verdict == NET_CLIENT_NO_ANSWER {
-        crate::println!(
-            "    (the host's resolver did not answer; real-DNS check skipped, not a failure)"
+        // **Not a failure, and not a pass either.** This test's name is conditioned on the host's
+        // resolver answering; when it does not, no name was resolved and the claim was never put
+        // to the test. The old shape printed this line and returned, which the harness counted as
+        // a pass (milestone 214, design/roadmap/214-print-and-return-skips.md).
+        crate::testing::skip!(
+            "the host's resolver did not answer, so no real DNS name was resolved this run"
         );
-        return;
     }
     assert_eq!(
         verdict, NET_CLIENT_OK,
@@ -1614,8 +1611,7 @@ fn a_client_echoes_over_tcp_through_the_socket_contract() {
         false,
         socket_proto::NO_LISTEN_GRANT,
     ) else {
-        crate::println!("    (no virtio-net device attached; skipping)");
-        return;
+        crate::testing::skip!("no virtio-net device attached");
     };
     let verdict = sched::ipc_recv(report)[0];
     assert_eq!(
@@ -1639,8 +1635,7 @@ fn a_client_echoes_over_tcp_through_the_socket_contract_pci() {
         true,
         socket_proto::NO_LISTEN_GRANT,
     ) else {
-        crate::println!("    (no virtio-net-pci device attached; skipping)");
-        return;
+        crate::testing::skip!("no virtio-net-pci device attached");
     };
     let verdict = sched::ipc_recv(report)[0];
     assert_eq!(
@@ -1668,8 +1663,7 @@ fn a_reopened_socket_id_connects_again_over_tcp() {
         false,
         socket_proto::NO_LISTEN_GRANT,
     ) else {
-        crate::println!("    (no virtio-net device attached; skipping)");
-        return;
+        crate::testing::skip!("no virtio-net device attached");
     };
     let verdict = sched::ipc_recv(report)[0];
     assert_eq!(
@@ -1744,8 +1738,7 @@ fn a_host_process_connects_to_the_guest_and_is_answered() {
         MDNS_QUERIES,
         socket_proto::udp_bind_grant(NET_MDNS_PORT, NET_MDNS_GRANT_TOP),
     ) else {
-        crate::println!("    (no virtio-net device attached; skipping)");
-        return;
+        crate::testing::skip!("no virtio-net device attached");
     };
     // E2 (milestone 134, design/roadmap/134-the-measurements-that-decide.md): the thread census on
     // the customer path. Every process this topology needs is already spawned by this point
@@ -1840,8 +1833,7 @@ fn std_net_runs_over_the_socket_contract() {
         std_exerciser_image(),
         socket_proto::NO_LISTEN_GRANT,
     ) else {
-        crate::println!("    (no virtio-net device attached; skipping)");
-        return;
+        crate::testing::skip!("no virtio-net device attached");
     };
 
     assert_std_transcript(report, STD_NET_EXPECTED, "std net");
@@ -1884,8 +1876,7 @@ fn a_std_program_serves_a_granted_listening_port() {
         std_exerciser_image(),
         socket_proto::listen_grant(NET_LISTEN_PORT, NET_LISTEN_PORT),
     ) else {
-        crate::println!("    (no virtio-net device attached; skipping)");
-        return;
+        crate::testing::skip!("no virtio-net device attached");
     };
 
     assert_std_transcript(report, STD_LISTEN_EXPECTED, "std listen");
@@ -1999,8 +1990,7 @@ fn a_process_spends_memory_region_and_the_kernel_never_allocates() {
 #[test_case]
 fn the_kernel_refuses_a_dma_descriptor_that_escapes_the_drivers_region() {
     let Some(report) = virtio_service::start_attacker(init_image()) else {
-        crate::println!("    (no virtio disk attached; skipping)");
-        return;
+        crate::testing::skip!("no virtio disk attached");
     };
     let refused = sched::ipc_recv(report)[0];
     assert_eq!(
@@ -2024,8 +2014,7 @@ fn the_kernel_refuses_a_dma_descriptor_that_escapes_the_drivers_region() {
 #[test_case]
 fn the_kernel_refuses_an_indirect_descriptor_escape() {
     let Some(report) = virtio_service::start_attacker_indirect(init_image()) else {
-        crate::println!("    (no virtio disk attached; skipping)");
-        return;
+        crate::testing::skip!("no virtio disk attached");
     };
     let refused = sched::ipc_recv(report)[0];
     assert_eq!(
@@ -2035,24 +2024,30 @@ fn the_kernel_refuses_an_indirect_descriptor_escape() {
     );
 }
 
-/// **The PCIe transport on aarch64, end to end** (DECISIONS §18): the same driver reads the
-/// same file off the disk QEMU attached as `virtio-blk-pci`, found by ECAM enumeration in
-/// the highmem window, BARs placed by the kernel, the completion arriving as INTx through
-/// the GIC (SPI 3 + swizzle). The riscv twin proved the seam on the PLIC board; this proves
-/// the same subsystem, from the same portable crate and seam, on the second bus of the
-/// second interrupt controller.
+/// **The PCIe transport end to end** (DECISIONS §18): the same driver reads the same file off
+/// the disk QEMU attached as `virtio-blk-pci`, found by ECAM enumeration, BARs placed by the
+/// kernel, and the completion arriving as an interrupt the kernel turned into a message. The
+/// riscv twin proved the seam on the PLIC board; this proves the same subsystem, from the same
+/// portable crate and seam, on two more interrupt controllers.
+///
+/// **It runs on `x86_64` too since milestone 215** (`x86_64` PCI interrupt routing), and there it is
+/// the whole of that milestone's claim rather than one more transport: the completion arrives as
+/// an **MSI-X** message the device writes straight to the local APIC, because a legacy INTx pin on
+/// `q35` goes through a PIRQ router only ACPI's `_PRT` describes. On aarch64 the same completion
+/// arrives as INTx through the GIC (SPI 3 + swizzle). The assertion below is the same either way,
+/// which is the point: a driver binds an intid and waits, and how the machine delivers it is the
+/// arch layer's business.
 // RISC-V twin: `riscv_virtio_tests::a_userspace_driver_reads_a_file_over_the_pcie_transport`. Gated here rather than run twice: that
 // module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
 // second copy through hello's roles would double the suite's slowest tests to prove
 // nothing new. See this module's comment on the two kinds of gate.
-#[cfg(target_arch = "aarch64")]
+#[cfg(any(target_arch = "aarch64", target_arch = "x86_64"))]
 #[test_case]
 fn a_userspace_driver_reads_a_file_over_the_pcie_transport() {
     use crate::arch::exceptions::ROUTED_IRQS;
 
     let Some(report) = virtio_service::start_pci(init_image()) else {
-        crate::println!("    (no virtio-pci disk on the bus; skipping)");
-        return;
+        crate::testing::skip!("no virtio-pci disk on the bus");
     };
 
     let irqs_before = ROUTED_IRQS.load(Ordering::Relaxed);
@@ -2065,7 +2060,7 @@ fn a_userspace_driver_reads_a_file_over_the_pcie_transport() {
     );
     assert!(
         ROUTED_IRQS.load(Ordering::Relaxed) > irqs_before,
-        "the read completed but no INTx interrupt was delivered through the GIC",
+        "the read completed but the device's interrupt was never delivered to this kernel",
     );
 }
 
@@ -2083,8 +2078,7 @@ fn a_userspace_driver_reads_a_file_over_the_pcie_transport() {
 #[test_case]
 fn a_userspace_driver_writes_a_block_and_reads_it_back() {
     let Some(report) = virtio_service::start_writer(init_image()) else {
-        crate::println!("    (no virtio disk attached; skipping)");
-        return;
+        crate::testing::skip!("no virtio disk attached");
     };
     let word = sched::ipc_recv(report)[0];
     assert_eq!(
@@ -2101,12 +2095,11 @@ fn a_userspace_driver_writes_a_block_and_reads_it_back() {
 // module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
 // second copy through hello's roles would double the suite's slowest tests to prove
 // nothing new. See this module's comment on the two kinds of gate.
-#[cfg(target_arch = "aarch64")]
+#[cfg(any(target_arch = "aarch64", target_arch = "x86_64"))]
 #[test_case]
 fn a_userspace_driver_writes_a_block_over_the_pcie_transport() {
     let Some(report) = virtio_service::start_writer_pci(init_image()) else {
-        crate::println!("    (no virtio-pci disk on the bus; skipping)");
-        return;
+        crate::testing::skip!("no virtio-pci disk on the bus");
     };
     let word = sched::ipc_recv(report)[0];
     assert_eq!(
@@ -2135,8 +2128,7 @@ fn a_userspace_driver_writes_a_block_over_the_pcie_transport() {
 fn a_driver_killed_mid_write_leaves_the_device_and_transport_sane() {
     let faults = USER_FAULTS.load(Ordering::Relaxed);
     let Some(report) = virtio_service::start_write_abandoner(init_image()) else {
-        crate::println!("    (no virtio disk attached; skipping)");
-        return;
+        crate::testing::skip!("no virtio disk attached");
     };
 
     // 1 = the kernel validated the write and rang the device; the request is genuinely in

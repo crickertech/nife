@@ -32,7 +32,9 @@ fn attack_a_subtree(rights: u64, run: u64) -> Option<u64> {
             stack_pages: 0,
         },
     ) else {
-        crate::println!("    (no RedoxFS disk attached; skipping)");
+        // No print, no skip!() here: this is a helper, and `skip!()` returns from the function it
+        // is written in, which would leave the test running. `None` is the fixture's absence
+        // travelling to the `#[test_case]`, which is the only place that can honestly skip.
         return None;
     };
     // Both handshakes happened inside `start_granted_dir`, before this attacker existed. That
@@ -124,7 +126,7 @@ fn a_read_only_directory_capability_reaches_its_subtree_and_nothing_above_it() {
         crate::testing::skip!(fs_service::NO_FS_SERVER);
     }
     let Some(v) = attack_a_subtree(dir::DESCEND | dir::READ | dir::ENUMERATE, 1) else {
-        return;
+        crate::testing::skip!("no RedoxFS disk attached");
     };
     assert_verdict(
         v,
@@ -147,7 +149,7 @@ fn a_full_directory_capability_does_everything_inside_and_nothing_outside() {
         crate::testing::skip!(fs_service::NO_FS_SERVER);
     }
     let Some(v) = attack_a_subtree(dir::ALL, 2) else {
-        return;
+        crate::testing::skip!("no RedoxFS disk attached");
     };
     assert_verdict(
         v,
@@ -185,7 +187,7 @@ fn an_append_only_directory_capability_adds_and_cannot_walk_or_list() {
         crate::testing::skip!(fs_service::NO_FS_SERVER);
     }
     let Some(v) = attack_a_subtree(dir::READ | dir::WRITE | dir::CREATE, 3) else {
-        return;
+        crate::testing::skip!("no RedoxFS disk attached");
     };
     assert_verdict(
         v,
@@ -232,8 +234,7 @@ fn a_name_set_capability_reads_its_attributes_and_still_names_only_its_set() {
             stack_pages: 0,
         },
     ) else {
-        crate::println!("    (no RedoxFS disk attached; skipping)");
-        return;
+        crate::testing::skip!("no RedoxFS disk attached");
     };
     let [tag, v, ..] = sched::ipc_recv(report);
     assert_eq!(

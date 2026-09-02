@@ -31,7 +31,9 @@ fn two_dir_witness() -> Option<u64> {
             stack_pages: 0,
         },
     ) else {
-        crate::println!("    (no RedoxFS disk attached; skipping)");
+        // No print, no skip!() here: this is a helper, and `skip!()` returns from the function it
+        // is written in, which would leave the test running. `None` is the fixture's absence
+        // travelling to the `#[test_case]`, which is the only place that can honestly skip.
         return None;
     };
     // Both caretakers' own handshakes happened inside `start_granted_two_dirs`, before this
@@ -60,7 +62,7 @@ fn a_process_holding_two_directory_capabilities_reaches_both_and_crosses_neither
         crate::testing::skip!(fs_service::NO_FS_SERVER);
     }
     let Some(v) = two_dir_witness() else {
-        return;
+        crate::testing::skip!("no RedoxFS disk attached");
     };
     let want = t::OPENED_A | t::OPENED_B;
     let leaked = v & !want;

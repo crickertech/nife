@@ -129,8 +129,7 @@ fn one_reader_two_sources_and_the_same_answer() {
     // the one place that disagreement is written down, and now this goes through it.
     let blk = fs_service::blk_server_image();
     let Some(redoxfs_server) = program("redoxfs_server") else {
-        crate::println!("    (no FS server in this archive; skipping)");
-        return;
+        crate::testing::skip!("no redoxfs_server program in this archive");
     };
 
     // Arm one: a pipe. The kernel is the producer, which is the same position the shell is in
@@ -161,8 +160,16 @@ fn one_reader_two_sources_and_the_same_answer() {
 
     // Arm two: the same bytes, through a real filesystem. Write them first.
     let Some(file_sink) = fs_service::start_file_sink(blk, redoxfs_server, sink_image) else {
-        crate::println!("    (no RedoxFS disk attached; the pipe arm stands alone)");
-        return;
+        // **The pipe arm above ran and asserted; the file arm is what is missing.** This is
+        // reported as a skip rather than as a pass because the claim in this test's *name* is that
+        // two sources agree, and one source cannot agree with anything. The reason says which half
+        // ran, so the transcript still records that the pipe arm was exercised (and would still
+        // have failed the run had it been wrong): a skip here is a statement about the two-source
+        // property, not about the code that already executed.
+        crate::testing::skip!(
+            "no RedoxFS disk attached: the pipe arm ran, the file arm did not, so the two \
+             sources were never compared"
+        );
     };
     fs_service::wait_for_service(file_sink.readiness);
     assert_eq!(
@@ -243,8 +250,7 @@ fn a_program_cannot_tell_what_its_output_slot_holds() {
     let entropy = program("entropy").expect("no entropy program in the initrd archive");
     let sink_image = program("sink").expect("no sink program in the initrd archive");
     let Some(redoxfs_server) = program("redoxfs_server") else {
-        crate::println!("    (no FS server in this archive; skipping)");
-        return;
+        crate::testing::skip!("no redoxfs_server program in this archive");
     };
 
     // Arm one: the kernel receives. Everything here is what the existing std test does, which
@@ -272,8 +278,7 @@ fn a_program_cannot_tell_what_its_output_slot_holds() {
     // the one place that disagreement is written down, and now this goes through it.
     let blk = fs_service::blk_server_image();
     let Some(file_sink) = fs_service::start_file_sink(blk, redoxfs_server, sink_image) else {
-        crate::println!("    (no RedoxFS disk attached; skipping)");
-        return;
+        crate::testing::skip!("no RedoxFS disk attached");
     };
     let (sink_ep, sink_report) = (file_sink.sink, file_sink.report);
     fs_service::wait_for_service(file_sink.readiness);

@@ -88,10 +88,12 @@ pub(super) fn assert_a_kill_mid_transaction_recovers(
     client_image: &'static [u8],
 ) {
     use filesystem_proto::fixture::{READY, SUCCESS, crash};
-    let Some(run) = fs_service::start_crash(blk_image, redoxfs_server_image, client_image) else {
-        crate::println!("    (no crash disk attached; skipping)");
-        return;
-    };
+    // The caller has already established the disk is there (`fs_service::crash_disk_present`) and
+    // skipped its own `#[test_case]` if it is not. This `expect` is that guard restated where it
+    // can fail loudly: a `None` here means the disk went away between the two calls, which is a
+    // machine fault rather than an absent fixture, and it must not be reported as a skip.
+    let run = fs_service::start_crash(blk_image, redoxfs_server_image, client_image)
+        .expect("the crash disk was present a moment ago and the block server still refused it");
     assert_eq!(
         crate::sched::ipc_recv(run.blk_ready)[0],
         READY,

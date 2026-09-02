@@ -33,8 +33,7 @@ fn what_a_shell_shows_is_what_a_set_grant_takes_away() {
         crate::testing::skip!(fs_service::NO_FS_SERVER);
     }
     let Some(shown) = shell_expanded() else {
-        crate::println!("    (no RedoxFS disk attached; skipping)");
-        return;
+        crate::testing::skip!("no RedoxFS disk attached");
     };
     assert_shell_agreed(shown);
     a_set_capability_cannot_name_a_stranger();

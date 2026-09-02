@@ -114,6 +114,41 @@ static TEST_NAME_LEN: AtomicUsize = AtomicUsize::new(0);
 /// reach the test: a function can only return `()` and hand back control, not unwind its caller.
 pub(crate) static SKIP_REASON: AtomicPtr<u8> = AtomicPtr::new(core::ptr::null_mut());
 pub(crate) static SKIP_REASON_LEN: AtomicUsize = AtomicUsize::new(0);
+/// **A test printed the word "skip" while it was running**, set by the console writer and read
+/// once the test returns. See [`note_printed`] and the check in `Testable::run`.
+#[cfg(test)]
+static PRINTED_A_SKIP_WORD: AtomicBool = AtomicBool::new(false);
+
+/// **The mechanism that keeps [`skip!`] from being optional**, from milestone 214
+/// (design/roadmap/214-print-and-return-skips.md), on a test that prints "skipping" and returns
+/// being counted as passed.
+///
+/// `skip!()` existed and was one macro away, and eighty-odd `#[test_case]`s reached for
+/// `println!("... skipping)"); return;` instead. That is indistinguishable from a pass to
+/// everything that reads the counts, which is the only thing anyone reads: milestone 164 watched
+/// `x86_64` go from "200 passed, 55 skipped" to "211 passed, 44 skipped" without a single test
+/// running that had not run before.
+///
+/// So the console tells the harness what a test said. Every fragment written while a test is
+/// running is checked for `skip`, and a test that says the word and then returns **without** a
+/// skip reason fails the run. It is not a lint over the source: it fires on what was actually
+/// printed, at the moment the machine printed it, which is why it needs no allow-list and cannot
+/// be defeated by a format string the source does not show whole.
+///
+/// **What it costs and what it can get wrong.** One `str::contains` on each console fragment in
+/// test builds only. It fires on a test that prints "skip" for some other reason and then passes,
+/// which is a false positive; the whole tree today has none (measured, all three architectures),
+/// and a test that genuinely wants the word can print it in a message it also asserts on, or fail
+/// loudly rather than returning. The other direction is silent: a test that returns early having
+/// proved nothing and printed nothing is invisible to this, which is why the sweep also went
+/// looking for early returns with no line at all.
+#[cfg(test)]
+pub(crate) fn note_printed(fragment: &str) {
+    if fragment.contains("skip") {
+        PRINTED_A_SKIP_WORD.store(true, Ordering::Relaxed);
+    }
+}
+
 /// How many tests this run has skipped, for the final line. Read once, at the end; never
 /// compared against anything today, which is milestone 145's own open question (a run that
 /// skips more over time is a fact worth someone eventually gating on, not silently absorbing).
@@ -885,6 +920,11 @@ impl<T: Fn()> Testable for T {
         // disarmed sentinel, so nudge it. One counter unit of slack is nothing against a 90 s budget.
         TEST_START.store(if start == 0 { 1 } else { start }, Ordering::Relaxed);
 
+        // Cleared HERE rather than before the name is printed, so a test whose own name contains
+        // "skip" does not accuse itself. See note_printed.
+        #[cfg(test)]
+        PRINTED_A_SKIP_WORD.store(false, Ordering::Relaxed);
+
         self();
 
         // Disarm: between tests there is no budget to exceed, and the next test arms its own.
@@ -916,6 +956,20 @@ impl<T: Fn()> Testable for T {
             );
             println!("skipped: {reason}");
             return;
+        }
+
+        // **The test said "skip" and then returned as a pass.** That is milestone 214's defect
+        // and there is no honest reading of it: either the test skipped, in which case the branch
+        // above should have run, or it did not, in which case it printed something misleading
+        // about itself. Fail the run rather than let the final line carry it.
+        #[cfg(test)]
+        if PRINTED_A_SKIP_WORD.swap(false, Ordering::Relaxed) {
+            panic!(
+                "this test printed \"skip\" and then returned, so the run counts it as a PASS. \
+                 A test whose fixture is absent calls testing::skip!(reason), which returns and \
+                 puts it in the skipped column; a println! and a `return` are indistinguishable \
+                 from proving the claim. See design/roadmap/214-print-and-return-skips.md.",
+            );
         }
 
         // Report what a test actually cost, if it cost anything worth knowing. The ceiling already
