@@ -252,17 +252,17 @@ fn watch(shared: u64, workers: usize) -> ! {
         let mut mismatches = 0u64;
         let mut stalled = 0usize;
         let mut first_stalled = usize::MAX;
-        for i in 0..workers {
+        for (i, last) in previous.iter_mut().take(workers).enumerate() {
             let rounds = read_counter(shared, soak_page::rounds(i));
             mismatches = mismatches.wrapping_add(read_counter(shared, soak_page::mismatches(i)));
             total = total.wrapping_add(rounds);
-            if rounds == previous[i] {
+            if rounds == *last {
                 stalled += 1;
                 if first_stalled == usize::MAX {
                     first_stalled = i;
                 }
             }
-            previous[i] = rounds;
+            *last = rounds;
         }
 
         let refused = sched::wake_refusals();

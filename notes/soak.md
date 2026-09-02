@@ -65,6 +65,30 @@ benchmark**; `script/bench` is the instrument for cost.
 | riscv64 | 4 | 20 | ~24,000 | 21 |
 | x86_64 | 1 | 10 | ~3,900 | 0 |
 
+**Which build these came from, and it is not the one that ships.** Every figure above is from a
+`--features soak` kernel, which is the only build in which the counters and `Thread::last_cpu`
+exist at all. That is not free, and the size of it is measured rather than assumed:
+
+| Architecture | `ipc_fastpath`, production | with `--features soak` | |
+|---|---|---|---|
+| aarch64 | 5,788 bytes | 6,120 | 1.06x |
+| riscv64 | 5,106 bytes | 5,344 | 1.05x |
+| x86_64 | 6,639 bytes | 6,995 | 1.05x |
+
+So **a soak build is not a production build**: its IPC path is five to six per cent larger, and its
+round-trip rates are therefore soak-build rates. Compare a soak number with another soak number,
+which is what the three comparisons above are; never with `script/bench`, and never as a statement
+about how fast this kernel does IPC.
+
+That the instrumentation is behind a feature at all is a thing this milestone got wrong first and
+was caught by a gate. Shipping the counters and the `last_cpu` write unconditionally put
+`ipc_fastpath` **5.7% over milestone 132's 5% bound on aarch64** (5,788 -> 6,120), with riscv64 and
+x86_64 growing 4.7% and 4.6% behind it: one cause, three effects, and aarch64 merely the one that
+tipped. The `last_cpu` write sits in `schedule()`'s switch, the hottest line of the hottest
+function. `script/lint` now clippies `--features soak` on both ISAs, because a `cfg`-gated
+instrument that nothing lints is one that rots (and the first run of that check found two real
+warnings in `kernel/src/soak.rs`, which had never been linted).
+
 ## The finding: a saturated workload does not migrate under this scheduler
 
 This is the part worth reading, and it is the reason the milestone was worth running rather than
@@ -240,6 +264,9 @@ The same procedure works on **argon** and **xenon**, with their own architecture
 - **`--arch x86_64` soaks one core** unless `--smp` says otherwise, because that runner defaults to
   one and its SMP bring-up has two open bugs (`arch::x86_64::ap_boot`'s BUGS #1 and #3). Its
   `crossings=0` says so out loud, and a single-core soak is not a multicore soak.
+- **A soak build is not the binary that ships**, so its timing is not the shipping binary's timing.
+  The numbers above quantify it. This is normal and accepted, and it is stated here because the
+  round-trip figures would otherwise read as IPC benchmarks, which they are not.
 - **The supervisor yields in a loop rather than sleeping**, because this kernel has no
   sleep-until primitive a kernel thread can use. It is one more thread contending, which is not
   entirely a cost, and it is why these round-trip rates are not comparable with `script/bench`'s IPC

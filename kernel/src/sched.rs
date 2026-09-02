@@ -579,6 +579,13 @@ mod trace {
         /// wake makes its peer Ready on the *waker's* core, which is local by construction, so
         /// [`Event::PlaceRemote`] misses every migration a pure IPC workload performs. `aux` is the
         /// core it came from.
+        ///
+        /// Only ever recorded by a `soak` build, since the `last_cpu` comparison that produces it
+        /// is gated (it sits in `schedule()`'s switch and cost 5.7% of `ipc_fastpath` on aarch64
+        /// when it was not). The variant itself stays in every build: it is compile-time only, it
+        /// costs no bytes, and removing it would leave [`dump`]'s `11 => "moved"` arm naming a
+        /// number with nothing to point at.
+        #[cfg_attr(not(feature = "soak"), allow(dead_code))]
         Migrated = 11,
         /// This core set `ipc_served` on `tid`: a delivery completed the thread's parked IPC.
         /// `aux` names the delivering site (1 send, 2 recv-collect, 3 `send_cap`, 4 `recv_cap`-collect,
@@ -591,7 +598,9 @@ mod trace {
     /// How many discriminants [`Event`] has, which sizes the per-core totals below.
     ///
     /// One more than the largest variant, because the discriminants start at 1 so that a zeroed
-    /// ring slot is distinguishable from a recorded `SwitchTo`.
+    /// ring slot is distinguishable from a recorded `SwitchTo`. Read only by the `soak`-gated
+    /// counter array; a `const` costs no bytes either way, so it stays visible to every build.
+    #[cfg_attr(not(feature = "soak"), allow(dead_code))]
     pub const KINDS: usize = 12;
 
     struct Ring {
@@ -607,6 +616,12 @@ mod trace {
         /// fastpath, and a soak whose instrument slows the thing it measures is measuring the
         /// instrument. The reader sums across cores and accepts that the sum is a moment that
         /// never quite existed, which is what [`counted`] says out loud.
+        ///
+        /// **Behind `feature = "soak"`.** Per-core rather than shared was not enough: the extra
+        /// load-add-store per event, on paths the IPC fastpath runs, is part of what pushed
+        /// `ipc_fastpath` 5.7% over milestone 132's bound on aarch64 when this shipped
+        /// unconditionally. Only a soak build reads these, so only a soak build carries them.
+        #[cfg(feature = "soak")]
         counts: [AtomicU64; KINDS],
     }
 
@@ -614,6 +629,7 @@ mod trace {
     const EMPTY_RING: Ring = Ring {
         seq: AtomicU64::new(0),
         slots: [const { AtomicU64::new(0) }; DEPTH],
+        #[cfg(feature = "soak")]
         counts: [const { AtomicU64::new(0) }; KINDS],
     };
 
@@ -632,12 +648,16 @@ mod trace {
         ring.slots[(seq as usize) % DEPTH].store(entry, Ordering::Relaxed);
         // The running total, on this core's own line. Relaxed and non-atomic-read-modify-write in
         // effect (one writer per core), so it costs a load, an add and a store next to the two
-        // stores above it.
-        let total = &ring.counts[kind as usize];
-        total.store(
-            total.load(Ordering::Relaxed).wrapping_add(1),
-            Ordering::Relaxed,
-        );
+        // stores above it. **Soak builds only**, because those three instructions are on the IPC
+        // fastpath and nothing but a soak reads what they produce; see the field's own note.
+        #[cfg(feature = "soak")]
+        {
+            let total = &ring.counts[kind as usize];
+            total.store(
+                total.load(Ordering::Relaxed).wrapping_add(1),
+                Ordering::Relaxed,
+            );
+        }
     }
 
     /// **How many times `kind` has happened on this machine since boot**, summed over every core.
@@ -650,7 +670,7 @@ mod trace {
     /// is not a snapshot of any single instant. Nothing here needs one: the soak asks "is this
     /// still zero" and "how much did it grow since the last beat", and both survive a reader that
     /// is a few events behind.
-    #[cfg_attr(not(feature = "soak"), allow(dead_code))]
+    #[cfg(feature = "soak")]
     pub fn counted(kind: Event) -> u64 {
         let mut total = 0u64;
         for ring in &RINGS {
@@ -713,6 +733,7 @@ mod trace {
         InboxDrain,
         WakeRefused,
         Served,
+        #[cfg_attr(not(feature = "soak"), allow(dead_code))]
         Migrated,
     }
 
@@ -721,7 +742,7 @@ mod trace {
 
     /// Always zero here, because nothing is recorded. The bench boot runs no soak (both diverge
     /// before the other could start), so no caller can be misled by it.
-    #[cfg_attr(not(feature = "soak"), allow(dead_code))]
+    #[cfg(feature = "soak")]
     pub fn counted(_kind: Event) -> u64 {
         0
     }
@@ -745,12 +766,12 @@ mod trace {
 /// fired in the field (see `thread_wake_handshake`'s crate doc, which is honest that the boot-8
 /// reading it was built against was later overturned), so a nonzero here on a board is the single
 /// most interesting number this kernel can produce.
-// Read only by `soak` (milestone 219), so an ordinary build has no caller. Kept COMPILED rather
-// than `cfg`-gated, so that clippy and the type checker still see them in every configuration:
-// milestone 113 found the Kani harnesses invisible to the lint gate for exactly this shape of
-// reason, and a counter accessor that only compiles under one feature is a counter accessor that
-// rots under the others.
-#[cfg_attr(not(feature = "soak"), allow(dead_code))]
+// Soak builds only (milestone 219). These were `allow(dead_code)` and compiled everywhere, on the
+// argument that a function invisible to clippy rots; the measurement overruled it. The counters
+// they read are `cfg`-gated because their increments are on the IPC fastpath, so an accessor
+// compiled without them would not build either. `script/lint` clippies `--features soak` on both
+// ISAs, which is what keeps them seen.
+#[cfg(feature = "soak")]
 pub fn wake_refusals() -> u64 {
     trace::counted(trace::Event::WakeRefused)
 }
@@ -758,12 +779,12 @@ pub fn wake_refusals() -> u64 {
 /// How many wakes were parked because the target was still standing on a CPU. Ordinary, and
 /// expected to be nonzero under load; a soak reports it so that "the machine was genuinely
 /// contended" is a number rather than an assurance.
-// Read only by `soak` (milestone 219), so an ordinary build has no caller. Kept COMPILED rather
-// than `cfg`-gated, so that clippy and the type checker still see them in every configuration:
-// milestone 113 found the Kani harnesses invisible to the lint gate for exactly this shape of
-// reason, and a counter accessor that only compiles under one feature is a counter accessor that
-// rots under the others.
-#[cfg_attr(not(feature = "soak"), allow(dead_code))]
+// Soak builds only (milestone 219). These were `allow(dead_code)` and compiled everywhere, on the
+// argument that a function invisible to clippy rots; the measurement overruled it. The counters
+// they read are `cfg`-gated because their increments are on the IPC fastpath, so an accessor
+// compiled without them would not build either. `script/lint` clippies `--features soak` on both
+// ISAs, which is what keeps them seen.
+#[cfg(feature = "soak")]
 pub fn wakes_deferred() -> u64 {
     trace::counted(trace::Event::WakeDeferred)
 }
@@ -772,12 +793,12 @@ pub fn wakes_deferred() -> u64 {
 /// number that says the workload actually crossed cores**, which is the whole premise of a
 /// multicore soak; a run reporting zero here soaked one core very thoroughly and proved nothing
 /// about the others.
-// Read only by `soak` (milestone 219), so an ordinary build has no caller. Kept COMPILED rather
-// than `cfg`-gated, so that clippy and the type checker still see them in every configuration:
-// milestone 113 found the Kani harnesses invisible to the lint gate for exactly this shape of
-// reason, and a counter accessor that only compiles under one feature is a counter accessor that
-// rots under the others.
-#[cfg_attr(not(feature = "soak"), allow(dead_code))]
+// Soak builds only (milestone 219). These were `allow(dead_code)` and compiled everywhere, on the
+// argument that a function invisible to clippy rots; the measurement overruled it. The counters
+// they read are `cfg`-gated because their increments are on the IPC fastpath, so an accessor
+// compiled without them would not build either. `script/lint` clippies `--features soak` on both
+// ISAs, which is what keeps them seen.
+#[cfg(feature = "soak")]
 pub fn remote_placements() -> u64 {
     trace::counted(trace::Event::PlaceRemote)
 }
@@ -787,24 +808,24 @@ pub fn remote_placements() -> u64 {
 /// The cross-core handoff number, and the one a soak reports. See [`crate::thread::Thread::last_cpu`] for
 /// why [`remote_placements`] could not be it: a rendezvous wake queues its peer on the waker's own
 /// core (DECISIONS §28.2), so the placement is local even though the thread has moved.
-// Read only by `soak` (milestone 219), so an ordinary build has no caller. Kept COMPILED rather
-// than `cfg`-gated, so that clippy and the type checker still see them in every configuration:
-// milestone 113 found the Kani harnesses invisible to the lint gate for exactly this shape of
-// reason, and a counter accessor that only compiles under one feature is a counter accessor that
-// rots under the others.
-#[cfg_attr(not(feature = "soak"), allow(dead_code))]
+// Soak builds only (milestone 219). These were `allow(dead_code)` and compiled everywhere, on the
+// argument that a function invisible to clippy rots; the measurement overruled it. The counters
+// they read are `cfg`-gated because their increments are on the IPC fastpath, so an accessor
+// compiled without them would not build either. `script/lint` clippies `--features soak` on both
+// ISAs, which is what keeps them seen.
+#[cfg(feature = "soak")]
 pub fn migrations() -> u64 {
     trace::counted(trace::Event::Migrated)
 }
 
 /// How many threads this machine handed from one core's run queue to another's on request. The
 /// work-steal protocol's activity level, and the second of the two cross-core paths a soak is for.
-// Read only by `soak` (milestone 219), so an ordinary build has no caller. Kept COMPILED rather
-// than `cfg`-gated, so that clippy and the type checker still see them in every configuration:
-// milestone 113 found the Kani harnesses invisible to the lint gate for exactly this shape of
-// reason, and a counter accessor that only compiles under one feature is a counter accessor that
-// rots under the others.
-#[cfg_attr(not(feature = "soak"), allow(dead_code))]
+// Soak builds only (milestone 219). These were `allow(dead_code)` and compiled everywhere, on the
+// argument that a function invisible to clippy rots; the measurement overruled it. The counters
+// they read are `cfg`-gated because their increments are on the IPC fastpath, so an accessor
+// compiled without them would not build either. `script/lint` clippies `--features soak` on both
+// ISAs, which is what keeps them seen.
+#[cfg(feature = "soak")]
 pub fn steals_served() -> u64 {
     trace::counted(trace::Event::StealServe)
 }
@@ -1773,13 +1794,15 @@ pub fn schedule() {
         }
 
         // Running, with on_cpu set until ITS successor's finish_switch, one switch from now.
-        let here = cpu::id();
+        // **Did this thread just cross cores?** Recorded here rather than at any wake site, because
+        // this is the one place every path to a CPU passes through, whatever moved the thread: a
+        // rendezvous wake onto the waker's core, a work steal, a load-aware placement, or spawn.
+        // See `thread::Thread::last_cpu` for why the placement counter could not answer this, and
+        // for why this is behind `feature = "soak"`: it is the hottest line of the hottest
+        // function, and shipping it everywhere put `ipc_fastpath` over milestone 132's bound.
+        #[cfg(feature = "soak")]
         {
-            // **Did this thread just cross cores?** Recorded here rather than at any wake site,
-            // because this is the one place every path to a CPU passes through, whatever moved the
-            // thread: a rendezvous wake onto the waker's core, a work steal, a load-aware
-            // placement, or spawn. See `thread::Thread::last_cpu` for why the placement counter
-            // could not answer this.
+            let here = cpu::id();
             let t = sched.threads.get_mut(next).unwrap();
             let from = t.last_cpu;
             t.last_cpu = here as u8;

@@ -33,6 +33,10 @@
 # - **QEMU cannot show the defects this is for.** That is the premise of the risk, not a limitation
 #   of this script: a green soak under emulation says the mechanism works, and says nothing about
 #   silicon.
+# - **A soak build is not a production build.** The counters and `Thread::last_cpu` exist only under
+#   `--features soak`, and they are not free: `ipc_fastpath` measures 1.05 to 1.06x its production
+#   size with them in. So these round-trip rates are soak-build rates, comparable with other soak
+#   runs and with nothing else. `script/bench` is the instrument for IPC cost.
 # - **`--arch x86_64` soaks one core** unless `--smp` says otherwise, because that runner defaults
 #   to one and its SMP bring-up has two open bugs (`arch::x86_64::ap_boot`'s BUGS #1 and #3). A
 #   single-core soak is not a multicore soak, and `remote=0` in its report is how it says so.

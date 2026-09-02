@@ -356,6 +356,14 @@ pub struct Thread {
     ///
     /// Not part of the block/wake protocol, so deliberately not in `Handshake`: that crate models
     /// the transitions loom searches, and this is an observation about them.
+    ///
+    /// **Behind `feature = "soak"`, and that is not tidiness.** The write sits in `schedule()`'s
+    /// switch, which is the hottest line of the hottest function, and shipping it unconditionally
+    /// cost **5.7% of `ipc_fastpath`'s footprint on aarch64** (5788 -> 6120 bytes), over milestone
+    /// 132's 5% bound, with `riscv64` and `x86_64` growing 4.7% and 4.6% behind it. That gate exists
+    /// because of Liedtke's cache-footprint argument (`script/fastpath-footprint`'s header), and an
+    /// instrument that only a soak build reads has no business being on every IPC in every build.
+    #[cfg(feature = "soak")]
     pub last_cpu: u8,
 
     /// **The entire saved CPU state of this thread**: one stack pointer.
@@ -513,6 +521,7 @@ impl Thread {
         Thread {
             id: UNNAMED, // named 0 by the table's first insert (see generational_table::Table)
             handshake: thread_wake_handshake::Handshake::on_cpu_now(), // adopted mid-run: standing on its CPU
+            #[cfg(feature = "soak")]
             last_cpu: u8::MAX,
             context: core::ptr::null_mut(),
             stack: None,
@@ -543,6 +552,7 @@ impl Thread {
         Thread {
             id: UNNAMED, // named at insert, like every thread
             handshake: thread_wake_handshake::Handshake::on_cpu_now(), // adopted mid-run: standing on its CPU
+            #[cfg(feature = "soak")]
             last_cpu: u8::MAX,
             context: core::ptr::null_mut(),
             stack: None,
@@ -646,6 +656,7 @@ impl Thread {
             dst.write(Thread {
                 id,
                 handshake: thread_wake_handshake::Handshake::ready(),
+                #[cfg(feature = "soak")]
                 last_cpu: u8::MAX,
                 context,
                 stack: Some(stack),
@@ -691,6 +702,7 @@ impl Thread {
         Thread {
             id: UNNAMED,
             handshake: thread_wake_handshake::Handshake::embryo(),
+            #[cfg(feature = "soak")]
             last_cpu: u8::MAX,
             context: core::ptr::null_mut(),
             stack: None,

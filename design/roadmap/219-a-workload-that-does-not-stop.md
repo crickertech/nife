@@ -62,7 +62,9 @@ thing with different deadlines.
 - **What "it passed" means: a round-trip total, and three comparisons it supports.** Between
   architectures, between QEMU and silicon, and against the same machine later. First numbers, QEMU
   on patagonia, 2026-09-01: **aarch64 ~58,000/s on four cores, riscv64 ~24,000/s on four,
-  x86_64 ~3,900/s on one.** Nothing else. See the BUGS section, which is the important half.
+  x86_64 ~3,900/s on one.** All three from a `--features soak` build, whose IPC path is 1.05 to
+  1.06x the production one; compare a soak number only with another soak number. Nothing else. See
+  the BUGS section, which is the important half.
 
 ### And a fifth question this block did not think to ask
 
@@ -107,6 +109,27 @@ by step, including which flag builds the payload in the order the measured-boot 
 **None of the three has been run at a bench yet.** That is the remaining half of this milestone and
 it needs a person, a board and an evening, not a lane.
 
+## The gate this got wrong first, and what it cost
+
+The instrumentation shipped unconditionally in the first version of this lane, and
+`script/fastpath-footprint` caught it: `ipc_fastpath` grew **5.7% on aarch64** (5,788 -> 6,120
+bytes), over milestone 132's 5% bound, with riscv64 and x86_64 at 4.7% and 4.6% behind it. One cause
+with three effects; aarch64 was merely the one that tipped. The single largest contributor is the
+`Thread::last_cpu` write, which sits in `schedule()`'s switch, the hottest line of the hottest
+function, and the per-event counter increments are the rest.
+
+The fix is `#[cfg(feature = "soak")]` on the counters, the accessors and the `last_cpu` field, so a
+production build is **byte-identical to what it was**: measured at 5,852 / 5,132 / 6,687 on this
+branch against exactly those three numbers at the commit it was cut from. The 5% bound was not
+touched, and it should not be: it is Liedtke's cache-footprint argument, which is the oldest
+performance case in microkernels and the reason the gate exists.
+
+Two consequences worth stating rather than leaving to be found. **A soak build is not a production
+build**, its IPC path is five to six per cent larger, and the round-trip figures above are therefore
+soak-build figures; `notes/soak.md` carries the per-architecture table. And a `cfg`-gated instrument
+is invisible to clippy, so `script/lint`'s per-feature loop now includes `soak` on both ISAs, which
+on its first run found two real warnings in code nothing had ever linted.
+
 ## BUGS
 
 - **This block sets no duration**, and the honest reason is that nobody knows what duration would
@@ -122,6 +145,9 @@ it needs a person, a board and an evening, not a lane.
 - **The heartbeat is guest time and the watcher's deadline is host time**, so a QEMU guest on a
   heavily loaded host can produce a false `WentQuiet`. `--quiet-after` is the knob; not running a
   soak beside other heavy work is the better answer.
+- **A soak build is not the binary that ships.** Its `ipc_fastpath` is 1.05 to 1.06x the production
+  one, so its timing differs, and nothing in this milestone's numbers is a statement about how fast
+  this kernel does IPC. `script/bench` is the instrument for that.
 - **Nothing runs a soak inside `script/test`**, so the feature can stop compiling without anything
   saying so until someone runs `script/soak`. A twenty-second leg per architecture would close it
   and was judged too expensive for a gate every lane runs.
