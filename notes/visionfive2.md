@@ -527,31 +527,68 @@ board has its own power).
 ## The microSD payload
 
 `script/board-image` (name provisional) builds it: the flat `Image`-format kernel
-(`llvm-objcopy -O binary`, header at offset 0), an `extlinux/extlinux.conf`, and printed
-instructions. It writes files and prints the copy commands; it runs nothing destructive itself.
+(`llvm-objcopy -O binary`, header at offset 0), the userspace archive the kernel measures, and a
+U-Boot boot script. Given `--card <dir>` it copies all three onto a card you have already
+formatted and mounted; without it, it prints the steps. It still formats nothing: `dd` and
+`diskutil eraseDisk` name a whole device, and that is the person at the bench's decision.
 
-The card layout U-Boot's distro boot wants [uboot-doc]: one FAT32 partition holding
-`/extlinux/extlinux.conf` and the kernel image (MBR or GPT both work; the special GPT partition
-GUIDs in [uboot-doc] matter only when the card holds the firmware itself, and ours stays in QSPI
-flash). U-Boot scans each partition for
-`/extlinux/extlinux.conf` and `/boot/extlinux/extlinux.conf`, loads the `kernel` file to
-`kernel_addr_r` = 0x4020_0000 [uboot-cfg], and runs `booti`.
+**Three files, and they are one set.** The kernel compiles in a hash of the archive it was built
+against, so a card carrying a new kernel over an old archive halts at `MEASURED BOOT REFUSED`
+(the gate working, and it fired for real on 2026-09-01). That is why `--card` exists at all:
+milestone 217's answer to whether a script may copy files is that copying a set into a named,
+mounted filesystem is not the destructive act the formatting steps are, and only the script can
+make the set indivisible.
 
-**How the DTB gets passed**: with no `fdt`/`fdtdir` line in the label, U-Boot falls back through
-`fdt_addr_r`, then `fdt_addr`, then `$fdtcontroladdr` (its own control DTB) [uboot-pxe]. The
-control DTB describes the board correctly, but both fallback addresses land outside the kernel's
-boot page table (see DRAM above), so the extlinux path is the second step, after a manual first
-boot proves the kernel. The manual path controls the DTB address exactly:
+The card layout U-Boot's distro boot wants [uboot-doc]: one FAT32 partition (MBR or GPT both work;
+the special GPT partition GUIDs in [uboot-doc] matter only when the card holds the firmware
+itself, and ours stays in QSPI flash). U-Boot scans each partition first for
+`/extlinux/extlinux.conf`, then for the boot scripts named in `$boot_scripts`, which is
+`boot.scr.uimg boot.scr` [uboot-doc].
+
+**The extlinux path is a dead end on this board, and the reason is upstream of us**
+(milestone 218, captured 2026-09-01 in
+`crates/board_console/tests/fixtures/captured/vf2-2026-09-01-extlinux-refused.log`). With no
+`fdt`/`fdtdir` line in the label, U-Boot's pxe path hands `bootm` **no device tree at all**, and
+RISC-V's `boot_prep_linux` refuses rather than guessing:
 
 ```
-StarFive # load mmc 1:1 ${kernel_addr_r} /nife-vf2.img
-StarFive # fdt addr ${fdtcontroladdr}
-StarFive # fdt move ${fdtcontroladdr} 0x86000000
-StarFive # booti ${kernel_addr_r} - 0x86000000
+Moving Image from 0x40200000 to 0x80200000, end=802ff000
+Device tree not found or missing FDT support
+### ERROR ### Please RESET the board ###
+```
+
+Read what that transcript does *not* say. The image was loaded and relocated, and then the
+firmware stopped: **no instruction of ours ran**, so this is not the boot-map caveat below
+arriving as a fault, and widening the kernel's page table cannot touch it. The error is
+`boot_prep_linux`'s `hang()` [uboot-bootm], which only the reset button clears, and the vendor
+build's own `bad CRC, using default environment` means whatever `fdt_addr_r` that pxe path wanted
+was not there to fall back to.
+
+So **the card carries `boot.scr.uimg` and no `extlinux.conf`**, and U-Boot's script scan runs it.
+The script is the manual sequence, unchanged, which is the point: every line of it is a line the
+same day's successful boot already proves
+(`vf2-2026-09-01-manual-boot.log`). `cargo xtask board-script` writes it, `target/board/boot.cmd`
+is the same text in readable form, and this is what it says:
+
+```
+echo nife: boot.scr is driving this boot, milestone 218
+load ${devtype} ${devnum}:${distro_bootpart} ${kernel_addr_r} /nife-vf2.img
+load ${devtype} ${devnum}:${distro_bootpart} 0x90000000 /nife-initrd.img
+setenv nife_archive_size ${filesize}
+fdt addr ${fdtcontroladdr}
+fdt move ${fdtcontroladdr} 0x86000000
+booti ${kernel_addr_r} 0x90000000:${nife_archive_size} 0x86000000
 ```
 
 0x8600_0000 is inside boot gigapage 2 and clear of the image (which ends well below 0x8100_0000)
-and of `kernel_comp_addr_r` = 0x8800_0000 [uboot-cfg].
+and of `kernel_comp_addr_r` = 0x8800_0000 [uboot-cfg]; 0x9000_0000 is clear of both. The device
+comes from the variables distro boot sets before sourcing a script rather than from a literal
+`mmc 1:1`, and the archive's length is stashed under a name of ours the moment `load` reports it,
+so nothing later that touches `filesize` can change what `booti` is handed.
+
+**The DTB fallback caveat still stands for anyone hand-typing `booti`**: `$fdtcontroladdr` is the
+control DTB near the top of RAM, above gigapage 2 on every variant and above 4 GiB on this 8 GB
+board, which is why the sequence moves it to 0x8600_0000 rather than passing it where it lies.
 
 **TFTP alternative** (not built): cordoba is the designated PXE/TFTP host (milestone 87's scope
 note). The board side is just `dhcp; tftpboot ${kernel_addr_r} nife-vf2.img` followed by the
@@ -563,8 +600,9 @@ moment the card loop gets annoying, which history says is the second bench sessi
 
 Setup, in order:
 
-1. microSD: run `script/board-image`, follow its printed commands to partition and copy, insert
-   the card.
+1. microSD: format it once by hand (`diskutil eraseDisk FAT32 NIFE MBR /dev/diskN`, and be certain
+   of the device), then `script/board-image --card /Volumes/NIFE` puts the matched set on it.
+   Eject, insert the card.
 2. DIP switches to QSPI: RGPIO_1 = 0 (L), RGPIO_0 = 0 (L) [QSG].
 3. Serial: pins 6/8/10 as wired above, 115200 8N1, terminal attached **before** power so the SPL
    banner is not missed. `script/board-console` (milestone 216) is that terminal, and it recognises
@@ -579,8 +617,10 @@ Setup, in order:
 failing. Read those rather than re-deriving what the board prints. Two facts they settled that this
 note did not have. **The extlinux path does not work**: it loads and relocates the image and then
 prints `Device tree not found or missing FDT support` and `### ERROR ### Please RESET the board
-###`, which is the fallback-DTB caveat above arriving as a firmware error rather than as a kernel
-fault, so the manual commands are the only path today rather than merely the first-boot path. And
+###`. That is not the fallback-DTB caveat arriving as a firmware error, which is how this
+paragraph first read it: U-Boot passed `bootm` no device tree at all, so nothing of ours ran and
+the kernel's boot map was never consulted. Milestone 218 replaced that path with a boot script on
+the card, which types the manual sequence for you; the commands themselves are unchanged. And
 **the card's U-Boot environment is degraded** (`bad CRC, using default environment`, repeated
 `Invalid partition 3`, `"boot2" not defined`); the board boots through all of it and none of it is
 our payload's doing.
@@ -752,6 +792,16 @@ been closed; its entry carries the record):
   "5 core(s) in the device tree, 4 startable" plus the cpu 0 exclusion line, then
   "4 core(s) online" (three secondaries beside the boot hart): correct arithmetic and, for the
   first time, the whole machine.
+
+- **The boot script has never run on the board.** Written 2026-09-02 from the two captured
+  transcripts, with radon powered down and unreachable, so every claim about it is reasoning plus
+  a byte-level check of the image format on the host. Three things only a bench boot can settle,
+  and `design/roadmap/218-hands-free-board-boot.md` carries the ordered procedure: that this
+  vendor U-Boot's distro boot scans for scripts at all, that `scriptaddr` is set in the default
+  environment it falls back to (the same environment whose missing `fdt_addr_r` is why the
+  extlinux path failed), and that its parser accepts the seven lines as written. Every one of
+  those failures leaves the board at the `StarFive #` prompt rather than hung, which is already
+  better than what it replaced, and the manual commands still work from there.
 
 The `text_offset` in the Image header encodes one board's DRAM base; the header comment in
 `boot.s` and the section above carry the caveat.
