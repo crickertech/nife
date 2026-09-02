@@ -353,6 +353,108 @@ pub fn virtio_caps(
     }
 }
 
+/// A function's **MSI-X capability**, decoded (PCI 3.0 §6.8.2). Where its vector table lives, as
+/// a (BAR index, byte offset into that BAR) pair, how many entries it has, and where the
+/// capability itself sits in config space so a caller can write its Message Control word.
+///
+/// **Why this and not MSI.** MSI (capability 0x05) puts its address and data in config space and
+/// gives a function one contiguous block of vectors; MSI-X puts them in a table in a BAR, one
+/// independently maskable entry per vector, and every device this tree attaches has it. The
+/// deciding property is not the count: it is that neither of them consults a board-specific
+/// interrupt routing table, because the *device* is told where to deliver. See
+/// `kernel/src/pci.rs` and design/roadmap/215-x86-64-pci-interrupt-routing.md.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MsixCap {
+    /// Where the capability structure starts in config space, so [`MESSAGE_CONTROL`] can be
+    /// written to enable the function's MSI-X.
+    pub cap_offset: u64,
+    /// How many table entries the function has. At least 1, at most 2048, by the field's own
+    /// encoding (it holds the count minus one in eleven bits).
+    pub table_size: u16,
+    /// Which BAR the vector table lives in ("BIR", 0..=5).
+    pub table_bar: u8,
+    /// The table's byte offset into that BAR. Eight-byte aligned by the field's encoding.
+    pub table_offset: u32,
+}
+
+/// The MSI-X capability id in a config-space capability list.
+pub const CAP_ID_MSIX: u8 = 0x11;
+
+/// Offset of the Message Control word from the start of an MSI-X capability. It is the upper half
+/// of the capability's first dword, so a driver writes it with a 32-bit config write that also
+/// rewrites the (read-only) id and next-pointer bytes, which is what the hardware expects.
+pub const MESSAGE_CONTROL: u64 = 0x02;
+
+/// Message Control bit 15: **MSI-X Enable**. Until it is set the function delivers INTx.
+pub const MSIX_ENABLE: u16 = 1 << 15;
+
+/// Message Control bit 14: **Function Mask**. Set, every vector is masked whatever its own
+/// per-entry control bit says. It is set at reset on some parts, so it is cleared explicitly.
+pub const MSIX_FUNCTION_MASK: u16 = 1 << 14;
+
+/// How many bytes one MSI-X table entry occupies: message address (64 bits), message data (32),
+/// vector control (32). Fixed by the specification, not by the device.
+pub const MSIX_ENTRY_BYTES: u64 = 16;
+
+/// Vector control bit 0: this entry is masked. An entry powers on masked, so unmasking is a
+/// deliberate act, the same posture `arch::x86_64::irq::init_io_apic` takes with its own table.
+pub const MSIX_ENTRY_MASKED: u32 = 1;
+
+/// The virtio-pci "no vector" value for `config_msix_vector` and `queue_msix_vector` (virtio 1.1
+/// §4.1.4.3). Written to a queue's vector field it means "raise no MSI-X for this queue", which is
+/// also what a device reset leaves there.
+pub const VIRTIO_MSIX_NO_VECTOR: u16 = 0xffff;
+
+/// **Where a device should write to raise an interrupt, and what to write there.** One MSI-X
+/// table entry's payload, as the interrupt controller of the machine defines it.
+///
+/// It is in this crate rather than in an arch module because the pair is the PCI specification's,
+/// not any one architecture's: x86's local APIC takes a vector in `data` at an address encoding
+/// the destination CPU, and an arm GICv3 ITS takes an event id at the redistributor's `GITS_TRANSLATER`.
+/// The kernel's enumerator writes whatever pair the machine hands it and understands neither.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MsiTarget {
+    /// The address the device writes to. 64-bit, written to the entry's low two dwords.
+    pub address: u64,
+    /// The value it writes there.
+    pub data: u32,
+}
+
+/// Find the **MSI-X capability** of `bdf`, or `None` if the function has none.
+///
+/// Same walk as [`virtio_caps`], and bounded the same way (64 hops), for the same reason: the
+/// list is a device-supplied linked list, so a broken or hostile function must terminate the walk
+/// rather than hang the kernel that is enumerating it.
+pub fn msix_cap(bdf: Bdf, read32: &mut dyn FnMut(Bdf, u64) -> u32) -> Option<MsixCap> {
+    let status = (read32(bdf, COMMAND) >> 16) as u16;
+    if status & STATUS_CAP_LIST == 0 {
+        return None;
+    }
+    let mut at = (read32(bdf, CAP_PTR) & 0xfc) as u64;
+    for _ in 0..64 {
+        if at == 0 {
+            return None;
+        }
+        let head = read32(bdf, at);
+        if (head & 0xff) as u8 == CAP_ID_MSIX {
+            let control = (head >> 16) as u16;
+            let table = read32(bdf, at + 4);
+            return Some(MsixCap {
+                cap_offset: at,
+                // Bits 10:0 hold the count MINUS ONE, so a one-entry table reads as zero and the
+                // maximum 2048-entry table reads as 0x7ff. Reading it as the count itself gives a
+                // table one short of the truth on every device, and zero entries on a device that
+                // has one, which is the shape of failure that looks like "no MSI-X here".
+                table_size: (control & 0x7ff) + 1,
+                table_bar: (table & 0x7) as u8,
+                table_offset: table & !0x7,
+            });
+        }
+        at = ((head >> 8) & 0xfc) as u64;
+    }
+    None
+}
+
 /// The INTx swizzle on QEMU's `virt` boards: the legacy interrupt pin of the function at device
 /// `d` using pin `p` (1=INTA..4=INTD) lands on PLIC/GIC input `base + ((d + p - 1) % 4)`. This is
 /// the standard bridge swizzle the PCI spec prescribes for a flat bus, and QEMU's generic ECAM
@@ -490,6 +592,27 @@ mod verification {
         assert!(calls <= 64);
     }
 
+    /// **The MSI-X capability walk terminates and its decoded table size is in range**, on any
+    /// device response at all. The size field is eleven bits plus one, so the result is
+    /// `1..=2048` and the `+ 1` cannot overflow a `u16`; a device that answers every config read
+    /// with garbage must still leave the kernel with a bounded, non-panicking answer, because
+    /// this walk runs during enumeration of hardware nobody has vetted.
+    /// Falsification: unfalsified
+    #[kani::proof]
+    #[kani::unwind(66)]
+    fn the_msix_walk_terminates_and_bounds_its_table_size() {
+        let bdf = Bdf {
+            bus: kani::any(),
+            dev: kani::any(),
+            func: kani::any(),
+        };
+        if let Some(cap) = msix_cap(bdf, &mut |_, _| kani::any()) {
+            assert!(cap.table_size >= 1 && cap.table_size <= 2048);
+            assert!(cap.table_bar < 8);
+            assert!(cap.table_offset % 8 == 0);
+        }
+    }
+
     /// **The ranges parser is total.** The property comes from firmware's device tree, which is
     /// the same hostile-input class as a device's config space: any byte string at all must
     /// come back as an answer or a `None`, never a panic. Three entries covers every branch
@@ -551,10 +674,13 @@ mod tests {
             s.insert((f.0, f.1, f.2, 0x58), 0x3000);
             s.insert((f.0, f.1, f.2, 0x5c), 0x1000);
             s.insert((f.0, f.1, f.2, 0x60), 4); // notify_off_multiplier
+            // 0x70 -> MSI-X (id 0x11), end of list. Message Control 0x0002, which is a table of
+            // THREE entries: the field holds the count minus one. Table BIR 1, offset 0x2000.
             s.insert(
                 (f.0, f.1, f.2, 0x70),
-                u32::from_le_bytes([0x11, 0x00, 0, 0]),
-            ); // MSI-X, end of list
+                u32::from_le_bytes([0x11, 0x00, 0x02, 0x00]),
+            );
+            s.insert((f.0, f.1, f.2, 0x74), 0x2000 | 1);
 
             // 00:01.1 answers, and must never be enumerated: the header at 00:01.0 says
             // single-function. A device that aliases its config space across all eight functions
@@ -1003,5 +1129,66 @@ mod tests {
         assert_eq!(VIRTIO_RNG_MODERN as u32, 0x1040 + VIRTIO_TYPE_ENTROPY);
         assert_eq!(VIRTIO_GPU_MODERN as u32, 0x1040 + VIRTIO_TYPE_GPU);
         assert_eq!(VIRTIO_INPUT_MODERN as u32, 0x1040 + VIRTIO_TYPE_INPUT);
+    }
+
+    /// **The MSI-X capability decodes, and the table size is the field plus one.** The fake's
+    /// function declares Message Control 0x0002, which is three entries; a decoder that read the
+    /// field as the count would say two, and would say zero for the very common one-entry table,
+    /// which reads exactly like a device with no MSI-X at all.
+    #[test]
+    fn the_msix_capability_decodes_with_its_table_size_off_by_one_corrected() {
+        let mut cfg = FakeCfg::new();
+        let bdf = Bdf {
+            bus: 0,
+            dev: 1,
+            func: 0,
+        };
+        let cap = msix_cap(bdf, &mut |b, o| cfg.read32(b, o)).expect("the fake declares MSI-X");
+        assert_eq!(
+            cap,
+            MsixCap {
+                cap_offset: 0x70,
+                table_size: 3,
+                table_bar: 1,
+                table_offset: 0x2000,
+            }
+        );
+    }
+
+    /// A function with no capability list at all answers `None` rather than walking from a
+    /// floating-high capability pointer. 00:02.1 (the fake's virtio-rng) has no status bit set.
+    #[test]
+    fn a_function_without_a_capability_list_declares_no_msix() {
+        let mut cfg = FakeCfg::new();
+        let bdf = Bdf {
+            bus: 0,
+            dev: 2,
+            func: 1,
+        };
+        assert_eq!(msix_cap(bdf, &mut |b, o| cfg.read32(b, o)), None);
+    }
+
+    /// **A capability list that points at itself terminates.** The walk is a device-supplied
+    /// linked list read by the kernel during enumeration, so a broken or hostile function must
+    /// not be able to hang the machine that is bringing it up.
+    #[test]
+    fn a_cyclic_capability_list_terminates_instead_of_hanging() {
+        let bdf = Bdf {
+            bus: 0,
+            dev: 4,
+            func: 0,
+        };
+        let mut reads = 0usize;
+        let answer = msix_cap(bdf, &mut |_, off| {
+            reads += 1;
+            match off {
+                COMMAND => 0x0010 << 16, // capability list present
+                CAP_PTR => 0x40,         // first entry at 0x40
+                0x40 => 0x0000_4009,     // a vendor cap whose `next` points back at 0x40
+                _ => 0,
+            }
+        });
+        assert_eq!(answer, None);
+        assert!(reads < 128, "the walk did not terminate in 64 hops");
     }
 }

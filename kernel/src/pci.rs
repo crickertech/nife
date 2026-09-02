@@ -163,8 +163,21 @@ pub struct PciVirtioDevice {
     pub notify_mult: u32,
     /// The ISR byte (read-to-ack), physical.
     pub isr: u64,
-    /// The PLIC input its INTx pin routes to (the standard swizzle; see `pci::intx_irq`).
+    /// **The interrupt a driver binds and waits on**, whichever way this machine delivers it: the
+    /// PLIC/GIC input the INTx pin swizzles to (see `pci::intx_irq`) on the two device-tree
+    /// boards, and the MSI-X vector `arch::irq::alloc_msi_vector` reserved on x86_64. Which of the
+    /// two happened is [`msix_vector`](Self::msix_vector), and nothing above this module needs to
+    /// know: an `Irq` capability names an intid and the arch layer resolves it.
     pub intid: u32,
+    /// **Which MSI-X table entry [`intid`](Self::intid) was programmed into**, or
+    /// `pci::VIRTIO_MSIX_NO_VECTOR` when this function delivers INTx instead (both `virt` boards).
+    ///
+    /// It has to travel with the transport rather than being consumed here, because a virtio queue
+    /// is told which vector to raise **at queue-setup time, with that queue selected**, and the
+    /// queue is set up later, by `virtio::setup_queue`, on the driver's request. A device reset
+    /// (which every driver does on the way in) puts the field back to `NO_VECTOR`, so it cannot be
+    /// programmed once here and left.
+    pub msix_vector: u16,
     /// The PCIe requester id (`bus:8 | dev:5 | fn:3`), the id the IOMMU keys its per-device tables
     /// on (milestone 16b). Carried through to `virtio::register` so the device is confined to its
     /// DMA region in hardware.
@@ -353,17 +366,14 @@ fn bring_up(bdf: Bdf, device_type: u32) -> Option<PciVirtioDevice> {
         (cmd | pci::CMD_MEMORY_SPACE | pci::CMD_BUS_MASTER) as u32,
     );
 
-    // The INTx pin (config 0x3d; 1=INTA..4=INTD, 0=none), through the board's swizzle to a PLIC
-    // input. The dtb fixture test holds the swizzle against the machine's own interrupt-map.
-    let pin = ((cfg_read32(bdf, 0x3c) >> 8) & 0xff) as u8;
-    if pin == 0 {
-        crate::println!(
-            "  pci: the virtio function at {:02x} declares no INTx pin",
-            bdf.dev
-        );
-        return None;
-    }
-    let intid = pci::intx_irq(PCI_IRQ_BASE, bdf.dev, pin);
+    // **How this function's interrupt reaches a driver**, and the machine decides rather than this
+    // module. `arch::irq::alloc_msi_vector` answers `Some` only where the machine wants MSI-X;
+    // both `virt` boards answer `None` and fall through to the INTx swizzle they have always used.
+    // See milestone 215 (x86_64 PCI interrupt routing) for why x86_64 is the one that differs.
+    let (intid, msix_vector) = match enable_msix(bdf, &bars) {
+        Some(pair) => pair,
+        None => (intx_intid(bdf)?, pci::VIRTIO_MSIX_NO_VECTOR),
+    };
 
     Some(PciVirtioDevice {
         bdf,
@@ -372,9 +382,99 @@ fn bring_up(bdf: Bdf, device_type: u32) -> Option<PciVirtioDevice> {
         notify_mult,
         isr,
         intid,
+        msix_vector,
         rid: bdf.requester_id(),
         device_type,
     })
+}
+
+/// The INTx path: read the function's interrupt pin and swizzle it onto this board's controller.
+///
+/// `None`, loudly, for a function that declares no pin at all, because on a board that routes INTx
+/// a device with no pin has no way to interrupt anybody and a driver bound to whatever
+/// `intx_irq(base, dev, 0)` returned would wait forever on a line nothing drives.
+fn intx_intid(bdf: Bdf) -> Option<u32> {
+    // config 0x3d; 1=INTA..4=INTD, 0=none. The dtb fixture test holds the swizzle against the
+    // machine's own interrupt-map.
+    let pin = ((cfg_read32(bdf, 0x3c) >> 8) & 0xff) as u8;
+    if pin == 0 {
+        crate::println!(
+            "  pci: the virtio function at {:02x} declares no INTx pin",
+            bdf.dev
+        );
+        return None;
+    }
+    Some(pci::intx_irq(PCI_IRQ_BASE, bdf.dev, pin))
+}
+
+/// **Point one of this function's MSI-X vectors at this machine's interrupt controller and arm
+/// it** (milestone 215). Returns the intid a driver will bind and the table index the device must
+/// be told to raise, or `None` when either the machine does not route PCI interrupts this way or
+/// the function has no MSI-X capability, in which case the caller falls back to INTx.
+///
+/// # Why this and not the legacy pin, on the machine that needed a choice
+///
+/// x86_64 had no working answer at all: `arch::mmu::PCI_IRQ_BASE` was `0` and said so, because a
+/// function's INTx pin goes through a PIRQ router that only ACPI's `_PRT` describes, and `_PRT` is
+/// AML. The two ways out were an AML interpreter (a project) or a hardcoded swizzle that matches
+/// QEMU's `q35` and may not match a Dell OptiPlex, which is the failure milestone 87 would have to
+/// discover at a null modem. **MSI-X has no board-specific routing to be wrong about**: the device
+/// is handed the address and the value, so the only thing that has to be right is the interrupt
+/// controller's own message format, which this kernel already programs directly. See milestone 215
+/// for the full refusal.
+///
+/// # What is written, in what order
+///
+/// The entry is written **before** MSI-X Enable is set, and the per-entry mask is cleared last of
+/// the four words, so no configuration is ever live half-written. The Function Mask bit is cleared
+/// explicitly rather than assumed clear, because it is set at reset on some parts and a
+/// function-masked device is one that never interrupts with nothing anywhere saying why.
+///
+/// **The entry lives in a BAR, not in config space**, which is why this takes the placed `bars`:
+/// the table's BIR names one of them, and until `place_bars` has run there is no address to write
+/// through. A table that names an unplaced or out-of-range BAR is refused rather than written to a
+/// guessed address.
+fn enable_msix(bdf: Bdf, bars: &[Option<Bar>; 6]) -> Option<(u32, u16)> {
+    let (intid, target) = crate::arch::irq::alloc_msi_vector()?;
+    let cap = pci::msix_cap(bdf, &mut |b, o| cfg_read32(b, o))?;
+
+    // Entry 0. One vector per function is all any driver here asks for: every device this tree
+    // attaches uses a single queue's completion, and handing out more would be table entries
+    // nothing raises.
+    let bar = bars.get(cap.table_bar as usize)?.as_ref()?;
+    let entry = u64::from(cap.table_offset);
+    if entry + pci::MSIX_ENTRY_BYTES > bar.size {
+        crate::println!(
+            "  pci: the MSI-X table of the function at {:02x} does not fit its own BAR{}",
+            bdf.dev,
+            cap.table_bar,
+        );
+        return None;
+    }
+    let at = mmu::phys_to_virt(bar.base + entry);
+
+    // SAFETY: `at` is inside BAR `cap.table_bar`, which `place_bars` put inside the window
+    // `mmu::map_everything` maps as device memory, and the bounds check above keeps all sixteen
+    // bytes inside it. The four words are the specified layout of one MSI-X table entry.
+    unsafe {
+        core::ptr::write_volatile(at as *mut u32, target.address as u32);
+        core::ptr::write_volatile((at + 4) as *mut u32, (target.address >> 32) as u32);
+        core::ptr::write_volatile((at + 8) as *mut u32, target.data);
+        core::ptr::write_volatile((at + 12) as *mut u32, 0); // unmasked, last
+    }
+
+    // Message Control is the upper half of the capability's first dword, so it is written back
+    // with the (read-only) id and next-pointer bytes underneath it, which is what a 32-bit config
+    // write to a capability header means.
+    let head = cfg_read32(bdf, cap.cap_offset);
+    let control = ((head >> 16) as u16 | pci::MSIX_ENABLE) & !pci::MSIX_FUNCTION_MASK;
+    cfg_write32(
+        bdf,
+        cap.cap_offset,
+        (head & 0xffff) | ((control as u32) << 16),
+    );
+
+    Some((intid, 0))
 }
 
 /// An enumerated, brought-up NVMe controller: its register file (BAR0) placed and decoding, bus

@@ -769,18 +769,47 @@ pub unsafe extern "C" fn x86_trap_body(frame: *mut TrapFrame) -> bool {
             super::irq::end_of_interrupt();
             true
         }
+        // **A PCI function's MSI-X message, and it becomes a driver's wakeup** (milestone 215).
+        //
+        // This is the arm that makes a userspace device driver possible on this architecture, and
+        // it is short for a reason worth stating rather than hiding: an MSI vector IS its intid
+        // (`irq::MSI_VECTOR_BASE`), because the device writes the vector straight to the local
+        // APIC and there is no controller input in between to name it by. So the inversion the
+        // arm below still owes for an IO APIC line does not exist here; `sched::irq_route` can be
+        // asked with the vector the CPU just took.
+        //
+        // Nothing is masked, exactly as for the self-IPI above and for aarch64's SGI: an MSI is a
+        // posted write that already happened, so there is no asserted line to hold off until the
+        // driver quiets its device. The driver's `Irq::ACK` is correspondingly a no-op
+        // (`irq::enable`), and the used-ring loop in `crates/virtio` is what actually decides a
+        // request is complete.
+        v if super::irq::is_msi_vector(v) => {
+            match crate::sched::irq_route(v as u32) {
+                Some(ep) => {
+                    DEVICE_IRQS.fetch_add(1, Ordering::Relaxed);
+                    ROUTED_IRQS.fetch_add(1, Ordering::Relaxed);
+                    crate::sched::irq_notify(ep);
+                }
+                None => {
+                    SPURIOUS_IRQS.fetch_add(1, Ordering::Relaxed);
+                }
+            }
+            super::irq::end_of_interrupt();
+            true
+        }
         // A device line, routed by the IO APIC's redirection table onto a vector this kernel chose
         // (irq::GSI_VECTOR_BASE plus the GSI).
         //
         // # BUGS
-        // **A device line cannot yet become a message here**, unlike on the other two
-        // architectures, and the missing piece is an inversion rather than a mechanism: the arm
-        // above shows the delivery works, and what a device line needs is a vector -> intid map so
+        // **An IO APIC line cannot yet become a message here**, unlike on the other two
+        // architectures, and the missing piece is an inversion rather than a mechanism: the arms
+        // above show the delivery works, and what a *line* needs is a vector -> intid map so
         // `sched::irq_route` can be asked. The flat vector map makes the GSI recoverable by
         // subtraction, but a *legacy IRQ* (which is what `irq::enable` takes, and so what a driver
         // would have bound) is not: GSI 0 is the 8259 cascade and has no legacy owner, so an
         // inversion that fell back to the GSI would answer 0 for both it and the PIT's IRQ 0.
-        // Nothing needs it yet: there is no userspace on this architecture to own a line.
+        // Nothing needs it: a PCI function reaches its driver by MSI-X on this architecture
+        // (milestone 215), and the console UART's line is the only other candidate.
         v if super::irq::is_device_vector(v) => {
             DEVICE_IRQS.fetch_add(1, Ordering::Relaxed);
             ROUTED_IRQS.fetch_add(1, Ordering::Relaxed);
