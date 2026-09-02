@@ -40,6 +40,18 @@ echo
 echo "==> script/lint"
 script/lint
 
+# The shipped kernel images obey W^X (milestone 208). Seconds against a warm target directory, and
+# it goes above the two QEMU legs on the cheapest-first rule; it builds all three kernels, which
+# `script/test` would build anyway for the legs below.
+#
+# It is here rather than inside `script/test` because it is a property of the ARTIFACT rather than
+# of a boot: no suite running inside a guest can see its own program headers, and the guest that
+# could tell you is the one that already failed to start. The x86_64 image carried an RWX segment
+# from the port until milestone 208, through every gate in this file, for exactly that reason.
+echo
+echo "==> script/image-permissions"
+script/image-permissions
+
 # The instruction-count instrument (milestone 78), here since milestone 62 gave it a claim the
 # suite no longer makes (2026-08-18). `script/test` used to carry two wall-clock timer assertions
 # that were the last things in this tree trying to say "the handler keeps up" from inside a guest
@@ -97,7 +109,7 @@ fi
 
 echo
 if [ -n "$hvf_missing" ]; then
-    echo "gates: fmt, lint, icount and test all pass (TCG only; the HVF leg was skipped)"
+    echo "gates: fmt, lint, image-permissions, icount and test all pass (TCG only; the HVF leg was skipped)"
 else
-    echo "gates: fmt, lint, icount and test all pass, the aarch64 suite twice (TCG and the physical core)"
+    echo "gates: fmt, lint, image-permissions, icount and test all pass, the aarch64 suite twice (TCG and the physical core)"
 fi
