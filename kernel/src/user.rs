@@ -941,15 +941,15 @@ pub fn spawn_init(
         crate::arch::irq::enable(g.intid);
     }
 
-    // **The graphical terminal stack, for the boot role only, when the GPU and the keyboard are
-    // both attached** (milestone 177, option A). `None` on a boot with either device absent (real
-    // hardware, or a run with `NIFE_GPU`/`NIFE_KEYBOARD` unset): the whole chain past this point treats
-    // it exactly as "this boot has no filesystem" is already treated, as an absence rather than a
-    // failure, and init builds the plain console/input pair instead. See
-    // [`boot_graphical_terminal`] for what wiring it costs and why it is built here rather than by
-    // init.
+    // **The graphical terminal stack, for the boot role only, when a GPU is attached** (milestone
+    // 177, option A; milestone 192 dropped the keyboard from the condition). `None` on a boot with
+    // no GPU (a run with `NIFE_GPU` unset): the whole chain past this point treats it exactly as
+    // "this boot has no filesystem" is already treated, as an absence rather than a failure, and
+    // init builds the plain console/input pair instead. A keyboard is no longer required, because
+    // the board's own UART is a keystroke source too; see [`boot_graphical_terminal`] for what
+    // wiring it costs, why it is built here rather than by init, and which source it picks.
     let graphical = if role == INIT_BOOT_ROLE {
-        boot_graphical_terminal()
+        boot_graphical_terminal(uart_rx_intid)
     } else {
         None
     };
@@ -2073,11 +2073,12 @@ pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), Loa
         .expect("insert the virtio-rng DMA page");
         assert_eq!(s9, 9);
     }
-    // The graphical terminal stack (slots 10-12, milestone 177), when the GPU and the keyboard are
-    // both attached. `None` on a boot with either device absent: system_initializer builds the
-    // plain console/input pair instead, the same "absence rather than failure" shape as the
-    // filesystem pair and the virtio-rng trio. See [`boot_graphical_terminal`].
-    let graphical = boot_graphical_terminal();
+    // The graphical terminal stack (slots 10-12, milestone 177), when a GPU is attached
+    // (milestone 192 dropped the keyboard from the condition; the UART is a keystroke source too).
+    // `None` on a boot with no GPU: system_initializer builds the plain console/input pair
+    // instead, the same "absence rather than failure" shape as the filesystem pair and the
+    // virtio-rng trio. See [`boot_graphical_terminal`].
+    let graphical = boot_graphical_terminal(uart_irq);
     if let Some(g) = &graphical {
         let s10 = crate::sched::thread_control_block_insert_cap(
             tid,
@@ -2316,6 +2317,15 @@ pub mod compositor_service;
 #[cfg_attr(not(test), allow(dead_code))] // spawned only by the milestone-29 test
 pub mod keyboard_service;
 
+/// **The serial keystroke source** (milestone 192, option A): the plain UART receive driver,
+/// `user/src/input.rs`, spawned kernel-side and wired to a fixed endpoint instead of by init.
+///
+/// [`keyboard_service::start_direct`]'s twin, one device over, and it exists so that
+/// [`boot_graphical_terminal`] can put a terminal on a real framebuffer without also requiring a
+/// virtio keyboard the boards do not have. See that function's own note on why the choice of
+/// source lives in exactly one place.
+pub mod input_service;
+
 /// **The clock service** (milestone 51 lane A, DECISIONS §43): the RTC's registers, the wall
 /// clock's offset, and the propose endpoint, in one confined userspace process.
 ///
@@ -2512,17 +2522,49 @@ pub struct GraphicalTerminal {
     /// The physical page shared with `display_terminal`
     /// (`display_service::TerminalWiring::out`), written before an `OP_WRITE`.
     pub disp_term_page: u64,
-    /// The endpoint the keyboard driver already holds `WRITE` (`CALL`) on. The caller grants
+    /// The endpoint the keystroke source already holds `WRITE` (`CALL`) on. The caller grants
     /// `READ` to whatever serves it (`line_editor`, as its own terminal endpoint) and `WRITE` to
     /// whatever else needs to reach the same discipline (`swish`), exactly the two views the
     /// plain-console boot already carves out of a self-created endpoint of the same shape.
+    ///
+    /// **Which program holds that `WRITE` is the one thing that varies** (milestone 192): a
+    /// virtio keyboard when the board has one, the UART receive driver when it does not. The
+    /// caller cannot tell, and nothing downstream of this endpoint changes either way; see
+    /// [`KeystrokeSource`].
+    /// **No field records which one**, deliberately: no caller branches on the answer, and that a
+    /// caller *cannot* is the property milestone 192's option A is finished by. It is printed on
+    /// the boot line, where a bench operator reading a transcript is the only reader who needs it.
     pub kbd_ep: crate::sched::RendezvousId,
 }
 
+/// **Where a keystroke comes from on a graphical boot** (milestone 192).
+///
+/// The fork design/roadmap/192-keyboard-on-real-silicon.md names, reduced to the one place in this
+/// kernel that has to know about it. Option B (a USB HID stack) adds a third variant here and
+/// changes nothing else: everything past `kbd_ep` is `line_editor::proto::OP_BYTES` on one
+/// endpoint, which is DECISIONS §21's line-discipline contract and is what both existing sources
+/// already speak, byte for byte.
+///
+/// Name: **provisional** (milestone 192's lane).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum KeystrokeSource {
+    /// A virtio-input device, driven by `user/src/keyboard_driver.rs` in `MODE_DIRECT`. What
+    /// milestone 177 built, and what QEMU has.
+    Keyboard,
+    /// The board's own UART receive line, driven by `user/src/input.rs`. Milestone 192's option A:
+    /// the source every one of the three target machines actually has, and the reason a graphical
+    /// boot on real silicon is reachable at all before a USB HID stack exists.
+    Serial,
+}
+
 /// **The whole graphical terminal stack, kernel-side, for the boot's single-terminal case**
-/// (milestone 177, option A). `None` when the GPU, the keyboard, or any of the three programs is
-/// absent; the caller falls back to the plain console/input pair exactly the way it already falls
-/// back on a boot with no filesystem or no virtio-rng device.
+/// (milestone 177, option A). `None` when the GPU, both keystroke sources, or any of the programs
+/// is absent; the caller falls back to the plain console/input pair exactly the way it already
+/// falls back on a boot with no filesystem or no virtio-rng device.
+///
+/// **`uart_rx_intid` is the board's UART receive interrupt**, already routed and enabled by the
+/// caller. It is used only when there is no virtio keyboard, which is milestone 192's option A and
+/// is the case on all three real machines.
 ///
 /// **Built kernel-side, mirroring `fs_service::root_directory`'s own shape**, for a mechanical
 /// reason design/roadmap/177-graphical-interactive-boot.md's own investigation worked out in full:
@@ -2550,14 +2592,17 @@ pub struct GraphicalTerminal {
 /// driver and the terminal are *running*, not merely spawned, and init never has to know either
 /// program exists.
 ///
-/// A GPU with no keyboard attached (or the reverse) is treated as absent overall: the already-
+/// **A GPU with no keyboard attached is milestone 192's option A**, not an absence: the terminal
+/// comes up on the framebuffer and the board's own UART receive line plays the keystroke source,
+/// which is the configuration every one of the three target machines actually has (argon, radon
+/// and xenon all have a serial line and none has a virtio-input device). What is still treated as
+/// absent overall is a boot with no GPU, or one where the machine has neither a virtio keyboard
+/// **nor** a page for a UART device capability (`x86_64`, DECISIONS §121): there, the already-
 /// spawned GPU driver and terminal are left running, unused, the same "idle forever" shape the
-/// undertaker and the sink adapter already have on a boot that never builds a client for them. A
-/// real boot attaches both devices together or neither; see `scripts/qemu-runner-*.sh`.
-fn boot_graphical_terminal() -> Option<GraphicalTerminal> {
+/// undertaker and the sink adapter already have on a boot that never builds a client for them.
+fn boot_graphical_terminal(uart_rx_intid: u32) -> Option<GraphicalTerminal> {
     let gpu_driver = program("gpu_driver")?;
     let display_terminal = program("display_terminal")?;
-    let keyboard_driver = program("keyboard_driver")?;
 
     let w = display_service::start_terminal(gpu_driver, display_terminal)?;
     assert_eq!(
@@ -2573,7 +2618,23 @@ fn boot_graphical_terminal() -> Option<GraphicalTerminal> {
     );
 
     let kbd_ep = crate::sched::create_rendezvous();
-    keyboard_service::start_direct(keyboard_driver, kbd_ep)?;
+
+    // **The one place this kernel decides where a keystroke comes from** (milestone 192). A
+    // virtio keyboard when the bus has one, and the board's own UART when it does not; both
+    // programs `CALL` `kbd_ep` with `line_editor::proto::OP_BYTES` and hold `WRITE` on it and
+    // nothing else, so the endpoint, the framing, the line discipline, the terminal and the shell
+    // are all identical either way. Option B lands as a third arm of this `match`.
+    let keystrokes = match program("keyboard_driver")
+        .and_then(|keyboard_driver| keyboard_service::start_direct(keyboard_driver, kbd_ep))
+    {
+        Some(_) => KeystrokeSource::Keyboard,
+        None => {
+            let input = program("input")?;
+            input_service::start_direct(input, kbd_ep, uart_rx_intid)?;
+            KeystrokeSource::Serial
+        }
+    };
+    crate::println!("  keystrokes: {keystrokes:?} (graphical boot)");
 
     Some(GraphicalTerminal {
         disp_term_ep: w.term,

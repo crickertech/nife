@@ -6240,6 +6240,9 @@ fn shell_check() -> bool {
     // See [`shell_check_leg_graphical`]'s own doc for why this needs a whole different verification
     // shape rather than two env vars added to [`shell_check_leg`].
     let graphical = std::env::args().any(|a| a == "--graphical");
+    // **Milestone 192's option A**: the same graphical boot with the *keyboard* left off, so the
+    // keystroke source is the board's own UART. See [`shell_check_leg_graphical`]'s own doc.
+    let graphical_serial = std::env::args().any(|a| a == "--graphical-serial");
 
     // TCG only. This boot never exits (the shell loops on its prompt), so it is killed rather than
     // waited on, and there is nothing HVF would buy a gate that spends its time in QEMU's serial.
@@ -6249,11 +6252,16 @@ fn shell_check() -> bool {
     // in shell_check_leg, or the graphical leg's own polling loop) copies pipe bytes or polls a
     // socket and never touches the environment.
     unsafe { std::env::remove_var("NIFE_ACCEL") };
-    if graphical {
-        if legs.aarch64() && !shell_check_leg_graphical(false) {
+    if graphical || graphical_serial {
+        let keystrokes = if graphical_serial {
+            Keystrokes::Serial
+        } else {
+            Keystrokes::Device
+        };
+        if legs.aarch64() && !shell_check_leg_graphical(false, keystrokes) {
             return false;
         }
-        if legs.riscv64() && !shell_check_leg_graphical(true) {
+        if legs.riscv64() && !shell_check_leg_graphical(true, keystrokes) {
             return false;
         }
         return true;
@@ -6920,8 +6928,22 @@ fn shell_check_leg(riscv: bool) -> bool {
 }
 
 /// **The graphical leg** (milestone 177, option A): the same `--features shell` boot, with a
-/// virtio-gpu and a virtio-keyboard attached instead of the plain UART pair, verified by reading
-/// the *screen* back rather than a serial transcript.
+/// virtio-gpu attached instead of the plain UART pair, verified by reading the *screen* back
+/// rather than a serial transcript.
+///
+/// # Two keystroke sources, one leg (milestone 192, option A)
+///
+/// [`Keystrokes::Device`] attaches a virtio-keyboard and presses a key with the QEMU monitor's
+/// `sendkey`, which is milestone 177's shape. [`Keystrokes::Serial`] attaches **no** keyboard and
+/// types the same byte down the guest's UART, which is the configuration every one of the three
+/// target machines actually has: argon, radon and xenon all have a serial line and none has a
+/// virtio-input device.
+///
+/// **The same two assertions cover both**, and that they can is the claim. What reaches the screen
+/// is `line_editor`'s echo of one `OP_BYTES` `CALL` on one endpoint, and neither this leg nor
+/// anything past `kbd_ep` in the guest can tell which program made that `CALL`. If a future change
+/// made the graphical stack depend on the keystroke's source, exactly one of these two runs would
+/// go red.
 ///
 /// # Why this cannot be [`shell_check_leg`] with two env vars added
 ///
@@ -6955,14 +6977,30 @@ fn shell_check_leg(riscv: bool) -> bool {
 /// them to each other with no wrong slot, and that `swish` is alive and printing through them.
 /// Finding `$ a` after `sendkey "a"` is the proof that a keystroke makes the same round trip back:
 /// `keyboard_driver` (`MODE_DIRECT`) into `line_editor`, echoed out through `display_terminal`.
-fn shell_check_leg_graphical(riscv: bool) -> bool {
+/// Which keystroke source [`shell_check_leg_graphical`] wires up. See its doc; the fork is
+/// design/roadmap/192-keyboard-on-real-silicon.md's, and the kernel's own copy of it is
+/// `kernel::user::KeystrokeSource`.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Keystrokes {
+    /// A virtio-input device, pressed with the monitor's `sendkey`. Milestone 177.
+    Device,
+    /// The guest's own UART, typed down the child's stdin (`-serial stdio`). Milestone 192,
+    /// option A, and the only source any of the three real machines has.
+    Serial,
+}
+
+fn shell_check_leg_graphical(riscv: bool, keystrokes: Keystrokes) -> bool {
+    use std::io::Write;
     use std::time::{Duration, Instant};
 
     let arch = if riscv { "riscv64" } else { "aarch64" };
+    let source = match keystrokes {
+        Keystrokes::Device => "a keyboard",
+        Keystrokes::Serial => "no keyboard, keystrokes over the UART",
+    };
     eprintln!();
     eprintln!(
-        "--- shell-check ({arch}, graphical): boot `--features shell` with a GPU and a keyboard \
-         attached ---"
+        "--- shell-check ({arch}, graphical): boot `--features shell` with a GPU and {source} ---"
     );
 
     let target = if riscv { RISCV_TARGET } else { TARGET };
@@ -7004,18 +7042,41 @@ fn shell_check_leg_graphical(riscv: bool) -> bool {
         },
     );
     cmd.env("NIFE_DISK", disk_path());
-    cmd.env("NIFE_RNG", "1");
-    // The two flags [`shell_check_leg`] never sets: a virtio-gpu and a virtio-keyboard, the same
-    // devices `cargo xtask test` already attaches, read by `scripts/qemu-runner-*.sh` exactly the
-    // way they always have been (milestone 177 changed what *init* does with them existing, not
-    // how they get attached).
+    // **The serial arm attaches no virtio-rng**, and that is the point of it rather than an
+    // omission: `NIFE_RNG` is a QEMU-only stopgap (DECISIONS §120) and none of the three target
+    // machines has such a device, so an option-A leg standing in for a board should not have one
+    // either. The device arm keeps it, unchanged, because that is milestone 177's leg.
+    //
+    // It also currently makes the difference between a prompt and no prompt, which is how the
+    // asymmetry got noticed: **the interactive boot traps in init on both architectures whenever
+    // a virtio-rng is attached**, so `shell_check_leg`'s own plain legs are red on `main` for a
+    // reason that has nothing to do with either graphical leg. Reproduced at 8167d806 on
+    // nightly-2026-09-01 as well as -09-02, so it is not the toolchain bump. See
+    // design/roadmap/192-keyboard-on-real-silicon.md's own note; it is nobody's milestone yet.
+    if keystrokes == Keystrokes::Device {
+        cmd.env("NIFE_RNG", "1");
+    }
+    // The flags [`shell_check_leg`] never sets: a virtio-gpu and (in the device arm) a
+    // virtio-keyboard, the same devices `cargo xtask test` already attaches, read by
+    // `scripts/qemu-runner-*.sh` exactly the way they always have been (milestone 177 changed what
+    // *init* does with them existing, not how they get attached).
     cmd.env("NIFE_GPU", "1");
-    cmd.env("NIFE_KEYBOARD", "1");
+    if keystrokes == Keystrokes::Device {
+        cmd.env("NIFE_KEYBOARD", "1");
+    }
     cmd.env("NIFE_GPU_MON", &sock);
-    // No stdin/stdout piping: there is no UART client on this path to talk to. Kernel boot
-    // messages before userspace exists still reach the host's own terminal, which is useful to a
-    // person reading a failure and touches nothing this leg checks.
-    cmd.stdin(std::process::Stdio::null());
+    // stdout is never read: the answer this leg checks is on the screen, not on the wire. Kernel
+    // boot messages before userspace exists still reach the host's own terminal, which is useful
+    // to a person reading a failure and touches nothing this leg checks.
+    //
+    // stdin is the keyboard in [`Keystrokes::Serial`] (the runner passes `-serial stdio`, so a
+    // byte written here arrives in the guest's UART receive FIFO and raises its interrupt) and is
+    // null otherwise, which is milestone 177's shape unchanged.
+    cmd.stdin(if keystrokes == Keystrokes::Serial {
+        std::process::Stdio::piped()
+    } else {
+        std::process::Stdio::null()
+    });
     cmd.stdout(std::process::Stdio::null());
 
     let mut child = match cmd.spawn() {
@@ -7060,8 +7121,30 @@ fn shell_check_leg_graphical(riscv: bool) -> bool {
 
     // The one keystroke this leg types, the same key (and the same reason) the kernel test's own
     // keyboard test uses: `video_terminal::script::HOST_KEY` is the one definition of which key,
-    // so a driver that mapped the evdev code wrong fails in exactly one place instead of two.
-    sendkey(&sock, video_terminal::script::HOST_KEY);
+    // so a driver that mapped the evdev code wrong fails in exactly one place instead of two. The
+    // serial arm sends the same key as the byte it already is, since a UART carries no scancode
+    // for a keymap to get wrong; `HOST_KEY_BYTE` is that byte, defined beside `HOST_KEY` so the
+    // two spellings of one key cannot drift.
+    match keystrokes {
+        Keystrokes::Device => sendkey(&sock, video_terminal::script::HOST_KEY),
+        Keystrokes::Serial => {
+            let Some(stdin) = child.stdin.as_mut() else {
+                let _ = child.kill();
+                let _ = child.wait();
+                eprintln!("shell-check ({arch}, graphical): the runner has no stdin to type into");
+                return false;
+            };
+            if let Err(e) = stdin
+                .write_all(&[video_terminal::script::HOST_KEY_BYTE])
+                .and_then(|()| stdin.flush())
+            {
+                let _ = child.kill();
+                let _ = child.wait();
+                eprintln!("shell-check ({arch}, graphical): could not type into the UART: {e}");
+                return false;
+            }
+        }
+    }
 
     let want = format!("$ {}", video_terminal::script::HOST_KEY);
     let deadline = Instant::now() + Duration::from_secs(SHELL_CHECK_LINE_SECS);
@@ -7082,19 +7165,30 @@ fn shell_check_leg_graphical(riscv: bool) -> bool {
 
     match typed_row {
         Some(after) => {
+            let by = match keystrokes {
+                Keystrokes::Device => "`keyboard_driver`'s direct CALL to `line_editor`",
+                Keystrokes::Serial => "`input`'s CALL to `line_editor`, over the UART",
+            };
             eprintln!(
                 "shell-check ({arch}, graphical): the prompt reached the screen through \
-                 `display_terminal`, and a real key press reached it back through `keyboard_driver`'s new \
-                 direct CALL to `line_editor`: {after:?}"
+                 `display_terminal`, and a key press reached it back through {by}: {after:?}"
             );
             true
         }
         None => {
+            let blame = match keystrokes {
+                Keystrokes::Device => {
+                    "`keyboard_driver` came up but its CALL to `line_editor` is not reaching it, \
+                     or the host's `sendkey` is not reaching the device"
+                }
+                Keystrokes::Serial => {
+                    "`input` came up but its CALL to `line_editor` is not reaching it, or the \
+                     byte written to the runner's stdin is not reaching the guest's UART"
+                }
+            };
             eprintln!(
                 "shell-check ({arch}, graphical): the prompt appeared ({before:?}) but the key \
-                 press ({:?}) never echoed back within {SHELL_CHECK_LINE_SECS}s (see {}): `keyboard_driver` \
-                 came up but its CALL to `line_editor` is not reaching it, or the host's `sendkey` \
-                 is not reaching the device",
+                 press ({:?}) never echoed back within {SHELL_CHECK_LINE_SECS}s (see {}): {blame}",
                 video_terminal::script::HOST_KEY,
                 shot.display(),
             );
