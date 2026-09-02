@@ -3937,6 +3937,12 @@ fn uefi_image() -> bool {
 /// - **the tour's completion line.** Everything between the two: the fine page tables, the APIC,
 ///   the timer, the scheduler and two ring-3 processes, on a memory map from firmware rather than
 ///   from a hypervisor.
+/// - **the ECAM window enabled from the MCFG** (milestone 165). The runner boots at 2 GiB rather
+///   than the PVH runner's 256 MiB, which is what puts firmware's tables above 1 GiB, where a real
+///   machine keeps them. On 2026-09-02 that boot found no ACPI at all, because the walk's reach
+///   bound disagreed with `boot.s` by 4x; asserting the *end* of the chain (a PCIe window whose
+///   base came from a table read at a high physical address) is what makes the whole chain a gate
+///   rather than the three separate facts it is made of.
 ///
 /// The boot is bounded by the runner script; a kernel that hangs fails this by producing none of
 /// the three rather than by hanging the gate.
@@ -3963,7 +3969,11 @@ fn uefi_boot() -> bool {
     print!("{transcript}");
 
     let mut ok = true;
-    for wanted in ["nife x86_64: boot complete, halting.", "(xsdt)"] {
+    for wanted in [
+        "nife x86_64: boot complete, halting.",
+        "(xsdt)",
+        "pci         : ecam enabled at",
+    ] {
         if !transcript.contains(wanted) {
             eprintln!("uefi-boot: the boot transcript is missing {wanted:?}");
             ok = false;
@@ -3971,6 +3981,16 @@ fn uefi_boot() -> bool {
     }
     if transcript.contains("rsdp 0x0") {
         eprintln!("uefi-boot: the kernel was handed a zero ACPI root pointer, which is PVH's tell");
+        ok = false;
+    }
+    // A table the walk could not reach is printed by `table_at` rather than skipped quietly, so
+    // the gate can fail on it by name. This is the one failure that looks like a working boot from
+    // outside: the tour completes, and the machine simply has no devices.
+    if transcript.contains("outside the boot map") {
+        eprintln!(
+            "uefi-boot: an ACPI table was outside the boot map's reach, so this machine's APICs, \
+             PCIe window or IOMMU went undiscovered"
+        );
         ok = false;
     }
     if ok {
