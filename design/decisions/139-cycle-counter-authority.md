@@ -1,6 +1,47 @@
 # 139. Who may read the cycle counter, and by what authority
 
-**Status: PROPOSED.**
+**Status: DECIDED.** Answered by calef on 2026-09-02, in three parts, each after the evidence for it
+was gathered rather than before.
+
+**1. The model: option 4**, a per-thread grant enforced at the context switch. The read stays one
+instruction with no syscall inside the measured operation, it is what Linux arm64 converged on for
+the same reason, and it costs the compare that `switch_user_root` already pays for `TTBR0_EL1`.
+Option 2 (a first-class capability object) was declined for now on the ground this tree already
+applies elsewhere: it buys a new object type before there is a second consumer, and seL4's own
+RFC-16 for that shape has been unmerged since 2024-02-02. New methods are allowed within the
+established model (AGENTS.md), so option 2 remains reachable if a consumer appears.
+
+**2. The grant is a field in the spawn manifest**, not a method on a live thread. calef asked
+whether milestone 147 (a profiler that holds exactly the counters it was granted) argued for the
+live form, since a consumer already exists; checking found it does not. 147 wants *this profiler may
+read that subtree's counters*, which is cross-thread authority with a named target, and neither
+shape here provides it. So the immutable grant costs nothing 147 needs, and it is the stronger
+statement: a program cannot acquire a timing side channel it was not given at creation.
+DECISIONS §28 chose the same shape for thread placement at ratification.
+
+**3. `x86_64` keeps its ambient counter, recorded as a position rather than left as an accident.**
+Three options were live and two were closed by measurement, both in this document. There is no
+second user-readable clock on that architecture: Linux's own vDSO fast path cannot work without a
+userspace TSC read, and it deletes the HPET mapping rather than offer it. Trap-and-emulate was
+priced from Xen's "15 to 20 times slower" and measured at **1,667 ns**, which is 4.1x the syscall it
+was meant to beat, with an in-kernel minor page fault at 1,219 ns as the floor a nife handler could
+aspire to.
+
+The deciding cost is not the one this document first named. smoltcp would not notice a coarse clock:
+`net_stack.rs`'s `instant()` divides to `Instant::from_millis` and discards the resolution. **The
+wall clock would notice.** `user/src/ntp.rs` advances `local.now()` between syncs by
+`monotonic_nanos().saturating_sub(self.mono0)`, and `monotonic_nanos` reads the cycle counter, so on
+`x86_64` a tick-resolution page would make every timestamp between NTP syncs step in tick-sized
+jumps, with NTP computing corrections against a clock coarser than the corrections. aarch64 and
+riscv64 never meet this, because gating the cycle counter leaves them a generic timer.
+
+**What the grant buys, stated so nobody reads it as more.** Two threads and a shared word
+reconstruct a fine clock with no privileged instruction, measured at 6.8 ns of usable resolution on
+cordoba and matching Schwarz et al. (FC 2017). That holds on all three architectures. So option 4
+buys **accountable authority**, meaning the cheap accurate path is granted rather than ambient and
+the kernel knows which threads hold it. It does not buy timing confinement, and this tree should not
+claim it does.
+
 
 **The number is provisional.** This lane could not see the other lanes running beside it, so 139 is
 a claim on the next free slot rather than a mint; the integrator assigns the real one at merge, and

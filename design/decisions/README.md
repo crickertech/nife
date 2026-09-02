@@ -197,7 +197,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 136 | DECIDED | [A mature foreign implementation earns its place as an oracle, not as a dependency](136-foreign-implementation-as-oracle.md) |
 | 137 | PROPOSED | [A hardware TRNG with no published health-test claim](137-trng-health-tests.md) |
 | 138 | DECIDED | [How a saturated workload is made to hand threads across cores](138-cross-core-handoff-under-load.md) |
-| 139 | PROPOSED | [Who may read the cycle counter, and by what authority](139-cycle-counter-authority.md) |
+| 139 | DECIDED | [Who may read the cycle counter, and by what authority](139-cycle-counter-authority.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
 way milestone 76 moved four essays out of the roadmap: [the open design
