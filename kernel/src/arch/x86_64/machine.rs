@@ -473,41 +473,95 @@ const CONFIG_DATA: u16 = 0xcfc;
 /// register on every Intel-compatible chipset this kernel has run on, q35 included).
 const PCIEXBAR_CONFIG_ADDRESS: u32 = 0x8000_0060;
 
-/// **Turn the MCFG's ECAM window on.**
+/// What [`enable_pcie_ecam`] found, so the boot line can say which machine it is on rather than
+/// claiming credit for work firmware had already done.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EcamDecode {
+    /// The register already carried the MCFG's own base with the enable bit set, and nothing was
+    /// written. Measured on both paths this kernel boots: OVMF programs it while bringing PCIe up,
+    /// and QEMU's `q35` arrives at reset with it already set (see [`enable_pcie_ecam`]).
+    AlreadyOn,
+    /// The register was off, or named somewhere else, and was programmed from the MCFG.
+    Programmed,
+    /// The MCFG describes a bus count this chipset register cannot encode, so nothing was written
+    /// and whatever decoded before still decodes. Loud rather than silent: a wrong length field
+    /// redirects a range of physical addresses that belongs to something else.
+    Unencodable,
+}
+
+/// The `PCIEXBAR` length field (bits 2:1) for a bus count, or `None` for a count the register
+/// cannot express. Three sizes are defined and every Intel-compatible chipset this kernel targets
+/// encodes them the same way: 256 MiB for 256 buses, 128 MiB for 128, 64 MiB for 64.
+fn pciexbar_length_bits(bus_count: u32) -> Option<u32> {
+    match bus_count {
+        256 => Some(0b00),
+        128 => Some(0b01),
+        64 => Some(0b10),
+        _ => None,
+    }
+}
+
+/// **Turn the MCFG's ECAM window on, unless something already has.**
 ///
-/// A real BIOS or UEFI programs the host bridge's `PCIEXBAR` register (base address, enable bit)
-/// before it ever hands control to an OS, which is why a device-tree machine's port of this
-/// kernel never has to think about this: firmware already turned the decode on, `virt`'s
-/// `pci-host-ecam-generic` binding just states where. PVH is a hypervisor entry protocol, not
-/// firmware, so nothing has written this register by the time this runs, and it is not a
-/// hypothetical: measured on QEMU 2026-08-24, a read of the physical address ACPI's MCFG names,
-/// before this function runs, **faults** (the monitor's `xp` answers "Cannot access memory")
-/// rather than reading the all-ones an absent *device*'s config space would, because the address
-/// is not routed to the ECAM window at all yet. After writing `base | 1` here the same address
-/// reads the host bridge's own vendor and device id (`8086:29c0` on q35), confirmed the same way,
-/// which is the evidence this is the right register and the right bit rather than a guess that
-/// happens not to crash.
+/// A real BIOS or UEFI programs the host bridge's `PCIEXBAR` register (base address, length,
+/// enable bit) before it ever hands control to an OS, which is why a device-tree machine's port of
+/// this kernel never has to think about this: firmware already turned the decode on, `virt`'s
+/// `pci-host-ecam-generic` binding just states where. PVH is a hypervisor entry protocol rather
+/// than firmware, so this port cannot assume the same and asks.
 ///
-/// **This is very likely a PVH-only step**, not a general x86 fact. Milestone 87's `OptiPlex` boots
-/// through real UEFI (notes/x86-port.md's BUGS already names the gap), and real firmware
-/// programs this register as a matter of course while bringing PCIe up; calling this there should
-/// find the register already carrying the base MCFG itself reports, and rewriting it to the same
-/// value is a no-op rather than a correction. It is written here rather than assumed so this port
-/// does not depend on that being true.
+/// **It reads before it writes, and that is the difference between the two machines this has to
+/// work on.** The version written on 2026-08-24 wrote unconditionally, reasoning that rewriting
+/// the same base under real firmware "should be a no-op". It is a no-op only if the length field
+/// agrees too, and firmware is free to choose 128 or 64 MiB where that wrote 256. On a machine
+/// that had chosen a smaller window an unconditional write **widens the chipset's decode over
+/// whatever physical addresses sit above it**, which on xenon (milestone 87's OptiPlex) would be
+/// discovered at a null modem. Some chipsets also lock the register once firmware has written it,
+/// in which case the write is dropped and the value read back is the only thing that would say so.
+///
+/// **And the complication that write was introduced for does not reproduce**, which is worth
+/// stating precisely because the original measurement is quoted in milestone 165's block. That
+/// block records QEMU's monitor answering "Cannot access memory" at the MCFG's base before the
+/// kernel ran, read as the chipset's ECAM decode being off under PVH. Re-measured 2026-09-02 on
+/// QEMU 11.1.1, from inside the guest, which is the side that matters: this register reads
+/// `0xb0000001` on the PVH path **before anything writes it**, so the decode arrives on, and the
+/// suite's PCI tests (the MCFG witness, NVMe, both userspace PCIe driver tests) all pass with this
+/// function writing nothing at all. The monitor still answers "Cannot access memory" on the same
+/// boot, so the monitor and the guest disagree and the guest is the one being served. Either QEMU
+/// changed under the original measurement or the monitor was never evidence about the guest's
+/// decode; nothing here needs to know which, because the register is asked rather than assumed.
+///
+/// The write stays for the machine that genuinely arrives with the decode off. It is therefore
+/// **unexercised on both paths this kernel boots today**, which is recorded rather than hidden:
+/// see this module's BUGS in notes/x86-port.md.
 ///
 /// Uses the legacy configuration mechanism rather than the ECAM window itself, which is the only
 /// way to bootstrap: nothing can read the ECAM window to turn the ECAM window on.
-pub fn enable_pcie_ecam(base: u64) {
+pub fn enable_pcie_ecam(base: u64, bus_count: u32) -> EcamDecode {
     // SAFETY: 0xcf8/0xcfc are the legacy PCI configuration ports, present on every PC-compatible
-    // machine independent of ECAM, and this is exactly the register sequence firmware runs before
-    // handing control to an OS. `base` is the MCFG's own base address; this port has never seen
-    // one above 4 GiB and truncating to 32 bits is the same assumption `PCI_ECAM_PHYS` already
-    // makes. The enable bit (bit 0) is set and the length field (bits 2:1) is left at 0 for
-    // "256 MiB, buses 0..255", which is what the MCFG entry itself already states.
+    // machine independent of ECAM, and reading the host bridge's own configuration space through
+    // them is what firmware does before handing control to an OS.
+    let current = unsafe {
+        super::port::out32(CONFIG_ADDRESS, PCIEXBAR_CONFIG_ADDRESS);
+        super::port::in32(CONFIG_DATA)
+    };
+    // Bit 0 is the enable bit, bits 2:1 are the length, and the rest is the base. This port has
+    // never seen an MCFG base above 4 GiB, and truncating to 32 bits is the same assumption
+    // `PCI_ECAM_PHYS` already makes.
+    let want_base = base as u32 & !0xf;
+    if current & 1 != 0 && current & !0xf == want_base {
+        return EcamDecode::AlreadyOn;
+    }
+    let Some(length) = pciexbar_length_bits(bus_count) else {
+        return EcamDecode::Unencodable;
+    };
+    // SAFETY: as above, and this is the register sequence firmware itself runs. The length comes
+    // from the MCFG's own bus range rather than being assumed, which is what stops this widening a
+    // window firmware sized deliberately.
     unsafe {
         super::port::out32(CONFIG_ADDRESS, PCIEXBAR_CONFIG_ADDRESS);
-        super::port::out32(CONFIG_DATA, (base as u32) | 1);
+        super::port::out32(CONFIG_DATA, want_base | (length << 1) | 1);
     }
+    EcamDecode::Programmed
 }
 
 /// Print what the tables said, after [`read_acpi`] has walked them.

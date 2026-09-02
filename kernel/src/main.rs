@@ -223,16 +223,47 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // `pci-host-ecam-generic` node. No MCFG, no PCI at all, the same treatment the other two
         // architectures give a tree with no such node. The BAR window has no ACPI or AML source
         // (see `arch::mmu::PCI_BAR_PHYS`), so it is always the hardcoded one.
-        if let Some((base, lo, hi)) = acpi.ecam {
-            arch::machine::enable_pcie_ecam(base);
-            let ecam_size = (hi as u64 - lo as u64 + 1) * 0x10_0000;
-            memory::record_pci_regions(
-                (base, ecam_size),
-                (arch::mmu::PCI_BAR_PHYS, arch::mmu::PCI_BAR_MAPPED),
-            );
-            println!("  pci         : ecam enabled at {base:#x} (buses {lo}..={hi})");
-        } else {
-            println!("  pci         : skipped, no MCFG");
+        match acpi.ecam {
+            // The MCFG's base is the configuration space of its FIRST bus, and `pci.rs` addresses a
+            // function as `base + (bus << 20 | ...)` with an absolute bus number. Those agree only
+            // when the first bus is zero, which every machine seen so far reports and no machine is
+            // required to. Refused rather than adjusted: subtracting `lo << 20` names a base below
+            // the window `mmu::map_everything` maps, so the arithmetic that looks like the fix
+            // produces config reads into whatever is underneath it.
+            Some((_, lo, _)) if lo != 0 => {
+                println!(
+                    "  pci         : skipped, the MCFG's first bus is {lo} and this port assumes 0"
+                );
+            }
+            Some((base, lo, hi)) => {
+                let buses = hi as u32 - lo as u32 + 1;
+                let decode = arch::machine::enable_pcie_ecam(base, buses);
+                memory::record_pci_regions(
+                    (base, buses as u64 * 0x10_0000),
+                    (arch::mmu::PCI_BAR_PHYS, arch::mmu::PCI_BAR_MAPPED),
+                );
+                println!(
+                    "  pci         : ecam at {base:#x} (buses {lo}..={hi}), decode {}",
+                    match decode {
+                        arch::machine::EcamDecode::AlreadyOn => "was already on",
+                        arch::machine::EcamDecode::Programmed => "programmed here",
+                        arch::machine::EcamDecode::Unencodable =>
+                            "LEFT AS FOUND: this bus count has no PCIEXBAR length field",
+                    }
+                );
+            }
+            // **No MCFG means no PCI, and deliberately no fallback to the legacy 0xcf8/0xcfc
+            // configuration mechanism**, which this kernel could reach (`enable_pcie_ecam` uses it)
+            // and which would enumerate bus 0 without any ACPI at all. Milestone 215 refused the
+            // same shape one level down and the reason carries: the ports see only the first 256
+            // bytes of a function's configuration space, so a machine that fell back would
+            // enumerate a DIFFERENT set of capabilities from one that did not, with every extended
+            // capability simply absent, and a driver that then failed would fail somewhere else
+            // entirely. A machine that describes no MCFG is a machine this port does not run on
+            // yet, and saying so here costs less than discovering it downstream.
+            None => {
+                println!("  pci         : skipped, no MCFG: no PCI at all (no legacy fallback)")
+            }
         }
 
         // VT-d's register window, recorded now (before `arch::mmu::init()` a few lines down)

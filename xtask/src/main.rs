@@ -3972,7 +3972,7 @@ fn uefi_boot() -> bool {
     for wanted in [
         "nife x86_64: boot complete, halting.",
         "(xsdt)",
-        "pci         : ecam enabled at",
+        "pci         : ecam at",
     ] {
         if !transcript.contains(wanted) {
             eprintln!("uefi-boot: the boot transcript is missing {wanted:?}");
