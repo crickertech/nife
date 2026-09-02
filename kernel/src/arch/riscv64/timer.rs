@@ -173,13 +173,35 @@ pub fn init() {
     // Per-hart, so it belongs in this per-hart init: `scounteren` is not shared between harts, and a
     // secondary that skipped it would fault only on the threads that happened to land there.
     //
+    // **A whole-register write, not a bit set, and that is the point.** This was `csrs scounteren,
+    // TM` until milestone 228, which sets one bit and clears none, four lines below a comment
+    // claiming CY and IR "stay closed". They stayed closed only if firmware left them clear, which
+    // is the *identical* latent-firmware-default shape the paragraph above records having found for
+    // `TM` itself. The same sentence, about the same register, was true of `TM` and untrue of `CY`
+    // only because somebody went and looked. So the code now says what the comment says: after this
+    // instruction, this hart's `scounteren` is exactly `TM`, whatever OpenSBI or a vendor firmware
+    // handed us.
+    //
+    // Writing the whole register also clears the `HPM` bits (3..31) for the U-mode hardware
+    // performance counters, which nothing in this tree reads and which the tree has never claimed
+    // were open. Clearing a bit can only *remove* a U-mode read permission, never add one, so the
+    // wider write cannot open anything the narrower one would have left shut.
+    //
+    // **This changes no policy.** `TM` stays open, for the reason the paragraph above gives, and the
+    // cycle counter stays closed, which is what the tree already believed. Whether U-mode should
+    // ever be *granted* `CY` is milestone 75 (who may read the cycle counter, and by what
+    // authority), which is `Gate: DECISION` and calef's, not this init's.
+    //
     // SAFETY: setting scounteren.TM only *permits* a read U-mode could already attempt; it grants no
     // authority to affect anything. The same eyes-open exception to §10 that aarch64 records, with
     // the same reason: the cross-OS primitive suite needs userspace self-timing to be comparable to
-    // lmbench. CY (cycle) and IR (instret) stay closed.
+    // lmbench. Every other bit written here is a zero, and a zero in this CSR only takes a U-mode
+    // read permission away: CY (cycle) and IR (instret) are now closed by this instruction rather
+    // than by assumption.
     const TM: u64 = 1 << 1;
-    // SAFETY: `csrs` sets a bit in a supervisor CSR and touches no memory, which the options state. Enabling the EL0 counter read is the intent (the userspace self-timing seam).
-    unsafe { asm!("csrs scounteren, {}", in(reg) TM, options(nomem, nostack, preserves_flags)) };
+    // SAFETY: `csrw` writes a supervisor CSR and touches no memory, which the options state. The CSR
+    // governs U-mode counter reads only, so no S-mode access this kernel makes depends on its value.
+    unsafe { asm!("csrw scounteren, {}", in(reg) TM, options(nomem, nostack, preserves_flags)) };
 }
 
 /// Handle a timer interrupt: count the tick and arm the next deadline (which also clears the pending

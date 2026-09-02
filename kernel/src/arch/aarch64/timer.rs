@@ -63,7 +63,9 @@
 
 use core::sync::atomic::{AtomicU64, Ordering};
 
-use aarch64_cpu::registers::{CNTFRQ_EL0, CNTKCTL_EL1, CNTV_CTL_EL0, CNTV_CVAL_EL0, CNTVCT_EL0};
+use aarch64_cpu::registers::{
+    CNTFRQ_EL0, CNTKCTL_EL1, CNTV_CTL_EL0, CNTV_CVAL_EL0, CNTVCT_EL0, ID_AA64DFR0_EL1,
+};
 use tock_registers::interfaces::{Readable, Writeable};
 
 use crate::cpu::{self, MAX_CPUS};
@@ -133,12 +135,73 @@ pub fn init() {
     const EL0VCTEN: u64 = 1 << 1;
     CNTKCTL_EL1.set(CNTKCTL_EL1.get() | EL0VCTEN);
 
+    close_cycle_counter_to_el0();
+
     let interval = freq / TICK_HZ;
     INTERVAL.store(interval, Ordering::Relaxed);
 
     gic::enable(TIMER_INTID, 0); // PPI: per-core, target ignored
 
     start(interval);
+}
+
+/// Write `PMUSERENR_EL0 = 0`, so EL0 cannot read the **cycle** counter.
+///
+/// # Why this is beside the `CNTKCTL_EL1` write and not in a PMU driver
+///
+/// The two writes are one decision seen twice. `CNTKCTL_EL1.EL0VCTEN` says EL0 may read the coarse
+/// virtual counter; `PMUSERENR_EL0` says whether it may also read the fine one (`PMCCNTR_EL0`) and
+/// the event counters. On riscv64 both answers live in a single CSR, `scounteren`, whose `TM` and
+/// `CY` bits this project's per-hart timer init now writes together. This is that same pair, split
+/// across two registers by the ISA rather than by us, so it belongs at the same site. There is no
+/// PMU driver to put it in, and if one arrives it inherits this line rather than the reverse.
+///
+/// # Why writing zero is not a policy change
+///
+/// Zero is what the rest of the tree already believes the value is. Nothing here grants or revokes
+/// anything a program was using: `crates/user_rt`'s `now()` reads `CNTVCT_EL0`, which the line above
+/// opens, and nothing in this tree reads `PMCCNTR_EL0` from EL0 at all. What changes is that the
+/// belief stops being firmware's to confirm.
+///
+/// Arm says of every field in `PMUSERENR_EL0`, `EN`, `SW`, `CR` and `ER` alike, that on a warm reset
+/// it "resets to an architecturally UNKNOWN value". Under QEMU it is almost certainly zero. On
+/// **argon**, the Jetson TX1 nobody has booted this kernel on, it is whatever TF-A and the boot ROM
+/// left, and a claim that rests on that is not a claim. Linux writes the same zero for the same
+/// reason, in the commit `arm64: kernel: enforce pmuserenr_el0 initialization and restore`, whose
+/// message says the register "is architecturally UNKNOWN on reset".
+///
+/// Whether EL0 should ever be *granted* the cycle counter is a different question with a different
+/// owner: milestone 75 (who may read the cycle counter, and by what authority), which is `Gate:
+/// DECISION` and calef's.
+///
+/// # Why per core
+///
+/// `PMUSERENR_EL0` is banked per PE, so a secondary that skipped this would run on whatever that
+/// core's reset value was, and only the threads that happened to be placed there would see it. That
+/// is the identical argument the riscv64 timer records for `scounteren`, and it is why this sits in
+/// the per-core `init` rather than in a boot-core-only path.
+fn close_cycle_counter_to_el0() {
+    // `PMUSERENR_EL0` exists only when FEAT_PMUv3 does; without it a direct access is UNDEFINED and
+    // would take an undefined-instruction exception on the first line of every core's timer init.
+    // `ID_AA64DFR0_EL1.PMUVer` reports it: 0 means no PMU, 0xf means an IMPLEMENTATION DEFINED PMU
+    // that does not follow PMUv3 and so does not carry this register either. Both are boards where
+    // there is no EL0 cycle-counter door to close.
+    let pmuver = ID_AA64DFR0_EL1.read(ID_AA64DFR0_EL1::PMUVer);
+    if pmuver == 0 || pmuver == 0xf {
+        return;
+    }
+
+    // SAFETY: `msr pmuserenr_el0, xzr` only *removes* EL0 permissions; every field of that register
+    // is an EL0 enable, so zero cannot make any access newly legal, and it does not affect EL1's own
+    // PMU access (which `MDCR_EL2.TPM` and `PMCR_EL0` govern, not this register). Writing it is a
+    // legal EL1 operation whenever the register is present, which the PMUVer check above
+    // establishes. It touches no memory and clobbers no flags, which the options state.
+    unsafe {
+        core::arch::asm!(
+            "msr pmuserenr_el0, xzr",
+            options(nomem, nostack, preserves_flags)
+        );
+    }
 }
 
 /// Set the first deadline and enable.

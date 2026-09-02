@@ -774,6 +774,66 @@ not change it. That is the same shape as aarch64 needing `CNTKCTL_EL1.EL0VCTEN` 
 would have to act to *close* it. One trap: `rdtsc` answers in `edx:eax`, so reading it into a single
 `out(reg)` compiles and silently returns a counter that wraps every four seconds.
 
+#### The cycle counter is ambient here, and that was inherited rather than chosen
+
+Recorded 2026-09-02 by milestone 228 (the cycle counters are closed by assumption, and on two
+architectures the assumption is a comment), which closed the equivalent door on the other two
+architectures and deliberately left this one open.
+
+The paragraph above says the permissive state is x86's default. What it does not say is that on the
+other two architectures the register userspace gets and the register a profiler would want are
+**different registers**, and here they are the same one:
+
+| | what userspace gets | what stays shut | how |
+|---|---|---|---|
+| aarch64 | `CNTVCT_EL0`, ~62.5 MHz under QEMU | `PMCCNTR_EL0`, the cycle counter | `CNTKCTL_EL1.EL0VCTEN` set, `PMUSERENR_EL0` written to zero |
+| riscv64 | the `time` CSR, 10 MHz under QEMU | the `cycle` and `instret` CSRs | `scounteren` written to exactly `TM` |
+| `x86_64` | the TSC, via `rdtsc` | the performance counters, via `rdpmc` | `CR4.TSD` left clear, `CR4.PCE` established clear |
+
+So every ring-3 program on this architecture holds a sub-nanosecond instrument, roughly two orders of
+magnitude finer than what the other two hand out, and no line of this kernel decided that. It is the
+reset value. Milestone 228 says so out loud rather than implying that writing the other two registers
+made three architectures agree.
+
+#### There were two doors, and the second one did close
+
+`CR4.PCE` is bit 8 and it is not the same bit as `TSD`. It gates `rdpmc`, which reads a performance
+counter by index, and fixed counter 2 (`CPU_CLK_UNHALTED.REF_TSC`) runs at the TSC rate, so an open
+`PCE` is a second path to a cycle-rate instrument reached by a different instruction. Nobody had
+looked when milestone 228 was minted, which is why its block first named only two architectures as
+fixable; a research lane reading the ISA for a *coarse* clock found it.
+
+`arch::init` now establishes it clear, per core, beside the GDT and the IDT, which is the same defect
+fix the other two architectures got. It cost nothing, as forecast: nothing in this tree reads a
+performance counter from ring 3, and nothing under `arch/x86_64/` programs a perf MSR at all, so with
+the counters unprogrammed an open `PCE` would have exposed zeros or firmware's leftovers rather than
+anything useful. Had it broken something, that would have been the finding, because it would have
+meant this tree already depended on a counter it never granted itself.
+
+**It reads `CR4` back rather than trusting the reset value**, which is the habit this whole milestone
+exists to install, and doing so paid immediately. A temporary probe on 2026-09-02 printed **0x20** on
+the PVH boot, `PAE` alone, which is exactly what `boot.s` sets, and **0x668** under OVMF: `DE`,
+`PAE`, `MCE`, `OSFXSR` and `OSXMMEXCPT`. Bit 8 was clear in both, so nothing was actually closed. But
+five bits this kernel never wrote were already set by firmware before any of our code ran, on the one
+"firmware" this port has ever booted under, and that is the argument for the read in one number. On
+**xenon**, the OptiPlex, real firmware runs first and the value is unknown.
+
+**Why it was not closed with them.** `CR4.TSD` is one instruction away, and setting it today would
+break `Instant`, `thread::sleep`, the random seed, smoltcp's timestamps in `std_net` and the
+benchmark harness simultaneously, because `user_rt`'s `now()` on this architecture **is** `rdtsc` and
+there is no coarse alternative to fall back to. Closing it needs a second time source first: a coarse
+monotonic value published in a page, the same move DECISIONS §43 (reading the clock is a page) already
+made for the wall clock, one axis over. Nothing proposes building that here; it is named so this row
+is a limitation with a price rather than an exception with no plan.
+
+**What it means for the open decision.** `x86_64` has already answered milestone 75 (who may read the
+cycle counter, and by what authority) with "everyone, always", by inheritance. Whichever way that
+decision goes for aarch64 and riscv64, this architecture will not match it until the page above
+exists, and §19 (architectural parity is a tenet) should read that as a scope note rather than as a
+gap somebody forgot. Linux names the same asymmetry from the other side: its arm64 per-task
+`PMUSERENR_EL0` work opens the counter only on request, explicitly to avoid "the information leaks
+x86 has".
+
 `cntfrq()` is **RISC-V's gap, one architecture worse**, and it is a constant with a `BUGS` section
 rather than a number with a comment. There is no architected TSC rate at all: `CPUID` leaf 0x15
 gives a ratio to a crystal that leaf 0x16 may not report, and neither leaf exists on every part. So

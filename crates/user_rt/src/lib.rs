@@ -708,6 +708,39 @@ pub fn cntfrq() -> u64 {
 /// and the granularity that buys is nanoseconds; the reordering window is tens of cycles, and the
 /// kernel's own calibration accepts the same trade for the same reason
 /// (`kernel/src/arch/x86_64/timer.rs`).
+///
+/// # BUGS
+///
+/// **On `x86_64` the cycle counter is ambient, and nobody chose that.** The other two architectures
+/// give userspace a *coarse* counter and keep the fine one shut: aarch64 opens `CNTVCT_EL0` and, as
+/// of milestone 228 (the cycle counters are closed by assumption, and on two architectures the
+/// assumption is a comment), writes `PMUSERENR_EL0 = 0` so `PMCCNTR_EL0` stays closed; riscv64 opens
+/// `scounteren.TM` and clears `CY`. Here there is one register for both jobs. The TSC *is* the
+/// coarse clock and the cycle counter, `CR4.TSD` is clear at reset, this kernel never writes it, and
+/// so every ring-3 program on this architecture holds a sub-nanosecond timing instrument it was
+/// never granted. That is a state inherited from the reset value, not a position anyone argued for,
+/// and it is recorded here rather than in a tracker so the next reader of this function meets it.
+///
+/// **The `rdpmc` door beside it did close.** `CR4.PCE` is a different bit from `CR4.TSD` and gates a
+/// different instruction, and since fixed counter 2 runs at the TSC rate it is a second path to a
+/// cycle-rate reading. Milestone 228 established it clear in `arch::init`, per core, because nothing
+/// in this tree reads a performance counter from ring 3 and so closing it cost nothing. So the gap
+/// below is `rdtsc` specifically, not "x86 counters" in general.
+///
+/// **It is not closed because closing it today would take the clock away.** Setting `CR4.TSD` with
+/// nothing to replace it breaks `Instant`, `thread::sleep`, the random seed, smoltcp's timestamps in
+/// `std_net`, and the benchmark harness, all at once and on the same instruction. So this is a
+/// limitation with a price rather than an oversight, and paying it needs a second time source first:
+/// a coarse monotonic value published in a page, which is DECISIONS §43's move (reading the clock is
+/// a page, which put the wall clock in a page rather than a register) one axis over. Nothing here
+/// proposes building that.
+///
+/// **What it costs meanwhile**, stated so §19 (architectural parity is a tenet) reports a known gap
+/// rather than a silent one: `x86_64` answers milestone 75 (who may read the cycle counter, and by
+/// what authority) with "everyone, always", by inheritance, whatever that decision concludes for the
+/// other two. Linux names this exact asymmetry from the other side; its arm64 per-task
+/// `PMUSERENR_EL0` work says it opens the counter only on request to avoid "the information leaks
+/// x86 has".
 #[cfg(target_arch = "x86_64")]
 pub fn now() -> u64 {
     let (lo, hi): (u32, u32);
