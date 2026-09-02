@@ -25,7 +25,7 @@
 //!   fixed here at spawn, and can name no other;
 //! - slot 1, the **UART receive `Irq`**, `READ` only (WAIT and ACK, not the authority to hand it
 //!   on);
-//! - mapped: one page of the UART's registers, device-typed, at [`IN_UART_VA`].
+//! - mapped: one page of the UART's registers, device-typed, at `IN_UART_VA` below.
 //!
 //! No DMA page, no `Virtio` transport, no budget, no report endpoint, and no capability naming
 //! any other process. It cannot print, cannot spawn, and cannot read what anyone else typed.

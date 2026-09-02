@@ -7022,11 +7022,24 @@ fn shell_check_leg_graphical(riscv: bool, keystrokes: Keystrokes) -> bool {
         },
     );
     cmd.env("NIFE_DISK", disk_path());
-    cmd.env("NIFE_RNG", "1");
-    // The two flags [`shell_check_leg`] never sets: a virtio-gpu and a virtio-keyboard, the same
-    // devices `cargo xtask test` already attaches, read by `scripts/qemu-runner-*.sh` exactly the
-    // way they always have been (milestone 177 changed what *init* does with them existing, not
-    // how they get attached).
+    // **The serial arm attaches no virtio-rng**, and that is the point of it rather than an
+    // omission: `NIFE_RNG` is a QEMU-only stopgap (DECISIONS §120) and none of the three target
+    // machines has such a device, so an option-A leg standing in for a board should not have one
+    // either. The device arm keeps it, unchanged, because that is milestone 177's leg.
+    //
+    // It also currently makes the difference between a prompt and no prompt, which is how the
+    // asymmetry got noticed: **the interactive boot traps in init on both architectures whenever
+    // a virtio-rng is attached**, so `shell_check_leg`'s own plain legs are red on `main` for a
+    // reason that has nothing to do with either graphical leg. Reproduced at 8167d806 on
+    // nightly-2026-09-01 as well as -09-02, so it is not the toolchain bump. See
+    // design/roadmap/192-keyboard-on-real-silicon.md's own note; it is nobody's milestone yet.
+    if keystrokes == Keystrokes::Device {
+        cmd.env("NIFE_RNG", "1");
+    }
+    // The flags [`shell_check_leg`] never sets: a virtio-gpu and (in the device arm) a
+    // virtio-keyboard, the same devices `cargo xtask test` already attaches, read by
+    // `scripts/qemu-runner-*.sh` exactly the way they always have been (milestone 177 changed what
+    // *init* does with them existing, not how they get attached).
     cmd.env("NIFE_GPU", "1");
     if keystrokes == Keystrokes::Device {
         cmd.env("NIFE_KEYBOARD", "1");

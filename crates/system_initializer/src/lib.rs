@@ -169,6 +169,19 @@
 //!
 //! # BUGS
 //!
+//! **A boot with a virtio-rng attached traps in init before the console prints anything**, and
+//! `script/shell-check` is red on both architectures because of it (found 2026-09-02 by milestone
+//! 192's lane, which is not its owner and did not fix it). The same build, same commit, same
+//! archive, with the device simply not attached, reaches a prompt normally; attach it
+//! (`NIFE_RNG=1`, which both of `shell_check_leg`'s plain legs set unconditionally) and init dies
+//! at `user_rt::trap` with no message, which is this section's own first entry describing what a
+//! silent early refusal looks like. Reproduced at `8167d806` under nightly-2026-09-01 as well as
+//! -09-02, so it is not the toolchain bump. The shape matches the sixteen-slot wall this file's
+//! own entropy-block comment describes at length ("Found by bisection, not reasoning"): three
+//! kernel grants that inflate the resting baseline for the whole function. Not root-caused, and
+//! deliberately not guessed at here. `script/shell-check` is not part of `script/test`, which is
+//! why a green tree does not contradict this.
+//!
 //! **A refused `console` or `line_editor` stops in silence.** Those two are what carry init's
 //! output, so a refusal of either has no route to a person: init traps and the operator sees the
 //! kernel's fault line for init and nothing else, indistinguishable from any other early init
