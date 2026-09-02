@@ -242,13 +242,7 @@ impl<'a> Fs<'a> {
         // survives the loop, which is the whole point of not keeping the array.
         for i in 0..count {
             let e = Self::entry_at(image, i);
-            let start = e.start_block as usize * BLOCK;
-            let end = start
-                .checked_add(e.len as usize)
-                .ok_or(Error::OutOfBounds)?;
-            if end > image.len() {
-                return Err(Error::OutOfBounds);
-            }
+            Self::entry_bounds(image.len(), e.start_block, e.len)?;
         }
 
         Ok(Fs { image, count })
@@ -282,11 +276,36 @@ impl<'a> Fs<'a> {
         (0..self.count).map(|i| Self::entry_at(self.image, i))
     }
 
+    /// Where entry `(start_block, len)` lies in an image of `image_len` bytes, as `start..end`,
+    /// or [`Error::OutOfBounds`] if it does not fit.
+    ///
+    /// **One expression, two callers, which is the point.** [`Fs::parse`] validates every entry
+    /// with this and [`Fs::read`] slices with it, so the check and the indexing cannot drift
+    /// apart. They used to be two copies of the same three lines in two functions, sound only
+    /// because a comment said they matched, and a proof of the copy is not a proof of either
+    /// (milestone 213). It also puts the arithmetic where a bounded model checker can quantify
+    /// over it without walking a symbolic directory, which is what `elf`'s
+    /// `check_segment_bounds` is for one crate over.
+    ///
+    /// The name is **provisional**: calef names functions (AGENTS.md, milestone 160).
+    fn entry_bounds(image_len: usize, start_block: u32, len: u32) -> Result<(usize, usize), Error> {
+        let start = start_block as usize * BLOCK;
+        let end = start.checked_add(len as usize).ok_or(Error::OutOfBounds)?;
+        if end > image_len {
+            return Err(Error::OutOfBounds);
+        }
+        Ok((start, end))
+    }
+
     /// The bytes of a file, by name.
     pub fn read(&self, name: &str) -> Option<&'a [u8]> {
         let e = self.entries().find(|e| e.name_eq(name))?;
-        let start = e.start_block as usize * BLOCK;
-        Some(&self.image[start..start + e.len as usize])
+        // Cannot fail: `parse` accepted this entry through this same function, and an `Fs`
+        // exists only if `parse` returned. Stated as an `expect` rather than an `ok()?` on
+        // purpose: a `None` here would hide the impossible case as a missing file.
+        let (start, end) = Self::entry_bounds(self.image.len(), e.start_block, e.len)
+            .expect("parse validated every entry with this same function");
+        Some(&self.image[start..end])
     }
 }
 
@@ -641,33 +660,47 @@ mod tests {
 mod verification {
     use super::*;
 
-    /// **Parse's validation is sufficient for `read`: proved as arithmetic, for every entry.**
-    /// For ANY `start_block`, `len`, and image length: if the exact check `parse` performs
-    /// accepts the entry (`start_block * BLOCK`, `checked_add(len)`, `end <= image_len`), then
-    /// the slice bounds `read` computes satisfy `start <= end <= image_len`, so the indexing
-    /// cannot panic and the returned bytes lie inside the image. This is the kernel-facing
-    /// guarantee, free of any bound on the image size.
-    /// Falsification: unfalsified
+    /// **Parse's validation is sufficient for `read`: proved on the function both of them call.**
+    /// For ANY `start_block`, `len`, and image length, an accepted entry yields
+    /// `start <= end <= image_len`, so `read`'s indexing cannot panic and the bytes it returns
+    /// lie inside the image. This is the kernel-facing guarantee, free of any bound on the
+    /// image size.
+    ///
+    /// **It calls [`Fs::entry_bounds`] rather than restating it** (milestone 213). Until that
+    /// function existed this harness recomputed both `parse`'s acceptance condition and
+    /// `read`'s slice arithmetic inline, under two comments claiming each was "exactly" what
+    /// the code did, and proved a property of the copy: neither `parse` nor `read` appeared in
+    /// it, so rewriting `read` left it green. Measured, not asserted: making `read` slice from
+    /// `(start_block + DIR_BLOCKS) * BLOCK`, which indexes a whole directory span past what
+    /// `parse` checked, left the old phrasing verifying in 0.04 seconds.
+    ///
+    /// The two equalities below are the **format**, not the implementation: nifefs entries name
+    /// an absolute block and blocks are [`BLOCK`] bytes, which is a fact about the on-disk
+    /// layout the image writer and every reader share, and so is the one thing this function is
+    /// not free to choose. Stating them here is the same move `credential_proto`'s parse
+    /// harness makes with the request word's shifts.
+    /// Falsification: replayable `crates/nifefs/falsifications/verification.the_validation_implies_reads_slice_is_in_bounds.patch`
     #[kani::proof]
     fn the_validation_implies_reads_slice_is_in_bounds() {
         let start_block: u32 = kani::any();
         let len: u32 = kani::any();
         let image_len: usize = kani::any();
 
-        // Exactly parse's acceptance condition, no more.
-        let start = start_block as usize * BLOCK;
-        let Some(end) = start.checked_add(len as usize) else {
-            return; // parse refuses: OutOfBounds
+        let Ok((start, end)) = Fs::entry_bounds(image_len, start_block, len) else {
+            return; // refused, and `parse` refuses exactly here
         };
-        if end > image_len {
-            return; // parse refuses: OutOfBounds
-        }
-
-        // Exactly read's slice arithmetic.
-        let r_start = start_block as usize * BLOCK;
-        let r_end = r_start + len as usize; // cannot overflow: equals `end` above
-        assert!(r_start <= r_end);
-        assert!(r_end <= image_len, "read could index past the image");
+        assert!(start <= end);
+        assert!(end <= image_len, "read could index past the image");
+        assert_eq!(
+            start,
+            start_block as usize * BLOCK,
+            "an entry begins at its own block"
+        );
+        assert_eq!(
+            end - start,
+            len as usize,
+            "an entry spans exactly its own length"
+        );
     }
 
     /// **A short image is always `Truncated`, never indexed**: for any image under the directory

@@ -627,6 +627,18 @@ mod proofs {
     /// parses are the lengths the client meant. Bounded to the ranges `place` can produce, because
     /// outside them the packing is deliberately lossy (the fields are masked) and there is nothing
     /// to prove.
+    ///
+    /// **This is an encoder round-tripped through its own decoder, and on its own it is blind**
+    /// (milestone 213's sweep, measured rather than read). Swapping the two length fields in
+    /// `req` and in `id_len`/`secret_len` together leaves this harness verifying: both sides
+    /// move, the round trip is perfect, and a client using the real wire format has its identity
+    /// read as its secret length. It is left as it is deliberately, because the defect is caught
+    /// next door: `no_request_word_makes_the_parse_read_outside_the_page` states the two shifts
+    /// as literals (milestone 211) and goes red on exactly that patch, which is what the run
+    /// above observed. Restating the shifts here as well would be a second copy of a claim one
+    /// harness already pins, which DECISIONS §46 refuses. What that costs is worth naming: this
+    /// harness's coverage is a fact about the *suite*, so deleting or weakening that sibling
+    /// silently un-covers the wire format.
     /// Falsification: unfalsified
     #[kani::proof]
     fn a_request_word_round_trips_every_field() {

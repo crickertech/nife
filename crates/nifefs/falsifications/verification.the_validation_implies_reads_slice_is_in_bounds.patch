@@ -1,0 +1,26 @@
+Restores the defect milestone 213 measured, which is the one the old phrasing of this
+harness could not see: `read` slicing a whole directory span past where `parse` checked.
+
+`start_block` is an absolute block number, and this crate's module comment says so ("a
+reader never needs to know DIR_BLOCKS to find data; only the writer places it"), which
+is exactly the sentence a reader could act on backwards. Adding DIR_BLOCKS before the
+multiply reads as making the reader agree with the writer, and instead moves every
+file's bytes a directory span past the entry the validation accepted.
+
+Expected red: `an entry begins at its own block`, which states the on-disk layout rather
+than the expression this function uses to compute it. Before milestone 213 the harness
+computed both sides itself, and neither `parse` nor `read` appeared in it, so this
+defect left it verifying in 0.04 seconds.
+diff --git a/crates/nifefs/src/lib.rs b/crates/nifefs/src/lib.rs
+index c5a35e4e..308d4db8 100644
+--- a/crates/nifefs/src/lib.rs
++++ b/crates/nifefs/src/lib.rs
+@@ -289,7 +289,7 @@ impl<'a> Fs<'a> {
+     ///
+     /// The name is **provisional**: calef names functions (AGENTS.md, milestone 160).
+     fn entry_bounds(image_len: usize, start_block: u32, len: u32) -> Result<(usize, usize), Error> {
+-        let start = start_block as usize * BLOCK;
++        let start = (start_block as usize + DIR_BLOCKS) * BLOCK;
+         let end = start.checked_add(len as usize).ok_or(Error::OutOfBounds)?;
+         if end > image_len {
+             return Err(Error::OutOfBounds);

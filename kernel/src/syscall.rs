@@ -899,6 +899,15 @@ mod proofs {
     /// break it silently. `k` is chosen by the solver rather than iterated, so this covers every
     /// page of every run without an unwind bound.
     ///
+    /// **The guard below is a model of two call sites, and a model can go stale.** Milestone
+    /// 213's sweep read `page_frame_map` and `MAP_INTO` on 2026-09-02 and both apply exactly
+    /// this: `run_end_va(va, count)`, then `is_user_page_va` on `va` and on `last_va`, then the
+    /// loop. So the model is faithful today, checked rather than assumed. Nothing checks it
+    /// tomorrow: a call site that added an alignment condition, or dropped one of the two ends,
+    /// would leave this harness green while proving a claim about a guard nobody applies. Unlike
+    /// the harnesses 213 rewrote, the duplication here cannot be removed by calling something,
+    /// because what is duplicated is a *caller's* control flow rather than a function.
+    ///
     /// Falsification: unfalsified. Same standing as the harness above, and the same handoff: no
     /// defect has been proposed against it yet, and inventing one to fill this row is exactly what
     /// §134's three states exist to refuse.
