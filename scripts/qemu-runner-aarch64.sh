@@ -40,6 +40,28 @@ set -e
 # Under HVF there is nothing to override: the guest runs on the physical Apple core, so `-cpu host`
 # is the only answer and asking for anything else is a mistake worth failing on rather than
 # silently ignoring.
+# NIFE_EL2=1 builds the machine with an EL2 the kernel is started at, which is the closest
+# rehearsal patagonia can give of a real board (milestone 127, the seL4 machine). QEMU's `virt`
+# starts a kernel at EL1 by default; `virtualization=on` gives the machine a hypervisor level and
+# enters the payload there, which is what U-Boot does on the Jetson TX1 with TF-A's BL31 below it.
+# `boot.s` then reads `CurrentEL` and drops itself, and the whole suite runs unchanged.
+#
+# Two things change with it and both are the machine talking, not a workaround. `/psci` states
+# `smc` rather than `hvc`, because an `hvc` from EL1 would arrive at the EL2 we just left; and
+# PSCI starts every secondary at EL2 too, whichever level called `CPU_ON`, so `secondary_boot`
+# takes the same drop.
+#
+# TCG only. HVF has no nested virtualization to offer, so asking for both is a mistake worth
+# failing on rather than silently ignoring, the same posture as NIFE_CPU under HVF below.
+VIRT_EL2=""
+if [ -n "$NIFE_EL2" ]; then
+    if [ "$NIFE_ACCEL" = "hvf" ]; then
+        echo "qemu-runner-aarch64: NIFE_EL2 cannot apply under HVF (no nested virtualization; drop NIFE_ACCEL=hvf)" >&2
+        exit 1
+    fi
+    VIRT_EL2=",virtualization=on"
+fi
+
 if [ "$NIFE_ACCEL" = "hvf" ]; then
     # iommu=smmuv3 is on BOTH paths since milestone 81, and this is a correction: it used to be
     # TCG-only, on the recorded belief that "smmuv3 emulation alongside HVF acceleration is the
@@ -62,7 +84,7 @@ else
     # then carries an `smmuv3@...` node (memory::smmu_region finds it) and an identity iommu-map for
     # the bus. A plain boot without a PCI disk still gets the SMMU; it just has nothing to confine.
     # The HVF branch above takes the same flag, since milestone 81.
-    MACHINE="virt,gic-version=2,iommu=smmuv3"
+    MACHINE="virt,gic-version=2,iommu=smmuv3$VIRT_EL2"
     CPU="${NIFE_CPU:-cortex-a72}"
 fi
 
