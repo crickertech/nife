@@ -1143,6 +1143,13 @@ in the code or the conversation doesn't make sense, it belongs here.
   sequence from the serial text, why the read is on its own thread so the deadline holds whatever
   the board does, why the device is opened *before* `stty` configures it, why there is no serial
   dependency, and how the whole thing was tested with the board powered off.
+- [The workload that does not stop](soak.md): milestone 219's sustained multicore run, which is
+  what `design/fatal-risks.md`'s multicore entry needs before its decisive experiment can happen at
+  all. What the workload is, the round-trip number it produces and the only three comparisons that
+  number supports, the bench procedure for radon, and the finding that came out of building it: a
+  saturated workload **does not migrate** under this scheduler, measured across three topologies and
+  two architectures, so the soak sustains contention on shared kernel state and does not sustain
+  cross-core handoff. Also why the first instrument could not have shown that and the second could.
 - [Scoping RISC-V / aarch64 parity](riscv-parity-scope.md): aarch64 is a strict superset once the
   port proved the capability core; this scopes the remaining gap (SMP, an in-kernel test run,
   virtio+DMA, the full boot/shell, benchmarks), what each proves, and the order to close them.

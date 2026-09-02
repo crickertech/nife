@@ -47,9 +47,18 @@ pub struct Policy {
     ///
     /// `None` disables it.
     ///
-    /// **Suppressed once the boot tour completes**, whatever this says. The kernel halts in `wfi`
-    /// after its last line, so quiet after [`Stage::Tour`] is normal termination and reporting it
-    /// as a hang would fail every good boot.
+    /// **Suppressed once the boot tour completes, and re-armed if a soak starts** (milestone 219).
+    /// The kernel halts in `wfi` after its last line, so quiet at exactly [`Stage::Tour`] is normal
+    /// termination and reporting it as a hang would fail every good boot. A `--features soak`
+    /// kernel does not halt: it prints a heartbeat on the wall clock every five seconds whatever
+    /// the workload is doing, and reaching [`Stage::Soak`] says so, so from there silence means the
+    /// thing that prints is wedged.
+    ///
+    /// **That asymmetry is the whole of how this tool tells a hang from a slow run**, and it works
+    /// because the heartbeat is not on the work: a machine crawling at one round trip a second
+    /// still speaks on time, with a rate that says it is crawling. `kernel/src/soak.rs` is the
+    /// other half of the agreement and its beat interval (five seconds) is chosen against this
+    /// field's default (fifteen), so a run is called a hang after three missed beats.
     pub quiet_after: Option<Duration>,
     /// After [`Self::until`] is reached, keep reading this long before calling it a success.
     ///
@@ -269,9 +278,13 @@ where
         // Silence, and the two things that are not it. A board still inside its settle window is
         // quiet because we asked it to be. A board that finished its tour is quiet because the
         // kernel halted in `wfi`, which is how a good boot ends.
+        //
+        // `!= Tour` rather than `< Tour` (milestone 219): the exemption belongs to that one stage
+        // and not to everything past it. A soak has started and is under contract to keep speaking,
+        // so its silence is the hang this tool exists to name.
         if let (Some(limit), Some(last)) = (policy.quiet_after, spoke_at)
             && settling.is_none()
-            && progress.reached() < Stage::Tour
+            && progress.reached() != Stage::Tour
             && last.elapsed() >= limit
         {
             outcome = Outcome::WentQuiet;
@@ -551,6 +564,69 @@ mod tests {
         assert_eq!(session.exit_code(), 0, "a good boot must not exit 2");
         assert_eq!(session.progress.reached(), Stage::Tour);
         assert!(session.progress.userspace_ran());
+    }
+
+    /// **A soak that stops speaking is a hang**, which is the whole of milestone 219's agreement
+    /// between the workload and this tool. The fixture is a real QEMU riscv64 soak cut off after
+    /// its second heartbeat, so what is being asserted is that reaching [`Stage::Soak`] re-arms
+    /// the quiet check the completed boot tour in the same log had just suppressed.
+    ///
+    /// This is the test the exemption's shape would otherwise get wrong: the log reaches `Tour`
+    /// (its last tour line is in there) and then reaches `Soak`, and a `< Stage::Tour` guard would
+    /// have called the silence a normal halt.
+    #[test]
+    fn a_soak_that_goes_quiet_is_a_hang_even_though_the_tour_completed() {
+        let cut = include_bytes!("../tests/fixtures/synthetic/qemu-soak-then-silence.log").to_vec();
+        let mut sink = Vec::new();
+        let policy = Policy {
+            total: Duration::from_secs(5),
+            until: None,
+            quiet_after: Some(Duration::from_millis(200)),
+            settle: Duration::from_millis(10),
+        };
+        let session = watch(SpeaksThenStops::new(cut), &mut sink, &policy, true).unwrap();
+        assert_eq!(session.outcome, Outcome::WentQuiet);
+        assert_eq!(session.exit_code(), 2, "a stalled soak must exit 2");
+        assert_eq!(session.progress.reached(), Stage::Soak);
+        assert!(
+            session.progress.reached() > Stage::Tour,
+            "the tour completing must not exempt a soak from the quiet check"
+        );
+    }
+
+    /// **A soak that keeps beating for the whole watch is a success**, and it hands back the number
+    /// the run exists to produce. Same fixture, uncut, which is what `script/soak` sees.
+    #[test]
+    fn a_soak_that_keeps_beating_succeeds_and_reports_its_round_trip_total() {
+        let full =
+            include_bytes!("../tests/fixtures/captured/qemu-2026-09-01-riscv64-soak.log").to_vec();
+        let mut sink = Vec::new();
+        // The whole capture arrives in one burst here, which a real board's 115200-baud trickle
+        // does not, so the quiet window is set beyond the watch rather than inside it: what this
+        // test is about is the parse and the success verdict, and the sibling above is the one
+        // about silence.
+        let policy = Policy {
+            total: Duration::from_millis(400),
+            until: None,
+            quiet_after: Some(Duration::from_secs(30)),
+            settle: Duration::from_millis(10),
+        };
+        let session = watch(SpeaksThenStops::new(full), &mut sink, &policy, true).unwrap();
+        assert_eq!(session.outcome, Outcome::RanOut);
+        assert_eq!(session.exit_code(), 0);
+        let beat = session.progress.soak().expect("the beats must be parsed");
+        assert_eq!(beat.beat, 5, "the last heartbeat is the one that counts");
+        assert_eq!(beat.rounds, 595_432);
+        assert_eq!(beat.refused, 0);
+        assert_eq!(beat.mismatches, 0);
+        assert_eq!(beat.stalled, 0);
+        // The finding this milestone measured rather than assumed: a saturated workload does not
+        // migrate under this scheduler. Asserted so that a future run which DOES cross cores fails
+        // this test and makes somebody read notes/soak.md.
+        assert_eq!(
+            beat.crossings, 21,
+            "this capture crossed cores 21 times in 25 seconds and then stopped; see notes/soak.md"
+        );
     }
 
     /// The genuine hang, which is the one outcome with no real sample: the kernel starts, says a

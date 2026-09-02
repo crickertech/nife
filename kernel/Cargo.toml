@@ -56,6 +56,9 @@ timebase_proto = { version = "0.1.0", path = "../crates/timebase_proto" }
 # the kernel's own tests read it back through this crate rather than by trusting the count the
 # program sent home, so no party has its own copy of the layout.
 block_roster = { version = "0.1.0", path = "../crates/block_roster" }
+# The soak workload's shared page (milestone 219): the kernel reads the progress counters the
+# `soaker` program writes, through one definition of the layout rather than two copies.
+soak_page = { version = "0.1.0", path = "../crates/soak_page" }
 # The compositor contract (milestone 33): the kernel wires the scene and its tests predict the
 # composed screen from the same definition the compositor and its clients paint from.
 compositor = { version = "0.1.0", path = "../crates/compositor" }
@@ -184,6 +187,10 @@ bench = []
 # untouched either way, which is the property that actually mattered: a baseline forced to be
 # re-saved by an unrelated instrument is a tripwire that just lost its history.
 icount = ["bench"]
+# The soak boot (milestone 219): the tour does not halt, it builds a pool of user-mode IPC workers
+# and watches them forever, so `design/fatal-risks.md` risk 5's decisive experiment has something to
+# run. Off by default; every ordinary boot still halts. See kernel/src/soak.rs and script/soak.
+soak = []
 # The init boot (milestone 19d.2c): userspace init is the boot path and brings up the system's
 # console, rather than the kernel wiring services directly. See script/initboot / xtask.
 initboot = []

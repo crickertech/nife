@@ -93,6 +93,15 @@ bench = false
 
 # The spinner (DECISIONS §24): a runaway that ignores the interrupt; only the forcible tier (the shell
 # tearing its region down) ends it. The case the second ^C exists for.
+# The soaker (milestone 219): the workload that does not stop, so that `design/fatal-risks.md`'s
+# multicore entry has something to run its decisive experiment against. Cross-core IPC round trips
+# forever, publishing its progress in a page the kernel reads.
+[[bin]]
+name = "soaker"
+path = "src/soaker.rs"
+test = false
+bench = false
+
 [[bin]]
 name = "spinner"
 path = "src/spinner.rs"
@@ -667,6 +676,9 @@ block_roster = { version = "0.1.0", path = "../crates/block_roster" }
 gpt = { version = "0.1.0", path = "../crates/gpt" }
 calendar = { version = "0.1.0", path = "../crates/calendar" }
 grant_plan = { version = "0.1.0", path = "../crates/grant_plan" }
+# The soak workload's shared page (milestone 219). The kernel reads what the soaker writes, so the
+# layout and the reply transform live in one crate rather than in two copies.
+soak_page = { version = "0.1.0", path = "../crates/soak_page" }
 clock_proto = { version = "0.1.0", path = "../crates/clock_proto" }
 environment_proto = { version = "0.1.0", path = "../crates/environment_proto" }
 cred = { version = "0.1.0", path = "../crates/cred" }

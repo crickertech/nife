@@ -1187,6 +1187,10 @@ pub fn spawn_init(
 // The aarch64 interactive boot hands off here for every non-bench build (the tour, `--features
 // shell`, and `--features initboot`), since milestone 28 retired the kernel-wired `shell_service`.
 #[cfg(not(any(test, feature = "bench")))]
+// The soak boot (milestone 219) takes the place of this handoff rather than following it: a run
+// that also brought up a console, a line discipline and a shell would be soaking those too. So on
+// that build this function has no caller, which is a configuration rather than a mistake.
+#[cfg_attr(feature = "soak", allow(dead_code))]
 pub fn boot_via_init(image: &'static [u8]) {
     let report = crate::sched::create_rendezvous();
     // The holding is dropped on purpose: on this path init **is** the system, and there is nobody

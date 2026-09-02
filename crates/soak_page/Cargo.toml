@@ -1,0 +1,10 @@
+# Name: provisional (milestone 219). The provenance block, with the refusals, lives in src/lib.rs,
+# which is where the naming gate reads it and where a reader meets the crate.
+[package]
+name = "soak_page"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[lints]
+workspace = true

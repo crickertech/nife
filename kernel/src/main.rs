@@ -59,6 +59,10 @@ mod nvme;
 mod revoke;
 mod sched;
 mod smp;
+// The sustained multicore workload (milestone 219). Behind its own feature because an ordinary boot
+// must still halt: this module is the thing that makes a boot never end.
+#[cfg(feature = "soak")]
+mod soak;
 mod stack;
 mod sync;
 mod syscall;
@@ -540,8 +544,16 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         println!(
             "  next        : real ELF user programs (user_rt has no x86_64 arms), then the device seam and port I/O (\u{a7}121)."
         );
-        println!("nife x86_64: boot complete, halting.");
-        arch::halt();
+        // **The tour ends and the soak begins** (milestone 219), before the halting line rather
+        // than after it: a boot that says it is halting and then does not would be the tool's
+        // problem and the reader's.
+        #[cfg(feature = "soak")]
+        soak::run();
+        #[cfg(not(feature = "soak"))]
+        {
+            println!("nife x86_64: boot complete, halting.");
+            arch::halt();
+        }
     }
 
     // The RISC-V boot is a self-contained tour, right here in this block, and it halts at the end
@@ -1146,6 +1158,12 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // 11, not 10: the hang watcher falls silent at "the tour has finished" and milestone 159
         // added a stage after what used to be the last one. See `user.rs`'s `boot_stage() >= 11`.
         sched::note_boot_stage(11);
+        // **The tour ends and the soak begins** (milestone 219). After the tour's last line, so a
+        // soak boot is a superset of an ordinary one and the whole boot is still evidence; before
+        // the halt, because the halt is the thing it replaces.
+        #[cfg(feature = "soak")]
+        soak::run();
+        #[cfg(not(feature = "soak"))]
         arch::halt();
     }
 
@@ -1501,6 +1519,14 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // legacy kernel-wired `user::shell_service` is retired as a boot path (it cannot host the
         // milestone-28 shell, which speaks the terminal contract, not the raw console protocol) and
         // is kept only as dead code for reference.
+        // **The tour ends and the soak begins** (milestone 219), and on this architecture it takes
+        // the place of the init handoff rather than of the halt below it. A soak boot that also
+        // brought up a console, a line discipline and a shell would be soaking those too, and the
+        // point of this workload is that what it stresses is decided rather than incidental.
+        #[cfg(feature = "soak")]
+        soak::run();
+
+        #[cfg(not(feature = "soak"))]
         if let Some(image) = user::initrd() {
             println!();
             println!("nife: handing the system to userspace init.");
@@ -1509,7 +1535,9 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         }
     }
 
-    #[cfg(not(feature = "bench"))] // bench::run diverged above; this is everyone else's parking
+    // bench::run diverged above, and so does soak::run (milestone 219); this is everyone else's
+    // parking.
+    #[cfg(not(any(feature = "bench", feature = "soak")))]
     arch::halt()
 }
 

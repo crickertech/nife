@@ -180,10 +180,15 @@ cargo clippy -p kernel --features bench --target x86_64-unknown-none -- \
 echo "==> clippy: user + user_rt (x86_64)"
 cargo clippy -p user -p user_rt --target x86_64-unknown-none --all-targets -- -D warnings
 
-# The kernel's boot-mode features (shell, bench, initboot) each compile DIFFERENT code in and out:
+# The kernel's boot-mode features (shell, bench, initboot, soak) each compile DIFFERENT code in and
+# out:
 # `initboot` and `shell` drop the milestone tour, `bench` diverges before the boot entirely, and
 # `icount` (milestone 78) parks before `bench` does, which is the one configuration where
-# `bench::run` and everything after it is unreachable. So a
+# `bench::run` and everything after it is unreachable, and `soak` (milestone 219) takes the place of
+# the init handoff and is the ONLY configuration in which the scheduler's event counters and
+# `Thread::last_cpu` exist at all: those are `cfg`-gated rather than `allow(dead_code)` because
+# their increments sit on the IPC fastpath and shipping them everywhere put `ipc_fastpath` 5.7% over
+# milestone 132's bound, so this loop is the only thing that keeps them under clippy's eye. So a
 # warning that only appears in one configuration -- e.g. dead code once the tour is compiled out --
 # is invisible to the default run above. Lint each feature build on its own. (A missed initboot
 # dead-code warning is exactly why this loop exists.) Bin only: the boot code these features gate
@@ -194,7 +199,7 @@ cargo clippy -p user -p user_rt --target x86_64-unknown-none --all-targets -- -D
 # by `cargo xtask` and checked by nobody. Parity is a gate, not an aspiration (DECISIONS §19), and
 # that applies to the gate itself.
 for tgt in aarch64-unknown-none-softfloat riscv64imac-unknown-none-elf; do
-    for feat in shell bench initboot icount board fastpath_pad; do
+    for feat in shell bench initboot icount board fastpath_pad soak; do
         echo "==> clippy: kernel --features $feat ($tgt)"
         cargo clippy -p kernel --features "$feat" --target "$tgt" -- -D warnings
     done
