@@ -3,11 +3,14 @@
 **Status: NOT-STARTED.** Raised 2026-08-15 from the aarch64 board survey
 (notes/aarch64-board-survey.md, which holds the candidate table, the sel4bench support tiers with
 sources, and the port-cost analysis this block summarizes). **Purchased 2026-08-15 (calef): a
-factory-sealed TX1 developer kit, $89.99, delivery estimated 2026-08-19 to -26.** The milestone
+factory-sealed TX1 developer kit, $89.99, delivery estimated 2026-08-19 to -26; in hand as of
+2026-09-01, and named argon (notes/target-hardware.md).** The milestone
 completes when the board has printed a byte over serial; the sel4bench comparison itself remains
 milestone 25's, sequenced behind the customer path by the ranking function.
 
-**Gate: HARDWARE.** The kit is in transit, estimated 2026-08-19 to -26; nothing else blocks.
+**Gate: HARDWARE.** The board is here. calef confirmed on 2026-09-01 that **argon** is in hand, so
+this gate no longer means "waiting for a delivery" and now means the sense milestone 53 uses: the
+board is on the desk and this needs hands on it. What remains is bring-up, not procurement.
 The two pre-board lanes the block names are deliberately NOT gated and can run now.
 
 **Why this board and no other.** The seL4 Foundation publishes aarch64 benchmark numbers for
