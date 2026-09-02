@@ -127,6 +127,21 @@ pub fn enable(intid: u32) {
     crate::drivers::plic::enable(intid, target_context(intid));
 }
 
+/// **Reserve a vector a PCI function may deliver an MSI-X message on**, the arch contract's
+/// milestone-215 name. `None` here, and the `None` is a statement about this board rather than a
+/// hole: a PCI function on QEMU's `virt` board raises its interrupt as **INTx**, through the
+/// swizzle (`pci::intx_irq`) onto PLIC input `mmu::PCI_IRQ_BASE` (sources 32..35), which the machine's own device tree
+/// states and `crates/pci`'s fixture test holds the formula against. `kernel/src/pci.rs` asks this
+/// first and falls back to that; the fallback is what runs here.
+///
+/// **It is not "MSI is unsupported on RISC-V"**, which would be false: the RISC-V AIA's IMSIC is the same mechanism under another name, and a board with one would implement it here. It is that
+/// nothing on this board needs it, and a routing path with no consumer is machinery to maintain
+/// with no way to know it works. See design/roadmap/215-x86-64-pci-interrupt-routing.md for why
+/// `x86_64` answers differently.
+pub fn alloc_msi_vector() -> Option<(u32, pci::MsiTarget)> {
+    None
+}
+
 /// The PLIC context that targets the **boot hart's** S-mode. This must be derived, not hardcoded
 /// to 1: OpenSBI elects the boot hart by lottery, and a kernel that programs hart 0's context
 /// while running (and setting `sie.SEIE`) on hart 3 leaves every external interrupt pending at the

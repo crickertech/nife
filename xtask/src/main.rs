@@ -5782,10 +5782,16 @@ fn test() -> bool {
         eprintln!();
         eprintln!("--- kernel tests, x86_64 (QEMU q35) ---");
         // The FS server for this target BEFORE the archive that packs it (milestone 164), the same
-        // order the aarch64 and riscv64 legs use. No RedoxFS fixture beside it, and no `mkdisk`:
-        // this runner still attaches no virtio-blk, so the FS tests reach `start()` and take its
-        // "no RedoxFS disk attached" arm. What that costs and what it needs is milestone 165.
-        if !redoxfs_server_build(X86_TARGET) || !initrd_x86() || !mknvmedisk() {
+        // order the aarch64 and riscv64 legs use. `mkdisk` since milestone 215 (a PCI function's
+        // interrupt on x86_64), because this runner now attaches the sibling `-pci.img` as a
+        // virtio-blk-pci function; there is still no RedoxFS fixture beside it, so the FS tests
+        // reach `start()` and take its "no RedoxFS disk attached" arm.
+        //
+        // **It runs after the other two legs, and regenerates their nifefs images**, which is
+        // harmless and worth saying: the images are fixtures rebuilt from scratch by every leg
+        // that uses them, and the end-of-run consistency check below opens the *RedoxFS* image,
+        // which `mkdisk` does not write.
+        if !redoxfs_server_build(X86_TARGET) || !initrd_x86() || !mkdisk() || !mknvmedisk() {
             return false;
         }
         // SAFETY: `set_var` became unsafe in edition 2024 because it races other threads. xtask is
@@ -5793,10 +5799,10 @@ fn test() -> bool {
         // spawned, and the only thread xtask ever starts (the transcript reader in shell_check_leg)
         // copies pipe bytes into a String and never touches the environment.
         unsafe { std::env::set_var("NIFE_INITRD", x86_initrd_path()) };
-        // **`NIFE_DISK` names the fixture set, not one disk** (milestone 164), exactly as it does
-        // on both other runners: this one attaches the image it names AND the `-redoxfs.img` it
-        // derives from it, as the first two entries of the roster `fs_service::block_device`
-        // indexes. `scripts/qemu-runner-x86_64.sh` carries the ordering contract at the devices.
+        // **`NIFE_DISK` names the fixture set, not one disk**, exactly as it does on both other
+        // runners. This one derives the `-pci.img` sibling from it and attaches that as the single
+        // virtio-blk-pci function (milestone 215); `q35` has no virtio-mmio bus, so the image the
+        // variable itself names is not attached anywhere here.
         //
         // SAFETY: `set_var` became unsafe in edition 2024 because it races other threads. xtask is
         // single-threaded here: this runs on the main thread before the child that reads it is
@@ -5820,11 +5826,13 @@ fn test() -> bool {
     // FS-level consistency after the runs (milestone 32 phase 2): reopen the RedoxFS image with the
     // host tool and confirm the FS server's write persisted and the filesystem still parses. This
     // checks the image of whichever leg ran LAST **that touches an image**, which is riscv64 unless
-    // `--arch aarch64` narrowed the run; the x86_64 leg runs after both and attaches no disks at
-    // all, so it cannot be the one meant here. On its own fresh fixture.
+    // `--arch aarch64` narrowed the run; the x86_64 leg runs after both and attaches no RedoxFS
+    // image (only the nifefs `-pci.img`, milestone 215), so it cannot be the one meant here. On
+    // its own fresh fixture.
     //
-    // **Only when a leg that writes an image ran** (milestone 161). `--arch x86_64` runs a leg that
-    // attaches no disks and regenerates no fixtures, so this check would open whatever the last
+    // **Only when a leg that writes a RedoxFS image ran** (milestone 161). `--arch x86_64` runs a
+    // leg that attaches no RedoxFS disk and regenerates no RedoxFS fixture, so this check would
+    // open whatever the last
     // full run left and report "motd did not read back", which is a true statement about a stale
     // file and a false statement about the run. A check whose subject did not happen is worse than
     // no check, because it fails for a reason unrelated to what was tested.

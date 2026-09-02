@@ -59,6 +59,22 @@ pub fn enable(intid: u32) {
     crate::drivers::gic::enable(intid, target_cpu(intid));
 }
 
+/// **Reserve a vector a PCI function may deliver an MSI-X message on**, the arch contract's
+/// milestone-215 name. `None` here, and the `None` is a statement about this board rather than a
+/// hole: a PCI function on QEMU's `virt` board raises its interrupt as **INTx**, through the
+/// swizzle (`pci::intx_irq`) onto GIC input `mmu::PCI_IRQ_BASE` (SPIs 35..38), which the machine's own device tree
+/// states and `crates/pci`'s fixture test holds the formula against. `kernel/src/pci.rs` asks this
+/// first and falls back to that; the fallback is what runs here.
+///
+/// **It is not "MSI is unsupported on aarch64"**, which would be false: a `GICv3` ITS is exactly
+/// this mechanism under another name, and a board with one would implement it here. It is that
+/// nothing on this board needs it, and a routing path with no consumer is machinery to maintain
+/// with no way to know it works. See design/roadmap/215-x86-64-pci-interrupt-routing.md for why
+/// `x86_64` answers differently.
+pub fn alloc_msi_vector() -> Option<(u32, pci::MsiTarget)> {
+    None
+}
+
 /// Bring the interrupt controller up on the boot core. Reads the GIC's two register blocks from the
 /// device tree (distributor and CPU interface) and initializes it. Called once, from the shared
 /// `interrupts_init`.

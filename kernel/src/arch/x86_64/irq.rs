@@ -16,7 +16,9 @@
 //!
 //! Built: the local APIC (enable, EOI, the timer's LVT), masking the legacy 8259 PICs, the
 //! calibration counter `timer.rs` needs, **the IO APIC's redirection table**, so a real device
-//! line reaches the kernel on a vector this module chose, and **INIT-SIPI-SIPI** ([`send_init`],
+//! line reaches the kernel on a vector this module chose, **MSI vector allocation**
+//! ([`alloc_msi_vector`], milestone 215), which is how a PCI function's interrupt reaches a
+//! userspace driver here, and **INIT-SIPI-SIPI** ([`send_init`],
 //! [`send_startup`]), which is what starts a second logical CPU (milestone 161's SMP item; see
 //! `arch::x86_64::ap_boot`). The boot tour proves the interrupt-controller half: the local APIC's
 //! own timer, and the PIT arriving through the IO APIC.
@@ -57,7 +59,23 @@
 //!   device-typed by name; see `arch/x86_64/mmu.rs`.
 //! - **Nothing masks a routed line on the way out.** A GSI armed by [`enable`] stays armed until
 //!   something calls [`mask_gsi`]; there is no owner registry and no revocation, because there is
-//!   no device driver on this architecture to own one yet.
+//!   no driver on this architecture that owns an IO APIC line (a PCI function reaches its driver
+//!   by MSI-X instead, and an MSI has no line to mask).
+//! - **An MSI vector is never handed back.** [`alloc_msi_vector`] is a bump counter, so a device
+//!   brought up twice (which the test suite does) consumes two of the sixty-three in the band. It
+//!   has not run out, and a free list with no free path would be machinery nothing calls; the
+//!   number to watch is the count of `find_*_device` calls in one boot.
+//! - **Interrupt remapping is not implemented, and this code assumes it is off.** A VT-d unit with
+//!   remapping enabled reinterprets a write to `0xfee0_0000..0xfef0_0000` as an index into a
+//!   remapping table, and the message [`alloc_msi_vector`] builds is a *compatibility-format*
+//!   message that such a unit rejects. `scripts/qemu-runner-x86_64.sh` runs `-device intel-iommu`
+//!   without `intremap=on`, and firmware leaves it off by default, so this holds today on QEMU and
+//!   is the thing to check first if MSI stops arriving on a machine whose firmware turns it on.
+//!   The fix is a remapping table plus remappable-format messages, and it is a milestone rather
+//!   than a patch.
+//! - **Nothing distributes MSI vectors across cores.** Every message is addressed to the local
+//!   APIC id of whichever core ran [`alloc_msi_vector`], which is the boot core, exactly as
+//!   [`route_gsi`]'s destination is.
 
 use core::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
@@ -344,12 +362,102 @@ const REDIR_ACTIVE_LOW: u32 = 1 << 13;
 /// below.
 pub const GSI_VECTOR_BASE: u8 = 0x30;
 
+/// **The first vector a PCI function's MSI-X message delivers on** (milestone 215). 0xc0, above
+/// every redirection entry any real part has and below [`SPURIOUS_VECTOR`], so the three vector
+/// bands on this architecture are disjoint by construction rather than by anybody remembering:
+/// 0x20..0x30 the local APIC's own sources, [`GSI_VECTOR_BASE`]..0xc0 the IO APIC's lines, and
+/// 0xc0..0xff MSI.
+///
+/// **Disjointness is what lets one number mean one thing.** `sched::bind_irq` and
+/// `arch::irq::enable` take an `intid`, and on this architecture an intid is a vector for a local
+/// APIC source and a legacy IRQ number for an IO APIC line. An MSI vector is a local APIC source
+/// in the only sense that matters here (the device writes it straight to the local APIC; there is
+/// no controller input and nothing to unmask), so an MSI intid **is** its vector, and the whole
+/// vector-to-intid inversion the trap handler used to owe for a device line never arises.
+///
+/// **Provisional name** (milestone 215): calef names public items.
+pub const MSI_VECTOR_BASE: u8 = 0xc0;
+
 /// The most redirection entries this kernel will use. Real parts have 24 (the 82093AA, QEMU's q35,
 /// the ICH-era chipsets); the field could report up to 256, and this cap is the number that still
-/// fits in the vector space above [`GSI_VECTOR_BASE`]. It bounds [`is_device_vector`] and the mask
-/// loop in [`init_io_apic`] against a version register saying something absurd, and it is the
-/// reason [`gsi_vector`] cannot silently wrap onto an exception vector.
-const MAX_REDIRECTION_ENTRIES: u32 = 256 - GSI_VECTOR_BASE as u32;
+/// fits in the vector space between [`GSI_VECTOR_BASE`] and [`MSI_VECTOR_BASE`]. It bounds
+/// [`is_device_vector`] and the mask loop in [`init_io_apic`] against a version register saying
+/// something absurd, and it is the reason [`gsi_vector`] cannot silently wrap onto an exception
+/// vector or onto an MSI one.
+const MAX_REDIRECTION_ENTRIES: u32 = (MSI_VECTOR_BASE - GSI_VECTOR_BASE) as u32;
+
+/// The next MSI vector to hand out, as an offset from [`MSI_VECTOR_BASE`]. A bump counter, never
+/// returned: nothing in this tree releases a device, and a freed-vector list with no free path is
+/// machinery with no caller (`design/decisions/` §46's posture applied to code we would write
+/// ourselves).
+static MSI_NEXT: AtomicU32 = AtomicU32::new(0);
+
+/// How many MSI vectors this band holds: 0xc0..0xff, stopping short of [`SPURIOUS_VECTOR`].
+const MSI_VECTORS: u32 = SPURIOUS_VECTOR as u32 - MSI_VECTOR_BASE as u32;
+
+/// **Reserve a vector a PCI function may deliver an MSI-X message on, and say where to send it.**
+///
+/// The arch contract's answer to "this machine has a PCI function whose interrupt must reach a
+/// driver". `None` means this machine routes PCI interrupts some other way, which is what the
+/// aarch64 and riscv64 implementations say: both boards' functions arrive as INTx through a
+/// swizzle their device tree states, so `kernel/src/pci.rs` falls back to that.
+///
+/// The returned `u32` is the **intid** a driver binds and `arch::irq::enable`/`ACK` take, and on
+/// this architecture it is the vector itself; see [`MSI_VECTOR_BASE`] for why that is a design
+/// rather than a coincidence.
+///
+/// # The message, and the two fields that are not obvious
+///
+/// The address is `0xfee0_0000 | (destination local APIC id << 12)`. It is not memory: the local
+/// APIC claims `0xfee0_0000..0xfef0_0000` on the bus, so a device's ordinary posted write into
+/// that range *is* an interrupt, which is the whole trick and the reason MSI needs no routing
+/// table. Redirection-hint and destination-mode bits (3 and 2) are left zero: physical
+/// destination, no redirection, the same policy [`route_gsi`] takes and for the same reason.
+///
+/// The data is the vector, with delivery mode `Fixed` (bits 10:8 zero) and edge trigger (bit 15
+/// zero). **MSI is edge-triggered by construction**: the message is a write that happens once, so
+/// there is no asserted line to hold off, which is why `enable` has nothing to do for one of these
+/// and why an `Irq::ACK` from a driver is correctly a no-op.
+///
+/// # A caveat the emulator cannot show
+///
+/// **With VT-d interrupt remapping enabled, this address is not delivered as written.** An
+/// interrupt-remapping unit reinterprets `0xfee0_0000..0xfef0_0000` writes as an index into a
+/// remapping table, and a message built the way this one is would be rejected as a malformed
+/// remappable request. `scripts/qemu-runner-x86_64.sh` runs `-device intel-iommu` **without**
+/// `intremap=on`, so DMA is translated and interrupt messages pass through; the same is true of
+/// every machine whose firmware leaves remapping off, which is the default. Turning it on is its
+/// own piece of work and is recorded as one; see this module's BUGS.
+///
+/// **Provisional name** (milestone 215).
+pub fn alloc_msi_vector() -> Option<(u32, pci::MsiTarget)> {
+    let offset = MSI_NEXT.fetch_add(1, Ordering::Relaxed);
+    if offset >= MSI_VECTORS {
+        // Do not hand back a vector outside the band: it would land on the spurious vector or on
+        // an exception, and the failure would appear as a fault in an unrelated driver.
+        return None;
+    }
+    let vector = MSI_VECTOR_BASE as u32 + offset;
+    Some((
+        vector,
+        pci::MsiTarget {
+            address: LOCAL_APIC_MSI_BASE | ((local_apic_id() as u64) << 12),
+            data: vector,
+        },
+    ))
+}
+
+/// The base of the local APIC's message address space, which is where an MSI write goes.
+const LOCAL_APIC_MSI_BASE: u64 = 0xfee0_0000;
+
+/// **Is `vector` one this kernel handed out for an MSI?** **Provisional name** (milestone 215).
+/// The trap handler asks so that an MSI can
+/// become a message the way a self-IPI already does. Bounded by what has actually been allocated,
+/// so an unclaimed vector in the band is still counted as spurious rather than routed.
+pub fn is_msi_vector(vector: u64) -> bool {
+    let base = MSI_VECTOR_BASE as u64;
+    vector >= base && vector < base + MSI_NEXT.load(Ordering::Relaxed).min(MSI_VECTORS) as u64
+}
 
 /// Where this machine's IO APIC is, as a virtual address. Zero until [`init_io_apic`] runs. The
 /// same direct-map reasoning as [`LOCAL_APIC`].
@@ -622,6 +730,12 @@ pub fn init_this_cpu() {
 /// and that is a real answer rather than a shrug: the line is already deliverable the moment the
 /// local APIC is enabled, which is what `RFLAGS.IF` then gates.
 ///
+/// **An MSI vector is the same case for a stronger reason** (milestone 215). A PCI function with
+/// MSI-X enabled raises its interrupt by *writing* to the local APIC's message address, so there
+/// is no controller input anywhere in the path: no redirection entry, no swizzle, no `_PRT`. There
+/// is nothing to unmask, and nothing for a driver's `Irq::ACK` to re-arm either, which is correct
+/// rather than a gap: the message is edge-delivered and already over by the time the driver runs.
+///
 /// **Everything else is a legacy IRQ**, 0..15, and goes through the translation above.
 ///
 /// The two ranges cannot collide, which is what makes one function able to take both:
@@ -632,7 +746,7 @@ pub fn init_this_cpu() {
 /// "gsi 34 is outside the IO APIC's range". Nothing had ever called `enable` with a local-APIC
 /// number before, because nothing above the arch layer had run.
 pub fn enable(intid: u32) {
-    if is_local_apic_source(intid) {
+    if is_local_apic_source(intid) || is_msi_vector(intid as u64) {
         return;
     }
     let routing = isa_routing(intid);
