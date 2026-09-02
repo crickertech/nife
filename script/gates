@@ -96,6 +96,16 @@ elif [ "$(sysctl -n kern.hv_support 2>/dev/null)" != "1" ]; then
     hvf_missing="Hypervisor.framework is unavailable (kern.hv_support is not 1; a VM, or entitlements)"
 elif ! qemu-system-aarch64 -accel help 2>/dev/null | grep -q '^hvf$'; then
     hvf_missing="the QEMU on PATH was built without the hvf accelerator"
+else
+    # The four conditions above ask whether HVF exists. This one asks whether QEMU will start the
+    # machine the runner actually configures, which is a different question and the one that was
+    # being answered by a crash (milestone 222). On QEMU 11.1.1 it will not: HVF refuses GICv2, and
+    # `kernel/src/drivers/gic.rs` speaks GICv2 only, so the leg has no version of the machine it can
+    # run on. Asking the runner rather than testing a QEMU version keeps the machine string in one
+    # place; see the probe in scripts/qemu-runner-aarch64.sh.
+    if ! hvf_refusal="$(NIFE_PROBE=1 NIFE_ACCEL=hvf scripts/qemu-runner-aarch64.sh 2>/dev/null)"; then
+        hvf_missing="QEMU will not start the machine this leg needs. It said: $hvf_refusal. The kernel drives GICv2 only (kernel/src/drivers/gic.rs, and the BUGS section of notes/interrupts.md), so there is no GIC version this QEMU and this kernel both accept"
+    fi
 fi
 
 # **Skip LOUDLY.** A silent omission would let a transcript from a Linux CI runner read exactly like

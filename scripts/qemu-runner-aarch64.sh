@@ -20,6 +20,111 @@
 
 set -e
 
+# CPU and accelerator.
+#
+# By default we run under TCG (QEMU translates every aarch64 instruction), with an emulated
+# cortex-a72. That is deterministic and runs identically on any host, which is what the test
+# harness wants.
+#
+# Set NIFE_ACCEL=hvf to run under Apple's Hypervisor.framework instead: HVF puts the kernel on
+# the real Apple Silicon core at guest EL1, using the hardware virtualization the chip already
+# has. The coincidence that makes this a flag and not a port is that the host and the guest are the
+# same ISA (aarch64). Two consequences:
+#
+#   - HVF runs the PHYSICAL core, so `-cpu host` is mandatory; you cannot ask for an emulated a72.
+#   - gic-version is PINNED to 2, so a future QEMU default cannot swap in a GICv3 our driver does
+#     not speak. QEMU emulates the GIC either way (Apple cores use their own AIC natively) and
+#     injects interrupts through HVF, so the MMIO GICv2 driver keeps working.
+#
+# NIFE_CPU overrides the TCG model (milestone 59, the parity twin of the riscv runner's flag).
+# Under HVF there is nothing to override: the guest runs on the physical Apple core, so `-cpu host`
+# is the only answer and asking for anything else is a mistake worth failing on rather than
+# silently ignoring.
+if [ "$NIFE_ACCEL" = "hvf" ]; then
+    # iommu=smmuv3 is on BOTH paths since milestone 81, and this is a correction: it used to be
+    # TCG-only, on the recorded belief that "smmuv3 emulation alongside HVF acceleration is the
+    # fragile combination". Nobody had run it. The suite on the physical core says otherwise, and
+    # the belief cost a real gap while it stood: without an SMMU the display test fails outright
+    # ("a virtio-gpu is present but the IOMMU is not active") and the DMA confinement tests, which
+    # assert the HARDWARE faults an escaping DMA, would have had no hardware to assert about.
+    #
+    # It is also the right place for it on principle. The accelerator chooses how CPU instructions
+    # execute; the SMMU is in front of the PCIe root complex and translates DEVICE traffic, which
+    # QEMU emulates in the host process either way. The two are orthogonal, and the suite proves it.
+    MACHINE="virt,accel=hvf,gic-version=2,iommu=smmuv3"
+    if [ -n "$NIFE_CPU" ] && [ "$NIFE_CPU" != "host" ]; then
+        echo "qemu-runner-aarch64: NIFE_CPU=$NIFE_CPU cannot apply under HVF (the guest runs the physical core; -cpu host is mandatory)" >&2
+        exit 1
+    fi
+    CPU="host"
+else
+    # iommu=smmuv3 puts an SMMUv3 in front of the PCIe root complex (milestone 16b). The device tree
+    # then carries an `smmuv3@...` node (memory::smmu_region finds it) and an identity iommu-map for
+    # the bus. A plain boot without a PCI disk still gets the SMMU; it just has nothing to confine.
+    # The HVF branch above takes the same flag, since milestone 81.
+    MACHINE="virt,gic-version=2,iommu=smmuv3"
+    CPU="${NIFE_CPU:-cortex-a72}"
+fi
+
+# **The probe** (milestone 222). HVF and the GIC version this kernel's driver speaks are not
+# always compatible, and when they are not, QEMU refuses to start the machine at all:
+#
+#     qemu-system-aarch64: HVF does not support GICv2 emulation
+#
+# That is QEMU 11.1.1's answer to `virt,gic-version=2,accel=hvf`, reproduced with no nife kernel
+# involved. It is a constraint of the accelerator, not a defect in anyone's change, and before this
+# it reached a contributor as a bare failure of `script/test --hvf` with no way to tell the two
+# apart. So this script answers the question directly, on the machine string it would actually use.
+#
+# NIFE_PROBE=1 starts the machine, does nothing with it, and quits: `-S` leaves the CPU paused so
+# nothing executes, and `quit` on the monitor's stdin exits immediately, which matters because a
+# nife kernel that reaches `halt()` never exits and neither would QEMU. Machine init still happens,
+# which is where the refusal comes from, so the answer is QEMU's own rather than a version test we
+# would have to keep current. It costs about fifty milliseconds.
+#
+# It lives HERE, rather than in a script of its own, so that `$MACHINE` has exactly one definition.
+# A separate probe would have to restate the machine string, and the day the runner's changed the
+# probe would answer about a machine nobody runs, which is the false-skip this milestone exists to
+# avoid producing.
+# `probe_machine` starts $MACHINE, does nothing with it, and quits: `-S` leaves the CPU paused so
+# nothing executes, and `quit` on the monitor's stdin exits immediately, which matters because a
+# nife kernel that reaches `halt()` never exits and neither would QEMU. Machine init still happens,
+# which is where a refusal comes from, so the answer is QEMU's own rather than a version test we
+# would have to keep current. It costs about fifty milliseconds. QEMU's words go to stdout on
+# failure, because a refusal we paraphrased would go stale the first time QEMU reworded it.
+probe_machine() {
+    set +e
+    probe_err="$(echo quit | qemu-system-aarch64 -machine "$MACHINE" -cpu "$CPU" -m 32M \
+        -display none -monitor stdio -S 2>&1 >/dev/null)"
+    probe_status=$?
+    set -e
+    if [ "$probe_status" -ne 0 ]; then
+        printf '%s\n' "$probe_err"
+    fi
+    return "$probe_status"
+}
+
+# NIFE_PROBE asks the question and answers nothing else: exit 0 if this machine starts, non-zero
+# with QEMU's reason on stdout if it does not. `script/gates` uses it to decide whether to run the
+# HVF leg or to skip it out loud, which is the whole of milestone 222.
+if [ -n "$NIFE_PROBE" ]; then
+    probe_machine
+    exit $?
+fi
+
+# And the same question asked on the way in, so that a person who typed `script/test --hvf` is told
+# what is wrong rather than left to read a bare QEMU line. Before milestone 222 that line was all
+# they got, and it does not say whether the breakage is theirs.
+if [ "$NIFE_ACCEL" = "hvf" ] && ! probe_machine >&2; then
+    echo "qemu-runner-aarch64: QEMU refused $MACHINE (its own message is above)." >&2
+    echo "qemu-runner-aarch64: THIS IS NOT YOUR CHANGE. HVF and the GIC version this kernel drives" >&2
+    echo "  are not compatible in this QEMU: kernel/src/drivers/gic.rs speaks GICv2 only, HVF wants" >&2
+    echo "  GICv3. See the BUGS section of notes/interrupts.md. script/gates skips this leg out loud" >&2
+    echo "  rather than failing; run it if you want the rest of the suite." >&2
+    exit 1
+fi
+
+
 ELF="$1"
 shift
 
@@ -301,53 +406,6 @@ if [ -n "$NIFE_GPU_MON" ]; then
     MON="-monitor unix:$NIFE_GPU_MON,server,nowait"
 fi
 
-# shellcheck disable=SC2086  # $INITRD, $DISK, $NET, $GPU, $KBD, $RNG and $NVME are deliberately word-split or empty
-# CPU and accelerator.
-#
-# By default we run under TCG (QEMU translates every aarch64 instruction), with an emulated
-# cortex-a72. That is deterministic and runs identically on any host, which is what the test
-# harness wants.
-#
-# Set NIFE_ACCEL=hvf to run under Apple's Hypervisor.framework instead: HVF puts the kernel on
-# the real Apple Silicon core at guest EL1, using the hardware virtualization the chip already
-# has. The coincidence that makes this a flag and not a port is that the host and the guest are the
-# same ISA (aarch64). Two consequences:
-#
-#   - HVF runs the PHYSICAL core, so `-cpu host` is mandatory; you cannot ask for an emulated a72.
-#   - gic-version is PINNED to 2, so a future QEMU default cannot swap in a GICv3 our driver does
-#     not speak. QEMU emulates the GIC either way (Apple cores use their own AIC natively) and
-#     injects interrupts through HVF, so the MMIO GICv2 driver keeps working.
-#
-# NIFE_CPU overrides the TCG model (milestone 59, the parity twin of the riscv runner's flag).
-# Under HVF there is nothing to override: the guest runs on the physical Apple core, so `-cpu host`
-# is the only answer and asking for anything else is a mistake worth failing on rather than
-# silently ignoring.
-if [ "$NIFE_ACCEL" = "hvf" ]; then
-    # iommu=smmuv3 is on BOTH paths since milestone 81, and this is a correction: it used to be
-    # TCG-only, on the recorded belief that "smmuv3 emulation alongside HVF acceleration is the
-    # fragile combination". Nobody had run it. The suite on the physical core says otherwise, and
-    # the belief cost a real gap while it stood: without an SMMU the display test fails outright
-    # ("a virtio-gpu is present but the IOMMU is not active") and the DMA confinement tests, which
-    # assert the HARDWARE faults an escaping DMA, would have had no hardware to assert about.
-    #
-    # It is also the right place for it on principle. The accelerator chooses how CPU instructions
-    # execute; the SMMU is in front of the PCIe root complex and translates DEVICE traffic, which
-    # QEMU emulates in the host process either way. The two are orthogonal, and the suite proves it.
-    MACHINE="virt,accel=hvf,gic-version=2,iommu=smmuv3"
-    if [ -n "$NIFE_CPU" ] && [ "$NIFE_CPU" != "host" ]; then
-        echo "qemu-runner-aarch64: NIFE_CPU=$NIFE_CPU cannot apply under HVF (the guest runs the physical core; -cpu host is mandatory)" >&2
-        exit 1
-    fi
-    CPU="host"
-else
-    # iommu=smmuv3 puts an SMMUv3 in front of the PCIe root complex (milestone 16b). The device tree
-    # then carries an `smmuv3@...` node (memory::smmu_region finds it) and an identity iommu-map for
-    # the bus. A plain boot without a PCI disk still gets the SMMU; it just has nothing to confine.
-    # The HVF branch above takes the same flag, since milestone 81.
-    MACHINE="virt,gic-version=2,iommu=smmuv3"
-    CPU="${NIFE_CPU:-cortex-a72}"
-fi
-
 # Number of cores. Four by default, the SMP tests' shape (§11); NIFE_SMP moves it, and the
 # ceiling is cpu::MAX_CPUS (the per-CPU statics), not this default: the suite asserts loudly if
 # -smp exceeds what the kernel can seat. QEMU brings up core 0 running; the kernel starts the rest
@@ -362,6 +420,7 @@ SMP="${NIFE_SMP:-4}"
 # the suite, which is the "unrelated test failing to get memory" shape disk_service.rs and
 # fs_service.rs already narrate from 128 MiB days. The kernel asserts this size in memory.rs, so
 # a drift between the two files fails loudly rather than silently changing what the suite means.
+# shellcheck disable=SC2086  # $INITRD, $DISK, $NET, $GPU, $KBD, $RNG and $NVME are deliberately word-split or empty
 exec qemu-system-aarch64 \
     -machine "$MACHINE" \
     -cpu "$CPU" \
