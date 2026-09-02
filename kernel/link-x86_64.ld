@@ -64,9 +64,42 @@ SECTIONS
         KEEP(*(.note.Xen))
     }
 
-    /* The 32-bit world, linked LOW. */
-    .boot : ALIGN(4096) {
+    /* The 32-bit world, linked LOW, and SPLIT IN TWO ON PURPOSE (milestone 208).
+     *
+     * These were one output section, `.boot`, holding both the trampoline's code and its data. A
+     * program header's permissions are the union of what its output section holds, so one section
+     * carrying both produced ONE `PT_LOAD` marked `RWX` at 0x101000: writable and executable
+     * memory, in the boot path of a kernel whose whole claim is about what a confined component can
+     * reach. `crates/elf::Elf::parse` refuses such an image outright
+     * (`Error::WritableAndExecutable`) and `paging::Flags` has no constructor that can build such a
+     * page, so the kernel's own image was the one thing in the tree breaking the rule the tree
+     * enforces everywhere else. Nobody noticed because nothing parses the kernel's own image; that
+     * is what `script/image-permissions` is for.
+     *
+     * Each half is page-aligned because a permission boundary IS a page boundary: two output
+     * sections sharing a page would land in one program header again and re-merge the permissions
+     * the split exists to separate. The cost is one 4 KiB page of image, which is why they were
+     * folded together in the first place.
+     *
+     * `.boot_data` ships `RW`, and where that `W` comes from is worth knowing before anyone tries
+     * to make it `R` only. boot.s declares the input `.section .data.boot, "a"`, with no `w`, and
+     * the contents really are read-only (the boot GDT and its `lgdt` pointer, never written). The
+     * assembler overrides it: LLVM gives a section whose name begins with `.data` its default ELF
+     * flags, `SHF_ALLOC | SHF_WRITE`, and the object file measurably carries `WA`. That `W` is the
+     * one that was being unioned with `.text.boot`'s `X`. Renaming the input section would make
+     * this half read-only too, which is a boot.s change rather than a linker-script one and is not
+     * what this milestone is; W^X is satisfied either way.
+     *
+     * `.boot_data` and `.boot_scratch` below share one `RW` program header, because they are
+     * adjacent and their permissions match. That is the mechanism working rather than a leak: the
+     * merge a program header performs is over permissions, so sections that agree may share one and
+     * sections that disagree may not. */
+    .boot_text : ALIGN(4096) {
         KEEP(*(.text.boot))
+        . = ALIGN(4096);
+    }
+
+    .boot_data : ALIGN(4096) {
         KEEP(*(.data.boot))
         . = ALIGN(4096);
     }
