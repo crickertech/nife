@@ -788,12 +788,35 @@ other two architectures the register userspace gets and the register a profiler 
 |---|---|---|---|
 | aarch64 | `CNTVCT_EL0`, ~62.5 MHz under QEMU | `PMCCNTR_EL0`, the cycle counter | `CNTKCTL_EL1.EL0VCTEN` set, `PMUSERENR_EL0` written to zero |
 | riscv64 | the `time` CSR, 10 MHz under QEMU | the `cycle` and `instret` CSRs | `scounteren` written to exactly `TM` |
-| `x86_64` | the TSC | **nothing** | `CR4.TSD` clear at reset, never written |
+| `x86_64` | the TSC, via `rdtsc` | the performance counters, via `rdpmc` | `CR4.TSD` left clear, `CR4.PCE` established clear |
 
 So every ring-3 program on this architecture holds a sub-nanosecond instrument, roughly two orders of
 magnitude finer than what the other two hand out, and no line of this kernel decided that. It is the
 reset value. Milestone 228 says so out loud rather than implying that writing the other two registers
 made three architectures agree.
+
+#### There were two doors, and the second one did close
+
+`CR4.PCE` is bit 8 and it is not the same bit as `TSD`. It gates `rdpmc`, which reads a performance
+counter by index, and fixed counter 2 (`CPU_CLK_UNHALTED.REF_TSC`) runs at the TSC rate, so an open
+`PCE` is a second path to a cycle-rate instrument reached by a different instruction. Nobody had
+looked when milestone 228 was minted, which is why its block first named only two architectures as
+fixable; a research lane reading the ISA for a *coarse* clock found it.
+
+`arch::init` now establishes it clear, per core, beside the GDT and the IDT, which is the same defect
+fix the other two architectures got. It cost nothing, as forecast: nothing in this tree reads a
+performance counter from ring 3, and nothing under `arch/x86_64/` programs a perf MSR at all, so with
+the counters unprogrammed an open `PCE` would have exposed zeros or firmware's leftovers rather than
+anything useful. Had it broken something, that would have been the finding, because it would have
+meant this tree already depended on a counter it never granted itself.
+
+**It reads `CR4` back rather than trusting the reset value**, which is the habit this whole milestone
+exists to install, and doing so paid immediately. A temporary probe on 2026-09-02 printed **0x20** on
+the PVH boot, `PAE` alone, which is exactly what `boot.s` sets, and **0x668** under OVMF: `DE`,
+`PAE`, `MCE`, `OSFXSR` and `OSXMMEXCPT`. Bit 8 was clear in both, so nothing was actually closed. But
+five bits this kernel never wrote were already set by firmware before any of our code ran, on the one
+"firmware" this port has ever booted under, and that is the argument for the read in one number. On
+**xenon**, the OptiPlex, real firmware runs first and the value is unknown.
 
 **Why it was not closed with them.** `CR4.TSD` is one instruction away, and setting it today would
 break `Instant`, `thread::sleep`, the random seed, smoltcp's timestamps in `std_net` and the

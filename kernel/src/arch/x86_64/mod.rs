@@ -351,6 +351,77 @@ pub fn init() {
     // SAFETY: `segments::init` above installed the GDT these selectors index, and nothing has
     // entered ring 3 (nothing can: this is the boot CPU's own bring-up).
     unsafe { exceptions::init_syscall() };
+
+    close_performance_counters_to_ring3();
+}
+
+/// Establish `CR4.PCE` clear, so ring 3 cannot execute `RDPMC`.
+///
+/// # The second door, and it is not the one milestone 228's block talks about
+///
+/// That block names `CR4.TSD` (bit 2), which gates `RDTSC`, and deliberately leaves it alone: this
+/// architecture's `user_rt::now()` **is** `rdtsc` and there is no coarse counter to fall back to, so
+/// closing it would take `Instant`, `thread::sleep`, the random seed, smoltcp's timestamps and the
+/// benchmark harness away on one instruction. That trade is recorded in `notes/x86-port.md` and in a
+/// `BUGS` section beside `now()`, and nothing here changes it.
+///
+/// **`CR4.PCE` is bit 8 and gates a different instruction.** `RDPMC` reads a performance counter by
+/// index, and fixed counter 2 (`CPU_CLK_UNHALTED.REF_TSC`) runs at the TSC rate, so an open `PCE` is
+/// a second path to a cycle-rate instrument that has nothing to do with `TSD`. Nobody had looked
+/// when 228 was minted, which is why its block named only two architectures as fixable.
+///
+/// This is the same defect the other two architectures had: a counter whose openness depended on
+/// what firmware left rather than on anything this kernel decided. `boot.s` writes `CR4` exactly
+/// twice, at the BSP and AP long-mode transitions, and both are `or eax, 1 << 5`, which is `PAE`.
+/// Nothing has ever written bit 8 or programmed a perf-counter MSR.
+///
+/// # Why clearing it costs nothing, and what it would mean if it did
+///
+/// Nothing in this tree reads a performance counter from ring 3, or from ring 0 for that matter:
+/// there is no perf-MSR programming anywhere under `arch/x86_64/`, so with the counters unprogrammed
+/// an open `PCE` would let a process read zeros or firmware's leftovers rather than anything useful.
+/// If clearing this ever breaks something, that is a finding rather than a reason to skip it, because
+/// it would mean this tree already depends on a counter it never granted itself.
+///
+/// # It is read back, not assumed
+///
+/// The reset value of `CR4` is zero and this could have been a blind `and`. Assuming a reset value
+/// is the exact habit milestone 228 exists to stop, so this reads `CR4` first and says so out loud
+/// when the bit was set, which is the only case worth a line of boot output.
+///
+/// **On QEMU it is clear and this is silent, and that was read rather than assumed.** A temporary
+/// probe printed `CR4` here on 2026-09-02 and got **0x20** on the PVH boot (`PAE` alone, which is
+/// what `boot.s` sets) and **0x668** under OVMF (`DE`, `PAE`, `MCE`, `OSFXSR`, `OSXMMEXCPT`). Bit 8
+/// was clear in both, so nothing was actually closed. But five bits this kernel never wrote were
+/// already set by firmware before any of our code ran, on the one "firmware" this port has ever
+/// booted under, and that is the argument for the read in one number. On **xenon**, the Dell
+/// machine, real firmware runs first and the value is unknown.
+///
+/// Per core, like the GDT and the IDT above it: `CR4` is per-CPU state, so a secondary that skipped
+/// this would run on whatever its own path left behind.
+fn close_performance_counters_to_ring3() {
+    /// `CR4.PCE`: "Performance-Monitoring Counter Enable". Set means `RDPMC` is legal at any
+    /// privilege level; clear means ring 0 only.
+    const PCE: u64 = 1 << 8;
+
+    let cr4: u64;
+    // SAFETY: reads a control register. No side effects, no memory touched.
+    unsafe {
+        core::arch::asm!("mov {}, cr4", out(reg) cr4, options(nomem, nostack, preserves_flags));
+    }
+
+    if cr4 & PCE == 0 {
+        return;
+    }
+
+    crate::println!("  cr4.pce     : firmware left RDPMC open to ring 3; closing it");
+    // SAFETY: clearing `CR4.PCE` only *removes* a ring-3 permission. It does not touch paging
+    // (`PAE`, bit 5, is preserved by the mask), does not invalidate any TLB entry, and cannot make
+    // a kernel access illegal, since `RDPMC` at CPL 0 is legal whatever this bit says. Every other
+    // bit is written back as it was read.
+    unsafe {
+        core::arch::asm!("mov cr4, {}", in(reg) cr4 & !PCE, options(nomem, nostack, preserves_flags));
+    }
 }
 
 /// Stop this CPU forever, cheaply. `hlt` parks it until an interrupt; with interrupts masked and

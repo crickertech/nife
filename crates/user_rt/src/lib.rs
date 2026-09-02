@@ -721,6 +721,12 @@ pub fn cntfrq() -> u64 {
 /// never granted. That is a state inherited from the reset value, not a position anyone argued for,
 /// and it is recorded here rather than in a tracker so the next reader of this function meets it.
 ///
+/// **The `rdpmc` door beside it did close.** `CR4.PCE` is a different bit from `CR4.TSD` and gates a
+/// different instruction, and since fixed counter 2 runs at the TSC rate it is a second path to a
+/// cycle-rate reading. Milestone 228 established it clear in `arch::init`, per core, because nothing
+/// in this tree reads a performance counter from ring 3 and so closing it cost nothing. So the gap
+/// below is `rdtsc` specifically, not "x86 counters" in general.
+///
 /// **It is not closed because closing it today would take the clock away.** Setting `CR4.TSD` with
 /// nothing to replace it breaks `Instant`, `thread::sleep`, the random seed, smoltcp's timestamps in
 /// `std_net`, and the benchmark harness, all at once and on the same instruction. So this is a

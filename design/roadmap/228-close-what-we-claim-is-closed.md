@@ -67,10 +67,37 @@ comment four lines above it into the thing the code does. The whole-register wri
 which nothing ever claimed were open; a zero in this CSR can only take a U-mode read permission away,
 never add one, so the wider write cannot open anything the narrower one would have shut.
 
-**x86_64: nothing in the kernel, and two records.** The position is written where a reader meets it:
+**x86_64: a second door nobody had looked at, and it did close.** The brief said to leave this
+architecture alone in code, and that was right about the bit it named and wrong about the
+architecture. `CR4.TSD` (bit 2) gates `rdtsc` and stays clear, for the reason below. **`CR4.PCE`
+(bit 8) gates `rdpmc`**, which reads a performance counter by index, and fixed counter 2
+(`CPU_CLK_UNHALTED.REF_TSC`) runs at the TSC rate, so an open `PCE` is a second path to a cycle-rate
+instrument reached by a different instruction. Nobody had looked when this block was minted; a
+research lane checking whether x86 has any user-readable clock besides the TSC found it in the ISA
+while this lane was working, and the maintainer routed it here because it is the same defect shape
+the other two architectures had.
+
+`arch::init` now establishes it clear, per core, beside the GDT and the IDT. `smp.rs`'s
+`secondary_main` calls that function and `boot.s`'s AP path jumps to `secondary_main`, so the
+secondaries are covered by the same line. **It cost nothing**, as forecast: nothing in this tree
+reads a performance counter from ring 3, and nothing under `arch/x86_64/` programs a perf MSR at all,
+so with the counters unprogrammed an open `PCE` would have exposed zeros or firmware's leftovers
+rather than anything useful.
+
+**And it reads `CR4` back rather than trusting the reset value**, which is this milestone's whole
+habit applied to itself. `CR4` resets to zero and a blind `and` would have compiled; assuming a reset
+value is the thing being fixed. The read paid immediately: a temporary probe on 2026-09-02 printed
+**0x20** on the PVH boot, `PAE` alone, which is exactly what `boot.s` sets, and **0x668** under OVMF,
+which is `DE`, `PAE`, `MCE`, `OSFXSR` and `OSXMMEXCPT`. Bit 8 was clear in both, so nothing was
+actually closed. But five bits this kernel never wrote were already set by firmware before any of our
+code ran, on the one "firmware" this port has ever booted under, which is the argument for the read
+in one number.
+
+**x86_64's `rdtsc`: nothing in the kernel, and two records.** The position is written where a reader
+meets it:
 a `BUGS` section on `crates/user_rt`'s `x86_64` `now()`, and a subsection of `notes/x86-port.md`
 carrying the three-architecture table. Both say the same three things, which are what the brief asked
-for: the cycle counter is ambient here, it was inherited from the reset value rather than chosen, and
+for: the TSC is ambient here, it was inherited from the reset value rather than chosen, and
 closing it today costs `Instant`, `thread::sleep`, the random seed, smoltcp's timestamps and the
 benchmark harness at once, because on this architecture `now()` **is** `rdtsc` and there is no coarse
 alternative to fall back to.
@@ -80,10 +107,15 @@ alternative to fall back to.
 **Nothing broke.** `script/test` is green on all three architectures, which is the load-bearing
 result: had anything in this tree been reading a counter it did not have permission to read, closing
 these bits is exactly what would have surfaced it, and the brief asked for that to be reported
-loudly. There was nothing to report.
+loudly. There was nothing to report, on any of the three.
 
 **The aarch64 write was confirmed by disassembly, not by inference.** `msr pmuserenr_el0, xzr` is
-present in the built image at the call site, so the register is written rather than merely intended.
+present in the built image at the call site, with the `PMUVer` guard compiling to the two early
+returns it should, so the register is written rather than merely intended. `csrw scounteren, a0` is
+likewise present in the riscv64 image, and is the file's only reference to that CSR.
+
+**The x86_64 value was observed, not inferred**, which is the one place a QEMU run could answer the
+question that matters: see the `CR4` probe numbers above.
 
 **What no run here can establish** is the value the write replaces. QEMU's reset value is almost
 certainly zero, so a green run under QEMU is consistent with both the old code and the new one; that
@@ -98,14 +130,17 @@ difference between a claim and a fact on argon, whose firmware nobody has read.
 
 ## BUGS
 
-- **It does not close the x86_64 hole**, and says so rather than implying three architectures now
-  agree. Closing that one needs a coarse monotonic source that does not exist, of the shape
-  DECISIONS §43 (reading the clock is a page) already used for the wall clock.
+- **It does not close the x86_64 `rdtsc` hole**, and says so rather than implying three architectures
+  now agree. `CR4.PCE` closed; `CR4.TSD` did not. Closing that one needs a coarse monotonic source
+  that does not exist, of the shape DECISIONS §43 (reading the clock is a page) already used for the
+  wall clock.
 - **Nothing here checks the bits stay closed.** A later change could set them and no gate would
   notice, which is the same shape as the GICv2 assumption milestone 227 (a GICv3 driver, because
   GICv2 boots and silently loses every interrupt) was minted from. A boot-time assertion was
   considered and not written: reading `PMUSERENR_EL0` back proves only that this line ran, and the
   drift worth catching is a *later* write elsewhere, which only a periodic check or a review habit
   would see.
-- **The actual firmware values on argon and radon are still unknown**, and reading them belongs on
-  milestone 127's bench list beside its existing `PMCCNTR_EL0` item.
+- **The actual firmware values on argon, radon and xenon are still unknown**, and reading them
+  belongs on milestone 127's bench list beside its existing `PMCCNTR_EL0` item. `xenon` is the new
+  member: OVMF already showed five `CR4` bits set that this kernel never wrote, and a real Dell
+  firmware is a stronger version of the same case.
