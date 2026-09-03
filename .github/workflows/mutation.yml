@@ -75,7 +75,18 @@ jobs:
       # of the report.
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        # **Zero-indexed, because cargo-mutants counts shards from zero.** `--shard k/n` requires
+        # k < n, so the old `[1, 2, 3, 4]` was two bugs wearing one costume: `--shard 4/4` was
+        # rejected as an invalid argument before a single mutant ran (the twenty-second death on
+        # every scheduled run since 2026-08-10), and `--shard 0/4`, the first quarter of the mutant
+        # list, was never run at all. Sharding is `slice` by default, consecutive ranges of a
+        # sorted list, so the quarter that went unmeasured for four weeks was a nameable one:
+        # dtb, calendar, compositor, cred, elf, capability and their alphabetical neighbours.
+        #
+        # The tool's own `--help` is what invited the mistake, and it is worth knowing before
+        # touching this line: it reads "specify as e.g. 1/4", which is a valid shard and reads
+        # exactly like a one-based first-of-four. Milestone 238.
+        shard: [0, 1, 2, 3]
     steps:
       - uses: actions/checkout@v7
 
