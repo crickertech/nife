@@ -283,12 +283,26 @@ pub fn report_peak() {
     if PEAK_REPORTED.fetch_max(peak, Ordering::Relaxed) >= peak {
         return;
     }
-    // **The recorded-measurement arm is not compiled into the test kernel**, and the reason is that
-    // it would be true and misleading there. `CAPABILITY_TABLE_PEAK_MEASURED` is the interactive
-    // boot's number; the guest test suite runs a different and much larger workload through the same
-    // kernel, so a test run going past twenty-one says nothing at all about the boot the constant
-    // describes. The gauge itself still prints, because the gauge is honest under any workload.
-    #[cfg(not(test))]
+    announce_peak(peak, ceiling);
+}
+
+/// Say the gauge out loud. Split from [`report_peak`] so the whole sentence, and not one arm of it,
+/// is what the test kernel leaves out.
+///
+/// **The test kernel counts and does not print**, and both halves of that are deliberate.
+///
+/// It does not print because the guest suite's transcript is a gate's input, and this line lands in
+/// the middle of one, splitting a test name across a `capability slots:` sentence. That is the same
+/// two-writers-one-stream confusion milestone 230 spent a whole lane on, and adding a third writer
+/// to it for a number nobody reads there would be a poor trade.
+///
+/// And even printed, [`CAPABILITY_TABLE_PEAK_MEASURED`] would be the wrong yardstick here: it is
+/// the *interactive boot's* number, and the guest suite runs a much larger and quite different
+/// workload through the same kernel, so a test run going past twenty-one would be a true sentence
+/// about the wrong thing. The counting itself stays on, so a test that filled a table still moves
+/// the mark for anything that asks.
+#[cfg(not(test))]
+fn announce_peak(peak: usize, ceiling: usize) {
     if peak > CAPABILITY_TABLE_PEAK_MEASURED {
         crate::println!(
             "  capability slots: {peak} of {ceiling} at peak, ABOVE the \
@@ -298,6 +312,10 @@ pub fn report_peak() {
     }
     crate::println!("  capability slots: {peak} of {ceiling} at peak");
 }
+
+/// See the other arm: the test kernel counts and does not print.
+#[cfg(test)]
+fn announce_peak(_peak: usize, _ceiling: usize) {}
 
 // The ABI names the reserved fault slot as `CAPABILITY_TABLE_SLOTS - 1`, so the two constants
 // must agree or the kernel would read the fault endpoint from a different slot than the
