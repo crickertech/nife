@@ -235,6 +235,51 @@ pub fn identity_hint(identity: &[u8]) -> u64 {
     u64::from_be_bytes(buf)
 }
 
+// ===========================================================================================
+// **How the login service is started**, which is a contract between whoever spawns it and the
+// program itself rather than between the program and its clients (milestone 233).
+//
+// It is in this crate because rule 7 leaves nowhere else: three binaries have to agree on these
+// two addresses (`user/src/login.rs`, `crates/system_initializer`, and the kernel's own test
+// harness in `kernel/src/user/login_service.rs`), and what two binaries agree on is a crate. The
+// siting is the honest weak point: this crate's own first line calls itself "the wire contract
+// between a client and the login service", and a spawn contract is neither wire nor client. The
+// alternative was a crate holding two constants. Provisional, like every name a lane mints.
+// ===========================================================================================
+
+/// **Where `fs_subtree_caretaker`'s ELF bytes are mapped, read-only, before `login`'s `_start`
+/// runs**, with the length in `x0`/`a0`/`rdi` (milestone 233).
+///
+/// **This replaced a mapping of the whole initrd archive, and the reason is not economy.** `login`
+/// used to read the archive at `user_rt::initrd::INITRD_VA` and index it by name, which is what the
+/// kernel's own test harness handed it and what nothing else ever did: `crates/system_initializer`
+/// spawns this program through `supervision_proto::build_child`, which can map only pages the
+/// spawner holds a `PageFrame` capability for, and the archive is reserved RAM the frame allocator
+/// does not own and no capability names. So the real interactive boot started `login` with no
+/// archive at all and it died at `_start` on every boot for an unknown length of time
+/// (design/roadmap/233-login-never-runs.md).
+///
+/// The fix could have gone the other way, and giving `login` the archive is the option that was
+/// refused: it needs one program's bytes and a manifest to check them against, and a service that
+/// can read every file in the boot image to answer a password holds authority it never exercises.
+/// A blob costs the spawner **no capability-table slots at all** (`supervision_proto`'s own
+/// `fill_and_map` holds one frame at a time and deletes it), which is what let this land against
+/// the 21-of-24 peak `kernel::cap::CAPABILITY_TABLE_PEAK_MEASURED` records.
+///
+/// Zero length means the spawner had no vouched-for caretaker to hand over. That is not a failure
+/// to start: `login` comes up and answers every login [`DENIED`], which is exactly what
+/// `crates/system_initializer` already does with a program it cannot measure.
+pub const CARETAKER_ELF_VA: u64 = 0x0000_0000_0100_0000;
+
+/// **Where `measured_boot::PROGRAM_MEASUREMENTS`' bytes are mapped, read-only, before `login`'s
+/// `_start` runs**, with the length in `x1`/`a1`/`rsi` (milestone 233).
+///
+/// Four megabytes above [`CARETAKER_ELF_VA`] so a caretaker image would have to grow forty-fold
+/// before the two could meet. Both sit well below `user_rt::initrd::INITRD_VA` and well above the
+/// per-channel scratch VAs `login` bump-allocates, which is the only other thing in that address
+/// space that grows.
+pub const PROGRAM_MEASUREMENTS_VA: u64 = 0x0000_0000_0140_0000;
+
 #[cfg(test)]
 mod tests {
     use super::*;

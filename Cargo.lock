@@ -762,6 +762,7 @@ dependencies = [
  "filesystem_proto",
  "grant_plan",
  "line_editor",
+ "login_proto",
  "measured_boot",
  "nifefs",
  "supervision_proto",

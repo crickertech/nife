@@ -1471,6 +1471,10 @@ fn try_initiate_steal() {
 /// runs. The section records what would reopen it.
 pub fn run_idle() -> ! {
     loop {
+        // **The capability-slot gauge** (milestone 231). Here because this is the one place the
+        // kernel reaches after every phase of a boot with nothing else to do; see
+        // `cap::report_peak` for why waiting for the mark to settle is what makes it one line.
+        crate::cap::report_peak();
         try_initiate_steal();
         crate::arch::wait_for_interrupt();
         yield_now();

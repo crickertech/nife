@@ -134,13 +134,13 @@ pub type Cap = capability::Cap<Object>;
 // variant, `PageFrame` is that variant, and it grew by a word. Nothing measured it, so §102's own
 // figure went stale inside §102. That is what this assertion is for; it is the fact, not a target.
 //
-// Seventeen slots is 544 bytes a capability table rather than 408, so the option §102 priced at 12
-// KiB a thread for 512 slots would now be 16 KiB. The refusal does not change (the decision's
+// Twenty-four slots is 768 bytes a capability table rather than 408, so the option §102 priced at
+// 12 KiB a thread for 512 slots would now be 16 KiB. The refusal does not change (the decision's
 // argument was never really about the bytes), but the number a future reader quotes should be the
 // one the compiler agrees with. Update these two and re-read §102 when they fire.
 //
-// **Sixteen when this note was written, seventeen now** (milestone 49's terminal update raised
-// `CAPABILITY_TABLE_SLOTS`; see that constant's own doc, below). The count changed; the per-slot
+// **Sixteen when this note was written, seventeen after milestone 49, twenty-four now**
+// (milestone 230 raised it; see that constant's own doc, below). The count changed; the per-slot
 // arithmetic this note exists to pin did not.
 //
 // **And the other half of §102's arithmetic moved too**: `MAX_THREADS` was raised from 128 to 256
@@ -150,7 +150,7 @@ pub type Cap = capability::Cap<Object>;
 const _: () = assert!(core::mem::size_of::<Object>() == 24);
 const _: () = assert!(core::mem::size_of::<Cap>() == 32);
 
-/// A thread's capability table: 17 slots, fixed at the type (milestone 14 phase B.1). The size
+/// A thread's capability table: 24 slots, fixed at the type (milestone 14 phase B.1). The size
 /// was already the de-facto limit (`CapabilityTable::empty()` made 16); now it is part of the
 /// type and creating a capability table cannot allocate. Growing it is a one-number change here,
 /// paid in TCB size.
@@ -172,8 +172,150 @@ const _: () = assert!(core::mem::size_of::<Cap>() == 32);
 /// raising it ("a one-number change here, paid in TCB size"), which is exactly the shape of trade
 /// this tree's own precedent (`MAX_REGIONS`, `nifefs::NAME_LEN`) already treats as the expected
 /// response to a real feature needing one more slot.
-pub const CAPABILITY_TABLE_SLOTS: usize = 17;
+///
+/// **Raised 17 -> 24, milestone 230 (2026-09-02), and the history of that number is the whole
+/// lesson.** Milestone 49's own lane set this constant to `28 // TEMP: generous bisection value`
+/// while chasing an unrelated login-suite flake, and then built and shipped the login stack in
+/// `crates/system_initializer` against it. A cleanup commit (`d1c81062`, 2026-08-27) put it back to
+/// 17, because the doc comment above says 17 and because a full `script/test` on all three
+/// architectures was green at 17. Both of those observations were true. Neither could see the
+/// failure, because **`script/test` never boots the real init**: every suite that runs the shell
+/// has the kernel play init, and the only gate that runs `system_initializer` is
+/// `script/shell-check`, which at that time ran in neither `script/test` nor CI. PR #556 landed on
+/// 2026-08-28 and `main` booted straight into the silent halt this file's BUGS section describes:
+/// with a virtio-rng attached, init fills all seventeen slots building `credentialer` and dies at
+/// `user_rt::trap` before a console exists to carry a word about it. It stayed that way for five
+/// days, through a fully green tree, because nobody asked the one question that would have shown
+/// it.
+///
+/// So 28 was never wrong, only unexplained, and reverting it to a number the prose justified
+/// removed the thing holding the boot up. This raise replaces the guess with a measurement:
+/// **21** simultaneous slots is the boot's high-water mark, in init, while `build_child` lays down
+/// `credentialer` (twelve capabilities this process never gives back, the login block's own six,
+/// and the address space and page the loader is working through). Twenty-four is twenty-one plus
+/// three. The two previous raises each took the number to exactly what that day's boot needed and
+/// both times the next addition hit the wall in the same silence; at 32 bytes a slot the three cost
+/// 96 bytes a thread, 24 KiB across `MAX_THREADS`, which is the cheapest insurance in this file.
+pub const CAPABILITY_TABLE_SLOTS: usize = 24;
 pub type CapabilityTable = capability::CapabilityTable<Object, CAPABILITY_TABLE_SLOTS>;
+
+/// **What a real interactive boot actually reaches**, and the number the three slots of headroom
+/// above it were measured from (milestone 231).
+///
+/// Twenty-one, in init, during `build_child` for `credentialer`: twelve capabilities that process
+/// never gives back, the login block's own six, and the address space and page the loader is
+/// working through. Milestone 230 established it by instrumenting four boots; nothing in the tree
+/// could see it, which is why every raise of [`CAPABILITY_TABLE_SLOTS`] before that one was
+/// reactive, after a silent failure that named something else.
+///
+/// **This is a record, not a target**, on exactly the terms as the `size_of` assertions above: the
+/// point is that a reader quoting it gets the number the machine agrees with. [`report_peak`] is
+/// what keeps it honest, by saying on the console when a boot goes past it, and
+/// `script/shell-check` fails on that sentence. When it fires, measure, update this, and re-read
+/// the headroom arithmetic in [`CAPABILITY_TABLE_SLOTS`]'s own doc rather than raising that
+/// constant reflexively.
+///
+/// The check is deliberately against **this** rather than against the ceiling. Failing at the
+/// ceiling would be a check that only ever fires on a boot that has already died, and failing at
+/// some fraction of it would be a margin picked out of the air, which is the shape this tree has
+/// deleted three `script/lint` checks for. A recorded measurement going stale is neither: it is a
+/// fact about the tree that stopped being true.
+pub const CAPABILITY_TABLE_PEAK_MEASURED: usize = 21;
+
+// The headroom milestone 230 left is what this pair means, so the two cannot silently invert.
+const _: () = assert!(CAPABILITY_TABLE_PEAK_MEASURED < CAPABILITY_TABLE_SLOTS);
+
+/// The highest peak [`report_peak`] has already said out loud, so the same number is not printed
+/// twice by two cores or on two passes.
+static PEAK_REPORTED: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
+
+/// What the previous idle pass saw, which is half of the coalescing. See [`report_peak`].
+static PEAK_LAST_PASS: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
+
+/// How many consecutive idle passes have seen the same peak. The other half of the coalescing.
+static PEAK_STABLE_PASSES: core::sync::atomic::AtomicUsize =
+    core::sync::atomic::AtomicUsize::new(0);
+
+/// How still the mark has to be before [`report_peak`] believes the climb is over.
+///
+/// **Measured, and the measurement is the whole argument.** With this at one, an aarch64
+/// interactive boot printed six lines (4, 5, 12, 14, 16, 21 of 24): init blocks on IPC several
+/// times while it is building the login stack, so the machine goes idle mid-climb and each pause
+/// looked like an ending. At sixteen it prints one, and the number it prints is the same 21.
+///
+/// It is a coalescing window rather than a threshold on the thing being measured, which is why it
+/// is not the kind of guessed margin `CAPABILITY_TABLE_PEAK_MEASURED`'s own doc refuses. Getting it
+/// wrong costs an extra printed line or a later one; it cannot make the reported peak wrong,
+/// because the peak itself never decreases.
+const PEAK_STABLE_PASSES_NEEDED: usize = 16;
+
+/// **Say what the boot's capability-slot high-water mark is, once it has stopped moving**
+/// (milestone 231).
+///
+/// Called from the scheduler's idle loop, which is the one place in the kernel that is reached
+/// after every phase of a boot and is by definition not busy. Two atomics turn a mark that climbs
+/// once per grant into one printed line:
+///
+/// - **It waits for the mark to go still**, [`PEAK_STABLE_PASSES_NEEDED`] idle passes with the same
+///   number. A peak that moved is still climbing, so this resets and looks again. Init blocks on
+///   IPC several times while building the login stack, so a shorter window mistakes each of those
+///   pauses for an ending; that constant's own doc carries the measurement.
+/// - **It never repeats a number.** `fetch_max` gives exactly one caller a previous value below
+///   the new peak, so a four-core machine prints one line rather than four.
+///
+/// The number reported is `capability::highest_seen`'s, which is the highest any table has reached
+/// rather than any particular thread's. Finding the owning thread means walking every thread under
+/// the scheduler lock; that is a scan this deliberately does not do, and the omission is in this
+/// module's BUGS.
+pub fn report_peak() {
+    use core::sync::atomic::Ordering;
+    let (peak, ceiling) = capability::highest_seen();
+    if peak == 0 {
+        return;
+    }
+    if PEAK_LAST_PASS.swap(peak, Ordering::Relaxed) != peak {
+        PEAK_STABLE_PASSES.store(0, Ordering::Relaxed);
+        return;
+    }
+    if PEAK_STABLE_PASSES.fetch_add(1, Ordering::Relaxed) < PEAK_STABLE_PASSES_NEEDED {
+        return;
+    }
+    if PEAK_REPORTED.fetch_max(peak, Ordering::Relaxed) >= peak {
+        return;
+    }
+    announce_peak(peak, ceiling);
+}
+
+/// Say the gauge out loud. Split from [`report_peak`] so the whole sentence, and not one arm of it,
+/// is what the test kernel leaves out.
+///
+/// **The test kernel counts and does not print**, and both halves of that are deliberate.
+///
+/// It does not print because the guest suite's transcript is a gate's input, and this line lands in
+/// the middle of one, splitting a test name across a `capability slots:` sentence. That is the same
+/// two-writers-one-stream confusion milestone 230 spent a whole lane on, and adding a third writer
+/// to it for a number nobody reads there would be a poor trade.
+///
+/// And even printed, [`CAPABILITY_TABLE_PEAK_MEASURED`] would be the wrong yardstick here: it is
+/// the *interactive boot's* number, and the guest suite runs a much larger and quite different
+/// workload through the same kernel, so a test run going past twenty-one would be a true sentence
+/// about the wrong thing. The counting itself stays on, so a test that filled a table still moves
+/// the mark for anything that asks.
+#[cfg(not(test))]
+fn announce_peak(peak: usize, ceiling: usize) {
+    if peak > CAPABILITY_TABLE_PEAK_MEASURED {
+        crate::println!(
+            "  capability slots: {peak} of {ceiling} at peak, ABOVE the \
+             {CAPABILITY_TABLE_PEAK_MEASURED} recorded in kernel/src/cap.rs"
+        );
+        return;
+    }
+    crate::println!("  capability slots: {peak} of {ceiling} at peak");
+}
+
+/// See the other arm: the test kernel counts and does not print.
+#[cfg(test)]
+fn announce_peak(_peak: usize, _ceiling: usize) {}
 
 // The ABI names the reserved fault slot as `CAPABILITY_TABLE_SLOTS - 1`, so the two constants
 // must agree or the kernel would read the fault endpoint from a different slot than the

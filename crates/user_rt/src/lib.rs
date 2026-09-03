@@ -891,6 +891,21 @@ pub fn exit() -> ! {
 /// A verb, which is right for a function here: `send`, `recv`, `reap` and `exit` are all verbs, and
 /// the naming tenet's noun rule is about crates, programs and modules rather than about the things
 /// they do.
+///
+/// # BUGS
+///
+/// **The fault line names this function and nothing else, so every trap in a program looks
+/// identical.** The kernel prints the faulting `pc`, and the `pc` of a trap is always the
+/// breakpoint instruction below: one address per program, shared by every caller. A program with
+/// forty `must(...)` sites that dies at one of them reports the same line whichever it was. Found
+/// the hard way by milestone 230, whose whole first day was spent working out *which* call in
+/// `crates/system_initializer` had failed, from a fault line that could not say. The return address
+/// is right there in `x30` (aarch64), `ra` (riscv64), or on the stack (`x86_64`) at the moment the
+/// kernel takes the fault, and printing it beside `pc` would have answered the question in one
+/// boot. That is a change to the three `arch/*/exceptions.rs` fault printers rather than to this
+/// crate, so it is a milestone of its own; until it exists, the workaround that worked is to make
+/// the failure a *data* abort at an address derived from the return address, since `far` is
+/// printed and carries whatever you fault on.
 pub fn trap() -> ! {
     #[cfg(target_arch = "aarch64")]
     // SAFETY: `brk` traps; the kernel turns a trap from userspace into a kill. The options promise
