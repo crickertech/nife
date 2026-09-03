@@ -81,7 +81,9 @@ duplicated to get it. If you prefer typing `cargo xtask …`, it all still works
 
 **`script/` (singular) vs `scripts/` (plural).** The normalized entry points are in `script/`,
 GitHub's convention. The older `scripts/` (plural) holds `qemu-runner-aarch64.sh` and `qemu-bounded.sh`,
-which are internal plumbing that cargo and the scripts call, not things you run by hand. Two
+which are internal plumbing that cargo and the scripts call, not things you run by hand
+(`qemu-bounded-selftest.sh`, milestone 226, is the exception beside them: it is in no gate and
+exists to be run by hand when `qemu-bounded.sh` changes). Two
 directories an `s` apart is a little awkward, but each follows its own convention, and keeping the
 runner where cargo already expects it (`.cargo/config.toml` points at `scripts/qemu-runner-aarch64.sh`)
 was cheaper than moving it.
