@@ -75,9 +75,11 @@ real CPU with hardware assist. Much faster, but the guest must match the host
 architecture. QEMU can do this too (via KVM on Linux, HVF on macOS), but we don't need
 the speed and we do want the debuggability.
 
-## Two ways QEMU will burn your laptop
+## Three ways QEMU will burn your laptop
 
-Both of these bit us for real, over one day of development, and cost 729% of CPU overnight.
+All three bit us for real. The first two cost 729% of CPU over one day of development. The
+third cost milestone 127's EL2 lane time twice in one session, and caught another lane again on
+2026-09-02, which is what minted milestone 226.
 
 ### 1. An idle kernel is not idle
 
@@ -107,6 +109,43 @@ QEMU *does* honour **SIGTERM**. Use `scripts/qemu-bounded.sh <seconds> <cmd...>`
 starts a detached killer that survives a pipeline whose reader (`head`) exits early. That
 last part matters: `qemu ... | head -20` leaves QEMU alive, because `head` closing the pipe
 does not kill a process that has stopped writing.
+
+### 3. The bound is not the only way a run ends
+
+Found by milestone 127's EL2 lane, twice in one session, and fixed by milestone 226.
+
+The killer above used to have exactly one reason to fire, which was the bound expiring. That
+bounds a run which is allowed to finish. It does nothing for a run whose **wrapper** is killed:
+a dead session, a `pkill -f` at a harness, a closed terminal. The wrapper goes, **QEMU is
+inherited by pid 1, and it runs forever.**
+
+The bill arrives on a later run, in a different shape, which is what made it expensive. The
+orphan holds the write lock on whatever disk image it was given, and the next boot fails with
+
+```
+qemu-system-aarch64: -device virtio-blk-device,drive=d0: Failed to get "write" lock
+Is another process using the image [target/nifefs-blank.img]?
+```
+
+That names a **file**. Nothing in it points at a process, so it reads as a bug in whatever the
+run was testing, and a lane that has read AGENTS.md's warning about leaked emulators can still
+lose an hour to it because the symptom does not look like that warning.
+
+`scripts/qemu-bounded.sh` now gives the killer two more reasons to fire. It **polls its parent**
+once a second and kills the child as soon as the wrapper is gone, which covers a SIGKILLed
+wrapper and a dead session, neither of which runs a trap anywhere. And it **traps SIGTERM and
+SIGHUP**, so the one process that knows the child's pid does not take that knowledge with it
+when `pkill -f` sweeps the wrapper and the killer together.
+
+What is left, and it is not fixable on macOS: a **SIGKILL to the killer itself**. SIGKILL is not
+trappable and macOS has no `prctl(PR_SET_PDEATHSIG)`, so a supervisor shot in the head cannot
+hand off. For that case the script does the other thing instead of preventing it: when the
+command fails, it runs `lsof` over the image paths in the command line and prints the pid, ppid,
+start time and command of whoever holds one. **Walk the parent chain up before killing what it
+names**: a QEMU whose parent is a live harness is somebody's gate in flight, not a leak.
+
+`scripts/qemu-bounded-selftest.sh` checks all of this against a real emulator, including that
+`perl`'s alarm is still swallowed. It is in no gate; run it if you touch the bounding script.
 
 **A kernel does not exit.** That is the root of it: `cargo test` terminates because the test
 build asks the host to exit via [semihosting](semihosting.md), but a normal boot halts
