@@ -166,9 +166,11 @@ or `script/gates`, for `script/audits`' recorded reason.
   somebody runs them, and there is no way to tell a correct red from a broken one from outside.
 - **Seven eighths of the mutant corpus is still unmeasured since 2026-08-03.** A full refresh needs a
   run where enough shards survive, and no such run has happened yet.
-- **The Miri run is no longer red, and does not yet fit its 90-minute budget.** All three reported
-  failures are fixed and the workspace is clean under the interpreter; what remains is cost, in
-  `compositor`, handed off above. The 27-minute figure quoted in that workflow and in
+- **The Miri run is no longer red, and does not yet fit the 90-minute budget it used to carry.** All
+  three reported failures are fixed and nothing in the workspace fails under the interpreter any
+  more; what remains is cost, all of it in `compositor`, handed off above. The budget is raised to
+  240 minutes here rather than tuned, because the true total has still not been measured end to end:
+  every attempt to time it was stopped by this lane needing the machine back. The 27-minute figure quoted in that workflow and in
   notes/undefined-behavior.md is from 2026-08-03 and has not described the run for some time, which
   nobody could have known while the job was dying in two minutes.
 
@@ -184,7 +186,10 @@ because a job that dies in two minutes never reaches the code that takes an hour
 `expected_screen_pixel` in others). One of them,
 `a_damaged_composite_leaves_the_rest_of_the_screen_alone`, was measured at **over 44 minutes without
 finishing**; it is strided here, with a pinned sample, and dropped to 57 seconds. **The other five
-are not**, and they are why the run still does not fit its budget.
+are not**, and they are why the run still does not fit its budget: with that one fixed, a later run
+sat in `the_checksum_catches_a_wrong_surface` alone for **more than 40 minutes**, and the whole rest
+of the workspace outside this crate takes well under a minute to reach. `compositor` is the entire
+remaining cost of `script/undefined-behavior-check`.
 
 Each needs its own judgment rather than one blanket stride, which is why this is a lane and not a
 line in this milestone: `the_scene_exercises_overlap_clipping_and_background` asserts *counts* of
