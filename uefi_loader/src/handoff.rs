@@ -19,16 +19,13 @@
 //!
 //! # BUGS
 //!
-//! - **Firmware-owned memory is reported as reserved rather than reclaimed.** UEFI's
-//!   `EfiBootServicesCode` and `EfiBootServicesData` become free RAM the moment `ExitBootServices`
-//!   returns, and Linux reclaims them. [`e820_kind`] does not: it reports them, and the loader's
-//!   own `EfiLoaderCode`/`EfiLoaderData`, as [`E820_RESERVED`]. The reason is that this loader's
-//!   handoff structure, memory map, module list and mode-switch trampoline are all in
-//!   `EfiLoaderData` and are read *by the kernel* after the frame allocator comes up, so
-//!   reclaiming that type would let the allocator hand out the memory map it is reading. Splitting
-//!   the loader's own allocations back out (they are known, and there are four of them) would
-//!   recover the rest, and is the fix if the lost RAM ever matters. It is measured rather than
-//!   guessed: see notes/x86-uefi-boot.md.
+//! - **`EfiLoaderData` is reported as reserved and stays that way**, which is the half of this that
+//!   milestone 195 did not reclaim. It holds five things the kernel needs after the frame allocator
+//!   is up: the `hvm_start_info`, the memory map it points at, the module list, the userspace
+//!   archive, and the kernel image itself. Reclaiming the type would let the allocator hand out the
+//!   map it is reading, so what is lost is the padding: each of those is rounded up to a page and
+//!   the whole class is reported at page granularity. Measured rather than guessed, at two memory
+//!   sizes: see notes/x86-uefi-boot.md.
 //! - **The map is passed through in firmware order and is neither sorted nor coalesced.** UEFI
 //!   promises neither, and `machine_discovery::x86_64`'s own `BUGS` already records that its
 //!   consumer is where such a check belongs.
@@ -72,12 +69,39 @@ pub const fn e820_kind(efi_type: u32) -> u32 {
     use crate::efi::memory_type as t;
     match efi_type {
         t::CONVENTIONAL => E820_RAM,
+        // **Boot-services memory is free RAM the moment `ExitBootServices` returns**, and the UEFI
+        // specification says so rather than leaving it to be inferred: those two types describe the
+        // firmware's own code and data for the boot phase, and the boot phase is over. Linux
+        // reclaims them and so does every other UEFI loader; milestone 195 measured 26 MiB of a
+        // 2 GiB machine here, and the same firmware wants nearly as much of a 256 MiB one.
+        //
+        // **The one thing that makes this safe is that nothing of ours is in them.** Every
+        // allocation this loader makes asks for `LOADER_CODE` or `LOADER_DATA`, deliberately, and
+        // those stay reserved below. A loader that had taken `AllocatePages` defaults would be
+        // freeing its own handoff here.
+        t::BOOT_SERVICES_CODE | t::BOOT_SERVICES_DATA => E820_RAM,
+        // **And this loader's own code, which is dead by the time the kernel reads this map.**
+        // `EfiLoaderCode` is two things and both have finished: the PE image the firmware loaded,
+        // whose `include_bytes!` copies of the kernel and the archive were copied OUT of it before
+        // `ExitBootServices`, and the one-shot mode-switch trampoline, which jumped to the kernel's
+        // entry and can never run again. Reclaiming it matters more than its share of a big machine
+        // suggests, because the PE image is the whole embedded payload: 9 MiB for the tour build
+        // and 19 MiB for the test build, which on a 256 MiB machine is memory nobody can afford to
+        // spend on a copy of something already in RAM twice.
+        //
+        // `LOADER_DATA` is emphatically NOT here, and the asymmetry is the mechanism: every
+        // allocation this loader makes that the kernel reads later (the `hvm_start_info`, this map,
+        // the module list, the archive, and the kernel image itself) asks for `LOADER_DATA`, and
+        // the only one that asks for `LOADER_CODE` is the trampoline, because firmware sets the
+        // execute-disable bit on data. So the type that has to survive and the type that does not
+        // are already separated, by a choice made for an unrelated reason.
+        t::LOADER_CODE => E820_RAM,
         t::ACPI_RECLAIM => E820_ACPI_RECLAIMABLE,
         t::ACPI_NVS => E820_ACPI_NVS,
         t::UNUSABLE => E820_UNUSABLE,
         t::PERSISTENT => E820_PERSISTENT,
-        // Everything else, boot-services memory and this loader's own allocations included. See
-        // this module's BUGS section for what that costs and how to get it back.
+        // Everything else, this loader's own allocations included. See this module's BUGS section
+        // for what that still costs and why the rest of it is not a type question.
         _ => E820_RESERVED,
     }
 }
@@ -236,12 +260,15 @@ mod tests {
         assert_eq!(e820_kind(t::UNUSABLE), E820_UNUSABLE);
         assert_eq!(e820_kind(t::PERSISTENT), E820_PERSISTENT);
 
+        // Free the moment `ExitBootServices` returns (milestone 195), and asserted beside the
+        // loader's own types below so the pair reads as the one decision it is.
+        assert_eq!(e820_kind(t::BOOT_SERVICES_CODE), E820_RAM);
+        assert_eq!(e820_kind(t::BOOT_SERVICES_DATA), E820_RAM);
+        assert_eq!(e820_kind(t::LOADER_CODE), E820_RAM);
+
         for reserved in [
             t::RESERVED,
-            t::LOADER_CODE,
             t::LOADER_DATA,
-            t::BOOT_SERVICES_CODE,
-            t::BOOT_SERVICES_DATA,
             t::RUNTIME_SERVICES_CODE,
             t::RUNTIME_SERVICES_DATA,
             t::MMIO,

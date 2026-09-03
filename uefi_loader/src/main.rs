@@ -44,10 +44,11 @@
 //! - **Nothing here verifies what it hands over.** The kernel and the archive are bytes this binary
 //!   was compiled with, so the trust boundary is the build. `measured_boot`'s manifest is not
 //!   consulted.
-//! - **AP bring-up is untested under UEFI.** `arch::x86_64::ap_boot` copies its real-mode trampoline
-//!   to physical `0x8000`, which is memory this loader never asked the firmware for. The runner and
-//!   the bench procedure both boot one core, so nothing has exercised it; asking the firmware for
-//!   that page here is the fix if it turns out to matter.
+//! - **AP bring-up under UEFI is proved on OVMF and nowhere else** (milestone 195). This loader now
+//!   asks the firmware for physical `0x8000` by name, and `cargo xtask uefi-test` boots two cores
+//!   through OVMF and asserts both come online. What that does not establish is any *other*
+//!   firmware's low-memory habits: on a machine that refuses the page this loader says so and boots
+//!   one core, which is a report rather than a fix.
 //! - **The `hvm_start_info` command line is empty.** PVH carries one and the kernel ignores it, so
 //!   there is nowhere yet for a boot argument to come from or go to.
 
@@ -97,6 +98,15 @@ const PAGE: u64 = 4096;
 /// paging off, which is the state `_start` is entered in. A `hvm_start_info` at 5 GiB would be a
 /// pointer the kernel's trampoline literally cannot load.
 const BELOW_4G: u64 = 0xffff_ffff;
+
+/// **The page a STARTUP IPI can name**, which the kernel's AP bring-up copies its real-mode
+/// trampoline into.
+///
+/// It is `AP_TRAMPOLINE_PHYS` in `kernel/link-x86_64.ld` and `.ap_trampoline`'s link address in the
+/// kernel image, so the two files name one number. It is not part of the kernel's `p_paddr` span
+/// (that section is linked low and *loaded* beside `.rodata`), which is why the span allocation
+/// above does not cover it and this loader has to ask for it separately.
+const AP_TRAMPOLINE_PHYS: u64 = 0x8000;
 
 /// Slack, in descriptors, added to the memory map buffer between the sizing call and the real one.
 ///
@@ -150,9 +160,9 @@ fn load(handle: Handle, table: &SystemTable, services: &BootServices) -> Result<
         .ok_or("the embedded kernel has no loadable segments")?;
 
     // `AllocateAddress`, not `AllocateMaxAddress`: the kernel is linked for exactly this range
-    // (`kernel/link-x86_64.ld`'s `PHYS_START`) and there is nowhere else to put it. A firmware that
-    // has something of its own at 1 MiB fails HERE, with an address printed, rather than by
-    // silently overwriting whatever it was.
+    // (`kernel/link-x86_64.ld`'s `PHYS_START`, 32 MiB since milestone 195) and there is nowhere
+    // else to put it. A firmware that has something of its own there fails HERE, with the range and
+    // the offending descriptors printed, rather than by silently overwriting whatever it was.
     let mut kernel_base = span_start;
     let kernel_pages = ((span_end - span_start) / PAGE) as usize;
     if (services.allocate_pages)(
@@ -162,7 +172,16 @@ fn load(handle: Handle, table: &SystemTable, services: &BootServices) -> Result<
         &mut kernel_base,
     ) != SUCCESS
     {
-        return Err("the firmware would not give up the kernel's load range at 1 MiB");
+        // **Name what is in the way before giving up** (milestone 195). "The firmware said no" is
+        // the least actionable sentence a person standing at a machine can be handed, and this is
+        // the one failure here whose cause is entirely inside the firmware's own bookkeeping: the
+        // kernel's physical span is fixed by `kernel/link-x86_64.ld`, so what changes between one
+        // build and the next is only how far past 1 MiB it reaches. Under OVMF the kernel's test
+        // build reaches into the firmware volumes at 8 MiB and the tour build does not, which is a
+        // fact no amount of staring at the loader would have produced.
+        say_span(table, "uefi_loader: wanted ", span_start, span_end);
+        say_conflict(table, services, span_start, span_end);
+        return Err("the firmware would not give up the kernel's load range");
     }
 
     // Zero the whole span before copying anything, which is what makes every `.bss` and every
@@ -186,6 +205,42 @@ fn load(handle: Handle, table: &SystemTable, services: &BootServices) -> Result<
                 segment.data.len(),
             );
         }
+    }
+
+    // --- 2b. The page the kernel's AP bring-up needs, asked for by name ---
+    //
+    // A STARTUP IPI names a physical PAGE below 1 MiB (`vector << 12`), so `arch::x86_64::ap_boot`
+    // copies its real-mode trampoline to a fixed low address that `kernel/link-x86_64.ld` picks at
+    // link time (`AP_TRAMPOLINE_PHYS`). Until milestone 195 this loader never mentioned that page,
+    // and secondary cores under firmware therefore worked or did not by luck: OVMF happens to leave
+    // the first 640 KiB conventional, and a firmware that did not would have been discovered by a
+    // core that started executing something else's bytes in real mode.
+    //
+    // **A refusal is not fatal, and that asymmetry is deliberate.** A single-core boot on a machine
+    // whose firmware wants this page is far more useful than no boot at all, and the kernel brings
+    // up secondaries only when it is asked to. So this says what it found and carries on; the
+    // person at the bench gets the one line that explains why `smp: 1 core(s) online` on a machine
+    // with eight.
+    let mut ap_page = AP_TRAMPOLINE_PHYS;
+    if (services.allocate_pages)(ALLOCATE_ADDRESS, memory_type::LOADER_DATA, 1, &mut ap_page)
+        != SUCCESS
+    {
+        say_span(
+            table,
+            "uefi_loader: WARNING no AP trampoline page at ",
+            AP_TRAMPOLINE_PHYS,
+            AP_TRAMPOLINE_PHYS + PAGE,
+        );
+        say_conflict(
+            table,
+            services,
+            AP_TRAMPOLINE_PHYS,
+            AP_TRAMPOLINE_PHYS + PAGE,
+        );
+        say(
+            table,
+            "uefi_loader: secondary cores will not be brought up\r\n",
+        );
     }
 
     // --- 3. The userspace archive, if this build has one ---
@@ -440,6 +495,102 @@ fn find_rsdp(table: &SystemTable) -> Option<u64> {
         }
     }
     fallback
+}
+
+/// Print a `[start, end)` physical range after a caller-supplied phrase.
+///
+/// Its own function rather than a format string because there is no allocator here and
+/// `core::fmt` on the firmware console would pull in machinery this binary otherwise does not have.
+fn say_span(table: &SystemTable, what: &str, start: u64, end: u64) {
+    say(table, what);
+    say_hex(table, start);
+    say(table, "..");
+    say_hex(table, end);
+    say(table, "\r\n");
+}
+
+/// Print one 64-bit value as `0x...`, without an allocator and without `core::fmt`.
+fn say_hex(table: &SystemTable, value: u64) {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let mut buffer = [0u8; 18];
+    buffer[0] = b'0';
+    buffer[1] = b'x';
+    for i in 0..16 {
+        buffer[2 + i] = DIGITS[((value >> (60 - 4 * i)) & 0xf) as usize];
+    }
+    // SAFETY: every byte written above is ASCII.
+    say(table, unsafe { core::str::from_utf8_unchecked(&buffer) });
+}
+
+/// **Say which memory the firmware is already using inside a range it refused** (milestone 195).
+///
+/// `AllocatePages(AllocateAddress)` reports one status and no address, so on its own it cannot
+/// distinguish "your kernel is too big for this machine" from "your kernel overlaps a firmware
+/// volume". This walks the map the firmware would have handed over anyway and prints every
+/// descriptor in the way that is not free RAM, with its type number as the UEFI specification
+/// numbers them (`efi::memory_type`).
+///
+/// It runs only on the failure path, so the allocation it makes cannot disturb the map key
+/// `ExitBootServices` later checks: there is no later on this path.
+///
+/// # BUGS
+///
+/// - **A firmware too broken to report a memory map prints nothing here**, and the caller's own
+///   sentence is then all the reader gets. That is the honest floor: there is no second source for
+///   this information.
+fn say_conflict(table: &SystemTable, services: &BootServices, start: u64, end: u64) {
+    let mut bytes = 0usize;
+    let mut key = 0usize;
+    let mut descriptor_size = 0usize;
+    let mut version = 0u32;
+    (services.get_memory_map)(
+        &mut bytes,
+        ptr::null_mut(),
+        &mut key,
+        &mut descriptor_size,
+        &mut version,
+    );
+    if bytes == 0 || descriptor_size < size_of::<efi::MemoryDescriptor>() {
+        return;
+    }
+    // Slack for the pool allocation itself, the same reason `MAP_SLACK_DESCRIPTORS` exists.
+    let capacity = bytes + MAP_SLACK_DESCRIPTORS * descriptor_size;
+    let mut buffer: *mut u8 = ptr::null_mut();
+    if (services.allocate_pool)(memory_type::LOADER_DATA, capacity, &mut buffer) != SUCCESS
+        || buffer.is_null()
+    {
+        return;
+    }
+    let mut got = capacity;
+    if (services.get_memory_map)(
+        &mut got,
+        buffer,
+        &mut key,
+        &mut descriptor_size,
+        &mut version,
+    ) == SUCCESS
+    {
+        for i in 0..got / descriptor_size {
+            // SAFETY: `buffer` holds `got` bytes of descriptors and `i` is inside that count. Read
+            // unaligned because the firmware chooses `descriptor_size` and nothing promises the
+            // stride keeps 8-byte alignment.
+            let descriptor = unsafe {
+                ptr::read_unaligned(
+                    (buffer as usize + i * descriptor_size) as *const efi::MemoryDescriptor,
+                )
+            };
+            let first = descriptor.physical_start;
+            let last = first + descriptor.page_count * PAGE;
+            if descriptor.kind == memory_type::CONVENTIONAL || last <= start || first >= end {
+                continue;
+            }
+            say_span(table, "uefi_loader:   in the way: ", first, last);
+            say(table, "uefi_loader:   memory type ");
+            say_hex(table, u64::from(descriptor.kind));
+            say(table, "\r\n");
+        }
+    }
+    (services.free_pool)(buffer);
 }
 
 /// Print one ASCII line on the firmware console, if there is one.

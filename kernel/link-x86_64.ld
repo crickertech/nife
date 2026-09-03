@@ -27,8 +27,28 @@
  * base, exactly as it is for Linux. Moving it breaks every relocation in the image, silently, in a
  * way that looks like random corruption. See notes/x86-port.md.
  *
- * PHYS_START is 1 MiB because the multiboot specification forbids loading below it (the first
- * megabyte is real-mode legacy: the IVT, the BIOS data area, the VGA window, option ROMs).
+ * PHYS_START WAS 1 MiB AND IS NOW 32 MiB, and the reason is firmware rather than specification
+ * (milestone 195). 1 MiB is the LOWEST address a multiboot image may be loaded at, because the
+ * first megabyte is real-mode legacy (the IVT, the BIOS data area, the VGA window, option ROMs);
+ * it was never the only one. Under QEMU's PVH loader nothing else is in low memory, so the lowest
+ * legal address looked free. Under real firmware it is not: OVMF keeps ACPI NVS at 8 MiB and its
+ * own boot-services allocations from 9 MiB to 23.5 MiB, so an image at 1 MiB has under 7 MiB of
+ * headroom before `AllocatePages(AllocateAddress)` refuses the whole span. The kernel's TEST build
+ * reaches 10 MiB and hit exactly that: it would not load under OVMF at all, while the tour build
+ * fitted with room the next test module would have eaten.
+ *
+ * 32 MiB clears every low reservation OVMF makes, is 2 MiB-aligned (which is the page size boot.s
+ * builds its identity map out of), and is still nameable by the 32-bit instruction stream `_start`
+ * is entered in. Linux solves the same problem the same way and its own default is 16 MiB
+ * (CONFIG_PHYSICAL_START); 16 would not clear this firmware.
+ *
+ * THIS IS NOT A FIX, IT IS A LARGER GAP, and the difference matters on hardware nobody can attach a
+ * debugger to. The image is still placed at one address chosen at link time, so a firmware that
+ * wants 32 MiB refuses the boot exactly as OVMF refused 1 MiB. What makes that survivable is that
+ * the loader now NAMES what is in the way (uefi_loader::say_conflict) instead of reporting a bare
+ * Load Error. The real answer is a physically relocatable image, which is a milestone rather than a
+ * constant: `.boot` holds 32-bit absolute references to its own labels, so moving it means making
+ * that code position-independent.
  */
 
 ENTRY(_start)
@@ -37,7 +57,7 @@ KERNEL_VA_BASE = 0xffffffff80000000;
 
 /* The lowest address a multiboot image may be loaded at. QEMU's `-kernel` ELF loader honours the
  * program headers' p_paddr, so this is where the bytes actually land. */
-PHYS_START = 0x00100000;
+PHYS_START = 0x02000000;
 
 /* Where the AP real-mode trampoline executes from (milestone 161's SMP item): a STARTUP IPI names
  * a physical PAGE below 1 MiB (`vector << 12`), so this has to be low, page-aligned, and fixed at

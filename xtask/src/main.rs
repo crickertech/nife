@@ -142,6 +142,8 @@ fn main() -> ExitCode {
         // The same image, booted under OVMF and checked. Runs inside `script/test --arch x86_64`;
         // exposed on its own because the bench procedure starts by watching this pass locally.
         "uefi-boot" => uefi_boot(),
+        // Milestone 195: the same firmware, the kernel's test binary instead of its tour.
+        "uefi-test" => uefi_test(),
         // The documentation store (milestone 40): build it, print what it costs, and optionally
         // answer a query against it with the same reader the guest uses.
         "manual" => manual_store(std::env::args().nth(2)),
@@ -189,7 +191,7 @@ fn main() -> ExitCode {
                 eprintln!("unknown command: {other}\n");
             }
             eprintln!(
-                "usage: cargo xtask <build|run|shell|shell-check|initboot|initrd-aarch64|initrd-riscv|initrd-x86|uefi-image|uefi-boot|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image|board-console|soak|board-script> [--hvf]"
+                "usage: cargo xtask <build|run|shell|shell-check|initboot|initrd-aarch64|initrd-riscv|initrd-x86|uefi-image|uefi-boot|uefi-test|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image|board-console|soak|board-script> [--hvf]"
             );
             eprintln!("       cargo xtask shell-check [--arch aarch64|riscv64]");
             eprintln!(
@@ -3860,6 +3862,33 @@ fn uefi_image() -> bool {
         .display()
         .to_string();
 
+    uefi_stage(
+        &kernel,
+        &esp_dir(),
+        "the loader, the kernel and the archive",
+    )
+}
+
+/// **Where the test build's EFI system partition is staged** (milestone 195).
+///
+/// A second directory rather than `target/esp`, and the separation is the point rather than
+/// tidiness. `esp_dir()` is what the bench procedure copies to a USB stick, and a stick carries no
+/// sign of which kernel is inside the one file on it (`notes/x86-uefi-boot.md`'s last `BUGS`
+/// entry). If the suite run wrote over that directory, a `cargo xtask uefi-boot` followed by a copy
+/// would put the *test* kernel on the machine, which boots, prints a tour, runs 200 tests and then
+/// asks QEMU to exit on a port no Dell answers. Two directories make that unrepresentable.
+fn uefi_test_esp_dir() -> std::path::PathBuf {
+    workspace_root().join("target/esp-test")
+}
+
+/// **Build a UEFI application around one kernel ELF and stage it where firmware looks**
+/// (milestone 87, split out by milestone 195 so the tour and the test suite can each have one).
+///
+/// The caller owns the kernel: this builds `uefi_loader` with `NIFE_UEFI_KERNEL` pointing at it,
+/// and the loader's build script `include_bytes!`s both it and the archive. `what` is the phrase
+/// the size line uses, because "the loader, the kernel and the archive" and "the loader, the test
+/// kernel and the archive" are the one difference a reader of the transcript can act on.
+fn uefi_stage(kernel: &str, esp: &std::path::Path, what: &str) -> bool {
     let mut args = std::vec![
         "build",
         "-p",
@@ -3879,7 +3908,7 @@ fn uefi_image() -> bool {
     // by one character in a way nothing would catch.
     let built = Command::new("cargo")
         .args(&args)
-        .env("NIFE_UEFI_KERNEL", &kernel)
+        .env("NIFE_UEFI_KERNEL", kernel)
         .env("NIFE_UEFI_INITRD", x86_initrd_path())
         .status()
         .map(|s| s.success())
@@ -3897,7 +3926,7 @@ fn uefi_image() -> bool {
     ));
     // `\EFI\BOOT\BOOTX64.EFI` is the removable-media path every UEFI implementation looks for with
     // no configuration at all, which is what makes the bench procedure "copy one file to a stick".
-    let boot_dir = esp_dir().join("EFI/BOOT");
+    let boot_dir = esp.join("EFI/BOOT");
     if let Err(e) = std::fs::create_dir_all(&boot_dir) {
         eprintln!("uefi-image: cannot create {}: {e}", boot_dir.display());
         return false;
@@ -3912,13 +3941,10 @@ fn uefi_image() -> bool {
         return false;
     }
     let size = std::fs::metadata(&target).map(|m| m.len()).unwrap_or(0);
-    eprintln!(
-        "wrote {} ({size} bytes: the loader, the kernel and the archive)",
-        target.display()
-    );
+    eprintln!("wrote {} ({size} bytes: {what})", target.display());
     eprintln!(
         "  under QEMU with real firmware: scripts/qemu-uefi-x86_64.sh {}",
-        esp_dir().display()
+        esp.display()
     );
     eprintln!("  on the bench: copy that file to a FAT32 stick as /EFI/BOOT/BOOTX64.EFI");
     true
@@ -3956,6 +3982,25 @@ fn uefi_boot() -> bool {
     let output = match Command::new("scripts/qemu-uefi-x86_64.sh")
         .arg(esp_dir())
         .current_dir(workspace_root())
+        // **Two cores** (milestone 195), where every other x86_64 boot in this tree takes one.
+        // `arch::x86_64::ap_boot` copies its real-mode trampoline to physical 0x8000, a page no
+        // loader had ever asked the firmware for, so secondary cores under firmware worked or did
+        // not by luck. `uefi_loader` asks for it by name now and this is what checks that the
+        // asking worked. It also puts a second local APIC on the machine, which is the third thing
+        // milestone 215's BUGS listed as answerable only on xenon: whether a machine with more than
+        // one still delivers device interrupts to the boot core's id. The tour's `device irq` line
+        // is that answer.
+        //
+        // The suite below stays at one core, because the two-core AP defect this tour does not
+        // touch (`ap_boot`'s BUGS #3) fails one of its tests about half the time.
+        .env("NIFE_SMP", "2")
+        // **The bare firmware machine, whether or not a suite leg ran first.** `test()` sets
+        // `NIFE_DISK` and `NIFE_NVME` in this process for the PVH leg, and a child inherits them,
+        // so without this the tour would attach two devices inside `script/test` and none from a
+        // bare `cargo xtask uefi-boot`. One boot with two machines is one boot nobody can compare.
+        // The suite below is where the devices belong.
+        .env_remove("NIFE_DISK")
+        .env_remove("NIFE_NVME")
         .output()
     {
         Ok(o) => o,
@@ -3973,6 +4018,11 @@ fn uefi_boot() -> bool {
         "nife x86_64: boot complete, halting.",
         "(xsdt)",
         "pci         : ecam at",
+        // Two cores ONLINE, not two in the MADT: the difference is whether the trampoline page the
+        // loader asked for was actually usable. See the `NIFE_SMP` comment above.
+        "smp: 2 core(s) online",
+        // And a device interrupt still landing on the boot core with two local APICs present.
+        "device irq  : pit irq 0 -> gsi 2",
     ] {
         if !transcript.contains(wanted) {
             eprintln!("uefi-boot: the boot transcript is missing {wanted:?}");
@@ -3998,6 +4048,116 @@ fn uefi_boot() -> bool {
     }
     ok
 }
+
+/// **Run the kernel suite under real firmware** (milestone 195), rather than the tour
+/// `uefi_boot` boots.
+///
+/// The difference between the two is one ELF. `#[cfg(test)]` in `kernel_main`'s `x86_64` arm runs
+/// `test_main()` at the end of the same tour, so this boot prints every line `uefi-boot` asserts on
+/// *and then* runs the suite, and the verdict it adds is the one thing the tour cannot say: that
+/// the tests pass when the memory map, the ACPI root and the PCIe window came from firmware
+/// instead of from a hypervisor. Until this existed, "it boots under real firmware" and "it passes
+/// under real firmware" were different claims and only the first was made.
+///
+/// **The exit status is half the verdict and is checked as such.** The suite reports through
+/// `isa-debug-exit`, which terminates QEMU with `(value << 1) | 1`, so a passing run is process
+/// status 3 (`arch::x86_64::semihosting::EXIT_SUCCESS`) and a failing one is 1. A transcript scan
+/// alone would pass a run whose harness printed its verdict and then faulted on the way out; the
+/// status alone would pass a QEMU that never started the guest. Both, and neither is redundant.
+///
+/// # BUGS
+///
+/// - **It is a second firmware boot, not a replacement for the first.** `uefi-boot` still boots the
+///   tour build, because the tour build is what `uefi-image` stages for the USB stick and what
+///   calef carries to the bench; a regression that only the shipping image has would otherwise be
+///   gated by nothing.
+fn uefi_test() -> bool {
+    if !initrd_x86() || !mkdisk() || !mknvmedisk() {
+        return false;
+    }
+    let Some(kernel) = kernel_test_elf(X86_TARGET, "uefi-test") else {
+        return false;
+    };
+    if !uefi_stage(
+        &kernel,
+        &uefi_test_esp_dir(),
+        "the loader, the test kernel and the archive",
+    ) {
+        return false;
+    }
+    eprintln!();
+    eprintln!("--- kernel tests under real firmware, x86_64 (QEMU q35 + OVMF) ---");
+
+    let output = match Command::new("scripts/qemu-uefi-x86_64.sh")
+        .arg(uefi_test_esp_dir())
+        .current_dir(workspace_root())
+        // **The devices the PVH runner attaches** (milestone 195), which the tour above needs none
+        // of. They close the second of the three things milestone 215's BUGS listed as answerable
+        // only on xenon: a PCI function whose BARs were placed by FIRMWARE rather than by this
+        // kernel's own bus walk. Under `-kernel` the kernel assigns them itself, so "the driver can
+        // reach an MSI-X table a bus walk found" and "the driver can reach one it put there" were
+        // the same sentence.
+        //
+        // **One core here, two in the tour above**, and the split is a known defect rather than a
+        // preference: `every_secondary_runs_scheduled_work` fails about half the time at two cores
+        // on this architecture (`arch::x86_64::ap_boot`'s BUGS #3), which is why the PVH runner
+        // defaults to one as well. The tour does not run that test, so it is where the second core
+        // is gated.
+        //
+        // `NIFE_DISK` and `NIFE_NVME` are already set by `test()` for the PVH leg that ran just
+        // above, so this inherits them; they are named here only for a bare `cargo xtask uefi-test`.
+        .env("NIFE_DISK", disk_path())
+        .env("NIFE_NVME", nvme_disk_path())
+        .output()
+    {
+        Ok(o) => o,
+        Err(e) => {
+            eprintln!("uefi-test: failed to run scripts/qemu-uefi-x86_64.sh: {e}");
+            return false;
+        }
+    };
+    let transcript = String::from_utf8_lossy(&output.stdout).into_owned()
+        + &String::from_utf8_lossy(&output.stderr);
+    print!("{transcript}");
+
+    let mut ok = true;
+    // `(xsdt)` and the ECAM line are `uefi_boot`'s own assertions, repeated here rather than
+    // assumed: this is a different binary, and a test build that took the PVH fallback path would
+    // otherwise report a green suite on a machine it had discovered the wrong way.
+    for wanted in ["test result: ok.", "(xsdt)", "pci         : ecam at"] {
+        if !transcript.contains(wanted) {
+            eprintln!("uefi-test: the boot transcript is missing {wanted:?}");
+            ok = false;
+        }
+    }
+    if transcript.contains("rsdp 0x0") {
+        eprintln!("uefi-test: the kernel was handed a zero ACPI root pointer, which is PVH's tell");
+        ok = false;
+    }
+    // 3, not 0: see the doc comment. `scripts/qemu-uefi-x86_64.sh` execs QEMU rather than
+    // translating this the way the PVH runner does, because that runner is a cargo `runner` and has
+    // to speak cargo's success convention while this one has only ever had one caller.
+    if output.status.code() != Some(i32::from(X86_DEBUG_EXIT_SUCCESS)) {
+        eprintln!(
+            "uefi-test: qemu exited {:?}, not {X86_DEBUG_EXIT_SUCCESS} (the harness's own success \
+             status through isa-debug-exit)",
+            output.status.code()
+        );
+        ok = false;
+    }
+    if ok {
+        eprintln!("uefi-test: the kernel suite passed under OVMF");
+    }
+    ok
+}
+
+/// The process status a passing `x86_64` suite produces, which is not zero and cannot be.
+///
+/// `isa-debug-exit` terminates QEMU with `(value << 1) | 1`, so every status it can report is odd.
+/// The guest writes 1; QEMU exits 3. The matching half is `EXIT_SUCCESS` in
+/// `kernel/src/arch/x86_64/semihosting.rs`, and `scripts/qemu-runner-x86_64.sh` translates the same
+/// number for cargo's benefit. Three files naming one number is the cost of a convention QEMU owns.
+const X86_DEBUG_EXIT_SUCCESS: u8 = 3;
 
 /// **Build the aarch64 userspace archive.** Pack the built user ELF into the initrd archive the
 /// kernel hands init (milestone 19f).
@@ -5846,6 +6006,14 @@ fn test() -> bool {
         if !uefi_boot() {
             return false;
         }
+        // **And the suite itself under that firmware** (milestone 195). The line above boots the
+        // tour, which is the shipping image; this boots the test binary, which is the same kernel
+        // with `test_main()` on the end of the same tour. It costs a second firmware boot and buys
+        // the claim the tour cannot make: that the 200 tests pass on a memory map, an ACPI root and
+        // a PCIe window that came from firmware.
+        if !uefi_test() {
+            return false;
+        }
     }
 
     // FS-level consistency after the runs (milestone 32 phase 2): reopen the RedoxFS image with the
@@ -5917,7 +6085,7 @@ fn test() -> bool {
 /// and joined when the verdict is in. It touches a unix socket and two files and never the
 /// environment.
 fn hvf_kernel_leg() -> bool {
-    let Some(elf) = kernel_test_elf() else {
+    let Some(elf) = kernel_test_elf(TARGET, "test --hvf") else {
         return false;
     };
 
@@ -6088,30 +6256,34 @@ fn hvf_kernel_leg() -> bool {
 /// dependency and taking one for a single field would be the wrong trade (DECISIONS §46): the
 /// field is a filesystem path emitted by cargo, so it contains no escapes, and the only artifact
 /// line `cargo test --no-run -p kernel` emits with a non-null `executable` is the one we want.
-fn kernel_test_elf() -> Option<String> {
+fn kernel_test_elf(target: &str, who: &str) -> Option<String> {
+    let mut args = std::vec![
+        "test",
+        "-p",
+        "kernel",
+        "--target",
+        target,
+        "--no-run",
+        // Diagnostics still render as text on stderr; only the machine-readable artifact
+        // records go to stdout. A compile error is as readable as it always was.
+        "--message-format=json-render-diagnostics",
+    ];
+    if RELEASE.load(Ordering::Relaxed) {
+        args.push("--release");
+    }
     let out = Command::new("cargo")
-        .args([
-            "test",
-            "-p",
-            "kernel",
-            "--target",
-            TARGET,
-            "--no-run",
-            // Diagnostics still render as text on stderr; only the machine-readable artifact
-            // records go to stdout. A compile error is as readable as it always was.
-            "--message-format=json-render-diagnostics",
-        ])
+        .args(&args)
         .stdout(std::process::Stdio::piped())
         .spawn()
         .and_then(|c| c.wait_with_output());
     let out = match out {
         Ok(o) if o.status.success() => o,
         Ok(_) => {
-            eprintln!("test --hvf: building the kernel test binary failed");
+            eprintln!("{who}: building the kernel test binary failed");
             return None;
         }
         Err(e) => {
-            eprintln!("test --hvf: cannot run cargo: {e}");
+            eprintln!("{who}: cannot run cargo: {e}");
             return None;
         }
     };
@@ -6128,7 +6300,7 @@ fn kernel_test_elf() -> Option<String> {
 
     if found.is_none() {
         eprintln!(
-            "test --hvf: cargo built the kernel but named no test executable. That is a change in \
+            "{who}: cargo built the kernel but named no test executable. That is a change in \
              cargo's JSON output, not a test failure."
         );
     }

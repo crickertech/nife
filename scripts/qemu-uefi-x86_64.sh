@@ -112,7 +112,9 @@ fi
 
 # `q35`, `-cpu max` and `isa-debug-exit` are deliberately the same as
 # scripts/qemu-runner-x86_64.sh's, so a difference between the two boots is the FIRMWARE and not the
-# machine. One core, because AP bring-up under UEFI has never been exercised (src/main.rs's BUGS).
+# machine. One core by default for the same reason the PVH runner takes it (two x86_64 AP-bring-up
+# defects are open; see arch::x86_64::ap_boot's BUGS), NOT because UEFI has anything to do with it:
+# milestone 195 brought two cores up under OVMF, and `cargo xtask uefi-test` runs at NIFE_SMP=2.
 #
 # THE MEMORY SIZE IS THE ONE THING THAT IS NOT THE PVH RUNNER'S, and it is a bound rather than a
 # preference. Firmware places its ACPI tables just under the top of RAM, so the memory size decides
@@ -127,6 +129,41 @@ CPU="${NIFE_CPU:-max}"
 MEM="${NIFE_MEM:-2048}"
 TIMEOUT="${NIFE_UEFI_TIMEOUT:-90}"
 
+# THE DEVICES ARE THE PVH RUNNER'S, AND SINCE MILESTONE 195 THAT IS THE POINT. The tour needs none
+# of them, but the kernel SUITE runs here now (`cargo xtask uefi-test`), and a suite that skipped
+# every device test would be reporting on the firmware and nothing else. What each buys that the PVH
+# runner cannot:
+#
+#   - the virtio-blk-pci function, because OVMF enumerates the bus and assigns its BARs before this
+#     kernel ever sees it. Under `-kernel` the kernel places them itself, so "the driver can reach an
+#     MSI-X table a PCI bus walk found" and "the driver can reach one IT put there" were the same
+#     sentence. Here they are not. That is one of the three things milestone 215's BUGS listed as
+#     answerable only on xenon.
+#   - `intel-iommu`, so the confinement test has a unit to fault on, and so the two boots differ in
+#     the firmware rather than in the machine.
+#   - the NVMe controller, for the same reason it is on the PVH runner (decisions §86).
+#
+# Each is attached only when its variable names an image, exactly as on the PVH runner, so a plain
+# `scripts/qemu-uefi-x86_64.sh target/esp` is still the bare tour machine.
+DISK=""
+if [ -n "$NIFE_DISK" ]; then
+    PCI_DISK="${NIFE_DISK%.img}-pci.img"
+    if [ ! -f "$PCI_DISK" ]; then
+        echo "qemu-uefi-x86_64: $PCI_DISK does not exist (run mkdisk first; it writes both images)" >&2
+        exit 1
+    fi
+    DISK="-drive file=$PCI_DISK,if=none,format=raw,id=hd1 -device virtio-blk-pci,drive=hd1,disable-legacy=on,iommu_platform=on"
+fi
+
+NVME=""
+if [ -n "$NIFE_NVME" ]; then
+    if [ ! -f "$NIFE_NVME" ]; then
+        echo "qemu-uefi-x86_64: NIFE_NVME=$NIFE_NVME does not exist (xtask's mknvmedisk writes it)" >&2
+        exit 1
+    fi
+    NVME="-drive file=$NIFE_NVME,if=none,format=raw,id=nvme0 -device nvme,serial=nife-nvme,drive=nvme0"
+fi
+
 exec scripts/qemu-bounded.sh "$TIMEOUT" qemu-system-x86_64 \
     -machine q35 \
     -cpu "$CPU" \
@@ -136,6 +173,9 @@ exec scripts/qemu-bounded.sh "$TIMEOUT" qemu-system-x86_64 \
     -serial stdio \
     -no-reboot \
     -device isa-debug-exit,iobase=0xf4,iosize=0x04 \
+    -device intel-iommu \
+    $DISK \
+    $NVME \
     -drive "if=pflash,format=raw,unit=0,readonly=on,file=$NIFE_OVMF_CODE" \
     -drive "if=pflash,format=raw,unit=1,file=$VARS" \
     -drive "format=raw,file=fat:rw:$ESP" \

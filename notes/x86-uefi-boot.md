@@ -161,7 +161,9 @@ trampoline zeroes its own page tables on top of it.
 
 ## What it proves, measured
 
-The table below was measured with both boots at `-m 256M`. **The runner's default is now 2 GiB**
+The table below was measured with both boots at `-m 256M`, before milestone 195 reclaimed
+boot-services memory (the `usable ram` row is the one that moved; see "The RAM that is deliberately
+left on the table" below, which now records both figures). **The runner's default is now 2 GiB**
 (`NIFE_MEM=256M` reproduces the table): firmware places its ACPI tables just under the top of RAM, so
 the memory size decides what physical addresses the kernel is asked to read, and at 256 MiB they land
 low enough that a reach bug in the ACPI walk cannot show. One did, for as long as this script matched
@@ -202,17 +204,31 @@ loader writes:
   initrd      : 5229568 bytes at 0xd9bc000, 68 programs, from the PVH module list
 ```
 
-### The RAM that is deliberately left on the table
+### The RAM that was left on the table, and how much came back
 
-206684 KiB against PVH's 261627 KiB, so **about 54 MiB of a 256 MiB machine is reported as
-reserved that a Linux-style loader would reclaim.** That is a choice, not a defect, and the
-reasoning is in `uefi_loader::handoff`'s `BUGS`: UEFI's `EfiBootServicesCode`/`Data` become free the
-moment `ExitBootServices` returns, but this loader's own handoff structure, memory map, module list
-and trampoline live in `EfiLoaderData`, and the kernel reads three of those *after* the frame
-allocator is up. Reporting the whole class as reserved is the conservative direction, and the
-direction matters: claiming less RAM than exists costs megabytes, claiming more corrupts something,
-on hardware nobody can attach a debugger to. Splitting the loader's four known allocations back out
-would recover the rest and is the fix if it ever matters.
+**Before milestone 195: 206684 KiB against PVH's 261627 KiB**, so about 54 MiB of a 256 MiB machine
+was reported reserved that a Linux-style loader would reclaim. That was a choice rather than a
+defect, in the conservative direction on purpose: claiming less RAM than exists costs megabytes,
+claiming more corrupts something, on hardware nobody can attach a debugger to.
+
+**After it: 233148 KiB on the same 256 MiB machine, and 2068244 KiB against 2032128 on a 2 GiB one.**
+Two classes moved, both of them dead by the time the kernel reads the map:
+
+- **`EfiBootServicesCode` and `EfiBootServicesData`**, which the UEFI specification says are free the
+  moment `ExitBootServices` returns. 26 MiB of the 2 GiB machine.
+- **`EfiLoaderCode`**, which is the loader's own PE image and its one-shot mode-switch trampoline.
+  The image is the whole embedded payload (9 MiB for the tour build, 19 MiB for the test build), and
+  the kernel and the archive were copied *out* of it before boot services ended. 9 MiB more.
+
+**`EfiLoaderData` stays reserved and must.** Every allocation this loader makes that the kernel reads
+later asks for it: the `hvm_start_info`, the memory map, the module list, the archive, and the kernel
+image itself. The asymmetry is not a rule anyone has to remember, which is what makes it hold: the
+only thing asking for `LOADER_CODE` is the trampoline, and it asks because firmware sets the
+execute-disable bit on data allocations.
+
+What is still reported reserved on the 256 MiB machine is 28 MiB, against PVH's 0.5 MiB. That is the
+firmware's own runtime services, ACPI NVS, its reserved ranges, and the loader's `EfiLoaderData`, and
+none of it is ours to take.
 
 ## Running it
 
@@ -222,10 +238,16 @@ $ scripts/qemu-uefi-x86_64.sh target/esp       # boot it under OVMF
 $ cargo xtask uefi-boot                        # both of the above, plus the assertions
 ```
 
-`cargo xtask uefi-boot` also runs inside `script/test --arch x86_64`, after the PVH suite. It boots
-the **tour** rather than the suite, and that is a cost decision stated where it is paid: the tour is
-about ten seconds and covers the whole boot path, where re-running two hundred tests under a second
-firmware would buy coverage of the tests rather than of the firmware.
+```console
+$ cargo xtask uefi-test                        # the kernel's TEST binary under the same firmware
+```
+
+Both run inside `script/test --arch x86_64`, after the PVH suite, and they are two boots rather than
+one because they carry two different kernels.
+
+`uefi-boot` boots the **tour**, which is the build `uefi-image` stages for the USB stick and the one
+calef carries to the bench. It runs at **two cores**, which no other x86_64 boot in this tree does;
+see the SMP section below.
 
 What it asserts, chosen so it cannot pass for the wrong reason:
 
@@ -233,6 +255,64 @@ What it asserts, chosen so it cannot pass for the wrong reason:
 - no `rsdp 0x0`, which is PVH's own tell.
 - the tour's completion line, which is everything in between: the fine W^X page tables, the APIC,
   the timer, the scheduler, and two ring-3 processes, on a memory map from firmware.
+- `smp: 2 core(s) online`, and a PIT interrupt still reaching the boot core with two local APICs on
+  the machine.
+
+`uefi-test` boots the kernel's **test binary**, which is the same kernel with `test_main()` on the
+end of the same tour, so the boot prints every line above and then runs the suite. Milestone 195
+added it, and until it existed *"it boots under real firmware"* and *"it passes under real firmware"*
+were different claims with only the first one made. It asserts the harness's verdict **and QEMU's
+exit status**, because a transcript scan alone would pass a run that printed its verdict and then
+faulted on the way out.
+
+**The two boots are the same machine except for their devices**: the suite gets the PVH runner's
+`virtio-blk-pci` disk and NVMe controller, the tour gets neither. That is what makes the numbers
+comparable, and on 2026-09-02 they were **identical**: 192 passed and 68 skipped under both PVH and
+OVMF, with the same 68 test names skipped on each side.
+
+### What running the suite under firmware cost, and what it found
+
+**It was not the two-line change to `uefi_image` this was scoped as**, and the reason is the one
+thing a tour boot cannot show: the test build is bigger. Its physical span reaches 10 MiB where the
+tour's reaches 2.3, and OVMF keeps ACPI NVS at 8 MiB and its own boot-services allocations from 9 to
+23.5, so `AllocatePages(AllocateAddress)` refused the whole range and the firmware printed nothing
+more useful than `Load Error`.
+
+Two things came out of that, and the second matters more than the first.
+
+**`PHYS_START` moved from 1 MiB to 32 MiB** (`kernel/link-x86_64.ld`). 1 MiB is the *lowest* address
+multiboot permits, never the only one, and under a hypervisor's loader nothing else is in low memory
+to say so. **This is a larger gap rather than a fix**: the image is still placed at one address
+chosen at link time, so a firmware that wants 32 MiB refuses the boot exactly as OVMF refused 1 MiB.
+The real answer is a physically relocatable image, which is a milestone rather than a constant,
+because `.boot` holds 32-bit absolute references to its own labels.
+
+**And the loader now names what is in the way.** `AllocatePages` reports one status and no address,
+so on that failure `uefi_loader::say_conflict` walks the memory map and prints every descriptor
+overlapping the range that is not free RAM, with its UEFI type. On the bench that is the difference
+between a `Load Error` and a sentence:
+
+```text
+uefi_loader: wanted 0x0000000000100000..0x0000000000add000
+uefi_loader:   in the way: 0x0000000000800000..0x0000000000808000
+uefi_loader:   memory type 0x000000000000000a
+uefi_loader:   in the way: 0x0000000000900000..0x0000000001780000
+uefi_loader:   memory type 0x0000000000000004
+```
+
+### SMP under firmware
+
+`arch::x86_64::ap_boot` copies its real-mode trampoline to physical `0x8000`, because a STARTUP IPI
+can only name a page below 1 MiB. Until milestone 195 the loader never mentioned that page, so
+secondary cores under firmware worked or did not **by luck**: OVMF happens to leave the first 640 KiB
+conventional. The loader asks the firmware for it by name now, and a refusal is a printed warning
+rather than a failed boot, because a single-core boot on a machine whose firmware wants that page is
+worth more than no boot at all.
+
+Two cores come up under OVMF, five runs out of five, and `uefi-boot` gates it. **The suite stays at
+one core**, and that is a known defect rather than a preference: `every_secondary_runs_scheduled_work`
+fails about half the time at two cores on this architecture (`arch::x86_64::ap_boot`'s `BUGS` #3),
+which is why the PVH runner defaults to one as well. The tour does not run that test.
 
 `NIFE_OVMF_CODE` and `NIFE_OVMF_VARS` name the firmware images on a machine that keeps them
 somewhere other than Homebrew's QEMU share; `NIFE_UEFI_TIMEOUT` moves the bound.
@@ -345,20 +425,44 @@ Two things are then worth doing, in this order, and neither is in this lane's sc
    whether the DMAR is present so VT-d can come up.
 2. **Flip milestone 87's status** and open the two follow-ups the bench will inevitably produce.
 
+## What xenon still has to establish, and what it no longer has to
+
+Milestone 215 listed three things only the OptiPlex could confirm. **Two of them are now answered on
+patagonia**, because the suite runs under firmware with the same devices the PVH runner attaches:
+
+- **A PCI function's MSI-X table, once *firmware* rather than this kernel placed its BARs.** OVMF
+  enumerates the bus before nife exists, and `pci::bar_census` reports 5 of 8 functions with a BAR
+  outside the window `mmu::map_everything` maps, so `place_bars` **moved** five rather than assigning
+  them. The two milestone 215 tests that reach a `virtio-blk-pci` function through its MSI-X table
+  pass on the far side of that move.
+- **A machine with more than one local APIC still delivering to the boot core's id.** The tour boots
+  at two cores under OVMF and its `device irq` line shows the PIT's interrupt arriving 20 times in
+  0.2 s at 100 Hz, with two APICs in the MADT.
+
+**The third is still xenon's, and so is everything below it**: whether the OptiPlex's firmware leaves
+interrupt remapping off. Nothing under QEMU can answer that, because the answer is a setting in
+somebody else's firmware.
+
+And this milestone added one of its own for the bench, which is the more interesting of the two:
+**whether the Dell's firmware leaves 32 MiB free.** OVMF's low-memory habits are OVMF's. If it does
+not, the loader now says which ranges it wants and which descriptors are in the way, and that message
+is the whole difference between a bring-up and a stare.
+
 ## BUGS
 
 - **The bench procedure is written and untested.** Every firmware-menu path, key and setting name
   above is from the 7050's documented behaviour rather than from this machine, and the first person
   to follow it should expect at least one of them to be worded differently on the screen.
-- **`cargo xtask uefi-boot` boots the tour, not the suite.** So the two hundred kernel tests have
-  never run under firmware. Nothing suggests they would behave differently (the firmware is gone by
-  the time the kernel's first instruction runs), but it is an untested claim rather than a checked
-  one. Embedding the test ELF instead of the tour's is a two-line change to `uefi_image` if it
-  becomes worth the time.
-- **SMP under UEFI has never been exercised.** `arch::x86_64::ap_boot` copies its real-mode
-  trampoline to physical `0x8000`, which is memory this loader never asks the firmware for. Both
-  the runner and the bench procedure boot one core. Asking for that page in the loader is the fix if
-  it turns out to matter.
+- **The kernel is placed at one address chosen at link time, and 32 MiB is not a guarantee.** It
+  clears every low reservation OVMF makes and nothing more; a firmware that wants that range refuses
+  the boot. The image is not physically relocatable, and making it so is a milestone rather than a
+  constant: `.boot` is linked at its physical address because a 32-bit instruction stream cannot name
+  a 64-bit one, and its absolute self-references are what would have to become position-independent.
+- **The bench procedure still boots one core**, unlike the runner. Nothing stops two, and two work
+  under OVMF; the procedure is written for a first bring-up where every variable costs.
+- **The suite under firmware runs at one core**, so nothing exercises AP bring-up under UEFI *and* the
+  scheduler's cross-core tests together. That is `ap_boot`'s open two-core defect rather than
+  anything about firmware, and it is the PVH runner's situation too.
 - **Nothing verifies what the loader hands over.** The kernel and the archive are bytes the loader
   was compiled with, so the trust boundary is the build; `measured_boot`'s manifest is not consulted
   and the image is not signed. That is also why Secure Boot has to be off.
