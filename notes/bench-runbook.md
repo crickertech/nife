@@ -102,9 +102,9 @@ detour, the entry exception level and the DTB register from *this* U-Boot, PSCI 
 non-Linux payload, `PMCCNTR_EL0` readable at EL1, and what pins the 1.9 GHz clock.
 
 **What argon is for** is milestone 25's comparison against seL4's published 413 and 426 cycle
-figures on identical silicon, which is why the board was bought. Milestone 237 (the cycle-counter grant costs 192 bytes of IPC fastpath for an
-instrument nothing can request) made that instrument a feature rather than something production
-carries.
+figures on identical silicon, which is why the board was bought. Milestone 237 (the
+cycle-counter grant costs 136 bytes of IPC fastpath for an instrument nothing can request)
+made that instrument a feature rather than something production carries.
 
 ## BUGS
 
