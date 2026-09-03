@@ -66,6 +66,33 @@ So: buy the fourth board when argon and xenon have **both booted**, and one of t
 
 Until one fires, milestone 227 stays held and this block is the reason.
 
+## The argument this block did not have when it was written
+
+calef, the same afternoon, on booting from a USB stick:
+
+> that opens up a lot of different hardware in our house that I can use for testing: Graeme's
+> laptop, his desktop, cordoba, two MacBooks, Clay's desktop
+>
+> -- calef, 2026-09-03
+
+**That is a stronger answer to this block than the trigger above.** Milestone 87 (the x86_64
+bare-metal machine) boots from a FAT32 stick at `\EFI\BOOT\BOOTX64.EFI`, the removable-media
+fallback every UEFI firmware looks for with no configuration, and nothing about it is specific to
+xenon. **So the fourth machine, and the fifth and sixth, may already be in the house.**
+
+Six machines with six firmwares, chipsets and core counts is a far better test of claim 1 above,
+whether a second board of a known architecture is cheap, than any single purchase would be. It costs
+a USB stick.
+
+**What it does not give**, and this is why milestone 227 (a GICv3 driver, because GICv2 boots and
+silently loses every interrupt) stays held rather than dying: those machines are all x86_64. They
+say nothing about GICv3, nothing about SMMUv3, and nothing about asymmetric cores. **Claims 2 and 3
+still want an aarch64 board this project does not own.** Claim 1 no longer does.
+
+**And the blocker on using them is not a driver**, it is milestone 243 (a machine with no serial port
+has no way to say anything, and no gate can read it): those machines have no serial port, so nife
+would boot and say nothing after the loader.
+
 ## BUGS
 
 - **This block does not survey the candidates.** RK3588 and Orin are named from general knowledge and
