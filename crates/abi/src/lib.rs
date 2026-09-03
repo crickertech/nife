@@ -336,6 +336,38 @@ pub mod objtype {
 
 /// Methods on a `ThreadControlBlock` capability (milestone 19c.3): **another thread, under construction.**
 /// Created by [`memory_region::RETYPE_OBJ`] with [`objtype::THREAD_CONTROL_BLOCK`].
+///
+/// **There is deliberately no method here that grants a thread the cycle counter**, and the
+/// absence is a decision rather than an omission (milestone 229, DECISIONS 139 option 4).
+///
+/// The kernel-side mechanism is complete: a thread carries a grant, and the context switch
+/// opens or closes the counter for the thread about to run. What is deferred is the syscall
+/// surface that would let userspace set it, and the reason is that a method number is
+/// irreversible while this one's retirement is already foreseeable.
+///
+/// **The prior art is `seL4_TCB_SetAffinity`**, a per-thread property expressed as a TCB
+/// method, which MCS deleted outright and replaced with a core that is a field of
+/// `sched_control_cap`. seL4 could not see that corner coming; this tree can, because
+/// milestone 147 (a profiler that holds exactly the counters it was granted) is written down
+/// and wants cross-thread authority with a named target, which no method here would provide.
+/// Minting a method whose successor is already on the roadmap spends an irreversible number on
+/// a path with a visible end.
+///
+/// **The capability object is not buildable yet either**, which is why the answer is not "build
+/// 147's shape now": DECISIONS 139 records that 147's target-naming has no precedent in this
+/// tree to price from. So the choice was never method-now against capability-now. It was
+/// method-now against **not yet**, and not-yet costs almost nothing, because the grant has no
+/// consumer: milestone 74's aarch64 half is the first and does not exist.
+///
+/// **A field on [`CONFIGURE`](thread_control_block::CONFIGURE) is not the alternative**, and that was established by looking
+/// rather than assumed. `invoke` carries three argument registers; `CONFIGURE` spends all three
+/// (entry, user stack, address-space slot) and [`START`](thread_control_block::START) spends all three on the child's first
+/// registers. There is no spare word, so expressing the grant at creation time through the
+/// existing methods would mean widening `invoke` itself, which is a larger and equally
+/// irreversible change than the method this defers.
+///
+/// **Whoever needs it mints it, with a requirement in hand.** See
+/// `design/roadmap/229-the-counter-grant.md` and `notes/abi.md`.
 pub mod thread_control_block {
     /// `invoke(cap, CONFIGURE, entry, user_sp, address_space_slot)` -> 0. Bind the address space
     /// named by the capability in `address_space_slot` (which is **consumed**: it becomes the
