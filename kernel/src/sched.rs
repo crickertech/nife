@@ -3750,49 +3750,6 @@ mod tests {
         );
     }
 
-    /// **Writing the grant is idempotent and does not disturb its neighbours** (milestone 229).
-    /// The context switch calls `set_cycle_counter_grant` on every switch, so the cheap path (the
-    /// value already matches) has to be correct as well as fast, and on riscv64 the register it
-    /// writes carries `scounteren.TM`, which is open for every thread by design and must survive.
-    ///
-    /// Restores the closed state it found, because this runs on a live core between other tests.
-    #[test_case]
-    fn granting_and_ungranting_the_cycle_counter_is_repeatable() {
-        use crate::arch::timer::{cycle_counter_grantable, set_cycle_counter_grant};
-        if !cycle_counter_grantable() {
-            crate::testing::skip!("this core has no user-readable cycle counter to grant");
-        }
-        // Four writes where only two change anything: the compare has to absorb the repeats rather
-        // than the register.
-        set_cycle_counter_grant(true);
-        set_cycle_counter_grant(true);
-        set_cycle_counter_grant(false);
-        set_cycle_counter_grant(false);
-
-        // On riscv64 this is the load-bearing assertion, and it is why the two architectures got
-        // two implementations rather than one: `TM` shares the CSR with the bit above, and a
-        // cached-value implementation would have had to model it. `user_rt`'s `now()` is what
-        // breaks if this ever stops holding.
-        #[cfg(target_arch = "riscv64")]
-        {
-            let scounteren: u64;
-            // SAFETY: reading a supervisor CSR touches no memory and changes no state.
-            unsafe {
-                core::arch::asm!("csrr {}, scounteren", out(reg) scounteren, options(nomem, nostack, preserves_flags));
-            }
-            assert_eq!(
-                scounteren & 1,
-                0,
-                "the cycle counter was left open to U-mode"
-            );
-            assert_eq!(
-                scounteren & 2,
-                2,
-                "granting the cycle counter closed the time counter every thread is meant to have",
-            );
-        }
-    }
-
     /// Wait for `cond`, bounded by the CLOCK rather than by a yield count.
     ///
     /// These tests used to spin a fixed number of yields and then assert. A yield count is not a

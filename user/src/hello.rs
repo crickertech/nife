@@ -356,7 +356,7 @@ const CYCLE_COUNTER_CHILD: u64 = 42;
 ///
 /// **The word is the whole result, and the counter value is not.** An ungranted read of
 /// `PMCCNTR_EL0` or the `cycle` CSR traps, and this kernel turns that into a fault that ends the
-/// thread, so a child that gets as far as SENDing anything is a child the grant reached. What it
+/// thread, so a child that gets as far as sending anything is a child the grant reached. What it
 /// read is uninteresting: QEMU leaves `PMCR_EL0.E` clear, so `PMCCNTR_EL0` reads zero however
 /// often you ask it.
 const CYCLE_COUNTER_WORD: u64 = 0xC1C1E;

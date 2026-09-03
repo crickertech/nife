@@ -375,7 +375,7 @@ pub mod thread_control_block {
     /// **What it opens, per architecture**, because they are not the same register and one of
     /// them is not closed to begin with:
     ///
-    /// - aarch64: `PMUSERENR_EL0.CR`, so EL0 may read `PMCCNTR_EL0`. A board with no FEAT_PMUv3
+    /// - aarch64: `PMUSERENR_EL0.CR`, so EL0 may read `PMCCNTR_EL0`. A board with no `FEAT_PMUv3`
     ///   has no such register and the grant silently does nothing there.
     /// - riscv64: `scounteren.CY`, so U-mode may read the `cycle` CSR. `scounteren.TM` is left
     ///   exactly as it was: it is open for everybody by design and this grant is not about it.

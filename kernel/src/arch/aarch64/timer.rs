@@ -116,7 +116,7 @@ static TICKS: [AtomicU64; MAX_CPUS] = [const { AtomicU64::new(0) }; MAX_CPUS];
 static INTERVAL: AtomicU64 = AtomicU64::new(0);
 
 /// **Does this core have the register the cycle-counter grant is written to** (milestone 229).
-/// `PMUSERENR_EL0` exists only with FEAT_PMUv3, so `init` reads `ID_AA64DFR0_EL1.PMUVer` once per
+/// `PMUSERENR_EL0` exists only with `FEAT_PMUv3`, so `init` reads `ID_AA64DFR0_EL1.PMUVer` once per
 /// core and records the answer here rather than re-reading an ID register on every context switch.
 /// Per core because `PMUVer` is a per-PE ID register and this kernel does not assume a homogeneous
 /// machine anywhere else either.
@@ -127,7 +127,7 @@ static PMU_PRESENT: [AtomicBool; MAX_CPUS] = [const { AtomicBool::new(false) }; 
 ///
 /// This is a cache rather than a read-back, which is the one place [`set_cycle_counter_grant`]
 /// departs from `mmu::switch_user_root`'s shape, and the reason is the register above: on a part
-/// without FEAT_PMUv3 an `mrs` from `PMUSERENR_EL0` is as UNDEFINED as an `msr` to it, so "read
+/// without `FEAT_PMUv3` an `mrs` from `PMUSERENR_EL0` is as UNDEFINED as an `msr` to it, so "read
 /// what the hardware holds" is not available on the architecture the way it is for `TTBR0_EL1`.
 /// Nothing else in this kernel writes `PMUSERENR_EL0` after `init`, so the cache cannot go stale
 /// behind our back; `close_cycle_counter_to_el0`'s doc comment is where a future PMU driver would
@@ -229,7 +229,7 @@ fn close_cycle_counter_to_el0() {
 }
 
 /// **Can a thread on this core be granted the cycle counter at all?** False on a part with no
-/// FEAT_PMUv3, where `PMCCNTR_EL0` and the register that gates it both simply do not exist.
+/// `FEAT_PMUv3`, where `PMCCNTR_EL0` and the register that gates it both simply do not exist.
 ///
 /// The grant is still *accepted* on such a part (a manifest is a declaration, and refusing it at
 /// `START` would make a program un-runnable on a board rather than merely un-instrumented); this is
@@ -278,7 +278,7 @@ pub fn set_cycle_counter_grant(granted: bool) {
         return;
     }
     if !PMU_PRESENT[cpu].load(Ordering::Relaxed) {
-        // No FEAT_PMUv3: there is no register to write and nothing to open. Leaving the cache
+        // No `FEAT_PMUv3`: there is no register to write and nothing to open. Leaving the cache
         // `false` means a granted thread costs the same two loads every switch here rather than
         // one, on a board where the grant can never be honoured anyway.
         return;
@@ -572,6 +572,52 @@ mod tests {
     //! Tests for the timer, and for the thing the whole locking discipline was written to
     //! prevent.
 
+    /// **The cycle-counter grant opens and closes `PMUSERENR_EL0.CR`, and opens nothing else**
+    /// (milestone 229, DECISIONS 139 option 4).
+    ///
+    /// Reads the register back out of the core rather than out of the cache
+    /// [`set_cycle_counter_grant`](super::set_cycle_counter_grant) keeps, which is the only way the
+    /// cache can be caught lying. `EN` (bit 0) and `ER` (bit 3) stay clear throughout: DECISIONS
+    /// 139 granted the cycle counter, not the event counters and not the whole PMU.
+    ///
+    /// Four calls where only two change anything, because the context switch makes this call on
+    /// every switch and the cheap path has to be right as well as fast. Leaves the register at
+    /// zero, which is where `init` left it and where every other test expects it.
+    #[test_case]
+    fn the_cycle_counter_grant_moves_cr_and_nothing_else() {
+        if !super::cycle_counter_grantable() {
+            crate::testing::skip!("this core has no PMUv3, so there is no register to grant");
+        }
+        super::set_cycle_counter_grant(true);
+        super::set_cycle_counter_grant(true);
+        assert_eq!(
+            read_pmuserenr(),
+            1 << 2,
+            "the grant should set CR and only CR",
+        );
+
+        super::set_cycle_counter_grant(false);
+        super::set_cycle_counter_grant(false);
+        assert_eq!(
+            read_pmuserenr(),
+            0,
+            "the cycle counter was left open to EL0"
+        );
+    }
+
+    /// `PMUSERENR_EL0`, read back out of the core. Only call this where
+    /// [`cycle_counter_grantable`](super::cycle_counter_grantable) is true: without `FEAT_PMUv3` the
+    /// read is as UNDEFINED as the write.
+    fn read_pmuserenr() -> u64 {
+        let value: u64;
+        // SAFETY: the caller has checked `cycle_counter_grantable`, so the register exists and an
+        // `mrs` from it is a legal EL1 operation. It touches no memory and clobbers no flags, which
+        // the options state.
+        unsafe {
+            core::arch::asm!("mrs {}, pmuserenr_el0", out(reg) value, options(nomem, nostack, preserves_flags));
+        }
+        value
+    }
     /// The heartbeat is beating.
     #[test_case]
     fn the_timer_is_ticking() {
