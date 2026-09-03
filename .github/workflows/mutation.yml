@@ -37,21 +37,33 @@ name: mutation testing
 #     on every run, and shard 0 was never tested at all. `script/mutation` reported this correctly
 #     and loudly ("run FAILED (exit 1): this is a broken run, not a survivor count") to a scheduled
 #     job that nothing reads, which is the actual defect this milestone is about.
-#  2. **The surviving shards are terminated by the runner, and that is NOT a resource problem in
-#     the job.** This was the open question, and the resource sampler answered it on the first
-#     instrumented run (2026-09-03). Shard 0 died 57 seconds after a sample showing **14.7 GB of
-#     memory available of 16, and 107 GB of disk**; shard 2 died with 12.3 GB available, shard 1
-#     with 10.7 GB. Every one ends the same way, `The runner has received a shutdown signal`, a
-#     `cancelled` step, and every later step including the `if: always()` upload **skipped**, which
-#     is the runner agent being killed rather than a process in the job failing. Across five runs,
-#     13 of 20 shard jobs went this way, at wall-clock times from 3 to 49 minutes, with one shard
-#     completing 2,462 mutants in 17m34s on the same machine class the same morning.
+#  2. **The surviving shards are killed by a single runaway mutant exhausting the machine's memory
+#     in about twenty seconds.** Measured 2026-09-03, and it is worth reading how, because the
+#     first instrumented run said the opposite and was believed for an hour.
 #
-#     So the `-j 2` bound below is not the constraint here, whatever it is on a development
-#     machine, and lowering it would cost hours for nothing. **Nothing in this repository can stop
-#     the eviction**; what it can do is make each job a smaller bet, which is what the eight-way
-#     round-robin split above is for. If that proves insufficient the next option is a self-hosted
-#     runner, and that is calef's call rather than a workflow edit.
+#     At a 60-second sampling interval the evidence was unambiguous and wrong: shard 0 died 57
+#     seconds after a sample showing 14.7 GB of memory available of 16 and 107 GB of disk. Three
+#     shards, three samples, no pressure anywhere, so the conclusion drawn was runner eviction that
+#     nothing here could fix. **A sampler whose interval is longer than the event reports
+#     innocence.** At 10 seconds the same failure looks like this:
+#
+#         20:35:31  mem_used_mb=1352   mem_avail_mb=14595
+#         20:35:41  mem_used_mb=6335   mem_avail_mb=9611
+#         20:35:51  mem_used_mb=15763  mem_avail_mb=183
+#         20:36:16  The runner has received a shutdown signal
+#
+#     1.4 GB to 15.8 GB in twenty seconds, then the runner agent dies with the machine and takes
+#     every later step with it, `if: always()` included, which is why no artifact survives a
+#     terminated shard. **The per-mutant timeout cannot save this**: it is auto-derived at 28 to 51
+#     seconds on this tree, and 16 GB is gone well inside that. A mutant that turns a bound into an
+#     unbounded allocation is a hang the clock never gets to notice.
+#
+#     So `-j 2` is not the constraint and lowering it would not help: one runaway takes 14 GB by
+#     itself. **What is NOT yet built is a bound on what a single mutant may allocate**, which is
+#     the actual repair and is scoped as its own work rather than guessed at here; a memory cgroup
+#     around the run would turn a machine kill into an ordinary killed mutant and let the run
+#     continue. Until then the eight-way round-robin split above is damage control: it does not stop
+#     a shard dying, it makes the loss an eighth of every crate rather than all of a few.
 #
 # The cost is not the missing weekly report. `design/fatal-risks.md`'s third risk stands at
 # MEASURED green on a 2026-08-03 number and closes by saying "the weekly workflow already publishes
@@ -112,12 +124,13 @@ jobs:
         # touching this line: it reads "specify as e.g. 1/4", which is a valid shard and reads
         # exactly like a one-based first-of-four. Milestone 238.
         #
-        # **Eight rather than four, because jobs here get evicted and a shorter job survives more
-        # often.** See the eviction paragraph in this file's BUGS. The measured shard time is about
-        # 17 minutes at four ways, and the per-shard overhead sharding pays is tiny: the baseline
-        # rebuild each shard does cost 3 seconds of build and 6 of test on 2026-09-03, against 17
-        # minutes of mutants. Nothing is measured less; the same 9,857 mutants are attempted, in
-        # smaller pieces, so a reclaimed runner costs an eighth of the corpus instead of a quarter.
+        # **Eight rather than four, and the reason is damage control rather than speed.** A shard
+        # dies when one mutant exhausts the machine's memory (see BUGS above), which eight shards
+        # do nothing to prevent. What they change is the cost of a death, and `round-robin` is the
+        # half that does the work: a lost shard takes an eighth of every crate rather than all of a
+        # few. The measured shard time is about 17 minutes at four ways and the overhead sharding
+        # pays is tiny, 3 seconds of baseline build and 6 of test per shard against that. Nothing is
+        # measured less; the same 9,857 mutants are attempted, in smaller pieces.
         shard: [0, 1, 2, 3, 4, 5, 6, 7]
     steps:
       - uses: actions/checkout@v7

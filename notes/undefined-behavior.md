@@ -92,6 +92,30 @@ written next to the test:
 | `gpt` small-table sweep (`table.rs`) | 261,120 parses | skipped, same reason |
 | `cred` store tests via `cheap()` | Argon2id at m=256 KiB, t=2 | Argon2's floor (m=8 KiB, t=1); same paths, fewer blocks. The known-answer vector tests keep their published costs |
 | `cred` `an_unknown_identity_costs_what_a_known_one_costs` | 50 timed KDF runs | skipped: a wall-clock ratio under an interpreter measures Miri, not the KDF |
+| `manual` `every_character_survives` | 547 markdown files off disk, 7.2 MB, 0.74 s | skipped: the corpus is on the filesystem, which Miri isolates; the nineteen other tests in that file drive the same renderer on in-memory input |
+| `board_console` five `port` tests | open a device, read `/dev`, write the host temp dir | skipped: all five reach the host filesystem, which is the thing the crate is *for* |
+
+### The last two rows are a different kind of skip, and worth telling apart
+
+Every row above them is a **sampling** decision: the test is too slow under an interpreter, so it
+runs a smaller version of the same claim. The `manual` and `board_console` rows are not that. Those
+tests do host I/O, and Miri's isolation refuses `open`, `opendir` and friends outright; there is no
+smaller version, only a decision about `-Zmiri-disable-isolation`.
+
+**It was refused, on measurement rather than principle** (milestone 238). `crates/manual` has no
+dependencies and no `unsafe`, and neither does `board_console`, so the rules Miri enforces cannot be
+broken by any line it would interpret in either. Against that, `every_character_survives` costs 0.74
+seconds natively and had not finished after **12 minutes** under Miri with isolation off, and the
+flag is not per-test: it would relax isolation for the whole workspace run, which is the
+reproducibility every other crate here is getting for free.
+
+**These two are also the entire content of the three weeks the weekly workflow spent red.** It
+reported failure from 2026-08-10 to 2026-09-03 and never once for undefined behaviour: first an
+environment variable Miri does not forward, then a `read_dir` behind it, then five `board_console`
+tests behind that, each hidden by the one before because `cargo miri test` stops at the first. The
+audit that found it (milestone 232) recorded the fix as one flag, in good faith; it was three
+layers. See notes/check-inventory.md and `script/cadence-check`, which exists so the next dead
+cadence is noticed in days rather than weeks.
 
 So a green `script/undefined-behavior-check` certifies the memory rules on every path the sampled suite executes, and
 does not restate the exhaustive claims; those stay native-only, in `script/test`. The skipped `gpt`

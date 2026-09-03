@@ -117,6 +117,61 @@ line numbers moved when tests landed) and are counted as caught, which is the on
 guesses. `script/mutation --save-baseline` writes the machine-readable copy the weekly job diffs
 against.
 
+## 2026-09-03: the weekly report had never run, and the first quarter to finish reads 74.4%
+
+The baseline above is from 2026-08-03. **No weekly run has ever refreshed it**, and until milestone
+238 nobody knew that: the `mutation testing` workflow failed all four of its scheduled runs and a
+scheduled workflow's red is an entry in the Actions tab with no badge. Milestone 232's audit found
+it; the diagnosis and repairs are milestone 238's, and the workflow file carries them in full.
+
+**Two of the causes change what this note claims.**
+
+`--shard k/n` is zero-indexed, and the matrix ran `[1, 2, 3, 4]`. So `--shard 4/4` was an argument
+error every week, and **`--shard 0/4` never ran at all**. With the old `slice` sharding that quarter
+was an alphabetical block: `dtb`, `calendar`, `compositor`, `cred`, `elf`, `capability` and their
+neighbours. Nothing was lost from the baseline, which was a full local run, but four weeks of
+weekly reports would have been silently missing a nameable quarter had any of them succeeded.
+
+The other cause is not fixable here: **runner eviction.** 13 of 20 shard jobs across five runs were
+terminated by `The runner has received a shutdown signal` with 10 to 15 GB of memory and 107 GB of
+disk free at the last sample before the kill, so it is not the job outgrowing the machine. The
+workflow now shards eight ways with `--sharding round-robin` to make each job a smaller bet and to
+make a partial report representative; the reasoning is in its header.
+
+### The number, and what it is not
+
+**One shard of four completed on 2026-09-03** (2,462 mutants, 17m34s):
+
+| | caught | missed | timeout | unviable | viable | killed |
+|---|---|---|---|---|---|---|
+| shard 3 of 4, 2026-09-03 | 1,710 | 598 | 27 | 127 | 2,335 | **74.4%** |
+| whole corpus, 2026-08-03 | 4,654 | 391 | 96 | 410 | 5,141 | **92.4%** |
+
+**Those two numbers are not comparable and the table is laid out to make that obvious.** The shard
+is an alphabetical slice, `nvme` through `work_steal_slot`, not a random sample; and thirteen of its
+twenty-one crates are marked `new` against the baseline, meaning they did not exist when the 92.4%
+was taken. So this is a rate for the crates written in the last month, mostly, and it is much worse
+than the tree's rate a month ago.
+
+**Where the drop is, precisely.** The crates that existed at baseline are roughly stable: `pci`
+improved (27 survivors to 17), `user_heap` improved (3 to 0), `video_terminal` and `page_frames` are
+unchanged, `paging` drifted 39 to 44 and `swish` 3 to 20. The collapse is entirely in crates that
+arrived without host tests:
+
+- **`system_initializer`: 0 caught, 191 missed.** Every mutant survives. Nothing in the host suite
+  would notice any of its functions returning the wrong thing.
+- **`uefi_loader`: 32 caught, 125 missed.**
+- `timetable` 134/48, `nvme` 109/21, `pgrep` 55/6, `ps` 40/6, `schedule_store` 29/8,
+  `work_steal_slot` 13/11.
+
+That is the finding, and it is one this milestone deliberately does not act on. `system_initializer`
+at 0 for 191 is a milestone of its own, not a line in a workflow repair.
+
+**What this does not say.** It does not re-read `design/fatal-risks.md`'s third risk, which is
+calef's, and it is not a whole-corpus number: three quarters of the corpus is still unmeasured since
+2026-08-03. What it removes is the reason the stale number was acceptable, which was that clause
+saying a refresh arrives on its own.
+
 ## Calibration: the exhaustive crates
 
 The roadmap block predicted `ntp_proto` and `gpt` would score near-perfectly as a check on the
