@@ -99,7 +99,7 @@ jobs:
             exit 0
           fi
           branch="metrics/weekly"
-          week="$(date -u +%G-W%V)"
+          week="$(date -u +%GW%V)"
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "$branch"
