@@ -307,6 +307,55 @@ before the first waiter is spawned, and the signalling is switched on last.
   the claim, mask and complete sequence (the GIC, the PLIC, the local APIC) is untouched. The
   experiment is about the wake protocol, and that is what it runs.
 
+## radon, on real silicon, 2026-09-03: the first run off a board
+
+**The first soak this project has run anywhere but QEMU**, and the number that matters is not the
+rate. It is the spread.
+
+Two runs, **the same card and the same build**, twenty minutes apart, both booted hands-free by
+milestone 218's (every boot of the VisionFive 2 needs a human typing four commands into U-Boot) boot
+script:
+
+| Run | First beat | Rate | Crossings by beat 12 |
+|---|---|---|---|
+| 13:04 | `rounds=918313` | **183,662/s** | ~3,000 |
+| 13:24 | `rounds=112960` | **22,592/s** | 47 |
+
+**Eightfold, and the machine was identical.** The boot tour's own pure-compute check is the control:
+6,904,828 and 7,271,375 iterations in the first run against 6,831,327 and 7,288,574 in the second,
+over the same fixed window, with 82 preemptions both times. Four cores online both times, same
+firmware, same timer. The CPU is not throttled; the workload's throughput changed and the machine
+did not.
+
+**Milestone 221 (the soak never crosses cores, so build the hook that makes it) predicted the shape
+and understated it.** Its `BUGS` records that the crossing count varies by more than 2x between
+identical runs and names the boot-time placement lottery. This is 8x, and it is on `rounds` rather
+than on `crossings`.
+
+**Why placement is the suspected cause and why that is still an inference.** Twenty-four threads,
+four groups of a responder, three callers, a grinder and a tick waiter, are placed across four cores
+at spawn and **nothing rebalances**, which is milestone 219's (the boot tour ends and the kernel
+halts, so there is nothing to soak) central finding and a deliberate design, per DECISIONS 138 (how
+a saturated workload is made to hand threads across cores). A core that draws two grinders starves
+its IPC threads, because a grinder is pure compute and never yields. **The soak prints six counters
+and does not print where a single thread is**, which is why this stays a hypothesis and why milestone
+240 (the soak reports what happened and not where, so an eightfold difference cannot be explained)
+exists.
+
+**What this does to a published rate.** A single run's figure is close to meaningless as a
+comparable number. Had the 13:04 run been taken as *"radon does 183,000 IPC round trips per second"*
+and set beside seL4's, it would have been a lucky draw reported as a measurement. **Any rate quoted
+from this instrument owes a distribution**, and it independently reaches the conclusion the section
+below reaches from the literature: more starts beat longer running.
+
+### A smaller effect, inside one boot
+
+Detaching `script/board-console` mid-run took the 13:04 boot from a steady **183,130/s to a steady
+194,000/s**, about 6%. Same boot, so placement was constant and the comparison is fair, which is
+more than can be said for the eightfold figure above. It is recorded because **a rate owes the
+regime it was measured in**: whether a reader was draining the serial port is part of the
+measurement. It has been seen once and is not confirmed.
+
 ## Why this extends `board_console` and not the other two instruments
 
 `script/repeat-under-load` and `script/interleaving-check` are the tree's existing load and
