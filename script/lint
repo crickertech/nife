@@ -122,13 +122,15 @@ cargo clippy -p kernel -p user -p user_rt --target aarch64-unknown-none-softfloa
 # where a reader checking what is covered will look.
 #
 # - **No `--all-targets`** on the kernel. Its test suite DOES compile and run for x86_64 now
-#   (170 pass, 67 skip), but `--all-targets` also builds the eight boot-mode feature targets, which
+#   (170 pass, 67 skip), but `--all-targets` also builds the nine build-mode feature targets, which
 #   is the next bullet's problem rather than this one's. `user` and `user_rt` below take
 #   `--all-targets`.
-# - **No feature loop for seven of the eight boot-mode features.** They fail on x86_64, measured,
+# - **No feature loop for seven of the nine build-mode features.** They fail on x86_64, measured,
 #   because each selects a boot path that needs an arch layer this port has not written. Adding
 #   them to the loop below would fail the gate for a reason the gate cannot fix.
-#   `bench` is the exception (DECISIONS §121's amendment, the TSS I/O-bitmap switch cost): milestone
+#   `bench` is one of the two exceptions (DECISIONS §121's amendment, the TSS I/O-bitmap switch
+#   cost); `cycle_counter_grant` is the other, and its own line below says why it is a different
+#   case rather than the same one. Of `bench`: milestone
 #   161 item 4 brought the scheduler up on this ISA, `kernel_main`'s x86_64 arm now diverges into
 #   `bench::run()` the same way the other two do, and it passes this same clippy line clean. Linted
 #   on its own line below rather than folded into the two-ISA loop above, because that loop's
@@ -162,11 +164,21 @@ echo "==> clippy: kernel (x86_64, the binary only; see the note above)"
 cargo clippy -p kernel --target x86_64-unknown-none -- \
     -D warnings -A dead_code -A clippy::reversed_empty_ranges
 
-# `bench` on x86_64, same flags, same reasoning: see the note above this block. The other six
-# boot-mode features (shell, initboot, icount, board, fastpath_pad) still fail on this
+# `bench` on x86_64, same flags, same reasoning: see the note above this block. The other
+# boot-mode features (shell, initboot, icount, board, fastpath_pad, soak) still fail on this
 # ISA and stay out of any loop until their own arch layer exists.
 echo "==> clippy: kernel --features bench (x86_64, the binary only; see the note above)"
 cargo clippy -p kernel --features bench --target x86_64-unknown-none -- \
+    -D warnings -A dead_code -A clippy::reversed_empty_ranges
+
+# `cycle_counter_grant` (milestone 237) on x86_64, and it is a second exception to the paragraph
+# above for a different reason than `bench`: it selects no boot path at all. It compiles milestone
+# 229's grant in and nothing else moves, so the port's own arm of it
+# (`arch::x86_64::timer::set_cycle_counter_grant`, the empty one DECISIONS 139 part 3 decided on)
+# is held to this ISA's bar rather than to nobody's. Same flags as the two lines above, and for the
+# same reasons: the `-A dead_code` is the partial boot's, not this feature's.
+echo "==> clippy: kernel --features cycle_counter_grant (x86_64, the binary only; see the note above)"
+cargo clippy -p kernel --features cycle_counter_grant --target x86_64-unknown-none -- \
     -D warnings -A dead_code -A clippy::reversed_empty_ranges
 
 # And userspace on the third architecture (milestone 161, item 4's hand-off). Held to the SAME bar
@@ -180,8 +192,8 @@ cargo clippy -p kernel --features bench --target x86_64-unknown-none -- \
 echo "==> clippy: user + user_rt (x86_64)"
 cargo clippy -p user -p user_rt --target x86_64-unknown-none --all-targets -- -D warnings
 
-# The kernel's boot-mode features (shell, bench, initboot, soak) each compile DIFFERENT code in and
-# out:
+# The kernel's build-mode features (shell, bench, initboot, soak, cycle_counter_grant) each compile
+# DIFFERENT code in and out:
 # `initboot` and `shell` drop the milestone tour, `bench` diverges before the boot entirely, and
 # `icount` (milestone 78) parks before `bench` does, which is the one configuration where
 # `bench::run` and everything after it is unreachable, and `soak` (milestone 219) takes the place of
@@ -199,11 +211,20 @@ cargo clippy -p user -p user_rt --target x86_64-unknown-none --all-targets -- -D
 # by `cargo xtask` and checked by nobody. Parity is a gate, not an aspiration (DECISIONS §19), and
 # that applies to the gate itself.
 for tgt in aarch64-unknown-none-softfloat riscv64imac-unknown-none-elf; do
-    for feat in shell bench initboot icount board fastpath_pad soak; do
+    for feat in shell bench initboot icount board fastpath_pad soak cycle_counter_grant; do
         echo "==> clippy: kernel --features $feat ($tgt)"
         cargo clippy -p kernel --features "$feat" --target "$tgt" -- -D warnings
     done
 done
+
+# `cycle_counter_grant` (milestone 237) is in the loop above for the reason `soak` is: it compiles
+# milestone 229's per-thread cycle-counter grant in, and a gated path rots unless something builds
+# it. **Bin-only is the interesting half here**, because the gate on every piece is
+# `any(test, feature = "cycle_counter_grant")`: the test target has `test` set, so `--all-targets`
+# would lint the configuration `script/test` already compiles and RUNS on all three architectures
+# every time anyone gates. The feature alone, with no `test`, is the configuration nothing else in
+# the tree ever builds, and it is the one where `grant_cycle_counter` becomes dead code with no test
+# caller. It is linted on the third architecture too, beside the `bench` line above.
 
 # watchdog_probe is the exception to "bin only" above: it gates a TEST (the livelock probe in
 # testing.rs), so it is invisible without --all-targets. Linted on both ISAs because an unlinted

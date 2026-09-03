@@ -162,6 +162,23 @@ mean, so the caveats are the substantive half of this section.
 - **The clock is assumed.** Every cycle figure above inherits a ~1.5x uncertainty from not knowing
   which core type the vCPU thread ran on. Milestone 74 (cycle counters) exists to retire this, and
   until it lands no cycle ratio from this note should be quoted tighter than "same order".
+- **Both sides will be measured in a benchmarking build, and ours is the slower one** (milestone
+  237, the cycle-counter grant as a measurement build). Reading `PMCCNTR_EL0` at EL0 needs milestone
+  229's per-thread grant, which the context switch enforces, and that grant is behind
+  `--features cycle_counter_grant` rather than in the shipping kernel: measured, it costs
+  `sched::schedule` 136 bytes, taking `script/fastpath-footprint`'s aarch64 `ipc_fastpath` closure
+  from 5852 to 5988. So **any cycle figure taken with the instrument on is slightly pessimistic
+  about nife**, and the direction is the right one to err in for a comparison we intend to publish.
+
+  This is the same rule milestone 221 (a soak that crosses cores) records for the soak, which is
+  that a soak number is comparable only with another soak number. It does not cut against us here,
+  because **seL4's published 413 and 426 come from a benchmarking build too**. `sel4bench` reads
+  `PMCCNTR_EL0` from user level, which on Arm needs `KernelArmExportPMUUser`, and seL4's own
+  configuration reference describes that option as *"Grant user access to the performance monitoring
+  unit. While useful for benchmarking, this option opens the possibility of timing channels"*, with
+  a default value of `OFF` (docs.sel4.systems/projects/sel4/configurations.html, read 2026-09-03).
+  So comparing our benchmark kernel against theirs is like for like; comparing our production kernel
+  against their benchmark one would not be.
 
 **The kernel-side number stays, and it is a real thing to know.** `ipc_rtt` at 46 ns (~130 to ~190
 cycles) is the honest cost of the kernel's own rendezvous, and it is the right instrument for the
