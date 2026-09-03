@@ -3982,6 +3982,18 @@ fn uefi_boot() -> bool {
     let output = match Command::new("scripts/qemu-uefi-x86_64.sh")
         .arg(esp_dir())
         .current_dir(workspace_root())
+        // **Two cores** (milestone 195), where every other x86_64 boot in this tree takes one.
+        // `arch::x86_64::ap_boot` copies its real-mode trampoline to physical 0x8000, a page no
+        // loader had ever asked the firmware for, so secondary cores under firmware worked or did
+        // not by luck. `uefi_loader` asks for it by name now and this is what checks that the
+        // asking worked. It also puts a second local APIC on the machine, which is the third thing
+        // milestone 215's BUGS listed as answerable only on xenon: whether a machine with more than
+        // one still delivers device interrupts to the boot core's id. The tour's `device irq` line
+        // is that answer.
+        //
+        // The suite below stays at one core, because the two-core AP defect this tour does not
+        // touch (`ap_boot`'s BUGS #3) fails one of its tests about half the time.
+        .env("NIFE_SMP", "2")
         .output()
     {
         Ok(o) => o,
@@ -3999,6 +4011,11 @@ fn uefi_boot() -> bool {
         "nife x86_64: boot complete, halting.",
         "(xsdt)",
         "pci         : ecam at",
+        // Two cores ONLINE, not two in the MADT: the difference is whether the trampoline page the
+        // loader asked for was actually usable. See the `NIFE_SMP` comment above.
+        "smp: 2 core(s) online",
+        // And a device interrupt still landing on the boot core with two local APICs present.
+        "device irq  : pit irq 0 -> gsi 2",
     ] {
         if !transcript.contains(wanted) {
             eprintln!("uefi-boot: the boot transcript is missing {wanted:?}");
@@ -4048,7 +4065,7 @@ fn uefi_boot() -> bool {
 ///   calef carries to the bench; a regression that only the shipping image has would otherwise be
 ///   gated by nothing.
 fn uefi_test() -> bool {
-    if !initrd_x86() {
+    if !initrd_x86() || !mkdisk() || !mknvmedisk() {
         return false;
     }
     let Some(kernel) = kernel_test_elf(X86_TARGET, "uefi-test") else {
@@ -4067,6 +4084,23 @@ fn uefi_test() -> bool {
     let output = match Command::new("scripts/qemu-uefi-x86_64.sh")
         .arg(uefi_test_esp_dir())
         .current_dir(workspace_root())
+        // **The devices the PVH runner attaches** (milestone 195), which the tour above needs none
+        // of. They close the second of the three things milestone 215's BUGS listed as answerable
+        // only on xenon: a PCI function whose BARs were placed by FIRMWARE rather than by this
+        // kernel's own bus walk. Under `-kernel` the kernel assigns them itself, so "the driver can
+        // reach an MSI-X table a bus walk found" and "the driver can reach one it put there" were
+        // the same sentence.
+        //
+        // **One core here, two in the tour above**, and the split is a known defect rather than a
+        // preference: `every_secondary_runs_scheduled_work` fails about half the time at two cores
+        // on this architecture (`arch::x86_64::ap_boot`'s BUGS #3), which is why the PVH runner
+        // defaults to one as well. The tour does not run that test, so it is where the second core
+        // is gated.
+        //
+        // `NIFE_DISK` and `NIFE_NVME` are already set by `test()` for the PVH leg that ran just
+        // above, so this inherits them; they are named here only for a bare `cargo xtask uefi-test`.
+        .env("NIFE_DISK", disk_path())
+        .env("NIFE_NVME", nvme_disk_path())
         .output()
     {
         Ok(o) => o,

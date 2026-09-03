@@ -44,10 +44,11 @@
 //! - **Nothing here verifies what it hands over.** The kernel and the archive are bytes this binary
 //!   was compiled with, so the trust boundary is the build. `measured_boot`'s manifest is not
 //!   consulted.
-//! - **AP bring-up is untested under UEFI.** `arch::x86_64::ap_boot` copies its real-mode trampoline
-//!   to physical `0x8000`, which is memory this loader never asked the firmware for. The runner and
-//!   the bench procedure both boot one core, so nothing has exercised it; asking the firmware for
-//!   that page here is the fix if it turns out to matter.
+//! - **AP bring-up under UEFI is proved on OVMF and nowhere else** (milestone 195). This loader now
+//!   asks the firmware for physical `0x8000` by name, and `cargo xtask uefi-test` boots two cores
+//!   through OVMF and asserts both come online. What that does not establish is any *other*
+//!   firmware's low-memory habits: on a machine that refuses the page this loader says so and boots
+//!   one core, which is a report rather than a fix.
 //! - **The `hvm_start_info` command line is empty.** PVH carries one and the kernel ignores it, so
 //!   there is nowhere yet for a boot argument to come from or go to.
 
@@ -97,6 +98,15 @@ const PAGE: u64 = 4096;
 /// paging off, which is the state `_start` is entered in. A `hvm_start_info` at 5 GiB would be a
 /// pointer the kernel's trampoline literally cannot load.
 const BELOW_4G: u64 = 0xffff_ffff;
+
+/// **The page a STARTUP IPI can name**, which the kernel's AP bring-up copies its real-mode
+/// trampoline into.
+///
+/// It is `AP_TRAMPOLINE_PHYS` in `kernel/link-x86_64.ld` and `.ap_trampoline`'s link address in the
+/// kernel image, so the two files name one number. It is not part of the kernel's `p_paddr` span
+/// (that section is linked low and *loaded* beside `.rodata`), which is why the span allocation
+/// above does not cover it and this loader has to ask for it separately.
+const AP_TRAMPOLINE_PHYS: u64 = 0x8000;
 
 /// Slack, in descriptors, added to the memory map buffer between the sizing call and the real one.
 ///
@@ -150,9 +160,9 @@ fn load(handle: Handle, table: &SystemTable, services: &BootServices) -> Result<
         .ok_or("the embedded kernel has no loadable segments")?;
 
     // `AllocateAddress`, not `AllocateMaxAddress`: the kernel is linked for exactly this range
-    // (`kernel/link-x86_64.ld`'s `PHYS_START`) and there is nowhere else to put it. A firmware that
-    // has something of its own at 1 MiB fails HERE, with an address printed, rather than by
-    // silently overwriting whatever it was.
+    // (`kernel/link-x86_64.ld`'s `PHYS_START`, 32 MiB since milestone 195) and there is nowhere
+    // else to put it. A firmware that has something of its own there fails HERE, with the range and
+    // the offending descriptors printed, rather than by silently overwriting whatever it was.
     let mut kernel_base = span_start;
     let kernel_pages = ((span_end - span_start) / PAGE) as usize;
     if (services.allocate_pages)(
@@ -171,7 +181,7 @@ fn load(handle: Handle, table: &SystemTable, services: &BootServices) -> Result<
         // fact no amount of staring at the loader would have produced.
         say_span(table, "uefi_loader: wanted ", span_start, span_end);
         say_conflict(table, services, span_start, span_end);
-        return Err("the firmware would not give up the kernel's load range at 1 MiB");
+        return Err("the firmware would not give up the kernel's load range");
     }
 
     // Zero the whole span before copying anything, which is what makes every `.bss` and every
@@ -195,6 +205,42 @@ fn load(handle: Handle, table: &SystemTable, services: &BootServices) -> Result<
                 segment.data.len(),
             );
         }
+    }
+
+    // --- 2b. The page the kernel's AP bring-up needs, asked for by name ---
+    //
+    // A STARTUP IPI names a physical PAGE below 1 MiB (`vector << 12`), so `arch::x86_64::ap_boot`
+    // copies its real-mode trampoline to a fixed low address that `kernel/link-x86_64.ld` picks at
+    // link time (`AP_TRAMPOLINE_PHYS`). Until milestone 195 this loader never mentioned that page,
+    // and secondary cores under firmware therefore worked or did not by luck: OVMF happens to leave
+    // the first 640 KiB conventional, and a firmware that did not would have been discovered by a
+    // core that started executing something else's bytes in real mode.
+    //
+    // **A refusal is not fatal, and that asymmetry is deliberate.** A single-core boot on a machine
+    // whose firmware wants this page is far more useful than no boot at all, and the kernel brings
+    // up secondaries only when it is asked to. So this says what it found and carries on; the
+    // person at the bench gets the one line that explains why `smp: 1 core(s) online` on a machine
+    // with eight.
+    let mut ap_page = AP_TRAMPOLINE_PHYS;
+    if (services.allocate_pages)(ALLOCATE_ADDRESS, memory_type::LOADER_DATA, 1, &mut ap_page)
+        != SUCCESS
+    {
+        say_span(
+            table,
+            "uefi_loader: WARNING no AP trampoline page at ",
+            AP_TRAMPOLINE_PHYS,
+            AP_TRAMPOLINE_PHYS + PAGE,
+        );
+        say_conflict(
+            table,
+            services,
+            AP_TRAMPOLINE_PHYS,
+            AP_TRAMPOLINE_PHYS + PAGE,
+        );
+        say(
+            table,
+            "uefi_loader: secondary cores will not be brought up\r\n",
+        );
     }
 
     // --- 3. The userspace archive, if this build has one ---

@@ -29,10 +29,10 @@
 //! # BUGS
 //!
 //! - **Segments must not overlap the loader's own image**, and nothing checks it. The kernel's
-//!   `p_paddr` span is fixed by `kernel/link-x86_64.ld` at 1 MiB and the firmware is asked for
-//!   exactly that range with `AllocateAddress`, so a conflict surfaces as an allocation failure
-//!   with a printed address rather than as corruption. That is the check, and it is the firmware's
-//!   rather than this module's.
+//!   `p_paddr` span is fixed by `kernel/link-x86_64.ld`'s `PHYS_START` and the firmware is asked
+//!   for exactly that range with `AllocateAddress`, so a conflict surfaces as an allocation failure
+//!   with the range and the descriptors in the way printed, rather than as corruption. That is the
+//!   check, and it is the firmware's rather than this module's.
 //! - **`Elf::parse`'s overlap check is over `p_vaddr`, not `p_paddr`.** For a program that is the
 //!   same question; for this image the two differ, so nothing rejects a linker script that made two
 //!   segments' *physical* ranges collide. The single `AllocateAddress` call above would still
