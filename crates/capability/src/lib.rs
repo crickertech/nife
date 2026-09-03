@@ -248,6 +248,14 @@ pub enum Error {
 /// space *is*. If we ever need the sparse version, it is a change to this file and nothing else.
 pub struct CapabilityTable<O, const N: usize> {
     slots: [Option<Cap<O>>; N],
+    /// How many of [`slots`](Self::slots) are occupied right now. Maintained by the mutators rather
+    /// than counted on demand, because the thing that wants it is a high-water mark and a mark
+    /// sampled at a convenient moment is not one.
+    used: u16,
+    /// The largest [`used`](Self::used) this table has ever held. **Never decreases**, which is the
+    /// whole point: the number a boot reports is what it *reached*, not what it happens to be
+    /// holding when somebody looks. See [`peak`](Self::peak) and [`highest_seen`].
+    peak: u16,
 }
 
 impl<O: Copy, const N: usize> Default for CapabilityTable<O, N> {
@@ -265,6 +273,21 @@ impl<O: Copy, const N: usize> CapabilityTable<O, N> {
     pub const fn new() -> Self {
         CapabilityTable {
             slots: [const { None }; N],
+            used: 0,
+            peak: 0,
+        }
+    }
+
+    /// **Record that this table just grew, and remember the ceiling it grew against.**
+    ///
+    /// One private call site per mutator that can occupy an empty slot, which is what makes this
+    /// rung one of `AGENTS.md`'s ladder rather than rung four: there is no way to fill a slot in
+    /// this type without passing through here, so nobody has to remember to count.
+    fn grew(&mut self) {
+        self.used += 1;
+        if self.used > self.peak {
+            self.peak = self.used;
+            note_peak(self.peak, N);
         }
     }
 
@@ -308,6 +331,7 @@ impl<O: Copy, const N: usize> CapabilityTable<O, N> {
             .position(|s| s.is_none())
             .ok_or(Error::NoFreeSlot)?;
         self.slots[slot] = Some(cap);
+        self.grew();
         Ok(slot as u64)
     }
 
@@ -323,13 +347,18 @@ impl<O: Copy, const N: usize> CapabilityTable<O, N> {
             return Err(Error::NoFreeSlot);
         }
         *s = Some(cap);
+        self.grew();
         Ok(slot)
     }
 
     /// Put a capability in a specific slot, replacing whatever was there.
     pub fn put(&mut self, slot: u64, cap: Cap<O>) -> Result<(), Error> {
         let s = self.slots.get_mut(slot as usize).ok_or(Error::NoSuchSlot)?;
+        let was_empty = s.is_none();
         *s = Some(cap);
+        if was_empty {
+            self.grew();
+        }
         Ok(())
     }
 
@@ -359,7 +388,20 @@ impl<O: Copy, const N: usize> CapabilityTable<O, N> {
     pub fn delete(&mut self, slot: u64) -> Result<(), Error> {
         let s = self.slots.get_mut(slot as usize).ok_or(Error::NoSuchSlot)?;
         s.take().ok_or(Error::NoSuchSlot)?;
+        self.used -= 1;
         Ok(())
+    }
+
+    /// How many slots are occupied right now.
+    pub fn used(&self) -> usize {
+        self.used as usize
+    }
+
+    /// **The most slots this table has ever held at once**, which is the number a capacity decision
+    /// is actually made against. `used` at any given moment is whatever the last few calls left
+    /// behind; this is the wall the table came closest to.
+    pub fn peak(&self) -> usize {
+        self.peak as usize
     }
 
     /// Delete every occupied slot whose object satisfies `matches`, in place. The revocation
@@ -372,9 +414,54 @@ impl<O: Copy, const N: usize> CapabilityTable<O, N> {
         for s in self.slots.iter_mut() {
             if matches!(s, Some(c) if matches(&c.object)) {
                 *s = None;
+                self.used -= 1;
             }
         }
     }
+}
+
+/// **The high-water mark across every capability table in this binary, and the ceiling it was
+/// measured against** (milestone 231).
+///
+/// Packed into one `AtomicU32` (`peak << 16 | ceiling`) so a reader gets a pair that were true at
+/// the same instant. Both halves fit: a capability table is a const-generic array and `N` is a
+/// small number, and [`note_peak`] saturates rather than wrapping if anyone ever makes one that
+/// does not fit.
+///
+/// **Why a global at all.** The per-table [`CapabilityTable::peak`] is the honest record and this
+/// is a convenience over it: the kernel wants to know *that the mark moved* without walking 256
+/// thread tables under the scheduler lock on every idle pass, and a single atomic answers that in
+/// one load. Nothing here decides anything; `kernel/src/sched.rs`'s idle loop is the only reader,
+/// and all it does is print.
+///
+/// # BUGS
+///
+/// **It does not say which table.** A `static` cannot be keyed by a const generic, so this is one
+/// number for every instantiation of [`CapabilityTable`] linked into the binary. The kernel has
+/// exactly one (`kernel::cap::CapabilityTable`, `N = 24`), so there the number is unambiguous; a
+/// host test binary that exercises several sizes will see whichever one climbed highest, and the
+/// `ceiling` half tells a reader which. Finding the owning thread means the scan this exists to
+/// avoid, and `kernel/src/sched.rs` does it once, only when it is about to print.
+static PEAK: core::sync::atomic::AtomicU32 = core::sync::atomic::AtomicU32::new(0);
+
+/// Raise [`PEAK`] if `peak` beats what is recorded. Called from [`CapabilityTable`]'s one private
+/// growth path, so it cannot be forgotten.
+fn note_peak(peak: u16, ceiling: usize) {
+    use core::sync::atomic::Ordering;
+    let ceiling = core::cmp::min(ceiling, u16::MAX as usize) as u32;
+    let packed = ((peak as u32) << 16) | ceiling;
+    // `fetch_max` rather than a compare-exchange loop: the packed word puts the peak in the high
+    // half, so numeric max IS max-by-peak, and the ceiling that rides along is the one belonging to
+    // the table that set the record.
+    PEAK.fetch_max(packed, Ordering::Relaxed);
+}
+
+/// **The highest occupancy any capability table has reached, and that table's capacity.**
+///
+/// `(0, 0)` before anything has ever been inserted. See [`PEAK`] for the caveat about which table.
+pub fn highest_seen() -> (usize, usize) {
+    let packed = PEAK.load(core::sync::atomic::Ordering::Relaxed);
+    ((packed >> 16) as usize, (packed & 0xffff) as usize)
 }
 
 /// Machine-checked proofs of the capability model (DECISIONS §14, the verification thesis).

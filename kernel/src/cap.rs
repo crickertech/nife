@@ -199,6 +199,106 @@ const _: () = assert!(core::mem::size_of::<Cap>() == 32);
 pub const CAPABILITY_TABLE_SLOTS: usize = 24;
 pub type CapabilityTable = capability::CapabilityTable<Object, CAPABILITY_TABLE_SLOTS>;
 
+/// **What a real interactive boot actually reaches**, and the number the three slots of headroom
+/// above it were measured from (milestone 231).
+///
+/// Twenty-one, in init, during `build_child` for `credentialer`: twelve capabilities that process
+/// never gives back, the login block's own six, and the address space and page the loader is
+/// working through. Milestone 230 established it by instrumenting four boots; nothing in the tree
+/// could see it, which is why every raise of [`CAPABILITY_TABLE_SLOTS`] before that one was
+/// reactive, after a silent failure that named something else.
+///
+/// **This is a record, not a target**, on exactly the terms as the `size_of` assertions above: the
+/// point is that a reader quoting it gets the number the machine agrees with. [`report_peak`] is
+/// what keeps it honest, by saying on the console when a boot goes past it, and
+/// `script/shell-check` fails on that sentence. When it fires, measure, update this, and re-read
+/// the headroom arithmetic in [`CAPABILITY_TABLE_SLOTS`]'s own doc rather than raising that
+/// constant reflexively.
+///
+/// The check is deliberately against **this** rather than against the ceiling. Failing at the
+/// ceiling would be a check that only ever fires on a boot that has already died, and failing at
+/// some fraction of it would be a margin picked out of the air, which is the shape this tree has
+/// deleted three `script/lint` checks for. A recorded measurement going stale is neither: it is a
+/// fact about the tree that stopped being true.
+pub const CAPABILITY_TABLE_PEAK_MEASURED: usize = 21;
+
+// The headroom milestone 230 left is what this pair means, so the two cannot silently invert.
+const _: () = assert!(CAPABILITY_TABLE_PEAK_MEASURED < CAPABILITY_TABLE_SLOTS);
+
+/// The highest peak [`report_peak`] has already said out loud, so the same number is not printed
+/// twice by two cores or on two passes.
+static PEAK_REPORTED: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
+
+/// What the previous idle pass saw, which is half of the coalescing. See [`report_peak`].
+static PEAK_LAST_PASS: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
+
+/// How many consecutive idle passes have seen the same peak. The other half of the coalescing.
+static PEAK_STABLE_PASSES: core::sync::atomic::AtomicUsize =
+    core::sync::atomic::AtomicUsize::new(0);
+
+/// How still the mark has to be before [`report_peak`] believes the climb is over.
+///
+/// **Measured, and the measurement is the whole argument.** With this at one, an aarch64
+/// interactive boot printed six lines (4, 5, 12, 14, 16, 21 of 24): init blocks on IPC several
+/// times while it is building the login stack, so the machine goes idle mid-climb and each pause
+/// looked like an ending. At sixteen it prints one, and the number it prints is the same 21.
+///
+/// It is a coalescing window rather than a threshold on the thing being measured, which is why it
+/// is not the kind of guessed margin `CAPABILITY_TABLE_PEAK_MEASURED`'s own doc refuses. Getting it
+/// wrong costs an extra printed line or a later one; it cannot make the reported peak wrong,
+/// because the peak itself never decreases.
+const PEAK_STABLE_PASSES_NEEDED: usize = 16;
+
+/// **Say what the boot's capability-slot high-water mark is, once it has stopped moving**
+/// (milestone 231).
+///
+/// Called from the scheduler's idle loop, which is the one place in the kernel that is reached
+/// after every phase of a boot and is by definition not busy. Two atomics turn a mark that climbs
+/// once per grant into one printed line:
+///
+/// - **It waits for the mark to go still**, [`PEAK_STABLE_PASSES_NEEDED`] idle passes with the same
+///   number. A peak that moved is still climbing, so this resets and looks again. Init blocks on
+///   IPC several times while building the login stack, so a shorter window mistakes each of those
+///   pauses for an ending; that constant's own doc carries the measurement.
+/// - **It never repeats a number.** `fetch_max` gives exactly one caller a previous value below
+///   the new peak, so a four-core machine prints one line rather than four.
+///
+/// The number reported is `capability::highest_seen`'s, which is the highest any table has reached
+/// rather than any particular thread's. Finding the owning thread means walking every thread under
+/// the scheduler lock; that is a scan this deliberately does not do, and the omission is in this
+/// module's BUGS.
+pub fn report_peak() {
+    use core::sync::atomic::Ordering;
+    let (peak, ceiling) = capability::highest_seen();
+    if peak == 0 {
+        return;
+    }
+    if PEAK_LAST_PASS.swap(peak, Ordering::Relaxed) != peak {
+        PEAK_STABLE_PASSES.store(0, Ordering::Relaxed);
+        return;
+    }
+    if PEAK_STABLE_PASSES.fetch_add(1, Ordering::Relaxed) < PEAK_STABLE_PASSES_NEEDED {
+        return;
+    }
+    if PEAK_REPORTED.fetch_max(peak, Ordering::Relaxed) >= peak {
+        return;
+    }
+    // **The recorded-measurement arm is not compiled into the test kernel**, and the reason is that
+    // it would be true and misleading there. `CAPABILITY_TABLE_PEAK_MEASURED` is the interactive
+    // boot's number; the guest test suite runs a different and much larger workload through the same
+    // kernel, so a test run going past twenty-one says nothing at all about the boot the constant
+    // describes. The gauge itself still prints, because the gauge is honest under any workload.
+    #[cfg(not(test))]
+    if peak > CAPABILITY_TABLE_PEAK_MEASURED {
+        crate::println!(
+            "  capability slots: {peak} of {ceiling} at peak, ABOVE the \
+             {CAPABILITY_TABLE_PEAK_MEASURED} recorded in kernel/src/cap.rs"
+        );
+        return;
+    }
+    crate::println!("  capability slots: {peak} of {ceiling} at peak");
+}
+
 // The ABI names the reserved fault slot as `CAPABILITY_TABLE_SLOTS - 1`, so the two constants
 // must agree or the kernel would read the fault endpoint from a different slot than the
 // supervisor wrote it to.
