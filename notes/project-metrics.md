@@ -261,11 +261,14 @@ idempotence; for the current week it is `HEAD`, and the row moves as work lands.
   the current week's row records the commit it was taken at, so a gate on it would fail every pull
   request that touched anything. The workflow is the mechanism; this is rung two of `AGENTS.md`'s
   ladder declining to be rung one, said out loud rather than left as an omission.
-- **The definitions are copied, not shared.** The `unsafe` census, the code and comment line split
-  and the harness count reproduce derivations that live inside `script/lint`'s and
-  `script/falsifications`' `#!/bin/sh` heredocs, where nothing can import them. If either changes its
-  definition, this page keeps the old one silently and diverges from the gate with nothing firing.
-  Lifting them into one place is real work and is proposed rather than done.
+- **Two of the three definitions are now shared, and the third is checked instead** (milestone 236,
+  2026-09-03). The `unsafe` census and the comment-and-literal strip the code and comment line split
+  is built on live in `scripts/rust_source.py`, which `script/lint` and this script both import, so
+  there is one definition and nothing left to drift. The harness count could not be collapsed the
+  same way: `script/lint` and `script/falsifications` attribute each harness to a workspace package
+  out of `cargo metadata`, and this script reads blobs at revisions nobody has checked out and
+  cannot run cargo against them. `script/lint` runs all three derivations and fails on a
+  disagreement, which is the weaker answer and is said to be the weaker answer.
 - **A line inside a multi-line string literal counts as a comment line.** Wrong in principle,
   negligible in this tree.
 - **The charts follow the reader's operating system colour preference, not GitHub's theme toggle.**
