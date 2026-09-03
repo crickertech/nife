@@ -41,6 +41,45 @@ silent**, and a panic there produces nothing at all. This is not a nife peculiar
 commodity operating systems ship a firmware console, a splash, or postmortem logging. **nife has
 none of the three.**
 
+## The fleet this unlocks, which calef named on the day this was minted
+
+> if I can boot a nife system off of a USB drive, then that opens up a lot of different hardware in
+> our house that I can use for testing: Graeme's laptop, his desktop, cordoba, two MacBooks, Clay's
+> desktop
+>
+> -- calef, 2026-09-03
+
+**That fleet is already reachable and nobody had noticed.** Milestone 87 (the x86_64 bare-metal
+machine) boots from a FAT32 stick at `\EFI\BOOT\BOOTX64.EFI`, which is the removable-media
+fallback **every** UEFI firmware looks for with no configuration. Nothing about it is specific to
+xenon.
+
+**And `uefi_loader` already writes to the firmware's `ConOut`**, so on any UEFI x86_64 machine a nife
+stick prints to the monitor with no driver of ours, right up to `ExitBootServices`. After that the
+kernel takes over and the machine goes silent, which is exactly this milestone.
+
+**So the blocker on using those machines is this block and not milestone 242** (USB host and HID,
+because on commodity hardware the keyboard is not a UART). **A boot test needs output, not input.**
+
+Two qualifications, both worth stating rather than discovering:
+
+- **The Apple Silicon MacBooks are not in this fleet, and not for the reason first given.** They boot
+  non-Apple kernels legitimately, and `notes/target-hardware.md` records that Asahi Linux is built on
+  a documented permissive-security mode with an Apple-signed `m1n1` payload. But they have **no
+  UEFI**, so a `BOOTX64.EFI` stick will not start one: that is a port, filed in that note as
+  "possibly the fifth", not a boot. An Intel MacBook is in the fleet. Worth knowing for later: m1n1
+  offers a serial console over USB-C, which is more than any commodity x86 machine here offers.
+- **Milestone 195 (finish the UEFI boot path) created a question each machine answers for itself**:
+  `PHYS_START` moved from 1 MiB to 32 MiB because OVMF holds ACPI NVS and its own allocations across
+  the low range. Whether a given machine leaves 32 MiB free is that machine's answer, and the loader
+  now prints which range it wanted and which descriptors are in the way rather than `Load Error`.
+
+**The cheap experiment this makes available:** build a stick, boot one of those machines, and read
+what the loader says on the screen. Even with the kernel silent afterwards, that establishes whether
+the firmware finds the stick, whether Secure Boot refuses it, and what the memory map looks like away
+from OVMF. **A loader that prints and a kernel that then goes quiet is this milestone confirmed by
+evidence rather than by reasoning.**
+
 ## Why it is worth one block rather than three
 
 Because the answer might be one mechanism. A kernel that can write its diagnostics somewhere other
