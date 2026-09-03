@@ -26,9 +26,9 @@
 #     in CI and stored nowhere, so backfilling it means a full instrumented build at every one of the
 #     history's checkouts. Nothing here is allowed to build (see `--backfill` below), so the column
 #     starts empty and is filled going forward from an lcov file the caller already has.
-#   - **No plotting dependency.** DECISIONS §46 (taking a dependency is a decision, not a
-#     convenience) makes that a decision rather than a shortcut, and a stacked bar is string
-#     formatting. The SVGs below are written by hand and a diff can review them.
+#   - **No plotting dependency.** DECISIONS §46 (thin primitives or whole subsystems, and we
+#     write everything in between) makes taking one a decision rather than a shortcut, and a
+#     stacked bar is string formatting. The SVGs below are written by hand and a diff can review them.
 #
 # Usage:
 #
@@ -41,6 +41,12 @@
 #
 #   --coverage-from <lcov.info>    fill the coverage cell from an lcov file the caller produced
 #                                  (`script/coverage` writes target/llvm-cov/lcov.info)
+#
+# **Two spellings of a week, on purpose.** The CSV's `week` column is `2026-W36`, ISO 8601's own
+# designation: a form a reader knows from outside, which sorts lexically and is the dictionary key
+# the idempotence below rests on. A chart's x axis says `202636` instead (calef, 2026-09-02). The
+# label is derived from the key by one function rather than stored beside it, so the two cannot
+# drift apart.
 #
 # **Idempotence, which is the property the weekly workflow rests on.** The CSV is never appended
 # to. It is read into a dict keyed by ISO week, the week being written replaces its own entry, and
@@ -97,6 +103,7 @@ set -e
 cd "$(dirname "$0")/.."
 
 exec python3 - "$@" <<'PYEOF'
+import math
 import pathlib
 import re
 import subprocess
@@ -470,7 +477,8 @@ def write_csv(rows):
 #
 # GitHub will not render an interactive chart, and it will not run a script in a markdown page, so
 # a committed SVG is the only thing a reader actually sees. Written by hand rather than by a
-# plotting crate: DECISIONS §46 makes a dependency a decision, and a stacked bar is arithmetic and
+# plotting crate: DECISIONS §46 (thin primitives or whole subsystems, and we write everything in
+# between) makes taking one a decision, and a stacked bar is arithmetic and
 # string formatting. The side benefit is that a diff can review one, which a binary PNG refuses.
 #
 # Colours are Okabe-Ito, chosen because they hold their distinctions for the common forms of colour
@@ -480,12 +488,28 @@ def write_csv(rows):
 PALETTE = ['#0072B2', '#E69F00', '#009E73', '#CC79A7',
            '#56B4E9', '#D55E00', '#F0E442', '#999999']
 
-CHART_W, CHART_H = 820, 380
-PAD_L, PAD_R, PAD_T, PAD_B = 64, 190, 58, 56
+CHART_W, CHART_H = 860, 380
+PAD_L, PAD_R, PAD_T, PAD_B = 64, 210, 58, 56
 
 
 def esc(text):
     return (text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;'))
+
+
+def week_label(week):
+    """`2026-W36` becomes `202636` on a chart axis. calef's call, 2026-09-02.
+
+    **The CSV deliberately does NOT follow.** Its `week` column stays `2026-W36`, which is ISO
+    8601's own designation for a week: a form a reader already knows from outside this project,
+    which sorts lexically, and which cannot be mistaken for an ordinary number the way a bare
+    `202636` can. It is also the dictionary key that makes a rerun replace a row instead of adding
+    one, so leaving it alone is what keeps the idempotence argument intact through this change.
+
+    A label a person reads and a key a script parses do not have to be the same string. This is the
+    one place they differ, it is one function wide, and the axis is derived from the key rather than
+    stored beside it, so they cannot drift apart.
+    """
+    return week.replace('-W', '')
 
 
 def svg_chart(title, subtitle, weeks, series, path, ceiling=None):
@@ -496,13 +520,18 @@ def svg_chart(title, subtitle, weeks, series, path, ceiling=None):
     """
     totals = [sum(s[1][i] for s in series) for i in range(len(weeks))]
     top = max(totals + ([ceiling] if ceiling else []) + [1])
-    # Round the axis up to something a person reads: 1, 2 or 5 times a power of ten.
-    step = 10 ** (len(str(int(top))) - 1)
-    for factor in (1, 2, 5, 10):
-        if step * factor * 4 >= top:
-            step *= factor
-            break
-    axis_top = step * 4 if step * 4 >= top else top
+    # An axis a person reads: gridlines at 1, 2, 2.5 or 5 times a power of ten, and whichever of
+    # four, five or six intervals wastes the least height. Four alone rounds 231 up to 400.
+    axis_top, ticks = None, 4
+    for count in (4, 5, 6):
+        raw = top / count
+        magnitude = 10.0 ** math.floor(math.log10(raw)) if raw > 0 else 1.0
+        for factor in (1, 2, 2.5, 5, 10):
+            if magnitude * factor >= raw:
+                candidate = magnitude * factor * count
+                break
+        if axis_top is None or candidate < axis_top:
+            axis_top, ticks = candidate, count
     plot_w = CHART_W - PAD_L - PAD_R
     plot_h = CHART_H - PAD_T - PAD_B
     slot = plot_w / max(len(weeks), 1)
@@ -527,8 +556,8 @@ def svg_chart(title, subtitle, weeks, series, path, ceiling=None):
            '<text class="mut" x="%d" y="44" font-size="11">%s</text>'
            % (PAD_L - 44, esc(subtitle))]
 
-    for tick in range(5):
-        value = axis_top * tick / 4
+    for tick in range(ticks + 1):
+        value = axis_top * tick / ticks
         y = y_of(value)
         out.append('<line class="grid" x1="%d" y1="%.1f" x2="%.1f" y2="%.1f" '
                    'stroke-width="1"/>' % (PAD_L, y, PAD_L + plot_w, y))
@@ -548,7 +577,7 @@ def svg_chart(title, subtitle, weeks, series, path, ceiling=None):
                        % (x, y_of(base + value), bar_w, height, PALETTE[j % len(PALETTE)]))
             base += value
         out.append('<text class="mut" x="%.1f" y="%d" font-size="10" text-anchor="middle">%s</text>'
-                   % (x + bar_w / 2, PAD_T + plot_h + 18, esc(week)))
+                   % (x + bar_w / 2, PAD_T + plot_h + 18, esc(week_label(week))))
         if totals[i]:
             out.append('<text class="fg" x="%.1f" y="%.1f" font-size="10" '
                        'text-anchor="middle">%s</text>'
