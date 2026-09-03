@@ -155,8 +155,8 @@ An inventory that stopped at `script/` and `.github/` would miss the two mechani
 Six checks pass for reasons narrower than their names. Every one of these is already recorded
 somewhere in the tree; collecting them is the point.
 
-- **`build + test (host + QEMU)`, `bench`, `coverage`, `cpu matrix` and `verify (Kani proofs)` are
-  green-by-skip on a documentation-only change.** Each guards its *steps* on a predicate
+- **`build + test (host + QEMU)`, `cpu matrix`, `bench`, `fuzz` and `coverage` are green-by-skip on
+  a documentation-only change.** Each guards its *steps* on the same predicate
   (`^(notes/|design/|[A-Z_]+\.md$)`) while the job still runs, deliberately, because a required
   check that never reports jams the queue forever. A pull request touching only `notes/` and
   `design/` therefore collects five green required checks that executed nothing. That is correct
