@@ -93,6 +93,21 @@ state() {
 	fi
 }
 
+# **A scheduled workflow's red is invisible to `state()` above, structurally rather than by
+# oversight**, and that is why this second question is asked here (milestone 238). `state()` filters
+# runs to `headSha == main`'s current tip, which is the right filter for "is the trunk broken" and
+# the wrong one for a cadence: a weekly job's run matches the tip only until the next merge, and at
+# this tree's merge rate that window is minutes. So `mutation testing` failed four Mondays running
+# and this watcher, pointed straight at the same API, could not have seen any of them.
+#
+# `script/cadence-check` is where the judgment lives; this only decides when to speak. Same
+# transition discipline as RED/GREEN, for the same reason: a cadence that has been dead for a month
+# is one fact, not four hundred polls of it. `|| true` because a dead cadence is its exit 1 and this
+# script runs under `set -e`.
+cadence() {
+	script/cadence-check --quiet 2>/dev/null || true
+}
+
 if [ -n "$once" ]; then
 	s=$(state)
 	case "$s" in
@@ -100,10 +115,13 @@ if [ -n "$once" ]; then
 	GREEN*) echo "main is green at ${s#GREEN }" ;;
 	*) echo "main: ${s}" ;;
 	esac
+	c=$(cadence)
+	[ -n "$c" ] && printf '%s\n' "$c"
 	exit 0
 fi
 
 prev=""
+prev_cadence="unknown"
 while true; do
 	s=$(state)
 	case "$s" in
@@ -117,5 +135,18 @@ while true; do
 		;;
 	esac
 	prev="$s"
+
+	# Recovery is announced here too, and for the reason the header already gives about RED/GREEN: a
+	# watcher that only ever speaks on failure teaches its reader that silence means health, and
+	# silence is also what a dead watcher sounds like.
+	c=$(cadence)
+	if [ "$c" != "$prev_cadence" ]; then
+		if [ -n "$c" ]; then
+			printf '%s\n' "$c"
+		elif [ "$prev_cadence" != "unknown" ]; then
+			echo "every scheduled workflow is producing results again"
+		fi
+		prev_cadence="$c"
+	fi
 	sleep 90
 done

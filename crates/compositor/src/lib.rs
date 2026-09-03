@@ -1062,7 +1062,22 @@ mod tests {
         );
         composite(&mut screen, &refs, SCENE.len(), damage);
 
+        // 317,856 pixels, each with a call into `expected_screen_pixel`. Natively that is
+        // microseconds; under Miri's interpreter it measured **over 44 minutes and had not
+        // finished**, which is more than the whole weekly job's budget for one test (milestone
+        // 238). So it strides under `cfg(miri)`, the convention `glob` and `ntp_proto` already use.
+        //
+        // **The stride never skips a row the damage rectangle touches**, which is the half of this
+        // test that has something to prove: the damaged region is 9x7, so the composited-pixel
+        // check stays exhaustive and only the poison check outside it is sampled. A stride that
+        // thinned both halves would be sampling the claim rather than the work.
+        let stride = if cfg!(miri) { 37 } else { 1 };
+        let mut checked = 0usize;
         for y in 0..SCREEN_H {
+            let in_damage_row = (y as i32) >= damage.y && (y as i32) < damage.bottom();
+            if !in_damage_row && y % stride != 0 {
+                continue;
+            }
             for x in 0..SCREEN_W {
                 let got = screen[(y * SCREEN_W + x) as usize];
                 if damage.contains(x as i32, y as i32) {
@@ -1074,8 +1089,16 @@ mod tests {
                 } else {
                     assert_eq!(got, POISON, "outside the damage, ({x},{y}) was overwritten");
                 }
+                checked += 1;
             }
         }
+        // The completeness pin, the same one `glob` carries: a stride that silently stopped
+        // covering the screen would otherwise still pass.
+        assert_eq!(
+            checked,
+            if cfg!(miri) { 15_708 } else { SCREEN_PIXELS },
+            "the sweep did not cover what it claims to",
+        );
         // The damaged region is window 1's, and window 0 lies **underneath** it there, so the check
         // above is also a z-order check inside a damage rectangle: a compositor that painted the
         // windows in the wrong order, or stopped at the damaged one, would leave window 0's pixels

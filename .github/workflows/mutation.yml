@@ -13,24 +13,70 @@ name: mutation testing
 # weekly cron. It becomes a gate only if these numbers prove stable enough that a new survivor
 # deserves to fail something; that decision is on the record there, not here.
 #
-# Weekly rather than per-push for cost, sharded four ways for wall clock: the full run is ~6,000
-# mutants, each one a build plus a test run. Shards split the mutant list, not the crates, so the
-# four jobs finish together instead of one carrying filesystem_proto alone.
+# Weekly rather than per-push for cost, sharded eight ways for wall clock: the full run is **9,857
+# mutants** as of 2026-09-03, each one a build plus a test run, so about 1,230 to a shard. (It was
+# ~6,000 when this workflow was written a month earlier, which is the rate this tree grows at and
+# the reason the box below is generous.)
 #
-# BUGS: **this workflow has never once succeeded.** Four scheduled runs, 2026-08-10 through
-# 2026-08-31, every one red, found by milestone 232's audit (audit every check against two
-# questions: does anything run it, and does it block) on 2026-09-03. On the last run all four
-# shards died together about fourteen minutes in with `The runner has received a shutdown signal`,
-# which is the shape of a run being reclaimed rather than of a defect in a shard; on the three
-# before it, shard 4 died in about twenty seconds every time while its siblings ran for half an
-# hour. Whether that is a memory kill, an eviction, or something in `script/mutation --shard 4/4`
-# is open, and the step logs had aged out of `gh` by the time anyone looked.
+# **Shards split the mutant list, not the crates, and `round-robin` rather than the default
+# `slice`.** Mutant `i` goes to shard `i % 8`, so every shard holds a sample of every crate instead
+# of an alphabetical block of a few. Two things follow, and the second is why it changed. The jobs
+# finish together instead of one carrying `filesystem_proto` alone, which is what the original
+# four-way split was reaching for. And **a lost shard costs an eighth of every crate rather than all
+# of a few**: with `slice`, losing shard 1 on 2026-08-31 meant `gpt` and `grant_plan` went entirely
+# unmeasured and the surviving report could say nothing about them, where a round-robin loss leaves
+# every crate with seven eighths of its mutants and a rate still worth reading.
+#
+# BUGS: **this workflow had never once succeeded** before milestone 238. Four scheduled runs,
+# 2026-08-10 through 2026-08-31, every one red, found by milestone 232's audit (audit every check
+# against two questions: does anything run it, and does it block) on 2026-09-03. Two distinct
+# causes, and only one of them is fixed here:
+#
+#  1. **The shard indices were off by one, and that is repaired above.** `--shard 4/4` is not a
+#     shard; cargo-mutants counts from zero and rejects k >= n. So one job died in twenty seconds
+#     on every run, and shard 0 was never tested at all. `script/mutation` reported this correctly
+#     and loudly ("run FAILED (exit 1): this is a broken run, not a survivor count") to a scheduled
+#     job that nothing reads, which is the actual defect this milestone is about.
+#  2. **The surviving shards are killed by a single runaway mutant exhausting the machine's memory
+#     in about twenty seconds.** Measured 2026-09-03, and it is worth reading how, because the
+#     first instrumented run said the opposite and was believed for an hour.
+#
+#     At a 60-second sampling interval the evidence was unambiguous and wrong: shard 0 died 57
+#     seconds after a sample showing 14.7 GB of memory available of 16 and 107 GB of disk. Three
+#     shards, three samples, no pressure anywhere, so the conclusion drawn was runner eviction that
+#     nothing here could fix. **A sampler whose interval is longer than the event reports
+#     innocence.** At 10 seconds the same failure looks like this:
+#
+#         20:35:31  mem_used_mb=1352   mem_avail_mb=14595
+#         20:35:41  mem_used_mb=6335   mem_avail_mb=9611
+#         20:35:51  mem_used_mb=15763  mem_avail_mb=183
+#         20:36:16  The runner has received a shutdown signal
+#
+#     1.4 GB to 15.8 GB in twenty seconds, then the runner agent dies with the machine and takes
+#     every later step with it, `if: always()` included, which is why no artifact survives a
+#     terminated shard. **The per-mutant timeout cannot save this**: it is auto-derived at 28 to 51
+#     seconds on this tree, and 16 GB is gone well inside that. A mutant that turns a bound into an
+#     unbounded allocation is a hang the clock never gets to notice.
+#
+#     So `-j 2` is not the constraint and lowering it would not help: one runaway takes 14 GB by
+#     itself. **What is NOT yet built is a bound on what a single mutant may allocate**, which is
+#     the actual repair and is scoped as its own work rather than guessed at here; a memory cgroup
+#     around the run would turn a machine kill into an ordinary killed mutant and let the run
+#     continue.
+#
+#     **Until then the round-robin split is damage control, and the honest accounting is that it
+#     costs shards to buy a usable report.** Spreading the mutants spreads the runaways too, so more
+#     shards meet one: the four-way `slice` run lost 3 of 4, the eight-way round-robin run lost 7 of
+#     8. That trade is still worth taking, because the one surviving round-robin shard is a uniform
+#     eighth of every crate and yields a rate for the tree (83.4%, against a 92.4% baseline), where
+#     a surviving `slice` shard is an alphabetical block that can only speak for the crates inside
+#     it. A representative sample beats a complete answer about a fifth of the tree. Anyone
+#     reversing this should reverse it by fixing the allocation bound, not by going back to slices.
 #
 # The cost is not the missing weekly report. `design/fatal-risks.md`'s third risk stands at
 # MEASURED green on a 2026-08-03 number and closes by saying "the weekly workflow already publishes
 # the report", and that sentence is what makes a stale number acceptable. See
-# notes/check-inventory.md. Repairing this is a milestone of its own; the audit was forbidden from
-# growing into one.
+# notes/check-inventory.md and notes/mutation-testing.md.
 
 on:
   schedule:
@@ -50,10 +96,10 @@ concurrency:
 
 jobs:
   mutants:
-    name: "mutants (shard ${{ matrix.shard }}/4)"
+    name: "mutants (shard ${{ matrix.shard }}/8)"
     runs-on: ubuntu-24.04-arm
-    # A generous box around a run whose cost moves with the tree. Four shards of ~1,400 mutants
-    # each; the shard re-runs its own baseline build first, and a few mutants (dtb's walker, the
+    # A generous box around a run whose cost moves with the tree. Four shards of ~2,465 mutants
+    # each as of 2026-09-03; the shard re-runs its own baseline build first, and a few mutants (dtb's walker, the
     # calendar parser) legitimately burn their whole auto-timeout, two minutes and change apiece.
     # Under the 6-hour job ceiling so a hang still fails loudly rather than billing silent hours.
     #
@@ -62,8 +108,9 @@ jobs:
     # only thing that ends the run is cargo-mutants' per-mutant timeout. That timeout is auto-derived
     # from each package's own baseline test time (5x it, floor 20s), which on this tree came out at
     # 112 seconds, and 96 of those is nearly three hours of wall clock spent proving that infinite
-    # loops are infinite. Sharded four ways it is about 45 minutes a shard, which is why the box
-    # below is 330 minutes and not 90.
+    # loops are infinite. Sharded four ways that was about 45 minutes a shard when the corpus was
+    # ~6,000 mutants, which is why the box below is 330 minutes and not 90. The first shard ever to
+    # finish (2026-09-03, shard 3 of 4, 2,462 mutants) took 17m34s, so the box has room to spare.
     #
     # Do NOT remove the auto timeout, and think before overriding it with `--timeout`: too low and a
     # legitimately slow mutant is recorded as a hang it is not, which corrupts the one column of the
@@ -75,7 +122,24 @@ jobs:
       # of the report.
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        # **Zero-indexed, because cargo-mutants counts shards from zero.** `--shard k/n` requires
+        # k < n, so the old `[1, 2, 3, 4]` was two bugs wearing one costume: `--shard 4/4` was
+        # rejected as an invalid argument before a single mutant ran (the twenty-second death on
+        # every scheduled run since 2026-08-10), and `--shard 0/4`, the first quarter of the mutant
+        # list, was never run at all.
+        #
+        # The tool's own `--help` is what invited the mistake, and it is worth knowing before
+        # touching this line: it reads "specify as e.g. 1/4", which is a valid shard and reads
+        # exactly like a one-based first-of-four. Milestone 238.
+        #
+        # **Eight rather than four, and the reason is damage control rather than speed.** A shard
+        # dies when one mutant exhausts the machine's memory (see BUGS above), which eight shards
+        # do nothing to prevent. What they change is the cost of a death, and `round-robin` is the
+        # half that does the work: a lost shard takes an eighth of every crate rather than all of a
+        # few. The measured shard time is about 17 minutes at four ways and the overhead sharding
+        # pays is tiny, 3 seconds of baseline build and 6 of test per shard against that. Nothing is
+        # measured less; the same 9,857 mutants are attempted, in smaller pieces.
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
     steps:
       - uses: actions/checkout@v7
 
@@ -98,8 +162,35 @@ jobs:
       # script/mutation runs -j 2, and that bound is load-bearing here too: each job holds a full
       # tree copy with its own target/, and the run that established the baseline OOM-killed a
       # 16 GiB machine at -j 4. These runners have no more headroom than that.
+      #
+      # **The resource line is not noise, it is the only autopsy available.** Three
+      # of the four scheduled runs before milestone 238 ended with `The runner has received a
+      # shutdown signal` partway through, which terminates the runner agent itself: an `if: always()`
+      # step does not get to run, an artifact does not get uploaded, and the log stops at whatever
+      # the step had already printed. So the evidence has to be *in the stream* before the death
+      # rather than collected after it. `free` and `df` are one line every ten seconds against a job
+      # that costs hours, and if the next death is memory or disk the last line before the cut says
+      # so instead of leaving another lane to reproduce it.
+      #
+      # **Ten seconds rather than sixty, because sixty was measured and was too coarse.** On the
+      # first instrumented run (2026-09-03) shard 1 died 41 seconds after its last sample, and that
+      # sample showed 10.7 GB of memory free and 107 GB of disk: no pressure at all by the only
+      # evidence available, and yet the previous sample a minute before that showed usage climbing
+      # from 929 MB to 5,259 MB in sixty seconds. A sampler whose interval is longer than the event
+      # it is watching for reports innocence, which is worse than reporting nothing.
+      #
+      # Read it with the run's own conclusion: a `cancelled` step plus a falling `available` column
+      # is the runner being reclaimed for resource exhaustion, and a flat one is the host reclaiming
+      # the VM for its own reasons, which is not something this repository can fix.
       - name: Run this shard of the mutants
-        run: script/mutation --shard ${{ matrix.shard }}/4
+        run: |
+          while true; do
+            echo "[resource] $(date -u +%H:%M:%S) $(free -m | awk '/^Mem:/{print "mem_used_mb="$3" mem_avail_mb="$7}') $(df -m --output=avail / | tail -1 | awk '{print "disk_avail_mb="$1}')"
+            sleep 10
+          done &
+          sampler=$!
+          trap 'kill "$sampler" 2>/dev/null || true' EXIT
+          script/mutation --shard ${{ matrix.shard }}/8 --sharding round-robin
 
       # Uploaded even when the step above hiccups: a partial report beats none, and the report job
       # below states which shards it actually saw.
@@ -128,18 +219,40 @@ jobs:
         with:
           pattern: mutants-shard-*
           path: shards
+      # **Find the run directories by what is in them, not by where they were meant to land.**
+      # `set -- shards/mutants-shard-*` looked obviously right and had a failure mode nobody would
+      # guess: `download-artifact` gives each artifact its own subdirectory when it fetches several,
+      # and unpacks a LONE artifact flat into `path` instead. So the glob matched nothing, stayed
+      # literal, and `script/mutation --report` said "no run output at shards/mutants-shard-*" and
+      # exited 2 -- **only in the case where exactly one shard survived**, which is precisely the
+      # case this job's `if: always()` exists to serve. It cost the one real report the 2026-09-03
+      # run produced, and would have cost 2026-08-24's too.
+      #
+      # A search for `caught.txt` is indifferent to both layouts and to any future third one.
       - name: Publish the per-crate report
         run: |
-          set -- shards/mutants-shard-*
+          dirs=$(find shards -name caught.txt -exec dirname {} \; 2>/dev/null | sort -u)
           {
             echo '### Mutation testing: host crates'
             echo
-            echo "aggregated from: $* (of 4 shards)"
-            echo
-            echo '```'
-            script/mutation --report "$@"
-            echo '```'
-            echo
-            echo 'Baseline: `.cargo/mutants-baseline.txt`; triage rule and survivor prose:'
-            echo '`notes/mutation-testing.md`. A survivor here is a worklist entry, not a failure.'
+            if [ -z "$dirs" ]; then
+              echo '**No shard produced any output.** Every one of the four either failed before'
+              echo 'testing a mutant or was terminated before it could upload. There is no report'
+              echo 'to give, and that is the finding: see this workflow header, milestone 238.'
+            else
+              # shellcheck disable=SC2086  # $dirs is a deliberately word-split list of directories
+              set -- $dirs
+              echo "aggregated from: $* ($# of 8 shards)"
+              echo
+              echo '```'
+              script/mutation --report "$@"
+              echo '```'
+              echo
+              echo 'Baseline: `.cargo/mutants-baseline.txt`; triage rule and survivor prose:'
+              echo '`notes/mutation-testing.md`. A survivor here is a worklist entry, not a failure.'
+              echo
+              echo '**A partial report is a partial number.** The shards are alphabetical slices of'
+              echo 'the mutant list, not random samples, so a rate computed from some of them says'
+              echo 'nothing about the whole corpus and must not be compared to the baseline total.'
+            fi
           } >> "$GITHUB_STEP_SUMMARY"

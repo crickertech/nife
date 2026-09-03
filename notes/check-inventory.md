@@ -69,12 +69,14 @@ are aggregated by `verify (Kani proofs)`, which is required and which fails unle
 and every shard reported `success` or `skipped`; requiring the shards as well would add names to
 keep in sync and catch nothing. `draft gate` produces an output rather than a verdict.
 
-The scheduled workflows, which nothing blocks by construction:
+The scheduled workflows, which nothing blocks by construction. **`script/cadence-check` (milestone
+238) now derives this column** rather than leaving it to whoever next opens the Actions tab; the
+table stays because it also says what each workflow is for, which no API can:
 
 | workflow | cadence | last result | what it is for |
 |---|---|---|---|
-| `mutation testing` | 05:00 UTC Monday | **failure, and it has never once succeeded** | milestone 85 (mutation testing over the host crates), the instrument behind fatal risk 3 |
-| `undefined-behavior check` | 06:00 UTC Monday | **failure 08-10, 08-17, 08-24; cancelled 08-31** | milestone 79 (Miri over the host crates) |
+| `mutation testing` | 05:00 UTC Monday | **failure through 08-31, never once succeeded; repaired in part by milestone 238 and still losing shards to a memory kill** | milestone 85 (mutation testing over the host crates), the instrument behind fatal risk 3 |
+| `undefined-behavior check` | 06:00 UTC Monday | **failure 08-10, 08-17, 08-24; cancelled 08-31; repaired by milestone 238** | milestone 79 (Miri over the host crates) |
 | `toolchain drift` | 07:00 UTC daily | failure 09-02, 09-03 | builds against the newest nightly; red is its signal, not a defect on `main` |
 | `audit cadence` | weekly | failure 08-17, 08-24, 08-31 | red means an audit is due; two are |
 | `falsification sweep` | 06:00 UTC Monday | **never run** | added 2026-08-31; first fire 2026-09-07 |
@@ -215,6 +217,14 @@ reading it. The candidate fix is one flag, `MIRIFLAGS=-Zmiri-env-forward=CARGO_M
 Miri's own message suggests; it is not applied here because that is a change to a check rather than
 an audit of one.
 
+**It was not one flag, and the correction is worth keeping** (milestone 238, 2026-09-03). The flag
+works and reveals a second wall: the same test calls `read_dir`, which Miri's isolation refuses.
+Behind *that* sat five `board_console` tests doing host I/O, invisible until the first two were
+cleared because `cargo miri test` stops at the first failure. Three layers, each hiding the next.
+The estimate above was made in good faith from the one error message available, and that is the
+general hazard in this document: an audit reads the symptom it can see, and a symptom is not a
+count of causes.
+
 ### 3. `re-falsify the harnesses this change can reach` does not block, and something walked through the hole
 
 `verify.yml`'s `falsify` job carries a comment saying it is **not** a required check deliberately, so
@@ -307,19 +317,26 @@ and no working mechanism for taking one, which is a different claim from the ris
 
 ## BUGS
 
-- **This is a snapshot with no mechanism behind it.** The four findings that prompted milestone 232
-  arrived within one day, which suggests the rate matters more than the count, and nothing here keeps
-  the answer current. The cheapest thing that would is a scheduled job reading run history for
-  workflows that have not succeeded in N weeks; it is not built here, deliberately, because this
-  milestone's own block forbids acquiring a fourth deleted lint.
+- ~~**This is a snapshot with no mechanism behind it.**~~ **Half-answered by milestone 238.**
+  `script/cadence-check` reports any scheduled workflow with no successful scheduled run in 15 days,
+  and `scripts/trunk-health.sh` runs it. The shape this bullet proposed, a scheduled job reading run
+  history, was refused for the reason the bullet itself was circling: a cron that watches crons dies
+  the way its subjects die. The delivery is the `launchd` watcher instead, which has no cadence to
+  lapse and does not block a lane. Still a snapshot in the other direction: it answers "has this
+  workflow produced a result", never "does its green mean anything", which is the question the rest
+  of this document asks and which nothing automates.
 - **The third question was answered by reading, not by a method.** Six checks are listed above whose
   green means less than their name, and they were found by opening each file and asking. There is no
   reason to believe six is the whole set. Milestone 233's `login` was found by somebody asking what a
   passing check proved, and that remains the only known way to find the next one.
-- **The mutation failure is described, not diagnosed.** All four shards dying together on one run and
-  shard 4 dying in twenty seconds on three others are two different symptoms, and the step logs for
-  the failing step were no longer retrievable through `gh` at the time of writing. Whether it is a
-  memory kill, an eviction, or a defect in `script/mutation --shard 4/4` is open.
+- ~~**The mutation failure is described, not diagnosed.**~~ **Diagnosed by milestone 238 on
+  2026-09-03**, and both guesses in the original sentence were wrong. `--shard 4/4` is an argument
+  error, because cargo-mutants counts shards from zero, so shard 4 never ran a mutant and shard 0
+  never ran at all. The other deaths are runner eviction and specifically *not* a memory kill: a
+  resource trace added to the job shows 10 to 15 GB of memory available and 107 GB of disk free at
+  the last sample before each termination. See notes/mutation-testing.md and the workflow header.
+  The reading that survives is the one this note made about the *category*: a scheduled check that
+  fails silently. That is why `script/cadence-check` exists.
 - **The `result 2026-09-03` column for the required checks is read from `main`'s last run**, not from
   a run of this branch. A check green on `main` this morning is not a promise about tonight.
 - **`script/toolchain-bump`'s status is unknown and was not measured.** Running it would raise the

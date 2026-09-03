@@ -12,6 +12,23 @@
 //! - [`watch`] reads until the policy says stop, teeing every byte to a log file.
 //! - [`progress`] decides, from the text alone, how far the boot got.
 //!
+//! # This crate is not run under Miri
+//!
+//! `script/undefined-behavior-check` excludes it, the way it already excludes `xtask`, and for cost
+//! rather than principle (milestone 238). Measured 2026-09-03: **3,307 seconds, 55 minutes, for the
+//! lib tests alone** under the interpreter, against roughly four minutes for the whole rest of the
+//! workspace. There is no `unsafe` and no dependency anywhere in here, so the rules Miri enforces
+//! (aliasing, provenance, uninitialized reads) have nothing in this call graph to be broken by.
+//!
+//! Ten of the tests could not run there in any case, and both families are worth knowing before
+//! anyone points Miri at this crate by hand. Five in [`port`] reach the host filesystem (`open`,
+//! reading `/dev`, the temp directory) and Miri's isolation refuses them. Five in [`watch`] are
+//! **wall-clock driven**: the policy's 15-second quiet timeout and 120-second budget are measured
+//! with `Instant`, so under an interpreter they expire while the replay is still feeding bytes and
+//! the watcher reports `Reached(Banner)` where a real run reaches `Reached(Tour)`. That is Miri
+//! being slow, not this crate being wrong, and it is the same category as `cred`'s timing test.
+//! See notes/undefined-behavior.md and the exclusion list in `xtask`.
+//!
 //! # Examples
 //!
 //! Watch a board boot, with a two-minute cap:

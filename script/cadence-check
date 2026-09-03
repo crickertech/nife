@@ -1,0 +1,199 @@
+#!/bin/sh
+#
+# script/cadence-check: which scheduled workflows have stopped producing a result?
+#
+# PROVISIONAL NAME. See the `Name:` block at the end of this comment.
+#
+# **The failure this exists to catch is a check that runs, fails, and tells nobody.** A scheduled
+# workflow's red is an entry in the Actions tab with no badge, no notification, and no pull request
+# to hang it on. Nothing in `script/gates` or CI turns red when one has been failing for a month, so
+# the only thing between a dead cadence and a stale claim is somebody happening to look.
+#
+# Milestone 232 (audit every check against two questions: does anything run it, and does it block)
+# was that somebody, once, and what it found is the argument for this file. `mutation testing` had
+# failed four times out of four over four weeks; the `undefined-behavior check` had been red three
+# weeks on a missing environment variable that was never undefined behaviour. Between them they hold
+# up `design/fatal-risks.md`'s third risk, whose MEASURED-green verdict closes by saying "the weekly
+# workflow already publishes the report". It had published nothing.
+#
+# # Why this is not itself a scheduled workflow, which is the whole design
+#
+# The obvious home for a cadence check is a weekly job that reads run history, and that home is
+# **disqualified by the defect it is trying to detect**: a scheduled workflow that watches scheduled
+# workflows dies exactly the way its subjects die, silently, and leaves a reader more confident than
+# before because something was supposed to be watching. Milestone 232 named that trap and declined to
+# build into it.
+#
+# So the delivery is `scripts/trunk-health.sh`, which is not a GitHub workflow at all. It runs from
+# `launchd` on patagonia every five minutes, it already reports transitions rather than every poll,
+# and a maintainer session is already told to confirm it is alive. That is one rung up from prose and
+# it reuses machinery that exists rather than adding a cadence that can itself lapse.
+#
+# **And it is deliberately not in `script/lint` or `script/gates`**, for the reason `script/audits`
+# already wrote down about audits coming due: a dead cadence is not a defect in the commit that
+# happens to trip it, and a gate that blocked every unrelated lane behind a workflow nobody can hurry
+# is how this tree acquired three lints it later deleted for only ever rejecting legitimate work.
+#
+# # What "dead" means here, and why the threshold is not tighter
+#
+# A scheduled workflow is reported when **its most recent successful scheduled run is more than 15
+# days old**, or when it has never had one. Fifteen days is two weekly cadences plus a day of slack,
+# and the weekly is the longest cadence in this tree, so a threshold that suits it suits the dailies
+# far more strictly than they need. The looseness is on purpose: one missed weekly run is weather,
+# two is a pattern, and a watcher that speaks on weather gets muted.
+#
+# **A workflow too young to have fired yet is not dead**, which is a distinction this got wrong on
+# its first draft. `falsifications.yml` and `metrics.yml` both carry a Monday cron and both had zero
+# scheduled runs when this was written, because they were added on 2026-08-31 and 2026-09-02 and
+# Monday had not come round. So a workflow with no scheduled run at all is reported only once it is
+# older than the same 15 days, taken from the API's own creation timestamp.
+#
+# # EXAMPLES
+#
+#     script/cadence-check            # report every scheduled workflow's last success
+#     script/cadence-check --quiet    # print only the dead ones (what trunk-health.sh calls)
+#
+#     CADENCE_STALE_DAYS=1 script/cadence-check    # tighten the threshold, to see the other branches
+#
+# A worked run, 2026-09-03:
+#
+#     workflow                         last scheduled success   verdict
+#     audit-cadence                    never                    DEAD: never succeeded; 3 failed runs since 2026-07-31
+#     falsifications                   never                    too young to have fired
+#     mutation                         never                    DEAD: never succeeded; 4 failed runs since 2026-07-31
+#     toolchain-bump                   2026-09-03T12:27:41Z     live
+#     undefined-behavior-check         never                    DEAD: never succeeded; 4 failed runs since 2026-07-31
+#
+#     3 scheduled workflow(s) have produced no result in the last 15 days. Nobody is assigned to this.
+#
+# `toolchain-drift` reads `live` in that run while its last two daily runs were red, and that is the
+# intended reading rather than a miss: a red daily is `scripts/trunk-health.sh`'s existing job, and
+# this one answers the different question of whether an answer is still arriving at all.
+#
+# Exit 1 when at least one cadence is dead, 0 when all of them are live, 2 when it could not ask
+# (no `gh`, no network, no credentials). The nonzero is for a person's `&&`, not for a gate; nothing
+# in this repository blocks on it, per the paragraph above.
+#
+# # BUGS
+#
+# - **It only sees as far back as 100 scheduled runs.** At this tree's cadence (two dailies and five
+#   weeklies) that is about five weeks, comfortably past the 15-day threshold, but a repository that
+#   grew a dozen more dailies would shorten the window under the threshold and this would start
+#   calling live cadences dead. The check prints the oldest run it saw so the reader can tell.
+# - **It reports, and cannot fix.** That is the same boundary `script/audits` and the merge drain
+#   keep, and it is deliberate: red means "go look", never "an automation handled it".
+# - **The delivery inherits patagonia's gap.** `scripts/trunk-health.sh` runs under `launchd` on one
+#   Mac, so a machine asleep is a watcher not watching. That cost is recorded and accepted in
+#   AGENTS.md rather than solved, and this file does not change it.
+# - **A cadence that is red for a good reason still reads as dead.** `audit cadence` is red because
+#   two audits are genuinely due, which is the signal working, and this will keep naming it until
+#   somebody runs them. There is no way to tell a correct red from a broken one from out here, and
+#   inventing an allow-list would be the first step toward the mute this is trying to prevent.
+#
+# Name: unrecorded. Provisional, minted 2026-09-03 by a lane and not yet put to calef. `cadence` is
+# the word this tree already uses for the thing being checked (`audit-cadence.yml`,
+# `stranger-cadence.yml`, and milestone 232's own prose about "a dead cadence"), and the `-check`
+# suffix is established here in `shell-check`, `qemu-check` and `undefined-behavior-check`. Refused
+# `workflow-health` (it names GitHub's noun rather than the function, and this is about whether an
+# answer is still arriving, not about whether a workflow is well) and `schedules` (a plural noun
+# names an inventory, and `notes/check-inventory.md` is the inventory; this is the tripwire).
+
+set -e
+cd "$(dirname "$0")/.."
+
+REPO="crickertech/nife"
+
+# Overridable so the two interesting branches can actually be exercised: at 15 days everything in
+# this tree is either plainly live or plainly dead, and the interesting case (a workflow whose cron
+# has not come round yet) only appears at a threshold small enough to make one. Nothing blocks on
+# this check, so a widened threshold silences a report rather than opening a gate.
+STALE_DAYS="${CADENCE_STALE_DAYS:-15}"
+
+quiet=""
+[ "$1" = "--quiet" ] && quiet=1
+
+command -v gh >/dev/null 2>&1 || { echo "script/cadence-check: needs the gh CLI" >&2; exit 2; }
+command -v jq >/dev/null 2>&1 || { echo "script/cadence-check: needs jq" >&2; exit 2; }
+
+# Portable "15 days ago", because this runs on the dev Mac (BSD date) and could run on a Linux box
+# (GNU date), and the two spell the same subtraction incompatibly.
+cutoff=$(date -u -v-"${STALE_DAYS}"d +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
+	|| date -u -d "${STALE_DAYS} days ago" +%Y-%m-%dT%H:%M:%SZ)
+
+# `[ "$a" \> "$b" ]` is undefined in POSIX sh (shellcheck SC3012) however reliably bash and dash
+# happen to implement it, so the comparison goes through `sort`, which is specified. Both operands
+# are ISO-8601 UTC of the same width, which is the case where a byte-order sort and a chronological
+# one agree; that property is the reason this file compares timestamps as text at all rather than
+# converting to epoch seconds with a `date -j`/`date -d` pair that would need the same fork twice.
+later_than() {
+	[ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort | tail -1)" = "$1" ]
+}
+
+# Two calls, not one per workflow. The runs call carries `.path`, so a run identifies its own
+# workflow file and nothing has to join on the display name, which is the field most likely to be
+# edited. The workflows call is only for `created_at`, which is what keeps a workflow too young to
+# have fired from being reported as dead.
+runs=$(gh api "repos/$REPO/actions/runs?event=schedule&per_page=100" \
+	--jq '.workflow_runs[] | [.path, .conclusion, .created_at] | @tsv' 2>/dev/null) || {
+	echo "script/cadence-check: could not read run history for $REPO" >&2
+	exit 2
+}
+created=$(gh api "repos/$REPO/actions/workflows?per_page=100" \
+	--jq '.workflows[] | [.path, .created_at] | @tsv' 2>/dev/null) || {
+	echo "script/cadence-check: could not read the workflow list for $REPO" >&2
+	exit 2
+}
+
+# The workflows that CLAIM a cadence, read from the tree rather than from the API, so a workflow
+# whose cron was deleted stops being expected the moment the deletion lands. `on:`-block indentation
+# is two spaces in every file here; anything else is a formatting change this should notice loudly
+# rather than silently skip, which is why the grep is anchored.
+scheduled=$(grep -l '^  schedule:$' .github/workflows/*.yml | sort)
+[ -n "$scheduled" ] || { echo "script/cadence-check: no scheduled workflows found" >&2; exit 2; }
+
+oldest=$(printf '%s\n' "$runs" | cut -f3 | sort | head -1)
+dead=0
+
+[ -n "$quiet" ] || printf '%-32s %-24s %s\n' "workflow" "last scheduled success" "verdict"
+
+for file in $scheduled; do
+	last_ok=$(printf '%s\n' "$runs" \
+		| awk -F'\t' -v f="$file" '$1 == f && $2 == "success" { print $3 }' | sort | tail -1)
+	born=$(printf '%s\n' "$created" | awk -F'\t' -v f="$file" '$1 == f { print $2 }' | head -1)
+	name=$(basename "$file" .yml)
+
+	if [ -n "$last_ok" ] && later_than "$last_ok" "$cutoff"; then
+		verdict="live"
+	elif [ -z "$last_ok" ] && [ -n "$born" ] && later_than "$born" "$cutoff"; then
+		# Added within the window and its cron has not come round yet. Not a finding.
+		verdict="too young to have fired"
+	else
+		# Two different deaths, and saying which is most of the value. A workflow that has never
+		# succeeded is broken; one whose last success has aged out has stopped, and the date it
+		# stopped is the first thing a reader wants. An earlier draft printed "no success" for
+		# both, and so lied about every workflow in the second class.
+		fails=$(printf '%s\n' "$runs" \
+			| awk -F'\t' -v f="$file" '$1 == f && $2 != "success" { n++ } END { print n + 0 }')
+		if [ -n "$last_ok" ]; then
+			verdict="DEAD: last success ${last_ok%T*}, $fails failed since"
+		else
+			verdict="DEAD: never succeeded; $fails failed runs since ${oldest%T*}"
+		fi
+		dead=$((dead + 1))
+	fi
+
+	case "$verdict" in
+	DEAD*) printf '%-32s %-24s %s\n' "$name" "${last_ok:-never}" "$verdict" ;;
+	*) [ -n "$quiet" ] || printf '%-32s %-24s %s\n' "$name" "${last_ok:-never}" "$verdict" ;;
+	esac
+done
+
+if [ "$dead" -gt 0 ]; then
+	[ -n "$quiet" ] || echo
+	echo "$dead scheduled workflow(s) have produced no result in the last $STALE_DAYS days. Nobody is assigned to this."
+	exit 1
+fi
+
+[ -n "$quiet" ] || echo "
+every scheduled workflow has succeeded within the last $STALE_DAYS days."
+exit 0

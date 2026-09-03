@@ -14,19 +14,44 @@
 # runs exactly what a developer runs locally, and script/undefined-behavior-check self-provisions the miri component
 # on the pinned toolchain.
 #
-# BUGS: **red since at least 2026-08-10, and not for undefined behaviour.**
+# **Red from 2026-08-10 to 2026-09-03, and never once for undefined behaviour.**
 # `crates/manual/tests/render.rs` reads `CARGO_MANIFEST_DIR` at run time, deliberately (the
 # compile-time form bakes a stale absolute path), and Miri does not forward the environment by
-# default, so `every_character_survives` panics with `cargo sets this for tests: NotPresent` and the
-# job exits 1. The same test passes under `cargo test`. Found by milestone 232's audit (audit every
-# check against two questions: does anything run it, and does it block) on 2026-09-03, three weeks
-# into the failure, because a scheduled workflow's red is an entry in the Actions tab with no badge
-# and no notification.
+# default, so `every_character_survives` panicked with `cargo sets this for tests: NotPresent` and
+# the job exited 1. The same test passed under `cargo test` throughout. Found by milestone 232's
+# audit (audit every check against two questions: does anything run it, and does it block), three
+# weeks into the failure, because a scheduled workflow's red is an entry in the Actions tab with no
+# badge and no notification.
 #
-# Miri's own message names the fix, `MIRIFLAGS=-Zmiri-env-forward=CARGO_MANIFEST_DIR`, and it is
-# not applied here because an audit repairs nothing. A check that cries wolf on a schedule is worse
-# than one nobody runs: the only available response is to stop reading it. See
-# notes/check-inventory.md.
+# **The one-flag fix that everyone expected does not work, and finding that out is milestone 238's
+# contribution here.** `MIRIFLAGS=-Zmiri-env-forward=CARGO_MANIFEST_DIR` is what Miri's own message
+# suggests, and it gets the test past line 279 and straight into a second wall: the same test calls
+# `read_dir` over three directories, and Miri's isolation refuses `opendir`. Clearing that needs
+# `-Zmiri-disable-isolation` too, for the whole workspace run rather than for one test, and the
+# measured cost of doing so is **0.74 seconds natively against more than 12 minutes under the
+# interpreter, still unfinished when it was killed**.
+#
+# So the test gates itself out under `cfg(miri)` instead, with the reasoning at the test rather than
+# here: `crates/manual` has no dependencies and no `unsafe`, the nineteen other tests in that file
+# exercise the same renderer on in-memory input and do run under Miri, and what the corpus test adds
+# is breadth rather than any path Miri could judge. That is the same `cfg(miri)` sampling convention
+# `gpt`, `glob`, `calendar`, `cred` and `ntp_proto` already use, and "Miri-clean means the sampled
+# paths" already covers it.
+#
+# **Behind that sat two more layers, because `cargo miri test` stops at the first failure and each
+# one hid the next.** Five `board_console` tests reach the host filesystem, and five more are
+# wall-clock driven and expire against interpreted time. Clearing those exposed the real cost:
+# `board_console` alone runs **55 minutes** under the interpreter against roughly four for the whole
+# rest of the workspace, with no `unsafe` and no dependencies anywhere in it. It is now excluded
+# from the run the way `xtask` already was, for cost rather than principle, and the reasoning lives
+# in `xtask`'s exclusion list and the crate's own header. A three-week failure turned out to have
+# three causes; the audit that found it saw the one error message CI printed, which is the general
+# hazard rather than a lapse. See notes/undefined-behavior.md and notes/check-inventory.md.
+#
+# BUGS: **nothing here notices if this job stops running.** That is not fixed by turning it green,
+# and it is what let three weeks pass. `script/cadence-check` (milestone 238) is the tripwire, run
+# from `scripts/trunk-health.sh` rather than from a cron of its own, because a schedule that watches
+# schedules fails the same silent way.
 name: undefined-behavior check
 
 on:
@@ -51,10 +76,21 @@ jobs:
   miri:
     name: undefined-behavior check (host crates, sampled paths)
     runs-on: ubuntu-24.04-arm
-    # The full sampled run measured 27 minutes wall on the dev machine (2026-08-03, 95 test
-    # binaries, warm compile cache); the budget leaves room for a slower runner, a cold cache,
-    # and for the suites to grow.
-    timeout-minutes: 90
+    # **The 27-minute figure this used to quote is from 2026-08-03 and stopped being true without
+    # anyone able to notice** (milestone 238). The job had been red since 2026-08-10, dying inside
+    # two minutes on an environment variable, so nothing reached the crates that had meanwhile grown
+    # expensive: `board_console` at 55 minutes (now excluded, no `unsafe` in it) and `compositor`,
+    # whose six full-screen sweeps are 317,856 pixels each. One of those was measured at over 44
+    # minutes without finishing and is now strided; the other five are a milestone of their own.
+    #
+    # So this budget is deliberately generous rather than tuned: the honest current cost is not yet
+    # known, and a job that fails on the clock would look exactly like the failure this milestone
+    # spent a day taking apart. Tighten it once `compositor` is sampled and a full run has been
+    # timed end to end.
+    #
+    # A check that has been failing is not merely not-checking, it is also not-measuring, and the
+    # bill accrues the whole time.
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v7
       - uses: Swatinem/rust-cache@v2
