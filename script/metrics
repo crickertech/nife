@@ -1,0 +1,712 @@
+#!/bin/sh
+#
+# script/metrics: the project's own numbers, one row per ISO week, and the charts a reader meets
+# them in (notes/project-metrics.md).
+#
+# Why this exists. calef asked for it on 2026-09-02: milestone counts by status over time, decision
+# counts by status over time, lines of code and comments over time, coverage over time, and then
+# a `BUGS` count, "visible in github and linked from the README". The complaint it answers is
+# notes/register-of-measures.md's own opening, one file over: this tree measures a great deal and
+# remembers almost none of it. That register says which numbers this kernel owes itself; this
+# script is the half that says which ones moved, and when.
+#
+# **Every row is a RESTATEMENT, not a report.** The series is regenerated from git history by
+# applying TODAY's definitions to old commits. That is the right choice for a trend and it is not
+# what was reported at the time, and this project has three same-day proofs that the difference is
+# real: on 2026-09-02 alone, milestone 214 found 80 sites that printed a skip line and returned
+# while counting as passes, milestone 212 found this tree's falsification ratio walking `crates/`
+# only, and DECISIONS 139 corrected a figure that conflated a counter's tick resolution with the
+# cost of reading it. A dashboard makes numbers look authoritative. notes/project-metrics.md says
+# on its face that these are restatements, and this comment is the same warning where the numbers
+# are actually produced.
+#
+# What it does NOT build, and why:
+#
+#   - **Coverage is not recoverable and is left blank historically.** It is computed per-pull-request
+#     in CI and stored nowhere, so backfilling it means a full instrumented build at every one of the
+#     history's checkouts. Nothing here is allowed to build (see `--backfill` below), so the column
+#     starts empty and is filled going forward from an lcov file the caller already has.
+#   - **No plotting dependency.** DECISIONS §46 (taking a dependency is a decision, not a
+#     convenience) makes that a decision rather than a shortcut, and a stacked bar is string
+#     formatting. The SVGs below are written by hand and a diff can review them.
+#
+# Usage:
+#
+#   script/metrics                 print the current commit's row as a table
+#   script/metrics --csv           print the current commit's row as one CSV line
+#   script/metrics --backfill      rewrite every week's row from git history, then the charts
+#   script/metrics --update        recompute THIS week's row in place, then the charts
+#   script/metrics --check         non-zero if --update would change anything (the gate)
+#   script/metrics --charts        regenerate the SVGs from the CSV without touching the CSV
+#
+#   --coverage-from <lcov.info>    fill the coverage cell from an lcov file the caller produced
+#                                  (`script/coverage` writes target/llvm-cov/lcov.info)
+#
+# **Idempotence, which is the property the weekly workflow rests on.** The CSV is never appended
+# to. It is read into a dict keyed by ISO week, the week being written replaces its own entry, and
+# the whole file is rewritten from that dict in sorted week order with a fixed column order and
+# fixed number formatting. So `--update` twice in one week is a no-op on the second run, and
+# `--backfill` is a no-op whenever history has not moved. `--check` is exactly "run it into memory
+# and compare bytes", which is why it can be trusted to say the tree is current.
+#
+# **The representative commit for a week** is the first-parent commit with the greatest committer
+# date inside that ISO week, in UTC. First-parent because that is the trunk a reader means by "the
+# tree on that date", and committer date because a merge's author date can be days old. For a past
+# week that answer never changes, which is the other half of idempotence; for the current week it
+# is HEAD, and the row moves as work lands, which is what a current week should do.
+#
+# **Nothing here builds or boots.** The whole backfill is `git ls-tree` plus `git cat-file --batch`
+# plus regular expressions, which is why nine weeks of history cost seconds rather than a machine.
+# A metric that needs a build does not belong in the backfill, and coverage is the one that hit
+# that rule.
+#
+# BUGS
+#
+#   - The `unsafe` census, the line split and the harness count are reproductions of definitions
+#     that live in `script/lint` and `script/falsifications`. If either of those changes its
+#     definition, this script keeps the old one silently, and the series will diverge from the gate
+#     with nothing firing. There is no shared library for them because both live inside `#!/bin/sh`
+#     heredocs; lifting them out is real work and is proposed rather than done. The reconstruction
+#     was checked once, against notes/unsafe-obligations.md's hand-kept seven-point table, and that
+#     check is in notes/project-metrics.md rather than in a gate.
+#   - "Comment lines" is every non-blank line that holds no code after comments and string literals
+#     are blanked. A line inside a multi-line string literal therefore counts as a comment line.
+#     That is wrong in principle and negligible in this tree, where the long string literals are
+#     `include_str!`-free test fixtures.
+#   - Weeks before the roadmap and the decisions index existed report zero milestones and zero
+#     statuses. That is the honest answer for a restatement (the record did not exist), and it is
+#     not the honest answer about the project, which had built eleven milestones by then; rows 1 to
+#     11 were backfilled into the roadmap later by milestone 76. notes/project-metrics.md says so
+#     beside the chart.
+#   - The charts' dark-mode colours follow the reader's OPERATING SYSTEM preference, not GitHub's
+#     theme toggle, because GitHub serves an SVG in markdown as an `<img>` and a media query inside
+#     it cannot see the host page. A reader whose GitHub theme disagrees with their OS gets the
+#     wrong background.
+#
+# Name: unrecorded. Provisional, minted by this lane on 2026-09-02 and not yet put to calef, who
+# names things. `metrics` is a noun, which is the half of the `script/` family DECISIONS §134 put
+# reports in (`names`, `citations`, `decisions`, `roadmap`, `coverage`, `falsifications` report;
+# `verify`, `test`, `fuzz`, `bench` do something), and this only reports. Considered and set aside:
+# `dashboard`, which names the rendering rather than the numbers and would go stale the day the
+# charts changed shape; `measures`, which collides with notes/register-of-measures.md, a different
+# thing (what the kernel owes itself, rather than what moved this week). The directory
+# `notes/project-metrics/` holding the CSV and the SVGs is provisional for the same reason; the
+# page name `notes/project-metrics.md` is calef's, ratified 2026-09-02.
+
+set -e
+cd "$(dirname "$0")/.."
+
+exec python3 - "$@" <<'PYEOF'
+import pathlib
+import re
+import subprocess
+import sys
+from datetime import datetime, timezone
+
+PAGE = 'notes/project-metrics.md'
+DATA_DIR = pathlib.Path('notes/project-metrics')
+CSV_PATH = DATA_DIR / 'weekly.csv'
+
+MILESTONE_STATUSES = ['BUILT', 'PARTIAL', 'IN-PROGRESS', 'REMOVED',
+                      'NOT-STARTED', 'OPTIONAL', 'RECORDED']
+DECISION_STATUSES = ['DECIDED', 'AMENDED', 'SUPERSEDED', 'PROPOSED', 'UNRECORDED']
+
+
+def _col(prefix, status):
+    return prefix + '_' + status.lower().replace('-', '_')
+
+
+FIELDS = (['week', 'commit', 'date']
+          + [_col('milestones', s) for s in MILESTONE_STATUSES] + ['milestones_total']
+          + [_col('decisions', s) for s in DECISION_STATUSES] + ['decisions_total']
+          + ['kernel_code_lines', 'kernel_comment_lines',
+             'other_code_lines', 'other_comment_lines',
+             'bugs_markdown', 'bugs_rust',
+             'harnesses_falsified', 'harnesses_unfalsified', 'harnesses_total',
+             'unsafe_outside_arch', 'unsafe_inside_arch', 'unsafe_thread_safety',
+             'unsafe_code_lines', 'unsafe_density',
+             'fatal_risks_tested', 'fatal_risks_untested',
+             'coverage_lines_pct'])
+
+
+def git(*args):
+    return subprocess.run(['git', *args], capture_output=True, check=True).stdout
+
+
+# ---------------------------------------------------------------------------------------------
+# Reading a commit's tree without touching the working tree.
+#
+# `git show <rev>:<path>` per file would be several thousand processes over nine weeks. One
+# `git ls-tree -r -z` names the blobs and one `git cat-file --batch` streams every one of them, so
+# a whole week's tree costs two processes. Nothing is ever checked out: AGENTS.md's rule against
+# `git checkout <path>` exists because it destroyed uncommitted work three times, and a backfill
+# that walks history is exactly where that mistake would be made.
+
+class Tree:
+    """Every `.rs` and `.md` blob in one commit, outside `vendor/` and `target/`."""
+
+    def __init__(self, rev):
+        self.rev = rev
+        paths, oids = [], []
+        for entry in git('ls-tree', '-r', '-z', rev).decode('utf-8', 'replace').split('\0'):
+            if not entry:
+                continue
+            meta, path = entry.split('\t', 1)
+            _mode, kind, oid = meta.split()
+            if kind != 'blob' or not path.endswith(('.rs', '.md')):
+                continue
+            if path.startswith(('vendor/', 'target/')):
+                continue
+            paths.append(path)
+            oids.append(oid)
+        self.text = {}
+        if not oids:
+            return
+        blob = subprocess.run(['git', 'cat-file', '--batch'],
+                              input=('\n'.join(oids) + '\n').encode(),
+                              capture_output=True, check=True).stdout
+        pos = 0
+        for path in paths:
+            end = blob.index(b'\n', pos)
+            size = int(blob[pos:end].split()[2])
+            self.text[path] = blob[end + 1:end + 1 + size].decode('utf-8', 'replace')
+            pos = end + 1 + size + 1
+
+    def rust(self):
+        return [(p, t) for p, t in self.text.items() if p.endswith('.rs')]
+
+    def markdown(self):
+        return [(p, t) for p, t in self.text.items() if p.endswith('.md')]
+
+
+# `script/lint`'s comment and literal stripper, reproduced so this script can count code lines,
+# `unsafe` blocks and proof harnesses the same way the gate does. Block comments are matched
+# non-greedily and do not nest, which Rust's do; the tree has none nested, and a nested one would
+# end the strip early and could only ADD to a count, which fails loud rather than quiet.
+_NON_CODE = re.compile(
+    r'/\*.*?\*/'                        # block comment
+    r'|//[^\n]*'                        # line comment, doc comment included
+    r'|r(#*)"(?:.|\n)*?"\1'             # raw string, any hash count
+    r'|"(?:[^"\\\n]|\\.)*"'             # ordinary string
+    r"|'(?:[^'\\]|\\.)'",               # char literal
+    re.S)
+
+
+def strip_non_code(text):
+    """Blank every comment and literal, preserving line structure so line numbers still line up."""
+    return _NON_CODE.sub(lambda m: re.sub(r'[^\n]', ' ', m.group(0)), text)
+
+
+def non_blank(text):
+    return sum(1 for line in text.split('\n') if line.strip())
+
+
+# ---------------------------------------------------------------------------------------------
+# The metrics. Each one takes a Tree and returns numbers; none of them builds anything.
+
+# The roadmap index row: `| 231 | NOT-STARTED | [title](file) | note | date |`. The status
+# vocabulary is checked rather than assumed, because the same file holds a vocabulary table whose
+# rows also start with a pipe, and because `design/roadmap.md` (this directory's predecessor,
+# split by milestone 76) used the same shape with a different set of tokens.
+_INDEX_ROW = re.compile(r'^\|\s*(\d+)\s*\|\s*([A-Z][A-Z0-9 _-]*?)\s*\|')
+
+
+def milestones(tree):
+    counts = dict.fromkeys(MILESTONE_STATUSES, 0)
+    text = tree.text.get('design/roadmap/README.md') or tree.text.get('design/roadmap.md')
+    if not text:
+        return counts
+    seen = set()
+    for line in text.split('\n'):
+        match = _INDEX_ROW.match(line)
+        if not match:
+            continue
+        number, status = match.group(1), match.group(2)
+        if status in counts and number not in seen:
+            seen.add(number)
+            counts[status] += 1
+    return counts
+
+
+def decisions(tree):
+    """Decision counts by status, and the honest bucket for the years before there was one.
+
+    `design/decisions/README.md` is the index milestone 114 split `DECISIONS.md` into, and it is
+    the first version of that record to carry a status per decision at all. Before it, a decision
+    was a `## N.` heading in one 5,320-line file and nothing said whether it still held. Those
+    weeks are counted as UNRECORDED rather than as DECIDED, because reading them as decided would
+    invent a status the record never carried, which is the failure `script/names` refuses one
+    directory over.
+    """
+    counts = dict.fromkeys(DECISION_STATUSES, 0)
+    text = tree.text.get('design/decisions/README.md')
+    if text:
+        seen = set()
+        for line in text.split('\n'):
+            match = _INDEX_ROW.match(line)
+            if not match:
+                continue
+            number, status = match.group(1), match.group(2)
+            key = 'SUPERSEDED' if status.startswith('SUPERSEDED') else status
+            if key in counts and number not in seen:
+                seen.add(number)
+                counts[key] += 1
+        if sum(counts.values()):
+            return counts
+    legacy = tree.text.get('DECISIONS.md')
+    if legacy:
+        counts['UNRECORDED'] = len(set(re.findall(r'^## (\d+)\.', legacy, re.M)))
+    return counts
+
+
+def lines(tree):
+    """Code and comment lines, `kernel/src` split from everything else.
+
+    The split is the point rather than a convenience. AGENTS.md's second principle records that
+    `kernel/src` measures about 40% comments deliberately, and a single tree-wide ratio hides
+    exactly the thing that makes the number interesting.
+    """
+    out = {'kernel_code_lines': 0, 'kernel_comment_lines': 0,
+           'other_code_lines': 0, 'other_comment_lines': 0}
+    for path, text in tree.rust():
+        total = non_blank(text)
+        code = non_blank(strip_non_code(text))
+        where = 'kernel' if path.startswith('kernel/src/') else 'other'
+        out[where + '_code_lines'] += code
+        out[where + '_comment_lines'] += total - code
+    return out
+
+
+# A `BUGS` section is a markdown heading in a note, a decision or a milestone block, or the same
+# heading inside a Rust doc comment beside the feature it limits. Rising is GOOD: AGENTS.md calls
+# these "not modesty, they are the mechanism", and a tree that grows features without growing
+# honest limitations beside them is hiding them, not avoiding them.
+_MD_BUGS = re.compile(r'^#{1,6} BUGS\b', re.M)
+_RS_BUGS = re.compile(r'^[ \t]*(?:///|//!)[ \t]*#{1,6} BUGS\b', re.M)
+
+
+def bugs(tree):
+    return {'bugs_markdown': sum(len(_MD_BUGS.findall(t)) for _p, t in tree.markdown()),
+            'bugs_rust': sum(len(_RS_BUGS.findall(t)) for _p, t in tree.rust())}
+
+
+# The falsification record milestone 194 built and DECISIONS §134 ratified: what evidence each
+# Kani harness carries that it can fail. `replayable` has a patch a script applies to turn the
+# harness red; `attested` is a person who broke it and watched; `unfalsified` is the claim's honest
+# denominator. A harness with no record at all counts as unfalsified, which is what it is.
+_PROOF = re.compile(r'#\[kani::proof\b')
+_FALSIFICATION = re.compile(r'\bFalsification:\s+(replayable|attested|unfalsified)\b')
+_NOT_A_PACKAGE = ('scripts/', 'patches/')
+
+
+def harnesses(tree):
+    total = falsified = 0
+    for path, text in tree.rust():
+        if path.startswith(_NOT_A_PACKAGE):
+            continue
+        # Stripped, so that the sentence in `kernel/src/syscall.rs` explaining what a
+        # `#[kani::proof]` is does not count as one. A raw grep counts 151 where the tree has 146.
+        total += len(_PROOF.findall(strip_non_code(text)))
+        # Raw, because a falsification record lives in a doc comment by construction.
+        falsified += sum(1 for kind in _FALSIFICATION.findall(text)
+                         if kind in ('replayable', 'attested'))
+    return {'harnesses_total': total,
+            'harnesses_falsified': falsified,
+            'harnesses_unfalsified': max(total - falsified, 0)}
+
+
+# `script/lint`'s unsafe census (milestone 134), reproduced. Every exclusion is that script's, with
+# its reason: `bench/host/` is libc FFI in the Linux and macOS comparison programs and says nothing
+# about this kernel's soundness; `xtask/`, `tools/`, `fuzz/` and `scripts/` are build tooling that
+# runs on the developer's Mac and cannot fault the kernel; `patches/` is our `std` platform layer,
+# which DOES run on the machine and is a real hole rather than a boundary.
+_HOST_ONLY = ('bench/host/', 'xtask/', 'tools/', 'fuzz/', 'scripts/', 'patches/')
+_UNSAFE_BLOCK = re.compile(r'\bunsafe\s*\{')
+_UNSAFE_EXTERN = re.compile(r'\bunsafe\s+extern\s+"[^"]*"\s*\{')
+_THREAD_SAFETY = re.compile(r'\bunsafe\s+impl\b[^{;]*?\b(?:Send|Sync)\s+for\b')
+
+
+def unsafe_census(tree):
+    out = {'unsafe_outside_arch': 0, 'unsafe_inside_arch': 0,
+           'unsafe_thread_safety': 0, 'unsafe_code_lines': 0}
+    for path, text in tree.rust():
+        if path.startswith(_HOST_ONLY):
+            continue
+        code = strip_non_code(text)
+        blocks = len(_UNSAFE_BLOCK.findall(code)) - len(_UNSAFE_EXTERN.findall(code))
+        out['unsafe_thread_safety'] += len(_THREAD_SAFETY.findall(code))
+        if path.startswith('kernel/src/arch/'):
+            out['unsafe_inside_arch'] += blocks
+        else:
+            out['unsafe_outside_arch'] += blocks
+            # Only the non-arch denominator, so the density and its numerator describe the same
+            # code. Mixing arch lines in would let assembly-heavy months dilute a number that is
+            # deliberately not about assembly.
+            out['unsafe_code_lines'] += non_blank(code)
+    # Truncated rather than rounded, matching the gate: a ceiling must never fail a tree that sits
+    # exactly on it.
+    out['unsafe_density'] = (10000 * out['unsafe_outside_arch'] // out['unsafe_code_lines']
+                             if out['unsafe_code_lines'] else 0)
+    return out
+
+
+def fatal_risks(tree):
+    """How many of the nine claims that would kill nife have been put to an experiment.
+
+    Tested versus untested only. A verdict column was considered and refused: three of the four
+    statuses written so far say GREEN or AMBER in capitals, and risk 7's says neither ("RUN,
+    2026-08-31, and it found the thing this risk exists to find"), so a colour series would be
+    reading a sentence and guessing. The count of risks that have been RUN at all is the fact the
+    file actually carries.
+    """
+    text = tree.text.get('design/fatal-risks.md')
+    if not text:
+        return {'fatal_risks_tested': 0, 'fatal_risks_untested': 0}
+    parts = re.split(r'^## (\d+)\.', text, flags=re.M)
+    tested = untested = 0
+    for i in range(1, len(parts), 2):
+        if re.search(r'^\*\*Status:', parts[i + 1], re.M):
+            tested += 1
+        else:
+            untested += 1
+    return {'fatal_risks_tested': tested, 'fatal_risks_untested': untested}
+
+
+def coverage_from_lcov(path):
+    """Aggregate line coverage from an lcov file, as a percentage to one decimal.
+
+    LF and LH are lines-found and lines-hit per file, which is the same pair `script/coverage`'s
+    per-file floor reads. This is the aggregate rather than the floor: the floor's job is to make
+    one bad file loud, and a trend wants the whole.
+    """
+    found = hit = 0
+    for line in pathlib.Path(path).read_text(errors='replace').split('\n'):
+        if line.startswith('LF:'):
+            found += int(line[3:])
+        elif line.startswith('LH:'):
+            hit += int(line[3:])
+    if not found:
+        raise SystemExit('metrics: %s records no lines; is it an lcov file?' % path)
+    return '%.1f' % (100.0 * hit / found)
+
+
+def row_for(rev, week, coverage=''):
+    tree = Tree(rev)
+    when = git('show', '-s', '--format=%cI', rev).decode().strip()
+    row = {'week': week, 'commit': rev[:12], 'date': when[:10],
+           'coverage_lines_pct': coverage}
+    ms = milestones(tree)
+    for status in MILESTONE_STATUSES:
+        row[_col('milestones', status)] = ms[status]
+    row['milestones_total'] = sum(ms.values())
+    dec = decisions(tree)
+    for status in DECISION_STATUSES:
+        row[_col('decisions', status)] = dec[status]
+    row['decisions_total'] = sum(dec.values())
+    for part in (lines(tree), bugs(tree), harnesses(tree),
+                 unsafe_census(tree), fatal_risks(tree)):
+        row.update(part)
+    return row
+
+
+# ---------------------------------------------------------------------------------------------
+# Weeks, and which commit stands for one.
+
+def week_of(iso_datetime):
+    when = datetime.fromisoformat(iso_datetime).astimezone(timezone.utc)
+    year, week, _day = when.isocalendar()
+    return '%04d-W%02d' % (year, week)
+
+
+def week_commits():
+    """{ISO week: the first-parent commit that stands for it}, oldest first.
+
+    The greatest committer date inside the week, on the first-parent trunk. First-parent because
+    that is the tree a reader means by "on that date"; committer date because a merge's author date
+    can be days old, which would file a merge under the week its branch was cut.
+    """
+    out = {}
+    log = git('log', '--first-parent', '--format=%H %cI', 'HEAD').decode().split('\n')
+    for entry in log:
+        if not entry.strip():
+            continue
+        sha, when = entry.split()
+        out.setdefault(week_of(when), sha)   # log is newest-first, so the first seen is the latest
+    return dict(sorted(out.items()))
+
+
+def read_csv():
+    if not CSV_PATH.exists():
+        return {}
+    text = CSV_PATH.read_text().strip().split('\n')
+    header = text[0].split(',')
+    rows = {}
+    for line in text[1:]:
+        if not line.strip():
+            continue
+        values = line.split(',')
+        row = dict(zip(header, values))
+        rows[row['week']] = row
+    return rows
+
+
+def write_csv(rows):
+    """Rewrite the whole file from the dict, sorted, fixed columns, fixed formatting.
+
+    Never appended to. This is the whole of the idempotence guarantee: the week being written
+    replaces its own entry rather than adding one, so running twice in a week produces the same
+    bytes, and so does running the backfill against a history that has not moved.
+    """
+    lines_out = [','.join(FIELDS)]
+    for week in sorted(rows):
+        row = rows[week]
+        lines_out.append(','.join(str(row.get(field, '')) for field in FIELDS))
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    return '\n'.join(lines_out) + '\n'
+
+
+# ---------------------------------------------------------------------------------------------
+# The charts.
+#
+# GitHub will not render an interactive chart, and it will not run a script in a markdown page, so
+# a committed SVG is the only thing a reader actually sees. Written by hand rather than by a
+# plotting crate: DECISIONS §46 makes a dependency a decision, and a stacked bar is arithmetic and
+# string formatting. The side benefit is that a diff can review one, which a binary PNG refuses.
+#
+# Colours are Okabe-Ito, chosen because they hold their distinctions for the common forms of colour
+# blindness and read on both a white and a near-black ground. Only the text, axis and background
+# change between themes, which is why the palette is written once.
+
+PALETTE = ['#0072B2', '#E69F00', '#009E73', '#CC79A7',
+           '#56B4E9', '#D55E00', '#F0E442', '#999999']
+
+CHART_W, CHART_H = 820, 380
+PAD_L, PAD_R, PAD_T, PAD_B = 64, 190, 58, 56
+
+
+def esc(text):
+    return (text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;'))
+
+
+def svg_chart(title, subtitle, weeks, series, path, ceiling=None):
+    """One stacked bar per week, one colour per series, a legend on the right.
+
+    `series` is [(label, [value per week])]. A single-element series is an ordinary bar chart,
+    which is what the density and coverage panels are.
+    """
+    totals = [sum(s[1][i] for s in series) for i in range(len(weeks))]
+    top = max(totals + ([ceiling] if ceiling else []) + [1])
+    # Round the axis up to something a person reads: 1, 2 or 5 times a power of ten.
+    step = 10 ** (len(str(int(top))) - 1)
+    for factor in (1, 2, 5, 10):
+        if step * factor * 4 >= top:
+            step *= factor
+            break
+    axis_top = step * 4 if step * 4 >= top else top
+    plot_w = CHART_W - PAD_L - PAD_R
+    plot_h = CHART_H - PAD_T - PAD_B
+    slot = plot_w / max(len(weeks), 1)
+    bar_w = min(slot * 0.66, 54)
+
+    def y_of(value):
+        return PAD_T + plot_h - plot_h * value / axis_top
+
+    out = ['<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" '
+           'viewBox="0 0 %d %d" role="img" aria-label="%s">'
+           % (CHART_W, CHART_H, CHART_W, CHART_H, esc(title)),
+           '<style>',
+           '  .bg{fill:#ffffff} .fg{fill:#1f2328} .mut{fill:#59636e} .grid{stroke:#d1d9e0}',
+           '  @media (prefers-color-scheme: dark){',
+           '    .bg{fill:#0d1117} .fg{fill:#e6edf3} .mut{fill:#9198a1} .grid{stroke:#30363d}}',
+           '  text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,'
+           'sans-serif}',
+           '</style>',
+           '<rect class="bg" width="%d" height="%d"/>' % (CHART_W, CHART_H),
+           '<text class="fg" x="%d" y="26" font-size="16" font-weight="600">%s</text>'
+           % (PAD_L - 44, esc(title)),
+           '<text class="mut" x="%d" y="44" font-size="11">%s</text>'
+           % (PAD_L - 44, esc(subtitle))]
+
+    for tick in range(5):
+        value = axis_top * tick / 4
+        y = y_of(value)
+        out.append('<line class="grid" x1="%d" y1="%.1f" x2="%.1f" y2="%.1f" '
+                   'stroke-width="1"/>' % (PAD_L, y, PAD_L + plot_w, y))
+        label = '%g' % value if value == int(value) else '%.1f' % value
+        out.append('<text class="mut" x="%d" y="%.1f" font-size="10" text-anchor="end">%s</text>'
+                   % (PAD_L - 8, y + 3, label))
+
+    for i, week in enumerate(weeks):
+        x = PAD_L + slot * i + (slot - bar_w) / 2
+        base = 0.0
+        for j, (_label, values) in enumerate(series):
+            value = values[i]
+            if not value:
+                continue
+            height = plot_h * value / axis_top
+            out.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="%s"/>'
+                       % (x, y_of(base + value), bar_w, height, PALETTE[j % len(PALETTE)]))
+            base += value
+        out.append('<text class="mut" x="%.1f" y="%d" font-size="10" text-anchor="middle">%s</text>'
+                   % (x + bar_w / 2, PAD_T + plot_h + 18, esc(week)))
+        if totals[i]:
+            out.append('<text class="fg" x="%.1f" y="%.1f" font-size="10" '
+                       'text-anchor="middle">%s</text>'
+                       % (x + bar_w / 2, y_of(totals[i]) - 5, _number(totals[i])))
+
+    if ceiling:
+        y = y_of(ceiling)
+        out.append('<line x1="%d" y1="%.1f" x2="%.1f" y2="%.1f" stroke="#D55E00" '
+                   'stroke-width="1.5" stroke-dasharray="5 4"/>'
+                   % (PAD_L, y, PAD_L + plot_w, y))
+        out.append('<text class="mut" x="%.1f" y="%.1f" font-size="10">ceiling %s</text>'
+                   % (PAD_L + plot_w + 6, y + 3, _number(ceiling)))
+
+    legend_x = CHART_W - PAD_R + 22
+    for j, (label, _values) in enumerate(series):
+        y = PAD_T + 6 + j * 19
+        out.append('<rect x="%d" y="%d" width="11" height="11" fill="%s"/>'
+                   % (legend_x, y, PALETTE[j % len(PALETTE)]))
+        out.append('<text class="fg" x="%d" y="%d" font-size="11">%s</text>'
+                   % (legend_x + 17, y + 10, esc(label)))
+    out.append('</svg>')
+    path.write_text('\n'.join(out) + '\n')
+
+
+def _number(value):
+    value = float(value)
+    return '%d' % value if value == int(value) else '%.1f' % value
+
+
+def series_of(rows, weeks, columns, scale=1.0):
+    out = []
+    for label, field in columns:
+        values = []
+        for week in weeks:
+            raw = rows[week].get(field, '')
+            values.append(float(raw) / scale if raw not in ('', None) else 0.0)
+        if any(values):
+            out.append((label, values))
+    return out
+
+
+CHARTS = [
+    ('milestones.svg', 'Milestones by status',
+     'design/roadmap/README.md, one bar per ISO week',
+     [('Built', 'milestones_built'), ('Partial', 'milestones_partial'),
+      ('In progress', 'milestones_in_progress'), ('Not started', 'milestones_not_started'),
+      ('Optional', 'milestones_optional'), ('Recorded', 'milestones_recorded'),
+      ('Removed', 'milestones_removed')], 1.0, None),
+    ('decisions.svg', 'Architecture decisions by status',
+     'design/decisions/README.md; before milestone 114 split it, a decision carried no status',
+     [('Decided', 'decisions_decided'), ('Amended', 'decisions_amended'),
+      ('Superseded', 'decisions_superseded'), ('Proposed', 'decisions_proposed'),
+      ('No status recorded', 'decisions_unrecorded')], 1.0, None),
+    ('lines.svg', 'Rust in the tree, in thousands of lines',
+     'kernel/src split out, because it is commented on purpose; vendor/ excluded',
+     [('kernel/src code', 'kernel_code_lines'), ('kernel/src comments', 'kernel_comment_lines'),
+      ('other code', 'other_code_lines'), ('other comments', 'other_comment_lines')],
+     1000.0, None),
+    ('bugs.svg', 'BUGS sections, where a reader meets the feature',
+     'rising is good: an honest limitation beside the thing it limits',
+     [('in markdown', 'bugs_markdown'), ('in Rust doc comments', 'bugs_rust')], 1.0, None),
+    ('harnesses.svg', 'Kani proof harnesses, and what can falsify them',
+     'fatal risk 2: a proof nobody can turn red is not evidence',
+     [('falsification on record', 'harnesses_falsified'),
+      ('unfalsified', 'harnesses_unfalsified')], 1.0, None),
+    ('unsafe.svg', 'unsafe blocks per 10,000 lines outside kernel/src/arch/',
+     'the direction is down; the ceiling is script/lint’s',
+     [('blocks per 10,000 lines', 'unsafe_density')], 1.0, 88),
+    ('fatal-risks.svg', 'The nine things that would kill nife',
+     'design/fatal-risks.md; tested means an experiment has been run, not that it came back green',
+     [('experiment run', 'fatal_risks_tested'), ('not yet tested', 'fatal_risks_untested')],
+     1.0, None),
+    ('coverage.svg', 'Host-crate line coverage, per cent',
+     'not recoverable from history: it needs an instrumented build at every checkout',
+     [('line coverage', 'coverage_lines_pct')], 1.0, 80),
+]
+
+
+def draw_charts(rows):
+    weeks = sorted(rows)
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    for name, title, subtitle, columns, scale, ceiling in CHARTS:
+        series = series_of(rows, weeks, columns, scale)
+        if not series:
+            series = [(columns[0][0], [0.0] * len(weeks))]
+        svg_chart(title, subtitle, weeks, series, DATA_DIR / name, ceiling)
+
+
+# ---------------------------------------------------------------------------------------------
+
+def print_table(row):
+    width = max(len(f) for f in FIELDS)
+    for field in FIELDS:
+        print('%-*s  %s' % (width, field, row.get(field, '')))
+
+
+def main(argv):
+    coverage = ''
+    args = []
+    i = 0
+    while i < len(argv):
+        if argv[i] == '--coverage-from':
+            coverage = coverage_from_lcov(argv[i + 1])
+            i += 2
+            continue
+        args.append(argv[i])
+        i += 1
+
+    mode = args[0] if args else '--table'
+    if mode not in ('--table', '--csv', '--backfill', '--update', '--check', '--charts'):
+        raise SystemExit('metrics: unknown argument %s; see the comment at the top of this script'
+                         % mode)
+
+    if mode == '--charts':
+        draw_charts(read_csv())
+        print('metrics: charts written to %s/' % DATA_DIR)
+        return 0
+
+    head = git('rev-parse', 'HEAD').decode().strip()
+    if mode in ('--table', '--csv'):
+        row = row_for(head, week_of(git('show', '-s', '--format=%cI', head).decode().strip()),
+                      coverage)
+        if mode == '--csv':
+            print(','.join(FIELDS))
+            print(','.join(str(row.get(f, '')) for f in FIELDS))
+        else:
+            print_table(row)
+        return 0
+
+    weeks = week_commits()
+    rows = read_csv()
+    if mode == '--backfill':
+        rows = {}
+        targets = weeks.items()
+    else:
+        current = week_of(git('show', '-s', '--format=%cI', head).decode().strip())
+        targets = [(current, weeks.get(current, head))]
+
+    for week, rev in targets:
+        # Coverage is never recomputed for a week that already has one: it cannot be re-derived
+        # from history, so an old cell is the only copy of that measurement there will ever be.
+        previous = rows.get(week, {}).get('coverage_lines_pct', '')
+        rows[week] = row_for(rev, week, coverage or previous)
+
+    text = write_csv(rows)
+    if mode == '--check':
+        current_text = CSV_PATH.read_text() if CSV_PATH.exists() else ''
+        if current_text != text:
+            print('metrics: %s is stale; run script/metrics --update' % CSV_PATH, file=sys.stderr)
+            return 1
+        print('metrics: %s is current' % CSV_PATH)
+        return 0
+
+    CSV_PATH.write_text(text)
+    draw_charts(rows)
+    print('metrics: %d weeks in %s, charts in %s/' % (len(rows), CSV_PATH, DATA_DIR))
+    return 0
+
+
+sys.exit(main(sys.argv[1:]))
+PYEOF
