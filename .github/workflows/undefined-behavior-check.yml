@@ -76,10 +76,21 @@ jobs:
   miri:
     name: undefined-behavior check (host crates, sampled paths)
     runs-on: ubuntu-24.04-arm
-    # The full sampled run measured 27 minutes wall on the dev machine (2026-08-03, 95 test
-    # binaries, warm compile cache); the budget leaves room for a slower runner, a cold cache,
-    # and for the suites to grow.
-    timeout-minutes: 90
+    # **The 27-minute figure this used to quote is from 2026-08-03 and stopped being true without
+    # anyone able to notice** (milestone 238). The job had been red since 2026-08-10, dying inside
+    # two minutes on an environment variable, so nothing reached the crates that had meanwhile grown
+    # expensive: `board_console` at 55 minutes (now excluded, no `unsafe` in it) and `compositor`,
+    # whose six full-screen sweeps are 317,856 pixels each. One of those was measured at over 44
+    # minutes without finishing and is now strided; the other five are a milestone of their own.
+    #
+    # So this budget is deliberately generous rather than tuned: the honest current cost is not yet
+    # known, and a job that fails on the clock would look exactly like the failure this milestone
+    # spent a day taking apart. Tighten it once `compositor` is sampled and a full run has been
+    # timed end to end.
+    #
+    # A check that has been failing is not merely not-checking, it is also not-measuring, and the
+    # bill accrues the whole time.
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v7
       - uses: Swatinem/rust-cache@v2

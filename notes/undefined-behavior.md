@@ -29,7 +29,10 @@ approximation of "the paths".
 
 Every host-testable workspace member (`--workspace` minus the three bare-metal crates), 41 packages.
 After triage, the front door (`script/undefined-behavior-check`, one `--workspace` invocation, 95 test binaries) runs
-green in 27 minutes of wall time on the dev machine with a warm compile cache.
+green in 27 minutes of wall time on the dev machine with a warm compile cache. **That figure is
+2026-08-03's and no longer describes the run** (milestone 238): the job was red from 2026-08-10 and
+died in under two minutes, so nothing measured it again while `board_console` and `compositor` grew
+expensive underneath. See the section on what three weeks of red hid.
 The sequential per-crate triage sweep took about 31 minutes, of which
 five packages are 79% (`xtask` 473 s, `cred` 452 s, `measured_boot` 334 s, `coremark` 190 s, `gpt`
 127 s); 30 of the 41 finish in under 10 s. The interpreter tax measured about three orders of
@@ -92,14 +95,15 @@ written next to the test:
 | `gpt` small-table sweep (`table.rs`) | 261,120 parses | skipped, same reason |
 | `cred` store tests via `cheap()` | Argon2id at m=256 KiB, t=2 | Argon2's floor (m=8 KiB, t=1); same paths, fewer blocks. The known-answer vector tests keep their published costs |
 | `cred` `an_unknown_identity_costs_what_a_known_one_costs` | 50 timed KDF runs | skipped: a wall-clock ratio under an interpreter measures Miri, not the KDF |
+| `compositor` `a_damaged_composite_leaves_the_rest_of_the_screen_alone` | all 317,856 screen pixels, 20 ms | every 37th row plus every row the damage rectangle touches, 15,708 pixels, pinned exactly |
 | `manual` `every_character_survives` | 547 markdown files off disk, 7.2 MB, 0.74 s | skipped: the corpus is on the filesystem, which Miri isolates; the nineteen other tests in that file drive the same renderer on in-memory input |
 
-### The last two rows are a different kind of skip, and worth telling apart
+### The `manual` row is a different kind of skip, and worth telling apart
 
-Every row above them is a **sampling** decision: the test is too slow under an interpreter, so it
-runs a smaller version of the same claim. The `manual` and `board_console` rows are not that. Those
-tests do host I/O, and Miri's isolation refuses `open`, `opendir` and friends outright; there is no
-smaller version, only a decision about `-Zmiri-disable-isolation`.
+Every other row is a **sampling** decision: the test is too slow under an interpreter, so it runs a
+smaller version of the same claim. The `manual` row is not that. That test does host I/O, and Miri's
+isolation refuses `open` and `opendir` outright; there is no smaller version, only a decision about
+`-Zmiri-disable-isolation`.
 
 **It was refused, on measurement rather than principle** (milestone 238). `crates/manual` has no
 dependencies and no `unsafe`, so the rules Miri enforces cannot be broken by any line it would
@@ -120,6 +124,22 @@ So a green `script/undefined-behavior-check` certifies the memory rules on every
 does not restate the exhaustive claims; those stay native-only, in `script/test`. The skipped `gpt`
 sweeps lose nothing Miri-specific: what they add natively is completeness of the CRC argument,
 which is not a memory property.
+
+### Three weeks of red hid four separate costs, in a queue
+
+Worth recording as a pattern rather than as four facts, because the shape recurs. `cargo miri test`
+stops at the first failure, so a broken run reports exactly one problem however many it has. From
+2026-08-10 the weekly job died inside two minutes on a missing environment variable, and milestone
+232's audit read that message and reasonably estimated a one-flag fix. Behind it, in order, sat:
+`read_dir` against isolation; five `board_console` tests doing host I/O; five more in `board_console`
+that are wall-clock driven; `board_console`'s 55-minute cost; and a `compositor` test sweeping
+317,856 pixels that ran **44 minutes without finishing**.
+
+None of those were regressions. They accumulated while the job was red, invisibly, because a job
+that fails in two minutes never reaches the code that would take an hour. **The 27-minute figure
+this note and the workflow both quote is from 2026-08-03 and has not described the run since.** The
+general lesson is the one `script/cadence-check` exists for: a check that has been failing is not
+merely not-checking, it is also not-measuring, and the bill accrues the whole time.
 
 **`board_console` is excluded from the run entirely, which is the fourth exclusion and the
 expensive one** (milestone 238). It measured **3,307 seconds, 55 minutes, for its lib tests alone**

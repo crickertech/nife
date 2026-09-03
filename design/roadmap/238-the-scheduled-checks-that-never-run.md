@@ -121,7 +121,8 @@ The baseline-era crates are broadly stable or better (`gpt` 55/1, `elf` 12/0, `c
 0 caught and 25 missed** in the sample and 0 of 191 in the slice run, `uefi_loader` at 15%, and
 `manual` at 52%.
 
-**The Miri fix was not one flag.** `-Zmiri-env-forward=CARGO_MANIFEST_DIR` works and lands on a
+**The Miri fix was not one flag, and each layer hid the next because `cargo miri test` stops at the
+first failure.** `-Zmiri-env-forward=CARGO_MANIFEST_DIR` works and lands on a
 second wall, `read_dir` against Miri's isolation; behind that sat five `board_console` tests doing
 host I/O, invisible until the first two were cleared because `cargo miri test` stops at the first
 failure. Clearing all of it needs `-Zmiri-disable-isolation` for the whole workspace run, and the
@@ -163,8 +164,40 @@ or `script/gates`, for `script/audits`' recorded reason.
 - **`audit cadence` is still red and this does not touch it.** It is red because two audits are
   genuinely due, which is the signal working. `script/cadence-check` will keep naming it until
   somebody runs them, and there is no way to tell a correct red from a broken one from outside.
-- **Three quarters of the mutant corpus is still unmeasured since 2026-08-03.** A full refresh needs
-  a run where enough shards survive, and no such run has happened yet.
+- **Seven eighths of the mutant corpus is still unmeasured since 2026-08-03.** A full refresh needs a
+  run where enough shards survive, and no such run has happened yet.
+- **The Miri run is no longer red, and does not yet fit its 90-minute budget.** All three reported
+  failures are fixed and the workspace is clean under the interpreter; what remains is cost, in
+  `compositor`, handed off above. The 27-minute figure quoted in that workflow and in
+  notes/undefined-behavior.md is from 2026-08-03 and has not described the run for some time, which
+  nobody could have known while the job was dying in two minutes.
+
+## Handoff: the exhaustive sweeps in `compositor` under Miri
+
+**Proposed milestone (provisional, number is the integrator's).** *Sample `compositor`'s per-pixel
+sweeps under `cfg(miri)`, the way `glob`, `ntp_proto`, `calendar` and `gpt` already sample theirs.*
+
+Clearing the three reported failures exposed a fifth layer that no report had ever mentioned,
+because a job that dies in two minutes never reaches the code that takes an hour. `compositor` has
+**six full-screen sweeps**, each 317,856 pixels, several doing per-pixel work heavy enough to matter
+(a `Vec` allocated per pixel in `every_screen_pixel_distinguishes_its_owner`, a call into
+`expected_screen_pixel` in others). One of them,
+`a_damaged_composite_leaves_the_rest_of_the_screen_alone`, was measured at **over 44 minutes without
+finishing**; it is strided here, with a pinned sample, and dropped to 57 seconds. **The other five
+are not**, and they are why the run still does not fit its budget.
+
+Each needs its own judgment rather than one blanket stride, which is why this is a lane and not a
+line in this milestone: `the_scene_exercises_overlap_clipping_and_background` asserts *counts* of
+visible pixels per window, so a stride changes the numbers it checks, and
+`every_screen_pixel_distinguishes_its_owner` is making a completeness claim that a naive sample
+weakens. The strided one shows the shape to copy: never skip the rows that carry the claim, and pin
+the sample size so a stride that stopped covering the screen cannot pass quietly.
+
+**Do not answer this by excluding the crate.** That was considered and refused. `compositor` has no
+`unsafe` today, which is the argument that retired `xtask` and `board_console` from the run, but it
+is central system logic under active development, and an excluded crate is one where a future
+`unsafe` block is silently uncovered. A bench tool and the build system can carry that; the
+compositor should not.
 
 ## Handoff: bound what one mutant may allocate
 
