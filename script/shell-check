@@ -28,7 +28,16 @@
 # bugs that way and all three printed nothing at all. See notes/pipes.md.
 #
 # It is not part of script/test, because it builds a second kernel (`--features shell`) and boots it
-# twice. Run it when you touch init, the shell, or what the boot grants them.
+# twice. It IS part of `script/gates` and of CI's `script/ci-build`, since milestone 230, and the
+# reason is what happened while it was in neither: it went red on `main` on both architectures on
+# 2026-08-28 and stayed red for five days, through every green check, because nothing ran it. A
+# gate that exists, fails, and tells nobody is worse than no gate, and this one guards the only
+# program in the tree that no other test executes.
+#
+# Both places rather than one. `script/gates` is what a person runs before pushing and pays 30
+# seconds against an already-warm target directory; CI's copy is appended to `script/ci-build`
+# rather than given a job, so it reuses that job's build instead of paying ten minutes for thirty
+# seconds of checking. Run it directly when you touch init, the shell, or what the boot grants them.
 #
 # Name: unrecorded, and audibly collided with. It boots the kernel's `--features shell`
 # configuration and types at the prompt; `shellcheck`, the shell linter this tree runs inside

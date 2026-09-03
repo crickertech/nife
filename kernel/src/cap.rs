@@ -134,13 +134,13 @@ pub type Cap = capability::Cap<Object>;
 // variant, `PageFrame` is that variant, and it grew by a word. Nothing measured it, so §102's own
 // figure went stale inside §102. That is what this assertion is for; it is the fact, not a target.
 //
-// Seventeen slots is 544 bytes a capability table rather than 408, so the option §102 priced at 12
-// KiB a thread for 512 slots would now be 16 KiB. The refusal does not change (the decision's
+// Twenty-four slots is 768 bytes a capability table rather than 408, so the option §102 priced at
+// 12 KiB a thread for 512 slots would now be 16 KiB. The refusal does not change (the decision's
 // argument was never really about the bytes), but the number a future reader quotes should be the
 // one the compiler agrees with. Update these two and re-read §102 when they fire.
 //
-// **Sixteen when this note was written, seventeen now** (milestone 49's terminal update raised
-// `CAPABILITY_TABLE_SLOTS`; see that constant's own doc, below). The count changed; the per-slot
+// **Sixteen when this note was written, seventeen after milestone 49, twenty-four now**
+// (milestone 230 raised it; see that constant's own doc, below). The count changed; the per-slot
 // arithmetic this note exists to pin did not.
 //
 // **And the other half of §102's arithmetic moved too**: `MAX_THREADS` was raised from 128 to 256
@@ -150,7 +150,7 @@ pub type Cap = capability::Cap<Object>;
 const _: () = assert!(core::mem::size_of::<Object>() == 24);
 const _: () = assert!(core::mem::size_of::<Cap>() == 32);
 
-/// A thread's capability table: 17 slots, fixed at the type (milestone 14 phase B.1). The size
+/// A thread's capability table: 24 slots, fixed at the type (milestone 14 phase B.1). The size
 /// was already the de-facto limit (`CapabilityTable::empty()` made 16); now it is part of the
 /// type and creating a capability table cannot allocate. Growing it is a one-number change here,
 /// paid in TCB size.
@@ -172,7 +172,31 @@ const _: () = assert!(core::mem::size_of::<Cap>() == 32);
 /// raising it ("a one-number change here, paid in TCB size"), which is exactly the shape of trade
 /// this tree's own precedent (`MAX_REGIONS`, `nifefs::NAME_LEN`) already treats as the expected
 /// response to a real feature needing one more slot.
-pub const CAPABILITY_TABLE_SLOTS: usize = 17;
+///
+/// **Raised 17 -> 24, milestone 230 (2026-09-02), and the history of that number is the whole
+/// lesson.** Milestone 49's own lane set this constant to `28 // TEMP: generous bisection value`
+/// while chasing an unrelated login-suite flake, and then built and shipped the login stack in
+/// `crates/system_initializer` against it. A cleanup commit (`d1c81062`, 2026-08-27) put it back to
+/// 17, because the doc comment above says 17 and because a full `script/test` on all three
+/// architectures was green at 17. Both of those observations were true. Neither could see the
+/// failure, because **`script/test` never boots the real init**: every suite that runs the shell
+/// has the kernel play init, and the only gate that runs `system_initializer` is
+/// `script/shell-check`, which at that time ran in neither `script/test` nor CI. PR #556 landed on
+/// 2026-08-28 and `main` booted straight into the silent halt this file's BUGS section describes:
+/// with a virtio-rng attached, init fills all seventeen slots building `credentialer` and dies at
+/// `user_rt::trap` before a console exists to carry a word about it. It stayed that way for five
+/// days, through a fully green tree, because nobody asked the one question that would have shown
+/// it.
+///
+/// So 28 was never wrong, only unexplained, and reverting it to a number the prose justified
+/// removed the thing holding the boot up. This raise replaces the guess with a measurement:
+/// **21** simultaneous slots is the boot's high-water mark, in init, while `build_child` lays down
+/// `credentialer` (twelve capabilities this process never gives back, the login block's own six,
+/// and the address space and page the loader is working through). Twenty-four is twenty-one plus
+/// three. The two previous raises each took the number to exactly what that day's boot needed and
+/// both times the next addition hit the wall in the same silence; at 32 bytes a slot the three cost
+/// 96 bytes a thread, 24 KiB across `MAX_THREADS`, which is the cheapest insurance in this file.
+pub const CAPABILITY_TABLE_SLOTS: usize = 24;
 pub type CapabilityTable = capability::CapabilityTable<Object, CAPABILITY_TABLE_SLOTS>;
 
 // The ABI names the reserved fault slot as `CAPABILITY_TABLE_SLOTS - 1`, so the two constants

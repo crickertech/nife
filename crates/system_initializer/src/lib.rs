@@ -169,19 +169,6 @@
 //!
 //! # BUGS
 //!
-//! **A boot with a virtio-rng attached traps in init before the console prints anything**, and
-//! `script/shell-check` is red on both architectures because of it (found 2026-09-02 by milestone
-//! 192's lane, which is not its owner and did not fix it). The same build, same commit, same
-//! archive, with the device simply not attached, reaches a prompt normally; attach it
-//! (`NIFE_RNG=1`, which both of `shell_check_leg`'s plain legs set unconditionally) and init dies
-//! at `user_rt::trap` with no message, which is this section's own first entry describing what a
-//! silent early refusal looks like. Reproduced at `8167d806` under nightly-2026-09-01 as well as
-//! -09-02, so it is not the toolchain bump. The shape matches the sixteen-slot wall this file's
-//! own entropy-block comment describes at length ("Found by bisection, not reasoning"): three
-//! kernel grants that inflate the resting baseline for the whole function. Not root-caused, and
-//! deliberately not guessed at here. `script/shell-check` is not part of `script/test`, which is
-//! why a green tree does not contradict this.
-//!
 //! **A refused `console` or `line_editor` stops in silence.** Those two are what carry init's
 //! output, so a refusal of either has no route to a person: init traps and the operator sees the
 //! kernel's fault line for init and nothing else, indistinguishable from any other early init
@@ -214,18 +201,38 @@
 //! Printing the negative control costs one more of those: the shell's output frame stays mapped here
 //! for life, because there is no unmap and `PageFrame::REVOKE` would take it from the shell too.
 //!
-//! **Init's capability table has sixteen slots, and running out of them prints nothing at all.** Every
+//! **Init's capability table is finite, and running out of it prints nothing at all.** Every
 //! capability held across a `build_child` is one the child's address space, frames and TCB cannot
-//! have, and `build_child` answering `Err(())` is a silent halt. Two of the three evenings this file
-//! has cost were that, once when the kernel grew two grants and once when a boot component was built
-//! one step too early. The order below is load-bearing and the comments say where.
+//! have, and `build_child` answering `Err(())` is a silent halt. Three of the four evenings this
+//! file has cost were that: once when the kernel grew two grants, once when a boot component was
+//! built one step too early, and once when a block that had never run before started running
+//! (milestone 230, below). The order below is load-bearing and the comments say where.
 //!
-//! **It is now nine at rest and fifteen at peak, which is one slot from the wall** (milestone 31
-//! phase 3, 2026-08-17). Keeping the file service and its shared page for the life of the boot took
-//! the resting endowment from seven to nine, and a directory-granted spawn adds the job region, the
-//! narrowed endpoint, the readiness endpoint, and a `build_child` retyping an address space and a
-//! TCB. Anything that wants a tenth permanent capability here has to buy it from something, and the
-//! honest candidates are the readiness endpoint (it could be retyped after the caretaker's build
+//! **The table was sixteen slots, then seventeen, and is twenty-four now**
+//! (`kernel::cap::CAPABILITY_TABLE_SLOTS`, raised by milestone 230 on 2026-09-02). Milestone 31
+//! phase 3 measured this process at nine capabilities at rest and fifteen at peak, one slot from
+//! the seventeen-slot wall, and that number described the boot as it then was: the login stack
+//! below did not exist yet. It does now, and with a virtio-rng attached (DECISIONS §120's
+//! 2026-08-26 amendment) entropy comes up, `entropy_client` is `Some`, `have_login_stack` is true,
+//! and the credentialer build runs. Measured at that peak, this process holds **twenty-one** slots
+//! at once: twelve it never gives back (the root untyped, six endpoints, four frames, and the
+//! shell's TCB waiting to be started), the login block's own
+//! `prov`/`verify`/`cred_ready`/`prov_page`/`verify_page`/`cred_budget`, and the address space and
+//! page `build_child` is laying the credentialer down through.
+//!
+//! **The login stack was written against twenty-eight slots and nobody knew.** Milestone 49's lane
+//! had raised the constant to `28 // TEMP: generous bisection value` while chasing an unrelated
+//! flake; a cleanup put it back to 17 on the evidence that the prose said 17 and `script/test` was
+//! green at 17, which is true and blind, because no suite in `script/test` boots this program. The
+//! boot that does is `script/shell-check`, and it ran in neither `script/test` nor CI, so `main`
+//! trapped here for five days behind a green tree. That is milestone 230's whole subject and the
+//! reason both of those now run this.
+//!
+//! **What that means for the next capability added here.** Twenty-four leaves three slots over a
+//! measured twenty-one, deliberately rather than generously: every previous raise took the number
+//! to exactly what the day's boot needed, and every time the next addition hit the wall in silence.
+//! If a change here needs a twenty-second permanent capability, the honest candidates for buying
+//! one back are still the readiness endpoint (it could be retyped after the caretaker's build
 //! rather than before, if the caretaker learned to take it another way) and the file page (nothing
 //! but a second frame per grant retires it, which is `notes/shared-page-audit.md`'s proposed lane).
 //!
