@@ -3908,7 +3908,7 @@ fn uefi_stage(kernel: &str, esp: &std::path::Path, what: &str) -> bool {
     // by one character in a way nothing would catch.
     let built = Command::new("cargo")
         .args(&args)
-        .env("NIFE_UEFI_KERNEL", &kernel)
+        .env("NIFE_UEFI_KERNEL", kernel)
         .env("NIFE_UEFI_INITRD", x86_initrd_path())
         .status()
         .map(|s| s.success())
@@ -3994,6 +3994,13 @@ fn uefi_boot() -> bool {
         // The suite below stays at one core, because the two-core AP defect this tour does not
         // touch (`ap_boot`'s BUGS #3) fails one of its tests about half the time.
         .env("NIFE_SMP", "2")
+        // **The bare firmware machine, whether or not a suite leg ran first.** `test()` sets
+        // `NIFE_DISK` and `NIFE_NVME` in this process for the PVH leg, and a child inherits them,
+        // so without this the tour would attach two devices inside `script/test` and none from a
+        // bare `cargo xtask uefi-boot`. One boot with two machines is one boot nobody can compare.
+        // The suite below is where the devices belong.
+        .env_remove("NIFE_DISK")
+        .env_remove("NIFE_NVME")
         .output()
     {
         Ok(o) => o,
@@ -4045,7 +4052,7 @@ fn uefi_boot() -> bool {
 /// **Run the kernel suite under real firmware** (milestone 195), rather than the tour
 /// `uefi_boot` boots.
 ///
-/// The difference between the two is one ELF. `#[cfg(test)]` in `kernel_main`'s x86_64 arm runs
+/// The difference between the two is one ELF. `#[cfg(test)]` in `kernel_main`'s `x86_64` arm runs
 /// `test_main()` at the end of the same tour, so this boot prints every line `uefi-boot` asserts on
 /// *and then* runs the suite, and the verdict it adds is the one thing the tour cannot say: that
 /// the tests pass when the memory map, the ACPI root and the PCIe window came from firmware
@@ -4144,7 +4151,7 @@ fn uefi_test() -> bool {
     ok
 }
 
-/// The process status a passing x86_64 suite produces, which is not zero and cannot be.
+/// The process status a passing `x86_64` suite produces, which is not zero and cannot be.
 ///
 /// `isa-debug-exit` terminates QEMU with `(value << 1) | 1`, so every status it can report is odd.
 /// The guest writes 1; QEMU exits 3. The matching half is `EXIT_SUCCESS` in

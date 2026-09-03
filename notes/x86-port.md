@@ -1103,12 +1103,23 @@ things collapse:
 fails and says so. Falling back to `intx_irq(0, ..)` there is the original bug, and it is the kind
 that reads as a graceful degradation.
 
-**What only real hardware can confirm.** Three things, all in `arch::x86_64::irq`'s BUGS section:
-that the OptiPlex's firmware leaves VT-d interrupt remapping off (a unit with it on rejects the
-compatibility-format message this builds); that a real device's MSI-X table is where its capability
-says it is once *firmware* rather than this kernel has placed the BARs; and that a machine with
-more than one local APIC still delivers to the boot core's id. None of the three is a QEMU
-question, and all three are cheap to check: see notes/x86-uefi-boot.md's bench procedure.
+**What only real hardware can confirm. One of the three, now** (milestone 195): that the OptiPlex's
+firmware leaves VT-d interrupt remapping off, since a unit with it on rejects the compatibility-format
+message this builds. That is a setting in somebody else's firmware and no emulator can answer it.
+
+**The other two were answered on patagonia**, by running the kernel suite under OVMF with the PVH
+runner's devices attached (`cargo xtask uefi-test`). That real firmware enumerates the bus and places
+every BAR before nife exists is what made them answerable at a desk at all:
+
+- *A real device's MSI-X table is where its capability says it is once firmware rather than this
+  kernel has placed the BARs.* OVMF placed them, `pci::bar_census` reports five of eight functions
+  outside the window this kernel maps, so `place_bars` moved five, and both milestone 215 tests that
+  reach a `virtio-blk-pci` function through its MSI-X table pass afterwards.
+- *A machine with more than one local APIC still delivers to the boot core's id.* The tour boots at
+  two cores under OVMF and its PIT interrupt arrives 20 times in 0.2 s.
+
+Neither is silicon, and neither is a Dell. What they are is two fewer things an evening at the bench
+has to establish before it can look at the third. See notes/x86-uefi-boot.md.
 
 ## The three things that genuinely do not fit
 
