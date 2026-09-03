@@ -438,6 +438,9 @@ besides, being built for dated release grouping; these are capability-shaped and
 | 231 | BUILT | [Nothing counts how many capability slots a boot actually uses, so the wall is always a surprise](231-capability-slot-high-water-mark.md) | the table counts its own peak, the boot prints `capability slots: 21 of 24 at peak`, and `script/shell-check` fails when the recorded measurement goes stale | 2026-09-02 |
 | 232 | NOT-STARTED | [Audit every check against two questions: does anything run it, and does it block](232-what-the-checks-actually-check.md) | four findings in one day, each a different way for this tree's verification to report something untrue | |
 | 233 | BUILT | [`login` dies on every boot, and the boot says it is ready](233-login-never-runs.md) | it is handed the caretaker image and the measurement table as blobs instead of the archive, for zero capability slots; the boot line names what init measured, and the gate fails on any killed thread | 2026-09-02 |
+| 234 | BUILT | [The project's own numbers, one row per ISO week](234-project-metrics.md) | `notes/register-of-measures.md` opens by saying this tree measures a great deal and remembers almost none of it | 2026-09-02 |
+| 235 | NOT-STARTED | [A command that faults hangs the prompt, because nothing has a word for it](235-a-faulted-job-should-reach-the-prompt.md) | `swish` waits on a result endpoint a killed thread never sends; a non-zero exit is fine, a fault is not | |
+| 236 | NOT-STARTED | [Three derivations are copied between scripts, and nothing notices when they drift](236-lift-the-copied-derivations.md) | the `unsafe` census, the line split and the harness count each exist twice, inside shell heredocs where nothing can import them | |
 
 The order §14 sets: **verify the core and make it verifiable first** (18 and 14, the thesis), then the
 road to running real workloads on real machines (15, 21, 16, 19; 25 extends 21 into cross-OS
