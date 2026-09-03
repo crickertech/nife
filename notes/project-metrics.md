@@ -50,22 +50,24 @@ before it there is nothing to restate.
 
 **Weeks are ISO weeks in UTC**, which is this tree's date convention. The first commits are stamped
 2026-07-12 in the architect's local time and fall on the Monday in UTC, so the series starts at
-2026-W29 and there is no 2026-W28.
+2026W29 and there is no 2026W28.
 
-**A week has two spellings and that is deliberate.** A chart's x axis reads `202636`, which is
-calef's call. The CSV's `week` column reads `2026-W29`, which is ISO 8601's own designation for a
-week: a form a reader already knows from outside this project, which sorts lexically, and which
-cannot be misread as an ordinary number. It is also the dictionary key that makes rerunning
-`script/metrics` replace a row rather than add one, so leaving it alone is what keeps the
-idempotence below intact. The axis label is derived from the key by one function rather than stored
-next to it, so the two cannot drift apart.
+**A week is spelled `2026W36`, everywhere.** The chart axis, the CSV's `week` column,
+`script/metrics`' own output and the prose on this page all use it, and calef ratified that on
+2026-09-02 after the page carried three spellings at once (`2026-W30` in the narrative, `202636` on
+an axis, `2026-W29` in the data), which is two more than a reader should have to hold.
+
+It is ISO 8601's designation with the hyphen dropped. It still sorts lexically, and it still cannot
+be misread as an ordinary number the way a bare `202636` can. It is also the dictionary key that
+makes rerunning `script/metrics` replace a row rather than add one, and the axis label is that key
+rather than something derived beside it, so the two cannot drift apart.
 
 ## Milestones by status
 
 ![Milestones by status](project-metrics/milestones.svg)
 
 From `design/roadmap/README.md`'s index table. The two zero weeks are a restatement artifact and
-they are the sharpest one on this page. There really was a roadmap in 2026-W30: `design/roadmap.md`
+they are the sharpest one on this page. There really was a roadmap in 2026W30: `design/roadmap.md`
 landed 2026-07-22 with ten rows in it. It had no status column. A milestone's state was prose inside
 a cell, phrased a dozen different ways (`Built`, then `Built (frame scope)`, then `Built:` followed
 by a paragraph on which half), which is exactly the defect the status vocabulary was later minted to
@@ -77,14 +79,14 @@ Rows 1 to 11 were backfilled into the roadmap later by milestone 76 (split the r
 the first bar; none of them is in it.
 
 **The interesting line is not `BUILT`, it is `NOT-STARTED`.** Reading the rows as they stand at
-2026-W36: built milestones went 26, 63, 73, 97, 103, 125 across the six weeks the roadmap has
+2026W36: built milestones went 26, 63, 73, 97, 103, 125 across the six weeks the roadmap has
 existed, which is a steady rate. Not-started went 16, 35, 32, 43, 62, 79. **The roadmap is growing
 faster than the lanes drain it**, and the gap widened most in the last two weeks. That is what a
 project generating its own work looks like, and it is the number to watch if the ranking function
 ever needs defending: a backlog that grows faster than it is consumed is only healthy while
 something is choosing the order.
 
-`REMOVED` appears for the first time in 2026-W36, with two rows. The token itself was minted
+`REMOVED` appears for the first time in 2026W36, with two rows. The token itself was minted
 2026-08-30, when milestone 54 (a network file service a Mac can actually mount) was deleted and the
 six words then available could only lie about it.
 
@@ -98,7 +100,7 @@ held**. Milestone 114 (split `DECISIONS.md`, and give a decision a status) is wh
 at all, so counting those early decisions as `DECIDED` would invent a claim the record never carried.
 They are counted, and counted as having no status.
 
-139 decisions in eight weeks, of which 17 are `AMENDED` and 3 `SUPERSEDED` at 2026-W36. Twenty
+139 decisions in eight weeks, of which 17 are `AMENDED` and 3 `SUPERSEDED` at 2026W36. Twenty
 decisions revised or replaced out of 139 is the number that says the vocabulary is doing work: a tree
 where nothing was ever amended would mean either that every first answer was right or that nobody
 went back.
@@ -120,14 +122,14 @@ comment otherwise. A line with code and a trailing comment is code.
 **Two things worth reading.**
 
 **The kernel's comment share is not flat, it is climbing.** `kernel/src` was 39.3% comment lines at
-2026-W31 and is 45.3% at 2026-W36, rising every week in between. `AGENTS.md` says 40%, which was
+2026W31 and is 45.3% at 2026W36, rising every week in between. `AGENTS.md` says 40%, which was
 accurate when it was written and is now three weeks stale. The rest of the tree is doing the same
 thing more slowly, 31.5% to 41.4%. Whether that is the kernel getting better documented or the
 comment-to-code ratio drifting past what a reader wants is not a question this instrument can
 answer; it can only say the number moved. Flagged rather than corrected in `AGENTS.md`, because that
 is calef's file.
 
-**Total Rust fell for the first time between 2026-W35 and 2026-W36**, from 192.0k lines to 189.0k,
+**Total Rust fell for the first time between 2026W35 and 2026W36**, from 192.0k lines to 189.0k,
 while the week was still adding code. That is milestone 54's deletion, which is also the `REMOVED`
 bar two charts up. A line count that only ever rises is measuring typing; one that falls when code is
 deleted is measuring the tree.
@@ -142,7 +144,7 @@ feature it limits, in the manual, rather than hidden in a tracker. `AGENTS.md` c
 modesty, they are the mechanism", and the reason is a newcomer's: someone who hits a limitation the
 docs named will trust the docs, and someone who hits one the docs hid will not trust anything again.
 
-Zero in the first two weeks, 359 at 2026-W36 (238 markdown headings and 121 in Rust doc comments).
+Zero in the first two weeks, 359 at 2026W36 (238 markdown headings and 121 in Rust doc comments).
 A falling line here would be the alarming one.
 
 ## Kani proof harnesses, and what can falsify them
@@ -175,7 +177,7 @@ one number in this tree that is actually gated on a direction. The dashed line i
 second one is about soundness: the first is a system being built. That is why the gate holds a
 ratio.
 
-The one rise is 2026-W29 to 2026-W30, and it is the honest shape of an early kernel: the tree was
+The one rise is 2026W29 to 2026W30, and it is the honest shape of an early kernel: the tree was
 7,500 lines and one driver moved the number.
 
 ### How much this particular series has actually been checked

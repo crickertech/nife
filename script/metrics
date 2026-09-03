@@ -42,53 +42,6 @@
 #   --coverage-from <lcov.info>    fill the coverage cell from an lcov file the caller produced
 #                                  (`script/coverage` writes target/llvm-cov/lcov.info)
 #
-# **Two spellings of a week, on purpose.** The CSV's `week` column is `2026-W36`, ISO 8601's own
-# designation: a form a reader knows from outside, which sorts lexically and is the dictionary key
-# the idempotence below rests on. A chart's x axis says `202636` instead (calef, 2026-09-02). The
-# label is derived from the key by one function rather than stored beside it, so the two cannot
-# drift apart.
-#
-# **Idempotence, which is the property the weekly workflow rests on.** The CSV is never appended
-# to. It is read into a dict keyed by ISO week, the week being written replaces its own entry, and
-# the whole file is rewritten from that dict in sorted week order with a fixed column order and
-# fixed number formatting. So `--update` twice in one week is a no-op on the second run, and
-# `--backfill` is a no-op whenever history has not moved. `--check` is exactly "run it into memory
-# and compare bytes", which is why it can be trusted to say the tree is current.
-#
-# **The representative commit for a week** is the first-parent commit with the greatest committer
-# date inside that ISO week, in UTC. First-parent because that is the trunk a reader means by "the
-# tree on that date", and committer date because a merge's author date can be days old. For a past
-# week that answer never changes, which is the other half of idempotence; for the current week it
-# is HEAD, and the row moves as work lands, which is what a current week should do.
-#
-# **Nothing here builds or boots.** The whole backfill is `git ls-tree` plus `git cat-file --batch`
-# plus regular expressions, which is why nine weeks of history cost seconds rather than a machine.
-# A metric that needs a build does not belong in the backfill, and coverage is the one that hit
-# that rule.
-#
-# BUGS
-#
-#   - The `unsafe` census, the line split and the harness count are reproductions of definitions
-#     that live in `script/lint` and `script/falsifications`. If either of those changes its
-#     definition, this script keeps the old one silently, and the series will diverge from the gate
-#     with nothing firing. There is no shared library for them because both live inside `#!/bin/sh`
-#     heredocs; lifting them out is real work and is proposed rather than done. The reconstruction
-#     was checked once, against notes/unsafe-obligations.md's hand-kept seven-point table, and that
-#     check is in notes/project-metrics.md rather than in a gate.
-#   - "Comment lines" is every non-blank line that holds no code after comments and string literals
-#     are blanked. A line inside a multi-line string literal therefore counts as a comment line.
-#     That is wrong in principle and negligible in this tree, where the long string literals are
-#     `include_str!`-free test fixtures.
-#   - Weeks before the roadmap and the decisions index existed report zero milestones and zero
-#     statuses. That is the honest answer for a restatement (the record did not exist), and it is
-#     not the honest answer about the project, which had built eleven milestones by then; rows 1 to
-#     11 were backfilled into the roadmap later by milestone 76. notes/project-metrics.md says so
-#     beside the chart.
-#   - The charts' dark-mode colours follow the reader's OPERATING SYSTEM preference, not GitHub's
-#     theme toggle, because GitHub serves an SVG in markdown as an `<img>` and a media query inside
-#     it cannot see the host page. A reader whose GitHub theme disagrees with their OS gets the
-#     wrong background.
-#
 # Name: unrecorded. Provisional, minted by this lane on 2026-09-02 and not yet put to calef, who
 # names things. `metrics` is a noun, which is the half of the `script/` family DECISIONS §134 put
 # reports in (`names`, `citations`, `decisions`, `roadmap`, `coverage`, `falsifications` report;
@@ -98,6 +51,16 @@
 # thing (what the kernel owes itself, rather than what moved this week). The directory
 # `notes/project-metrics/` holding the CSV and the SVGs is provisional for the same reason; the
 # page name `notes/project-metrics.md` is calef's, ratified 2026-09-02.
+#
+# **One spelling of a week, everywhere.** A week is `2026W36`: the chart axis, the CSV's `week`
+# column, this script's own output and the prose on `notes/project-metrics.md` all use it. calef
+# ratified the form on 2026-09-02 after seeing three spellings in one page (`2026-W30` in the
+# narrative, `202636` on an axis, `2026-W29` in the data), which is two more than a reader should
+# have to hold.
+#
+# It is ISO 8601's designation with the hyphen dropped. It still sorts lexically, it still cannot be
+# mistaken for an ordinary number the way a bare `202636` can, and it is the dictionary key that
+# makes a rerun replace a row rather than append one.
 
 set -e
 cd "$(dirname "$0")/.."
@@ -422,7 +385,7 @@ def row_for(rev, week, coverage=''):
 def week_of(iso_datetime):
     when = datetime.fromisoformat(iso_datetime).astimezone(timezone.utc)
     year, week, _day = when.isocalendar()
-    return '%04d-W%02d' % (year, week)
+    return '%04dW%02d' % (year, week)
 
 
 def week_commits():
@@ -497,19 +460,14 @@ def esc(text):
 
 
 def week_label(week):
-    """`2026-W36` becomes `202636` on a chart axis. calef's call, 2026-09-02.
+    """The key is the label. `2026W36` on the axis, in the CSV, and in the prose.
 
-    **The CSV deliberately does NOT follow.** Its `week` column stays `2026-W36`, which is ISO
-    8601's own designation for a week: a form a reader already knows from outside this project,
-    which sorts lexically, and which cannot be mistaken for an ordinary number the way a bare
-    `202636` can. It is also the dictionary key that makes a rerun replace a row instead of adding
-    one, so leaving it alone is what keeps the idempotence argument intact through this change.
-
-    A label a person reads and a key a script parses do not have to be the same string. This is the
-    one place they differ, it is one function wide, and the axis is derived from the key rather than
-    stored beside it, so they cannot drift apart.
+    calef ratified one spelling on 2026-09-02, after the page carried three: `2026-W30` in the
+    narrative, `202636` on an axis, `2026-W29` in the data. This function exists so that if a
+    future spelling is wanted there is exactly one place to change it, and so the axis cannot
+    drift from the key it is derived from.
     """
-    return week.replace('-W', '')
+    return week
 
 
 def svg_chart(title, subtitle, weeks, series, path, ceiling=None):
