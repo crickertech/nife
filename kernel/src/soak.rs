@@ -274,15 +274,20 @@ pub fn run() -> ! {
         &placed[..workers],
     );
     println!(
-        "{CENSUS_MARKER} nothing rebalances (DECISIONS 138, how a saturated workload is made to \
-         hand threads across cores), so this placement is where the responders, callers and \
-         grinders stay; the beat line's drifted= counts how many of those three roles have since \
-         run on another core, and a nonzero one means read the census printed under it instead of \
-         this one"
+        "{CENSUS_MARKER} this is the boot-time lottery and NOT where the run settles: a rendezvous \
+         wake queues the peer on the waker's own core (DECISIONS 138, how a saturated workload is \
+         made to hand threads across cores), so each group converges onto one core within a few \
+         exchanges"
     );
     println!(
-        "{CENSUS_MARKER} the tick waiters are expected to move and their movement is crossings=, \
-         not drifted= (design/roadmap/221-a-soak-that-crosses-cores.md)"
+        "{CENSUS_MARKER} the beat line's drifted= is how many responders, callers and grinders are \
+         no longer on the core the census above put them on; while it reads 0 that census is \
+         current, and a nonzero one is followed by the census that replaces it"
+    );
+    println!(
+        "{CENSUS_MARKER} tick waiters are excluded from drifted= because their movement is the \
+         point rather than a surprise, and it is already crossings= \
+         (design/roadmap/221-a-soak-that-crosses-cores.md)"
     );
 
     watch(shared, workers, &tids, &placed)
@@ -575,7 +580,8 @@ fn watch(shared: u64, workers: usize, tids: &[u64; MAX_WORKERS], placed: &[u8; M
     let started = arch::timer::now();
     let mut previous = [0u64; MAX_WORKERS];
     let mut here = [u8::MAX; MAX_WORKERS];
-    let mut last_drifted = 0usize;
+    // The arrangement the log currently claims, which starts as the spawn placement `run` printed.
+    let mut census = *placed;
     let mut last_total = 0u64;
     let mut last_wakes = 0u64;
     let mut last_at = started;
@@ -621,20 +627,26 @@ fn watch(shared: u64, workers: usize, tids: &[u64; MAX_WORKERS], placed: &[u8; M
             *last = progress;
         }
 
-        // **Is the start census still true?** (milestone 240.) One lock acquisition, `workers`
-        // comparisons, once every [`BEAT_SECONDS`]; the whole reason a start-only census is
-        // allowed to stand is that this says so on every line rather than being assumed.
+        // **Is the census the log last printed still true?** (milestone 240.) One lock acquisition
+        // and `workers` comparisons once every [`BEAT_SECONDS`], which is what lets a census be
+        // printed on a change instead of on every beat: while this reads zero the reader knows the
+        // block above them describes the machine right now, and they are told rather than trusting.
         //
-        // Counted over the roles that are *not* supposed to move. A tick waiter migrating is the
-        // point of milestone 221 and is already reported as `crossings=`, so folding it in here
-        // would make `drifted=` rise on a healthy run and mean nothing. A thread that has not run
-        // yet reads `u8::MAX` and is not drift; it has no second core to have gone to.
+        // **Measured against the last census rather than against spawn**, and the difference is the
+        // whole value. Against spawn it becomes a constant a few beats in (11 of 20 on the aarch64
+        // QEMU leg) and then says nothing further; against the census it returns to zero after each
+        // reprint, so a nonzero one always means "there is a newer block below".
+        //
+        // Counted over the roles whose movement is news. A tick waiter migrating is milestone 221's
+        // whole point and is already `crossings=`, so folding it in would make this rise on a
+        // healthy run and mean nothing. A thread reading `u8::MAX` has not run yet and has no
+        // second core to have gone to, which is not drift either.
         sched::last_cpus(&tids[..workers], &mut here[..workers]);
         let drifted = (0..workers)
             .filter(|&i| {
                 role_of(i % MEMBERS_PER_GROUP) != ROLE_WAITER
                     && here[i] != u8::MAX
-                    && here[i] != placed[i]
+                    && here[i] != census[i]
             })
             .count();
 
@@ -656,19 +668,18 @@ fn watch(shared: u64, workers: usize, tids: &[u64; MAX_WORKERS], placed: &[u8; M
         last_wakes = wakes;
         last_at = now;
 
-        // **Re-census only when the answer changed** (milestone 240). Every beat would be four more
-        // lines on an already dense log for a fact that a saturated workload changes almost never:
-        // the pinned roles move only by a work steal, which needs an idle core and a queued thread
-        // in the same instant. Printing on the change instead means the log carries a census
-        // whenever one is worth reading and is otherwise quiet, and `drifted=` on every beat is
-        // what says which census is the live one.
-        if drifted != last_drifted {
+        // **Re-census when the answer changed, and only then** (milestone 240). A block every beat
+        // would double an already dense log; a block never would leave the start census standing
+        // after it stopped being true, which the aarch64 QEMU leg showed happens inside the first
+        // five seconds. Printing on the change carries a current census whenever one exists and is
+        // quiet the rest of the time, and `drifted=` is what makes the quiet readable.
+        if drifted != 0 {
             print_census(
-                "where the workers are NOW, the placement above having changed",
+                "where the workers are NOW, the arrangement above having changed",
                 workers / MEMBERS_PER_GROUP,
                 &here[..workers],
             );
-            last_drifted = drifted;
+            census = here;
         }
 
         // The three verdicts, in the order a reader would want them: the one that is a finding
