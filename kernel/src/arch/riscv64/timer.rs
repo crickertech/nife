@@ -218,10 +218,15 @@ const CY: u64 = 1 << 0;
 /// `scounteren.CY` from M-mode, and this kernel never runs in M-mode: if OpenSBI or a vendor
 /// firmware left `mcounteren.CY` clear, a granted U-mode `rdcycle` still takes an illegal
 /// instruction. Milestone 228 recorded that as unknown on **radon** and it is still unknown.
+///
+/// **Built only under `test` or `--features cycle_counter_grant`** (milestone 237): the grant is
+/// a measurement build the way `soak` is. `kernel/Cargo.toml`'s feature block carries the
+/// reasoning and the measured cost. Milestone 228's closed default at `init` is NOT gated.
 // Asked only by tests today (`sched`'s grant round trip and `user`'s EL0 one), which are the
 // callers that have to skip rather than fault on a part with no counter to grant. Marked rather
 // than deleted: milestone 74's cycle-counter work is the caller that will want it in anger.
 #[cfg_attr(not(test), allow(dead_code))]
+#[cfg(any(test, feature = "cycle_counter_grant"))]
 pub fn cycle_counter_grantable() -> bool {
     true
 }
@@ -243,6 +248,11 @@ pub fn cycle_counter_grantable() -> bool {
 /// and changing one bit cannot get `TM` wrong. That is the whole of the aarch64/riscv64 asymmetry
 /// DECISIONS 139 left open, and it is two honest implementations rather than one abstraction
 /// because the two registers do not agree on either half.
+///
+/// **Built only under `test` or `--features cycle_counter_grant`** (milestone 237): the grant is
+/// a measurement build the way `soak` is. `kernel/Cargo.toml`'s feature block carries the
+/// reasoning and the measured cost. Milestone 228's closed default at `init` is NOT gated.
+#[cfg(any(test, feature = "cycle_counter_grant"))]
 pub fn set_cycle_counter_grant(granted: bool) {
     let current: u64;
     // SAFETY: reading a supervisor CSR touches no memory and changes no state, which the options
