@@ -162,6 +162,15 @@ fn load(handle: Handle, table: &SystemTable, services: &BootServices) -> Result<
         &mut kernel_base,
     ) != SUCCESS
     {
+        // **Name what is in the way before giving up** (milestone 195). "The firmware said no" is
+        // the least actionable sentence a person standing at a machine can be handed, and this is
+        // the one failure here whose cause is entirely inside the firmware's own bookkeeping: the
+        // kernel's physical span is fixed by `kernel/link-x86_64.ld`, so what changes between one
+        // build and the next is only how far past 1 MiB it reaches. Under OVMF the kernel's test
+        // build reaches into the firmware volumes at 8 MiB and the tour build does not, which is a
+        // fact no amount of staring at the loader would have produced.
+        say_span(table, "uefi_loader: wanted ", span_start, span_end);
+        say_conflict(table, services, span_start, span_end);
         return Err("the firmware would not give up the kernel's load range at 1 MiB");
     }
 
@@ -440,6 +449,102 @@ fn find_rsdp(table: &SystemTable) -> Option<u64> {
         }
     }
     fallback
+}
+
+/// Print a `[start, end)` physical range after a caller-supplied phrase.
+///
+/// Its own function rather than a format string because there is no allocator here and
+/// `core::fmt` on the firmware console would pull in machinery this binary otherwise does not have.
+fn say_span(table: &SystemTable, what: &str, start: u64, end: u64) {
+    say(table, what);
+    say_hex(table, start);
+    say(table, "..");
+    say_hex(table, end);
+    say(table, "\r\n");
+}
+
+/// Print one 64-bit value as `0x...`, without an allocator and without `core::fmt`.
+fn say_hex(table: &SystemTable, value: u64) {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let mut buffer = [0u8; 18];
+    buffer[0] = b'0';
+    buffer[1] = b'x';
+    for i in 0..16 {
+        buffer[2 + i] = DIGITS[((value >> (60 - 4 * i)) & 0xf) as usize];
+    }
+    // SAFETY: every byte written above is ASCII.
+    say(table, unsafe { core::str::from_utf8_unchecked(&buffer) });
+}
+
+/// **Say which memory the firmware is already using inside a range it refused** (milestone 195).
+///
+/// `AllocatePages(AllocateAddress)` reports one status and no address, so on its own it cannot
+/// distinguish "your kernel is too big for this machine" from "your kernel overlaps a firmware
+/// volume". This walks the map the firmware would have handed over anyway and prints every
+/// descriptor in the way that is not free RAM, with its type number as the UEFI specification
+/// numbers them (`efi::memory_type`).
+///
+/// It runs only on the failure path, so the allocation it makes cannot disturb the map key
+/// `ExitBootServices` later checks: there is no later on this path.
+///
+/// # BUGS
+///
+/// - **A firmware too broken to report a memory map prints nothing here**, and the caller's own
+///   sentence is then all the reader gets. That is the honest floor: there is no second source for
+///   this information.
+fn say_conflict(table: &SystemTable, services: &BootServices, start: u64, end: u64) {
+    let mut bytes = 0usize;
+    let mut key = 0usize;
+    let mut descriptor_size = 0usize;
+    let mut version = 0u32;
+    (services.get_memory_map)(
+        &mut bytes,
+        ptr::null_mut(),
+        &mut key,
+        &mut descriptor_size,
+        &mut version,
+    );
+    if bytes == 0 || descriptor_size < size_of::<efi::MemoryDescriptor>() {
+        return;
+    }
+    // Slack for the pool allocation itself, the same reason `MAP_SLACK_DESCRIPTORS` exists.
+    let capacity = bytes + MAP_SLACK_DESCRIPTORS * descriptor_size;
+    let mut buffer: *mut u8 = ptr::null_mut();
+    if (services.allocate_pool)(memory_type::LOADER_DATA, capacity, &mut buffer) != SUCCESS
+        || buffer.is_null()
+    {
+        return;
+    }
+    let mut got = capacity;
+    if (services.get_memory_map)(
+        &mut got,
+        buffer,
+        &mut key,
+        &mut descriptor_size,
+        &mut version,
+    ) == SUCCESS
+    {
+        for i in 0..got / descriptor_size {
+            // SAFETY: `buffer` holds `got` bytes of descriptors and `i` is inside that count. Read
+            // unaligned because the firmware chooses `descriptor_size` and nothing promises the
+            // stride keeps 8-byte alignment.
+            let descriptor = unsafe {
+                ptr::read_unaligned(
+                    (buffer as usize + i * descriptor_size) as *const efi::MemoryDescriptor,
+                )
+            };
+            let first = descriptor.physical_start;
+            let last = first + descriptor.page_count * PAGE;
+            if descriptor.kind == memory_type::CONVENTIONAL || last <= start || first >= end {
+                continue;
+            }
+            say_span(table, "uefi_loader:   in the way: ", first, last);
+            say(table, "uefi_loader:   memory type ");
+            say_hex(table, u64::from(descriptor.kind));
+            say(table, "\r\n");
+        }
+    }
+    (services.free_pool)(buffer);
 }
 
 /// Print one ASCII line on the firmware console, if there is one.
