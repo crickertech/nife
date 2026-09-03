@@ -222,12 +222,23 @@ so spending §10's exception a second time on it was not free. DECISIONS 139 (wh
 counter, and by what authority) decided it in three parts, milestone 228 made the closed default a
 fact rather than an assumption, and milestone 229 built the grant.
 
-**`ThreadControlBlock::GRANT_CYCLE_COUNTER`**, `WRITE`-gated, refusing any thread that is not an
-embryo. It is therefore part of the spawn manifest, in the same sense `CONFIGURE` and `CAP_INSERT`
-are: the set of things you may do to a thread before it runs. A running program cannot ask for it,
-which is the point rather than an implementation detail. The kernel writes the enable at the
-context switch, beside the address-space root, comparing before it writes, so a machine where
-nothing is granted never writes the register at all.
+**The mechanism is a per-thread grant the context switch enforces**: `sched::grant_cycle_counter`
+sets a bool on an embryo and refuses any thread that is not one, so it belongs to the same
+creation-time set as `CONFIGURE` and `CAP_INSERT` and a running program cannot ask for it. The
+kernel writes the enable at the switch, beside the address-space root, comparing before it writes,
+so a machine where nothing is granted never writes the register at all.
+
+**There is deliberately no syscall method to set it, and that is the part worth knowing.** The
+kernel half is complete; the surface is deferred. A method number is irreversible, and this one's
+successor is already foreseeable: the prior art for a per-thread property as a TCB method is
+`seL4_TCB_SetAffinity`, which MCS deleted and replaced with a field of `sched_control_cap`, and
+milestone 147 (a profiler that holds exactly the counters it was granted) wants cross-thread
+authority with a named target that no such method would provide. 139 also records that 147's
+target-naming has no precedent here to price from, so the object is not buildable yet either. The
+choice was method-now against **not yet**, and not-yet costs almost nothing while the grant has no
+consumer. Whoever needs it mints it, with a requirement in hand. A field on `CONFIGURE` is not the
+cheap way round: `invoke` has three argument registers and `CONFIGURE` and `START` spend all three
+each, so it would mean widening `invoke` itself.
 
 | ISA | What the grant opens | Closed by default | Cost when nothing is granted |
 |---|---|---|---|

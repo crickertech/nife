@@ -2499,25 +2499,30 @@ fn init_builds_a_worker_and_passes_it_an_argument() {
     init.release_or_fail("an init test's building budget");
 }
 
-/// **Milestone 229: a thread granted the cycle counter can read it, and the grant is written by
-/// the context switch.** init builds a child, calls `ThreadControlBlock::GRANT_CYCLE_COUNTER` on
-/// the embryo, starts it, and the child reads `PMCCNTR_EL0` (aarch64) or the `cycle` CSR
-/// (riscv64) and reports.
+/// **Milestone 229: a granted thread reads the cycle counter, and an ungranted one is killed for
+/// trying.** Both halves, in one test, because each is the other's control.
 ///
-/// **The report arriving is the whole assertion.** Milestone 228 closed both registers to user
-/// mode at init on every core, so without the grant this child's first read is a trap the kernel
-/// turns into a fault, and nothing is sent. The counter values it carries are not checked: QEMU
-/// leaves `PMCR_EL0.E` clear, so `PMCCNTR_EL0` reads zero forever there, and asserting on the
-/// number would be asserting on the emulator.
+/// A thread runs `hello`'s cycle-counter role at EL0 and reads `PMCCNTR_EL0` (aarch64) or the
+/// `cycle` CSR (riscv64). Granted, it reports. Ungranted, the read is an access milestone 228's
+/// closed default does not permit, so it traps, the kernel kills the thread, and `USER_FAULTS`
+/// counts it.
 ///
-/// **What this does not prove**, and it is the honest half: nothing here checks that an *ungranted*
-/// thread is refused. Proving that needs the fault to be caught and reported rather than to end the
-/// test, which is the supervision path, and it is a bigger fixture than this milestone earned. The
-/// evidence for the closed side is milestone 228's, which is that the register is written to zero
-/// at init on every core and that disassembly shows the write.
+/// **The grant is applied through a `#[cfg(test)]` back door**, `sched::grant_cycle_counter_to_current`,
+/// and that is worth meeting head on: milestone 229 shipped the kernel mechanism **without** the
+/// syscall method that would let a loader set it, deliberately, because a method number is
+/// irreversible and milestone 147 (a profiler that holds exactly the counters it was granted) may
+/// subsume it. So there is no honest userspace route to a granted thread, and the alternative to a
+/// test-only door was leaving the EL0 half unexercised. What this therefore does **not** cover is
+/// the embryo-only rule that a real ABI would go through; `sched`'s own
+/// `a_running_thread_cannot_be_granted_the_cycle_counter` covers that separately.
+///
+/// The counter values are carried and not checked. QEMU leaves `PMCR_EL0.E` clear, so
+/// `PMCCNTR_EL0` reads zero there forever, and asserting on the number would be asserting on the
+/// emulator rather than on this kernel.
 #[test_case]
-fn a_granted_thread_reads_the_cycle_counter() {
-    const INIT_CYCLE_COUNTER_ROLE: u64 = 41;
+fn a_granted_thread_reads_the_cycle_counter_and_an_ungranted_one_faults() {
+    /// `hello`'s `CYCLE_COUNTER_CHILD`.
+    const CYCLE_COUNTER_CHILD: u64 = 42;
     /// `hello`'s `CYCLE_COUNTER_WORD`.
     const CYCLE_COUNTER_WORD: u64 = 0xC1C1E;
 
@@ -2525,22 +2530,54 @@ fn a_granted_thread_reads_the_cycle_counter() {
         crate::testing::skip!("this core has no user-readable cycle counter to grant");
     }
 
-    let report = crate::sched::create_rendezvous();
-    let init = spawn_init(
-        initrd().expect("no initrd"),
-        INIT_CYCLE_COUNTER_ROLE,
-        report,
-    );
+    // **The negative half, and it does not run on x86_64**, where `rdtsc` is ambient by DECISIONS
+    // 139 part 3 and an ungranted read is not an error. Skipping it there is the stated exception
+    // to DECISIONS §19 showing up in a test rather than a gap in one.
+    #[cfg(not(target_arch = "x86_64"))]
+    {
+        let before = USER_FAULTS.load(Ordering::Relaxed);
+        spawn_bare(init_image(), CYCLE_COUNTER_CHILD, 0).expect("spawn failed");
+        assert!(
+            wait_for(|| USER_FAULTS.load(Ordering::Relaxed) > before),
+            "an ungranted thread read the cycle counter and was NOT stopped",
+        );
+    }
 
-    let message = crate::sched::ipc_recv(report);
+    // The positive half. A report arriving at all is most of the assertion: on the two
+    // architectures above, the same program without the grant is the fault just counted.
+    let result = sched::create_rendezvous();
+    let faults = USER_FAULTS.load(Ordering::Relaxed);
+    sched::spawn(move || {
+        sched::grant_cycle_counter_to_current();
+        run(
+            init_image(),
+            Spawn {
+                arg0: CYCLE_COUNTER_CHILD,
+                arg1: 0,
+                arg2: 0,
+                grants: &[crate::cap::rendezvous_cap(
+                    result,
+                    crate::cap::Rights::WRITE,
+                )],
+                maps: &[],
+            },
+        )
+    })
+    .expect("spawn failed");
+
+    let message = sched::ipc_recv(result);
     assert_eq!(
         message[0], CYCLE_COUNTER_WORD,
-        "the granted child did not report: it was killed reading a counter it was granted",
+        "the granted thread did not report: it was killed reading a counter it was granted",
     );
-    init.release_or_fail("an init test's building budget");
+    assert_eq!(
+        USER_FAULTS.load(Ordering::Relaxed),
+        faults,
+        "the granted thread faulted instead of reading cleanly",
+    );
 }
 
-/// **Milestone 19e: init runs a real compute workload and it comes out right.** The worker's
+/// **Milestone 19e: init runs a real compute workload and it comes out right.**/// **Milestone 19e: init runs a real compute workload and it comes out right.** The worker's
 /// `n*n` proved the mechanism; this proves a *substantial* program. init builds the `"coremark"`
 /// binary (a CoreMark-derived run: list sort, matrix multiply, state machine, folded into a CRC),
 /// starts it, and the workload SENDs the run's checksum home. Receiving `coremark::PINNED_CRC_64`

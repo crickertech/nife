@@ -3221,12 +3221,20 @@ pub fn configure_thread_control_block(
 ///
 /// One-way: there is no ungrant, because an embryo starts closed and nothing but this opens it.
 ///
+/// **Nothing calls this today, and that is milestone 229's decision rather than an oversight.**
+/// The syscall method that would let a loader call it was deliberately not minted: see
+/// `abi::thread_control_block`'s standing note, whose short form is that a method number is
+/// irreversible and `seL4_TCB_SetAffinity` is the worked example of one that had to be retired.
+/// This is the kernel half of the mechanism, complete and tested, waiting for whoever mints the
+/// surface with a requirement in hand.
+///
 /// `#[inline(never)]` for the reason milestone 156 gives `memory_region_map` and the other
 /// spawn-path bodies: this is administration a loader runs once per child, never a step of the IPC
 /// round trip, so it does not belong in the bytes `script/fastpath-footprint` bounds. It is not a
 /// style choice here, it is a measurement: without it the riscv64 `syscall_entry` set grew 12%
 /// against a 5% bound, because the callee folded into `invoke`.
 #[inline(never)]
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn grant_cycle_counter(tid: ThreadId) -> Result<(), abi::Error> {
     let mut guard = IPC_TABLES.lock();
     let sched = guard.as_mut().ok_or(abi::Error::NoSuchSlot)?;
@@ -3236,6 +3244,34 @@ pub fn grant_cycle_counter(tid: ThreadId) -> Result<(), abi::Error> {
     }
     t.cycle_counter_grant = true;
     Ok(())
+}
+
+/// **Grant the *running* thread the cycle counter, for tests only** (milestone 229).
+///
+/// This deliberately breaks the rule [`grant_cycle_counter`] enforces, which is why it is
+/// `#[cfg(test)]` and cannot exist in a shipped kernel. It is here because milestone 229 shipped
+/// the mechanism without the syscall method that would set it, so there is no honest userspace
+/// route to a granted thread and the alternative was to leave the EL0 half of the mechanism
+/// unexercised. Same spirit as the `soak` and `fastpath_pad` affordances: a door that exists only
+/// in a build nobody runs.
+///
+/// It writes the register itself as well as the field, because the calling thread is already
+/// running and will not pass through `schedule`'s switch again before it drops to EL0. Every later
+/// switch back into this thread re-applies the same value from the field, which is the ordinary
+/// path.
+#[cfg(test)]
+pub fn grant_cycle_counter_to_current() {
+    {
+        let mut guard = IPC_TABLES.lock();
+        let sched = guard.as_mut().expect("no scheduler");
+        let current = current_thread_id();
+        sched
+            .threads
+            .get_mut(current)
+            .expect("no current thread")
+            .cycle_counter_grant = true;
+    }
+    crate::arch::timer::set_cycle_counter_grant(true);
 }
 
 /// **Install a capability into an embryo's capability table** (milestone 19c.3): the child's initial

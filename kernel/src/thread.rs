@@ -455,10 +455,12 @@ pub struct Thread {
     /// **May this thread read the CPU's cycle counter from user mode** (milestone 229, DECISIONS
     /// 139 option 4): the per-thread grant the context switch enforces.
     ///
-    /// Set once, on an embryo, by `ThreadControlBlock::GRANT_CYCLE_COUNTER`, and never afterwards:
-    /// the whole point of putting it in the spawn manifest rather than on a live thread is that a
-    /// program cannot acquire a timing instrument it was not created with. `false` on every kernel
-    /// thread and on every user thread nobody asked for it, which today is all of them.
+    /// Set once, on an embryo, by `sched::grant_cycle_counter`, and never afterwards: the whole
+    /// point of a creation-time grant rather than a method on a live thread is that a program
+    /// cannot acquire a timing instrument it was not created with. `false` on every kernel thread
+    /// and on every user thread, which today is all of them, because milestone 229 deliberately
+    /// shipped this mechanism without the syscall method that would set it (see
+    /// `abi::thread_control_block`'s module note for why a method number was not spent).
     ///
     /// `sched::schedule` reads it beside the incoming thread's address-space root and hands it to
     /// `arch::timer::set_cycle_counter_grant`, which writes the enable only when it differs from

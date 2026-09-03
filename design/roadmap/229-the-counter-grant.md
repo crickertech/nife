@@ -48,24 +48,43 @@ imply more.
 
 2026-09-02. Four pieces, and the third is the one that had to be measured rather than argued.
 
-**The grant is a bool on the TCB, set through a new `ThreadControlBlock` method.**
-`abi::thread_control_block::GRANT_CYCLE_COUNTER` (method 3), `WRITE`-gated like its three
-siblings, and it **refuses a thread that is not an embryo**, which is the whole security property
-rather than housekeeping: `CONFIGURE` and `CAP_INSERT` make the same refusal, so the set of things
-you can do to a TCB before it runs is exactly the spawn manifest DECISIONS 139 part 2 asked for,
-and there is no later. One-way: an embryo starts closed and nothing but this opens it.
+**The grant is a bool on the TCB**, `Thread::cycle_counter_grant`, set by
+`sched::grant_cycle_counter`, which **refuses a thread that is not an embryo**. That refusal is the
+security property rather than housekeeping: `CONFIGURE` and `CAP_INSERT` make the same one, so the
+things you may do to a thread before it runs are exactly the creation-time manifest DECISIONS 139
+part 2 asked for, and there is no later. One-way: an embryo starts closed and nothing but this
+opens it.
 
-**A new method rather than a field on `CONFIGURE`, and that was a choice a lane made in a space
-139 marked as calef's.** 139's recommendation section listed three shapes for expressing the grant
-(a field on TCB configure, a new spawn input, a badge on an existing capability) and said a lane
-should not pick one; part 2 of the answer then settled the half that matters, which is that it is
-set at creation and not on a live thread. What remained was mechanical and had one answer:
-`invoke` takes three argument registers, `CONFIGURE` already spends all three (entry, user stack,
-address-space slot), and `START` spends all three on the child's first registers. So the field had
-nowhere to go without widening `invoke` itself, which is a syscall-surface change of a much larger
-kind. A new method inside the established object model is what AGENTS.md and 139 both already
-permit (`MemoryRegion::SPLIT` and `DESTROY` arrived this way). **The method number, the method
-name and `Thread::cycle_counter_grant` are all provisional.**
+**And there is deliberately no syscall method to call it**, which is the one thing about this
+milestone a reader will otherwise assume somebody forgot.
+
+The lane built one (`abi::thread_control_block::GRANT_CYCLE_COUNTER`, method 3) and calef removed
+it on review, on an argument the lane did not have. DECISIONS 139 declined a first-class capability
+object partly because seL4's own RFC-16 for that shape has been unmerged since 2024-02-02. The
+prior art for **this** shape is `seL4_TCB_SetAffinity`, a per-thread property expressed as a TCB
+method, **which MCS deleted outright and replaced with a core that is a field of
+`sched_control_cap`**. seL4 could not see that corner coming. This tree can: milestone 147 (a
+profiler that holds exactly the counters it was granted) is already written down, wants cross-thread
+authority with a named target, and no method here would provide it. **Minting a method number whose
+retirement is already on the roadmap is spending an irreversible thing on a path with a visible
+end.**
+
+**The alternative was never method-now against capability-now.** 139 records that 147's
+target-naming has no precedent in this tree to price from, so the object is not buildable yet
+either. It was method-now against **not yet**, and not-yet costs almost nothing, because the grant
+has no consumer: milestone 74's aarch64 half is the first and does not exist. Whoever needs it
+mints it, with a requirement in hand.
+
+**A field on `CONFIGURE` is not the alternative either, and that was established by looking.**
+`invoke` carries three argument registers; `CONFIGURE` spends all three (entry, user stack,
+address-space slot) and `START` spends all three on the child's first registers. There is no spare
+word, so expressing the grant through the existing methods would mean widening `invoke` itself,
+which is a larger and equally irreversible change than the method being deferred. The finding is
+kept because the next person needs it: it is the reason the cheap-looking door is not a door.
+
+The standing note lives in `crates/abi`'s `thread_control_block` module, where a reader looking for
+the method meets the reason it is absent. **`Thread::cycle_counter_grant` and every arch name here
+are provisional.**
 
 **The switch writes it beside the address-space root.** `sched::schedule` reads the incoming
 thread's bool out of the same locked block that reads its `ttbr0`, and calls
@@ -126,16 +145,24 @@ the bytes a round trip fetches.
 - **The write is idempotent and does not disturb its neighbours** (`sched::tests`). Four calls
   where two change anything, then on riscv64 the assertion that carries this milestone's asymmetry
   argument: `scounteren.CY` is clear and `scounteren.TM` is still set.
-- **A granted EL0 child reads the counter** (`user::tests`). init builds a child, grants the
-  embryo, starts it, and the child reads `PMCCNTR_EL0` (aarch64) or the `cycle` CSR (riscv64) and
-  reports. **The report arriving is the whole assertion**: milestone 228 closed both registers at
-  init on every core, so without the grant that read traps and the thread dies with nothing sent.
-  The counter values are carried and not checked, because QEMU leaves `PMCR_EL0.E` clear and
-  `PMCCNTR_EL0` reads zero there forever; asserting on the number would be asserting on the
-  emulator.
+- **A granted EL0 thread reads the counter, and an ungranted one is killed for trying**
+  (`user::tests`), both halves in one test because each is the other's control. The same program
+  is run twice: granted it reports, ungranted the read traps and `USER_FAULTS` counts it. This is
+  the closed-side test an earlier draft of this block said it had not earned; removing the ABI is
+  what made it available, because the thread now runs from the kernel side where both cases are
+  observable. The counter values are carried and not checked, because QEMU leaves `PMCR_EL0.E`
+  clear and `PMCCNTR_EL0` reads zero there forever.
 
-The `x86_64` run passes the same EL0 test for a reason it should not be read as evidence: `rdtsc`
-is ambient there, so the child would have reported with or without the grant.
+**What that test buys through a back door, and what the back door costs.** With no ABI there is no
+honest userspace route to a granted thread, so the grant is applied by a `#[cfg(test)]` function,
+`sched::grant_cycle_counter_to_current`, which deliberately breaks the embryo rule and cannot exist
+in a shipped kernel. Same spirit as the `soak` and `fastpath_pad` affordances this tree already
+carries. **What is therefore not exercised end to end is the embryo-only path a real ABI would go
+through**; `sched`'s own refusal test covers that rule directly, and the two together are what the
+one EL0 test used to cover alone.
+
+The negative half **does not run on `x86_64`**, where `rdtsc` is ambient and an ungranted read is
+not an error. That skip is DECISIONS 139 part 3 showing up in a test rather than a gap in one.
 
 ## BUGS
 
@@ -147,18 +174,20 @@ is ambient there, so the child would have reported with or without the grant.
   Answered above, with the reason: two implementations behind one call site, because the registers
   disagree about whether they can be read back and about whether anything else lives in the word.
 
-- **Nothing checks that an *ungranted* thread is refused.** The EL0 test proves the open side; the
-  closed side would need the fault caught and reported rather than ending the run, which is the
-  supervision path and a bigger fixture than this earned. The evidence for the closed side stays
-  milestone 228's, which is the register written to zero at init on every core with the write
-  confirmed by disassembly.
+- **No userspace can use this.** There is no syscall method, by decision (above), so the only
+  caller of the grant in a shipped kernel is nothing at all, and `sched::grant_cycle_counter`
+  carries a `not(test)` dead-code allow to say so out loud. A reader who wants the counter opens
+  the question of what the surface should be, which is milestone 74's or 147's to answer.
 
-- **The method number and every name here are provisional**, including
-  `GRANT_CYCLE_COUNTER`, `Thread::cycle_counter_grant`,
-  `arch::timer::set_cycle_counter_grant` and `cycle_counter_grantable`. Names are calef's, and this
-  one is on the syscall surface, which is the expensive category.
-- **No consumer exists yet, and that is still true after this.** The only caller of the grant in
-  the tree is `hello`'s own test role. Milestone 74 (cycle counters) is the first real consumer, and
+- **The EL0 test grants through a `#[cfg(test)]` back door**, so the embryo-only rule is proven by
+  a unit test rather than through the path a program would take. Nothing is proven about an ABI
+  that does not exist, which is the honest state of it.
+
+- **Every name here is provisional**: `Thread::cycle_counter_grant`,
+  `arch::timer::set_cycle_counter_grant`, `cycle_counter_grantable`,
+  `sched::grant_cycle_counter` and its test-only twin. Names are calef's.
+- **No consumer exists yet, and that is still true after this.** The only exerciser is the kernel's
+  own test. Milestone 74 (cycle counters) is the first real consumer, and
   it is also the owner of a portable userspace read: the raw `mrs`/`csrr` here lives in the one test
   program that needs it rather than in `crates/user_rt`, so that 74 designs that API instead of
   inheriting one from a test vehicle.

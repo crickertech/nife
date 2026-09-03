@@ -135,7 +135,6 @@ pub extern "C" fn _start(role: u64, dma_phys: u64, arg2: u64) -> ! {
         INIT_BOOT => init_boot(dma_phys, arg2),
         INIT_WORKER => init_worker(dma_phys),
         INIT_COREMARK => init_coremark(dma_phys),
-        INIT_CYCLE_COUNTER => init_cycle_counter(dma_phys),
         CYCLE_COUNTER_CHILD => cycle_counter_child(),
         CHILD => child(),
         DEV_CHILD => dev_child(),
@@ -347,10 +346,9 @@ const INIT_COREMARK: u64 = 29;
 /// The word a milestone-19d child reports through the endpoint init granted it.
 const CHILD_WORD: u64 = 0xC0FFEE;
 
-/// The init role that builds a child, grants it the cycle counter, and starts it (milestone 229,
-/// DECISIONS 139 option 4: the first and so far only user of the grant).
-const INIT_CYCLE_COUNTER: u64 = 41;
-/// The child [`INIT_CYCLE_COUNTER`] builds: it reads the cycle counter and reports.
+/// The role that reads the cycle counter and reports (milestone 229). Started directly by the
+/// kernel's own test, not built by init: milestone 229 shipped the grant mechanism without a
+/// syscall method to set it, so there is no userspace route to a granted thread to exercise.
 const CYCLE_COUNTER_CHILD: u64 = 42;
 /// The word [`cycle_counter_child`] reports when it read the counter without being killed for it.
 ///
@@ -526,40 +524,6 @@ fn init_coremark(initrd_len: u64) -> ! {
     exit();
 }
 
-/// **init builds a child that may read the cycle counter, milestone 229.** The first user of
-/// DECISIONS 139's grant, and it is a test vehicle rather than a workload: milestone 74 (cycle
-/// counters) is the consumer that will want the number.
-///
-/// The shape is `init_irq`'s: build a child that is another role of this same binary, endow it
-/// with the report endpoint, and start it. The one new line is
-/// [`user_rt::tcb_grant_cycle_counter`], between `build_child` and `START`, which is where a
-/// creation-time grant has to go: the kernel refuses it on a thread that has already started, so
-/// there is no later.
-fn init_cycle_counter(initrd_len: u64) -> ! {
-    const MEMORY_REGION: u64 = 0;
-    const REPORT: u64 = 1;
-
-    let Some(init_bytes) = program(initrd_len, ROLES_ENTRY) else {
-        fail_report(REPORT)
-    };
-    let Ok(elf) = elf::Elf::parse(init_bytes) else {
-        fail_report(REPORT)
-    };
-
-    let caps: &[(u64, u64)] = &[(REPORT, abi::rights::WRITE)];
-    let Ok(tcb) = build_child(MEMORY_REGION, &elf, caps, &[]) else {
-        fail_report(REPORT)
-    };
-    // The grant, before the thread exists as a running thing. A failure here is reported as a
-    // failure rather than ignored: a silently ungranted child would trap on its first read and the
-    // test would hang, which is a worse thing to debug than a wrong word.
-    if user_rt::tcb_grant_cycle_counter(tcb) != 0 {
-        fail_report(REPORT)
-    }
-    check(thread_control_block_start(tcb, CYCLE_COUNTER_CHILD, 0, 0));
-    exit();
-}
-
 /// **The granted child, milestone 229.** Reads the cycle counter twice and reports
 /// [`CYCLE_COUNTER_WORD`] plus both reads. Holds the report endpoint (slot 0) and nothing else:
 /// the grant is not a capability in a slot, it is a property of this thread that the context
@@ -567,10 +531,20 @@ fn init_cycle_counter(initrd_len: u64) -> ! {
 ///
 /// **Getting here at all is the result.** Without the grant the read is an EL0 access to a
 /// register `PMUSERENR_EL0` (aarch64) or `scounteren` (riscv64) does not permit, which traps and
-/// kills the thread, and no SEND happens.
+/// kills the thread, and nothing is sent. The kernel-side test runs this role both ways and
+/// asserts each outcome.
+///
+/// **The `yield` between the two reads is the point of there being two.** The first read proves
+/// the grant reached a thread that had not yet been switched; the yield gives the scheduler a
+/// chance to switch this thread out and back in, so the second read is one taken *after* the
+/// context switch re-applied the grant from the thread's own field. A yield is not a guarantee
+/// that a switch happened (this may be the only runnable thread on the core), so the second read
+/// is evidence rather than proof, and the register-level assertions in `arch::*::timer`'s tests
+/// are what prove the write itself.
 fn cycle_counter_child() -> ! {
     const REPORT: u64 = 0;
     let first = read_cycle_counter();
+    user_rt::yield_now();
     let second = read_cycle_counter();
     send(REPORT, CYCLE_COUNTER_WORD, first, second);
     exit();
