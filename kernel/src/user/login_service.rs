@@ -110,6 +110,27 @@ pub struct Wiring {
     pub term_ep: RendezvousId,
 }
 
+/// Copy `bytes` into fresh read-only pages at consecutive VAs from `base` (milestone 233).
+///
+/// The kernel-side twin of `supervision_proto`'s `blobs`, which is how
+/// `crates/system_initializer` hands the same two blobs to the same program. Read-only for the
+/// same reason that one gives: a program image is data the child reads, and a child that could
+/// rewrite the image it was handed could hand a different one on.
+///
+/// An empty `bytes` maps nothing at all, which is the case `login` is told about by a zero length
+/// in its argument register rather than by a mapping it would have to probe.
+fn map_blob(space: &mut AddressSpace, base: u64, bytes: &[u8]) {
+    let mut off = 0usize;
+    while off < bytes.len() {
+        let page = space
+            .map_new(base + off as u64, Flags::user_rodata())
+            .expect("could not map a login blob");
+        let n = core::cmp::min(FRAME_SIZE as usize, bytes.len() - off);
+        page[..n].copy_from_slice(&bytes[off..off + n]);
+        off += n;
+    }
+}
+
 /// **Wire and spawn the login service.** It parses the initrd for `fs_subtree_caretaker`'s own
 /// bytes and then blocks on [`Wiring::request`].
 ///
@@ -134,9 +155,22 @@ pub fn start(
     fs_page_frame: u64,
     construction_pages: u64,
 ) -> Wiring {
-    let (initrd_start, initrd_len) = memory::initrd_region().expect("no initrd region");
-    let initrd_pages = initrd_len.div_ceil(FRAME_SIZE);
     let elf = Elf::parse(image).expect("login is not loadable");
+
+    // **The two blobs `login`'s `_start` is started against** (milestone 233), read out of the same
+    // archive this harness used to map wholesale.
+    //
+    // This changed so that there is **one** contract rather than two. `login` used to read the
+    // initrd at `user_rt::initrd::INITRD_VA`, which this harness could hand it (it is the kernel;
+    // it maps reserved RAM directly) and which `crates/system_initializer` could not (`build_child`
+    // maps only pages the spawner holds a capability for, and nothing names the archive). So the
+    // one path the suite exercised was the one the real boot never took, and `login` died at
+    // `_start` on every interactive boot without a single test noticing. A harness that starts a
+    // program differently from the way the system starts it is not testing that program.
+    let archive = super::initrd().expect("no initrd");
+    let fs = nifefs::Fs::parse(archive).expect("the initrd is not a nifefs archive");
+    let caretaker = fs.read("fs_subtree_caretaker").unwrap_or(&[]);
+    let measurements = fs.read(measured_boot::PROGRAM_MEASUREMENTS).unwrap_or(&[]);
 
     let content: u64 = elf
         .segments()
@@ -146,7 +180,8 @@ pub fn start(
         })
         .sum::<u64>()
         + 1 // CRED_VA
-        + initrd_pages / 512
+        + caretaker.len().div_ceil(FRAME_SIZE as usize) as u64
+        + measurements.len().div_ceil(FRAME_SIZE as usize) as u64
         + LOGIN_STACK_PAGES
         + 8;
     let mut space = AddressSpace::new(content).expect("no memory for login");
@@ -158,15 +193,12 @@ pub fn start(
     }
     #[cfg(target_arch = "x86_64")]
     map_x86_timebase_page(&mut space).expect("could not map login's timebase page");
-    for i in 0..initrd_pages {
-        space
-            .map_physical(
-                INITRD_VA + i * FRAME_SIZE,
-                initrd_start + i * FRAME_SIZE,
-                Flags::user_rodata(),
-            )
-            .expect("could not map the initrd");
-    }
+    map_blob(&mut space, login_proto::CARETAKER_ELF_VA, caretaker);
+    map_blob(
+        &mut space,
+        login_proto::PROGRAM_MEASUREMENTS_VA,
+        measurements,
+    );
     // Milestone 49's channel-per-client update removed the front door's own shared staging page:
     // `CONNECT` (the only word the front door accepts) carries no page at all, and every actual
     // login's identity and secret now travel on a page `login`'s own `connect()` mints and maps at
@@ -252,7 +284,8 @@ pub fn start(
 
     sched::configure_thread_control_block(tid, elf.entry(), USER_STACK_TOP, aspace)
         .expect("configure");
-    sched::start_thread_control_block(tid, [0, initrd_len, 0]).expect("start");
+    sched::start_thread_control_block(tid, [caretaker.len() as u64, measurements.len() as u64, 0])
+        .expect("start");
 
     Wiring {
         request,

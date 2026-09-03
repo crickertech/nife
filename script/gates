@@ -73,6 +73,22 @@ echo
 echo "==> script/test"
 script/test
 
+# **The interactive boot** (milestone 230). `script/test` has the KERNEL play init in every suite
+# that runs a shell, so nothing in it exercises `crates/system_initializer`; this is the only gate
+# that boots the real one. Until this line it ran in neither `script/test` nor CI, and `main` sat
+# red for five days behind a fully green tree while init trapped before a console existed to say so.
+#
+# Here rather than in CI alone because of the measurement: **30 seconds** for both architectures
+# against the target directory `script/test` has just warmed, which is a rounding error on this
+# script and would be a full ten-minute build on a runner of its own. It also runs in CI, appended
+# to `script/ci-build` for the same reason; this line is what catches it before the push.
+#
+# Below `script/test` on the cheapest-first rule only in the sense that the suite is the broader
+# signal: it should be what fails first when both would.
+echo
+echo "==> script/shell-check"
+script/shell-check
+
 # The silicon leg (milestone 81). Everything above ran under TCG, which emulates every instruction:
 # a machine with no real caches, no real reordering, and a scheduler QEMU round-robins between
 # vCPUs. Hypervisor.framework runs the same kernel at guest EL1 on the physical Apple Silicon core,
@@ -119,7 +135,7 @@ fi
 
 echo
 if [ -n "$hvf_missing" ]; then
-    echo "gates: fmt, lint, image-permissions, icount and test all pass (TCG only; the HVF leg was skipped)"
+    echo "gates: fmt, lint, image-permissions, icount, test and shell-check all pass (TCG only; the HVF leg was skipped)"
 else
-    echo "gates: fmt, lint, image-permissions, icount and test all pass, the aarch64 suite twice (TCG and the physical core)"
+    echo "gates: fmt, lint, image-permissions, icount, test and shell-check all pass, the aarch64 suite twice (TCG and the physical core)"
 fi

@@ -529,6 +529,23 @@ went), and the difference is accounted rather than shrugged at:
   `MAP_BUDGET_PAGES`'s eight pages still cover the page tables (see below). **Nothing else on this
   path is short. Only the slots are.**
 
+  **Two of those numbers have moved since, and the constants a reader would quote should be the
+  current ones** (updated 2026-09-02, milestones 230 and 231). The table is **twenty-four** slots
+  rather than sixteen, `Option<Cap<Object>>` is **32** bytes rather than 24, and `MAX_THREADS` is
+  **256** rather than 128. The paragraphs above are left as written because they are the record of
+  an investigation on the day it was done, and none of the arithmetic's *conclusions* survive being
+  updated any differently: 469 page frames does not fit in twenty-four slots either, and option 2
+  now prices 512 slots at 16 KiB a thread across twice as many threads.
+  `kernel::cap::CAPABILITY_TABLE_SLOTS`' own doc carries why it moved, which is worth reading before
+  quoting any figure here.
+
+  **And a boot now says what it actually used**, which is the thing this section's whole argument
+  was conducted without. `kernel::cap::report_peak` prints `capability slots: N of M at peak` from
+  the scheduler's idle loop, and `script/shell-check` echoes it on every run: the interactive boot
+  reaches **21 of 24**. That number cost milestone 230 four instrumented boots to learn and now costs
+  a boot, which is the difference between a fork priced against a guess and one priced against a
+  measurement. See design/roadmap/231-capability-slot-high-water-mark.md.
+
   Three ways out, priced:
 
   1. **A `PageFrame` that names a run.** `Object::PageFrame(u64)` carries a page count,
