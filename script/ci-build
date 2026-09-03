@@ -18,3 +18,20 @@ cd "$(dirname "$0")/.."
 
 script/bootstrap
 cargo xtask test
+
+# **The interactive boot, in the same job rather than a job of its own** (milestone 230). Until that
+# milestone `script/shell-check` ran in neither `script/test` nor CI, so it was red on `main` on both
+# architectures for a week and a fully green tree said nothing about it: init trapped before the
+# console existed, and the only gate that boots the real init is this one.
+#
+# Here, and not as a thirteenth workflow job, because of what the two cost. Measured on 2026-09-02:
+# the check itself is **30 seconds** for both architectures against a warm target directory, while
+# this job's build is around ten minutes. A separate job would pay that ten minutes again, plus its
+# own QEMU cache restore and runner slot, to do thirty seconds of work; appended here it reuses the
+# build that just ran and adds only the `--features shell` kernels. Runner concurrency is a real
+# ceiling on this project (CLAUDE.md's lane-count section), so a job that buys nothing the step
+# cannot is a job that slows every other lane's group build down.
+#
+# After `cargo xtask test` rather than before it: the suite is the broader signal and should be what
+# fails first when both would.
+cargo xtask shell-check
