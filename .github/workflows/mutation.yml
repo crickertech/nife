@@ -13,11 +13,19 @@ name: mutation testing
 # weekly cron. It becomes a gate only if these numbers prove stable enough that a new survivor
 # deserves to fail something; that decision is on the record there, not here.
 #
-# Weekly rather than per-push for cost, sharded four ways for wall clock: the full run is **9,857
-# mutants** as of 2026-09-03, each one a build plus a test run, so about 2,465 to a shard. (It was
+# Weekly rather than per-push for cost, sharded eight ways for wall clock: the full run is **9,857
+# mutants** as of 2026-09-03, each one a build plus a test run, so about 1,230 to a shard. (It was
 # ~6,000 when this workflow was written a month earlier, which is the rate this tree grows at and
-# the reason the box below is generous.) Shards split the mutant list, not the crates, so the four
-# jobs finish together instead of one carrying filesystem_proto alone.
+# the reason the box below is generous.)
+#
+# **Shards split the mutant list, not the crates, and `round-robin` rather than the default
+# `slice`.** Mutant `i` goes to shard `i % 8`, so every shard holds a sample of every crate instead
+# of an alphabetical block of a few. Two things follow, and the second is why it changed. The jobs
+# finish together instead of one carrying `filesystem_proto` alone, which is what the original
+# four-way split was reaching for. And **a lost shard costs an eighth of every crate rather than all
+# of a few**: with `slice`, losing shard 1 on 2026-08-31 meant `gpt` and `grant_plan` went entirely
+# unmeasured and the surviving report could say nothing about them, where a round-robin loss leaves
+# every crate with seven eighths of its mutants and a rate still worth reading.
 #
 # BUGS: **this workflow had never once succeeded** before milestone 238. Four scheduled runs,
 # 2026-08-10 through 2026-08-31, every one red, found by milestone 232's audit (audit every check
@@ -29,13 +37,21 @@ name: mutation testing
 #     on every run, and shard 0 was never tested at all. `script/mutation` reported this correctly
 #     and loudly ("run FAILED (exit 1): this is a broken run, not a survivor count") to a scheduled
 #     job that nothing reads, which is the actual defect this milestone is about.
-#  2. **The surviving shards were terminated by the runner, and that is not repaired here.** Shard 1
-#     was cut short on all four runs and shards 2 and 3 on the later ones, always with `The runner
-#     has received a shutdown signal` and a `cancelled` step, at wall-clock times between three and
-#     forty-nine minutes with no failing assertion and no error from cargo-mutants beyond `ERROR
-#     interrupted`. That is the runner agent being killed rather than anything in the shard. The
-#     resource sampler in the run step exists to tell the next reader which resource ran out; until
-#     a run carries that trace, calling it memory would be a guess wearing a diagnosis's clothes.
+#  2. **The surviving shards are terminated by the runner, and that is NOT a resource problem in
+#     the job.** This was the open question, and the resource sampler answered it on the first
+#     instrumented run (2026-09-03). Shard 0 died 57 seconds after a sample showing **14.7 GB of
+#     memory available of 16, and 107 GB of disk**; shard 2 died with 12.3 GB available, shard 1
+#     with 10.7 GB. Every one ends the same way, `The runner has received a shutdown signal`, a
+#     `cancelled` step, and every later step including the `if: always()` upload **skipped**, which
+#     is the runner agent being killed rather than a process in the job failing. Across five runs,
+#     13 of 20 shard jobs went this way, at wall-clock times from 3 to 49 minutes, with one shard
+#     completing 2,462 mutants in 17m34s on the same machine class the same morning.
+#
+#     So the `-j 2` bound below is not the constraint here, whatever it is on a development
+#     machine, and lowering it would cost hours for nothing. **Nothing in this repository can stop
+#     the eviction**; what it can do is make each job a smaller bet, which is what the eight-way
+#     round-robin split above is for. If that proves insufficient the next option is a self-hosted
+#     runner, and that is calef's call rather than a workflow edit.
 #
 # The cost is not the missing weekly report. `design/fatal-risks.md`'s third risk stands at
 # MEASURED green on a 2026-08-03 number and closes by saying "the weekly workflow already publishes
@@ -60,7 +76,7 @@ concurrency:
 
 jobs:
   mutants:
-    name: "mutants (shard ${{ matrix.shard }}/4)"
+    name: "mutants (shard ${{ matrix.shard }}/8)"
     runs-on: ubuntu-24.04-arm
     # A generous box around a run whose cost moves with the tree. Four shards of ~2,465 mutants
     # each as of 2026-09-03; the shard re-runs its own baseline build first, and a few mutants (dtb's walker, the
@@ -73,8 +89,8 @@ jobs:
     # from each package's own baseline test time (5x it, floor 20s), which on this tree came out at
     # 112 seconds, and 96 of those is nearly three hours of wall clock spent proving that infinite
     # loops are infinite. Sharded four ways that was about 45 minutes a shard when the corpus was
-    # ~6,000 mutants, which is why the box below is 330 minutes and not 90; at 9,857 it is more, and
-    # no run has yet survived long enough to measure the real figure.
+    # ~6,000 mutants, which is why the box below is 330 minutes and not 90. The first shard ever to
+    # finish (2026-09-03, shard 3 of 4, 2,462 mutants) took 17m34s, so the box has room to spare.
     #
     # Do NOT remove the auto timeout, and think before overriding it with `--timeout`: too low and a
     # legitimately slow mutant is recorded as a hang it is not, which corrupts the one column of the
@@ -90,14 +106,19 @@ jobs:
         # k < n, so the old `[1, 2, 3, 4]` was two bugs wearing one costume: `--shard 4/4` was
         # rejected as an invalid argument before a single mutant ran (the twenty-second death on
         # every scheduled run since 2026-08-10), and `--shard 0/4`, the first quarter of the mutant
-        # list, was never run at all. Sharding is `slice` by default, consecutive ranges of a
-        # sorted list, so the quarter that went unmeasured for four weeks was a nameable one:
-        # dtb, calendar, compositor, cred, elf, capability and their alphabetical neighbours.
+        # list, was never run at all.
         #
         # The tool's own `--help` is what invited the mistake, and it is worth knowing before
         # touching this line: it reads "specify as e.g. 1/4", which is a valid shard and reads
         # exactly like a one-based first-of-four. Milestone 238.
-        shard: [0, 1, 2, 3]
+        #
+        # **Eight rather than four, because jobs here get evicted and a shorter job survives more
+        # often.** See the eviction paragraph in this file's BUGS. The measured shard time is about
+        # 17 minutes at four ways, and the per-shard overhead sharding pays is tiny: the baseline
+        # rebuild each shard does cost 3 seconds of build and 6 of test on 2026-09-03, against 17
+        # minutes of mutants. Nothing is measured less; the same 9,857 mutants are attempted, in
+        # smaller pieces, so a reclaimed runner costs an eighth of the corpus instead of a quarter.
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
     steps:
       - uses: actions/checkout@v7
 
@@ -148,7 +169,7 @@ jobs:
           done &
           sampler=$!
           trap 'kill "$sampler" 2>/dev/null || true' EXIT
-          script/mutation --shard ${{ matrix.shard }}/4
+          script/mutation --shard ${{ matrix.shard }}/8 --sharding round-robin
 
       # Uploaded even when the step above hiccups: a partial report beats none, and the report job
       # below states which shards it actually saw.
@@ -200,7 +221,7 @@ jobs:
             else
               # shellcheck disable=SC2086  # $dirs is a deliberately word-split list of directories
               set -- $dirs
-              echo "aggregated from: $* ($# of 4 shards)"
+              echo "aggregated from: $* ($# of 8 shards)"
               echo
               echo '```'
               script/mutation --report "$@"
