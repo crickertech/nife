@@ -125,8 +125,10 @@ static PMU_PRESENT: [AtomicBool; MAX_CPUS] = [const { AtomicBool::new(false) }; 
 /// **What this core last wrote to `PMUSERENR_EL0`**, as a bool: open (`CR` set) or closed (zero).
 /// `init` writes zero, so `false` is the truth at boot on every core.
 ///
-/// This is a cache rather than a read-back, which is the one place [`set_cycle_counter_grant`]
-/// departs from `mmu::switch_user_root`'s shape, and the reason is the register above: on a part
+/// This is a cache rather than a read-back, which is the one place `set_cycle_counter_grant` below
+/// departs from `mmu::switch_user_root`'s shape (plain backticks rather than a doc link because
+/// that function is behind `cycle_counter_grant` and this static is not, milestone 237), and the
+/// reason is the register above: on a part
 /// without `FEAT_PMUv3` an `mrs` from `PMUSERENR_EL0` is as UNDEFINED as an `msr` to it, so "read
 /// what the hardware holds" is not available on the architecture the way it is for `TTBR0_EL1`.
 /// Nothing else in this kernel writes `PMUSERENR_EL0` after `init`, so the cache cannot go stale
@@ -234,10 +236,15 @@ fn close_cycle_counter_to_el0() {
 /// The grant is still *accepted* on such a part (a manifest is a declaration, and refusing it at
 /// `START` would make a program un-runnable on a board rather than merely un-instrumented); this is
 /// what lets a test say "there is nothing here to measure" instead of faulting.
+///
+/// **Built only under `test` or `--features cycle_counter_grant`** (milestone 237): the grant is
+/// a measurement build the way `soak` is. `kernel/Cargo.toml`'s feature block carries the
+/// reasoning and the measured cost. Milestone 228's closed default at `init` is NOT gated.
 // Asked only by tests today (`sched`'s grant round trip and `user`'s EL0 one), which are the
 // callers that have to skip rather than fault on a part with no counter to grant. Marked rather
 // than deleted: milestone 74's cycle-counter work is the caller that will want it in anger.
 #[cfg_attr(not(test), allow(dead_code))]
+#[cfg(any(test, feature = "cycle_counter_grant"))]
 pub fn cycle_counter_grantable() -> bool {
     PMU_PRESENT[cpu::id()].load(Ordering::Relaxed)
 }
@@ -272,6 +279,11 @@ pub fn cycle_counter_grantable() -> bool {
 /// only way back to EL0 from this path is the `eret` that ends the return-to-user sequence, which
 /// is a context-synchronizing event by definition. Linux's arm64 per-task hook for the same
 /// register writes it the same way, for the same reason.
+///
+/// **Built only under `test` or `--features cycle_counter_grant`** (milestone 237): the grant is
+/// a measurement build the way `soak` is. `kernel/Cargo.toml`'s feature block carries the
+/// reasoning and the measured cost. Milestone 228's closed default at `init` is NOT gated.
+#[cfg(any(test, feature = "cycle_counter_grant"))]
 pub fn set_cycle_counter_grant(granted: bool) {
     let cpu = cpu::id();
     if COUNTER_OPEN[cpu].load(Ordering::Relaxed) == granted {
