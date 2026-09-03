@@ -441,7 +441,7 @@ besides, being built for dated release grouping; these are capability-shaped and
 | 234 | BUILT | [The project's own numbers, one row per ISO week](234-project-metrics.md) | `notes/register-of-measures.md` opens by saying this tree measures a great deal and remembers almost none of it | 2026-09-02 |
 | 235 | NOT-STARTED | [A command that faults hangs the prompt, because nothing has a word for it](235-a-faulted-job-should-reach-the-prompt.md) | `swish` waits on a result endpoint a killed thread never sends; a non-zero exit is fine, a fault is not | |
 | 236 | NOT-STARTED | [Three derivations are copied between scripts, and nothing notices when they drift](236-lift-the-copied-derivations.md) | the `unsafe` census, the line split and the harness count each exist twice, inside shell heredocs where nothing can import them | |
-| 237 | NOT-STARTED | [The cycle-counter grant costs 192 bytes of IPC fastpath for an instrument nothing can request](237-the-cycle-grant-is-a-measurement-build.md) | measured per symbol: `schedule` +136, `finish_switch` +56, and no program can request the grant since 229's ABI was deferred | |
+| 237 | BUILT | [The cycle-counter grant costs 136 bytes of IPC fastpath for an instrument nothing can request](237-the-cycle-grant-is-a-measurement-build.md) | `--features cycle_counter_grant`, gated as `any(test, feature = ...)` so `script/test` keeps compiling and running 229's proofs; production aarch64 `ipc_fastpath` back to 5852, measured, and the +56 the mint attributed here turned out to be milestone 231's | 2026-09-03 |
 
 The order §14 sets: **verify the core and make it verifiable first** (18 and 14, the thesis), then the
 road to running real workloads on real machines (15, 21, 16, 19; 25 extends 21 into cross-OS

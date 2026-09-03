@@ -253,6 +253,21 @@ that architecture the way `CNTVCT_EL0` and `rdtime` are fallbacks on the other t
 smoltcp's timestamps and the benchmark harness at once. DECISIONS 139 measured the alternatives
 (trap-and-emulate at 1,667 ns, 4.1x the syscall it would be beating) and closed them.
 
+**And the grant is only built when something asks for it** (milestone 237, the cycle-counter grant
+as a measurement build). Every piece above is behind `any(test, feature = "cycle_counter_grant")`,
+so a shipping kernel carries none of it: the field, the switch read, the register write and
+`grant_cycle_counter` all leave the binary, and `sched::schedule` is 136 bytes smaller for it
+(`script/fastpath-footprint`'s aarch64 `ipc_fastpath` closure, 5852 against 5988). `script/test`
+compiles and runs milestone 229's proofs on all three architectures anyway, because `test` is in the
+predicate, and `script/lint` clippies the feature without `test` on all three.
+
+Two things that gate does **not** cover, both deliberately. Milestone 228 (the cycle counters are
+closed by assumption)'s default write is in every build, granted or not: closing what we claim is
+closed is right whether or not anyone can be granted an exception, so the "closed by default" column
+above is true of a production kernel. And nothing here was deleted, because deleting it would make
+the cycle figure milestone 25 (cross-OS performance comparison) publishes against seL4's
+unreproducible and would quietly return DECISIONS 139's answer to "closed for everyone".
+
 **None of this is timing confinement, and nothing in the tree should be read as saying it is.** Two
 threads and a shared word reconstruct a 6.8 ns clock on any of the three architectures; see
 notes/confinement-claims.md, which carries that row. What the grant buys is **accountable
