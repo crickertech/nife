@@ -80,16 +80,33 @@ worth keeping: shards are zero-indexed, so **`--shard 0/4` was never run**, and 
 `elf`, `capability`). `script/mutation` had reported the failure correctly and loudly the whole
 time, to a scheduled job nothing reads.
 
-**The other deaths are runner eviction, and that is measured rather than assumed.** A resource
-sampler was added to the job, because a `shutdown signal` kills the runner agent and every
-`if: always()` step with it, so no autopsy can run afterwards. Shard 0 died 57 seconds after a
-sample showing **14.7 GB of memory available of 16 and 107 GB of disk**; shard 2 at 12.3 GB, shard 1
-at 10.7 GB. Across five runs, 13 of 20 shard jobs went this way, from 3 to 49 minutes in, while one
-shard completed 2,462 mutants in 17m34s on the same machine class the same morning. So `-j 2` is not
-the constraint in CI and lowering it would buy nothing. Nothing in this repository can stop the
-eviction; the workflow now shards **eight ways with `--sharding round-robin`**, which makes each job
-a smaller bet and, more usefully, makes a lost shard cost an eighth of every crate instead of all of
-a few. **Nothing is measured less**: the same 9,857 mutants are attempted.
+**The other deaths are a single mutant exhausting the machine's memory in twenty seconds, and
+getting there took one wrong answer worth recording.** A resource sampler was added to the job,
+because a `shutdown signal` kills the runner agent and every `if: always()` step with it, so no
+autopsy can run afterwards. At a 60-second interval it said, unambiguously, that memory was not the
+problem: shard 0 died 57 seconds after a sample showing 14.7 GB available of 16 and 107 GB of disk,
+and two siblings looked the same. That was written up as runner eviction. **At a 10-second interval
+the same failure is a straight line into the wall:**
+
+```
+20:35:31  mem_used_mb=1352   mem_avail_mb=14595
+20:35:41  mem_used_mb=6335   mem_avail_mb=9611
+20:35:51  mem_used_mb=15763  mem_avail_mb=183
+20:36:16  The runner has received a shutdown signal
+```
+
+1.4 GB to 15.8 GB in twenty seconds. A mutant turns a bound into an unbounded allocation, the
+machine goes, and the runner agent goes with it. **The per-mutant timeout cannot catch this**: it is
+auto-derived at 28 to 51 seconds on this tree, and 16 GB is gone well inside that, so a mutant that
+allocates rather than spins is a hang the clock never gets to name. A sampler whose interval is
+longer than the event it watches for reports innocence, which is worse than reporting nothing.
+
+So `-j 2` is not the constraint, since one runaway takes 14 GB by itself. The workflow now shards
+**eight ways with `--sharding round-robin`**, and that is damage control rather than a repair: it
+does not stop a shard dying, it makes a lost shard cost an eighth of every crate instead of all of a
+few, so a partial report is still a report about every crate. **Nothing is measured less**: the same
+9,857 mutants are attempted. The repair is a bound on what one mutant may allocate, and it is handed
+off rather than guessed at, below.
 
 **A number came back, and it is a partial one that points down.** The one shard that finished killed
 **74.4%** of its viable mutants against the whole-corpus baseline of 92.4% from 2026-08-03. Those
@@ -128,10 +145,10 @@ or `script/gates`, for `script/audits`' recorded reason.
   changed is that the clause making a stale number acceptable, "the weekly workflow already
   publishes the report", is now true rather than false. The number it will publish is not yet a
   whole-corpus number, and 74.4% on one alphabetical quarter is not a verdict.
-- **Eviction is diagnosed, not solved.** Eight round-robin shards shorten the exposure per job and
-  make a partial report representative; they do not stop GitHub reclaiming a runner. If that proves
-  insufficient the next option is a self-hosted runner, which is a machine decision rather than a
-  workflow edit.
+- **The memory kill is diagnosed, not solved.** Eight round-robin shards make a partial report
+  representative; they do nothing to stop a runaway mutant taking a runner, and round-robin arguably
+  spreads the runaways across more shards than `slice` concentrated them in. On 2026-09-03, four of
+  eight shards still died. See the handoff below.
 - **The cadence check inherits patagonia's gap.** `scripts/trunk-health.sh` runs under `launchd` on
   one Mac, so a machine asleep is a watcher not watching. That cost is already recorded and accepted
   in AGENTS.md; this does not change it.
@@ -140,3 +157,29 @@ or `script/gates`, for `script/audits`' recorded reason.
   somebody runs them, and there is no way to tell a correct red from a broken one from outside.
 - **Three quarters of the mutant corpus is still unmeasured since 2026-08-03.** A full refresh needs
   a run where enough shards survive, and no such run has happened yet.
+
+## Handoff: bound what one mutant may allocate
+
+**Proposed milestone (provisional, number is the integrator's).** *A mutant that allocates without
+bound should be a killed mutant, not a killed machine.*
+
+The mechanism is small and the choice between three shapes is the work:
+
+- **A memory cgroup around the run** (`systemd-run --scope -p MemoryMax=...`). The kernel's
+  OOM killer takes the test binary, which is inside the scope, rather than the runner agent, which
+  is outside it. Most precise; needs `sudo` and careful environment inheritance.
+- **`ulimit -v` before `script/mutation`.** One line, inherited by every child. The risk is that it
+  also bounds `rustc`, which bundles jemalloc and reserves address space generously, so the cap has
+  to clear the compiler while sitting under half of physical memory (`-j 2` means two of them).
+  Cheap to falsify: a run's baseline build either survives the cap in the first minute or does not.
+- **A `cargo` runner wrapper**, so only the test binaries are bounded and the compiler is untouched.
+  Cleanest in principle; `target.<host>.runner` is only consulted when `--target` is passed, so it
+  needs checking before it is chosen.
+
+Whichever wins, the outcome is the same and it is an improvement in what gets measured rather than a
+reduction: a runaway mutant that today destroys a shard's entire remaining run would instead be
+recorded as one caught mutant, and the other 1,200 in that shard would finish.
+
+This was not built here because each attempt costs a twenty-minute CI round trip and the failure
+mode of a bad cap is a build that breaks confusingly rather than loudly, which is the wrong thing to
+ship under a feedback loop that slow.

@@ -132,11 +132,18 @@ was an alphabetical block: `dtb`, `calendar`, `compositor`, `cred`, `elf`, `capa
 neighbours. Nothing was lost from the baseline, which was a full local run, but four weeks of
 weekly reports would have been silently missing a nameable quarter had any of them succeeded.
 
-The other cause is not fixable here: **runner eviction.** 13 of 20 shard jobs across five runs were
-terminated by `The runner has received a shutdown signal` with 10 to 15 GB of memory and 107 GB of
-disk free at the last sample before the kill, so it is not the job outgrowing the machine. The
-workflow now shards eight ways with `--sharding round-robin` to make each job a smaller bet and to
-make a partial report representative; the reasoning is in its header.
+The other cause is **a single mutant allocating without bound**, and the diagnosis took one wrong
+turn worth recording. A resource sampler at 60 seconds showed 10 to 15 GB of memory free shortly
+before each kill, which reads as runner eviction and was written up as such. At 10 seconds the same
+failure is 1.4 GB to 15.8 GB in twenty seconds, then the shutdown signal. **The per-mutant timeout,
+auto-derived at 28 to 51 seconds here, cannot catch an allocation that finishes the machine in
+twenty.** A sampler whose interval is longer than the event reports innocence.
+
+So this is not the `-j 2` bound below, and lowering it would not help: one runaway takes 14 GB by
+itself. The workflow now shards eight ways with `--sharding round-robin`, which is damage control
+(a lost shard costs an eighth of every crate rather than all of a few) and not a repair. The repair
+is a bound on what one mutant may allocate, and it is scoped as its own work in milestone 238's
+block.
 
 ### The number, and what it is not
 
