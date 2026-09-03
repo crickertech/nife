@@ -13,24 +13,34 @@ name: mutation testing
 # weekly cron. It becomes a gate only if these numbers prove stable enough that a new survivor
 # deserves to fail something; that decision is on the record there, not here.
 #
-# Weekly rather than per-push for cost, sharded four ways for wall clock: the full run is ~6,000
-# mutants, each one a build plus a test run. Shards split the mutant list, not the crates, so the
-# four jobs finish together instead of one carrying filesystem_proto alone.
+# Weekly rather than per-push for cost, sharded four ways for wall clock: the full run is **9,857
+# mutants** as of 2026-09-03, each one a build plus a test run, so about 2,465 to a shard. (It was
+# ~6,000 when this workflow was written a month earlier, which is the rate this tree grows at and
+# the reason the box below is generous.) Shards split the mutant list, not the crates, so the four
+# jobs finish together instead of one carrying filesystem_proto alone.
 #
-# BUGS: **this workflow has never once succeeded.** Four scheduled runs, 2026-08-10 through
-# 2026-08-31, every one red, found by milestone 232's audit (audit every check against two
-# questions: does anything run it, and does it block) on 2026-09-03. On the last run all four
-# shards died together about fourteen minutes in with `The runner has received a shutdown signal`,
-# which is the shape of a run being reclaimed rather than of a defect in a shard; on the three
-# before it, shard 4 died in about twenty seconds every time while its siblings ran for half an
-# hour. Whether that is a memory kill, an eviction, or something in `script/mutation --shard 4/4`
-# is open, and the step logs had aged out of `gh` by the time anyone looked.
+# BUGS: **this workflow had never once succeeded** before milestone 238. Four scheduled runs,
+# 2026-08-10 through 2026-08-31, every one red, found by milestone 232's audit (audit every check
+# against two questions: does anything run it, and does it block) on 2026-09-03. Two distinct
+# causes, and only one of them is fixed here:
+#
+#  1. **The shard indices were off by one, and that is repaired above.** `--shard 4/4` is not a
+#     shard; cargo-mutants counts from zero and rejects k >= n. So one job died in twenty seconds
+#     on every run, and shard 0 was never tested at all. `script/mutation` reported this correctly
+#     and loudly ("run FAILED (exit 1): this is a broken run, not a survivor count") to a scheduled
+#     job that nothing reads, which is the actual defect this milestone is about.
+#  2. **The surviving shards were terminated by the runner, and that is not repaired here.** Shard 1
+#     was cut short on all four runs and shards 2 and 3 on the later ones, always with `The runner
+#     has received a shutdown signal` and a `cancelled` step, at wall-clock times between three and
+#     forty-nine minutes with no failing assertion and no error from cargo-mutants beyond `ERROR
+#     interrupted`. That is the runner agent being killed rather than anything in the shard. The
+#     resource sampler in the run step exists to tell the next reader which resource ran out; until
+#     a run carries that trace, calling it memory would be a guess wearing a diagnosis's clothes.
 #
 # The cost is not the missing weekly report. `design/fatal-risks.md`'s third risk stands at
 # MEASURED green on a 2026-08-03 number and closes by saying "the weekly workflow already publishes
 # the report", and that sentence is what makes a stale number acceptable. See
-# notes/check-inventory.md. Repairing this is a milestone of its own; the audit was forbidden from
-# growing into one.
+# notes/check-inventory.md and notes/mutation-testing.md.
 
 on:
   schedule:
@@ -109,8 +119,28 @@ jobs:
       # script/mutation runs -j 2, and that bound is load-bearing here too: each job holds a full
       # tree copy with its own target/, and the run that established the baseline OOM-killed a
       # 16 GiB machine at -j 4. These runners have no more headroom than that.
+      #
+      # **The resource line every 60 seconds is not noise, it is the only autopsy available.** Three
+      # of the four scheduled runs before milestone 238 ended with `The runner has received a
+      # shutdown signal` partway through, which terminates the runner agent itself: an `if: always()`
+      # step does not get to run, an artifact does not get uploaded, and the log stops at whatever
+      # the step had already printed. So the evidence has to be *in the stream* before the death
+      # rather than collected after it. `free` and `df` are two lines a minute against a job that
+      # costs hours, and if the next death is memory or disk the last line before the cut says so
+      # instead of leaving another lane to reproduce it.
+      #
+      # Read it with the run's own conclusion: a `cancelled` step plus a falling `available` column
+      # is the runner being reclaimed for resource exhaustion, and a flat one is the host reclaiming
+      # the VM for its own reasons, which is not something this repository can fix.
       - name: Run this shard of the mutants
-        run: script/mutation --shard ${{ matrix.shard }}/4
+        run: |
+          while true; do
+            echo "[resource] $(date -u +%H:%M:%S) $(free -m | awk '/^Mem:/{print "mem_used_mb="$3" mem_avail_mb="$7}') $(df -m --output=avail / | tail -1 | awk '{print "disk_avail_mb="$1}')"
+            sleep 60
+          done &
+          sampler=$!
+          trap 'kill "$sampler" 2>/dev/null || true' EXIT
+          script/mutation --shard ${{ matrix.shard }}/4
 
       # Uploaded even when the step above hiccups: a partial report beats none, and the report job
       # below states which shards it actually saw.
