@@ -1,9 +1,7 @@
 # 240. The soak reports what happened and not where, so an eightfold difference cannot be explained
 
-**Status: NOT-STARTED.** Minted 2026-09-03 by calef, during the first bench session that ran the soak
-on real silicon. *(Number provisional until the merge queue lands it.)*
-
-**Gate: NONE.** The kernel knows the answer at spawn; nothing prints it.
+**Status: BUILT** 2026-09-03. Minted the same day by calef, during the first bench session that ran
+the soak on real silicon. *(Number provisional until the merge queue lands it.)*
 
 **In brief.** Two soak runs on **radon**, from the same card and the same build, twenty minutes apart:
 
@@ -57,12 +55,33 @@ read for it rebalances at all, and nothing here reopens that.
 **It is not an argument for thread affinity yet.** Two boots are two boots. The census is what would
 let a series of them make that argument, or refuse it.
 
+## What was built, and the two things it changed about this block
+
+**The end-of-run question is settled, and not the way this block framed it.** It asked whether a
+census should *also* be reported at the end. The first run answered something stronger: nine to
+eleven of the twenty non-waiter threads are off their spawn core **by the first beat**, on every run,
+with the steal count in the low single figures. So it is not work stealing; it is the local
+rendezvous wake, and DECISIONS 138 (how a saturated workload is made to hand threads across cores)
+already said in words that a communicating set converges onto one core within a few exchanges and
+stays. A start-only census would have misattributed every boot tonight. The soak now prints one at
+start, one whenever the arrangement changes, and one before the thread dump on a failure, with a
+`drifted=` field on every beat saying whether the block above the reader is still current.
+
+**The starvation shape named above is not the one the first four runs support.** This block named *a
+core drawing two grinders*; the QEMU run that did exactly that was the fastest of the four, and what
+tracks the rate in that small sample is how many IPC groups share a core. Four runs on an emulator
+settle nothing, which is why this milestone built an instrument rather than an argument. The table is
+in notes/soak.md.
+
 ## BUGS
 
-- **The placement explanation is an inference.** It fits the numbers, it fits milestone 221's own
-  prediction, and it has not been confirmed, which is precisely why this milestone exists.
-- **A census at start says nothing about what happens after**, and threads can move: milestone 221
-  added `Thread::last_cpu` and a migration counter for exactly that reason. Whether the census should
-  also be reported at the end is a real question this block does not settle.
-- **It adds output to a run whose output is already dense**, and `script/board-console` has to keep
-  recognising the boot; a census long enough to be useful may want its own line format.
+- **The placement explanation is still an inference on silicon.** The census makes the placement
+  readable; it does not make two boots into a series. Only a run of boots on radon can say whether
+  the eightfold spread follows the arrangement, and that is the measurement this was built for
+  rather than one it performed.
+- **The census is `last_cpu`, so it reports where a thread last ran** rather than where it is
+  queued to run next. A thread waiting in another core's inbox still reads its old core. That is the
+  honest answer to the question the field can answer, and it is not the whole placement story.
+- **It adds output to a run whose output is already dense.** Four or five lines at start, and a
+  fresh block only when the arrangement changes, which after the first beat is almost never. A
+  machine that genuinely thrashes would print one per beat and roughly double the log.
