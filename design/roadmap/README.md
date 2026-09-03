@@ -445,6 +445,8 @@ besides, being built for dated release grouping; these are capability-shaped and
 | 238 | NOT-STARTED | [Two scheduled checks have never once succeeded, and one of them is a fatal risk's refresh](238-the-scheduled-checks-that-never-run.md) | four mutation runs, four failures, zero reports, while fatal risk 3 rests partly on the claim that the weekly workflow publishes one | |
 | 239 | NOT-STARTED | [radon's device tree does not describe the TRNG, so a working driver never runs](239-radons-tree-describes-less-than-the-chip-has.md) | the chip has the device and U-Boot's control tree does not mention it, confirmed at the prompt with `FDT_ERR_NOTFOUND` | |
 | 240 | NOT-STARTED | [The soak reports what happened and not where, so an eightfold difference cannot be explained](240-a-soak-should-say-where-its-threads-landed.md) | two runs from one card differed 8x in IPC rate with the CPU proven identical, and nothing prints which core a thread landed on | |
+| 242 | NOT-STARTED | [USB host and HID, because on commodity hardware the keyboard is not a UART](242-usb-host-and-a-keyboard-that-is-not-a-uart.md) | `xhci` appears in one roadmap block as a word; milestone 192's option B is a large unbuilt subsystem nothing owns | |
+| 243 | NOT-STARTED | [A machine with no serial port has no way to say anything, and no gate can read it](243-a-machine-with-no-serial-port-cannot-say-anything.md) | every word nife has said went down a UART, including every automated gate, and commodity machines do not have one | |
 
 The order §14 sets: **verify the core and make it verifiable first** (18 and 14, the thesis), then the
 road to running real workloads on real machines (15, 21, 16, 19; 25 extends 21 into cross-OS
