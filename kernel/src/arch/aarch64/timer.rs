@@ -125,8 +125,10 @@ static PMU_PRESENT: [AtomicBool; MAX_CPUS] = [const { AtomicBool::new(false) }; 
 /// **What this core last wrote to `PMUSERENR_EL0`**, as a bool: open (`CR` set) or closed (zero).
 /// `init` writes zero, so `false` is the truth at boot on every core.
 ///
-/// This is a cache rather than a read-back, which is the one place [`set_cycle_counter_grant`]
-/// departs from `mmu::switch_user_root`'s shape, and the reason is the register above: on a part
+/// This is a cache rather than a read-back, which is the one place `set_cycle_counter_grant` below
+/// departs from `mmu::switch_user_root`'s shape (plain backticks rather than a doc link because
+/// that function is behind `cycle_counter_grant` and this static is not, milestone 237), and the
+/// reason is the register above: on a part
 /// without `FEAT_PMUv3` an `mrs` from `PMUSERENR_EL0` is as UNDEFINED as an `msr` to it, so "read
 /// what the hardware holds" is not available on the architecture the way it is for `TTBR0_EL1`.
 /// Nothing else in this kernel writes `PMUSERENR_EL0` after `init`, so the cache cannot go stale

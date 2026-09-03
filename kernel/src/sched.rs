@@ -1680,42 +1680,38 @@ pub fn take_need_resched() -> bool {
     cpu::current().need_resched.swap(false, Ordering::Relaxed)
 }
 
-/// **What `schedule` carries out of the locked block to say whether the incoming thread may read
-/// the cycle counter**: a `bool` when milestone 229's instrument is built, and `()` when it is not
-/// (milestone 237).
+/// **May the thread about to run read the cycle counter?** (milestone 229, DECISIONS 139 option 4.)
 ///
-/// A type alias rather than a `#[cfg]` on the tuple, because `#[cfg]` is not allowed on a tuple
-/// element and the alternative was two copies of the sixty-line block that reads it. `()` is
-/// zero-sized, so a production build's tuple is the three members it was before the grant existed.
-/// `kernel/Cargo.toml`'s `cycle_counter_grant` block is where the reasoning and the measured cost
-/// live.
+/// Two bodies rather than a `#[cfg]` inside `schedule`, because the value has to leave a
+/// sixty-line locked block through a tuple and `#[cfg]` is not allowed on a tuple element. When
+/// milestone 229's instrument is not built this is the constant `false`, which the optimizer folds
+/// through the tuple and into the empty [`install_cycle_counter_grant`] below, so the read, the
+/// second `threads.get(next)` and the register write all leave the binary together: measured,
+/// `sched::schedule` is 136 bytes smaller for it. `kernel/Cargo.toml`'s `cycle_counter_grant` block
+/// carries the reasoning and the rest of the measurement (milestone 237).
 #[cfg(any(test, feature = "cycle_counter_grant"))]
-type CycleCounterGrant = bool;
-#[cfg(not(any(test, feature = "cycle_counter_grant")))]
-type CycleCounterGrant = ();
-
-/// Read the incoming thread's grant, under the lock, beside its address-space root.
-#[cfg(any(test, feature = "cycle_counter_grant"))]
-fn cycle_counter_grant_of(t: &crate::thread::Thread) -> CycleCounterGrant {
+fn cycle_counter_grant_of(t: &crate::thread::Thread) -> bool {
     t.cycle_counter_grant
 }
 
-/// No grant is built, so there is nothing to read and no second table lookup to pay for.
+/// No grant is built, so no thread has one. See the twin above.
 #[cfg(not(any(test, feature = "cycle_counter_grant")))]
-fn cycle_counter_grant_of(_t: &crate::thread::Thread) -> CycleCounterGrant {}
+fn cycle_counter_grant_of(_t: &crate::thread::Thread) -> bool {
+    false
+}
 
 /// Install it on the core about to run that thread, immediately after its address-space root.
 #[cfg(any(test, feature = "cycle_counter_grant"))]
-fn install_cycle_counter_grant(granted: CycleCounterGrant) {
+fn install_cycle_counter_grant(granted: bool) {
     crate::arch::timer::set_cycle_counter_grant(granted);
 }
 
-/// No grant is built, so `PMUSERENR_EL0` (and riscv64's `SCOUNTEREN.CY`) keeps the closed value
+/// No grant is built, so `PMUSERENR_EL0` (and riscv64's `scounteren.CY`) keeps the closed value
 /// milestone 228 wrote at boot for the whole life of the kernel. Closing what we claim is closed is
 /// right whether or not anyone can be granted an exception, which is why 228's default write is NOT
 /// behind the feature and this is.
 #[cfg(not(any(test, feature = "cycle_counter_grant")))]
-fn install_cycle_counter_grant(_granted: CycleCounterGrant) {}
+fn install_cycle_counter_grant(_granted: bool) {}
 
 /// Pick another thread and go there.
 ///
@@ -1889,10 +1885,11 @@ pub fn schedule() {
         // here for the same reason the root is: this is the last point the lock is held. A kernel
         // thread's is `false`, like every user thread nobody granted it to.
         //
-        // `()` rather than a `bool` in a production build (milestone 237), which is what makes the
-        // instrument cost nothing here without a fourth `#[cfg]` on a sixty-line block: the tuple
-        // member is zero-sized and `install_cycle_counter_grant` is an empty function, so the read,
-        // the second `threads.get(next)` and the register write all leave the binary together.
+        // A constant `false` in a production build (milestone 237), which is what makes the
+        // instrument cost nothing here without a fourth `#[cfg]` on a sixty-line block: the
+        // optimizer folds it through the tuple into an empty `install_cycle_counter_grant`, so the
+        // read, this second `threads.get(next)` and the register write all leave the binary
+        // together. See `cycle_counter_grant_of`.
         let next_cycle_counter = cycle_counter_grant_of(sched.threads.get(next).unwrap());
 
         // Copy the two raw pointers out before the lock drops. The assembly writes through the

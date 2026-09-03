@@ -206,6 +206,11 @@ pub fn init() {
 
 /// **`scounteren.CY`**: the bit that lets U-mode read the `cycle` CSR. Bit 0, the counter's own
 /// index, the same way `TM` is bit 1 for `time`.
+///
+/// Gated with its only reader (milestone 237): `init` above closes `CY` by writing `TM` alone, so
+/// the constant is needed to *open* it and nothing else, and a production kernel that cannot grant
+/// the counter has nothing to open.
+#[cfg(any(test, feature = "cycle_counter_grant"))]
 const CY: u64 = 1 << 0;
 
 /// **Can a thread on this hart be granted the cycle counter at all?** Always, on this ISA:
