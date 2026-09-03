@@ -141,7 +141,9 @@ What is left, and it is not fixable on macOS: a **SIGKILL to the killer itself**
 trappable and macOS has no `prctl(PR_SET_PDEATHSIG)`, so a supervisor shot in the head cannot
 hand off. For that case the script does the other thing instead of preventing it: when the
 command fails, it runs `lsof` over the image paths in the command line and prints the pid, ppid,
-start time and command of whoever holds one. **Walk the parent chain up before killing what it
+start time and command of whoever holds one **for writing** (a reader is not reported, and that
+filter is what keeps the message quiet on a green run: the three test legs share one read-only OVMF
+firmware file). **Walk the parent chain up before killing what it
 names**: a QEMU whose parent is a live harness is somebody's gate in flight, not a leak.
 
 `scripts/qemu-bounded-selftest.sh` checks all of this against a real emulator, including that

@@ -38,8 +38,13 @@ cleanup.
 the installed `qemu-system-aarch64` still leaves it running eight seconds later.
 
 **The lock diagnostic.** On a failing exit, and only then, the wrapper runs `lsof` over the image
-paths in its own command line and prints the pid, ppid, start time and command of anyone holding
-one. It reports rather than kills, and says to walk the parent chain up first, because a QEMU whose
+paths in its own command line and prints the pid, ppid, start time and command of anyone holding one
+**for writing**. The write filter is not a refinement, it is the difference between a diagnostic and
+noise: the first version reported readers, and `script/test`'s three legs share one read-only OVMF
+firmware file, so every green run that overlapped another lane's x86_64 gate printed a holder and
+was wrong to. Found by running the suite rather than by reading the code, and the false positive was
+itself the case the message warns about, since the other QEMU was milestone 235's lane mid-gate with
+a live harness up its parent chain. It reports rather than kills, and says to walk the parent chain up first, because a QEMU whose
 parent is a live harness is somebody's gate rather than a leak (AGENTS.md, 2026-08-15).
 
 **In brief.** `scripts/qemu-bounded.sh` exists because `timeout(1)` does not exist on macOS and
@@ -93,8 +98,9 @@ something this project did not start.
   reused inside the bound, the killer waits out the full bound, which is exactly the old behaviour
   and never worse. It cannot fail the other way: a live wrapper's pid is not reused.
 - **The lock diagnostic only inspects arguments that look like disk images** (`*.img`, `*.qcow2`,
-  `*.raw`, and any `file=` field of a comma-separated option). A lock held on something named
-  differently is not reported.
+  `*.raw`, and any `file=` field of a comma-separated option), and only reports holders with the
+  file open for writing. A lock held on something named differently is not reported, and neither is
+  a reader, which is deliberate and is the reason the message is quiet on a green run.
 - **The self-test is in no gate**, so nothing runs it unless a person does. It starts real emulators
   and costs about a minute, which is a poor trade against every lane for a script that changes twice
   a year. That is rung two declined on purpose, and it is a foot gun: a later simplification of
