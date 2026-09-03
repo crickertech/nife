@@ -651,6 +651,53 @@ mod tests {
         assert_eq!(progress.soak().map(|b| b.refused), Some(1));
     }
 
+    /// **The placement census must be invisible to this recogniser** (milestone 240).
+    ///
+    /// `kernel/src/soak.rs` prints a block of `soak-census:` lines at soak start and again whenever
+    /// the arrangement changes. The two agree by that prefix being outside both substrings this
+    /// file matches on, and that is an argument until something checks it: these lines are verbatim
+    /// from an aarch64 QEMU run on 2026-09-03, interleaved exactly as the kernel emits them.
+    ///
+    /// Three claims. The census does not advance the stage on its own, the start line still does,
+    /// and a beat carrying the new `drifted=` field still parses field for field, `t=` included,
+    /// which is the one a census token could plausibly have collided with.
+    #[test]
+    fn the_placement_census_changes_nothing_the_recogniser_reads() {
+        let progress = run(concat!(
+            "soak-census: core=0 threads=10 R0 C0 C0 C0 G0 R2 C2 C2 C2 G3\n",
+            "soak: started 4 groups of one responder, 3 callers, 1 grinder and 1 tick waiter \
+             (24 user threads) on 4 online core(s), beating every 5s\n",
+            "soak-census: where the kernel placed each worker at spawn: R=responder, C=caller, \
+             G=grinder, W=tick waiter, and the number after each letter is its group\n",
+            "soak-census: core=1 threads=7 W0 W1 W2 R3 C3 C3 C3\n",
+            "soak-census: core=2 threads=3 G1 G2 W3\n",
+            "soak: t=10s beat=2 rounds=314048 rate=35576/s wakes=3747 wakerate=386/s workers=24 \
+             refused=0 mismatch=0 stalled=0 drifted=0 crossings=1849 remote=2165 steals=4 \
+             deferred=6\n",
+        ));
+        assert_eq!(progress.reached(), Stage::Soak);
+        assert_eq!(progress.failure(), None);
+        let beat = progress.soak().expect("the heartbeat must still parse");
+        assert_eq!(beat.seconds, 10);
+        assert_eq!(beat.beat, 2);
+        assert_eq!(beat.rounds, 314_048);
+        assert_eq!(beat.rate, 35_576);
+        assert_eq!(beat.crossings, 1849);
+        assert_eq!(beat.remote, 2165);
+    }
+
+    /// A census line that arrives BEFORE anything else must not reach the soak stage by itself.
+    ///
+    /// Separate from the test above because that one proves the start line still works, and this
+    /// one proves the census does not stand in for it: a log truncated to census lines has not seen
+    /// a soak start, and reporting one would make `board_console` claim a stage from an artefact.
+    #[test]
+    fn a_census_alone_does_not_reach_the_soak_stage() {
+        let progress = run("soak-census: core=0 threads=6 R0 C0 C0 C0 G0 W0\n");
+        assert_eq!(progress.reached(), Stage::Cold);
+        assert_eq!(progress.soak(), None);
+    }
+
     #[test]
     fn a_stale_card_is_named_at_u_boot() {
         let progress = run(include_str!(
