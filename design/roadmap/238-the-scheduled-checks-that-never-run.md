@@ -108,12 +108,18 @@ few, so a partial report is still a report about every crate. **Nothing is measu
 9,857 mutants are attempted. The repair is a bound on what one mutant may allocate, and it is handed
 off rather than guessed at, below.
 
-**A number came back, and it is a partial one that points down.** The one shard that finished killed
-**74.4%** of its viable mutants against the whole-corpus baseline of 92.4% from 2026-08-03. Those
-are not comparable and notes/mutation-testing.md says so at length: an alphabetical slice is not a
-random sample, and thirteen of its twenty-one crates did not exist at baseline. The crates that did
-are roughly stable. The drop is in crates that arrived with no host tests, and one is stark:
-**`system_initializer` is 0 caught, 191 missed.**
+**A number came back, the workflow published its first report ever, and the number is lower.** The
+eight-way round-robin run had one shard survive, and because round-robin samples every crate rather
+than an alphabetical block, that one shard is a uniform one-eighth of the whole corpus across **all
+60 crates**: **83.4% of viable mutants killed**, against the baseline's 92.4% from 2026-08-03. (The
+earlier four-way run's surviving shard read 74.4%, but it was an alphabetical slice of mostly
+post-baseline crates and is not comparable to anything; both are tabulated in
+notes/mutation-testing.md.)
+
+The baseline-era crates are broadly stable or better (`gpt` 55/1, `elf` 12/0, `calendar` 46/0,
+`grant_plan` 67/2). Three crates added since carry nearly all of the loss: **`system_initializer` at
+0 caught and 25 missed** in the sample and 0 of 191 in the slice run, `uefi_loader` at 15%, and
+`manual` at 52%.
 
 **The Miri fix was not one flag.** `-Zmiri-env-forward=CARGO_MANIFEST_DIR` works and lands on a
 second wall, `read_dir` against Miri's isolation; behind that sat five `board_console` tests doing
@@ -143,8 +149,10 @@ or `script/gates`, for `script/audits`' recorded reason.
 
 - **Fatal risk 3 was not re-read, deliberately.** That is calef's, and the block above says so. What
   changed is that the clause making a stale number acceptable, "the weekly workflow already
-  publishes the report", is now true rather than false. The number it will publish is not yet a
-  whole-corpus number, and 74.4% on one alphabetical quarter is not a verdict.
+  publishes the report", is now true rather than false: one has been published. **What it says is
+  that the score has fallen from 92.4% to roughly 83.4%**, on a uniform sample rather than a census
+  (7 of 8 shards died, so 8,700 of 9,857 mutants remain unrun since 2026-08-03). Whether that moves
+  the verdict is his call and not this lane's.
 - **The memory kill is diagnosed, not solved.** Eight round-robin shards make a partial report
   representative; they do nothing to stop a runaway mutant taking a runner, and round-robin arguably
   spreads the runaways across more shards than `slice` concentrated them in. On 2026-09-03, four of

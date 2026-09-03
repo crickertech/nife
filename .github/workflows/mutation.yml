@@ -62,8 +62,16 @@ name: mutation testing
 #     itself. **What is NOT yet built is a bound on what a single mutant may allocate**, which is
 #     the actual repair and is scoped as its own work rather than guessed at here; a memory cgroup
 #     around the run would turn a machine kill into an ordinary killed mutant and let the run
-#     continue. Until then the eight-way round-robin split above is damage control: it does not stop
-#     a shard dying, it makes the loss an eighth of every crate rather than all of a few.
+#     continue.
+#
+#     **Until then the round-robin split is damage control, and the honest accounting is that it
+#     costs shards to buy a usable report.** Spreading the mutants spreads the runaways too, so more
+#     shards meet one: the four-way `slice` run lost 3 of 4, the eight-way round-robin run lost 7 of
+#     8. That trade is still worth taking, because the one surviving round-robin shard is a uniform
+#     eighth of every crate and yields a rate for the tree (83.4%, against a 92.4% baseline), where
+#     a surviving `slice` shard is an alphabetical block that can only speak for the crates inside
+#     it. A representative sample beats a complete answer about a fifth of the tree. Anyone
+#     reversing this should reverse it by fixing the allocation bound, not by going back to slices.
 #
 # The cost is not the missing weekly report. `design/fatal-risks.md`'s third risk stands at
 # MEASURED green on a 2026-08-03 number and closes by saying "the weekly workflow already publishes

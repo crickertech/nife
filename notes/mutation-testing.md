@@ -145,39 +145,46 @@ itself. The workflow now shards eight ways with `--sharding round-robin`, which 
 is a bound on what one mutant may allocate, and it is scoped as its own work in milestone 238's
 block.
 
-### The number, and what it is not
+### The numbers, and what each one is
 
-**One shard of four completed on 2026-09-03** (2,462 mutants, 17m34s):
+Two runs on 2026-09-03, and the second is the one to read.
 
 | | caught | missed | timeout | unviable | viable | killed |
 |---|---|---|---|---|---|---|
-| shard 3 of 4, 2026-09-03 | 1,710 | 598 | 27 | 127 | 2,335 | **74.4%** |
-| whole corpus, 2026-08-03 | 4,654 | 391 | 96 | 410 | 5,141 | **92.4%** |
+| whole corpus, 2026-08-03 (baseline) | 4,654 | 391 | 96 | 410 | 5,141 | **92.4%** |
+| shard 3 of 4, `slice`, 2026-09-03 | 1,710 | 598 | 27 | 127 | 2,335 | 74.4% |
+| **shard 0 of 8, `round-robin`, 2026-09-03** | **910** | **187** | **32** | **97** | **1,129** | **83.4%** |
 
-**Those two numbers are not comparable and the table is laid out to make that obvious.** The shard
-is an alphabetical slice, `nvme` through `work_steal_slot`, not a random sample; and thirteen of its
-twenty-one crates are marked `new` against the baseline, meaning they did not exist when the 92.4%
-was taken. So this is a rate for the crates written in the last month, mostly, and it is much worse
-than the tree's rate a month ago.
+**The round-robin row is the comparable one, and that is the whole reason the sharding changed.**
+It is a uniform one-eighth sample of every mutant in the tree, so it covers **all 60 crates** and
+its rate estimates the corpus rate. The `slice` row is an alphabetical block, `nvme` through
+`work_steal_slot`, thirteen of whose twenty-one crates did not exist at baseline; it is a rate for
+those crates and not for the tree, and it is kept here only because it was the first shard this
+workflow ever completed.
 
-**Where the drop is, precisely.** The crates that existed at baseline are roughly stable: `pci`
-improved (27 survivors to 17), `user_heap` improved (3 to 0), `video_terminal` and `page_frames` are
-unchanged, `paging` drifted 39 to 44 and `swish` 3 to 20. The collapse is entirely in crates that
-arrived without host tests:
+So the honest reading: **the tree's mutation score has fallen from 92.4% to roughly 83.4%** in a
+month. It is a sample, not a census, and a second shard would move it; it is not a five-point
+question of sampling noise either.
 
-- **`system_initializer`: 0 caught, 191 missed.** Every mutant survives. Nothing in the host suite
-  would notice any of its functions returning the wrong thing.
-- **`uefi_loader`: 32 caught, 125 missed.**
-- `timetable` 134/48, `nvme` 109/21, `pgrep` 55/6, `ps` 40/6, `schedule_store` 29/8,
-  `work_steal_slot` 13/11.
+**Where the drop is.** The crates that existed at baseline are broadly stable or better: `gpt` 55/1,
+`elf` 12/0, `calendar` 46/0, `glob` 14/0, `cred` 14/0, `dtb` 43/3, `filesystem_proto` 65/8,
+`grant_plan` 67/2. Three crates carry nearly all of the loss, and all three are new since the
+baseline:
 
-That is the finding, and it is one this milestone deliberately does not act on. `system_initializer`
-at 0 for 191 is a milestone of its own, not a line in a workflow repair.
+- **`system_initializer`: 0 caught, 25 missed in the sample** (0 of 191 in the `slice` run, which
+  saw all of them). Every mutant survives. Nothing in the host suite would notice any of its
+  functions returning the wrong thing.
+- **`uefi_loader`: 3 caught, 17 missed.** 15%.
+- **`manual`: 56 caught, 60 missed.** 52%, and the crate is the documentation renderer.
+
+That is the finding, and this milestone deliberately does not act on it. `system_initializer` at
+zero is a milestone of its own, not a line in a workflow repair.
 
 **What this does not say.** It does not re-read `design/fatal-risks.md`'s third risk, which is
-calef's, and it is not a whole-corpus number: three quarters of the corpus is still unmeasured since
-2026-08-03. What it removes is the reason the stale number was acceptable, which was that clause
-saying a refresh arrives on its own.
+calef's. It is a sample rather than a census: seven of eight shards were killed by the memory
+failure above, so 8,700 of the 9,857 mutants are still unrun since 2026-08-03. What it removes is
+the reason the stale number was acceptable, which was the clause saying a refresh arrives on its
+own. A refresh has now arrived, once, and it is lower.
 
 ## Calibration: the exhaustive crates
 
