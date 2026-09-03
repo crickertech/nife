@@ -291,6 +291,26 @@ impl<O: Copy, const N: usize> CapabilityTable<O, N> {
         }
     }
 
+    /// **Record that this table just lost an occupant.**
+    ///
+    /// The counterpart of [`grew`](Self::grew), and it exists as a named path for the same reason
+    /// rather than because one subtraction needs a function: **occupying has one path and freeing
+    /// had two**, so a future mutator that empties a slot would have had to *remember* to decrement.
+    /// That asymmetry was raised in review of milestone 231 and it is rung four wearing rung one's
+    /// clothes. Both directions now have exactly one door.
+    ///
+    /// It takes a count rather than being called once per slot because
+    /// [`delete_matching`](Self::delete_matching) frees a whole predicate's worth in one pass while
+    /// holding `slots` mutably borrowed; a per-slot call inside that loop is the shape this file
+    /// cannot write.
+    ///
+    /// [`peak`](Self::peak) is deliberately untouched. A high-water mark that fell when the table
+    /// drained would report what a boot is holding rather than what it reached, which is the number
+    /// milestone 230 needed and could not get.
+    fn shrank(&mut self, freed: u16) {
+        self.used -= freed;
+    }
+
     /// The table's fixed capacity, `N`. Never changes; a capability table's size is part of its type.
     pub const fn len(&self) -> usize {
         N
@@ -388,7 +408,7 @@ impl<O: Copy, const N: usize> CapabilityTable<O, N> {
     pub fn delete(&mut self, slot: u64) -> Result<(), Error> {
         let s = self.slots.get_mut(slot as usize).ok_or(Error::NoSuchSlot)?;
         s.take().ok_or(Error::NoSuchSlot)?;
-        self.used -= 1;
+        self.shrank(1);
         Ok(())
     }
 
@@ -411,12 +431,14 @@ impl<O: Copy, const N: usize> CapabilityTable<O, N> {
     /// pays thousands of times per call. Behaviorally identical to that pair; `delete` is
     /// `Option::take` with no slot reserved from it.
     pub fn delete_matching(&mut self, matches: impl Fn(&O) -> bool) {
+        let mut freed = 0u16;
         for s in self.slots.iter_mut() {
             if matches!(s, Some(c) if matches(&c.object)) {
                 *s = None;
-                self.used -= 1;
+                freed += 1;
             }
         }
+        self.shrank(freed);
     }
 }
 
@@ -458,7 +480,11 @@ fn note_peak(peak: u16, ceiling: usize) {
 
 /// **The highest occupancy any capability table has reached, and that table's capacity.**
 ///
-/// `(0, 0)` before anything has ever been inserted. See [`PEAK`] for the caveat about which table.
+/// `(0, 0)` before anything has ever been inserted.
+///
+/// **It does not say which table.** A `static` cannot be keyed by a const generic, so this is one
+/// number for every instantiation of [`CapabilityTable`] linked into the binary; the ceiling half
+/// tells a reader which one set it. The kernel has exactly one, so there it is unambiguous.
 pub fn highest_seen() -> (usize, usize) {
     let packed = PEAK.load(core::sync::atomic::Ordering::Relaxed);
     ((packed >> 16) as usize, (packed & 0xffff) as usize)
@@ -547,6 +573,49 @@ mod verification {
     /// the mechanism that makes the one-shot Reply one-shot (DECISIONS §12): the syscall layer
     /// deletes the Reply capability the instant it is invoked, and this proof says no state exists
     /// in which the deleted slot can be invoked again.
+    /// **The occupancy count is the slots, for every reachable table state** (milestone 231).
+    ///
+    /// The count exists so a boot can report the capability-slot high-water mark it reached, and a
+    /// count that has drifted reports a mark that was never true. Nothing else in this file checks
+    /// it: the accessors return it, the tests check the sequences somebody thought to write, and
+    /// the kernel prints it.
+    ///
+    /// **Written because review of milestone 231 asked the question the change put in front of the
+    /// two `delete` harnesses below**: occupying a slot has one path and freeing had two, so a
+    /// mutator that emptied a slot without saying so would leave `used` too high forever and the
+    /// mark with it. This proves it symbolically over every combination of occupied slots and every
+    /// slot index, rather than answering with the reasoning that there are only two such sites
+    /// today.
+    ///
+    /// It covers the freeing side deliberately: `any_small_capability_table` builds through `put`,
+    /// so growth is exercised on the way in, and both `delete` and `delete_matching` run here.
+    ///
+    /// Falsification: replayable `crates/capability/falsifications/verification.the_count_is_the_slots.patch`
+    #[kani::proof]
+    fn the_count_is_the_slots() {
+        fn occupied(cs: &CapabilityTable<u8, 3>) -> usize {
+            cs.slots.iter().filter(|s| s.is_some()).count()
+        }
+        let mut cs = any_small_capability_table();
+        assert_eq!(cs.used(), occupied(&cs), "the count is wrong at the start");
+
+        let slot: u64 = kani::any();
+        let _ = cs.delete(slot);
+        assert_eq!(cs.used(), occupied(&cs), "delete left the count behind");
+
+        // The sweep, which frees any number of slots in one pass and is the other freeing path.
+        let wanted: u8 = kani::any();
+        cs.delete_matching(|o| *o == wanted);
+        assert_eq!(
+            cs.used(),
+            occupied(&cs),
+            "delete_matching left the count behind"
+        );
+
+        // And the mark never fell while all that was happening, which is what makes it a mark.
+        assert!(cs.peak() >= cs.used());
+    }
+
     /// Falsification: replayable `crates/capability/falsifications/verification.a_deleted_capability_stays_deleted.patch`
     #[kani::proof]
     fn a_deleted_capability_stays_deleted() {
