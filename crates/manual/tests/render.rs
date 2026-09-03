@@ -270,7 +270,33 @@ fn is_fence(line: &str) -> bool {
 /// parsing failure. The number was found rather than picked: at 1000 columns this repository's
 /// widest table still shrinks, which is what a documentation service's honest caveat looks like
 /// from the inside.
+/// **Not run under Miri, and the reason is that Miri has nothing to say about it** (milestone 238).
+/// This test's subject is a corpus on disk: it opens 547 markdown files, 7.2 MB, and renders every
+/// one. Under the interpreter that needs two concessions, and neither is cheap. It reads
+/// `CARGO_MANIFEST_DIR` at run time, which Miri does not forward, so it wants
+/// `-Zmiri-env-forward=CARGO_MANIFEST_DIR`; and then it calls `read_dir`, which Miri's isolation
+/// refuses, so it wants `-Zmiri-disable-isolation` as well, for the whole workspace run rather than
+/// for this one test. The measurement that settled it: **0.74 seconds natively, and still running
+/// after 12 minutes under Miri when it was killed** (2026-09-03).
+///
+/// What that would buy is nothing. `crates/manual` has **no dependencies and no `unsafe`**, so the
+/// rules Miri enforces (aliasing, provenance, uninitialized reads) cannot be broken by any line in
+/// its call graph. The nineteen tests above it in this file exercise the same renderer on in-memory
+/// input, cover every construct it parses, and do run under Miri; what this one adds is corpus
+/// breadth, which is a documentation claim rather than a soundness one.
+///
+/// So this is the `cfg(miri)` sampling convention the other suites use (`gpt`'s corruption sweeps,
+/// `glob`'s strides, `ntp_proto`'s 10^9-value sweep), taken to its limit: the sampled paths here are
+/// the nineteen unit tests, and the corpus stays native-only. See notes/undefined-behavior.md.
+///
+/// This is also the whole content of the three weeks the weekly `undefined-behavior check` spent
+/// red. It was never undefined behaviour; it was an environment variable, and behind that a
+/// directory read.
 #[test]
+#[cfg_attr(
+    miri,
+    ignore = "547 markdown files off disk; the nineteen unit tests cover the renderer"
+)]
 fn every_character_survives() {
     // Runtime, not env!: the compile-time form bakes the absolute path into the binary, and a
     // cached artifact built before a checkout moves (the 2026-08-15 cricker-os -> nife directory

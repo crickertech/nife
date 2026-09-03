@@ -62,8 +62,8 @@ jobs:
   mutants:
     name: "mutants (shard ${{ matrix.shard }}/4)"
     runs-on: ubuntu-24.04-arm
-    # A generous box around a run whose cost moves with the tree. Four shards of ~1,400 mutants
-    # each; the shard re-runs its own baseline build first, and a few mutants (dtb's walker, the
+    # A generous box around a run whose cost moves with the tree. Four shards of ~2,465 mutants
+    # each as of 2026-09-03; the shard re-runs its own baseline build first, and a few mutants (dtb's walker, the
     # calendar parser) legitimately burn their whole auto-timeout, two minutes and change apiece.
     # Under the 6-hour job ceiling so a hang still fails loudly rather than billing silent hours.
     #
@@ -72,8 +72,9 @@ jobs:
     # only thing that ends the run is cargo-mutants' per-mutant timeout. That timeout is auto-derived
     # from each package's own baseline test time (5x it, floor 20s), which on this tree came out at
     # 112 seconds, and 96 of those is nearly three hours of wall clock spent proving that infinite
-    # loops are infinite. Sharded four ways it is about 45 minutes a shard, which is why the box
-    # below is 330 minutes and not 90.
+    # loops are infinite. Sharded four ways that was about 45 minutes a shard when the corpus was
+    # ~6,000 mutants, which is why the box below is 330 minutes and not 90; at 9,857 it is more, and
+    # no run has yet survived long enough to measure the real figure.
     #
     # Do NOT remove the auto timeout, and think before overriding it with `--timeout`: too low and a
     # legitimately slow mutant is recorded as a hang it is not, which corrupts the one column of the
@@ -120,14 +121,21 @@ jobs:
       # tree copy with its own target/, and the run that established the baseline OOM-killed a
       # 16 GiB machine at -j 4. These runners have no more headroom than that.
       #
-      # **The resource line every 60 seconds is not noise, it is the only autopsy available.** Three
+      # **The resource line is not noise, it is the only autopsy available.** Three
       # of the four scheduled runs before milestone 238 ended with `The runner has received a
       # shutdown signal` partway through, which terminates the runner agent itself: an `if: always()`
       # step does not get to run, an artifact does not get uploaded, and the log stops at whatever
       # the step had already printed. So the evidence has to be *in the stream* before the death
-      # rather than collected after it. `free` and `df` are two lines a minute against a job that
-      # costs hours, and if the next death is memory or disk the last line before the cut says so
-      # instead of leaving another lane to reproduce it.
+      # rather than collected after it. `free` and `df` are one line every ten seconds against a job
+      # that costs hours, and if the next death is memory or disk the last line before the cut says
+      # so instead of leaving another lane to reproduce it.
+      #
+      # **Ten seconds rather than sixty, because sixty was measured and was too coarse.** On the
+      # first instrumented run (2026-09-03) shard 1 died 41 seconds after its last sample, and that
+      # sample showed 10.7 GB of memory free and 107 GB of disk: no pressure at all by the only
+      # evidence available, and yet the previous sample a minute before that showed usage climbing
+      # from 929 MB to 5,259 MB in sixty seconds. A sampler whose interval is longer than the event
+      # it is watching for reports innocence, which is worse than reporting nothing.
       #
       # Read it with the run's own conclusion: a `cancelled` step plus a falling `available` column
       # is the runner being reclaimed for resource exhaustion, and a flat one is the host reclaiming
@@ -136,7 +144,7 @@ jobs:
         run: |
           while true; do
             echo "[resource] $(date -u +%H:%M:%S) $(free -m | awk '/^Mem:/{print "mem_used_mb="$3" mem_avail_mb="$7}') $(df -m --output=avail / | tail -1 | awk '{print "disk_avail_mb="$1}')"
-            sleep 60
+            sleep 10
           done &
           sampler=$!
           trap 'kill "$sampler" 2>/dev/null || true' EXIT
@@ -169,18 +177,40 @@ jobs:
         with:
           pattern: mutants-shard-*
           path: shards
+      # **Find the run directories by what is in them, not by where they were meant to land.**
+      # `set -- shards/mutants-shard-*` looked obviously right and had a failure mode nobody would
+      # guess: `download-artifact` gives each artifact its own subdirectory when it fetches several,
+      # and unpacks a LONE artifact flat into `path` instead. So the glob matched nothing, stayed
+      # literal, and `script/mutation --report` said "no run output at shards/mutants-shard-*" and
+      # exited 2 -- **only in the case where exactly one shard survived**, which is precisely the
+      # case this job's `if: always()` exists to serve. It cost the one real report the 2026-09-03
+      # run produced, and would have cost 2026-08-24's too.
+      #
+      # A search for `caught.txt` is indifferent to both layouts and to any future third one.
       - name: Publish the per-crate report
         run: |
-          set -- shards/mutants-shard-*
+          dirs=$(find shards -name caught.txt -exec dirname {} \; 2>/dev/null | sort -u)
           {
             echo '### Mutation testing: host crates'
             echo
-            echo "aggregated from: $* (of 4 shards)"
-            echo
-            echo '```'
-            script/mutation --report "$@"
-            echo '```'
-            echo
-            echo 'Baseline: `.cargo/mutants-baseline.txt`; triage rule and survivor prose:'
-            echo '`notes/mutation-testing.md`. A survivor here is a worklist entry, not a failure.'
+            if [ -z "$dirs" ]; then
+              echo '**No shard produced any output.** Every one of the four either failed before'
+              echo 'testing a mutant or was terminated before it could upload. There is no report'
+              echo 'to give, and that is the finding: see this workflow header, milestone 238.'
+            else
+              # shellcheck disable=SC2086  # $dirs is a deliberately word-split list of directories
+              set -- $dirs
+              echo "aggregated from: $* ($# of 4 shards)"
+              echo
+              echo '```'
+              script/mutation --report "$@"
+              echo '```'
+              echo
+              echo 'Baseline: `.cargo/mutants-baseline.txt`; triage rule and survivor prose:'
+              echo '`notes/mutation-testing.md`. A survivor here is a worklist entry, not a failure.'
+              echo
+              echo '**A partial report is a partial number.** The shards are alphabetical slices of'
+              echo 'the mutant list, not random samples, so a rate computed from some of them says'
+              echo 'nothing about the whole corpus and must not be compared to the baseline total.'
+            fi
           } >> "$GITHUB_STEP_SUMMARY"

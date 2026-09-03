@@ -315,7 +315,14 @@ mod tests {
 
     use super::*;
 
+    /// Not run under Miri (milestone 238): this reaches `candidates()`, which reads `/dev`, and
+    /// Miri's isolation refuses `opendir`. See the note on the tests below for why the answer is a
+    /// skip rather than `-Zmiri-disable-isolation`.
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "`choose` calls `candidates()`, which reads /dev; Miri refuses `opendir`"
+    )]
     fn an_explicit_port_is_taken_as_given() {
         let asked = PathBuf::from("/dev/cu.usbmodemDEADBEEF");
         assert_eq!(choose(Some(&asked)).unwrap(), asked);
@@ -350,7 +357,11 @@ mod tests {
         );
     }
 
+    /// Not run under Miri (milestone 238): this reaches `candidates()`, which reads `/dev`, and
+    /// Miri's isolation refuses `opendir`. See the note on the tests below for why the answer is a
+    /// skip rather than `-Zmiri-disable-isolation`.
     #[test]
+    #[cfg_attr(miri, ignore = "reads /dev; Miri refuses `opendir`")]
     fn candidates_are_sorted_so_two_runs_agree() {
         let found = candidates();
         let mut sorted = found.clone();
@@ -420,7 +431,17 @@ mod tests {
     /// What no host test can reach is whether `tcsetattr` actually took, since nothing here is a
     /// tty. That was checked by hand against the CH343 dongle (9600 before, 115200 while held,
     /// reverting on exit) and is what `confirm_speed` gates at runtime.
+    /// Not run under Miri (milestone 238): this test reaches the host filesystem, and Miri's
+    /// isolation refuses `open` there rather than finding anything wrong with it. `board_console`
+    /// carries no `unsafe` at all, so the rules Miri enforces cannot be broken by any line it would
+    /// interpret here; what would be lost by clearing the way with `-Zmiri-disable-isolation` is the
+    /// reproducibility that isolation buys every other crate in the workspace run. Same `cfg(miri)`
+    /// sampling convention as `gpt`, `glob` and `crates/manual`. See notes/undefined-behavior.md.
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "opens a real file; the port is a host device, which is what Miri isolates"
+    )]
     fn open_hands_back_a_readable_descriptor_and_a_complaint_it_can_survive() {
         let captured = include_bytes!("../tests/fixtures/captured/vf2-2026-09-01-manual-boot.log");
         let path = std::env::temp_dir().join(format!(
@@ -450,7 +471,17 @@ mod tests {
 
     /// The one genuinely fatal case, and the one a bench hits by unplugging the adapter. The
     /// second path also drives the dial-in warning, which is printed on the way past.
+    /// Not run under Miri (milestone 238): this test reaches the host filesystem, and Miri's
+    /// isolation refuses `open` there rather than finding anything wrong with it. `board_console`
+    /// carries no `unsafe` at all, so the rules Miri enforces cannot be broken by any line it would
+    /// interpret here; what would be lost by clearing the way with `-Zmiri-disable-isolation` is the
+    /// reproducibility that isolation buys every other crate in the workspace run. Same `cfg(miri)`
+    /// sampling convention as `gpt`, `glob` and `crates/manual`. See notes/undefined-behavior.md.
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "asks the host for a device that is not there; Miri refuses `open`"
+    )]
     fn a_device_that_is_not_there_is_an_error_and_not_a_complaint() {
         let e = open(Path::new("/dev/cu.usbmodem-nothing-is-here")).unwrap_err();
         assert_eq!(e.kind(), io::ErrorKind::NotFound);
@@ -479,7 +510,17 @@ mod tests {
     /// Reading a speed back from something that is not a tty says nothing, deliberately: an
     /// unreadable report is not evidence that the port is wrong, and a false alarm here would
     /// train the reader to ignore the real one.
+    /// Not run under Miri (milestone 238): this test reaches the host filesystem, and Miri's
+    /// isolation refuses `open` there rather than finding anything wrong with it. `board_console`
+    /// carries no `unsafe` at all, so the rules Miri enforces cannot be broken by any line it would
+    /// interpret here; what would be lost by clearing the way with `-Zmiri-disable-isolation` is the
+    /// reproducibility that isolation buys every other crate in the workspace run. Same `cfg(miri)`
+    /// sampling convention as `gpt`, `glob` and `crates/manual`. See notes/undefined-behavior.md.
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "creates a file in the host temp dir; Miri refuses `open`"
+    )]
     fn a_speed_that_cannot_be_read_is_not_reported_as_wrong() {
         let path = std::env::temp_dir().join(format!("board_console-speed-{}", std::process::id()));
         File::create(&path).unwrap();

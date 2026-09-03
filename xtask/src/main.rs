@@ -6351,40 +6351,7 @@ fn undefined_behavior_check() -> bool {
     ];
     let extra: Vec<String> = std::env::args().skip(2).collect();
     args.extend(extra.iter().map(String::as_str));
-
-    // **Miri gives the interpreted program an empty environment**, and one test needs one variable
-    // out of it, so the run has to say which. `crates/manual/tests/render.rs` reads
-    // `CARGO_MANIFEST_DIR` at run time to find the repository root, and under Miri that read
-    // returns `NotPresent` and the test panics. It is not undefined behaviour and never was; the
-    // weekly workflow was red for three weeks on it (milestone 238, found by milestone 232's audit
-    // of what the checks actually check), and Miri's own error message names this flag.
-    //
-    // **Forwarding it, rather than making the test stop needing it, is the cheaper correct fix.**
-    // The runtime read there is deliberate and carries its own scar: the compile-time `env!` form
-    // bakes an absolute path into the binary, and a cached artifact built before the 2026-08-15
-    // cricker-os -> nife directory rename then read a directory that no longer existed and checked
-    // zero files, silently. Every way of not reading the variable at run time either reintroduces
-    // that (`env!`) or routes the same path through a build script for no gain. One flag against a
-    // test that would go quietly blank again is not a close call.
-    //
-    // Appended to whatever `MIRIFLAGS` already holds rather than assigned, so a developer chasing a
-    // finding with `MIRIFLAGS=-Zmiri-track-raw-pointers script/undefined-behavior-check` keeps
-    // their flag instead of silently losing it.
-    let mut miriflags = std::env::var("MIRIFLAGS").unwrap_or_default();
-    if !miriflags.is_empty() {
-        miriflags.push(' ');
-    }
-    miriflags.push_str("-Zmiri-env-forward=CARGO_MANIFEST_DIR");
-
-    Command::new("cargo")
-        .args(&args)
-        .env("MIRIFLAGS", miriflags)
-        .status()
-        .map(|s| s.success())
-        .unwrap_or_else(|e| {
-            eprintln!("failed to run cargo miri: {e}");
-            false
-        })
+    run("cargo", &args)
 }
 
 /// **Boot the `--features shell` system and type at it** (milestone 50, notes/pipes.md).
