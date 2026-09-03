@@ -1,0 +1,135 @@
+name: project metrics
+
+# **Append this week's row; never change what a past week said.** The dashboard is
+# notes/project-metrics.md and the data behind it is notes/project-metrics/weekly.csv, in the tree,
+# versioned with the code it describes.
+#
+# The same three-step split `toolchain-bump.yml` uses, and for the same reason:
+#
+#   1. PROPOSE (here): recompute this week's row, redraw the charts, open a PR.
+#   2. VERIFY (the CI workflow, on that PR): the ordinary gates.
+#   3. ACCEPT (a human): merge.
+#
+# This job must never push to `main`. What it writes is a record other people will quote, and
+# `AGENTS.md` puts "facts that leave the machine" in the irreversible category on purpose. A number
+# that lands unreviewed is exactly the shape of the three instrument failures the page's own honesty
+# section lists.
+#
+# **Monday rather than daily**, because the row is keyed by ISO week and a daily run would rewrite
+# the same row six times for no reader. Running late in the week would also freeze the row at
+# whatever Thursday looked like; Monday closes the week that just ended and starts the new one from
+# its first commit.
+#
+# **Nothing here builds the kernel.** `script/metrics` is ls-tree, cat-file and regular expressions,
+# which is what lets it walk the whole history in seconds, and it is why coverage is the one column
+# this workflow fills from a build rather than from git. That build is the ordinary host-crate
+# coverage run, so its cost is `script/coverage`'s and not a second one.
+
+on:
+  schedule:
+    # 06:00 UTC Monday. Before the toolchain jobs, so a bump PR opened later that morning is not
+    # competing with this one for a reviewer's attention on the same branch listing.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: project-metrics
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  record:
+    name: record this week
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    steps:
+      # The same identity argument `toolchain-bump.yml` makes at length: a PR opened with the
+      # workflow's own `GITHUB_TOKEN` does not trigger further workflow runs, so its CI never starts
+      # and the PR is permanently unmergeable. The `|| github.token` fallback keeps this job working
+      # (it still opens the PR) when the secret is absent.
+      - uses: actions/checkout@v7
+        with:
+          token: ${{ secrets.TOOLCHAIN_BUMP_PAT || github.token }}
+          # The backfill walks first-parent history, so a shallow clone would silently produce a
+          # shorter series rather than an error. This is the failure mode worth spending a full
+          # clone on: a suite whose scope is too small goes green faster.
+          fetch-depth: 0
+
+      # Coverage is the one metric that cannot be recovered from history, so it is taken here or it
+      # is never taken for this week. `continue-on-error` because a coverage failure is a coverage
+      # problem and the other twenty-odd columns should still be recorded: the alternative is a week
+      # missing from the series for a reason unrelated to anything the series measures.
+      - name: Install cargo-llvm-cov
+        id: covtool
+        continue-on-error: true
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - uses: Swatinem/rust-cache@v2
+        if: steps.covtool.outcome == 'success'
+
+      - name: Measure host-crate coverage
+        id: coverage
+        if: steps.covtool.outcome == 'success'
+        continue-on-error: true
+        run: script/coverage
+
+      - name: Recompute this week's row and redraw the charts
+        run: |
+          set -e
+          if [ "${{ steps.coverage.outcome }}" = "success" ] && [ -f target/llvm-cov/lcov.info ]; then
+            script/metrics --update --coverage-from target/llvm-cov/lcov.info
+          else
+            echo "No lcov file; recording every column but coverage, which leaves the cell as it was."
+            script/metrics --update
+          fi
+
+      # `script/metrics --update` is idempotent by construction (the CSV is rewritten from a dict
+      # keyed by week, never appended to), so "no diff" is the normal Monday outcome for a quiet
+      # week and must be silent rather than an empty PR.
+      - name: Open or update the pull request
+        env:
+          GH_TOKEN: ${{ secrets.TOOLCHAIN_BUMP_PAT || github.token }}
+        run: |
+          set -e
+          if git diff --quiet -- notes/project-metrics; then
+            echo "Nothing moved this week; no pull request."
+            exit 0
+          fi
+          branch="metrics/weekly"
+          week="$(date -u +%G-W%V)"
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add notes/project-metrics
+          git commit -m "metrics: record $week
+
+          Recomputed by the scheduled workflow. Every column but coverage is a restatement: the row
+          applies today's definitions to this week's tree, which is what makes the series comparable
+          and is not what any of these numbers were reported as at the time.
+
+          notes/project-metrics.md says so on its face, and this commit does not change that page."
+          git push --force origin "$branch"
+          title="metrics: record $week"
+          body="**Lane:** $branch, opened by a scheduled workflow; calef's account is the author GitHub shows.
+
+          Adds or refreshes the \`$week\` row in \`notes/project-metrics/weekly.csv\` and redraws the
+          SVGs in \`notes/project-metrics/\`. The page is
+          [\`notes/project-metrics.md\`](../blob/main/notes/project-metrics.md).
+
+          **Read the diff, not just the charts.** Every column is a restatement under today's
+          definitions, and this project found three of its own instruments wrong in a single day
+          (2026-09-02). A row that jumps for a reason nobody can name is a defect in an instrument
+          until somebody says otherwise.
+
+          This branch is force-pushed weekly, so it proposes the newest row rather than accumulating
+          one pull request per week."
+          existing="$(gh pr list --head "$branch" --state open --json number --jq '.[].number')"
+          if [ -z "$existing" ]; then
+            gh pr create --head "$branch" --base main --title "$title" --body "$body"
+          else
+            gh pr edit "$existing" --title "$title" --body "$body"
+            echo "Updated PR #$existing in place."
+          fi

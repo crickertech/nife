@@ -13,6 +13,12 @@ the numbers that need an instrument, a boot, or a walk over the source. It says 
 kernel is holding itself to, which ones it merely knows, and which ones it has defined and cannot
 yet take.
 
+**And `notes/project-metrics.md` is the half that moves.** This register says which numbers are owed
+and what each one is held to; that page plots the ones that change every week, one row per ISO week,
+recomputed from git history by `script/metrics` so nothing here has to be remembered. Several
+measures below appear there as a series: the `unsafe` density and its ceiling, the Kani harness
+count, the markdown corpus. A reader who finds either file should find the other.
+
 ## What belongs here, and the test
 
 **A number belongs if something depends on its value and it can move without anybody editing it.**

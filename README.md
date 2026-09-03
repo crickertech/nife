@@ -209,6 +209,7 @@ design/decisions/      what we chose, what we rejected, and why
 design/journeys/       end-to-end user stories, tracked as a bundle of the milestones they need
 design/audit-reports/  every audit, its lens, and when the next one is due
 design/fatal-risks.md  the nine claims that, if false, mean the project should stop
+notes/project-metrics.md  what moved, week by week, computed from git history
 ```
 
 ## The notes are the point
@@ -275,6 +276,21 @@ gate.
 If you want the shape rather than the list: milestone 7 is the dividing line between "a Rust program
 that boots" and "an operating system": it is where EL0, address spaces, capabilities, the ELF loader
 and IPC arrive together.
+
+## The numbers, weekly
+
+[![Milestones by status](notes/project-metrics/milestones.svg)](notes/project-metrics.md)
+
+**[notes/project-metrics.md](notes/project-metrics.md)** is one row per ISO week: milestones and
+decisions by status, code against comments, `BUGS` sections, Kani harnesses and what can falsify
+them, `unsafe` density, and how many of the nine fatal risks have been put to an experiment. The data
+is [`notes/project-metrics/weekly.csv`](notes/project-metrics/weekly.csv), in the tree, and
+`script/metrics` regenerates all of it from git history.
+
+**Read the page's first section before you quote a bar.** Every row is a restatement: the series
+applies today's definitions to old commits, which is what makes it comparable and is not what any of
+those numbers were reported as at the time. Coverage is the one column that cannot be recovered from
+history, and it is left visibly empty rather than dropped.
 
 ## Things this project has already gotten wrong
 
