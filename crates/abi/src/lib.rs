@@ -360,6 +360,37 @@ pub mod thread_control_block {
     /// an entry context and joins the run queue. **Refuses a half-built thread** (no bound
     /// address space, or no entry): a TCB must be whole before it runs. Needs `WRITE`.
     pub const START: u64 = 2;
+
+    /// `invoke(cap, GRANT_CYCLE_COUNTER, _, _, _)` -> 0. **Let this thread read the CPU's cycle
+    /// counter from user mode.** Needs `WRITE` on the TCB cap, and refuses a thread that is not
+    /// an embryo: like [`CONFIGURE`] and [`CAP_INSERT`] this is part of building a thread, not
+    /// something a running one can ask for, so a program cannot acquire a timing instrument it
+    /// was not created with. DECISIONS 139 (who may read the cycle counter, and by what
+    /// authority) decided both halves of that: option 4, a per-thread grant the kernel writes at
+    /// the context switch, and a creation-time field rather than a method on a live thread.
+    ///
+    /// The grant is one-way and one-bit: there is no ungrant, because an embryo starts closed and
+    /// the only thing this can do is open it before the thread has ever run.
+    ///
+    /// **What it opens, per architecture**, because they are not the same register and one of
+    /// them is not closed to begin with:
+    ///
+    /// - aarch64: `PMUSERENR_EL0.CR`, so EL0 may read `PMCCNTR_EL0`. A board with no FEAT_PMUv3
+    ///   has no such register and the grant silently does nothing there.
+    /// - riscv64: `scounteren.CY`, so U-mode may read the `cycle` CSR. `scounteren.TM` is left
+    ///   exactly as it was: it is open for everybody by design and this grant is not about it.
+    /// - `x86_64`: nothing. `rdtsc` is ambient on that architecture and DECISIONS 139 part 3 kept
+    ///   it that way, so the grant is accepted and is already true. That is a stated exception to
+    ///   DECISIONS §19 (architectural parity is a tenet), not a gap.
+    ///
+    /// **It does not buy timing confinement**, and nothing in this tree should be read as saying
+    /// it does: two threads and a shared word reconstruct a nanosecond clock on all three
+    /// architectures (`notes/confinement-claims.md`). What it buys is accountable authority: the
+    /// cheap accurate instrument is granted rather than ambient, and the kernel knows which
+    /// threads hold it.
+    ///
+    /// *(Name provisional: names are calef's.)*
+    pub const GRANT_CYCLE_COUNTER: u64 = 3;
 }
 
 /// Methods on an `AddressSpace` capability (milestone 19b): **another process's memory, under
