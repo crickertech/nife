@@ -50,7 +50,25 @@ themselves. The last column is this milestone's result.
 | 25 | A client cannot reach its neighbour's pixels or read the screen | §66 | `kernel::user::compositor_tests::a_client_holds_no_capability_for_its_neighbours_pixels_or_the_screen` | **no** |
 | 26 | A client of a rendezvous cannot become its server | §41 | `kernel::user::live_swap_tests::a_client_of_the_stable_rendezvous_cannot_become_its_server` | **no** |
 
-## Three claims that are stated nowhere, which is what step 1 was for
+## Four claims that are stated nowhere, which is what step 1 was for
+
+**A confined component's *timing* is not confined.**
+Added 2026-09-02 with DECISIONS 139 (how a saturated workload is made to hand threads across
+cores is a different section; this is 139, who may read the cycle counter and by what authority).
+The words `timing`, `side channel` and `covert` appeared zero times in this note, in
+`DECISIONS.md` and in `design/fatal-risks.md` before that decision, so nothing here was falsified
+by it; the absence was the finding. seL4 states its own position in one clause, that exporting the
+PMU to user level "opens the possibility of timing channels", and this tree intends to publish
+cycle-denominated numbers against seL4's while saying nothing.
+
+**The reason it cannot be claimed is measured rather than assumed.** Two threads and a shared word
+reconstruct a fine clock with no privileged instruction: 6.8 ns of usable resolution on cordoba
+under load, matching Schwarz et al. (FC 2017). That holds on all three architectures, so gating a
+cycle counter cannot deliver timing isolation on any of them. What the grant in DECISIONS 139
+buys is **accountable authority**: the cheap accurate path is granted rather than ambient, and the
+kernel knows which threads hold it. It belongs in this section so nobody reads the capability rows
+as covering timing.
+
 
 **A confined device's *values* are not confined, only its *reach*.**
 `notes/untrusted-input-audit.md` says this in its own words ("the IOMMU confines placement, not
