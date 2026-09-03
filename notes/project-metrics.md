@@ -76,12 +76,13 @@ Rows 1 to 11 were backfilled into the roadmap later by milestone 76 (split the r
 `design/roadmap/README.md` as index, one file per milestone). Eleven milestones had been built before
 the first bar; none of them is in it.
 
-**The interesting line is not `BUILT`, it is `NOT-STARTED`.** Built milestones went 26, 63, 73, 97,
-103, 124 across the six weeks the roadmap has existed, which is a steady rate. Not-started went 16,
-35, 32, 43, 62, 78. The roadmap is growing faster than the lanes drain it, and the gap widened most
-in the last two weeks. That is what a project generating its own work looks like, and it is the
-number to watch if the ranking function ever needs defending: a backlog that grows faster than it is
-consumed is only healthy while something is choosing the order.
+**The interesting line is not `BUILT`, it is `NOT-STARTED`.** Reading the rows as they stand at
+2026-W36: built milestones went 26, 63, 73, 97, 103, 125 across the six weeks the roadmap has
+existed, which is a steady rate. Not-started went 16, 35, 32, 43, 62, 79. **The roadmap is growing
+faster than the lanes drain it**, and the gap widened most in the last two weeks. That is what a
+project generating its own work looks like, and it is the number to watch if the ranking function
+ever needs defending: a backlog that grows faster than it is consumed is only healthy while
+something is choosing the order.
 
 `REMOVED` appears for the first time in 2026-W36, with two rows. The token itself was minted
 2026-08-30, when milestone 54 (a network file service a Mac can actually mount) was deleted and the
@@ -97,9 +98,10 @@ held**. Milestone 114 (split `DECISIONS.md`, and give a decision a status) is wh
 at all, so counting those early decisions as `DECIDED` would invent a claim the record never carried.
 They are counted, and counted as having no status.
 
-139 decisions in eight weeks, of which 17 are `AMENDED` and 3 `SUPERSEDED`. Twenty decisions revised
-or replaced out of 139 is the number that says the vocabulary is doing work: a tree where nothing was
-ever amended would mean either that every first answer was right or that nobody went back.
+139 decisions in eight weeks, of which 17 are `AMENDED` and 3 `SUPERSEDED` at 2026-W36. Twenty
+decisions revised or replaced out of 139 is the number that says the vocabulary is doing work: a tree
+where nothing was ever amended would mean either that every first answer was right or that nobody
+went back.
 
 `PROPOSED` is the queue waiting on calef and it stays small (10, 4, 8, 2, 3). It is a queue depth
 rather than a backlog, which is the shape it should have.
@@ -118,16 +120,17 @@ comment otherwise. A line with code and a trailing comment is code.
 **Two things worth reading.**
 
 **The kernel's comment share is not flat, it is climbing.** `kernel/src` was 39.3% comment lines at
-2026-W31 and is 45.2% at 2026-W36 (27,731 comment lines against 33,579 code lines), rising every
-week since. `AGENTS.md` says 40%, which was accurate when it was written and is now three weeks
-stale. The rest of the tree is doing the same thing more slowly, 31.5% to 41.4%. Whether that is the
-kernel getting better documented or the comment-to-code ratio drifting past what a reader wants is
-not a question this instrument can answer; it can only say the number moved. Flagged rather than
-corrected in `AGENTS.md`, because that is calef's file.
+2026-W31 and is 45.3% at 2026-W36, rising every week in between. `AGENTS.md` says 40%, which was
+accurate when it was written and is now three weeks stale. The rest of the tree is doing the same
+thing more slowly, 31.5% to 41.4%. Whether that is the kernel getting better documented or the
+comment-to-code ratio drifting past what a reader wants is not a question this instrument can
+answer; it can only say the number moved. Flagged rather than corrected in `AGENTS.md`, because that
+is calef's file.
 
-**Total Rust fell for the first time between 2026-W35 and 2026-W36**, from 192.0k lines to 188.4k.
-That is milestone 54's deletion, which is also the `REMOVED` bar two charts up. A line count that
-only ever rises is measuring typing; one that falls when code is deleted is measuring the tree.
+**Total Rust fell for the first time between 2026-W35 and 2026-W36**, from 192.0k lines to 189.0k,
+while the week was still adding code. That is milestone 54's deletion, which is also the `REMOVED`
+bar two charts up. A line count that only ever rises is measuring typing; one that falls when code is
+deleted is measuring the tree.
 
 ## BUGS sections
 
@@ -139,8 +142,8 @@ feature it limits, in the manual, rather than hidden in a tracker. `AGENTS.md` c
 modesty, they are the mechanism", and the reason is a newcomer's: someone who hits a limitation the
 docs named will trust the docs, and someone who hits one the docs hid will not trust anything again.
 
-Zero in the first two weeks, 355 today (234 markdown headings and 121 in Rust doc comments). A
-falling line here would be the alarming one.
+Zero in the first two weeks, 359 at 2026-W36 (238 markdown headings and 121 in Rust doc comments).
+A falling line here would be the alarming one.
 
 ## Kani proof harnesses, and what can falsify them
 
@@ -167,9 +170,10 @@ and `vendor/` and a lint shim carry four more.
 Blocks per 10,000 code lines, outside `kernel/src/arch/`, which is `script/lint`'s census and the
 one number in this tree that is actually gated on a direction. The dashed line is the ceiling.
 
-227, 243, 138, 121, 111, 93, 77, 77. **The absolute count of unsafe blocks more than quadrupled over
-the same period and the density fell by two thirds.** Both are true and only the second one is about
-soundness: the first is a system being built. That is why the gate holds a ratio.
+227, 243, 138, 121, 111, 93, 77, 77. **The absolute count of unsafe blocks outside `arch/` went from
+171 to 704 over the same period while the density fell by two thirds.** Both are true and only the
+second one is about soundness: the first is a system being built. That is why the gate holds a
+ratio.
 
 The one rise is 2026-W29 to 2026-W30, and it is the honest shape of an early kernel: the tree was
 7,500 lines and one driver moved the number.
@@ -195,9 +199,10 @@ own prose already says the count immediately before that lane's reduction "was 7
 this: a character scanner that tracks Rust's real lexical states rather than blanking comments and
 literals with one regular expression. It differs deliberately in two places the regex is loose:
 block comments **nest** in Rust and the regex's do not, and a lifetime `'a` is not the start of a
-character literal. Run over every in-scope file at `705e3919`, the two methods agree on **701 blocks
-outside `arch/` and 253 inside, with zero files disagreeing**. That is the check worth having, and it
-says the shortcuts in `script/lint`'s regex do not bite in this tree.
+character literal. Run over every in-scope file at `705e3919`, the two methods agree on **701 blocks outside `arch/`
+and 253 inside, with zero files disagreeing** (that commit's own row; the number moved with the tree
+afterwards). That is the check worth having, and it says the shortcuts in `script/lint`'s regex do
+not bite in this tree.
 
 ## The nine things that would kill nife
 
