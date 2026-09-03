@@ -480,7 +480,11 @@ fn note_peak(peak: u16, ceiling: usize) {
 
 /// **The highest occupancy any capability table has reached, and that table's capacity.**
 ///
-/// `(0, 0)` before anything has ever been inserted. See [`PEAK`] for the caveat about which table.
+/// `(0, 0)` before anything has ever been inserted.
+///
+/// **It does not say which table.** A `static` cannot be keyed by a const generic, so this is one
+/// number for every instantiation of [`CapabilityTable`] linked into the binary; the ceiling half
+/// tells a reader which one set it. The kernel has exactly one, so there it is unambiguous.
 pub fn highest_seen() -> (usize, usize) {
     let packed = PEAK.load(core::sync::atomic::Ordering::Relaxed);
     ((packed >> 16) as usize, (packed & 0xffff) as usize)
