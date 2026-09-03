@@ -438,6 +438,9 @@ besides, being built for dated release grouping; these are capability-shaped and
 | 231 | NOT-STARTED | [Nothing counts how many capability slots a boot actually uses, so the wall is always a surprise](231-capability-slot-high-water-mark.md) | `CAPABILITY_TABLE_SLOTS` has been raised three times and every raise was reactive, after a silent failure that named something else | |
 | 232 | NOT-STARTED | [Audit every check against two questions: does anything run it, and does it block](232-what-the-checks-actually-check.md) | four findings in one day, each a different way for this tree's verification to report something untrue | |
 | 233 | NOT-STARTED | [`login` dies on every boot, and the boot says it is ready](233-login-never-runs.md) | init starts it with no mapping of the archive, `nifefs::Fs::parse` refuses, and `init: login ready` prints anyway | |
+| 234 | BUILT | [The project's own numbers, one row per ISO week](234-project-metrics.md) | `notes/register-of-measures.md` opens by saying this tree measures a great deal and remembers almost none of it | 2026-09-02 |
+| 235 | NOT-STARTED | [A command that faults hangs the prompt, because nothing has a word for it](235-a-faulted-job-should-reach-the-prompt.md) | `swish` waits on a result endpoint a killed thread never sends; a non-zero exit is fine, a fault is not | |
+| 236 | NOT-STARTED | [Three derivations are copied between scripts, and nothing notices when they drift](236-lift-the-copied-derivations.md) | the `unsafe` census, the line split and the harness count each exist twice, inside shell heredocs where nothing can import them | |
 
 The order §14 sets: **verify the core and make it verifiable first** (18 and 14, the thesis), then the
 road to running real workloads on real machines (15, 21, 16, 19; 25 extends 21 into cross-OS
