@@ -881,10 +881,24 @@ pub fn write_refusal(spec: &RunSpec, refusal: Refusal, out: &mut dyn FnMut(&[u8]
     out(b"\n");
 }
 
+/// **What the prompt says about a job the kernel killed** (milestone 235). One sentence, shared by
+/// every place in the shell that can read [`spawnproto::JOB_FAULTED`] off the result endpoint (an
+/// answer, a byte stream being printed, a byte stream going into a file, a pipeline stage's ack),
+/// because a person meeting the same event in four places should not meet four wordings.
+pub const FAULTED_SENTENCE: &[u8] = b"  that command faulted and was killed before it answered\n";
+
 /// Report what the spawned program did, in terms of the grant it was given.
 pub fn write_outcome(e: &Endowment, answer: u64, out: &mut dyn FnMut(&[u8])) {
     if answer == spawnproto::SPAWN_FAILED {
         out(b"  could not spawn (init is out of memory)\n");
+        return;
+    }
+    // **The job ran and the kernel killed it** (milestone 235). A different fact from the line
+    // above and worth different words: nothing ran there, something ran here. The sentence says
+    // "before it answered" because that is the whole reason this word exists; the kernel's own
+    // report of the killed thread carries the pc.
+    if answer == spawnproto::JOB_FAULTED {
+        out(FAULTED_SENTENCE);
         return;
     }
     match e.prog {
