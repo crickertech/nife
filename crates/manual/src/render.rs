@@ -738,13 +738,22 @@ impl Renderer {
                     self.inline(lb + 1..rb, base, depth + 1, out);
                     if image {
                         self.unit_bytes(b"]", Attr::Marker, out);
-                    } else {
-                        // The destination is shown rather than hidden, because a terminal has no
-                        // way to follow a link and a reader who cannot see where one points has
-                        // been given a worse document than the source.
-                        self.space = true;
-                        self.unit_wrapped(rb + 2..rp, Attr::Link, out);
                     }
+                    // The destination is shown rather than hidden, because a terminal has no way
+                    // to follow a link and a reader who cannot see where one points has been given
+                    // a worse document than the source.
+                    //
+                    // **An image's destination is shown for the same reason, and it used to be
+                    // dropped.** A terminal cannot display a picture at all, so the path is the
+                    // only thing a guest reader can act on: it is the file they would open on the
+                    // host. Dropping it left `[image: Milestones by status]` naming something the
+                    // reader had no way to find. Found 2026-09-02 by `every_character_survives`,
+                    // when notes/project-metrics.md became the first page under `notes/` to carry
+                    // an image; the test is a subsequence check, so a dropped URL is exactly the
+                    // class of loss it exists to catch, and it caught it on the first page that
+                    // could trip it.
+                    self.space = true;
+                    self.unit_wrapped(rb + 2..rp, Attr::Link, out);
                     i = rp + 1;
                     word = i;
                     continue;

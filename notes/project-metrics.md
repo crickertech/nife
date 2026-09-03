@@ -65,12 +65,12 @@ next to it, so the two cannot drift apart.
 ![Milestones by status](project-metrics/milestones.svg)
 
 From `design/roadmap/README.md`'s index table. The two zero weeks are a restatement artifact and
-they are the sharpest one on this page. There **was** a roadmap in 2026-W30: `design/roadmap.md`
+they are the sharpest one on this page. There really was a roadmap in 2026-W30: `design/roadmap.md`
 landed 2026-07-22 with ten rows in it. It had no status column. A milestone's state was prose inside
-a cell, phrased a dozen different ways (`**Built**`, `**Built (frame scope)**`, `**Built:** region
-ownership ...`), which is exactly the defect the status vocabulary was later minted to fix, and it is
-unparseable now for the same reason it was unreadable then. The first bar this chart can draw is the
-week the column exists.
+a cell, phrased a dozen different ways (`Built`, then `Built (frame scope)`, then `Built:` followed
+by a paragraph on which half), which is exactly the defect the status vocabulary was later minted to
+fix, and it is unparseable now for the same reason it was unreadable then. The first bar this chart
+can draw is the week the column exists.
 
 Rows 1 to 11 were backfilled into the roadmap later by milestone 76 (split the roadmap:
 `design/roadmap/README.md` as index, one file per milestone). Eleven milestones had been built before
@@ -274,3 +274,4 @@ idempotence; for the current week it is `HEAD`, and the row moves as work lands.
   `notes/register-of-measures.md` records the blocks it leaves uncounted.
 - **Nothing here is audited by anyone outside this project.** Stated once at the top and again here,
   because a dashboard is exactly the artifact that makes a reader stop asking.
+
