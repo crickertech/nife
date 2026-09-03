@@ -93,7 +93,6 @@ written next to the test:
 | `cred` store tests via `cheap()` | Argon2id at m=256 KiB, t=2 | Argon2's floor (m=8 KiB, t=1); same paths, fewer blocks. The known-answer vector tests keep their published costs |
 | `cred` `an_unknown_identity_costs_what_a_known_one_costs` | 50 timed KDF runs | skipped: a wall-clock ratio under an interpreter measures Miri, not the KDF |
 | `manual` `every_character_survives` | 547 markdown files off disk, 7.2 MB, 0.74 s | skipped: the corpus is on the filesystem, which Miri isolates; the nineteen other tests in that file drive the same renderer on in-memory input |
-| `board_console` five `port` tests | open a device, read `/dev`, write the host temp dir | skipped: all five reach the host filesystem, which is the thing the crate is *for* |
 
 ### The last two rows are a different kind of skip, and worth telling apart
 
@@ -103,11 +102,11 @@ tests do host I/O, and Miri's isolation refuses `open`, `opendir` and friends ou
 smaller version, only a decision about `-Zmiri-disable-isolation`.
 
 **It was refused, on measurement rather than principle** (milestone 238). `crates/manual` has no
-dependencies and no `unsafe`, and neither does `board_console`, so the rules Miri enforces cannot be
-broken by any line it would interpret in either. Against that, `every_character_survives` costs 0.74
-seconds natively and had not finished after **12 minutes** under Miri with isolation off, and the
-flag is not per-test: it would relax isolation for the whole workspace run, which is the
-reproducibility every other crate here is getting for free.
+dependencies and no `unsafe`, so the rules Miri enforces cannot be broken by any line it would
+interpret there. Against that, `every_character_survives` costs 0.74 seconds natively and had not
+finished after **12 minutes** under Miri with isolation off, and the flag is not per-test: it would
+relax isolation for the whole workspace run, which is the reproducibility every other crate here is
+getting for free.
 
 **These two are also the entire content of the three weeks the weekly workflow spent red.** It
 reported failure from 2026-08-10 to 2026-09-03 and never once for undefined behaviour: first an
@@ -121,6 +120,18 @@ So a green `script/undefined-behavior-check` certifies the memory rules on every
 does not restate the exhaustive claims; those stay native-only, in `script/test`. The skipped `gpt`
 sweeps lose nothing Miri-specific: what they add natively is completeness of the CRC argument,
 which is not a memory property.
+
+**`board_console` is excluded from the run entirely, which is the fourth exclusion and the
+expensive one** (milestone 238). It measured **3,307 seconds, 55 minutes, for its lib tests alone**
+on 2026-09-03, against roughly four minutes for the whole rest of the workspace, and it has no
+dependencies and no `unsafe`. Ten of its forty-one tests could not run under the interpreter
+regardless: five reach the host filesystem, and five in `watch` are wall-clock driven, so a
+15-second quiet timeout expires against interpreted time and the watcher reports `Reached(Banner)`
+where a real run reaches `Reached(Tour)`. That second family is exactly the `cred` timing row above.
+The reasoning sits in `xtask`'s exclusion list and in the crate's own header, where somebody
+pointing Miri at it by hand will meet it. It was never deliberately covered: it joined the workspace
+after milestone 79, and the weekly job had been red on an unrelated failure the whole time it
+existed, so its cost surfaced only when milestone 238 cleared what was in front of it.
 
 Two test surfaces stay out entirely, deliberately. `tools/redoxfs_host` and `redoxfs_server` are their
 own workspaces whose runtime is spent inside the vendored RedoxFS engine, and a finding in vendored

@@ -6323,6 +6323,23 @@ fn kernel_test_elf(target: &str, who: &str) -> Option<String> {
 /// minutes for nothing the type system has not already said. They were run once under Miri during
 /// milestone 79's first full sweep and were clean; the recurring run leaves them out.
 ///
+/// **`board_console` is excluded for the same reason and a much larger number** (milestone 238). It
+/// is the serial-console reader for a board on a bench, and it measured **3,307 seconds, 55
+/// minutes, for its lib tests alone** under Miri on 2026-09-03, against roughly four minutes for
+/// the entire rest of the workspace. It has **no dependencies and no `unsafe`**, so there is
+/// nothing in its call graph that Miri's rules can be broken by. Ten of its forty-one tests could
+/// not run under the interpreter anyway, and each one says why it is out rather than being a
+/// puzzle: five reach the host filesystem (`open`, `/dev`, the temp dir), which isolation refuses,
+/// and five in `watch` are wall-clock driven, so a 15-second quiet timeout and a 120-second budget
+/// expire against interpreted time and the watcher reports `Reached(Banner)` where a real run
+/// reaches `Reached(Tour)`. That last family is the same category as `cred`'s timing test, which
+/// notes/undefined-behavior.md already records: a wall-clock ratio under an interpreter measures
+/// Miri, not the thing being timed.
+///
+/// This crate was never *deliberately* covered: it joined the workspace after milestone 79, and the
+/// weekly job had been red on an unrelated failure ever since, so its cost was only discovered when
+/// milestone 238 cleared the failure in front of it.
+///
 /// **"Miri-clean" means the sampled paths.** An interpreter runs roughly a thousand times slower
 /// than the silicon, so the exhaustive suites gate themselves down under `cfg(miri)`: `ntp_proto`
 /// strides its 10^9-value sweep, `gpt` skips its 460k-parse corruption sweeps, `calendar` and
@@ -6348,6 +6365,8 @@ fn undefined_behavior_check() -> bool {
         "user_rt",
         "--exclude",
         "xtask",
+        "--exclude",
+        "board_console",
     ];
     let extra: Vec<String> = std::env::args().skip(2).collect();
     args.extend(extra.iter().map(String::as_str));
