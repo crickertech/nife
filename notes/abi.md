@@ -214,6 +214,40 @@ counter and the timer control registers stay trapped; only the virtual counter o
 build could revoke even this and route time through a capability; we have not, and this note is the
 record of why.
 
+### The fine counter is not ambient, and that took a decision (milestone 229)
+
+The coarse counter above is ambient. The **cycle** counter is not, on two of the three
+architectures, and the difference is deliberate: it is roughly 160x finer (0.25 ns against 41 ns),
+so spending §10's exception a second time on it was not free. DECISIONS 139 (who may read the cycle
+counter, and by what authority) decided it in three parts, milestone 228 made the closed default a
+fact rather than an assumption, and milestone 229 built the grant.
+
+**`ThreadControlBlock::GRANT_CYCLE_COUNTER`**, `WRITE`-gated, refusing any thread that is not an
+embryo. It is therefore part of the spawn manifest, in the same sense `CONFIGURE` and `CAP_INSERT`
+are: the set of things you may do to a thread before it runs. A running program cannot ask for it,
+which is the point rather than an implementation detail. The kernel writes the enable at the
+context switch, beside the address-space root, comparing before it writes, so a machine where
+nothing is granted never writes the register at all.
+
+| ISA | What the grant opens | Closed by default | Cost when nothing is granted |
+|---|---|---|---|
+| aarch64 | `PMUSERENR_EL0.CR`, so EL0 may read `PMCCNTR_EL0` | yes, `timer::init` writes zero per core | a per-core load and a compare |
+| riscv64 | `scounteren.CY`, so U-mode may read `cycle` | yes, `timer::init` writes `TM` alone per hart | a `csrr` and a compare |
+| `x86_64` | nothing: `rdtsc` is already ambient | **no**, and that is a stated position | nothing; the call compiles away |
+
+**The `x86_64` row is an exception §19 (architectural parity is a tenet) should read as stated
+rather than as a gap.** `CR4.TSD` would close `rdtsc` to ring 3, and there is no coarse fallback on
+that architecture the way `CNTVCT_EL0` and `rdtime` are fallbacks on the other two: `user_rt`'s
+`now()` there **is** `rdtsc`, so closing it takes out `Instant`, `thread::sleep`, the random seed,
+smoltcp's timestamps and the benchmark harness at once. DECISIONS 139 measured the alternatives
+(trap-and-emulate at 1,667 ns, 4.1x the syscall it would be beating) and closed them.
+
+**None of this is timing confinement, and nothing in the tree should be read as saying it is.** Two
+threads and a shared word reconstruct a 6.8 ns clock on any of the three architectures; see
+notes/confinement-claims.md, which carries that row. What the grant buys is **accountable
+authority**: the cheap accurate instrument is granted rather than ambient, and the kernel knows
+which threads hold it.
+
 ## What is deliberately deferred
 
 **Recorded-accepted by milestone 94's sweep** (2026-08-04). Both items below are deferrals with a
