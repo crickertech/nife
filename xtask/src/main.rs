@@ -6674,6 +6674,11 @@ const SHELL_CHECK_MARKER_SLACK: usize = 400;
 ///
 /// These three strings come from `kernel/src/arch/*/exceptions.rs`, which prints all three on every
 /// architecture (the middle line differs per ISA and is deliberately not used).
+/// What `kernel::cap::report_peak` prints, verbatim (milestone 231). The line carries the boot's
+/// capability-slot high-water mark against the table's capacity, and `shell-check` both echoes the
+/// last one it sees and fails if the kernel flagged it as past the recorded peak.
+const SLOT_GAUGE: &str = "capability slots:";
+
 const KERNEL_WRITER_ANCHORS: [&str; 3] = ["user thread ", " killed: ", "the kernel is fine."];
 
 /// Where a marker was found in a transcript, and what it cost to find it.
@@ -7069,6 +7074,59 @@ fn shell_check_leg(riscv: bool) -> bool {
                 None => failed.push(format!("`{line}` produced no answer at all")),
             }
         }
+    }
+
+    // **Nothing may have died** (milestone 233), which is the ratchet milestone 230's lane
+    // identified and deliberately left, because it would have been red on both architectures until
+    // `login` was fixed. It was: `login` faulted at `_start` on every interactive boot, on both
+    // ISAs, for an unknown length of time, while every check above passed and init went on printing
+    // a line about a login service.
+    //
+    // **The whole transcript, not the boot**, because the typed script is where a death would be
+    // most surprising. Nothing in `SHELL_CHECK_SCRIPT` traps on purpose: the three lines that fail
+    // (`wc` and `doc` with nothing named, `worker` with no argument) are all refusals, two at the
+    // prompt before anything is spawned and one an ordinary non-zero exit, and `rm gate.txt`'s
+    // refusal is an answer rather than a fault. `echo $?` reading `2` right after `worker` is this
+    // gate's own proof of that distinction: a thread the kernel killed does not get to set a status.
+    // A trap in any of them would be a real regression rather than a false positive here.
+    //
+    // The `KERNEL_WRITER_ANCHORS` pair rather than one string: `user thread ` alone appears in
+    // ordinary prose and ` killed: ` is the half that says a fault report. Both, in order, are the
+    // aarch64 and riscv64 fault printer's own first line
+    // (`kernel/src/arch/*/exceptions.rs`), which is the same text `find_marker` uses to recognise
+    // an interleaved marker, so the two uses cannot drift apart.
+    if let Some(at) = transcript.find(KERNEL_WRITER_ANCHORS[0])
+        && transcript[at..].contains(KERNEL_WRITER_ANCHORS[1])
+    {
+        let line = transcript[at..].lines().next().unwrap_or("").trim_end();
+        failed.push(format!(
+            "the kernel reported killing a user thread during this run: {line:?}. Every program              this boot starts is supposed to survive it, and one that does not is invisible              everywhere else: init's own report says what init measured, not what stayed alive.              The transcript below has the fault's registers; `llvm-objdump -d` on the program at              that `pc` names the function."
+        ));
+    }
+
+    // **And the capability-slot gauge** (milestone 231), which is the other half of this pair of
+    // milestones. Two claims, and neither is a margin picked out of the air.
+    //
+    // The line must be *there*, because a gauge that stopped printing is a gauge nobody would miss
+    // until the wall arrived again, which is exactly how `CAPABILITY_TABLE_SLOTS` came to be raised
+    // three times reactively. And it must not say `ABOVE`, which is the kernel's own word for a
+    // boot that went past the peak `kernel::cap::CAPABILITY_TABLE_PEAK_MEASURED` records. That
+    // constant is a measurement rather than a target, so what this fails on is a recorded fact
+    // going stale, not a boot getting close to something. The fix when it fires is to measure,
+    // update the constant, and re-read the headroom arithmetic beside `CAPABILITY_TABLE_SLOTS`.
+    match transcript.lines().filter(|l| l.contains(SLOT_GAUGE)).last() {
+        Some(line) => {
+            eprintln!("shell-check ({arch}):{}", line.trim_end());
+            if line.contains("ABOVE") {
+                failed.push(format!(
+                    "this boot used more capability slots than the tree records: {:?}. The number                      beside CAPABILITY_TABLE_SLOTS in kernel/src/cap.rs is now stale; measure,                      update CAPABILITY_TABLE_PEAK_MEASURED, and re-read that constant's headroom                      arithmetic rather than raising the ceiling reflexively.",
+                    line.trim()
+                ));
+            }
+        }
+        None => failed.push(format!(
+            "the boot never printed {SLOT_GAUGE:?}. The kernel says this from the scheduler's idle              loop once the mark has settled (kernel::cap::report_peak), so either the boot never              idled or the gauge stopped being printed; the second is the one that matters, because              it is the only thing standing between this tree and a fourth reactive raise of              CAPABILITY_TABLE_SLOTS."
+        )),
     }
 
     let _ = child.kill();

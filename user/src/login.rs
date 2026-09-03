@@ -675,52 +675,73 @@ const CARETAKER_STACK_PAGES: u64 = 4;
 const CLIENT_BUDGET_PAGES: u64 = 64;
 
 #[unsafe(no_mangle)]
-pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
-    // SAFETY: forwarded from user_rt::initrd::initrd_bytes's own contract.
-    let archive = unsafe { user_rt::initrd::initrd_bytes(initrd_len) };
-    let Ok(fs) = nifefs::Fs::parse(archive) else {
-        fail(1)
-    };
-    let Some(care_bytes) = fs.read("fs_subtree_caretaker") else {
-        fail(2)
-    };
-    let Ok(care_elf) = elf::Elf::parse(care_bytes) else {
-        fail(3)
+pub extern "C" fn _start(caretaker_len: u64, table_len: u64, _a2: u64) -> ! {
+    // **Two blobs rather than the archive** (milestone 233). Whoever started this process mapped
+    // `fs_subtree_caretaker`'s ELF bytes read-only at `login_proto::CARETAKER_ELF_VA` and the
+    // measurement table at `login_proto::PROGRAM_MEASUREMENTS_VA`, with their lengths in the first
+    // two argument registers. Those constants carry the whole account of why this is not a mapping
+    // of the initrd any more; the short version is that the real boot could not hand over the
+    // initrd at all, so this program died at `_start` on every interactive boot until milestone 233.
+    //
+    // SAFETY: the spawner maps `caretaker_len` bytes read-only at `CARETAKER_ELF_VA`, for the
+    // lifetime of this process, before `_start` runs (`login_proto::CARETAKER_ELF_VA`'s own
+    // contract). Both spawners do: `crates/system_initializer` through `supervision_proto`'s
+    // `blobs`, and `kernel::user::login_service::start` through `map_new`. A zero length is a slice
+    // of nothing rather than a read of nothing, which is the case below.
+    let care_bytes = unsafe {
+        core::slice::from_raw_parts(
+            login_proto::CARETAKER_ELF_VA as *const u8,
+            caretaker_len as usize,
+        )
     };
 
     // **The table `crates/system_initializer` already consults before loading anything it did not
     // build itself** (milestone 104), read the identical way: bytes that are not UTF-8 become the
     // empty table rather than a fault (`measured_boot`'s own reasoning for why that is the safe
     // direction to fail), and an empty table vouches for nothing. Checked once, here, rather than
-    // per login: the archive is immutable RAM this process shares with the whole boot, so every
+    // per login: both blobs are read-only pages fixed for the whole life of this process, so every
     // future request would see exactly the same verdict, and there is nothing to gain by re-hashing
     // the same bytes on every request.
     //
-    // **Not a boot failure**, unlike the two checks above. `crates/system_initializer` treats this
-    // exact program as optional (its own doc: "without one, a directory grant cannot be delivered,
-    // ... which costs `rm` and nothing else"), and this process mirrors that rather than refusing to
-    // come up at all: an unvouched caretaker costs this service the one thing it exists to hand out,
-    // so every login is answered `DENIED` below (via `mint`) instead. See this program's BUGS for why
-    // that fold is not the same anti-oracle reasoning a wrong password gets, and is the considered
-    // answer anyway.
-    let table = fs
-        .read(measured_boot::PROGRAM_MEASUREMENTS)
-        .and_then(|b| core::str::from_utf8(b).ok())
-        .unwrap_or("");
-    let care_elf =
-        if measured_boot::verify_in_manifest(table, "fs_subtree_caretaker", care_bytes).is_ok() {
-            Some(care_elf)
-        } else {
-            None
-        };
+    // **Not a reason to refuse to start**, which is the whole of milestone 233's second half.
+    // `crates/system_initializer` treats this exact program as optional (its own doc: "without one,
+    // a directory grant cannot be delivered, ... which costs `rm` and nothing else"), and this
+    // process now mirrors that in every case rather than only some: an unvouched, unparseable or
+    // absent caretaker costs this service the one thing it exists to hand out, so every login is
+    // answered `DENIED` below (via `mint`) instead. See this program's BUGS for why that fold is
+    // not the same anti-oracle reasoning a wrong password gets, and is the considered answer anyway.
+    //
+    // **This check's trust root moved with the blob and the docs have to say so.** When this
+    // program read the initrd it was reading the same physical archive the kernel maps for init, so
+    // the check was independent of whoever spawned this process. It is not any more: under
+    // `crates/system_initializer` both the bytes and the table arrive from init, which has already
+    // run the identical `verify_in_manifest` over them. What survives is a consistency check on the
+    // hand-over rather than an independent verification, and it is kept because it costs one hash
+    // and catches a spawner that pairs the wrong two blobs. This program's BUGS records the loss.
+    //
+    // SAFETY: as above, for `table_len` bytes at `PROGRAM_MEASUREMENTS_VA`.
+    let table = unsafe {
+        core::slice::from_raw_parts(
+            login_proto::PROGRAM_MEASUREMENTS_VA as *const u8,
+            table_len as usize,
+        )
+    };
+    let table = core::str::from_utf8(table).unwrap_or("");
+    // An empty table vouches for nothing, an unparseable image is not a caretaker, and a zero-length
+    // blob is a spawner saying it had nothing vouched-for to hand over. All three end here, as
+    // `None`, and all three are answered the same way: see the `None` arm of `mint` and this
+    // program's own docs above on why that fold is the considered answer.
+    let care_elf = elf::Elf::parse(care_bytes).ok().filter(|_| {
+        measured_boot::verify_in_manifest(table, "fs_subtree_caretaker", care_bytes).is_ok()
+    });
 
     let Ok(own_ut) = memory_region_split(CONSTRUCTION_UT, OWN_UT_PAGES) else {
-        fail(4)
+        fail(1)
     };
     // Split once, here, and never anywhere else: [`CHANNEL_UT_PAGES`]' own doc explains why a
     // channel's region must come from a budget nothing else spends.
     let Ok(channel_ut) = memory_region_split(CONSTRUCTION_UT, CHANNEL_UT_PAGES) else {
-        fail(5)
+        fail(2)
     };
 
     // How many logins this process has established, in order. The audit trail's sequence number,

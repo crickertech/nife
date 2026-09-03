@@ -733,6 +733,25 @@ pub fn boot(
     // prompt says so, which costs `rm` and nothing else. A refusal by the measurement table costs
     // the same, because init treats what it cannot vouch for as what is not there.
     let care_elf = measured(&fs, table, "fs_subtree_caretaker").elf;
+    // **And the same bytes again, unparsed, because `login` needs them too** (milestone 233).
+    //
+    // That program builds one caretaker per authenticated session, so it needs an image to build
+    // from. It used to read the archive itself, which worked only under the kernel's own test
+    // harness: `build_child` can map a page only if this process holds a `PageFrame` capability for
+    // it, and the archive is reserved RAM the frame allocator does not own and no capability names.
+    // So the real boot started `login` with no archive at all and it died at `_start` on every
+    // boot. It is handed a copy of exactly the one program it needs instead, as a blob (see the
+    // login block far below, and `login_proto::CARETAKER_ELF_VA` for the whole account).
+    //
+    // Empty when this process would not vouch for the bytes, which is the same answer `care_elf`
+    // above already gives the spawn service: `login` then comes up and denies every login rather
+    // than refusing to start. Held across the shadowing of `fs` further down, which is why it is
+    // read here with the rest rather than at the point of use.
+    let care_blob: &[u8] = if care_elf.is_some() {
+        fs.read("fs_subtree_caretaker").unwrap_or(&[])
+    } else {
+        &[]
+    };
 
     // **The programs the shell can spawn** (milestone 31), measured and parsed here rather than
     // after the giveaway: the announcement further down is the only thing init ever says, so the
@@ -1637,11 +1656,31 @@ pub fn boot(
                             (term_ep, abi::rights::WRITE | abi::rights::GRANT),
                         ],
                         maps: &[(LOGIN_CRED_VA, verify_page, abi::address_space::MAP_RW)],
+                        // **What milestone 233 added, and it costs this process no slots at all.**
+                        // `login` needs one program's bytes and a table to check them against; it
+                        // used to read the whole archive, which this process cannot delegate
+                        // (reserved RAM, no capability names it) and so never did. `blobs` copies
+                        // through `supervision_proto`'s `fill_and_map`, which holds one frame
+                        // capability at a time and deletes it, so this adds nothing to the
+                        // 21-of-24 peak `kernel::cap::CAPABILITY_TABLE_PEAK_MEASURED` records:
+                        // `build_child` already reaches that same transient peak copying `login`'s
+                        // own segments.
+                        blobs: &[
+                            (login_proto::CARETAKER_ELF_VA, care_blob),
+                            (login_proto::PROGRAM_MEASUREMENTS_VA, table.as_bytes()),
+                        ],
                         stack_pages: LOGIN_STACK_PAGES,
                         ..ChildEndowment::new()
                     },
                 ));
-                must_ok(thread_control_block_start(login_tcb, 0, 0, 0));
+                // The two blob lengths, in `x0` and `x1`, which is the rest of that contract: a
+                // mapping with no length is a slice this process cannot bound.
+                must_ok(thread_control_block_start(
+                    login_tcb,
+                    care_blob.len() as u64,
+                    table.len() as u64,
+                    0,
+                ));
                 cap_delete(login_tcb);
                 // login holds its own copies now; ours were only ever the means of wiring.
                 cap_delete(login_request);
@@ -1741,6 +1780,22 @@ pub fn boot(
     // place the password exists once it scrolls past. Silent when there is no login stack at all
     // (no entropy, no filesystem, or one of the four programs missing/unvouched), the same posture
     // every other optional boot component already takes.
+    //
+    // **It used to say `init: login ready` and that was the false half of milestone 233.** The
+    // measurement behind this line is `identity_provisioner` answering `IDP_RPT_OK`: a credential
+    // store exists and it holds this identity and this secret. That is worth reporting and is kept
+    // exactly as it was. What it is not is a statement that the `login` process is alive, and for
+    // an unknown number of weeks it was not: this process started it with no way to reach the
+    // archive it parsed at `_start`, so it faulted before serving anything while this line went on
+    // announcing a service. A reader has no way to tell a sentence's evidence from its wording, so
+    // the wording now names the evidence.
+    //
+    // **Nothing here can honestly claim more, and the claim moved rather than being dropped.**
+    // Knowing `login` survived means `login` saying so, which is a message, an endpoint and a wait
+    // this process does not have, and a boot that blocks on a child's readiness is a boot that
+    // hangs when the child is the thing that is broken. The survival claim lives in
+    // `script/shell-check` instead, which fails the boot if the kernel reported killing any user
+    // thread; see `shell_check_leg`'s own `no user thread was killed` check.
     if login_ready {
         fn push(buf: &mut [u8; SENTENCE], n: &mut usize, src: &[u8]) {
             for &b in src {
@@ -1755,7 +1810,7 @@ pub fn boot(
         push(
             &mut buf,
             &mut n,
-            b"init: login ready -- generated credentials: identity '",
+            b"init: login credentials provisioned -- identity '",
         );
         push(&mut buf, &mut n, DEMO_IDENTITY);
         push(&mut buf, &mut n, b"' password '");
