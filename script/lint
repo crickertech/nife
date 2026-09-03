@@ -794,6 +794,16 @@ import re
 import subprocess
 import sys
 
+# The derivations this gate shares with `script/metrics`, in one place rather than copied into both
+# (milestone 236: three derivations are copied between scripts, and nothing notices when they
+# drift). This script `cd`s to the repository root on line 18, which is what lets a heredoc import
+# at all; the block comment above `_unsafe_census` below says what stays here and why.
+# `dont_write_bytecode` because the import would otherwise leave a `scripts/__pycache__/`
+# behind on every run, which is an untracked directory a gate has no business creating.
+sys.dont_write_bytecode = True
+sys.path.insert(0, 'scripts')
+import rust_source                                                          # noqa: E402
+
 # --- the registry -------------------------------------------------------------------------------
 #
 # One entry per count name. `question` is the sentence the prose asks, in the prose's own words,
@@ -989,82 +999,15 @@ def _security_audits():
 # one-time number nobody re-takes, which is the failure this milestone exists to fix, so it is a
 # derivation here instead. See notes/register-of-measures.md and notes/unsafe-obligations.md.
 #
-# Rust source is not a regular language, so this strips comments and literals with a lexer-shaped
-# regex and then matches the keyword forms. The stripping is what makes the count honest rather
-# than close: a naive grep for `unsafe {` over the tree scores 1071 against this function's 1057,
-# and the fourteen it invents are all `unsafe {}` written inside a `//!` doc example in `intrusive`,
-# `ipc`, `paging` and `user_heap`. Those are documentation ABOUT unsafe, and a ceiling that counted
-# them would fire when somebody improved a doc comment, which is the exact signature of the three
-# checks this script has already had deleted.
+# **The counting lives in `scripts/rust_source.py` and the file WALK lives here**, which is
+# milestone 236's line and worth reading before moving either. `script/metrics` derives the same
+# census over blobs it streams out of git at eight historical revisions, with nothing checked out,
+# because AGENTS.md forbids the checkout that would be needed; this gate is asked about the tree in
+# front of it and reads the working copy. Sharing the count removes the drift; sharing the walk
+# would force one of those two to lie about which tree it is describing.
 #
-# Shapes assumed, each checked against the real tree rather than against expectation:
-#   - a block is `unsafe` then optional whitespace then `{`, MINUS the `unsafe extern "C" {` form,
-#     which is a linkage declaration and not a block anybody reasons about (zero in the tree today,
-#     subtracted anyway so the day one lands it does not read as unsafe code);
-#   - a thread-safety claim is an `unsafe impl` of Send or Sync SPECIFICALLY, which is a different
-#     animal from an `unsafe impl` of an unsafe trait (`GlobalAlloc`, `intrusive_fifo::Node`): the trait
-#     is unsafe there because its own contract is, while `unsafe impl Send for T` is a hand-written
-#     assertion that the compiler is wrong about T, and it is the most consequential unsafe in this
-#     tree. The `[^{;]*?` tail keeps it inside one item header so a body cannot donate a match;
-#   - a **code line** is a non-blank line of the same stripped text, so a comment block and a
-#     multi-line string literal both contribute nothing. That is what makes the DENSITY below a
-#     quantity nobody can move by writing prose.
-#
-# **Why density and not a raw count, which was measured before it was chosen.** The obvious ceiling
-# is on the number of `unsafe {}` blocks, and it is the wrong one for a tree this young: outside
-# `kernel/src/arch/` the count went 171 -> 747 between 2026-07-15 and 2026-08-18, almost all of it
-# the system being BUILT rather than anything drifting. A raw ceiling would have fired on nearly
-# every lane, which is the signature of the three checks this script has already had deleted.
-#
-# Per 10,000 code lines, the same period reads 22.8 -> 11.8 -> 9.3, falling at every sample: this
-# tree is getting proportionally safer, and it did so without anybody measuring it. That is the
-# claim worth holding, and holding it is what a ceiling is for. A lane that adds a driver at the
-# tree's own density does not move the number and hears nothing; a lane that makes the tree
-# proportionally less safe does, which is the event actually worth a stop.
-#
-# Blocks per 10,000 rather than per 1,000 because the marker mechanism reads integers, and 93 keeps
-# a digit that 9 would throw away.
-#
-# Block comments are matched non-greedily and do NOT nest, which Rust's do. The tree has none
-# nested; a nested one would end the strip early and could only ADD to the count, which fails loud
-# rather than quiet.
-_NON_CODE = re.compile(
-    r'/\*.*?\*/'                        # block comment
-    r'|//[^\n]*'                        # line comment, doc comment included
-    r'|r(#*)"(?:.|\n)*?"\1'             # raw string, any hash count
-    r'|"(?:[^"\\\n]|\\.)*"'             # ordinary string
-    r"|'(?:[^'\\]|\\.)'",               # char literal (a lifetime has no closing quote, so it is
-    re.S)                               # left alone, which is what we want)
-#
-# There is deliberately NO `unsafe fn` count here. The `==> unsafe fn contracts` check further up
-# this script already derives one and prints it, and a second count of the same thing, taken from a
-# slightly different scope, is the exact drift milestone 134 exists to stop. The register cites that
-# line rather than duplicating it.
-_UNSAFE_BLOCK = re.compile(r'\bunsafe\s*\{')
-_UNSAFE_EXTERN = re.compile(r'\bunsafe\s+extern\s+"[^"]*"\s*\{')
-_THREAD_SAFETY = re.compile(r'\bunsafe\s+impl\b[^{;]*?\b(?:Send|Sync)\s+for\b')
-
-# What is out of scope, and every exclusion has a reason rather than a convenience.
-#
-# `bench/host/` holds the Linux and macOS programs the cross-OS comparison runs: ~100 `unsafe`
-# blocks of libc FFI that those operating systems require and that say nothing about nife's
-# soundness. Counting them would move this census every time somebody added a comparison.
-# `xtask/`, `tools/`, `fuzz/` and `scripts/` are build and image tooling that runs on the
-# developer's Mac and cannot fault the kernel.
-#
-# `patches/` is excluded for a different reason and it is the one worth reading: it holds our
-# platform layer for Rust's `std`, which DOES run on the machine, so this is a real hole rather
-# than a tidy boundary. It is out because a ceiling asserts a direction, and that code's shape is
-# upstream's rather than ours -- it implements `std`'s internal interfaces and cannot be
-# restructured to hold fewer unsafe blocks without diverging further from the crate we are trying
-# to track. It also matches the `unsafe fn contracts` check's scope, so this script has one answer
-# to "which Rust is ours" instead of two. The 37 blocks it leaves uncounted are recorded in
-# notes/register-of-measures.md's BUGS, where a reader meets them.
-#
-# The list is exclusions rather than inclusions on purpose: a new subsystem directory is counted by
-# default, and being left out has to be somebody's decision.
-_HOST_ONLY = ('bench/host/', 'xtask/', 'tools/', 'fuzz/', 'scripts/', 'patches/')
-
+# Every regex, every exclusion and the reason for each is in that module, beside the code they
+# govern rather than here.
 _census = {}
 
 
@@ -1074,30 +1017,28 @@ def _unsafe_census():
     Cached, because several numbers come out of one walk and `script/lint` runs on every build.
     The walk is about half a second over ~300 files, which is why it is one pass and not three.
     """
-    if _census:
-        return _census
-    files = subprocess.run(['git', 'ls-files', '*.rs', ':!vendor'],
-                           capture_output=True, text=True, check=True).stdout.split()
-    counts = {'in_arch': 0, 'outside_arch': 0, 'thread_safety': 0, 'code_lines': 0}
-    for name in files:
-        if name.startswith(_HOST_ONLY):
-            continue
-        code = _NON_CODE.sub(lambda m: re.sub(r'[^\n]', ' ', m.group(0)),
-                             pathlib.Path(name).read_text(errors='replace'))
-        blocks = len(_UNSAFE_BLOCK.findall(code)) - len(_UNSAFE_EXTERN.findall(code))
-        counts['thread_safety'] += len(_THREAD_SAFETY.findall(code))
-        if name.startswith('kernel/src/arch/'):
-            counts['in_arch'] += blocks
-        else:
-            counts['outside_arch'] += blocks
-            # Only the non-arch denominator, so the density and its numerator describe the same
-            # code. Mixing arch lines in would let assembly-heavy months dilute a number that is
-            # deliberately not about assembly.
-            counts['code_lines'] += sum(1 for line in code.split('\n') if line.strip())
-    # Truncated rather than rounded: the ceiling must never fail a tree that is exactly at it.
-    counts['density'] = 10000 * counts['outside_arch'] // counts['code_lines']
-    _census.update(counts)
+    if not _census:
+        _census.update(rust_source.unsafe_census(_tracked_rust()))
     return _census
+
+
+def _tracked_rust():
+    """(path, text) for every tracked `.rs` file outside `vendor/`, read from the working tree.
+
+    Cached for the same reason the census is: two derivations here walk it. `git ls-files` rather
+    than a directory walk so an untracked scratch file cannot move a gate, and the same file set
+    `script/metrics` gets from `git ls-tree` at a revision, which is what makes the two comparable
+    at all.
+    """
+    if not _rust_files:
+        names = subprocess.run(['git', 'ls-files', '*.rs', ':!vendor'],
+                               capture_output=True, text=True, check=True).stdout.split()
+        _rust_files.extend((name, pathlib.Path(name).read_text(errors='replace'))
+                           for name in names)
+    return _rust_files
+
+
+_rust_files = []
 
 
 def _agents_md_lines():
@@ -1401,9 +1342,59 @@ print(f'counted claims: {checked} markers over {len(derived)} counts, all agreei
 if _census:
     print(f'unsafe census: {_census["outside_arch"]} blocks in {_census["code_lines"]} lines '
           f'outside kernel/src/arch/, {_census["density"]} per 10,000 (ceiling); '
-          f'{_census["in_arch"]} blocks inside arch/ (no target: rule 1 puts assembly there); '
+          f'{_census["inside_arch"]} blocks inside arch/ (no target: rule 1 puts assembly there); '
           f'{_census["thread_safety"]} Send/Sync claims (ceiling). '
           f'See notes/register-of-measures.md')
+
+# --- the three derivations that could not be made one (milestone 236) ----------------------------
+#
+# The `unsafe` census and the code-line count above no longer need a check: they are the same
+# function `script/metrics` calls, in `scripts/rust_source.py`, so there is nothing left to drift.
+# The harness count could not be collapsed that way, and the reason is a real difference in what
+# each caller is allowed to do rather than a preference:
+#
+#   - this script and `script/falsifications` attribute every harness to a workspace package out of
+#     `cargo metadata`, which is the better derivation and needs a checked-out workspace;
+#   - `script/metrics` reads blobs at eight historical revisions with nothing on disk, and its own
+#     header records that nothing there is allowed to build, so it counts from source text alone.
+#
+# So the honest answer is the weaker one, here: run all three and fail on a disagreement. **It
+# compares the real implementations and never restates one**, which is the trap this shape has.
+# `_harness_hits()` is this script's own, `--count` is `script/falsifications`' own, and
+# `rust_source.harness_count` is the function `script/metrics` itself calls. Nothing below knows
+# what a harness looks like.
+#
+# One number rather than a table: the count is what reaches a reader, on notes/project-metrics.md
+# and in the prose this file's counted claims gate, and a per-package breakdown would fail on a
+# scope difference the three deliberately have.
+_text_count = rust_source.harness_count(_tracked_rust())
+_pkg_count = sum(_harness_hits().values())
+_falsifications = subprocess.run(['script/falsifications', '--count'],
+                                 capture_output=True, text=True, check=True).stdout.split()
+_ways = {
+    'script/lint, from cargo metadata': _pkg_count,
+    'script/falsifications --count': int(_falsifications[0]),
+    'scripts/rust_source.py, which script/metrics calls': _text_count['total'],
+}
+if len(set(_ways.values())) != 1:
+    print('lint: the tree carries three derivations of the harness count and they disagree:',
+          file=sys.stderr)
+    for _where, _value in _ways.items():
+        print(f'  {_value}  {_where}', file=sys.stderr)
+    print('', file=sys.stderr)
+    print('One of them changed its definition and the others kept the old one, which is what this '
+          'check exists to make loud. Decide which question is the right one, change all three, '
+          'and say why in the module that now holds the odd one out. See milestone 236.',
+          file=sys.stderr)
+    sys.exit(1)
+if _text_count['falsified'] != int(_falsifications[1]):
+    print(f'lint: script/falsifications counts {_falsifications[1]} harnesses with evidence and '
+          f'scripts/rust_source.py counts {_text_count["falsified"]}, so the falsification ratio on '
+          f'notes/project-metrics.md is not the one script/falsifications reports. See milestone 236.',
+          file=sys.stderr)
+    sys.exit(1)
+print(f'harness count: {_pkg_count} by three derivations that agree, '
+      f'{_text_count["falsified"]} of them falsified')
 PYEOF
 
 # The naming conventions, for the ones a machine can check (milestone 46, DECISIONS §39). The rest of
