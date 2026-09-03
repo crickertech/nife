@@ -95,6 +95,21 @@ UEFI firmware, from a staged EFI system partition. It is run by hand as well as 
 QEMU invocation of exactly their kind: it is not a cargo `runner` only because this boot path has no
 `-kernel` argument for cargo to pass it. See notes/x86-uefi-boot.md.
 
+**And one thing in `scripts/` is not a script at all.** `scripts/rust_source.py` is a Python module
+nothing executes: it holds the derivations `script/lint` and `script/metrics` both need (the
+comment-and-literal strip that makes a code-line count a code-line count, the `unsafe` census, and
+the harness count taken from source text alone), and both import it. Milestone 236 put it there
+because those three derivations existed twice, once in a gate and once in the dashboard, and a gate
+that changed its definition would have left `notes/project-metrics.md` quietly asserting the old
+one. It sits in `scripts/` rather than `script/` for the reason the paragraph above gives: `script/`
+is the front door, and this is not a door.
+
+The premise that had kept the derivations copied turned out to be false, and it is worth writing
+down because the same shape will come up again: an inline `python3` heredoc looks like a place
+nothing can be imported into, but every one of these scripts `cd`s to the repository root before it
+runs python, so `sys.path.insert(0, 'scripts')` is all it takes. The alternative on the table was a
+host crate, which would have made three `script/` commands depend on a `cargo build`.
+
 **`bootstrap` installs system packages.** Running `script/bootstrap` will `brew install qemu` on
 macOS or `apt-get install` on Linux if QEMU is missing. That is the pattern's intent: a fresh
 clone should be one command from working, but it is also why `script/test` does *not* call

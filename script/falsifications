@@ -64,6 +64,8 @@
 #   script/falsifications                   the table, by package, and the ratio
 #   script/falsifications --unfalsified     the worklist: harnesses with no evidence, biggest first
 #   script/falsifications --check           form only, non-zero on a problem (script/lint runs this)
+#   script/falsifications --count           two integers, harnesses and how many are falsified,
+#                                           for the drift check in script/lint (milestone 236)
 #   script/falsifications --sweep [package] apply every recorded patch, require red, revert
 #   script/falsifications --affected-since <base>   sweep only what a diff can reach (the per-PR half)
 #
@@ -804,6 +806,17 @@ if mode == "--check":
           % (len(hs), len({h.package for h in hs}), n))
     for p, _ in gaps:
         print("  %s falsifies something that is not a Kani harness; nothing sweeps it" % p)
+elif mode == "--count":
+    # Two integers on one line, harnesses and how many carry evidence, for `script/lint`'s drift
+    # check (milestone 236: three derivations are copied between scripts, and nothing notices when
+    # they drift). It exists so that check can compare THIS derivation rather than a restatement of
+    # it: `script/metrics` counts the same harnesses from source text alone, because it reads blobs
+    # at revisions nobody has checked out and cannot run the `cargo metadata` walk above. A check
+    # that reimplemented either side would be a third copy of the thing it was policing.
+    #
+    # Machine-readable rather than the prose `--check` already prints, because a gate that greps a
+    # sentence breaks the day somebody improves the sentence.
+    print("%d %d" % (len(hs), sum(1 for h in hs if h.state in ("replayable", "attested"))))
 elif mode == "--unfalsified":
     unfalsified(hs)
 elif mode == "--sweep":

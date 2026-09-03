@@ -73,6 +73,20 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 
+# The derivations this script shares with `script/lint`, in one place rather than copied into both
+# (milestone 236: three derivations are copied between scripts, and nothing notices when they
+# drift). The import works because this script `cd`s to the repository root before it runs python,
+# which is what made a shared module possible without turning a `#!/bin/sh` entry point into the
+# consumer of a built artifact. What stays here rather than moving is the file SOURCING below: this
+# script reads blobs at historical revisions and never checks anything out, and that tolerance is
+# deliberately not in the shared count.
+# `dont_write_bytecode` because the import would otherwise leave a `scripts/__pycache__/`
+# behind on every run, which is an untracked directory a gate has no business creating.
+sys.dont_write_bytecode = True
+sys.path.insert(0, 'scripts')
+import rust_source                                                          # noqa: E402
+from rust_source import non_blank, strip_non_code                           # noqa: E402
+
 PAGE = 'notes/project-metrics.md'
 DATA_DIR = pathlib.Path('notes/project-metrics')
 CSV_PATH = DATA_DIR / 'weekly.csv'
@@ -147,28 +161,6 @@ class Tree:
 
     def markdown(self):
         return [(p, t) for p, t in self.text.items() if p.endswith('.md')]
-
-
-# `script/lint`'s comment and literal stripper, reproduced so this script can count code lines,
-# `unsafe` blocks and proof harnesses the same way the gate does. Block comments are matched
-# non-greedily and do not nest, which Rust's do; the tree has none nested, and a nested one would
-# end the strip early and could only ADD to a count, which fails loud rather than quiet.
-_NON_CODE = re.compile(
-    r'/\*.*?\*/'                        # block comment
-    r'|//[^\n]*'                        # line comment, doc comment included
-    r'|r(#*)"(?:.|\n)*?"\1'             # raw string, any hash count
-    r'|"(?:[^"\\\n]|\\.)*"'             # ordinary string
-    r"|'(?:[^'\\]|\\.)'",               # char literal
-    re.S)
-
-
-def strip_non_code(text):
-    """Blank every comment and literal, preserving line structure so line numbers still line up."""
-    return _NON_CODE.sub(lambda m: re.sub(r'[^\n]', ' ', m.group(0)), text)
-
-
-def non_blank(text):
-    return sum(1 for line in text.split('\n') if line.strip())
 
 
 # ---------------------------------------------------------------------------------------------
@@ -260,64 +252,19 @@ def bugs(tree):
             'bugs_rust': sum(len(_RS_BUGS.findall(t)) for _p, t in tree.rust())}
 
 
-# The falsification record milestone 194 built and DECISIONS §134 ratified: what evidence each
-# Kani harness carries that it can fail. `replayable` has a patch a script applies to turn the
-# harness red; `attested` is a person who broke it and watched; `unfalsified` is the claim's honest
-# denominator. A harness with no record at all counts as unfalsified, which is what it is.
-_PROOF = re.compile(r'#\[kani::proof\b')
-_FALSIFICATION = re.compile(r'\bFalsification:\s+(replayable|attested|unfalsified)\b')
-_NOT_A_PACKAGE = ('scripts/', 'patches/')
-
-
-def harnesses(tree):
-    total = falsified = 0
-    for path, text in tree.rust():
-        if path.startswith(_NOT_A_PACKAGE):
-            continue
-        # Stripped, so that the sentence in `kernel/src/syscall.rs` explaining what a
-        # `#[kani::proof]` is does not count as one. A raw grep counts 151 where the tree has 146.
-        total += len(_PROOF.findall(strip_non_code(text)))
-        # Raw, because a falsification record lives in a doc comment by construction.
-        falsified += sum(1 for kind in _FALSIFICATION.findall(text)
-                         if kind in ('replayable', 'attested'))
-    return {'harnesses_total': total,
-            'harnesses_falsified': falsified,
-            'harnesses_unfalsified': max(total - falsified, 0)}
-
-
-# `script/lint`'s unsafe census (milestone 134), reproduced. Every exclusion is that script's, with
-# its reason: `bench/host/` is libc FFI in the Linux and macOS comparison programs and says nothing
-# about this kernel's soundness; `xtask/`, `tools/`, `fuzz/` and `scripts/` are build tooling that
-# runs on the developer's Mac and cannot fault the kernel; `patches/` is our `std` platform layer,
-# which DOES run on the machine and is a real hole rather than a boundary.
-_HOST_ONLY = ('bench/host/', 'xtask/', 'tools/', 'fuzz/', 'scripts/', 'patches/')
-_UNSAFE_BLOCK = re.compile(r'\bunsafe\s*\{')
-_UNSAFE_EXTERN = re.compile(r'\bunsafe\s+extern\s+"[^"]*"\s*\{')
-_THREAD_SAFETY = re.compile(r'\bunsafe\s+impl\b[^{;]*?\b(?:Send|Sync)\s+for\b')
+# The unsafe census (milestone 134) and the harness count, both from `scripts/rust_source.py`.
+# The columns keep their `unsafe_` prefix here because a CSV header has no other namespace; the
+# shared function's keys are the unprefixed ones a caller in `script/lint` reads.
 
 
 def unsafe_census(tree):
-    out = {'unsafe_outside_arch': 0, 'unsafe_inside_arch': 0,
-           'unsafe_thread_safety': 0, 'unsafe_code_lines': 0}
-    for path, text in tree.rust():
-        if path.startswith(_HOST_ONLY):
-            continue
-        code = strip_non_code(text)
-        blocks = len(_UNSAFE_BLOCK.findall(code)) - len(_UNSAFE_EXTERN.findall(code))
-        out['unsafe_thread_safety'] += len(_THREAD_SAFETY.findall(code))
-        if path.startswith('kernel/src/arch/'):
-            out['unsafe_inside_arch'] += blocks
-        else:
-            out['unsafe_outside_arch'] += blocks
-            # Only the non-arch denominator, so the density and its numerator describe the same
-            # code. Mixing arch lines in would let assembly-heavy months dilute a number that is
-            # deliberately not about assembly.
-            out['unsafe_code_lines'] += non_blank(code)
-    # Truncated rather than rounded, matching the gate: a ceiling must never fail a tree that sits
-    # exactly on it.
-    out['unsafe_density'] = (10000 * out['unsafe_outside_arch'] // out['unsafe_code_lines']
-                             if out['unsafe_code_lines'] else 0)
-    return out
+    counts = rust_source.unsafe_census(tree.rust())
+    return {'unsafe_' + key: value for key, value in counts.items()}
+
+
+def harnesses(tree):
+    counts = rust_source.harness_count(tree.rust())
+    return {'harnesses_' + key: value for key, value in counts.items()}
 
 
 def fatal_risks(tree):
