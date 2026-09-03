@@ -429,6 +429,193 @@ returns as soon as the workload announces itself.
 The same procedure works on **argon** and **xenon**, with their own architectures'
 `script/board-image` equivalents. Neither has been run at a bench yet.
 
+## How long to run it, and why nobody can tell you
+
+This note and milestone 225 (run the soak on radon, argon and xenon, which is the only place its
+answer means anything) both say no duration is prescribed because nobody knows what would be
+persuasive. That was written as an admission. It went unchecked until 2026-09-03, when a lane went
+looking for whoever does know, and the honest result is that **the admission was correct, and it is
+the field's condition rather than this project's.** Nothing found prescribes a duration for a
+concurrency soak, and the one place a duration *is* derived derives it from a thermal model that has
+nothing to do with interleavings.
+
+Everything below was fetched and read on 2026-09-03. Where a thing was not found, it is written as
+not found rather than as absent.
+
+### seL4 runs nothing sustained, and its multicore tests are measured in milliseconds
+
+This is the kernel this project measures itself against, so it is the first place to look and the
+most surprising answer.
+
+`seL4/sel4test`'s test directory (`apps/sel4test-tests/src/tests`, read at `master`) contains no
+stress, soak, load or endurance file. Its multicore coverage is `multicore.c`, and the shape of
+every test in it is the same: start a helper, `sel4test_sleep(env, 10 * NS_IN_MS)`, check a counter
+moved or did not. Ten milliseconds is the whole observation window, and the property under test is
+functional (a suspended thread stops, a resumed one runs, an affinity change takes effect) rather
+than statistical.
+
+`seL4/ci-actions` (the repository holding seL4's GitHub Actions, directory listing read at `master`)
+has 40-odd actions and none of them is a soak or a stress run. The hardware ones are `sel4test-hw`,
+`sel4test-hw-run` and `sel4test-hw-matrix`, which run the terminating suite above on real boards, and
+`sel4bench-hw`, which is a benchmark. `sel4test-hw`'s own `action.yml` describes itself as
+*"Runs sel4test builds for all hardware test platforms."*
+
+On why there is not more, the project's own words, from Gerwin Klein on the seL4 Discourse thread
+*Testing infrastructure* (2021-02-09): the CI is *"pull request checks (style, compile, licenses,
+etc)"* and *"continuous integration test (either on the master branch of a specific repo, or, more
+commonly on repo collections/manifests)"*, and, plainly, **"hardware tests are harder, proposals
+welcome"**.
+
+The reading to take from this is not that seL4 is careless. It is that **a project with a functional
+correctness proof does not buy much from a soak**, because the thing a soak samples is the thing the
+proof already covers. nife has 145 Kani harnesses and no refinement proof, so the trade is not the
+same one, and copying seL4's answer here would be copying a conclusion without its premise.
+
+### stress-ng picks a round number and says so
+
+`stress-ng(1)` is the closest thing Linux userland has to a standard soak tool. Its `-t, --timeout T`
+option reads, verbatim (Debian testing manual page, fetched 2026-09-03):
+
+> run each stress test for at least T seconds. One can also specify the units of time in seconds,
+> minutes, hours, days or years with the suffix s, m, h, d or y. [...] A 0 timeout will run stress-ng
+> forever with no timeout. The default timeout is 24 hours.
+
+**Twenty-four hours, with no stated reason.** The manual page's only account of what the tool is for
+is that *"stress-ng was originally intended to make a machine work hard and trip hardware issues such
+as thermal overruns as well as operating system bugs that only occur when a system is being thrashed
+hard"*, and its one strongly worded caveat is about throughput rather than duration: *"it has never
+been intended to be used as a precise benchmark test suite, so do NOT use it in this manner."*
+Nothing in it says how long is long enough, or what a clean run licenses.
+
+### The Linux Test Project prescribes nothing either
+
+LTP's documentation (`setup_tests`, read 2026-09-03) treats runtime as a resource to be capped, not a
+target to be reached: tests that run for more than a second or two must declare a `runtime` and check
+actively how much is left, and `LTP_RUNTIME_MUL` and `-I` scale it. **The knobs are all for making
+runs shorter.** No recommended soak length was found.
+
+### Hardware is the exception, and its number is derived
+
+Semiconductor qualification is the one practice found where "run it for N hours" is a real
+requirement rather than a habit, and it is worth reading closely because **the derivation is the part
+that does not transfer.**
+
+JEDEC Standard No. 47G, *Stress-Test-Driven Qualification of Integrated Circuits* (fetched
+2026-09-03), Table 1, requires High Temperature Operating Life at Tj at or above 125 C, Vcc at or
+above Vccmax, 3 lots of 77 units, **"1000 hrs / 0 Fail"**. That is a hard number with a hard accept
+criterion. And note 5.5(a) says where it comes from:
+
+> with apparent activation energy of 0.7 eV, 125 °C stress temperature and 55 °C use temperature, the
+> acceleration factor (Arrhenius equation) is 78.6. This means 1000h stress duration is equivalent to
+> 9 years of use.
+
+The same note is careful that the number is not self-justifying: *"The duration listed here is
+generally acceptable to qualify for the given Application Level. However, it does not necessarily
+imply the demonstration of the lifetime requirement for a particular use condition."*
+
+So the hardware world has what the software world does not: **a model that converts stress hours into
+a claim about the field.** Arrhenius does that for a wearout mechanism at a raised temperature. There
+is no analogous model that converts soak hours into interleavings explored, and the reason is the next
+section.
+
+Part of what a board soak tests genuinely is the board, and this row of the table is the one that
+applies to that half: radon under sustained load is closer to an operating-life sample than to a
+concurrency test. It is also the half nife is least equipped to judge, having one unit per
+architecture where JEDEC wants 231.
+
+### The academic angle exists, and its finding is that clock time is the wrong axis
+
+There is a literature here, and it is not neutral about stress testing.
+
+Burckhardt, Kothari, Musuvathi and Nagarakatte, *A Randomized Scheduler with Probabilistic Guarantees
+of Finding Bugs*, ASPLOS 2010 (the PCT paper, PDF fetched 2026-09-03), opens by describing exactly the
+practice this milestone is about:
+
+> Popular testing methods involve various forms of stress testing where the program is run for days or
+> even weeks under heavy loads with the hope of hitting buggy schedules. This is a slow and expensive
+> process. Moreover, any bugs found are hard to reproduce and debug.
+
+Two of its results bear directly on choosing a duration.
+
+**The state space is not the thing to cover, and bug depth is.** The paper defines *"the depth of a
+concurrency bug as the minimum number of scheduling constraints that are sufficient to find it"*, and
+proves that a run of a program with n threads and k steps finds a bug of depth d with probability at
+least `1/(n k^(d-1))`. It observes that a naive bound over schedules is useless (*"This program, to
+the first-order of approximation, has n^k possible thread schedules"*) and rests on the claim that
+real bugs are shallow: *"Concurrency bugs typically involve unexpected interactions among few
+instructions executed by a small number of threads."* Their examples put ordering errors at depth 1
+and atomicity violations and lock-cycle deadlocks at depth 2.
+
+That claim is independently measured. Lu, Park, Seo and Zhou, *Learning from Mistakes: A Comprehensive
+Study on Real World Concurrency Bug Characteristics*, ASPLOS 2008 (PDF fetched 2026-09-03), examined
+105 real concurrency bugs in MySQL, Apache, Mozilla and OpenOffice, and reports as finding 3 that
+**"Almost all (96%) of the examined concurrency bugs are guaranteed to manifest if certain partial
+order between 2 threads is enforced"**, and as finding 8 that **"Almost all (92%) of the examined
+concurrency bugs are guaranteed to manifest if certain partial order among no more than 4 memory
+accesses is enforced."** Their own caveat is attached and should be carried: the findings *"are
+associated with the four examined applications and the programming languages these applications use"*.
+
+**And stress-test coverage saturates, measurably.** This is the single most useful thing found, because
+it is a measurement of the exact question this note asks. PCT section 5.3.3 instrumented a work
+stealing queue with twenty events, 168 possible event pairs, and compared coverage against run count:
+
+> We restrict the horizontal axis to the 8192 runs as stress did not explore any new event pair beyond
+> those already explored in the new runs after that and PCT eventually explored all the event pairs.
+> [...] Fig. 11 shows that stress does not cover more than 20% of the event pairs, few of which result
+> in a bug. Thus, stress's inability/ineffectiveness to detect the bug is highly correlated with the
+> event pairs not covered.
+
+Their stress infrastructure was not a strawman by their account: it inserted *"random sleeps, thread
+suspensions, and thread priority changes"*, which is a superset of what this soak's jitter does. It
+still stopped finding anything new, and then ran forever without improving.
+
+**That is this note's own line, measured by somebody else.** *A soak that repeats one interleaving for
+eight hours has explored one interleaving* was written here as an intuition. PCT put a number on the
+shape of it: coverage climbs, flattens, and the flat part is free.
+
+### So the field has a habit, not a standard, and here is what to do instead
+
+Stated plainly, because it is a real finding and dressing it up would be worse than useless:
+**24 hours, 48 hours and overnight are round numbers.** The one prescribed duration found anywhere
+(1000 hours) is prescribed for a thermal wearout model, states its own derivation, and warns that the
+number does not by itself demonstrate the requirement. For concurrency, nothing found in tooling
+documentation, in seL4's practice, or in the literature converts clock time into a claim.
+
+**The alternative is to reason from this workload's own counters, which is available and is not
+available to most people asking this question.** `script/soak` already prints, every five seconds,
+`rounds`, `rate`, `wakes`, `wakerate`, `crossings`, `remote`, `steals` and `deferred`. Three questions
+those support, none of which is "how many hours":
+
+1. **What is the run buying per hour, in the units that matter?** Not round trips, which saturate the
+   machine by construction, but `crossings`, since the recorded defect was on the cross-core wake path
+   and the crossing rate is one to two orders of magnitude below the round-trip rate. A radon run's
+   crossing rate is the honest denominator: at the QEMU aarch64 figures (about 3,779 crossings in 25
+   seconds on the better of two runs) an hour is a few hundred thousand crossings, and a second hour is
+   another few hundred thousand of the same kind. Decide the duration against a target crossing count,
+   arrived at deliberately, and then say what it was.
+2. **Is the run still producing new behaviour, or is it flat?** This is PCT's saturation question and
+   this tree cannot currently answer it, because nothing here counts distinct behaviour. `remote`,
+   `steals` and `deferred` are the closest available and are volumes rather than varieties. **This is
+   the gap worth closing before the duration argument is worth having**, and it is a milestone rather
+   than a note: something like a coarse histogram over the placement decisions, so a beat can be
+   compared with the beat before it and a flat run can be recognised as flat.
+3. **Would the time be better spent on more starts than on longer running?** The crossing count varies
+   by more than a factor of two between identical runs, which is recorded in this note's BUGS and is
+   evidence that the initial conditions matter more than the tail. Under PCT's model, independent runs
+   multiply the probability of finding a shallow bug and a single long run does not; ten one-hour boots
+   are ten samples of the boot-time placement lottery, and one ten-hour boot is one. Nothing here
+   proves that trade for this workload, and it is the question a duration decision should be made
+   against rather than around.
+
+`script/interleaving-check` is the complementary instrument and this section sharpens why: loom over
+the extracted protocols searches the state space directly, which is the thing a soak samples badly and
+saturates at. The two are not competitors and the soak is not the weaker one; the soak is the only one
+that runs on the silicon where the defect appeared.
+
+**What none of this decides is the number**, deliberately. It says the number is calef's and gives him
+the axis to pick it on: a crossing target on real silicon, chosen and written down, rather than an
+hour count inherited from a tool's default.
+
 ## BUGS
 
 - **A soak that finds nothing is weak evidence, and this is the sentence to repeat.** A clean eight
@@ -439,7 +626,13 @@ The same procedure works on **argon** and **xenon**, with their own architecture
   quoted wrongly.
 - **No duration is prescribed, because nobody knows what duration would be persuasive.** The risk's
   own text says this class "produces a confidence rather than a verdict". Eight hours is a night;
-  it is not an argument.
+  it is not an argument. Checked against the field on 2026-09-03 and the admission stands: see *How
+  long to run it, and why nobody can tell you* above, which is why it is a section rather than a
+  longer version of this line.
+- **Nothing here counts distinct behaviour, only volumes of it**, so a soak cannot say whether it is
+  still finding new interleavings or has gone flat. That is the measurement the duration question
+  actually wants and this tree does not have it; the section above names it as the thing to build
+  before arguing about hours.
 - **The heartbeat is guest time and the watcher's deadline is host time.** Under heavy host load a
   QEMU guest's clock runs slower than the wall, so beats arrive later in host seconds than the
   kernel thinks it printed them. The three-beat margin absorbs the ordinary case; a machine running
