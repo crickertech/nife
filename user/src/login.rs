@@ -227,6 +227,23 @@
 //!
 //! # BUGS
 //!
+//! **This program dies at `_start` on every real interactive boot, on both architectures**, found
+//! 2026-09-02 by milestone 230 (`script/shell-check` is red on `main` and nothing says so) once the
+//! capability-table fix let the login stack be built at all. `_start` reads the archive to find
+//! `fs_subtree_caretaker`, from `initrd_len` in `a1` and the mapping at `INITRD_VA`.
+//! `crates/system_initializer` starts it with `thread_control_block_start(login_tcb, 0, 0, 0)` and
+//! endows it with no map of the archive, so `initrd_bytes` yields a zero-length slice,
+//! `nifefs::Fs::parse` refuses it, and this process takes `fail(1)` before serving anything. The
+//! boot continues and prints `init: login ready` with a generated password, because init measured
+//! the identity provisioning rather than this process's survival, so **a green `script/shell-check`
+//! does not currently mean the login service runs.**
+//!
+//! Not fixed here, and it is a milestone rather than a line: handing this program the archive costs
+//! `crates/system_initializer` capability slots at the peak that milestone 230 has just measured and
+//! sized the table against, so the fix and the accounting move together. The audit trail already
+//! carries which step refused (`fail`'s `0xDEAD_0000_0000_0000 | step`), and `audit_sink` discards
+//! it, which is that program's own recorded limitation and is why nobody saw this for five days.
+//!
 //! **Resolved, milestone 49's channel-per-client update.** [`REQUEST`] and [`RESULT`] used to be a
 //! single endpoint pair carrying an actual login's identity and secret, on a single shared staging
 //! page reused by every client this process ever spawned: two concurrent callers could interleave
