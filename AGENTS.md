@@ -1011,9 +1011,9 @@ Two consequences:
   runs forever. This is not theoretical: it leaked eleven QEMU processes over one day of
   development, burning a combined 729% CPU, the oldest with eight hours of CPU time on it.
 
-  Use `scripts/qemu-bounded.sh <seconds> <cmd...>` instead. It uses SIGTERM, which QEMU does
-  honour, and it detaches the killer so it survives a pipeline whose reader (`head`) exits
-  early.
+  Use `scripts/qemu-bounded.sh <seconds> <cmd...>` instead: SIGTERM, which QEMU honours, and since
+  milestone 226 a killer that fires on the bound, on the wrapper going away, and on its own TERM or
+  HUP. Still detached, so an early-exiting reader is bounded. `notes/qemu.md` has the rest.
 
   **After any session that ran QEMU, check `pgrep -x qemu-system-aarch64` and clean up.**
 
