@@ -3220,6 +3220,13 @@ pub fn configure_thread_control_block(
 /// nobody declared.
 ///
 /// One-way: there is no ungrant, because an embryo starts closed and nothing but this opens it.
+///
+/// `#[inline(never)]` for the reason milestone 156 gives `memory_region_map` and the other
+/// spawn-path bodies: this is administration a loader runs once per child, never a step of the IPC
+/// round trip, so it does not belong in the bytes `script/fastpath-footprint` bounds. It is not a
+/// style choice here, it is a measurement: without it the riscv64 `syscall_entry` set grew 12%
+/// against a 5% bound, because the callee folded into `invoke`.
+#[inline(never)]
 pub fn grant_cycle_counter(tid: ThreadId) -> Result<(), abi::Error> {
     let mut guard = IPC_TABLES.lock();
     let sched = guard.as_mut().ok_or(abi::Error::NoSuchSlot)?;

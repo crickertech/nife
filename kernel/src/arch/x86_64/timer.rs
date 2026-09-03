@@ -320,6 +320,10 @@ pub fn init() {
 /// that way. Answering `true` is the honest answer to the question the caller is asking, which is
 /// "will a granted thread be able to read a cycle-rate counter", and not a claim that anything is
 /// gated.
+// Asked only by tests today (`sched`'s grant round trip and `user`'s EL0 one), which are the
+// callers that have to skip rather than fault on a part with no counter to grant. Marked rather
+// than deleted: milestone 74's cycle-counter work is the caller that will want it in anger.
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn cycle_counter_grantable() -> bool {
     true
 }

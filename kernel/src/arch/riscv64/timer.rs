@@ -218,6 +218,10 @@ const CY: u64 = 1 << 0;
 /// `scounteren.CY` from M-mode, and this kernel never runs in M-mode: if OpenSBI or a vendor
 /// firmware left `mcounteren.CY` clear, a granted U-mode `rdcycle` still takes an illegal
 /// instruction. Milestone 228 recorded that as unknown on **radon** and it is still unknown.
+// Asked only by tests today (`sched`'s grant round trip and `user`'s EL0 one), which are the
+// callers that have to skip rather than fault on a part with no counter to grant. Marked rather
+// than deleted: milestone 74's cycle-counter work is the caller that will want it in anger.
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn cycle_counter_grantable() -> bool {
     true
 }

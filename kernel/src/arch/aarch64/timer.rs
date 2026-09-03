@@ -234,6 +234,10 @@ fn close_cycle_counter_to_el0() {
 /// The grant is still *accepted* on such a part (a manifest is a declaration, and refusing it at
 /// `START` would make a program un-runnable on a board rather than merely un-instrumented); this is
 /// what lets a test say "there is nothing here to measure" instead of faulting.
+// Asked only by tests today (`sched`'s grant round trip and `user`'s EL0 one), which are the
+// callers that have to skip rather than fault on a part with no counter to grant. Marked rather
+// than deleted: milestone 74's cycle-counter work is the caller that will want it in anger.
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn cycle_counter_grantable() -> bool {
     PMU_PRESENT[cpu::id()].load(Ordering::Relaxed)
 }

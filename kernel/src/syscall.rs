@@ -321,11 +321,7 @@ pub(crate) fn invoke(
             // TCB that is not an embryo, the same refusal `CONFIGURE` and `CAP_INSERT` make, which
             // is what puts this in the thread's spawn manifest rather than in its repertoire.
             abi::thread_control_block::GRANT_CYCLE_COUNTER => {
-                if !cap.rights.allows(Rights::WRITE) {
-                    return Err(Error::NotPermitted);
-                }
-                sched::grant_cycle_counter(tid)?;
-                Ok(0)
+                thread_control_block_grant_cycle_counter(cap.rights, tid)
             }
             abi::thread_control_block::START => {
                 if !cap.rights.allows(Rights::WRITE) {
@@ -1008,6 +1004,23 @@ fn thread_control_block_configure(
     // space already left the registry, so the cap is inert regardless; this keeps the caller's
     // capability table honest.)
     let _ = sched::delete_current_cap(aspace_slot);
+    Ok(0)
+}
+
+/// `ThreadControlBlock::GRANT_CYCLE_COUNTER`: let this embryo read the cycle counter from user mode
+/// once it runs (milestone 229, DECISIONS 139 option 4). `#[inline(never)]` for the reason
+/// `memory_region_map` gives, and here it is measured rather than assumed: folded into `invoke` it
+/// put 224 bytes on riscv64's `syscall_entry` set, 12% against `script/fastpath-footprint`'s 5%
+/// bound, for a method a loader calls once per child and the IPC round trip never calls at all.
+#[inline(never)]
+fn thread_control_block_grant_cycle_counter(
+    rights: Rights,
+    tid: crate::thread::ThreadId,
+) -> Result<i64, Error> {
+    if !rights.allows(Rights::WRITE) {
+        return Err(Error::NotPermitted);
+    }
+    sched::grant_cycle_counter(tid)?;
     Ok(0)
 }
 
