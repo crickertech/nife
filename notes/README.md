@@ -44,6 +44,15 @@ in the code or the conversation doesn't make sense, it belongs here.
   the unsafe census and the `count-at-most` ceiling it needed: outside `kernel/src/arch/` the raw
   count quadrupled while the density more than halved, so the ceiling holds a ratio. Name
   provisional.
+- [Project metrics: what moved, week by week](project-metrics.md): the half of the register that
+  changes, one row per ISO week, computed from git history by `script/metrics` and rendered as
+  committed SVGs GitHub can show. Milestones and decisions by status, code against comments,
+  `BUGS` sections (where rising is good), the falsification ratio, `unsafe` density, and the fatal
+  risks put to an experiment. Every row is a restatement under today's definitions rather than what
+  was reported at the time, which is stated on the page because a dashboard is exactly the artifact
+  that stops a reader asking. Coverage is the one series that cannot be recovered from history and
+  is left visibly empty. Name of the page ratified; the script's and the data directory's are
+  provisional.
 
 - [Citations that name what they cite](citations.md): why a footnote in this tree carries a name
   and not just a number, and what `script/citations` can and cannot prove about it. The two older
