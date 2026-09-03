@@ -69,12 +69,14 @@ are aggregated by `verify (Kani proofs)`, which is required and which fails unle
 and every shard reported `success` or `skipped`; requiring the shards as well would add names to
 keep in sync and catch nothing. `draft gate` produces an output rather than a verdict.
 
-The scheduled workflows, which nothing blocks by construction:
+The scheduled workflows, which nothing blocks by construction. **`script/cadence-check` (milestone
+238) now derives this column** rather than leaving it to whoever next opens the Actions tab; the
+table stays because it also says what each workflow is for, which no API can:
 
 | workflow | cadence | last result | what it is for |
 |---|---|---|---|
-| `mutation testing` | 05:00 UTC Monday | **failure, and it has never once succeeded** | milestone 85 (mutation testing over the host crates), the instrument behind fatal risk 3 |
-| `undefined-behavior check` | 06:00 UTC Monday | **failure 08-10, 08-17, 08-24; cancelled 08-31** | milestone 79 (Miri over the host crates) |
+| `mutation testing` | 05:00 UTC Monday | **failure through 08-31, never once succeeded; repaired in part by milestone 238 and still losing shards to a memory kill** | milestone 85 (mutation testing over the host crates), the instrument behind fatal risk 3 |
+| `undefined-behavior check` | 06:00 UTC Monday | **failure 08-10, 08-17, 08-24; cancelled 08-31; repaired by milestone 238** | milestone 79 (Miri over the host crates) |
 | `toolchain drift` | 07:00 UTC daily | failure 09-02, 09-03 | builds against the newest nightly; red is its signal, not a defect on `main` |
 | `audit cadence` | weekly | failure 08-17, 08-24, 08-31 | red means an audit is due; two are |
 | `falsification sweep` | 06:00 UTC Monday | **never run** | added 2026-08-31; first fire 2026-09-07 |
