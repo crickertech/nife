@@ -830,6 +830,52 @@ pub fn steals_served() -> u64 {
     trace::counted(trace::Event::StealServe)
 }
 
+/// **Spawn a thread exactly as [`spawn`] would, and say which core it landed on** (milestone 240).
+///
+/// The placement is [`pick_spawn_target`]'s, made here in the same call `spawn` makes it in, so
+/// this is `spawn` with the answer kept rather than a second placement policy. **It hands the
+/// caller no lever**: there is no argument to steer the choice with, which is deliberate, because
+/// the thing milestone 240 is for is reporting the boot-time placement lottery and not overriding
+/// it. Thread affinity is calef's open question and DECISIONS 138 (how a saturated workload is
+/// made to hand threads across cores) declined a rebalancer; neither is reopened by a caller that
+/// can only read.
+///
+/// Soak builds only, for the same reason the counters above are: nothing else needs it, and a
+/// function nothing calls is a function that rots.
+///
+/// Name provisional (milestone 240): calef names public items.
+#[cfg(feature = "soak")]
+pub fn spawn_reporting_placement<F: FnOnce() + Send + 'static>(f: F) -> Option<(ThreadId, usize)> {
+    let target = pick_spawn_target();
+    spawn_on(target, f).map(|id| (id, target))
+}
+
+/// **Where each of `ids` last ran**, written into `out`, or `u8::MAX` for a thread that has not run
+/// yet or is gone (milestone 240).
+///
+/// One lock acquisition for the whole set rather than one per thread, because the caller is a soak
+/// heartbeat asking about every worker at once and `IPC_TABLES` is the lock the IPC fastpath takes:
+/// twenty-four separate acquisitions once a beat would be twenty-four chances to sit in front of
+/// the workload being measured.
+///
+/// `u8::MAX` means "no answer", and it deliberately means both of the two ways there can be none.
+/// A thread that has never been switched to still carries `Thread::last_cpu`'s initial `u8::MAX`,
+/// and a thread that has died is not in the table at all; a reader who needs to tell those apart
+/// has [`dump_threads`], and a census that guessed between them would be inventing a placement.
+///
+/// Name provisional (milestone 240): calef names public items.
+#[cfg(feature = "soak")]
+pub fn last_cpus(ids: &[ThreadId], out: &mut [u8]) {
+    let mut guard = IPC_TABLES.lock();
+    let Some(sched) = guard.as_mut() else {
+        out.iter_mut().for_each(|slot| *slot = u8::MAX);
+        return;
+    };
+    for (slot, &id) in out.iter_mut().zip(ids) {
+        *slot = sched.threads.get(id).map_or(u8::MAX, |t| t.last_cpu);
+    }
+}
+
 /// **The boot tour's last-reached stage**, printed in every [`dump_threads`] header (first-silicon
 /// diagnostics, 2026-08-15; name provisional).
 ///
