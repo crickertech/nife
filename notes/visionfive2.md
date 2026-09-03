@@ -651,6 +651,54 @@ jumping without complaint; the banner is the second target, after the driver wor
 | Banner, then hang or trap dump | DTB parsing or the memory map: RAM at 0x4000_0000 exercises paths QEMU never did (bitmap placement, gigapage 1 unmapped, the S7's cpu node in `smp::init`, the PLIC context formula) |
 | Banner, then an **OpenSBI** trap dump (`mepc` in firmware, hart 0) | The kernel started the S7: the vendor tree's `status`/`mmu-type` lies got past the roster. The supervisor rule ("Second bench stop" above) exists to refuse hart 0; if this dump is back, that gate has regressed or the tree found a third lie |
 
+## Read off the board, 2026-09-03, and three of these were guesses until then
+
+The first bench session that drove radon from a script rather than by hand.
+
+**`boot.scr.uimg` works.** Milestone 218 (every boot of the VisionFive 2 needs a human typing four
+commands into U-Boot) had never run on the board. It does:
+
+```
+Found U-Boot script /boot.scr.uimg
+nife: boot.scr is driving this boot, milestone 218
+```
+
+**Fourteen point seven seconds from power to the end of the boot tour, with nothing typed.** That was
+the last piece standing between this project and an unattended run.
+
+**Two environment values nobody had ever read**, which milestone 218's lane had to leave as
+assumptions:
+
+```
+scriptaddr  = 0x43900000
+fdt_addr_r  = 0x46000000
+```
+
+`fdt_addr_r` is the interesting one. It sits **below `0x8000_0000`**, which is this note's own
+DTB caveat with a number under it at last: the extlinux fallback puts the device tree outside the
+kernel's boot page table, which is why the manual path moves it to `0x8600_0000` and why the boot
+script does the same.
+
+**The TRNG is not in the tree.** Milestone 159's (a real hardware entropy source: the JH7110's TRNG)
+driver reported `hw entropy : skipped`, and the prompt confirms why rather than leaving it inferred:
+
+```
+StarFive # fdt print /soc/rng@1600c000
+libfdt fdt_path_offset() returned FDT_ERR_NOTFOUND
+```
+
+`fdt list /soc` returns **56 nodes** and none of them is a random number generator. The absence is
+specific rather than general: `crypto@16000000` and `sec_dma@16008000`, the TRNG's neighbours in the
+same security block, are both described. So the silicon has the device, U-Boot's control device tree
+does not mention it, and milestone 239 (radon's device tree does not describe the TRNG, so a working
+driver never runs) is where that goes.
+
+**And it explains a second number in the same boot.** The tour reported `capability slots: 4 of 24 at
+peak` where QEMU reports 21. That is not a different measurement: milestone 230 (`script/shell-check`
+is red on `main`, on both architectures, and nothing says so) established that init builds the login
+stack only when it has an entropy client. No TRNG node, no entropy, no login stack, a much smaller
+peak. **The 24-slot ceiling was sized against a QEMU boot richer than the real board's.**
+
 ## To measure at the bench
 
 Facts documentation could not settle, each an explicit measurement, none guessed above:
