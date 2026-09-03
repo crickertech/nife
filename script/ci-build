@@ -21,8 +21,16 @@ cargo xtask test
 
 # **The interactive boot, in the same job rather than a job of its own** (milestone 230). Until that
 # milestone `script/shell-check` ran in neither `script/test` nor CI, so it was red on `main` on both
-# architectures for a week and a fully green tree said nothing about it: init trapped before the
+# architectures for five days and a fully green tree said nothing about it: init trapped before the
 # console existed, and the only gate that boots the real init is this one.
+#
+# **It earned its place on its first run here.** The aarch64 leg passed and the riscv64 leg failed,
+# on a check whose local runs were green on both, and the divergence was real rather than flaky
+# infrastructure: the kernel's fault printer and the userspace console server drive the same UART
+# from two address spaces with nothing arbitrating, so a thread dying while init prints shuffles the
+# two lines together at byte granularity. That happens on every boot; whether it lands on top of a
+# line the gate reads is timing, and a runner is not this laptop. Local-only would have kept it
+# invisible.
 #
 # Here, and not as a thirteenth workflow job, because of what the two cost. Measured on 2026-09-02:
 # the check itself is **30 seconds** for both architectures against a warm target directory, while
