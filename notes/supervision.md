@@ -168,6 +168,43 @@ The authorization invariant is machine-checked, not only tested: two Kani harnes
 cover it, which is the right instrument for "a capability that cannot build cannot be made to build via
 reap" because it quantifies over rights combinations rather than sampling them.
 
+## Where the death goes when the waiter is a shell (milestone 235)
+
+A death reaches **one** endpoint, and that single fact is what decided milestone 235
+(design/roadmap/235-a-faulted-job-should-reach-the-prompt.md). At the interactive prompt the holder
+of that endpoint is `job_undertaker`, whose whole job is collecting; the process that *needed* to
+know was `swish`, blocked in a `RECV` on init's result endpoint for an answer a killed thread can
+never send. So the prompt hung, and only on a fault: an ordinary non-zero exit is a value the child
+sends before it exits, and a spawn init could not build already had `spawnproto::SPAWN_FAILED`.
+
+Three couplings were available and two lose to properties recorded on this page.
+
+- **The shell asks.** There is no non-blocking receive in the ABI, so "ask" means "poll", and a poll
+  interval cannot tell a slow job from a dead one. That is the same thing a timeout could not tell,
+  which is why the milestone's own constraint refused one.
+- **The endpoint carries the death**, meaning the shell's own endpoint becomes the job's fault
+  target. It works, and DECISIONS §106 already does exactly this for one screen-narrowed stage. It
+  does not generalise: §26.3 flows clean **exits** down the same endpoint, so every ordinary job
+  would leave a second message on the result endpoint behind its answer and the next command's read
+  would take it. It also hands collection duty to the shell for every job, and takes every job out
+  of init's supervision domain, which is what `ps`/`pgrep` read.
+- **The supervisor tells**, which is what was built. `job_undertaker` gained `WRITE` on init's
+  result endpoint and one constant, `spawnproto::JOB_FAULTED`, sent after the collect and only for
+  `EVENT_FAULT`. Clean exits stay silent, so the ordinary path is byte-for-byte what it was.
+
+**The residual is a synchronous-send problem rather than a supervision one.** That `SEND` is a
+rendezvous with no non-blocking form, so it completes only when someone reads the result endpoint.
+Every ordinary job leaves the shell with a read outstanding there; a screen-narrowed line does not,
+so a *non-tail* stage of one faulting parks the undertaker until the next command reads, which then
+takes the stale word. Closing it needs either a non-blocking send or a receive that waits on two
+endpoints, and both are the syscall surface (§10, §16). Recorded in `user/src/job_undertaker.rs`'s
+`BUGS`, where the next person to touch that loop will meet it.
+
+**A job that hangs without faulting is untouched by any of this.** A live thread blocked in a `RECV`
+nobody will answer is not dead, so no death message exists to route, and none of the three couplings
+had anything to say about it. §32's refusal to reap a live thread is the same boundary seen from the
+other side.
+
 ## BUGS
 
 - **The rights on the placed fault capability do nothing, and two comments credit them with the
