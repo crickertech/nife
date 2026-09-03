@@ -445,6 +445,7 @@ besides, being built for dated release grouping; these are capability-shaped and
 | 238 | NOT-STARTED | [Two scheduled checks have never once succeeded, and one of them is a fatal risk's refresh](238-the-scheduled-checks-that-never-run.md) | four mutation runs, four failures, zero reports, while fatal risk 3 rests partly on the claim that the weekly workflow publishes one | |
 | 239 | NOT-STARTED | [radon's device tree does not describe the TRNG, so a working driver never runs](239-radons-tree-describes-less-than-the-chip-has.md) | the chip has the device and U-Boot's control tree does not mention it, confirmed at the prompt with `FDT_ERR_NOTFOUND` | |
 | 240 | NOT-STARTED | [The soak reports what happened and not where, so an eightfold difference cannot be explained](240-a-soak-should-say-where-its-threads-landed.md) | two runs from one card differed 8x in IPC rate with the CPU proven identical, and nothing prints which core a thread landed on | |
+| 241 | NOT-STARTED | [What a fourth board would have to be for, so that GICv3 is bought rather than justified](241-what-a-fourth-board-would-have-to-be-for.md) | two machines here have never booted nife, so the trigger is written down rather than the purchase made | |
 
 The order §14 sets: **verify the core and make it verifiable first** (18 and 14, the thesis), then the
 road to running real workloads on real machines (15, 21, 16, 19; 25 extends 21 into cross-OS
