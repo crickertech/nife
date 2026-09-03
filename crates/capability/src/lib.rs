@@ -1045,4 +1045,73 @@ mod tests {
         // len is the table's size in slots, not its population.
         assert_eq!(cs.len(), 4);
     }
+
+    /// **The high-water mark is a mark, not a level**, which is the whole reason it exists: a boot
+    /// that filled the table and then emptied it reached the wall, and a count sampled afterwards
+    /// says it did not.
+    ///
+    /// Every mutator that can occupy an empty slot is exercised here (`insert`, `insert_at`, and
+    /// `put` over an empty slot), because each has its own call to the private growth path and a
+    /// missed one would be invisible: the number would simply be a little too low, forever.
+    #[test]
+    fn the_peak_records_what_was_reached_and_never_what_is_left() {
+        let cap = Cap {
+            object: Obj::PageFrame(1),
+            rights: Rights::READ,
+        };
+        let mut cs: CapabilityTable<Obj, 4> = CapabilityTable::new();
+        assert_eq!((cs.used(), cs.peak()), (0, 0));
+
+        assert_eq!(cs.insert(cap), Ok(0));
+        assert_eq!(cs.insert_at(2, cap), Ok(2));
+        cs.put(3, cap).expect("slot 3 is in range");
+        assert_eq!((cs.used(), cs.peak()), (3, 3));
+
+        // Replacing an occupant is not growth.
+        cs.put(3, cap).expect("slot 3 is in range");
+        assert_eq!((cs.used(), cs.peak()), (3, 3));
+
+        // And emptying it does not lower the mark.
+        cs.delete(0).expect("slot 0 is occupied");
+        cs.delete_matching(|o| matches!(o, Obj::PageFrame(_)));
+        assert_eq!((cs.used(), cs.peak()), (0, 3));
+
+        // Refusals leave the count alone. Both of `insert_at`'s, and `delete`'s.
+        assert!(cs.insert_at(9, cap).is_err());
+        assert!(cs.delete(1).is_err());
+        assert_eq!((cs.used(), cs.peak()), (0, 3));
+
+        // A full table refuses, and the mark is the capacity rather than one past it.
+        let mut full: CapabilityTable<Obj, 2> = CapabilityTable::new();
+        assert!(full.insert(cap).is_ok());
+        assert!(full.insert(cap).is_ok());
+        assert_eq!(full.insert(cap).err(), Some(Error::NoFreeSlot));
+        assert_eq!((full.used(), full.peak()), (2, 2));
+    }
+
+    /// The global is a convenience over the per-table mark and must never read *below* it, which is
+    /// the only property the kernel relies on: it prints the global and would understate the boot
+    /// if this were ever false. It is a floor rather than an equality because the static is shared
+    /// by every instantiation in the binary, including the other tests in this module.
+    #[test]
+    fn the_global_high_water_mark_is_never_below_a_table_that_reached_it() {
+        let cap = Cap {
+            object: Obj::PageFrame(2),
+            rights: Rights::WRITE,
+        };
+        let mut cs: CapabilityTable<Obj, 8> = CapabilityTable::new();
+        for _ in 0..5 {
+            cs.insert(cap).expect("eight slots hold five");
+        }
+        let (peak, ceiling) = highest_seen();
+        assert!(
+            peak >= cs.peak(),
+            "the global said {peak} while a table had reached {}",
+            cs.peak()
+        );
+        assert!(
+            ceiling > 0,
+            "a recorded peak carries the table it came from"
+        );
+    }
 }
