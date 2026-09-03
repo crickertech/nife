@@ -1149,6 +1149,10 @@ in the code or the conversation doesn't make sense, it belongs here.
   code paths that had never executed until firmware ran them, the 54 MiB of RAM deliberately left
   reported as reserved and how to get it back, and **the bench procedure for the OptiPlex 7050**
   with its failure-triage table.
+- [The bench runbook: which machine, in what order, and what an evening buys](bench-runbook.md):
+  which of the three machines an evening should be spent on and why radon comes first, what a
+  result on each would mean for the fatal risks, and what can go wrong that is not the board. It
+  points at each procedure rather than repeating it, so the steps cannot drift from their source.
 - [The VisionFive 2: first silicon](visionfive2.md): milestone 16a's board facts, every one with a
   source. The four real differences from QEMU `virt` (DRAM base, the DW-8250 UART, the PLIC context
   map, the disabled S7 hart), the Image-header load path through vendor U-Boot, the microSD payload
