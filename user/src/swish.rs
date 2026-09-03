@@ -66,23 +66,26 @@
 //!
 //! # BUGS
 //!
-//! **A spawned command that traps hangs the prompt** (measured 2026-09-02, milestone 233). This
-//! shell waits on the job's result endpoint, and a thread the kernel killed never sends on it, so
-//! the wait has nothing to wake it and the prompt does not come back. Measured rather than
-//! reasoned about: `user/src/worker.rs` was patched to `supervision_proto::fail()` on one argument
-//! and `script/shell-check` run against it, which failed with both the kernel's own report of the
-//! killed thread and "the prompt never came back to take `worker 6`".
+//! **A spawned command that faults no longer hangs the prompt, and here is what it costs**
+//! (milestone 235, design/roadmap/235-a-faulted-job-should-reach-the-prompt.md). This shell waits
+//! on the job's result endpoint and a thread the kernel killed never sends on it, so until
+//! `grant_plan::spawnproto::JOB_FAULTED` existed the wait had nothing to wake it. `job_undertaker`
+//! now sends that word after collecting the corpse, this shell prints
+//! [`swish::FAULTED_SENTENCE`] and `$?` reads 1. Measured rather than reasoned about, both before
+//! and after: `user/src/worker.rs` was patched to trap on one argument and `script/shell-check` run
+//! against it, which failed with "the prompt never came back to take `worker 7`" and then passed
+//! through the same line.
 //!
-//! An ordinary non-zero exit is fine and is not this case: `worker` with no argument sets a status
-//! and `echo $?` reads it, which `script/shell-check` already asserts. It is specifically a *fault*
-//! that leaves the wait outstanding.
+//! **A job that hangs without faulting still hangs the prompt**, which is the same symptom and a
+//! different problem: a live thread blocked in a `RECV` nobody will answer is not dead, nothing
+//! reports it, and this shell cannot tell it from a slow one. Milestone 235's own block names this
+//! as out of its scope and nothing here closes it. The forcible tier a person can reach already
+//! exists for a job that was spawned interruptible (`^C` twice, DECISIONS §24); an ordinary command
+//! is not one.
 //!
-//! The pieces to fix it exist and are not wired to each other. Init already runs a supervisor
-//! (`job_undertaker`, and the fault endpoint every child is born holding, DECISIONS §26), so the
-//! death is observed; nothing carries that observation back to whoever is waiting on the job's
-//! result. What that should look like at the prompt is a design question rather than a wiring one:
-//! a shell that printed a status for a faulted job would need a word for it that
-//! `grant_plan::spawnproto` does not currently have.
+//! **A fault reported while this shell is watching a screen-narrowed tail arrives one command
+//! late.** `job_undertaker`'s own `BUGS` carries the mechanism and why closing it needs the syscall
+//! surface.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks
@@ -1899,6 +1902,14 @@ fn drain_text() {
             print(b"could not spawn (init is out of memory)\n");
             return;
         }
+        // **The stream stops here because its writer is dead** (milestone 235), and this is the
+        // one place that difference is visible: without the word, this loop would run to
+        // `MAX_OUTPUT_CHUNKS` on a rendezvous nobody will ever send on again.
+        if w0 == spawnproto::JOB_FAULTED {
+            failed();
+            print(swish::FAULTED_SENTENCE);
+            return;
+        }
         let mut buf = [0u8; byte_sink_proto::INLINE_MAX];
         match byte_sink_proto::unpack(w0, w1, w2, &mut buf) {
             byte_sink_proto::Msg::Bytes(n) => print(&buf[..n]),
@@ -2052,6 +2063,11 @@ fn outcome(e: Endowment, answer: u64) {
     // is honest about its reach: there is no exit status on this path, so a child that ran and did
     // the wrong thing looks to a sweep exactly like one that succeeded. See notes/glob-grant.md.
     if answer == spawnproto::SPAWN_FAILED {
+        failed();
+    }
+    // **A job the kernel killed** (milestone 235). `Failed` rather than `Refused`: this shell was
+    // willing and something did run, which is exactly the line [`failed`] draws.
+    if answer == spawnproto::JOB_FAULTED {
         failed();
     }
     swish::write_outcome(&e, answer, &mut print);
@@ -2795,6 +2811,15 @@ fn drain_into(f: &mut FileOut) {
             print(b"  could not spawn (init is out of memory)\n");
             return;
         }
+        // **The writer died mid-stream** (milestone 235). The file keeps what arrived before the
+        // fault and is closed rather than left open, for `finish`'s own reason one arm down: a
+        // half-written file a reader can open beats a handle nobody closed.
+        if w0 == spawnproto::JOB_FAULTED {
+            failed();
+            f.finish();
+            print(swish::FAULTED_SENTENCE);
+            return;
+        }
         let mut buf = [0u8; byte_sink_proto::INLINE_MAX];
         match byte_sink_proto::unpack(w0, w1, w2, &mut buf) {
             byte_sink_proto::Msg::Bytes(n) => f.push(&buf[..n]),
@@ -2885,10 +2910,24 @@ fn spawn_stage(
     // it a failed spawn would be invisible and the pipeline would wait on a producer that does not
     // exist. A screen-narrowed stage is the same shape: its completion signal is the fault rendezvous
     // above, not this one, so a build failure has to reach the shell here too (DECISIONS §106).
-    if (wiring.sink || wiring.screen) && recv(RESULT).0 != spawnproto::SPAWN_OK {
-        failed();
-        print(b"  could not spawn (init is out of memory)\n");
-        return false;
+    //
+    // **A fault word can arrive here too** (milestone 235), and it is never this stage's: it is an
+    // earlier stage of the same line that died between its own ack and this one. Either way the
+    // line is over, so both arms return false and only the sentence differs.
+    if wiring.sink || wiring.screen {
+        match recv(RESULT).0 {
+            w if w == spawnproto::SPAWN_OK => {}
+            w if w == spawnproto::JOB_FAULTED => {
+                failed();
+                print(swish::FAULTED_SENTENCE);
+                return false;
+            }
+            _ => {
+                failed();
+                print(b"  could not spawn (init is out of memory)\n");
+                return false;
+            }
+        }
     }
     true
 }

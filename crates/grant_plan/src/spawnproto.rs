@@ -41,6 +41,13 @@
 //! The result endpoint carries both init's failure sentinel and the child's success answer, and
 //! the shell reads exactly once: a well-formed spawn yields the child's word, a failed one yields
 //! [`SPAWN_FAILED`]. One reader, one word, no ambiguity.
+//!
+//! 5. **Death** (milestone 235). A child the kernel killed sends nothing, so neither of those two
+//!    words arrives and the shell's single read has nothing to complete it. `job_undertaker`, which
+//!    already holds init's supervision endpoint and already collects the corpse, sends
+//!    [`JOB_FAULTED`] there instead. It is a third value on the same one-word read rather than a
+//!    second channel, because the shell has one thread and can be blocked in exactly one `RECV`;
+//!    see [`JOB_FAULTED`] for the two couplings this refused.
 
 /// The interruptible bit, packed into the high half of the page-count word so one `SEND` still
 /// carries the whole request. `mem_pages` is a small count (budgeter's ceiling is 64), so the low
@@ -234,6 +241,48 @@ pub const CAP_TAG: u64 = 0x6361_705f; // "cap_" little-endian-ish marker
 /// from any answer a real program would report (no phase-1 program returns `u64::MAX`).
 pub const SPAWN_FAILED: u64 = u64::MAX;
 
+/// **The word for a job the kernel killed** (milestone 235,
+/// design/roadmap/235-a-faulted-job-should-reach-the-prompt.md). Sent on the result endpoint by
+/// `job_undertaker`, which is the process already holding init's supervision endpoint, once it has
+/// collected the corpse.
+///
+/// It exists because a faulted job is the one outcome this protocol could not say. A child that
+/// exits non-zero has answered; a child init could not build gets [`SPAWN_FAILED`]; a child the
+/// kernel killed **sends nothing at all**, so the shell's single read had nothing to complete it
+/// and the prompt never came back (measured 2026-09-02: `worker` patched to trap, and
+/// `script/shell-check` reporting "the prompt never came back to take `worker 7`").
+///
+/// **Provisional name**, like everything a lane mints: a word in a protocol is exactly the kind of
+/// name calef decides.
+///
+/// # Why the supervisor says it rather than the shell asking or the endpoint carrying it
+///
+/// DECISIONS §26 (the fault endpoint: thread death becomes a message a supervisor holds) delivers
+/// every death to exactly **one** endpoint, so the three couplings milestone 235 named are a choice
+/// of who holds that endpoint, and only one of them leaves the ordinary paths alone.
+///
+/// **The shell asking** loses first. A shell that asks has to decide *when* to ask, and with no
+/// non-blocking receive in the ABI (`crates/system_initializer`'s own loop records that it has
+/// none) that decision is a poll interval, which is a timeout wearing a different hat: it cannot
+/// tell a slow job from a dead one, which is the thing the hang already could not tell.
+///
+/// **The endpoint carrying the death** loses on the ordinary path. Pointing a job's fault target at
+/// the endpoint the shell reads would work for a fault, and §26.3 flows *exits* down the same
+/// endpoint too, so every ordinary job would leave a second message on the shell's result endpoint
+/// behind its answer and the next command's read would take it. It also moves collection into the
+/// shell for every job, and takes every job out of init's supervision domain, which is what
+/// `ps`/`pgrep` read (DECISIONS §106 already records that cost as acceptable for one narrow stage
+/// and it is not acceptable for all of them).
+///
+/// **The supervisor telling** costs one capability and one word. `job_undertaker` already receives
+/// the death, already collects the corpse, and its own `BUGS` section already recorded that it "has
+/// no way to say anything". This is that sentence answered.
+///
+/// Distinct from [`SPAWN_FAILED`] because the two are different facts a person needs told apart:
+/// nothing ran, versus something ran and died. It sits one below `u64::MAX` for the same reason
+/// that one sits at it, and the same caveat applies: no program in this tree answers with either.
+pub const JOB_FAULTED: u64 = u64::MAX - 1;
+
 /// The ack init sends on the result endpoint when a **supervised** (interruptible) child started
 /// cleanly. An interruptible child reports its own progress and exit through the shared job frame,
 /// not the result endpoint, so init sends this once as the go-ahead: the shell reads it, then begins
@@ -310,6 +359,16 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// **The three sentinels are distinct from each other** (milestone 235). They share one word
+    /// on one endpoint and the shell tells them apart by value alone, so a collision would make
+    /// "nothing was built", "it ran and died" and "it started" the same message.
+    #[test]
+    fn the_result_sentinels_do_not_collide() {
+        assert_ne!(SPAWN_FAILED, JOB_FAULTED);
+        assert_ne!(SPAWN_FAILED, SPAWN_OK);
+        assert_ne!(JOB_FAULTED, SPAWN_OK);
     }
 
     /// **`DIR2_BIT` follows [`DIR_BIT`]'s own precedent**: it is a second bit, not a count, and it
