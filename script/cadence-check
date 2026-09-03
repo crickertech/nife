@@ -53,6 +53,23 @@
 #     script/cadence-check            # report every scheduled workflow's last success
 #     script/cadence-check --quiet    # print only the dead ones (what trunk-health.sh calls)
 #
+#     CADENCE_STALE_DAYS=1 script/cadence-check    # tighten the threshold, to see the other branches
+#
+# A worked run, 2026-09-03:
+#
+#     workflow                         last scheduled success   verdict
+#     audit-cadence                    never                    DEAD: never succeeded; 3 failed runs since 2026-07-31
+#     falsifications                   never                    too young to have fired
+#     mutation                         never                    DEAD: never succeeded; 4 failed runs since 2026-07-31
+#     toolchain-bump                   2026-09-03T12:27:41Z     live
+#     undefined-behavior-check         never                    DEAD: never succeeded; 4 failed runs since 2026-07-31
+#
+#     3 scheduled workflow(s) have produced no result in the last 15 days. Nobody is assigned to this.
+#
+# `toolchain-drift` reads `live` in that run while its last two daily runs were red, and that is the
+# intended reading rather than a miss: a red daily is `scripts/trunk-health.sh`'s existing job, and
+# this one answers the different question of whether an answer is still arriving at all.
+#
 # Exit 1 when at least one cadence is dead, 0 when all of them are live, 2 when it could not ask
 # (no `gh`, no network, no credentials). The nonzero is for a person's `&&`, not for a gate; nothing
 # in this repository blocks on it, per the paragraph above.
@@ -85,7 +102,12 @@ set -e
 cd "$(dirname "$0")/.."
 
 REPO="crickertech/nife"
-STALE_DAYS=15
+
+# Overridable so the two interesting branches can actually be exercised: at 15 days everything in
+# this tree is either plainly live or plainly dead, and the interesting case (a workflow whose cron
+# has not come round yet) only appears at a threshold small enough to make one. Nothing blocks on
+# this check, so a widened threshold silences a report rather than opening a gate.
+STALE_DAYS="${CADENCE_STALE_DAYS:-15}"
 
 quiet=""
 [ "$1" = "--quiet" ] && quiet=1
@@ -95,7 +117,7 @@ command -v jq >/dev/null 2>&1 || { echo "script/cadence-check: needs jq" >&2; ex
 
 # Portable "15 days ago", because this runs on the dev Mac (BSD date) and could run on a Linux box
 # (GNU date), and the two spell the same subtraction incompatibly.
-cutoff=$(date -u -v-${STALE_DAYS}d +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
+cutoff=$(date -u -v-"${STALE_DAYS}"d +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
 	|| date -u -d "${STALE_DAYS} days ago" +%Y-%m-%dT%H:%M:%SZ)
 
 # `[ "$a" \> "$b" ]` is undefined in POSIX sh (shellcheck SC3012) however reliably bash and dash
@@ -146,9 +168,17 @@ for file in $scheduled; do
 		# Added within the window and its cron has not come round yet. Not a finding.
 		verdict="too young to have fired"
 	else
+		# Two different deaths, and saying which is most of the value. A workflow that has never
+		# succeeded is broken; one whose last success has aged out has stopped, and the date it
+		# stopped is the first thing a reader wants. An earlier draft printed "no success" for
+		# both, and so lied about every workflow in the second class.
 		fails=$(printf '%s\n' "$runs" \
 			| awk -F'\t' -v f="$file" '$1 == f && $2 != "success" { n++ } END { print n + 0 }')
-		verdict="DEAD: $fails failed scheduled runs since ${oldest%T*}, no success"
+		if [ -n "$last_ok" ]; then
+			verdict="DEAD: last success ${last_ok%T*}, $fails failed since"
+		else
+			verdict="DEAD: never succeeded; $fails failed runs since ${oldest%T*}"
+		fi
 		dead=$((dead + 1))
 	fi
 
@@ -160,10 +190,10 @@ done
 
 if [ "$dead" -gt 0 ]; then
 	[ -n "$quiet" ] || echo
-	echo "$dead scheduled workflow(s) have produced no result in $STALE_DAYS days. Nobody is assigned to this."
+	echo "$dead scheduled workflow(s) have produced no result in the last $STALE_DAYS days. Nobody is assigned to this."
 	exit 1
 fi
 
 [ -n "$quiet" ] || echo "
-every scheduled workflow has succeeded within $STALE_DAYS days."
+every scheduled workflow has succeeded within the last $STALE_DAYS days."
 exit 0
