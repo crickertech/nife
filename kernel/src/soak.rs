@@ -175,21 +175,19 @@ pub fn run() -> ! {
         arch::halt();
     }
 
+    // **What milestone 240 needs and nothing else records.** The kernel decides where every worker
+    // goes and then forgets; these two arrays are that decision kept, so the census below can be
+    // printed from what happened rather than from what the placement policy usually does.
+    let mut tids = [0u64; MAX_WORKERS];
+    let mut placed = [u8::MAX; MAX_WORKERS];
+
     for group in 0..groups {
         let endpoint = sched::create_rendezvous();
         // The responder first. A caller whose responder is not yet receiving simply parks on the
         // rendezvous, so the order is not load-bearing; starting the answering half first keeps a
         // fresh boot's first few beats from reading as a stall.
         for member in 0..MEMBERS_PER_GROUP {
-            let role = if member == 0 {
-                ROLE_RESPONDER
-            } else if member <= CALLERS_PER_GROUP {
-                ROLE_CALLER
-            } else if member <= CALLERS_PER_GROUP + GRINDERS_PER_GROUP {
-                ROLE_GRINDER
-            } else {
-                ROLE_WAITER
-            };
+            let role = role_of(member);
             let index = worker_index(group, member);
             // A waiter holds an `Irq` capability and nothing else; it never sends or receives on
             // the group's endpoint and must not be able to. That is the same least-authority rule
@@ -201,7 +199,7 @@ pub fn run() -> ! {
             } else {
                 rendezvous_cap(endpoint, Rights::WRITE)
             };
-            let started = sched::spawn(move || {
+            let started = sched::spawn_reporting_placement(move || {
                 user::run(
                     image,
                     Spawn {
@@ -222,13 +220,19 @@ pub fn run() -> ! {
                     },
                 )
             });
-            if started.is_none() {
+            let Some((tid, cpu)) = started else {
                 println!(
                     "soak: FAILED: could not spawn worker {index} of {}",
                     groups * MEMBERS_PER_GROUP
                 );
                 arch::halt();
-            }
+            };
+            tids[index] = tid;
+            // `pick_spawn_target` returns an online cpu id, and `MAX_CPUS` is what bounds one, so
+            // this cannot truncate. Saturating rather than `as` so that a future topology which
+            // broke that assumption would report `u8::MAX`, the census's own "no answer" value,
+            // instead of a wrong core number a reader would believe.
+            placed[index] = u8::try_from(cpu).unwrap_or(u8::MAX);
         }
     }
 
@@ -264,7 +268,117 @@ pub fn run() -> ! {
          differently"
     );
 
-    watch(shared, workers)
+    print_census(
+        "where the kernel placed each worker at spawn",
+        groups,
+        &placed[..workers],
+    );
+    println!(
+        "{CENSUS_MARKER} this is the boot-time lottery and NOT where the run settles: a rendezvous \
+         wake queues the peer on the waker's own core (DECISIONS 138, how a saturated workload is \
+         made to hand threads across cores), so each group converges onto one core within a few \
+         exchanges"
+    );
+    println!(
+        "{CENSUS_MARKER} the beat line's drifted= is how many responders, callers and grinders are \
+         no longer on the core the census above put them on; while it reads 0 that census is \
+         current, and a nonzero one is followed by the census that replaces it"
+    );
+    println!(
+        "{CENSUS_MARKER} tick waiters are excluded from drifted= because their movement is the \
+         point rather than a surprise, and it is already crossings= \
+         (design/roadmap/221-a-soak-that-crosses-cores.md)"
+    );
+
+    watch(shared, workers, &tids, &placed)
+}
+
+/// **The prefix every census line carries** (milestone 240).
+///
+/// Deliberately not `soak:`. `crates/board_console`'s recogniser matches two substrings on that
+/// prefix, [`START_MARKER`] and `soak: t=`, and a census is neither the start of a run nor a
+/// heartbeat; giving it its own word keeps a block of census lines from having to be proven
+/// harmless against a recogniser it has nothing to do with. It is also what a reader greps for,
+/// which is the whole point of printing it.
+///
+/// Name provisional (milestone 240): calef names what a reader meets.
+const CENSUS_MARKER: &str = "soak-census:";
+
+/// Which role the `member`-th thread of a group plays.
+///
+/// One function rather than the ladder it replaced, because the spawn loop and the census have to
+/// agree about it: a census that labelled the roles by a second copy of this arithmetic would be
+/// an instrument that could disagree with the thing it measures.
+fn role_of(member: usize) -> u64 {
+    if member == 0 {
+        ROLE_RESPONDER
+    } else if member <= CALLERS_PER_GROUP {
+        ROLE_CALLER
+    } else if member <= CALLERS_PER_GROUP + GRINDERS_PER_GROUP {
+        ROLE_GRINDER
+    } else {
+        ROLE_WAITER
+    }
+}
+
+/// The one letter a census spends on a role. See [`print_census`].
+fn role_letter(role: u64) -> char {
+    match role {
+        ROLE_RESPONDER => 'R',
+        ROLE_CALLER => 'C',
+        ROLE_GRINDER => 'G',
+        _ => 'W',
+    }
+}
+
+/// **Print which roles are on which core, one line per core** (milestone 240).
+///
+/// `cpus[i]` is where worker `i` is, and `u8::MAX` means nothing knows yet. The tokens are
+/// `<letter><group>`, so `G0 G3` on one line is that core drawing two grinders, which is the shape
+/// milestone 240's block names and the one a reader of a log alone could not previously see.
+///
+/// A core with no workers gets a line too. That is the informative case rather than the empty one:
+/// four cores online and one of them idle is an explanation, and a census that printed only the
+/// occupied cores would hide it.
+///
+/// This states where the threads are and draws no conclusion from it, which is the milestone's own
+/// constraint: if a series of boots shows the rate does not follow the placement, that is the
+/// result, and this must not have prejudged it.
+fn print_census(what: &str, groups: usize, cpus: &[u8]) {
+    println!(
+        "{CENSUS_MARKER} {what}: R=responder, C=caller, G=grinder, W=tick waiter, and the number \
+         after each letter is its group"
+    );
+    let mut accounted = 0usize;
+    for core in smp::online_cpus() {
+        let here = u8::try_from(core).unwrap_or(u8::MAX);
+        let n = cpus.iter().filter(|&&c| c == here).count();
+        accounted += n;
+        crate::print!("{CENSUS_MARKER} core={core} threads={n}");
+        for (i, &c) in cpus.iter().enumerate() {
+            if c == here {
+                crate::print!(
+                    " {}{}",
+                    role_letter(role_of(i % MEMBERS_PER_GROUP)),
+                    i / MEMBERS_PER_GROUP
+                );
+            }
+        }
+        println!();
+    }
+    // Everything the per-core loop did not name. Two causes, and both are worth a line rather than
+    // a silent shortfall: a worker that has not been switched to yet (its `last_cpu` is still
+    // unset), and a core id that is not in the online set, which would be a bug in placement rather
+    // than in this census and which `groups` is printed beside so the arithmetic can be checked.
+    let missing = cpus.len() - accounted;
+    if missing != 0 {
+        let unknown = cpus.iter().filter(|&&c| c == u8::MAX).count();
+        println!(
+            "{CENSUS_MARKER} unplaced={missing} of which not-yet-run={unknown} (groups={groups}, \
+             online={})",
+            smp::online_count()
+        );
+    }
 }
 
 /// `arg0` for the half that answers, matching `user/src/soaker.rs`.
@@ -458,10 +572,16 @@ fn read_counter(shared: u64, offset: u64) -> u64 {
 }
 
 /// Beat, sample, judge; forever, or until something is wrong.
-fn watch(shared: u64, workers: usize) -> ! {
+///
+/// `tids` and `placed` are milestone 240's: the thread and the core each worker was given at spawn,
+/// so that every beat can say whether the census printed at the top of the log is still true.
+fn watch(shared: u64, workers: usize, tids: &[u64; MAX_WORKERS], placed: &[u8; MAX_WORKERS]) -> ! {
     let hz = arch::timer::frequency();
     let started = arch::timer::now();
     let mut previous = [0u64; MAX_WORKERS];
+    let mut here = [u8::MAX; MAX_WORKERS];
+    // The arrangement the log currently claims, which starts as the spawn placement `run` printed.
+    let mut census = *placed;
     let mut last_total = 0u64;
     let mut last_wakes = 0u64;
     let mut last_at = started;
@@ -507,6 +627,29 @@ fn watch(shared: u64, workers: usize) -> ! {
             *last = progress;
         }
 
+        // **Is the census the log last printed still true?** (milestone 240.) One lock acquisition
+        // and `workers` comparisons once every [`BEAT_SECONDS`], which is what lets a census be
+        // printed on a change instead of on every beat: while this reads zero the reader knows the
+        // block above them describes the machine right now, and they are told rather than trusting.
+        //
+        // **Measured against the last census rather than against spawn**, and the difference is the
+        // whole value. Against spawn it becomes a constant a few beats in (11 of 20 on the aarch64
+        // QEMU leg) and then says nothing further; against the census it returns to zero after each
+        // reprint, so a nonzero one always means "there is a newer block below".
+        //
+        // Counted over the roles whose movement is news. A tick waiter migrating is milestone 221's
+        // whole point and is already `crossings=`, so folding it in would make this rise on a
+        // healthy run and mean nothing. A thread reading `u8::MAX` has not run yet and has no
+        // second core to have gone to, which is not drift either.
+        sched::last_cpus(&tids[..workers], &mut here[..workers]);
+        let drifted = (0..workers)
+            .filter(|&i| {
+                role_of(i % MEMBERS_PER_GROUP) != ROLE_WAITER
+                    && here[i] != u8::MAX
+                    && here[i] != census[i]
+            })
+            .count();
+
         let refused = sched::wake_refusals();
         let rate = total.wrapping_sub(last_total) / window;
         let wake_rate = wakes.wrapping_sub(last_wakes) / window;
@@ -515,7 +658,7 @@ fn watch(shared: u64, workers: usize) -> ! {
         println!(
             "soak: t={elapsed}s beat={beat} rounds={total} rate={rate}/s wakes={wakes} \
              wakerate={wake_rate}/s workers={workers} refused={refused} mismatch={mismatches} \
-             stalled={stalled} crossings={} remote={} steals={} deferred={}",
+             stalled={stalled} drifted={drifted} crossings={} remote={} steals={} deferred={}",
             sched::migrations(),
             sched::remote_placements(),
             sched::steals_served(),
@@ -524,6 +667,20 @@ fn watch(shared: u64, workers: usize) -> ! {
         last_total = total;
         last_wakes = wakes;
         last_at = now;
+
+        // **Re-census when the answer changed, and only then** (milestone 240). A block every beat
+        // would double an already dense log; a block never would leave the start census standing
+        // after it stopped being true, which the aarch64 QEMU leg showed happens inside the first
+        // five seconds. Printing on the change carries a current census whenever one exists and is
+        // quiet the rest of the time, and `drifted=` is what makes the quiet readable.
+        if drifted != 0 {
+            print_census(
+                "where the workers are NOW, the arrangement above having changed",
+                workers / MEMBERS_PER_GROUP,
+                &here[..workers],
+            );
+            census = here;
+        }
 
         // The three verdicts, in the order a reader would want them: the one that is a finding
         // about the kernel, then the one that is a finding about delivery, then the one that is a
@@ -566,6 +723,14 @@ fn watch(shared: u64, workers: usize) -> ! {
                     first_stalled % MEMBERS_PER_GROUP,
                 );
             }
+            // The census before the dump, because a failure is the one moment a reader has the
+            // whole log in front of them and wants to know the shape of the machine that produced
+            // it. It costs four lines once, on a run that is ending anyway.
+            print_census(
+                "where the workers were when this run failed",
+                workers / MEMBERS_PER_GROUP,
+                &here[..workers],
+            );
             // The thread dump before the panic, because the panic handler does not print one and
             // the per-core event rings are the whole reason they exist: a soak failure with no path
             // into the wedge is the end state alone, which is the thing first-silicon diagnostics
