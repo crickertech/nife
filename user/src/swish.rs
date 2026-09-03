@@ -63,6 +63,26 @@
 //! it is an interjection of exasperation, while refusing things is this shell's most characteristic
 //! behaviour by design). A swish is the shot that goes through the net touching nothing, which is
 //! least authority in one word.
+//!
+//! # BUGS
+//!
+//! **A spawned command that traps hangs the prompt** (measured 2026-09-02, milestone 233). This
+//! shell waits on the job's result endpoint, and a thread the kernel killed never sends on it, so
+//! the wait has nothing to wake it and the prompt does not come back. Measured rather than
+//! reasoned about: `user/src/worker.rs` was patched to `supervision_proto::fail()` on one argument
+//! and `script/shell-check` run against it, which failed with both the kernel's own report of the
+//! killed thread and "the prompt never came back to take `worker 6`".
+//!
+//! An ordinary non-zero exit is fine and is not this case: `worker` with no argument sets a status
+//! and `echo $?` reads it, which `script/shell-check` already asserts. It is specifically a *fault*
+//! that leaves the wait outstanding.
+//!
+//! The pieces to fix it exist and are not wired to each other. Init already runs a supervisor
+//! (`job_undertaker`, and the fault endpoint every child is born holding, DECISIONS §26), so the
+//! death is observed; nothing carries that observation back to whoever is waiting on the job's
+//! result. What that should look like at the prompt is a design question rather than a wiring one:
+//! a shell that printed a status for a faulted job would need a word for it that
+//! `grant_plan::spawnproto` does not currently have.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks

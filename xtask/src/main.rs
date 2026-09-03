@@ -191,19 +191,19 @@ fn main() -> ExitCode {
             eprintln!(
                 "usage: cargo xtask <build|run|shell|shell-check|initboot|initrd-aarch64|initrd-riscv|initrd-x86|uefi-image|uefi-boot|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image|board-console|soak|board-script> [--hvf]"
             );
-            eprintln!("       cargo xtask shell-check [--arch aarch64|riscv64]");
+            eprintln!(" cargo xtask shell-check [--arch aarch64|riscv64]");
             eprintln!(
-                "       cargo xtask undefined-behavior-check [extra cargo-miri-test args, e.g. -p <crate>]"
+                " cargo xtask undefined-behavior-check [extra cargo-miri-test args, e.g. -p <crate>]"
             );
             eprintln!(
-                "       cargo xtask bench [--riscv | --x86] [--real] [--release] [--smp] [--check] [--save]"
+                " cargo xtask bench [--riscv | --x86] [--real] [--release] [--smp] [--check] [--save]"
             );
             eprintln!(
-                "       cargo xtask test [--arch aarch64|riscv64|x86_64] [--cpu <qemu-cpu-model>] [--hvf] [--test <substring>]"
+                " cargo xtask test [--arch aarch64|riscv64|x86_64] [--cpu <qemu-cpu-model>] [--hvf] [--test <substring>]"
             );
-            eprintln!("       cargo xtask icount [--arch aarch64|riscv64]");
+            eprintln!(" cargo xtask icount [--arch aarch64|riscv64]");
             eprintln!(
-                "       cargo xtask board-console [--port <dev>] [--replay <log>] [--log <file>] [--for <duration>] [--until spl|opensbi|uboot|handoff|banner|tour|none] [--quiet-after <duration>]"
+                " cargo xtask board-console [--port <dev>] [--replay <log>] [--log <file>] [--for <duration>] [--until spl|opensbi|uboot|handoff|banner|tour|none] [--quiet-after <duration>]"
             );
             return ExitCode::FAILURE;
         }
@@ -692,15 +692,15 @@ fn std_patch_dispatch() -> bool {
     patch_after(
         &sys.join("pal/mod.rs"),
         "cfg_select! {",
-        "    target_os = \"nife\" => {\n        pub(crate) mod nife;\n        pub use self::nife::*;\n    }",
+        "    target_os = \"nife\" => {\n pub(crate) mod nife;\n pub use self::nife::*;\n    }",
     ) && patch_after(
         &sys.join("alloc/mod.rs"),
         "cfg_select! {",
-        "    target_os = \"nife\" => {\n        mod nife;\n        use nife as imp;\n    }",
+        "    target_os = \"nife\" => {\n mod nife;\n use nife as imp;\n    }",
     ) && patch_after(
         &sys.join("stdio/mod.rs"),
         "cfg_select! {",
-        "    target_os = \"nife\" => {\n        mod nife;\n        pub use nife::*;\n    }",
+        "    target_os = \"nife\" => {\n mod nife;\n pub use nife::*;\n    }",
     ) && patch_after(
         // random: `fill_bytes` AND `hashmap_random_keys`, because milestone 56 splits them. The
         // first promises cryptographic strength and panics without the entropy capability; the
@@ -710,7 +710,7 @@ fn std_patch_dispatch() -> bool {
         // patch, and it is anchored on the wasi line because "xous" appears twice in the file.
         &sys.join("random/mod.rs"),
         "cfg_select! {",
-        "    target_os = \"nife\" => {\n        mod nife;\n        pub use nife::{fill_bytes, hashmap_random_keys};\n    }",
+        "    target_os = \"nife\" => {\n mod nife;\n pub use nife::{fill_bytes, hashmap_random_keys};\n    }",
     ) && patch_after(
         &sys.join("random/mod.rs"),
         "    all(target_os = \"wasi\", not(target_env = \"p1\")),",
@@ -718,11 +718,11 @@ fn std_patch_dispatch() -> bool {
     ) && patch_after(
         &sys.join("thread/mod.rs"),
         "cfg_select! {",
-        "    target_os = \"nife\" => {\n        mod nife;\n        pub use nife::{Thread, available_parallelism, current_os_id, set_name, sleep, yield_now, DEFAULT_MIN_STACK_SIZE};\n    }",
+        "    target_os = \"nife\" => {\n mod nife;\n pub use nife::{Thread, available_parallelism, current_os_id, set_name, sleep, yield_now, DEFAULT_MIN_STACK_SIZE};\n    }",
     ) && patch_after(
         &sys.join("time/mod.rs"),
         "cfg_select! {",
-        "    target_os = \"nife\" => {\n        mod nife;\n        use nife as imp;\n    }",
+        "    target_os = \"nife\" => {\n mod nife;\n use nife as imp;\n    }",
     ) && patch_after(
         // net: TcpStream + outbound UdpSocket over the net_stack socket contract (milestone 27 phase
         // two). The first cfg_select in connection/mod.rs is the backend dispatcher; the nife
@@ -730,7 +730,7 @@ fn std_patch_dispatch() -> bool {
         // `_ =>` fallback to unsupported, so it needs no arm.
         &sys.join("net/connection/mod.rs"),
         "cfg_select! {",
-        "    target_os = \"nife\" => {\n        mod nife;\n        pub use nife::*;\n    }",
+        "    target_os = \"nife\" => {\n mod nife;\n pub use nife::*;\n    }",
     ) && patch_after(
         // fs: File open/read/metadata over the FS-service contract (milestone 27 phase two). The
         // arm precedes the `_ =>` unsupported fallback phase one used, and mirrors the shape of
@@ -740,7 +740,7 @@ fn std_patch_dispatch() -> bool {
         // a process that holds none rather than name a place it cannot reach (milestone 47).
         &sys.join("fs/mod.rs"),
         "cfg_select! {",
-        "    target_os = \"nife\" => {\n        pub(crate) mod nife;\n        use nife as imp;\n    }",
+        "    target_os = \"nife\" => {\n pub(crate) mod nife;\n use nife as imp;\n    }",
     ) && patch_after(
         // env: a process-local variable table (milestone 64, rank 4). The arm precedes the `_ =>`
         // unsupported fallback, whose `env()` is `panic!("not supported on this platform")`: without
@@ -750,7 +750,7 @@ fn std_patch_dispatch() -> bool {
         // a second one to keep in step across nightlies.
         &sys.join("env/mod.rs"),
         "cfg_select! {",
-        "    target_os = \"nife\" => {\n        mod nife;\n        pub use nife::*;\n    }",
+        "    target_os = \"nife\" => {\n mod nife;\n pub use nife::*;\n    }",
     ) && patch_after(
         // paths: `temp_dir`, `split_paths` and `join_paths` (milestone 64). The arm precedes the
         // `_ =>` unsupported fallback, whose `temp_dir()` is `panic!("no filesystem on this
@@ -761,7 +761,7 @@ fn std_patch_dispatch() -> bool {
         // both halves and a reader meets the reasons together.
         &sys.join("paths/mod.rs"),
         "cfg_select! {",
-        "    target_os = \"nife\" => {\n        mod nife;\n        use nife as imp;\n    }",
+        "    target_os = \"nife\" => {\n mod nife;\n use nife as imp;\n    }",
     ) && patch_after(
         // process: `getpid` only (milestone 64). Everything else stays the shared `unsupported`
         // backend, which refuses honestly; `getpid` alone was `panic!("no pids on this platform")`,
@@ -770,7 +770,7 @@ fn std_patch_dispatch() -> bool {
         // it cannot be pulled in through a `#[path]` module the way `sys/fs/nife.rs` does.
         &sys.join("process/mod.rs"),
         "cfg_select! {",
-        "    target_os = \"nife\" => {\n        #[allow(dead_code)]\n        mod unsupported;\n        mod nife;\n        mod imp {\n            pub use super::nife::getpid;\n            pub use super::unsupported::{\n                ChildPipe, Command, CommandArgs, EnvKey, ExitCode, ExitStatus, ExitStatusError,\n                Process, Stdio, output, read_output,\n            };\n        }\n    }",
+        "    target_os = \"nife\" => {\n #[allow(dead_code)]\n mod unsupported;\n mod nife;\n mod imp {\n pub use super::nife::getpid;\n pub use super::unsupported::{\n ChildPipe, Command, CommandArgs, EnvKey, ExitCode, ExitStatus, ExitStatusError,\n Process, Stdio, output, read_output,\n };\n }\n    }",
     ) && patch_after(
         // **exit: `std::process::exit` was a trap instruction** (milestone 64, fourth pass).
         //
@@ -793,22 +793,22 @@ fn std_patch_dispatch() -> bool {
         // today and which `a_whole_std_program_runs_on_the_native_abi` now asserts.
         &sys.join("exit.rs"),
         "pub fn exit(code: i32) -> ! {\n    cfg_select! {",
-        "        target_os = \"nife\" => {\n            crate::sys::pal::nife::rt::exit(code as i64)\n        }",
+        " target_os = \"nife\" => {\n crate::sys::pal::nife::rt::exit(code as i64)\n }",
     ) && patch_after(
         // io/error has no fallback arm; route nife to the generic backend.
         &sys.join("io/error/mod.rs"),
         "cfg_select! {",
-        "    target_os = \"nife\" => {\n        mod generic;\n        pub use generic::*;\n    }",
+        "    target_os = \"nife\" => {\n mod generic;\n pub use generic::*;\n    }",
     ) && patch_after(
         // Single-threaded, no native TLS: storage is a plain static (no_threads).
         &sys.join("thread_local/mod.rs"),
         "cfg_select! {",
-        "    target_os = \"nife\" => {\n        mod no_threads;\n        pub use no_threads::{EagerStorage, LazyStorage, thread_local_inner};\n        pub(crate) use no_threads::{LocalPointer, local_pointer};\n    }",
+        "    target_os = \"nife\" => {\n mod no_threads;\n pub use no_threads::{EagerStorage, LazyStorage, thread_local_inner};\n pub(crate) use no_threads::{LocalPointer, local_pointer};\n    }",
     ) && patch_after(
         // ... and the TLS-destructor guard is a no-op.
         &sys.join("thread_local/mod.rs"),
         "pub(crate) mod guard {\n    cfg_select! {",
-        "        target_os = \"nife\" => {\n            pub(crate) fn enable() {}\n        }",
+        " target_os = \"nife\" => {\n pub(crate) fn enable() {}\n }",
     ) && patch_after(
         // std::env::consts::OS. `cfg_unordered!` turns each arm's cfg into the fallback's
         // exclusion set, so adding a nife arm both defines OS and keeps the fallback off it.
@@ -818,8 +818,8 @@ fn std_patch_dispatch() -> bool {
     ) && patch_after(
         // nife has a real PAL: not restricted_std.
         &farm_std_src().parent().unwrap().join("build.rs"),
-        "        || target_os == \"vexos\"\n",
-        "        || target_os == \"nife\"",
+        " || target_os == \"vexos\"\n",
+        " || target_os == \"nife\"",
     )
 }
 
@@ -3972,7 +3972,7 @@ fn uefi_boot() -> bool {
     for wanted in [
         "nife x86_64: boot complete, halting.",
         "(xsdt)",
-        "pci         : ecam at",
+        "pci : ecam at",
     ] {
         if !transcript.contains(wanted) {
             eprintln!("uefi-boot: the boot transcript is missing {wanted:?}");
@@ -6507,7 +6507,7 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 60] = [
     (
         "caps",
         &[
-            "frame     clock      READ only, NOT delegable",
+            "frame     clock READ only, NOT delegable",
             "endpoint  directory",
         ],
     ),
@@ -6523,7 +6523,7 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 60] = [
     (
         "caps rm rmtree/rm-solo",
         &[
-            "dir      /rmtree  (the directory holding rm-solo)",
+            "dir /rmtree  (the directory holding rm-solo)",
             "and nothing under it: no -r, so it cannot even look",
         ],
     ),
@@ -7090,6 +7090,20 @@ fn shell_check_leg(riscv: bool) -> bool {
     // gate's own proof of that distinction: a thread the kernel killed does not get to set a status.
     // A trap in any of them would be a real regression rather than a false positive here.
     //
+    // **What a deliberate trap does was measured rather than assumed** (milestone 233), because
+    // milestone 230's lane named it as the thing it could not cheaply find out. `worker` was
+    // patched to `supervision_proto::fail()` on `worker 5` and this gate run against it. Two
+    // results, and the second is the more interesting one:
+    //
+    //   1. This check fires, naming the thread and the reason, so it is a check that can fail
+    //      rather than one that only ever passes. That mattered: it was written against a tree
+    //      where `login` had just stopped dying, so nothing else would have exercised it.
+    //   2. **The prompt never comes back.** The run also failed with "the prompt never came back
+    //      to take `worker 6`", because the shell waits on the result endpoint of a job that
+    //      faulted instead of sending, and nothing wakes that wait. A spawned command that traps
+    //      hangs the shell rather than returning a status. That is a real limitation this gate now
+    //      makes visible, and it is `user/src/swish.rs`'s to carry rather than this file's.
+    //
     // The `KERNEL_WRITER_ANCHORS` pair rather than one string: `user thread ` alone appears in
     // ordinary prose and ` killed: ` is the half that says a fault report. Both, in order, are the
     // aarch64 and riscv64 fault printer's own first line
@@ -7100,7 +7114,11 @@ fn shell_check_leg(riscv: bool) -> bool {
     {
         let line = transcript[at..].lines().next().unwrap_or("").trim_end();
         failed.push(format!(
-            "the kernel reported killing a user thread during this run: {line:?}. Every program              this boot starts is supposed to survive it, and one that does not is invisible              everywhere else: init's own report says what init measured, not what stayed alive.              The transcript below has the fault's registers; `llvm-objdump -d` on the program at              that `pc` names the function."
+            "the kernel reported killing a user thread during this run: {line:?}. Every \
+             program this boot starts is supposed to survive it, and one that does not is \
+             invisible everywhere else: init's own report says what init measured, not what \
+             stayed alive. The transcript below has the fault's registers, and `llvm-objdump -d` \
+             on the program at that `pc` names the function."
         ));
     }
 
@@ -7114,18 +7132,25 @@ fn shell_check_leg(riscv: bool) -> bool {
     // constant is a measurement rather than a target, so what this fails on is a recorded fact
     // going stale, not a boot getting close to something. The fix when it fires is to measure,
     // update the constant, and re-read the headroom arithmetic beside `CAPABILITY_TABLE_SLOTS`.
-    match transcript.lines().filter(|l| l.contains(SLOT_GAUGE)).last() {
+    match transcript.lines().rfind(|l| l.contains(SLOT_GAUGE)) {
         Some(line) => {
             eprintln!("shell-check ({arch}):{}", line.trim_end());
             if line.contains("ABOVE") {
                 failed.push(format!(
-                    "this boot used more capability slots than the tree records: {:?}. The number                      beside CAPABILITY_TABLE_SLOTS in kernel/src/cap.rs is now stale; measure,                      update CAPABILITY_TABLE_PEAK_MEASURED, and re-read that constant's headroom                      arithmetic rather than raising the ceiling reflexively.",
+                    "this boot used more capability slots than the tree records: {:?}. The \
+                     number beside CAPABILITY_TABLE_SLOTS in kernel/src/cap.rs is now stale; \
+                     measure, update CAPABILITY_TABLE_PEAK_MEASURED, and re-read that constant's \
+                     headroom arithmetic rather than raising the ceiling reflexively.",
                     line.trim()
                 ));
             }
         }
         None => failed.push(format!(
-            "the boot never printed {SLOT_GAUGE:?}. The kernel says this from the scheduler's idle              loop once the mark has settled (kernel::cap::report_peak), so either the boot never              idled or the gauge stopped being printed; the second is the one that matters, because              it is the only thing standing between this tree and a fourth reactive raise of              CAPABILITY_TABLE_SLOTS."
+            "the boot never printed {SLOT_GAUGE:?}. The kernel says this from the scheduler's \
+             idle loop once the mark has settled (kernel::cap::report_peak), so either the boot \
+             never idled or the gauge stopped being printed; the second is the one that matters, \
+             because it is the only thing standing between this tree and a fourth reactive raise \
+             of CAPABILITY_TABLE_SLOTS."
         )),
     }
 
@@ -7897,7 +7922,7 @@ fn run_bench(
             if *cur < lo || *cur > hi {
                 let delta = *cur as i64 - base as i64;
                 eprintln!(
-                    "bench: CHECK FAIL {name}: {cur} vs baseline {base} ({delta:+} ticks,                      allowed +-{slack})"
+                    "bench: CHECK FAIL {name}: {cur} vs baseline {base} ({delta:+} ticks, allowed +-{slack})"
                 );
                 ok = false;
             }
@@ -7907,7 +7932,7 @@ fn run_bench(
         } else {
             eprintln!();
             eprintln!(
-                "bench: a benchmark moved. If intended, rerun with --save and commit the new                  baseline WITH the change that moved it."
+                "bench: a benchmark moved. If intended, rerun with --save and commit the new baseline WITH the change that moved it."
             );
         }
         return ok;
@@ -8128,7 +8153,7 @@ fn gdb() -> bool {
     eprintln!();
     eprintln!("    (gdb) break _boot");
     eprintln!("    (gdb) layout asm");
-    eprintln!("    (gdb) si          # step one instruction");
+    eprintln!("    (gdb) si # step one instruction");
     eprintln!();
 
     run(RUNNER, &[&elf, "-s", "-S"])
@@ -8183,7 +8208,7 @@ fn image() -> bool {
             eprintln!("  text_offset  {text_offset:#x}");
             eprintln!("  image_size   {image_size:#x}");
             eprintln!(
-                "  magic        {magic:#010x}  {}",
+                "  magic {magic:#010x}  {}",
                 if magic == 0x644d5241 {
                     "ok (\"ARM\\x64\")"
                 } else {
@@ -8378,8 +8403,8 @@ fn run(program: &str, args: &[&str]) -> bool {
 fn tree_apropos(term: Option<String>) -> bool {
     let Some(term) = term else {
         eprintln!("usage: script/apropos <word>");
-        eprintln!("       searches every markdown page in this repository, and every crate's and");
-        eprintln!("       program's own module documentation, and says where each one lives.");
+        eprintln!(" searches every markdown page in this repository, and every crate's and");
+        eprintln!(" program's own module documentation, and says where each one lives.");
         return false;
     };
 

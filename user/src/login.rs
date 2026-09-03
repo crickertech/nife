@@ -214,10 +214,13 @@
 //! - slot [`TERM_EP`]: `WRITE | GRANT` on the interactive terminal `crates/system_initializer::boot`
 //!   already wires. See "The terminal: single-session, deny cleanly" above.
 //! - mapped [`CRED_VA`]: the page shared with the credential service, for the relayed `VERIFY`.
-//! - mapped [`user_rt::initrd::INITRD_VA`]: the archive, read-only, so this process can find
-//!   `fs_subtree_caretaker`'s own bytes and [`measured_boot::PROGRAM_MEASUREMENTS`], the exact way
-//!   `crates/system_initializer` does, and verify the first against the second before ever
-//!   building a caretaker from it.
+//! - mapped [`login_proto::CARETAKER_ELF_VA`]: `fs_subtree_caretaker`'s own ELF bytes, read-only,
+//!   with the length in `x0`. This is the image every caretaker this process mints is built from,
+//!   and it is all of the boot archive this process is given: it needs one program, not a
+//!   filesystem. Zero length means the spawner had nothing vouched-for to hand over.
+//! - mapped [`login_proto::PROGRAM_MEASUREMENTS_VA`]: [`measured_boot::PROGRAM_MEASUREMENTS`]'
+//!   bytes, read-only, with the length in `x1`, so the image above can be checked against the same
+//!   table `crates/system_initializer` checks everything it loads against.
 //! - mapped, dynamically, starting at [`CONNECT_VA_BASE`]: one page per channel [`connect`] mints,
 //!   for as long as this process runs (see BUGS: never unmapped or reused in this slice).
 //!
@@ -227,22 +230,47 @@
 //!
 //! # BUGS
 //!
-//! **This program dies at `_start` on every real interactive boot, on both architectures**, found
-//! 2026-09-02 by milestone 230 (`script/shell-check` is red on `main` and nothing says so) once the
-//! capability-table fix let the login stack be built at all. `_start` reads the archive to find
-//! `fs_subtree_caretaker`, from `initrd_len` in `a1` and the mapping at `INITRD_VA`.
-//! `crates/system_initializer` starts it with `thread_control_block_start(login_tcb, 0, 0, 0)` and
-//! endows it with no map of the archive, so `initrd_bytes` yields a zero-length slice,
-//! `nifefs::Fs::parse` refuses it, and this process takes `fail(1)` before serving anything. The
-//! boot continues and prints `init: login ready` with a generated password, because init measured
-//! the identity provisioning rather than this process's survival, so **a green `script/shell-check`
-//! does not currently mean the login service runs.**
+//! **Resolved, milestone 233 (2026-09-02): this program used to die at `_start` on every real
+//! interactive boot, on both architectures.** `_start` read the boot archive to find
+//! `fs_subtree_caretaker`, from `initrd_len` in `a1` and the kernel's mapping at
+//! `user_rt::initrd::INITRD_VA`. That is what `kernel::user::login_service::start` handed it, and it
+//! is what `crates/system_initializer` could never hand it: `supervision_proto::build_child` maps
+//! only pages the spawner holds a `PageFrame` capability for, and the archive is reserved RAM the
+//! frame allocator does not own and no capability names. So init started this process with
+//! `thread_control_block_start(login_tcb, 0, 0, 0)` and no archive, `initrd_bytes` yielded a
+//! zero-length slice, `nifefs::Fs::parse` refused it, and this process took `fail(1)` before serving
+//! anything, while the boot went on printing `init: login ready` with a generated password.
 //!
-//! Not fixed here, and it is a milestone rather than a line: handing this program the archive costs
-//! `crates/system_initializer` capability slots at the peak that milestone 230 has just measured and
-//! sized the table against, so the fix and the accounting move together. The audit trail already
-//! carries which step refused (`fail`'s `0xDEAD_0000_0000_0000 | step`), and `audit_sink` discards
-//! it, which is that program's own recorded limitation and is why nobody saw this for five days.
+//! **The real defect was that the two spawners disagreed**, and only one of them was tested. A
+//! harness that starts a program differently from the way the system starts it is not testing that
+//! program, and this one had been passing for an unknown length of time. Both now lay down the same
+//! two blobs (see the endowment above), and `login_proto::CARETAKER_ELF_VA` carries the account of
+//! why the fix went this way rather than by finding some way to give this process the archive: it
+//! needs one program's bytes and a table to check them against, and a service that can read every
+//! file in the boot image to answer a password holds authority it never exercises.
+//!
+//! Two things are gone with it. This process no longer refuses to start over the caretaker at all:
+//! absent, unparseable and unvouched-for all become `care_elf = None` and a `DENIED` per login,
+//! which is the posture `crates/system_initializer` already had toward this exact component. And
+//! `init: login ready` is now `init: login credentials provisioned`, which is what init actually
+//! measured; the survival claim moved to `script/shell-check`, which fails if the kernel reported
+//! killing any user thread during the run.
+//!
+//! **What this cost in the currency that was scarce: nothing.** Milestone 231's gauge says the
+//! boot's capability-slot high-water mark is 21 of 24 before this change and 21 of 24 after it, on
+//! both architectures, because `supervision_proto`'s `fill_and_map` holds one frame capability at a
+//! time and deletes it.
+//!
+//! **The measurement check's trust root moved and is weaker.** When this process read the initrd it
+//! read the same physical archive the kernel maps for init, so the check was independent of whoever
+//! spawned it. Under `crates/system_initializer` both the bytes and the table now arrive from init,
+//! which has already run the identical `measured_boot::verify_in_manifest` over them, so what
+//! remains is a consistency check on the hand-over rather than an independent verification. It is
+//! kept because it costs one hash and catches a spawner that pairs the wrong two blobs.
+//!
+//! **How long the original defect had been live is unknown** and nobody bisected it. The audit trail
+//! did carry which step refused (`fail`'s `0xDEAD_0000_0000_0000 | step`) and `audit_sink` discards
+//! it, which is that program's own recorded limitation and is part of why nobody saw this.
 //!
 //! **Resolved, milestone 49's channel-per-client update.** [`REQUEST`] and [`RESULT`] used to be a
 //! single endpoint pair carrying an actual login's identity and secret, on a single shared staging
