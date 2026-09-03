@@ -200,6 +200,32 @@ shell = []
 # ceiling catches what the no-progress heartbeat cannot see (testing.rs). It is EXPECTED TO FAIL the
 # run, so it is not part of the normal suite; see notes/scheduler.md for the command that runs it.
 watchdog_probe = []
+# The cycle-counter instrument (milestone 237): builds milestone 229's per-thread cycle-counter
+# grant, the mechanism DECISIONS 139 decided. Off by default, so a production kernel does not carry
+# it; `script/bench`, `script/icount` and milestone 25's cross-OS comparison turn it on to take a
+# cycle figure at user level.
+#
+# **What it costs when it is on**, measured rather than asserted: 192 bytes in `sched::schedule` and
+# 8 elsewhere, 200 on `script/fastpath-footprint`'s aarch64 `ipc_fastpath` closure (5852 -> 6052).
+# That is why it is a feature: the grant's only consumer is a benchmark, no program can request it
+# at all until 229's deferred ABI is minted, and an ordinary boot was paying for the switch read
+# anyway. See design/roadmap/237-the-cycle-grant-is-a-measurement-build.md.
+#
+# **The gate on every piece is `any(test, feature = "cycle_counter_grant")`, not the feature
+# alone**, and that is deliberate. Milestone 229's proofs (the embryo refusal in `sched`, the EL0
+# round trip in `user::tests`, the register-field assertions in each arch's `timer`) are the only
+# things that exercise this path, and a gated path rots unless something builds it. Folding `test`
+# in means `script/test` compiles and runs all of them on all three architectures on every run,
+# which is a stronger keep-alive than a CI build-only job, and the release kernel
+# `script/fastpath-footprint` measures has no `test` cfg so production still pays nothing.
+#
+# **It is not deletion, and the difference is the point.** Removing the code would make the
+# published cycle number unreproducible and would quietly return DECISIONS 139's answer to
+# "closed for everyone", which is not the answer that was given.
+#
+# Name provisional, like everything a lane mints: `cycle_counter_grant` is the field it builds
+# (`Thread::cycle_counter_grant`) rather than a new word for it. Names are calef's.
+cycle_counter_grant = []
 # E3's footprint-perturbation experiment (milestone 134,
 # design/roadmap/134-the-measurements-that-decide.md): adds a large, reachable-but-never-taken
 # function to the IPC fastpath's call graph, roughly doubling `ipc_fastpath`'s measured footprint,
