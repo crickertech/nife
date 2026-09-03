@@ -436,6 +436,8 @@ besides, being built for dated release grouping; these are capability-shaped and
 | 229 | BUILT | [Build the cycle-counter grant DECISIONS 139 decided](229-the-counter-grant.md) | the kernel half is complete and the syscall method is deliberately not minted: a grant on the TCB, written at the context switch beside the address-space root, aarch64 `PMUSERENR_EL0.CR` cached, riscv64 `scounteren.CY` read back so `TM` survives, `x86_64` a no-op that leaves its fastpath byte-identical | 2026-09-02 | 2026-09-02 
 | 230 | NOT-STARTED | [`script/shell-check` is red on `main`, on both architectures, and nothing says so](230-shell-check-is-red.md) | a virtio-rng makes the interactive boot trap in init with no message, and the check runs in neither `script/test` nor CI | |
 | 231 | NOT-STARTED | [Nothing counts how many capability slots a boot actually uses, so the wall is always a surprise](231-capability-slot-high-water-mark.md) | `CAPABILITY_TABLE_SLOTS` has been raised three times and every raise was reactive, after a silent failure that named something else | |
+| 232 | NOT-STARTED | [Audit every check against two questions: does anything run it, and does it block](232-what-the-checks-actually-check.md) | four findings in one day, each a different way for this tree's verification to report something untrue | |
+| 233 | NOT-STARTED | [`login` dies on every boot, and the boot says it is ready](233-login-never-runs.md) | init starts it with no mapping of the archive, `nifefs::Fs::parse` refuses, and `init: login ready` prints anyway | |
 
 The order §14 sets: **verify the core and make it verifiable first** (18 and 14, the thesis), then the
 road to running real workloads on real machines (15, 21, 16, 19; 25 extends 21 into cross-OS
