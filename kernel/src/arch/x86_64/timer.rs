@@ -315,6 +315,40 @@ pub fn init() {
     irq::arm_periodic_timer(count);
 }
 
+/// **Can a thread on this core be granted the cycle counter at all?** Yes, and it already has it:
+/// `rdtsc` is ambient in ring 3 on this architecture and DECISIONS 139 part 3 decided to keep it
+/// that way. Answering `true` is the honest answer to the question the caller is asking, which is
+/// "will a granted thread be able to read a cycle-rate counter", and not a claim that anything is
+/// gated.
+// Asked only by tests today (`sched`'s grant round trip and `user`'s EL0 one), which are the
+// callers that have to skip rather than fault on a part with no counter to grant. Marked rather
+// than deleted: milestone 74's cycle-counter work is the caller that will want it in anger.
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn cycle_counter_grantable() -> bool {
+    true
+}
+
+/// **The `x86_64` half of the cycle-counter grant, which does nothing** (milestone 229, DECISIONS
+/// 139 part 3). Called from the context switch on every switch, exactly as its aarch64 and riscv64
+/// twins are, so that `sched` has one portable call rather than three `cfg`s at the switch site.
+/// It compiles to nothing.
+///
+/// **This is a stated exception to DECISIONS §19 (architectural parity is a tenet), not a gap.**
+/// `CR4.TSD` (bit 2) would close `rdtsc` to ring 3 and is writable per switch like the other two
+/// registers, so option 4 is mechanically available here. What is not available is a fallback:
+/// `crates/user_rt`'s `now()` on this architecture **is** `rdtsc`, with no coarse monotonic source
+/// to fall back to the way aarch64 has `CNTVCT_EL0` and riscv64 has `rdtime`, so closing it for
+/// ungranted threads would take out `Instant`, `thread::sleep`, the random seed, smoltcp's
+/// timestamps and the benchmark harness at once. DECISIONS 139 measured the two alternatives
+/// (trap-and-emulate at 1,667 ns, 4.1x the syscall it is meant to beat; and there is no second
+/// user-readable clock, which is why Linux's own vDSO cannot work without a userspace TSC read)
+/// and closed both. `notes/x86-port.md` carries the position where a reader meets it.
+///
+/// So on this architecture every thread runs with the counter open, granted or not, and a program
+/// written against the grant works here for a reason it should not rely on.
+#[inline(always)]
+pub fn set_cycle_counter_grant(_granted: bool) {}
+
 /// **Take one tick.** Called from the trap handler when [`irq::TIMER_VECTOR`] arrives.
 ///
 /// It does not write the EOI: the trap handler does that for every interrupt vector, in one place,

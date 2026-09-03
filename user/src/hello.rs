@@ -135,6 +135,7 @@ pub extern "C" fn _start(role: u64, dma_phys: u64, arg2: u64) -> ! {
         INIT_BOOT => init_boot(dma_phys, arg2),
         INIT_WORKER => init_worker(dma_phys),
         INIT_COREMARK => init_coremark(dma_phys),
+        CYCLE_COUNTER_CHILD => cycle_counter_child(),
         CHILD => child(),
         DEV_CHILD => dev_child(),
         SELF_CHECK => self_check_client(),
@@ -345,6 +346,19 @@ const INIT_COREMARK: u64 = 29;
 /// The word a milestone-19d child reports through the endpoint init granted it.
 const CHILD_WORD: u64 = 0xC0FFEE;
 
+/// The role that reads the cycle counter and reports (milestone 229). Started directly by the
+/// kernel's own test, not built by init: milestone 229 shipped the grant mechanism without a
+/// syscall method to set it, so there is no userspace route to a granted thread to exercise.
+const CYCLE_COUNTER_CHILD: u64 = 42;
+/// The word [`cycle_counter_child`] reports when it read the counter without being killed for it.
+///
+/// **The word is the whole result, and the counter value is not.** An ungranted read of
+/// `PMCCNTR_EL0` or the `cycle` CSR traps, and this kernel turns that into a fault that ends the
+/// thread, so a child that gets as far as sending anything is a child the grant reached. What it
+/// read is uninteresting: QEMU leaves `PMCR_EL0.E` clear, so `PMCCNTR_EL0` reads zero however
+/// often you ask it.
+const CYCLE_COUNTER_WORD: u64 = 0xC1C1E;
+
 /// **The init task, milestone 19d.** The first program the kernel starts, and the one that
 /// starts the others: the ELF parser lives here, in userspace, not in the kernel. init holds a
 /// building untyped (slot 0) and a report endpoint (slot 1, `WRITE|GRANT`); the initrd is mapped
@@ -508,6 +522,81 @@ fn init_coremark(initrd_len: u64) -> ! {
     };
     check(thread_control_block_start(tcb, 0, 0, 0)); // no args: the workload's iteration count is fixed
     exit();
+}
+
+/// **The granted child, milestone 229.** Reads the cycle counter twice and reports
+/// [`CYCLE_COUNTER_WORD`] plus both reads. Holds the report endpoint (slot 0) and nothing else:
+/// the grant is not a capability in a slot, it is a property of this thread that the context
+/// switch writes into a system register before the thread runs.
+///
+/// **Getting here at all is the result.** Without the grant the read is an EL0 access to a
+/// register `PMUSERENR_EL0` (aarch64) or `scounteren` (riscv64) does not permit, which traps and
+/// kills the thread, and nothing is sent. The kernel-side test runs this role both ways and
+/// asserts each outcome.
+///
+/// **The `yield` between the two reads is the point of there being two.** The first read proves
+/// the grant reached a thread that had not yet been switched; the yield gives the scheduler a
+/// chance to switch this thread out and back in, so the second read is one taken *after* the
+/// context switch re-applied the grant from the thread's own field. A yield is not a guarantee
+/// that a switch happened (this may be the only runnable thread on the core), so the second read
+/// is evidence rather than proof, and the register-level assertions in `arch::*::timer`'s tests
+/// are what prove the write itself.
+fn cycle_counter_child() -> ! {
+    const REPORT: u64 = 0;
+    let first = read_cycle_counter();
+    user_rt::yield_now();
+    let second = read_cycle_counter();
+    send(REPORT, CYCLE_COUNTER_WORD, first, second);
+    exit();
+}
+
+/// Read the CPU's cycle counter from user mode: one instruction on every architecture, which is
+/// the property DECISIONS 139 chose option 4 to keep.
+///
+/// **Deliberately not in `crates/user_rt`.** A portable userspace cycle-counter API is milestone
+/// 74's deliverable, and it will want to say what the number means (a frequency, a scaling, a
+/// story about what a "cycle" is on a big.LITTLE part). This is the raw read, in the one program
+/// that needs it today, so that 74 designs the API rather than inheriting one from a test vehicle.
+#[cfg(target_arch = "aarch64")]
+fn read_cycle_counter() -> u64 {
+    let value: u64;
+    // SAFETY: `mrs` from `PMCCNTR_EL0` reads a counter and touches no memory, which the options
+    // state. It is UNDEFINED at EL0 unless `PMUSERENR_EL0` permits it, which is exactly what this
+    // role exists to have been granted; an ungranted thread faults here, and that is the negative
+    // half of the test rather than an accident.
+    unsafe {
+        core::arch::asm!("mrs {}, pmccntr_el0", out(reg) value, options(nomem, nostack, preserves_flags));
+    }
+    value
+}
+
+/// **The `x86_64` half, which needs no grant at all.** `rdtsc` is ambient in ring 3 on this
+/// architecture and DECISIONS 139 part 3 kept it that way, so this reads without asking. It is
+/// here because the program is compiled for this target even though no `x86_64` initrd exists to
+/// run it from yet (notes/x86-port.md), and a role that cannot compile is a build failure rather
+/// than a skipped test.
+#[cfg(target_arch = "x86_64")]
+fn read_cycle_counter() -> u64 {
+    let low: u32;
+    let high: u32;
+    // SAFETY: `rdtsc` reads the time-stamp counter into `edx:eax` and touches no memory. `CR4.TSD`
+    // is clear (milestone 228 read it back rather than assuming it), so this is legal in ring 3.
+    unsafe {
+        core::arch::asm!("rdtsc", out("eax") low, out("edx") high, options(nomem, nostack, preserves_flags));
+    }
+    ((high as u64) << 32) | low as u64
+}
+
+/// The riscv64 half: the `cycle` CSR, gated by `scounteren.CY`.
+#[cfg(target_arch = "riscv64")]
+fn read_cycle_counter() -> u64 {
+    let value: u64;
+    // SAFETY: `csrr` from the `cycle` CSR reads a counter and touches no memory. It is an illegal
+    // instruction in U-mode unless `scounteren.CY` permits it; see the aarch64 twin above.
+    unsafe {
+        core::arch::asm!("csrr {}, cycle", out(reg) value, options(nomem, nostack, preserves_flags));
+    }
+    value
 }
 
 /// **An interrupt-driven child, milestone 19d.2b.** Holds a report endpoint (slot 0) and an

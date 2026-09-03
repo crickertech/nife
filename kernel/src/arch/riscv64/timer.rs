@@ -204,6 +204,65 @@ pub fn init() {
     unsafe { asm!("csrw scounteren, {}", in(reg) TM, options(nomem, nostack, preserves_flags)) };
 }
 
+/// **`scounteren.CY`**: the bit that lets U-mode read the `cycle` CSR. Bit 0, the counter's own
+/// index, the same way `TM` is bit 1 for `time`.
+const CY: u64 = 1 << 0;
+
+/// **Can a thread on this hart be granted the cycle counter at all?** Always, on this ISA:
+/// `scounteren` is mandatory in S-mode and the `cycle` counter is one of its three named bits, so
+/// unlike aarch64's `PMUSERENR_EL0` there is no part where the register is absent. The aarch64 twin
+/// has a real answer to give; this exists so the context-switch site and the tests can ask the same
+/// question of all three architectures.
+///
+/// **What a `true` here does not promise** is that the read works. `mcounteren.CY` gates
+/// `scounteren.CY` from M-mode, and this kernel never runs in M-mode: if OpenSBI or a vendor
+/// firmware left `mcounteren.CY` clear, a granted U-mode `rdcycle` still takes an illegal
+/// instruction. Milestone 228 recorded that as unknown on **radon** and it is still unknown.
+// Asked only by tests today (`sched`'s grant round trip and `user`'s EL0 one), which are the
+// callers that have to skip rather than fault on a part with no counter to grant. Marked rather
+// than deleted: milestone 74's cycle-counter work is the caller that will want it in anger.
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn cycle_counter_grantable() -> bool {
+    true
+}
+
+/// **Open or close U-mode's view of the `cycle` CSR for the thread about to run** (milestone 229,
+/// DECISIONS 139 option 4).
+///
+/// Called from the context switch, on every switch, beside
+/// [`mmu::switch_user_root`](crate::arch::mmu::switch_user_root), and the same shape: compare
+/// first, write only when the value changes.
+///
+/// # Why this reads the register back and the aarch64 twin caches
+///
+/// Because it can, and because it must not clobber. `scounteren` always exists on this ISA, so a
+/// `csrr` is available where an `mrs` from `PMUSERENR_EL0` would be UNDEFINED on a part without
+/// `FEAT_PMUv3`. And this one CSR carries two independent policies: `TM` is open for every thread by
+/// design (`init` above says why, and `crates/user_rt`'s `now()` depends on it), while `CY` is
+/// per-thread. A cached "what I last wrote" would have to model `TM` too; reading the live value
+/// and changing one bit cannot get `TM` wrong. That is the whole of the aarch64/riscv64 asymmetry
+/// DECISIONS 139 left open, and it is two honest implementations rather than one abstraction
+/// because the two registers do not agree on either half.
+pub fn set_cycle_counter_grant(granted: bool) {
+    let current: u64;
+    // SAFETY: reading a supervisor CSR touches no memory and changes no state, which the options
+    // state; `scounteren` is mandatory in S-mode, so the read cannot be illegal here.
+    unsafe {
+        asm!("csrr {}, scounteren", out(reg) current, options(nomem, nostack, preserves_flags));
+    }
+
+    let want = if granted { current | CY } else { current & !CY };
+    if want == current {
+        return;
+    }
+
+    // SAFETY: `csrw` to `scounteren` touches no memory, which the options state. The CSR governs
+    // U-mode counter reads only, so no S-mode access this kernel makes depends on its value, and
+    // `want` differs from the live value in `CY` alone: every other bit is written back exactly as
+    // it was read, so `TM` survives whatever this does.
+    unsafe { asm!("csrw scounteren, {}", in(reg) want, options(nomem, nostack, preserves_flags)) };
+}
+
 /// Handle a timer interrupt: count the tick and arm the next deadline (which also clears the pending
 /// interrupt). Called from the trap dispatcher on `scause` = timer.
 pub fn tick() {
@@ -437,6 +496,57 @@ mod tests {
     //! exactly the condition three of these tests need to observe. A tick-based delay would simply
     //! hang, which is its own kind of proof and no use as a test.
 
+    /// **The cycle-counter grant opens and closes `scounteren.CY`, and never touches `TM`**
+    /// (milestone 229, DECISIONS 139 option 4).
+    ///
+    /// `TM` is the assertion that carries this milestone's aarch64/riscv64 asymmetry argument. One
+    /// CSR holds both permissions here: `CY` is per-thread and `TM` is open for every thread by
+    /// design, because `crates/user_rt`'s `now()` is `rdtime` on this ISA. An implementation that
+    /// cached what it last wrote would have had to model `TM` as well; reading the register back
+    /// and changing one bit cannot get it wrong, and this is what says so.
+    ///
+    /// Four calls where only two change anything, because the context switch makes this call on
+    /// every switch and the cheap path has to be right as well as fast. Leaves the register closed,
+    /// which is where `init` left it and where every other test expects it.
+    #[test_case]
+    fn the_cycle_counter_grant_moves_cy_and_leaves_tm_alone() {
+        super::set_cycle_counter_grant(true);
+        super::set_cycle_counter_grant(true);
+        assert_eq!(
+            read_scounteren() & 1,
+            1,
+            "the grant did not open the cycle counter"
+        );
+        assert_eq!(
+            read_scounteren() & 2,
+            2,
+            "granting the cycle counter closed the time counter every thread is meant to have",
+        );
+
+        super::set_cycle_counter_grant(false);
+        super::set_cycle_counter_grant(false);
+        assert_eq!(
+            read_scounteren() & 1,
+            0,
+            "the cycle counter was left open to U-mode"
+        );
+        assert_eq!(
+            read_scounteren() & 2,
+            2,
+            "ungranting the cycle counter closed the time counter with it",
+        );
+    }
+
+    /// `scounteren`, read back out of the hart rather than out of our record of it.
+    fn read_scounteren() -> u64 {
+        let value: u64;
+        // SAFETY: reading a supervisor CSR touches no memory and changes no state, which the
+        // options state; `scounteren` is mandatory in S-mode, so the read cannot be illegal.
+        unsafe {
+            core::arch::asm!("csrr {}, scounteren", out(reg) value, options(nomem, nostack, preserves_flags));
+        }
+        value
+    }
     /// **The counter rate came out of the device tree, not out of this file** (milestone 100).
     ///
     /// The tree is re-read here, independently of the boot path, and the two answers must agree.
