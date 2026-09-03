@@ -1,10 +1,44 @@
 # 232. Audit every check against two questions: does anything run it, and does it block
 
-**Status: NOT-STARTED.** Minted 2026-09-02 by calef, after four independent findings in one day, each
-a different way for this tree's verification to report something that was not true. *(Number
-provisional until the merge queue lands it.)*
+**Status: BUILT 2026-09-03.** Minted 2026-09-02 by calef, after four independent findings in one
+day, each a different way for this tree's verification to report something that was not true.
+*(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** It is an audit of what already exists.
+**The inventory is `notes/check-inventory.md`**, measured 2026-09-03 against `a0059022`: every
+workflow job, every `script/` entry point that renders a verdict, and the two checks that are
+neither. Nineteen check names reach a pull request; eleven block. What it found, ranked by what a
+wrong answer costs:
+
+1. **The mutation workflow has never once succeeded.** Four scheduled runs since it was written
+   (2026-08-10, 08-17, 08-24, 08-31), every one red. `design/fatal-risks.md`'s third risk stands at
+   MEASURED green on a 2026-08-03 number and closes by saying *"the weekly workflow already publishes
+   the report."* It has published nothing, through 2,529 commits.
+2. **Miri has been red for three weeks on a missing environment variable, not on undefined
+   behaviour.** `crates/manual/tests/render.rs` reads `CARGO_MANIFEST_DIR` at run time; Miri does not
+   forward the environment. The same test passes under `cargo test`. A check that cries wolf on a
+   schedule is worse than one nobody runs, because the only available response is to stop reading it.
+3. **`re-falsify the harnesses this change can reach` does not block, and PR #663 merged through the
+   hole** on 2026-09-03 with that check red and all eleven required checks green.
+4. **Three instruments run nowhere**, and the two cheap ones were measured rather than assumed:
+   `script/interleaving-check` at **12.4 seconds** (loom, 26 harnesses, all green) and
+   `script/crate-probes` at **about 3 minutes** (43 of 50, which is exactly the split
+   `notes/crates-io-on-nife.md` records, so fatal risk 1's instrument is the one place the audit
+   found the record already true). `script/rule-violations --check` is the third.
+5. **`image permissions` and `architect hold` are already-recorded open asks**, both waiting on the
+   same repository setting, both saying so in their own files.
+
+**The recommendation, which is calef's to take:** require `re-falsify the harnesses this change can
+reach`, `image permissions`, and `architect hold`. Refuse `verify scope`, the `prove` shards and
+`draft gate`, which are either aggregated by a required check already or are not verdicts. The note
+argues the `architect hold` case against this block's own sentence, since the workflow was built to
+be required and says so three times.
+
+**Risk 3's status was not touched**, per this block. The two facts it needs are in the note: the
+number is a month old, and the sentence that made a stale number acceptable is false.
+
+It was minted with no gate, on the grounds that it is an audit of what already exists. That held,
+with one qualification worth recording: two of the five findings are visible only in GitHub's run
+history and in nothing that lives in this tree, so the audit needed the API as much as the files.
 
 **In brief.** AGENTS.md's second principle says the method works because of the gates, the proofs and
 the review discipline. `design/fatal-risks.md` risk 3 (the tests do not test anything, and the

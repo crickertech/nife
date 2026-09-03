@@ -24,6 +24,13 @@ in the code or the conversation doesn't make sense, it belongs here.
   `setup`, `test`, `server`, `console`, and friends, thin wrappers over `cargo xtask` so every
   repo has the same first command. Also: why `script/` and `scripts/` both exist.
 
+- [Every check in this repository](check-inventory.md): milestone 232's audit, asking of every
+  check whether anything runs it, whether it blocks, and what a green result actually asserts.
+  Nineteen check names reach a pull request and eleven of them block; three instruments run nowhere
+  at all, two of which cost twelve seconds and three minutes; the mutation workflow behind fatal
+  risk 3 has never once succeeded, and Miri has been red for three weeks on a missing environment
+  variable rather than on undefined behaviour. Name provisional.
+
 - [The merge queue, and the three things that watch it](merge-queue.md): `scripts/merge-drain.sh`
   lands every pull request that does not need calef; `scripts/trunk-health.sh` says when `main` goes
   red and when it recovers; `scripts/lane-claim-check.sh` names a pushed lane branch that opened no

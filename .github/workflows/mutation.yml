@@ -16,6 +16,21 @@ name: mutation testing
 # Weekly rather than per-push for cost, sharded four ways for wall clock: the full run is ~6,000
 # mutants, each one a build plus a test run. Shards split the mutant list, not the crates, so the
 # four jobs finish together instead of one carrying filesystem_proto alone.
+#
+# BUGS: **this workflow has never once succeeded.** Four scheduled runs, 2026-08-10 through
+# 2026-08-31, every one red, found by milestone 232's audit (audit every check against two
+# questions: does anything run it, and does it block) on 2026-09-03. On the last run all four
+# shards died together about fourteen minutes in with `The runner has received a shutdown signal`,
+# which is the shape of a run being reclaimed rather than of a defect in a shard; on the three
+# before it, shard 4 died in about twenty seconds every time while its siblings ran for half an
+# hour. Whether that is a memory kill, an eviction, or something in `script/mutation --shard 4/4`
+# is open, and the step logs had aged out of `gh` by the time anyone looked.
+#
+# The cost is not the missing weekly report. `design/fatal-risks.md`'s third risk stands at
+# MEASURED green on a 2026-08-03 number and closes by saying "the weekly workflow already publishes
+# the report", and that sentence is what makes a stale number acceptable. See
+# notes/check-inventory.md. Repairing this is a milestone of its own; the audit was forbidden from
+# growing into one.
 
 on:
   schedule:

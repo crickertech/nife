@@ -1821,14 +1821,19 @@ pub fn boot(
     cap_delete(term_ep);
     cap_delete(term_out);
 
-    // 6. The undertaker, out of what is left of our own budget. One capability, `READ` on the
-    // supervision endpoint, and nothing else: it can free a job's memory and can never spend it.
+    // 6. The undertaker, out of what is left of our own budget. Two capabilities and nothing else:
+    // `READ` on the supervision endpoint, so it can free a job's memory and can never spend it, and
+    // `WRITE` on the result endpoint, so it can say the one word a job the kernel killed cannot say
+    // for itself (milestone 235, `grant_plan::spawnproto::JOB_FAULTED`). `WRITE` without `GRANT`:
+    // the right to speak on that channel, not to hand it to anything.
+    //
+    // Slot order is the contract with the program, which names them `DEATHS` (0) and `REPORT` (1).
     let reaper = must(build_child(
         own_ut,
         own_ut,
         &reaper_elf,
         &ChildEndowment {
-            caps: &[(deaths, abi::rights::READ)],
+            caps: &[(deaths, abi::rights::READ), (result_ep, abi::rights::WRITE)],
             stack_pages: CHILD_STACK_PAGES,
             ..ChildEndowment::new()
         },
