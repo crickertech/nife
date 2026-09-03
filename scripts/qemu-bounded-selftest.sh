@@ -34,6 +34,8 @@
 #    killer is detached at all.
 # 6. **a fast child in a pipeline does not block to the end of the bound** (milestone 38).
 # 7. **a failure names who holds the disk image** (milestone 226).
+# 8. **and does not name a mere reader**, which is what made the first version of that diagnostic
+#    fire on a green `script/test`.
 #
 # # BUGS
 #
@@ -201,6 +203,24 @@ fi
 kill -TERM "$holder" 2>/dev/null || true
 sleep 3
 pkill -f "$mark" 2>/dev/null || true
+
+echo "==> 8. a reader is not reported, because the lock is about writing"
+img="$TMP/read-only.img"
+dd if=/dev/zero of="$img" bs=1048576 count=1 2>/dev/null
+# A plain reader, which is what `script/test` has: its three legs share one read-only OVMF
+# firmware file, so before this filter every green run that overlapped another lane reported a
+# holder and was wrong to. The command is a failing `sh` rather than a QEMU because the argument
+# scan does not care what ran, only that it failed and named a path.
+sh -c 'exec 3<"$1"; sleep 20' sh "$img" &
+reader=$!
+sleep 1
+diag="$("$BOUNDED" 5 sh -c 'exit 1' sh "$img" 2>&1 >/dev/null || true)"
+if echo "$diag" | grep -q "is still open by another process"; then
+    fail "a read-only holder was reported: $diag"
+else
+    pass "a read-only holder is not reported"
+fi
+kill -TERM "$reader" 2>/dev/null || true
 
 echo
 if [ "$FAILURES" -eq 0 ]; then

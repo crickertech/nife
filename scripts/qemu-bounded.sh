@@ -70,8 +70,11 @@
 # hundred syscalls. That is not measurable next to an emulator.
 #
 # **The lock diagnostic only inspects arguments that look like disk images** (`*.img`,
-# `*.qcow2`, `*.raw`, and any `file=` field of a comma-separated option). A lock held on
-# something named differently is not reported.
+# `*.qcow2`, `*.raw`, and any `file=` field of a comma-separated option), and only reports
+# holders that have the file open for **writing**. A lock held on something named differently is
+# not reported, and neither is a reader, which is deliberate: the message is about a write lock,
+# and reporting readers made it fire on every green `script/test` that overlapped another lane,
+# because the three legs share one read-only OVMF firmware file.
 
 set -e
 
@@ -103,7 +106,15 @@ report_lock_holders() {
                 *) continue ;;
             esac
             [ -f "$path" ] || continue
-            holders="$(lsof -t -- "$path" 2>/dev/null | tr '\n' ' ')"
+            # Only holders with the file open for **writing**, which is what the lock is about.
+            # Reporting every reader cries wolf on a green run: `script/test`'s three legs share
+            # one read-only OVMF firmware file, so a run that overlaps another lane's found a
+            # second QEMU on it every time, said so, and was wrong to. `lsof -F` is the machine
+            # readable form: `p<pid>` starts a process, `a<mode>` gives the access mode of the
+            # descriptor before it, and `u` or `w` there means somebody can write.
+            holders="$(lsof -Fpfa -- "$path" 2>/dev/null |
+                awk '/^p/ { pid = substr($0, 2) } /^a/ { if (substr($0, 2) ~ /[wu]/) print pid }' |
+                sort -u | tr '\n' ' ')"
             [ -n "$holders" ] || continue
             echo "qemu-bounded.sh: $path is still open by another process:" >&2
             for h in $holders; do
