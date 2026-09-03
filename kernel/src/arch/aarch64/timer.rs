@@ -61,7 +61,7 @@
 // so a test that stops exercising one is a gate failure instead of silence. (The header comment
 // this replaces predicted callers in "milestone 6 and 8", both long since shipped without them.)
 
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use aarch64_cpu::registers::{
     CNTFRQ_EL0, CNTKCTL_EL1, CNTV_CTL_EL0, CNTV_CVAL_EL0, CNTVCT_EL0, ID_AA64DFR0_EL1,
@@ -114,6 +114,25 @@ static TICKS: [AtomicU64; MAX_CPUS] = [const { AtomicU64::new(0) }; MAX_CPUS];
 /// frequency is a property of the board, and a hardcoded one would make our 10 ms into
 /// something else entirely on a Pi.
 static INTERVAL: AtomicU64 = AtomicU64::new(0);
+
+/// **Does this core have the register the cycle-counter grant is written to** (milestone 229).
+/// `PMUSERENR_EL0` exists only with FEAT_PMUv3, so `init` reads `ID_AA64DFR0_EL1.PMUVer` once per
+/// core and records the answer here rather than re-reading an ID register on every context switch.
+/// Per core because `PMUVer` is a per-PE ID register and this kernel does not assume a homogeneous
+/// machine anywhere else either.
+static PMU_PRESENT: [AtomicBool; MAX_CPUS] = [const { AtomicBool::new(false) }; MAX_CPUS];
+
+/// **What this core last wrote to `PMUSERENR_EL0`**, as a bool: open (`CR` set) or closed (zero).
+/// `init` writes zero, so `false` is the truth at boot on every core.
+///
+/// This is a cache rather than a read-back, which is the one place [`set_cycle_counter_grant`]
+/// departs from `mmu::switch_user_root`'s shape, and the reason is the register above: on a part
+/// without FEAT_PMUv3 an `mrs` from `PMUSERENR_EL0` is as UNDEFINED as an `msr` to it, so "read
+/// what the hardware holds" is not available on the architecture the way it is for `TTBR0_EL1`.
+/// Nothing else in this kernel writes `PMUSERENR_EL0` after `init`, so the cache cannot go stale
+/// behind our back; `close_cycle_counter_to_el0`'s doc comment is where a future PMU driver would
+/// meet that constraint.
+static COUNTER_OPEN: [AtomicBool; MAX_CPUS] = [const { AtomicBool::new(false) }; MAX_CPUS];
 
 /// Start the heartbeat.
 ///
@@ -190,6 +209,10 @@ fn close_cycle_counter_to_el0() {
     if pmuver == 0 || pmuver == 0xf {
         return;
     }
+    // Milestone 229 reads this back on the context-switch path, where re-reading an ID register
+    // every switch would be paying for an answer that cannot change. Recorded here because this is
+    // the one place that already had to work it out.
+    PMU_PRESENT[cpu::id()].store(true, Ordering::Relaxed);
 
     // SAFETY: `msr pmuserenr_el0, xzr` only *removes* EL0 permissions; every field of that register
     // is an EL0 enable, so zero cannot make any access newly legal, and it does not affect EL1's own
@@ -202,6 +225,78 @@ fn close_cycle_counter_to_el0() {
             options(nomem, nostack, preserves_flags)
         );
     }
+    COUNTER_OPEN[cpu::id()].store(false, Ordering::Relaxed);
+}
+
+/// **Can a thread on this core be granted the cycle counter at all?** False on a part with no
+/// FEAT_PMUv3, where `PMCCNTR_EL0` and the register that gates it both simply do not exist.
+///
+/// The grant is still *accepted* on such a part (a manifest is a declaration, and refusing it at
+/// `START` would make a program un-runnable on a board rather than merely un-instrumented); this is
+/// what lets a test say "there is nothing here to measure" instead of faulting.
+pub fn cycle_counter_grantable() -> bool {
+    PMU_PRESENT[cpu::id()].load(Ordering::Relaxed)
+}
+
+/// **Open or close EL0's view of `PMCCNTR_EL0` for the thread about to run** (milestone 229,
+/// DECISIONS 139 option 4).
+///
+/// Called from the context switch, on every switch, right beside
+/// [`mmu::switch_user_root`](crate::arch::mmu::switch_user_root), and deliberately the same shape:
+/// compare first, write only when the value changes. If no thread on this core has ever been
+/// granted the counter, the value never changes and the whole cost is a load, a compare and a
+/// return.
+///
+/// # What it writes
+///
+/// `PMUSERENR_EL0.CR` (bit 2), and nothing else. `CR` is the field that permits an EL0 read of
+/// `PMCCNTR_EL0` specifically; `EN` (bit 0) would open every PMU register at once and `ER` (bit 3)
+/// the event counters, and neither is what DECISIONS 139 granted. So a granted thread runs with
+/// exactly `CR` set and every other thread runs with the register at zero, which is what
+/// [`close_cycle_counter_to_el0`] established at boot.
+///
+/// # What it is not
+///
+/// It is not timing confinement. An ungranted thread can still time itself against `CNTVCT_EL0`
+/// (41 ns), and two threads sharing a word reconstruct a far finer clock than that; see
+/// `notes/confinement-claims.md`. What closing the register buys is that the *cheap accurate*
+/// instrument is granted rather than ambient.
+///
+/// # No barrier, on purpose
+///
+/// There is no `isb` here. The write has to be visible to the instruction stream at EL0, and the
+/// only way back to EL0 from this path is the `eret` that ends the return-to-user sequence, which
+/// is a context-synchronizing event by definition. Linux's arm64 per-task hook for the same
+/// register writes it the same way, for the same reason.
+pub fn set_cycle_counter_grant(granted: bool) {
+    let cpu = cpu::id();
+    if COUNTER_OPEN[cpu].load(Ordering::Relaxed) == granted {
+        return;
+    }
+    if !PMU_PRESENT[cpu].load(Ordering::Relaxed) {
+        // No FEAT_PMUv3: there is no register to write and nothing to open. Leaving the cache
+        // `false` means a granted thread costs the same two loads every switch here rather than
+        // one, on a board where the grant can never be honoured anyway.
+        return;
+    }
+
+    // `CR`, bit 2 of `PMUSERENR_EL0`: "EL0 using AArch64: EL0 access to `PMCCNTR_EL0` is enabled."
+    const CR: u64 = 1 << 2;
+    let value = if granted { CR } else { 0 };
+
+    // SAFETY: `PMUSERENR_EL0` is present, which the `PMU_PRESENT` check above establishes from this
+    // core's own `ID_AA64DFR0_EL1.PMUVer`, so the `msr` is a legal EL1 operation and not UNDEFINED.
+    // Every field of the register is an EL0 *enable*, so no value written here can affect what EL1
+    // may do, nor make any EL1 access newly legal; EL1's own PMU access is governed by `MDCR_EL2`
+    // and `PMCR_EL0`. It touches no memory and clobbers no flags, which the options state.
+    unsafe {
+        core::arch::asm!(
+            "msr pmuserenr_el0, {}",
+            in(reg) value,
+            options(nomem, nostack, preserves_flags)
+        );
+    }
+    COUNTER_OPEN[cpu].store(granted, Ordering::Relaxed);
 }
 
 /// Set the first deadline and enable.

@@ -317,6 +317,16 @@ pub(crate) fn invoke(
                 }
                 thread_control_block_cap_insert(tid, a0, a1, a2)
             }
+            // Milestone 229: a creation-time grant, not a live-thread method. `sched` refuses a
+            // TCB that is not an embryo, the same refusal `CONFIGURE` and `CAP_INSERT` make, which
+            // is what puts this in the thread's spawn manifest rather than in its repertoire.
+            abi::thread_control_block::GRANT_CYCLE_COUNTER => {
+                if !cap.rights.allows(Rights::WRITE) {
+                    return Err(Error::NotPermitted);
+                }
+                sched::grant_cycle_counter(tid)?;
+                Ok(0)
+            }
             abi::thread_control_block::START => {
                 if !cap.rights.allows(Rights::WRITE) {
                     return Err(Error::NotPermitted);

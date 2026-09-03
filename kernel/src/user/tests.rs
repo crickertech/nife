@@ -2499,6 +2499,47 @@ fn init_builds_a_worker_and_passes_it_an_argument() {
     init.release_or_fail("an init test's building budget");
 }
 
+/// **Milestone 229: a thread granted the cycle counter can read it, and the grant is written by
+/// the context switch.** init builds a child, calls `ThreadControlBlock::GRANT_CYCLE_COUNTER` on
+/// the embryo, starts it, and the child reads `PMCCNTR_EL0` (aarch64) or the `cycle` CSR
+/// (riscv64) and reports.
+///
+/// **The report arriving is the whole assertion.** Milestone 228 closed both registers to user
+/// mode at init on every core, so without the grant this child's first read is a trap the kernel
+/// turns into a fault, and nothing is sent. The counter values it carries are not checked: QEMU
+/// leaves `PMCR_EL0.E` clear, so `PMCCNTR_EL0` reads zero forever there, and asserting on the
+/// number would be asserting on the emulator.
+///
+/// **What this does not prove**, and it is the honest half: nothing here checks that an *ungranted*
+/// thread is refused. Proving that needs the fault to be caught and reported rather than to end the
+/// test, which is the supervision path, and it is a bigger fixture than this milestone earned. The
+/// evidence for the closed side is milestone 228's, which is that the register is written to zero
+/// at init on every core and that disassembly shows the write.
+#[test_case]
+fn a_granted_thread_reads_the_cycle_counter() {
+    const INIT_CYCLE_COUNTER_ROLE: u64 = 41;
+    /// `hello`'s `CYCLE_COUNTER_WORD`.
+    const CYCLE_COUNTER_WORD: u64 = 0xC1C1E;
+
+    if !crate::arch::timer::cycle_counter_grantable() {
+        crate::testing::skip!("this core has no user-readable cycle counter to grant");
+    }
+
+    let report = crate::sched::create_rendezvous();
+    let init = spawn_init(
+        initrd().expect("no initrd"),
+        INIT_CYCLE_COUNTER_ROLE,
+        report,
+    );
+
+    let message = crate::sched::ipc_recv(report);
+    assert_eq!(
+        message[0], CYCLE_COUNTER_WORD,
+        "the granted child did not report: it was killed reading a counter it was granted",
+    );
+    init.release_or_fail("an init test's building budget");
+}
+
 /// **Milestone 19e: init runs a real compute workload and it comes out right.** The worker's
 /// `n*n` proved the mechanism; this proves a *substantial* program. init builds the `"coremark"`
 /// binary (a CoreMark-derived run: list sort, matrix multiply, state machine, folded into a CRC),

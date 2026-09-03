@@ -1844,18 +1844,23 @@ pub fn schedule() {
             .map(|s| s.ttbr0())
             .unwrap_or_else(crate::arch::mmu::reserved_root);
 
+        // The incoming thread's cycle-counter grant (milestone 229, DECISIONS 139 option 4), read
+        // here for the same reason the root is: this is the last point the lock is held. A kernel
+        // thread's is `false`, like every user thread nobody granted it to.
+        let next_cycle_counter = sched.threads.get(next).unwrap().cycle_counter_grant;
+
         // Copy the two raw pointers out before the lock drops. The assembly writes through the
         // first and reads the second, and both threads' `Box`es keep their contents pinned.
         let prev_slot: *mut *mut Context = &mut sched.threads.get_mut(current).unwrap().context;
         let next_ctx: *mut Context = sched.threads.get(next).unwrap().context;
 
-        Some((prev_slot, next_ctx, next_root))
+        Some((prev_slot, next_ctx, next_root, next_cycle_counter))
     };
     // Rule 1: THE LOCK IS RELEASED HERE, before the switch. Holding it across `switch_to` would
     // leave it held by a thread that is not running, and the next thread to want it would spin
     // forever waiting for a thread that can only be scheduled by taking the lock.
 
-    if let Some((prev_slot, next_ctx, next_root)) = switch {
+    if let Some((prev_slot, next_ctx, next_root, next_cycle_counter)) = switch {
         // Install the incoming thread's address space FIRST. `TTBR0_EL1` is one register, shared
         // by everybody, and a thread that resumes at EL0 in the previous thread's low half is
         // running a stranger's code. (No-ops, including no TLB flush, when the root is already
@@ -1868,6 +1873,15 @@ pub fn schedule() {
         // though the lock is not held. The lock is released on purpose (rule 1, above), which is
         // exactly why this obligation cannot be a borrow and has to be a sentence.
         unsafe { crate::arch::mmu::switch_user_root(next_root) };
+
+        // And the incoming thread's authority to read the cycle counter, which is the same kind of
+        // fact about the same instant: one register, shared by everybody, that has to say what the
+        // thread about to run was granted rather than what the last one was. Needs no `unsafe`,
+        // because unlike `TTBR0_EL1` this register names no memory and points at nothing that can
+        // be freed: getting it wrong opens or closes a counter, it does not hand a thread a
+        // stranger's pages. Costs a compare when the value already matches, which is every switch
+        // on a machine where nothing is granted. See `arch::timer::set_cycle_counter_grant`.
+        crate::arch::timer::set_cycle_counter_grant(next_cycle_counter);
 
         // SAFETY: both pointers name live `Context`s owned by boxed `Thread`s in the map, and
         // interrupts are masked so nothing can reorder underneath us.
@@ -3194,6 +3208,29 @@ pub fn configure_thread_control_block(
     Ok(())
 }
 
+/// **Grant an embryo the cycle counter** (milestone 229, DECISIONS 139 option 4): the thread this
+/// TCB names may read `PMCCNTR_EL0` (aarch64) or the `cycle` CSR (riscv64) from user mode once it
+/// runs. `x86_64` already lets every thread read the TSC and this changes nothing there, which is
+/// DECISIONS 139 part 3 and a stated exception to §19 rather than a gap.
+///
+/// **Refuses a non-embryo**, exactly as [`configure_thread_control_block`] and
+/// [`thread_control_block_insert_cap`] do, and that refusal is the security property rather than
+/// housekeeping: it is what makes this a field in the thread's spawn manifest instead of something
+/// a running program can ask for. A timing instrument acquired at will is a timing instrument
+/// nobody declared.
+///
+/// One-way: there is no ungrant, because an embryo starts closed and nothing but this opens it.
+pub fn grant_cycle_counter(tid: ThreadId) -> Result<(), abi::Error> {
+    let mut guard = IPC_TABLES.lock();
+    let sched = guard.as_mut().ok_or(abi::Error::NoSuchSlot)?;
+    let t = sched.threads.get_mut(tid).ok_or(abi::Error::NoSuchSlot)?;
+    if t.handshake.state != State::Embryo {
+        return Err(abi::Error::WrongObject);
+    }
+    t.cycle_counter_grant = true;
+    Ok(())
+}
+
 /// **Install a capability into an embryo's capability table** (milestone 19c.3): the child's initial
 /// authority, granted one slot at a time before it runs. Refuses a non-embryo. Returns the child
 /// slot the capability landed in.
@@ -3685,6 +3722,69 @@ mod tests {
     //! arguing about since DECISIONS.md §5. Everything else here is scaffolding for it.
 
     use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+
+    /// **A running thread cannot grant itself the cycle counter** (milestone 229, DECISIONS 139
+    /// part 2). The grant is a field in the thread's spawn manifest, and this is the mechanism that
+    /// makes that sentence true rather than descriptive: `grant_cycle_counter` refuses anything
+    /// that is not an `Embryo`, so the only window in which the bit can be set is before the thread
+    /// has ever run.
+    ///
+    /// It asks on behalf of the caller, which is the strongest available form of the question: this
+    /// thread is `Running` by definition of executing this line, and it holds every authority a
+    /// kernel thread has. `WrongObject` is the same refusal `CONFIGURE` and `CAP_INSERT` make on a
+    /// started thread, reused rather than a new error minted for a new way of being too late.
+    #[test_case]
+    fn a_running_thread_cannot_be_granted_the_cycle_counter() {
+        let me = super::current_thread_id();
+        assert_eq!(
+            super::grant_cycle_counter(me),
+            Err(abi::Error::WrongObject),
+            "a live thread was allowed to acquire a timing instrument it was not created with",
+        );
+    }
+
+    /// **Writing the grant is idempotent and does not disturb its neighbours** (milestone 229).
+    /// The context switch calls `set_cycle_counter_grant` on every switch, so the cheap path (the
+    /// value already matches) has to be correct as well as fast, and on riscv64 the register it
+    /// writes carries `scounteren.TM`, which is open for every thread by design and must survive.
+    ///
+    /// Restores the closed state it found, because this runs on a live core between other tests.
+    #[test_case]
+    fn granting_and_ungranting_the_cycle_counter_is_repeatable() {
+        use crate::arch::timer::{cycle_counter_grantable, set_cycle_counter_grant};
+        if !cycle_counter_grantable() {
+            crate::testing::skip!("this core has no user-readable cycle counter to grant");
+        }
+        // Four writes where only two change anything: the compare has to absorb the repeats rather
+        // than the register.
+        set_cycle_counter_grant(true);
+        set_cycle_counter_grant(true);
+        set_cycle_counter_grant(false);
+        set_cycle_counter_grant(false);
+
+        // On riscv64 this is the load-bearing assertion, and it is why the two architectures got
+        // two implementations rather than one: `TM` shares the CSR with the bit above, and a
+        // cached-value implementation would have had to model it. `user_rt`'s `now()` is what
+        // breaks if this ever stops holding.
+        #[cfg(target_arch = "riscv64")]
+        {
+            let scounteren: u64;
+            // SAFETY: reading a supervisor CSR touches no memory and changes no state.
+            unsafe {
+                core::arch::asm!("csrr {}, scounteren", out(reg) scounteren, options(nomem, nostack, preserves_flags));
+            }
+            assert_eq!(
+                scounteren & 1,
+                0,
+                "the cycle counter was left open to U-mode"
+            );
+            assert_eq!(
+                scounteren & 2,
+                2,
+                "granting the cycle counter closed the time counter every thread is meant to have",
+            );
+        }
+    }
 
     /// Wait for `cond`, bounded by the CLOCK rather than by a yield count.
     ///

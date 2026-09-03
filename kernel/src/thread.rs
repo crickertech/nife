@@ -452,6 +452,21 @@ pub struct Thread {
     /// thread, which never drops to EL0 and runs its closure instead.
     pub(crate) entry: (u64, u64), // (entry_va, user_sp)
 
+    /// **May this thread read the CPU's cycle counter from user mode** (milestone 229, DECISIONS
+    /// 139 option 4): the per-thread grant the context switch enforces.
+    ///
+    /// Set once, on an embryo, by `ThreadControlBlock::GRANT_CYCLE_COUNTER`, and never afterwards:
+    /// the whole point of putting it in the spawn manifest rather than on a live thread is that a
+    /// program cannot acquire a timing instrument it was not created with. `false` on every kernel
+    /// thread and on every user thread nobody asked for it, which today is all of them.
+    ///
+    /// `sched::schedule` reads it beside the incoming thread's address-space root and hands it to
+    /// `arch::timer::set_cycle_counter_grant`, which writes the enable only when it differs from
+    /// what the core already holds. So a machine where nothing is granted pays one compare.
+    ///
+    /// *(Field name provisional: names are calef's.)*
+    pub(crate) cycle_counter_grant: bool,
+
     /// **The child's initial `x0`, `x1`, `x2`** (milestone 19d/19e): the words `START` hands the
     /// new EL0 thread in its first registers, so a loader can pass a child its role plus data (a
     /// worker's input, a driver's DMA address). All zero for a kernel thread.
@@ -538,6 +553,7 @@ impl Thread {
             fault_ep: None,
             thread_control_block_region: None,
             fault_msg: None,
+            cycle_counter_grant: false,
         }
     }
 
@@ -569,6 +585,7 @@ impl Thread {
             fault_ep: None,
             thread_control_block_region: None,
             fault_msg: None,
+            cycle_counter_grant: false,
         }
     }
 
@@ -674,6 +691,7 @@ impl Thread {
                 fault_ep: None,
                 thread_control_block_region: None,
                 fault_msg: None,
+                cycle_counter_grant: false,
             });
         }
         true
@@ -719,6 +737,7 @@ impl Thread {
             fault_ep: None,
             thread_control_block_region: None,
             fault_msg: None,
+            cycle_counter_grant: false,
         }
     }
 

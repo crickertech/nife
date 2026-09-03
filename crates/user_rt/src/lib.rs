@@ -526,6 +526,29 @@ pub fn tcb_configure(tcb_slot: u64, entry: u64, user_sp: u64, aspace_slot: u64) 
     }
 }
 
+/// `GRANT_CYCLE_COUNTER`: let the (embryo) thread in `tcb_slot` read the CPU's cycle counter from
+/// user mode once it runs (milestone 229, DECISIONS 139 option 4). Part of building a thread, like
+/// [`tcb_configure`] and [`tcb_cap_insert`]: the kernel refuses a TCB that has already been
+/// started, so a running program cannot ask for this for itself. `0` on success; a negative
+/// `abi::Error`.
+///
+/// On `x86_64` this succeeds and changes nothing, because `rdtsc` is ambient there; see
+/// `abi::thread_control_block::GRANT_CYCLE_COUNTER` for the three-architecture table and for what
+/// this does *not* buy, which is timing confinement.
+pub fn tcb_grant_cycle_counter(tcb_slot: u64) -> i64 {
+    // SAFETY: `svc`/`ecall`. The kernel validates `WRITE` on the capability and that the thread is
+    // an embryo before it records anything.
+    unsafe {
+        invoke(
+            tcb_slot,
+            abi::thread_control_block::GRANT_CYCLE_COUNTER,
+            0,
+            0,
+            0,
+        )
+    }
+}
+
 /// `START`: make the TCB in `tcb_slot` runnable. `x0`, `x1`, `x2` seed the child's own `x0`/`x1`/
 /// `x2` (`a0`/`a1`/`a2` on RISC-V) on its first instruction, the kernel-side spelling of "this
 /// thread's input" (`abi::thread_control_block::START`'s own doc comment says `_, _, _`, which is
