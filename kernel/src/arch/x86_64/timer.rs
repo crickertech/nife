@@ -320,10 +320,15 @@ pub fn init() {
 /// that way. Answering `true` is the honest answer to the question the caller is asking, which is
 /// "will a granted thread be able to read a cycle-rate counter", and not a claim that anything is
 /// gated.
+///
+/// **Built only under `test` or `--features cycle_counter_grant`** (milestone 237): the grant is
+/// a measurement build the way `soak` is. `kernel/Cargo.toml`'s feature block carries the
+/// reasoning and the measured cost. Milestone 228's closed default at `init` is NOT gated.
 // Asked only by tests today (`sched`'s grant round trip and `user`'s EL0 one), which are the
 // callers that have to skip rather than fault on a part with no counter to grant. Marked rather
 // than deleted: milestone 74's cycle-counter work is the caller that will want it in anger.
 #[cfg_attr(not(test), allow(dead_code))]
+#[cfg(any(test, feature = "cycle_counter_grant"))]
 pub fn cycle_counter_grantable() -> bool {
     true
 }
@@ -346,7 +351,12 @@ pub fn cycle_counter_grantable() -> bool {
 ///
 /// So on this architecture every thread runs with the counter open, granted or not, and a program
 /// written against the grant works here for a reason it should not rely on.
+///
+/// **Built only under `test` or `--features cycle_counter_grant`** (milestone 237): the grant is
+/// a measurement build the way `soak` is. `kernel/Cargo.toml`'s feature block carries the
+/// reasoning and the measured cost. Milestone 228's closed default at `init` is NOT gated.
 #[inline(always)]
+#[cfg(any(test, feature = "cycle_counter_grant"))]
 pub fn set_cycle_counter_grant(_granted: bool) {}
 
 /// **Take one tick.** Called from the trap handler when [`irq::TIMER_VECTOR`] arrives.

@@ -467,6 +467,13 @@ pub struct Thread {
     /// what the core already holds. So a machine where nothing is granted pays one compare.
     ///
     /// *(Field name provisional: names are calef's.)*
+    ///
+    /// **Built only under `test` or `--features cycle_counter_grant`** (milestone 237). The grant
+    /// costs `sched::schedule` 192 bytes it was spending for an instrument nothing can request, so
+    /// the whole mechanism is a measurement build the way `soak` is; `kernel/Cargo.toml`'s feature
+    /// block is where the reasoning and the measured cost live. Every other `cfg` on this mechanism
+    /// spells the same predicate, and `test` is in it so milestone 229's proofs keep compiling it.
+    #[cfg(any(test, feature = "cycle_counter_grant"))]
     pub(crate) cycle_counter_grant: bool,
 
     /// **The child's initial `x0`, `x1`, `x2`** (milestone 19d/19e): the words `START` hands the
@@ -555,6 +562,7 @@ impl Thread {
             fault_ep: None,
             thread_control_block_region: None,
             fault_msg: None,
+            #[cfg(any(test, feature = "cycle_counter_grant"))]
             cycle_counter_grant: false,
         }
     }
@@ -587,6 +595,7 @@ impl Thread {
             fault_ep: None,
             thread_control_block_region: None,
             fault_msg: None,
+            #[cfg(any(test, feature = "cycle_counter_grant"))]
             cycle_counter_grant: false,
         }
     }
@@ -693,6 +702,7 @@ impl Thread {
                 fault_ep: None,
                 thread_control_block_region: None,
                 fault_msg: None,
+                #[cfg(any(test, feature = "cycle_counter_grant"))]
                 cycle_counter_grant: false,
             });
         }
@@ -739,6 +749,7 @@ impl Thread {
             fault_ep: None,
             thread_control_block_region: None,
             fault_msg: None,
+            #[cfg(any(test, feature = "cycle_counter_grant"))]
             cycle_counter_grant: false,
         }
     }
