@@ -39,6 +39,37 @@
 # rather than given a job, so it reuses that job's build instead of paying ten minutes for thirty
 # seconds of checking. Run it directly when you touch init, the shell, or what the boot grants them.
 #
+# BUGS
+#
+# **The transcript is written by two processes at once and can arrive shuffled.** The kernel prints
+# its user-fault reports with its own UART driver; the userspace `console` server drives the same
+# device from another address space; nothing arbitrates. So a thread dying while init prints
+# splices the two lines together at byte granularity, nondeterministically: milestone 230 watched
+# the same commit pass one CI run and fail the next, and watched `construction budget dropped` come
+# out with a longest surviving run of five characters. That is a defect in the system rather than in
+# this script, it has consequences well past this gate (anything reading a board's serial log), and
+# it is proposed as its own milestone in `design/roadmap/230-shell-check-is-red.md`.
+#
+# What this script does about it: the two boot-line checks put their teeth on the sentence init
+# prints when the answer is NO, searched exactly, because interleaving can destroy a string and
+# cannot create one. A line that cannot be read at all is reported rather than failed, but only when
+# the kernel demonstrably wrote during the boot; with one writer there is nothing to shuffle, so a
+# missing line is a real one and still fails. See `boot_claim` in `xtask/src/main.rs`.
+#
+# **The cost of that choice, stated plainly: it can pass a boot it should have failed.** If init's
+# report were deleted AND a thread faulted in the same boot, this reads the second as an explanation
+# for the first. Both halves have to happen together and the second is itself a defect the
+# transcript shows. The trade is deliberate: a false red taxes every lane whose change had nothing
+# to do with it, and a false green here is undone by repetition, since an init that stops dropping
+# its budget prints the failing sentence on every boot of both legs on every push.
+#
+# **A killed user thread is not itself a failure here**, which is how `login` dying at `_start` on
+# every boot went unnoticed through passing runs (`user/src/login.rs`'s own BUGS). That assertion is
+# the obvious next ratchet and belongs with the fix for it.
+#
+# **The two graphical legs are red** behind milestone 177's display driver bug, and neither
+# `script/gates` nor CI runs them.
+#
 # Name: unrecorded, and audibly collided with. It boots the kernel's `--features shell`
 # configuration and types at the prompt; `shellcheck`, the shell linter this tree runs inside
 # `script/lint`, is one hyphen away. The boot mode it names is itself a stale word, since

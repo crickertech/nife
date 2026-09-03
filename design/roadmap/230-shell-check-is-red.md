@@ -103,20 +103,84 @@ It also happens on **every** local riscv64 boot. The interleaving simply landed 
 there, which is why local was green: whether the shuffle lands on a line the gate reads is timing,
 and a runner is not this laptop.
 
-Three things changed as a result:
+## Two matchers lost, and what replaced betting on a matcher
 
-- **The matcher tolerates it, under a signature rather than a budget.** `find_marker` accepts a
-  marker whose characters are interleaved only when the text wedged into it carries the kernel's own
-  fault-report signature, and only for the two boot markers rather than for the typed-line echoes. A
-  first version used a character budget alone and accepted `construction budget NOT dropped` as
-  `construction budget dropped`; a second let a match start inside the kernel's report and swallow
-  the signature. Both are pinned as tests, with the real CI transcript as the fixture.
-- **The diagnostic says what it knows.** It used to assert two capability states ("it still holds
-  the kernel's root untyped, or the delete did not take") on the evidence that a string was missing,
-  which sent a maintainer looking for a bug that does not exist. It now names the marker, reports
-  the longest run of it that did appear, and asserts nothing about the kernel. An interleaved match
-  passes but says so on stderr, because a transcript that needed the tolerance is itself evidence.
-- **The dying thread turned out to be a real defect**, below.
+The first fix tolerated interleaving under a character budget. It accepted
+`construction budget NOT dropped` as `construction budget dropped`, caught by a test. The second
+required the skipped text to carry the kernel's own fault-report signature. **CI defeated it** on
+run 33707574930, where the shuffle was worse:
+
+```text
+  the kernel iis fnit: constiner.
+uction budget dropped; retype answers NoSuchSlot
+```
+
+`construction budget dropped` survives with a longest run of `const`, and `the kernel is fine.` is
+destroyed in the same breath, so the signature had nothing left to key on. The same commit had
+passed run 33705237435 half an hour earlier, and PR #663 carrying this branch passed on the same
+code. **The severity is nondeterministic and no matcher wins**: any string a matcher keys on can
+itself be split.
+
+So the third version does not put the safety in the matching. It puts it in **which question is
+asked first**, on the one asymmetry a shuffle cannot break:
+
+> Interleaving can **destroy** a string. It cannot **create** one.
+
+An exact search for the sentence init prints when the answer is *no* therefore has no false
+positives. `boot_claim` asks, in order:
+
+1. `construction budget NOT dropped` present, **exactly**: fail. init printed it.
+2. The affirmative present, exactly or shuffled: pass.
+3. Neither, and the kernel printed a fault report **during the boot phase**: pass, and say on
+   stderr that the line could not be read and why.
+4. Neither, and nothing else was writing: fail. With one writer there is nothing to shuffle, so the
+   absence is real.
+
+The tolerance survives but is no longer load-bearing, and the signature requirement is deleted:
+dropping it is what lets run 33707574930's transcript read again.
+
+**The false-red rate, which is what a CI gate has to answer for.** It is not a rate, it is
+structural: under this ordering an interleaving artefact cannot produce a red. A red needs either
+the negative sentence found exactly (which a shuffle cannot manufacture) or a missing line with no
+concurrent writer (which means nothing shuffled it). Against the four riscv64 CI legs observed, all
+four read correctly, two of them through the tolerance, and none reached case 3. The residual is
+that case 3's own test is six exact substring searches for short kernel strings, and a boot that
+shredded all six would give a false red.
+
+**And what it costs, said where a reader meets it** (`script/shell-check`'s `BUGS`): the error moves
+from false red to false green. If init's report were deleted *and* a thread faulted in the same
+boot, this passes. The trade is deliberate. A false red taxes every lane whose change had nothing to
+do with it, which is the signature this tree has deleted three lint checks for; a false green is
+undone by repetition, because an init that stops dropping its budget prints the failing sentence on
+every boot of both legs on every push.
+
+**The diagnostic** was the other defect and is fixed independently. It used to assert two capability
+states ("it still holds the kernel's root untyped, or the delete did not take") on the evidence that
+a string was missing, and sent a maintainer looking for a bug that does not exist. It now says which
+sentence it wanted, how much of it survived, and nothing about a kernel it cannot see.
+
+## Proposed milestone: two address spaces drive one UART with nothing arbitrating
+
+*(Provisional; the number is the integrator's at merge.)*
+
+The kernel prints its boot tour and its user-fault reports with its own UART driver. The userspace
+`console` server drives the same device from its own address space. Nothing arbitrates between them,
+so output from the two is **nondeterministically interleaved at byte granularity** whenever they
+write at once. This is a defect in the system, not in the gate that found it.
+
+What depends on that stream being readable, beyond this gate:
+
+- **Every bench session on argon, radon and xenon.** Each of the three target boards has one serial
+  line (`notes/target-hardware.md`), so a serial log is the only window into a board, and it can
+  shuffle.
+- **`crates/board_console`** (milestone 216, nothing in this tree can read a board, so every hardware
+  milestone waits on a person), whose whole job is to recognise how far a boot got from the text
+  alone. Its `progress` recogniser matches on complete lines, which is the assumption this breaks.
+- **Milestone 218's boot script**, which parses the same stream.
+
+The design question is where the kernel's own output should go once userspace owns the console, and
+it is not obviously a patch: a fault report has to reach a person, and on a real board there is no
+second port to send it to.
 
 ## `login` does not run, and this gate is why anyone knows
 
@@ -144,20 +208,32 @@ accounting move together and want a lane of their own.
   not printed. That is what made the first day of this milestone a day rather than a boot, and it is
   recorded in `user_rt::trap`'s own `BUGS`. Fixing it is a change to the three
   `kernel/src/arch/*/exceptions.rs` fault printers, so it wants a lane of its own.
-- **Nothing counts init's capability slots.** The high-water mark that decides whether this whole
-  class of failure recurs is invisible from inside a boot and was measured here with temporary
-  kernel `println!`s that are now reverted. The three slots of headroom are what stands in for a
-  mechanism.
+- **Nothing counts init's capability slots.** *(Closed by milestone 231, nothing counts how many
+  capability slots a boot actually uses so the wall is always a surprise, on the same day: every
+  boot now prints `capability slots: N of M at peak` and this check reads it.)* The high-water mark
+  was measured here with temporary kernel `println!`s that were reverted, and three slots of
+  headroom stood in for a mechanism until 231 gave it one.
 - **The two graphical legs remain red** behind milestone 177's (attaching a GPU and keyboard to the
   real boot) display driver bug. `script/shell-check` with no arguments is green; `--graphical` and
   `--graphical-serial` are not, and neither `script/gates` nor CI runs them.
 - **The gate does not fail on a killed user thread**, which is how `login`'s death went unnoticed
-  through a passing run. Adding that assertion is the obvious next ratchet and is deliberately not
-  added here: it would be red on both architectures until `login` is wired, and this lane could not
-  test what the typed script does when a command traps on purpose. It belongs with the `login` fix.
-- **The interleaving is worked around rather than removed.** Two processes writing one UART with
-  nothing arbitrating is the actual defect, and `find_marker` is a reader coping with it. The
-  kernel's fault report has to reach a person somehow, so where it should go once userspace owns
-  the console is a design question rather than a patch.
+  through a passing run. *(Closed by milestone 233, `login` dies on every boot and the boot says it
+  is ready, which fixed the program and added exactly that assertion.)* It was left out here because
+  it would have been red on both architectures until `login` was wired.
+- **The interleaving is coped with rather than removed**, which is why it is proposed above as its
+  own milestone. Everything this milestone does about it is a reader working around a stream that
+  should not be corrupt.
+- **A boot that both stopped reporting and faulted passes.** `boot_claim`'s third case reads a
+  concurrent kernel write as an explanation for an unreadable line, and cannot tell that from init
+  having gone silent in the same boot where something died. Both halves have to happen together.
+  Recorded in `script/shell-check`'s own `BUGS`, which is where a reader meets the check. **Milestone
+  233 narrows it a long way without closing it**: the only kernel output during the console phase is
+  a fault report, and a killed thread is now a failure in its own right, so a run that reaches case 3
+  is already failing for the true reason. What this design buys there is that the *reported* reason
+  is the dead thread rather than a fabricated claim about init's capabilities.
+- **Case 3's own evidence can be shuffled too.** "Was the kernel writing during the boot" is six
+  exact searches for short kernel strings, and a boot that destroyed all six would give the false
+  red this design otherwise rules out structurally. Six independent chances is a better bet than
+  one, not a proof.
 - **The bisect is over first-parent merges**, so it names PR #556 rather than a commit inside it.
   `d1c81062` is identified by reading that branch, not by a boot at that commit.

@@ -6825,80 +6825,63 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 60] = [
 const SHELL_CHECK_BOOT_SECS: u64 = 120;
 const SHELL_CHECK_LINE_SECS: u64 = 30;
 
-/// How many foreign characters [`find_marker`] will step over inside one marker before it stops
-/// believing the marker is there.
+/// How many foreign characters [`find_marker`] will step over inside one marker before it gives up.
 ///
-/// The intruder this exists for is one kernel fault report, which is three lines and about 150
-/// characters (`  user thread N killed: ...`, a register line, and `  the kernel is fine.`). 400 is
-/// that with room to spare, and it is a ceiling rather than the thing doing the work:
-/// [`KERNEL_WRITER_ANCHORS`] is what actually decides.
+/// The intruder is one kernel fault report, three lines and about 150 characters. 400 is that with
+/// room to spare. It is a ceiling and not the thing doing the work: what makes this safe is the
+/// **order** the checks run in ([`boot_claim`]), not how generous this number is.
 const SHELL_CHECK_MARKER_SLACK: usize = 400;
 
-/// Text only the **kernel** prints, and only in a user-fault report.
+/// Text the **kernel** prints only in a user-fault report, which is the only thing it writes after
+/// the userspace console has started.
 ///
-/// This is what makes [`find_marker`]'s tolerance safe rather than merely permissive, and it was
-/// added after a first version without it accepted `construction budget NOT dropped` as the marker
-/// `construction budget dropped`: skipping four characters is cheap, and a budget alone cannot tell
-/// a shuffled line from a line that says the opposite. So the rule is not "few enough characters in
-/// the way", it is **"I can see who put them there"**: a marker is believed interleaved only when
-/// the text wedged into it carries the other writer's own signature. `NOT ` carries none, so that
-/// case stays a failure, which is the one it must be.
+/// Six of them, deliberately, and short ones. This is the test for "was a second writer active
+/// while init was printing", and the honest thing to say about it is that any single string can
+/// itself be shuffled apart: milestone 230's second CI failure destroyed `the kernel is fine.` into
+/// `the kernel iis fnit: constiner.`. Six independent chances is not a proof, it is a much better
+/// bet than one, and what happens when they all lose is a loud failure rather than a silent pass.
 ///
-/// These three strings come from `kernel/src/arch/*/exceptions.rs`, which prints all three on every
-/// architecture (the middle line differs per ISA and is deliberately not used).
+/// **The first two are a pair and are used as one**, by the killed-thread check below as well as by
+/// [`kernel_wrote_during_boot`]: `user thread ` alone appears in ordinary prose and ` killed: ` is
+/// the half that says a fault report. Both, in order, are the aarch64 and riscv64 fault printer's
+/// own first line (`kernel/src/arch/*/exceptions.rs`). One array rather than two so the two uses
+/// cannot drift apart, which is what milestone 231's own comment asked for when it had its own copy.
+const KERNEL_FAULT_TOKENS: [&str; 6] = [
+    "user thread ",
+    " killed: ",
+    "the kernel is fine",
+    "stval 0x",
+    "esr 0x",
+    " sp 0x",
+];
+
 /// What `kernel::cap::report_peak` prints, verbatim (milestone 231). The line carries the boot's
 /// capability-slot high-water mark against the table's capacity, and `shell-check` both echoes the
 /// last one it sees and fails if the kernel flagged it as past the recorded peak.
 const SLOT_GAUGE: &str = "capability slots:";
 
-const KERNEL_WRITER_ANCHORS: [&str; 3] = ["user thread ", " killed: ", "the kernel is fine."];
-
 /// Where a marker was found in a transcript, and what it cost to find it.
 enum Marker<'a> {
-    /// The marker is present, contiguous. What every check wants and what a clean boot gives.
+    /// Present, contiguous. What a boot with one writer gives.
     Exact,
-    /// The marker's characters are all present, in order, with the kernel's bytes wedged between
-    /// them. Carries the intruding text so the caller can name it rather than hide it.
+    /// The marker's characters are all present, in order, with someone else's bytes wedged between
+    /// them. Carries the intruding text so a caller can name it rather than hide it.
     Interleaved(String),
-    /// Not there. Carries the longest prefix of the marker that appears contiguously, because "the
-    /// boot never reached this line" and "init printed something else here" are different failures
-    /// and the message that replaced this used to be able to tell neither.
+    /// Not there. Carries the longest prefix of the marker that appears contiguously, which is the
+    /// most useful single fact about a transcript that does not have it.
     Absent { matched: &'a str },
 }
 
-/// Find `needle` in `haystack`, tolerating the kernel's bytes wedged into the middle of it.
+/// Find `needle` in `haystack`, tolerating another writer's bytes wedged into the middle of it.
 ///
-/// **This exists because the transcript is a byte-interleaved merge of two writers, by
-/// construction, and no amount of care in the reader can undo that.** The kernel prints a user
-/// fault report with its own UART driver; the userspace `console` server drives the same UART from
-/// its own address space. Two processes, one device, nothing arbitrating, so a thread that dies
-/// while init is printing shuffles the two lines together at byte granularity. Milestone 230's
-/// first CI run is the recorded case:
-///
-/// ```text
-///     pc 0x0000000000406aa0   stval 0x000000000i0406aa0   usern sp 0x0000000000500da0
-/// it:   cthe kernel is fine.
-/// onstruction budget dropped; retype answers NoSuchSlot
-/// ```
-///
-/// Every byte of both writers is present and in order; `init: construction` is spliced through the
-/// kernel's register line one and two characters at a time. **Nothing was truncated and nothing was
-/// lost**, which is why an accumulating reader does not help, and why this is not the partial-line
-/// problem `crates/board_console` solved for milestone 216 (nothing in this tree can read a board, so
-/// every hardware milestone waits on a person). That crate's `observe_partial` is about a line the reader has not finished *receiving*;
-/// this is a line that was received whole and arrived shuffled, and its answer (`contains` on a
-/// completed line) is exactly what fails here. Do not reach for it; the two look alike and are not.
-///
-/// Two rules keep this from being a hole. The skipped text must carry a
-/// [`KERNEL_WRITER_ANCHORS`] signature, so a line that says the *opposite* of the marker is still a
-/// failure. And of all the ways the marker can be found, the one reported is the one that skipped
-/// the **fewest** characters, so the intruding text a caller prints is the real intruder rather
-/// than everything since the first matching letter.
-///
-/// **The tolerance is deliberately not applied everywhere.** The prompt echo checks stay exact:
-/// they are retried against a deadline, they carry text a person typed, and short shell lines are
-/// much cheaper to satisfy by accident. This is for the two boot markers, which are what the
-/// kernel's boot-time fault report lands on top of.
+/// **This is not a safety mechanism and must not be used as one.** It answers "could these
+/// characters be this marker, shuffled?", which is a question with false positives by construction:
+/// a transcript containing `budget NOT dropped` answers yes for `budget dropped` at a cost of four
+/// skipped characters. [`boot_claim`] is what makes it safe, by asking the un-shuffle-able question
+/// first. Two earlier versions of this tried to carry the safety themselves, by a character budget
+/// and then by requiring the kernel's own signature inside the skipped text, and a shuffle worse
+/// than the fixture defeated each in turn. The third attempt is not this function; it is not asking
+/// this function to decide.
 fn find_marker<'a>(haystack: &str, needle: &'a str) -> Marker<'a> {
     if haystack.contains(needle) {
         return Marker::Exact;
@@ -6924,32 +6907,16 @@ fn find_marker<'a>(haystack: &str, needle: &'a str) -> Marker<'a> {
             }
             j += 1;
         }
-        if i != want.len() {
-            continue;
-        }
-        if best.as_ref().is_none_or(|b| skipped.len() < b.len()) {
+        if i == want.len() && best.as_ref().is_none_or(|b| skipped.len() < b.len()) {
             best = Some(skipped);
         }
     }
-    // **The cheapest way to find the marker, and then the signature test on that one.** Taking the
-    // minimum first is what closes the hole a first version had: testing each candidate for the
-    // signature and keeping the cheapest that passed let a match *start* inside the kernel's report,
-    // swallow the whole of it as skipped text, and so carry the signature into an otherwise
-    // contiguous match of a line that said `budget NOT dropped`. The cheapest match for that
-    // transcript skips four characters, `NOT `, which is what the reader should be judging, and it
-    // carries no signature.
-    match best.filter(|skipped| KERNEL_WRITER_ANCHORS.iter().any(|a| skipped.contains(a))) {
+    match best {
         Some(skipped) => Marker::Interleaved(skipped),
-        // The longest prefix of the marker that appears contiguously. Contiguous on purpose: it is
-        // reported to a person, and "it got this far and then said something else" is only a useful
-        // sentence if the prefix is text that was really printed side by side.
         None => {
             let mut matched = 0usize;
             for end in (1..=needle.len()).rev() {
-                if !needle.is_char_boundary(end) {
-                    continue;
-                }
-                if haystack.contains(&needle[..end]) {
+                if needle.is_char_boundary(end) && haystack.contains(&needle[..end]) {
                     matched = end;
                     break;
                 }
@@ -6961,46 +6928,157 @@ fn find_marker<'a>(haystack: &str, needle: &'a str) -> Marker<'a> {
     }
 }
 
+/// Was the kernel writing the UART **while init was printing**?
+///
+/// Only the boot phase counts, which is everything before the shell's banner: a fault after the
+/// prompt is out cannot explain a boot line that was already read. The kernel's boot tour is
+/// deliberately not among the tokens, because it prints on every boot and a test that is always
+/// true would make [`BootClaim::Unreadable`] a way to pass without evidence.
+fn kernel_wrote_during_boot(transcript: &str) -> bool {
+    let boot = transcript
+        .find("nife capability shell")
+        .map_or(transcript, |at| &transcript[..at]);
+    KERNEL_FAULT_TOKENS.iter().any(|t| boot.contains(t))
+}
+
+/// What a transcript says about one thing init reports on itself.
+enum BootClaim {
+    /// init said the thing that is true. Carries the intruding text when it had to be un-shuffled.
+    Affirmed(Option<String>),
+    /// **init said the opposite**, contiguously. The failing answer, and the one with teeth.
+    Denied,
+    /// Neither sentence is readable, and the kernel was writing over init while it printed. Not a
+    /// failure: this check cannot see through a shuffle and should not pretend it can.
+    Unreadable { longest_run: String },
+    /// Neither sentence is there and nothing else was writing, so nothing shuffled it. init did not
+    /// say this at all, which is a real failure and the one that keeps this check from passing
+    /// against a boot that stopped reporting.
+    Silent,
+}
+
+/// Read one of init's claims about itself out of a transcript that **two processes wrote at once**.
+///
+/// # Why this is shaped the way it is
+///
+/// The kernel prints fault reports with its own UART driver and the userspace `console` server
+/// drives the same device from another address space, with nothing arbitrating between them. The
+/// result is not truncation, it is a **byte-level shuffle**, and it is nondeterministic: milestone
+/// 230 saw the same code pass one CI run and fail the next, and saw `construction budget dropped`
+/// reduced to a longest surviving run of `const`. **No matcher can be made reliable against that**,
+/// because any string a matcher keys on can itself be split, including the kernel's own signature
+/// (`the kernel is fine.` came out as `the kernel iis fnit: constiner.`).
+///
+/// So the safety does not live in the matching. It lives in **which question is asked first**, and
+/// in one asymmetry that a shuffle cannot break:
+///
+/// > Interleaving can **destroy** a string. It cannot **create** one.
+///
+/// Therefore an exact search for the sentence init prints when the answer is *no* has no false
+/// positives: if `construction budget NOT dropped` is in the transcript, init printed it. That is
+/// the check with the teeth, it runs first, and it is exact rather than tolerant precisely so that
+/// nothing shuffled can be mistaken for it.
+///
+/// Everything after it only decides between passing and saying why:
+///
+/// 1. `negative` present, **exactly** -> [`BootClaim::Denied`]. init reported the failing answer.
+/// 2. `positive` present, exactly or shuffled -> [`BootClaim::Affirmed`].
+/// 3. Neither, and the kernel was writing during the boot -> [`BootClaim::Unreadable`]. A pass, and
+///    the caller says so out loud.
+/// 4. Neither, and nothing else was writing -> [`BootClaim::Silent`]. A failure: with one writer
+///    there is nothing to shuffle, so init really did not say it.
+///
+/// # What this trades, said plainly
+///
+/// It moves the residual error from **false red to false green**, on purpose, and that is the right
+/// direction for a check that runs in CI on every lane. A false red taxes work that is not the cause
+/// and this tree has deleted three checks for that signature. A false green here is recoverable by
+/// repetition, because the failure it guards is persistent rather than transient: an init that stops
+/// dropping its budget prints the negative sentence on *every* boot, on both legs, on every push, so
+/// hiding it requires the shuffle to land on that sentence every time.
+///
+/// The residual hole is case 4's converse and is named in `script/shell-check`'s own BUGS: if init's
+/// report were deleted **and** a thread faulted in the same boot, this passes. Both halves have to
+/// happen together, and the second is itself a defect the transcript shows.
+fn boot_claim(transcript: &str, positive: &str, negative: &str) -> BootClaim {
+    if transcript.contains(negative) {
+        return BootClaim::Denied;
+    }
+    match find_marker(transcript, positive) {
+        Marker::Exact => BootClaim::Affirmed(None),
+        Marker::Interleaved(skipped) => BootClaim::Affirmed(Some(skipped)),
+        Marker::Absent { matched } => {
+            if kernel_wrote_during_boot(transcript) {
+                BootClaim::Unreadable {
+                    longest_run: matched.to_string(),
+                }
+            } else {
+                BootClaim::Silent
+            }
+        }
+    }
+}
+
 /// Read the transcript as it stands right now.
 ///
-/// A named function rather than the `seen.lock().expect(..).clone()` this used to write inline at
-/// each check, because the lock is held for the length of the expression and a check that also
-/// wants to *format* the transcript into a message would otherwise hold it while doing so.
+/// A named function rather than `seen.lock().expect(..).clone()` written inline at each check,
+/// because the lock is held for the length of the expression and a check that also wants to format
+/// the transcript into a message would otherwise hold it while doing so.
 fn transcript_now(seen: &std::sync::Arc<std::sync::Mutex<String>>) -> String {
     seen.lock().expect("transcript lock").clone()
 }
 
-/// Look for one boot marker and complain about **what was actually observed**, or `None` if it is
-/// there.
+/// Check one of init's claims and turn it into a complaint, or `None` if it passed.
 ///
-/// Three outcomes, and the middle one is why this returns `Option` rather than `bool`. An exact
-/// match passes silently. An interleaved match passes and **says so on stderr**, because a
-/// transcript that needed the tolerance is evidence of a second writer on the UART and hiding that
-/// would turn this function into the thing it was written to replace. Absence fails, and the
-/// message names the marker, how much of it matched, and what init prints in the other case, so a
-/// reader can tell "the boot never got here" from "init said the opposite".
+/// The two passing outcomes both print to stderr when they were not clean, because a transcript
+/// that needed un-shuffling is evidence of the UART defect and swallowing it would hide the thing
+/// this whole mechanism exists because of.
 ///
-/// `hint` is what init does when the answer is genuinely no. It is a description of the program's
-/// own behaviour, which this function can honestly assert; it is not a diagnosis of the machine,
-/// which it cannot.
-fn marker_complaint(transcript: &str, marker: &str, hint: &str) -> Option<String> {
-    match find_marker(transcript, marker) {
-        Marker::Exact => None,
-        Marker::Interleaved(skipped) => {
+/// `subject` is what init reports on, in words a reader can act on. It describes the **program's**
+/// behaviour, which this function can honestly assert. It never describes the machine's state,
+/// which it cannot: the diagnostic this replaced said a missing string meant init "still holds the
+/// kernel's root untyped, or the delete did not take", about a boot where init had dropped the
+/// budget and said so, and sent a maintainer hunting a capability bug that does not exist.
+fn boot_claim_complaint(
+    transcript: &str,
+    subject: &str,
+    positive: &str,
+    negative: &str,
+) -> Option<String> {
+    match boot_claim(transcript, positive, negative) {
+        BootClaim::Affirmed(None) => None,
+        BootClaim::Affirmed(Some(skipped)) => {
             eprintln!(
-                "shell-check: found {marker:?} only with {} characters of another writer spliced \
-                 through it. Every byte is present and in order, so this is two processes sharing \
-                 the UART (the kernel's fault printer and the userspace console), not a lost read. \
-                 The intruding text was: {:?}",
+                "shell-check: read {positive:?} only after stepping over {} characters another \
+                 writer had spliced through it. Every byte is present and in order, so this is the \
+                 kernel's fault printer and the userspace console sharing the UART, not a lost \
+                 read. The intruding text was {skipped:?}",
                 skipped.chars().count(),
-                skipped
             );
             None
         }
-        Marker::Absent { matched } => Some(format!(
-            "the transcript does not contain {marker:?} (the longest run of it that does appear is \
-             {matched:?}). That is all this check knows: it reads a string out of a transcript and \
-             asserts nothing about the kernel. For context, {hint}. The full transcript is below."
+        BootClaim::Unreadable { longest_run } => {
+            eprintln!(
+                "shell-check: could not read init's report on {subject}. Neither sentence survives \
+                 in the transcript (the longest run of the affirmative one that does is \
+                 {longest_run:?}), AND the kernel printed a fault report during the boot, so two \
+                 processes were writing the UART at once and the line cannot be recovered. NOT \
+                 treated as a failure, because this check cannot see through a byte-level shuffle. \
+                 A real regression prints the negative sentence on every boot and is caught by the \
+                 exact search for it above.",
+            );
+            None
+        }
+        BootClaim::Denied => Some(format!(
+            "init reported the failing answer on {subject}: the transcript contains {negative:?}, \
+             contiguously. Interleaving can destroy a string and cannot create one, so init printed \
+             this."
+        )),
+        BootClaim::Silent => Some(format!(
+            "the transcript carries neither of init's two sentences about {subject} ({positive:?} \
+             nor {negative:?}), and nothing else was writing the UART during the boot, so nothing \
+             shuffled them. init did not report this at all. That is what this check knows; it \
+             reads strings out of a transcript and asserts nothing about the kernel. The full \
+             transcript is below."
         )),
     }
 }
@@ -7162,10 +7240,11 @@ fn shell_check_leg(riscv: bool) -> bool {
         // and had said so, and sent a maintainer looking for a capability bug that does not exist.
         // A missing marker means a missing marker. The transcript is printed below; that is the
         // evidence, and this line's job is to say which string was wanted and how close it came.
-        if let Some(complaint) = marker_complaint(
+        if let Some(complaint) = boot_claim_complaint(
             &transcript_now(&seen),
-            "construction budget dropped",
-            "init reports whether it gave the root untyped away, and prints \"NOT dropped\" when it did not",
+            "giving the construction budget away",
+            "construction budget dropped; retype answers NoSuchSlot",
+            "construction budget NOT dropped",
         ) {
             failed.push(complaint);
         }
@@ -7176,11 +7255,11 @@ fn shell_check_leg(riscv: bool) -> bool {
         // like a healthy one. So init says which way it went either way, and the affirmative
         // sentence is what this gate reads. The other branch names the programs it refused, so a
         // boot that quietly stopped spawning half the prompt's commands fails here.
-        if let Some(complaint) = marker_complaint(
+        if let Some(complaint) = boot_claim_complaint(
             &transcript_now(&seen),
+            "measuring the programs it loads",
             "every program measured against the archive table",
-            "init prints this line or the names of the programs it refused; neither being present \
-             is the case this cannot tell apart from a boot that never got here",
+            "measurement refused",
         ) {
             failed.push(complaint);
         }
@@ -7276,13 +7355,12 @@ fn shell_check_leg(riscv: bool) -> bool {
     //      hangs the shell rather than returning a status. That is a real limitation this gate now
     //      makes visible, and it is `user/src/swish.rs`'s to carry rather than this file's.
     //
-    // The `KERNEL_WRITER_ANCHORS` pair rather than one string: `user thread ` alone appears in
-    // ordinary prose and ` killed: ` is the half that says a fault report. Both, in order, are the
-    // aarch64 and riscv64 fault printer's own first line
-    // (`kernel/src/arch/*/exceptions.rs`), which is the same text `find_marker` uses to recognise
-    // an interleaved marker, so the two uses cannot drift apart.
-    if let Some(at) = transcript.find(KERNEL_WRITER_ANCHORS[0])
-        && transcript[at..].contains(KERNEL_WRITER_ANCHORS[1])
+    // The first two of `KERNEL_FAULT_TOKENS` rather than one string, and that constant's own doc
+    // carries why. The same pair is what `kernel_wrote_during_boot` reads, which is the other half
+    // of this: a fault during the boot is both a failure here and the one thing that can shuffle a
+    // console line, so the two checks are looking at one fact from two sides.
+    if let Some(at) = transcript.find(KERNEL_FAULT_TOKENS[0])
+        && transcript[at..].contains(KERNEL_FAULT_TOKENS[1])
     {
         let line = transcript[at..].lines().next().unwrap_or("").trim_end();
         failed.push(format!(
@@ -9535,98 +9613,173 @@ fn board_script() -> bool {
 mod tests {
     use super::*;
 
-    /// **The transcript milestone 230's first CI run actually produced**, copied out of run
-    /// 33702132439 rather than reconstructed, because the whole point of this case is the exact
-    /// shape of the shuffle.
+    /// **The transcript milestone 230's first CI step produced**, copied out of run 33702132439
+    /// rather than reconstructed, because the exact shape of the shuffle is the whole point.
     ///
     /// Two writers on one UART with nothing arbitrating: the kernel's user-fault printer and the
     /// userspace `console` server. `init: construction budget dropped...` is spliced through the
     /// kernel's register line one and two characters at a time. Every byte of both is present and
-    /// in order, which is why an accumulating reader cannot help and why the old `contains` check
-    /// reported a capability bug that did not exist.
+    /// in order.
     const INTERLEAVED_CI_TRANSCRIPT: &str = "\
   user thread 17 killed: scause 0x3 (code 3)
     pc 0x0000000000406aa0   stval 0x000000000i0406aa0   usern sp 0x0000000000500da0
 it:   cthe kernel is fine.
 onstruction budget dropped; retype answers NoSuchSlot
 init: every program measured against the archive table
+
+nife capability shell. naming a resource in a command IS granting it.
 ";
 
-    /// A clean boot matches exactly, and the shuffled one still matches, and the difference is
-    /// reported rather than swallowed.
+    /// **The shuffle that defeated the second attempt**, from run 33707574930, the same code that
+    /// had passed run 33705237435 half an hour earlier. Evidence that the severity is
+    /// nondeterministic: `construction budget dropped` survives here only as a longest run of
+    /// `const`, and the kernel's own `the kernel is fine.` is destroyed in the same breath, which is
+    /// what left a tolerance keyed on the kernel's signature with nothing to key on. Dropping that
+    /// signature is what lets this one read again; the signature was never the safety, the ordering
+    /// in [`boot_claim`] is.
+    const SHREDDED_CI_TRANSCRIPT: &str = "\
+  user thread 17 killed: scause 0x3 (code 3)
+    pc 0x0000000000406aa0   stval 0x0000000000406aa0   user sp 0x0000000000500da0
+  the kernel iis fnit: constiner.
+uction budget dropped; retype answers NoSuchSlot
+init: every program measured against the archive table
+
+nife capability shell. naming a resource in a command IS granting it.
+";
+
+    /// A clean boot reads exactly; a mildly shuffled one still reads, and says what it stepped over.
     #[test]
-    fn a_marker_survives_being_interleaved_with_another_writer() {
+    fn a_claim_survives_being_interleaved_with_another_writer() {
         let clean = "init: construction budget dropped; retype answers NoSuchSlot\n";
         assert!(matches!(
-            find_marker(clean, "construction budget dropped"),
-            Marker::Exact
+            boot_claim(
+                clean,
+                "construction budget dropped; retype answers NoSuchSlot",
+                "construction budget NOT dropped"
+            ),
+            BootClaim::Affirmed(None)
         ));
-        let Marker::Interleaved(skipped) =
-            find_marker(INTERLEAVED_CI_TRANSCRIPT, "construction budget dropped")
-        else {
-            panic!("the recorded CI transcript does contain the marker, interleaved");
+        assert!(matches!(
+            boot_claim(
+                INTERLEAVED_CI_TRANSCRIPT,
+                "construction budget dropped; retype answers NoSuchSlot",
+                "construction budget NOT dropped"
+            ),
+            BootClaim::Affirmed(Some(_))
+        ));
+    }
+
+    /// The run that failed CI reads again, and the fix is a deletion rather than an addition.
+    #[test]
+    fn the_shuffle_that_failed_ci_reads_again() {
+        assert!(matches!(
+            boot_claim(
+                SHREDDED_CI_TRANSCRIPT,
+                "construction budget dropped; retype answers NoSuchSlot",
+                "construction budget NOT dropped"
+            ),
+            BootClaim::Affirmed(Some(_))
+        ));
+    }
+
+    /// **The one that matters: a shuffle too severe to read is not a failure.**
+    ///
+    /// Two attempts at hardening a matcher were each defeated by a shuffle worse than the fixture
+    /// they were tested against, so this stops betting on the matcher. What passes this transcript
+    /// is not a cleverer match: it is that neither sentence is readable AND the kernel was
+    /// demonstrably writing during the boot, which is the only condition under which a line can go
+    /// missing without init having gone quiet.
+    ///
+    /// Synthetic, and said so: no CI run has produced a shuffle this bad, and the point is that
+    /// nothing rules one out. Every character of the marker is present and in order, spread through
+    /// far more foreign text than one fault report accounts for.
+    #[test]
+    fn a_shuffle_too_severe_to_read_is_reported_rather_than_failed() {
+        let mut shredded = String::from("  user thread 17 killed: scause 0x3 (code 3)\n");
+        for c in "construction budget dropped; retype answers NoSuchSlot".chars() {
+            shredded.push(c);
+            shredded.push_str("    pc 0x0000000000406aa0   stval 0x0000000000406aa0\n");
+        }
+        shredded
+            .push_str("\nnife capability shell. naming a resource in a command IS granting it.\n");
+        let BootClaim::Unreadable { longest_run } = boot_claim(
+            &shredded,
+            "construction budget dropped; retype answers NoSuchSlot",
+            "construction budget NOT dropped",
+        ) else {
+            panic!("a transcript this badly shuffled cannot be read and must not be failed");
         };
+        // "co", from `code 3` in the fault line rather than from init: with the marker spread this
+        // thin, the longest surviving run of it is noise. Which is the fact worth reporting.
         assert!(
-            skipped.contains("the kernel is fine"),
-            "the intruder is reported so a reader learns there were two writers, got {skipped:?}"
+            longest_run.len() <= 3,
+            "the longest surviving run is reported so a reader can judge the damage, got \
+             {longest_run:?}"
         );
     }
 
-    /// **The tolerance must not manufacture a marker**, which is the whole risk of matching a
-    /// subsequence rather than a substring. A boot that printed the opposite, and one that printed
-    /// nothing like it, both stay failures.
+    /// **The teeth.** init printing the failing answer is the thing this check exists to catch, and
+    /// it survives every amount of shuffling elsewhere in the transcript, because the search for it
+    /// is exact and interleaving can destroy a string but never create one.
     #[test]
-    fn the_interleaving_tolerance_does_not_invent_a_marker() {
-        let opposite = "init: construction budget NOT dropped; retype still answers\n";
+    fn init_reporting_the_failing_answer_is_a_failure_however_shuffled_the_rest_is() {
+        let denied = format!(
+            "{}init: construction budget NOT dropped; it can still build\n",
+            SHREDDED_CI_TRANSCRIPT
+        );
         assert!(matches!(
-            find_marker(
-                opposite,
-                "construction budget dropped; retype answers NoSuchSlot"
+            boot_claim(
+                &denied,
+                "construction budget dropped; retype answers NoSuchSlot",
+                "construction budget NOT dropped"
             ),
-            Marker::Absent { .. }
-        ));
-        // Every character of the marker appears somewhere in this, in order, but spread far past
-        // the slack a single fault report can account for.
-        let scattered: String = "construction budget dropped"
-            .chars()
-            .map(|c| format!("{c}{}", "x".repeat(60)))
-            .collect();
-        assert!(matches!(
-            find_marker(&scattered, "construction budget dropped"),
-            Marker::Absent { .. }
+            BootClaim::Denied
         ));
     }
 
-    /// **The adversarial case, and the one this whole design is for.** A boot where init printed
-    /// the *opposite* and a thread also died: the kernel's signature is in the transcript, so an
-    /// anchor test that only asked "was the kernel writing at all?" would let `NOT dropped` through
-    /// as the marker. The signature has to be in the text wedged *into the marker*, which here it
-    /// is not.
+    /// **And the vacuity guard.** A boot where init simply stopped reporting, with nothing else
+    /// writing the UART, has nothing that could have shuffled the line away, so its absence is real
+    /// and this fails. Without this, "cannot read it" would be a way to pass against a check that
+    /// had quietly stopped checking anything.
     #[test]
-    fn a_kernel_report_elsewhere_does_not_license_the_opposite_message() {
-        let transcript = "\
-  user thread 17 killed: scause 0x3 (code 3)
-    pc 0x0000000000406aa0   stval 0x0000000000406aa0   user sp 0x0000000000500da0
-  the kernel is fine.
-init: construction budget NOT dropped; retype still answers
+    fn a_silent_init_fails_when_nothing_else_was_writing() {
+        let quiet = "\
+  uart irq: source 10 (machine description)
+init: every program measured against the archive table
+
+nife capability shell. naming a resource in a command IS granting it.
 ";
         assert!(matches!(
-            find_marker(transcript, "construction budget dropped"),
-            Marker::Absent { .. }
+            boot_claim(
+                quiet,
+                "construction budget dropped; retype answers NoSuchSlot",
+                "construction budget NOT dropped"
+            ),
+            BootClaim::Silent
         ));
     }
 
-    /// Absence reports how far it got, because "the boot never reached this line" and "init
-    /// printed something else here" are different failures and the old message could tell neither.
+    /// A fault **after** the prompt is out cannot explain a boot line that was read before it, so it
+    /// does not license [`BootClaim::Unreadable`]. Otherwise any typed command that traps on purpose
+    /// would switch the boot checks off for the rest of the run.
     #[test]
-    fn an_absent_marker_reports_the_longest_prefix_it_did_match() {
-        let Marker::Absent { matched } = find_marker(
-            "init: construction budget NOT dropped\n",
-            "construction budget dropped",
-        ) else {
-            panic!("this transcript does not carry the marker");
-        };
-        assert_eq!(matched, "construction budget ");
+    fn a_fault_after_the_prompt_does_not_excuse_a_missing_boot_line() {
+        let late = "\
+init: every program measured against the archive table
+
+nife capability shell. naming a resource in a command IS granting it.
+$ outlaw
+  user thread 22 killed: scause 0x3 (code 3)
+  the kernel is fine.
+";
+        assert!(matches!(
+            boot_claim(
+                late,
+                "construction budget dropped; retype answers NoSuchSlot",
+                "construction budget NOT dropped"
+            ),
+            BootClaim::Silent
+        ));
     }
 
     /// **Both operating systems' `uptime`, because only one of them is ever in front of you.**
