@@ -41,6 +41,14 @@
 #
 # Not in script/test or script/gates, on purpose, for the same reason as
 # script/undefined-behavior-check: this searches a state space where the host tests check a value.
+#
+# **BUGS: that analogy is broken, and nothing runs this script at all.** The sibling it names has a
+# weekly workflow; this has neither a workflow nor a gate nor a caller, so its result is whatever
+# somebody last saw. Found by milestone 232's audit (audit every check against two questions: does
+# anything run it, and does it block) on 2026-09-03, which measured it green at **12.4 seconds**
+# wall clock for all 26 harnesses, first run in a cold worktree. Being out of `script/gates` is a
+# defensible choice about what a pre-push command should cost; having no cadence at all is not one
+# anybody made. See notes/check-inventory.md.
 # Extra args go to `cargo test`, so `script/interleaving-check a_relaxed_pairing` runs one harness.
 
 set -e
