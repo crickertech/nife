@@ -118,21 +118,24 @@ already is. A trait would have added a vocabulary without removing a difference.
 
 | ISA | `ipc_fastpath` | `syscall_entry` |
 |---|---|---|
-| aarch64 | 5852 -> 5988 (+136 bytes, +2.3%) | 3304 -> 3340 (+36) |
-| riscv64 | 5132 -> 5148 (+16 bytes, +0.3%) | 1870 -> 1898 (+28) |
+| aarch64 | 5852 -> 5988 (+136 bytes, +2.3%) | 3304 -> 3304 (**unchanged**) |
+| riscv64 | 5132 -> 5148 (+16 bytes, +0.3%) | 1870 -> 1870 (**unchanged**) |
 | `x86_64` | 6687 -> 6687 (**unchanged**) | 1637 -> 1637 (**unchanged**) |
 
-The gate is green on all three. **`x86_64` is byte-identical**, and that is the no-op compiling to
-nothing rather than a coincidence, which is the closest thing to the "an ungranted kernel is
-unchanged" claim that is actually true: on the other two the mechanism has to exist in the image,
-and what an ungranted thread pays at runtime is a load, a compare and a return.
+The gate is green on all three. **`syscall_entry` is byte-identical everywhere**, which is what
+minting no method means measured rather than asserted, and **`x86_64` is byte-identical on both**,
+which is the no-op compiling to nothing rather than a coincidence. That is the closest thing to
+"an ungranted kernel is unchanged" that is actually true: on the other two the switch mechanism has
+to exist in the image, and what an ungranted thread pays at runtime is a load, a compare and a
+return.
 
-**The gate fired once, and the fix is recorded because the number is the argument.** Written as an
-ordinary arm inside `invoke`, the new method put **224 bytes** on riscv64's `syscall_entry` set,
-12% against the 5% bound, because `invoke` inlines into the dispatcher every syscall fetches. The
-arm was extracted into an `#[inline(never)]` helper exactly as milestone 156 extracted the other
-spawn-path bodies, and it lands at +1.5%. A grant a loader calls once per child does not belong in
-the bytes a round trip fetches.
+**The gate fired once, on the ABI that was then removed, and the number is worth keeping because
+it is an argument.** Written as an ordinary arm inside `invoke`, the method put **224 bytes** on
+riscv64's `syscall_entry`, 12% against the 5% bound, because `invoke` inlines into the dispatcher
+every syscall fetches. Extracting it `#[inline(never)]` the way milestone 156 extracted the other
+spawn-path bodies brought it to +1.5%; removing the method brought it to zero. **A method on this
+object is not free even when nothing calls it**, which is one more thing to weigh when somebody
+mints the real surface.
 
 ### How it was verified
 
