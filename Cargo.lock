@@ -494,6 +494,9 @@ version = "0.1.0"
 [[package]]
 name = "measured_boot"
 version = "0.1.0"
+dependencies = [
+ "elf",
+]
 
 [[package]]
 name = "memchr"
