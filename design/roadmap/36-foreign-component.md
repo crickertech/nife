@@ -97,3 +97,25 @@ board), which is a 16a story to do in Rust when first silicon makes it concrete.
 component at, and before committing to libghostty-vt. **Effort: 1 lane** (measured). The whole value is that it is
 cheap and it fails early: if the toolchain, the shim, or the confinement story has a problem, we
 find it with a throwaway component rather than half way into a port.
+
+## Follow-on
+
+- **Decision.** `design/decisions/32-reap-without-build.md` settles the fork this spike fed: a
+  supervisor needs exactly `DESTROY` on one region it did not create, and nothing narrower existed,
+  so the confiner was builder, supervisor and checker in one process.
+- **Milestone 29.** The large foreign component this spike was built to de-risk. libghostty-vt is
+  tier one (freestanding), which is the cheapest step up from a throwaway C file, and 29 is where
+  the roadmap commits to it.
+- **Milestone 23.** The vendor-component claim, which is the other thing the seam de-risks: a
+  component this project did not write, running confined, replaceable while the system is up.
+- **Recorded.** In `design/roadmap/36-foreign-component.md`: what the spike does not prove, kept so
+  29 and 23 do not inherit false confidence. One `clang -c` is not a build system, one translation
+  unit is not a link order, this component's two symbols are not another's, and confined is not
+  correct.
+- **Refused.** Tier three, full POSIX (`open`, `fork`, `socket`, threads), stays out. It needs a
+  real libc port, which DECISIONS §15 prices at "later, if ever", and a component that wants it is a
+  different and much larger project than this one.
+- **Refused.** FAT32, the question that prompted the spike, is a weak first candidate and was not
+  taken: RedoxFS is already a better filesystem, `no_std` Rust FAT crates exist so the FFI cost buys
+  nothing, and its real value is host interoperability, which is a milestone 16a story to do in Rust
+  when first silicon makes it concrete.

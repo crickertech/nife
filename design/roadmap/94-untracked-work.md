@@ -122,3 +122,22 @@ numbers in CLAUDE.md are his to place.
   went on claiming the work was outstanding while agreeing with each other. That is §76's shape and
   it is invisible to `script/roadmap --check` by construction: the gate compares the index against
   the block, never either against the tree. Milestone 93's audits are the mechanism for this class.
+
+## Follow-on
+
+- **Milestone 93.** The recurring duty this milestone deliberately did not take. The sweep clears
+  the backlog once and the conventions stop the refill; 93's documentation audits are what meet
+  deferral phrasing in docs on a cadence, and they are also the mechanism for the last BUGS entry
+  below, where the work and the record moved in separate commits and both records went on agreeing
+  with each other while disagreeing with the tree.
+- **Recorded.** `notes/untracked-work-sweep.md` carries the provenance loss: the nine blessings now
+  in the tree are a re-derivation, not the sweep's own list, because PR #91 recorded the count and
+  never the items. The ten already-tracked findings are a count and not a list for the same reason.
+  Where the two sets differ, nobody can now tell.
+- **Recorded.** `design/roadmap/94-untracked-work.md` BUGS: nothing gates a blessing, so a
+  limitation can lose the paragraph blessing it to an ordinary edit and no check would notice. That
+  is a marked exception rather than an oversight, with the trigger stated: if the set grows past
+  what a person can hold, it wants a gate.
+- **Refused.** A gate on the two prose conventions. No check can tell an intention from an
+  observation in prose, and a lint that tried would be `git grep -w TODO`'s 82% false-positive rate
+  wearing a different hat, which is the measurement that shaped the TODO lint in the first place.

@@ -13,3 +13,15 @@ the unsafe census) are each a whole audit and belong to §74's cadence, not to t
 **In brief.** The first audit (notes/arch-audit.md) read the **assembly and arch layer** and found three real bugs: the `eret`/`sret` privilege-escalation staging race, a stale `tp` on S-mode trap return corrupting cross-hart per-CPU data, and the PLIC's lock-free read-modify-write. A second pass should deliberately NOT re-read that, and should take the surface that has appeared since. Headline lens: **time-of-check to time-of-use across shared pages.** Every service contract now moves bulk data through a page shared with the client (blk, file, gfx, compose, line_editor, net_stack), so a server that validates a length or an offset from the request word and *then* reads the page has a double-fetch window a malicious client controls; 19 files touch that pattern. Further lenses: integer overflow in the wire's size and offset arithmetic (`fs_proto` packs a 40-bit length, and `TRUNCATE` takes a size in the second word); capability lifetime races between revocation and an in-flight use, now that generational names, `Untyped::DESTROY` and `Endpoint::REAP` all reclaim; and a census of the **804** `unsafe` occurrences, triaging which carry a stated safety argument
 
 **Why it matters.** **the attack surface roughly doubled after the first audit was written**: the compositor's shared surfaces, the C seam, the reap right, `std::fs`/`std::net`, and the FS service all arrived afterwards. The first audit's value came from reading for a *pattern* rather than waiting for a failure (it found the PLIC race that way), so the return on a second pass depends entirely on choosing a lens the first one did not use. Double-fetch is that lens: it is invisible to every gate we run, because both the check and the use are individually correct
+
+## Follow-on
+
+- **Milestone 92.** The two candidate lenses this block named and did not run, capability-lifetime
+  races between revocation and an in-flight use and the census of `unsafe` occurrences, belong to
+  the audit cadence rather than to this block. 92 built the machine that schedules them, and
+  `design/decisions/74-audit-cadence.md` sets the triggers it fires on.
+- **Milestone 134.** The `unsafe` census specifically. It stopped being an audit lens and became an
+  instrument: the census and the ceiling relation live in `script/lint`, and milestone 139 spends
+  them on real reductions.
+- **Recorded.** `notes/untrusted-input-audit.md` holds the further-lens pass's one open finding,
+  the NVMe kernel driver turning two device-written completion fields into a kernel panic.

@@ -106,3 +106,30 @@ half of the same observation and is untouched.
 - **Two harnesses is not coverage of 68 programs.** The editor's editing operations are the richest
   untrusted-input surface left in `user/` and are out of reach as the document is laid out today;
   moving a row's length out of the row would fix that and is a data-layout question, not a lane's.
+
+## Follow-on
+
+- **Milestone 212.** `script/falsifications` walked `crates/` only, so this milestone's record under
+  `user/` was uncounted and milestone 193's kernel harnesses carried none at all, while the script
+  printed its ratio as if it were the tree's. The walk now comes from `cargo metadata`.
+- **Refused.** Proving `xtask`. Its front door is already open, measured: `cargo kani -p xtask`
+  compiles with no changes. The refusal is on value. A defect there cannot reach anything that runs,
+  it is host code with tests and a debugger where Kani is least differentiated, its pure logic
+  already lives in crates the suite proves, and its hand-written decoders exist to be a second
+  opinion on those crates, so aiming one prover at both halves narrows the independence that
+  justifies them. What would reverse it is `xtask` growing logic the target then trusts, and the
+  shape to watch is the measured-boot digest.
+- **Recorded.** `design/roadmap/197-user-and-xtask-proofs.md` BUGS: two harnesses is not coverage of
+  68 programs. The editor's editing operations are the richest untrusted-input surface left in
+  `user/` and are out of reach as the document is laid out today; moving a row's length out of the
+  row would fix that, and it is a data-layout question rather than a lane's.
+- **Recorded.** `notes/user-proofs.md` holds the three property shapes measured and abandoned rather
+  than left as folklore: a bound on a sum of 32 symbolic values that did not finish in twenty
+  minutes, a symbolic index into the editor's document struct that exhausted CBMC's memory in 3m23s,
+  and anything downstream of twenty chained divisions. It is where the warning lives that a fast
+  harness can be evidence the assertion asked nothing.
+- **Proposed.** `design/roadmap/proposals/timer-rearm-seam.md`, Lift the timer re-arm arithmetic out
+  of the register access so `crates/timetable`'s already proved `next_after` is what the timer
+  actually calls. Where the seam goes is calef's: too high and the arch layer keeps the milestone 6
+  drift bug, too low and every ISA restates it. Until it moves, the tree's sharpest counterfactual
+  is a property proved over code that nothing runs.

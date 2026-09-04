@@ -162,3 +162,10 @@ The status-agreement check, the one-milestone-per-file checks, and the tree-wide
 were each proven against injected defects (a pasted `### N.` block, a second H1, a flipped
 status, a stray file, a rowless file, two files claiming one number, a citation to a milestone
 that does not exist): seven injections, seven failures reported, none missed.
+
+## Follow-on
+
+- **None.** Everything this block asked for was built in the same lane: the split, the
+  status-agreement check, the tree-wide citation check, the backfill of milestones 1 to 11, and the
+  removal of the `n >= 12` floor. The postscript records the three places the build differed from
+  the plan, and none of them left work behind.

@@ -1077,3 +1077,54 @@ proofs and the type system are standing aside and a person's comment is the whol
   runtime check to add that would let the call site drop `unsafe` the way a bounds check did. Do
   not let the number alone decide which work is worth doing, in either direction: it under-credits
   round 6's collapse and it would over-credit a Kani-proved block that stays exactly where it is.
+## Follow-on
+
+- **Outstanding.** `kernel/src/revoke.rs` still walks its per-space log-page chain in six unsafe
+  blocks, each restating what the helper's own safety comment says. Round 8 named it a proposed
+  milestone and no block has been minted for it. Checked 2026-09-03.
+- **Outstanding.** `kernel/src/sched.rs` is unchanged at 47 blocks, eight of them the run-queue and
+  inbox pushes. The typestate that only a ready transition can mint is calef's call and there is no
+  file for it under `design/decisions/`. Checked 2026-09-03.
+- **Outstanding.** `kernel/src/user/tests.rs` still carries 14 unsafe blocks, untouched. Round 8
+  skipped it for a scheduling reason, another lane holding the tree's merge hotspot, and said
+  explicitly that nothing makes it irreducible. Checked 2026-09-03.
+- **Outstanding.** Round 7's fifteen provisional names and round 6's two are unratified. Only three
+  entries in `notes/unsafe-obligations.md` carry a ratification; the fourteen wrappers and the two
+  others do not. Checked 2026-09-03.
+- **Outstanding.** Round 6's offer to revert the slice-accessor migration if calef would rather the
+  raw count stay the primary signal is unanswered; both methods are still in
+  `crates/user_rt/src/mapped_window.rs` and the six windows are still in place. Checked 2026-09-03.
+- **Outstanding.** `crates/abi/src/lib.rs` still documents the start invocation as if its three
+  arguments were ignored, which both the kernel's own arm and the builder's call contradict. Round
+  7 found this and left it for whoever next touched the file; nobody has. Checked 2026-09-03.
+- **Outstanding.** The ratchet watches unsafe blocks only. This block's opening census also counted
+  53 unsafe functions and 28 unsafe impls; a grep today gives 76 and 28, and no round has re-taken
+  or gated those two numbers even though rounds 6 and 7 added unsafe functions of their own.
+  Checked 2026-09-03.
+- **Done.** Round 5's caveat that whichever concurrent lane landed second would find the ceiling
+  arithmetic stale was discharged by round 8, which re-measured from the merged tree on 2026-09-01
+  rather than trusting either round's isolated numbers.
+- **Done.** The `tock_registers` follow-on round 3 named was taken in round 5: `user/Cargo.toml`
+  pins it against the kernel's matching pin, and the aarch64 PL011 halves of the console and input
+  programs plus the TRNG driver are migrated.
+- **Done.** The framebuffer and graphics cluster is settled rather than narrowed: round 4 measured
+  the bounds check at 4 aarch64 ticks and about 0.6 riscv64 ticks per access, flat across volumes,
+  then migrated all four sites round 3 named.
+- **Recorded.** `crates/ipc`'s three production blocks each assert a different fact under a
+  different caller contract, so there is no §94 shape to collapse and nothing further is indicated
+  there.
+- **Recorded.** The NS16550 halves of the console and input programs stay hand-written, because the
+  register stride is a runtime fact no register-layout macro can express, the same reason
+  `kernel/src/drivers/ns16550.rs` gives in its own module doc.
+- **Recorded.** `hello.rs`, `flaky.rs`, `outlaw.rs`, `budgeter.rs` and `swapper.rs` are
+  deliberately not candidates: for three of them the raw access is the test, and the other two are
+  one-off writes with nothing repeated to collapse.
+- **Recorded.** No target number, by design. The ceiling stands at 88 in
+  `notes/unsafe-obligations.md` and `notes/counted-claims.md`, ten points over round 8's 78, and
+  there is still no near-miss on record after eight rounds.
+- **Refused.** `kernel/src/arch/` is not a target and this block will not accept a reduction there.
+  It is 258 blocks today, up with milestone 161's x86_64 port, and driving it down means writing
+  the assembly wrong or moving it out of `arch/`.
+- **Outstanding.** This block's own "What is still open" section opens by saying the broader `user/`
+  survey is incomplete, which its rounds 6 and 7 completed and its own `BUGS` says was closed. The
+  sentence and its refutation are 140 lines apart in one file. Checked 2026-09-03.

@@ -106,3 +106,31 @@ read the specific `Wiring` it already holds rather than ask a shared global. All
 by the existing `credential_tests`/`login_tests`/`riscv_virtio_tests`/`tests`/`std_tests` suites
 before this milestone's own tests were added, so this is a fix with the tree's own pre-existing
 coverage behind it, not an untested change riding along.
+
+## Follow-on
+
+- **Milestone 49.** Wiring this tool into the interactive boot, which was this block's first BUGS
+  entry. `crates/system_initializer::boot` now spawns it once per real boot on both ISAs, holding
+  both of its capabilities itself and provisioning a demo `operator` identity before `login` can
+  serve anyone.
+- **Refused.** Sending `SEAL`. Sealing ends provisioning for the whole store forever, so it is an
+  operator's decision made once after every identity for a boot is in, not a side effect of
+  provisioning one identity. The caller seals, exactly as the provisioner role in
+  `credentialer_test_client.rs` already does in its own tests.
+- **Recorded.** `design/roadmap/155-user-provisioning.md` BUGS: an operator's real path to holding
+  this tool's two capabilities, for an identity other than the one boot-generated demo account, is
+  untouched.
+- **Recorded.** `design/roadmap/155-user-provisioning.md` BUGS: the directory capability this slice
+  wires the tool against is the file service's whole root, unnarrowed. A real deployment scopes it
+  to a dedicated principal-tree parent directory, and that directory does not exist yet.
+- **Recorded.** `user/src/login.rs` already names session reclamation as an open bound, and
+  deprovisioning (removing an identity and reclaiming its subtree) should be sequenced against it
+  rather than invented separately here. It is not in this milestone's scope.
+- **Recorded.** `user/src/identity_provisioner.rs` module docs carry the argument: there is no
+  cross-server commit protocol between the credential service and the file service, so this is two
+  acts rather than one. Subtree-first makes the failure mode an orphaned empty subtree rather than a
+  live credential with nowhere to go, and it is exercised by two guest tests rather than proved over
+  every interleaving a real deployment's retries could hit.
+- **Recorded.** `user/src/identity_provisioner.rs` carries a provisional name block: the program's
+  name has not been put to calef, and what was refused and why is written where the next proposer
+  would read it.

@@ -52,3 +52,21 @@ and leaves a clean seam for the second source; it does not build ACPI.
 `MISSED_TICKS`, `RAN_ON`), and milestone 90 is moving the stacks over a guard page. Reading `/cpus`
 means starting the cores the machine reports **up to** the compiled ceiling and saying so when it
 reports more; changing the ceiling is a separate decision with a memory cost attached.
+
+## Follow-on
+
+- **Milestone 88.** The ACPI front door. An ACPI machine has no device tree at all and states PSCI
+  in the FADT, so this milestone got the DTB path right and left a seam for the second source;
+  milestone 88 (nife on rented silicon) already budgets the UEFI boot path and the ACPI reader.
+- **Recorded.** `kernel/src/smp.rs` carries the compiled ceiling where the code does the seating.
+  `MAX_CPUS` sizes the secondary stacks and the per-CPU arrays, so raising it costs memory and is a
+  decision of its own; what shipped instead is starting the cores the machine reports up to the
+  ceiling and printing how many were left unseated.
+- **Recorded.** `kernel/src/arch/aarch64/mod.rs` records beside `psci_cpu_on` that the `smc` conduit
+  path has never executed. The reading is exercised against a real QEMU dump that states `smc`, but
+  no machine here runs the kernel below an EL2, so the call itself is untested.
+- **Recorded.** `kernel/src/arch/riscv64/timer.rs` names the per-hart limitation at
+  `init_frequency`: the RISC-V binding permits a per-hart `timebase-frequency` and this reads the
+  boot hart's once for the whole machine, so a board whose harts genuinely differ is misread. That
+  is also where the parity gap this block found, a hardcoded 10 MHz against aarch64's `CNTFRQ_EL0`
+  read, was closed.

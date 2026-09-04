@@ -146,3 +146,21 @@ itself, at which point no further code change is expected, only a status flip on
 
 **riscv64: correctly excluded.** Neither `RDSEED` nor `RNDR`/`RNDRRS` exists on this ISA; milestone
 159's JH7110 TRNG is the real hardware source there, through its own driver, not through this file.
+
+## Follow-on
+
+- **Decision.** `design/decisions/120-boot-entropy-stopgap-declined.md` holds the question of
+  whether the interactive-boot entropy stopgap should be revisited now that the customer condition
+  it was declined for is met. This milestone says explicitly that landing it does not reopen the
+  question and that reopening it is calef's.
+- **Recorded.** `notes/entropy.md` says beside the backend that the aarch64 proof runs only under
+  `--cpu neoverse-n2`. The suite's default `cortex-a72` predates `FEAT_RNG`, so the test skips
+  cleanly there rather than proving anything, and a green default run is not evidence that `RNDRRS`
+  works.
+- **Recorded.** `design/roadmap/162-cpu-instruction-entropy.md` is the only place it is written down
+  that this kernel will not boot under QEMU's `-cpu max` on aarch64 at all, refusing on
+  `ID_AA64MMFR0_EL1.TGran4` (no 4 KiB stage-1 granule). It is a CPU-model quirk rather than an
+  entropy question, and it is why `neoverse-n2` is the model named above.
+- **Refused.** A riscv64 arm. Neither `RDSEED` nor `RNDR`/`RNDRRS` exists on that ISA, so there is
+  no instruction to wrap; milestone 159's JH7110 TRNG is the real hardware source there, through its
+  own driver, and pretending otherwise would be a parity claim with nothing behind it.

@@ -27,3 +27,12 @@ process** mounts what it left behind through the same block server and reads the
 **In brief.** Inject the failure a copy-on-write filesystem exists to survive, and measure whether it does: torn writes (a block partially written), dropped writes (a write the device acknowledged and did not persist), and a kill mid-transaction, then reopen with the same `cleanup: true` header-ring replay the FS server always mounts with, and assert the filesystem is consistent and every acknowledged write is either wholly present or wholly absent. The seam is `IpcDisk` and the block server, which sit between the engine and the device and can drop or truncate a write deliberately; the sans-IO core already runs on the host against a real image, so most of this is host-testable in milliseconds and only the device-level kill needs QEMU. Includes the negative control that makes the rest mean anything: the injector must be shown to actually corrupt something when the replay is disabled
 
 **Why it matters.** **the condition that decides whether §34's label is earned.** Crash consistency is RedoxFS's central selling point and the reason it beat ext2, and we currently assert it on the strength of the upstream design description rather than any measurement. That is a claim of exactly the kind this project's rules forbid, and it is the first thing a skeptic asks a filesystem. Until it passes, the docs say "designed for crash consistency" and never "crash consistent". Note this is a gap in **our harness, not in RedoxFS**: no candidate engine's crash consistency is tested here, so switching engines would not address it
+
+## Follow-on
+
+- **Recorded.** In `design/decisions/34-redoxfs-primary.md`, in the amendment this milestone earned:
+  RedoxFS's `Disk` trait has no flush and no barrier, so write ordering is the device's job, and our
+  block server issues no `VIRTIO_BLK_T_FLUSH`. On real hardware with a volatile write cache the
+  durability of the last acknowledged write is the device's word rather than ours. Every block
+  pointer carries a checksum, so the failure is an error and never a wrong answer, which is what the
+  74 refusals and the zero silently-wrong count measure.

@@ -118,3 +118,31 @@ architecture costs a restructure rather than a port") named this as a piece of.
   `disk_service` wirings want the GPT and blank fixtures, which no x86_64 runner attaches; those
   tests skip with an accurate reason and no plan of their own. They ride milestone 215, on x86_64 PCI interrupt routing.
 - **The soft-AES cost is unmeasured**, above.
+
+## Follow-on
+
+- **Milestone 215.** The disk. With the server packed, `fs_service::wire_servers` still asks for a
+  virtio-mmio device that `q35` does not have, and the `virtio-blk-pci` route built in this lane was
+  reverted because `PCI_IRQ_BASE` is 0 and the block server was armed on the PIT's legacy line. 215
+  fixed the routing; `mkfs` and milestone 57's two `disk_service` wirings ride it for their
+  fixtures.
+- **Milestone 214.** Eleven tests moved from the skip column to the pass column without running a
+  line of them, because they `println!` a line and `return` instead of using `skip!`. This lane
+  named 46 such sites; 214 found 80.
+- **Refused.** Route 1, patching the vendored `aes` for a scalar fallback, was unnecessary and
+  `patches/` does not grow a third entry. The portable constant-time backend is already in
+  `src/soft/` and every architecture arm is gated `not(aes_force_soft)`, so it was a cfg nobody had
+  set rather than a gap in the crate.
+- **Refused.** Route 2, an SSE-enabled x86 userspace target, is not owed for this blocker.
+  `kernel/src/arch/x86_64/` saves and restores no FPU/SSE state anywhere, so it would mean an
+  `FXSAVE` area per thread and save/restore in the context-switch path, and none of that is needed
+  to compile `aes`.
+- **Refused.** The soft-AES cost stays unmeasured on purpose. Upstream puts AES-NI roughly an order
+  of magnitude ahead of the bitsliced backend, but nothing on x86_64 mounts an encrypted RedoxFS
+  volume yet, so there is no workload and a synthetic number would be a fact leaving the machine
+  with nothing behind it. The number is owed when an x86_64 workload touches the crypto path, and
+  Route 2 is what it would be weighed against.
+- **Recorded.** In `design/roadmap/164-x86-64-fs-server-aes.md`: the `aes_force_soft` cfg sits on
+  the target rather than on the one package that needs it, because Cargo can only replace a
+  `rustflags` list and never add to it. Every crate on `x86_64-unknown-none` gets the cfg and it is
+  inert in all of them but `aes`.

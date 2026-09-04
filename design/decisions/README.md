@@ -144,7 +144,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 83 | DECIDED | [When the same thing exists in C and in Rust, take the Rust one](83-rust-over-c-implementations.md) |
 | 84 | DECIDED | [How we port: prefer software that has already dropped ambient authority](84-how-we-port.md) |
 | 85 | DECIDED | [What we port is evidence and must not be ours; what we ship is product and must be](85-evidence-and-product.md) |
-| 86 | PROPOSED | [Whether an NVMe driver can leave the kernel, and what capability would let it](86-el0-nvme-driver.md) |
+| 86 | DECIDED | [Whether an NVMe driver can leave the kernel, and what capability would let it](86-el0-nvme-driver.md) |
 | 87 | DECIDED | [MIT OR Apache-2.0, and why the GPL's lesson does not transfer](87-permissive-license.md) |
 | 88 | DECIDED | [`needs-architect` as a required check, rather than as a script's restraint](88-needs-architect-as-a-check.md) |
 | 89 | DECIDED | [`provisional` becomes the fourth provenance state](89-provisional-versus-unrecorded.md) |
@@ -198,6 +198,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 137 | PROPOSED | [A hardware TRNG with no published health-test claim](137-trng-health-tests.md) |
 | 138 | DECIDED | [How a saturated workload is made to hand threads across cores](138-cross-core-handoff-under-load.md) |
 | 139 | DECIDED | [Who may read the cycle counter, and by what authority](139-cycle-counter-authority.md) |
+| 140 | DECIDED | [The words a finished milestone may use to say what happened to the work it named](140-follow-on-disposition-vocabulary.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
 way milestone 76 moved four essays out of the roadmap: [the open design

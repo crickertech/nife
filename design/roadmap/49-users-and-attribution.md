@@ -335,3 +335,43 @@ feature (`user/src/login.rs`'s own BUGS, more precisely worded per item).
   `kernel::user::login_tests::two_clients_connecting_together_get_independent_channels_and_neither_observes_the_others_secret`
   for the proof that two callers reaching the front door together can no longer observe or corrupt
   each other's secret.
+
+## Follow-on
+
+- **Milestone 152.** Durable delegation, which gates on this milestone reaching BUILT so that a
+  scheduled job has a durable principal to be supervised by. That gate is now clear.
+- **Milestone 153.** `OutOfMemory` collapsing a spent budget, a full capability table and
+  `MAX_REGIONS` into one error code. This milestone is where it first cost real time: four memory
+  hypotheses were measured and ruled out before the capability table was the answer.
+- **Milestone 159.** A real hardware entropy source, the JH7110's TRNG. The boot wiring here runs on
+  the virtio-rng backend, which does not exist on silicon.
+- **Recorded.** `MemoryRegion::DESTROY` frees the region and the objects retyped from it but never
+  the destroyer's own capability-table slot naming it, so a server that destroys a region per request
+  runs out of table while its budget still looks healthy.
+  `design/roadmap/153-out-of-memory-causes.md` carries the account.
+- **Recorded.** A region destroyed out of LIFO order strands its pages until its parent dies, which
+  cost 368 pages of holes in one suite run here. The general form, that a short-lived region wants a
+  parent nothing long-lived is carved from, sits with the mechanism in
+  `crates/memory_regions/src/lib.rs`.
+- **Recorded.** An identity longer than sixteen bytes cannot get a per-identity subtree, because the
+  grant name travels in two argument words (`fs_proto::grant::MAX_NAME`) and `login_proto` allows
+  sixty-four; `login` refuses rather than truncating. An authenticated identity with no provisioned
+  subtree is refused indistinguishably from a wrong password, a considered fold. Both are in
+  `user/src/login.rs`.
+- **Recorded.** A per-client channel, answered or not, is never reclaimed in this slice; `LOGOUT` is
+  unauthenticated; and nothing checks the liveness of a terminal holder that walked away.
+  `user/src/login.rs` has each of the three beside the code that causes it.
+- **Recorded.** The credential service still shares one verify page across every client, the
+  structural limit `login`'s front door just escaped by minting a page per caller. It is written up
+  in `notes/credentials.md`, along with the sealed store's inability to revoke one secret.
+- **Recorded.** The construction budget (2048 to 12288 pages) and `CAPABILITY_TABLE_SLOTS` (16 to 17)
+  were raised with real margin found empirically, not tuned to a minimum, so a later lane that wants
+  either tighter has bisection work rather than a guess to correct.
+  `design/roadmap/49-users-and-attribution.md` records what was paid and why.
+- **Refused.** The second half of DECISIONS §109, a server logging which channel a request arrived
+  on. No server in this tree needs it: every multi-client server either serves exactly one principal
+  by construction (`fs_subtree_caretaker`) or is anonymous by design (the credential service).
+  Building it now would be a mechanism with no consumer to shape it.
+- **Refused.** Real terminal multiplexing. `login` hands the terminal to the first successful caller
+  and refuses the rest with a dedicated code until `LOGOUT`, deliberately, because the narrow shape
+  commits to nothing the wider one would later have to unwind.

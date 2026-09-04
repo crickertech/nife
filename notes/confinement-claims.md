@@ -50,7 +50,7 @@ themselves. The last column is this milestone's result.
 | 25 | A client cannot reach its neighbour's pixels or read the screen | §66 | `kernel::user::compositor_tests::a_client_holds_no_capability_for_its_neighbours_pixels_or_the_screen` | **no** |
 | 26 | A client of a rendezvous cannot become its server | §41 | `kernel::user::live_swap_tests::a_client_of_the_stable_rendezvous_cannot_become_its_server` | **no** |
 
-## Four claims that are stated nowhere, which is what step 1 was for
+## Five claims that are stated nowhere, which is what step 1 was for
 
 **A confined component's *timing* is not confined.**
 Added 2026-09-02 with DECISIONS 139 (how a saturated workload is made to hand threads across
@@ -81,6 +81,31 @@ it does not check, which the IOMMU cannot prevent and does not claim to.
 `kernel::user::survey_tests::the_survey_cursor_counts_threads_the_viewer_cannot_name` is a test
 that *states a limit*, found by a 2026-08-17 audit. Row 8's claim is about which threads are
 shown; nothing claims the count is confined, and one is not.
+
+**A confined component's *interrupt target* is not confined, and nothing here has ever asked.**
+Added 2026-09-03 by DECISIONS §86's research pass, which went looking for what a userspace NVMe
+driver would need and found this underneath every option it was pricing. An MSI or MSI-X message is
+a memory write to an architecturally special address, so an IOMMU doing DMA remapping alone does not
+confine it: a component that can write a device's MSI-X table can aim an interrupt at a vector it
+was never given. Linux refuses to hand a device to an untrusted userspace driver on a machine
+without interrupt remapping for this reason, and names its escape hatch `allow_unsafe_interrupts`.
+
+**The absence is the finding, and it is three-deep.** Row 12 and row 13 are about where a device may
+*read and write*, and neither covers where it may *interrupt*. No boot this tree runs could exercise
+the question even if a claim existed: `scripts/qemu-runner-x86_64.sh` attaches `-device intel-iommu`
+with no `intremap=on`, and `scripts/qemu-runner-aarch64.sh` uses `gic-version=2`, which has no ITS.
+And no driver touches an MSI-X table (notes/nvme.md's `BUGS`: the NVMe controller is brought up with
+`IEN=0` and no MSI-X table is touched), so nothing has ever come near it.
+
+**It is latent rather than false**, and it stays latent exactly as long as every component that can
+reach a BAR is the kernel. It goes live the first time a driver leaves the kernel and wants
+interrupts instead of polling, which is what §86 decides. Whatever §86 settles has to say who owns
+the page holding the MSI-X table; the cheap first move is two runner flags
+(`-device intel-iommu,intremap=on` with `kernel-irqchip=split`, and `gic-version=3`) to find out
+whether this boot path survives the hardware being present at all. The hazard is the one milestone
+202 (every confinement test is a ritual until somebody breaks the confinement) already caught in
+§31's headline assertion: green after turning the flags on proves nothing by itself, and the
+falsification has to be a driver aiming an interrupt where it was not given one, coming back red.
 
 **init's bytes are unsigned.**
 §14 says so plainly in its own honest caveat and it is not in the table because it is not a

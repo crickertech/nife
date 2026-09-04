@@ -171,3 +171,19 @@ the tree must be byte-identical afterwards apart from the paths themselves. `lin
 `qemu-runner.sh` have 18 and 13 referencing files, several of them build scripts and CI workflow
 steps, so the risk is a missed reference that only fails on one ISA or only in CI. Grep for the bare
 stem, not just the path.
+
+## Follow-on
+
+- **Milestone 77.** `crates/paging/src/aarch64.rs`, which left this milestone the day it was raised.
+  It is not a rename: calef expects a second aarch64 configuration, so the fix is a module per ISA
+  and a type per page-table configuration, with 174 call sites behind it. The finding worth carrying
+  is here too, that ARM has no short format name the way `Sv39` is one.
+- **Recorded.** `notes/riscv-parity-scope.md` holds the question this block left open,
+  `kernel/src/user/riscv_virtio_tests.rs` having no `virtio_tests.rs` twin. Its "Open gap" section
+  measured the overlap at 24 tests, found no behavioural divergence in any of them, and names the
+  merge that would settle whether the file is a RISC-V-only module or half of a pair. The name waits
+  on that, because the answer changes the name.
+- **Refused.** Renaming `user/link.ld`. It is genuinely shared, `user/build.rs` uses it with no
+  `match` on the architecture, and its lack of a suffix correctly means "shared" rather than
+  "aarch64 by default". A mechanical sweep for `link.ld` renames it and breaks both ISAs at once,
+  which is why the rule is "suffix a file that has a named twin" and not "suffix every unnamed file".

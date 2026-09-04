@@ -87,3 +87,32 @@ whole family. Every harness was read.
   re-reads those call sites when they change.
 - **The 147 cleared harnesses carry no artefact**, the same limit 211 records for its own 135. A
   refactor that inlines a function a harness calls turns that harness into this defect silently.
+
+## Follow-on
+
+- **Refused.** A gate. No check tells a deliberate model apart from an accidental copy, which is
+  milestone 211's reason and it held through the sweep. The discriminator the sweep worked out is a
+  question a person answers, "which side of the assertion did the crate produce?", and both sides
+  look like arithmetic beside a call to any pattern a lint could match.
+- **Refused.** The mechanical narrowing this block predicted, greping for harnesses that never call
+  the crate. It is easy to run and it is the wrong question: almost every harness that recomputes
+  something also calls the crate, so the interesting cases are the mixed ones, and 211 had already
+  measured its own extractor flagging three findings for the wrong reason and missing a family.
+  Every one of the 148 was read instead.
+- **Recorded.** `notes/falsification.md`. The 147 cleared harnesses carry no artefact, the same
+  limit 211 records for its own 135. A refactor that inlines a function a harness calls turns that
+  harness into this defect silently, and nothing re-checks the cleared set.
+- **Recorded.** `design/roadmap/213-harnesses-that-duplicate-the-implementation.md`. One finding is
+  a floor and a lower one than 211's eleven. A harness with the crate on neither side of its
+  assertion is the pure form and there was one; a harness whose subject comes from the crate can
+  still rest on a recomputed *assumption*, and telling a safe restatement from an unsafe one took
+  reading the code.
+- **Recorded.** `design/roadmap/213-harnesses-that-duplicate-the-implementation.md`. A model of a
+  caller cannot be repaired this way.
+  `kernel::every_page_between_the_checked_ends_is_itself_a_user_page` restates a guard two syscall
+  paths apply; both were read and both still match, so it is faithful, but what is duplicated is
+  control flow rather than a function and nothing re-reads those call sites when they change.
+- **Recorded.** `design/roadmap/213-harnesses-that-duplicate-the-implementation.md`. Some
+  duplication is correct and must not be swept up: `intrusive_fifo` keeps a model queue on purpose
+  and compares the real one against it. The difference is whether the crate's own function is on the
+  other side of the comparison, and that one sentence is the whole discriminator.

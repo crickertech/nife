@@ -116,3 +116,24 @@ implementation back at itself.
   `vendor/redoxfs/src/node.rs` were swept as prose and could not be swept as patches. All five are
   fine; the kernel pair are in fact the tree's model of the good shape, stating run arithmetic in
   `u128`.
+
+## Follow-on
+
+- **Milestone 212.** `script/falsifications` walks `crates/` only, so five harnesses (two in
+  `kernel/src/syscall.rs`, two in `user/src/printenv.rs`, one in `vendor/redoxfs/src/node.rs`) were
+  swept as prose and could not be swept as replayable patches. 212 landed first and widened the
+  denominator under this lane.
+- **Refused.** A lint for this defect. No check distinguishes "asserts through the function under
+  test" from "legitimately asserts agreement", and agreeing with itself is sometimes the property
+  you want, so a gate that flagged every such harness would be wrong more often than right. The
+  output is eleven falsification patches and a worklist instead.
+- **Recorded.** `design/roadmap/211-self-referential-harnesses.md`: the rewrite is harder than the
+  finding. Stating a property without the vocabulary the code uses is where specification work is
+  expensive, and for some properties there may be no independent statement worth having.
+- **Recorded.** `design/roadmap/211-self-referential-harnesses.md`: the sweep's own output can rot,
+  since a harness found fine today can become self-referential under a refactor and nothing will say
+  so. The eleven findings are protected by §134's replayed patches; the 135 cleared harnesses carry
+  no artefact at all.
+- **Recorded.** `design/roadmap/211-self-referential-harnesses.md`: eleven is a floor rather than a
+  count. Each finding is a defect somebody thought of, and "no blind spot demonstrated" only means
+  nobody has broken it the right way yet.

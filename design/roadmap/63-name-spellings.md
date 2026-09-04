@@ -197,3 +197,16 @@ Do it here, with the numbers written down, rather than under pressure from a nam
 
 **Effort: small**, and almost entirely mechanical, but it touches paths in `script/`, `xtask`,
 `deny.toml`, CI, and a long tail of notes.
+
+## Follow-on
+
+- **Recorded.** `notes/naming.md` lists what this milestone deliberately did not rename, so the next
+  reader does not "fix" one by mistake: the `shell` boot mode beside the `swish` binary, the `caps`
+  shell builtin, `crates/virtio`'s first line still calling itself a virtio-blk driver, and the
+  measured-boot manifest at `target/init-measure-<arch>.txt`.
+- **Recorded.** `notes/naming.md` also keeps this block's `target/` and `targets/` entry: build
+  output and the tracked custom target JSON sit next to each other, mean unrelated things, and
+  nothing enforces the distinction while one is gitignored and the other is tracked.
+- **Recorded.** `notes/naming.md` keeps the argument against doing this at all, which is worth
+  having after the fact: a hyphenated package name is ordinary in the wider ecosystem, Cargo
+  normalises it, and nothing was broken. The case was internal consistency, 36 crates against 3.

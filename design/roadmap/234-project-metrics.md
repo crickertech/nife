@@ -70,3 +70,29 @@ file it agreed exactly: **701 outside `arch/`, 253 inside, zero files disagreein
   status column; state was prose inside a cell. That is the sharpest restatement artifact on the page.
 - **`--check` is deliberately not in `script/lint`**, because any commit moves `HEAD` and the row
   records the commit it was taken at, so gating it would fail every pull request.
+
+## Follow-on
+
+- **Milestone 236.** The shared derivations are copied into `script/metrics` from inside
+  `script/lint`'s and `script/falsifications`' shell heredocs, where nothing can import them, so a
+  gate that changes its definition leaves this page holding the old one silently and no check fires.
+  This block proposed it as its own milestone and 236 is that milestone.
+- **Recorded.** `design/roadmap/234-project-metrics.md` BUGS: coverage has no history, because it is
+  computed per pull request in CI and stored nowhere, and backfilling means an instrumented build at
+  every checkout. The column is visibly empty with the reason beside it rather than omitted.
+- **Recorded.** `design/roadmap/234-project-metrics.md` BUGS: milestone statuses before 202631 are
+  unrecoverable, because the single roadmap file this directory replaced had ten rows and no status column, with state as prose
+  inside a cell. That is the sharpest restatement artifact on the page.
+- **Recorded.** `notes/project-metrics.md` says on its face that a reconstruction applies today's
+  definitions to old commits, which is right for a trend and is not what was reported at the time.
+  It also says that every historical figure in this tree is agent-derived, so agreement with
+  `notes/unsafe-obligations.md` is a consistency check rather than independent confirmation.
+- **Recorded.** `notes/naming.md` holds `script/metrics`, which shipped provisional the way a lane's
+  names do; `script/names --unratified` is the worklist and it does not block anything.
+- **Refused.** Putting `--check` in `script/lint`. Any commit moves `HEAD` and a row records the
+  commit it was taken at, so gating it would fail every pull request.
+- **Proposed.** `design/roadmap/proposals/stale-comment-ratio-in-agents-md.md`, Correct AGENTS.md's
+  "kernel/src measures 40% of them" comment ratio. The series puts it at 39.3% eight weeks ago and
+  45.3% now, climbing every week, so the figure a reader meets in the project's own front-door file
+  is wrong and drifting further from true. AGENTS.md is calef's file, so the one-line edit is his to
+  make; this page flags the staleness and cannot fix it.

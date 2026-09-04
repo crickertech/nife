@@ -18,3 +18,11 @@ Kernel only, deliberately. Crates like `user_rt` legitimately hold `asm!` in per
 rule there would be "asm lives in the ISA-suffixed module", which is a different check with its own
 false-positive surface. Whether it is worth writing is a question for after this one has run for a
 while.
+
+## Follow-on
+
+- **Refused.** Extending the check past the kernel was left out on purpose. Crates like `user_rt`
+  legitimately hold `asm!` in per-ISA modules, so the rule there would be "asm lives in the
+  ISA-suffixed module", which is a different check with its own false-positive surface, and
+  `script/lint` has already had checks deleted for exactly that. Whether it is worth writing is a
+  question for after this one has run for a while.

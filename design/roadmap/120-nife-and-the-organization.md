@@ -195,3 +195,20 @@ Redox is the closest neighbour in this tree's own reference set and does the opp
 - **This milestone does not deliver `basalt`.** It reserves the name and the repository. What a
   distribution actually packages is `design/what-a-distribution-packages.md`, and nothing here
   answers it.
+
+## Follow-on
+
+- **Milestone 119.** Step 5 of the ordering, enabling the merge queue, which this milestone made
+  reachable by moving the repository under an organization and explicitly left open.
+- **Milestone 128.** The `TOOLCHAIN_BUMP_PAT` secret, which does not survive a transfer and was
+  calef's to re-mint. Milestone 128 goes further than a re-mint: it gives the automation a GitHub
+  App identity and then deletes the secret and revokes the PAT, in that order.
+- **Recorded.** `design/what-a-distribution-packages.md` holds the question this milestone does not
+  answer. `basalt` is a reserved name and an empty repository, not a distribution, and what a
+  distribution actually packages is written up there rather than here.
+- **Recorded.** `design/roadmap/120-nife-and-the-organization.md` carries it in `BUGS`: GitHub
+  redirects the old clone URL and nothing else, so a hardcoded `calef/cricker-os` in a workflow, a
+  badge or a bookmark can still be stale.
+- **Recorded.** `design/roadmap/120-nife-and-the-organization.md` also states that a rename cannot
+  be un-published. The mitigation was timing rather than technique, the project had one customer and
+  no audience on the day, and the cost only rises from here.

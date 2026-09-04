@@ -20,3 +20,9 @@ What the commit records that still shapes the kernel:
 - The reaper test failed with exactly two leaked frames, which were page tables, which exposed
   that stack VAs were bump-allocated and never reused. Fixed with a free list, and a test asserts
   a second batch of eight threads costs zero additional frames.
+
+## Follow-on
+
+- **None.** The block is a backfill of what the commit settled. Every surprise it records was closed
+  in the same work: the trampoline unmasks interrupts by hand, and the two leaked page-table frames
+  became a stack-VA free list with a test asserting a second batch of eight threads costs no frames.

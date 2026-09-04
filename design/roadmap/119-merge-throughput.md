@@ -122,3 +122,26 @@ different milestone and calef's decision.
 **The honest limit**: the serialization is §73's rule, and no amount of sharding removes it. Ten pull
 requests will still land one after another; each one just costs less. Only a merge queue changes the
 shape, which is why it is named here rather than deferred.
+
+## Follow-on
+
+- **Recorded.** A queue drains at the pace of its slowest required check no matter how the work
+  inside it is arranged, and the queue brought its own failure modes with it: evictions GitHub does
+  not auto-retry, and a batch that fails has to be bisected. `notes/merge-queue.md` carries the
+  numbers, the caveats and the operator's part.
+- **Refused.** A self-hosted runner on `cordoba`, whose 23 GB would fit `VERIFY_JOBS=4` where the
+  hosted 16 GB fits two. Sharding needed no new infrastructure and no new failure mode, and owning a
+  runner for a public repository that accepts outside pull requests is a security posture rather
+  than a configuration.
+- **Refused.** Dropping `verify` from the required checks to merge faster (§73). The proofs are the
+  thesis, and a demonstrator whose headline claim is machine-checked verification does not stop
+  gating on it.
+- **Refused.** More shards. Four buy nothing over two, because `glob`'s proofs are atomic at 15.0
+  minutes and are half the suite's time on their own, so the floor is one harness rather than the
+  runner count.
+- **Proposed.** `design/roadmap/proposals/three-blind-spots-in-the-proof-scope.md`, fix the three
+  blind spots in `script/verify --affected-since`'s scope predicate: `scripts/` is not `script/`,
+  any `Cargo.lock` touch proves everything, and binary files count as unattributable. They are
+  nearly all of the prover tail still on the merge queue, and this block prices fixing them above
+  more shards, since one crate's proofs are atomic at half the suite's time. Each is its own small
+  lane.

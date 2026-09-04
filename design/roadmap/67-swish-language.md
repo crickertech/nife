@@ -76,3 +76,25 @@ the same script on aarch64 and riscv64 rather than by a second implementation.
 
 **Effort: small to medium**, and it was: mostly `grant_plan` and `swish`, both host-testable, so
 nearly all of it is proven in milliseconds without an emulator.
+
+## Follow-on
+
+- **Recorded.** `notes/swish-language.md` carries the backslash escape in `BUGS` beside the quoting
+  feature: none is planned while every token is a slice of the line, and the quoted spelling is the
+  one that works.
+- **Recorded.** `notes/swish-language.md` also says scripting is nowhere. `if`, `while`, `for`,
+  functions and reading a script file were never in scope, and this project has no story yet for
+  what a script *is* when a program namespace is an endowment.
+- **Milestone 172.** A per-program exit status. This block says correctly that it needs a
+  `spawnproto` bit, a delegation position and an edit to every program, so it is a milestone and not
+  a field; milestone 172 names exit-status delivery as one of the things a capability-native
+  subprocess primitive owes, distinct from the death-notification path.
+- **Milestone 47.** `$?` readable anywhere but `echo`. Substituting a word in an arbitrary position
+  needs the machinery milestone 47's variables need anyway, and building half of it here would have
+  been building it twice.
+- **Milestone 52.** Grouping. `a && b || c` is left to right with no precedence between `&&` and
+  `||`, and there is no `{ }` or `( )` to override it; both should arrive with subshells.
+- **Recorded.** `design/decisions/76-roadmap-status-versus-tree.md` states the weakness that let
+  this block sit at NOT-STARTED for twelve days after the work merged: the gate cannot see a status
+  that is wrong in both places, because two records agreeing with each other and not with the tree
+  look consistent to a consistency check.

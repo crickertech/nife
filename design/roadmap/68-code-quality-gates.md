@@ -147,3 +147,18 @@ One regression is worth recording because nothing else would have caught it: add
 `SAFETY:` comment from its block**, and clippy then reported the block as undocumented. An attribute
 between a comment and the item it describes breaks the association. The fix is ordering: attribute
 first, then the comment, then the block.
+
+## Follow-on
+
+- **Recorded.** In `notes/doc-coverage.md`: 235 undocumented public items across seven crates, each
+  carrying an explicit `#![allow(missing_docs)]` citing its own count. It is an ordinary ratchet
+  that may only shrink, and BUILT does not wait on it reaching zero.
+- **Decision.** `design/decisions/107-missing-docs-workspace-wide.md` answers whether the lint goes
+  in `[workspace.lints.rust]` as opt-out, which inverts §61's own rule that adding a lint means
+  fixing every existing violation first. Recorded there as a considered exception rather than a
+  quiet reversal.
+- **Proposed.** `design/roadmap/proposals/pure-halves-of-the-user-rt-crates.md`, split the pure
+  half from the syscall half in `user_rt`, `swap_proto`, `virtio`,
+  `supervision_proto` and `system_initializer`. Each takes an unconditional `user_rt` dependency, so
+  the host test selection excludes it and nothing in CI ever runs its doctests. That is five crates
+  whose examples can rot unnoticed inside the gate milestone 68 exists to be.

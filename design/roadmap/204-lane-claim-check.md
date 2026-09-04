@@ -101,3 +101,25 @@ missing claim.
   because an old branch with no claim is the case worth seeing.
 - **It reports to stdout only.** The drain can comment on the pull request it is complaining about;
   a branch with no pull request has nowhere to be told.
+
+## Follow-on
+
+- **Recorded.** `notes/merge-queue.md` documents the check and what it does not see. It detects the
+  absence of a claim, not a collision: two lanes on the same milestone with two drafts is the case
+  §90 actually fears and this check calls it fine, because catching it needs the milestone number
+  parsed out of a branch name and nothing enforces that convention.
+- **Recorded.** `notes/merge-queue.md` also names the blinder that matters more: it cannot see a
+  lane that has not pushed at all, which is the more dangerous state, because a pushed branch is the
+  only ledger another session can read.
+- **Recorded.** `AGENTS.md` carries the gap this inherits and the fact that it was accepted rather
+  than solved: the check is only as alive as `scripts/merge-drain.sh` is, and patagonia asleep means
+  nobody is watching. A GitHub Actions cron would close it and was declined here.
+- **Recorded.** `notes/merge-queue.md` says which prefixes it watches, which is `milestone/*` only.
+  A lane on `fix/`, `roadmap/` or `maintainer/` is invisible to it, and widening the pattern would
+  sweep in short-lived maintainer branches that are not claims.
+- **Recorded.** `notes/merge-queue.md` carries the activity-feed bound: the feed is read one page
+  deep, so a branch born more than 100 repository events ago has no visible birth time and is
+  reported rather than skipped. The fallback errs loud on purpose.
+- **Recorded.** `notes/merge-queue.md` records the reporting asymmetry. It writes to stdout only:
+  the drain can comment on the pull request it is complaining about, and a branch with no pull
+  request has nowhere to be told.

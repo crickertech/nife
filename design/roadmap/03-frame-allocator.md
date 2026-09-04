@@ -21,3 +21,12 @@ One known hole was recorded rather than papered over: the allocator's lock was a
 core with no interrupts, and the commit demanded a written-down locking discipline before
 milestone 5. That arrived as `6974f6c` (IrqSafeMutex, handlers do not allocate) and was later
 enforced in `e85802d` rather than merely written down.
+
+## Follow-on
+
+- **Milestone 4.** The guard page below the kernel stack. The stack canary this milestone added is
+  recorded in its own commit as a mitigation rather than a fix, and the real fix needs the MMU that
+  milestone 4 turns on.
+- **Milestone 5.** The written-down locking discipline the commit demanded before a timer interrupt
+  could land between any two instructions. It arrived as `IrqSafeMutex` and DECISIONS §9, and
+  milestone 5 is where it stopped being a hypothesis.

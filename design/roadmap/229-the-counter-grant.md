@@ -194,3 +194,24 @@ not an error. That skip is DECISIONS 139 part 3 showing up in a test rather than
   it is also the owner of a portable userspace read: the raw `mrs`/`csrr` here lives in the one test
   program that needs it rather than in `crates/user_rt`, so that 74 designs that API instead of
   inheriting one from a test vehicle.
+
+## Follow-on
+
+- **Milestone 127.** Verifying the granted and ungranted states on real silicon. QEMU's
+  `PMUSERENR_EL0` is almost certainly zero either way, so a green run says little, and this block
+  puts the bench item beside 127's existing `PMCCNTR_EL0` one.
+- **Milestone 74.** The userspace surface, and the first consumer. There is deliberately no syscall
+  method, so in a shipped kernel nothing calls the grant at all; 74 is the first real consumer and
+  also owns a portable userspace read, which is why the raw `mrs`/`csrr` here lives in the one test
+  program that needs it rather than in `crates/user_rt`. Milestone 147's cross-thread,
+  target-naming authority is the other claimant, and neither this nor any option in DECISIONS 139
+  provides it.
+- **Recorded.** `design/roadmap/229-the-counter-grant.md`: the riscv64 half is `scounteren.CY` and
+  is not symmetrical with aarch64's `CR` bit, because one CSR carries both the coarse and the fine
+  permission there while aarch64 splits them across two registers.
+- **Recorded.** `design/roadmap/229-the-counter-grant.md`: the EL0 test grants through a
+  `#[cfg(test)]` back door that breaks the embryo rule and cannot exist in a shipped kernel, so the
+  embryo-only path a real ABI would take is proven by a unit test rather than end to end.
+- **Recorded.** `design/roadmap/229-the-counter-grant.md`: every name here is provisional and names
+  are calef's, including `Thread::cycle_counter_grant`, `arch::timer::set_cycle_counter_grant`,
+  `cycle_counter_grantable` and `sched::grant_cycle_counter`.

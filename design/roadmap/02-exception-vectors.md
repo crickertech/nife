@@ -21,3 +21,9 @@ row (`b7f10e7`) promised an "EL2 -> EL1 drop" alongside the vectors. No commit c
 the revised table in `491f23d` quietly dropped it: QEMU's `virt` machine enters a flat Image at
 EL1, so there was nothing to drop from. The boot-protocol work that day was `d87d24a`, booting as
 a flat arm64 Image and getting the device tree.
+
+## Follow-on
+
+- **Refused.** The EL2 to EL1 drop the original row promised alongside the vectors. QEMU's `virt`
+  machine enters a flat Image at EL1, so there was nothing to drop from, and building the mechanism
+  with no caller would have been guessing at what a later board needs.

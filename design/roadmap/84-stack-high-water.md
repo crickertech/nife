@@ -21,3 +21,15 @@ limit coverage has. The static complement (`-Zemit-stack-sizes`, worst-case fram
 on indirect calls, so it lands as an advisory report if it lands at all. And the check must not
 become load-bearing the way milestone 78's assertions did: depth is a property of the code and the
 suite, not of the host, so this one should be immune to runner noise by construction.
+
+## Follow-on
+
+- **Milestone 124.** The static complement this block priced as "an advisory report if it lands at
+  all" landed as a real instrument: `script/stack-depth-check`, a call-graph walker that hangs
+  `-Z emit-stack-sizes` frames on the graph and takes the longest path from a thread stack's entry
+  points. It earned its keep by refuting the depth hypothesis behind the guard-page faults rather
+  than by measuring one.
+- **Recorded.** In `notes/stack-high-water.md`: a watermark sees only the paths the suite exercises,
+  so an unexercised deep path stays invisible, and the walker's answer is a lower bound because
+  indirect calls and hand-written assembly carry no `.stack_sizes` entries. The same section carries
+  the rule that the two thresholds must be raised together or they stop describing the same stack.

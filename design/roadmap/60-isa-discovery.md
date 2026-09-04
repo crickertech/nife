@@ -89,3 +89,15 @@ deprecated `riscv,isa` string (the modern properties are Linux 6.6 and later), `
 abbreviation for `imafd_zicsr_zifencei` rather than an extension name, and the trap that requiring
 `zicsr`/`zifencei` would **refuse to boot on that board**, because both were carved out of base `I`
 in 2019 and an older string simply does not list them. `m`, `a` and `c` are what gate instead.
+
+## Follow-on
+
+- **Milestone 58.** Removing the unconditional `sfence.vma`, which this block named as its own
+  milestone when it found that TLB flush strategy varies nowhere. 58 built the per-ASID flush, the
+  SBI shootdown with its acknowledgement, and gated the removal on the probe.
+- **Recorded.** `design/roadmap/60-isa-discovery.md`'s own `BUGS`: discovery makes the kernel
+  honest, not portable. Knowing an extension is missing and doing something useful about it are
+  different pieces of work, and nothing here promises the second.
+- **Recorded.** `design/roadmap/60-isa-discovery.md`'s own `BUGS`: the device tree can lie, or
+  firmware can describe a machine it is not. Tier 2, the targeted probe, exists for exactly that,
+  and the rule is that the machine wins when the two disagree.

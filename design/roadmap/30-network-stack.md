@@ -35,3 +35,17 @@ file). Testing is cheap: QEMU's user-mode networking NATs the guest with zero ho
 **Sequencing.** After the PCIe transport (done); the multi-queue confinement is the
 prerequisite piece and worth building first as its own tested step. Feeds 23 and 27.
 **Effort: 3 lanes** (measured: multi-queue confinement, the driver and net_stack, then the socket contract).
+
+## Follow-on
+
+- **Milestone 107.** The socket contract shipped with no listen verb, so everything this milestone
+  proved is outbound: nife could reach the network and could not be reached. 107 added the listen
+  and accept verbs and the inbound gate.
+- **Milestone 23.** Live-replacing the network stack under open connections, which this block names
+  as the milestone's most convincing instance and does not itself perform.
+- **Milestone 27.** Binding `std::net`'s PAL to the socket contract, replacing the honest
+  `Unsupported` this block was written to remove.
+- **Refused.** Sockets-API mimicry beyond what the PAL needs. The scope was set at TCP, UDP and
+  DHCP on purpose: a wider surface would be reimplementing Berkeley sockets, which proves nothing
+  about a kernel confining a stack, and this milestone's thesis is the confinement rather than the
+  stack.

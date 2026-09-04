@@ -58,3 +58,23 @@ Sequence it after the ruleset lands and after the required checks are green, for
 the ruleset itself is sequenced after this branch merges.
 
 **Why it matters.** **a public repository with a security thesis should be able to receive a security report privately**, which today it cannot. The pull-request item also changes how this project is built: work currently lands by merging feature branches into `main` locally, and requiring PRs would put every merge behind the same gate rather than trusting the person merging, which is the discipline that caught the reap flake and the conflict markers only because I happened to run the gates by hand
+
+## Follow-on
+
+- **Decision.** `design/decisions/78-signed-commits.md` holds the fifth item, deferred here on
+  sequencing grounds. It was raised the day §73 closed so the deferral would not die with the
+  section carrying it, and calef decided on 2026-08-25 not to require signing, with the conditions
+  that would reopen it written down.
+- **Decision.** `design/decisions/73-repository-admin-steps.md` holds the settings half, the ten
+  admin minutes only calef could spend. He applied them the evening of 2026-08-04 and the section
+  records what was applied and what turned out not to apply, rather than only saying "done".
+- **Recorded.** `design/roadmap/44-github-hardening.md` keeps the code-scanning caveat, which is
+  the number worth carrying rather than the clean one: 60 of 176 Rust files were extracted with
+  errors, against the host target with default features, for a kernel that does not build for the
+  host at all. "Zero alerts" means less than it looks.
+- **Recorded.** `notes/repo-hardening.md` records why `undefined-behavior check` cannot be a
+  required check: it runs on a weekly cron and never on a pull request, so requiring it would block
+  every merge. Five more checks that do run on every pull request deliberately do not block.
+- **Milestone 78.** The `cpu matrix` check is one of the five that deliberately does not block, and
+  the reason is that it is load-sensitive. Milestone 78 is where that family of assertions was
+  diagnosed and fixed.

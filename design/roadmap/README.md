@@ -132,6 +132,123 @@ machine, which milestone and why), so it wants the paragraph the block gives it,
 already argued that a fact kept beside the work does not drift away from it. The index stays the place
 for what is true in one word.
 
+**Follow-on vocabulary: the `## Follow-on` section every finished block answers** (milestone 247,
+2026-09-03). The gate line says what stops a milestone starting; this says **what happened to the
+work the milestone named on its way out**, and it exists because that work is the thing this project
+keeps losing. Three times on the record: milestone 90 exists only because calef happened to be at
+his desk the day a report named its finding, milestone 94 swept the tree for this exact category and
+left its own inventory in a pull request body for twelve days, and milestone 244 named an
+unvouched-binary hazard and a design fork that surfaced only because calef asked for them by hand.
+
+A block whose status is `BUILT`, `REMOVED` or `PARTIAL` carries the section, and
+`script/roadmap --check` fails on one that does not. It is a bullet list, and each bullet opens with
+one of eight dispositions:
+
+| Bullet opens | Means | Must resolve to |
+|---|---|---|
+| `**None.**` | Nothing was identified. | Nothing; it stands alone as the whole answer |
+| `**Milestone N.**` | It became milestone N. | A block under `design/roadmap/`, not this one |
+| `**Done.**` | It was done, and not as a milestone. | What carried it: a pull request, a branch, a file |
+| `**Recorded.**` | It is a limitation and it stays one. | Prose, and any path it cites must exist |
+| `**Refused.**` | Considered and deliberately not taken. | A reason, in prose |
+| `**Decision.**` | It is calef's call, written up as one. | A file under `design/decisions/` |
+| `**Proposed.**` | Named, nobody took it, so it is now a proposal. | A file under `design/roadmap/proposals/` |
+| `**Outstanding.**` | Still this milestone's own remaining scope, checked against the tree and still true. `PARTIAL` blocks only. | What is left, and how you checked |
+
+**`PARTIAL` was added by milestone 252, and it is the harder half.** A finished block is written
+once and closed, so its section is a record. A `PARTIAL` block's is a **standing claim about the
+future**, edited as pieces land, and nothing re-reads what it still asserts. Its prose is also what a
+lane reads when deciding what to pick up, so a stale one does not merely misinform: it offers work
+that does not exist. Milestone 16 listed three things as remaining, two of them were finished, and
+the block said otherwise for weeks.
+
+**`Outstanding.` is the word a `PARTIAL` block needs that a finished one does not.** The other seven
+say where work *went*; a `PARTIAL` block's commonest honest answer is that it has not gone anywhere
+and is still this milestone's own scope. None of the seven can say that without lying, and a lane
+forced to choose would write the comfortable word or leave the item out, which is the silence this
+gate exists to stop arriving through the gate. It is refused on a `BUILT` or `REMOVED` block, where
+`Recorded.`, `Proposed.` and `Milestone N.` already cover the ground and a softer synonym would only
+give them somewhere to hide.
+
+**`None.` is refused on a `PARTIAL` block**, which is the one thing this gate can prove rather than
+merely enumerate. `PARTIAL` means work remains, so a block answering that nothing is outstanding has
+contradicted its own status word: either name what is left, or the status is stale and the row wants
+`BUILT` with a date. That is the milestone-69 defect (row and block disagreeing) one level in.
+
+**What the gate can and cannot do is unchanged.** It checks that the claims are enumerated and that
+each resolves to something that exists. **It cannot check that a claim is still true.** What catches
+staleness is a person writing the dispositions out, which is what both sweeps demonstrated: 247's
+found three items already built, and 252's found more.
+
+**An explicit refusal is a success here.** The defect being attacked is silence, not the absence of
+a milestone, and `**None.**` is meant to be the cheapest sentence in the roadmap.
+
+**It does not weaken the `BUGS` convention and cannot.** `**Recorded.**` points **at** a limitation
+recorded beside the feature; it never replaces one. An over-strict version of this rule, where every
+observation had to resolve to a milestone, would make the honest thing expensive to write and thin
+the `BUGS` sections out, which costs more than the burial does. Nothing here reads prose looking for
+intent: AGENTS.md priced that at `git grep -w TODO`'s 82% false-positive rate.
+
+**`Proposed.` is the one that carries this milestone's whole subject**, and it went through two
+shapes in a day. A block that wrote its follow-on work down honestly and had nobody pick it up fits
+none of the other words: `Recorded.` lies about intent and `Refused.` lies about the decision, so a
+lane forced to choose writes the more comfortable one. Three lanes that would not lie left the item
+out instead, which is the burial arriving through the gate. It was first spelled `Unclaimed.` and
+took only prose, because a lane could not mint a milestone number and had nothing to point at. That
+constraint went the same day, and the disposition now resolves to a file somebody wrote.
+
+**`Done.` came from the same afternoon and four lanes**, for work a block named that two ordinary
+commits then finished. Each of those lanes resolved it by leaving the item out, which is the silence
+this gate exists to stop, arriving through the gate itself.
+
+**The whole vocabulary is provisional until calef ratifies it.** `REMOVED` was minted by him and
+these six words are a lane's, offered with the sweep that produced them.
+
+## Anybody may add to this roadmap: `design/roadmap/proposals/`
+
+Ratified by calef on 2026-09-03, and it dissolves a rule this tree had been treating as one thing.
+**A lane writes a proposal itself**, as `design/roadmap/proposals/<slug>.md`, with no number in the
+name. No coordination, no maintainer in the path, no waiting.
+
+*"On a human team, anybody should be able to add to the roadmap. That's different than prioritizing
+that roadmap."* Lanes were barred from minting because concurrent lanes cannot see each other and
+two reaching for the same number collide. **The collision is in the number, not in the authority**,
+and conflating them meant a lane that found work had to route it through a report, through the
+maintainer, into a decision that might be deferred. Every hop is a chance to lose it, and on the day
+this landed the maintainer had buried three items by deferring them into chat messages. Prioritising
+the roadmap is still calef's, and so is every number and every name.
+
+**Why a slug and not a GUID**, which was considered and rejected. Milestones are cited in prose
+constantly and a GUID cannot be said out loud. This tree already found bare numbers too opaque, which
+is why it cites a milestone by number *and* name; a GUID moves further along the axis that already
+needed correcting. The slug is the readable half of a filename this directory already uses, so
+nothing new has to be learned, and two lanes collide only by choosing the same words, which is
+visible rather than silent. Numbers stay for promoted blocks, where they also carry recency for free.
+
+**A proposal carries the same status and gate lines a numbered block does**, so promotion changes
+almost nothing:
+
+```markdown
+# <Title, the way a numbered block is titled>
+
+**Status: PROPOSED 2026-09-03.** Written by <who or what>, from milestone <N>'s block.
+
+**Gate: NONE.** <what stops a lane starting this>
+
+**In brief.** <what the work is>
+```
+
+**Promotion is the integrator's, at merge**, like every other global name: give the file its number,
+`git mv` it up a directory, add the index row. `script/roadmap --check` validates the rest.
+
+**The graveyard question, asked here rather than discovered later.** A proposal nobody promotes is
+the same burial in a new location. Nothing can force a promotion, and a gate that tried ("no proposal
+older than N days") would be routed around by not writing proposals, which is worse than the pile.
+What the gate does instead is make the pile impossible to miss: the status line carries the date it
+was written, `script/roadmap --check` prints the count and the oldest date on every lint run, and
+`--proposed` lists them oldest first. An unread number is still rung two, where a paragraph in a
+finished block was rung four.
+
 **Reading it.** `script/roadmap --ready` prints only what a lane could pick up now: gate `NONE`, and a
 status of `NOT-STARTED` or `PARTIAL`, because `IN-PROGRESS` has somebody on it and `OPTIONAL` and
 `RECORDED` are deliberately off the work list. The full report (`script/roadmap`, no arguments) groups
@@ -451,10 +568,12 @@ besides, being built for dated release grouping; these are capability-shaped and
 | 244 | RECORDED | [The largest crate in the tree is proved by nothing a mutation can reach](244-the-largest-crate-in-the-tree-is-proved-by-nothing.md) | Measured: only 33 of 196 mutants are in pure logic, so nothing was lifted. The 0-of-191 score was a config gap (the crate was missing from `.cargo/mutants.toml`), now fixed and gated | |
 | 245 | NOT-STARTED | [A soak cannot tell a flat run from a productive one, so its duration is guesswork](245-a-soak-cannot-tell-a-flat-run-from-a-productive-one.md) | all eight soak counters are volumes; nothing counts distinct behaviour, so a saturated run and a productive one look identical | |
 | 246 | BUILT | [Measured boot's refusal path is tested by nothing, and one mutant turns it off](246-the-refusal-path-of-measured-boot-is-tested-by-nothing.md) | The decision is `measured_boot::verdict` now, with three host tests. Falsified by hand (`unvouched: false` turns one red) and then made a standing mutant rather than a one-off check | 2026-09-03 |
-| 247 | NOT-STARTED | [Follow-on work named by a finished milestone goes nowhere, and this is the third time](247-follow-on-work-named-by-a-finished-milestone-goes-nowhere.md) | 151 BUILT blocks name work in `BUGS` sections and handoffs, and nothing can tell which of it became a milestone | |
+| 247 | BUILT | [Follow-on work named by a finished milestone goes nowhere, and this is the third time](247-follow-on-work-named-by-a-finished-milestone-goes-nowhere.md) | 151 BUILT blocks name work in `BUGS` sections and handoffs, and nothing can tell which of it became a milestone | 2026-09-03 |
 | 248 | NOT-STARTED | [A placement can only be drawn, never constructed, so the strongest finding on this machine rests on two boots](248-a-placement-cannot-be-constructed-only-drawn.md) | one card and one build gave a 15x spread explained by grinder co-location, and no arrangement can be built on purpose to test it | |
 | 249 | PARTIAL | [The boot lottery is sampled by a person walking to the board, so nine draws is a whole evening](249-the-boot-lottery-is-sampled-by-a-person-walking-to-the-board.md) | SBI SRST is already called with reset type 0; type 1 is a cold reboot, and 3 and 4 clean cores have never been drawn | |
 | 250 | NOT-STARTED | [An unviable mutant is a hole in the measurement that reads as a pass](250-an-unviable-mutant-is-a-hole-that-reads-as-a-pass.md) | `measured_boot` had nine, one of them hiding the crate's only security decision, and no published rate counts them | |
+| 251 | NOT-STARTED | [A `needs-architect` label outlives the question that earned it, so the queue lies](251-a-needs-architect-label-outlives-its-question.md) | nothing takes the label off, so the one query that says what is waiting on the architect can be false | |
+| 252 | BUILT | [A `PARTIAL` block claims work is remaining and nobody re-reads it](252-a-partial-block-is-the-one-nobody-re-reads.md) | All 22 `PARTIAL` blocks swept: 215 dispositions written, **56 of them recording a claim the tree disproved, and every one of the 22 blocks carried at least one** | 2026-09-03 |
 
 The order §14 sets: **verify the core and make it verifiable first** (18 and 14, the thesis), then the
 road to running real workloads on real machines (15, 21, 16, 19; 25 extends 21 into cross-OS
