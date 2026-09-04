@@ -647,3 +647,43 @@ is ordinary, and `line_editor` and the compositor already exist beneath it.
   further complaint, because DECISIONS §67's diagnostics-before-output rule closes that stream
   before the loop starts. In practice this needs the domain's own endpoint to be destroyed mid-run,
   which nothing in this tree does to a live supervision endpoint today.
+## Follow-on
+
+- **Done.** The block's "only `Endpoint` consults the new right today, the address-space object will
+  when `pmap` is built" expired when `pmap` landed on 2026-08-23: the `ASPACE_LIST` arm in
+  `kernel/src/syscall.rs` checks `Rights::ENUMERATE` before it lists, proved both ways by the
+  kernel's own `pmap` tests.
+- **Outstanding.** `top` still has nothing to report: `kernel/src/thread.rs` carries no
+  time-on-CPU field, the tick handler only sets `need_resched`, and the rendezvous survey still
+  returns three words. Milestone 229's per-thread cycle-counter grant is self-timing authority
+  rather than accounting, so the fork is unchanged. Checked 2026-09-03.
+- **Outstanding.** `pwdx` and `w` still have no mechanism for a display name: spawn's `arg0` is one
+  `u64`, `crates/grant_plan`'s program name is a build-time label, and no supervisor keeps a
+  tid-to-name map (checked `crates/grant_plan`, `user/src/root_supervisor.rs`,
+  `user/src/sub_server_supervisor.rs`). Checked 2026-09-03.
+- **Outstanding.** `free` and `vmstat` are unbuilt and the fork stands: the page-frame statistics
+  in `kernel/src/memory.rs` are still read only by the boot-time summary, with no path to userspace
+  and no crate under `crates/` for either program. Checked 2026-09-03.
+- **Outstanding.** `pmap` is still unreachable from the prompt. `user/src/pmap.rs` exists,
+  `crates/grant_plan` has no program variant for it and `crates/system_initializer` never names it,
+  so nothing can spawn it and there is no live address space to point it at. Checked 2026-09-03.
+- **Outstanding.** `pidwait`, found by the 2026-08-24 `dpkg -L procps` check, is still undesigned:
+  no crate, no program variant, and no note beyond this block's own strata table. Checked
+  2026-09-03.
+- **Milestone 47.** A pattern still cannot be typed at `pgrep`, because every manifest in
+  `crates/grant_plan` forbids arguments or takes a single integer, and positional arity is 47's.
+- **Milestone 106.** `watch`'s half-second interval is still a yield-spin against the monotonic
+  clock in `crates/watch`, because the kernel has no timed wait.
+- **Decision.** `sysctl` is not built and will not be: `design/decisions/115-no-sysctl.md`, each
+  subsystem carrying its own tuning rather than one machine-global panel.
+- **Refused.** The signalling stratum (`kill`, `pkill`, `skill`, `snice`) stays unbuilt: a survey
+  returns a tid, a tid is not a capability, and killing stays with whoever holds the child's region.
+- **Recorded.** `pmap` prints one row per page with no coalescing and cannot tell a device mapping
+  from ordinary memory, both stated in `crates/pmap`'s module docs, because the listing reads the
+  revocation log.
+- **Recorded.** `uptime` prints no load average and no logged-in-user count, and `watch` cannot be
+  cut short with `^C`; the reasons are in `crates/uptime` and `crates/watch`'s own module docs.
+- **Outstanding.** The "where the process view comes from" fork was never written down. The tree
+  took the subtree option by construction, with `ps` reading the rendezvous survey, but no file
+  under `design/decisions/` records it, so a non-subtree view is neither built nor refused. Checked
+  2026-09-03.

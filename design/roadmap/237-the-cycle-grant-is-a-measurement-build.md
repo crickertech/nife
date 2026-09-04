@@ -186,3 +186,29 @@ that a footprint change is intended and understood; do it in the commit that cau
 - **Nothing here fixes the accumulating-baseline problem**, only this instance of it. Whether the
   gate should compare against `main` rather than a stored file is a separate question with its own
   costs.
+
+## Follow-on
+
+- **Milestone 74.** Cycle counters on both ISAs. When its aarch64 half lands it turns this feature
+  on rather than reverting anything, and the churn it meets is 136 bytes in one function.
+- **Recorded.** Folding `test` into the gate makes `script/test` a keep-alive on all three
+  architectures, at the cost that the configuration a production kernel actually ships
+  (`not(test)`, feature off) is now the one nothing runs, and it is the one whose correctness is
+  that the code is absent. `design/roadmap/237-the-cycle-grant-is-a-measurement-build.md`.
+- **Recorded.** A benchmark build carries 136 more bytes in `sched::schedule` than production, so a
+  cycle figure taken with the instrument on is slightly pessimistic about nife. That caveat sits
+  beside the seL4 calibration in `notes/benchmarks.md`, which is where milestone 25 keeps its
+  comparison, and beside the mechanism in `notes/abi.md`.
+- **Recorded.** The feature name `cycle_counter_grant` is provisional, like everything a lane mints;
+  names are calef's. It is the field it builds rather than a new word for the same thing.
+  `kernel/Cargo.toml`.
+- **Proposed.** `design/roadmap/proposals/unattributed-fastpath-residuals.md`, Attribute the riscv64
+  and x86_64 fastpath residuals, then re-record those baselines in the commit that does it. riscv64
+  sits at 5132 against a 5106 baseline and x86_64 at 6687 against 6639, and neither gap is bisected
+  to a milestone, so re-saving them today would be the absorb-the-growth move this block exists to
+  refuse. Only aarch64 was re-recorded here.
+- **Proposed.** `design/roadmap/proposals/fastpath-footprint-against-main.md`, Whether the fastpath
+  footprint gate should compare against `main` rather than a stored baseline file. It is calef's
+  call and has costs on both sides. Two lanes each measured "within bound" against the same stale
+  baseline and neither re-saved it, so aarch64 headroom fell from 3.9 points to 1.5 with nothing
+  firing. This milestone fixed the instance, not the mechanism.

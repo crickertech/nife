@@ -694,6 +694,13 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // bench boots report it too: it is the line whoever brings up a board reads first.
         arch::isa::print_summary();
 
+        // Ask firmware for a cycle counter (milestone 74). After `isa::init`, because it reads the
+        // SBI extension set that probe filled in, and beside the summary because whether this
+        // machine has one is a fact about the machine and belongs in the same paragraph. Silent and
+        // harmless where the PMU extension is absent: the counter is then simply `None` forever.
+        arch::pmu::init();
+        arch::pmu::print_summary();
+
         // The scheduler comes up before the tour (and, in a test build, before the tests): both
         // need threads to switch between, and preemption needs somewhere to go. aarch64 brings it
         // up in its main boot flow for the same reason.

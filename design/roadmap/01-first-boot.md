@@ -23,3 +23,10 @@ What landed, all on 2026-07-12:
 An honest gap in the record: these commits predate the "Milestone N:" title convention, which
 starts at `543d390` (milestone 2), so no commit names milestone 1. The boot commit and the plan
 row are the evidence.
+
+## Follow-on
+
+- **Recorded.** `design/roadmap/01-first-boot.md` carries the one gap this block found: no commit
+  names milestone 1, because these commits predate the "Milestone N:" title convention that starts
+  at `543d390`. The boot commit and the plan row are the evidence, and nothing can be done about it
+  now without rewriting history.

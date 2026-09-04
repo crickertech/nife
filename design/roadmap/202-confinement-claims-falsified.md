@@ -131,3 +131,27 @@ prediction down is what made it checkable.
 - **The table inherits the blind spots of the tests it enumerates**, because every row in it was
   found by reading what this project already wrote. That is the same limit as the section above and
   it is why nothing here retires risk 7.
+
+## Follow-on
+
+- **Milestone 210.** No kernel test can be run by name, which is the blocker under the six kernel
+  rows this milestone could not falsify by machine. This block called it worth a milestone of its
+  own and it was minted from this lane.
+- **Milestone 212.** `script/falsifications` walked `crates/` only, so `kernel/falsifications/` was
+  swept by nothing and the ratio printed as the tree's was one directory's. The walk now comes from
+  `cargo metadata` and this milestone's record is reported by name.
+- **Milestone 211.** The shape found twice here, a harness whose property is stated through the
+  function under test so that function cannot be seen to break. 211 swept the tree for it: 146
+  harnesses read, 11 measured blind, all 11 rewritten.
+- **Milestone 198.** The adversarial pass by someone who did not build this system, which is the
+  better thing this milestone is explicitly not. It waits on a package manager and a trivial
+  install, because no third party sees nife before those exist.
+- **Recorded.** `design/roadmap/202-confinement-claims-falsified.md`: breaking confinement
+  deliberately means the falsification diffs are, by construction, patches that disable security
+  checks, living in the tree beside the checks they disable.
+- **Recorded.** `design/roadmap/202-confinement-claims-falsified.md`: a test can go red for the
+  wrong reason, which fired twice on the day this was written, so each falsification has to name the
+  assertion it expects to fail.
+- **Recorded.** `design/fatal-risks.md` keeps risk 7 open. The enumeration inherits the blind spots
+  of the tests it was read out of, and it cannot reach the claim nobody made, which is where real
+  escapes live.

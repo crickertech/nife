@@ -359,3 +359,22 @@ actually reflecting it, which is its own reason to exist per DECISIONS §113's w
 name only works if a reader meets it. All eleven names are done (`Endpoint`/`EpId`/`EpFail`,
 `Tcb`/`TcbPtr`/`Tid`/`TidSet`, `Aspace`/`FreeVas`, `Frame`, and `Untyped`); no reader meets a
 contraction or borrowed abbreviation from this list anywhere in the tree anymore.
+
+## Follow-on
+
+- **Refused.** `DeviceFrame` was left unrenamed. It is not one of §113's eleven names or the
+  `CSpace` amendment, its own doc comment already disambiguates it from the compositor's frame ("a
+  device's MMIO page"), and companion-renaming an unlisted sibling is the scope creep AGENTS.md's
+  naming section asks a lane not to take on its own initiative.
+- **Refused.** Local bindings and parameters that merely spell a renamed concept (`ep`, `aspace`,
+  `tid`, `tcb`) were left alone across all seven names. A local binding names nothing a reader meets
+  from outside the function, so it is not on the identifier surface §113 decided.
+- **Refused.** Informal lowercase prose that uses "endpoint", "tcb" or "untyped" as English rather
+  than as a citation of an identifier stayed as written, outside each object's own implementation.
+  The exception was "aspace", swept to "address space" wherever the rename touched, because it is
+  not standard English and leaving it would have parked the exact contraction §113 retires next to
+  its own renamed identifier.
+- **Refused.** Historical citations keep the old spelling on purpose: `crates/abi/src/lib.rs`'s
+  naming rationale names `Tcb`/`Aspace`/`Untyped` as the abbreviations a review sank, and renaming
+  them would make the sentence describe the winning name as the one that lost.
+  `design/decisions/114-aspace-enumerate.md` was left as the point-in-time record it is.

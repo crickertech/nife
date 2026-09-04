@@ -160,3 +160,24 @@ service operation that computes a challenge response without the adapter ever se
 is the use-not-read pattern already built, applied to a second secret, and it is the first place this
 project chooses to ship a known-broken primitive. Secrets at rest remains unanswered and is not on
 milestone 55's critical path, because provisioning at boot is enough to authenticate a Mac.
+
+## Follow-on
+
+- **Milestone 65.** The SMB-facing derivation this block names as what is left: the NT hash,
+  HMAC-MD5, and a second service operation that answers a challenge without the adapter ever seeing
+  the hash. It carries the deliberate cost of shipping MD4 and MD5, kept out of everything that is
+  not SMB.
+- **Milestone 159.** Verifying the StarFive JH7110's TRNG before anything relies on it. Under QEMU
+  the device is the host's `/dev/urandom`, which is a fact about the emulator rather than about
+  hardware entropy, and this block says the real part needs checking first.
+- **Decision.** `design/decisions/137-trng-health-tests.md`: whether nife runs its own health tests
+  on hardware entropy, and what it does when one fails. This block records that there is no health
+  test, so a device that started returning a constant would be passed straight through.
+- **Recorded.** `notes/credentials.md`: the Argon2id cost parameters are below OWASP's, 4 MiB rather
+  than 19, because the whole machine is 128 MiB of QEMU RAM.
+- **Recorded.** `notes/credentials.md`: nothing in the credential store survives a reboot, and
+  secrets at rest are unanswered. Scoped exactly that small on purpose, since `cred::Record` has a
+  versioned encoding with a round-trip test so the question has a starting point and nothing writes
+  one to a disk.
+- **Recorded.** `notes/credentials.md`: one verify page means one client, and there is no rate limit
+  or lockout on the verify endpoint.

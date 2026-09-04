@@ -69,3 +69,23 @@ and simplicity, no integrity story), littlefs (proven, C, wrong-language FFI for
 than ghostty-vt would buy). Feeds 31 (per-file grants), 23 (a component with real state to
 hand off across a live swap, the hardest handoff case yet named), 27 (`std::fs`).
 **Effort: 3 lanes** (measured: the write-capable block path, the FS server, then integration).
+
+## Follow-on
+
+- **Milestone 31.** The contract gap this block ends on: no `CREATE` and no `TRUNCATE` verb, so
+  `File::create` and `std::fs::write` were honestly Unsupported. Milestone 31's phase 2 landed both.
+- **Milestone 37.** Risk 2's kill-mid-write tests, which grew into proving RedoxFS's crash
+  consistency against DECISIONS §34's first condition rather than staying a test case.
+- **Milestone 203.** Risk 3, upstream coupling. Pinning a version and carrying patches was done
+  here; nothing in the tree would ever report that upstream had moved, which is what 203 built.
+- **Milestone 57.** Item 4's "only operate on-device, never create" held until the write half needed
+  a `no_std` create. `patches/redoxfs-no-std-create-uuid.patch` takes the disk id from the caller, so
+  the constraint underneath survives: entropy never becomes a filesystem dependency.
+- **Recorded.** `notes/redoxfs-audit.md` holds item 5's known-and-accepted costs, both still true:
+  `libc` is an unconditional manifest dependency used only by the host binaries, and aes, xts, argon2
+  and lz4 ride along as binary size with encryption unused.
+- **Proposed.** `design/roadmap/proposals/redoxfs-patches-upstream.md`, offer the two RedoxFS
+  patches upstream. `patches/redoxfs-no-std-vec-import.patch`
+  and `patches/redoxfs-no-std-create-uuid.patch` are written and `patches/README.md` names the
+  route, but no merge request exists on gitlab.redox-os.org. So the pin carries divergences that
+  could have stopped existing, and every future bump re-applies them by hand.

@@ -65,3 +65,25 @@ cheap, which is worth knowing before anybody promises a fast inner loop.
   `cargo xtask test --arch <a> --test <name>` instead, per architecture. And the patch path has to
   be decided against §134's per-crate rule, which `kernel/falsifications/` already reads as a
   refusal of.
+
+## Follow-on
+
+- **Recorded.** In `notes/scripts.md`'s BUGS section, beside the flag: a filtered run cannot fail
+  the whole-suite instruments, because the frame ledger's kept-frames ceiling, the thread peak and
+  the stack high-water are totals over 312 tests. Tests are also not independent, so one that only
+  passes after an earlier test wired a service fails alone.
+- **Recorded.** In `design/roadmap/210-run-one-kernel-test.md`, which carries the measurement: what
+  bounds a filtered run is fixture building rather than the boot, which is the archive, the standard
+  library exerciser and five disk images. Nothing filters those and nothing records which test needs
+  which, so a one-test run is 8.6 seconds rather than the sub-second the filter suggests.
+- **Recorded.** In `notes/scripts.md`, beside the flag: the filter selects tests and never
+  architectures, so filtering an architecture-specific test without an architecture fails on the
+  other two legs. The failure message names the cause.
+- **Proposed.** `design/roadmap/proposals/kernel-falsification-replay.md`, Build the sweep that
+  replays kernel falsification records. Three pieces, each a decision rather than plumbing: extend
+  §134's `Falsification:` comment convention from `#[kani::proof]` to `#[test_case]`, teach
+  `script/falsifications` a second replay verb (`cargo xtask test --arch <a> --test <name>` per
+  architecture, beside today's `cargo kani --harness <name> --exact`), and settle where kernel
+  records live against §134's per-crate rule, which `kernel/falsifications/` currently reads as a
+  refusal of. Milestone 212 handed this back here, and six kernel confinement claims from milestone
+  202 have no replay mechanism until it is done.

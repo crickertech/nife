@@ -112,3 +112,29 @@ something this project did not start.
 - **It says nothing about the emulators a killed harness leaves**, which AGENTS.md records as a
   separate and larger failure: eleven QEMU processes over one day, the oldest with eight hours of CPU
   time on it.
+
+## Follow-on
+
+- **Refused.** The self-test is in no gate, on purpose. It starts real emulators and costs about a
+  minute against every lane, for a script that changes twice a year, which is a poor trade. That is
+  rung two declined deliberately, and the block says plainly that it is a foot gun: a later
+  simplification of `qemu-bounded.sh` will not be caught by CI.
+- **Recorded.** In `design/roadmap/226-qemu-bounded-orphans.md`: a SIGKILL to the killer defeats all
+  of it and nothing on macOS can fix that, since SIGKILL is not trappable and there is no
+  `prctl(PR_SET_PDEATHSIG)`. That is the case the lock diagnostic exists for, and the self-test
+  deliberately does not assert on it, because asserting on a known defect only pins it in place.
+- **Recorded.** In `design/roadmap/226-qemu-bounded-orphans.md`: the parent-alive poll can be fooled
+  by pid reuse, in which case the killer waits out the full bound, which is the old behaviour and
+  never worse.
+- **Recorded.** In `design/roadmap/226-qemu-bounded-orphans.md`: the lock diagnostic only inspects
+  arguments that look like disk images and only reports holders with the file open for writing, so a
+  lock on something named differently is not reported and neither is a reader. That is what keeps it
+  quiet on a green run.
+- **Recorded.** In `design/roadmap/226-qemu-bounded-orphans.md`: nobody swept for other occurrences,
+  so the block cannot say how often this happens. Two in one lane on one day is what prompted it,
+  and now that the leak is prevented everywhere anything can prevent it the count is history rather
+  than a live number.
+- **Recorded.** In `AGENTS.md`: the emulators a killed harness leaves behind are a separate and
+  larger failure, eleven QEMU processes over one day with the oldest holding eight hours of CPU
+  time. It gives the habits that catch them, which are to ask who holds the file, kill the tree at
+  its root, and walk the parent chain up before killing anything.

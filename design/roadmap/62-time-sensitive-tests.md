@@ -318,3 +318,27 @@ the second.
 
 **Effort: not estimated**, and deliberately: the count is known (~19 spins plus a handful of clock
 assertions) but how many are mechanical and how many need a rethink is not.
+
+## Follow-on
+
+- **Recorded.** `design/roadmap/62-time-sensitive-tests.md` BUGS: forty-five green runs bound the
+  true failure rate at roughly 6.7% (95% confidence), not at zero, and they are forty-five draws
+  from one host, one QEMU build and one load shape. They say nothing about a GitHub runner, and
+  nothing about the assertions that simply did not get unlucky.
+- **Recorded.** `design/roadmap/62-time-sensitive-tests.md` BUGS: the re-arm law has two graders and
+  nothing keeps them in step. `script/test` measures it on a wall clock and may report `UNMEASURED`;
+  `script/icount` measures it in instructions and always answers. If the tick interval or the
+  counter frequency changed on one path only, the two bounds would drift apart silently.
+- **Recorded.** `design/roadmap/62-time-sensitive-tests.md` BUGS: the `UNMEASURED` rate is a new
+  unknown, taken deliberately. Nothing was tuned to reduce how often the suite fails to find a
+  miss-free window, so runs that used to go red now go unmeasured, and the old measurement does not
+  predict the new number.
+- **Recorded.** `design/roadmap/62-time-sensitive-tests.md`: with the handler-latency assertion
+  deleted, the suite claims nothing at all about handler latency and `script/icount` is the only
+  grader left, which is why `script/gates` runs it.
+- **Recorded.** `kernel/src/testing.rs` records that the progress heartbeat credits work by any
+  thread rather than per test, and that this blinded it once for real.
+- **Refused.** Shortening the quarter-second measurement window to cut the `UNMEASURED` rate. The
+  candidate fix was identified and not taken, because the 25% figure justifying it rested on
+  eighteen runs from one host; the forty-five-run confirmation then reported zero of ninety legs
+  unmeasured, so there was nothing left for the change to buy.

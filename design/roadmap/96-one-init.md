@@ -29,3 +29,13 @@ duplicated construction logic moves. Milestone 22's lane also noted the loader n
 places with a fault slot each (`supervision_proto` plus each init's `build_child`) and
 deliberately did not unify them mid-flight; that unification belongs here, where a boot failure
 cannot be ambiguous between two changes.
+
+## Follow-on
+
+- **Refused.** Rewriting either init. The two boot sequences differ for real reasons and stay; only
+  the duplicated construction logic moved into `crates/system_initializer`, and what each file still
+  says for itself is which slot its own kernel granted what.
+- **Milestone 231.** The sizing half of the failure mode this block names. A boot that reaches
+  userspace and prints nothing cost three lanes an evening each, twice through this duplication and
+  once through init's sixteen-slot capability table overflowing. Milestone 231 made the table count
+  its own peak and print it, so the wall is measured rather than met.

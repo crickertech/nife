@@ -19,7 +19,7 @@ The goal (DECISIONS §14): a verified-Rust capability microkernel that runs real
 built to stand next to Linux, macOS, and seL4 on the primitives that define an OS, and to win
 where a minimal kernel should. The capability core carries machine-checked proofs. The kernel
 allocates no memory of its own. Every driver and server is an EL0 process. The same portable
-core boots on two ISAs.
+core boots on three ISAs, and on real RISC-V silicon.
 
 This began as a learning project (build an OS to understand one) and pivoted to a demonstrator
 deliberately, on the record. The habits survived the pivot: every decision written down, every
@@ -32,7 +32,7 @@ script/setup               # one time: install the toolchain and QEMU, then buil
 script/console             # boot straight to an interactive shell at EL0
 script/console --hvf       # ...on the real Apple Silicon core (instant boot)
 script/server              # the full milestone tour, then the shell
-script/test                # host tests, then the kernel under QEMU, both ISAs
+script/test                # host tests, then the kernel under QEMU, all three ISAs
 script/verify              # the machine-checked proofs (Kani)
 script/bench               # icount microbenchmarks against the committed baseline
 ```
@@ -96,7 +96,7 @@ than a formality:
 |---|---|
 | `script/test` | The host-logic crates, then the kernel under QEMU on **all three ISAs**: aarch64, riscv64 and x86_64. Architectural parity is a gate, not an aspiration (DECISIONS §19). |
 | `script/verify` | over 100 Kani harnesses <!--count-at-least:kani-harnesses--> across more than 20 crates <!--count-at-least:harness-crates-->: the capability model, IPC, MMU isolation, the DMA validator, the IOMMU domain, the NTP era pivot. |
-| `script/bench --check` | icount instruction counts against a committed baseline, on both ISAs, so a performance regression surfaces next to the change that caused it. |
+| `script/bench --check` | icount instruction counts against a committed baseline, on all three ISAs, so a performance regression surfaces next to the change that caused it. |
 | `script/lint` | clippy at `-D warnings`, plus broken intra-doc links, stray conflict markers, the roadmap's status vocabulary, DECISIONS numbering and citations, and that every script is documented. |
 | `script/supply-chain` | cargo-deny (advisories, licences, bans, sources) over every workspace, and proof that each vendored tree is the published tarball plus exactly its recorded patches. |
 | `script/fuzz` | Coverage-guided fuzzing of the four parsers that read bytes we did not write (a device tree from firmware, an ELF the loader will map, a partition table off somebody else's disk, and the boot archive's round trip). The complement to the proofs, not a second opinion on them: they are exhaustive inside a bound, this is unbounded and random. It found two bugs on its first day. |
@@ -200,7 +200,7 @@ kernel/
 user/                  EL0: init, the shell, the console/input/block drivers, servers
 crates/                pure logic, host-tested in milliseconds: caps, ipc, paging, elf,
                        dtb, pci, frames, slots, nifefs, intrusive, asid, ...
-bench/                 the benchmark suite and committed baselines (both ISAs)
+bench/                 the benchmark suite and committed baselines (all three ISAs)
 script/                normalized entry points (setup, test, console, verify, bench, ...)
 xtask/                 build orchestration (build, run, test, bench, gdb, objdump, image)
 notes/                 a concept glossary, written as questions came up

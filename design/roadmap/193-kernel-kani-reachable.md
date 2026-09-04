@@ -137,3 +137,23 @@ is missing.
 - **`kernel/src/arch/` stays unreachable under every option here**, which means the architecture
   layer, where the VisionFive 2's undelivered-wake defect actually lived, is not what this fixes.
   Saying so plainly is what keeps this milestone from being quoted as more than it is.
+
+## Follow-on
+
+- **Milestone 197.** `user/` and `xtask`, which this block's BUGS names as out of reach for exactly
+  the reason the kernel was. The `user/` half is built; `xtask` was argued there and refused, with
+  the shape that would reverse the refusal named.
+- **Milestone 197.** The timer re-arm seam. This block nominates the milestone 6 drift as the
+  sharpest candidate (the property is already proved in `crates/timetable`'s `next_after` and the
+  timer does not call it), and this lane could not use it, because `rearm` lives in
+  `kernel/src/arch/*/timer.rs` and reads the counter through `asm!`. 197 carries it as a fork rather
+  than as work: where the seam goes is the design question, too high and the arch layer keeps the
+  bug, too low and every ISA restates it.
+- **Recorded.** `notes/kernel-proofs.md`. `kernel/src/arch/` is unreachable and will stay
+  unreachable, so nothing here covers the architecture layer, which is where the VisionFive 2's
+  undelivered-wake defect actually lived. The stub boundary is enumerated in that note, under "The
+  stub boundary, enumerated", because a proof with an unexamined stub reads as coverage.
+- **Recorded.** `notes/kernel-proofs.md`. The `kernel` row needs an aarch64 host and nothing
+  enforces it: `kernel/Cargo.toml` depends on `aarch64-cpu` unconditionally, and the row works only
+  because every job in `verify.yml` runs on `ubuntu-24.04-arm`. A change to that runner label breaks
+  the row, and the fix if it ever happens is putting the dependency behind a target `cfg`.

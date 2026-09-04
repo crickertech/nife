@@ -8,11 +8,38 @@ board), which is the second sense the gate vocabulary now names, and it is why t
 `--ready` for days offering work no lane could take. 16b is built, the board arrived 2026-08-14, and the bench delivered first silicon
 the same day: eleven boots across two sessions, ending with the full tour completing on three harts
 ("nife: the capability core runs on RISC-V"), the four predicted code changes landed plus the
-ones the bench actually demanded, and notes/visionfive2.md carrying the whole narrative. What
-remains of 16a is engineering, not hardware, and each piece is lane-sized: the on-board test-suite
-exit (the `sifive_test` device does not exist on silicon; the note proposes a UART pass/fail
-marker), the DTB-driven UART IRQ for the driver demo (the 10-versus-32 BUGS entry), and the
-real-cycle benches, which ride milestone 74's SBI PMU half. Carrying 16b's IOMMU driver to silicon
+ones the bench actually demanded, and notes/visionfive2.md carrying the whole narrative. **Two of the three things this block listed as remaining are done, and it went
+on saying otherwise until 2026-09-03**, when calef asked what was left and the answer had to be read
+out of the tree rather than out of here:
+
+- **The on-board test-suite exit: done.** `kernel/src/arch/riscv64/semihosting.rs` replaces the
+  `sifive_test` finisher with a UART marker plus SBI SRST under the `board` feature, which is what
+  the note proposed. It is the mechanism `script/soak` and `crates/board_console` judge every board
+  run by.
+- **The DTB-driven UART IRQ: done.** All nine boots of the 2026-09-03 series printed
+  `uart irq    : source 32 (machine description)`, and the follow-on the fix exposed is fixed too:
+  two `kernel::sched::tests` interrupt-delivery tests hardcoded QEMU's source 10 and now read
+  `user::uart_irq_and_source()`.
+- **The real-cycle benches: the code landed 2026-09-03, the numbers have not.** Milestone 74's
+  riscv64 half is built: the kernel speaks the SBI PMU extension, asks firmware for a counter that
+  counts CPU cycles, checks it is actually counting, prints which counter and CSR it got and why
+  when there is none, and `cargo xtask bench --riscv` prints one `cycles_per_tick` probe that
+  converts every tick-denominated row in `bench/baseline-riscv64.txt` at once.
+  **No cycle number has been measured**, and that is this gate's second sense exactly: QEMU-TCG
+  drives the `cycle` and `time` CSRs off one virtual clock, so the emulator's answer is an artifact
+  (an implausibly exact 100.00) and only radon can produce a real one, with a person at it.
+  notes/riscv-cycle-counters.md is the procedure, written and untested. So this item moved from
+  "nobody has written the code" to "somebody has to sit at the board and read three lines", which is
+  smaller and is not nothing.
+
+**So milestone 16 is one bench session from done**, rather than one milestone. What 74 still owes is
+its aarch64 half, and that is milestone 25's `sel4bench` comparison rather than 16a's board.
+
+**Why this block was wrong for weeks is worth recording, because it is a gap in a gate built the same
+day it was found.** Milestone 247 swept every `BUILT` and `REMOVED` block for exactly this and cannot
+see this one: 16 is `PARTIAL`, and `## Follow-on` is required only of finished blocks. A `PARTIAL`
+block is *more* prone to this than a finished one, because it is edited as pieces land and nothing
+re-reads what it still claims. Carrying 16b's IOMMU driver to silicon
 is now milestone 143, split out 2026-08-20, because it waits on a board that ships the ratified
 RISC-V IOMMU spec and no such board exists today.
 
@@ -72,3 +99,19 @@ initrd holding init before the kernel has loaded and measured it*. Software conf
 ring) governs a driver the kernel already trusts to run; it does nothing about a device corrupting
 init's bytes at rest. So verifying init (22) is only airtight once 16 removes the way to tamper with
 it underneath the check.
+## Follow-on
+
+- **Done.** The on-board test-suite exit is `kernel/src/arch/riscv64/semihosting.rs`, whose board
+  feature replaces the `sifive_test` finisher with a UART verdict marker plus SBI SRST shutdown.
+  `script/soak` and `crates/board_console` are what read it.
+- **Done.** The DTB-driven UART IRQ landed: the machine description supplies the source in
+  `kernel/src/user.rs`, read by `kernel/src/main.rs` and by the input service, and the nine boots
+  of the 2026-09-03 series each printed `uart irq : source 32 (machine description)`.
+- **Milestone 74.** The real-cycle benches are all that is left of 16a. 74 is still NOT-STARTED and
+  its own text says the PMU appears only in device-tree fixtures and in that file.
+- **Milestone 143.** Carrying 16b's RISC-V IOMMU driver to silicon is that block, gated on hardware
+  because no board shipping the ratified spec exists.
+- **Milestone 241.** The aarch64 board this block deferred to when milestone 25's leftover
+  justifies it now has its own block, with the market work in `notes/aarch64-board-survey.md`.
+- **Milestone 252.** The gap this block found in itself, that a PARTIAL block goes unread while it
+  keeps claiming work, is milestone 252.

@@ -10,7 +10,7 @@ there and never claimed by a lane.
 **Gate: DECISION.** Four proposals are laid out in notes/blocked-thread-teardown.md with their costs,
 their authorities and their failure modes, and no lane may pick one. The fork is calef's because it
 is a capability question before it is a scheduler question: **which held capability expresses the
-right to end a thread**, and the candidates (a region capability, a `Tcb` capability, a supervision
+right to end a thread**, and the candidates (a region capability, a `ThreadControlBlock` capability, a supervision
 endpoint, a new right) each concede something different. Proposal B would also add a method to the
 syscall surface, which §10 makes a design fork on its own.
 

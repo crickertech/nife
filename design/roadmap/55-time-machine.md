@@ -417,3 +417,16 @@ this milestone's.
 ~~**Effort: not estimated, and deliberately so.**~~ **Superseded 2026-08-22.** Effort from here to
 BUILT is now bounded rather than open: it is milestone 53's hardware gate (Steps A through C above),
 not an unscoped rewrite. "The path to BUILT" above is the current re-scope this note asked for.
+
+## Follow-on
+
+- **Milestone 137.** The Mac file-server workload this block split out on 2026-08-18. Its subject
+  went with the SMB implementation on 2026-08-30 and its own index row says the block needs
+  retiring, which is calef's call.
+- **Recorded.** `notes/smb.md` keeps everything the removal took, including the two things this
+  milestone most wanted and never got: no Mac ever saw the `AAPL` answer, and nobody proved macOS
+  would offer the share as a backup destination. Those needed the kernel on hardware on a real
+  network segment and are facts about what was not reached, not work waiting for a lane.
+- **Refused.** Reviving SMB behind a different server (porting Samba over the §31 C seam) is
+  refused, and was before the removal: Samba assumes `fork`, threads and an enormous POSIX
+  surface, and milestone 52 records that we have no `fork` and that getting one is not cheap.

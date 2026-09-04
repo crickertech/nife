@@ -82,3 +82,20 @@ producing a rule.
 safe fn" would fire on the legitimate uses above. If the survey finds the distinction mechanical
 after all, that is a finding for `DECISIONS` §61's ledger (a lint is adopted on evidence from this
 tree), not an assumption to start from.
+
+## Follow-on
+
+- **Refused.** Converting `virtio::pread` to an `unsafe fn`, the fourth of the four sites. The
+  argument is written where a reader meets it, at `kernel/src/virtio.rs:233` under "Why these two
+  stay safe fns": it is private, all twenty call sites sit in one `impl Transport` block, and the
+  compiler closes the caller set, so the obligation is discharged by the module rather than onto
+  nobody. That is the case the other three could not make.
+- **Refused.** A lint for "a SAFETY comment on a safe fn". Neither unsafe lint can read a comment,
+  and a check for this shape would fire on the legitimate uses the block separates out, where
+  "caller" means the calling thread or process rather than a soundness obligation. If the
+  distinction ever turns out to be mechanical, `design/decisions/61-lints-on-evidence.md` is the
+  ledger that adopts a lint on evidence from this tree.
+- **Recorded.** `notes/unsafe-obligations.md` carries the related finding, which is the wider one:
+  eleven of the tree's 33 `unsafe fn`s contain no unsafe operation at all, so their unsafety is a
+  contract about meaning and the rustdoc `# Safety` section is the only enforcement there is for a
+  third of them. Converting a site moves it into that category rather than out of it.

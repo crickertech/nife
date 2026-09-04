@@ -26,3 +26,11 @@ kernel's stack story says "trust the tripwire" instead of "the MMU catches it".
 Sizing stays as it is: 64 KiB per secondary was not the finding, the missing guard was. If the
 region move makes shrinking cheap, record the option; do not take it here. The thread-stack and
 boot-stack guards are prior art in this tree; cite where the pattern lives when extending it.
+
+## Follow-on
+
+- **Refused.** Shrinking the 64 KiB per-CPU secondary stacks, which the region move made tempting to
+  fold in. The scope note refused it in advance and the measurement backs the refusal: milestone 84
+  puts the secondaries at 12% of their stacks (8.5 KiB of 64), so the missing guard was the finding
+  and the sizing was not. Taking both at once would have made a stack-depth regression and a guard
+  regression indistinguishable in one commit.

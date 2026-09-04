@@ -19,3 +19,15 @@ WSL1 shape, a userspace server translating syscalls) is how a demonstrator event
 existing software, and it is where the parked competitor ambition would begin. VM hosting (seL4's
 route) needs the EL2 work in design/driver-domains.md. Decide the first target before writing
 compat code, so it stays scoped.
+
+## Follow-on
+
+- **Decision.** `design/decisions/15-native-abi.md` holds the sub-decision this block carried: what
+  counts as the first real workload, and by which ABI. calef chose the native ABI, with a
+  CoreMark-derived compute program against it, and explicitly not Linux-compat.
+- **Recorded.** `design/decisions/10-capability-microkernel.md` is where the Linux-compat
+  personality sits, neither refused nor scheduled. A POSIX shim is *additive*, built on capability
+  handles the way Fuchsia's `fdio` is, so nothing built now is thrown away by taking it later.
+- **Recorded.** `design/driver-domains.md` holds the EL2 shape that VM hosting, seL4's route and the
+  third option this block named, would need. This kernel has no EL2 work and nothing has been built
+  against that page.

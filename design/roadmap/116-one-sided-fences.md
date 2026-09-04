@@ -40,3 +40,23 @@ a list of protocols that want a harness rather than a gate.
 **Scope note.** Not a rewrite. Nothing changes its ordering because of this milestone except where a
 site is shown to be wrong, and each such change carries the argument for why the new ordering is
 right.
+
+## Follow-on
+
+- **Milestone 43.** The three unpaired release fences in the compositor that half raised this
+  milestone. The inventory adjudicated them; the ordering changes themselves are 43's audit's.
+- **Milestone 80.** The output this block guessed at and got right: the useful answer is a list of
+  protocols that want a loom harness rather than a lint, and `script/interleaving-check` is the tool
+  that can decide one.
+- **Recorded.** `notes/memory-ordering.md`: the `PAIR:` gate checks that a comment exists, not that
+  it is true. A marker naming a function that does not exist, or the wrong one, passes. It is
+  bookkeeping with a forcing function attached.
+- **Recorded.** `notes/memory-ordering.md`: the 243 relaxed sites are not adjudicated. Only the
+  compare-exchanges were checked, so a relaxed store used as a publication flag with data behind it
+  would be this milestone's own bug and is outside the inventory.
+- **Recorded.** `notes/memory-ordering.md` names the largest unpinned assumption: roughly half the
+  soundness arguments rest on `spin::Mutex`'s orderings, which belong to a dependency, so a
+  reimplemented `IrqSafeMutex` or a weakened `spin` would need them reread and nothing would fail
+  first.
+- **Recorded.** `notes/memory-ordering.md`: nothing in the inventory is a proof about aarch64 or
+  riscv64. Every soundness argument in it is a C11-model argument about happens-before.

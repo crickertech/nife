@@ -40,3 +40,24 @@ declined BMC wall and on tests). What milestone 35 explicitly does **not** prove
 places rather than leaving it to be inferred: addresses that reach a device inside a **command payload**
 instead of a descriptor, which the validator structurally cannot see and only an IOMMU stops, so on a
 board without one they are unconfined. See DECISIONS §30 and notes/verification.md.
+
+## Follow-on
+
+- **Milestone 35.** The TCB audit's one glaring exception, the DMA-confinement validator that was
+  attacker-tested and never proved. 35 extracted it, proved it for every input, proved the
+  `MemoryRegion::SPLIT` mint site hands a child exactly its parent's rights, and proved the IOMMU
+  domain's maps-exactly property in both directions.
+- **Milestone 193.** The frontier this block names past the logic crates: proving properties *of the
+  kernel* rather than of the pure-logic crates it depends on. 193 is the work that puts `kernel/src`
+  within the prover's reach at all.
+- **Recorded.** Addresses that reach a device inside a **command payload** rather than a descriptor
+  are structurally invisible to the validator, so on a board with no IOMMU they are unconfined. The
+  confinement that does exist there is tested rather than proved. `notes/verification.md` carries the
+  measurement and the table of what each boundary rests on.
+- **Recorded.** The IOMMU's build-and-translate round trip (a symbolic IOVA walking a built
+  four-level table) stays on the declined bounded-model-checking wall and is covered by tests
+  instead. `notes/verification.md` says why the smaller page-set property carries the weight.
+- **Refused.** Verus, and unbounded proof generally. Bounded model checking on Rust was taken
+  deliberately as the tractable path against seL4's Isabelle/HOL refinement, and the block keeps
+  Verus as something to revisit only if a specific property needs a loop invariant rather than as
+  work anybody owes.

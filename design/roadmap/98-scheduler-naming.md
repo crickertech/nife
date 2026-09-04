@@ -76,3 +76,17 @@ its position in the ordering whatever it is called. The note filename that start
 of it**: a tree where the type is renamed and the static still says `SCHED` is worse than either
 consistent answer. The abbreviation question is answered by this milestone's premise and does not
 need its own entry: `sched` stays, because the module really does schedule.
+
+## Follow-on
+
+- **Refused.** The dozen-plus `notes/*.md` files and the other `design/roadmap/` and
+  `design/decisions/` entries that still spell `SCHED` or `Scheduler` were left as written. The
+  design entries cite the old name as a historical fact about the tree at the time they were
+  written, and a developer lane does not edit `design/` beyond its own entry; only
+  `notes/sched-lock-inventory.md` was in the milestone's measured scope, and it was renamed with a
+  provenance line for a reader who remembers the old name.
+- **Refused.** Renaming the `sched` module, which is where the abbreviation question started.
+  `schedule()`, the preemption and the round-robin policy all live there and all genuinely schedule,
+  and `sched` is a word every kernel reader arrives knowing (POSIX ships `sched.h`, Linux keeps
+  `kernel/sched/`). Renaming it would also have been 915 call sites across 70 files against this
+  milestone's hundred in one.

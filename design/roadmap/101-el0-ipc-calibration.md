@@ -120,3 +120,34 @@ thread ran on. That is milestone 74's job, and it is why this milestone is not B
 milestone 25 was the alternative this block named, and the reason for keeping it separate is now on
 the record rather than open: the paragraph correction is what should not have waited for a board,
 and it did not.
+## Follow-on
+
+- **Milestone 74.** The one remaining step, reading cycles from a PMU rather than deriving them
+  from nanoseconds and an assumed clock, is that block, still NOT-STARTED; no bench in
+  `kernel/src/bench.rs` reads a cycle counter today.
+- **Milestone 16.** The silicon that makes a PMU readable at all is 16a, which has booted the full
+  tour on three harts and has not yet run the benches. HVF on the development machine passes
+  through no PMU.
+- **Recorded.** The kernel-side numbers stay. The IPC round trip is the gating instrument the
+  icount tripwires run against, and `notes/benchmarks.md` explains why a kernel-internal path
+  length is right for a gate and wrong for a comparison.
+- **Recorded.** No ratio in this block may be quoted tighter than "same order": every cycle figure
+  inherits roughly 1.5x uncertainty from not knowing whether the vCPU thread ran on an M3 E-core or
+  P-core.
+- **Recorded.** The four caveats that outweigh the ratio still hold, including that seL4's fastpath
+  is on and this kernel has none, recorded in `notes/benchmarks.md`. Milestone 132 measured the
+  general path's footprint and did not build a fastpath.
+- **Recorded.** U-mode `rdtime` worked on RISC-V because QEMU's OpenSBI left the counter permitted
+  rather than because this project set it, until 2026-07-30. Milestone 228 has since made it a
+  whole-register write so the code says what the comment says.
+- **Refused.** Folding the remaining step into milestone 25 was considered and declined: the
+  paragraph correction is what should not have waited for a board, and keeping this separate is
+  what let it not wait.
+- **Outstanding.** The authority half of the gate is narrower than the gate line reads. §139 is
+  decided, milestone 229 is BUILT and milestone 237 is BUILT, so a per-thread counter grant already
+  rides the context switch and a thread reads the counter at EL0 in
+  `kernel/src/user/tests.rs`. What remains is pointing the benches at it on hardware. Checked
+  2026-09-03.
+- **Outstanding.** Every line number in this block's verified-against-the-code table has drifted,
+  which is the well-formed-but-wrong failure this block itself names: the four citations now land
+  on unrelated code. Checked 2026-09-03.

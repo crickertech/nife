@@ -744,7 +744,12 @@ not a device driven.
 Facts documentation could not settle, each an explicit measurement, none guessed above:
 
 1. **OpenSBI version in the shipped flash** (banner), and which SBI extensions `sbi probe` reports;
-   specifically whether PMU is present and how many hpmcounters it exposes on the U74s.
+   specifically whether PMU is present and how many hpmcounters it exposes on the U74s. **The kernel
+   now answers most of this itself** (milestone 74): it probes the PMU extension and prints the
+   result on the `firmware    :` line, then prints which counter and CSR firmware gave it for CPU
+   cycles on a `cycles      :` line beside it. notes/riscv-cycle-counters.md is the procedure, with
+   a table for each line of output; this row is now "read two lines of a boot log" rather than
+   "type at U-Boot".
 2. **What `sbi_hart_start` returns for hart 0** (the disabled S7): error, or a start that must
    never be requested. **Measured 2026-08-14: the worse answer.** Vendor OpenSBI does not refuse
    it; it starts the S-incapable core and dies in its own trap handler (see "Second bench stop"

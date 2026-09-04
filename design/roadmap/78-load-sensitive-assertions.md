@@ -235,3 +235,30 @@ names the defect.
 notes/instruction-clock.md carries the measured reason (not speed: one shared virtual clock, and
 clock-bound waits costing instructions). It instruments the timer only, since that is where both
 claims are. And the scope note's remaining sites are still unaudited, for the sixth round running.
+
+## Follow-on
+
+- **Milestone 62.** The fourth claim, added 2026-08-18, which corrects this block rather than
+  extending it: the three claims here could not see the timer drift bug at all, because claim 1
+  compares each arrival against the deadline that fired and a kernel re-anchoring the whole grid
+  arms the timer with the very word it records. 62 asserts the re-arm law directly.
+- **Recorded.** `notes/load-sensitive-assertions.md` holds the audit backlog. The scope note counts
+  39 sites in 7 files matching the shape; five were the milestone, rounds two through four took
+  eight more found by reading rather than by waiting for a red run, and the rest are unaudited. The
+  diagnostic at the top of that note is the checklist for reading any of them.
+- **Recorded.** `notes/instruction-clock.md` carries the measured reason `script/icount` is not on
+  the test path, and it is not speed: one shared virtual clock, and clock-bound waits costing
+  instructions. It also instruments the timer only, since that is where both claims are.
+- **Recorded.** `notes/load-sensitive-assertions.md` records the concurrency confound that reaches
+  the address-space frame assertion, found by reasoning after the fact rather than by a red run. If
+  a batch's peak concurrency exceeds the previous one's, `NEXT_STACK_VA` legitimately bumps, and a
+  bump straddling a 2 MiB boundary legitimately builds a page table, so `used()` sits above
+  `before` with no leak. Rare, and worth knowing before anyone reads a red run there as a leak.
+- **Refused.** Wider margins as the fix. Widening a bound that fires on a negative discrepancy hides
+  the defect rather than fixing it, and §61 already records three lints dropped for measuring the
+  wrong thing.
+- **Refused.** Moving the placement probe to the icount instrument. It was checked against the same
+  question and left alone deliberately: its wait is on exactly the property under test, its failure
+  direction is purely positive, and the icount bench boots `-smp 1` because a shared virtual clock
+  makes multi-hart timing fictional, so a cross-core delivery test cannot run on it even in
+  principle.

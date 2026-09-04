@@ -39,3 +39,19 @@ between them is not always the bound. Sometimes it is that nobody wrote the prop
 **In brief.** Three things CI does not do. **Advisories and licences**: no `cargo-audit`/`cargo-deny`, so a published advisory against a dependency is invisible, and licence obligations go unrecorded, which stops being cosmetic the moment milestone 39's distribution exists. **Vendored integrity**: `vendor/redoxfs` is pinned at 0.9.1 with a `patches/` discipline and *nothing verifies the tree equals upstream-plus-our-patches*. **Fuzzing the parse surface**: Kani proves `elf`, `dtb` and `nifefs` under *chosen bounds*, and a fuzzer explores byte sequences past those bounds and finds panics rather than property violations, which is complementary rather than redundant. Several crates are unproved entirely and take attacker-shaped input: the `fs_proto`/`gfx_proto`/`line_editor` decoders, `grant_plan` (which parses the human's command line), `compositor` (clipping arithmetic, where its own note says off-by-one is the classic bug), and `measured_boot`, the SHA-256 behind the measured-boot trust root
 
 **Why it matters.** **the thesis is confining code we did not write, so not knowing when that code has a published advisory is an odd blind spot**, and milestone 32's flagship claim ("a real filesystem we did not write") is only as good as our ability to say what we are actually running. Fuzzing is the honest complement to bounded model checking: Kani answers "is the property true inside these bounds", a fuzzer answers "does anything crash outside them", and the project currently only asks the first
+
+## Follow-on
+
+- **Refused.** Fuzz targets for the other crates this block lists as taking attacker-shaped input:
+  the `fs_proto`/`gfx_proto`/`line_editor` decoders, `grant_plan`, `compositor` and `measured_boot`.
+  `design/decisions/60-fuzzing-the-parsers.md` settles it: the four targets that shipped are the
+  tree's actual trust boundary, because everything on that list parses bytes this system wrote
+  itself. A found bug becomes a permanent regression test, not a permanent fuzzing job.
+- **Recorded.** `notes/fuzzing.md` holds what the fuzzing leg cannot do, including the one that
+  contradicts the assumption: ten minutes did not rediscover the `dtb::node_reg` bug, because a
+  mutational fuzzer is worst at deep recursive structure, and a grammar-based generator is the named
+  next step for `dtb_walk`. The same file records that three of the four targets assert nothing
+  beyond "it returned", so a parser that answers wrongly without panicking is invisible.
+- **Recorded.** `deny.toml` carries the one duplicate the first supply-chain run found, `getrandom`
+  0.2 beside 0.4 under vendored redoxfs, skipped with its reason and its expiry condition written
+  beside it: it is host-side only and it goes away when the redoxfs pin advances.

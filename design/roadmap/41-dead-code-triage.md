@@ -121,3 +121,13 @@ about: **a suppression with a reason is a decision, and one without is a leak.**
 **Sequencing.** Independent of everything else, and a good candidate for a low-priority background lane
 precisely because it touches many files shallowly and conflicts with any lane editing the same files. Do
 it when no other lane is open, or accept the rebases. **Effort: 1 lane estimated**, mostly reading.
+
+## Follow-on
+
+- **Recorded.** `notes/quotas.md`. The finding this block marked **worth a look**: deleting
+  `shell_service` left `sched::spawn_with_quota` with no caller, so the kernel's spawn quota has
+  been unenforced since §28. The note now says so in its own "Where this stands today" section, and
+  `notes/security.md` was corrected in the same breath; the mechanism is kept with the disposition
+  on the function, because deleting a documented safety mechanism is a design decision and not
+  dead-code triage. The bound itself did not go away, it moved into the untyped budget a process
+  spawns out of.

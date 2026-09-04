@@ -152,6 +152,15 @@ it.
   wearing worse clothes), and that is new syscall surface: a §10/§16 design fork deliberately not
   taken in this milestone. Until it is, the IOMMU confines the *device* and nothing additionally
   confines the *driver*, because the driver is the kernel.
+
+  **Two corrections to that sentence, 2026-09-03**, from §86's research pass, and they are recorded
+  here because this is where a reader meets the limitation. **"Command parsing at the doorbell" is
+  not the same decision wearing worse clothes.** It is a different one, and it is the only shape in
+  §86's list that confines an EL0 driver on a machine with no IOMMU, which is every board this
+  project owns. And **it may need no new syscall surface at all**: NVMe puts the controller and
+  admin registers below offset 1000h and the first doorbell at 1000h, a page boundary, so
+  "kernel keeps the admin plane, EL0 gets the data path" is expressible with the `DeviceFrame`
+  capability that already exists. Read §86 before quoting this bullet.
 - **Nothing serves it over blk IPC yet.** The driver speaks the blk verbs as an API, so an
   NVMe-backed block server is a wiring exercise plus the fork above; the FS server's default
   remains virtio-blk, untouched.

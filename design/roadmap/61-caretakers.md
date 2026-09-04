@@ -269,3 +269,27 @@ and not the mechanism.
 
 **Effort: medium.** The table is small; teaching three wardens and proving each on both ISAs is the
 work.
+
+## Follow-on
+
+- **Recorded.** `notes/grant-expression.md` holds the errno finding this milestone made and did not
+  act on: `fs_file_caretaker` answers `EBADF` to every directory verb except `CREATE`, because they
+  all fell through one `_ =>` arm shared with "you named a handle I never minted". `ENOTDIR` is
+  very likely right for all seven by exactly the argument `CREATE` already makes, and the behaviour
+  was preserved because changing it changes the wire.
+- **Recorded.** `design/roadmap/61-caretakers.md` BUGS: the verb table is a new place to be wrong,
+  and a wrong row is wrong in three programs at once. The mitigation is that it is pure data in a
+  host-testable crate, so Kani and host tests reach it where a hand-written match in a `no_std`
+  binary cannot.
+- **Recorded.** `design/roadmap/61-caretakers.md` BUGS: the table does not make the caretakers
+  interchangeable and must not try to. Only the verb dispatch is shared; what each attenuates to
+  stays hand-written, which is what the collapse refutation above established.
+- **Refused.** Collapsing the three caretakers into one program parameterized by how the namespace
+  is described. `fs_subtree_caretaker` performs no checks at all by design, with the attenuation
+  living in the handle the server minted, while a name filter is a check consulted on every
+  name-taking verb. A mode switch would trade that program's one strong property for a
+  forget-a-verb surface in the program that most deliberately has none.
+- **Refused.** Blind forwarding as the fix for the xattr gap. It is the obvious idea and it is a
+  security hole: `fs_file_caretaker` substitutes its own handle for the caller's and enforces
+  direction, and a blind proxy would forward the caller's handle and hand back the wide capability
+  the caretaker exists to attenuate.

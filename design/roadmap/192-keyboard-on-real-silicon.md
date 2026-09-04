@@ -261,3 +261,27 @@ fatal-risk list that months of driver work is a reasonable thing to spend.
 - **Neither graphical leg can pass today.** `--graphical` and `--graphical-serial` both stop at
   milestone 177's open display-driver bug. The gates are written and red, which is the honest
   state; do not read a green `script/shell-check` (which runs neither) as covering this.
+## Follow-on
+
+- **Milestone 242.** Option B, the xHCI driver, USB core and HID keyboard, plus the scoping pass
+  this block asks for, is `design/roadmap/242-usb-host-and-a-keyboard-that-is-not-a-uart.md`,
+  minted 2026-09-03 by calef precisely so option B stops being priced as a line item here.
+- **Milestone 230.** `script/shell-check` red on `main` with a virtio-rng attached was not unowned:
+  `design/roadmap/230-shell-check-is-red.md` is BUILT 2026-09-02, root-caused to slot exhaustion
+  four blocks later than this block guessed, and both plain legs are green.
+- **Outstanding.** Option A has still never been run on a board and cannot be until milestone 157
+  puts a pixel on a board's framebuffer. The six-step bench procedure is written and unexecuted.
+  Checked 2026-09-03.
+- **Outstanding.** No keystroke has reached a screen on a graphical boot anywhere, because
+  milestone 177's second-flush hang stops the boot before a prompt is drawn. Both graphical legs
+  are red today and neither `script/gates` nor CI runs them. Checked 2026-09-03.
+- **Milestone 179.** A mouse is `design/roadmap/179-mouse-pointer-input.md`, minted 2026-08-26,
+  rather than an unnamed gap this block has to carry.
+- **Outstanding.** Neither option is priced. Nobody has looked at what the JH7110, the Jetson TX1
+  and the OptiPlex each expose for USB, and milestone 242 declines to price xHCI in hours as well,
+  so the adjective is still an adjective. Checked 2026-09-03.
+- **Recorded.** The order is a sequencing call rather than a claim that option B is wrong. A system
+  that cannot accept a keyboard is limited in a way no scope note repairs, and calef's completion
+  bar for this block stays literal.
+- **Recorded.** Option C is closed: the 7050 Micro has no PS/2 port and calef owns neither a
+  keyboard nor an adapter, so there is no cheap native shortcut on any of the three machines.

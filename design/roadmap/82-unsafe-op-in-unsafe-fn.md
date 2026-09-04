@@ -15,3 +15,7 @@ burn-down, not a campaign. Per the lint-policy comment in the workspace `Cargo.t
 lint is a decision to fix every violation first: the milestone is the fixes, with the one-line
 `[workspace.lints.rust]` addition landing last. Rust's 2024 edition makes this lint warn-by-default,
 so this is also alignment with where the language is going rather than a house rule.
+
+## Follow-on
+
+- **None.**

@@ -106,3 +106,33 @@ inventory to answer it with.
 - **Two of the unrun checks are expensive** (`crate-probes` builds fifty crates, `repeat-under-load`
   boots QEMU repeatedly), so "run it in CI" is not automatically the answer and the audit should
   price rather than assume.
+
+## Follow-on
+
+- **Milestone 238.** The two scheduled workflows that have never once produced a result: the
+  mutation sweep, four red runs and zero reports while `design/fatal-risks.md` risk 3 stands green
+  on a number it says the workflow is refreshing, and the Miri check, three weeks red on a missing
+  `CARGO_MANIFEST_DIR` rather than on undefined behaviour. 238 was minted the same day from these
+  two findings.
+- **Recorded.** `notes/check-inventory.md` carries the required-list recommendation and the two
+  already-recorded open asks. Three checks would join the ruleset (`re-falsify the harnesses this
+  change can reach`, which PR #663 merged straight through on 2026-09-03; `image permissions`, whose
+  own `BUGS` paragraph in `ci.yml` says the same thing; and `architect hold`, which the note argues
+  against this block's own sentence). It is a repository setting and calef's, and the note prices
+  each one rather than assuming.
+- **Recorded.** `design/roadmap/232-what-the-checks-actually-check.md`'s BUGS: an audit is a
+  snapshot, all four findings arrived within one day of each other, and nothing built here keeps the
+  answer current.
+- **Recorded.** `design/roadmap/232-what-the-checks-actually-check.md`'s BUGS: the fourth shape, a
+  check whose passing means less than its
+  name, cannot be found by inspection. An inventory lists checks; only someone asking what a check
+  proves finds the next `login`.
+- **Recorded.** `design/roadmap/232-what-the-checks-actually-check.md`'s BUGS, on the three
+  instruments nothing runs: two of them are
+  expensive (`crate-probes` builds fifty crates, `repeat-under-load` boots QEMU repeatedly), so "run
+  it in CI" is not automatically the answer and the audit prices rather than assumes.
+- **Proposed.** `design/roadmap/proposals/instruments-nothing-runs.md`, Give the three instruments
+  nothing runs a caller: `script/interleaving-check` (26 loom harnesses, 12.4 seconds, green),
+  `script/crate-probes` (about 3 minutes, 43 of 50) and `script/rule-violations --check`. Deciding
+  which joins `script/gates`, which joins CI and which gets a cadence is unowned, and fatal risk 1
+  stands GREEN on a hand-run instrument meanwhile.

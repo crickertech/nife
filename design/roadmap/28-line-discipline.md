@@ -27,3 +27,9 @@ terminal that has semantics. Pure userspace on machinery that all exists; could 
 component contract and the interrupt routing are ours. Read the Unix tty layer as the
 mistake-catalog (its tangle is famous) and Plan 9 (editing pushed to the client) as the
 counter-design. **Effort: 1 lane** (measured: it took one).
+
+## Follow-on
+
+- **Milestone 29.** The display terminal. This block is serial on purpose and says the two must not
+  be confused: the terminal emulator stays on the host end of the wire here, and framebuffer output
+  is 29's work.

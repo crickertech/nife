@@ -60,3 +60,7 @@ interleave it with feature work. Splitting it across two lanes would be worse th
 
 Suggested shape: `kernel/src/user/` with one file per service and each service's tests beside it,
 leaving `user.rs` as the wiring that names them.
+
+## Follow-on
+
+- **None.**

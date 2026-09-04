@@ -52,3 +52,20 @@ measurement rather than instead of it, if they are ever wanted.
 init role (aarch64) each carry their own copy of `build_child`, which is milestone 96's finding.
 Measuring in two places is measuring twice; if 96 lands first, this has one site to change instead
 of two, and sequencing it after 96 is worth more than the wait costs.
+
+## Follow-on
+
+- **Recorded.** In `notes/trusted-init.md`: the one piece of design content this block left open,
+  what init does with a mismatch, was answered by the build. Init runs nothing it cannot vouch for,
+  and a refused program is treated exactly as a missing one, so there is no new category. Halting
+  the machine for a leaf program was rejected because it turns a build defect in `wc` into an
+  unbootable machine, and spawning-and-recording was rejected harder, since there is no audit log to
+  record into and a chain whose second link is advisory is not a chain.
+- **Milestone 96.** The two copies of `build_child`, one in `system_initializer` and one in
+  `hello`'s init role, which would have made this two sites to change instead of one. Sequencing
+  after 96 was judged worth more than the wait cost.
+- **Refused.** The signature variant stays deferred, reaffirmed by calef on 2026-08-03. A signature
+  over init in place of a compiled-in digest puts keys, a certificate chain and
+  signature-verification code inside the trusted computing base, which is exactly what the digest
+  approach avoids. This milestone extends the measurement's reach, not its mechanism, and DECISIONS
+  §26's natural sequence still holds: signatures in addition to measurement, never instead of it.
