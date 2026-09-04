@@ -365,6 +365,17 @@ pub fn verify_in_manifest(text: &str, name: &str, bytes: &[u8]) -> Result<(), Ve
 /// than an `Option`. `unvouched: false` with no image means the archive did not have it; a build
 /// left it out, and the loader carries on without it. `unvouched: true` means the archive *had* it
 /// and the measurement refused it, which is a security event and is what the boot says out loud.
+///
+/// **`Default` is "the archive did not have it", and it is derived on purpose** (milestone 246).
+/// Two reasons, and the second is the one worth writing down. It is the fail-safe value: no image
+/// means nothing runs, whatever `unvouched` says, so a default-constructed `Verdict` cannot vouch
+/// for anything. And it is what makes [`verdict`] *mutable*: `cargo mutants`' only operator on a
+/// function returning a struct is to replace the body with `Default::default()`, which without this
+/// derive does not compile and is scored unviable, so the tool reports nothing at all about the one
+/// decision in this crate that says whether unmeasured code may run. With the derive, that mutant
+/// is exactly the dangerous wrong answer (a refusal reported as an absence) and the tests below
+/// kill it on every run, rather than a lane having to falsify it by hand once.
+#[derive(Default)]
 pub struct Verdict<'a> {
     /// The parsed image, if and only if the table vouched for the bytes and they are an ELF.
     pub elf: Option<elf::Elf<'a>>,
