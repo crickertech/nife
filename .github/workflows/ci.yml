@@ -320,6 +320,13 @@ jobs:
     if: ${{ always() && needs.gate.outputs.run != 'false' }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          # `script/lint` runs `script/roadmap --check`, whose merged-branch check reads
+          # `git log --merges`. At the default depth 1 that returns nothing, so the check passed
+          # vacuously here for as long as it has existed; milestone 247 merged with a stale status
+          # and no pull request went red. The check now refuses an empty history too, so this and
+          # that refusal are belt and braces.
+          fetch-depth: 0
       - name: Install clippy and the bare-metal target
         run: |
           rustup toolchain install nightly --profile minimal --component clippy
