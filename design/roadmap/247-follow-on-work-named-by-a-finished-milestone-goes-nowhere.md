@@ -1,6 +1,6 @@
 # 247. Follow-on work named by a finished milestone goes nowhere, and this is the third time
 
-**Status: NOT-STARTED.** Minted 2026-09-03 by calef, after milestone 244 named work that would have
+**Status: IN-PROGRESS** on `milestone/247-buried-followon`. Minted 2026-09-03 by calef, after milestone 244 named work that would have
 been buried had he not asked for it by name. *(Number provisional until the merge queue lands it.)*
 
 **Gate: NONE.** The rule already exists; what is missing is anything that notices when it is not
