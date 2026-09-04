@@ -2744,16 +2744,7 @@ pub fn ipc_reply(caller: ThreadId, msg: [u64; 2]) {
     }
 }
 
-/// **Free one caller a server can no longer answer** (milestone 254). `abi::Error::Gone` reaches a
-/// rendezvous's *wait queues*, and a `CALL` caller whose request was already taken left those queues
-/// at the rendezvous: it is linked on nothing, and [`ipc_reply`] is the only thing that wakes it. So
-/// a caller stranded by a server that merely died stayed blocked for the life of the machine, and
-/// was itself a region nobody could reclaim. QNX Neutrino has not permitted that since the 1990s
-/// ("if the server thread fails, exits, or disappears, the client thread becomes READY, with
-/// `MsgSend()` indicating an error"), and nothing in this tree recorded it as intended, which is what
-/// made it a defect rather than a fork. See notes/blocked-thread-teardown.md, proposal C.
-///
-//// **Delete every unconsumed `Reply` capability naming `caller`, wherever in the machine it sits.**
+/// **Delete every unconsumed `Reply` capability naming `caller`, wherever in the machine it sits.**
 /// Caller holds `IPC_TABLES`.
 ///
 /// The property both of this kernel's reply-park teardowns maintain, lifted into one function
@@ -2779,7 +2770,16 @@ fn delete_reply_caps_naming(sched: &mut IpcTables, caller: ThreadId) {
     }
 }
 
-// **The capability sweep is the larger half, and it must come before the wake.** Waking a
+/// **Free one caller a server can no longer answer** (milestone 254). `abi::Error::Gone` reaches a
+/// rendezvous's *wait queues*, and a `CALL` caller whose request was already taken left those queues
+/// at the rendezvous: it is linked on nothing, and [`ipc_reply`] is the only thing that wakes it. So
+/// a caller stranded by a server that merely died stayed blocked for the life of the machine, and
+/// was itself a region nobody could reclaim. QNX Neutrino has not permitted that since the 1990s
+/// ("if the server thread fails, exits, or disappears, the client thread becomes READY, with
+/// `MsgSend()` indicating an error"), and nothing in this tree recorded it as intended, which is what
+/// made it a defect rather than a fork. See notes/blocked-thread-teardown.md, proposal C.
+///
+/// **The capability sweep is the larger half, and it must come before the wake.** Waking a
 /// reply-parked caller is exactly the path that opens the stale reply capability: [`crate::cap::
 /// reply_cap`] mints `Object::Reply(tid)` carrying a generational *thread* name and no call
 /// identity, and [`ipc_reply`]'s guard checks the `WaitRole` while discarding the rendezvous. That
