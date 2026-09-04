@@ -132,6 +132,40 @@ machine, which milestone and why), so it wants the paragraph the block gives it,
 already argued that a fact kept beside the work does not drift away from it. The index stays the place
 for what is true in one word.
 
+**Follow-on vocabulary: the `## Follow-on` section every finished block answers** (milestone 247,
+2026-09-03). The gate line says what stops a milestone starting; this says **what happened to the
+work the milestone named on its way out**, and it exists because that work is the thing this project
+keeps losing. Three times on the record: milestone 90 exists only because calef happened to be at
+his desk the day a report named its finding, milestone 94 swept the tree for this exact category and
+left its own inventory in a pull request body for twelve days, and milestone 244 named an
+unvouched-binary hazard and a design fork that surfaced only because calef asked for them by hand.
+
+A block whose status is `BUILT` or `REMOVED` carries the section, and `script/roadmap --check` fails
+on one that does not. It is a bullet list, and each bullet opens with one of five dispositions:
+
+| Bullet opens | Means | Must resolve to |
+|---|---|---|
+| `**None.**` | Nothing was identified. | Nothing; it stands alone as the whole answer |
+| `**Milestone N.**` | It became milestone N. | A block under `design/roadmap/`, not this one |
+| `**Recorded.**` | It is a limitation and it stays one. | A file, in backticks, that exists |
+| `**Refused.**` | Considered and deliberately not taken. | A reason, in prose |
+| `**Decision.**` | It is calef's call, written up as one. | A file under `design/decisions/` |
+
+**An explicit refusal is a success here.** The defect being attacked is silence, not the absence of
+a milestone, and `**None.**` is meant to be the cheapest sentence in the roadmap.
+
+**It does not weaken the `BUGS` convention and cannot.** `**Recorded.**` points **at** a limitation
+recorded beside the feature; it never replaces one. An over-strict version of this rule, where every
+observation had to resolve to a milestone, would make the honest thing expensive to write and thin
+the `BUGS` sections out, which costs more than the burial does. Nothing here reads prose looking for
+intent: AGENTS.md priced that at `git grep -w TODO`'s 82% false-positive rate.
+
+**The unswept list is the exception, and it is named as one.** 137 blocks were already `BUILT` the
+day this gate landed and one lane cannot sweep them all honestly, so a block that finished on or
+before 2026-09-03 may sit on the list in notes/follow-on-work.md instead. The list may only shrink,
+and the cutoff is checked against the `Built` column, so nothing that finishes after the gate exists
+can be parked on it. `script/roadmap --unswept` prints what is left; read it as a debt.
+
 **Reading it.** `script/roadmap --ready` prints only what a lane could pick up now: gate `NONE`, and a
 status of `NOT-STARTED` or `PARTIAL`, because `IN-PROGRESS` has somebody on it and `OPTIONAL` and
 `RECORDED` are deliberately off the work list. The full report (`script/roadmap`, no arguments) groups

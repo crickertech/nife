@@ -63,7 +63,9 @@
 #
 # With no arguments it prints the normalized status report, statuses first and gates after it.
 # `--ready` prints only the milestones a lane could start today (gate `NONE`, status `NOT-STARTED` or
-# `PARTIAL`), which is the query the maintainer actually makes. `--check` validates and exits
+# `PARTIAL`), which is the query the maintainer actually makes. `--unswept` prints the milestones
+# that finished before milestone 247's follow-on sweep and still owe it a disposition, which is a
+# debt that may only shrink. `--check` validates and exits
 # non-zero on a problem, which is what a gate wants. See design/roadmap/README.md for both
 # vocabularies.
 #
@@ -112,6 +114,9 @@ GATE_VOCAB = ["NONE", "DECISION", "HARDWARE", "MILESTONE"]
 STARTABLE = ["NOT-STARTED", "PARTIAL"]
 
 problems = []
+# The `Built` column, by milestone, kept for the follow-on gate below: it is what closes the unswept
+# list by date rather than by good intentions.
+built_dates = {}
 # (milestone, file, branch) for every IN-PROGRESS block, checked against merge history below.
 in_progress_branches = []
 
@@ -173,6 +178,8 @@ for i, line in enumerate(index.split("\n"), start=1):
                             f"{built!r}. It is the date a milestone turned BUILT and is empty for "
                             f"every status but BUILT and REMOVED; a first phase's date belongs in "
                             f"the block (line {i})")
+        else:
+            built_dates[num] = built
     rows[num] = (status, title, target)
 
 if not rows:
@@ -321,6 +328,184 @@ for fname in sorted(os.listdir(d)):
 
 # A row whose file is missing is already reported by the row's link check above.
 
+# ---- the Follow-on section (milestone 247) ------------------------------------
+# A finished milestone is the last place anyone looks, and the work it named on the way out is what
+# this project keeps losing. Three recorded times: milestone 90 exists only because calef happened
+# to be at his desk the day a lane report named it; milestone 94 swept the tree for exactly this
+# category and left its own inventory in a pull request body for twelve days; milestone 244 named an
+# unvouched-binary hazard in a BUGS section and a design fork in a handoff paragraph, and both
+# surfaced only because calef asked "any work to follow up on 244?" by hand. That question is the
+# mechanism today and it is rung zero: somebody has to remember to notice.
+#
+# **What is checked is a section, not prose.** AGENTS.md already priced the greppable alternative:
+# `git grep -w TODO` runs an 82% false-positive rate, and a check that cannot tell an observation
+# from an intention gets disabled within a week. Nothing here reads a block's prose looking for
+# intent. It checks that a block which has FINISHED carries a heading under which its author was
+# asked the question, and that whatever answer they wrote resolves to something.
+#
+# **The moment it fires is the moment the work is buried**, which is why it hangs on the status
+# rather than on a marker: a lane turning its block BUILT is the last time anybody will read that
+# block on purpose. The same shape as the TODO gate one level up (a marker with a resolvable
+# referent) and as the citations gate (a claim grounded in the document it names), which is the
+# third instance of a pattern this tree already knows rather than a novel one.
+#
+# **Four dispositions, and three of them are one line.** The section is a bullet list, each bullet
+# opening with one of:
+#
+#   - **None.**              nothing was identified. The whole answer, and it must stand alone.
+#   - **Milestone N.**       it became milestone N; the block must exist and must not be this one.
+#   - **Recorded.**          it is a limitation and it stays one; names the file it lives beside,
+#                            in backticks, and that file must exist.
+#   - **Refused.**           it was considered and deliberately not taken; carries the reason.
+#   - **Decision.**          it is calef's call and is written up as one; names the file under
+#                            design/decisions/ that holds it.
+#
+# **`Decision.` is not a fifth tracked form**, it is the tree's existing second one. AGENTS.md:
+# "Open decisions live in a file, not in a conversation." Without this bullet a decision owed to
+# calef would have to be spelled as a refusal, which would be a lie in the one place this gate
+# exists to stop lying.
+#
+# **`None.` and `Recorded.` are deliberately the cheapest things to write here**, because the
+# failure mode of an over-strict version is worse than the burial it prevents. If every observation
+# had to resolve to a milestone, the honest thing to write becomes expensive and BUGS sections get
+# thinner, which costs more than this gate buys. AGENTS.md's BUGS convention is upstream of this
+# check and is not weakened by it: `Recorded.` points AT a BUGS entry rather than replacing it.
+#
+# **An explicit refusal is a success.** The defect this attacks is silence, not the absence of a
+# milestone.
+#
+# **The unswept list is an exception and says so** (see notes/follow-on-work.md, which holds it).
+# 137 blocks were already BUILT the day this gate was written and sweeping all of them at once is
+# not a thing one lane can do honestly. So a block that finished before the sweep may sit on a list
+# instead of carrying a section, and the list may only shrink. The parking is closed by date rather
+# than by good intentions: an entry must name a block whose Built column is on or before
+# UNSWEPT_CUTOFF, so nothing that finishes after this gate exists can be parked on it.
+UNSWEPT_CUTOFF = "2026-09-03"
+UNSWEPT_FILE = os.path.join("notes", "follow-on-work.md")
+DISPOSITION = re.compile(r"^- \*\*(None|Recorded|Refused|Decision|Milestone (\d+))\.\*\*(.*)$")
+
+unswept = {}
+try:
+    unswept_text = open(os.path.join(root, UNSWEPT_FILE)).read()
+except FileNotFoundError:
+    unswept_text = ""
+    problems.append(f"{UNSWEPT_FILE} is missing: it holds the list of milestones that finished "
+                    f"before the follow-on sweep and the reason that list exists")
+inside = False
+for i, line in enumerate(unswept_text.split("\n"), start=1):
+    if line.strip() == "<!-- BEGIN UNSWEPT -->":
+        inside = True
+        continue
+    if line.strip() == "<!-- END UNSWEPT -->":
+        inside = False
+        continue
+    if not inside or not line.strip() or line.strip().startswith("```"):
+        continue
+    entry = line.strip()
+    if entry in unswept:
+        problems.append(f"{UNSWEPT_FILE}:{i}: {entry} is listed twice")
+    unswept[entry] = i
+
+for entry, i in sorted(unswept.items()):
+    m = FNAME.fullmatch(entry)
+    if not m or entry not in ids.values():
+        problems.append(f"{UNSWEPT_FILE}:{i}: {entry!r} is not a milestone file in design/roadmap/")
+        continue
+    num = int(m.group(1))
+    status = rows.get(num, ("", "", ""))[0]
+    if status not in DATED:
+        problems.append(f"{UNSWEPT_FILE}:{i}: milestone {num} is {status or 'unlisted'}, and the "
+                        f"list is only for work that had already finished when the sweep ran")
+        continue
+    built = built_dates.get(num, "")
+    if not built or built > UNSWEPT_CUTOFF:
+        problems.append(f"{UNSWEPT_FILE}:{i}: milestone {num} finished {built or 'on no date'}, "
+                        f"after the {UNSWEPT_CUTOFF} sweep. The list may only shrink: a block that "
+                        f"finishes now carries its own '## Follow-on' section")
+
+swept = 0
+for mid, fname in sorted(ids.items()):
+    if not mid.isdigit():
+        continue
+    num = int(mid)
+    if num not in rows:
+        continue
+    text = open(os.path.join(d, fname)).read()
+    lines = text.split("\n")
+    heads = [n for n, l in enumerate(lines, start=1) if l.rstrip() == "## Follow-on"]
+    if len(heads) > 1:
+        problems.append(f"{fname}: {len(heads)} '## Follow-on' sections; one milestone answers the "
+                        f"question once, and a second copy is the one that stops being updated")
+    if not heads:
+        if rows[num][0] in DATED and fname not in unswept:
+            problems.append(
+                f"{fname}: milestone {num} is {rows[num][0]} and carries no '## Follow-on' "
+                f"section. A finished block is the last place anyone looks, so it says what "
+                f"happened to the work it named: bullets opening '**None.**', "
+                f"'**Milestone N.**', '**Recorded.**' (naming the file the limitation lives "
+                f"beside, in backticks) or '**Refused.**' with a reason. See "
+                f"design/roadmap/README.md and notes/follow-on-work.md")
+        continue
+    if fname in unswept:
+        problems.append(f"{UNSWEPT_FILE}:{unswept[fname]}: {fname} has a '## Follow-on' section "
+                        f"now, so it is swept; take it off the list")
+    swept += 1
+    body, collecting = [], False
+    for n, l in enumerate(lines, start=1):
+        if l.rstrip() == "## Follow-on":
+            collecting = True
+            continue
+        if collecting:
+            if l.startswith("#"):
+                break
+            body.append((n, l))
+    bullets = [(n, l) for n, l in body if l.startswith("- ")]
+    if not bullets:
+        problems.append(f"{fname}: '## Follow-on' has no bullets. '- **None.**' is the whole "
+                        f"answer when nothing was identified, and it is meant to be cheap to say")
+    for n, l in bullets:
+        dm = DISPOSITION.match(l.rstrip())
+        if not dm:
+            problems.append(f"{fname}:{n}: {l[:60]!r} is not a disposition. Every bullet under "
+                            f"'## Follow-on' opens '**None.**', '**Milestone N.**', "
+                            f"'**Recorded.**' or '**Refused.**'")
+            continue
+        kind, rest = dm.group(1).split(" ")[0], dm.group(3).strip()
+        if kind == "None":
+            if len(bullets) > 1:
+                problems.append(f"{fname}:{n}: '**None.**' says nothing was identified, so it "
+                                f"cannot sit beside {len(bullets) - 1} other disposition(s)")
+        elif kind == "Milestone":
+            target = int(dm.group(2))
+            if target not in rows:
+                problems.append(f"{fname}:{n}: names milestone {target}, which has no index row")
+            elif target == num:
+                problems.append(f"{fname}:{n}: names itself as its own follow-on")
+        elif kind == "Recorded":
+            paths = re.findall(r"`([^`]+)`", rest)
+            real = [p for p in paths if os.path.exists(os.path.join(root, p.split("#")[0]))]
+            if not real:
+                problems.append(
+                    f"{fname}:{n}: '**Recorded.**' says the limitation lives beside the feature, "
+                    f"so it names the file it lives in, in backticks, and that file has to exist "
+                    f"(found {paths if paths else 'no path'})")
+        elif kind == "Decision":
+            paths = re.findall(r"`([^`]+)`", rest)
+            real = [p for p in paths
+                    if p.startswith("design/decisions/")
+                    and os.path.exists(os.path.join(root, p.split("#")[0]))]
+            if not real:
+                problems.append(
+                    f"{fname}:{n}: '**Decision.**' means calef's call is written up as one, so it "
+                    f"names the file under design/decisions/ that holds it, in backticks, and that "
+                    f"file has to exist (found {paths if paths else 'no path'}). A decision that "
+                    f"lives only in a conversation is the medium AGENTS.md abolished")
+        elif kind == "Refused" and len(rest) < 40:
+            problems.append(f"{fname}:{n}: '**Refused.**' carries the reason it was refused. A "
+                            f"refusal with a reason is a success here; a bare one is silence with "
+                            f"a heading over it (found {rest!r})")
+
+
 # ---- an IN-PROGRESS branch that already merged --------------------------------
 # The other half of the check above, and the one that caught real defects: a branch named by an
 # IN-PROGRESS status which this history has already MERGED is not active work, it is a milestone that
@@ -378,8 +563,20 @@ if mode == "--check":
           f"index and files agree, every tree-wide citation resolves")
     print(f"roadmap: {len(gates)} of them classified by gate, {len(ready)} ready to start "
           f"(script/roadmap --ready)")
+    print(f"roadmap: {swept} blocks answer '## Follow-on', {len(unswept)} finished before the "
+          f"sweep and are still on the list (script/roadmap --unswept)")
     if lettered:
         print(f"roadmap: lettered addenda: {', '.join(lettered)}")
+    sys.exit(0)
+
+if mode == "--unswept":
+    # What milestone 247's sweep did not reach. The list may only shrink, so this number is the
+    # remaining debt and is meant to be read as one.
+    for entry in sorted(unswept, key=lambda e: int(FNAME.fullmatch(e).group(1))):
+        num = int(FNAME.fullmatch(entry).group(1))
+        print(f"  {num:>3}  {rows[num][1][:66]}")
+    print(f"\n{len(unswept)} BUILT blocks with no follow-on disposition, of "
+          f"{len(unswept) + swept} read. See notes/follow-on-work.md")
     sys.exit(0)
 
 if mode == "--ready":
@@ -391,7 +588,8 @@ if mode == "--ready":
     sys.exit(0)
 
 if mode:
-    print(f"roadmap: unknown argument {mode!r} (no argument, --ready, or --check)", file=sys.stderr)
+    print(f"roadmap: unknown argument {mode!r} (no argument, --ready, --unswept, or --check)",
+          file=sys.stderr)
     sys.exit(2)
 
 by_status = {}
