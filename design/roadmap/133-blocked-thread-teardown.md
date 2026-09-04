@@ -148,6 +148,12 @@ case is the miss rather than the hit, because the kernel asks both queues on eve
   this milestone's subject at all: one `x86_64` leg of this lane's gate failed on
   `a_userspace_driver_reads_a_file_over_the_pcie_transport`'s interrupt assertion and passed alone
   twice and in a full re-run, so it is recorded rather than left in a lane report.
+- **Proposed.** `design/roadmap/proposals/a-flat-entry-set-counts-bytes-no-syscall-fetches.md`.
+  `script/fastpath-footprint`'s `syscall_entry` set is flat and so cannot exclude anything, and this
+  lane's change to region teardown made LLVM fold `timer::tick` into `riscv_trap_body`, putting 226
+  bytes (12.1%, against a 5% bound) onto a number that measures the syscall path. Closed here with
+  `#[inline(never)]` on `tick`, which restores the baseline exactly and is the pattern this tree
+  already uses twice; the gate's own limitation is what wants a lane.
 - **Refused.** Proposal B, a terminate verb on a `ThreadControlBlock` capability. It would widen a
   construction-time authority (every method on that capability refuses a thread that is not an
   `Embryo`) into a lifetime handle, and it answers a question nobody has asked: ending a thread

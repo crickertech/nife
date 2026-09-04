@@ -280,6 +280,20 @@ pub fn set_cycle_counter_grant(granted: bool) {
 
 /// Handle a timer interrupt: count the tick and arm the next deadline (which also clears the pending
 /// interrupt). Called from the trap dispatcher on `scause` = timer.
+///
+/// **`#[inline(never)]`, and it is a measurement rather than a style choice**, the same reason
+/// `sched::grant_cycle_counter` and milestone 156's spawn-path bodies carry it. `riscv_trap_body`
+/// is in `script/fastpath-footprint`'s `syscall_entry` set, because on this ISA an `ecall` really
+/// does arrive through the same handler as every other trap; the **timer** arm of that handler is
+/// not something a syscall fetches. When LLVM folds this function in, its bytes land inside
+/// `riscv_trap_body`'s span and the flat entry-set sum counts them anyway. That flip happened on
+/// its own during milestone 133, from a change in `sched.rs` that touches no timer and no trap
+/// path, and it put **12.1%** (1870 to 2096 bytes) on a 5% bound. Keeping the call keeps the number
+/// measuring what it says it measures; a `jal` once per 10 ms tick costs nothing worth having.
+///
+/// The gate's own limitation is the real finding and is recorded separately:
+/// `design/roadmap/proposals/a-flat-entry-set-counts-bytes-no-syscall-fetches.md`.
+#[inline(never)]
 pub fn tick() {
     TICKS[cpu::id()].fetch_add(1, Ordering::Relaxed);
     // In a test build, feed the hang watchdog: a lost IPC wakeup would otherwise block a test
