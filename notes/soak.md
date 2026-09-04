@@ -488,11 +488,40 @@ soak-census: core=3 threads=7 R0 G0 R1 C1 R2 C3 C3
 soak-census: core=4 threads=7 W0 C1 G1 C2 G2 W2 C3
 ```
 
-Every group is split, no core holds a whole one, and the four grinders are on four different cores.
-**`drifted=0` and it stayed there**, where 240 measured nine to eleven of the twenty non-waiter
-threads leaving their spawn core within one beat under QEMU. On this silicon the spawn arrangement is
-the settled arrangement, which makes the census a far stronger instrument here than the emulator
-predicted.
+Every group is split and no core holds a whole one. **The settled arrangement it converged to is
+the more interesting one**, and it is not what the spawn census suggests:
+
+```
+soak-census: core=1 threads=7 C0 C1 W1 R2 C3 C3 W3
+soak-census: core=2 threads=7 R0 C0 R1 C1 C2 C2 G3
+soak-census: core=3 threads=6 C0 G0 C1 G1 G2 C3
+soak-census: core=4 threads=4 W0 C2 W2 R3
+```
+
+**Three of the four grinders end up on core 3**, and core 4 holds four threads and no grinder at all.
+
+That reads at first as a refutation of the grinder-co-location inference above, and it is a
+correction to its wording rather than to its substance. **Piling grinders together is the efficient
+arrangement**: it spends one core on pure compute and leaves three for IPC. What starves a group is a
+grinder *sharing a core with it*, which is what spreading the grinders one per core would produce.
+
+**So the reading now makes a falsifiable prediction about the run nobody has seen.** A 23,000/s boot
+should show the four grinders spread across four cores. If one does, the mechanism is confirmed; if a
+slow boot shows them piled, this reading is wrong and the cause is something else.
+**The arrangement converges once, early, and then locks in.** Over the whole run there was exactly
+one drift event: the spawn arrangement held about 25 seconds, then **ten of the twenty non-waiter
+threads moved at once** (`drifted=10`, at `crossings=983`), a replacement census printed, and
+`drifted=0` held for the next 24 minutes. Under QEMU milestone 240 measured nine to eleven threads
+leaving their spawn core within the *first* beat and churning after it. Both machines converge, as
+DECISIONS 28.2's local wake implies; the difference is that on this silicon convergence is a single
+event with a settled arrangement on the far side, which makes the census a far stronger instrument
+here than the emulator predicted. **A boot's arrangement is knowable about thirty seconds in and then
+does not change.**
+
+An earlier draft of this section said `drifted=0` held from the start and that the spawn arrangement
+was the settled one. That was written from the first five minutes of beats and the drift event is at
+about thirty seconds; the correction is recorded rather than patched over because it changes what the
+instrument is for.
 
 **This is one census, on the fast side of the draw.** The slow run predates the instrument, so the
 arrangement that produces 23,000/s has still never been seen. That is exactly what a series of boots
