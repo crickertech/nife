@@ -258,6 +258,43 @@ impl<T: Node> Rendezvous<T> {
         found
     }
 
+    /// **Take one specific receiver back off the queue**, returning whether it was there. The twin
+    /// of [`remove_sender`](Self::remove_sender), and the same drain-and-repush for the same
+    /// reason.
+    ///
+    /// It exists for milestone 133: `MemoryRegion::DESTROY` ends a resident thread that is
+    /// permanently `Blocked`, and the commonest such thread is a server parked in `RECV` on a
+    /// rendezvous that belongs to somebody else. Its TCB is linked here, so the region's reclaim
+    /// has to unlink it before freeing the page the TCB sits on, exactly as a corpse on a
+    /// supervision rendezvous's sender queue does.
+    ///
+    /// **Why both twins rather than one `remove` taking a queue**, which was the tidier shape and
+    /// was refused: the caller would then have to name the queue, and naming it means trusting the
+    /// victim's recorded [`WaitRole`](crate) to say which one it is. The kernel's `CALL` caller
+    /// that met no server is recorded as a `Reply` and *is* on the sender queue, so the role is a
+    /// diagnostic rather than the fact. Two pointer-compared removes let the caller ask both
+    /// queues and believe neither.
+    ///
+    /// # Safety
+    ///
+    /// As for [`remove_sender`](Self::remove_sender): `victim` is compared by pointer and never
+    /// dereferenced, and every other queued receiver is popped and pushed again, so they must all
+    /// still satisfy the queue's contract.
+    pub unsafe fn remove_receiver(&mut self, victim: NonNull<T>) -> bool {
+        let mut kept: Fifo<T> = Fifo::new();
+        let mut found = false;
+        while let Some(node) = self.receivers.pop_front() {
+            if node == victim {
+                found = true;
+            } else {
+                // SAFETY: just popped from this queue, so it is valid and on no queue.
+                unsafe { kept.push_back(node) };
+            }
+        }
+        self.receivers = kept;
+        found
+    }
+
     /// A sender `me` arrives. Rendezvous with a waiting receiver if there is one, otherwise `me`
     /// joins the sender queue (and the caller should block it).
     ///
@@ -736,6 +773,70 @@ mod tests {
         // SAFETY: as above.
         assert_eq!(unsafe { e.recv(NonNull::from(&mut *r)) }, Recv::Blocked);
         // And it can be used again afterwards: push, pop, no ghost.
+        assert!(e.one_queue_invariant());
+    }
+
+    /// **A queued receiver can be taken back out of the middle**, which is what milestone 133's
+    /// completed reclaim needs: a server parked in `RECV` on somebody else's rendezvous is linked
+    /// here, and `MemoryRegion::DESTROY` on the region holding its TCB frees the page that link
+    /// points into. The survivors keep FIFO order, the count drops by exactly one, and removing
+    /// something that is not queued reports `false` and changes nothing.
+    #[test]
+    fn a_queued_receiver_can_be_removed_from_the_middle() {
+        let (mut a, mut b, mut c, mut sdr) = (node(), node(), node(), node());
+        let (ap, bp, cp) = (
+            NonNull::from(&mut *a),
+            NonNull::from(&mut *b),
+            NonNull::from(&mut *c),
+        );
+        let mut e: Rendezvous<N> = Rendezvous::new();
+
+        for p in [ap, bp, cp] {
+            // SAFETY: `ap`, `bp` and `cp` are live nodes, each on no queue (see the module note).
+            assert_eq!(unsafe { e.recv(p) }, Recv::Blocked);
+        }
+        // SAFETY: `bp` is compared by pointer and never dereferenced; the receivers that get re-queued are the same live locals.
+        assert!(unsafe { e.remove_receiver(bp) }, "b was queued");
+        assert_eq!(e.debug_counts().1, 2, "exactly one receiver left the queue");
+        assert_eq!(
+            // SAFETY: as above.
+            unsafe { e.send(NonNull::from(&mut *sdr)) },
+            Send::Rendezvous(ap)
+        );
+        assert_eq!(
+            // SAFETY: as above.
+            unsafe { e.send(NonNull::from(&mut *sdr)) },
+            Send::Rendezvous(cp)
+        );
+
+        // Not queued: a no-op that says so, and it does not reach into the *sender* queue either.
+        let mut e2: Rendezvous<N> = Rendezvous::new();
+        // SAFETY: `ap` is a live node on no queue of `e2`; nothing is dereferenced.
+        assert_eq!(unsafe { e2.send(ap) }, Send::Blocked);
+        // SAFETY: `ap` is compared by pointer, never dereferenced.
+        assert!(
+            !unsafe { e2.remove_receiver(ap) },
+            "a queued sender is not a receiver"
+        );
+        assert_eq!(e2.debug_counts().0, 1, "the sender queue was left alone");
+    }
+
+    /// Removing the *only* queued receiver leaves the rendezvous idle rather than a queue with a
+    /// stale tail, the same drained-to-empty check `remove_sender` carries. A lone blocked server
+    /// is the common shape of the thread milestone 133 ends.
+    #[test]
+    fn removing_the_only_receiver_leaves_the_rendezvous_idle() {
+        let (mut a, mut sdr) = (node(), node());
+        let ap = NonNull::from(&mut *a);
+        let mut e: Rendezvous<N> = Rendezvous::new();
+
+        // SAFETY: `ap` is a live node, on no queue (see the module note).
+        assert_eq!(unsafe { e.recv(ap) }, Recv::Blocked);
+        // SAFETY: `ap` is compared by pointer, never dereferenced.
+        assert!(unsafe { e.remove_receiver(ap) });
+        assert!(e.is_idle(), "the rendezvous still holds a receiver");
+        // SAFETY: as above.
+        assert_eq!(unsafe { e.send(NonNull::from(&mut *sdr)) }, Send::Blocked);
         assert!(e.one_queue_invariant());
     }
 

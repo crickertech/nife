@@ -154,12 +154,44 @@ pub const fn report(word: u32) -> [u32; 8] {
 ///   0f 05             syscall           (exit, if it is ever woken)
 /// ```
 pub const fn recv() -> [u32; 8] {
-    let rcv = (abi::rendezvous::RECV as u32).to_le_bytes();
+    invoke_then_exit(abi::rendezvous::RECV as u32)
+}
+
+/// **A child that blocks in `CALL` on the endpoint capability in slot 0, and is never replied to.**
+///
+/// Milestone 133's second shape, and the harder one. A `CALL` caller whose request a server has
+/// collected sits on **no queue at all**: it left the sender queue at the rendezvous and the one
+/// thing that can wake it is the one-shot `Reply` capability the server now holds. So it is the
+/// resident that no endpoint sweep can reach, and the one whose teardown has to sweep that `Reply`
+/// out of the server's capability table or leave a forgeable answer behind.
+///
+/// Byte for byte [`recv`] with a different method word; see it for the encoding.
+pub const fn call() -> [u32; 8] {
+    invoke_then_exit(abi::rendezvous::CALL as u32)
+}
+
+/// The body [`recv`] and [`call`] share: `invoke(slot 0, method, 0, 0, 0)`, then `SYS_EXIT` if the
+/// invocation ever returns. Written once because the two differ in exactly one immediate, and two
+/// copies of an eight-instruction hand-assembled program are two chances to typo a syscall number.
+///
+/// ```text
+///   31 ff             xor edi, edi      (arg0: slot 0)
+///   be xx xx xx xx    mov esi, method   (arg1)
+///   31 d2             xor edx, edx      (arg2)
+///   45 31 d2          xor r10d, r10d    (arg3)
+///   45 31 c0          xor r8d, r8d      (arg4)
+///   b8 xx xx xx xx    mov eax, SYS_INVOKE
+///   0f 05             syscall           (blocks)
+///   b8 xx xx xx xx    mov eax, SYS_EXIT
+///   0f 05             syscall           (exit, if it is ever woken)
+/// ```
+const fn invoke_then_exit(method: u32) -> [u32; 8] {
+    let m = method.to_le_bytes();
     let inv = (abi::SYS_INVOKE as u32).to_le_bytes();
     let ext = (abi::SYS_EXIT as u32).to_le_bytes();
     pack_8([
         0x31, 0xFF, // xor edi, edi
-        0xBE, rcv[0], rcv[1], rcv[2], rcv[3], // mov esi, RECV
+        0xBE, m[0], m[1], m[2], m[3], // mov esi, method
         0x31, 0xD2, // xor edx, edx
         0x45, 0x31, 0xD2, // xor r10d, r10d
         0x45, 0x31, 0xC0, // xor r8d, r8d
