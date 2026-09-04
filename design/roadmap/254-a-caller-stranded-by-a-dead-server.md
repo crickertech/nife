@@ -171,6 +171,16 @@ could still take.
   `killed && state == Running` so it never runs on an ordinary pass. That guard is the whole
   argument, and it is a comment rather than a type.
 
+  **`script/fastpath-footprint` caught this and the first attempt was 20% over.** Inlined into
+  `schedule()`, the helpers put 1,363 bytes on x86_64's IPC fastpath figure (6,639 to 8,002), 26.5%
+  on aarch64 and 33.1% on riscv64, for code that runs only when something is being torn down. The
+  fix is `#[cold]` plus `#[inline(never)]` on all three helpers, and `strand_` added to that
+  script's `COLD` list beside `revoke`, `destroy` and `delete_frame_caps`, which is the teardown
+  family it already names for exactly this reason. What remains is the guarded call sites
+  themselves: +0.6% aarch64, +0.3% riscv64, +1.9% x86_64, all inside the 5% bound, and **the
+  baselines were not re-recorded**, which is the honest form of a change that is meant to cost
+  nothing on the hot path.
+
 ## Follow-on
 
 - **Recorded.** A live-but-silent server still strands its caller. That is milestone 133's subject

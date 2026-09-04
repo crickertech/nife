@@ -2768,6 +2768,13 @@ pub fn ipc_reply(caller: ThreadId, msg: [u64; 2]) {
 /// **Only a thread actually parked awaiting a reply is touched**, which is [`ipc_reply`]'s own
 /// guard and is what keeps this from clobbering an ordinary receiver's park. Returns whether it
 /// did anything, so a scan can use the abort flag as its own termination.
+/// **`#[cold]`, and that is a claim rather than a hint.** Every caller of this is a teardown: a
+/// thread departing, a kill landing, a region being reaped, a rendezvous going away. Saying so keeps
+/// it out of `script/fastpath-footprint`'s closure, which matters because one of the four call sites
+/// is the top of [`schedule`], the hottest path in the kernel; inlined there it cost 1,363 bytes of
+/// `x86_64` IPC fastpath, a 20% growth, for code that runs when something is being torn down.
+#[cold]
+#[inline(never)]
 fn strand_reply_caller(sched: &mut IpcTables, caller: ThreadId) -> bool {
     let parked = sched
         .threads
@@ -2802,6 +2809,8 @@ fn strand_reply_caller(sched: &mut IpcTables, caller: ThreadId) -> bool {
 /// A capability table is sixteen slots, so this is sixteen comparisons on a path that is a teardown
 /// in all three cases. The scan is by slot rather than by iterator because [`strand_reply_caller`]
 /// takes `sched` mutably and deletes out of this very table as it goes.
+#[cold]
+#[inline(never)]
 fn strand_callers_of(sched: &mut IpcTables, tid: ThreadId) {
     let slots = sched
         .threads
@@ -2835,6 +2844,8 @@ fn strand_callers_of(sched: &mut IpcTables, tid: ThreadId) {
 /// [`strand_reply_caller`] sets is what makes the rescan terminate, and it has to be the flag rather
 /// than `wait_on`: a wake deferred behind `on_cpu` leaves the park in place until that core's
 /// `finish_switch`, so a predicate reading only `wait_on` would spin.
+#[cold]
+#[inline(never)]
 fn strand_callers_awaiting(sched: &mut IpcTables, ep: RendezvousId) {
     loop {
         let stranded = sched
