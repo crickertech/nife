@@ -1,4 +1,4 @@
-# 141. What a spawner retains over a child after `START`
+# 142. What a spawner retains over a child after `START`
 
 **Status: PROPOSED.** Written 2026-09-03 by the research lane `maintainer/research-spawn-retention`,
 which was asked for options and costs and is forbidden to pick. *(The number 141 is **provisional**,
