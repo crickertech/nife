@@ -45,7 +45,7 @@ is what 247's sweep demonstrated when it found three items already built, two of
 ## The proof that this milestone worked
 
 **All 22 `PARTIAL` blocks carry dispositions for their outstanding work, and the gate refuses a
-`PARTIAL` block that does not** — demonstrated by removing one and watching it go red.
+`PARTIAL` block that does not**, demonstrated by removing one and watching it go red.
 
 And the count that makes it worth having done: **how many of the 22 were describing work already
 finished.** Milestone 16 was one; report the rest rather than quietly fixing them.
