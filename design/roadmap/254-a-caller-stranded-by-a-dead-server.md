@@ -147,7 +147,13 @@ could still take.
 - **It does not reclaim the hung component's region**, which is milestone 133's capacity problem and
   stays open. This halves the leak; it does not close it.
 - **A scan over `MAX_THREADS` per destruction is a linear cost** on a path that is not hot but is not
-  free either, and nothing here measures it. `script/bench`'s icount tripwire is where it would show.
+  free either. **It is measured now, because `script/bench`'s icount tripwire caught the first
+  version**: `spawn_reap` went +25.9% and `map_new` +28.7%, both against a 10% bound. The cause was
+  not the `MAX_THREADS` scan at all but `strand_callers_of` re-resolving the departing thread
+  through the generational thread table once per capability slot, 24 lookups on every thread exit,
+  about 830 ticks per `spawn_reap` iteration. Reading the table once into a 192-byte array of
+  victims and skipping an empty table took it to +2.2% and +0.006%. **The baselines were not
+  re-recorded.**
 - **It says nothing about a server that is alive and simply never replies**, which is the case that
   motivated milestone 133 and is answered by a deadline on `CALL` (milestone 106's fork, not this
   one's) or by ending the thread (133's).

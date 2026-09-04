@@ -2806,28 +2806,38 @@ fn strand_reply_caller(sched: &mut IpcTables, caller: ThreadId) -> bool {
 /// [`schedule`] (DECISIONS §16's armed kill, which never reaches `depart`), and
 /// [`reap_region_objects`]'s removal phase (an `Embryo` or an already-reaped corpse).
 ///
-/// A capability table is sixteen slots, so this is sixteen comparisons on a path that is a teardown
-/// in all three cases. The scan is by slot rather than by iterator because [`strand_reply_caller`]
-/// takes `sched` mutably and deletes out of this very table as it goes.
+/// **It reads the table once and then acts**, which is a measured shape rather than a stylistic
+/// one. The obvious loop re-resolves `tid` through the generational thread table on every slot,
+/// because [`strand_reply_caller`] takes `sched` mutably and deletes out of this very table as it
+/// goes; at 24 slots that is 24 generational lookups per departing thread, and `script/bench`
+/// priced it at about 830 icount ticks on every `spawn_reap` iteration. One lookup, a 192-byte
+/// array of victims in this function's own frame (it is `#[inline(never)]`, so the array is never
+/// on `reap_region_objects`'s), and the empty-table early-out cost nothing and gave it back.
 #[cold]
 #[inline(never)]
 fn strand_callers_of(sched: &mut IpcTables, tid: ThreadId) {
-    let slots = sched
-        .threads
-        .get(tid)
-        .map_or(0, |t| t.capability_table.len() as u64);
-    for slot in 0..slots {
-        let caller = sched
-            .threads
-            .get(tid)
-            .and_then(|t| t.capability_table.get(slot).ok())
-            .and_then(|c| match c.object {
-                crate::cap::Object::Reply(caller) => Some(caller),
-                _ => None,
-            });
-        if let Some(caller) = caller {
-            strand_reply_caller(sched, caller);
+    let mut victims = [0 as ThreadId; crate::cap::CAPABILITY_TABLE_SLOTS];
+    let mut found = 0;
+    {
+        let Some(t) = sched.threads.get(tid) else {
+            return;
+        };
+        // Overwhelmingly the common case on the `depart` path is a thread holding no reply
+        // capability at all; an empty table is the case worth not paying for at all.
+        if t.capability_table.used() == 0 {
+            return;
         }
+        for slot in 0..t.capability_table.len() as u64 {
+            if let Ok(c) = t.capability_table.get(slot)
+                && let crate::cap::Object::Reply(caller) = c.object
+            {
+                victims[found] = caller;
+                found += 1;
+            }
+        }
+    }
+    for &caller in &victims[..found] {
+        strand_reply_caller(sched, caller);
     }
 }
 
