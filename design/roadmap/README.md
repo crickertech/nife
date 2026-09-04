@@ -448,6 +448,7 @@ besides, being built for dated release grouping; these are capability-shaped and
 | 241 | NOT-STARTED | [What a fourth board would have to be for, so that GICv3 is bought rather than justified](241-what-a-fourth-board-would-have-to-be-for.md) | two machines here have never booted nife, so the trigger is written down rather than the purchase made | |
 | 242 | NOT-STARTED | [USB host and HID, because on commodity hardware the keyboard is not a UART](242-usb-host-and-a-keyboard-that-is-not-a-uart.md) | `xhci` appears in one roadmap block as a word; milestone 192's option B is a large unbuilt subsystem nothing owns | |
 | 243 | NOT-STARTED | [A machine with no serial port has no way to say anything, and no gate can read it](243-a-machine-with-no-serial-port-cannot-say-anything.md) | every word nife has said went down a UART, including every automated gate, and commodity machines do not have one | |
+| 244 | NOT-STARTED | [The largest crate in the tree is proved by nothing a mutation can reach](244-the-largest-crate-in-the-tree-is-proved-by-nothing.md) | `crates/system_initializer` is 2,632 lines with zero `#[test]` and scored 0 caught of 191 mutants; it cannot compile for the host | |
 
 The order §14 sets: **verify the core and make it verifiable first** (18 and 14, the thesis), then the
 road to running real workloads on real machines (15, 21, 16, 19; 25 extends 21 into cross-OS
