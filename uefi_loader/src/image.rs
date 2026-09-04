@@ -120,7 +120,7 @@ pub fn parse(bytes: &[u8]) -> Result<Elf<'_>, &'static str> {
 
 #[cfg(test)]
 mod tests {
-    use elf::{PF_R, PF_W, PF_X};
+    use elf::{NATIVE_MACHINE, PF_R, PF_W, PF_X};
 
     use super::*;
 
@@ -186,6 +186,25 @@ mod tests {
         assert_eq!(physical_span([].into_iter(), 4096), None);
     }
 
+    /// **The rounding is outwards at BOTH ends, and only the low end had ever been asked.** Every
+    /// other test here starts its lowest segment on a page boundary, where `first & !(page_size-1)`
+    /// is the identity and any mask at all gives the right answer; the mutation run found two
+    /// survivors on that expression for exactly that reason (`page_size + 1` and `page_size / 1`
+    /// both clear bits the aligned inputs never had set).
+    ///
+    /// A segment that starts mid-page is not hypothetical bookkeeping. The firmware is asked for
+    /// this range with one `AllocatePages(AllocateAddress)`, which takes a **page** number, so a
+    /// span that begins above the segment's first byte asks for memory that starts after the bytes
+    /// about to be written into it.
+    #[test]
+    fn a_segment_starting_mid_page_pulls_the_span_down_to_its_page() {
+        let segments = [seg(0x10_0800, 0x100)];
+        assert_eq!(
+            physical_span(segments.into_iter(), 4096),
+            Some((0x10_0000, 0x10_1000))
+        );
+    }
+
     /// Every refusal has its own sentence, and none of them is empty. The value of the exhaustive
     /// match is that adding a variant to `elf::Error` fails this build; the value of this test is
     /// that nobody satisfies that by pasting the same string.
@@ -232,5 +251,84 @@ mod tests {
             data: &[],
         };
         assert!(s.is_writable() && s.is_executable());
+    }
+
+    /// One `PT_LOAD` segment, forged by hand, with the flags and the physical address the caller
+    /// asks for. Adapted from `crates/elf`'s own doc example, which is where the format is
+    /// explained; what differs here is that `p_paddr` and `p_vaddr` are **not** equal, because a
+    /// physical address unrelated to the virtual one is the whole shape this module deals in.
+    ///
+    /// `NATIVE_MACHINE` rather than a literal 62: `elf::Elf::parse` checks the machine of the build
+    /// it is compiled into, and this test runs on whatever the developer's laptop is. The x86-64
+    /// wording in [`refusal`] is about the kernel this loader ships, not about this check.
+    fn forge(flags: u32, paddr: u64) -> Vec<u8> {
+        const EHDR: usize = 64;
+        const PHDR: usize = 56;
+        let vaddr = paddr + 0xffff_ffff_8000_0000;
+        let mut v = vec![0u8; EHDR + PHDR + 0x20];
+        v[0..4].copy_from_slice(&[0x7f, b'E', b'L', b'F']);
+        v[4] = 2; // ELFCLASS64
+        v[5] = 1; // ELFDATA2LSB
+        v[6] = 1; // EV_CURRENT
+        v[16..18].copy_from_slice(&2u16.to_le_bytes()); // ET_EXEC
+        v[18..20].copy_from_slice(&NATIVE_MACHINE.to_le_bytes());
+        v[24..32].copy_from_slice(&vaddr.to_le_bytes()); // e_entry
+        v[32..40].copy_from_slice(&(EHDR as u64).to_le_bytes()); // e_phoff
+        v[54..56].copy_from_slice(&(PHDR as u16).to_le_bytes()); // e_phentsize
+        v[56..58].copy_from_slice(&1u16.to_le_bytes()); // e_phnum
+
+        let p = EHDR;
+        v[p..p + 4].copy_from_slice(&1u32.to_le_bytes()); // PT_LOAD
+        v[p + 4..p + 8].copy_from_slice(&flags.to_le_bytes());
+        v[p + 8..p + 16].copy_from_slice(&((EHDR + PHDR) as u64).to_le_bytes()); // p_offset
+        v[p + 16..p + 24].copy_from_slice(&vaddr.to_le_bytes());
+        v[p + 24..p + 32].copy_from_slice(&paddr.to_le_bytes());
+        v[p + 32..p + 40].copy_from_slice(&0x20u64.to_le_bytes()); // p_filesz
+        v[p + 40..p + 48].copy_from_slice(&0x20u64.to_le_bytes()); // p_memsz
+        v
+    }
+
+    /// **Nothing called [`parse`] until this test, which is the hole the mutation run could not
+    /// even report.** Its one mutant (`Ok(Default::default())`) is unviable because `elf::Elf` has
+    /// no `Default`, so the tool scored the function as if it did not exist; see the note in
+    /// notes/mutation-testing.md for why deriving one here would be the wrong repair.
+    ///
+    /// What this asserts is the thing an unviable mutant hides: an accepted image comes back
+    /// *carrying its contents*, so a wrapper that returned an empty `Elf` would fail here rather
+    /// than boot a machine into a kernel with no segments.
+    #[test]
+    fn an_accepted_image_arrives_with_its_segments_and_its_entry() {
+        let bytes = forge(PF_R | PF_X, 0x10_2000);
+        let elf = match parse(&bytes) {
+            Ok(elf) => elf,
+            Err(why) => panic!("a well-formed executable was refused: {why}"),
+        };
+        assert_eq!(elf.entry(), 0x10_2000 + 0xffff_ffff_8000_0000);
+        let segments: Vec<_> = elf.segments().collect();
+        assert_eq!(segments.len(), 1);
+        assert_eq!(segments[0].paddr, 0x10_2000);
+        assert_eq!(segments[0].memsz, 0x20);
+        assert_eq!(
+            physical_span(elf.segments(), 4096),
+            Some((0x10_2000, 0x10_3000))
+        );
+    }
+
+    /// The other half of the same wrapper: a refusal comes back as **this loader's sentence**, not
+    /// as `elf::Error`'s `Debug`. The audience is somebody standing at a machine that will not
+    /// boot, so the mapping through [`refusal`] is the behaviour under test rather than an
+    /// implementation detail.
+    #[test]
+    fn a_refused_image_arrives_as_this_loaders_sentence() {
+        let bytes = forge(PF_R | PF_W | PF_X, 0x10_2000);
+        // Matched rather than unwrapped: `elf::Elf` is deliberately neither `Debug` nor
+        // `PartialEq`, since it is a validated token rather than a value, and every `Result`
+        // helper that reports a failure wants to print the `Ok` side.
+        let sentence = |bytes: &[u8]| match parse(bytes) {
+            Ok(_) => panic!("accepted an image that must be refused"),
+            Err(why) => why,
+        };
+        assert_eq!(sentence(&bytes), refusal(elf::Error::WritableAndExecutable));
+        assert_eq!(sentence(&[]), refusal(elf::Error::TooSmall));
     }
 }

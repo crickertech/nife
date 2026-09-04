@@ -777,6 +777,72 @@ lines nothing can execute.
 print(f"host pass: {len(bare)} bare-metal crates, every one excluded in all four places")
 PYEOF
 
+# The same failure one level down: a TARGET the host build never selects.
+#
+# The gate above derives what cannot compile for the host from the dependency graph, which is the
+# right question for a crate and the wrong one for a `[[bin]]` with `required-features`. Such a
+# target compiles perfectly well; `cargo build --workspace` and `cargo test` simply never put it in
+# the build graph, because the feature is off. Nothing notices, which is the point of
+# `required-features` and is also how it hides.
+#
+# It hides from the tool that publishes a NUMBER. cargo-mutants works from source files rather than
+# from the build graph, so it happily mutates a file nothing compiles and scores every one of those
+# mutants MISSED, in "0s build + 0s test". `uefi_loader/src/main.rs` is 154 of that crate's 189
+# mutants, which is what scored the code that boots xenon at 15% and put it in
+# notes/mutation-testing.md as one of two crates blamed for the tree's score falling seven points.
+# The library half beside it, which is the half the design deliberately lifted out to BE
+# host-testable, was at 91% the whole time.
+#
+# One target matches today. The gate is worth its twenty lines anyway, because it fires on the
+# second one without anybody having read this paragraph, which is the difference between rung two
+# and rung four. Coverage is not checked here: `script/coverage` reports on files the build
+# produced, so a target it never built contributes no lines to drag the floor down.
+echo "==> mutation excludes every target the host build never selects"
+python3 - <<'MUTEOF' || exit 1
+import json, subprocess, sys
+
+meta = json.loads(subprocess.run(
+    ["cargo", "metadata", "--format-version", "1", "--locked", "--no-deps"],
+    capture_output=True, text=True, check=True).stdout)
+
+root = subprocess.run(["git", "rev-parse", "--show-toplevel"],
+                      capture_output=True, text=True, check=True).stdout.strip()
+mutants = open(".cargo/mutants.toml").read()
+
+missing = []
+gated = []
+for pkg in meta["packages"]:
+    for target in pkg["targets"]:
+        if not target.get("required-features"):
+            continue
+        rel = target["src_path"]
+        if rel.startswith(root + "/"):
+            rel = rel[len(root) + 1:]
+        gated.append(rel)
+        if f'"{rel}"' not in mutants:
+            missing.append((pkg["name"], target["name"], rel,
+                            target["required-features"]))
+
+if missing:
+    sys.stderr.write("lint: targets the host build never selects, but cargo-mutants still scores:\n")
+    for name, tname, rel, feats in missing:
+        sys.stderr.write(f"  {name}::{tname}  {rel}  (required-features = {feats})\n")
+    sys.stderr.write("""
+`required-features` keeps these out of `cargo build --workspace` and out of `cargo test`, so no host
+test can reach a line of them. cargo-mutants does not read the build graph: it edits the source file
+anyway, nothing rebuilds, the tests pass, and every mutant is recorded MISSED in "0s build + 0s
+test". That is not a finding about the tests, it is arithmetic, and it lands in a published report.
+
+Add the source path to `exclude_globs` in `.cargo/mutants.toml`, with the reason and with what DOES
+prove the file (for `uefi_loader/src/main.rs` that is `cargo xtask uefi-boot` under OVMF). If the
+target has logic worth mutating, the better fix is the one `uefi_loader` already made: lift the pure
+half into a library the host compiles, and leave only the firmware calls behind the feature.
+""")
+    sys.exit(1)
+
+print(f"mutation: {len(gated)} feature-gated target(s), every one excluded")
+MUTEOF
+
 echo "==> script docs"
 missing=""
 for f in "$(dirname "$0")"/*; do

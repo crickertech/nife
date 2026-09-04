@@ -45,6 +45,27 @@ exclude_globs = [
     # (milestone 35), which IS mutated. Same exemption, same wording, as the coverage floor.
     "crates/virtio/**",
 
+    # **The UEFI application itself, and it is here for a THIRD reason** neither of the two above:
+    # not a crate that fails to compile for the host, and not a judgement call, but a `[[bin]]`
+    # target whose `required-features = ["uefi"]` means `cargo build --workspace` and `cargo test`
+    # never put it in the build graph at all. `uefi_loader`'s LIBRARY half is host-tested and stays
+    # mutated; only this one file is out of reach, and it is out of reach by construction (it calls
+    # firmware and leaves long mode, which is why the library exists beside it).
+    #
+    # The number this fixes is the whole crate's. Of 189 mutants, 154 are in this file, and every
+    # one came back MISSED in "0s build + 0s test" because nothing rebuilt: cargo-mutants edits a
+    # source file no compilation reads. That is what scored the crate 3-caught-of-20 in the first
+    # published sample and made `uefi_loader` one of the two crates blamed for the tree's score
+    # falling from 92.4%. It is the `system_initializer` arithmetic (milestone 244) wearing
+    # different clothes, and it is worth naming the difference: that one was unreachable through the
+    # dependency graph, so `script/lint`'s bare-metal gate derives it. This one is unreachable
+    # through `required-features`, which that gate cannot see, so it has a gate of its own beside
+    # it, deriving this entry from `cargo metadata` rather than asking anyone to remember it.
+    #
+    # What proves this file is `cargo xtask uefi-boot` under OVMF, on `script/test`'s own leg.
+    # Excluding it here does not make it proved; see notes/mutation-testing.md for the split.
+    "uefi_loader/src/main.rs",
+
     # Host tooling, not shipped code. xtask drives cargo and QEMU; its "tests" are the gates it
     # runs, so a mutant here is caught by CI going red, not by a unit suite. Mutating it would
     # spend hours measuring the build system instead of the OS.
