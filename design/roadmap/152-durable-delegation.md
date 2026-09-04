@@ -245,3 +245,30 @@ carry.
   session's own act. Wiring a real registrar (`timetable::Registry::register` called against a
   `DurableSession`'s own `mint_pending_job`, on a live session's authority, writing through
   `crates/schedule_store`'s format on registration) is the milestone's remaining piece.
+## Follow-on
+
+- **Outstanding.** Wiring a real registrar is still this milestone's remaining piece, and its
+  anchor moved: the durable-session type and its pending-job mint no longer exist anywhere in the
+  tree, so a registrar now has to build that shape rather than lift it. Checked 2026-09-03.
+- **Refused.** Per-login narrowing of the directory capability was deliberately not taken, because
+  the adapter it applied to was deleted: the SMB implementation went on 2026-08-30, calef's call,
+  after journey 2 was retired.
+- **Outstanding.** Reattachment on reconnect through a scoped identity lookup, the design's second
+  piece, is unbuilt: neither `user/src/login.rs` nor `user/src/credentialer.rs` holds an
+  identity-to-session table. Checked 2026-09-03.
+- **Outstanding.** `user/src/session_reviver.rs` still holds one unnarrowed filesystem endpoint for
+  its whole pass, which is §123's first hardening refinement and is unbuilt. Its own `BUGS` says
+  so. Checked 2026-09-03.
+- **Recorded.** No liveness watchdog exists for a re-deriver that hangs before its deletion pass
+  runs. `design/decisions/123-boot-time-rederivation-privilege.md`'s hardening addendum names the
+  gap and declines to design it, and this lane did not either.
+- **Outstanding.** `user/src/session_reviver.rs` is spawned only under the kernel test harness by
+  `kernel/src/user/session_reviver_service.rs`; `crates/system_initializer` never names it, so it
+  is not in the real interactive boot. Checked 2026-09-03.
+- **Done.** The manifest question is settled: `design/decisions/125-durable-schedule-manifest.md`
+  is DECIDED, ratified by calef on 2026-08-25, and its own text notes the recommended shape was
+  already built rather than merely proposed.
+- **Outstanding.** The §16 live-children proof this milestone owned went with the SMB code, and
+  whether it is re-homed somewhere that still exists or recorded as lost is undecided. Six inline
+  comments in `user/src/session_reviver.rs` still cite the deleted type as the shape they mirror.
+  Checked 2026-09-03.

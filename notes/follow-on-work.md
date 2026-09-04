@@ -26,10 +26,11 @@ written is rung four: a lane report is read once, by one person, on the day it i
 
 ## The mechanism: a section a finished block has to answer
 
-**Every BUILT or REMOVED milestone block carries a `## Follow-on` section**, checked by
-`script/roadmap --check` and therefore by `script/lint`. The six dispositions are tabulated in
-design/roadmap/README.md, which is where a block author meets them. In short: `None.`,
-`Milestone N.`, `Done.`, `Recorded.`, `Refused.`, `Decision.`, `Proposed.`
+**Every BUILT, REMOVED or PARTIAL milestone block carries a `## Follow-on` section**, checked by
+`script/roadmap --check` and therefore by `script/lint`. (`PARTIAL` is milestone 252's addition,
+below.) The dispositions are tabulated in design/roadmap/README.md, which is where a block author
+meets them. In short: `None.`, `Milestone N.`, `Done.`, `Recorded.`, `Refused.`, `Decision.`,
+`Proposed.`, and `Outstanding.` for a `PARTIAL` block's own remaining scope.
 
 **Why it hangs on the status rather than on a marker in prose.** The moment a block turns BUILT is
 the last time anyone reads it on purpose, so it is exactly the moment the work gets buried. It is
@@ -172,6 +173,73 @@ mutant goes from 1.4 GB to 15.8 GB in twenty seconds and takes the machine with 
 238's block prices three shapes for the fix. It is below the line only because nothing the project
 claims publicly depends on it.
 
+## The second sweep, 2026-09-03: `PARTIAL`, and why it is the harder half
+
+Milestone 252, the same day. 247 covered `BUILT` and `REMOVED`. **`PARTIAL` was outside it, and it
+is the status where the claim is most likely to be false**, for a reason that is structural rather
+than about care:
+
+**A finished block's section is a record. A `PARTIAL` block's is a standing claim about the
+future.** It gets edited as pieces land, nothing re-reads what it still asserts, and its prose is
+what a lane reads when deciding what to pick up. So a stale one does not merely misinform; **it
+offers work that does not exist.**
+
+Milestone 16 is the case that minted the milestone. It listed three things as remaining and two were
+finished: the on-board test-suite exit is the UART marker plus SBI SRST that every board run is
+judged by, and the DTB-driven UART IRQ printed `source 32` on all nine boots of the 2026-09-03
+series. It said otherwise for weeks, and calef asking what was left is what caught it.
+
+### The result: 22 of 22
+
+Six lanes read all 22 blocks in full, about 8,500 lines, checking each claim against the tree rather
+than against the block's own prose. **215 dispositions written; 56 of them record a claim the tree
+disproved; every one of the 22 blocks carried at least one.**
+
+That last number is the finding. The expectation going in was a long tail: a few rotten blocks and a
+majority that were fine. There is no such majority. Three of the blocks the lanes singled out as
+**unusually well maintained** each carried stale items too.
+
+**Three shapes recurred, and none of them is carelessness:**
+
+- **A block that accretes lane reports keeps its old questions in the present tense.** Milestone 139
+  is eight rounds appended in order, and its "what is still open" section opens with a sentence its
+  own `BUGS` refutes 140 lines later. Every round was honest when written.
+- **A block written before a decision landed keeps citing the fork.** Milestone 142 waited on a font
+  and a palette that DECISIONS §104 chose on 2026-08-20, seven days before that block was last
+  edited, and it cites §104 nowhere.
+- **A block's premise can be deleted out from under it.** Milestone 152's "what was built" section
+  cites files the SMB removal deleted on 2026-08-30.
+
+### `Outstanding.`, the eighth word
+
+Seven dispositions say where work *went*. A `PARTIAL` block's commonest honest answer is that it has
+not gone anywhere and is still that milestone's own scope, and none of the seven can say it without
+lying: `Recorded.` claims a limitation that stays, `Proposed.` claims nobody owns it when this block
+does, and `Milestone N.` cannot name the block it is written in. A lane forced to choose writes the
+comfortable word or leaves the item out, which is 247's own `Done.` and `Proposed.` lesson arriving a
+second time.
+
+**What it buys is the date, not the word.** The gate still cannot tell a stale claim from a live one.
+What changed is that somebody wrote "still true, and here is what I checked" beside 82 items.
+
+**`None.` is refused on a `PARTIAL` block**, which is the one thing the gate can prove rather than
+enumerate: `PARTIAL` means work remains, so a block answering that nothing is outstanding has
+contradicted its own status word. That is the milestone-69 defect, a row and a block disagreeing,
+one level in.
+
+**`script/roadmap --outstanding`** prints what is left, per `PARTIAL` milestone, derived from the
+blocks. It is the question calef had to ask by hand, answered as a command.
+
+### The wrong sentence is rarely only in the roadmap
+
+Fixing a block repeatedly left a rustdoc, a module header or a note still saying the old thing, where
+no gate reads it. Ten of those are listed in
+`design/roadmap/proposals/claims-the-sweep-found-false-outside-the-roadmap.md`: a rustdoc that says
+the address-space object does not consult `ENUMERATE` yet, a decision file that quotes a roadmap
+block saying nobody is building the decision, six comments citing a type deleted four days earlier.
+This is the same rot 247 found through `Recorded.` path citations, one layer out, and nothing
+mechanical would have caught any of it.
+
 ## BUGS
 
 - **A disposition can be wrong and this gate cannot tell.** `**Milestone 240.**` resolves whether or
@@ -189,6 +257,10 @@ claims publicly depends on it.
 - **It cannot find work that was never written down.** A hazard named only in a chat window or in a
   lane report nobody landed is not in the tree to be found. The count of what has already been lost
   that way is unknowable rather than zero.
+- **A `PARTIAL` block's section fires more than once and is therefore never finished.** The gate
+  demands it the day the status turns `PARTIAL` and never again, so an item that goes stale the
+  following week is stale until somebody re-reads it. 252's sweep is a date, not a mechanism, and
+  the next one will find the same thing.
 - **It fires once, at the moment a block finishes.** Follow-on work identified *after* a block turned
   BUILT lands in a block nothing will re-check, because the section already exists and already
   passes. The `BUGS` convention and a `TODO(milestone N)` marker both still work there; this gate
