@@ -274,7 +274,7 @@ fn table_offset(rid: u32) -> u64 {
 /// TTB1 walks disabled): the domain is built by the same paging code as a process address space,
 /// so it must be described the same.
 ///
-/// `ttb` occupies dword 1 (words 2 and 3) as TTB0, bits [51:4]. Splitting a 64-bit physical
+/// `ttb` occupies dword 1 (words 2 and 3) as TTB0, bits `[51:4]`. Splitting a 64-bit physical
 /// address across two 32-bit words is the part worth proving rather than reading: on this board
 /// every table root is below 4 GiB, so the high word is zero and dropping it entirely would pass
 /// every test in the tree.
@@ -305,7 +305,7 @@ const fn context_descriptor(ttb: u64, asid: u16) -> [u32; 8] {
 /// **The stream table entry for one stream**: valid, stage-1 translate, one linear context
 /// descriptor at `ctxptr`, as the sixteen 32-bit words the hardware reads.
 ///
-/// Word 0 carries V (bit 0), CONFIG (bits [3:1]), S1FMT (bits [5:4]) and the low half of
+/// Word 0 carries V (bit 0), CONFIG (bits `[3:1]`), S1FMT (bits `[5:4]`) and the low half of
 /// `S1ContextPtr` in the same 32 bits, so an unaligned or oversized `ctxptr` would not merely be
 /// truncated: its low bits would land on the control field and could clear V or turn CONFIG into
 /// bypass, which is translation switched off rather than pointed somewhere wrong. `S1CDMAX` stays
