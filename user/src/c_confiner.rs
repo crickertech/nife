@@ -54,7 +54,7 @@
 // The loader, shared with the milestone-22 supervision tree. `ChildEndowment.maps` and `ChildEndowment.fault` are the
 // two parts this milestone leans on: a child born with shared pages and born supervised.
 use c_seam::checks;
-use supervision_proto::ChildEndowment;
+use supervision_proto::{ChildEndowment, Retention};
 use user_rt::{cap_delete, map_page_frame, recv_fault, send};
 
 /// What the kernel grants us, and nothing else.
@@ -124,7 +124,7 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
         let Ok(region) = supervision_proto::memory_region_split(ROOT_UT, INSTANCE_PAGES) else {
             bail(10)
         };
-        let Ok(tcb) = supervision_proto::build_child(
+        let Ok(child) = supervision_proto::build_child(
             ROOT_UT,
             region,
             &shim,
@@ -142,20 +142,20 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
                 ],
                 blobs: &[],
                 fault: Some(faultep),
-                ..ChildEndowment::new()
+                ..ChildEndowment::new(Retention::Nothing)
             },
         ) else {
             bail(11)
         };
-        if !supervision_proto::thread_control_block_start(tcb, 0, attempt, 0) {
-            bail(12)
-        }
         // Neither capability is the thing itself, and neither is needed any more. The TCB capability
-        // is not the thread (dropping it leaves the thread running), and since §32 the region
+        // is not the thread (dropping it leaves the thread running, which is why the endowment
+        // declares `Retention::Nothing` and `start_child` drops it for us), and since §32 the region
         // capability is not the reap: the corpse is collected through the supervision endpoint. So we
         // hold nothing that reaches a live instance's memory, and the child keeps the narrowed copy of
         // the region it was endowed with, which is what `malloc` spends.
-        cap_delete(tcb);
+        if !supervision_proto::start_child(child, 0, attempt, 0) {
+            bail(12)
+        }
         cap_delete(region);
 
         // Block until the child dies, one way or the other. All five words, because the fourth is the

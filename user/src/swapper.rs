@@ -57,7 +57,7 @@
 // Two shared modules: the swap system's protocol and the supervision tree's loader. Each binary
 // uses a different slice of both, so the unused halves are expected (§38).
 use component_plan::Provisions;
-use supervision_proto::ChildEndowment;
+use supervision_proto::{ChildEndowment, Retention};
 use swap_proto::log_checks as lc;
 use user_rt::{cap_delete, map_into, map_page_frame, recv, recv_fault, revoke_frame, send};
 
@@ -196,7 +196,7 @@ fn direct(fs: &nifefs::Fs, w: &Wiring) -> ! {
     let Ok(b_region) = supervision_proto::memory_region_split(ROOT_UT, component.pages()) else {
         bail(20)
     };
-    let Ok((b_tcb, b_aspace)) = supervision_proto::build_child_space(
+    let Ok((b_child, b_aspace)) = supervision_proto::build_child_space(
         ROOT_UT,
         b_region,
         &v2,
@@ -205,7 +205,7 @@ fn direct(fs: &nifefs::Fs, w: &Wiring) -> ! {
             maps: component.maps_without_devices(),
             blobs: &[],
             fault: Some(w.faultep),
-            ..ChildEndowment::new()
+            ..ChildEndowment::new(Retention::Nothing)
         },
     ) else {
         bail(21)
@@ -294,13 +294,12 @@ fn direct(fs: &nifefs::Fs, w: &Wiring) -> ! {
             bail(24)
         }
     }
-    if supervision_proto::configure_child(b_tcb, b_aspace, v2.entry()).is_err() {
+    if supervision_proto::configure_child(b_child.tcb, b_aspace, v2.entry()).is_err() {
         bail(25)
     }
-    if !supervision_proto::thread_control_block_start(b_tcb, 1, 0, 0) {
+    if !supervision_proto::start_child(b_child, 1, 0, 0) {
         bail(26)
     }
-    cap_delete(b_tcb);
     cap_delete(b_region);
     send(
         REPORT,
@@ -601,7 +600,7 @@ fn hung(fs: &nifefs::Fs, w: &Wiring) -> ! {
     let Ok(b_region) = supervision_proto::memory_region_split(ROOT_UT, component.pages()) else {
         bail(75)
     };
-    let Ok((b_tcb, b_aspace)) = supervision_proto::build_child_space(
+    let Ok((b_child, b_aspace)) = supervision_proto::build_child_space(
         ROOT_UT,
         b_region,
         &v2,
@@ -610,7 +609,7 @@ fn hung(fs: &nifefs::Fs, w: &Wiring) -> ! {
             maps: component.maps_without_devices(),
             blobs: &[],
             fault: Some(w.faultep),
-            ..ChildEndowment::new()
+            ..ChildEndowment::new(Retention::Nothing)
         },
     ) else {
         bail(76)
@@ -692,13 +691,12 @@ fn hung(fs: &nifefs::Fs, w: &Wiring) -> ! {
             bail(83)
         }
     }
-    if supervision_proto::configure_child(b_tcb, b_aspace, v2.entry()).is_err() {
+    if supervision_proto::configure_child(b_child.tcb, b_aspace, v2.entry()).is_err() {
         bail(84)
     }
-    if !supervision_proto::thread_control_block_start(b_tcb, 1, 0, 0) {
+    if !supervision_proto::start_child(b_child, 1, 0, 0) {
         bail(85)
     }
-    cap_delete(b_tcb);
     cap_delete(b_region);
     send(
         REPORT,
@@ -846,15 +844,14 @@ fn start_child(
         maps: plan.maps(),
         blobs: &[],
         fault: Some(faultep),
-        ..ChildEndowment::new()
+        ..ChildEndowment::new(Retention::Nothing)
     };
-    let Ok(tcb) = supervision_proto::build_child(ROOT_UT, region, elf, &endow) else {
+    let Ok(child) = supervision_proto::build_child(ROOT_UT, region, elf, &endow) else {
         bail(stage + 1)
     };
-    if !supervision_proto::thread_control_block_start(tcb, args[0], args[1], args[2]) {
+    if !supervision_proto::start_child(child, args[0], args[1], args[2]) {
         bail(stage + 2)
     }
-    cap_delete(tcb);
     cap_delete(region);
 }
 

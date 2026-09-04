@@ -295,7 +295,7 @@ pub struct Child {
     pub retention: Retention,
 }
 
-/// Build a child from `elf` and configure it, ready for [`thread_control_block_start`]. The whole job in one call,
+/// Build a child from `elf` and configure it, ready for [`start_child`]. The whole job in one call,
 /// which is what every caller but the hot-swap operator wants.
 ///
 /// `own_ut` pays for **our** scratch mappings (they are ours, and a child's region must not have our
@@ -518,7 +518,7 @@ pub fn build_child_space(
     ))
 }
 
-/// Bind the address space and set the entry point: the last step before [`thread_control_block_start`]. The `aspace`
+/// Bind the address space and set the entry point: the last step before [`start_child`]. The `aspace`
 /// capability is **consumed** by the kernel here, so this is the moment after which the builder can
 /// no longer shape the child's memory.
 pub fn configure_child(tcb: u64, aspace: u64, entry: u64) -> Result<(), ()> {
