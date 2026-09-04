@@ -44,8 +44,23 @@ Nothing has been cleaned up; cleaning it would remove the parts a recogniser has
   It is the third outcome, and the reason the recogniser has one: U-Boot refusing before the kernel
   ever ran looks nothing like a hang and must not be reported as one.
 
-**Both captures show a degraded U-Boot environment on this card, and that is not a defect in our
-payload.** `*** Warning - bad CRC, using default environment`, then several
+**And two captures that are not off a board at all**, kept in this directory anyway because the
+distinction this directory draws is *machine-printed against hand-written*, not *silicon against
+emulator*. Both are `script/soak` output on the RISC-V `virt` machine, taken on this development
+Mac, and both are unedited:
+
+- **`qemu-2026-09-01-riscv64-soak.log`** is milestone 219's workload announcing itself and beating,
+  from before the placement census existed. Its beats are what `progress::observe_soak_beat` is
+  asserted against.
+- **`qemu-2026-09-03-riscv64-soak-census.log`** is the same thing with milestone 240's census in it,
+  taken by milestone 249's lane. It is the only capture in this tree that carries a real
+  `soak-census:` block, so it is what stops `lottery::tally`'s clean-core count from being proved
+  only against text this project wrote. Two of the four cores hold three grinders between them and
+  the settled arrangement has **one** clean core, at 18,963 round trips a second, which is the low
+  end of the same spread radon shows.
+
+**Both board captures show a degraded U-Boot environment on this card, and that is not a defect in
+our payload.** `*** Warning - bad CRC, using default environment`, then several
 `** Invalid partition 3 **` / `Couldn't find partition mmc 1:3` / `Can't set block device`
 complaints, and `## Error: "boot2" not defined`, before it finds `mmc 1:1` and gets on with it. The
 board boots through all of it. Nobody should read those lines as something we caused, and whether

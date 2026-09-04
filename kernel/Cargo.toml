@@ -191,6 +191,24 @@ icount = ["bench"]
 # and watches them forever, so `design/fatal-risks.md` risk 5's decisive experiment has something to
 # run. Off by default; every ordinary boot still halts. See kernel/src/soak.rs and script/soak.
 soak = []
+# The rebooting soak (milestone 249): after a fixed window the soak asks SBI SRST for a **cold
+# reboot** instead of beating forever, so the boot-time thread-placement lottery can be drawn fifty
+# times unattended rather than nine times by a person walking to the board. riscv64 only, and
+# `kernel/src/soak.rs` says so with a `compile_error!` rather than with a comment.
+#
+# **It implies `soak` and `board`, and both for the same reason: neither is optional here.** Without
+# `soak` there is no beat loop to hang the window off and no workload whose rate is the thing being
+# sampled. Without `board` the reset is meaningless: QEMU's `virt` machine is started by a runner
+# that would have to re-launch it, and the SRST call there resets a guest nobody is drawing a
+# lottery from.
+#
+# **The name carries the hazard on purpose.** `boot_lottery` was considered and refused: it names
+# the phenomenon being measured, and the flag is met by an operator about to write a card that will
+# make their board reset itself on a timer. The word that has to be in the name is the one that
+# describes what the machine will do, not what the data will show.
+#
+# Name provisional (milestone 249): calef names what a reader meets.
+reboot_soak = ["soak", "board"]
 # The init boot (milestone 19d.2c): userspace init is the boot path and brings up the system's
 # console, rather than the kernel wiring services directly. See script/initboot / xtask.
 initboot = []

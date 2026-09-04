@@ -55,6 +55,15 @@ const LSR_THRE: u8 = 0b0010_0000;
 // quirk's precondition: a DW_apb_uart ignores an LCR write while it is busy, so LCR is only
 // touched once the transmitter is completely idle.
 const LSR_TEMT: u8 = 0b0100_0000;
+// Line Status bit: Data Ready. Set while at least one byte sits unread in the receive buffer or
+// FIFO, and cleared only by *reading* that byte out of RBR. Nothing else clears it: it is not a
+// write-one-to-clear latch and it does not time out. That is what makes it usable as a mailbox
+// rather than as an event, which is the whole of milestone 249's escape: the kernel polls it once
+// every five seconds and a keypress that arrived at any moment in between is still there to be
+// found. Only the rebooting soak reads it; the console is otherwise transmit-only (see
+// `enable_rx_interrupt`, whose whole point is that the kernel arms the line and reads nothing).
+#[cfg(feature = "reboot_soak")]
+const LSR_DR: u8 = 0b0000_0001;
 // Interrupt Enable bit: Enable Received Data Available Interrupt (fires while the RX FIFO is nonempty).
 const IER_ERBFI: u8 = 0b0000_0001;
 // Interrupt Enable bit: Enable Transmitter Holding Register Empty Interrupt. Asserts as soon as it is
@@ -283,6 +292,48 @@ impl<S: RegisterSpace> Ns16550<S> {
             core::hint::spin_loop();
         }
         self.write(THR, byte);
+    }
+
+    /// **Is a byte waiting to be read?** Reads LSR and consumes nothing, so the answer stays true
+    /// until [`discard_rx`](Self::discard_rx) takes the byte.
+    ///
+    /// This is milestone 249's escape from a self-rebooting soak, and the two properties that make
+    /// it the right mechanism are both in `LSR_DR`'s comment above: it is sticky, so a poll every
+    /// five seconds cannot miss a keypress, and it needs no interrupt, no PLIC route and no
+    /// userspace driver, so it works in a soak boot where the console has no reader at all.
+    ///
+    /// It cannot tell *which* byte arrived and deliberately does not try. Any byte stops the loop,
+    /// which means nothing has to agree on a magic character: a person mashing a key in `screen`
+    /// and a script writing one byte to the port are the same event.
+    ///
+    /// Name provisional (milestone 249): calef names public items.
+    #[cfg(feature = "reboot_soak")]
+    pub fn rx_waiting(&self) -> bool {
+        self.read(LSR) & LSR_DR != 0
+    }
+
+    /// **Throw away everything currently in the receive buffer**, so that what arrives after this
+    /// call is what [`rx_waiting`](Self::rx_waiting) reports.
+    ///
+    /// Called once, when a rebooting soak arms itself. Without it the first check would fire on
+    /// U-Boot's leftovers rather than on a person: this board's firmware prints an autoboot
+    /// countdown that anything typed at it interrupts, so a console that has been sitting in front
+    /// of a human is a plausible source of a stray byte, and a stop that fires on boot 1 of 50 is a
+    /// silent way to get no distribution at all. It fails safe either way, which is why it is a
+    /// convenience rather than a correctness fix.
+    ///
+    /// Bounded, because an unbounded drain on a wire that is being written to continuously would
+    /// never return. Sixteen is the 16550's FIFO depth; four times that is slack for a part with a
+    /// deeper one and is still a fixed number of register reads.
+    ///
+    /// Name provisional (milestone 249): calef names public items.
+    #[cfg(feature = "reboot_soak")]
+    pub fn discard_rx(&self) {
+        let mut bound = 64u32;
+        while self.read(LSR) & LSR_DR != 0 && bound > 0 {
+            let _ = self.read(THR); // THR on write is RBR on read; this is the byte.
+            bound -= 1;
+        }
     }
 
     /// Turn on the receive-data-available interrupt. After this, the UART raises its interrupt line

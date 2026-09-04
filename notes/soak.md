@@ -658,6 +658,190 @@ returns as soon as the workload announces itself.
 The same procedure works on **argon** and **xenon**, with their own architectures'
 `script/board-image` equivalents. Neither has been run at a bench yet.
 
+## The rebooting soak on radon, which is milestone 249's experiment
+
+*(Milestone 249. `--features reboot_soak`, `script/board-image --soak --reboot`,
+`script/board-console --tally`.)*
+
+**Nothing in this section has run on radon.** It was written on 2026-09-03 with the board powered
+off and no bench session available, which is the same condition `notes/x86-uefi-boot.md` was written
+in and the same reason its procedure is as detailed as it is. Every claim below is either about code
+in this tree, which was built and host-tested, or is a question for the bench, which is marked as
+one. The first four steps answer questions nobody here can answer.
+
+### Why a rebooting soak, in one paragraph
+
+The section above records four runs on radon whose rates span **fifteenfold**, and milestone 240's
+census explains them: the rate tracks the number of cores that hold an IPC thread and no grinder.
+Counting the nine boots of 2026-09-03 that way, six landed on two clean cores, two on one, and one
+on none. **Three and four clean cores have never been drawn**, and nothing says whether that is rare
+or structurally impossible. The distribution is the missing thing, and it is missing because every
+draw cost a person a walk to the board.
+
+### The hazard, and the four things that answer it
+
+**A board that reboots itself on a timer is a board nobody can get back.** Every boot runs the same
+image and reboots again, so without an escape the only way back is pulling power and rewriting the
+card. That is worse than the problem being solved, and it is why this is a milestone rather than a
+one-line change. Four mechanisms, strongest first, in AGENTS.md's own ladder:
+
+1. **The loop exists only in a build that asked for it, by a name with `reboot` in it.**
+   `--features reboot_soak`; `script/board-image --soak --reboot`. An ordinary card, a `--soak`
+   card, and every QEMU run are untouched, which means the failure cannot arrive by accident.
+2. **Any build of it for a non-riscv64 target is a compile error**, not a card that quietly never
+   resets. The reset is SBI's and the escape is the NS16550's line-status register; neither exists
+   elsewhere, and a card that silently never rebooted would look exactly like a board that drew the
+   same placement fifty times.
+3. **The kernel polls the console UART's data-ready bit** every beat (five seconds) and again
+   through the five seconds before each reset. **The bit is sticky**: it is set while a byte sits
+   unread and is cleared only by reading that byte, and nothing in a soak boot reads it. So the
+   question being asked is *"has anybody typed since this armed"*, not *"is anybody typing right
+   now"*, and a poll every five seconds cannot miss a keypress. Any byte counts, so no character has
+   to be agreed on between the board and whoever is at the terminal.
+4. **Stopping disarms the reboot and leaves the soak running.** It does not halt the kernel. That is
+   deliberate and it is the better half of the design: a halted kernel is silence, and `Stage::Soak`
+   has already told `board_console` that silence after a soak starts is a hang, so stopping the loop
+   would have reported itself as the failure this whole instrument exists to detect. Disarming
+   leaves the board in milestone 219's well-understood state, still beating, and the run is not
+   thrown away to get the board back.
+
+**And the fallback that needs no cooperation from this kernel at all**: U-Boot's autoboot countdown
+runs on every one of these boots, and anything typed into it drops the board at `StarFive #`. That
+is the escape a person had before milestone 218 removed the need for it, it is a two-second window
+rather than a five-second one, and it is what remains if the kernel's own escape turns out not to
+work. The card is the one after that.
+
+**A bounded reboot count was considered and cannot be built here.** A cap of fifty would be the
+obvious rung-one answer, and there is nowhere to keep the count: a cold reset takes the RAM, and the
+only persistent store on the path is the U-Boot environment in the SPI flash of the only board of
+its kind this project owns, which milestone 218 already refused to write to for the same reason.
+What is bounded instead is the *wall clock per draw*, which is a weaker property honestly stated:
+the board never wedges in the loop, it only stays in it.
+
+### Verifying the reset before anything is left unattended
+
+**Two facts this tree does not have, and the bench gets both in the first four minutes.**
+
+**Does this OpenSBI implement SRST reset type 1?** The shutdown path is in use, so the extension
+exists and the `ecall` arrives; that says nothing about which reset *types* this vendor firmware
+build accepts, and an implementation is allowed to support any subset. `arch::semihosting::reboot`
+returns `sbiret.error` and the kernel prints it, so the console answers rather than this note
+guessing. If it comes back `-2` (`SBI_ERR_NOT_SUPPORTED`), the unattended series is not available by
+this route and the milestone needs a different mechanism (a smart plug power-cycling the board is
+the obvious one, and radon already has one; see notes/vf2-bench-rig in MEMORY).
+
+**Does the escape work on this cable?** Nothing in the kernel can prove it: a UART cannot receive a
+byte it sends, so a receive path that is miswired, unpowered at the adapter, or held by something
+else reads "nobody typed" forever and is indistinguishable from nobody typing. **This is the one
+mechanism in the design that rests on a procedure rather than on a machine**, and the procedure is
+step 4 below. Do not skip it because the first boot looks healthy; a healthy boot is exactly what a
+board with a dead receive line looks like.
+
+### The procedure, in order
+
+Steps 1 and 2 need no board. It assumes the cabling and the U-Boot behaviour in
+notes/visionfive2.md, and milestone 218's boot script, **which has itself never run on the board**:
+if the card lands at `StarFive #` instead of booting, that is 218 and not this, and the manual
+commands `script/board-image` prints still work from there.
+
+1. **Build the rebooting payload and write the card.**
+
+   ```
+   script/board-image --soak --reboot --card /Volumes/NIFE
+   ```
+
+   The archive is built before the kernel by that script and the order is load-bearing; the section
+   above says why. It prints a warning block naming what the card will do and how to stop it. *If it
+   refuses with "--reboot needs --soak"*, that is the flag pair, not the board.
+
+2. **Read the boot script that will run**, so step 5's transcript is being compared against
+   something: `cat target/board/boot.cmd`.
+
+3. **Start the watcher before powering the board.** Two hours is fifty draws at two minutes each
+   plus boot time; make it longer than you think and stop it with a key.
+
+   ```
+   script/board-console --for 3h --until none --log target/radon-lottery-$(date +%s).log
+   ```
+
+   `--until none` is what makes it a sustained watch. Leave `--quiet-after` alone: a reboot's dark
+   period is a few seconds of SPL and U-Boot output rather than silence, so the fifteen-second
+   window is not at risk, and shortening it would make a slow boot look like a hang.
+
+4. **Power the board, and on the FIRST boot press a key, once, after `soak: started` appears.**
+   This is the step that verifies the escape and it is not optional.
+
+   Expect, within five seconds, `soak-reboot: DISARMED at t=Ns: a byte arrived on this console.`
+   The board then keeps soaking and never reboots. **If that line does not come**, the escape does
+   not work on this cable and **nothing further in this procedure should be run**: power the board
+   off, find out why the receive path is dead, and only then start again.
+
+   Then power-cycle to start the series for real, and type nothing at it after this.
+
+5. **Watch the first two draws before you walk away.** The whole cycle should read:
+
+   ```
+   soak-reboot: THIS BUILD REBOOTS THE BOARD. It soaks for 120s, then asks the firmware ...
+   soak-census: core=1 threads=... (the spawn placement)
+   soak: t=5s beat=1 rounds=... rate=.../s ... drifted=0 ...
+   soak-census: where the workers are NOW, ...        (about 25s in, once)
+   soak: t=120s beat=24 ... 
+   soak-reboot: window reached at t=120s. Cold-rebooting in 5s ...
+   soak-reboot: rebooting now (SBI SRST system_reset, reset type 1, cold reboot). ...
+   U-Boot SPL 2021.10                                  (the next draw)
+   ```
+
+   The two beats worth checking are still milestone 221's, and for its reasons: `wakerate` about
+   `100 * harts` (roughly 400 here) and `crossings` rising between beats.
+
+6. **Leave it.** The watcher stops at the deadline, on a failure, or after three missed beats.
+
+7. **Tally the log.** This needs no board and can be run on a partial capture at any time:
+
+   ```
+   script/board-console --tally target/radon-lottery-....log
+   ```
+
+   It prints one row per draw (clean cores over online cores, the last rate, how it ended) and then
+   the distribution. **A core is clean when it holds a responder or a caller and no grinder**, from
+   the *last* census that boot printed, because the spawn placement is the lottery's ticket and the
+   settled arrangement is what the machine ran.
+
+8. **Record the table in this note**, beside the nine hand-drawn boots, with the date and the build.
+   The comparison that matters is against those nine: they are the control, they were drawn by a
+   power cycle rather than by a warm reset, and if the automated distribution does not overlap them
+   where it should, **that** is the finding rather than the distribution.
+
+### What each outcome means
+
+Read this against the log, in this order; the first row that matches is the one to act on.
+
+| What the console shows | What it means | What to do |
+|---|---|---|
+| `soak-reboot: DISARMED` on boot 1 after you press a key | The escape works. This is step 4 passing. | Power-cycle and start the series. |
+| No `DISARMED` after pressing keys for a beat or two | The receive path is dead, and the escape does not exist on this cable | **Stop.** Power off. Check the adapter's TX into the board's RX and the ground; nothing else here is safe until this works. |
+| `soak-reboot: DISARMED` on boot 1 with nobody typing | Something wrote to the port, or U-Boot left a byte the arming drain did not catch | Detach anything else holding the port. Harmless: it fails toward not rebooting. |
+| `rebooting now`, then `U-Boot SPL` a few seconds later | **The mechanism works.** SRST reset type 1 is implemented and the loop is running. | Nothing. This is the series. |
+| `rebooting now`, then `soak-reboot: FAILED ... sbiret.error=-2` | This OpenSBI implements SRST shutdown and **not** cold reboot | The route is closed. The soak keeps running and the board is fine. A smart-plug power cycle is the alternative mechanism; raise it. |
+| `rebooting now`, then nothing, and the board is dark | The firmware treated reset type 1 as a shutdown | Power the board back on. Same conclusion as the row above; record which of the two happened, because they are different firmware bugs. |
+| `rebooting now`, then nothing, and the board is powered but silent | It reset and hung before SPL, or the console dropped | Power-cycle. If it recurs at the same point, that is a finding about the reset path and worth more than the distribution. |
+| `soak: FAILED ...` then `[PANIC]` and the series stops there | **The best possible outcome.** Risk 5's decisive experiment found something | Do not restart it. The board holds the state and the log holds the census of the arrangement that produced it. |
+| `U-Boot SPL` with no `soak: started` after it | A boot that never reached the workload | `--tally` counts these separately. Read the log around it: `MEASURED BOOT REFUSED` is a mismatched pair, `### ERROR ###` is milestone 218. |
+| The watcher exits 2 (went quiet) mid-series | Three beats missed with no reboot announced | A wedge, which is what this is all for. Leave the board alone and read the last census in the log. |
+
+### What a completed series licenses, written before it runs
+
+One sentence, and it is narrower than it will feel: *over N unattended boots of this board, with
+this firmware and this build, the settled arrangement had k clean cores this many times, and the
+round-trip rate at each k was this.*
+
+It licenses nothing about argon or xenon, nothing about why placement lands where it does (that is
+DECISIONS 138), and nothing about whether three or four clean cores are *impossible* rather than
+merely unseen: fifty draws that never show four is evidence about a probability and not a proof of
+zero. **And every draw is a warm reset rather than a power cycle**, so anything that survives a warm
+reset is held constant across the whole series in a way the nine hand-cycled boots did not hold it.
+Those nine are the control and the overlap is the check.
+
 ## How long to run it, and why nobody can tell you
 
 This note and milestone 225 (run the soak on radon, argon and xenon, which is the only place its
@@ -910,6 +1094,25 @@ hour count inherited from a tool's default.
 - **The census counts by group and role and says nothing about priority, quota or how long a thread
   has held its core.** Two arrangements that look identical here can still differ in ways this
   cannot show, so it narrows the space of explanations rather than closing it.
+- **The rebooting soak's escape is a poll of one bit, and nothing verifies the bit can ever be set**
+  (milestone 249). A receive path that is miswired or held by something else reads "nobody typed"
+  forever, which is indistinguishable from nobody typing, and a UART cannot receive a byte it sends.
+  What closes it is step 4 of the procedure above, which is a person pressing a key, and that is
+  rung four of AGENTS.md's ladder wearing a procedure's clothes. It is the lowest rung in this
+  design and it is named rather than hidden.
+- **Nothing about the reboot has run on radon**, including whether that OpenSBI implements SRST
+  reset type 1 at all. The whole of milestone 249's mechanism is code that builds and host tests
+  that pass. The tally is judged against one real capture with a census in it
+  (`qemu-2026-09-03-riscv64-soak-census.log`, one clean core of four at 18,963/s), and **every
+  multi-boot case it asserts on is text this project wrote**, because no multi-boot capture exists
+  anywhere yet. That is the same gap `crates/board_console`'s own `BUGS` records for its recogniser,
+  one milestone later, and the first bench log closes it.
+- **A rebooting series and a long run are different experiments and neither substitutes.** Fifty
+  two-minute draws measure the distribution over placements; the three-hour run above measures what
+  one placement does over time, and it is the only evidence here that a slow draw is stable rather
+  than a warm-up. Do not replace one with the other.
+- **The tally counts a boot by U-Boot's SPL banner**, so it counts boots of the *board* and reports
+  zero attempts on a QEMU capture, which then looks like fewer boots than draws. Honest and odd.
 - **Nothing runs a soak in `script/test`.** A twenty-second leg per architecture would gate the
   build against bitrot, and it is not there: the soak is exercised by `script/soak` and by
   `board_console`'s host tests over a real capture. If the feature stops compiling, nothing will say

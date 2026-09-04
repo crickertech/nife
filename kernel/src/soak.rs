@@ -112,7 +112,34 @@
 //!   another run of this same build and with nothing else; see notes/soak.md's table.
 //! - **Nothing here sets a duration, and nothing here should.** The kernel soaks until the power
 //!   goes away. The watcher decides when enough is enough, which is what makes the QEMU run and the
-//!   bench run the same experiment with a different deadline.
+//!   bench run the same experiment with a different deadline. `--features reboot_soak` is the one
+//!   exception and it is a different quantity: [`REBOOT_AFTER_SECONDS`] is how long one *draw* of
+//!   the placement lottery lasts, not how long the experiment does, and the experiment is still the
+//!   watcher's to end.
+//! - **The escape is a poll of one bit and nothing verifies that the bit can ever be set**
+//!   (milestone 249). `console::rx_waiting` reads LSR's data-ready flag, and a console whose receive
+//!   path is miswired, unpowered at the adapter, or held by something else reads zero forever, which
+//!   is indistinguishable from nobody typing. Nothing in this kernel can prove otherwise, because a
+//!   UART cannot receive a byte it sends. What closes it is a procedure rather than a mechanism: the
+//!   bench run presses a key on the first boot and confirms the `DISARMED` line before anyone walks
+//!   away. See notes/soak.md, "Verifying the reset before anything is left unattended".
+//! - **A rebooting soak destroys the comparison a long run buys.** Fifty two-minute draws and one
+//!   hundred-minute run are not the same experiment: the first measures the distribution over
+//!   placements and the second measures what one placement does over time. Neither substitutes for
+//!   the other, and the three-hour run in notes/soak.md is why the second is worth keeping.
+
+// **The rebooting soak is riscv64's alone, and the compiler says so rather than a comment**
+// (milestone 249). The reset it performs is SBI SRST's, which is a RISC-V firmware interface; the
+// escape it is checked against is the NS16550's line-status register, which is this architecture's
+// console here. A build of this feature for aarch64 or x86_64 could not do either, and the failure
+// mode of letting it compile is the worst one available: a card written from a build that quietly
+// never reboots looks exactly like a board that drew the same placement fifty times.
+#[cfg(all(feature = "reboot_soak", not(target_arch = "riscv64")))]
+compile_error!(
+    "--features reboot_soak is riscv64-only: it reboots through SBI SRST and escapes through the \
+     NS16550's LSR, and neither exists on this target. See design/roadmap/\
+     249-the-boot-lottery-is-sampled-by-a-person-walking-to-the-board.md."
+);
 
 use core::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
@@ -268,6 +295,9 @@ pub fn run() -> ! {
          because they are separate quantities, and neither rate compares with a soak built \
          differently"
     );
+
+    #[cfg(feature = "reboot_soak")]
+    arm_reboot();
 
     print_census(
         "where the kernel placed each worker at spawn",
@@ -438,6 +468,139 @@ const MEMBERS_PER_GROUP: usize = 1 + CALLERS_PER_GROUP + GRINDERS_PER_GROUP + WA
 /// Name provisional (milestone 221): calef names public items.
 const TICK_INTID_TOP: u32 = 255;
 
+/// **The prefix every line about the reboot loop carries** (milestone 249).
+///
+/// Its own word, for [`CENSUS_MARKER`]'s reason and one more of its own. `crates/board_console`'s
+/// recogniser matches two substrings on `soak: `, and neither of them is anything this loop says.
+/// The extra reason is that these are the lines a person greps a fifty-boot log for when they want
+/// to know why the series stopped, and a prefix that means exactly "the reboot loop said something"
+/// answers that in one command.
+///
+/// Name provisional (milestone 249): calef names public items.
+#[cfg(feature = "reboot_soak")]
+const REBOOT_MARKER: &str = "soak-reboot:";
+
+/// **How long one boot soaks before it draws the placement lottery again** (milestone 249).
+///
+/// Two minutes, and both bounds on the number are measured rather than picked.
+///
+/// **The floor is when the arrangement is knowable.** notes/soak.md records that on radon the spawn
+/// placement holds for about twenty-five seconds and is then replaced, in a single drift event, by
+/// an arrangement that does not change again. A window shorter than that would record the lottery's
+/// *first* draw and not the one the rate is a property of, which is the reading the whole
+/// distribution is for. Thirty seconds is the minimum that can be right and leaves no margin at all
+/// for a boot that converges more slowly.
+///
+/// **The ceiling is that fifty boots have to fit in an evening**, which is this milestone's own
+/// premise: nine hand-cycled draws were a whole one. At two minutes plus the twenty-odd seconds a
+/// boot takes, fifty draws is about two hours unattended, and a hundred is an overnight run.
+///
+/// Two minutes then buys roughly twenty beats after convergence, which is enough for the rate to be
+/// read off several of them rather than off the one that happened to be last. It is a constant
+/// rather than a knob because there is no configuration path to a board kernel: the card carries a
+/// build, and changing this means building another one.
+#[cfg(feature = "reboot_soak")]
+const REBOOT_AFTER_SECONDS: u64 = 120;
+
+/// **The last chance to stop the loop, after the window and before the reset** (milestone 249).
+///
+/// Five seconds, matching [`BEAT_SECONDS`], so a person who reads the announcement on a console has
+/// the same amount of time to act that a beat takes to arrive. It is not the main escape and is not
+/// load-bearing: [`REBOOT_AFTER_SECONDS`] worth of beats have already asked the same question, and
+/// this window exists for the case where somebody walks up mid-run and wants the board back without
+/// having to guess where in the cycle it is.
+#[cfg(feature = "reboot_soak")]
+const REBOOT_GRACE_SECONDS: u64 = 5;
+
+/// **Arm the reboot loop, and say so in the place a reader meets it** (milestone 249).
+///
+/// Called once, from [`run`], after the workers exist and before the first census. Two things
+/// happen and the announcement is the more important of them.
+///
+/// The **drain** is `Ns16550::discard_rx`'s job and its own comment explains what it is for: a
+/// console that has been sitting in front of a person may hold a byte U-Boot's countdown collected,
+/// and firing the escape on boot 1 of 50 because of it would produce no distribution and no
+/// explanation.
+///
+/// The **banner** is rung three of AGENTS.md's ladder, put where it cannot be missed. A kernel that
+/// is going to reboot the machine it is running on must say so on the only channel it has, before
+/// it does it, in words that include how to stop it. Somebody who inherits a card and boots it
+/// finds out what it is from the first screen, not from a milestone document.
+#[cfg(feature = "reboot_soak")]
+fn arm_reboot() {
+    crate::console::discard_rx();
+    println!(
+        "{REBOOT_MARKER} THIS BUILD REBOOTS THE BOARD. It soaks for {REBOOT_AFTER_SECONDS}s, then \
+         asks the firmware for a cold reboot (SBI SRST reset type 1) and draws the thread-placement \
+         lottery again, forever."
+    );
+    println!(
+        "{REBOOT_MARKER} to stop the loop: press any key on this console. The check is a poll of \
+         the UART's data-ready bit once every {BEAT_SECONDS}s and again {REBOOT_GRACE_SECONDS}s \
+         before each reset, and the bit is sticky, so a keypress at any moment is found. Stopping \
+         disarms the reboot and leaves the soak running; it does not end the run."
+    );
+    println!(
+        "{REBOOT_MARKER} the fallback that needs no cooperation from this kernel is U-Boot's own \
+         autoboot countdown on the next boot, and after that, the card."
+    );
+}
+
+/// **The window has run out: announce, offer the grace period, and reset** (milestone 249).
+///
+/// Returns in exactly two cases, and the caller disarms on both: somebody typed, or the firmware
+/// refused. It cannot return having rebooted, because a successful SRST does not come back.
+///
+/// **It is called after the beat's verdict and never before it**, which is the ordering that
+/// matters most in this file. A soak that has just failed panics, and a panic diverges, so a run
+/// that found something can never reboot over its own evidence. The whole point of fifty boots is
+/// the one that fails, and a loop that tidied it away by resetting would be an instrument that
+/// destroys its own best result.
+#[cfg(feature = "reboot_soak")]
+fn draw_again(elapsed: u64) {
+    println!(
+        "{REBOOT_MARKER} window reached at t={elapsed}s. Cold-rebooting in \
+         {REBOOT_GRACE_SECONDS}s to draw the placement lottery again; press any key on this \
+         console to stop the loop."
+    );
+
+    // Poll the escape for the whole grace window rather than only at its end, so a key pressed on
+    // reading the line above is honoured immediately. `yield_now` rather than a spin, for `watch`'s
+    // reason: this thread is one more contender and should give its core back between checks.
+    let hz = arch::timer::frequency();
+    let deadline = arch::timer::now().wrapping_add(hz.wrapping_mul(REBOOT_GRACE_SECONDS));
+    while arch::timer::now().wrapping_sub(deadline) > u64::MAX / 2 {
+        if crate::console::rx_waiting() {
+            println!(
+                "{REBOOT_MARKER} DISARMED in the grace window: a byte arrived on this console. \
+                 This board will not reboot itself again. The soak keeps running and keeps \
+                 beating; power it off when you are done with it."
+            );
+            return;
+        }
+        sched::yield_now();
+    }
+
+    // The last line before the machine goes away. Printed *before* the ecall for the same reason
+    // the board test exit prints its verdict before shutting down: once the firmware begins a
+    // reset the UART stops draining, and anything after the call may never reach the wire.
+    println!(
+        "{REBOOT_MARKER} rebooting now (SBI SRST system_reset, reset type 1, cold reboot). The \
+         next thing this console should show is U-Boot SPL."
+    );
+
+    // Only reached if the firmware said no. `sbiret.error` is -2 for SBI_ERR_NOT_SUPPORTED, which
+    // is what an OpenSBI build that implements shutdown and not reboot returns, and it is the one
+    // fact about radon's firmware this milestone could not check without the board.
+    let error = arch::semihosting::reboot();
+    println!(
+        "{REBOOT_MARKER} FAILED: the firmware refused a cold reboot and returned \
+         sbiret.error={error} (-2 is SBI_ERR_NOT_SUPPORTED). This OpenSBI implements SRST shutdown \
+         and not SRST reset type 1, so an unattended series is not available on this board by this \
+         route. The soak keeps running; nothing has been damaged and no further reset is attempted."
+    );
+}
+
 /// The most groups the shared page has room for, and so the most tick routes there can be.
 const MAX_GROUPS: usize = MAX_WORKERS / MEMBERS_PER_GROUP;
 
@@ -587,6 +750,11 @@ fn watch(shared: u64, workers: usize, tids: &[u64; MAX_WORKERS], placed: &[u8; M
     let mut last_wakes = 0u64;
     let mut last_at = started;
     let mut beat = 0u64;
+    // **Is this boot still going to reboot itself?** (Milestone 249.) True until somebody types on
+    // the console or the firmware refuses a reset. A plain local rather than a static because
+    // exactly one thread ever asks: the supervisor is the only caller of both halves.
+    #[cfg(feature = "reboot_soak")]
+    let mut armed = true;
 
     loop {
         // Yield until the beat is due. `yield_now` rather than a spin: this thread is one more
@@ -738,6 +906,32 @@ fn watch(shared: u64, workers: usize, tids: &[u64; MAX_WORKERS], placed: &[u8; M
             // were built because nobody could read.
             sched::dump_threads();
             panic!("soak failed at t={elapsed}s beat={beat}: {why}");
+        }
+
+        // **The rebooting soak's two questions, in this order, and only after the verdict**
+        // (milestone 249). After, because `panic!` above diverges: a run that found something keeps
+        // its evidence on the console and the board instead of resetting over it.
+        //
+        // The escape is asked first and unconditionally, so that a keypress arriving in the same
+        // beat as the deadline stops the loop rather than racing it. LSR's data-ready bit is
+        // sticky, cleared only by reading the byte out, so this poll every [`BEAT_SECONDS`] cannot
+        // miss one: the question is "has anyone typed since the soak armed", not "is anyone typing
+        // right now".
+        #[cfg(feature = "reboot_soak")]
+        if armed {
+            if crate::console::rx_waiting() {
+                armed = false;
+                println!(
+                    "{REBOOT_MARKER} DISARMED at t={elapsed}s: a byte arrived on this console. \
+                     This board will not reboot itself again. The soak keeps running and keeps \
+                     beating; power it off when you are done with it."
+                );
+            } else if elapsed >= REBOOT_AFTER_SECONDS {
+                // Returns only if somebody typed in the grace window or the firmware refused the
+                // reset, and both mean the same thing here: stop asking.
+                draw_again(elapsed);
+                armed = false;
+            }
         }
 
         // Keep the boot-stage breadcrumb honest for anyone reading a dump: the tour is over and the
