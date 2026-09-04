@@ -32,16 +32,39 @@ The development machines keep their existing names and are not part of this sche
 
 ## The ISA is almost never the constraint
 
-"Does it run aarch64" is the wrong question. Three things decide whether you can boot your
-own kernel on a device:
+"Does it run aarch64" is the wrong question. **And the answer splits in two, which this note ran
+together until 2026-09-04** (calef: *"nife should be able to run on hardware without a serial
+console"*). Some of these are properties a machine must have to run nife at all; one is a property
+*we* need to bring nife up on it, and confusing them makes the supported set look smaller than it is.
+
+**To run nife:**
 
 1. **Can you get code to execute at boot?** Unlocked bootloader, or no secure boot at all.
-2. **Are the peripherals documented?** You need a UART, an interrupt controller, a timer,
-   and eventually storage. The CPU is standardized. The stuff bolted around it is not, and
-   that's where the work is.
-3. **Can you physically reach a serial console?** Without one you are debugging a black box.
+2. **Are the peripherals documented?** You need an interrupt controller, a timer, and eventually
+   storage. The CPU is standardized. The stuff bolted around it is not, and that's where the work is.
+3. **At least 32 KB of L1 instruction cache**, for the reason in the next section. A requirement on
+   the claims rather than on the boot.
 
-A device can be aarch64 and still be completely useless to us by failing any of those.
+**To bring nife up on it, which is ours and not the machine's:**
+
+4. **Can you physically reach a serial console?** Without one you are debugging a black box.
+
+**Today these are the same list, and that is a defect this project owns rather than a fact about
+hardware.** Every word nife has ever said went down a UART: the boot tour on all three machines, the
+console server and the shell, kernel fault reports, and every automated gate that reads any of them.
+So a machine with no serial port cannot currently *tell us* it is working, which is not the same as
+being unable to work. **Milestone 243 (a machine with no serial port has no way to say anything, and
+no gate can read it) is the milestone that separates them**, and until it lands, requirement 4 is
+doing the job of requirements 1 to 3 by proxy.
+
+**The reason it matters is not tidiness.** calef's fleet argument on milestone 241 names Graeme's
+laptop and desktop, an Intel MacBook, cordoba and Clay's desktop as machines a USB stick could boot
+(milestone 87 boots from `\EFI\BOOT\BOOTX64.EFI`, the removable-media fallback every UEFI firmware
+looks for). **Not one of them has a serial port.** Read as a running requirement, item 4 excludes the
+entire fleet; read correctly, it says only that we cannot yet watch them.
+
+A device can be aarch64 and still be completely useless to us by failing any of items 1 to 3, and
+useless *for development* by failing item 4.
 
 ## A fourth requirement, and this one filters silicon rather than firmware
 
