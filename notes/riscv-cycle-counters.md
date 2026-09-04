@@ -51,6 +51,9 @@ SBI extensions firmware implements.
    hardware or firmware, and for hardware **which CSR reads it**.
 4. **`sbi_pmu_counter_stop`** (FID #4), which is never called on the happy path.
 
+Then one thing the specification does not ask for: **the counter is read twice across a short timed
+spin and refused if it has not moved.** See "a counter that does not count" below.
+
 The read is then one instruction. That is the whole point of step 3 and the reason the interface is
 worth this much ceremony: **an `ecall` inside a cycle measurement measures the `ecall`.** A
 *firmware* counter would have to be read through FID #5, one `ecall` per read, so this module
@@ -70,7 +73,7 @@ Every merge boots this, and it passes:
   cycles      : SBI PMU counter 0, CSR 0xc00, 64 bits
 ```
 
-and `cargo xtask bench --riscv` prints
+(on the default `rv64` model) and `cargo xtask bench --riscv` prints
 
 ```text
   probe: cycles_per_tick 100.00 (10000029 cycles over 100000 ticks at cntfrq 10000000)
@@ -85,6 +88,34 @@ measurement.
 So what the tree can honestly claim today is: **the calls are made, the answer is decoded, the CSR
 named is readable and advances.** Four kernel tests assert exactly that much and no more
 (`kernel/src/arch/riscv64/pmu.rs`, `mod tests`).
+
+## A counter that does not count, which QEMU found before radon could
+
+`script/cpu-matrix` runs the riscv64 suite against five QEMU CPU models, and it earned its keep
+twice in one run on 2026-09-03. The logs are `target/cpu-matrix/*.log`.
+
+**Four of the five answer counter 0, CSR `0xc00`**: `mcycle`, read through the `cycle` CSR, which is
+what OpenSBI does when the fixed counter is available. `rv64`, `rva22s64`, `sifive-u54` and
+`thead-c906` all agree.
+
+**`rva23s64` answers counter 3, CSR `0xc03`**, a programmable `hpmcounter`. That is legitimate, and
+it killed the first version of the test that asserted the CSR number: **the counter a caller gets is
+firmware's choice, not a constant.** Step 2's table below already listed this as a legitimate second
+answer, and it is now an observation rather than a prediction.
+
+The second lesson is the one worth having. That counter is described by `counter_get_info` as a
+64-bit **hardware** counter, `csrr` on it is a legal instruction, and after a `counter_stop` and a
+fresh `counter_config_matching` it **reads zero forever**, because QEMU-TCG does not model the
+programmable counters. Everything a kernel could check by asking said the counter was fine.
+
+**A benchmark reporting 0 cycles for everything is worse than one that says there is no cycle
+counter.** So `pmu::init` reads the counter twice across a short `time` CSR spin and refuses it if
+it has not moved; a cycle counter cannot fail that check on a hart that is executing instructions.
+And because refusing has five distinguishable causes that need five different responses, on a board
+where nobody can attach a debugger, the reason is a value (`CycleCounter`) rather than a silence,
+and the boot line prints it. That deleted a step from the procedure below, which used to tell a
+reader to add a print of the SBI error and the raw `counter_info` word when the answer was
+disappointing.
 
 ## The bench procedure
 
@@ -126,11 +157,17 @@ is a fact about the tool.
 
 The next line, printed by `arch::pmu::print_summary`.
 
+Every outcome is named on the line, so there is nothing here to infer.
+
 | What the line says | What it means | What to do |
 |---|---|---|
-| `cycles      : SBI PMU counter 0, CSR 0xc00, 64 bits` | the expected answer: `mcycle`, read through `cycle`, full width | go to step 3 |
-| `cycles      : SBI PMU counter N, CSR 0xc03..0xc1f, W bits` | firmware gave a programmable `hpmcounter` instead of the fixed one. Legitimate, and **the width matters**: the U74's `hpmcounter`s are not necessarily 64 bits, and a narrow counter wraps inside a long benchmark | record N and W; go to step 3, and treat any bench window longer than `2^W` cycles as unusable |
-| `cycles      : SBI PMU present but no hardware cycle counter` | one of three things: firmware answered `SBI_ERR_NOT_SUPPORTED` to the match, it offered a *firmware* counter (which this kernel refuses, see above), or it named a CSR outside `0xc00..0xc1f` | this is the case worth a bisect. Add a temporary print of the `counter_config_matching` error and the raw `counter_info` word in `pmu::init`; the three cases are distinguishable and they need different fixes |
+| `SBI PMU counter 0, CSR 0xc00, 64 bits` | the expected answer: `mcycle`, read through `cycle`, full width | go to step 3 |
+| `SBI PMU counter N, CSR 0xc03..0xc1f, W bits` | firmware gave a programmable `hpmcounter` instead of the fixed one. Legitimate; QEMU's `rva23s64` does it. **The width matters**: a narrow counter wraps inside a long benchmark | record N and W; go to step 3, and treat any bench window longer than `2^W` cycles as unusable |
+| `SBI PMU counter N (CSR 0x...) did not advance; refused` | firmware gave a counter that reads the same value twice across a spin. Exactly what `rva23s64` does under TCG | the counter is real and nothing drives it. On silicon this most likely means `mcountinhibit` still inhibits it, which is firmware's to fix; there is nothing to do kernel-side but record the OpenSBI version |
+| `SBI PMU present, no counter can count CPU cycles` | firmware answered `SBI_ERR_NOT_SUPPORTED` to the match, or reported zero counters | record the OpenSBI version and stop. This firmware cannot serve the milestone |
+| `SBI PMU offered a firmware counter; refused (an ecall per read)` | the only counter firmware has for this event is one it maintains itself | recorded limitation, see BUGS. Reading it would cost an `ecall` per read and the measurement would be of the `ecall` |
+| `SBI PMU named a CSR outside the counter block` | firmware named a CSR this kernel cannot put in an instruction | a real oddity worth reporting upstream; record the raw number |
+| `arch::pmu::init has not run` | the boot printed the line without running the probe, which is a code ordering bug | should be unreachable; `kernel_main` calls `init` immediately before `print_summary` |
 | no `cycles` line at all | the boot did not reach `arch::pmu::print_summary`, so this is a boot problem and not a PMU one | notes/visionfive2.md's failure-triage ladder |
 
 ### Step 3: is the number plausible?
@@ -152,7 +189,7 @@ and read the one probe line:
 |---|---|
 | in the hundreds | **This is the answer the milestone wanted.** `R * 4 MHz` is the core clock the counter ran at, measured rather than assumed, and every row in `bench/baseline-riscv64.txt` can now be restated in cycles by multiplying by `R` |
 | `1.00`, or any exact round number with no wobble across runs | the two counters are the same counter wearing two names. That is what QEMU does and it should not happen on silicon; suspect firmware mapped the event to `REF_CPU_CYCLES` or to a fixed-frequency counter rather than to `mcycle` |
-| `0.00`, or the same `C` at both ends | the counter is not running. Most likely `mcounteren.CY` is clear in this firmware, so the S-mode `rdcycle` is trapping or reading zero, which is the exact assumption §139's BUGS section flagged as untested |
+| `0.00`, or the same `C` at both ends | should be unreachable: step 2 refuses a counter that does not advance, so a `cycles_per_tick` line existing at all means the counter moved once. If you see it, the counter started and then stopped, which is worth reporting |
 | wildly different between two runs of the same command | frequency scaling, which is real and is the counter working. Record several and say so; a cycle counter whose rate moves is what the SBI specification's own note warns about |
 
 **Record the number in `notes/benchmarks.md`, not here.** The cited round-trip figure there is
@@ -170,6 +207,15 @@ three steps above. That is the second sense of the `HARDWARE` gate, not the firs
 - **Nothing here has been measured on silicon.** The procedure is written and untested, the same
   way notes/x86-uefi-boot.md's bench section was when it was written, and the first person to
   follow it should expect at least one line of output to be worded differently from the table.
+- **The did-it-move check can only catch a counter that is already dead.** It reads twice across a
+  100-tick spin at boot, so it refuses a counter that never counts. It cannot catch one that stops
+  later, and on QEMU's `rva23s64` the counter counts when first configured and reads zero after a
+  stop and a fresh match, which is why the stop test asserts only that the module reached a decided
+  state rather than that the round trip is idempotent.
+- **Why `rva23s64` in particular differs is not established**, only that it does. The likely
+  suspects are its mandated `Sscofpmf` changing how OpenSBI allocates counters and TCG not modelling
+  the programmable ones, and neither was chased down: the finding that matters is that a counter
+  firmware describes as working can read zero, and the defence does not depend on knowing why.
 - **Whether radon's OpenSBI implements SBI PMU is unknown.** Step 1 exists because it is a fact
   about the vendor's firmware build and nobody here has read it. What *is* read is upstream: OpenSBI
   master's `lib/sbi/sbi_hart.c` writes `CSR_MCOUNTEREN, -1` ("Supervisor mode usage for all counters

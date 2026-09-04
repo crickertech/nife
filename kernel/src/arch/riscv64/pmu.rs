@@ -433,19 +433,19 @@ pub fn print_summary() {
             "  cycles      : SBI PMU counter {}, CSR {:#05x}, {} bits",
             CYCLE_COUNTER_IDX.load(Ordering::Relaxed),
             CYCLE_CSR.load(Ordering::Relaxed),
-            CYCLE_BITS.load(Ordering::Relaxed),
+            cycle_counter_width().unwrap_or(0),
         ),
         CycleCounter::NoPmuExtension => {
-            crate::println!("  cycles      : no SBI PMU extension; ticks only")
+            crate::println!("  cycles      : no SBI PMU extension; ticks only");
         }
         CycleCounter::NoMatchingCounter => {
-            crate::println!("  cycles      : SBI PMU present, no counter can count CPU cycles")
+            crate::println!("  cycles      : SBI PMU present, no counter can count CPU cycles");
         }
         CycleCounter::FirmwareCounter => crate::println!(
             "  cycles      : SBI PMU offered a firmware counter; refused (an ecall per read)"
         ),
         CycleCounter::UnreadableCsr => {
-            crate::println!("  cycles      : SBI PMU named a CSR outside the counter block")
+            crate::println!("  cycles      : SBI PMU named a CSR outside the counter block");
         }
         CycleCounter::Stuck => crate::println!(
             "  cycles      : SBI PMU counter {} (CSR {:#05x}) did not advance; refused",

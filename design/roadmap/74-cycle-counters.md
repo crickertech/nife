@@ -5,18 +5,32 @@ deliverable includes "the benches on real cycles via the SBI PMU extension", and
 **nothing in the tree implemented it**: `PMU` appeared only in device-tree test fixtures and in this
 file.
 
-**Gate: MILESTONE 75, HARDWARE.** The aarch64 half must not land until 75 answers whether EL0 may
-read the counter at all; `design/decisions/139-cycle-counter-authority.md` is that question's
-evidence and calef's answer, and 75 itself is still `NOT-STARTED`. The `HARDWARE` half is now the
-*second* sense of that gate rather than the first: the riscv64 code is written and gated, and what
-remains is a person at radon following notes/riscv-cycle-counters.md's procedure, because QEMU-TCG
-models an instruction counter that has nothing to do with cycles.
+**Gate: MILESTONE 75, HARDWARE.** **Both halves of this line are under correction, and neither says
+what it used to.**
+
+Milestone 75's index row reads `NOT-STARTED` and that is false: its mechanism is built.
+`design/decisions/139-cycle-counter-authority.md` was DECIDED by calef on 2026-09-02,
+`kernel/src/sched.rs`'s `install_cycle_counter_grant` (near line 1734) applies the per-thread grant
+at every context switch behind the `cycle_counter_grant` feature, and
+`kernel::user::tests::a_granted_thread_reads_the_cycle_counter_and_an_ungranted_one_faults` passes
+on all three architectures, negative case included. Whether 75's row is flipped, and what that
+unblocks, is calef's rather than a lane's; the mechanism cited here is what a reader can check
+today. **The aarch64 half of 74 was out of the riscv64 lane's scope, not blocked by an unanswered
+question**, and what it still needs is in `design/roadmap/proposals/the-aarch64-half-of-74.md`:
+`PMCR_EL0.E` and `PMCNTENSET_EL0.C` are never written by this kernel, so `PMCCNTR_EL0` is a stopped
+counter that reads zero however often a granted thread reads it.
+
+The `HARDWARE` half is now the **second** sense of that gate rather than the first: the riscv64 code
+is written and gated, and what remains is a person at radon following
+notes/riscv-cycle-counters.md's procedure, because QEMU-TCG models an instruction counter that has
+nothing to do with cycles.
 
 **The riscv64 half is built** (2026-09-03): the SBI PMU extension is probed as an optional fifth
 row of `SBI_TABLE`, `kernel/src/arch/riscv64/pmu.rs` asks firmware to find and start a counter for
-`SBI_PMU_HW_CPU_CYCLES` and remembers which CSR reads it, the boot prints both facts, and
-`cargo xtask bench --riscv` prints one `cycles_per_tick` probe. **The aarch64 half is not**, by this
-file's own gate.
+`SBI_PMU_HW_CPU_CYCLES`, checks it is actually counting, remembers which CSR reads it and records
+why when there is none, the boot prints all of it, and `cargo xtask bench --riscv` prints one
+`cycles_per_tick` probe. **The aarch64 half is not**, and it is a tracked handoff rather than a
+blocked one: `design/roadmap/proposals/the-aarch64-half-of-74.md`.
 
 
 ## What we read today, and why it is not cycles
@@ -159,3 +173,20 @@ hart's; the one consumer is a single-hart probe), no user-facing read (the U-mod
 milestone 229's grant and 237's measurement build, which already exist), and no firmware-counter
 support (reading one costs an `ecall` per read, and an `ecall` inside a cycle measurement measures
 the `ecall`).
+
+## Follow-on
+
+- **Proposed.** `design/roadmap/proposals/the-aarch64-half-of-74.md`: the aarch64 half. The
+  authority mechanism it was thought to be waiting for is built, so what remains is that
+  `PMCR_EL0.E` and `PMCNTENSET_EL0.C` are never written and `PMCCNTR_EL0` is therefore a stopped
+  counter, plus the two things that are calef's (what `PMCCFILTR_EL0` should count, and what the
+  portable `user_rt` read is called and promises).
+- **Recorded.** `notes/riscv-cycle-counters.md`: three limits the riscv64 half ships with, each
+  beside the feature. It configures the **boot hart** only, because SBI PMU counters are per-hart
+  and the one consumer is a single-hart probe. It **refuses a firmware counter** rather than reading
+  one at an `ecall` per read. And **nothing has been measured on silicon**, which is the whole
+  reason that note is mostly a bench procedure.
+- **Recorded.** `kernel/src/arch/riscv64/pmu.rs`: QEMU's `rva23s64` model hands back an
+  `hpmcounter` that TCG does not drive, so a counter firmware describes as working can read zero
+  forever. `init` now refuses such a counter, and the module's `BUGS` and the stop test's own doc
+  comment carry the observation.
