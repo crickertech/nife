@@ -1,6 +1,6 @@
 # 243. A machine with no serial port has no way to say anything, and no gate can read it
 
-**Status: NOT-STARTED.** Minted 2026-09-03 by calef, from asking how nife reaches commodity hardware.
+**Status: IN-PROGRESS** on `milestone/243-serial-less-output`. Minted 2026-09-03 by calef, from asking how nife reaches commodity hardware.
 *(Number provisional until the merge queue lands it.)*
 
 **Gate: NONE.** Everything it needs is a design question rather than a dependency.
