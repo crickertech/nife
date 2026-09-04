@@ -353,6 +353,37 @@ assemble this thread". Afterwards it offers "you may end this thread whenever yo
 five `hello.rs` sites that keep theirs would acquire that power without anyone deciding it, which is
 an argument for the retention convention being written down in the same change rather than after it.
 
+**Two things learned on 2026-09-03, in conversation with calef, that raise R2's price above what
+this entry first stated.**
+
+**The state-dependence is this proposal's, not the tree's.** The entry above says R2 makes a
+capability's authority a function of the object's state. Re-read, that is backwards about what exists
+today: `ThreadControlBlock`'s three methods are all **construction verbs**, and
+`configure_thread_control_block`'s own comment gives the reason its refusal exists, which is a real
+precondition rather than a smell:
+
+> Refuses anything but an `Embryo`, so a running thread cannot be reconfigured under itself.
+
+seL4 has no such rule because its TCB methods are *different verbs* (`Suspend`, `ReadRegisters`) that
+are meaningful after a thread runs, not the same verbs applied later. So this tree does not have
+state-dependent authority to remove; **R2 is what would introduce it**, by bolting one any-state verb
+onto three embryo-only ones. That hybrid is more state-dependent than either model it sits between.
+
+**And seL4's verb set follows from a recovery model this tree has already declined.** seL4 delivers a
+fault to a handler that may read the faulting thread's registers, repair the cause and resume it,
+which is why `ReadRegisters` and `Resume` exist and why a lifetime handle is load-bearing there. §26
+(the fault endpoint) chose the other answer in as many words: **"restart policy stays in userspace,
+and the kernel never relaunches anything"**, and *"restart policy is userspace code and stays there"*.
+A supervisor here does not repair a broken thread, it builds a fresh one from the same region, and
+`build_child` is that path. §26 reserved a word so a fault-reply/resume protocol could arrive
+additively, so this is a deferral rather than an absence.
+
+**The consequence for this decision.** A faithful R2 pays off only alongside seL4's recovery model,
+which would mean adding `Suspend`, `Resume` and register access, new syscall surface with no customer.
+A partial R2, one lifetime verb on a construction capability, buys the state-dependence without the
+uniformity that justifies it. **R2 is therefore not "seL4's answer, available cheaply"; it is half of
+seL4's answer without the half that makes it coherent.**
+
 **The mitigation available.** Rights. A capability narrowed at `CAP_INSERT` time already exists as
 machinery, so "construction-only" and "construction plus lifetime" could be two rights on one object
 rather than two objects. That reuses `Rights` instead of teaching a new noun, and it costs a bit;
