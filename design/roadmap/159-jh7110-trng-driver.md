@@ -176,6 +176,60 @@ because nothing here has a driver for the JH7110's TRNG.
   `design/decisions/` if calef wants the question tracked formally rather than left in this
   paragraph and the crate's own doc.
 
+## The bench ran it, 2026-09-04, and the failure is cleanly attributed
+
+**The confined driver ran on silicon for the first time.** Two boots of radon, byte-identical:
+
+```
+hw entropy  : FAILED: JH7110 TRNG at 0x1600c000 (tree says starfive,trng, status disabled):
+              report 0x524e475550, bring-up diagnostic 0x0000000000000000,
+              draws 0/0 bytes, first-all-zero true, draws-differ false
+```
+
+Transcript: `target/board/radon-2026-09-04-trng-bringup.log`.
+
+**Milestone 239's fix works.** `tree says starfive,trng` is the vendor U-Boot spelling, matched by the
+second arm 239 added on 2026-09-03. Every boot before that read `skipped`. The device-tree half of
+this milestone is done.
+
+**The diagnostic is the all-zero case**, which this block's own outcome table routes to **milestone
+220** (this kernel drives no clock or reset controller, and the first real device will need one)
+rather than to a defect here: the register window read as nothing, most likely because the block's
+clocks are gated or its reset is not deasserted.
+
+**Two independent signals agree**, which is what makes this a diagnosis rather than a guess. The
+device tree marks the node `status disabled`, and the register window reads zero. Milestone 239
+deliberately *reports* `status` without acting on it, because that same tree lies about the S7 core;
+here the tree and the hardware say the same thing.
+
+### What it establishes for fatal risk 6, which is more than "FAILED" suggests
+
+`report 0x524e475550` is **`entropy_proto::READY`**, ASCII `RNGUP`, and that crate's own comment says
+a bring-up failure reports `0xDEAD_0000_0000_0000 | step` **instead**. So the service did not report a
+failure. It reported ready.
+
+So on real silicon, for the first time: a userspace driver **started** from the archive as an EL0
+process, **reached the device through a capability that names no device**, and **completed its
+bring-up far enough to send `READY`**. What it could not do is get a non-zero byte out of a block
+nothing has powered.
+
+Risk 6 is *"a capability-confined userspace driver cannot drive real hardware at real speed."* This
+splits it: **confined** is demonstrated on silicon, **drives real hardware** is blocked on milestone
+220, and **at real speed** stays unmeasured and unmeasurable until the block is on.
+
+### A defect in this milestone, found by the same line
+
+**The service sent `READY` while holding 32 bytes of zeros.** `entropy_proto::READY`'s own doc says
+it is sent *"once the device is up **and its first bytes are in hand**"*, and two paragraphs later the
+same file argues that a caller who cannot be given randomness **must find out**, because the
+alternative is *"the exact silent-degradation failure"* it exists to prevent.
+
+A service that reports ready on a dead device is that failure. The tour caught it only because it
+prints the draws beside the report and checks `first-all-zero`; a client that trusted `READY` would
+have consumed zeros believing them random. **That is this milestone's to fix, not milestone 220's**,
+and it is worth fixing before 220 lands rather than after, because once the clock works the symptom
+disappears and the defect does not.
+
 ## What this does not decide
 
 **DECISIONS §120's stopgap question is separate and not reopened by this milestone.** Whether the
