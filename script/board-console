@@ -5,6 +5,7 @@
 #   script/board-console                      # watch until the kernel banner, 120s cap
 #   script/board-console --for 30m --until none   # sustained watching, for a stress run
 #   script/board-console --replay target/board-console-1756...log   # re-read a capture
+#   script/board-console --tally target/radon-soak-1757...log        # what the lottery drew (249)
 #
 # `script/console` is QEMU. This is the other one: an actual serial port on an actual board, at
 # 115200 8N1, with the log written to a file whatever happens. It recognises the boot sequence
@@ -18,8 +19,13 @@
 #   3  the time ran out with the stage unreached
 #   4  the port could not be opened, or the arguments were wrong
 #
-# It reads and never writes to the board, and it does not touch power. See notes/board-console.md
-# for the runbook and for what the recognition can and cannot tell apart.
+# It reads and never writes to the board, and it does not touch power. That is still true with
+# `--tally`, which touches no port at all: it reads a capture that has already finished and reports
+# what the thread-placement lottery drew on each boot in it (milestone 249). A tally has two exit
+# statuses, 0 and 4, because there is no board left to have gone quiet.
+#
+# See notes/board-console.md for the runbook and for what the recognition can and cannot tell
+# apart, and notes/soak.md for the rebooting soak the tally is written for.
 #
 # Name: provisional, this lane's coinage (2026-09-01, milestone 216). Hyphens because script/
 # entry points are hyphenated (AGENTS.md's naming table), and the `board-` prefix to sit beside

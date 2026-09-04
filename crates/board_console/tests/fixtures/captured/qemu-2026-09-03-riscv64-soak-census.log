@@ -1,0 +1,128 @@
+
+OpenSBI v1.8.1
+   ____                    _____ ____ _____
+  / __ \                  / ____|  _ \_   _|
+ | |  | |_ __   ___ _ __ | (___ | |_) || |
+ | |  | | '_ \ / _ \ '_ \ \___ \|  _ < | |
+ | |__| | |_) |  __/ | | |____) | |_) || |_
+  \____/| .__/ \___|_| |_|_____/|____/_____|
+        | |
+        |_|
+
+Platform Name               : riscv-virtio,qemu
+Platform Features           : medeleg
+Platform HART Count         : 4
+Platform HART Protection    : pmp
+Platform IPI Device         : aclint-mswi
+Platform Timer Device       : aclint-mtimer @ 10000000Hz
+Platform Console Device     : uart8250
+Platform HSM Device         : ---
+Platform PMU Device         : ---
+Platform Reboot Device      : syscon-reboot
+Platform Shutdown Device    : syscon-poweroff
+Platform Suspend Device     : ---
+Platform CPPC Device        : ---
+Firmware Base               : 0x80000000
+Firmware Size               : 357 KB
+Firmware RW Offset          : 0x40000
+Firmware RW Size            : 101 KB
+Firmware Heap Offset        : 0x4d000
+Firmware Heap Size          : 49 KB (total), 0 KB (reserved), 12 KB (used), 35 KB (free)
+Firmware Scratch Size       : 4096 B (total), 1464 B (used), 2632 B (free)
+Runtime SBI Version         : 3.0
+Standard SBI Extensions     : time,rfnc,ipi,base,hsm,srst,pmu,dbcn,fwft,legacy,dbtr,sse
+Experimental SBI Extensions : none
+
+Domain0 Name                : root
+Domain0 Boot HART           : 0
+Domain0 HARTs               : 0*,1*,2*,3*
+Domain0 Region00            : 0x0000000080040000-0x000000008005ffff M: (F,R,W) S/U: ()
+Domain0 Region01            : 0x0000000080000000-0x000000008003ffff M: (F,R,X) S/U: ()
+Domain0 Region02            : 0x0000000000100000-0x0000000000100fff M: (I,R,W) S/U: (R,W)
+Domain0 Region03            : 0x0000000010000000-0x0000000010000fff M: (I,R,W) S/U: (R,W)
+Domain0 Region04            : 0x0000000002000000-0x000000000200ffff M: (I,R,W) S/U: ()
+Domain0 Region05            : 0x000000000c400000-0x000000000c5fffff M: (I,R,W) S/U: (R,W)
+Domain0 Region06            : 0x000000000c000000-0x000000000c3fffff M: (I,R,W) S/U: (R,W)
+Domain0 Region07            : 0x0000000000000000-0xffffffffffffffff M: () S/U: (R,W,X)
+Domain0 Next Address        : 0x0000000080200000
+Domain0 Next Arg1           : 0x000000008fe00000
+Domain0 Next Mode           : S-mode
+Domain0 SysReset            : yes
+Domain0 SysSuspend          : yes
+
+Boot HART ID                : 0
+Boot HART Domain            : root
+Boot HART Priv Version      : v1.12
+Boot HART Base ISA          : rv64imafdch
+Boot HART ISA Extensions    : sstc,zicntr,zihpm,zicboz,zicbom,sdtrig,svadu
+Boot HART PMP Count         : 16
+Boot HART PMP Granularity   : 2 bits
+Boot HART PMP Address Bits  : 54
+Boot HART MHPM Info         : 16 (0x0007fff8)
+Boot HART Debug Triggers    : 2 triggers
+Boot HART MIDELEG           : 0x0000000000001666
+Boot HART MEDELEG           : 0x0000000000f4b509
+
+nife on RISC-V (rv64, S-mode, Sv39)
+  hart 0 booted: high-half kernel, .bss, and the NS16550 console are up.
+  running at  : 0xffffffc0802206fc  (high half: Sv39 paging is on)
+  device tree : 0x000000008fe00000
+  traps       : stvec set; a breakpoint was caught and stepped over (1)
+  timer       : 20 ticks in ~0.2s (SBI timer + S-mode interrupt at 100 Hz)
+  memory      : device tree parsed, frame allocator up (first frame 0x80062000)
+  smp: 4 core(s) in the device tree
+  paging      : fine-grained W^X Sv39 tables installed, satp switched (paging on: true)
+  isa         : rv64i m a c f d h zicsr zifencei sstc zicbom
+              : 4 hart(s), mmu sv57 declared and sv39 in use, satp.ASID 16 bits measured
+  firmware    : OpenSBI 0x10008, SBI 3.0, TIME IPI RFENCE HSM
+  smp: sbi hsm hart_start (the only mechanism RISC-V defines)
+  smp: 4 core(s) online
+  kmap test   : mapped 0xffffffc0d0000000->0x800f3000 (w:true), rw=0xc0ffee, unmapped->0x800f3000
+  scheduler   : 2 of 2 kernel threads ran (RISC-V context switch works)
+  user address space : process satp activated (kernel half shared), user 0x400000 -> Some((80107000, Flags(3)))
+  userspace   : a program ran at U-mode and made 0 syscalls (yield/yield/exit via ecall)
+    init : measured, built, started; waiting for the child's word
+    canary: tick=43 addr=0xffffffc08026d528 (range 0xffffffc08026d4d8+0x1410 off 0x50) 0x01 -> 0x00
+    canary: tick=43 addr=0xffffffc08026d548 (range 0xffffffc08026d4d8+0x1410 off 0x70) 0x00 -> 0x01
+    canary: tick=43 addr=0xffffffc08026d551 (range 0xffffffc08026d4d8+0x1410 off 0x79) 0x00 -> 0xc0
+    canary: tick=43 addr=0xffffffc08026d552 (range 0xffffffc08026d4d8+0x1410 off 0x7a) 0x00 -> 0xb4
+    canary: tick=43 addr=0xffffffc08026d553 (range 0xffffffc08026d4d8+0x1410 off 0x7b) 0x00 -> 0x80
+    canary: tick=43 addr=0xffffffc08026d554 (range 0xffffffc08026d4d8+0x1410 off 0x7c) 0x00 -> 0xc0
+    canary: tick=43 addr=0xffffffc08026d555 (range 0xffffffc08026d4d8+0x1410 off 0x7d) 0x00 -> 0xff
+    canary: tick=43 addr=0xffffffc08026d556 (range 0xffffffc08026d4d8+0x1410 off 0x7e) 0x00 -> 0xff
+    canary: tick=43 addr=0xffffffc08026d557 (range 0xffffffc08026d4d8+0x1410 off 0x7f) 0x00 -> 0xff
+    canary: tick=43 addr=0xffffffc08026e4ec (range 0xffffffc08026d4d8+0x1410 off 0x1014) 0x02 -> 0x03
+    canary: tick=43 addr=0xffffffc08026e8e0 (range 0xffffffc08026d4d8+0x1410 off 0x1408) 0x07 -> 0x08
+  init/build  : userspace init loaded 'worker' from a 8990720-byte archive and built it as a child; the child sent 81 (expected 81)
+  capability slots: 4 of 24 at peak
+  preemption  : two never-yield threads ran 1129484 and 1112021 iterations, 81 preemptions (a thread that refuses to yield is preempted anyway)
+  uart irq    : source 10 (machine description)
+  device IRQ  : userspace driver started (holds an Irq cap + a UART mapping); pipe a byte to see it
+  virtio      : block device found at 0x10004000, PLIC IRQ 4 (kernel owns the transport)
+  pcie        : virtio-blk at 00:02.0, common 0x40004000, notify 0x40007000 (mult 4), isr 0x40005000, PLIC IRQ 34
+  hw entropy  : skipped (this machine's tree describes no starfive,jh7110-trng; QEMU virt has none)
+nife: the capability core runs on RISC-V.
+
+soak: started 4 groups of one responder, 3 callers, 1 grinder and 1 tick waiter (24 user threads) on 4 online core(s), beating every 5s
+soak: silence longer than a few beats is a hang, not a slow run; the beat is on the wall clock and does not depend on the workload making progress
+soak: a clean run is a number to compare against, NOT evidence that the concurrency is correct (design/roadmap/219-a-workload-that-does-not-stop.md)
+soak: the threads that cross cores are the tick waiters, NOT the rendezvous pairs; a rising crossings count is the wake protocol sustained across cores under load, not the IPC workload migrating (design/roadmap/221-a-soak-that-crosses-cores.md)
+soak: rounds counts IPC round trips and wakes counts tick-route wakes; they are separate because they are separate quantities, and neither rate compares with a soak built differently
+soak-census: where the kernel placed each worker at spawn: R=responder, C=caller, G=grinder, W=tick waiter, and the number after each letter is its group
+soak-census: core=0 threads=5 R0 C1 C1 C2 C3
+soak-census: core=1 threads=6 C0 C0 C1 G1 C2 C3
+soak-census: core=2 threads=6 C0 W0 R1 R2 C2 R3
+soak-census: core=3 threads=7 G0 W1 G2 W2 C3 G3 W3
+soak-census: this is the boot-time lottery and NOT where the run settles: a rendezvous wake queues the peer on the waker's own core (DECISIONS 138, how a saturated workload is made to hand threads across cores), so each group converges onto one core within a few exchanges
+soak-census: the beat line's drifted= is how many responders, callers and grinders are no longer on the core the census above put them on; while it reads 0 that census is current, and a nonzero one is followed by the census that replaces it
+soak-census: tick waiters are excluded from drifted= because their movement is the point rather than a surprise, and it is already crossings= (design/roadmap/221-a-soak-that-crosses-cores.md)
+soak: t=5s beat=1 rounds=98293 rate=19658/s wakes=2007 wakerate=401/s workers=24 refused=0 mismatch=0 stalled=0 drifted=11 crossings=247 remote=1361 steals=4 deferred=1
+soak-census: where the workers are NOW, the arrangement above having changed: R=responder, C=caller, G=grinder, W=tick waiter, and the number after each letter is its group
+soak-census: core=0 threads=3 W0 W1 W3
+soak-census: core=1 threads=6 R1 C1 C1 C1 G1 W2
+soak-census: core=2 threads=12 R0 C0 C0 C0 R2 C2 C2 C2 R3 C3 C3 C3
+soak-census: core=3 threads=3 G0 G2 G3
+soak: t=10s beat=2 rounds=188994 rate=18140/s wakes=4006 wakerate=399/s workers=24 refused=0 mismatch=0 stalled=0 drifted=0 crossings=510 remote=2742 steals=4 deferred=1
+soak: t=15s beat=3 rounds=286681 rate=19537/s wakes=6004 wakerate=399/s workers=24 refused=0 mismatch=0 stalled=0 drifted=0 crossings=831 remote=4084 steals=4 deferred=1
+soak: t=20s beat=4 rounds=384878 rate=19639/s wakes=7977 wakerate=394/s workers=24 refused=0 mismatch=0 stalled=0 drifted=0 crossings=1322 remote=5250 steals=4 deferred=10
+soak: t=25s beat=5 rounds=479694 rate=18963/s wakes=9981 wakerate=400/s workers=24 refused=0 mismatch=0 stalled=0 drifted=0 crossings=1768 remote=6500 steals=4 deferred=24
