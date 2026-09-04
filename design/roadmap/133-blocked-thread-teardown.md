@@ -144,6 +144,10 @@ case is the miss rather than the hit, because the kernel asks both queues on eve
   than a proved property, and the sweep this milestone added protects a rule nothing states. Lift
   the guard the way `region_reap_verdict` was lifted, prove it, and only then ask whether the
   capability should carry a call identity.
+- **Proposed.** `design/roadmap/proposals/an-msi-x-completion-that-arrives-only-sometimes.md`. Not
+  this milestone's subject at all: one `x86_64` leg of this lane's gate failed on
+  `a_userspace_driver_reads_a_file_over_the_pcie_transport`'s interrupt assertion and passed alone
+  twice and in a full re-run, so it is recorded rather than left in a lane report.
 - **Refused.** Proposal B, a terminate verb on a `ThreadControlBlock` capability. It would widen a
   construction-time authority (every method on that capability refuses a thread that is not an
   `Embryo`) into a lifetime handle, and it answers a question nobody has asked: ending a thread
