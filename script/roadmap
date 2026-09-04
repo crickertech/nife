@@ -700,10 +700,25 @@ for mid, fname in sorted(ids.items()):
 # checkout has.
 #
 # The cost is zero unless the token is in use: no IN-PROGRESS block means no subprocess at all.
+#
+# **And it must refuse a history it cannot see, which is how this check spent a day passing in CI
+# while being unable to fail.** `actions/checkout` clones to depth 1 unless told otherwise, and the
+# job that runs `script/lint` did not tell it otherwise, so `git log --merges` returned nothing, no
+# branch matched, and the check reported success. On 2026-09-03 milestone 247 merged reading
+# IN-PROGRESS on its own branch, every pull request's clippy went green, and `main` went red the
+# moment somebody ran the same gate on a full clone. A check that cannot fail is worse than a check
+# that is absent, because its green is read as an answer. The `fetch-depth: 0` in ci.yml fixes it for
+# that job; this refusal is what stops a future job reintroducing it silently.
 if in_progress_branches:
     log = subprocess.run(["git", "-C", root, "log", "--merges", "--format=%s"],
                          capture_output=True, text=True)
     subjects = log.stdout
+    if not subjects.strip():
+        problems.append(
+            "the merged-branch check cannot see any merge commits, so it cannot answer whether an "
+            "IN-PROGRESS branch has already landed. That is a shallow clone (actions/checkout "
+            "defaults to depth 1) rather than a repository with no merges, and the check passes "
+            "vacuously in it. Give the job `fetch-depth: 0`")
     for num, fname, branch in in_progress_branches:
         # `Merge pull request #124 from calef/milestone/58-riscv-tlb-shootdown`, and the plain
         # `Merge branch 'x'` form. Anchored at a word boundary so `milestone/58` does not match
