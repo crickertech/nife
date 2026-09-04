@@ -1,6 +1,9 @@
 # 142. What a spawner retains over a child after `START`
 
-**Status: PROPOSED.** Written 2026-09-03 by the research lane `maintainer/research-spawn-retention`,
+**Status: DECIDED.** Answered 2026-09-03 by calef, after working the options through in
+conversation: **R4 declaring R0.** Retention becomes a declared field on `ChildEndowment`, and what it
+declares today is what the tree already does, which is retain nothing. The reasoning, including why
+this unblocks milestone 133 rather than deferring it, is in "The decision" at the end. Written 2026-09-03 by the research lane `maintainer/research-spawn-retention`,
 which was asked for options and costs and is forbidden to pick. *(The number 141 is **provisional**,
 and it is knowingly contended: `maintainer/decision-141-application-is-grant` was also holding 141
 when this was written, found by listing remote branches before briefing. It is numbered 141 here
@@ -503,3 +506,62 @@ milestone 133 has answered it sideways.
 - **Milestone 244's endowment table.** Cited above because R4 shares its shape; the two are the same
   subject from opposite sides, and folding them together would put a proof question and an authority
   question in one lane.
+
+
+## The decision, 2026-09-03
+
+**R4 declaring R0**, and milestone 133's proposal A ships alongside it rather than after it.
+
+### What is decided
+
+**Retention becomes a declared field on `ChildEndowment`**, so one struct literal states both what a
+child is given and what its spawner keeps. `build_child` acts on it: the `ThreadControlBlock`
+capability is deleted at `START` unless the endowment says otherwise. The field has **no default that
+hides the question**, which is rung one of AGENTS.md's ladder for the specific failure that a spawn
+path forgets to decide.
+
+**What it declares today is R0**, which is what 25 of the 30 `START` sites already do. The five in
+`user/src/hello.rs` that keep their capability with no recorded reason become visible rather than
+inferable, and each has to say why or stop.
+
+### Why this releases milestone 133 instead of deferring it
+
+**The objection to proposal A was silence, not the region capability.** A needs no new authority, and
+that is most of its appeal; the risk recorded above is that taking it would settle retention *by
+accident*, in R0's direction, after which every spawn path grows around it and R2 or R1 get harder.
+
+**A declared field removes the accident.** With retention written down, A cannot settle anything
+silently, because the convention is explicit and a later change is a change to what the field may
+say rather than to thirty call sites and an unwritten habit. So the two are not sequential:
+
+- **Proposal A** makes `MemoryRegion::DESTROY` finish what it starts, so a hung component's region
+  becomes reclaimable. That is the capacity problem this whole area exists for.
+- **The stranded-caller half**, split out of milestone 133 onto
+  `maintainer/mint-254-stranded-caller` and not yet on `main`, frees its stranded callers: `Gone`
+  does not reach a reply-parked caller today, so a server that merely died strands them too.
+- Together they close the compounding: one hang stops costing one region per caller in flight, and
+  stops costing the one.
+
+**Cost: zero capability-table slots, no new syscall, no ABI change, and nothing overturned.** Not
+§32's line at the corpse, not milestone 126's rule that a domain names its members and does not act
+on them, not §26.2's deferral of reattaching supervision. Both A and 254 need the reply-capability
+sweep, and it is the same sweep.
+
+### What is deliberately not decided
+
+**A supervisor still cannot end one thread without taking its region.** That is proposal B's job and
+B stays open, behind a customer that does not exist yet: a supervisor that must stop one child while
+a sibling shares the region, or a policy separating stopping from freeing.
+
+**R1 is named here as the likely successor**, because it is the answer that fits this system's own
+model rather than seL4's. The supervisor already receives the fault, already reaps the corpse and
+already rebuilds the child; extending it from *notice death, reap, rebuild* to *notice hang, end,
+rebuild* is the same job, it costs no slots (§26.5, one endpoint per supervisor), and §32's `REAP`
+already proves the kernel can authorize an action on a thread off that endpoint. Its price is
+overturning three recorded decisions, and **that should be bought with a customer rather than
+speculatively**, which is the whole reason it is not being bought here.
+
+**R2 and R3 are disfavoured on model grounds and not merely on cost**, per the two findings recorded
+in R2's entry above: this tree has no state-dependent authority for R2 to remove, and seL4's lifetime
+handle earns its keep only alongside a repair-and-resume recovery model that §26 declined in as many
+words.
