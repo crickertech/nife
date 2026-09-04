@@ -1,0 +1,37 @@
+Falsifies `kernel::arch::aarch64::iommu::proofs::the_smmu_is_handed_exactly_the_tables_the_kernel_built`.
+
+The defect is a one-character error in a shift, in the exact shape splitting a 64-bit
+physical address across two 32-bit words invites: the SMMU's context descriptor carries
+TTB0 in bits [51:4] of dword 1, so the high word is `ttb >> 32`, and this writes
+`ttb >> 31`. Bit 31 of the table root is duplicated into bit 32 of the address the SMMU
+walks, so on a machine whose page tables live above 2 GiB the IOMMU translates every one
+of that device's transactions through some other frame entirely. Not a fault, not a
+crash: confinement pointed somewhere wrong.
+
+**Every test in this tree stays green under this patch**, which is the reason the harness
+is worth its place. QEMU's `virt` board puts RAM at `0x4000_0000` and the domain roots the
+confinement test allocates sit around there with bit 31 clear, so `>> 31` and `>> 32`
+agree on this board and `the_iommu_faults_a_dma_that_escapes_the_domain` passes exactly as
+it did before. The witness set is the addresses with bit 31 set, and nobody writes those
+down; the solver enumerates them.
+
+Expected to fail: `assert!(ttb_dword == ttb, "the CD's TTB0 is the table root entire, high
+half included")`. Confirmed red on 2026-09-04.
+
+The sibling harness `no_stream_can_reach_another_streams_tables` stays green under this
+patch, which is the honest half of the record: it is about `table_offset` and never calls
+`context_descriptor`.
+
+diff --git a/kernel/src/arch/aarch64/iommu.rs b/kernel/src/arch/aarch64/iommu.rs
+index 2769577a..2407ba0c 100644
+--- a/kernel/src/arch/aarch64/iommu.rs
++++ b/kernel/src/arch/aarch64/iommu.rs
+@@ -292,7 +292,7 @@ const fn context_descriptor(ttb: u64, asid: u16) -> [u32; 8] {
+             | (1 << 14)              // A: and abort the faulting transaction
+             | ((asid as u32) << 16),
+         ttb as u32 & 0xffff_fff0, //  TTB0[31:4]; the low flag bits stay zero
+-        (ttb >> 32) as u32 & 0xf_ffff, // TTB0[51:32]
++        (ttb >> 31) as u32 & 0xf_ffff, // TTB0[51:32]
+         0,                        // TTB1 does not exist
+         0,
+         // MAIR0/MAIR1: the same palette mmu::init programs into MAIR_EL1 (slot 0 device, slot 1
