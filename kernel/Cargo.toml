@@ -92,6 +92,12 @@ entropy_proto = { version = "0.1.0", path = "../crates/entropy_proto" }
 # so `entropy_service` can wire the userspace driver for it (`user/src/jh7110_trng.rs`) instead of
 # keeping a second copy of the `compatible` string and the `reg` decode.
 jh7110_trng = { version = "0.1.0", path = "../crates/jh7110_trng" }
+
+# The JH7110's clock and reset generator (milestone 220), for `drivers::jh7110_crg` and for
+# `memory::init`'s discovery of the controller's window. Pure logic; the volatile half is the
+# kernel driver. On radon the TRNG's register file read as all zeros on 2026-09-04 because
+# nothing had ungated its clocks, which is the whole reason this is a dependency.
+jh7110_crg = { version = "0.1.0", path = "../crates/jh7110_crg" }
 dtb = { version = "0.1.0", path = "../crates/dtb" }
 pci = { version = "0.1.0", path = "../crates/pci" }
 # The NVMe queue mechanics (milestone 53's storage half): pure logic, host-tested and proved; the

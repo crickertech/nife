@@ -1183,6 +1183,15 @@ in the code or the conversation doesn't make sense, it belongs here.
   map, the disabled S7 hart), the Image-header load path through vendor U-Boot, the microSD payload
   and `script/board-image`, the bench runbook with its failure-triage ladder, and the honest list of
   what only the bench can measure.
+- [Programming a clock and a reset line, for the first time](jh7110-clock-and-reset.md):
+  milestone 220. Every device this kernel had driven came up already running, and on 2026-09-04
+  radon proved the JH7110's TRNG does not: its whole register file read back as zeros. The two
+  clocks and one reset the device needs, resolved from mainline Linux and the vendor U-Boot
+  independently (they disagree on every name and agree on all three numbers), why the kernel and
+  not an EL0 driver holds a controller whose window covers USB, PCIe and DMA as well, why
+  discovery falls back to a constant and what stops that constant reaching a board that has
+  nothing at the address, and the bench procedure with a table mapping each observable outcome to
+  which milestone it belongs to.
 - [Reading a board, without a person watching it](board-console.md): milestone 216's
   `script/board-console`, the other half of the pair above. How it recognises the runbook's boot
   sequence from the serial text, why the read is on its own thread so the deadline holds whatever

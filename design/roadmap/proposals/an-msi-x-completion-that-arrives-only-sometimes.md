@@ -20,6 +20,14 @@ The **first** assertion passed, so the driver read the right bytes off the virti
 reported them. What did not happen is `ROUTED_IRQS` rising. Re-run alone on the same tree, twice,
 it passes. Find out whether the interrupt is lost or merely late, and make the test say which.
 
+**It recurred the same day, on a different lane and a different tree.** Milestone 220's lane lost
+one `script/test` leg to it while gating a riscv64-only clock driver: same test, same second
+assertion, same message, with the first assertion passing. A re-run of the full suite on the
+unchanged tree was green. That is a second data point for "sometimes" and for the shape: the read
+succeeds and only the interrupt count fails to move, so whatever is racing is between the
+completion and `ROUTED_IRQS`, not in the transport.
+
+
 ## Why it is worth a lane rather than a retry
 
 A test that passes alone and fails in company is either a real ordering bug or a test that reads a

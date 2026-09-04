@@ -450,6 +450,14 @@ where
         direct_map(m, start, start + size, Flags::device())?;
     }
 
+    // 6b. The JH7110's STG clock and reset generator (milestone 220), device memory. Present
+    // only on a JH7110; `memory::jh7110_crg` is None everywhere else, including on every
+    // machine CI boots. Without this the kernel cannot ungate the TRNG's clocks, which is why
+    // that device's whole register file read back as zeros on radon on 2026-09-04.
+    if let Some(crg) = memory::jh7110_crg() {
+        direct_map(m, crg.base, crg.base + crg.size, Flags::device())?;
+    }
+
     // 7. The `sifive_test` finisher (0x10_0000), device memory: the MMIO word the test harness writes
     // to exit QEMU (arch::semihosting::exit). One page. Only QEMU `virt` has this device; the
     // VisionFive 2 has nothing at 0x10_0000, so mapping it there is a mapping to a nonexistent

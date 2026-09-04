@@ -1,0 +1,23 @@
+[package]
+name = "jh7110_crg"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+# Name: PROVISIONAL (milestone 220's lane, 2026-09-04). `crg` is the JH7110's own word for the
+# thing, not an abbreviation this project coined: both device trees that describe this chip spell
+# the blocks `syscrg`, `stgcrg` and `aoncrg` (mainline's `starfive,jh7110-stgcrg` compatible, the
+# vendor U-Boot's `reg-names = "syscrg", "stgcrg", ...`), so it is the AGENTS.md "standard term a
+# reader already knows from outside" case rather than the `capsh`/`uheap` case. Chip-qualified for
+# the reason `jh7110_trng` is: a bare `crg` would name almost anything. calef has not ratified it;
+# see src/lib.rs and `script/names`.
+#
+# no_std for the kernel, std for host tests, the same rule-7 pure-logic split `jh7110_trng` uses:
+# this crate owns register offsets, bit positions, the bring-up plan and the DTB discovery query.
+# No unsafe code and no raw pointer in here; the volatile MMIO is kernel/src/drivers/jh7110_crg.rs.
+
+[dependencies]
+dtb = { version = "0.1.0", path = "../dtb" }
+
+[lints]
+workspace = true

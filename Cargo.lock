@@ -356,6 +356,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "jh7110_crg"
+version = "0.1.0"
+dependencies = [
+ "dtb",
+]
+
+[[package]]
 name = "jh7110_trng"
 version = "0.1.0"
 dependencies = [
@@ -394,6 +401,7 @@ dependencies = [
  "graphics_proto",
  "intrusive_fifo",
  "ipc",
+ "jh7110_crg",
  "jh7110_trng",
  "job_mix",
  "line_editor",

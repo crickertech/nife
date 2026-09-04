@@ -122,6 +122,37 @@ fn the_jh7110_backend_refuses_to_wire_where_there_is_no_jh7110() {
     );
 }
 
+/// **No clock-and-reset window is mapped on a machine that is not a JH7110** (milestone 220).
+///
+/// The guard on the one genuinely dangerous thing this milestone added: `jh7110_crg::discover`
+/// deliberately never fails to produce an address, falling back to the constant both published
+/// device trees agree on, so a caller that took its answer unconditionally would store to
+/// `0x1023_0000` on every board this kernel boots. `memory::init` is what stops that, by
+/// recording the window only for a machine whose tree names a JH7110, and this pins it.
+///
+/// **A comment could not do this job**, because the failure is silent in the direction that
+/// matters: on QEMU's `virt` board `0x1023_0000` is unmapped, so the symptom would be a load or
+/// store fault during boot on a machine nobody would think to blame the clock driver for.
+///
+/// This is also the honest boundary of what an emulator can gate here. QEMU's `virt` machine has
+/// no clock or reset controller of any kind, so what CI exercises is the *absence* path; the
+/// sequence itself has never run against silicon. See `notes/jh7110-clock-and-reset.md`.
+#[test_case]
+fn no_clock_window_is_mapped_where_there_is_no_jh7110() {
+    if entropy_service::jh7110_trng_device().is_some() {
+        crate::testing::skip!(
+            "this machine's tree describes a JH7110 TRNG, so a mapped clock window is correct \
+             here; the boot tour's hw clock line is what speaks on that machine"
+        );
+    }
+    assert!(
+        entropy_service::jh7110_crg_window().is_none(),
+        "a JH7110 clock-and-reset window was recorded on a machine whose device tree names no \
+         JH7110: the constant fallback escaped its guard, and the next boot stores to an address \
+         nobody described",
+    );
+}
+
 /// **Two independent sources do not agree**, which is what says the bytes came from the devices
 /// rather than from anything shared underneath them (a fixed seed, a counter, the DMA page's
 /// previous contents). Also the cheapest proof that two services can hold two devices at once.

@@ -43,6 +43,22 @@ use crate::sched;
 /// *body*, not the dispatcher, since milestone 124 split the two: a syscall arrives from user mode,
 /// which is the case that deliberately does NOT move to the interrupt stack, because this path can
 /// block and a blocked thread's frames must live on its own stack.
+///
+/// **`#[inline(never)]` keeps this a symbol `script/fastpath-footprint` can name**, which is the
+/// third instance of a pattern the tree has now recorded twice
+/// (`design/roadmap/proposals/a-flat-entry-set-counts-bytes-no-syscall-fetches.md`): that gate's
+/// `syscall_entry` half sums a flat list of symbols, so an LLVM inlining flip moves bytes into or
+/// out of the measurement without anything on the syscall path changing. Milestone 220's lane hit
+/// the *outward* direction, which is the one that reads as good news and is not: adding an
+/// unrelated dependency to this crate made LLVM fold these 1160 bytes into the aarch64 exception
+/// handler, and the gate reported `syscall_entry` shrinking 35% while the code a syscall fetches
+/// was identical. Re-recording the baseline there would have locked in an under-measurement.
+///
+/// It also stands on its own, which is the test the tree asks of every `#[inline(never)]` it
+/// carries (`timer::tick`, `plic::disable`, `sched::grant_cycle_counter`, milestone 156's spawn
+/// bodies): this is a large match executed once per syscall, and one `bl` is not a cost worth
+/// duplicating a kilobyte of dispatcher into a handler that also serves faults and interrupts.
+#[inline(never)]
 pub fn dispatch(frame: &mut TrapFrame) {
     // The syscall number and arguments come from the trap frame through arch accessors, not raw
     // register indices, because the ABI register file differs per architecture (aarch64 `svc` with

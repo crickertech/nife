@@ -53,6 +53,18 @@ pub struct Wiring {
     pub bus: Bus,
     /// True when the device sat behind an IOMMU, which on this machine means the PCIe wiring.
     pub confined_by_iommu: bool,
+    /// **What the clock and reset controller said, and only on the call that did the wiring**
+    /// (milestone 220), for the same reason [`Wiring::ready`] is an `Option`: the bring-up
+    /// happens once and whoever asked first has the report. `None` on every backend but
+    /// [`Bus::Jh7110`], and on that backend when this machine's tree named no controller and the
+    /// window was never mapped.
+    ///
+    /// Read only by the riscv64 boot tour, since the JH7110 is a RISC-V `SoC` and no other
+    /// architecture can produce a `Some` here. The field stays portable rather than being
+    /// `cfg`-gated so that `Wiring` has one shape everywhere and a reader of this struct does not
+    /// have to hold two of them in their head.
+    #[cfg_attr(not(target_arch = "riscv64"), allow(dead_code))]
+    pub clock: Option<jh7110_crg::Report>,
 }
 
 /// **One entropy service per device per boot**, for the same reason the FS service is wired
@@ -104,6 +116,10 @@ pub fn ensure(image: &'static [u8], bus: Bus) -> Option<Wiring> {
             request: REQUEST[i].load(Ordering::Relaxed),
             bus,
             confined_by_iommu: CONFINED[i].load(Ordering::Relaxed),
+            // The bring-up ran on the call that wired this bus, and its report went to that
+            // caller. Same shape as `ready` above: a second asker gets the service, not the
+            // history of how it started.
+            clock: None,
         });
     }
     let w = start(image, bus)?;
@@ -191,6 +207,9 @@ fn start(image: &'static [u8], bus: Bus) -> Option<Wiring> {
         request,
         bus,
         confined_by_iommu,
+        // Neither virtio backend has a clock to ungate: a virtio device is a QEMU device and
+        // comes up running, which is the whole observation milestone 220 exists because of.
+        clock: None,
     })
 }
 
@@ -258,6 +277,8 @@ fn start_instruction(image: &'static [u8]) -> Option<Wiring> {
         // that rather than leaving the virtio path's field to be misread as "not confined" in the
         // sense that matters for a real device.
         confined_by_iommu: false,
+        // And nothing here is a device to ungate either: `RDSEED`/`RNDRRS` are instructions.
+        clock: None,
     })
 }
 
@@ -307,6 +328,13 @@ pub fn jh7110_trng_device() -> Option<jh7110_trng::Discovered> {
 fn start_jh7110(image: &'static [u8]) -> Option<Wiring> {
     let device = jh7110_trng_device()?;
 
+    // **Ungate the device before anything is granted** (milestone 220). This is the admin plane
+    // and it stays in the kernel; see `kernel/src/drivers/jh7110_crg.rs`'s header for why, and
+    // DECISIONS §86 for the argument it reuses. It runs before the spawn rather than after,
+    // because the driver's own bring-up reads `STAT` as its first act and a gated block answers
+    // that read with zeros, which is exactly what radon printed on 2026-09-04.
+    let clock = jh7110_clock_bring_up();
+
     let ready = crate::sched::create_rendezvous();
     let request = crate::sched::create_rendezvous();
 
@@ -347,7 +375,46 @@ fn start_jh7110(image: &'static [u8]) -> Option<Wiring> {
         // related reason, and it is not a weaker confinement claim than the virtio path's; it is a
         // narrower attack surface than the one an IOMMU exists to close.
         confined_by_iommu: false,
+        clock,
     })
+}
+
+/// **Enable the TRNG's two clocks and release its reset**, or `None` when this machine's tree
+/// named no clock-and-reset window (milestone 220).
+///
+/// riscv64 only, for `jh7110_trng_device`'s reason: the JH7110 is a RISC-V `SoC`. `None` is the
+/// answer on every machine this repository's CI boots, and it is not an error: `memory::init`
+/// records the window only when the tree names a JH7110 (a clock controller, or the TRNG itself),
+/// so `None` here means the mapping does not exist and nothing may be stored to.
+#[cfg(target_arch = "riscv64")]
+fn jh7110_clock_bring_up() -> Option<jh7110_crg::Report> {
+    let crg = crate::memory::jh7110_crg()?;
+    // SAFETY: `memory::init` recorded this region only for a machine whose tree names a JH7110,
+    // and `mmu::map_everything` mapped exactly it, device-typed, in the direct map. The domain
+    // and the plan are the same crate's, so every identifier in the plan is in range for it.
+    Some(unsafe {
+        crate::drivers::jh7110_crg::bring_up(
+            crate::arch::mmu::phys_to_virt(crg.base) as usize,
+            &jh7110_crg::STG,
+            jh7110_crg::TRNG_BRING_UP,
+        )
+    })
+}
+
+/// See the riscv64 arm: no JH7110 anywhere but a JH7110.
+#[cfg(not(target_arch = "riscv64"))]
+fn jh7110_clock_bring_up() -> Option<jh7110_crg::Report> {
+    None
+}
+
+/// **Where this machine's clock-and-reset window is, and who said so** (milestone 220), for the
+/// boot tour to print beside the bring-up report. `None` on a machine that is not a JH7110.
+///
+/// Exposed rather than inlined into the tour because [`Wiring::clock`] carries what the hardware
+/// answered and not where it was asked, and the second half is the one a bench transcript cannot
+/// re-derive: a base that came from a constant is a base nobody on that machine confirmed.
+pub fn jh7110_crg_window() -> Option<jh7110_crg::Found> {
+    crate::memory::jh7110_crg()
 }
 
 impl Wiring {
