@@ -366,14 +366,14 @@ fn fire(elf: &elf::Elf, arg: u64) -> bool {
     let Ok(region) = supervision_proto::memory_region_split(BUDGET, INSTANCE_PAGES) else {
         return false;
     };
-    let Ok(tcb) = supervision_proto::build_child(
+    let Ok(child) = supervision_proto::build_child(
         BUDGET,
         region,
         elf,
         &supervision_proto::ChildEndowment {
             caps: &[(CHILD_REPORT, abi::rights::WRITE)],
             fault: Some(DEATHS),
-            ..supervision_proto::ChildEndowment::new()
+            ..supervision_proto::ChildEndowment::new(supervision_proto::Retention::Nothing)
         },
     ) else {
         // The region is ours and the child does not exist, so hand the pages straight back rather
@@ -381,12 +381,10 @@ fn fire(elf: &elf::Elf, arg: u64) -> bool {
         supervision_proto::memory_region_destroy(region);
         return false;
     };
-    if !supervision_proto::thread_control_block_start(tcb, 0, arg, 0) {
-        cap_delete(tcb);
+    if !supervision_proto::start_child(child, 0, arg, 0) {
         supervision_proto::memory_region_destroy(region);
         return false;
     }
-    cap_delete(tcb);
     cap_delete(region);
     true
 }
@@ -410,7 +408,7 @@ fn fire_with_grant(elf: &elf::Elf, arg: u64, mem_pages: u64) -> Option<u64> {
         supervision_proto::memory_region_destroy(region);
         return None;
     };
-    let Ok(tcb) = supervision_proto::build_child(
+    let Ok(child) = supervision_proto::build_child(
         BUDGET,
         region,
         elf,
@@ -423,7 +421,7 @@ fn fire_with_grant(elf: &elf::Elf, arg: u64, mem_pages: u64) -> Option<u64> {
                 (mem_slot, abi::rights::WRITE),
             ],
             fault: Some(DEATHS),
-            ..supervision_proto::ChildEndowment::new()
+            ..supervision_proto::ChildEndowment::new(supervision_proto::Retention::Nothing)
         },
     ) else {
         // `memory_region_destroy(region)` is owner authority over the whole region, not the supervised
@@ -432,12 +430,10 @@ fn fire_with_grant(elf: &elf::Elf, arg: u64, mem_pages: u64) -> Option<u64> {
         supervision_proto::memory_region_destroy(region);
         return None;
     };
-    if !supervision_proto::thread_control_block_start(tcb, 0, arg, 0) {
-        cap_delete(tcb);
+    if !supervision_proto::start_child(child, 0, arg, 0) {
         supervision_proto::memory_region_destroy(region);
         return None;
     }
-    cap_delete(tcb);
     cap_delete(region);
     Some(mem_slot)
 }

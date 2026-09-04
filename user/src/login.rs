@@ -247,7 +247,7 @@
 //! is what `crates/system_initializer` could never hand it: `supervision_proto::build_child` maps
 //! only pages the spawner holds a `PageFrame` capability for, and the archive is reserved RAM the
 //! frame allocator does not own and no capability names. So init started this process with
-//! `thread_control_block_start(login_tcb, 0, 0, 0)` and no archive, `initrd_bytes` yielded a
+//! `start_child(login_child, 0, 0, 0)` and no archive, `initrd_bytes` yielded a
 //! zero-length slice, `nifefs::Fs::parse` refused it, and this process took `fail(1)` before serving
 //! anything, while the boot went on printing `init: login ready` with a generated password.
 //!
@@ -598,8 +598,8 @@
 #![no_main]
 
 use supervision_proto::{
-    ChildEndowment, build_child, memory_region_destroy, memory_region_split,
-    retype_obj_from as retype_obj, retype_page_frame_from, thread_control_block_start,
+    ChildEndowment, Retention, build_child, memory_region_destroy, memory_region_split,
+    retype_obj_from as retype_obj, retype_page_frame_from, start_child,
 };
 use user_rt::{call, cap_delete, map_page_frame, recv, send, send_cap, yield_now};
 
@@ -1175,10 +1175,10 @@ fn mint(own_ut: u64, care: Option<&elf::Elf>, identity: &[u8]) -> Option<(u64, u
             ],
             maps: &[(CARETAKER_FS_VA, FS_PAGE_FRAME, abi::address_space::MAP_RW)],
             stack_pages: CARETAKER_STACK_PAGES,
-            ..ChildEndowment::new()
+            ..ChildEndowment::new(Retention::Nothing)
         },
     );
-    let Ok(tcb) = built else {
+    let Ok(child) = built else {
         cap_delete(ready);
         cap_delete(narrow_ep);
         // **`build_child` leaks its own capability slots on failure**, which this cannot reach: it
@@ -1189,8 +1189,7 @@ fn mint(own_ut: u64, care: Option<&elf::Elf>, identity: &[u8]) -> Option<(u64, u
         discard(region);
         return None;
     };
-    let started = thread_control_block_start(tcb, lo, hi, spec);
-    cap_delete(tcb);
+    let started = start_child(child, lo, hi, spec);
     if !started {
         cap_delete(ready);
         cap_delete(narrow_ep);

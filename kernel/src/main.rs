@@ -1142,13 +1142,20 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // would hold. The kernel never reads a `RAND` register.
         //
         // **The skip is the honest answer on every machine CI boots.** QEMU's riscv64 `virt` board
-        // has no `starfive,jh7110-trng` node, so `jh7110_trng_device` returns `None` there and this
-        // prints the skip rather than a claim. Only a `StarFive` VisionFive 2 (radon, the one this
-        // project benches on) can print the other line, and the line only prints when bytes
+        // has no TRNG node under either spelling, so `jh7110_trng_device` returns `None` there and
+        // this prints the skip rather than a claim. Only a `StarFive` VisionFive 2 (radon, the one
+        // this project benches on) can print the other line, and the line only prints when bytes
         // actually arrived.
+        //
+        // **Both spellings are named in the skip because milestone 239 (radon's device tree does
+        // not describe the TRNG, so a working driver never runs) was mis-diagnosed off the old
+        // wording.** On 2026-09-03 this line said "describes no starfive,jh7110-trng" on a board
+        // whose firmware tree does describe the device, under the vendor U-Boot's own
+        // `starfive,trng`; the line was true and the conclusion drawn from it was not. A skip that
+        // names everything it looked for cannot be read that way twice.
         match user::entropy_service::jh7110_trng_device() {
             None => println!(
-                "  hw entropy  : skipped (this machine's tree describes no starfive,jh7110-trng; QEMU virt has none)"
+                "  hw entropy  : skipped (this machine's tree names no TRNG: neither starfive,jh7110-trng nor the vendor U-Boot's starfive,trng; QEMU virt has neither)"
             ),
             Some(device) => match user::program("jh7110_trng") {
                 None => println!(
@@ -1189,9 +1196,21 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                                 // register window read as nothing at all (a gated clock, an
                                 // undeasserted reset, or a base that is not the TRNG) rather than
                                 // a device that answered wrongly. See user/src/jh7110_trng.rs.
+                                // The tree's own two words about this node come with the failure,
+                                // not in a separate line, because they are what a bench session
+                                // reads next: an all-zero diagnostic on a node the firmware calls
+                                // `disabled` is a clock or reset the firmware had no reason to
+                                // ungate (milestone 220's territory), while the same zeros on a
+                                // node it calls `okay` are a different problem entirely.
                                 println!(
-                                    "  hw entropy  : FAILED: JH7110 TRNG at {:#x}: report {:#x}, bring-up diagnostic {:#018x}, draws {na}/{nb} bytes, first-all-zero {zeros}, draws-differ {}",
+                                    "  hw entropy  : FAILED: JH7110 TRNG at {:#x} (tree says {}, status {}): report {:#x}, bring-up diagnostic {:#018x}, draws {na}/{nb} bytes, first-all-zero {zeros}, draws-differ {}",
                                     device.reg_base,
+                                    core::str::from_utf8(device.compatible).unwrap_or("?"),
+                                    if device.status_okay {
+                                        "okay"
+                                    } else {
+                                        "disabled"
+                                    },
                                     report[0],
                                     report[2],
                                     a != b,

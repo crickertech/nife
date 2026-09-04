@@ -9,8 +9,10 @@
 // DECISIONS §38's rule is against blanket dead-code suppression hiding unreachable code, which this
 // is not: nothing here is hidden, and the lint is a style opinion about an error type.
 #![allow(clippy::result_unit_err)]
-// `ChildEndowment::new()` is an empty endowment, and a `Default` impl would give a second spelling for the
-// same thing in a crate whose whole job is that two binaries agree on one spelling.
+// `ChildEndowment::new(retention)` is an empty endowment, and a `Default` impl would give a second
+// spelling for the same thing in a crate whose whole job is that two binaries agree on one
+// spelling. Since DECISIONS §142 it could not be `Default` anyway: the constructor takes the
+// retention declaration precisely so that nothing supplies one silently.
 #![allow(clippy::new_without_default)]
 //! **The supervision tree: the shared half** (milestone 22 phase B.2).
 //!
@@ -40,30 +42,36 @@
 //! `cargo test --doc -p supervision_proto` on an aarch64 host and **are not checked by the gate**.
 //!
 //! [`ChildEndowment`] is the crate's real interface, and reading one is meant to tell you the
-//! complete authority of the thing about to run. Every field is public and there is a
-//! nothing-endowment to build from, which is what keeps a later field from being a change to every
-//! caller:
+//! complete authority of the thing about to run, **in both directions**: what the child is given,
+//! and what its spawner keeps over it once it does (DECISIONS §142). Every field is public and
+//! there is a nothing-endowment to build from, which is what keeps a later field from being a
+//! change to every caller:
 //!
 //! ```
-//! use supervision_proto::{CHILD_STACK_PAGES, ChildEndowment};
+//! use supervision_proto::{CHILD_STACK_PAGES, ChildEndowment, Retention};
 //!
 //! // A sub-server that gets exactly one endpoint, is born supervised, and holds nothing else.
-//! // `..ChildEndowment::new()` is the intended shape: what is not listed is not granted.
+//! // `..ChildEndowment::new(Retention::Nothing)` is the intended shape: what is not listed is not
+//! // granted, and what the spawner keeps is stated rather than inherited.
 //! let endow = ChildEndowment {
 //!     caps: &[(4, 0b11)], // our slot 4, read/write, landing in the child's slot 0
 //!     fault: Some(7), // our slot 7 holds its supervision endpoint
-//!     ..ChildEndowment::new()
+//!     ..ChildEndowment::new(Retention::Nothing)
 //! };
 //!
 //! assert_eq!(endow.caps.len(), 1);
 //! assert!(endow.maps.is_empty() && endow.blobs.is_empty() && endow.placed.is_empty());
 //! assert_eq!(endow.stack_pages, CHILD_STACK_PAGES);
+//! assert_eq!(endow.retention, Retention::Nothing);
 //!
 //! // A construction sub-server, holding exactly the one program image it may build. That is what
 //! // `blobs` buys: the child is handed *data* it has no capability to reach, so the sub-server
 //! // never needs the whole initrd.
 //! let image = &[0x7f, b'E', b'L', b'F'][..];
-//! let builder = ChildEndowment { blobs: &[(0x2000_0000, image)], ..ChildEndowment::new() };
+//! let builder = ChildEndowment {
+//!     blobs: &[(0x2000_0000, image)],
+//!     ..ChildEndowment::new(Retention::Nothing)
+//! };
 //! assert_eq!(builder.blobs[0].1.len(), 4);
 //! assert!(builder.fault.is_none()); // unsupervised, and visibly so
 //! ```
@@ -72,15 +80,15 @@
 //! pass in the wrong order, so it is worth stating what each one is for:
 //!
 //! ```no_run
-//! # use supervision_proto::{ChildEndowment, build_child, thread_control_block_start};
+//! # use supervision_proto::{ChildEndowment, Retention, build_child, start_child};
 //! # fn demo(own: u64, per_child: u64, elf: &elf::Elf) -> Result<(), ()> {
-//! let endow = ChildEndowment { fault: Some(7), ..ChildEndowment::new() };
+//! let endow = ChildEndowment { fault: Some(7), ..ChildEndowment::new(Retention::Nothing) };
 //!
 //! // `own` pays for OUR scratch mappings; `per_child` is what the child is made of. Passing a
 //! // per-child region as the second argument is what makes a single `DESTROY` reap the whole
 //! // instance, and passing our own would free our page tables under the child.
-//! let tcb = build_child(own, per_child, elf, &endow)?;
-//! thread_control_block_start(tcb, 0, 0, 0);
+//! let child = build_child(own, per_child, elf, &endow)?;
+//! start_child(child, 0, 0, 0); // and the tcb capability goes back here, as declared
 //! # Ok(())
 //! # }
 //! ```
@@ -188,13 +196,25 @@ pub struct ChildEndowment<'a> {
     /// Stack pages, mapped down from [`CHILD_STACK_VA`]. See [`CHILD_STACK_PAGES`] for why this is
     /// a field a caller sets rather than one number for the whole tree.
     pub stack_pages: u64,
+    /// **What the spawner keeps**, the reciprocal of every field above (DECISIONS §142). See
+    /// [`Retention`]. There is no default: [`ChildEndowment::new`] takes it as an argument, so
+    /// `..ChildEndowment::new(Retention::Nothing)` states it rather than inheriting it.
+    pub retention: Retention,
 }
 
 impl<'a> ChildEndowment<'a> {
     /// An endowment of nothing: no capabilities, no mappings, no supervision, and the default
-    /// stack. Every field is public, so the intended use is `..ChildEndowment::new()` at the end of a struct
-    /// literal, which is also what keeps a later field from being a change to every caller.
-    pub const fn new() -> Self {
+    /// stack, retaining whatever `retention` says. Every other field is public, so the intended use
+    /// is `..ChildEndowment::new(Retention::Nothing)` at the end of a struct literal, which is also
+    /// what keeps a later field from being a change to every caller.
+    ///
+    /// **Retention is the one thing this constructor will not supply for you**, and that is
+    /// deliberate (DECISIONS §142). Every other field defaults to "not granted", which is a safe
+    /// default because the failure mode of forgetting one is a child that cannot do something. The
+    /// failure mode of forgetting retention is the opposite: a spawner that silently keeps
+    /// authority over a running child. So it is an argument rather than a default, and the
+    /// nothing-endowment idiom still reads as one line while saying both halves.
+    pub const fn new(retention: Retention) -> Self {
         Self {
             caps: &[],
             placed: &[],
@@ -202,11 +222,80 @@ impl<'a> ChildEndowment<'a> {
             blobs: &[],
             fault: None,
             stack_pages: CHILD_STACK_PAGES,
+            retention,
         }
     }
 }
 
-/// Build a child from `elf` and configure it, ready for [`thread_control_block_start`]. The whole job in one call,
+/// **What the spawner keeps over the child after `START`** (DECISIONS §142). The reciprocal of the
+/// rest of [`ChildEndowment`]: those fields say what the child is given, this one says what the
+/// parent does not let go of.
+///
+/// The tree's answer today is [`Nothing`](Retention::Nothing), which is R0 in §142's vocabulary and
+/// what 25 of the 30 `START` sites already did by calling `cap_delete` a line later. Writing it
+/// down is the point: before this existed the convention was inferable only by grepping for
+/// `cap_delete`, and a spawn path that forgot to decide looked exactly like one that had decided.
+///
+/// **Nothing here can grant an authority the kernel does not offer.** A `ThreadControlBlock`
+/// capability held after `START` authorizes nothing at all: all three of its methods
+/// (`CONFIGURE`, `CAP_INSERT`, `START`) refuse anything but an `Embryo`, and the refusal is in the
+/// scheduler rather than the dispatcher. So retaining one is a claim about intent, not about power,
+/// and that is why the retaining variant has to carry a reason.
+///
+/// # Examples
+///
+/// ```
+/// use supervision_proto::{ChildEndowment, Retention};
+///
+/// // The ordinary case, and it says so out loud rather than by omission.
+/// let ordinary = ChildEndowment { fault: Some(7), ..ChildEndowment::new(Retention::Nothing) };
+/// assert!(matches!(ordinary.retention, Retention::Nothing));
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Retention {
+    /// The spawner keeps nothing. [`start_child`] deletes the `ThreadControlBlock` capability, so
+    /// after `START` the only authority over this child is the region it was built from
+    /// (`MemoryRegion::DESTROY`) and the supervision endpoint it was born under (`REAP`).
+    Nothing,
+    /// The spawner keeps the child's `ThreadControlBlock` capability past `START`, for the reason
+    /// given.
+    ///
+    /// The reason is a required part of the variant rather than a comment beside it, which is
+    /// milestone 50's `InputSpec::Required` shape: a spawn path cannot keep a capability without
+    /// saying why, because the variant will not build. Every one of the five sites that kept theirs
+    /// before §142 was written had no reason at all, and all five turned out to be
+    /// [`Nothing`](Retention::Nothing) once anybody asked.
+    ///
+    /// # BUGS
+    ///
+    /// **The reason is not checked and cannot be.** Nothing reads the string, no gate parses it,
+    /// and `Retention::ThreadControlBlock { reason: "" }` compiles. This is rung one of AGENTS.md's
+    /// ladder for the *question* (you cannot omit the declaration) and rung three for the *answer*
+    /// (the reason is a written record at the thing itself). A caller determined to say nothing can
+    /// still say nothing; what it cannot do is say nothing invisibly.
+    ThreadControlBlock {
+        /// Why this spawner keeps the capability, in the words a reader of the call site needs.
+        reason: &'static str,
+    },
+}
+
+/// **A built child, and what its builder declared it would keep.** What [`build_child`] returns and
+/// [`start_child`] consumes.
+///
+/// The pair exists so the declaration travels with the handle. `build_child` cannot act on
+/// [`ChildEndowment::retention`] itself, because the deletion happens at `START` and `START` is a
+/// separate step (that seam is [`build_child_space`]'s, and milestone 23's live replacement needs
+/// it). Returning the tcb alone would leave the declaration behind at the build site and the
+/// deletion up to whoever remembered, which is the arrangement §142 exists to end.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Child {
+    /// The child's `ThreadControlBlock` capability slot, in the builder's own table.
+    pub tcb: u64,
+    /// What the builder declared it keeps once the child runs.
+    pub retention: Retention,
+}
+
+/// Build a child from `elf` and configure it, ready for [`start_child`]. The whole job in one call,
 /// which is what every caller but the hot-swap operator wants.
 ///
 /// `own_ut` pays for **our** scratch mappings (they are ours, and a child's region must not have our
@@ -218,15 +307,16 @@ pub fn build_child(
     build_ut: u64,
     elf: &elf::Elf,
     endow: &ChildEndowment,
-) -> Result<u64, ()> {
-    let (tcb, aspace) = build_child_space(own_ut, build_ut, elf, endow)?;
-    configure_child(tcb, aspace, elf.entry())?;
-    Ok(tcb)
+) -> Result<Child, ()> {
+    let (child, aspace) = build_child_space(own_ut, build_ut, elf, endow)?;
+    configure_child(child.tcb, aspace, elf.entry())?;
+    Ok(child)
 }
 
 /// Everything [`build_child`] does **except** the final `CONFIGURE`: lay each segment W^X at the VA
 /// it names, map a stack, copy the blobs in, map `maps`, retype a TCB, insert the endowment.
-/// Returns `(tcb, address space)`, both still held by us.
+/// Returns `(child, address space)`, both still held by us. The [`Child`] carries the retention the
+/// endowment declared, so [`start_child`] can act on it without the caller re-stating it.
 ///
 /// Split out for milestone 23's live replacement (DECISIONS §41), which needs to do one more thing
 /// to the child's address space *between* building it and configuring it: map in a device the
@@ -255,7 +345,7 @@ pub fn build_child_space(
     build_ut: u64,
     elf: &elf::Elf,
     endow: &ChildEndowment,
-) -> Result<(u64, u64), ()> {
+) -> Result<(Child, u64), ()> {
     let aspace = retype_obj_from(build_ut, abi::objtype::ADDRESS_SPACE)?;
 
     for seg in elf.segments() {
@@ -419,10 +509,16 @@ pub fn build_child_space(
             return Err(());
         }
     }
-    Ok((tcb, aspace))
+    Ok((
+        Child {
+            tcb,
+            retention: endow.retention,
+        },
+        aspace,
+    ))
 }
 
-/// Bind the address space and set the entry point: the last step before [`thread_control_block_start`]. The `aspace`
+/// Bind the address space and set the entry point: the last step before [`start_child`]. The `aspace`
 /// capability is **consumed** by the kernel here, so this is the moment after which the builder can
 /// no longer shape the child's memory.
 pub fn configure_child(tcb: u64, aspace: u64, entry: u64) -> Result<(), ()> {
@@ -507,11 +603,51 @@ pub fn memory_region_destroy(ut: u64) -> bool {
     unsafe { invoke(ut, abi::memory_region::DESTROY, 0, 0, 0) == 0 }
 }
 
-/// Make `tcb` runnable, with `a0`, `a1`, `a2` in its entry registers. `false` if the thread was
-/// not fully configured (no bound address space or no entry point) and the kernel refused.
-pub fn thread_control_block_start(tcb: u64, a0: u64, a1: u64, a2: u64) -> bool {
+/// **Make `child` runnable and then keep or drop its capability as its endowment declared**, with
+/// `a0`, `a1`, `a2` in its entry registers. `false` if the thread was not fully configured (no bound
+/// address space or no entry point) and the kernel refused.
+///
+/// This is the only way to `START` a child in this tree, and that is the mechanism rather than a
+/// convention (DECISIONS §142). A bare `START` helper taking a slot number would let a spawn path
+/// run a child without ever saying what it keeps over it, which is precisely the state §142 wrote
+/// the [`Retention`] field to make unrepresentable. [`Child`] carries the declaration from
+/// [`build_child`] to here, so no call site has to remember it and none can restate it differently.
+///
+/// **The disposal does not depend on whether `START` succeeded.** Retention is a statement about
+/// what the spawner keeps, not about what worked: under [`Retention::Nothing`] the capability goes
+/// back either way, which is what every call site did by hand before this existed (`START`, then an
+/// unconditional `cap_delete`, then a check of the result).
+///
+/// # Examples
+///
+/// ```no_run
+/// # use supervision_proto::{ChildEndowment, Retention, build_child, start_child};
+/// # fn demo(own: u64, per_child: u64, elf: &elf::Elf) -> Result<(), ()> {
+/// let endow = ChildEndowment { fault: Some(7), ..ChildEndowment::new(Retention::Nothing) };
+/// let child = build_child(own, per_child, elf, &endow)?;
+/// // The capability is gone after this line, because the endowment said so.
+/// start_child(child, 0, 0, 0);
+/// # Ok(())
+/// # }
+/// ```
+///
+/// # BUGS
+///
+/// **The retaining branch has no caller and therefore no test.** Every spawn site in the tree
+/// declares [`Retention::Nothing`] (DECISIONS §142 chose R4 declaring R0), so the arm that keeps
+/// the capability is reached by nothing that runs, and this crate is excluded from `script/test`'s
+/// host pass anyway for its unconditional `user_rt` dependency. The arm is three lines and does
+/// nothing, which is the only reason that is tolerable; the first site that declares
+/// [`Retention::ThreadControlBlock`] is exercising it for the first time and should say so.
+pub fn start_child(child: Child, a0: u64, a1: u64, a2: u64) -> bool {
     // SAFETY: as above: the kernel validates the capability and the method.
-    unsafe { invoke(tcb, abi::thread_control_block::START, a0, a1, a2) == 0 }
+    let started = unsafe { invoke(child.tcb, abi::thread_control_block::START, a0, a1, a2) == 0 };
+    match child.retention {
+        Retention::Nothing => cap_delete(child.tcb),
+        // The reason is the caller's, recorded at the call site; nothing here reads it.
+        Retention::ThreadControlBlock { reason: _ } => {}
+    }
+    started
 }
 
 /// Trap. A half-built system is not worth limping along, and a fault is legible: the kernel prints

@@ -722,13 +722,41 @@ the board never wedges in the loop, it only stays in it.
 
 **Two facts this tree does not have, and the bench gets both in the first four minutes.**
 
-**Does this OpenSBI implement SRST reset type 1?** The shutdown path is in use, so the extension
-exists and the `ecall` arrives; that says nothing about which reset *types* this vendor firmware
-build accepts, and an implementation is allowed to support any subset. `arch::semihosting::reboot`
-returns `sbiret.error` and the kernel prints it, so the console answers rather than this note
-guessing. If it comes back `-2` (`SBI_ERR_NOT_SUPPORTED`), the unattended series is not available by
-this route and the milestone needs a different mechanism (a smart plug power-cycling the board is
-the obvious one, and radon already has one; see notes/vf2-bench-rig in MEMORY).
+**Answered on the bench, 2026-09-04, and the answer is a third outcome this note did not predict.**
+radon's OpenSBI **implements** SRST reset type 1: the `ecall` returns no error, and the SoC resets.
+**The board does not come back.** U-Boot SPL restarts, cannot reach the PMIC over i2c, retries and
+hangs. From `target/board/radon-2026-09-04-srst-reset-pmic.log`, in file order:
+
+```
+line   3: U-Boot SPL 2021.10 (Feb 12 2023 - 18:15:33 +0800)     <- the power-on boot
+line 241: nife on RISC-V (rv64, S-mode, Sv39)
+line 399: soak-reboot: rebooting now (SBI SRST system_reset, reset type 1, cold reboot).
+line 401: i2c read: write daddr 36 to
+line 403: i2c read: write daddr 36 to            (repeating)
+     ...: cannot read pmic power register
+```
+
+**So the outcome table below is incomplete**, and the missing row is the one that actually happened:
+the firmware neither refuses with `-2` nor goes dark at the `ecall`. It accepts, resets, and the
+*firmware on the way back* fails. Something the PMIC needs is not reinitialised by a warm SoC reset
+the way it is by removing power, and U-Boot 2021.10's SPL has no recovery for it.
+
+**What it settles.** An unattended series is not available on radon by this route. The escape works
+and was verified the same evening (`soak-reboot: DISARMED at t=75s`, sent mid-soak, with the soak
+carrying on past the 120s mark it would otherwise have rebooted at), so the mechanism is sound and
+the firmware is the wall.
+
+**And it retires a guess.** Milestone 249's block refused a smart-plug series as *"a lane spent on a
+guess until the firmware has actually refused reset type 1"*. The firmware has now effectively
+refused, in a way no amount of reading could have predicted, so milestone 224 (nothing can
+power-cycle radon, so a hung soak needs a person) moves from a convenience to the only remaining
+route to an unattended series.
+
+**A correction, recorded because it cost the architect an hour of a late evening.** The maintainer
+reported this working, twice, from the `U-Boot SPL` banner at line 3 of that log, read out of `grep`
+output whose order is the file's rather than the event's. That banner is the power-on boot. Nothing
+in the transcript ever showed a boot on the far side of a reset. **The tell is that the reboot line
+is at 399 and the banner at 3**, and the only reliable reading is line order within one segment.
 
 **Does the escape work on this cable?** Nothing in the kernel can prove it: a UART cannot receive a
 byte it sends, so a receive path that is miswired, unpowered at the adapter, or held by something
@@ -822,6 +850,7 @@ Read this against the log, in this order; the first row that matches is the one 
 | No `DISARMED` after pressing keys for a beat or two | The receive path is dead, and the escape does not exist on this cable | **Stop.** Power off. Check the adapter's TX into the board's RX and the ground; nothing else here is safe until this works. |
 | `soak-reboot: DISARMED` on boot 1 with nobody typing | Something wrote to the port, or U-Boot left a byte the arming drain did not catch | Detach anything else holding the port. Harmless: it fails toward not rebooting. |
 | `rebooting now`, then `U-Boot SPL` a few seconds later | **The mechanism works.** SRST reset type 1 is implemented and the loop is running. | Nothing. This is the series. |
+| `rebooting now`, then U-Boot SPL's `i2c read` retries and `cannot read pmic power register` | **What radon actually does** (2026-09-04). The reset happens and the firmware cannot re-init the PMIC on the way back. Not a refusal and not silence: a third outcome. | Power-cycle to recover. The route is closed on this board; milestone 224 is the alternative. |
 | `rebooting now`, then `soak-reboot: FAILED ... sbiret.error=-2` | This OpenSBI implements SRST shutdown and **not** cold reboot | The route is closed. The soak keeps running and the board is fine. A smart-plug power cycle is the alternative mechanism; raise it. |
 | `rebooting now`, then nothing, and the board is dark | The firmware treated reset type 1 as a shutdown | Power the board back on. Same conclusion as the row above; record which of the two happened, because they are different firmware bugs. |
 | `rebooting now`, then nothing, and the board is powered but silent | It reset and hung before SPL, or the console dropped | Power-cycle. If it recurs at the same point, that is a finding about the reset path and worth more than the distribution. |
