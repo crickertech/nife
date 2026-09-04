@@ -1,6 +1,8 @@
 # 188. The IPC fastpath: the gate measures a shape userspace does not use, and three cheaper cuts come before a hand-written path
 
-**Status: NOT-STARTED.** Minted 2026-08-28, calef, out of the lane that gated the fastpath footprint
+**Status: PARTIAL 2026-09-04.** Phases 1 to 3 are built and measured; phase 4 is calef's and is
+untouched. The results are in "What phases 1 to 3 measured" below, and they change the
+recommendation's arithmetic without changing its conclusion. Minted 2026-08-28, calef, out of the lane that gated the fastpath footprint
 on the third architecture (pull request #574). The provisional framing he gave it was *"a
 hand-maintained IPC fastpath, so the common case stops paying for the general one."* The title
 changed because the scoping work below found that the premise needs checking before the fastpath
@@ -8,7 +10,7 @@ does: the gate that says we are over target is measuring an IPC shape that essen
 program in this tree performs, and the largest single item it reports on aarch64 is a symbol of
 which 94% is never fetched.
 
-**Gate: DECISION.** Phases 1 to 3 below are a lane's own call and need nobody. Phase 4, a second
+**Gate: DECISION.** Phase 4 only; phases 1 to 3 needed nobody and are done. Phases 1 to 3 below are a lane's own call and need nobody. Phase 4, a second
 hand-written path through the kernel's IPC, is calef's: it is a standing verification obligation and
 a permanent maintenance cost, and this block recommends against starting it until phases 1 to 3 have
 reported and milestone 74 (cycle counters) on milestone 127 (the seL4 machine) can observe whether
@@ -402,3 +404,144 @@ its own scope note, its own `DECISIONS` section, and calef.
 
 Names: nothing new is minted here. If phase 1 splits the gated figure in two, the two names are
 calef's like every other name in the tree, and a lane should ship provisional ones and say so.
+
+## What phases 1 to 3 measured
+
+*Built 2026-09-04, one lane, pull request #732. Every figure here is from a release kernel in that
+lane's worktree; the control runs are named where one was needed.*
+
+**The premise held, and it had drifted a little.** Re-measured at `61e30dcb`, the SEND/RECV closure
+is 5,888 on aarch64 (the block said 5,788 at `fc7b04e7`) and the CALL/reply closure is 7,576 (the
+block said 7,516). `exception_vectors` is still 2,020 bytes of sixteen entries of which a syscall
+fetches one. Both findings the milestone was built on are true.
+
+**Two of the block's supporting counts were low and are worth correcting**, because they were
+counted honestly and the tree grew. Files importing `user_rt::call` is 35 rather than 25,
+`recv_cap` 23 rather than 15, `reply` 20 rather than 11. The one that moves the argument is `send`,
+at 64 files: a bare `SEND` is widely used, and it is a genuinely different shape (one-way
+notification) rather than half of a round trip. **That is the argument for reporting two numbers
+rather than replacing one with the other**, and it is what the gate now does.
+
+### Phase 1: the gate reports and checks two shapes
+
+`ipc_send_recv` and `ipc_call_reply`, provisional names. `ipc_fastpath` survives as a derived
+figure, the **worse** of the two rather than the average or the sum, because one round trip is one
+shape or the other; it keeps its old name because a dozen places in the tree cite it, and it is
+recorded rather than checked, since it is the max of two numbers that are each already checked.
+
+`notes/benchmarks.md`'s "`SEND`, `RECV`, `SEND`, `RECV`" claim is corrected there: **three syscalls
+to seL4's two**, not four.
+
+### Phase 2: aarch64's entry figure is honest, and nothing got faster
+
+One 128-byte vector slot instead of all sixteen, plus `exception_restore` (92 bytes), which runs on
+every syscall's return leg and was in neither figure. aarch64 `syscall_entry` **3,304 to 1,508**.
+riscv64 needs no equivalent (`stvec` is direct-mode, one handler, no table) and x86_64 needs none
+(no IDT entry at all), so the asymmetry the milestone predicted is confirmed in both directions and
+is now argued in the script beside the `ENTRY` table.
+
+### Phase 3: the cheap method does not transfer, and finding that out is the result
+
+**Milestone 156's `#[inline(never)]` extraction, applied to the closure, made the number bigger.**
+Four cold arms went out of line and aarch64's `ipc_send_recv` moved **5,888 to 6,220**, because a
+closure walk follows the new call and counts the same bytes under a new name. 156's method works on
+`syscall_entry` because that half is **flat**. On a closure, extraction is a no-op unless the walk
+is told the callee is cold.
+
+**So the gate now reads `#[cold]` out of the workspace's own source** rather than from a
+hand-maintained list inside itself. That is the AGENTS.md ladder moving up a rung: the claim lives
+where a reader and the optimizer both already meet it, a lane cannot widen the exclusion by editing
+the gate, and outlining a genuinely cold arm is now credited automatically. `strand_callers_of` and
+its two siblings dropped out of the regex and are carried by their own attributes.
+
+The four arms: `finish_switch`'s reap, `schedule`'s killed-thread conversion (the *test* stays hot,
+two loads and a compare; only the body moved), `schedule`'s self-pop heal, and `set_ipc_aborted`,
+whose four call sites are all on these closures.
+
+| | `ipc_send_recv` | `ipc_call_reply` | `syscall_entry` | total |
+|---|---|---|---|---|
+| aarch64, before | 5,888 | (7,576) | 3,304 | 9,192 |
+| aarch64, after | **5,356** (-9.0%) | **7,028** (-7.2%) | **1,508** | **8,536** |
+| riscv64, before | 5,122 | (6,390) | 1,828 | 6,950 |
+| riscv64, after | **4,632** (-9.6%) | **5,936** (-7.1%) | **1,828** | **7,764** |
+| x86_64, before | 6,767 | (8,657) | 1,637 | 8,404 |
+| x86_64, after | **6,236** (-7.8%) | **8,122** (-6.2%) | **1,637** | **9,759** |
+
+Parenthesised figures are what the same binary would have reported under phase 1's roots; they were
+not measured before this milestone. **A control was run** to attribute the shrink: the new script
+logic against the pre-extraction `sched.rs` reproduces the "before" row exactly on all three ISAs,
+so the whole 6 to 10% is the extraction and none of it is the mechanism.
+
+**The cost, measured rather than asserted.** +0.17% retired instructions on `ipc_rtt` and +0.24% on
+`call_reply` (aarch64, icount, same tree with and without the extraction). That is the outlined
+calls, and `script/bench --check` passes. **No cache effect was measured, because none can be**:
+nothing in this tree models a cache and the HVF host's L1i is several times the boards'.
+
+**One of the block's open questions is closed structurally.** `kmem::recycle` left the closure on
+every architecture. It was reachable only through `finish_switch`'s reap arm, so a successful
+rendezvous cannot reach it, and that is now a property of the code rather than an assertion in a
+script.
+
+## What this says about phase 4, which is the question calef is holding
+
+**Phases 1 to 3 did not close the gap and were never going to.** The shape the system runs is
+`ipc_call_reply` at **5,936 to 8,122 bytes** against a 4 KiB target: **48% to 103% over**, after the
+cheap method has been applied and after the accounting was made honest. The block's own closing
+condition was *"if phase 3 gets the CALL/reply closure under 4 KiB, phase 4 is not worth building"*.
+It did not, by a wide margin, on any architecture.
+
+**But three things changed in phase 4's favour, and one against it.**
+
+For it. The number a fastpath would be measured against **can now be trusted**, which was the
+block's second reason to wait and is discharged: the gate reports the shape services run, aarch64's
+entry figure is no longer gameable by 1,892 bytes, and the cold classification is derived from the
+code. **The scheduler bypass is still the largest skippable block**: `schedule` + `finish_switch` +
+`wake` + `switch_to` is 2,380 bytes of the 7,028, 34%, and phase 3 shrank it by only 256. And
+**milestone 74's riscv64 half landed the same day**, so radon can read real cycles through the SBI
+PMU extension, which the block priced as waiting on milestone 127's silicon.
+
+Against it. **Radon is not sufficient on its own, and the honest version of that must be said.**
+`kernel/src/arch/riscv64/pmu.rs` gives cycles, and a cycle count on the U74 with a 32 KB L1i would
+show *whether the round trip got faster*. It would not show *why*, and Liedtke's claim is
+specifically about the **application's** working set being evicted, which is a displacement
+measurement rather than a latency one. Milestone 134's E4 already measured 0 to 3% application
+displacement under IPC load and is the instrument that would have to move. So radon turns "no
+observation at all" into "a latency observation with no attribution", which is progress and is not
+the experiment.
+
+**The recommendation, unchanged in direction and better supported.** Do not start phase 4 on
+footprint arithmetic alone. Start it when radon can show a *latency* difference on a padded build,
+which is milestone 134's E3 experiment run on silicon rather than under icount and is a day of work
+rather than a project. If E3-on-radon shows nothing, phase 4 is a standing verification obligation
+bought for a number nobody can observe, and this milestone should close having said so. If it shows
+something, phase 4's option 1 (a fast path that still calls the proved `Rendezvous` methods and
+skips only the scheduler and the error plumbing) is aimed at 34% of the closure and is the one to
+build first.
+
+## Follow-on
+
+- **Recorded.** The closure half of `script/fastpath-footprint` counts bytes no IPC fetches, for the
+  same reason its flat half does: whole symbol sizes, so a cold tail inside `ipc_call` or
+  `ipc_recv_cap` counts. Phase 3 outlined the arms it could justify; the rest are inside conditional
+  branches the script deliberately does not follow. In the script's own `BUGS` section, beside the
+  measurement.
+- **Recorded.** `--features fastpath_pad` still works on two of three architectures, because
+  x86_64 has no `fastpath_pad` module where `kernel/src/arch/aarch64/fastpath_pad.rs` and
+  `kernel/src/arch/riscv64/fastpath_pad.rs` exist. In `script/fastpath-footprint`'s `BUGS` section.
+  It blocks running milestone 134's E3 on xenon and not on radon, which is the machine that matters
+  for the paragraph above.
+- **Proposed.** Run milestone 134's E3 (the footprint-perturbation experiment) on radon with
+  milestone 74's cycle counters, which is the measurement that decides phase 4.
+  `design/roadmap/proposals/e3-on-radon-with-real-cycles.md`.
+- **Proposed.** DECISIONS §144's 16 KiB ceiling is stated over "the sum of `ipc_fastpath` and
+  `syscall_entry`", and this milestone changed both terms. The honest subject is now
+  `max(ipc_send_recv, ipc_call_reply) + syscall_entry`, which is what the gate prints as `total`,
+  and the headroom §144 recorded was measured on the smaller shape (x86_64 is now 60% of the
+  ceiling, not 51%). `design/decisions/` is not a lane's to amend, so it is written up as
+  `design/roadmap/proposals/the-ceiling-applies-to-a-number-that-moved.md` for whoever holds §144.
+- **Outstanding.** Phase 4 itself, the hand-written fastpath. Untouched, gated on calef, and the
+  section above says what would decide it. Checked against the tree: `kernel/src/sched.rs` has one
+  path through `ipc_call`, `ipc_recv_cap` and `ipc_reply` and no second one.
+- **Refused.** `ReplyRecv` fusion, which would take the round trip from three syscalls to two. It is
+  a syscall-surface change, DECISIONS §10 and §16 govern it, and the block already says it is named
+  so it is tracked and not so it is planned. A lane must not take it.

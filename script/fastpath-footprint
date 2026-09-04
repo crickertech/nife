@@ -13,11 +13,31 @@
 # **What this measures**: an UPPER BOUND on the instruction footprint of an IPC round trip, in two
 # parts, because they are two different quantities and averaging them would hide both.
 #
-#   ipc_fastpath   the transitive closure of non-cold calls from the IPC and switch roots. Whole
-#                  symbol sizes, so a cold tail inside a hot function counts. Upper bound.
-#   syscall_entry  the trap vector, the exception dispatcher and `syscall::dispatch`, FLAT with no
-#                  closure. A syscall traverses one path through the decoder, but the decoder's own
-#                  bytes are on every syscall, and its other arms are not on this path at all.
+#   ipc_send_recv   the transitive closure of non-cold calls from the SEND/RECV roots. Whole
+#                   symbol sizes, so a cold tail inside a hot function counts. Upper bound.
+#   ipc_call_reply  the same closure from the CALL/RECV_CAP/REPLY roots. **This is the shape the
+#                   system actually runs**, and it is the larger of the two; see below.
+#   ipc_fastpath    the worse of those two, which is what a round trip costs. Derived, and kept
+#                   under its old name because the tree cites it in a dozen places.
+#   syscall_entry   the trap entry, the exception dispatcher, the return path and
+#                   `syscall::dispatch`, FLAT with no closure. A syscall traverses one path through
+#                   the decoder, but the decoder's own bytes are on every syscall, and its other
+#                   arms are not on this path at all.
+#
+# **Two closures and not one, since 2026-09-04 (milestone 188 phase 1).** This gate measured only
+# the SEND/RECV shape until then, which is the shape of the `ipc_rtt_el0` benchmark and of
+# essentially no service in this tree: a client issues `CALL` and a server issues `RECV_CAP` then
+# `REPLY`, and `kernel/src/bench.rs`'s own `call_reply` doc calls that "the one-endpoint shape real
+# services use". Measured on the same binary, the CALL/reply closure is **29% larger** on aarch64
+# (7,576 against 5,888), because `ipc_recv_cap` and `ipc_call` carry the one-shot Reply mint, the
+# capability-table insert and the `WaitRole::Reply` parking that DECISIONS §12 requires. Averaging
+# them would hide both, and reporting only the smaller one understated the number this gate exists
+# to bound. `ipc_fastpath` is the max rather than the sum because one round trip is one shape or the
+# other, never both.
+#
+# Names: `ipc_send_recv` and `ipc_call_reply` are **provisional** (milestone 188's lane, 2026-09-04).
+# Every name in this tree is calef's; these two are shipped so the measurement can exist and are
+# expected to change.
 #
 # **`syscall_entry` is not like for like across the three ISAs, and the reason is architectural.**
 # aarch64 and riscv64 route a syscall through the same vector table and cause decoder as every other
@@ -65,20 +85,25 @@
 #
 # BUGS
 #
-#   - **It gates two of the three supported architectures.** `arches` below is `aarch64 riscv64`
-#     and the `case` exits 2 on anything else, so x86_64's IPC fastpath is unmeasured. That is an
-#     omission rather than a decision: x86_64 became a `script/test` target on 2026-08-24
-#     (milestone 161 item 4) and nobody widened this list. The sibling gate this file copies its
-#     shape from settled the same gap on 2026-08-27 (see `script/stack-frame-check`'s own BUGS,
-#     which makes x86_64 reachable via `--arch` while holding it out of the default set until a
-#     found offender is dispositioned), and that is the shape to follow here.
-#   - **Closing it needs two files that do not exist**, so it is not a one-word widening:
-#     `bench/fastpath-x86_64.txt` (the baseline, where both other architectures have one) and
-#     `kernel/src/arch/x86_64/fastpath_pad.rs` (which `--features fastpath_pad` needs). The two
-#     tripwire file sets diverged along the way: `bench/baseline-<arch>.txt` is complete at three
-#     and `bench/fastpath-<arch>.txt` is at two. The `ROOTS` table below also needs an x86_64 row,
-#     naming that ISA's trap-entry and dispatch symbols.
-#   - See notes/architecture-list-sweep.md, finding 11, and milestone 186, which owns this.
+#   - **`arches` below is a hardcoded string and derives nothing.** All three supported
+#     architectures are in it today, so nothing is silently unmeasured, but a fourth ISA arriving
+#     will be measured here only when somebody remembers to type it. That is finding 11 of
+#     notes/architecture-list-sweep.md and milestone 186 owns the mechanism; taking a hand-fix here
+#     would be a second hand-fix of the same defect. (The older text of this bug said the script
+#     gated two of three and that x86_64 had no baseline. Both were true when written and neither
+#     is now: x86_64 was widened in on 2026-08-27, `bench/fastpath-x86_64.txt` exists, and
+#     `kernel/src/arch/x86_64/fastpath_pad.rs` does not, so `--features fastpath_pad --arch x86_64`
+#     is still the one thing here that only works on two of three.)
+#   - **`syscall_entry` is flat, so an inlining decision can move bytes into it that no syscall
+#     fetches.** Three instances in two days on 2026-09-04, each closed with `#[inline(never)]` on
+#     the folded callee. `design/roadmap/proposals/a-flat-entry-set-counts-bytes-no-syscall-fetches.md`
+#     holds them and the options. Milestone 188 phase 2 fixed the largest *structural* instance of
+#     the same shape (aarch64's sixteen-entry vector table, at `ENTRY_SLICE`) but did nothing about
+#     the inlining one, which is a different mechanism with the same symptom.
+#   - **`ipc_call_reply` is still an upper bound and a loose one**, for the reason the whole gate is:
+#     whole symbol sizes, so a cold tail inside `ipc_call` or `ipc_recv_cap` counts. Milestone 188
+#     phase 3 outlined the cold tails it could find; the rest are inside branches this script cannot
+#     see, because its `CALL` regex deliberately does not follow conditional branches.
 
 set -e
 cd "$(dirname "$0")/.."
@@ -144,8 +169,13 @@ for arch in $arches; do
     trap 'rm -rf "$tmp"' EXIT
     "$tools/llvm-objdump" -d --no-show-raw-insn "target/$target/release/kernel" > "$tmp/dis.txt"
 
+    # **The workspace's own `#[cold]` claims, read out of the source** (milestone 188 phase 3).
+    # See `COLD` below for why this is derived rather than listed.
+    cold_fns=$(grep -rhA3 --include='*.rs' '#\[cold\]' kernel/src crates \
+        | grep -oE 'fn [a-z_0-9]+' | sed 's/fn //' | sort -u | tr '\n' ' ')
+
     ARCH="$arch" DIS="$tmp/dis.txt" BASE="bench/fastpath-$arch.txt" SAVE="$save" \
-        NOCHECK="$features" python3 - <<'PYEOF' || status=1
+        COLD_FNS="$cold_fns" NOCHECK="$features" python3 - <<'PYEOF' || status=1
 import os, re, sys, collections
 
 arch, dis_path, base_path, save = os.environ["ARCH"], os.environ["DIS"], os.environ["BASE"], os.environ["SAVE"]
@@ -201,10 +231,19 @@ for line in open(dis_path, encoding="utf8", errors="replace"):
 # tolerance below, so this is noise rather than a bound that needs a different formula.
 size = {s: last.get(s, start[s]) - start[s] + 4 for s in start}
 
-# **The roots: what "the IPC fastpath" is.** This list is a decision, not a heuristic, and it is the
-# question notes/benchmarks.md named as the thing blocking this gate from existing. Matched by
-# regex because mangled names carry a per-target crate disambiguator that is not stable.
-ROOTS = re.compile(r"kernel5sched(8ipc_send|8ipc_recv|8schedule|13finish_switch|11current_cap)")
+# **The roots: what "the IPC fastpath" is.** These lists are a decision, not a heuristic, and they
+# are the question notes/benchmarks.md named as the thing blocking this gate from existing. Matched
+# by regex because mangled names carry a per-target crate disambiguator that is not stable.
+#
+# `schedule`, `finish_switch` and `current_cap` are in both, because both shapes reach them: the
+# capability lookup that IS the security check, and the general scheduler re-selection that a
+# hand-written fastpath would be trying to skip.
+SHAPES = [
+    ("ipc_send_recv",
+     re.compile(r"kernel5sched(8ipc_send|8ipc_recv|8schedule|13finish_switch|11current_cap)")),
+    ("ipc_call_reply",
+     re.compile(r"kernel5sched(8ipc_call|12ipc_recv_cap|9ipc_reply|8schedule|13finish_switch|11current_cap)")),
+]
 
 # **Cold, so excluded from the closure.** Two families, for two different reasons.
 #
@@ -216,16 +255,36 @@ ROOTS = re.compile(r"kernel5sched(8ipc_send|8ipc_recv|8schedule|13finish_switch|
 # a thread exits and never during an IPC. Including it put 11.2 KiB on this number when the honest
 # figure is 5.6, which is exactly the over-count that would make the gate meaningless.
 #
-# `strand` joins the teardown family on 2026-09-04 (milestone 254). `sched::strand_callers_of` frees
-# the callers a server can no longer answer, and one of its four call sites is the armed-kill
-# conversion at the top of `schedule()`, which is a root here. It is guarded by `killed`, so it runs
-# when a thread is being torn down and never on a healthy IPC, and its helpers carry `#[cold]` and
-# `#[inline(never)]` so the claim is in the code as well as in this regex. Left in the closure it
-# put 1,363 bytes on x86_64's figure, 20%, which is the same over-count this list exists to refuse.
+# **The second family is DERIVED from the source, not listed here** (milestone 188 phase 3), and
+# that is the more important half. This regex is a hand-maintained list in a gate, which is rung two
+# at best: a lane that wanted a smaller number could edit it, and a lane that outlined a genuinely
+# cold arm got no credit for it unless it remembered to. Both happened. Phase 3 outlined four cold
+# arms out of `finish_switch`, `schedule` and the four stale-rendezvous returns, and the closure got
+# **332 bytes BIGGER on aarch64**, because the walk simply followed the new calls and counted the
+# same bytes under new names.
+#
+# So the claim lives where a reader and the optimizer both already meet it, `#[cold]` on the
+# function, and the shell above greps the workspace for it. A lane still cannot shrink this number
+# by editing the gate; it can only shrink it by writing a `#[cold]` in the source, which is a claim
+# in a diff that a reviewer sees and that LLVM acts on. `strand_callers_of` and its two siblings
+# used to be named in the regex (milestone 254, 2026-09-04) and are now covered by their own
+# attributes; left in the closure they put 1,363 bytes on x86_64's figure, 20%.
+#
+# **What is NOT derivable, and stays a regex.** The panic and formatting family is libcore's and
+# carries no attribute we can read. The teardown callees (`revoke`, `destroy`, `unmap`,
+# `KernelStack`, `AddressSpace`, `drop_in_place`, `delete_frame_caps`) are reached only through
+# `finish_switch`'s reap arm and are ordinary functions on their own paths, so `#[cold]` would be a
+# lie about them; they are excluded here because of who reaches them, which is a property of this
+# walk rather than of the function. Including them put 11.2 KiB on a 5.6 KiB figure.
 COLD = re.compile(
     r"panic|expect_failed|unwrap_failed|slice_index|9panicking|4core3fmt|assert"
     r"|6revoke|7destroy|drop_in_place|delete_frame_caps|unmap|KernelStack|12AddressSpace"
-    r"|strand_"
+    + "".join(
+        # Length-prefixed, because both Rust manglings write `<len><ident>` and a bare name would
+        # match any symbol containing it as a substring.
+        r"|\d+" + re.escape(f) + r"\b"
+        for f in sorted(os.environ.get("COLD_FNS", "").split())
+    )
 )
 
 # **The entry set, and x86_64 is not the same shape as the other two.** On aarch64 and riscv64 a
@@ -258,35 +317,76 @@ COLD = re.compile(
 #                        other list would put 918 bytes on this number that no syscall fetches.
 #   user_return,         first entry to ring 3, and the interrupt-stack trampoline. Once per thread
 #   dispatch_on_...      and per IDT trap respectively, neither per syscall.
+#
+# **aarch64 counts ONE vector entry, not the whole table** (milestone 188 phase 2, 2026-09-04).
+# `exception_vectors` is 2,020 bytes and is not code in the ordinary sense: vectors.s builds it as
+# sixteen `VECTOR_ENTRY` macros at `.balign 0x80`, because "the hardware requires 2048-byte
+# alignment. 16 entries x 128 bytes = 2048." Each entry is self-contained (SAVE_CONTEXT inline, then
+# `bl exception_dispatch`, then `b exception_restore`), so an `svc` from EL0 lands in exactly one of
+# them, index 8 (lower EL AArch64 synchronous), and fetches **at most 128 bytes**. The other 1,892
+# are page faults, IRQs, kernel-mode traps and the AArch32 entries this kernel will never support.
+#
+# 128 and not the ~104 bytes of instructions the macro actually emits, because the entry occupies an
+# aligned 128-byte slot and the fetch is of cache lines rather than of instructions. This stays an
+# upper bound, which is the direction every other choice in this script leans.
+#
+# **This is an accounting fix and nothing got faster.** aarch64's `syscall_entry` drops about 1,892
+# bytes on the day this lands. The reason it is a fix rather than a saving is that the old figure was
+# gameable in exactly the way AGENTS.md's ranking function forbids: a lane could have "improved" this
+# gate by 57% without changing one fetched instruction.
+#
+# riscv64 needs no equivalent. `stvec` is in direct mode (exceptions.rs: "all traps to one handler"),
+# so there is one `trap_entry` and no table to over-count. x86_64 needs none either, for the reason
+# already argued below: it consults no IDT entry at all.
+ENTRY_SLICE = {"exception_vectors": 128}
+
+# `exception_restore` runs on the return leg of every syscall on aarch64 and was in neither figure
+# until 2026-09-04. It is the twin of riscv64's `trap_return` and x86_64's `isr_restore`, both of
+# which their lists already carry, so its absence was an asymmetry rather than a judgement.
 ENTRY = {
-    "aarch64": [r"^exception_vectors$", r"^exception_dispatch$", r"kernel7syscall8dispatch"],
+    "aarch64": [r"^exception_vectors$", r"^exception_dispatch$", r"^exception_restore$",
+                r"kernel7syscall8dispatch"],
     "riscv64": [r"^trap_entry$", r"^trap_return$", r"^riscv_trap_dispatch$", r"^riscv_trap_body$",
                 r"kernel7syscall8dispatch"],
     "x86_64": [r"^x86_syscall_entry$", r"^x86_syscall_handler$", r"^isr_restore$",
                r"kernel7syscall8dispatch"],
 }[arch]
 
-roots = [s for s in size if ROOTS.search(s)]
-if not roots:
-    print(f"fastpath-footprint: {arch}: no root symbols matched; the kernel or the names moved", file=sys.stderr)
-    sys.exit(1)
+shape_totals, shape_syms = {}, {}
+for label, rootre in SHAPES:
+    roots = [s for s in size if rootre.search(s)]
+    if not roots:
+        print(f"fastpath-footprint: {arch}: no {label} root symbols matched; the kernel or the names moved",
+              file=sys.stderr)
+        sys.exit(1)
+    seen, stack = set(), list(roots)
+    while stack:
+        s = stack.pop()
+        if s in seen or s not in size or COLD.search(s):
+            continue
+        seen.add(s)
+        stack.extend(calls.get(s, ()))
+    shape_totals[label] = sum(size[s] for s in seen)
+    shape_syms[label] = seen
 
-seen, stack = set(), list(roots)
-while stack:
-    s = stack.pop()
-    if s in seen or s not in size or COLD.search(s):
-        continue
-    seen.add(s)
-    stack.extend(calls.get(s, ()))
-closure_total = sum(size[s] for s in seen)
+closure_total = max(shape_totals.values())
 
 entry_syms = [s for s in size if any(re.search(p, s) for p in ENTRY)]
-entry_total = sum(size[s] for s in entry_syms)
+entry_total = sum(ENTRY_SLICE.get(s, size[s]) for s in entry_syms)
 total = closure_total + entry_total
 
-print(f"    ipc_fastpath  {closure_total:6d} bytes over {len(seen)} symbols")
-print(f"    syscall_entry {entry_total:6d} bytes over {len(entry_syms)} symbols (flat, no closure)")
-print(f"    total         {total:6d} bytes ({total/1024:.2f} KiB), an upper bound")
+for label, _ in SHAPES:
+    print(f"    {label:15s}{shape_totals[label]:6d} bytes over {len(shape_syms[label])} symbols")
+print(f"    ipc_fastpath   {closure_total:6d} bytes, the worse of the two shapes")
+print(f"    syscall_entry  {entry_total:6d} bytes over {len(entry_syms)} symbols (flat, no closure)")
+print(f"    total          {total:6d} bytes ({total/1024:.2f} KiB), an upper bound")
+
+# **What is checked.** The two shapes and the entry set. `ipc_fastpath` is recorded and printed but
+# not checked on its own, because it is the max of two numbers that are each already checked: a
+# separate check on it could only ever fire alongside one of theirs and would say less about which.
+GATED = tuple(
+    [(label, shape_totals[label]) for label, _ in SHAPES] + [("syscall_entry", entry_total)]
+)
 
 nocheck = os.environ.get("NOCHECK", "")
 if nocheck:
@@ -302,7 +402,7 @@ if nocheck:
             if line and not line.startswith("#"):
                 k, v = line.split()
                 want[k] = int(v)
-        for key, got in (("ipc_fastpath", closure_total), ("syscall_entry", entry_total)):
+        for key, got in GATED + (("ipc_fastpath", closure_total),):
             ref = want.get(key)
             if ref:
                 print(f"    {key}: {got/ref:.2f}x the un-padded baseline ({ref} -> {got})")
@@ -316,8 +416,15 @@ if save:
             "# bench/fastpath-%s.txt: an upper bound on the IPC fastpath's instruction footprint.\n"
             "# Written by script/fastpath-footprint --save. Updating this file is a statement that a\n"
             "# footprint change is intended and understood; do it in the commit that causes it.\n"
-            "# See notes/benchmarks.md for what the two numbers mean and what they are measured against.\n"
-            "ipc_fastpath %d\nsyscall_entry %d\n" % (arch, closure_total, entry_total)
+            "# See notes/benchmarks.md for what the numbers mean and what they are measured against.\n"
+            "#\n"
+            "# `ipc_send_recv` and `ipc_call_reply` are the two IPC shapes, measured separately since\n"
+            "# milestone 188 phase 1 because the system runs the second and this gate measured only the\n"
+            "# first. `ipc_fastpath` is DERIVED, the worse of the two, kept under its old name because\n"
+            "# the tree cites it; it is not checked separately. Both shapes and `syscall_entry` are.\n"
+            "ipc_send_recv %d\nipc_call_reply %d\nipc_fastpath %d\nsyscall_entry %d\n"
+            % (arch, shape_totals["ipc_send_recv"], shape_totals["ipc_call_reply"],
+               closure_total, entry_total)
         )
     print(f"    wrote {base_path}")
     sys.exit(0)
@@ -351,7 +458,7 @@ for line in open(base_path):
 # is not narrower than anything the data supports in either direction.
 TOL = 0.05
 bad = False
-for key, got in (("ipc_fastpath", closure_total), ("syscall_entry", entry_total)):
+for key, got in GATED:
     ref = want.get(key)
     if ref is None:
         print(f"fastpath-footprint: {arch}: baseline has no {key}; run --save", file=sys.stderr)
