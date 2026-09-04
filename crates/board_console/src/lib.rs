@@ -12,6 +12,12 @@
 //! - [`watch`] reads until the policy says stop, teeing every byte to a log file.
 //! - [`progress`] decides, from the text alone, how far the boot got.
 //!
+//! And one part that reads a *screen* rather than a wire (milestone 243), because six of the
+//! machines this project wants to boot have no serial port at all:
+//!
+//! - [`screen`] turns a screendump of nife's framebuffer console back into the text that was drawn
+//!   into it, so that [`progress`] judges a monitor exactly as it judges a cable.
+//!
 //! And one part that reads a capture after the fact rather than a board in front of it:
 //!
 //! - [`lottery`] takes a log of *many* boots and reports what the thread-placement lottery drew
@@ -25,6 +31,8 @@
 //! lib tests alone** under the interpreter, against roughly four minutes for the whole rest of the
 //! workspace. There is no `unsafe` and no dependency anywhere in here, so the rules Miri enforces
 //! (aliasing, provenance, uninitialized reads) have nothing in this call graph to be broken by.
+//! (Milestone 243 gave it one dependency, `bitmap_font`, which is ours, has none of its own, and
+//! contains no `unsafe` either.)
 //!
 //! Ten of the tests could not run there in any case, and both families are worth knowing before
 //! anyone points Miri at this crate by hand. Five in [`port`] reach the host filesystem (`open`,
@@ -152,4 +160,5 @@
 pub mod lottery;
 pub mod port;
 pub mod progress;
+pub mod screen;
 pub mod watch;

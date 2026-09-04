@@ -1,0 +1,29 @@
+# Name: **PROVISIONAL** (milestone 243). A noun, `snake_case`, and it names what it is rather than
+# how it works: a console on a screen. Alternatives considered and their problems, so that ratifying
+# this is a choice rather than an acceptance. `framebuffer_console` is more literal and longer, and
+# "framebuffer" is already the name of the *thing it writes into*
+# (`machine_discovery::framebuffer`), so a reader meeting both would have to hold two senses of one
+# word. `pixel_console` describes the unit rather than the surface. `early_console` says when it
+# runs rather than what it is, and it is wrong about that too: nothing here is early-only.
+# `video_terminal` is taken, by the crate this one deliberately is not (see the module note).
+#
+# calef names crates (AGENTS.md). This ships provisional and expects to change.
+
+[package]
+name = "screen_console"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# The glyphs. Milestone 29's 7x8 bitmap font, already `no_std`, allocation-free and `const`-shaped,
+# and already the font the graphical terminal draws with. Two fonts in one tree would be two
+# pictures of the same text.
+bitmap_font = { version = "0.1.0", path = "../bitmap_font" }
+# The description of the surface, which is the boot handoff's own (`framebuffer::Framebuffer`), so
+# that the thing the loader measured and the thing this paints into are one type rather than two
+# with a copy between them.
+machine_discovery = { version = "0.1.0", path = "../machine_discovery" }

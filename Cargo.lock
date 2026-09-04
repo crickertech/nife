@@ -81,6 +81,11 @@ version = "0.1.0"
 [[package]]
 name = "board_console"
 version = "0.1.0"
+dependencies = [
+ "bitmap_font",
+ "machine_discovery",
+ "screen_console",
+]
 
 [[package]]
 name = "byte_sink_proto"
@@ -401,6 +406,7 @@ dependencies = [
  "pgrep",
  "pmap",
  "ps",
+ "screen_console",
  "soak_page",
  "socket_proto",
  "spin",
@@ -640,6 +646,14 @@ name = "scoped-tls"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e1cf6437eb19a8f4a6cc0f7dca544973b0b78843adbfeb3683d1a94a0024a294"
+
+[[package]]
+name = "screen_console"
+version = "0.1.0"
+dependencies = [
+ "bitmap_font",
+ "machine_discovery",
+]
 
 [[package]]
 name = "sharded-slab"

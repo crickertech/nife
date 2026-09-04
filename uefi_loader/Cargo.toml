@@ -48,9 +48,18 @@ uefi = []
 # deleted.
 elf = { version = "0.1.0", path = "../crates/elf" }
 
-[dev-dependencies]
-# The reader this loader is the writer for. Every encoder in `handoff` is tested by decoding its
-# output with the crate the KERNEL decodes with, so the two cannot drift apart without a host test
-# failing in milliseconds. This is the same rule `byte_sink_proto`, `grant_plan` and `clock_proto`
-# are held to: no party keeps its own copy of a layout two programs agree on.
+# **The reader this loader is the writer for**, and since milestone 243 a build dependency rather
+# than only a test one. It was always the crate that decoded this loader's `hvm_start_info` in the
+# tests below; what changed is that the loader now WRITES something structured into the handoff (the
+# screen the firmware was drawing on, `machine_discovery::framebuffer`) instead of only laying out
+# somebody else's fields. Rule 7: what two binaries agree on is a crate, and the alternative is two
+# spellings of one token with nothing keeping them in step.
+#
+# It is not a §46 decision: `machine_discovery` is ours, in this workspace, and its own single
+# dependency (`dtb`) is ours and has none.
+# Every encoder in `handoff` is tested by decoding its output with the crate the KERNEL decodes
+# with, so the two cannot drift apart without a host test failing in milliseconds. This is the same
+# rule `byte_sink_proto`, `grant_plan` and `clock_proto` are held to: no party keeps its own copy of
+# a layout two programs agree on. It was a `[dev-dependencies]` entry until milestone 243 made it a
+# real one; nothing about the test relationship changed.
 machine_discovery = { version = "0.1.0", path = "../crates/machine_discovery" }

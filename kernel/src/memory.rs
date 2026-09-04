@@ -546,6 +546,32 @@ pub fn record_vtd_region(base: u64, size: u64) {
     *VTD_REGION.lock() = Some((base, size));
 }
 
+/// **The screen's aperture** (start, size), both **physical**, as the boot handoff described it.
+/// `None` on a machine that reported no linear framebuffer, which is every machine booted by
+/// anything but `uefi_loader` today.
+///
+/// Presence here is what gates `mmu::map_everything` mapping the window device-typed, the same role
+/// [`vtd_region`] plays for VT-d. The console does not read this: it holds the address it was armed
+/// with. This exists so that the *mapping* survives the fine map replacing the boot map, which is
+/// the moment a console armed on the boot tables would otherwise start faulting.
+#[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
+pub fn framebuffer() -> Option<(u64, u64)> {
+    *FRAMEBUFFER.lock()
+}
+
+/// **Record the screen's aperture**, from the boot command line (`machine_discovery::framebuffer`).
+///
+/// Must run before `mmu::init`, exactly as [`record_vtd_region`] must, and for the identical
+/// reason: `mmu::map_everything` reads this to decide what to map, and a fact recorded afterwards
+/// is a fact the fine map can no longer act on. The failure that would cause is unusually nasty,
+/// which is why it is stated twice: the console keeps writing to an address that stopped being
+/// mapped, so the first `println!` after the `mov cr3` takes a page fault, and the fault handler
+/// prints, and it faults.
+#[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
+pub fn record_framebuffer(base: u64, size: u64) {
+    *FRAMEBUFFER.lock() = Some((base, size));
+}
+
 /// The real-time clock's register block and which binding it is: `(start, size, kind)`, the
 /// address **physical** and the kind one of `clock_proto::rtc`. `None` on a machine whose device
 /// tree describes no RTC we can drive, which is a state the clock service has an answer for rather
@@ -694,6 +720,9 @@ static SMMU_REGION: IrqSafeMutex<Option<(u64, u64)>> = IrqSafeMutex::new(rank::R
 /// own accessors go through `phys_to_virt`, which is arithmetic, not a promise the address is
 /// mapped).
 static VTD_REGION: IrqSafeMutex<Option<(u64, u64)>> = IrqSafeMutex::new(rank::RAM, None);
+
+/// The screen the boot handoff described (milestone 243). See [`framebuffer`].
+static FRAMEBUFFER: IrqSafeMutex<Option<(u64, u64)>> = IrqSafeMutex::new(rank::RAM, None);
 
 /// The RTC's register block and binding kind (milestone 51). `None` until `init` has run, and on a
 /// machine whose device tree describes neither RTC we can drive.
