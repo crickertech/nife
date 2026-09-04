@@ -456,6 +456,7 @@ besides, being built for dated release grouping; these are capability-shaped and
 | 249 | NOT-STARTED | [The boot lottery is sampled by a person walking to the board, so nine draws is a whole evening](249-the-boot-lottery-is-sampled-by-a-person-walking-to-the-board.md) | SBI SRST is already called with reset type 0; type 1 is a cold reboot, and 3 and 4 clean cores have never been drawn | |
 | 250 | NOT-STARTED | [An unviable mutant is a hole in the measurement that reads as a pass](250-an-unviable-mutant-is-a-hole-that-reads-as-a-pass.md) | `measured_boot` had nine, one of them hiding the crate's only security decision, and no published rate counts them | |
 | 251 | NOT-STARTED | [A `needs-architect` label outlives the question that earned it, so the queue lies](251-a-needs-architect-label-outlives-its-question.md) | nothing takes the label off, so the one query that says what is waiting on the architect can be false | |
+| 252 | NOT-STARTED | [A `PARTIAL` block claims work is remaining and nobody re-reads it](252-a-partial-block-is-the-one-nobody-re-reads.md) | milestone 247 gates BUILT and REMOVED blocks only, and milestone 16 listed two finished things as remaining for weeks | |
 
 The order §14 sets: **verify the core and make it verifiable first** (18 and 14, the thesis), then the
 road to running real workloads on real machines (15, 21, 16, 19; 25 extends 21 into cross-OS
