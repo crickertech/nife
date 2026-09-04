@@ -16,8 +16,22 @@ catch different failures.**
 **A delta check against `main`.** No stored state, so nothing can go stale and nobody has to remember
 to re-record. This replaces the baseline files.
 
-**Plus an absolute ceiling of 16 KiB**, per architecture, on the sum of `ipc_fastpath` and
-`syscall_entry`. Only calef raises it.
+**Plus an absolute ceiling of 16 KiB**, per architecture, on `script/fastpath-footprint`'s `total`.
+Only calef raises it.
+
+**Amended 2026-09-04, the same day, because milestone 188 moved both terms this sentence named.** It
+read "on the sum of `ipc_fastpath` and `syscall_entry`", and phases 1 to 3 of milestone 188 (the IPC
+fastpath: the gate measures a shape userspace does not use) changed what each of those is:
+
+- **`ipc_fastpath` measured the SEND/RECV shape**, which essentially no service in this tree runs.
+  The gate now reports `ipc_send_recv` and `ipc_call_reply` separately and takes the **worse of the
+  two**, since one round trip is one shape or the other.
+- **aarch64's `syscall_entry` counted all sixteen exception-vector entries** where an `svc` fetches
+  one, so 1,892 of its 3,304 bytes were never fetched.
+
+So the ceiling's subject is `max(ipc_send_recv, ipc_call_reply) + syscall_entry`, which is what the
+script now prints as `total`. **That is the same claim this section already made, evaluated on
+numbers that are true.**
 
 ## Why a delta alone is not enough
 
@@ -58,8 +72,20 @@ because a virtually-indexed L1 is capped at page size times associativity and th
 weakens: at a quarter of L1i the hot path leaves the application three quarters, and at half it does
 not.
 
-Measured today, the totals are **aarch64 9,156 B, x86_64 8,404 B, riscv64 7,174 B**, so the ceiling
-sits about 75% above the largest and fires rarely. **A tighter number was rejected for a specific
+Measured when this section was written, the totals were **aarch64 9,156 B, x86_64 8,404 B, riscv64
+7,174 B**, so the ceiling sat about 75% above the largest. **After milestone 188 they are:**
+
+| | as recorded here | after milestone 188 | fraction of 16 KiB |
+|---|---|---|---|
+| aarch64 | 9,156 | 8,536 | 52% |
+| riscv64 | 7,174 | 7,764 | 47% |
+| x86_64 | 8,404 | **9,759** | **60%** |
+
+**x86_64 is the one to watch, and its total rose.** Counting the shape services actually run adds
+more there than any other correction removes, so the recorded headroom was **9 points optimistic**
+on that architecture. The ceiling now sits 68% above the largest rather than 75%. **The number is not
+moved**: it fires rarely either way, and the correction is to the arithmetic beside it rather than to
+the decision. **A tighter number was rejected for a specific
 reason**: 8 KiB, a quarter of 32 KB, was floated and would have been **red on the day it shipped**,
 since two architectures already exceed it. A ceiling that fails on arrival is a ceiling nobody trusts.
 
