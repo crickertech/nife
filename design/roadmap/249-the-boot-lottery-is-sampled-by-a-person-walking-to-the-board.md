@@ -74,6 +74,23 @@ board spends their time on the machine rather than on reconstructing what to typ
 - **notes/soak.md** gains the procedure, in order, with a table mapping each observable outcome to
   what it means and what to do, and four `BUGS` entries.
 
+**The build without the feature is byte-for-byte the build that was there before, and that was
+measured rather than argued.** The release riscv64 `--features board` kernel was disassembled at this
+branch and at its base commit, with the four edited kernel files swapped and nothing else touched.
+The two disassemblies differ on **216 lines and every one of them is an LLVM local-symbol
+disambiguator** (`....llvm.<hash>`, which is a hash of the module's text and changes when a comment
+does). **Not one instruction differs**, so the plain board build, the plain soak build and every
+QEMU run are untouched by construction and by measurement:
+
+```console
+$ diff before.asm after.asm | grep -E '^[<>]' | grep -vc '\.llvm\.'
+0
+```
+
+The one edit that a `board` build without `reboot_soak` even compiles is `sbi_system_reset` taking
+its reset type as a parameter and returning `sbiret.error`; its existing caller passes the same
+constant it always did, and the disassembly above is what says the compiler agrees.
+
 **What is not built, and the reason it is not**: a distribution. That is this milestone's stated
 proof and it requires the board.
 
