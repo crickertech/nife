@@ -459,25 +459,44 @@ degraded. **`refused=0 mismatch=0 stalled=0` for the whole three hours**, with `
 401/s throughout, so this is a throughput draw rather than a fault: milestone 219's workload was
 correct for three hours at an eighth of the speed it reaches on a lucky boot.
 
-**And a correlate arrived that is sharper than the placement hypothesis.** `crossings` per second
-tracks the rate across all four runs, over two and a half orders of magnitude:
+**A crossing-rate correlate was proposed here and is now refuted; the refutation is left in place
+because it is the useful part.** Across the first three runs, `crossings` per second appeared to track
+the rate over two and a half orders of magnitude (0.51/s on the slow run against 50/s and 186/s on the
+fast ones), and this note argued from it. **A second slow run the same day killed it**: 23,254/s at
+about 102 crossings per second, two orders of magnitude above the other slow run at the same
+throughput. Two runs at the same rate, nowhere near the same crossing rate. Three points and a
+coincidence.
 
-- the two fast runs cross **50/s and 186/s**
-- the slow run crossed **0.51/s**, 19 by its first beat and 5,507 by its 2,137th
+**What survived, and it survived as a prediction rather than an inference.** Before any slow boot had
+been seen with milestone 240's census on it, this note recorded that the grinder-co-location reading
+predicted the slow arrangement would show **the grinders spread, each sharing a core with a whole IPC
+group**, and said in as many words that grinders found piled on one core at 23,000/s would kill the
+reading. The first slow boot captured with a census is this:
 
-**This inverts the naive expectation and that is why it is worth writing down.** A local rendezvous
-wake is the cheap one: DECISIONS 28.2 makes it local precisely because it avoids an IPI. A run whose
-groups sit on one core each should therefore be *faster*, and the slow run is the one that crossed
-least.
+```
+soak-census: core=1 threads=4 W0 W1 W2 W3
+soak-census: core=2 threads=9 G0 R1 C1 C1 C1 R3 C3 C3 C3
+soak-census: core=3 threads=6 G1 R2 C2 C2 C2 G3
+soak-census: core=4 threads=5 R0 C0 C0 C0 G2
+```
 
-**The reading that fits, stated as the inference it is.** What co-location buys in wake cost it can
-lose many times over in scheduling delay, because a core holding a whole IPC group **also** holds
-whatever grinder landed there, and a grinder is pure compute that never yields. Spread groups cross
-cores on every exchange and pay an IPI for it, but their threads find a runnable core. That is
-milestone 240's block's hypothesis with the sign of the effect corrected: **the cost is grinder
-co-location rather than group crowding**, and 240's own four QEMU runs already pointed this way (the
-arrangement with two grinders on one core was the *fastest* of them, and the three-groups-on-one-core
-arrangement was the slowest).
+**All four IPC groups are whole on a core, and every one of those cores also carries a grinder.** One
+core is spent entirely on the four tick waiters and does no IPC at all. Set beside the fast boot
+captured minutes earlier:
+
+| | groups sharing a core with a grinder | rate |
+|---|---|---|
+| fast | **1 of 4** | 342,447/s |
+| slow | **4 of 4** | 23,254/s |
+
+**That is the mechanism, and the count is the predictor.** A grinder is pure compute and never yields,
+so a group co-located with one waits for its timeslice on every exchange while a group on a
+grinder-free core does not. The spread between boots is the placement lottery deciding how many of the
+four groups draw a grinder.
+
+It also explains why the crossing correlate looked good and was not causal: a spread arrangement
+happens to cross cores more *and* happens to leave cores grinder-free, so crossings and rate moved
+together until a run turned up where they did not.
 
 **What the census showed on the fast run**, and it differs from QEMU in a way nobody predicted:
 
@@ -505,9 +524,12 @@ correction to its wording rather than to its substance. **Piling grinders togeth
 arrangement**: it spends one core on pure compute and leaves three for IPC. What starves a group is a
 grinder *sharing a core with it*, which is what spreading the grinders one per core would produce.
 
-**So the reading now makes a falsifiable prediction about the run nobody has seen.** A 23,000/s boot
-should show the four grinders spread across four cores. If one does, the mechanism is confirmed; if a
-slow boot shows them piled, this reading is wrong and the cause is something else.
+**That prediction was made here and then tested, which is why the section above states the result
+rather than the hypothesis.** What this paragraph originally said was that a 23,000/s boot should show
+the grinders spread rather than piled, and that a slow boot showing them piled would kill the reading.
+The first slow boot captured with a census showed them spread, one per IPC group, exactly as written.
+It is recorded above rather than here because a confirmed prediction belongs beside the measurement it
+predicted.
 **The arrangement converges once, early, and then locks in.** Over the whole run there was exactly
 one drift event: the spawn arrangement held about 25 seconds, then **ten of the twenty non-waiter
 threads moved at once** (`drifted=10`, at `crossings=983`), a replacement census printed, and
