@@ -82,6 +82,16 @@
 //! - **[`order`] is a shuffle, not a random sequence.** Every task runs exactly the same multiset of
 //!   jobs, in a per-task order. That is what makes two tasks' work comparable, and it is a
 //!   simplification against AIM7, whose tasks draw independently.
+//!
+//! Name: provisional, this lane's coinage (2026-09-04, milestone 168), and calef's call. A noun
+//! pair naming the thing the crate defines, in the `snake_case` this tree's crates use, and it is
+//! the phrase the source itself uses: AIM7's workfile is a *mix* of *jobs*. `aim7` was refused for
+//! claiming somebody else's benchmark, which this is not (see the BUGS above: none of AIM7's 53
+//! jobs is here, and no number from this is comparable with an AIM7 number). `workload` was refused
+//! as too general for a tree that already has a soak workload and a compute workload. `benchmark`
+//! was refused because this crate is the workload's *definition* and produces no measurement; the
+//! same distinction `os_primitives_benchmarker`'s own header draws between the agent and the
+//! output.
 
 #![no_std]
 #![deny(missing_docs)]
@@ -199,6 +209,13 @@ pub const SLOT_ECHO: u64 = 2;
 /// call: a compromised echo server can only answer wrongly, which is the least authority that does
 /// the job.
 pub const SLOT_SERVE: u64 = 0;
+
+// **More tasks than servers, checked by the compiler rather than by a test.** The [`ROUND_TRIP`]
+// job's endpoint has to be contended at the top of the sweep or the instrument is measuring an idle
+// machine, and an instrument with no server at all cannot run that job at all. This is a relation
+// between two constants in one file, which is the case where AGENTS.md's ladder says to make the
+// wrong state unrepresentable rather than to write a check that runs later.
+const _: () = assert!(ECHO_SERVERS >= 1 && ECHO_SERVERS < MAX_TASKS);
 
 /// The order one task runs [`MIX`] in: a permutation of [`MIX`] chosen by `seed`.
 ///
@@ -339,11 +356,4 @@ mod tests {
         assert!(TASK_SWEEP[0] >= 1);
     }
 
-    /// More tasks than servers, so the [`ROUND_TRIP`] job's endpoint is contended at the top of the
-    /// sweep. An instrument whose servers outnumber its clients is measuring an idle machine.
-    #[test]
-    fn the_servers_are_outnumbered() {
-        assert!(ECHO_SERVERS < MAX_TASKS);
-        assert!(ECHO_SERVERS >= 1);
-    }
 }
