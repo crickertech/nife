@@ -35,6 +35,30 @@ and the next one will look different**, because nothing stops LLVM folding a dif
 different handler in next month, and the person who meets it will have to re-derive all of the
 above from a percentage.
 
+## It happened again the next day, so "the next one will look different" is now observed
+
+**2026-09-04, PR #716, the daily toolchain bump.** That branch changes **one line**,
+`rust-toolchain.toml` from `nightly-2026-09-03` to `nightly-2026-09-04`, and no kernel source at
+all. It failed this gate at **10.4%** (1870 to 2064) on the same symbol, `riscv_trap_body`, which
+grew 550 to 744 while `trap_entry`, `trap_return`, `riscv_trap_dispatch` and `syscall::dispatch`
+were byte-identical. The inlined callee this time was **`drivers::plic::disable`**, in the
+`S_EXTERNAL` device-interrupt arm, which vanished from the disassembly entirely; inlining it also
+dragged in `set_enable_bit`'s locked read-modify-write. Closed the same way, with `#[inline(never)]`
+on `plic::disable` and the reasoning beside it.
+
+Three things this instance settles that the milestone 133 one could only assert:
+
+- **The prediction was right about the shape.** A different arm, a different callee, the same
+  symbol, one day later. Neither arm is one a syscall fetches.
+- **The trigger need not be a code change.** Milestone 133's was at least a change to `sched.rs`,
+  which made "unrelated change" arguable. This one is a compiler upgrade, so there is no source
+  edit anywhere to attribute the 194 bytes to. Any lane can be handed this failure by a toolchain
+  bump it did not make.
+- **The cost of the current answer is now measurable as a rate.** Two instances in two days, each
+  costing a lane a build-and-diff of two disassemblies to name one symbol. The last bullet below,
+  *report the delta per symbol when the gate fails*, would have turned both of those into reading
+  the failure message. It is the cheapest item on the list and it is the one that pays every time.
+
 ## What the options look like
 
 - **Do nothing, and treat the attribute as the pattern.** Cheapest, and it is not absurd: the tree
