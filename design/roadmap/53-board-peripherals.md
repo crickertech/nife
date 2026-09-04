@@ -50,9 +50,10 @@ not transfer.
   Checked 2026-09-03.
 - **Milestone 163.** The board-side PLDA XpressRICH root complex that would carry the NVMe driver
   to the real M.2 slot. Minted 2026-08-25, still NOT-STARTED on a HARDWARE gate.
-- **Decision.** Whether the NVMe driver can leave the kernel, and what capability would let it, is
-  calef's and is written up as `design/decisions/86-el0-nvme-driver.md`: it needs new syscall
-  surface, which is the §10 and §16 boundary a lane does not cross.
+- **Decision.** Whether the NVMe driver can leave the kernel is answered rather than pending:
+  `design/decisions/86-el0-nvme-driver.md` is DECIDED as of 2026-09-03, option 2a now with option 4
+  addable without reshaping the EL0 driver, and the choice between them settled by measurement. The
+  block's own prose still reads as though the fork were open.
 - **Outstanding.** RedoxFS crash consistency proven by actually cutting power on radon. Nothing can
   power-cycle the board: milestone 224 is NOT-STARTED on a DECISION gate, and its own measurements
   record zero replies from the plug on the subnet. Checked 2026-09-03.
