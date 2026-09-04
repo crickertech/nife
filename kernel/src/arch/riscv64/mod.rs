@@ -20,6 +20,7 @@ pub mod iommu;
 pub mod irq;
 pub mod isa;
 pub mod mmu;
+pub mod pmu;
 pub mod semihosting;
 pub mod timer;
 

@@ -222,11 +222,11 @@ fn every_row_round_trips_through_both_properties() {
 /// **The extension ids, against the specification, written out in hex once.**
 ///
 /// The crate derives these from their tags so that no hand-written hex can be wrong; this is the
-/// one place the hex appears, so a reader with the SBI specification open can check all four
+/// one place the hex appears, so a reader with the SBI specification open can check all five
 /// without reading a `const fn`. Three of them are also spelled at the kernel's `ecall` sites,
 /// which now take them from here.
 ///
-/// Two of the four tags are not the extension's human name, which is the whole reason this is
+/// Two of the five tags are not the extension's human name, which is the whole reason this is
 /// worth a test: `IPI` is assigned `sPI` and `RFENCE` is assigned `RFNC`.
 #[test]
 fn sbi_extension_ids_match_the_specification() {
@@ -234,6 +234,7 @@ fn sbi_extension_ids_match_the_specification() {
     assert_eq!(EID_IPI, 0x0073_5049, "\"sPI\", not \"IPI\"");
     assert_eq!(EID_RFENCE, 0x5246_4E43, "\"RFNC\", not \"RFENCE\"");
     assert_eq!(EID_HSM, 0x0048_534D, "\"HSM\"");
+    assert_eq!(EID_PMU, 0x0050_4D55, "\"PMU\"");
     assert_eq!(EID_BASE, 0x10, "the base extension is a number, not a tag");
 
     // The same four again through `eid` at **runtime**, which is the only way to exercise it: every
@@ -244,6 +245,7 @@ fn sbi_extension_ids_match_the_specification() {
     assert_eq!(eid("sPI"), EID_IPI);
     assert_eq!(eid("RFNC"), EID_RFENCE);
     assert_eq!(eid("HSM"), EID_HSM);
+    assert_eq!(eid("PMU"), EID_PMU);
 
     for row in &SBI_TABLE {
         assert!(row.eid != 0, "{} has no extension id", row.name);
@@ -306,11 +308,95 @@ fn probing_one_extension_at_a_time_accumulates() {
         assert!(acc.contains(row.bit));
     }
 
-    assert_eq!(
-        acc, SBI_REQUIRED,
-        "all four is exactly what the kernel calls"
-    );
+    // The accumulator now holds every row, required or not, so it is a strict superset of what the
+    // boot refuses to run without. That direction is the assertion worth keeping: a firmware that
+    // has everything satisfies the requirement, and a requirement set that grew past the table
+    // would be a set the probe loop can never satisfy.
+    assert!(acc.contains(SBI_REQUIRED));
     assert!(SBI_REQUIRED.difference(acc).is_empty());
+
+    // And the optional rows are exactly the ones NOT in it. This is the assertion that would have
+    // caught the shape this table had before milestone 74, when `SBI_REQUIRED` was every row by
+    // construction and adding an instrument to the table would have made the kernel refuse to boot
+    // on firmware that merely lacks a performance counter.
+    let mut optional = SbiExtensions::NONE;
+    for row in &SBI_TABLE {
+        if !row.required {
+            optional = optional.union(row.bit);
+        }
+        assert_eq!(
+            SBI_REQUIRED.contains(row.bit),
+            row.required,
+            "{} is in SBI_REQUIRED iff its row says required",
+            row.name
+        );
+    }
+    assert!(
+        !optional.is_empty(),
+        "PMU is optional, so this test is not vacuous"
+    );
+    assert!(SBI_REQUIRED.difference(optional) == SBI_REQUIRED);
+}
+
+/// **`counter_info` decodes the way the specification packs it**, including the `+ 1` on the width
+/// that is the field most likely to be read wrong.
+///
+/// The values here are the shapes real firmware returns. `mcycle` on RV64 is a 64-bit counter read
+/// through CSR `0xc00` (`cycle`), which the specification's own layout encodes with a width field
+/// of **63**, not 64. A decoder that skipped the `+ 1` would report a counter that wraps at 2^63.
+#[test]
+fn counter_info_decodes_the_way_the_specification_packs_it() {
+    // A hardware counter: CSR 0xc00 (`cycle`), 64 bits wide, type bit clear.
+    let cycle = CounterInfo::from_raw((63 << 12) | 0xc00);
+    assert!(!cycle.firmware);
+    assert_eq!(cycle.csr(), Some(0xc00));
+    assert_eq!(
+        cycle.bits(),
+        Some(64),
+        "width field is one LESS than the width"
+    );
+
+    // `hpmcounter3`, CSR 0xc03, on a part with 40-bit counters.
+    let hpm3 = CounterInfo::from_raw((39 << 12) | 0xc03);
+    assert_eq!(hpm3.csr(), Some(0xc03));
+    assert_eq!(hpm3.bits(), Some(40));
+
+    // A firmware counter. The specification says `csr` and `width` "should be ignored", so they are
+    // not returned at all rather than returned as numbers a caller could use by accident. The raw
+    // word here deliberately carries plausible-looking garbage in both fields.
+    let fw = CounterInfo::from_raw((1 << 63) | (63 << 12) | 0xc00);
+    assert!(fw.firmware);
+    assert_eq!(fw.csr(), None);
+    assert_eq!(fw.bits(), None);
+
+    // Bit 62 is reserved and must not be mistaken for the type bit.
+    let reserved_set = CounterInfo::from_raw((1 << 62) | (63 << 12) | 0xc00);
+    assert!(!reserved_set.firmware);
+    assert_eq!(reserved_set.csr(), Some(0xc00));
+
+    // A zero word is a legal decode (CSR 0, one bit wide) and not a sentinel. Nothing in the kernel
+    // may read it as "no counter"; absence is an SBI error code, not a value.
+    let zero = CounterInfo::from_raw(0);
+    assert_eq!(zero.csr(), Some(0));
+    assert_eq!(zero.bits(), Some(1));
+}
+
+/// **The cycle event is type 0, code 1**, assembled from its two fields rather than written as a
+/// bare `1`, so the halves can be checked separately against the specification.
+#[test]
+fn the_cpu_cycles_event_is_type_zero_code_one() {
+    assert_eq!(EVENT_HW_CPU_CYCLES, 1);
+    assert_eq!(pmu_event(0, 1), EVENT_HW_CPU_CYCLES);
+
+    // The type is the four bits at 19:16, so a firmware event (type 15) is 0xf0000 plus its code.
+    // This is what would break if anyone "simplified" `pmu_event` into an addition.
+    assert_eq!(pmu_event(15, 0), 0xf_0000);
+    assert_eq!(pmu_event(15, 5), 0xf_0005);
+    assert_eq!(pmu_event(1, 0xffff), 0x1_ffff);
+
+    // The config flags, against the specification's bit numbers.
+    assert_eq!(PMU_CFG_CLEAR_VALUE, 0b10);
+    assert_eq!(PMU_CFG_AUTO_START, 0b100);
 }
 
 /// **`union` is a set union, not a toggle.** The accumulation test above only ever unions in a bit
