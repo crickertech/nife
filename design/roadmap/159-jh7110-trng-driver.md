@@ -117,18 +117,29 @@ facts this leans on and its failure-triage ladder for everything that goes wrong
 
    | Line | What it means |
    |---|---|
-   | `hw entropy  : JH7110 TRNG at 0x1600c000 served 32+32 bytes to a client through a capability that names no device; first draw ...., second differs` | **The milestone.** A confined userspace process drove a real non-virtio device and a client got bytes through a capability naming no device. Record the whole line; it is the first such number this project has. |
+   | `hw entropy  : JH7110 TRNG at 0x1600c000 served 32+32 bytes ... second differs; STAT after init 0x........ (256-bit: ...)` | **The milestone.** A confined userspace process drove a real non-virtio device and a client got bytes through a capability naming no device. Record the whole line; it is the first such number this project has. **Read the mode note before believing the byte count**: it must say 256-bit. |
+   | the same line, but the mode note says `128-BIT` | The device ignored the `MODE.R256` write, so only `RAND0..RAND3` are a generation's answer and **16 of every 32 bytes are not device output**. The draws still differ and the tour still calls it a pass, because the tour cannot tell. This needs the driver to serve 16 bytes per generation instead of 32; nothing is wrong with the capability story. |
    | `hw entropy  : skipped (this machine's tree describes no starfive,jh7110-trng; ...)` | The board's own device tree has no TRNG node where mainline's binding says it should be. **Capture the tree** (see step 6) rather than guessing; this is the one fact the first lane flagged as unconfirmed. |
    | `hw entropy  : JH7110 TRNG at 0x..., but no 'jh7110_trng' in the initrd` | The card has a stale archive. Redo step 2 with a matched pair. |
    | `hw entropy  : FAILED: ... bring-up diagnostic 0x0000000000000000 ...` | The register window read as nothing. Most likely the block's clocks are gated or its reset is not deasserted (see the driver's `BUGS`), and next most likely the base address is not the TRNG. |
-   | `hw entropy  : FAILED: ... bring-up diagnostic 0x<nonzero> ...` | The device answered and the sequence is wrong. The high 32 bits are `STAT` and the low 32 `ISTAT`; `STAT` bit 9 is `SEEDED`, bits 30/31 are generate/seed in flight, `ISTAT` bit 0 is `RAND_RDY`, bit 1 `SEED_DONE`, bit 4 `LFSR_LOCKUP`. Record the raw word. |
+   | `hw entropy  : FAILED: ... bring-up diagnostic 0x<nonzero> ...` | The device answered and the sequence is wrong. The high 32 bits are `STAT` and the low 32 `ISTAT`. `STAT`: bit 3 `R256`, bit 8 `MISSION_MODE`, bit 9 `SEEDED`, bits 16-18 `LAST_RESEED` (`0x7` means unseeded/zeroized), bit 27 `SRVC_RQST`, bits 30/31 generate/seed in flight. `ISTAT`: bit 0 `RAND_RDY`, bit 1 `SEED_DONE`, bit 2 `AGE_ALARM`, bit 3 `RQST_ALARM`, bit 4 `LFSR_LOCKUP`. Record the raw word. **Every bit above is decoded in `crates/jh7110_trng`**; a bit outside them is undocumented in all three drivers and the TRM, and is a finding rather than a lookup. |
+   | any line whose numbers all look like a success | **Read them against `crates/jh7110_trng` before theorising.** The 2026-09-04 session lost an hour to a diagnostic of `0x20` read as an `ISTAT` bit that does not exist, when it was the number 32 in a word whose meaning changed with the report beside it. That word is unconditionally `(STAT << 32) \| ISTAT` now, so the ambiguity is gone, but the habit is the lesson. |
 
-5. If the success line appears, do the two things that make it a measurement rather than an
+5. If the success line appears, do the three things that make it a measurement rather than an
    anecdote. **Boot twice** and confirm the two first-draw prefixes differ across boots (a device
-   reseeded per boot, rather than a constant baked into silicon or a stale register file). And
-   **time it**: the tour prints nothing between `pcie` and `hw entropy`, so the wall time between
-   those two lines is roughly one bring-up plus two 32-byte draws, which is the first datum for
-   this milestone's open rate question.
+   reseeded per boot, rather than a constant baked into silicon or a stale register file). **Read
+   the mode note** in that same line: anything but `256-bit` means the byte count is overstated,
+   per the table above. And **time it**: the tour prints nothing between `pcie` and `hw entropy`,
+   so the wall time between those two lines is roughly one bring-up plus eight round trips, which
+   is the first datum for this milestone's open rate question.
+
+   **The rate measurement wants a stopwatch, not a guess, and here is why it is worth saying.**
+   Nothing in the tour timestamps either line, so the only clock available is a person watching a
+   serial console, which resolves to about a second. That is enough to answer the question risk 6
+   actually asks (is this milliseconds or is it minutes) and not enough for a bytes-per-second
+   number worth publishing. If the gap is visibly instant, record "under a second, by eye" and
+   leave it; a real figure needs the tour to print the timebase around the step, which is
+   `design/roadmap/proposals/time-the-hw-entropy-step.md`.
 
 6. Whatever happened, **capture the board's device tree** while you have it: at the `StarFive #`
    prompt, `fdt addr ${fdtcontroladdr}` then `fdt print /soc/rng@1600c000` (and `fdt list /soc` if
@@ -268,6 +279,126 @@ the moment it reports, which is why this could ship without 137 and does not pre
 
 The boot tour keeps its own two-draw client-side check. A tour that only repeated the service's
 verdict would have caught nothing on 2026-09-04.
+
+## The second bench run, 2026-09-04: the device worked and the tour was wrong
+
+Milestone 220 landed the clock and reset driver and radon was booted again. Transcript:
+`target/board/radon-2026-09-04-clock-and-first-entropy.log`.
+
+```
+hw clock   : JH7110 STG CRG at 0x10230000 (named by this machine's device tree):
+             clocks 0x00000000,0x00000000 -> 0x80000000,0x80000000 (running);
+             reset 3 assert 0x007ffffe -> 0x007ffff6, status 0x00000009 (released, 1 polls)
+hw entropy : FAILED: JH7110 TRNG at 0x1600c000 (tree says starfive,trng, status disabled):
+             report 0x524e475550, bring-up diagnostic 0x0000000000000020,
+             draws 8/8 bytes, first-all-zero false, draws-differ true
+```
+
+**Milestone 220's premise is confirmed.** The clocks read `0x00000000` before and `0x80000000`
+after, so bit 31 was genuinely clear and the block genuinely was gated. The section above predicted
+that and it was right.
+
+**And then the `hw entropy` line said FAILED while every condition it names was satisfied**: the
+report word is `READY`, the first draw is not zeros, both draws are full, and the two differ.
+
+### The failure was in the tour, and the number that misled everyone was not a register
+
+`entropy_proto` carries `MAX_BYTES = 8` per exchange and `Wiring::get` is exactly one exchange, so
+`w.get(32, &mut a)` returns **8**, never 32. The tour then required `na == 32`. **Its success line
+was unreachable on any device, working or dead**, from the day it was written.
+
+It survived three days because this branch runs on exactly one machine in the world. QEMU's `virt`
+has no TRNG node, so CI takes the `skipped` arm and never evaluates the condition, and the first
+radon boot failed earlier (on the gated clock) than the check that was broken.
+
+**The `0x20` was the number 32.** The driver's third report word was the byte count when the report
+said `READY` and a `(STAT << 32) | ISTAT` snapshot otherwise, so the same field meant two things
+depending on a word printed beside it. Read as a register it says `ISTAT` bit 5, which no Linux
+driver, no `NetBSD` driver and the TRM all fail to name, and an hour went into that bit. Read as
+what it was, it says the pool held all 32 bytes it had generated. **There is no evidence this device
+has ever set `ISTAT` bit 5**, and the entry that claimed otherwise is corrected here rather than
+quietly dropped.
+
+The diagnostic is now unconditionally the register snapshot. `Wiring::fill` loops until a buffer is
+full and the tour uses it, which also makes the two draws stronger than they were: 32 bytes is
+exactly one generation, so draw `a` empties the driver's pool and draw `b` forces a second trip to
+the hardware. Two 8-byte draws both came out of one buffer, so `a != b` proved only that a cursor
+advanced. And `kernel::user::entropy_tests::a_fill_gathers_across_round_trips` asks the virtio
+backend for 32 bytes in CI, because nothing in this tree had ever asked this protocol for more than
+one word.
+
+### What the run establishes for fatal risk 6
+
+Risk 6 is *"a capability-confined userspace driver cannot drive real hardware at real speed."*
+
+- **Confined**: demonstrated 2026-09-03, and again here. The driver holds two rendezvous
+  capabilities and one page of device memory, no IRQ, no DMA, no `Virtio` capability.
+- **Drives real hardware**: **demonstrated on 2026-09-04**, which is the half that was blocked. A
+  confined EL0 process wrote a JH7110 register, polled it, and handed a client bytes that were not
+  zero and that changed between draws, through a capability that names no device. The clock work
+  that made it possible was milestone 220's.
+- **At real speed**: still unmeasured, and now measurable for the first time. See the bench
+  procedure's step 5 for what a session would have to do, and its honest limit.
+
+**The success line has still never printed**, which is why this block's status has not moved. What
+printed was a FAILED line whose numbers, read correctly, describe a working device.
+
+## What the third lane changed, 2026-09-04, none of it run on silicon
+
+**Read this as "matches upstream's order, host-tested, unverified on hardware."** radon was powered
+down for all of it and no part of a JH7110 exists in QEMU, so nothing below has met the device.
+
+The prior art was **fetched rather than recalled**, which mattered: `crates/jh7110_trng` was
+transcribed from a *summary* of Linux's driver and recorded three of its own facts as unconfirmed.
+Three sources settle them, all cited in the crate with URLs and fetch dates: mainline
+`jh7110-trng.c`, the JH7110 TRM's TRNG register page (new to this tree), and `NetBSD`'s
+`jh7110_trng.c` (also new, and the most useful because it is the only one of the three that
+**polls**, which is what this driver does).
+
+- **`ISTAT` is `R/W1C`**, per the TRM's register map. The crate said this was "not confirmed from
+  the summarized driver source" and the driver therefore never wrote the register. That is a real
+  defect and it is fixed: `RAND_RDY` is latched, so an unacknowledged one makes **every generation
+  after the first** appear complete instantly, and the driver reads the `RAND` words without the
+  device having refilled them. **Silicon has not seen this bug**, because the tour never reached a
+  second generation: draw `b` came out of the buffer draw `a` had left. Looping the tour to 32 bytes
+  is exactly what would have exposed it, so the two fixes had to land together.
+- **`MODE.R256` is now written**, and `STAT` after init is reported so a bench session can check it
+  read back. The width a JH7110's TRNG resets to is a build-time parameter of the silicon
+  (`BUILD_CONFIG.PRNG_LEN_AFTER_RST`), so it cannot be assumed from documentation. If the block is
+  in 128-bit mode only `RAND0..RAND3` are the answer and half of every 32 bytes this driver serves
+  is not device output. **This is the one open correctness question about the bytes**, and one line
+  of a bench transcript closes it.
+- **`AUTO_AGE` and `AUTO_RQSTS` are zeroed**, which is how the TRM says the two reseed-reminder
+  alarms are disabled and what Linux's default module parameters do.
+- **`STAT.SEEDED` now gates `RAND_RDY`.** `jh7110_trng::interpret` takes `STAT` and returns a new
+  `Outcome::Unseeded`. This is `NetBSD`'s gate: `RAND_RDY` is a latch that can stand from before
+  this driver ran, while `SEEDED` is live state, and the TRM confirms an unseeded core is a state
+  the block reports (`STAT.LAST_RESEED == 0x7`, "Unseeded (zeroized state)"). A Kani harness pins
+  that no unseeded snapshot reaches `Ready`.
+- **Two `ISTAT` bits nobody had named**: `AGE_ALARM` (2) and `RQST_ALARM` (3), documented in the TRM
+  and defined by `NetBSD`, absent from both Linux drivers and therefore absent from this crate. A
+  status word with unnamed bits is one a bench session cannot read, which is the whole of how the
+  `0x20` went wrong.
+- **`IE` is left at zero, and now with evidence rather than a shrug.** The TRM's wording on whether
+  `ISTAT` latches with interrupts disabled is not decisive. The board settled it: on 2026-09-04 a
+  reseed and a generation both completed and were detected by polling `ISTAT`, with `IE` never
+  written. Measured, not inferred, and recorded at `IE_GLBL_EN`.
+
+## Follow-on
+
+- **Done.** The tour's unreachable success condition, the ambiguous diagnostic word, and the missing
+  bring-up steps: this branch (`milestone/159-trng-sequence`), pull request #729.
+- **Recorded.** The 128-bit-mode question stays a `BUGS` entry in `user/src/jh7110_trng.rs` until a
+  bench session reads `STAT.R256` off the board. It cannot be resolved from documentation, because
+  the reset width is a build-time parameter of the silicon.
+- **Recorded.** `POLL_TRIES` and `LOCKUP_RETRIES` bound loop iterations, not time, so what they
+  bound depends on the core and on what the compiler did to the loop. Noted in the same `BUGS`
+  section; a real timeout needs a clock the driver does not hold.
+- **Proposed.** Timing the `hw entropy` step, which is the "at real speed" half of fatal risk 6 and
+  is unanswerable by eye: `design/roadmap/proposals/time-the-hw-entropy-step.md`.
+- **Decision.** Whether these bytes need a NIST SP 800-90B-class health test before anything
+  security-shaped trusts them: `design/decisions/137-trng-health-tests.md`, already `PROPOSED` and
+  untouched by this lane.
 
 ## What this does not decide
 

@@ -50,17 +50,17 @@
 //!
 //! # BUGS
 //!
-//! **This driver programs no clock and deasserts no reset, and that is the likeliest way its
-//! first hardware boot fails.** The binding names two clock inputs (`hclk`, `ahb`) and one reset
-//! line, and Linux's `jh7110-trng.c` takes all three through the clock and reset frameworks before
-//! it touches a register. Nothing in this tree drives the JH7110's clock and reset generator, so
-//! this driver depends on the block being left running and out of reset by whatever ran before it
-//! (U-Boot), which is an assumption nobody has checked. **The symptom is specific and worth
-//! knowing in advance**: register reads come back as zeros, the first refill fails, and the
-//! bring-up diagnostic in [`_start`]'s readiness message is `0x0000_0000_0000_0000`. A device
-//! whose registers answer at all will show a nonzero `STAT` there instead. If the zeros are what
-//! the bench sees, the next piece of work is a clock/reset driver for the `SoC`, not a change
-//! here; that is a milestone of its own and is proposed rather than assumed.
+//! **This driver still programs no clock and deasserts no reset, and something else now does.**
+//! The binding names two clock inputs (`hclk`, `ahb`) and one reset line, and Linux's
+//! `jh7110-trng.c` takes all three through the clock and reset frameworks before it touches a
+//! register. This driver takes none of them: it is handed a mapped register window and assumes the
+//! block behind it is powered, which is rule 2 working as intended rather than an omission. The
+//! prediction this entry used to carry came true on 2026-09-04 (all-zero registers, a failed first
+//! refill, an all-zero bring-up diagnostic), and **milestone 220 answered it**: the kernel now
+//! ungates the STG CRG's `SEC_HCLK` and `SEC_MISCAHB_CLK` and releases the block's reset before
+//! this program is spawned, and the second boot that day read live registers. What remains here is
+//! the dependency itself: nothing in this program checks that it happened, and a boot where it did
+//! not still presents as zeros.
 //!
 //! **A device that answers with zeros is condemned for the whole boot, with no way back.** An
 //! all-zero first generation is treated as a bring-up failure
@@ -76,11 +76,18 @@
 //! too large, and a dead device stalls the boot tour for as long as the loop takes. Nothing has
 //! measured which side of that this lands on.
 //!
-//! **`ISTAT` is never cleared.** How this device acknowledges a status bit (write-1-to-clear
-//! against write-back) was not confirmed from the summarized Linux source, so this driver reads
-//! `ISTAT` and never writes it. If `RAND_RDY` latches, the second generation will appear ready
-//! before it is, and the tour's two-draw check is the thing that would catch it: two identical
-//! draws.
+//! **The 256-bit mode selection has never been read back.** [`init`] writes `MODE.R256` because
+//! the width a JH7110's TRNG resets to is a build-time parameter of the silicon rather than
+//! something the documentation settles, and it reports the `STAT` it read afterwards so a bench
+//! session can check `STAT.R256`. Nobody has. If that bit reads clear on radon, this driver is
+//! assembling 32 bytes out of a 16-byte answer and the upper four `RAND` words are not device
+//! output; the count served would have to drop to 16. **This is the one open correctness question
+//! about the bytes themselves**, and one line of a bench transcript closes it.
+//!
+//! **The polling loops are unbounded in time, not just in count.** [`POLL_TRIES`] counts
+//! iterations of a loop with no delay in it, so what it actually bounds depends on how fast this
+//! core runs and what the compiler did to the loop. It is a guard against hanging forever, not a
+//! timeout anyone can state in microseconds.
 //!
 //! # Why polling, not the completion interrupt
 //!
@@ -108,11 +115,12 @@
 use abi::rendezvous;
 use entropy_proto as proto;
 use jh7110_trng::{
-    CTRL_EXEC_RANDRESEED, CTRL_GENE_RANDNUM, ISTAT_SEED_DONE, Outcome, Pool, interpret,
+    CTRL_EXEC_RANDRESEED, CTRL_GENE_RANDNUM, ISTAT_ALL, ISTAT_RAND_RDY, ISTAT_SEED_DONE, MODE_R256,
+    Outcome, Pool, interpret,
 };
 use tock_registers::interfaces::{Readable, Writeable};
 use tock_registers::register_structs;
-use tock_registers::registers::{ReadOnly, WriteOnly};
+use tock_registers::registers::{ReadOnly, ReadWrite, WriteOnly};
 use user_rt::{recv_cap, reply, send};
 
 register_structs! {
@@ -131,11 +139,18 @@ register_structs! {
     #[allow(non_snake_case)]
     RegisterBlock {
         (0x00 => CTRL: WriteOnly<u32>),
-        // `STAT` is read for exactly one reason: the bring-up diagnostic in `_start`. A device
-        // that never answered is otherwise indistinguishable from a device that is not there.
+        // `STAT` is read on **every** poll now, not only for the bring-up diagnostic: it carries
+        // `SEEDED`, which is what says a latched `RAND_RDY` is an answer rather than a leftover.
+        // See `jh7110_trng::Outcome::Unseeded`.
         (0x04 => STAT: ReadOnly<u32>),
-        (0x08 => _reserved_mode_smode_ie),
-        (0x14 => ISTAT: ReadOnly<u32>),
+        (0x08 => MODE: ReadWrite<u32>),
+        (0x0c => _reserved_smode),
+        (0x10 => IE: ReadWrite<u32>),
+        // **Write-1-to-clear**, per the TRM's own register map (see `jh7110_trng::regs::ISTAT`).
+        // It was `ReadOnly` here while how to acknowledge a bit was unknown, and that is exactly
+        // the bug: `RAND_RDY` latches, so a driver that never writes this register sees every
+        // generation after the first complete instantly.
+        (0x14 => ISTAT: ReadWrite<u32>),
         (0x18 => _reserved_pad),
         (0x20 => RAND0: ReadOnly<u32>),
         (0x24 => RAND1: ReadOnly<u32>),
@@ -145,7 +160,10 @@ register_structs! {
         (0x34 => RAND5: ReadOnly<u32>),
         (0x38 => RAND6: ReadOnly<u32>),
         (0x3c => RAND7: ReadOnly<u32>),
-        (0x40 => @END),
+        (0x40 => _reserved_seed),
+        (0x60 => AUTO_RQSTS: ReadWrite<u32>),
+        (0x64 => AUTO_AGE: ReadWrite<u32>),
+        (0x68 => @END),
     }
 }
 
@@ -194,29 +212,84 @@ fn rand_words() -> [u32; 8] {
     ]
 }
 
-/// Force a reseed and wait (bounded) for `ISTAT.SEED_DONE`. Called once at bring-up, mirroring
-/// `jh7110-trng.c`'s own init sequence, and again whenever [`generate`] sees
-/// [`jh7110_trng::Outcome::Lockup`]. `false` on a bound-out: the caller decides what that means.
+/// **Acknowledge `ISTAT` bits.** The register is write-1-to-clear (`jh7110_trng::regs::ISTAT`),
+/// so writing a mask back clears exactly the bits in it and leaves the rest standing.
+fn ack(bits: u32) {
+    regs().ISTAT.set(bits);
+}
+
+/// **Put the block in a known state before asking it for anything** (milestone 159), the sequence
+/// all three drivers `jh7110_trng`'s module doc cites agree on. Each step is there because a
+/// reset value nobody documented is not something to rely on:
+///
+/// 1. `AUTO_AGE` and `AUTO_RQSTS` to zero, which is how the TRM says the two reseed-reminder
+///    alarms are disabled. Left alone, a nonzero counter raises `AGE_ALARM` or `RQST_ALARM` in a
+///    register this driver polls for other reasons.
+/// 2. Clear every `ISTAT` bit, because this block was running under U-Boot before nife started
+///    and a latched `RAND_RDY` from then would make the first poll below return instantly.
+/// 3. `MODE.R256`, so a generation answers with all eight `RAND` words. **Without it the device
+///    may be in 128-bit mode**, where only `RAND0..RAND3` carry the answer and this driver's
+///    32-byte assembly is half real bytes and half whatever the upper words hold. The width after
+///    reset is a build-time parameter of the silicon, so it has to be set rather than assumed.
+/// 4. `IE` left at zero, deliberately: see the module doc's "Why polling".
+///
+/// Returns what `STAT` read back afterwards, which is the bench diagnostic: `STAT.R256` says
+/// whether step 3 took, and `STAT.SEEDED` whether the reseed the caller runs next is still needed.
+fn init() -> u32 {
+    let r = regs();
+    r.AUTO_AGE.set(0);
+    r.AUTO_RQSTS.set(0);
+    ack(ISTAT_ALL);
+    r.MODE.set(r.MODE.get() | MODE_R256);
+    r.IE.set(0);
+    r.STAT.get()
+}
+
+/// Force a reseed and wait (bounded) for `ISTAT.SEED_DONE`, acknowledging it. Called once at
+/// bring-up, mirroring the init sequence in `jh7110_trng`'s module doc, and again whenever
+/// [`generate`] sees [`jh7110_trng::Outcome::Lockup`] or [`jh7110_trng::Outcome::Unseeded`].
+/// `false` on a bound-out: the caller decides what that means.
+///
+/// **The acknowledgement is the part that was missing.** `SEED_DONE` is latched, so an unacked one
+/// makes every later reseed appear to complete immediately.
 fn reseed_and_wait() -> bool {
+    ack(ISTAT_SEED_DONE);
     regs().CTRL.set(CTRL_EXEC_RANDRESEED);
     for _ in 0..POLL_TRIES {
         if regs().ISTAT.get() & ISTAT_SEED_DONE != 0 {
+            ack(ISTAT_SEED_DONE);
             return true;
         }
     }
     false
 }
 
-/// Ask the device for 32 fresh bytes, retrying a hardware-reported lockup by reseeding, bounded by
-/// [`LOCKUP_RETRIES`]. `None` if the device never produced an answer inside the bound: this
-/// driver's whole failure mode, reported to callers as [`proto::NO_ENTROPY`] rather than a hang.
+/// Ask the device for 32 fresh bytes, retrying a hardware-reported lockup or an unseeded core by
+/// reseeding, bounded by [`LOCKUP_RETRIES`]. `None` if the device never produced an answer inside
+/// the bound: this driver's whole failure mode, reported to callers as [`proto::NO_ENTROPY`]
+/// rather than a hang.
+///
+/// **`RAND_RDY` is acknowledged on both sides of the command**, and that is the fix for the defect
+/// this milestone found. Before the write, because a bit standing from the previous generation
+/// would otherwise satisfy the very first poll and hand back the *previous* answer. After the
+/// words are read, so the next call starts from a clean register. A driver that never wrote
+/// `ISTAT` served its first generation correctly and then answered every later request instantly
+/// with whatever the register file happened to hold, which is indistinguishable from working right
+/// up until two draws come back identical.
 fn generate() -> Option<[u8; 32]> {
     for _ in 0..=LOCKUP_RETRIES {
+        ack(ISTAT_RAND_RDY);
         regs().CTRL.set(CTRL_GENE_RANDNUM);
         for _ in 0..POLL_TRIES {
-            match interpret(regs().ISTAT.get(), rand_words()) {
-                Outcome::Ready(bytes) => return Some(bytes),
-                Outcome::Lockup => {
+            match interpret(regs().STAT.get(), regs().ISTAT.get(), rand_words()) {
+                Outcome::Ready(bytes) => {
+                    ack(ISTAT_RAND_RDY);
+                    return Some(bytes);
+                }
+                // Both of these mean "the core is not in a state to answer, seed it and ask
+                // again", and they are bounded together because a device that keeps returning to
+                // either one is a device to tell the caller about rather than to spin on.
+                Outcome::Lockup | Outcome::Unseeded => {
                     reseed_and_wait();
                     break; // out of the poll loop; the outer loop's next iteration retries GENE_RANDNUM
                 }
@@ -229,6 +302,10 @@ fn generate() -> Option<[u8; 32]> {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(_arg0: u64, _arg1: u64, _arg2: u64) -> ! {
+    // Put the block in a known state before asking it for anything, then seed it. `init` returns
+    // what `STAT` read back, which is the one snapshot taken before any generation has happened
+    // and so the only one that can say whether `MODE.R256` took.
+    let stat_after_init = init();
     reseed_and_wait();
 
     // Draw the first 32 bytes before reporting anything, the same discipline `entropy.rs` uses:
@@ -243,21 +320,31 @@ pub extern "C" fn _start(_arg0: u64, _arg1: u64, _arg2: u64) -> ! {
     if let Some(bytes) = first {
         pool.refill(&mut || Some(bytes));
     }
-    // Word 2 is two different facts depending on word 0, and that is deliberate: `send` carries
-    // three words and the useful third one changes with the answer. On success it is how many
-    // bytes are in hand (0 would mean a refill that reported success and produced nothing). On
-    // failure it is the raw `(STAT << 32) | ISTAT` snapshot, which is the only diagnostic that
-    // separates the bring-up failures a bench session cannot otherwise tell apart: an all-zero
-    // pair says the register window read as nothing (a gated clock, an undeasserted reset, or a
-    // base address that is not the TRNG), while a nonzero `STAT` with `SEEDED` clear says the
-    // device is alive and the seeding sequence is what did not finish. See the roadmap doc's
-    // bench procedure, which is written to read this number.
-    let diagnostic = if report == proto::READY {
-        pool.remaining() as u64
-    } else {
-        (u64::from(regs().STAT.get()) << 32) | u64::from(regs().ISTAT.get())
-    };
-    send(READY, report, u64::from(first.is_some()), diagnostic);
+    // **Word 2 is always the same fact now**, and that change is this milestone's other finding.
+    // It used to be the byte count on success and a `(STAT << 32) | ISTAT` snapshot on failure,
+    // which meant the number a bench session read first meant two different things depending on a
+    // word printed beside it. On 2026-09-04 radon printed `0x20` there and it was read as
+    // `ISTAT` bit 5, an undocumented status bit, when it was in fact `pool.remaining() == 32`:
+    // the success path's byte count, on a boot the tour had labelled FAILED for an unrelated
+    // reason. An hour went into decoding a number that was never a register.
+    //
+    // So the diagnostic is unconditionally `(STAT << 32) | ISTAT`, read now, and the byte count
+    // moves into word 1 beside the flag it belongs with. An all-zero pair still says the register
+    // window read as nothing (a gated clock, an undeasserted reset, or a base that is not the
+    // TRNG); a nonzero `STAT` with `SEEDED` clear still says the device is alive and the seeding
+    // sequence did not finish. Both readings now hold whatever word 0 says.
+    let diagnostic = (u64::from(regs().STAT.get()) << 32) | u64::from(regs().ISTAT.get());
+    // Word 1 carries the byte count and, in its high half, the `STAT` this driver saw right after
+    // `init`. `STAT.R256` there is the answer to "is this device in 256-bit mode", which decides
+    // whether the 32 bytes above are 32 bytes of device output or 16 bytes and 16 of something
+    // else. Nothing has read it on silicon yet; the bench procedure now says to.
+    let bytes_in_hand = pool.remaining() as u64;
+    send(
+        READY,
+        report,
+        (u64::from(stat_after_init) << 32) | bytes_in_hand,
+        diagnostic,
+    );
 
     // **A device that answered with zeros is refused for the rest of the boot**, and that is a
     // stronger response than the report word alone. The report reaches whoever wired this service;

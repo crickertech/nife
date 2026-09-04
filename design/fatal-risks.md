@@ -230,6 +230,27 @@ because no board shipping the ratified RISC-V IOMMU spec exists today. So a real
 experiment on radon confines nothing unless something in software does, which §86's research pass
 found is possible and had been ruled out on a false premise.
 
+**The third correction, 2026-09-04, and it is a result rather than a correction.** On radon, a
+userspace program holding two rendezvous capabilities and **one page of device memory** (no IRQ
+capability, no DMA page, no `Virtio` capability) brought up the JH7110's TRNG and served a client
+bytes that were not zero and that changed between draws, through a capability that names no device.
+Transcript: `target/board/radon-2026-09-04-clock-and-first-entropy.log`, milestone 159.
+
+That splits this risk into three, and two of them are now answered:
+
+- **Confined**: yes, demonstrated on silicon.
+- **Drive real hardware**: yes, demonstrated on silicon. A TRNG is a small device, and that is worth
+  saying plainly rather than glossing: it has no DMA, no interrupt in this driver's path, and one
+  register window. It is the *smallest* real device on the board, so it settles "a confined
+  userspace process can reach non-virtio silicon at all" and it settles nothing about a device with
+  a ring buffer.
+- **At real speed**: **unmeasured**, and this is now the whole of the open question for small
+  devices. Nothing in the boot tour timestamps the step, so the only available clock is a person
+  watching a serial console; `design/roadmap/proposals/time-the-hw-entropy-step.md` is what would
+  fix that.
+
+The decisive experiment above is unchanged, because throughput is what a TRNG cannot test.
+
 ## 7. The confinement claim is false
 
 **The claim:** a confined component escapes, and the property the whole system is built to provide
