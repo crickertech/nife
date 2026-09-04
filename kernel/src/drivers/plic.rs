@@ -179,6 +179,28 @@ pub fn enable(source: u32, context: usize) {
 /// the external-interrupt handler with the context that took the interrupt, which is the same
 /// context the source is enabled on (a source targets exactly one hart), so the mask and the later
 /// ACK re-enable stay in agreement.
+///
+/// **`#[inline(never)]`, and it is a measurement rather than a style choice**, the same reason
+/// `arch::riscv64::timer::tick` carries it and for the same symbol. This function's one caller is
+/// the `S_EXTERNAL` arm of `riscv_trap_body`, which `script/fastpath-footprint` counts **flat** in
+/// its `syscall_entry` set, because on this ISA an `ecall` really does arrive through the same
+/// handler as every other trap. The **device-interrupt** arm of that handler is not something a
+/// syscall fetches, and inlining here drags in `set_enable_bit`'s locked read-modify-write on top
+/// of the call it replaces. When LLVM folds it in, those bytes land inside `riscv_trap_body`'s span
+/// and the flat entry-set sum counts them anyway.
+///
+/// That flip happened on its own in the `nightly-2026-09-03` to `nightly-2026-09-04` bump, which
+/// changes no kernel source at all, and it put **10.4%** (1870 to 2064 bytes) on a 5% bound.
+/// `riscv_trap_body` grew 550 to 744 while `trap_entry`, `trap_return`, `riscv_trap_dispatch` and
+/// `syscall::dispatch` were byte-identical, and this symbol vanished from the disassembly entirely.
+/// Keeping the call keeps the number measuring what it says it measures; a `jal` on a routed device
+/// interrupt, which then goes on to send an IPC message, costs nothing worth having.
+///
+/// This is the **second** instance of the same flat-entry-set effect on the same symbol in as many
+/// days, which is the finding rather than this attribute. It is recorded at
+/// `design/roadmap/proposals/a-flat-entry-set-counts-bytes-no-syscall-fetches.md`, whose "the next
+/// one will look different" is now observed rather than predicted.
+#[inline(never)]
 pub fn disable(source: u32, context: usize) {
     set_enable_bit(source, context, false);
 }
