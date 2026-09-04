@@ -1179,7 +1179,10 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                         ),
                         Some(w) => {
                             // The bring-up report first: `[READY, first_refill_ok, bytes_in_hand]`,
-                            // or a 0xDEAD_.. word. A device that never answered says so here.
+                            // or a 0xDEAD_.. word whose low byte names the step. A device that
+                            // never answered says so here, and since 2026-09-04 so does one that
+                            // answered with zeros: `entropy_proto::readiness` decides that word
+                            // from the bytes, which is what the boot below found it was not doing.
                             let report = w.wait_for_ready().unwrap_or([0; 5]);
                             // Then two draws through the request endpoint, as a client. Two,
                             // because one proves only that *something* was returned: a stuck
@@ -1187,6 +1190,11 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                             // never started all present as a repeat.
                             let (mut a, mut b) = ([0u8; 32], [0u8; 32]);
                             let (na, nb) = (w.get(32, &mut a), w.get(32, &mut b));
+                            // The service refuses to report ready on an all-zero first bufferful
+                            // now, so this is a client checking a claim rather than the only thing
+                            // standing between a boot and zeros served as randomness. It stays
+                            // because a tour that only repeated the service's own verdict would
+                            // have caught nothing on 2026-09-04.
                             let zeros = a.iter().all(|&x| x == 0);
                             if report[0] == entropy_proto::READY
                                 && na == 32
@@ -1200,7 +1208,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                                 );
                             } else {
                                 // `report[2]` is the driver's bring-up diagnostic and it is the
-                                // number a bench session reads first: on a failed first refill it
+                                // number a bench session reads first: on any failed bring-up it
                                 // is the raw `(STAT << 32) | ISTAT`, and all zeros there means the
                                 // register window read as nothing at all (a gated clock, an
                                 // undeasserted reset, or a base that is not the TRNG) rather than
