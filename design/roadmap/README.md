@@ -576,6 +576,7 @@ besides, being built for dated release grouping; these are capability-shaped and
 | 252 | BUILT | [A `PARTIAL` block claims work is remaining and nobody re-reads it](252-a-partial-block-is-the-one-nobody-re-reads.md) | All 22 `PARTIAL` blocks swept: 215 dispositions written, **56 of them recording a claim the tree disproved, and every one of the 22 blocks carried at least one** | 2026-09-03 |
 | 253 | NOT-STARTED | [A status that can only become wrong after the merge, so no gate can catch it in time](253-a-status-that-only-becomes-wrong-after-the-merge.md) | milestone 247 merged reading IN-PROGRESS on its own branch; the check that refuses it can only fire afterwards, on somebody else | |
 | 254 | BUILT | [A caller stranded by a server that died is stranded forever, and nothing records that as intended](254-a-caller-stranded-by-a-dead-server.md) | `Gone` reaches endpoint wait queues and not reply parks, so a dead server blocks its callers for the life of the machine | 2026-09-04 |
+| 255 | NOT-STARTED | [A quarter of `kernel/src/arch/` has no assembly in it, and none of it is proved](255-the-arch-layer-the-prover-cannot-see.md) | risk 2 stays amber on `arch/`, and 4,004 of its 16,225 lines contain no `asm!` at all | |
 
 The order §14 sets: **verify the core and make it verifiable first** (18 and 14, the thesis), then the
 road to running real workloads on real machines (15, 21, 16, 19; 25 extends 21 into cross-OS
