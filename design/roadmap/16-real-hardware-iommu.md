@@ -91,3 +91,19 @@ initrd holding init before the kernel has loaded and measured it*. Software conf
 ring) governs a driver the kernel already trusts to run; it does nothing about a device corrupting
 init's bytes at rest. So verifying init (22) is only airtight once 16 removes the way to tamper with
 it underneath the check.
+## Follow-on
+
+- **Done.** The on-board test-suite exit is `kernel/src/arch/riscv64/semihosting.rs`, whose board
+  feature replaces the `sifive_test` finisher with a UART verdict marker plus SBI SRST shutdown.
+  `script/soak` and `crates/board_console` are what read it.
+- **Done.** The DTB-driven UART IRQ landed: the machine description supplies the source in
+  `kernel/src/user.rs`, read by `kernel/src/main.rs` and by the input service, and the nine boots
+  of the 2026-09-03 series each printed `uart irq : source 32 (machine description)`.
+- **Milestone 74.** The real-cycle benches are all that is left of 16a. 74 is still NOT-STARTED and
+  its own text says the PMU appears only in device-tree fixtures and in that file.
+- **Milestone 143.** Carrying 16b's RISC-V IOMMU driver to silicon is that block, gated on hardware
+  because no board shipping the ratified spec exists.
+- **Milestone 241.** The aarch64 board this block deferred to when milestone 25's leftover
+  justifies it now has its own block, with the market work in `notes/aarch64-board-survey.md`.
+- **Milestone 252.** The gap this block found in itself, that a PARTIAL block goes unread while it
+  keeps claiming work, is milestone 252.

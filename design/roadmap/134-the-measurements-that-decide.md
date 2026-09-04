@@ -278,3 +278,34 @@ measure this register carries and nobody ever needs is a cheap thing to have bee
   of taking it. §95 reasons from `syscall::dispatch` being the largest symbol to it being the thing
   worth skipping. If per-phase attribution says dispatch is cheap and the trap entry dominates, the
   fastpath work should change shape. Better to find that with a counter than after building it.
+## Follow-on
+
+- **Milestone 229.** Tier B's authority blocker is gone.
+  `design/decisions/139-cycle-counter-authority.md` is DECIDED (calef, 2026-09-02, a per-thread
+  grant in the spawn manifest) and `design/roadmap/229-the-counter-grant.md` is BUILT the same day;
+  `kernel/src/arch/aarch64/timer.rs` opens and closes the counter per thread at the switch.
+- **Outstanding.** Milestone 74's counter driver is still NOT-STARTED, so M5 through M9 have no
+  instrument. The grant opens the register and nothing yet reads it as a benchmark. Checked
+  2026-09-03.
+- **Done.** The silicon this register waits on arrived: `notes/target-hardware.md` lists argon as
+  in hand and radon as booting nife and wired as a bench target, which is the small-cache board
+  this block names as milestone 127's alternative.
+- **Outstanding.** The small-cache re-run of E1, E3's latency half and E4 has not been taken.
+  `notes/register-of-measures.md` still says all four ran on the dev Mac only, and radon's
+  availability makes this actionable rather than blocked. Checked 2026-09-03.
+- **Outstanding.** The per-IPC kernel stack depth is still an estimate.
+  `notes/stack-high-water.md` reports a deepest standing path across the whole suite rather than a
+  per-IPC figure, so E1's prediction remains a sighting shot. Checked 2026-09-03.
+- **Milestone 25.** M12, the same measures on seL4 on the same board, is that block, itself PARTIAL
+  and gated on hardware and milestone 74, which this one already cites.
+- **Recorded.** E1 measures the process kernel's penalty rather than the event kernel's benefit.
+  Showing the cost and its scaling is all a benchmark can do; what a continuation-based kernel
+  would recover needs one built.
+- **Recorded.** Nothing here measures the verification argument. §96's claim that explicit
+  continuation state suits a model checker better than an implicit stack stays a design argument
+  after every number exists.
+- **Recorded.** Tier B's event names are intent rather than a plan that survives contact. Real PMUs
+  do not implement every architected event and some implement them wrongly, so M6 through M8 should
+  be expected to change shape against what the TX1 and the U74 actually count.
+- **Recorded.** M9 could refute the fastpath as sketched, and listing it is the point. If per-phase
+  attribution says dispatch is cheap and trap entry dominates, §95's premise moves.

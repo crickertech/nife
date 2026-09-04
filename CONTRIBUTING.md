@@ -106,9 +106,11 @@ gh pr create --draft                         # then mark it ready when the gates
 ```
 
 `script/lint` refuses a branch prefix outside that set, so the first line saves you a red check.
-**`script/gates` is the one command to remember**: it runs `script/fmt --check`, `script/lint`,
-`script/icount`, `script/test` and `script/test --hvf` in that order, cheapest first, so a
-formatting slip costs twenty seconds rather than the whole run. `--hvf` (the aarch64 suite on the
+**`script/gates` is the one command to remember**: it runs every gate a pull request must pass,
+cheapest first, so a formatting slip costs twenty seconds rather than the whole run. The stages are
+listed in the script itself rather than repeated here, because this sentence has now been corrected
+by hand twice as stages were added (three to five on 2026-08-22, five to seven on 2026-09-03) and a
+list in two places rots in one of them. `--hvf` (the aarch64 suite on the
 physical core) is the slowest stage and the one most likely to flake on a contended host; see
 notes/load-sensitive-assertions.md if it does.
 

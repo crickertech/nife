@@ -241,3 +241,39 @@ entries, and persistence of the entry table across reboot are each their own lat
   in the document, for as long as that one instance takes to die and its grant to be reclaimed. A
   document whose `--mem` entry competes with a fast interval for the clock pays that cost as a late
   fire rather than a dropped one; the shipped document does not exercise it.
+## Follow-on
+
+- **Outstanding.** One image per entry still needs machinery nothing has: `user/src/spawner.rs` is
+  the right shape, one budget and one image behind a request channel, but `user/src/root_supervisor.rs`
+  builds exactly one of it, so nothing spawns sub-builders sized to a document. Checked 2026-09-03.
+- **Outstanding.** The registration wire format is unbuilt and undecided: `crates/timetable` has no
+  opcode and no register constant, and no record under `design/decisions/` covers a session
+  registering into a running scheduler. Checked 2026-09-03.
+- **Outstanding.** Deregistering one entry while the session lives still has no answer.
+  `crates/schedule_store` carries no removal verb, and §108's credential-revocation cascade is the
+  only removal in the tree. Checked 2026-09-03.
+- **Done.** The private-session-type obstacle went with its file: the SMB server was removed on
+  2026-08-30 and only historical mentions survive in `user/src/session_reviver.rs`, so nothing has
+  to be lifted into a crate any more.
+- **Done.** Persistence is no longer unaddressed: milestone 152 built `crates/schedule_store`, the
+  per-identity on-disk schedule in the timetable's own document format, plus its manifest (§122,
+  §125) and boot-time re-derivation in `user/src/session_reviver.rs` (§123).
+- **Outstanding.** Wiring that store into a running scheduler has not happened: nothing in
+  `crates/timetable` or `user/src/timetable.rs` mentions the store, so entries still die with the
+  boot in the scheduler itself. Checked 2026-09-03.
+- **Outstanding.** Calendar syntax has not started. `crates/calendar` is milestone 51's civil-date
+  arithmetic and supplies the vocabulary, and the timetable's grammar is still every-N-seconds and
+  at-boot. Checked 2026-09-03.
+- **Outstanding.** Wall-clock entries have not started, and the reason this block found by building
+  still holds: the scheduler holds no clock capability at all, so it has none to give an entry.
+  Checked 2026-09-03.
+- **Recorded.** The document is still compiled in (`user/src/timetable.rs`), and where it lives is
+  also what answers who may register. The pointer this block gives to milestone 131 for the fix is
+  dead: that block is NOT-STARTED and its subject was removed on 2026-08-30.
+- **Milestone 106.** The absence of a timed wait still costs a core's worth of yields and lazy
+  reaping. The registry already computes the instant a timed wait would block until.
+- **Recorded.** At most one memory-budgeted instance may be outstanding, with the cost paid by
+  every other entry as a late fire, recorded in full in `user/src/timetable.rs`'s own `BUGS`.
+- **Recorded.** `timetable` is a provisional name for the crate, the program and the document, said
+  so in every module header, with `cron`, `almanac`, `metronome` and `scheduler` recorded as
+  refused.

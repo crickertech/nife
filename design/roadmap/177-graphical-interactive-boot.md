@@ -192,3 +192,24 @@ on the input-routing fork this milestone already answered (option A), the same d
 investigation found before the split: x86_64 has no fallback UART path at all (DECISIONS §121,
 permanently kernel-resident), so its only possible route is through the graphical stack this
 milestone builds.
+## Follow-on
+
+- **Outstanding.** The second flush through `user/src/gpu_driver.rs`'s real boot path still does
+  not return. `notes/framebuffer-contract.md`'s `BUGS` carries it, it is not root-caused, and no
+  roadmap block owns it. Checked 2026-09-03: nothing has touched that file since the rename commit.
+- **Outstanding.** `script/shell-check --graphical` therefore still does not reach a working
+  prompt. The leg exists in `xtask/src/main.rs` and is written red on purpose, and neither
+  `script/gates` nor CI runs it. Checked 2026-09-03.
+- **Done.** Whether the swap is unconditional or a runtime choice is settled by what was built:
+  `crates/system_initializer` branches on whether the display-terminal endpoint was granted, and
+  the kernel's graphical boot returns nothing when the bus has no GPU, so both paths coexist and
+  device presence picks.
+- **Done.** Whether `line_editor` needs a change to run as a display client rather than a console
+  client is answered yes and built: `user/src/line_editor.rs` carries a second output arm chosen at
+  spawn and nowhere else.
+- **Done.** The sequencing question against milestone 55's storage and milestone 49's login is
+  moot. 55 is REMOVED as of 2026-08-30 and 49 is BUILT and already wired into the real interactive
+  boot on both ISAs.
+- **Milestone 182.** Piece 5, x86_64's own entry point, is
+  `design/roadmap/182-x86-64-interactive-boot.md`, which this block already names; the earlier
+  sentence saying neither architecture plans it is superseded by the split recorded lower down.

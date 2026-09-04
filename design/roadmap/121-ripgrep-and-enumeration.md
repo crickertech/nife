@@ -191,3 +191,30 @@ ripgrep working beautifully and confinement being decorative.
 - **A walker's cost is per component and invisible.** Whatever milestone 122 chooses, descending a
   path is one IPC round trip per component, and a tool that walks a deep tree pays it on every open.
   That is part of what the benchmark below is for, and it is a cost `ripgrep` on Linux does not have.
+## Follow-on
+
+- **Milestone 205.** The ABI has no argument vector, which is what stops `rg` after it loads and
+  resolves its own directory. `design/roadmap/205-foreign-program-arguments.md` was minted from
+  this lane on 2026-08-31 and carries the wire-format fork.
+- **Milestone 206.** The 896 KiB image ceiling this lane found became
+  `design/roadmap/206-user-image-ceiling.md`, which also owns the mapping error that names an
+  overlap rather than a size.
+- **Outstanding.** The confined demonstration, `rg` against a directory capability carrying
+  enumerate, read and descend, is unbuilt: `kernel/src/user/ripgrep_tests.rs` has one test and it
+  asserts `ripgrep` printed its own usage text. Blocked on 205. Checked 2026-09-03.
+- **Outstanding.** The negative half, the same command against a capability lacking the enumerate
+  right being refused loudly, exists nowhere. Blocked on 205 for the same reason. Checked
+  2026-09-03.
+- **Outstanding.** The benchmark that prices the walk, per-entry IPC cost separated from per-byte
+  search cost, is unmade, and `notes/ripgrep-on-nife.md`'s own `BUGS` says so: nothing here
+  measured a search, so nothing here measured the walk. Checked 2026-09-03.
+- **Milestone 184.** x86_64 has no `std` and therefore no `ripgrep`;
+  `design/roadmap/184-std-x86-64.md` owns the gap and this block already names it.
+- **Outstanding.** Directory reading still reads a listing whole rather than streaming it, and the
+  memory cost of a deep walk over large directories is unmeasured. Checked 2026-09-03 against the
+  filesystem shim under `patches/std-nife/overlay/std/src/sys/`.
+- **Recorded.** `mmap` is absent, `memmap2` compiles its stub, and the searcher falls back to reads
+  on its own, so the no-mmap cost stays unmeasured until a search actually runs.
+- **Recorded.** A process is single-threaded, so any published number must say so and pin the Linux
+  side to one thread. `ripgrep` never reaches DECISIONS §105 because the parallelism query answers
+  one and it picks its own serial walker.
