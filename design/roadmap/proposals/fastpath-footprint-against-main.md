@@ -43,6 +43,24 @@ The third shape, which neither the block nor this proposal has priced, is **both
 against `main` for the pull request plus an absolute ceiling that only calef raises. That is more
 machinery, and whether the extra check earns its keep is part of the same decision.
 
+## One data point from 2026-09-04, which cuts against `main` alone
+
+PR #716 is the daily toolchain bump: one line of `rust-toolchain.toml`, no kernel source. It failed
+the `syscall_entry` check at 10.4% on riscv64 because the newer compiler inlined a device-interrupt
+helper into the trap handler (the full account is in
+`a-flat-entry-set-counts-bytes-no-syscall-fetches.md`).
+
+**A delta-against-`main` gate would have failed this too, and for a worse reason.** `main` would
+have been built under the *old* pin, so the comparison would have attributed the entire 194 bytes to
+a pull request whose diff cannot contain them, with no stored file for anyone to inspect. The stored
+baseline at least made the reference explicit and stable enough to diff against by hand. This does
+not decide the question, and it is one case rather than a pattern; it is offered because it is the
+kind of case the delta option is supposed to be immune to and is not.
+
+The same lane's measurements on the other side are in `unattributed-fastpath-residuals.md`: all
+three `ipc_fastpath` baselines are now stale, aarch64 having gone stale again within a week of
+milestone 237 re-recording it, which is this proposal's own failure mode recurring on schedule.
+
 ## Where it came from
 
 Milestone 237's `## Follow-on`: *"Whether the fastpath footprint gate should compare against `main`
