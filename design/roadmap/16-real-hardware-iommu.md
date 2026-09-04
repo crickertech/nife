@@ -20,12 +20,20 @@ out of the tree rather than out of here:
   `uart irq    : source 32 (machine description)`, and the follow-on the fix exposed is fixed too:
   two `kernel::sched::tests` interrupt-delivery tests hardcoded QEMU's source 10 and now read
   `user::uart_irq_and_source()`.
-- **The real-cycle benches: still open, and now the whole of what remains.** They ride milestone 74
-  (cycle counters: SBI PMU on RISC-V, `PMCCNTR_EL0` on aarch64), whose riscv64 half is buildable
-  today; only its aarch64 half is gated, on milestone 75, whose question DECISIONS 139 answered on
-  2026-09-02.
+- **The real-cycle benches: the code landed 2026-09-03, the numbers have not.** Milestone 74's
+  riscv64 half is built: the kernel speaks the SBI PMU extension, asks firmware for a counter that
+  counts CPU cycles, checks it is actually counting, prints which counter and CSR it got and why
+  when there is none, and `cargo xtask bench --riscv` prints one `cycles_per_tick` probe that
+  converts every tick-denominated row in `bench/baseline-riscv64.txt` at once.
+  **No cycle number has been measured**, and that is this gate's second sense exactly: QEMU-TCG
+  drives the `cycle` and `time` CSRs off one virtual clock, so the emulator's answer is an artifact
+  (an implausibly exact 100.00) and only radon can produce a real one, with a person at it.
+  notes/riscv-cycle-counters.md is the procedure, written and untested. So this item moved from
+  "nobody has written the code" to "somebody has to sit at the board and read three lines", which is
+  smaller and is not nothing.
 
-**So milestone 16 is one milestone from done**, and that milestone is 74.
+**So milestone 16 is one bench session from done**, rather than one milestone. What 74 still owes is
+its aarch64 half, and that is milestone 25's `sel4bench` comparison rather than 16a's board.
 
 **Why this block was wrong for weeks is worth recording, because it is a gap in a gate built the same
 day it was found.** Milestone 247 swept every `BUILT` and `REMOVED` block for exactly this and cannot
