@@ -8,11 +8,30 @@ board), which is the second sense the gate vocabulary now names, and it is why t
 `--ready` for days offering work no lane could take. 16b is built, the board arrived 2026-08-14, and the bench delivered first silicon
 the same day: eleven boots across two sessions, ending with the full tour completing on three harts
 ("nife: the capability core runs on RISC-V"), the four predicted code changes landed plus the
-ones the bench actually demanded, and notes/visionfive2.md carrying the whole narrative. What
-remains of 16a is engineering, not hardware, and each piece is lane-sized: the on-board test-suite
-exit (the `sifive_test` device does not exist on silicon; the note proposes a UART pass/fail
-marker), the DTB-driven UART IRQ for the driver demo (the 10-versus-32 BUGS entry), and the
-real-cycle benches, which ride milestone 74's SBI PMU half. Carrying 16b's IOMMU driver to silicon
+ones the bench actually demanded, and notes/visionfive2.md carrying the whole narrative. **Two of the three things this block listed as remaining are done, and it went
+on saying otherwise until 2026-09-03**, when calef asked what was left and the answer had to be read
+out of the tree rather than out of here:
+
+- **The on-board test-suite exit: done.** `kernel/src/arch/riscv64/semihosting.rs` replaces the
+  `sifive_test` finisher with a UART marker plus SBI SRST under the `board` feature, which is what
+  the note proposed. It is the mechanism `script/soak` and `crates/board_console` judge every board
+  run by.
+- **The DTB-driven UART IRQ: done.** All nine boots of the 2026-09-03 series printed
+  `uart irq    : source 32 (machine description)`, and the follow-on the fix exposed is fixed too:
+  two `kernel::sched::tests` interrupt-delivery tests hardcoded QEMU's source 10 and now read
+  `user::uart_irq_and_source()`.
+- **The real-cycle benches: still open, and now the whole of what remains.** They ride milestone 74
+  (cycle counters: SBI PMU on RISC-V, `PMCCNTR_EL0` on aarch64), whose riscv64 half is buildable
+  today; only its aarch64 half is gated, on milestone 75, whose question DECISIONS 139 answered on
+  2026-09-02.
+
+**So milestone 16 is one milestone from done**, and that milestone is 74.
+
+**Why this block was wrong for weeks is worth recording, because it is a gap in a gate built the same
+day it was found.** Milestone 247 swept every `BUILT` and `REMOVED` block for exactly this and cannot
+see this one: 16 is `PARTIAL`, and `## Follow-on` is required only of finished blocks. A `PARTIAL`
+block is *more* prone to this than a finished one, because it is edited as pieces land and nothing
+re-reads what it still claims. Carrying 16b's IOMMU driver to silicon
 is now milestone 143, split out 2026-08-20, because it waits on a board that ships the ratified
 RISC-V IOMMU spec and no such board exists today.
 
