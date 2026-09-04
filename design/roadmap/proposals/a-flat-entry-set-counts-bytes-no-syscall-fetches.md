@@ -59,6 +59,37 @@ Three things this instance settles that the milestone 133 one could only assert:
   *report the delta per symbol when the gate fails*, would have turned both of those into reading
   the failure message. It is the cheapest item on the list and it is the one that pays every time.
 
+### And a third instance the same day, in the opposite direction
+
+**2026-09-04, milestone 220's lane**, whose change adds a clock-and-reset driver and touches no
+trap path, no timer and no syscall. It failed this gate on **aarch64** at **35.1%**, and the sign is
+the point: `syscall_entry` **shrank**, 3304 to 2144, because
+`_RNvNt...6kernel7syscall8dispatch` (1160 bytes) **vanished from the symbol table entirely**. LLVM
+folded the dispatcher into the exception handler in the new build and not the old one, and the only
+plausible trigger is that the lane added a dependency to the `kernel` crate, which is a
+whole-crate codegen perturbation and not a change to any measured path. `exception_dispatch` and
+`exception_vectors` were unchanged.
+
+Two things this adds to the two instances above.
+
+**The failure can read as good news.** A gate that says "your change made the syscall path 35%
+smaller" invites exactly one response, which is to re-record the baseline and take the win. Doing
+so would have locked in an under-measurement: the next lane whose build inlines the other way sees
+a 54% *growth* it cannot attribute, on top of a reference that no longer counts the dispatcher.
+The script's own message ("no justification needed for shrinking, just an explicit acknowledgment")
+is written for a real shrink and cannot tell this apart from one.
+
+**The trigger set is now wider than "a code change" or "a compiler upgrade".** It is *adding a
+dependency*, which any lane may do and which the diff makes look inert. Combined with the two
+instances above, the honest statement is that **any perturbation of the kernel crate can hand a
+lane this failure**, in either direction, on any of three ISAs.
+
+Closed the same way as the other two, with `#[inline(never)]` on `syscall::dispatch` and the
+reasoning beside it, which restores aarch64 to exactly 3304. That is now **three patches on the
+symptom in two days**, which is the rate this proposal's last bullet is priced against: *report the
+delta per symbol when the gate fails*. All three lanes spent a build-and-diff of two disassemblies
+to name one symbol, and all three would have read it off the failure message.
+
 ## What the options look like
 
 - **Do nothing, and treat the attribute as the pattern.** Cheapest, and it is not absurd: the tree

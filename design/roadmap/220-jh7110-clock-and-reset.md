@@ -147,6 +147,13 @@ split than NVMe was:
 - **Milestone 159.** The bench line that produced this diagnosis also found that the entropy
   service sends `READY` while holding zeros, which is 159's defect and not this one; it is
   written up at `design/roadmap/proposals/ready-on-a-dead-device.md` and named in 159's own block.
+- **Recorded.** A third instance of `script/fastpath-footprint`'s flat entry set moving under an
+  inlining flip, and the first in the *shrinking* direction: adding a dependency to the `kernel`
+  crate made LLVM fold `syscall::dispatch` into the aarch64 exception handler, so the gate reported
+  `syscall_entry` 35% smaller while the code a syscall fetches was identical. Closed the way the
+  tree already closes this, with `#[inline(never)]` and the reasoning beside it, and written up in
+  `design/roadmap/proposals/a-flat-entry-set-counts-bytes-no-syscall-fetches.md`, which owns the
+  mechanism question.
 - **Refused.** A general JH7110 clock driver covering all five domains and every clock. The
   milestone's own `BUGS` named unbounded scope as its main risk and the two ends differ by an
   order of magnitude; the arithmetic here is general enough that a second domain is a table entry
