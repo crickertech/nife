@@ -342,10 +342,13 @@ const _: () = {
 /// **The SBI extensions the kernel calls.** Firmware, not silicon, so this is a third source
 /// alongside the device tree and the probes: the answer comes from `sbi_probe_extension`.
 ///
-/// All four are called unconditionally today, which is why all four are required. That is worth
+/// Four of the five are called unconditionally, which is why those four are required. That is worth
 /// naming precisely because it is the failure that would be silent otherwise: `sbi_remote_sfence_vma`
 /// on firmware without RFENCE returns an error nobody reads, the other harts never invalidate, and a
 /// migrated thread runs on a stale translation.
+///
+/// PMU is the fifth and is optional, because it is an instrument rather than a facility the kernel
+/// runs on. See [`SbiRow::required`].
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
 pub struct SbiExtensions(u32);
 
@@ -375,6 +378,16 @@ pub struct SbiRow {
     pub bit: SbiExtensions,
     /// The extension id to pass to `sbi_probe_extension` (base extension, function 3).
     pub eid: usize,
+    /// **Does the kernel refuse to boot without it?** [`SBI_REQUIRED`] is the `true` rows and
+    /// nothing else, so a `false` row is probed, reported on the boot line, and never fatal.
+    ///
+    /// The same field [`Row`] carries one source over, for the same reason: an optional facility
+    /// and a required one differ in exactly one bit of policy, and splitting them into two tables
+    /// would give a reader two places to look for "does this firmware have PMU". PMU is the first
+    /// `false` row (milestone 74) and it must be one: a cycle counter is an instrument, and a
+    /// kernel that would not boot without an instrument has confused the measurement with the
+    /// thing measured.
+    pub required: bool,
     pub why: &'static str,
 }
 
@@ -382,6 +395,7 @@ pub const SBI_TIME: SbiExtensions = SbiExtensions(1 << 0);
 pub const SBI_IPI: SbiExtensions = SbiExtensions(1 << 1);
 pub const SBI_RFENCE: SbiExtensions = SbiExtensions(1 << 2);
 pub const SBI_HSM: SbiExtensions = SbiExtensions(1 << 3);
+pub const SBI_PMU: SbiExtensions = SbiExtensions(1 << 4);
 
 /// An SBI extension id is the big-endian ASCII of a short tag the specification assigns, so the id
 /// is **derived from the tag** here rather than written as hex.
@@ -409,45 +423,65 @@ pub const EID_IPI: usize = eid("sPI");
 /// `RFNC`, the other one.
 pub const EID_RFENCE: usize = eid("RFNC");
 pub const EID_HSM: usize = eid("HSM");
+/// The performance monitoring unit extension (milestone 74). Optional: it is how the kernel asks
+/// firmware to start a hardware counter for CPU cycles, and a machine without it still boots.
+pub const EID_PMU: usize = eid("PMU");
 /// The base extension, which is how the other four are probed at all: function 3 is
 /// `probe_extension(eid)`, and functions 0 through 2 report the spec version and the implementation.
 /// The one id that is a number rather than a tag.
 pub const EID_BASE: usize = 0x10;
 
-/// Every SBI extension the kernel calls, and the call site. Four rows, four `ecall` sites.
-pub const SBI_TABLE: [SbiRow; 4] = [
+/// Every SBI extension the kernel calls, and the call site.
+///
+/// Four are required and one is not: see [`SbiRow::required`], and [`SBI_REQUIRED`] for the set the
+/// boot refuses to run without.
+pub const SBI_TABLE: [SbiRow; 5] = [
     SbiRow {
         name: "TIME",
         bit: SBI_TIME,
         eid: EID_TIME,
+        required: true,
         why: "arch::timer::init arms every tick through sbi_set_timer",
     },
     SbiRow {
         name: "IPI",
         bit: SBI_IPI,
         eid: EID_IPI,
+        required: true,
         why: "arch::sbi_send_ipi is how one hart reschedules another",
     },
     SbiRow {
         name: "RFENCE",
         bit: SBI_RFENCE,
         eid: EID_RFENCE,
+        required: true,
         why: "arch::sbi_remote_sfence_vma; RISC-V has no hardware TLB broadcast",
     },
     SbiRow {
         name: "HSM",
         bit: SBI_HSM,
         eid: EID_HSM,
+        required: true,
         why: "arch::cpu_start starts every secondary hart",
+    },
+    SbiRow {
+        name: "PMU",
+        bit: SBI_PMU,
+        eid: EID_PMU,
+        required: false,
+        why: "arch::pmu asks firmware to start a hardware counter for CPU cycles",
     },
 ];
 
-/// The SBI extensions the kernel refuses to boot without, derived from [`SBI_TABLE`].
+/// The SBI extensions the kernel refuses to boot without: the [`SBI_TABLE`] rows whose
+/// [`required`](SbiRow::required) is set, and no others.
 pub const SBI_REQUIRED: SbiExtensions = {
     let mut acc = SbiExtensions::NONE;
     let mut i = 0;
     while i < SBI_TABLE.len() {
-        acc = acc.union(SBI_TABLE[i].bit);
+        if SBI_TABLE[i].required {
+            acc = acc.union(SBI_TABLE[i].bit);
+        }
         i += 1;
     }
     acc
@@ -873,3 +907,94 @@ pub fn supervisor_mode_claim(value: &[u8]) -> Option<bool> {
         (false, false) => None,
     }
 }
+
+/// **What `sbi_pmu_counter_get_info` said about one counter** (milestone 74).
+///
+/// The SBI specification packs the answer into one XLEN-wide word, and this is the decode. Kept
+/// here rather than in the kernel because it is pure bit arithmetic over a value firmware hands
+/// back, which is exactly the half of discovery a host test can prove without an emulator: the
+/// kernel's own half is the `ecall`, and nothing else.
+///
+/// The layout, from the RISC-V SBI Specification v3.0 (ratified 2025-07-16), `src/ext-pmu.adoc`,
+/// "Function: Get details of a counter (FID #1)", read 2026-09-03:
+///
+/// ```text
+///     counter_info[11:0] = CSR (12bit CSR number)
+///     counter_info[17:12] = Width (One less than number of bits in CSR)
+///     counter_info[XLEN-2:18] = Reserved for future use
+///     counter_info[XLEN-1] = Type (0 = hardware and 1 = firmware)
+/// ```
+///
+/// **`width` is one less than the number of bits**, which is the field most likely to be read
+/// wrong: a 64-bit `mcycle` reports 63. [`CounterInfo::bits`] does the `+ 1` in one place so no
+/// caller has to remember, and the same specification sentence says `csr` and `width` "should be
+/// ignored" when the counter is a firmware one, which is why [`CounterInfo::csr`] is an `Option`
+/// rather than a number a caller could accidentally use.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub struct CounterInfo {
+    /// `true` when the counter is maintained by the SBI implementation rather than by hardware.
+    /// A firmware counter has no CSR and is read with `sbi_pmu_counter_fw_read` (FID #5).
+    pub firmware: bool,
+    raw_csr: u16,
+    raw_width: u8,
+}
+
+impl CounterInfo {
+    /// Decode one `sbiret.value` from `sbi_pmu_counter_get_info`.
+    ///
+    /// `XLEN` is 64 here and everywhere this kernel runs (the target triple is `riscv64`), so the
+    /// type bit is bit 63 and there is no RV32 case to get wrong.
+    pub const fn from_raw(value: u64) -> CounterInfo {
+        CounterInfo {
+            firmware: value >> 63 != 0,
+            raw_csr: (value & 0xfff) as u16,
+            raw_width: ((value >> 12) & 0x3f) as u8,
+        }
+    }
+
+    /// The CSR that reads this counter, or `None` for a firmware counter.
+    pub const fn csr(self) -> Option<u16> {
+        if self.firmware {
+            None
+        } else {
+            Some(self.raw_csr)
+        }
+    }
+
+    /// How many bits wide the counter is, or `None` for a firmware counter.
+    ///
+    /// The specification's field is *one less* than this. Every caller wants the real width (to
+    /// know where the counter wraps), so the `+ 1` lives here and nowhere else.
+    pub const fn bits(self) -> Option<u32> {
+        if self.firmware {
+            None
+        } else {
+            Some(self.raw_width as u32 + 1)
+        }
+    }
+}
+
+/// **The `event_idx` for "one CPU cycle"**, the only event milestone 74 asks for.
+///
+/// `event_idx[19:16]` is the type and `event_idx[15:0]` is the code. Type 0 is "hardware general
+/// events" and code 1 is `SBI_PMU_HW_CPU_CYCLES`, so the whole value is 1. Written as the two
+/// fields rather than as a bare `1` because the next event anyone adds will not be so forgiving,
+/// and because a reader with the specification open can check the two halves separately.
+///
+/// The specification's own note on this event, which is the sentence that makes it the right one
+/// for a cycle-denominated benchmark: *"The SBI_PMU_HW_CPU_CYCLES event counts CPU clock cycles as
+/// counted by the `cycle` CSR. These may be variable frequency cycles, and are not counted when the
+/// CPU clock is halted."* (SBI v3.0, `src/ext-pmu.adoc`, read 2026-09-03.)
+pub const EVENT_HW_CPU_CYCLES: usize = pmu_event(0, 1);
+
+/// Assemble an `event_idx` from its type and code, per SBI v3.0 `src/ext-pmu.adoc`:
+/// `event_idx[19:16] = type`, `event_idx[15:0] = code`.
+pub const fn pmu_event(event_type: usize, code: usize) -> usize {
+    (event_type << 16) | code
+}
+
+/// `SBI_PMU_CFG_FLAG_CLEAR_VALUE`, bit 1: zero the counter as part of configuring it.
+pub const PMU_CFG_CLEAR_VALUE: usize = 1 << 1;
+/// `SBI_PMU_CFG_FLAG_AUTO_START`, bit 2: start the counter once a matching one is found, so
+/// configure and start are one `ecall` instead of two.
+pub const PMU_CFG_AUTO_START: usize = 1 << 2;

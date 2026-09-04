@@ -69,6 +69,8 @@ pub fn run() -> ! {
     map_new();
     #[cfg(target_arch = "riscv64")]
     rfence_self();
+    #[cfg(target_arch = "riscv64")]
+    cycles_per_tick();
     coremark_compute();
     null_syscall_el0();
     ctx_switch_el0();
@@ -449,6 +451,63 @@ fn map_new() {
 /// It must be single-hart. A two-hart comparison would be the 2026-07-28 mistake again: under
 /// `-icount` all harts share one virtual clock, so a second hart's idle `wfi` dumps quantized time
 /// into whatever window is open, and the delta would measure interleaving rather than the call.
+/// **How many CPU cycles this machine runs per reference tick** (milestone 74, riscv64 half).
+///
+/// Every row in `bench/baseline-riscv64.txt` is denominated in ticks of the `time` CSR, a
+/// fixed-rate reference counter. The literature this project is compared against is denominated in
+/// **cycles**: notes/benchmarks.md converts by hand, against an assumed clock rate, and milestone
+/// 74's block is largely about how badly that has gone. One measured ratio converts every existing
+/// row at once, which is why this is the harness change rather than a second number on every line.
+///
+/// **A probe, not a benchmark row.** It is a rate, not a duration, and `--check` policing it with a
+/// 10% tolerance would fail on any machine that scales frequency, which is every machine this is
+/// interesting on. `bench-probe:` lines are echoed and never enter the baseline; see `map_new`.
+///
+/// # What this measures under emulation, which is nothing
+///
+/// QEMU-TCG's `cycle` CSR is an instruction count. The ratio printed on the merge machine is
+/// therefore a fact about the emulator and not about any silicon, and the line says so itself
+/// rather than leaving a reader to infer it from the milestone. The number is real on radon and
+/// nowhere else this harness currently runs; notes/riscv-cycle-counters.md is the procedure.
+///
+/// # Why the window is a timed spin
+///
+/// Both counters are read across the same span, so the ratio does not depend on how long the spin
+/// is or on the loop being compiled a particular way. A fixed iteration count would make the ratio
+/// depend on the code inside the loop, which is exactly the thing that differs between an emulator
+/// and a core.
+#[cfg(target_arch = "riscv64")]
+fn cycles_per_tick() {
+    /// Ticks to spin for. At QEMU's 10 MHz `time` CSR this is 10 ms, long enough that the two
+    /// counter reads at each end are noise and short enough not to stretch a bench run.
+    const WINDOW_TICKS: u64 = 100_000;
+
+    let Some(c0) = crate::arch::pmu::cycles() else {
+        println!("bench-probe: cycles_per_tick unavailable (no SBI PMU cycle counter)");
+        return;
+    };
+
+    let t0 = crate::arch::timer::now();
+    while crate::arch::timer::now() - t0 < WINDOW_TICKS {
+        core::hint::spin_loop();
+    }
+    let t1 = crate::arch::timer::now();
+    let c1 = crate::arch::pmu::cycles().expect("the counter did not vanish mid-window");
+
+    let ticks = t1 - t0;
+    let cycles = c1.wrapping_sub(c0);
+    // Two decimal places by integer arithmetic: this is a `no_std` kernel and the ratio is under
+    // one on any emulator and in the hundreds on real silicon, so the fraction carries real
+    // information at both ends.
+    let hundredths = cycles.saturating_mul(100).checked_div(ticks).unwrap_or(0);
+    println!(
+        "bench-probe: cycles_per_tick {}.{:02} ({cycles} cycles over {ticks} ticks at cntfrq {})",
+        hundredths / 100,
+        hundredths % 100,
+        crate::arch::timer::frequency(),
+    );
+}
+
 #[cfg(target_arch = "riscv64")]
 fn rfence_self() {
     const RFENCE_ITERS: u64 = 512;
