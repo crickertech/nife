@@ -30,6 +30,42 @@ name has to survive the day a second machine of the same architecture arrives.
 The development machines keep their existing names and are not part of this scheme:
 **patagonia** (the Mac everything is built on) and **cordoba** (the always-on x86 box).
 
+## Item 0's alternative: isolation without an MMU, and what each version costs
+
+Recorded 2026-09-04, because item 0 as written reads as though nobody had considered it, and a reader
+who knows Tock or seL4's MPU variant will assume we had not. **None of these is being taken**, and
+the reason in each case is a cost rather than an oversight.
+
+**An MPU instead of an MMU.** Cortex-M and Cortex-R carry Memory Protection Units: region-based
+permissions, **no address translation**, typically eight to sixteen regions. seL4 has an MPU variant
+and Tock OS pairs an MPU with Rust's type system, so this is proven rather than theoretical. It is
+also **the only one of the three that preserves this project's thesis**, because it isolates compiled
+binaries rather than requiring the system to have compiled them.
+
+What it costs: no virtual addresses, so every program is position-independent or linked per
+deployment; a hard ceiling of eight-ish simultaneously separated things, where the capability model
+assumes as many address spaces as there are processes; and no demand paging, no copy-on-write, no
+shared mappings. It is a **port** rather than a configuration, and most of `kernel/src/arch/*/mmu.rs`
+and the `paging` crate would have no counterpart.
+
+**Software fault isolation** (Native Client, WebAssembly): bounds-check every memory access, enforced
+by the compiler.
+
+**Language-based isolation** (Microsoft Research's Singularity): software-isolated processes sharing
+one address space, safe because every binary is verified type-safe before it runs.
+
+**Those last two are foreclosed by DECISIONS §14 rather than by taste.** Both isolate only code the
+system itself compiled or verified. §14's demonstrator claim is a kernel that runs real workloads
+which were not written for it, and design/fatal-risks.md's first risk is exactly *"only software
+written for nife runs on nife"*, measured on 2026-08-31 with an **unmodified `ripgrep`**. An SFI or
+language-based nife would make that risk permanently red by construction, which is a stranger thing
+to ship than a kernel that needs an MMU.
+
+**Why this is a note and not a milestone.** There is no machine. The form factors an MPU port would
+open are the ones where no open MMU-class device exists today, and a proposal nobody can act on is
+the backlog graveyard milestone 247 exists to avoid. **What would change that is a specific device**,
+and at that point this section is the starting analysis rather than a blank page.
+
 ## The ISA is almost never the constraint
 
 "Does it run aarch64" is the wrong question. **And the answer splits in two, which this note ran
@@ -43,8 +79,8 @@ than the rest put together:
 0. **Is there an MMU?** nife is a capability microkernel with per-process address spaces; every
    driver and server is an EL0 process behind its own page tables. There is no configuration in
    which it runs without one. **This is what excludes the whole microcontroller class** (Cortex-M,
-   Cortex-R, RISC-V E-series), and it excludes them for a reason that is the thesis rather than a
-   limitation anybody could lift.
+   Cortex-R, RISC-V E-series). The alternatives exist, are proven elsewhere, and are described in
+   their own section below; none is free and one costs the thing fatal risk 1 measures.
 1. **Can you get code to execute at boot?** Unlocked bootloader, or no secure boot at all.
 2. **Are the peripherals documented?** You need an interrupt controller, a timer, and eventually
    storage. The CPU is standardized. The stuff bolted around it is not, and that's where the work is.
