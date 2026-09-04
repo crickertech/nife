@@ -144,9 +144,12 @@ split than NVMe was:
   feature in `notes/jh7110-clock-and-reset.md`'s `BUGS` with the rest of the honest scope.
 - **Recorded.** The deassert poll is an iteration count and not a duration, so a slower board
   scales the bound silently. Same `BUGS` section.
-- **Milestone 159.** The bench line that produced this diagnosis also found that the entropy
-  service sends `READY` while holding zeros, which is 159's defect and not this one; it is
-  written up at `design/roadmap/proposals/ready-on-a-dead-device.md` and named in 159's own block.
+- **Done.** The bench line that produced this diagnosis also found that the entropy service sends
+  `READY` while holding zeros, which was milestone 159's defect and not this one. Fixed on
+  2026-09-04 by pull request #726 while this lane was running: `entropy_proto::readiness` now
+  decides that word from the bytes rather than from the handshake, and all three backends ask.
+  It mattered that it landed first: once the clock works the symptom disappears and the defect
+  would not have.
 - **Recorded.** A third instance of `script/fastpath-footprint`'s flat entry set moving under an
   inlining flip, and the first in the *shrinking* direction: adding a dependency to the `kernel`
   crate made LLVM fold `syscall::dispatch` into the aarch64 exception handler, so the gate reported
