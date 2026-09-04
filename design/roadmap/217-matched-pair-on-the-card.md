@@ -131,7 +131,7 @@ the build rather than after it. What no host check covers is a real card's files
 - **Refused.** Having the card option prove that the path it was given is really a memory card. The
   refusals stay narrow: it requires an existing directory and declines the filesystem root, because
   a check that guesses at intent fails the person with an unusual mount and protects nobody else.
-- **Proposed.** `design/roadmap/proposed/card-pair-verifier.md`, A tool that reads a mounted card
+- **Proposed.** `design/roadmap/proposals/card-pair-verifier.md`, A tool that reads a mounted card
   and reports whether its kernel and its archive match. `--card` narrows who needs one rather than
   removing the need: a card written by any other means stays unverifiable without booting it, so a
   mismatch is found after a power cycle at the bench instead of before one.

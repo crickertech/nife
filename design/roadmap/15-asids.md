@@ -33,7 +33,7 @@ the deferral.
 - **Recorded.** `notes/asids.md`: RISC-V permits `satp.ASID` to be zero bits wide, so "255 numbers
   for at most 160 spaces" is an aarch64 fact. A machine that cannot tell the tags apart keeps
   flushing on every switch, and the width is probed at boot.
-- **Proposed.** `design/roadmap/proposed/what-asids-bought.md`, put a number on what ASIDs bought.
+- **Proposed.** `design/roadmap/proposals/what-asids-bought.md`, put a number on what ASIDs bought.
   The switch stopped flushing the TLB in July and no machine has measured what that changed, nor the
   address-space-switch cost this block calls ASIDs the prerequisite for reasoning about. QEMU cannot
   show it; argon, radon or xenon can. The mechanism ships with its payoff asserted rather than

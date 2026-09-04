@@ -184,12 +184,12 @@ as built serves every read-only use, and 218 is the thing to do first either way
 - **Recorded.** `notes/naming.md` holds the naming backlog this milestone added to:
   `script/board-console`, `cargo xtask board-console` and `crates/board_console` all shipped
   provisional, as a lane's names are, and `script/names --unratified` is the worklist.
-- **Proposed.** `design/roadmap/proposed/board-console-writes.md`, Whether `script/board-console`
+- **Proposed.** `design/roadmap/proposals/board-console-writes.md`, Whether `script/board-console`
   should ever be able to write to the serial port at all, and if so whether that is this tool with
   an explicit mode or a second tool. It is calef's call. Milestone 218 may remove the need by fixing
   autoboot, in which case the answer is no; while it is open, a bench session facing a board that
   will not boot has no sanctioned way to type at it.
-- **Proposed.** `design/roadmap/proposed/board-console-for-argon-and-xenon.md`, Whether argon
+- **Proposed.** `design/roadmap/proposals/board-console-for-argon-and-xenon.md`, Whether argon
   (aarch64) and xenon (x86_64) get this console with a board profile or a tool each. Same behaviour,
   different banners and a different boot sequence, and the choice is calef's. Until it is made the
   other two boards have no console tool at all, so the bench workflow this milestone built exists

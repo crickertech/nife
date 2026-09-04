@@ -151,7 +151,7 @@ on one that does not. It is a bullet list, and each bullet opens with one of six
 | `**Recorded.**` | It is a limitation and it stays one. | Prose, and any path it cites must exist |
 | `**Refused.**` | Considered and deliberately not taken. | A reason, in prose |
 | `**Decision.**` | It is calef's call, written up as one. | A file under `design/decisions/` |
-| `**Proposed.**` | Named, nobody took it, so it is now a proposal. | A file under `design/roadmap/proposed/` |
+| `**Proposed.**` | Named, nobody took it, so it is now a proposal. | A file under `design/roadmap/proposals/` |
 
 **An explicit refusal is a success here.** The defect being attacked is silence, not the absence of
 a milestone, and `**None.**` is meant to be the cheapest sentence in the roadmap.
@@ -177,10 +177,10 @@ this gate exists to stop, arriving through the gate itself.
 **The whole vocabulary is provisional until calef ratifies it.** `REMOVED` was minted by him and
 these six words are a lane's, offered with the sweep that produced them.
 
-## Anybody may add to this roadmap: `design/roadmap/proposed/`
+## Anybody may add to this roadmap: `design/roadmap/proposals/`
 
 Ratified by calef on 2026-09-03, and it dissolves a rule this tree had been treating as one thing.
-**A lane writes a proposal itself**, as `design/roadmap/proposed/<slug>.md`, with no number in the
+**A lane writes a proposal itself**, as `design/roadmap/proposals/<slug>.md`, with no number in the
 name. No coordination, no maintainer in the path, no waiting.
 
 *"On a human team, anybody should be able to add to the roadmap. That's different than prioritizing

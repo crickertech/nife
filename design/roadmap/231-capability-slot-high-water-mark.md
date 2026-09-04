@@ -137,7 +137,7 @@ milestone is what would replace it.
   workload-dependent: the number a boot reports is the number *that* boot reached, and a richer
   initrd reaches a different one, so a single green figure is not a guarantee about every
   configuration.
-- **Proposed.** `design/roadmap/proposed/high-water-gauges-for-fixed-tables.md`, Build the same
+- **Proposed.** `design/roadmap/proposals/high-water-gauges-for-fixed-tables.md`, Build the same
   high-water gauge for the other fixed-size tables, or decide that one mechanism should serve all of
   them. `MAX_REGIONS` and `nifefs::NAME_LEN` have no gauge at all and `sched::MAX_THREADS` has its
   own separate `PEAK_THREADS`, so the shape is being solved once per table by hand and every

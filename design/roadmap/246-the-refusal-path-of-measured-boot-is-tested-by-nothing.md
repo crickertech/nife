@@ -79,6 +79,21 @@ states its falsification.
 
 Not a test that only takes the accept path, which `script/shell-check` already does better.
 
+## Follow-on
+
+- **Proposed.** An unviable mutant is a hole in the measurement that reads as a pass. `cargo mutants`
+  never mutated this milestone's own function: its only operator on a function returning a struct is
+  `Default::default()`, `Verdict` had no `Default`, so the mutant did not compile and scored unviable
+  rather than missed. `measured_boot` had nine such. See
+  `design/roadmap/proposals/the-mutants-nobody-counts.md`.
+- **Recorded.** `user/src/login.rs` spells the same load-or-refuse decision itself and folds all three
+  outcomes into `None`, so it cannot distinguish an absent program from a refused one. `verdict`'s
+  signature already fits it; it was not switched because that is a boot path this milestone did not
+  gate. Beside the code, in `user/src/login.rs`.
+- **Recorded.** `system_initializer::measured` still exists and is still host-unreachable, and
+  `cargo mutants` generates nothing for it. "No mutants generated" is a property of the tool rather
+  than a proof. Beside the code, in `crates/system_initializer/src/lib.rs`.
+
 ## BUGS
 
 - **This does not make `system_initializer` measurable**, and should not be quoted as if it did. 163

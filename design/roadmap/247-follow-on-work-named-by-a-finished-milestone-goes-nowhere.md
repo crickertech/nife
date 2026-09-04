@@ -88,12 +88,12 @@ to survive is stated instead:
 `script/roadmap --check` and therefore by `script/lint`. Seven dispositions, each resolving to
 something a script can check: `None.`, `Milestone N.` (the block must exist), `Done.` (what carried
 it), `Recorded.` (any path it cites must exist), `Refused.` (a reason), `Decision.` (a file under
-`design/decisions/`), `Proposed.` (a file under `design/roadmap/proposed/`). Tabulated in
+`design/decisions/`), `Proposed.` (a file under `design/roadmap/proposals/`). Tabulated in
 design/roadmap/README.md, argued in notes/follow-on-work.md, and put to calef for ratification in
 `design/decisions/140-follow-on-disposition-vocabulary.md`.
 
 **And the half that makes it cheap enough to use**, which is calef's rather than this lane's
-(2026-09-03): `design/roadmap/proposed/<slug>.md`, an unnumbered proposal any lane may write. The
+(2026-09-03): `design/roadmap/proposals/<slug>.md`, an unnumbered proposal any lane may write. The
 reason lanes could not add to the roadmap was stated as collision, and *"the collision is in the
 number, not in the authority"*. Separating them means work reaches the tree at the moment it is
 discovered, written by whoever understood it best, with no maintainer in the path. That matters here

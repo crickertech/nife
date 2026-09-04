@@ -79,7 +79,7 @@ cheap, which is worth knowing before anybody promises a fast inner loop.
 - **Recorded.** In `notes/scripts.md`, beside the flag: the filter selects tests and never
   architectures, so filtering an architecture-specific test without an architecture fails on the
   other two legs. The failure message names the cause.
-- **Proposed.** `design/roadmap/proposed/kernel-falsification-replay.md`, Build the sweep that
+- **Proposed.** `design/roadmap/proposals/kernel-falsification-replay.md`, Build the sweep that
   replays kernel falsification records. Three pieces, each a decision rather than plumbing: extend
   §134's `Falsification:` comment convention from `#[kani::proof]` to `#[test_case]`, teach
   `script/falsifications` a second replay verb (`cargo xtask test --arch <a> --test <name>` per

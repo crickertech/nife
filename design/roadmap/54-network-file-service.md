@@ -148,7 +148,7 @@ backups but not delete them", which is a genuinely useful thing to be able to sa
 - **Recorded.** In `notes/smb.md`, kept in full rather than trimmed with the code: what was
   demonstrated and when, what never worked, the scale of what was deleted, and why. A future reader
   deciding whether to build a Mac-mountable share here again starts from that note's BUGS section.
-- **Proposed.** `design/roadmap/proposed/a-credential-endpoint-per-resource.md`, replace the SMB
+- **Proposed.** `design/roadmap/proposals/a-credential-endpoint-per-resource.md`, replace the SMB
   adapter's resource-name configuration with a narrower `cred_proto`
   capability, so the endpoint is the credential for one resource and the name is implied and
   unforgeable, which is DECISIONS §27's argument applied to `cred_proto`. It is calef's call,

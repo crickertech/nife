@@ -64,7 +64,7 @@ that would not lie **left the item out instead**. That is the silence this gate 
 arriving through the gate itself.
 
 **Then the constraint that made `Unclaimed.` necessary was removed, the same day.** calef ratified
-`design/roadmap/proposed/<slug>.md`: a lane may add to the roadmap itself, with no number and no
+`design/roadmap/proposals/<slug>.md`: a lane may add to the roadmap itself, with no number and no
 coordination, because *"on a human team, anybody should be able to add to the roadmap. That's
 different than prioritizing that roadmap."* The collision that barred lanes from minting was in the
 **number**, never in the authority, and separating the two makes the burial problem much cheaper to
@@ -94,7 +94,7 @@ successors against the index rather than guessing.
 | `Recorded.` | 291 | The `BUGS` convention is working. Most follow-on prose is an honest limitation already sitting where a reader meets it |
 | `Milestone N.` | 136 | The successor usually exists, and the block usually already cited it by number |
 | `Refused.` | 105 | Refusals with reasons, which this convention counts as successes |
-| `Proposed.` | 38 | Work named, nobody holding it, now a file in `design/roadmap/proposed/` |
+| `Proposed.` | 38 | Work named, nobody holding it, now a file in `design/roadmap/proposals/` |
 | `Decision.` | 24 | Forks already written up under `design/decisions/` |
 | `None.` | 7 | Almost all of them backfilled history blocks from milestones 1 to 11 |
 | `Done.` | 3 | And all three were `Proposed.` first. See below: the word paid for itself within the hour |
@@ -119,7 +119,7 @@ rather than kept at zero.
 
 ## What the sweep found, and which of it to promote first
 
-**38 pieces of unclaimed work are now proposal files** under `design/roadmap/proposed/`, one each,
+**38 pieces of unclaimed work are now proposal files** under `design/roadmap/proposals/`, one each,
 written by the lanes that understood them. That is the answer the morning's design could not give:
 with a proposal costing one file and no coordination, the count does not have to be small, and
 nothing has to be argued down to fit a budget.

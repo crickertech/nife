@@ -202,12 +202,12 @@ that a footprint change is intended and understood; do it in the commit that cau
 - **Recorded.** The feature name `cycle_counter_grant` is provisional, like everything a lane mints;
   names are calef's. It is the field it builds rather than a new word for the same thing.
   `kernel/Cargo.toml`.
-- **Proposed.** `design/roadmap/proposed/unattributed-fastpath-residuals.md`, Attribute the riscv64
+- **Proposed.** `design/roadmap/proposals/unattributed-fastpath-residuals.md`, Attribute the riscv64
   and x86_64 fastpath residuals, then re-record those baselines in the commit that does it. riscv64
   sits at 5132 against a 5106 baseline and x86_64 at 6687 against 6639, and neither gap is bisected
   to a milestone, so re-saving them today would be the absorb-the-growth move this block exists to
   refuse. Only aarch64 was re-recorded here.
-- **Proposed.** `design/roadmap/proposed/fastpath-footprint-against-main.md`, Whether the fastpath
+- **Proposed.** `design/roadmap/proposals/fastpath-footprint-against-main.md`, Whether the fastpath
   footprint gate should compare against `main` rather than a stored baseline file. It is calef's
   call and has costs on both sides. Two lanes each measured "within bound" against the same stale
   baseline and neither re-saved it, so aarch64 headroom fell from 3.9 points to 1.5 with nothing

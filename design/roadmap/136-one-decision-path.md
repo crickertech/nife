@@ -179,7 +179,7 @@ kernel and the crate are byte-identical apart from the doc comment carrying the 
   four of the ladder and says so.
 - **Recorded.** `design/roadmap/136-one-decision-path.md`'s own `BUGS`: a count of pinned items
   says the surface has not moved, not that the surface is right.
-- **Proposed.** `design/roadmap/proposed/the-other-four-loom-surfaces.md`, gate the other four
+- **Proposed.** `design/roadmap/proposals/the-other-four-loom-surfaces.md`, gate the other four
   loom-searched crates (`steal_request`, `clock_proto`, `wake_handshake`, `canary_gate`): each was
   lifted so loom could search it, and nothing checks that its callers still call the lifted code.
   Repeat this block's three-piece gate four more times, or build one mechanism pinning a

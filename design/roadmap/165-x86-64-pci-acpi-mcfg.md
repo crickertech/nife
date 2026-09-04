@@ -254,7 +254,7 @@ proven here is the handoff below: the suite does not run under real firmware, on
   confirm, which are that `PCI_BAR_PHYS` is free on that machine, that its firmware presents an MCFG
   with first bus 0 and a bus count `PCIEXBAR` can encode, and that its ACPI tables sit below 4 GiB.
   `pci::bar_census` prints the first of them on the boot line, so it is the number to read first.
-- **Proposed.** `design/roadmap/proposed/a-bar-window-the-machine-agreed-to.md`, take the 32-bit
+- **Proposed.** `design/roadmap/proposals/a-bar-window-the-machine-agreed-to.md`, take the 32-bit
   MMIO window that BARs are placed in from the machine rather than from the hardcoded
   `arch::x86_64::mmu::PCI_BAR_PHYS`. `_CRS` is AML and stays refused, but the firmware memory map
   already names the gaps and Intel's host bridge reports `TOLUD` in its own configuration space. The

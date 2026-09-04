@@ -86,7 +86,7 @@ root, mode = sys.argv[1], sys.argv[2]
 d = os.path.join(root, "design", "roadmap")
 index_path = os.path.join(d, "README.md")
 
-PROPOSED_DIR = "proposed"
+PROPOSED_DIR = "proposals"
 
 VOCAB = ["BUILT", "REMOVED", "PARTIAL", "IN-PROGRESS", "NOT-STARTED", "OPTIONAL", "RECORDED"]
 
@@ -339,7 +339,7 @@ for fname in sorted(os.listdir(d)):
 # decision that might be deferred. Every hop is a chance to lose it, and on the day this landed the
 # maintainer had buried three items by deferring them into chat messages.
 #
-# So a proposal is a file with no number: `design/roadmap/proposed/<slug>.md`. The slug is the
+# So a proposal is a file with no number: `design/roadmap/proposals/<slug>.md`. The slug is the
 # readable half of a numbered block's name, so nothing new has to be learned, and it collides only
 # if two lanes pick the same words, which is visible rather than silent. **GUIDs were considered and
 # rejected by calef**: milestones are cited in prose constantly and a GUID cannot be said out loud,
@@ -434,7 +434,7 @@ for fname in sorted(os.listdir(pdir)) if os.path.isdir(pdir) else []:
 #   - **Decision.**          it is calef's call and is written up as one; names the file under
 #                            design/decisions/ that holds it.
 #   - **Proposed.**          the block named work nobody has taken, so it is now a proposal in
-#                            design/roadmap/proposed/, named here.
+#                            design/roadmap/proposals/, named here.
 #   - **Done.**              it was done, and not as a milestone. Says what carried it: a pull
 #                            request, a branch, a commit, or the file it now lives in.
 #
@@ -453,7 +453,7 @@ for fname in sorted(os.listdir(pdir)) if os.path.isdir(pdir) else []:
 #
 # It was first spelled `Unclaimed.` and took only prose, because a lane could not mint a milestone
 # number and had nothing to point at. calef removed that constraint the same day
-# (design/roadmap/proposed/, above): **the collision was in the number, never in the authority.**
+# (design/roadmap/proposals/, above): **the collision was in the number, never in the authority.**
 # So the disposition now resolves to a file somebody wrote, which is strictly stronger than a
 # sentence promising that work exists, and it costs the author one file and no coordination.
 #
@@ -513,7 +513,7 @@ for mid, fname in sorted(ids.items()):
                 f"'**Milestone N.**', '**Recorded.**' (naming the file the limitation lives "
                 f"beside, in backticks), '**Refused.**' with a reason, '**Done.**' with what "
                 f"carried it, '**Decision.**' naming a file under design/decisions/, or "
-                f"'**Proposed.**' naming its file under design/roadmap/proposed/. See "
+                f"'**Proposed.**' naming its file under design/roadmap/proposals/. See "
                 f"design/roadmap/README.md and "
                 f"notes/follow-on-work.md")
         continue

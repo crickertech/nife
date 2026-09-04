@@ -153,7 +153,7 @@ out to be `script/shell-check` and already built.
   defect class this block met: its own status sat wrong for twelve days because phase 3's larger
   half landed under milestone 50 and nothing read the result. A milestone's status is maintained by
   its own lane, and nothing maintains it when another lane finishes its work.
-- **Proposed.** `design/roadmap/proposed/a-grant-on-the-namespace-root.md`, narrowing a grant on
+- **Proposed.** `design/roadmap/proposals/a-grant-on-the-namespace-root.md`, narrowing a grant on
   the **root** of the shell's namespace, so that `rm gate.txt`
   at the top prompt stops being a refusal when `rm rmtree/rm-solo` works. Both permanent answers are
   calef's: a narrowing verb on the `fs_proto` contract, small in the server and forever on a wire

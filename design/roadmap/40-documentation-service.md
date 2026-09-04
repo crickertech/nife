@@ -288,7 +288,7 @@ later. **Effort: 1 lane estimated per phase**, three phases, landed separately.
 - **Refused.** `ratatui` for the pager. It needs a backend written against this tree's terminal
   contract before it can render anything at all, so taking it would buy a widget library and leave
   the actual work undone.
-- **Proposed.** `design/roadmap/proposed/colour-and-the-pager.md`, the other two thirds of
+- **Proposed.** `design/roadmap/proposals/colour-and-the-pager.md`, the other two thirds of
   §106's spawn-protocol narrowing: a bit telling a tail stage
   it ends at a real screen (colour, the honest `isatty` replacement), and a way to grant one line of
   input without granting the keyboard (the pager). Both widen a protocol two programs agree on, so

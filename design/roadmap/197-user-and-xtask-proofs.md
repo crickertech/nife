@@ -128,7 +128,7 @@ half of the same observation and is untouched.
   minutes, a symbolic index into the editor's document struct that exhausted CBMC's memory in 3m23s,
   and anything downstream of twenty chained divisions. It is where the warning lives that a fast
   harness can be evidence the assertion asked nothing.
-- **Proposed.** `design/roadmap/proposed/timer-rearm-seam.md`, Lift the timer re-arm arithmetic out
+- **Proposed.** `design/roadmap/proposals/timer-rearm-seam.md`, Lift the timer re-arm arithmetic out
   of the register access so `crates/timetable`'s already proved `next_after` is what the timer
   actually calls. Where the seam goes is calef's: too high and the arch layer keeps the milestone 6
   drift bug, too low and every ISA restates it. Until it moves, the tree's sharpest counterfactual

@@ -22,7 +22,7 @@ The words, as shipped:
 | `Recorded.` | A limitation, and it stays one | Prose; any path it cites must exist |
 | `Refused.` | Considered, deliberately not taken | Prose giving the reason |
 | `Decision.` | calef's call, written up as one | A file under `design/decisions/` |
-| `Proposed.` | Named, nobody took it, so it is a proposal now | A file under `design/roadmap/proposed/` |
+| `Proposed.` | Named, nobody took it, so it is a proposal now | A file under `design/roadmap/proposals/` |
 
 ## What else was considered
 
@@ -45,7 +45,7 @@ mechanism, and it is recorded in notes/follow-on-work.md.
 
 **`Proposed.` was spelled `Unclaimed.` for about six hours**, and took only prose, because a lane
 could not mint a milestone number and so had nothing to point at. calef removed that constraint the
-same day with `design/roadmap/proposed/<slug>.md`: the collision that barred lanes from minting was
+same day with `design/roadmap/proposals/<slug>.md`: the collision that barred lanes from minting was
 in the number, never in the authority. The disposition now resolves to a file somebody wrote, which
 is strictly stronger than a sentence promising work exists, and it is the reason the sweep's third
 bucket did not have to be argued down to a small number.
@@ -80,7 +80,7 @@ written against them, and the reversibility above decays with each one.
 
 ## The sweep's five proposed milestones, which are a separate ask
 
-All 42 pieces of unclaimed work are now proposal files under `design/roadmap/proposed/`, so none of
+All 42 pieces of unclaimed work are now proposal files under `design/roadmap/proposals/`, so none of
 them needs a decision to exist. Five are called out in notes/follow-on-work.md as worth promoting
 first, on a stated bar: a claim this project makes rests on it, or a record in the tree is now known
 to be wrong. Promotion is prioritising, which is calef's, and it wants numbers minted at merge rather
