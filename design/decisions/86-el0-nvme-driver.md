@@ -1,6 +1,9 @@
 # 86. Whether an NVMe driver can leave the kernel, and what capability would let it
 
-**Status: PROPOSED.** Raised by milestone 53's storage lane (2026-08-15, pull request #193), which
+**Status: DECIDED.** Answered 2026-09-03 by calef, after the research pass below: **option 2a now,
+designed so option 4 can be added without reshaping the EL0 driver, and the choice between them made
+by measurement rather than argument.** The reasoning is in "The decision" at the end of this section.
+Raised by milestone 53's storage lane (2026-08-15, pull request #193), which
 built the NVMe driver kernel-resident and stopped exactly here, correctly: the alternative needs
 new syscall surface, and that is a boundary a lane does not cross (§10, §16).
 
@@ -424,3 +427,82 @@ non-virtio devices depends on hardware nobody has yet put on a board.
 extra line the section above did not have: it means fatal risk 6 has no route left that this project
 can run, because the driver whose confinement the risk is about would be the kernel by design rather
 than by deferral.
+
+## The decision, 2026-09-03
+
+**Option 2a now, designed so option 4 can be added without reshaping the EL0 driver, and the choice
+between them settled by measurement.** calef, after the head-to-head below: *"I agree with your
+recommendation."*
+
+### A correction to the research pass, which changes option 4's central claim
+
+The pass argues that option 4 is the only entry that confines anything on hardware this project
+owns, because no board here has an IOMMU. **That is true of radon and false of xenon**, and milestone
+87's own requirements list says so: xenon was selected partly *for* VT-d, "because IOMMU-backed
+driver isolation (milestone 16) is a parity theme (§19), and the x86 side of the DMA-confinement
+story needs real hardware eventually."
+
+So option 2 has a hardware home on a machine already on the desk. Option 4's argument survives for
+radon and for any board without an IOMMU; it is not the categorical advantage the pass states.
+Whether xenon's firmware actually exposes a DMAR is unverified and is already the last item of
+notes/x86-uefi-boot.md's bench procedure.
+
+### Why 2a first, and it is a sequence rather than a preference
+
+**The irreversible part of this decision is not in 2a.** It costs **zero new syscall surface**: the
+doorbell page is a `DeviceFrame`, the DMA run a `PageFrame` (§102), the physical base a spawn
+argument the way `user/src/entropy.rs` already passes one. A capability variant belongs only to 2b
+and 4. So building 2a produces what fatal risk 6 (a capability-confined userspace driver cannot
+drive real hardware at real speed) needs while **deferring the expensive choice**, and the *move fast
+on what can be undone* test, "who else has already acted on this", answers nobody.
+
+**It moves 157 lines out of the kernel**, which is the microkernel thesis cashing out and the same
+win §23 bought for virtio.
+
+**And option 4 is a superset of 2b rather than a rival.** Which submission queue the controller is
+told about is an admin-plane decision the kernel owns under both, so adding mediation later changes
+`bring_up` and the ring path and **almost nothing in the EL0 driver**. That is the property the
+implementation must preserve, and it is this decision's one design constraint.
+
+### The two options answer different risks, which is why measurement decides
+
+| | option 2a | option 4 |
+|---|---|---|
+| what confines it | the IOMMU | kernel validation at the doorbell |
+| hardware needed | an IOMMU: xenon yes, radon no | none |
+| new syscall surface | **zero** | one capability variant, no new syscall number |
+| kernel on the hot path | no, EL0 writes the doorbell | yes, a trap per ring plus two range checks and a 64-byte copy per command |
+| reachable by Kani | no, it is a hardware claim | yes, `crates/dma_validator` has harnesses |
+| prior art | mainstream: seL4, Genode, VFIO, SPDK | novel |
+
+Option 2a optimises **risk 6** by removing the kernel from the data path. Option 4 optimises
+**risk 7** (the confinement claim is false) and **risk 2** (the proofs prove trivia), and pays for it
+on the hot path.
+
+### What would move this to option 4, stated in advance
+
+**Three measurements, and two need no new code.**
+
+1. **What doorbell mediation costs, priced from the mechanism already shipped.** §23's virtio path
+   *is* option 4's design: `crates/dma_validator` walks descriptors on `NOTIFY` and shadows them,
+   and `script/bench` carries icount baselines on all three ISAs. NVMe's validator is strictly
+   cheaper (two range checks and a copy against chain-walking), so virtio's number is an upper
+   bound.
+2. **The depth at which it stops mattering.** One trap amortised over a 32-command batch is noise;
+   one trap per command at depth 1 is the whole cost. Milestone 101 (the L4 calibration, read from
+   the IPC number that pays for the trap) is the calibration to read it against.
+3. **Whether xenon exposes a DMAR**, which decides whether option 2 is viable on owned hardware at
+   all. One boot, already the last item of notes/x86-uefi-boot.md's bench procedure.
+
+**If mediation is cheap at realistic queue depths, take option 4.** A confinement claim that holds
+without special hardware, and that Kani can reach, is worth more to this project than the last few
+percent of throughput; that is the demonstrator's own argument. The reason not to buy it tonight is
+that nobody knows the price.
+
+### What this does not decide
+
+**The interrupt gap the pass found is orthogonal and survives both options.** A confined component's
+MSI-X write is a memory write to a special address, so DMA remapping does not cover it, and this
+machine runs `-device intel-iommu` with no `intremap=on` and `gic-version=2` with no ITS. It is
+latent while every BAR-reaching component is the kernel and live the moment one is not, which is
+what this decision creates. It is recorded in notes/confinement-claims.md and is not answered here.
