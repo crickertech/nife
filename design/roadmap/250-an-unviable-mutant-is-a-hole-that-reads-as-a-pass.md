@@ -59,3 +59,39 @@ Not a lower unviable count on its own, which could be bought by deleting code th
 - **It says nothing about functions the tool generates no mutants for at all**, which is a different
   and larger hole: milestone 246's block already records that `system_initializer::measured` gets no
   mutants and that "no mutants generated" is a property of the tool rather than a proof.
+
+## Evidence arriving before the milestone ran: `uefi_loader`, 2026-09-04
+
+From the `maintainer/uefi-loader-mutants` lane, which was sent at that crate's score and was asked to
+report its unviable count. Recorded here rather than in a second proposal, because it is this
+milestone's question with one worked instance in it.
+
+**One unviable mutant in the crate, and it was hiding the same shape as `Verdict`:**
+`uefi_loader::image::parse`'s `Ok(Default::default())`, unbuildable because `elf::Elf` has no
+`Default`. The symptom this milestone predicts showed up in full: **nothing in the tree called
+`parse`**, so there was no test for the tool to have failed, and the function had been silently
+outside the measurement since it was written.
+
+**It was dispositioned as "cannot be made viable", and that is a second worked example the milestone
+needs.** Step 2 above asks whether a small honest change makes the mutant buildable and meaningful.
+Here the default is meaningful (an `Elf` with no segments is exactly the dangerous wrong answer, so
+it passes this block's own anti-gaming test), and the change is still refused: `Elf` is a validated
+token whose contract is that an `Ok(Elf)` has nothing left to check, and a `Default` impl makes an
+unvalidated one constructible by every consumer in the tree. That is rung one run backwards, bought
+for one mutant on a two-line `map_err` wrapper.
+
+**So the disposition list wants a fourth entry beside "made viable" and "recorded with the reason":
+covered by a test standing where the mutant would have stood.** `parse` now has two callers in its
+own suite, one asserting exactly what `Ok(Default::default())` would violate (the accepted image
+comes back carrying its segments and its entry). The hole in the *measurement* is unchanged and is
+recorded; the hole in the *suite* that it was hiding is closed.
+
+**And the crate turned up a hole of a different kind that this block's BUGS section already gestures
+at.** 154 of `uefi_loader`'s 189 mutants were in a `[[bin]]` behind `required-features`, which the
+host build never selects, so cargo-mutants scored every one MISSED in "0s build + 0s test". That is
+the reverse of an unviable mutant and just as invisible: not a mutant the tool could not build, but a
+mutant it never built anything for. `script/lint` now derives that exclusion from `cargo metadata`.
+Worth knowing when this milestone sweeps, because the "0s build + 0s test" string in cargo-mutants'
+output is the tell for both, and neither leaves a mark in the rate.
+
+See notes/mutation-testing.md's 2026-09-04 section for the numbers.
