@@ -1,6 +1,6 @@
 # 254. A caller stranded by a server that died is stranded forever, and nothing records that as intended
 
-**Status: BUILT** (2026-09-03). Split out of milestone 133 (ending a permanently blocked thread,
+**Status: BUILT** (2026-09-04). Split out of milestone 133 (ending a permanently blocked thread,
 and deciding who may) on 2026-09-03 by calef, who took this half first on the argument that it is a
 defect rather than a fork.
 
@@ -73,9 +73,10 @@ For this half the authority question does not arise, so what remains is mechanic
 
 ## What was built
 
-**One helper, `strand_reply_caller`, and four places that call it.** All of it is in
-`kernel/src/sched.rs`; no syscall number, no method, no right, and no ABI change, exactly as the gate
-line promised.
+**One helper that frees a caller, `strand_reply_caller`, two finders that decide which callers, and
+four trigger sites.** All of it is in `kernel/src/sched.rs`; no syscall number, no method, no right,
+and no ABI change, which is exactly what the block's gate line claimed before it was struck as stale
+on the way to `BUILT`.
 
 The helper does the two things in the order that makes them safe. **First the sweep**: every
 `Object::Reply(caller)` in every capability table in the machine is deleted, and so is one riding in

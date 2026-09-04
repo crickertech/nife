@@ -7,7 +7,7 @@ one surveys how seven other systems solve the same problem, maps each onto this 
 proposals side by side. **calef takes this fork; nothing here is a recommendation of a winner.***
 
 **One piece of this is no longer research: proposal C's first half shipped as milestone 254 on
-2026-09-03**, on calef's ruling that it is a defect rather than a fork, because it asks for no
+2026-09-04**, on calef's ruling that it is a defect rather than a fork, because it asks for no
 authority anybody does not already hold. A caller reply-parked on a server that stops being able to
 answer now returns `abi::Error::Gone`, and the stale reply capability this note identified as the
 blocking hazard is deleted before the wake. The proposals below are unedited apart from proposal C's
@@ -414,7 +414,7 @@ This is the entry that most directly indicted the state of this kernel when the 
 **QNX unblocks a REPLY-blocked client when its server dies. nife did not**, because `Error::Gone`
 reached only endpoint wait queues and a reply-parked caller left the queue at the rendezvous. A hung
 *or dead* server stranded its callers here in a way QNX has not since the 1990s. **Milestone 254
-closed the dead half on 2026-09-03**; the hung half (a server alive and simply not replying) is
+closed the dead half on 2026-09-04**; the hung half (a server alive and simply not replying) is
 still open and is milestone 133's and 106's.
 
 ### Linux: the third state had to be invented, and the reason was social
@@ -695,7 +695,7 @@ behaviour and Zircon's. Two independent pieces, and they can be taken separately
 **Authority: none new for piece 1.** It rides on authorities already exercised (destroying a region,
 destroying an endpoint) and changes only their reach. Piece 2's authority is the caller's own.
 
-**Piece 1 is built** (milestone 254, 2026-09-03), and building it moved one thing this note got
+**Piece 1 is built** (milestone 254, 2026-09-04), and building it moved one thing this note got
 slightly wrong. The trigger is not two events but four, because *the server ceasing to be able to
 answer* is three of them: it exits or faults (`depart`), it is forcibly killed (the §16 conversion at
 the top of `schedule`, which never reaches `depart`), or it is reaped with its region. The fourth is
@@ -796,7 +796,7 @@ in having no way out at all, which is a claim a stranger reading the demonstrato
 3. **Is C separable enough to take on its own merits?** It looks less like a fork and more like a
    defect: a caller stranded by a *dead* server is a QNX behaviour from the 1990s that this kernel
    lacks, and nothing in the tree records that as intended. **Answered yes**, by calef on
-   2026-09-03, and built as milestone 254 without touching A, B or D.
+   2026-09-04, and built as milestone 254 without touching A, B or D.
 
 ## EXAMPLES
 
@@ -846,7 +846,7 @@ git show origin/milestone/23-hung-component:notes/hung-component.md
 calef rules.** This note is analysis. The proposals are sketches at the level of "which lines
 change", not designs; each would owe a `DECISIONS` section for its semantics before a lane took it,
 and B would owe one for a new method under §10's rule. C's piece 1 was exempted by calef on
-2026-09-03 for the reason its own block gives: it adds no authority, no method and no error, so
+2026-09-04 for the reason its own block gives: it adds no authority, no method and no error, so
 there is no semantics to record that §12's reply capability did not already imply.
 
 **The stale-reply-capability hazard was unreachable when this note was written and is now reached and

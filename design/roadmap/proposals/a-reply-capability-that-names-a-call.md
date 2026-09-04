@@ -1,6 +1,6 @@
 # A reply capability names a thread, so only a sweep keeps it from answering the wrong call
 
-**Status: PROPOSED 2026-09-03.** Written by the milestone 254 lane, out of the hazard that
+**Status: PROPOSED 2026-09-04.** Written by the milestone 254 lane, out of the hazard that
 milestone shipped a mitigation for rather than a fix.
 
 **Gate: NONE.** No decision is owed. It changes `Object::Reply`'s payload, which is kernel-internal

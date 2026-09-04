@@ -216,7 +216,7 @@ ROOTS = re.compile(r"kernel5sched(8ipc_send|8ipc_recv|8schedule|13finish_switch|
 # a thread exits and never during an IPC. Including it put 11.2 KiB on this number when the honest
 # figure is 5.6, which is exactly the over-count that would make the gate meaningless.
 #
-# `strand` joins the teardown family on 2026-09-03 (milestone 254). `sched::strand_callers_of` frees
+# `strand` joins the teardown family on 2026-09-04 (milestone 254). `sched::strand_callers_of` frees
 # the callers a server can no longer answer, and one of its four call sites is the armed-kill
 # conversion at the top of `schedule()`, which is a root here. It is guarded by `killed`, so it runs
 # when a thread is being torn down and never on a healthy IPC, and its helpers carry `#[cold]` and

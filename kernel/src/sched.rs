@@ -2848,9 +2848,12 @@ fn strand_callers_of(sched: &mut IpcTables, tid: ThreadId) {
 /// is Zircon's answer (a closed channel fails the call in flight) reached without touching the
 /// server.
 ///
-/// **Rescan rather than list**, the rule this function's neighbours already state: a
-/// `[u64; MAX_THREADS]` of victims is a kilobyte of scratch on the deepest frame in the kernel (see
-/// [`reap_region_objects`]'s own comment and notes/stack-high-water.md). The abort flag
+/// **Rescan rather than list**, which is the opposite choice from [`strand_callers_of`] above and
+/// the difference is the bound: that one lists because a capability table is 24 slots, 192 bytes,
+/// and this one cannot because the bound here is `MAX_THREADS`, a kilobyte that grows every time
+/// the thread ceiling does. Both functions sit on the call chain through
+/// [`reap_region_objects`], the deepest frame in the kernel, whose own comment spends a paragraph
+/// on this exact array (see also notes/stack-high-water.md). The abort flag
 /// [`strand_reply_caller`] sets is what makes the rescan terminate, and it has to be the flag rather
 /// than `wait_on`: a wake deferred behind `on_cpu` leaves the park in place until that core's
 /// `finish_switch`, so a predicate reading only `wait_on` would spin.
