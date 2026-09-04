@@ -166,6 +166,21 @@ So the honest reading: **the tree's mutation score has fallen from 92.4% to roug
 month. It is a sample, not a census, and a second shard would move it; it is not a five-point
 question of sampling noise either.
 
+**Corrected 2026-09-03 (milestone 244), and the direction is up.** Removing `system_initializer`,
+which no host test could ever have reached, takes 25 uncatchable missed mutants out of the
+round-robin sample and 191 out of the `slice` one. The rates are the same runs over a denominator
+that no longer counts mutants nothing could kill:
+
+| | caught | missed | timeout | unviable | viable | killed |
+|---|---|---|---|---|---|---|
+| shard 3 of 4, `slice`, corrected | 1,710 | 407 | 27 | 127 | 2,144 | 81.0% |
+| **shard 0 of 8, `round-robin`, corrected** | **910** | **162** | **32** | **97** | **1,104** | **85.3%** |
+
+So the drop is from 92.4% to roughly **85.3%**, not 83.4%. Still a real fall, still a sample, and
+still not sampling noise. What changed is that one of the three crates blamed for it was not a crate
+with an untested surface; it was a bookkeeping gap, and the two that remain (`uefi_loader` at 15%,
+`manual` at 52%) are the real ones.
+
 **Where the drop is.** The crates that existed at baseline are broadly stable or better: `gpt` 55/1,
 `elf` 12/0, `calendar` 46/0, `glob` 14/0, `cred` 14/0, `dtb` 43/3, `filesystem_proto` 65/8,
 `grant_plan` 67/2. Three crates carry nearly all of the loss, and all three are new since the
@@ -174,11 +189,29 @@ baseline:
 - **`system_initializer`: 0 caught, 25 missed in the sample** (0 of 191 in the `slice` run, which
   saw all of them). Every mutant survives. Nothing in the host suite would notice any of its
   functions returning the wrong thing.
+
+  **Retracted on 2026-09-03 by milestone 244, which is what this bullet asked for.** That crate was
+  never in `.cargo/mutants.toml`, though the other three in its position are and
+  that file's own head comment says its list mirrors `script/coverage`'s and asks the next person to
+  keep the two in step. It reaches `user_rt`, so the host suite
+  cannot compile a line of it, and both numbers above are a crate scored against a suite that could
+  not have killed anything. It is excluded now, and `script/lint`'s bare-metal gate derives the four
+  places that have to agree rather than asking anyone to keep them in step. See the corrected rates
+  below.
 - **`uefi_loader`: 3 caught, 17 missed.** 15%.
 - **`manual`: 56 caught, 60 missed.** 52%, and the crate is the documentation renderer.
 
 That is the finding, and this milestone deliberately does not act on it. `system_initializer` at
 zero is a milestone of its own, not a line in a workflow repair.
+
+**It became milestone 244 and the answer was not the expected one.** The lane measured the crate's
+196 mutants by function before moving anything: 33 sit in pure logic and 157 in the syscall sequence,
+about sixty lines of a 2,632-line file, so nothing was lifted and the block records why. The half of
+it that did change the tree is the exclusion above and the gate behind it. See
+`design/roadmap/244-the-largest-crate-in-the-tree-is-proved-by-nothing.md`, whose most reusable line
+is the method rather than the verdict: **`cargo mutants --list -p <crate>` attributes every mutant to
+its enclosing function, so "where are this crate's mutants" is one command, and it is worth asking
+before any lane that proposes to restructure code for testability.**
 
 **What this does not say.** It does not re-read `design/fatal-risks.md`'s third risk, which is
 calef's. It is a sample rather than a census: seven of eight shards were killed by the memory

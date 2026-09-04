@@ -689,9 +689,22 @@ echo "==> citations"
 # 2026-08-03 and stayed broken until 2026-08-14, invisible throughout because CI moved to an aarch64
 # runner the same day, where the EL0 assembly compiles by accident.
 #
-# So: ask cargo which workspace members reach `user_rt`, and check that both consumers of that
-# knowledge (this file's clippy lines and xtask's `test`) exclude every one. A crate that takes a new
-# `user_rt` dependency now fails here, naming itself, instead of breaking a stranger's first build.
+# So: ask cargo which workspace members reach `user_rt`, and check that every consumer of that
+# knowledge excludes every one. A crate that takes a new `user_rt` dependency now fails here, naming
+# itself, instead of breaking a stranger's first build.
+#
+# **Four consumers, not two** (milestone 244). It used to check this file's clippy lines and xtask's
+# `test`, and the two it did not check are the two that report a NUMBER: `script/coverage`'s
+# exclusions and `.cargo/mutants.toml`'s. `.cargo/mutants.toml` says in its own head comment that its
+# list "deliberately mirrors script/coverage's exclusions" and asks the next person to "keep the two
+# lists in step", which is rung four of the ladder and drifted exactly as rung four does. It was out
+# of step by one crate, `system_initializer`, so the first published mutation report scored the
+# largest crate in the tree at 191 mutants and 0 caught. Nobody was wrong; a number was, and it was
+# the kind of number a stranger quotes.
+#
+# The check runs in one direction only. Every bare-metal crate must appear in all four places; a
+# place may exclude MORE than that (xtask is host tooling, virtio is a live-device driver) because
+# those exclusions carry their own recorded reasons and are judgement rather than physics.
 echo "==> the host pass excludes exactly the bare-metal crates"
 python3 - <<'PYEOF' || exit 1
 import json, subprocess, sys
@@ -720,12 +733,22 @@ bare = sorted(name_of[m] for m in members
 
 lint = open("script/lint").read()
 xtask = open("xtask/src/main.rs").read()
+coverage = open("script/coverage").read()
+mutants = open(".cargo/mutants.toml").read()
 missing = []
 for c in bare:
     if f"--exclude {c}" not in lint:
         missing.append((c, "script/lint"))
     if f'"{c}",' not in xtask:
         missing.append((c, "xtask/src/main.rs"))
+    # script/coverage has two exclusion mechanisms and a crate needs only the one that fits it:
+    # `--exclude` on the run (which `cargo llvm-cov report` has no equivalent of) or the awk filter
+    # that drops the file from the report. `virtio` uses only the second and `kernel` only the
+    # first, both correctly, so this asks for either rather than both.
+    if f"--exclude {c}" not in coverage and f"/{c}/src/" not in coverage:
+        missing.append((c, "script/coverage"))
+    if f'"crates/{c}/**"' not in mutants and f'"{c}/**"' not in mutants:
+        missing.append((c, ".cargo/mutants.toml"))
 
 if missing:
     sys.stderr.write("lint: crates that cannot build for the host but are not excluded:\n")
@@ -737,13 +760,21 @@ workspace member that reaches it cannot be built by a host `cargo test`, and `--
 package alone does NOT help: it removes the package from the test selection, not from the dependency
 graph, so cargo builds it anyway for whoever depends on it.
 
-Either exclude it from the host pass in BOTH places above, or do what redoxfs_server/Cargo.toml does and
-put `user_rt` behind an optional `el0` feature, which is the better fix when the crate has host logic
-worth testing.
+Either exclude it from the host pass in ALL FOUR places above, or do what redoxfs_server/Cargo.toml
+does and put `user_rt` behind an optional `el0` feature, which is the better fix when the crate has
+host logic worth testing. Milestone 244 measured that trade for the largest such crate
+(`system_initializer`) and recommended the exclusion, with the numbers, in its own block: the pure
+fraction there is about a fifth of the mutants and a fiftieth of the lines, and every pure function
+is a leaf helper of the boot sequence beside it.
+
+The last two matter for a reason the first two do not: they are what a published REPORT counts. A
+bare-metal crate left in `.cargo/mutants.toml` is scored zero-caught against a suite that could never
+have reached it, and a bare-metal crate left in `script/coverage` drags the coverage floor down by
+lines nothing can execute.
 """)
     sys.exit(1)
 
-print(f"host pass: {len(bare)} bare-metal crates, every one excluded in both places")
+print(f"host pass: {len(bare)} bare-metal crates, every one excluded in all four places")
 PYEOF
 
 echo "==> script docs"
