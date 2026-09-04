@@ -117,14 +117,14 @@ which is how a microkernel stops being one; that is the failure this entry exist
 
 ---
 
-# The research pass, 2026-09-03
+## The research pass, 2026-09-03
 
 Everything above this line is the record as it stood. What follows is a research lane
 (`maintainer/research-86-el0-nvme`, no code) answering the six questions AGENTS.md asks of a fork
 before it reaches calef, so that this section can be decided by reading it. It appends rather than
 rewrites, the way the two findings above it did.
 
-## The hold is spent, and it was measuring the wrong variable
+### The hold is spent, and it was measuring the wrong variable
 
 The recommendation above is "option 2, but not yet", held "pending either the JH7110 board bring-up
 or VT-d, whichever lands first". **VT-d landed on 2026-08-25 and the block above records it.** By its
@@ -153,7 +153,7 @@ you which parts of the contract are QEMU artifacts, and that reason does not sur
 interface and about this tree's existing capability vocabulary. Both were read for this pass, and
 both changed the answer.
 
-## The premise is false, and that is the largest single finding
+### The premise is false, and that is the largest single finding
 
 The section above says NVMe "has no such point to stand on", that "the controller fetches 64-byte
 commands directly out of driver-written memory", and that "nothing kernel-side sees a command on its
@@ -211,7 +211,7 @@ without an IOMMU, and the mold it is being compared to does not.
 **So the option set above is incomplete.** There is a fourth option, and it is the one that makes
 NVMe match what §23 (multi-queue DMA confinement) did for virtio.
 
-## The options, repriced
+### The options, repriced
 
 The three above stand, with one correction to option 2 and one addition.
 
@@ -251,7 +251,7 @@ hardware doorbell. This is `dma_validator::validate_and_shadow`'s design transfe
 reason to want it is that **it does not depend on an IOMMU.** On a board with none, which is every
 board this project owns, it is the only option in this list that confines anything.
 
-## What this tree already does, item by item
+### What this tree already does, item by item
 
 Question 2 turned out to decide most of the cost. Every material an EL0 `nvme_server` needs already
 exists, and the closest analogue is `user/src/gpu_driver.rs`, which is a confined EL0 driver holding
@@ -269,7 +269,7 @@ a multi-page DMA region.
 **Nothing in that table is speculative.** The one place option 2 could still want new surface is the
 doorbell, and only under 2b.
 
-## What each option costs, counted
+### What each option costs, counted
 
 **Adding a capability, measured against the precedent.** `Object::Virtio` is one enum variant
 (`kernel/src/cap.rs:124`), **six sites** across `kernel/src`, and **four method constants** in
@@ -306,7 +306,7 @@ so the per-command copy is invisible against a QEMU round trip. At real queue de
 per batch plus 64 bytes copied per command, and `script/bench` is what would say whether that
 matters. Nobody should assert it either way from this section.
 
-## Prior art, fetched rather than recalled
+### Prior art, fetched rather than recalled
 
 Read on 2026-09-03. Where a claim came back as a search paraphrase rather than a page this lane
 pulled, it is marked as such, per the tree's own fabricated-quote scar.
@@ -351,7 +351,7 @@ I/O submission queue, with the cited paper explicitly avoiding it on cost ground
 same as wrong, and this tree's own §23 is the same trick at a smaller scale, but a decision for
 option 4 should be taken knowing that nobody is going to have measured it for us.
 
-## The axis nothing in this section has named: who may forge an interrupt
+### The axis nothing in this section has named: who may forge an interrupt
 
 **VFIO refuses to hand a device to an untrusted userspace driver on a machine without interrupt
 remapping**, and the escape hatch is a module parameter named `allow_unsafe_interrupts` (mechanism
@@ -373,10 +373,19 @@ who may write it, and this tree has never asked.** Measured, not asserted:
   with IEN=0 and no MSI-X table is touched."
 
 So the gap is latent rather than live, and it becomes live the moment a driver leaves the kernel and
-wants interrupts instead of polling. It is work rather than argument, so it has a home:
-`design/roadmap/proposals/who-may-forge-an-interrupt.md`.
+wants interrupts instead of polling. **Whatever this section settles has to say who owns the page
+holding the MSI-X table**, because that is the one part of the confinement claim an IOMMU doing DMA
+remapping does not cover.
 
-## Reversibility, and who has acted
+It is work rather than argument, so it has a home: notes/confinement-claims.md now carries it as a
+fifth claim that is stated nowhere, beside the timing and device-values entries milestone 202 put
+there for the same reason, with the two runner flags that would make it exercisable at all. A
+proposal file under `design/roadmap/proposals/` would be the better home and was written first;
+`script/roadmap --check` rejects that directory on `main` today, because the convention lands with
+milestone 247 (follow-on work named by a finished milestone goes nowhere) and has not merged. When
+it does, this belongs there.
+
+### Reversibility, and who has acted
 
 - **Option 1** commits nothing. Fully reversible.
 - **Option 2a** adds no syscall surface at all, so the only durable commitment is what an
@@ -390,7 +399,7 @@ wants interrupts instead of polling. It is work rather than argument, so it has 
 - **Who has acted: nobody outside this repository.** The only named future consumers are
   `block_roster` and milestone 55's backend, both unbuilt.
 
-## What this lane would decide, and what is left to calef
+### What this lane would decide, and what is left to calef
 
 Per AGENTS.md, a fork that touches the syscall surface gets options rather than a recommendation, so
 this is offered as a reading and not as an answer.
