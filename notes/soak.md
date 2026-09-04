@@ -441,6 +441,64 @@ and set beside seL4's, it would have been a lucky draw reported as a measurement
 from this instrument owes a distribution**, and it independently reaches the conclusion the section
 below reaches from the literature: more starts beat longer running.
 
+### The three-hour run, and the first census off a board
+
+**2026-09-03, two further runs on the same card**, the second carrying milestone 240's placement
+census. The afternoon's eightfold spread is now four runs rather than two, and the slow draw has been
+held for three hours.
+
+| Run | Build | Duration | Rate | Crossings/s | Placement known |
+|---|---|---|---|---|---|
+| 13:04 | pre-census | ~20 min | **183,662/s** | ~50 | no |
+| 13:24 | pre-census | **2 h 59 m** | **23,105/s** | **0.51** | no |
+| 17:06 | census | running | **188,687/s** | **186** | **yes** |
+
+**The slow draw is stable, not a warm-up.** 13:24 ran 2 h 59 m, 246,868,985 rounds, and its rate
+moved from 22,592/s at the first beat to 23,105/s at the 2,137th. It never recovered and it never
+degraded. **`refused=0 mismatch=0 stalled=0` for the whole three hours**, with `wakerate` pinned at
+401/s throughout, so this is a throughput draw rather than a fault: milestone 219's workload was
+correct for three hours at an eighth of the speed it reaches on a lucky boot.
+
+**And a correlate arrived that is sharper than the placement hypothesis.** `crossings` per second
+tracks the rate across all four runs, over two and a half orders of magnitude:
+
+- the two fast runs cross **50/s and 186/s**
+- the slow run crossed **0.51/s**, 19 by its first beat and 5,507 by its 2,137th
+
+**This inverts the naive expectation and that is why it is worth writing down.** A local rendezvous
+wake is the cheap one: DECISIONS 28.2 makes it local precisely because it avoids an IPI. A run whose
+groups sit on one core each should therefore be *faster*, and the slow run is the one that crossed
+least.
+
+**The reading that fits, stated as the inference it is.** What co-location buys in wake cost it can
+lose many times over in scheduling delay, because a core holding a whole IPC group **also** holds
+whatever grinder landed there, and a grinder is pure compute that never yields. Spread groups cross
+cores on every exchange and pay an IPI for it, but their threads find a runnable core. That is
+milestone 240's block's hypothesis with the sign of the effect corrected: **the cost is grinder
+co-location rather than group crowding**, and 240's own four QEMU runs already pointed this way (the
+arrangement with two grinders on one core was the *fastest* of them, and the three-groups-on-one-core
+arrangement was the slowest).
+
+**What the census showed on the fast run**, and it differs from QEMU in a way nobody predicted:
+
+```
+soak-census: core=1 threads=5 C0 W1 C2 R3 W3
+soak-census: core=2 threads=5 C0 C0 C1 C2 G3
+soak-census: core=3 threads=7 R0 G0 R1 C1 R2 C3 C3
+soak-census: core=4 threads=7 W0 C1 G1 C2 G2 W2 C3
+```
+
+Every group is split, no core holds a whole one, and the four grinders are on four different cores.
+**`drifted=0` and it stayed there**, where 240 measured nine to eleven of the twenty non-waiter
+threads leaving their spawn core within one beat under QEMU. On this silicon the spawn arrangement is
+the settled arrangement, which makes the census a far stronger instrument here than the emulator
+predicted.
+
+**This is one census, on the fast side of the draw.** The slow run predates the instrument, so the
+arrangement that produces 23,000/s has still never been seen. That is exactly what a series of boots
+is for, and until one has run, the grinder-co-location reading above is a hypothesis with one
+supporting observation and a plausible mechanism.
+
 ### A smaller effect, inside one boot
 
 Detaching `script/board-console` mid-run took the 13:04 boot from a steady **183,130/s to a steady
