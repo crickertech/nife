@@ -110,6 +110,7 @@ row pretending to be one.
 | E2: thread census on the customer path | 2026-08-22 | `cargo xtask test`, the "E2 thread census" line in `a_host_process_connects_to_the_guest_and_is_answered` (both ISAs) |
 | E3: IPC fastpath footprint doubled, and the latency it costs | 2026-08-22 | `script/fastpath-footprint --features fastpath_pad` (both ISAs); `cargo xtask bench --real --extra-features fastpath_pad` against `cargo xtask bench --real` (aarch64 only) |
 | E4: application working-set displacement under IPC traffic, at typical (8-pair) and high (48-pair, E1's-knee) background load | 2026-08-23 | `cargo xtask bench --real` (`appdisp_*_ipc`/`appdisp_*_ipc96` rows, aarch64 only) |
+| multi-tasking throughput, jobs per minute against task count (milestone 168) | **no run on silicon** | `script/board-image --jobmix --card ...`, then `script/board-console`; the rehearsal is `script/job-mix` |
 
 **E1 through E4, taken 2026-08-22 (milestone 134's Tier A lane).** All four ran on the dev Mac
 under HVF; none of the four needed silicon, which is what the block promised, but three of them
@@ -169,6 +170,14 @@ QEMU at all.
   independent finding. It wants the same small-cache board E1 and E3's latency half already want,
   because on this machine the two conditions are separated by a few percentage points riding on top
   of run-to-run noise of a similar size.
+
+**The milestone 168 row is the register's first `dated` row that has never been taken**, and the
+date column says so in words rather than being left blank, which is the failure mode this file's own
+cross-OS row was written to complain about. The instrument exists, is host-tested and has been
+rehearsed under QEMU on all three architectures; what it lacks is a board. It is `dated` rather than
+`owed` because the command that takes it is written down and runnable today
+(`notes/job-mix.md`'s procedure), which is exactly the line between the two states. The number it
+produces is the input `design/decisions/96-process-kernel-or-event-kernel.md` is holding open for.
 
 **The filesystem row is the one on the customer path**, and it is the clearest case in the register
 for why `dated` is a finding rather than a filing. Milestone 55 is a Time Machine target the
