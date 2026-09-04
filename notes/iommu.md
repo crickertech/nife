@@ -120,3 +120,24 @@ tests, and the new hardware-fault test (aarch64 118 kernel tests, riscv 60).
   absence of a trusted DMA policy. The shadow ring (notes/dma.md) stays as defence in depth: the
   transport still refuses a format it cannot police, so a regression in the IOMMU path is caught by
   the software layer and vice versa.
+
+## What is proved, as against tested (milestone 255)
+
+The confinement test above proves the hardware stops an escaping device. It cannot prove the kernel
+wrote the *right* entry, because a wrong entry that still confines this device on this board is
+invisible to it, and this board is the only one either driver has ever run on.
+
+`arch/aarch64/iommu.rs` now carries two Kani harnesses over the entry-building arithmetic, beside
+the code, and they were falsified before they were believed:
+`the_smmu_is_handed_exactly_the_tables_the_kernel_built` (both physical addresses survive their
+split across two 32-bit words, and neither reaches the control bits sharing the low word) and
+`no_stream_can_reach_another_streams_tables` (the `StreamID` bound is exactly strong enough for the
+stride it protects). notes/kernel-proofs.md has the properties and the stub boundary.
+
+Two limits worth naming here rather than only there. **The register offsets and bit constants are
+not proved and cannot be**: nothing in this tree can check `CR0_SMMUEN` or the position of `CONFIG`
+against Arm IHI 0070, so a misreading of the document makes the code and the proof wrong together,
+and the boot-time confinement test is what stands against that. And **the RISC-V IOMMU has no
+counterpart**: it writes its device context in 64-bit stores with no split, so the property above
+does not apply to it, and the driver on the far side of the table at the top of this note is
+unproved. The two drivers rhyme; their proofs do not.

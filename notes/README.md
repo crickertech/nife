@@ -641,7 +641,9 @@ in the code or the conversation doesn't make sense, it belongs here.
   identity map over the frames it may reach) the same way it builds a process address space, and two
   arch drivers (SMMUv3, RISC-V IOMMU v1.0.1) attach it. The disk and attacker suites run behind it;
   a confinement test makes the IOMMU fault an escaping DMA, so a silent bypass fails loudly. The
-  shadow ring stays as defence in depth.
+  shadow ring stays as defence in depth. Milestone 255 added the half a boot test cannot reach: two
+  Kani harnesses over the SMMUv3's entry-building arithmetic, because a wrong entry that still
+  confines this device on this board is invisible to every test in the tree.
 - [The network stack as a confined component](net.md): milestone 30 (DECISIONS §21). Multi-queue
   DMA confinement (built, both ISAs): the validator grows a second queue and the receive direction,
   where the device writes into driver memory, proved by the same address-bounding check. Then the
@@ -750,8 +752,11 @@ in the code or the conversation doesn't make sense, it belongs here.
   rule 1 is the reason the list is that short, and the **enumerated stub boundary**, because a proof
   with an unexamined stub reads as coverage and is worse than no proof. The two properties proved
   today, both over `syscall.rs`'s run arithmetic, both falsified against milestone 142's real
-  MAJOR 4 defect before being believed. A BUGS section that says plainly what is still unreachable:
-  all of `kernel/src/arch/`, `user/`, and `xtask`. Name provisional.
+  MAJOR 4 defect before being believed. Milestone 255 added two more, in
+  `arch/aarch64/iommu.rs`, and corrected the boundary this note had drawn too wide: it is `asm!`
+  and MMIO, not the directory, and a quarter of `arch/`'s lines have neither. A BUGS section that
+  says plainly what is still unreachable, which is almost all of `kernel/src/arch/` and every
+  architecture but the host's. Name provisional.
 - [Proving things about `user/`](user-proofs.md): milestone 197, and the third of that set. The
   block's premise was that `user/` had a better claim on the prover than the kernel did, because it
   holds parsers over bytes this system did not produce; **half of that turned out to be false**, and

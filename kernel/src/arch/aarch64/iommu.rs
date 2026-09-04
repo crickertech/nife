@@ -249,57 +249,96 @@ fn cmd_push(s: &mut Smmu, cmd: [u32; 4]) {
     }
 }
 
+/// **Where stream `rid`'s two tables sit**, as a byte offset into the frame that holds them.
+///
+/// One function for both, because the stream table and the context-descriptor frame are indexed
+/// by the same number with the same 64-byte stride, and two copies of that arithmetic is two
+/// places for it to disagree. A disagreement here is not a crash: it is stream A's STE landing on
+/// stream B's, which points one device at another device's page tables and is a confinement
+/// failure no test on this board would see.
+///
+/// The bound is asserted here rather than at the call site so that the assertion and the
+/// arithmetic it protects cannot drift apart. See `mod proofs`.
+fn table_offset(rid: u32) -> u64 {
+    assert!(
+        (rid as u64) < (1 << STRTAB_LOG2),
+        "StreamID {rid} beyond the linear stream table"
+    );
+    rid as u64 * STE_BYTES
+}
+
+/// **The context descriptor for one stream**: the SMMU's `TTBR0_EL1` + `TCR_EL1` + `MAIR_EL1`,
+/// as the eight 32-bit words the hardware reads out of memory.
+///
+/// Geometry mirrors the CPU's `TCR_EL1` exactly (T0SZ=16 so IOVAs are 48-bit, 4 KiB granule,
+/// TTB1 walks disabled): the domain is built by the same paging code as a process address space,
+/// so it must be described the same.
+///
+/// `ttb` occupies dword 1 (words 2 and 3) as TTB0, bits `[51:4]`. Splitting a 64-bit physical
+/// address across two 32-bit words is the part worth proving rather than reading: on this board
+/// every table root is below 4 GiB, so the high word is zero and dropping it entirely would pass
+/// every test in the tree.
+const fn context_descriptor(ttb: u64, asid: u16) -> [u32; 8] {
+    [
+        16                           // T0SZ: 48-bit IOVA space, matching Aarch64::SPLIT_SHIFT
+            | (0b01 << 8)            // IR0: walks are write-back cacheable (ignored by QEMU)
+            | (0b01 << 10)           // OR0
+            | (0b11 << 12)           // SH0: inner shareable
+            | (1 << 30)              // EPD1: no TTB1, the high half does not exist for devices
+            | (1 << 31), //             V
+        0b101                        // IPS: 48-bit output
+            | (1 << 9)               // AA64
+            | (1 << 13)              // R: record faults from this stream to the event queue
+            | (1 << 14)              // A: and abort the faulting transaction
+            | ((asid as u32) << 16),
+        ttb as u32 & 0xffff_fff0, //  TTB0[31:4]; the low flag bits stay zero
+        (ttb >> 32) as u32 & 0xf_ffff, // TTB0[51:32]
+        0,                        // TTB1 does not exist
+        0,
+        // MAIR0/MAIR1: the same palette mmu::init programs into MAIR_EL1 (slot 0 device, slot 1
+        // normal write-back). QEMU does not model attributes; real silicon reads these.
+        paging::aarch64::mair::VALUE as u32,
+        (paging::aarch64::mair::VALUE >> 32) as u32,
+    ]
+}
+
+/// **The stream table entry for one stream**: valid, stage-1 translate, one linear context
+/// descriptor at `ctxptr`, as the sixteen 32-bit words the hardware reads.
+///
+/// Word 0 carries V (bit 0), CONFIG (bits `[3:1]`), S1FMT (bits `[5:4]`) and the low half of
+/// `S1ContextPtr` in the same 32 bits, so an unaligned or oversized `ctxptr` would not merely be
+/// truncated: its low bits would land on the control field and could clear V or turn CONFIG into
+/// bypass, which is translation switched off rather than pointed somewhere wrong. `S1CDMAX` stays
+/// 0: exactly one CD, no substreams.
+const fn stream_table_entry(ctxptr: u64) -> [u32; 16] {
+    let mut ste = [0u32; 16];
+    ste[0] = 1 | (0b101 << 1) | (ctxptr as u32 & 0xffff_ffc0);
+    ste[1] = (ctxptr >> 32) as u32 & 0xf_ffff;
+    ste
+}
+
 /// Point stream `rid` at the domain rooted at `ttb` (a VMSAv8-64 table the portable seam built),
 /// tagged `asid`, then invalidate so the SMMU drops any cached STE/CD/TLB entry for the previous
 /// domain. After this returns, the device can reach exactly what the domain maps.
 pub fn attach(rid: u32, ttb: u64, asid: u16) {
     let mut g = SMMU.lock();
     let s = g.as_mut().expect("SMMU attach before init");
-    assert!(
-        (rid as u64) < (1 << STRTAB_LOG2),
-        "StreamID {rid} beyond the linear stream table"
-    );
+    let off = table_offset(rid);
 
-    // The CD: the SMMU's TTBR0+TCR+MAIR for this stream. Geometry mirrors the CPU's TCR_EL1
-    // exactly (T0SZ=16 so IOVAs are 48-bit, 4 KiB granule, TTB1 walks disabled): the domain is
-    // built by the same paging code as a process address space, so it must be described the same.
-    let cd = phys_to_virt(s.cds + rid as u64 * STE_BYTES) as *mut u32;
-    let cd_w0: u32 = 16              // T0SZ: 48-bit IOVA space, matching Aarch64::SPLIT_SHIFT
-        | (0b01 << 8)                // IR0: walks are write-back cacheable (ignored by QEMU)
-        | (0b01 << 10)               // OR0
-        | (0b11 << 12)               // SH0: inner shareable
-        | (1 << 30)                  // EPD1: no TTB1, the high half does not exist for devices
-        | (1 << 31); //                 V
-    let cd_w1: u32 = 0b101           // IPS: 48-bit output
-        | (1 << 9)                   // AA64
-        | (1 << 13)                  // R: record faults from this stream to the event queue
-        | (1 << 14)                  // A: and abort the faulting transaction
-        | ((asid as u32) << 16);
-    // SAFETY: cds is a kernel-owned frame; rid is bounds-checked above.
+    let cd = phys_to_virt(s.cds + off) as *mut u32;
+    // SAFETY: cds is a kernel-owned frame; `table_offset` bounds the offset to it.
     unsafe {
-        core::ptr::write_volatile(cd, cd_w0);
-        core::ptr::write_volatile(cd.add(1), cd_w1);
-        core::ptr::write_volatile(cd.add(2), ttb as u32 & 0xffff_fff0); // low flag bits stay zero
-        core::ptr::write_volatile(cd.add(3), (ttb >> 32) as u32 & 0xf_ffff);
-        core::ptr::write_volatile(cd.add(4), 0); // TTB1 does not exist
-        core::ptr::write_volatile(cd.add(5), 0);
-        // MAIR0/MAIR1: the same palette mmu::init programs into MAIR_EL1 (slot 0 device, slot 1
-        // normal write-back). QEMU does not model attributes; real silicon reads these.
-        core::ptr::write_volatile(cd.add(6), paging::aarch64::mair::VALUE as u32);
-        core::ptr::write_volatile(cd.add(7), (paging::aarch64::mair::VALUE >> 32) as u32);
+        for (i, w) in context_descriptor(ttb, asid).iter().enumerate() {
+            core::ptr::write_volatile(cd.add(i), *w);
+        }
     }
 
-    // The STE: valid, stage-1 translate (config 0b101), one linear CD.
-    let ste = phys_to_virt(s.strtab + rid as u64 * STE_BYTES) as *mut u32;
-    let ctxptr = s.cds + rid as u64 * STE_BYTES;
-    // SAFETY: strtab is a kernel-owned frame; rid is bounds-checked above.
+    let ctxptr = s.cds + off;
+    let ste = phys_to_virt(s.strtab + off) as *mut u32;
+    // SAFETY: strtab is a kernel-owned frame; `table_offset` bounds the offset to it.
     unsafe {
-        // Word 0 low half: V | CONFIG=0b101 | S1FMT=0 | CTXPTR[31:6]; word 1: CTXPTR[51:32],
-        // S1CDMAX=0 (exactly one CD, no substreams).
-        core::ptr::write_volatile(ste, 1 | (0b101 << 1) | (ctxptr as u32 & 0xffff_ffc0));
-        core::ptr::write_volatile(ste.add(1), (ctxptr >> 32) as u32 & 0xf_ffff);
-        for i in 2..16 {
-            core::ptr::write_volatile(ste.add(i), 0);
+        for (i, w) in stream_table_entry(ctxptr).iter().enumerate() {
+            core::ptr::write_volatile(ste.add(i), *w);
         }
     }
 
@@ -344,4 +383,153 @@ pub fn take_fault() -> Option<Fault> {
         code,
         addr: (hi as u64) << 32 | lo as u64,
     })
+}
+
+/// **The first proofs over `kernel/src/arch/`** (milestone 255).
+///
+/// Milestone 193 put `kernel/src` within the prover's reach and said in its own `BUGS` that
+/// `kernel/src/arch/` stayed outside it, because Kani cannot model `asm!`. That is true of the
+/// directory and false of a quarter of its lines: this file contains no `asm!` at all, and the
+/// three functions above are integer arithmetic that decides which physical addresses a device may
+/// touch. `design/fatal-risks.md` risk 7 (the confinement claim is false) rests on them.
+///
+/// **The stubs, and they are the ones notes/kernel-proofs.md enumerates**, plus one this module
+/// adds:
+///
+/// - **Everything in this file that touches the SMMU is invisible here.** `r32`/`w32`/`w64`
+///   dereference `phys_to_virt(base + off)`, which under a model checker is a raw pointer to
+///   nothing, so `init`, `cmd_push`, `attach` and `take_fault` are all unreachable to a harness.
+///   What is proved is the word-building the hardware then reads, not the writing of it.
+/// - **The register-file offsets and bit constants are unproved and unprovable here.** Nothing in
+///   this tree can check `CR0_SMMUEN` against Arm IHI 0070; a harness asserting the constant it
+///   was given is a tautology. The bit positions the harnesses below read the fields back out of
+///   are taken from that document, and if the document was misread both the code and the proof
+///   are wrong together. That is the honest limit of this and it is why the boot-time confinement
+///   test in `kernel/src/virtio.rs` is not made redundant by it.
+/// - **A proof here says nothing about the RISC-V IOMMU or VT-d.** The three drivers are
+///   structural siblings and not identical: `riscv64/iommu.rs` writes its device context in
+///   64-bit stores with no split at all, so the property below has no counterpart there. Reading
+///   this as covering `arch/*/iommu.rs` would be exactly the overclaim milestone 255 exists to
+///   remove.
+/// - The rest of the boundary (global asm skipped, the absent panic handler, the absent link
+///   sections, `--ignore-global-asm`) is in notes/kernel-proofs.md, "The stub boundary,
+///   enumerated", and applies unchanged.
+#[cfg(kani)]
+mod proofs {
+    use super::*;
+
+    /// A physical address is at most 52 bits on VMSAv8-64, which is also the width of both fields
+    /// below. Spelled once so the harnesses and the assumptions cannot drift apart.
+    const PA_BITS: u32 = 52;
+
+    /// **The SMMU is handed exactly the tables the kernel built, and nothing else.**
+    ///
+    /// Both of these entries split a 64-bit physical address across two 32-bit words, and both
+    /// share the low word with control bits: the CD's TTB0 starts at bit 4, the STE's
+    /// `S1ContextPtr` at bit 6, above V, CONFIG and S1FMT. Two things can go wrong and only one of
+    /// them is a truncation. The address can lose its high half, in which case the SMMU walks some
+    /// other table; or an address bit can land on a control bit, in which case CONFIG stops being
+    /// `0b101` and the stream is set to **bypass**, which is translation switched off rather than
+    /// pointed somewhere wrong. The second is the worse failure and the harder one to notice.
+    ///
+    /// **No test in this tree can see either.** QEMU's `virt` board puts RAM at `0x4000_0000`, so
+    /// every table root the confinement test ever produces is below 4 GiB and both high words are
+    /// zero; deleting `cd[3]` and `ste[1]` outright would leave the whole suite green. A board
+    /// with memory above 4 GiB, which is most of them, would silently point every device at the
+    /// wrong page tables.
+    ///
+    /// The claim is stated by reading each field back out at the bit positions Arm IHI 0070 gives
+    /// it, across the word boundary the implementation splits on, and comparing against the whole
+    /// 64-bit input. The assumptions are the two facts `attach`'s callers establish and neither
+    /// function checks: a table root is a page frame, and a context descriptor sits at a 64-byte
+    /// stride inside one.
+    ///
+    /// Falsification: replayable `kernel/falsifications/arch.aarch64.iommu.proofs.the_smmu_is_handed_exactly_the_tables_the_kernel_built.patch`
+    #[kani::proof]
+    fn the_smmu_is_handed_exactly_the_tables_the_kernel_built() {
+        let ttb: u64 = kani::any();
+        let ctxptr: u64 = kani::any();
+        let asid: u16 = kani::any();
+
+        // `ttb` is the root of a domain built by `paging::domain`, so a page frame.
+        kani::assume(ttb % page_frames::FRAME_SIZE == 0);
+        kani::assume(ttb < 1 << PA_BITS);
+        // `ctxptr` is `cds + table_offset(rid)`: a page frame plus a 64-byte stride.
+        kani::assume(ctxptr % STE_BYTES == 0);
+        kani::assume(ctxptr < 1 << PA_BITS);
+
+        let cd = context_descriptor(ttb, asid);
+        let ste = stream_table_entry(ctxptr);
+
+        // CD dword 1 (words 2 and 3) is TTB0[51:4] and every other bit in it is reserved zero
+        // here, so the whole dword must equal the address. Stating it over the entire 64 bits
+        // rather than over the masked field is what makes this more than a read-back: a bit
+        // gained is as much a failure as a bit lost.
+        let ttb_dword = ((cd[3] as u64) << 32) | cd[2] as u64;
+        assert!(
+            ttb_dword == ttb,
+            "the CD's TTB0 is the table root entire, high half included"
+        );
+
+        // STE dword 0 is S1ContextPtr[51:6] over V, CONFIG and S1FMT. Split the two claims: the
+        // pointer survives, and the control field is what it was written as rather than what an
+        // overlapping address bit made it.
+        let ste_dword = ((ste[1] as u64) << 32) | ste[0] as u64;
+        assert!(
+            ste_dword & 0x000f_ffff_ffff_ffc0 == ctxptr,
+            "the STE's S1ContextPtr is the context descriptor entire, high half included"
+        );
+        assert!(
+            ste_dword & 0x3f == 0b00_101_1,
+            "V is set, CONFIG is stage-1 translate, S1FMT is linear: no address bit reached them"
+        );
+
+        // The CD's own control half, for the same reason: `asid` is 16 bits and shifts to bit 16,
+        // so it cannot reach the fault-reporting bits below it, and V must survive.
+        assert!(cd[0] >> 31 == 1, "the context descriptor is valid");
+        assert!(cd[0] & 0x3f == 16, "T0SZ: a 48-bit IOVA space");
+        assert!((cd[0] >> 6) & 0b11 == 0, "TG0: a 4 KiB granule");
+        assert!(
+            cd[1] >> 16 == asid as u32 && cd[1] & 0x6000 == 0x6000,
+            "the ASID is this stream's, and faults are still recorded and aborted"
+        );
+    }
+
+    /// **No stream can reach another stream's tables.**
+    ///
+    /// `table_offset` is the whole of the addressing for both the stream table and the
+    /// context-descriptor frame, and its `assert!` is the only thing between a `StreamID` and a
+    /// raw write. Two failures live here. An offset past `FRAME_SIZE` writes off the end of a
+    /// kernel-allocated frame into whatever follows it; a stride that disagrees with the bound
+    /// lands stream A's entry on stream B's, which points one device at another device's page
+    /// tables. Both are confinement failures and neither is a fault the hardware would report.
+    ///
+    /// `rid` is the PCIe requester id, so it is a 16-bit number arriving from the device tree's
+    /// `iommu-map` rather than a kernel-chosen index, which is why the bound is asserted rather
+    /// than assumed. The harness takes it symbolic over that whole range and proves the assert is
+    /// exactly strong enough: everything it admits fits, and no two admitted ids overlap.
+    ///
+    /// Falsification: replayable `kernel/falsifications/arch.aarch64.iommu.proofs.no_stream_can_reach_another_streams_tables.patch`
+    #[kani::proof]
+    fn no_stream_can_reach_another_streams_tables() {
+        let a: u32 = kani::any();
+        let b: u32 = kani::any();
+        // The requester id a PCIe function stamps on its transactions is 16 bits wide
+        // (`pci::Bdf::requester_id`), and `virt`'s `iommu-map` is the identity.
+        kani::assume(a <= u16::MAX as u32 && b <= u16::MAX as u32);
+        // Anything `table_offset` refuses never reaches the arithmetic, and a refusal is a panic
+        // rather than a silent wrong answer. Restrict to what it admits.
+        kani::assume((a as u64) < (1 << STRTAB_LOG2) && (b as u64) < (1 << STRTAB_LOG2));
+
+        let (oa, ob) = (table_offset(a), table_offset(b));
+
+        assert!(
+            oa + STE_BYTES <= page_frames::FRAME_SIZE,
+            "every entry the bound admits lies inside the single frame that holds the table"
+        );
+        assert!(
+            a == b || oa + STE_BYTES <= ob || ob + STE_BYTES <= oa,
+            "two different streams never share a byte of either table"
+        );
+    }
 }
