@@ -43,6 +43,47 @@ own kernel on a device:
 
 A device can be aarch64 and still be completely useless to us by failing any of those.
 
+## A fourth requirement, and this one filters silicon rather than firmware
+
+**At least 32 KB of L1 instruction cache**, and it is a requirement on the *claims* rather than on
+the boot. nife will start on less; what will not survive is the reason a microkernel is supposed to
+be fast.
+
+**Where the number comes from.** Liedtke's *On micro-Kernel Construction* (SOSP 1995) argued Mach's
+IPC was slow because of the **cache footprint** of its hot path rather than anything inherent to
+microkernels: a kernel touching a lot of memory per IPC evicts the *application's* working set, so
+the cost appears as capacity misses spread through the workload instead of as time in the kernel.
+`script/fastpath-footprint` is the gate that keeps this honest and notes/benchmarks.md carries the
+argument.
+
+**Measured 2026-09-04**, the fastpath's upper bound per architecture, against the L1i of the machine
+this project runs that ISA on:
+
+| target | fastpath | machine | L1i | fastpath as a share |
+|---|---|---|---|---|
+| x86_64 | **8,404 B** | xenon, Core i5-7500T | 32 KB* | **26%** |
+| aarch64 | 9,156 B | argon, Cortex-A57 | 48 KB | 19% |
+| riscv64 | 7,174 B | radon, SiFive U74 | 32 KB | 22% |
+
+At 32 KB the hot path takes about a quarter of the cache and leaves the application three quarters,
+which is the regime Liedtke's argument assumes. **At 16 KB it would take half**, and the thing the
+gate exists to protect stops being true. That is the filter: **16 KB L1i is where nife stops being
+able to claim what it claims**, and 32 KB is the floor at which the claim is comfortable.
+
+**What this rules in and out.** Every frontier core clears it easily: notes/benchmarks.md's survey
+puts Zen 5 at 32 KB, Intel's Lion Cove and Arm's Cortex-X925 and SiFive's P870 at 64 KB, and Apple
+at 192 KB. What it rules out is the small end, and that is the end a capability microkernel is
+otherwise attractive at: deeply embedded Cortex-M and Cortex-R parts, older in-order cores, and
+microcontroller-class RISC-V. **A machine can satisfy all three requirements above and still fail
+this one**, which is why it is stated separately rather than folded into "the peripherals are
+documented".
+
+**The honest caveat.** No cache is modelled by icount, and the development host's L1i is several
+times the boards', so nothing in this tree has yet *observed* the effect this requirement protects
+against. It is an argument from a 1995 paper plus a measured code size, not a measured miss rate.
+The experiment that would settle it wants real silicon and performance counters, which milestone 74
+has just made possible on radon.
+
 ## Trap: "ARM" is not "aarch64"
 
 **Cortex-M** microcontrollers (STM32, most Arduino-adjacent parts) are 32-bit and have **no

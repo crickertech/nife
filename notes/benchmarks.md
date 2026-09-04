@@ -1128,7 +1128,20 @@ runs on:
 |---|---|---|---|---|
 | SiFive U74 (VisionFive 2) | 32 KB | 32 KB | 2 MB | first silicon |
 | Cortex-A57 (Jetson TX1) | 48 KB | 32 KB | 2 MB | milestone 127, the seL4 comparison |
+| Core i5-7500T (OptiPlex) | 32 KB* | 32 KB* | 256 KB* | milestone 87, x86_64 first light |
 | Apple M-series P-core | far larger | far larger | many MB | the bench and dev host |
+
+**\*xenon's row is from the Kaby Lake microarchitecture's published figures and has not been read
+off the machine**, which is the distinction this tree's fabricated-quote scar exists to keep. It can
+be settled the moment xenon boots: `CPUID` leaf 4 reports cache size, ways and line size per level,
+and the boot tour already decodes `CPUID` for other purposes. Until then treat the asterisked cells
+as a strong prior rather than a measurement.
+
+**xenon was missing from this table until 2026-09-04, and it is the binding case rather than an
+afterthought.** It pairs the *smallest* L1i of the three targets with the *largest* fastpath: x86_64
+measures **8,404 bytes** against riscv64's 7,174 and aarch64's 9,156, so if any machine tests
+Liedtke's argument first it is this one. The omission is the same shape this note records about the
+gate itself, that x86_64 arrived after the argument was written and was fitted in afterwards.
 
 That is four to six times Liedtke's budget on the small machines and far more on the host, so the
 absolute room is genuinely larger.
