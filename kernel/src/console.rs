@@ -161,6 +161,31 @@ pub fn rx_enable() {
     CONSOLE.lock().enable_rx_interrupt();
 }
 
+/// **Has anyone typed at the console?** (Milestone 249.) True while a byte sits unread in the
+/// console UART's receive buffer; reads nothing, so the answer stays true until [`discard_rx`]
+/// takes it.
+///
+/// This exists for exactly one caller, `soak::watch`, and it is the escape from a self-rebooting
+/// soak. The board is running a workload with no console reader, so there is no shell to type a
+/// command at and no input driver holding the device; what there is, on every bench run, is a
+/// serial cable and a terminal. Polling LSR turns that cable into a stop button that costs one
+/// register read every five seconds and needs nothing else to be wired up.
+///
+/// riscv64 only, and so is the feature: the reset it is the escape from is SBI's, and the PL011 the
+/// aarch64 console drives has no equivalent method here.
+#[cfg(all(target_arch = "riscv64", feature = "reboot_soak"))]
+pub fn rx_waiting() -> bool {
+    CONSOLE.lock().rx_waiting()
+}
+
+/// Throw away whatever is already in the console UART's receive buffer, so that [`rx_waiting`]
+/// answers about what arrives from now on. Called once, when a rebooting soak arms itself; see
+/// `Ns16550::discard_rx` for why U-Boot's leftovers are the thing being cleared.
+#[cfg(all(target_arch = "riscv64", feature = "reboot_soak"))]
+pub fn discard_rx() {
+    CONSOLE.lock().discard_rx();
+}
+
 /// **Raise and lower the console UART's own interrupt line, for the RISC-V interrupt-delivery
 /// tests.** Test builds only.
 ///
