@@ -216,6 +216,20 @@ the candidates.
 **Journey 3 settles most of this as a side effect**, because a framebuffer and a keyboard on real
 hardware are real devices.
 
+**Two corrections, 2026-09-03, from the §86 research lane.** The evidence line above says "All of it
+is virtio or emulated", and the first half went stale on 2026-08-15: milestone 53 built a real,
+non-virtio NVMe driver, confined by the IOMMU on all three architectures. Still emulated, so the
+sentence's conclusion holds; its reason does not.
+
+The second correction is the one that matters. **No IOMMU data point can settle this risk while the
+NVMe driver is kernel-resident**, because the driver whose confinement the risk is about would be
+the kernel. That is what DECISIONS §86 (whether an NVMe driver can leave the kernel, and what
+capability would let it) decides, which puts §86 on this risk's critical path rather than beside it.
+And the board this risk's experiment names has no IOMMU: milestone 143 (silicon IOMMU) exists
+because no board shipping the ratified RISC-V IOMMU spec exists today. So a real-silicon NVMe
+experiment on radon confines nothing unless something in software does, which §86's research pass
+found is possible and had been ruled out on a false premise.
+
 ## 7. The confinement claim is false
 
 **The claim:** a confined component escapes, and the property the whole system is built to provide
