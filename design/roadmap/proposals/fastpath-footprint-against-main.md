@@ -2,7 +2,11 @@
 
 **Status: PROPOSED 2026-09-03.** Written by the milestone 247 sweep, from milestone 237's block.
 
-**Gate: DECISION.** It is calef's call, and it is the shape of the gate rather than a bug in it.
+**Gate: NONE.** **Answered by DECISIONS §144 on 2026-09-04: both, with the ceiling at 16 KiB.** What
+remains is building it, and the two designs no longer share no code, because the delta half replaces
+the baseline files and the ceiling half is new. The question below is kept for its reasoning.
+
+**Was: Gate: DECISION.** It was calef's call, and it was the shape of the gate rather than a bug in it.
 Both options have real costs and the tree has evidence for each. Nothing should be built until the
 question is answered, because the two designs share almost no code.
 
