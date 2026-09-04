@@ -169,8 +169,13 @@ for arch in $arches; do
     trap 'rm -rf "$tmp"' EXIT
     "$tools/llvm-objdump" -d --no-show-raw-insn "target/$target/release/kernel" > "$tmp/dis.txt"
 
+    # **The workspace's own `#[cold]` claims, read out of the source** (milestone 188 phase 3).
+    # See `COLD` below for why this is derived rather than listed.
+    cold_fns=$(grep -rhA3 --include='*.rs' '#\[cold\]' kernel/src crates \
+        | grep -oE 'fn [a-z_0-9]+' | sed 's/fn //' | sort -u | tr '\n' ' ')
+
     ARCH="$arch" DIS="$tmp/dis.txt" BASE="bench/fastpath-$arch.txt" SAVE="$save" \
-        NOCHECK="$features" python3 - <<'PYEOF' || status=1
+        COLD_FNS="$cold_fns" NOCHECK="$features" python3 - <<'PYEOF' || status=1
 import os, re, sys, collections
 
 arch, dis_path, base_path, save = os.environ["ARCH"], os.environ["DIS"], os.environ["BASE"], os.environ["SAVE"]
@@ -250,16 +255,36 @@ SHAPES = [
 # a thread exits and never during an IPC. Including it put 11.2 KiB on this number when the honest
 # figure is 5.6, which is exactly the over-count that would make the gate meaningless.
 #
-# `strand` joins the teardown family on 2026-09-04 (milestone 254). `sched::strand_callers_of` frees
-# the callers a server can no longer answer, and one of its four call sites is the armed-kill
-# conversion at the top of `schedule()`, which is a root here. It is guarded by `killed`, so it runs
-# when a thread is being torn down and never on a healthy IPC, and its helpers carry `#[cold]` and
-# `#[inline(never)]` so the claim is in the code as well as in this regex. Left in the closure it
-# put 1,363 bytes on x86_64's figure, 20%, which is the same over-count this list exists to refuse.
+# **The second family is DERIVED from the source, not listed here** (milestone 188 phase 3), and
+# that is the more important half. This regex is a hand-maintained list in a gate, which is rung two
+# at best: a lane that wanted a smaller number could edit it, and a lane that outlined a genuinely
+# cold arm got no credit for it unless it remembered to. Both happened. Phase 3 outlined four cold
+# arms out of `finish_switch`, `schedule` and the four stale-rendezvous returns, and the closure got
+# **332 bytes BIGGER on aarch64**, because the walk simply followed the new calls and counted the
+# same bytes under new names.
+#
+# So the claim lives where a reader and the optimizer both already meet it, `#[cold]` on the
+# function, and the shell above greps the workspace for it. A lane still cannot shrink this number
+# by editing the gate; it can only shrink it by writing a `#[cold]` in the source, which is a claim
+# in a diff that a reviewer sees and that LLVM acts on. `strand_callers_of` and its two siblings
+# used to be named in the regex (milestone 254, 2026-09-04) and are now covered by their own
+# attributes; left in the closure they put 1,363 bytes on x86_64's figure, 20%.
+#
+# **What is NOT derivable, and stays a regex.** The panic and formatting family is libcore's and
+# carries no attribute we can read. The teardown callees (`revoke`, `destroy`, `unmap`,
+# `KernelStack`, `AddressSpace`, `drop_in_place`, `delete_frame_caps`) are reached only through
+# `finish_switch`'s reap arm and are ordinary functions on their own paths, so `#[cold]` would be a
+# lie about them; they are excluded here because of who reaches them, which is a property of this
+# walk rather than of the function. Including them put 11.2 KiB on a 5.6 KiB figure.
 COLD = re.compile(
     r"panic|expect_failed|unwrap_failed|slice_index|9panicking|4core3fmt|assert"
     r"|6revoke|7destroy|drop_in_place|delete_frame_caps|unmap|KernelStack|12AddressSpace"
-    r"|strand_"
+    + "".join(
+        # Length-prefixed, because both Rust manglings write `<len><ident>` and a bare name would
+        # match any symbol containing it as a substring.
+        r"|\d+" + re.escape(f) + r"\b"
+        for f in sorted(os.environ.get("COLD_FNS", "").split())
+    )
 )
 
 # **The entry set, and x86_64 is not the same shape as the other two.** On aarch64 and riscv64 a

@@ -476,6 +476,14 @@ fn rendezvous_of(sched: &IpcTables, ep: RendezvousId) -> Option<&'static mut Ren
 /// Mark the current thread's blocking IPC as aborted (a stale rendezvous, or one revoked while it
 /// blocked): the syscall layer reads-and-clears this after the primitive returns and hands back an
 /// error. A helper because several IPC paths set it. Caller holds `IPC_TABLES`.
+///
+/// **`#[cold]`, and it is a claim about the callers rather than about this body.** Every call site
+/// is the `else` of a `rendezvous_of` that returned `None`, which means the name a program invoked
+/// no longer resolves. A healthy IPC never reaches it, and it is reached from four functions that
+/// are all on `script/fastpath-footprint`'s closures, so inlining it put the abort path's bytes on
+/// the fast path four times over (milestone 188 phase 3).
+#[cold]
+#[inline(never)]
 fn set_ipc_aborted(sched: &mut IpcTables, tid: ThreadId) {
     if let Some(t) = sched.threads.get_mut(tid) {
         t.handshake.abort();
@@ -1822,15 +1830,15 @@ pub fn schedule() {
         // its core takes. Before §28's scattering, a killed runaway shared a core with other work, so
         // a switch always happened and the old requeue-time check sufficed; once a runaway can be the
         // only thread on its core, that check was unreachable and the runaway spun forever.
-        if let Some(t) = sched.threads.get_mut(current)
-            && t.killed
-            && t.handshake.state == State::Running
+        // The *test* stays here, on the hot path, because it is two loads and a compare. The
+        // *body* is out of line (milestone 188 phase 3): converting a killed thread and freeing its
+        // callers is a teardown, so its bytes have no business in the kernel's hottest function.
+        if sched
+            .threads
+            .get(current)
+            .is_some_and(|t| t.killed && t.handshake.state == State::Running)
         {
-            t.handshake.state = State::Finished;
-            // A killed thread never reaches `depart`, so this is the one place its callers can be
-            // freed before its capability table goes (milestone 254). Guarded by `killed`, so the
-            // sixteen-slot scan never runs on an ordinary pass through the kernel's hottest path.
-            strand_callers_of(sched, current);
+            finish_killed_current(sched, current);
         }
         let state = sched.threads.get(current).map(|t| t.handshake.state);
 
@@ -1880,10 +1888,7 @@ pub fn schedule() {
         // forever, off every instrument. Debug builds fail loudly; the board build heals by
         // keeping the thread running, which is the only state that is still coherent.
         if next == current {
-            if cfg!(debug_assertions) {
-                panic!("schedule() popped its own current thread from the run queue");
-            }
-            sched.threads.get_mut(current).unwrap().handshake.state = State::Running;
+            heal_self_pop(sched, current);
             break 'decide None;
         }
 
@@ -2004,6 +2009,51 @@ pub fn schedule() {
     crate::arch::interrupts::restore(was_enabled);
 }
 
+/// **Convert a killed current thread into a corpse, and free the callers it can no longer answer.**
+/// The body of [`schedule`]'s forcible-teardown check, out of line (milestone 188 phase 3): the
+/// predicate is two loads on the kernel's hottest path, the body is a teardown that no IPC reaches.
+///
+/// A thread `DESTROY` marked killed must never run again, and this runs at the top of the decision
+/// so *every* path below reaps it: not only the switch path, but the "nothing else to run, keep
+/// current" path a runaway alone on its core takes. Before §28's scattering a killed runaway shared
+/// a core with other work, so a switch always happened and the old requeue-time check sufficed;
+/// once a runaway can be the only thread on its core, that check was unreachable and the runaway
+/// spun forever.
+///
+/// A killed thread never reaches `depart`, so this is the one place its callers can be freed before
+/// its capability table goes (milestone 254).
+///
+/// Caller holds `IPC_TABLES` and has already checked that `current` is killed and `Running`.
+#[cold]
+#[inline(never)]
+fn finish_killed_current(sched: &mut IpcTables, current: ThreadId) {
+    if let Some(t) = sched.threads.get_mut(current) {
+        t.handshake.state = State::Finished;
+    }
+    strand_callers_of(sched, current);
+}
+
+/// **The running thread came off its own run queue, which cannot legally happen.** [`schedule`]'s
+/// guard against boot 8's downstream catastrophe, out of line (milestone 188 phase 3) because it is
+/// unreachable on every path this kernel is meant to take.
+///
+/// The pop precedes the requeue, so a legal schedule can never hand back `current`; if it ever
+/// does, something queued a thread that was still running, and switching into it would restore
+/// `t.context`, a pointer to a frame this very thread has already resumed and consumed: execution
+/// time-travels to its previous switch-out point on a reused stack and spins there forever, off
+/// every instrument. Debug builds fail loudly; the board build heals by keeping the thread running,
+/// which is the only state that is still coherent.
+#[cold]
+#[inline(never)]
+fn heal_self_pop(sched: &mut IpcTables, current: ThreadId) {
+    if cfg!(debug_assertions) {
+        panic!("schedule() popped its own current thread from the run queue");
+    }
+    if let Some(t) = sched.threads.get_mut(current) {
+        t.handshake.state = State::Running;
+    }
+}
+
 /// Reap the thread this core just switched away from, if it had finished.
 ///
 /// The safe half of the two-part reaper. `schedule()` records a finished outgoing thread in this
@@ -2035,18 +2085,14 @@ pub(crate) fn finish_switch() {
     // predecessor, complete a wake that was deferred mid-switch-out, or simply clear `on_cpu` so
     // other cores may run it. The transition is the crate's (loom searches it; see
     // notes/interleaving.md); the reap and the queue push are ours.
-    match t.handshake.finish_switch() {
-        SwitchOutVerdict::Reap => {
-            // Hoist the address space out BEFORE the in-place drop, to be torn down after the lock
-            // is released: its teardown is memory_region::destroy (milestone 14 phase B.4), whose §13
-            // revocation sweep takes IPC_TABLES itself to delete stray PageFrame capabilities. Dropping it
-            // here would deadlock on our own lock. The rest of the Thread (stack, quota) still
-            // drops under IPC_TABLES, exactly as before.
-            let space = t.space.take();
-            sched.threads.remove(prev);
-            drop(guard);
-            drop(space);
-        }
+    let verdict = t.handshake.finish_switch();
+    match verdict {
+        // Out of line, and `#[cold]` says why: a switch-out reaps only when the outgoing thread
+        // FINISHED, which no IPC does. Left inline its bytes sat in `finish_switch`, which is on
+        // both IPC closures, and `script/fastpath-footprint` could only exclude the *callees* it
+        // reaches (`KernelStack`, `AddressSpace`, `drop_in_place`) and not the arm's own setup.
+        // Milestone 188 phase 3: the classification now lives in the code rather than in a regex.
+        SwitchOutVerdict::Reap => reap_switched_out(guard, prev),
         SwitchOutVerdict::WakeCompleted => {
             trace::record(trace::Event::WakeCompleted, prev, 0);
             let ptr = thread_control_block_ptr(sched, prev);
@@ -2056,6 +2102,29 @@ pub(crate) fn finish_switch() {
         }
         SwitchOutVerdict::Cleared => {}
     }
+}
+
+/// **Reap the thread this core just switched away from.** The `Reap` arm of [`finish_switch`],
+/// out of line because it runs when a thread has ended and never on an IPC.
+///
+/// Hoist the address space out BEFORE the in-place drop, to be torn down after the lock is
+/// released: its teardown is `memory_region::destroy` (milestone 14 phase B.4), whose §13
+/// revocation sweep takes `IPC_TABLES` itself to delete stray `PageFrame` capabilities. Dropping it
+/// here would deadlock on our own lock. The rest of the `Thread` (stack, quota) still drops under
+/// `IPC_TABLES`, exactly as before, which is why the guard is taken by value and dropped here.
+#[cold]
+#[inline(never)]
+fn reap_switched_out(mut guard: crate::sync::IrqSafeGuard<'_, Option<IpcTables>>, prev: ThreadId) {
+    let Some(sched) = guard.as_mut() else {
+        return;
+    };
+    let space = match sched.threads.get_mut(prev) {
+        Some(t) => t.space.take(),
+        None => return,
+    };
+    sched.threads.remove(prev);
+    drop(guard);
+    drop(space);
 }
 
 /// intid -> rendezvous id + 1 (0 means "not routed"). A hardware interrupt, delivered as a

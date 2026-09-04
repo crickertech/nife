@@ -7,7 +7,7 @@
 # milestone 188 phase 1 because the system runs the second and this gate measured only the
 # first. `ipc_fastpath` is DERIVED, the worse of the two, kept under its old name because
 # the tree cites it; it is not checked separately. Both shapes and `syscall_entry` are.
-ipc_send_recv 5888
-ipc_call_reply 7576
-ipc_fastpath 7576
+ipc_send_recv 5356
+ipc_call_reply 7028
+ipc_fastpath 7028
 syscall_entry 1508
