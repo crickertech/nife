@@ -1,0 +1,57 @@
+#!/bin/sh
+# script/job-mix: rehearse the multi-tasking workload sweep under QEMU (milestone 168).
+#
+#   script/job-mix                          # aarch64
+#   script/job-mix --arch riscv64           # the architecture radon runs
+#   script/job-mix --arch riscv64 --smp 4   # radon's core count
+#
+# `design/decisions/96-process-kernel-or-event-kernel.md` asks whether this kernel should keep a
+# kernel stack per thread. Three of its four inputs are settled; the fourth is performance, and the
+# retrospective it rests on found event kernels within 1% of process kernels on micro-benchmarks and
+# 20% ahead on a multi-tasking workload. Every instrument this project owns is a micro-benchmark.
+# This is the one that is not: a pool of EL0 tasks running a heterogeneous job mix, swept over task
+# count, reported as jobs per minute. See crates/job_mix for the mix and notes/job-mix.md for what a
+# result means.
+#
+# **This is the rehearsal, not the measurement.** The milestone's gate is HARDWARE, and it means it:
+# under TCG the magnitudes are fiction (no cache is modelled) and under HVF a host scheduler sits
+# under every guest thread. What this proves is that the workload runs, that the sweep completes,
+# and that the output is the shape a bench evening will read. The number is taken on radon, by
+# notes/job-mix.md's procedure.
+#
+# What it boots is `--features jobmix`, where the boot tour ends in the sweep instead of a halt.
+# See kernel/src/jobmix.rs and user/src/job_mixer.rs.
+#
+# Exit statuses:
+#
+#   0  the sweep completed and printed every point
+#   1  the kernel refused to start the sweep (`jobmix: FAILED`, printed above)
+#   3  QEMU ended before the sweep finished
+#   4  the build failed, or the arguments were wrong
+#
+# BUGS
+#
+# - **A jobs-per-minute figure from one boot is a draw, not a result.** notes/soak.md records four
+#   runs on radon whose rates span fifteenfold, and milestone 240's census explains them: the
+#   boot-time thread-placement lottery decides. The kernel prints its census before the sweep for
+#   exactly that reason, and notes/job-mix.md's procedure asks for repeated boots.
+# - **There is no `--check` and no committed baseline.** `script/bench` gates against
+#   bench/baseline-*.txt because its icount counts are deterministic; a sweep whose whole subject is
+#   scheduling under contention is not, on any accelerator this tree has. Gating it would be
+#   asserting a tolerance nobody has measured.
+# - **This sweep and `script/soak` are alternatives, not a stack.** Both replace the end of the boot
+#   tour, and a build carrying both features would run this one and never soak.
+# - **No result from this instrument is comparable with `script/bench`'s.** The mix, the task count
+#   and the metric are all different, and the jobs are not the primitives.
+#
+# Name: provisional, this lane's coinage (2026-09-04, milestone 168). Hyphenated because script/
+# entry points are (AGENTS.md's naming table), and named for the workload rather than for the
+# machine it is aimed at. `aim` and `aim7` were refused for claiming somebody else's benchmark:
+# this keeps AIM7's four methodological properties and none of its 53 jobs, and crates/job_mix's
+# BUGS is explicit that the two are not comparable. `multitasking` was refused as an adjective where
+# the tenet asks for a noun.
+
+set -e
+cd "$(dirname "$0")/.."
+
+exec cargo xtask job-mix "$@"

@@ -840,11 +840,13 @@ pub fn steals_served() -> u64 {
 /// made to hand threads across cores) declined a rebalancer; neither is reopened by a caller that
 /// can only read.
 ///
-/// Soak builds only, for the same reason the counters above are: nothing else needs it, and a
-/// function nothing calls is a function that rots.
+/// Soak and job-mix builds only, for the same reason the counters above are: nothing else needs
+/// it, and a function nothing calls is a function that rots. Milestone 168's sweep is the second
+/// caller and it is here for the first one's exact reason, that a workload number taken on real
+/// silicon is uninterpretable without the arrangement that produced it.
 ///
 /// Name provisional (milestone 240): calef names public items.
-#[cfg(feature = "soak")]
+#[cfg(any(feature = "soak", feature = "jobmix"))]
 pub fn spawn_reporting_placement<F: FnOnce() + Send + 'static>(f: F) -> Option<(ThreadId, usize)> {
     let target = pick_spawn_target();
     spawn_on(target, f).map(|id| (id, target))

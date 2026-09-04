@@ -102,6 +102,15 @@ path = "src/soaker.rs"
 test = false
 bench = false
 
+# The multi-tasking workload's task (milestone 168): one EL0 process running the job mix
+# `--features jobmix` sweeps. In every archive, because the instrument develops under QEMU and the
+# number is taken on a board, and both have to run the same workload.
+[[bin]]
+name = "job_mixer"
+path = "src/job_mixer.rs"
+test = false
+bench = false
+
 [[bin]]
 name = "spinner"
 path = "src/spinner.rs"
@@ -679,6 +688,9 @@ grant_plan = { version = "0.1.0", path = "../crates/grant_plan" }
 # The soak workload's shared page (milestone 219). The kernel reads what the soaker writes, so the
 # layout and the reply transform live in one crate rather than in two copies.
 soak_page = { version = "0.1.0", path = "../crates/soak_page" }
+# The multi-tasking workload's definition (milestone 168). The task runs what the kernel-side
+# supervisor times, from one description of the mix rather than two copies.
+job_mix = { version = "0.1.0", path = "../crates/job_mix" }
 clock_proto = { version = "0.1.0", path = "../crates/clock_proto" }
 environment_proto = { version = "0.1.0", path = "../crates/environment_proto" }
 cred = { version = "0.1.0", path = "../crates/cred" }

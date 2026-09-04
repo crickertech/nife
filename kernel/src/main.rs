@@ -61,6 +61,8 @@ mod sched;
 mod smp;
 // The sustained multicore workload (milestone 219). Behind its own feature because an ordinary boot
 // must still halt: this module is the thing that makes a boot never end.
+#[cfg(feature = "jobmix")]
+mod jobmix;
 #[cfg(feature = "soak")]
 mod soak;
 mod stack;
@@ -589,9 +591,16 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // **The tour ends and the soak begins** (milestone 219), before the halting line rather
         // than after it: a boot that says it is halting and then does not would be the tool's
         // problem and the reader's.
+        // **The sweep, when this build asked for one** (milestone 168). Before the soak arm and
+        // the halt for the same reason the soak sits before the halt: the tour has finished, so the
+        // whole boot is still evidence, and this run ends by halting rather than by beating
+        // forever. The two features are alternatives rather than a stack; `script/job-mix` builds
+        // only this one.
+        #[cfg(feature = "jobmix")]
+        jobmix::run();
         #[cfg(feature = "soak")]
         soak::run();
-        #[cfg(not(feature = "soak"))]
+        #[cfg(not(any(feature = "soak", feature = "jobmix")))]
         {
             println!("nife x86_64: boot complete, halting.");
             arch::halt();
@@ -1230,9 +1239,16 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // **The tour ends and the soak begins** (milestone 219). After the tour's last line, so a
         // soak boot is a superset of an ordinary one and the whole boot is still evidence; before
         // the halt, because the halt is the thing it replaces.
+        // **The sweep, when this build asked for one** (milestone 168). Before the soak arm and
+        // the halt for the same reason the soak sits before the halt: the tour has finished, so the
+        // whole boot is still evidence, and this run ends by halting rather than by beating
+        // forever. The two features are alternatives rather than a stack; `script/job-mix` builds
+        // only this one.
+        #[cfg(feature = "jobmix")]
+        jobmix::run();
         #[cfg(feature = "soak")]
         soak::run();
-        #[cfg(not(feature = "soak"))]
+        #[cfg(not(any(feature = "soak", feature = "jobmix")))]
         arch::halt();
     }
 
@@ -1604,10 +1620,17 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // the place of the init handoff rather than of the halt below it. A soak boot that also
         // brought up a console, a line discipline and a shell would be soaking those too, and the
         // point of this workload is that what it stresses is decided rather than incidental.
+        // **The sweep, when this build asked for one** (milestone 168). Before the soak arm and
+        // the halt for the same reason the soak sits before the halt: the tour has finished, so the
+        // whole boot is still evidence, and this run ends by halting rather than by beating
+        // forever. The two features are alternatives rather than a stack; `script/job-mix` builds
+        // only this one.
+        #[cfg(feature = "jobmix")]
+        jobmix::run();
         #[cfg(feature = "soak")]
         soak::run();
 
-        #[cfg(not(feature = "soak"))]
+        #[cfg(not(any(feature = "soak", feature = "jobmix")))]
         if let Some(image) = user::initrd() {
             println!();
             println!("nife: handing the system to userspace init.");
@@ -1618,7 +1641,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
 
     // bench::run diverged above, and so does soak::run (milestone 219); this is everyone else's
     // parking.
-    #[cfg(not(any(feature = "bench", feature = "soak")))]
+    #[cfg(not(any(feature = "bench", feature = "soak", feature = "jobmix")))]
     arch::halt()
 }
 
