@@ -118,3 +118,24 @@ project has no third-party contributors.
 - **This block does not write any of the text.** Choosing the Contributor Covenant version, the
   template fields and the routing language is the work, and it is all reversible except the
   enforcement promise.
+## Follow-on
+
+- **Done.** The code of conduct shipped the same week it was named: `CODE_OF_CONDUCT.md`,
+  Contributor Covenant 2.1, commit `7ffa8f3b` dated 2026-08-31, with `CONTRIBUTING.md` pointing at
+  it.
+- **Done.** The enforcement contact is decided and written where a reporter meets it. The
+  enforcement section of `CODE_OF_CONDUCT.md` names an address and a subject line, says outright
+  that it is one person with no rota, and records that it becomes a role address when there is a
+  second maintainer.
+- **Done.** The content-reports setting is on. GitHub's community profile API reports
+  `content_reports_enabled` true and the repository at 100%, so the one item no pull request could
+  deliver has been delivered by calef.
+- **Done.** Choosing the Covenant version was the work this block said it was, and it was done in
+  the same commit: 2.1, three routing forms and a chooser config under `.github/ISSUE_TEMPLATE/`,
+  and `.github/pull_request_template.md`.
+- **Outstanding.** Nothing verifies the issue forms render. None of the workflows under
+  `.github/workflows/` reads `.github/ISSUE_TEMPLATE/` and no gate under `script/` parses the YAML,
+  so a schema mistake surfaces as a broken chooser rather than as a red check. Checked 2026-09-03.
+- **Recorded.** The three routing forms are more work to fill in than an issue elsewhere would be,
+  on purpose, so a stranger with a small good idea may not write four paragraphs. The trade is
+  stated in this block's own `BUGS` and in `CONTRIBUTING.md`.

@@ -164,3 +164,33 @@ disjoint, individually-labeled trees with one position at a time.
   the shell side ever constructs a two-directory `Endowment` to set the bit with (that is milestone
   47's `bind`, still unbuilt), so this is the wire format alone, ahead of an emitter, in exactly the
   shape `DIR_BIT` itself was built in before anything could construct a one-directory grant either.
+## Follow-on
+
+- **Outstanding.** No live two-grant shell exists: `crates/system_initializer`'s boot takes a
+  second directory and every real entry point passes none, and `user/src/swish.rs` still hard-codes
+  the second holding as absent. Checked 2026-09-03.
+- **Outstanding.** Per-command grants are still one-tree: the file and directory grants in
+  `crates/grant_plan` carry a bare current directory and no root selector, so designation, staging
+  and redirection remain oblivious to a second root. Checked 2026-09-03.
+- **Decision.** What the second subtree should actually be is calef's boot-time policy call,
+  recorded in `design/decisions/126-two-directory-cwd.md` and deliberately unanswered by the boot
+  increment.
+- **Outstanding.** The boot path is unverified against a real boot: `script/shell-check` is the only
+  thing that runs a real init and nothing types a second grant through it, which
+  `crates/system_initializer` records in the code as well. Checked 2026-09-03.
+- **Outstanding.** Nothing tells the shell it holds a second grant. The three start words are
+  spoken for, so a fourth word or a packed slot is a shell-to-init wire question of its own and has
+  no record under `design/decisions/`. Checked 2026-09-03.
+- **Outstanding.** Init's decode still ignores the second directory: the bit and its field appear
+  only in `crates/grant_plan`, and nothing in `crates/system_initializer` reads them. Checked
+  2026-09-03.
+- **Done.** `bind` is no longer unbuilt, and this block's dependency has flipped since it was
+  written. Milestone 47 built it on 2026-08-26 (`user/src/swish.rs`, the bindings in
+  `crates/grant_plan`), and it already carries a root selector, pinned to the first root only
+  because no second grant reaches a real shell. Whoever picks this up rewrites the direction rather
+  than the tense.
+- **Milestone 47.** The four open namespace questions (shadowing across more than two labeled
+  sources, enumeration, the compile-time-to-runtime lookup gap, and whether `$PATH` survives as a
+  string) are untouched here and stay 47's, which its own block confirms.
+- **Recorded.** The two-root type, the second-directory field and its grant all ship as provisional
+  names, said so where they live, and naming is calef's.

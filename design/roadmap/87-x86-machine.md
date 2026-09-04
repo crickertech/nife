@@ -117,3 +117,32 @@ milestone 161's scope and is not gated on this purchase, because the port starts
 QEMU TCG the way riscv64 did. Buying early was cheap insurance against the VisionFive 2 pattern
 (ordered 2026-07, arrived 2026-08-21) of the board being the long pole, and it paid off: the
 hardware side finished before the code side needed it.
+## Follow-on
+
+- **Done.** The kernel suite runs under real firmware. Milestone 195 added a UEFI test task, run by
+  `script/test --arch x86_64` after the tour: 192 passed and 68 skipped under OVMF, the same names
+  as under PVH, with the runner's virtio disk, NVMe and IOMMU attached.
+- **Done.** SMP under UEFI is exercised. `notes/x86-uefi-boot.md` records two cores up under OVMF
+  five runs out of five, gated, after the loader started asking firmware for the trampoline page by
+  name instead of relying on OVMF's habits.
+- **Outstanding.** The bench procedure itself is still unrun and unproved. `notes/x86-uefi-boot.md`
+  says outright that this has not been done, and its `BUGS` says every firmware-menu path and key
+  name comes from the 7050's documented behaviour rather than from the machine. Checked 2026-09-03.
+- **Outstanding.** This milestone's own completion condition, a byte printed over serial from the
+  OptiPlex, is unmet: nothing in `notes/` or the roadmap records a boot on the machine, and the
+  gate is a person at the desk. Checked 2026-09-03.
+- **Outstanding.** The smart plug this block's requirements list prices at $15, and includes in its
+  $194 estimate, appears in no purchase record in the tree, so a bring-up loop of hang,
+  power-cycle, retry has no remote power today. Checked 2026-09-03.
+- **Recorded.** The suite under firmware still runs at one core, so nothing exercises UEFI AP
+  bring-up together with the scheduler's cross-core tests. That is the x86_64 port's open two-core
+  defect rather than a firmware fact.
+- **Recorded.** The image is placed at one link-time address and 32 MiB of low memory is not a
+  guarantee; the loader now names the descriptors in the way, which is the difference between a
+  load error and a sentence.
+- **Recorded.** This port's serial chain is real RS-232 and the two boards' adapters are 3.3 V TTL.
+  They share a desk and must be labelled so they are never swapped.
+- **Recorded.** The Protectli VP2430 stays the named alternative if the used machine disappoints or
+  when open firmware becomes the point, priced in this block at $150 over the used route.
+- **Milestone 161.** The `igc` driver deltas QEMU cannot emulate belong to the x86_64 port rather
+  than to the machine purchase.

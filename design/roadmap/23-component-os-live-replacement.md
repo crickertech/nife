@@ -220,3 +220,29 @@ components); MINIX 3's reincarnation server (live driver replacement in userspac
 (hot-swappable drivers); Erlang/OTP hot code loading and supervision. The common thread is ours:
 components are isolated processes, named through indirection and confined by capability, so one can
 be swapped under the others.
+## Follow-on
+
+- **Decision.** State handoff is declined for now for want of a customer, recorded in
+  `design/decisions/116-state-handoff-declined.md`, which also records a non-binding transport
+  shape for whoever eventually has a stateful component to swap.
+- **Recorded.** A manifest is still compiled in rather than shipped beside a binary.
+  `notes/component-manifest.md`'s `BUGS` carries the two candidate shapes and the reason to decide
+  later, and nothing has shipped outside this tree.
+- **Milestone 106.** How a supervisor notices a hang is the timed wait,
+  `design/roadmap/106-deadline-wait.md`, NOT-STARTED and itself a kernel-surface fork for calef.
+- **Outstanding.** What may be done to a component that never cooperates has no answer.
+  `notes/hung-component.md`'s finding stands: the stronger right is not merely large but
+  insufficient, since a permanently blocked thread never reaches the scheduler to spend the kill a
+  destroy arms. Checked 2026-09-03.
+- **Outstanding.** The non-cooperative fallback for a dependent that will not quiesce is the same
+  open question one level out. The component plan names who to warn and has nothing to say when the
+  named dependent is itself hung. Checked 2026-09-03.
+- **Recorded.** `broker` is no more reapable than the console component was, and a gone error does
+  not reach a caller stranded mid-call, because freeing the one-shot reply capability needs the
+  cooperation whose absence is the hang.
+- **Outstanding.** `line_editor`, `display_terminal` and `compositor` are still not themselves
+  swapped by `swapper`, but the stated reason is no longer the true one: all three run under the
+  kernel test harness today (`kernel/src/user/pipeline_tests.rs`,
+  `kernel/src/user/display_tests.rs`, `kernel/src/user/compositor_tests.rs`) and milestone 177
+  wired all three into a real boot path on 2026-08-27. What is missing is a swap role for them,
+  not a harness. Checked 2026-09-03.

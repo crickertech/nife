@@ -18,3 +18,24 @@ means by "micro-benchmark."** [Milestone 168](168-multitasking-benchmark.md) was
 own text noting this milestone "has the same hole": a real multi-tasking workload, which is what
 would actually reveal a process-kernel-vs-event-kernel difference. Not this milestone's own scope,
 recorded here so the gap has one home rather than two.
+## Follow-on
+
+- **Outstanding.** `sel4bench` itself, the only piece of this block not done. It builds and boots
+  for `qemu-arm-virt` but times single operations through the PMU cycle counter, which neither
+  QEMU-TCG nor HVF provides, so it has never produced a number, and nothing in `bench/` or `xtask`
+  runs it. Checked 2026-09-03.
+- **Done.** The hardware half of this block's gate stopped being a delivery date. The Jetson is in
+  hand as of 2026-09-01 and named argon (`design/roadmap/127-the-sel4-machine.md`,
+  `notes/target-hardware.md`). What remains is bench time, not shipping days.
+- **Done.** Folding in the icount codegen-sensitivity fix. `--check` is a coarse 10% tripwire
+  rather than a 2% gate, stated in `notes/benchmarks.md` and carried in the baseline headers under
+  `bench/`.
+- **Outstanding.** Milestone 74, the driver that reads `PMCCNTR_EL0` and the SBI PMU, is still
+  NOT-STARTED, and it is what a real `sel4bench` comparison needs on our side of the table.
+  Checked 2026-09-03 against its block.
+- **Done.** The authority question underneath 74's aarch64 half is answered and built.
+  `design/decisions/139-cycle-counter-authority.md` is DECIDED (calef, 2026-09-02) and milestone
+  229 shipped the per-thread grant the same day: `kernel/src/arch/aarch64/timer.rs` opens and
+  closes `PMUSERENR_EL0.CR` on the context switch.
+- **Milestone 168.** The multi-tasking workload this block's own suite cannot supply, minted from
+  DECISIONS §96's text so the gap has one home.

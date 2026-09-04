@@ -1351,3 +1351,44 @@ estimated**, and the second estimate proved low: the namespace lane of 2026-08-1
 absolute paths alone and left environment, `PATH` and `bind` untouched, the last of those blocked on
 an endowment question rather than on effort (one for the descend/create verb and the builtins, one for namespaces), noting that
 estimates for unbuilt work are guesses on a scale calibrated from history, not measurements.
+## Follow-on
+
+- **Done.** The sequencing question this block leaves open, that milestone 122 (`OPENDIR` reaches
+  the PAL) is `NOT-STARTED` and some of the namespace half may want it, is stale: 122 is BUILT
+  2026-08-18 (pull request #320), both options, proven on both ISAs by `std_exerciser`. Nothing
+  here is waiting on it.
+- **Done.** "The `caps` half of that recommendation is not built" was true when written and is not
+  now. `crates/swish/src/lib.rs` prints a bound name's own row and writes it, with a test asserting
+  `bind recent -> /logs/2026`. The block's own `bind` paragraph already says so; this sentence
+  never got the correction.
+- **Outstanding.** Tab completion. `crates/line_editor` still carries only `None`, `Line`, `Eof`
+  and `Interrupt` as events and still documents that Tab is ignored; there is no `Event::Tab`, no
+  completion flag and no resume opcode anywhere in the crate. Checked 2026-09-03.
+- **Outstanding.** `PATH`. `Prog` is still a closed enum and `Prog::from_name` in
+  `crates/grant_plan` is still a hardcoded match; there is no manifest crate in `crates/` and no
+  manifest rides beside a program in `crates/nifefs`. Checked 2026-09-03.
+- **Outstanding.** Environment's secrets third. `crates/credential_proto` is still the login shape,
+  `PUT`, `SEAL` and `VERIFY` over an identity and a password-equivalent, with no generic
+  named-secret verb and no PAL, exactly as this block says and for the reason it gives. Checked
+  2026-09-03.
+- **Outstanding.** Printing inert-config values in `caps`, and the shell-held default config set
+  behind it. `crates/swish` prints presence only, and its own comment there says the shell has no
+  config set to preview a value from. Checked 2026-09-03.
+- **Milestone 154.** `bind` in a two-grant shell stays host-tested only. Both real entry points
+  still pass no second directory (`user/src/swish.rs`, `user/src/system_initializer.rs`), and
+  `crates/system_initializer` calls the path unverified against a real boot.
+- **Outstanding.** The delegation chain `xargs` needs: the shell still cannot ask init to mint a
+  per-batch caretaker, so `xargs` stops after batch one. Milestone 109's block names this as this
+  milestone's, and nothing in `crates/swish` or `crates/system_initializer` mints one. Checked
+  2026-09-03.
+- **Refused.** The two symlink questions this block leaves open, what a stored `..` means to a
+  shallower holder and the `rm -r link/` trailing slash, are moot:
+  `design/decisions/50-namespace-composition.md` chose composition over stored paths, so there is
+  no stored path to clamp or to slash.
+- **Decision.** Hard links were considered and declined, written up as
+  `design/decisions/110-hard-links-declined.md`: no customer, `RENAME` already covers the
+  atomic-replace idiom, and a DAG would cost an audit of every subtree argument in the tree.
+- **Outstanding.** The function-call shell syntax fork calef raised 2026-07-30 is still undecided
+  and lives nowhere but this block; no file under `design/decisions/` holds it, and the block's own
+  recommendation (kill word splitting, parentheses for grouping, record that application is grant)
+  has not been taken up. Checked 2026-09-03.

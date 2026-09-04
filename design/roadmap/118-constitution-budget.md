@@ -555,3 +555,37 @@ earns its lines from one that does not, and a lane that games it by moving text 
 nobody reads has satisfied the gate and defeated the milestone. The ledger is the counterweight and
 it is weaker than a gate, because it depends on lanes continuing to report their own mistakes
 honestly, which is a culture rather than a mechanism. **Say so where the reader meets it.**
+## Follow-on
+
+- **Outstanding.** The split into a core plus linked documents is untouched: `AGENTS.md` is still
+  one file, and cutting it needs an `AGENTS.md` edit no developer lane may make. Checked
+  2026-09-03.
+- **Outstanding.** The line ceiling still counts the whole file rather than a core, because the
+  core does not exist, and `script/lint`'s registry entry sits at zero headroom exactly as
+  designed. Checked 2026-09-03.
+- **Done.** Budget rule 1, the watchers nobody starts, has a mechanism: `AGENTS.md` records
+  `com.nife.merge-drain` and its sibling running unattended on patagonia under `launchd`, with the
+  asleep-or-shut-down gap named as accepted rather than closed.
+- **Outstanding.** Budget rule 2, pruning a lane's worktree at merge, is still prose only, and
+  nothing under `script/` or `scripts/` prunes or counts worktrees. Checked 2026-09-03.
+- **Outstanding.** Budget rule 3, squashing against the recorded base commit, is still prose only
+  and no gate reads it; the `git stash` scar beside it in `AGENTS.md` is the same shape. Checked
+  2026-09-03.
+- **Done.** Budget rule 4 is mechanised: DECISIONS §88 was ratified 2026-08-25
+  (`design/decisions/88-needs-architect-as-a-check.md`) and
+  `.github/workflows/architect-hold.yml` is a required check that fails any pull request carrying
+  the `needs-architect` label.
+- **Done.** The unresolved "every fence names its counterpart" row is answered, and the answer is
+  that the row named a rule which is not in the file: `AGENTS.md` contains the word "fence" zero
+  times, and only the gate in `script/lint` carries it.
+- **Outstanding.** Rule 1's gate still greps for inline assembly and `core::arch::` only, and
+  `kernel/src/main.rs` still reads an `aarch64_cpu` register outside `arch/`, so the prose cannot
+  be cut yet. Checked 2026-09-03.
+- **Outstanding.** The `#[path]` gate's `user/src`-only scope is still in nobody's head: check 5's
+  comment in `script/lint` does not record it, and the scan is unchanged. Checked 2026-09-03.
+- **Recorded.** The naming-conventions table is still ungated apart from check 6, which covers
+  `notes/` and `design/` markdown filenames; no case convention for crates, programs, modules or
+  `script/` entry points is enforced anywhere.
+- **Recorded.** The ledger stays out of `script/lint` and CI: `notes/rule-violations.md` and
+  `script/rule-violations` exist and nothing in `script/lint` references either, with the
+  git-clobber row marked resolved on §128's basis exactly as this block says.
