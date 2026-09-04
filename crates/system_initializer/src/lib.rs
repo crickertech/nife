@@ -169,6 +169,45 @@
 //!
 //! # BUGS
 //!
+//! **Nothing a host test could run proves any of this, and milestone 244 measured how much that
+//! costs rather than leaving it as a feeling.** This crate reaches `user_rt` through the dependency
+//! graph, so it does not build for the host at all; `script/lint`, `script/coverage` and
+//! `.cargo/mutants.toml` all exclude it, and a gate in `script/lint` derives that set from cargo
+//! metadata so the four lists cannot drift apart again. `script/shell-check` is what proves this
+//! code, and it is a real gate: it boots both ISAs and types at the prompt, and it is the only
+//! thing in the tree that runs a real init.
+//!
+//! What it cannot do is say which of a mutation run's mutants it would have caught. So the question
+//! milestone 244 asked was the one behind that: how much of these 2,632 lines (the count on
+//! 2026-09-03, before this paragraph was added) is logic with a right answer a host could check, and
+//! is it enough to be worth lifting out. **It is not**, and the split is worth stating because the
+//! shape of it is the interesting part. `cargo mutants --list` generates **196** here, five more
+//! than the 191 milestone 238's report scored, because the file moved between the two runs; the
+//! fractions below are of the 196 counted on the day:
+//!
+//! | | mutants | what it is |
+//! |---|---|---|
+//! | [`boot`] | 97 | the build sequence: 34 are *deleting a field* from a `ChildEndowment` literal, 24 are slot-counter arithmetic, 12 flip a rights mask's `\|` |
+//! | `spawn_service` | 32 | the `RECV` loop, one syscall per step |
+//! | `fill_entropy`, `build_caretaker`, `announce`, `reclaim`, `must`, `must_ok`, `memory_region_split` | 28 | syscalls with the loop around them |
+//! | `hex_password`, `sentence` and its `push`, [`boot`]'s own second copy of that `push`, `opt_cap`, `archive_name`, `measured` | 33 | pure: bytes in, bytes out, no capability touched |
+//! | top-level `const` arithmetic | 6 | not movable; they are what the rest is written against |
+//!
+//! **A fifth of the mutants and a fiftieth of the lines**, and every pure one is a leaf helper of
+//! the sequence beside it: `measured` exists to fill a `Lookup` that only [`boot`] destructures,
+//! `opt_cap` reads one word out of one `recv_cap`, `archive_name` is `Some(p.name())`. Lifting them
+//! buys 33 reachable mutants and costs a crate of fragments, a wider public surface, and a reader
+//! holding two files to follow one boot. `redoxfs_server` runs the split this would be modelled on
+//! and runs it the other way up: there the sans-IO core is most of the package and the EL0 binary
+//! wraps it. Here the sequence *is* the package.
+//!
+//! **And the largest single group is the one no host test could reach even after a lift.** Thirty-four
+//! of [`boot`]'s mutants delete a field from a `ChildEndowment` struct expression: a child built
+//! with no `caps`, or no `stack_pages`. That is not logic with a wrong answer, it is a *declaration*
+//! of what a component may do, and the only things that can check a declaration are the boot itself
+//! or a test comparing it against a separately written expectation. Milestone 244's block proposes
+//! the latter as a lane of its own.
+//!
 //! **A refused `console` or `line_editor` stops in silence.** Those two are what carry init's
 //! output, so a refusal of either has no route to a person: init traps and the operator sees the
 //! kernel's fault line for init and nothing else, indistinguishable from any other early init
