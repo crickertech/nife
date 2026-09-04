@@ -452,6 +452,7 @@ besides, being built for dated release grouping; these are capability-shaped and
 | 245 | NOT-STARTED | [A soak cannot tell a flat run from a productive one, so its duration is guesswork](245-a-soak-cannot-tell-a-flat-run-from-a-productive-one.md) | all eight soak counters are volumes; nothing counts distinct behaviour, so a saturated run and a productive one look identical | |
 | 246 | NOT-STARTED | [Measured boot's refusal path is tested by nothing, and one mutant turns it off](246-the-refusal-path-of-measured-boot-is-tested-by-nothing.md) | `system_initializer::measured` decides whether an unvouched binary runs, and no test takes its refusing branch | |
 | 247 | NOT-STARTED | [Follow-on work named by a finished milestone goes nowhere, and this is the third time](247-follow-on-work-named-by-a-finished-milestone-goes-nowhere.md) | 151 BUILT blocks name work in `BUGS` sections and handoffs, and nothing can tell which of it became a milestone | |
+| 248 | NOT-STARTED | [A placement can only be drawn, never constructed, so the strongest finding on this machine rests on two boots](248-a-placement-cannot-be-constructed-only-drawn.md) | one card and one build gave a 15x spread explained by grinder co-location, and no arrangement can be built on purpose to test it | |
 
 The order §14 sets: **verify the core and make it verifiable first** (18 and 14, the thesis), then the
 road to running real workloads on real machines (15, 21, 16, 19; 25 extends 21 into cross-OS
