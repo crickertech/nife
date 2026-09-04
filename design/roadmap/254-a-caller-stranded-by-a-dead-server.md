@@ -1,11 +1,8 @@
 # 254. A caller stranded by a server that died is stranded forever, and nothing records that as intended
 
-**Status: NOT-STARTED.** Split out of milestone 133 (ending a permanently blocked thread, and
-deciding who may) on 2026-09-03 by calef, who took this half first on the argument that it is a
-defect rather than a fork. *(Number provisional until the merge queue lands it.)*
-
-**Gate: NONE.** No new authority, no new syscall, and the authorities it rides on are already
-exercised.
+**Status: BUILT** (2026-09-03). Split out of milestone 133 (ending a permanently blocked thread,
+and deciding who may) on 2026-09-03 by calef, who took this half first on the argument that it is a
+defect rather than a fork.
 
 **In brief.** `abi::Error::Gone` does not reach a reply-parked caller. The abort machinery walks an
 endpoint's wait queues, but a caller whose request was *taken* was popped off at the rendezvous; it is
@@ -74,14 +71,76 @@ For this half the authority question does not arise, so what remains is mechanic
 - **The trigger.** The destruction of the server's region or of the endpoint the call went to, both
   already witnessed.
 
+## What was built
+
+**One helper, `strand_reply_caller`, and four places that call it.** All of it is in
+`kernel/src/sched.rs`; no syscall number, no method, no right, and no ABI change, exactly as the gate
+line promised.
+
+The helper does the two things in the order that makes them safe. **First the sweep**: every
+`Object::Reply(caller)` in every capability table in the machine is deleted, and so is one riding in
+a thread's `outgoing_cap`, which is where a caller that met no server parks its own reply capability
+awaiting a `RECV_CAP` hand-off. **Then the abort and the wake**, which is `set_ipc_aborted` plus
+`wake`, the pair `reap_region_objects` already ran against every waiter it drained. The syscall layer
+needed nothing: `abi::rendezvous::CALL` already reads `take_ipc_aborted` and returns
+`abi::Error::Gone`, so the caller returns through a path that has existed since milestone 12.
+
+It touches only a thread that is genuinely reply-parked, which is `ipc_reply`'s own guard reused, so
+it cannot clobber an ordinary receiver's park.
+
+**The four triggers, and why there are four rather than the two the block predicted.** The block
+named the destruction of the server's region or of the rendezvous. Reading the code found the
+rendezvous is one path and *the server ceasing to be able to answer* is three, because a thread's
+capability table can stop existing by three different routes:
+
+| Trigger | Site | The case it covers |
+|---|---|---|
+| The rendezvous is torn down | `reap_region_objects`, rendezvous phase | Zircon's: the channel closes and the call in flight fails, without touching the server |
+| The server exits or faults | `depart` | **QNX's headline case**, and the one the title names: the server thread fails, exits, or disappears |
+| The server is forcibly killed | `schedule`, DECISIONS §16's armed-kill conversion | a killed thread never reaches `depart`, so nothing else would have swept it |
+| The server is reaped with its region | `reap_region_objects`, removal phase | an `Embryo`, or a corpse already converted by one of the two above |
+
+The rendezvous trigger cannot be reached by scanning a wait queue, and that is the defect stated
+mechanically: a `CALL` caller whose request was taken is linked on no queue at all, so
+`drain_waiters` walks past it and only `wait_on`'s `(ep, WaitRole::Reply)` still records that it is
+waiting. The scan is over `MAX_THREADS`, and it **rescans rather than listing**, because a
+`[u64; MAX_THREADS]` of victims is a kilobyte of scratch on the deepest frame in the kernel
+(`reap_region_objects`'s own comment, and notes/stack-high-water.md). The abort flag is what
+terminates the rescan, and it has to be the flag rather than `wait_on`: a wake deferred behind
+`on_cpu` leaves the park in place until that core's `finish_switch`, so a predicate reading `wait_on`
+alone would spin.
+
 ## The proof that this milestone worked
 
-**A caller whose server is destroyed mid-`CALL` returns `Gone` rather than blocking forever**, proved
-by a test that hangs today, and **a test that a stale `Reply` capability cannot answer a later call**,
-proved by attempting exactly that and being refused.
+Two tests in `kernel/src/sched.rs`, and **both were run against the kernel with the four trigger
+calls commented out, where each fails at the assertion it exists for**: "the stranded caller never
+woke" and "the caller was still parked after its server exited". Both pass on all four boot
+configurations the suite runs (aarch64, riscv64, x86_64, and x86_64 under OVMF).
 
-The second is the one that matters. Without it this milestone has traded one defect for a worse one,
-and a test asserting only the first would pass while that were true.
+- `a_reply_parked_caller_wakes_with_an_error_when_its_rendezvous_is_reclaimed`. A server collects the
+  request, keeps the reply capability and never answers, staying alive on purpose so that the
+  rendezvous going away is the only thing that can free anybody. The caller returns `Gone`. Its
+  neighbour two tests up, `a_blocked_waiter_wakes_with_an_error_when_its_rendezvous_is_revoked`, is
+  the case that always worked, and **the difference between the two is exactly one collected
+  message**.
+- `a_server_that_exits_frees_the_caller_it_never_answered`. The server collects and returns. The
+  rendezvous outlives it, so nothing else in the kernel is looking at the caller.
+
+**The stale-reply half is asserted in both**, which is the half that matters: without it this
+milestone would have traded a permanent block for a forgeable reply, and a test asserting only the
+first would pass while that were true. Two assertions carry it. `outstanding_reply_capabilities`
+counts every live `Reply` naming the freed caller anywhere in the machine, including `outgoing_cap`,
+and must be zero. And the surviving server in the first test re-reads its own slot through
+`sched::current_cap`, which is **the same lookup `abi::reply::REPLY` performs before it ever reaches
+`ipc_reply`**, so a capability that is gone there is a reply that cannot be sent at all. Each test
+also asserts the server *held* a live capability beforehand, so neither can pass vacuously.
+
+Note what the sweep is doing and what it is not. `ipc_reply`'s guard still checks the `WaitRole` and
+discards the rendezvous, so the kernel-internal function would still deliver to a re-parked caller if
+anything could call it without a capability. Nothing can: the capability is the gate, and the sweep
+takes the capability. That is seL4's non-MCS answer (`cteDeleteOne(callerCap)` off `cancelIPC`)
+rather than a call identity in the payload, and a call identity remains the stronger fix somebody
+could still take.
 
 ## BUGS
 
@@ -96,3 +155,32 @@ and a test asserting only the first would pass while that were true.
   2026-08-23 in favour of `ThreadControlBlock`. They predate the rename and were never swept, because
   `script/roadmap`'s staleness gates reach `BUILT`, `REMOVED` and now `PARTIAL` blocks, and 133 is
   `NOT-STARTED`.
+
+- **A server that is alive and holding a reply capability it never uses still strands its caller**,
+  and that is not an oversight: it is the same case the third bullet below names. Nothing here
+  fires while the server is running, because nothing has happened that the kernel witnesses.
+- **`ipc_reply`'s guard still checks the role and discards the rendezvous.** What makes the forged
+  reply impossible is that the capability is gone, not that the guard got stronger, so a future path
+  that could reach `ipc_reply` without presenting a capability would reopen the hazard. A call
+  identity in `Object::Reply`'s payload is the structural fix and nobody has taken it.
+- **The `MAX_THREADS` scan and the capability sweep are unmeasured**, which the block already said.
+  The scan is one pass over 128 threads per rendezvous destroyed; the sweep is 128 x 16 comparisons
+  per caller freed. Both are on teardown paths and neither shows in `script/bench`'s icount tripwire,
+  because no benchmark tears a server down mid-call.
+- **The kill-site call sits in `schedule`**, the hottest path in the kernel, guarded by
+  `killed && state == Running` so it never runs on an ordinary pass. That guard is the whole
+  argument, and it is a comment rather than a type.
+
+## Follow-on
+
+- **Recorded.** A live-but-silent server still strands its caller. That is milestone 133's subject
+  (ending the thread) and milestone 106's (a deadline on `CALL`), and it is named in this block's
+  `BUGS` and beside the feature in `ipc_call`'s own doc comment in `kernel/src/sched.rs`.
+- **Recorded.** `Object::Reply` still carries a thread name with no call identity, so the guard in
+  `ipc_reply` remains role-shaped and the capability sweep is what holds the property. Written into
+  the `BUGS` above and into `strand_reply_caller`'s doc comment, where the next reader of that code
+  meets it.
+- **Proposed.** A call identity in the reply capability's payload, which would make the hazard
+  unrepresentable rather than swept: `design/roadmap/proposals/a-reply-capability-that-names-a-call.md`.
+- **Milestone 133.** Reclaiming the hung component's own region, which this does not touch and must
+  not be quoted as doing.

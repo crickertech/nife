@@ -6,6 +6,14 @@ Read that note first for the taxonomy and for why the supervisor's whole vocabul
 one surveys how seven other systems solve the same problem, maps each onto this kernel, and lays four
 proposals side by side. **calef takes this fork; nothing here is a recommendation of a winner.***
 
+**One piece of this is no longer research: proposal C's first half shipped as milestone 254 on
+2026-09-03**, on calef's ruling that it is a defect rather than a fork, because it asks for no
+authority anybody does not already hold. A caller reply-parked on a server that stops being able to
+answer now returns `abi::Error::Gone`, and the stale reply capability this note identified as the
+blocking hazard is deleted before the wake. The proposals below are unedited apart from proposal C's
+own block, which says what was built; the fork this note exists for (proposals A, B and D: who may
+end a **blocked thread**, and whether anybody should) is untouched and is milestone 133's.
+
 *The code this note reads: `kernel/src/sched.rs` (`schedule`, `ipc_call`, `ipc_reply`,
 `set_ipc_aborted`, `reap_region_objects`), `crates/ipc/src/lib.rs` (`drain_waiters`,
 `remove_sender`), `crates/wake_handshake/src/lib.rs` (`park`, `abort`, `try_wake`), and
@@ -402,10 +410,12 @@ The error is `ESRCH`, documented on `MsgSend` as "the server died while the call
 SEND-blocked or REPLY-blocked"
 ([`MsgSend()`](https://www.qnx.com/developers/docs/6.4.1/neutrino/lib_ref/m/msgsend.html)).
 
-This is the entry that most directly indicts the current state of this kernel. **QNX unblocks a
-REPLY-blocked client when its server dies. nife does not**, because `Error::Gone` reaches only
-endpoint wait queues and a reply-parked caller left the queue at the rendezvous. A hung *or dead*
-server strands its callers here in a way QNX has not since the 1990s.
+This is the entry that most directly indicted the state of this kernel when the note was written.
+**QNX unblocks a REPLY-blocked client when its server dies. nife did not**, because `Error::Gone`
+reached only endpoint wait queues and a reply-parked caller left the queue at the rendezvous. A hung
+*or dead* server stranded its callers here in a way QNX has not since the 1990s. **Milestone 254
+closed the dead half on 2026-09-03**; the hung half (a server alive and simply not replying) is
+still open and is milestone 133's and 106's.
 
 ### Linux: the third state had to be invented, and the reason was social
 
@@ -465,9 +475,11 @@ the flag were the caller's rather than the destroyer's.
 | Linux | fatal signal + `TASK_KILLABLE` | ambient, by pid | nothing (the process dies) | n/a |
 | NT | user APC to an alertable wait | thread handle | `STATUS_USER_APC` | only if the wait opted in |
 
-**Nobody in this survey blocks forever with no way out.** nife is currently alone in that, and it is
-alone in it by accident rather than by decision, which is what makes this worth a fork rather than a
-`BUGS` entry.
+**Nobody in this survey blocks forever with no way out.** nife was alone in that when this table was
+written, and alone in it by accident rather than by decision, which is what made it worth a fork
+rather than a `BUGS` entry. Milestone 254 took the row's last column: a reply-parked caller here is
+now reached, by the server's death and by the rendezvous's, which is QNX's route and Zircon's
+together. The **first** column is still open, because nothing here can end a blocked thread.
 
 ## Mapping onto this kernel: what each shape would break
 
@@ -683,6 +695,15 @@ behaviour and Zircon's. Two independent pieces, and they can be taken separately
 **Authority: none new for piece 1.** It rides on authorities already exercised (destroying a region,
 destroying an endpoint) and changes only their reach. Piece 2's authority is the caller's own.
 
+**Piece 1 is built** (milestone 254, 2026-09-03), and building it moved one thing this note got
+slightly wrong. The trigger is not two events but four, because *the server ceasing to be able to
+answer* is three of them: it exits or faults (`depart`), it is forcibly killed (the §16 conversion at
+the top of `schedule`, which never reaches `depart`), or it is reaped with its region. The fourth is
+the rendezvous teardown this note named. All four call one helper, `sched::strand_reply_caller`,
+which sweeps every `Object::Reply` naming the caller **before** aborting and waking it. The scan for
+reply-parked callers rescans rather than listing, for the stack reason `reap_region_objects` already
+argues at length. See design/roadmap/254-a-caller-stranded-by-a-dead-server.md.
+
 **What it costs.** Piece 1 is small and is arguably a bug fix rather than a feature: a caller stranded
 by a *dead* server is stranded today, which QNX has not permitted since the 1990s and which nothing in
 this tree records as intended. Piece 2 is a syscall-surface change and a timer, and is 106's.
@@ -774,7 +795,8 @@ in having no way out at all, which is a claim a stranger reading the demonstrato
    nobody has measured. It is measurable now.
 3. **Is C separable enough to take on its own merits?** It looks less like a fork and more like a
    defect: a caller stranded by a *dead* server is a QNX behaviour from the 1990s that this kernel
-   lacks, and nothing in the tree records that as intended.
+   lacks, and nothing in the tree records that as intended. **Answered yes**, by calef on
+   2026-09-03, and built as milestone 254 without touching A, B or D.
 
 ## EXAMPLES
 
@@ -820,17 +842,23 @@ git show origin/milestone/23-hung-component:notes/hung-component.md
 
 ## BUGS
 
-**Nothing here is built, and nothing here should be built before calef rules.** This note is analysis.
-The proposals are sketches at the level of "which lines change", not designs; each would owe a
-`DECISIONS` section for its semantics before a lane took it, and B would owe one for a new method
-under §10's rule.
+**Nothing here is built except proposal C's first piece, and nothing else here should be built before
+calef rules.** This note is analysis. The proposals are sketches at the level of "which lines
+change", not designs; each would owe a `DECISIONS` section for its semantics before a lane took it,
+and B would owe one for a new method under §10's rule. C's piece 1 was exempted by calef on
+2026-09-03 for the reason its own block gives: it adds no authority, no method and no error, so
+there is no semantics to record that §12's reply capability did not already imply.
 
-**The stale-reply-capability hazard is unreachable today and is therefore untested.** I established it
-by reading `cap::reply_cap`, `slots`'s generational naming, and `ipc_reply`'s guard, and by
-enumerating the two exits from a reply park. It is an argument, not a proof, and the tree's own
-standard for arguments about the scheduler is that four CI panics have taught it to distrust them.
-**No test in this tree would catch a regression here**, because no path can currently produce a second
-`CALL` from a thread with an outstanding `Reply`.
+**The stale-reply-capability hazard was unreachable when this note was written and is now reached and
+tested.** It was established here by reading `cap::reply_cap`, `slots`'s generational naming, and
+`ipc_reply`'s guard, and by enumerating the exits from a reply park: an argument, not a proof. Since
+milestone 254 there is a path, and two tests in `kernel/src/sched.rs` assert that no live `Reply`
+names a freed caller (`outstanding_reply_capabilities`) and that the server's own slot no longer
+resolves through `sched::current_cap`, which is the lookup `abi::reply::REPLY` performs. What is
+still untested is the *negative* the note's argument rested on: nothing proves that the sweep runs at
+every future way a server can stop answering, which is why the payload fix
+(`design/roadmap/proposals/a-reply-capability-that-names-a-call.md`) is proposed rather than
+considered unnecessary.
 
 **The claim that `WaitRole` enumerates every blocked thread depends on every block site calling
 `park`.** `wake_handshake`'s own `BUGS` says nothing enforces that: the fields are public because the
