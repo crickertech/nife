@@ -88,6 +88,25 @@ pub fn init() {
         }
     }
 
+    // The JH7110's STG clock and reset generator (milestone 220), which nothing else on any
+    // machine this kernel boots has an analog of: every other device it drives came up already
+    // running. Recorded **only when this machine is a JH7110**, because `jh7110_crg::discover`
+    // deliberately never fails to produce an address (it falls back to the corroborated constant
+    // when a tree names no controller), and mapping that constant on a board that has nothing
+    // there would be a device mapping of an address nobody named. The two ways to be a JH7110
+    // that matter here: the tree names a clock controller, or it names the TRNG whose clocks this
+    // exists to ungate. QEMU's `virt` board names neither, so `jh7110_crg` stays None
+    // there and `drivers::jh7110_crg` is never reached.
+    {
+        let crg = jh7110_crg::discover(&dtb).ok();
+        let has_trng = matches!(jh7110_trng::discover(&dtb), Ok(Some(_)));
+        if let Some(found) = crg
+            && (found.from_tree || has_trng)
+        {
+            *JH7110_CRG.lock() = Some(found);
+        }
+    }
+
     // The SMMUv3 (milestone 16b), present only when the machine was started with
     // `iommu=smmuv3`. Absent, the kernel runs exactly as before; present, iommu::init drives it.
     {
@@ -495,6 +514,20 @@ pub fn plic_region() -> Option<(u64, u64)> {
     *PLIC_REGION.lock()
 }
 
+/// The JH7110's STG clock-and-reset window (milestone 220): where it is, and **whether the device
+/// tree said so or the corroborated constant did**. `None` on every machine that is not a
+/// `StarFive` JH7110, which is every machine this repository's CI boots. RISC-V's `mmu::init`
+/// maps it device-typed, like the PLIC.
+///
+/// The whole `Found` rather than a `(start, size)` pair, because `from_tree` is the field a bench
+/// transcript most needs and a pair would drop it: an address nobody on that machine confirmed
+/// and an address the firmware named are different claims, and by the time anyone reads the log
+/// they cannot be told apart from the number alone.
+#[cfg_attr(not(target_arch = "riscv64"), allow(dead_code))] // no JH7110 anywhere but a JH7110
+pub fn jh7110_crg() -> Option<jh7110_crg::Found> {
+    *JH7110_CRG.lock()
+}
+
 /// The PCIe host bridge's windows, from the device tree: `(ecam, mem32)`, each `(start, size)`,
 /// all **physical**. ECAM is the config window the bridge's `reg` names; `mem32` is the 32-bit
 /// non-prefetchable memory window BARs are placed in. `None` before `init`, and on a machine
@@ -674,6 +707,11 @@ static GIC_REGIONS: IrqSafeMutex<GicRegions> = IrqSafeMutex::new(rank::RAM, (Non
 /// The PLIC's single register block, from the device tree (milestone 20). `None` on aarch64 (no such
 /// node) and until `init` has run.
 static PLIC_REGION: IrqSafeMutex<Option<(u64, u64)>> = IrqSafeMutex::new(rank::RAM, None);
+
+/// The JH7110's STG clock-and-reset window, from the device tree or from the constant both
+/// published trees agree on (milestone 220). `None` until `init`, and on every machine that is
+/// not a JH7110.
+static JH7110_CRG: IrqSafeMutex<Option<jh7110_crg::Found>> = IrqSafeMutex::new(rank::RAM, None);
 
 /// The generic-ECAM PCIe host bridge's windows: (ecam, mem32), each (base, size). Physical.
 type PciWindows = ((u64, u64), (u64, u64));

@@ -1162,6 +1162,16 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // whose firmware tree does describe the device, under the vendor U-Boot's own
         // `starfive,trng`; the line was true and the conclusion drawn from it was not. A skip that
         // names everything it looked for cannot be read that way twice.
+        // **The clock step announces itself even when there is nothing to do** (milestone 220).
+        // On every machine this repository's CI boots there is no clock controller and no TRNG,
+        // and a step that printed nothing there would leave a reader of the transcript to go and
+        // check the source for whether it ran. The `Some` case is printed below, beside the
+        // bring-up report, because the report is what makes the address worth reading.
+        if user::entropy_service::jh7110_crg_window().is_none() {
+            println!(
+                "  hw clock    : skipped (this machine's tree names no JH7110 clock controller and no JH7110 TRNG, so no window was mapped and nothing was stored; QEMU virt has neither)"
+            );
+        }
         match user::entropy_service::jh7110_trng_device() {
             None => println!(
                 "  hw entropy  : skipped (this machine's tree names no TRNG: neither starfive,jh7110-trng nor the vendor U-Boot's starfive,trng; QEMU virt has neither)"
@@ -1178,11 +1188,73 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                             device.reg_base,
                         ),
                         Some(w) => {
-                            // The bring-up report first: `[READY, first_refill_ok, bytes_in_hand]`,
-                            // or a 0xDEAD_.. word whose low byte names the step. A device that
-                            // never answered says so here, and since 2026-09-04 so does one that
-                            // answered with zeros: `entropy_proto::readiness` decides that word
-                            // from the bytes, which is what the boot below found it was not doing.
+                            // **The clock and reset controller's own answer, first** (milestone
+                            // 220), because it decides how the line below should be read. On
+                            // 2026-09-04 radon printed an all-zero TRNG register file, and the
+                            // two candidate explanations (a block nobody had powered, or a
+                            // driver talking to the wrong address) are told apart here and
+                            // nowhere else. The `before` words are what separate them again:
+                            // clocks that were already enabled mean this milestone's premise was
+                            // wrong and the zeros have some other cause.
+                            //
+                            // Printed even when it says nothing happened, because "no controller
+                            // in this tree" is itself the finding on any machine but radon, and a
+                            // silent step is one a bench reader has to go and check the source
+                            // for.
+                            match w.clock {
+                                Some(report) => {
+                                    let found = user::entropy_service::jh7110_crg_window();
+                                    println!(
+                                        "  hw clock    : JH7110 STG CRG at {:#x} ({}): clocks {:#010x},{:#010x} -> {:#010x},{:#010x} ({}); reset {} assert {:#010x} -> {:#010x}, status {:#010x} ({}, {} polls){}",
+                                        found.map_or(0, |f| f.base),
+                                        match found {
+                                            Some(f) if f.from_tree =>
+                                                "named by this machine's device tree",
+                                            Some(_) =>
+                                                "NOT named by this machine's tree: the constant both published trees agree on",
+                                            None => "address unknown",
+                                        },
+                                        report.clock_before[0],
+                                        report.clock_before[1],
+                                        report.clock_after[0],
+                                        report.clock_after[1],
+                                        if report.clocks_running() {
+                                            "running"
+                                        } else {
+                                            "NOT running: the enable bit did not read back, so nothing is behind this window"
+                                        },
+                                        jh7110_crg::STGRST_SEC_AHB,
+                                        report.reset_assert_before,
+                                        report.reset_assert_after,
+                                        report.reset_status_after,
+                                        if report.released {
+                                            "released"
+                                        } else {
+                                            "STILL HELD"
+                                        },
+                                        report.polls,
+                                        if report.was_already_up() {
+                                            "; the firmware had already done all of this, so a gated clock is NOT why the TRNG reads zeros"
+                                        } else {
+                                            ""
+                                        },
+                                    );
+                                }
+                                // Unreachable in practice, and printed rather than ignored for
+                                // that reason: this arm is inside `Some(device)`, so the tree
+                                // named a TRNG, and `memory::init` records a window for exactly
+                                // that case. If it ever fires, the guard and the caller have
+                                // drifted apart and a bench transcript should say so.
+                                None => println!(
+                                    "  hw clock    : no JH7110 clock-and-reset window was mapped even though this tree names a TRNG, so nothing was ungated"
+                                ),
+                            }
+                            // The driver's bring-up report next:
+                            // `[READY, first_refill_ok, bytes_in_hand]`, or a 0xDEAD_.. word whose
+                            // low byte names the step. A device that never answered says so here,
+                            // and since 2026-09-04 so does one that answered with zeros:
+                            // `entropy_proto::readiness` decides that word from the bytes, which
+                            // is what the boot below found it was not doing.
                             let report = w.wait_for_ready().unwrap_or([0; 5]);
                             // Then two draws through the request endpoint, as a client. Two,
                             // because one proves only that *something* was returned: a stuck
