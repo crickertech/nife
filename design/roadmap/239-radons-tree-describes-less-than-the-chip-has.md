@@ -104,7 +104,13 @@ milestone 220's (a clock and reset controller, because the first real device nee
 rather than a driver bug.
 
 The skip line names both strings now. The old wording was the exact truth and was still read as a
-stronger claim than it made, which is a defect in the line rather than in the reader.
+stronger claim than it made, which is a defect in the line rather than in the reader. Observed on a
+riscv64 boot under QEMU on 2026-09-03 (`script/soak --arch riscv64`), which is the only machine
+available to say it:
+
+```
+hw entropy  : skipped (this machine's tree names no TRNG: neither starfive,jh7110-trng nor the vendor U-Boot's starfive,trng; QEMU virt has neither)
+```
 
 **The fixture is transcribed, not captured**:
 `crates/jh7110_trng/tests/fixtures/jh7110-trng-vendor-uboot.dts`, from the firmware's own source at
