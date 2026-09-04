@@ -190,13 +190,13 @@ asks for, and it prints the caveats beside it so a count of draws is not quoted 
 
 ## Follow-on
 
-- **Proposed milestone**, for the integrator to mint: *the watcher reads a board and never speaks to
-  it, so stopping a reboot loop needs a person at the keyboard.* `script/board-console` holds the
-  port and cannot send the byte that is this milestone's escape, so the escape is a keypress and the
-  verification of it is rung four. A `--stop` mode and a `--stop-after <n>` would make both a
-  command. It is not done here because it overturns an invariant stated in that script's own header,
-  which makes the shape of it calef's call. **Recorded** in the meantime where a reader meets the
-  tool, in notes/board-console.md's `BUGS`.
+- **Proposed.** *The watcher reads a board and never speaks to it, so stopping a reboot loop needs a
+  person at the keyboard.* `script/board-console` holds the port and cannot send the byte that is
+  this milestone's escape, so both the escape and its verification are rung four. A `--stop` mode
+  and a `--stop-after <n>` would make each a command. Not done here because it overturns an
+  invariant stated in that script's own header, which makes the shape of it calef's call. See
+  `design/roadmap/proposals/board-console-cannot-speak-to-the-board.md`, and it is recorded in the
+  meantime in `notes/board-console.md`'s `BUGS`.
 - **Recorded.** *The escape rests on a procedure and not on a mechanism*, in the `BUGS` of
   `kernel/src/soak.rs` and notes/soak.md, and in *The weakest link* above. A UART cannot receive a
   byte it sends, so no mechanism in this kernel can close it; the proposal above is the nearest
@@ -208,9 +208,10 @@ asks for, and it prints the caveats beside it so a count of draws is not quoted 
   better experiment (a power cycle is what the nine control boots were) and it is a lane spent on a
   guess until the firmware has actually refused reset type 1. notes/soak.md's outcome table is where
   that finding would arrive; raise it then.
-- **None.** The tally's clean-core definition. It is `board_console::lottery`'s, host-tested against
-  the one settled arrangement radon has printed, and if a series shows the rate does not follow it,
-  that is milestone 249's result rather than a defect in the reader.
+- **Outstanding.** The tally's clean-core definition is `board_console::lottery`'s, host-tested
+  against the one settled arrangement radon has printed. If a series shows the rate does not follow
+  it, that is this milestone's result rather than a defect in the reader, and the definition is what
+  a second board would test. Checked 2026-09-03.
 
 ## BUGS
 
