@@ -16,11 +16,29 @@ exclude_globs = [
     "user/**",
     "crates/user_rt/**",     # EL0 syscall runtime, aarch64/riscv64 inline asm
 
-    # Compile for the host but cannot execute there: thin wrappers over user_rt's syscalls (build a
-    # child, quiesce a component). Excluded from the coverage run for the same reason and only that
-    # reason (see script/coverage).
+    # Reach `user_rt` through the dependency graph, so they do not build for the host at all: thin
+    # wrappers over its syscalls (build a child, quiesce a component), plus the system builder those
+    # wrappers exist for. Excluded from the coverage run for the same reason and only that reason
+    # (see script/coverage).
+    #
+    # **This heading used to say "compile for the host but cannot execute there" and that was
+    # wrong**, found by milestone 244: `--exclude` removes a package from the test SELECTION, not
+    # from the dependency graph, and script/lint's own bare-metal gate carries the whole story of
+    # how that distinction stayed invisible for eleven days.
     "crates/supervision_proto/**",
     "crates/swap_proto/**",
+
+    # The system builder (milestone 96), and it was MISSING here until milestone 244 measured why
+    # its score looked the way it did. It reaches `user_rt` like the two above, so the host suite
+    # cannot execute a line of it; the first published mutation report (milestone 238) therefore
+    # scored it 191 mutants, 0 caught, which is arithmetic rather than a finding and is the largest
+    # single number in that report. script/lint's "host pass excludes exactly the bare-metal crates"
+    # gate now derives this list rather than trusting the paragraph above to be remembered.
+    #
+    # `script/shell-check` is what proves this crate: it boots both ISAs and types at the prompt.
+    # Excluding it here does not make it proved, and milestone 244's block carries the measured
+    # split of what a host test could and could not have reached.
+    "crates/system_initializer/**",
 
     # Driver whose entry points each orchestrate a live virtio device; two volatile ops per
     # thousand lines of orchestration. Its security-critical logic lives in crates/dma_validator
