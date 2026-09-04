@@ -280,3 +280,37 @@ and "a server runs".
 
 **Effort: not estimated**, deliberately. The measurement is the first deliverable: pick the probes,
 build them, and report what breaks.
+## Follow-on
+
+- **Refused.** Rank 2, the `std::os::unix` fallthrough, stays absent: a uid and a Unix mtime-set
+  would be a fiction laid over a capability refusal, and `notes/crates-io-on-nife.md`'s second row
+  already reads declined.
+- **Refused.** Rank 3, `thread::spawn`, is declined for want of a customer, written up in
+  `design/decisions/105-thread-spawn-decline-for-now.md` and in `notes/thread-spawn-fork.md`. It
+  stays unsupported permanently rather than pending.
+- **Done.** Ranks 19 and 28 no longer want a decision: milestone 47's mtime lane landed the get,
+  set and set-at verbs in `crates/filesystem_proto`, on
+  `design/decisions/112-touch-mtime-authority.md`, decided 2026-08-23.
+- **Outstanding.** What is left of ranks 19 and 28 is a PAL binding rather than a fork: the
+  filesystem shim under `patches/std-nife/overlay/std/src/sys/` still returns unsupported and its
+  comments still say no verb exists, which is now false. Checked 2026-09-03.
+- **Recorded.** The exit event still carries no exit code, so a supervisor can tell exit from crash
+  and cannot tell `exit(0)` from `exit(1)`. The reasoning lives in `notes/std.md`.
+- **Done.** `env` is seeded now: `design/decisions/111-inert-config-is-a-validated-page.md` and
+  `crates/environment_proto` define a validated read-only page, and the environment shim under
+  `patches/std-nife/overlay/std/src/sys/env/nife.rs` fills `TZ`, `LANG` and `TERM` from it before
+  `main` runs.
+- **Milestone 154.** Tier-two `File::open`, anything that joins or traverses, still waits on a
+  second directory capability reaching a real process. 154 has the mechanism host-tested and
+  guest-proved, and nothing in the PAL resolves against two roots.
+- **Recorded.** A green build is still not evidence, and the acceptance bar stays a crate doing its
+  job under a stated endowment. `script/crate-probes` reports the split and cannot report
+  behaviour.
+- **Recorded.** The PAL patches std's own source under `patches/std-nife/overlay/`, so every bound
+  function is more surface for toolchain drift, which is the reason to add only what a probe
+  demands.
+- **Recorded.** The abort scan in `xtask/src/main.rs` covers std's platform modules only and proves
+  a body reachable, never a call, so portable std code reachable only on a platform this thin stays
+  invisible to it.
+- **Recorded.** `script/crate-probes` and the abort scan both ship under provisional names, said so
+  where they live, and naming is calef's.

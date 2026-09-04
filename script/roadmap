@@ -536,7 +536,7 @@ for mid, fname in sorted(ids.items()):
         problems.append(f"{fname}: {len(heads)} '## Follow-on' sections; one milestone answers the "
                         f"question once, and a second copy is the one that stops being updated")
     if not heads:
-        if rows[num][0] in DATED:
+        if rows[num][0] in ANSWERS:
             why = ("A finished block is the last place anyone looks, so it says what happened to "
                    "the work it named"
                    if rows[num][0] in DATED else

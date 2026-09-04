@@ -41,3 +41,29 @@ equivalent board yet, so rule 5's "a scope note records the gap and the plan" ap
 **Effort: not estimated.** Two device drivers against real hardware with no emulator to iterate
 against is a different activity from everything done so far, and estimates calibrated on QEMU work do
 not transfer.
+## Follow-on
+
+- **Outstanding.** The network half: a driver for the JH7110's Synopsys DesignWare GMAC. Nothing in
+  the tree touches it. The part appears only in design prose (`design/fatal-risks.md`,
+  `notes/visionfive2.md`) and in an unrelated `reg-shift` comment in
+  `kernel/src/drivers/ns16550.rs`; `kernel/src/drivers/` holds no ethernet driver of any kind.
+  Checked 2026-09-03.
+- **Milestone 163.** The board-side PLDA XpressRICH root complex that would carry the NVMe driver
+  to the real M.2 slot. Minted 2026-08-25, still NOT-STARTED on a HARDWARE gate.
+- **Decision.** Whether the NVMe driver can leave the kernel, and what capability would let it, is
+  calef's and is written up as `design/decisions/86-el0-nvme-driver.md`: it needs new syscall
+  surface, which is the §10 and §16 boundary a lane does not cross.
+- **Outstanding.** RedoxFS crash consistency proven by actually cutting power on radon. Nothing can
+  power-cycle the board: milestone 224 is NOT-STARTED on a DECISION gate, and its own measurements
+  record zero replies from the plug on the subnet. Checked 2026-09-03.
+- **Outstanding.** SD and eMMC, kept in scope as the later path and undecided only in its ordering
+  against the network driver. No MSHC or SD driver exists under `kernel/src/drivers/`, and no block
+  or decision file has taken the ordering question since 2026-08-15. Checked 2026-09-03.
+- **Done.** The rule-5 parity note this block says it must carry is carried, in `notes/nvme.md`
+  under a heading naming this milestone, stating what ships on all three architectures and what is
+  board-specific.
+- **Recorded.** Half the reason NVMe was picked over SD is gone: milestone 55 is REMOVED as of
+  2026-08-30, so the backup workload whose sustained sequential write decided the fork no longer
+  exists. The root-complex-compounds-into-87 half of that argument survives; the measurement half
+  has no customer, and `notes/nvme.md` still cites 55's storage bench as the thing that will want
+  real queue depth.
