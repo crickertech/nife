@@ -63,11 +63,16 @@
 #
 # With no arguments it prints the normalized status report, statuses first and gates after it.
 # `--ready` prints only the milestones a lane could start today (gate `NONE`, status `NOT-STARTED` or
-# `PARTIAL`), which is the query the maintainer actually makes. `--unswept` prints the milestones
-# `--unclaimed` prints the follow-on work finished milestones named that
-# nobody has taken. `--check` validates and exits
-# non-zero on a problem, which is what a gate wants. See design/roadmap/README.md for both
-# vocabularies.
+# `PARTIAL`), which is the query the maintainer actually makes. `--unclaimed` prints the follow-on
+# work a finished milestone named that nobody has taken, `--proposed` the unnumbered proposals oldest
+# first, and `--outstanding` what a PARTIAL milestone still says is left (milestone 252, and the
+# question calef had to ask by hand about milestone 16). `--check` validates and exits non-zero on a
+# problem, which is what a gate wants. See design/roadmap/README.md for both vocabularies.
+#
+# (The sentence above replaced a dangling one that named a `--unswept` mode this script has never
+# had: milestone 247's exemption list was removed an hour after it was written and took the mode
+# with it, leaving half a sentence spliced onto the next. Corrected by milestone 252's lane, which
+# was reading the header to add to it.)
 #
 # Name: unrecorded. Introduced 2026-07-30 with the status vocabulary and its gate. Named for the
 # record it reads, like `script/decisions`.
@@ -106,6 +111,17 @@ VOCAB = ["BUILT", "REMOVED", "PARTIAL", "IN-PROGRESS", "NOT-STARTED", "OPTIONAL"
 # RECORDED means the work was deliberately not taken, and leaving it BUILT makes the column claim a
 # network file service that no longer exists.
 DATED = ("BUILT", "REMOVED")
+
+# The statuses that must answer '## Follow-on'. BUILT and REMOVED were milestone 247's; PARTIAL is
+# milestone 252's, and it is the harder half.
+#
+# A finished block is written once and closed, so its section is a record. **A PARTIAL block's is a
+# standing claim about the future**, edited as pieces land, and nothing re-reads what it still
+# asserts. Its prose is also what a lane reads when picking work up, so a stale one does not merely
+# misinform: it offers work that does not exist. Milestone 16 listed three things as remaining and
+# two of them were finished, one of them the UART marker every board run is judged by; the block
+# said otherwise for weeks and calef asking what was left is what caught it.
+ANSWERS = DATED + ("PARTIAL",)
 
 # The readiness vocabulary. `NONE` is a claim that nothing stands in the way, so it stands alone;
 # the others name a gate and may be combined (milestone 74 waits on a decision AND on silicon).
@@ -487,11 +503,26 @@ PATHISH = re.compile(r"(?:" + "|".join([
     "redoxfs_server", "script", "scripts", "std_exerciser", "targets", "tools", "uefi_loader",
     "user", "vendor", "xtask", r"\.github",
 ]) + r")/\S+")
+# **`Outstanding.` is milestone 252's one addition, and it is the word a PARTIAL block needs that a
+# finished one does not.** Seven of the eight say where work WENT. A PARTIAL block's commonest answer
+# is that the work has not gone anywhere and is still its own scope, and none of the seven can say
+# that without lying: `Recorded.` claims a limitation that stays, `Proposed.` claims nobody owns it
+# when this block does, and `Milestone N.` cannot name the block it is written in. A lane forced to
+# choose would write the comfortable word or leave the item out, which is the silence this gate
+# exists to stop arriving through the gate, exactly as `Done.` and `Proposed.` did on 247's sweep.
+#
+# **What it buys is the date, not the word.** The gate cannot tell a stale claim from a live one, and
+# this does not change that. What changes is that somebody wrote "still true, and here is what I
+# checked" beside each item, which is the act that found milestone 16's two finished items. Name
+# provisional (calef names things); the vocabulary it joins is provisional in the same way.
 DISPOSITION = re.compile(
-    r"^- \*\*(None|Recorded|Refused|Decision|Proposed|Done|Milestone (\d+))\.\*\*(.*)$")
+    r"^- \*\*(None|Recorded|Refused|Decision|Proposed|Done|Outstanding|Milestone (\d+))"
+    r"\.\*\*(.*)$")
 
 swept = 0
+partial_swept = 0
 unclaimed = []
+outstanding = []
 for mid, fname in sorted(ids.items()):
     if not mid.isdigit():
         continue
@@ -506,18 +537,25 @@ for mid, fname in sorted(ids.items()):
                         f"question once, and a second copy is the one that stops being updated")
     if not heads:
         if rows[num][0] in DATED:
+            why = ("A finished block is the last place anyone looks, so it says what happened to "
+                   "the work it named"
+                   if rows[num][0] in DATED else
+                   "A PARTIAL block claims work is remaining, and nothing re-reads the claim, so "
+                   "it enumerates what is left and says of each that it is still true")
             problems.append(
                 f"{fname}: milestone {num} is {rows[num][0]} and carries no '## Follow-on' "
-                f"section. A finished block is the last place anyone looks, so it says what "
-                f"happened to the work it named: bullets opening '**None.**', "
+                f"section. {why}: bullets opening '**None.**', "
                 f"'**Milestone N.**', '**Recorded.**' (naming the file the limitation lives "
                 f"beside, in backticks), '**Refused.**' with a reason, '**Done.**' with what "
-                f"carried it, '**Decision.**' naming a file under design/decisions/, or "
-                f"'**Proposed.**' naming its file under design/roadmap/proposals/. See "
+                f"carried it, '**Decision.**' naming a file under design/decisions/, "
+                f"'**Proposed.**' naming its file under design/roadmap/proposals/, or (PARTIAL "
+                f"only) '**Outstanding.**' with what is left and how you checked. See "
                 f"design/roadmap/README.md and "
                 f"notes/follow-on-work.md")
         continue
     swept += 1
+    if rows[num][0] == "PARTIAL":
+        partial_swept += 1
     body, collecting = [], False
     for n, l in enumerate(lines, start=1):
         if l.rstrip() == "## Follow-on":
@@ -545,14 +583,26 @@ for mid, fname in sorted(ids.items()):
         if not dm:
             problems.append(f"{fname}:{n}: {l[:60]!r} is not a disposition. Every bullet under "
                             f"'## Follow-on' opens '**None.**', '**Milestone N.**', "
-                            f"'**Done.**', '**Recorded.**', '**Refused.**', '**Decision.**' or "
-                            f"'**Proposed.**' (see design/roadmap/README.md)")
+                            f"'**Done.**', '**Recorded.**', '**Refused.**', '**Decision.**', "
+                            f"'**Proposed.**' or '**Outstanding.**' "
+                            f"(see design/roadmap/README.md)")
             continue
         kind, rest = dm.group(1).split(" ")[0], dm.group(3).strip()
         if kind == "None":
             if len(bullets) > 1:
                 problems.append(f"{fname}:{n}: '**None.**' says nothing was identified, so it "
                                 f"cannot sit beside {len(bullets) - 1} other disposition(s)")
+            # **The one thing this gate can prove about a PARTIAL block**, and it is worth more
+            # than the enumeration: PARTIAL means "built in part, work remains", so a block whose
+            # whole answer is that nothing is outstanding has contradicted its own status word.
+            # Either something is left, or the status is wrong and the row wants BUILT with a date.
+            # This is the milestone-69 class of defect (the row and the block disagreeing) one
+            # level in, where the block disagrees with itself.
+            if rows[num][0] == "PARTIAL":
+                problems.append(f"{fname}:{n}: milestone {num} is PARTIAL and answers '**None.**', "
+                                f"which is a contradiction: PARTIAL means work remains. Either "
+                                f"name what is left, or the status is stale and the row wants "
+                                f"BUILT with a date")
         elif kind == "Milestone":
             target = int(dm.group(2))
             if target not in rows:
@@ -594,6 +644,25 @@ for mid, fname in sorted(ids.items()):
                     f"names the file under design/decisions/ that holds it, in backticks, and that "
                     f"file has to exist (found {paths if paths else 'no path'}). A decision that "
                     f"lives only in a conversation is the medium AGENTS.md abolished")
+        elif kind == "Outstanding":
+            # Restricted to PARTIAL on purpose. On a finished block "still outstanding" is either a
+            # limitation (`Recorded.`), work nobody took (`Proposed.`), or a successor
+            # (`Milestone N.`), and letting the word through there would give all three a softer
+            # synonym to hide in. On a PARTIAL block it is the honest answer and the other three
+            # are the lies.
+            if rows[num][0] != "PARTIAL":
+                problems.append(f"{fname}:{n}: '**Outstanding.**' is for a PARTIAL block, whose "
+                                f"own scope is what is left. Milestone {num} is {rows[num][0]}: "
+                                f"work still open there is '**Recorded.**', '**Proposed.**' or "
+                                f"'**Milestone N.**'")
+            elif len(rest) < 40:
+                problems.append(f"{fname}:{n}: '**Outstanding.**' says what is left AND how you "
+                                f"checked it is still left, because the checking is the only part "
+                                f"of this a gate cannot do. Milestone 16 carried two items that "
+                                f"were finished, and reading the tree is what found them "
+                                f"(found {rest!r})")
+            else:
+                outstanding.append((num, fname, n, rest))
         elif kind == "Done" and len(rest) < 40:
             problems.append(f"{fname}:{n}: '**Done.**' says what carried the work, because a claim "
                             f"that something happened is only useful if a reader can go and look: "
@@ -674,7 +743,9 @@ if mode == "--check":
           f"index and files agree, every tree-wide citation resolves")
     print(f"roadmap: {len(gates)} of them classified by gate, {len(ready)} ready to start "
           f"(script/roadmap --ready)")
-    print(f"roadmap: {swept} blocks answer '## Follow-on'")
+    print(f"roadmap: {swept} blocks answer '## Follow-on', {partial_swept} of them PARTIAL")
+    print(f"roadmap: {len(outstanding)} pieces of work are outstanding on a PARTIAL milestone "
+          f"(script/roadmap --outstanding)")
     print(f"roadmap: {len(unclaimed)} pieces of follow-on work were named by a finished "
           f"milestone and became proposals (script/roadmap --unclaimed)")
     if proposals:
@@ -691,6 +762,16 @@ if mode == "--proposed":
         print(f"              design/roadmap/{rel}")
     print(f"\n{len(proposals)} proposals with no number. Promoting one is the integrator's: give "
           f"it a number, git mv it up a directory, add the index row")
+    sys.exit(0)
+
+if mode == "--outstanding":
+    # What is actually left, per PARTIAL milestone, derived from the blocks rather than maintained
+    # beside them. This is the question calef had to ask by hand about a PARTIAL block, which is the
+    # whole reason milestone 252 exists, answered as a command instead.
+    for num, fname, n, rest in sorted(outstanding):
+        print(f"  {num:>3}  {rest[:96]}")
+    print(f"\n{len(outstanding)} outstanding items across {partial_swept} PARTIAL milestones. "
+          f"None of it is checked for still being true; a person wrote that down, once")
     sys.exit(0)
 
 if mode == "--unclaimed":

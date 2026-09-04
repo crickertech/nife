@@ -97,7 +97,9 @@ in the code or the conversation doesn't make sense, it belongs here.
   the dispositions a bullet may carry, and why the gate hangs on the status rather than on prose.
   Also the sweep of all 139 finished blocks that produced it, the path rot it found in the roadmap's
   own citations, and the reason `Unclaimed.` exists: three lanes hit the same wall on the same
-  afternoon, and the two that would not write a comfortable lie left the item out instead.
+  afternoon, and the two that would not write a comfortable lie left the item out instead. Also
+  milestone 252's second sweep, which extended the section to `PARTIAL` blocks and found that all 22
+  of them were claiming as remaining work that was already done.
 
 - [Every place that enumerates architectures, and whether the list is complete](architecture-list-sweep.md):
   a one-time read of every list, match, `case`, CI step, TOML array, and per-architecture file set
