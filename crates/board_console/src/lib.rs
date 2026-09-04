@@ -12,6 +12,12 @@
 //! - [`watch`] reads until the policy says stop, teeing every byte to a log file.
 //! - [`progress`] decides, from the text alone, how far the boot got.
 //!
+//! And one part that reads a capture after the fact rather than a board in front of it:
+//!
+//! - [`lottery`] takes a log of *many* boots and reports what the thread-placement lottery drew
+//!   each time (milestone 249), which is the question a self-rebooting soak exists to answer and
+//!   the one nothing that reads a single boot can be asked.
+//!
 //! # This crate is not run under Miri
 //!
 //! `script/undefined-behavior-check` excludes it, the way it already excludes `xtask`, and for cost
@@ -143,6 +149,7 @@
 //! chosen before that is answered is a name that may be answering it by accident. Not put to
 //! calef.
 
+pub mod lottery;
 pub mod port;
 pub mod progress;
 pub mod watch;

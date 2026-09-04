@@ -26,6 +26,12 @@ script/board-console --replay target/board-console-1756744000.log   # re-read a 
 | `--until <stage>` | `banner` | Stop early at `spl`, `opensbi`, `uboot`, `handoff`, `banner`, `tour`, or `none` to watch the whole duration. |
 | `--quiet-after <duration>` | `15s` | Give up if the board speaks and then stops. `0` disables it. Suppressed once the tour completes, always. |
 
+**And one mode that opens no port at all** (milestone 249): `--tally <log>` reads a capture of many
+boots and reports what the thread-placement lottery drew on each. It is `board_console::lottery`
+rather than the recogniser, it answers a question no single-boot reader can be asked (how often does
+each arrangement come up), and its exit statuses are only `0` and `4`, because an analysis of a
+finished log has no board left to have gone quiet. See notes/soak.md.
+
 ## The exit statuses, which are the point
 
 A bench script needs to tell a hang from a refusal, and a tool with two exit codes cannot.
@@ -313,6 +319,21 @@ interrupting autoboot and typing the four `StarFive #` commands. So a console th
 cannot, on its own, get this board into the state the hardware-gated milestones need. Driving
 U-Boot is proven to work and is deliberately absent here, because whether it belongs in this tool
 or a second one is a scope question for calef; see milestone 216's block for the proposal.
+
+**Because it never writes, it cannot stop a rebooting soak, and that is now something a board does**
+(milestone 249). `--features reboot_soak` makes a board cold-reboot every two minutes, and its
+escape is a byte on the console UART: any byte, checked every five seconds. This tool holds the
+port and cannot send one, so the escape is reached by a **person typing**, either into this
+session's terminal or by detaching it first, and detaching a console is not free (notes/soak.md
+records a 6% rate change from doing it mid-run). Two things a writing mode would buy: `--stop`, the
+whole escape from a script; and `--stop-after <n>`, ending a series with exactly the sample it was
+asked for.
+
+**This is a proposed milestone rather than a change made here**, because it overturns the invariant
+this note's own heading states and that a person reads before pointing this at hardware. Whether it
+is a mode of this tool or a second entry point is a naming and boundary question, which makes it
+calef's. The reason it is worth raising rather than leaving: it is the only host-testable thing that
+would raise milestone 249's escape above rung four.
 
 **It does not touch power.** The board's Kasa strip was not reachable from either machine when
 this was written, and the roadmap block declines to decide whether this tool should ever drive it.
