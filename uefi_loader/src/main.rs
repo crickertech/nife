@@ -49,14 +49,26 @@
 //!   through OVMF and asserts both come online. What that does not establish is any *other*
 //!   firmware's low-memory habits: on a machine that refuses the page this loader says so and boots
 //!   one core, which is a report rather than a fix.
-//! - **The `hvm_start_info` command line is empty.** PVH carries one and the kernel ignores it, so
-//!   there is nowhere yet for a boot argument to come from or go to.
+//! - **The `hvm_start_info` command line carries exactly one thing** (milestone 243): where the
+//!   screen is (`machine_discovery::framebuffer`). It was empty until then, which is what that
+//!   milestone's block called a gap. There is still no way for a boot argument to arrive from
+//!   *outside* the build: nothing reads a configuration file off the stick, so anything on that line
+//!   is something this binary decided.
+//! - **The screen is taken as the firmware left it.** This loader never calls `SetMode`, so nife
+//!   gets whatever resolution the firmware chose, and a machine whose firmware picked a mode the
+//!   monitor is not showing produces a nife that appears silent. Setting a mode would mean choosing
+//!   one, which is a policy with no information behind it: the firmware has at least talked to the
+//!   monitor's EDID.
+//! - **A `PixelBitMask` or `PixelBltOnly` adapter gets no screen**, and the loader says so before it
+//!   hands over. The first is expressible with work; the second cannot be, because `Blt` is a
+//!   boot-services call and there is no linear framebuffer behind it at all.
 
 #![no_std]
 #![no_main]
 
 use core::ptr;
 
+use machine_discovery::framebuffer::{Framebuffer, PixelOrder};
 use uefi_loader::efi::{
     self, ALLOCATE_ADDRESS, ALLOCATE_MAX_ADDRESS, BootServices, Handle, SUCCESS, Status,
     SystemTable, memory_type,
@@ -108,6 +120,13 @@ const BELOW_4G: u64 = 0xffff_ffff;
 /// above does not cover it and this loader has to ask for it separately.
 const AP_TRAMPOLINE_PHYS: u64 = 0x8000;
 
+/// Where the boot command line sits inside page 0 of the handoff block.
+///
+/// 128 rather than 88 (the `hvm_start_info` plus the one-entry module list) so that a field added
+/// to either does not silently start overwriting the command line; the page has four kilobytes and
+/// there is nothing else to spend them on.
+const CMDLINE_OFFSET: u64 = 128;
+
 /// Slack, in descriptors, added to the memory map buffer between the sizing call and the real one.
 ///
 /// The UEFI specification says so outright: allocating memory to hold the map can itself change the
@@ -150,6 +169,37 @@ fn load(handle: Handle, table: &SystemTable, services: &BootServices) -> Result<
     // Taken FIRST, because it is a read of a table that is already there: nothing later can
     // invalidate it, and if it is missing this loader should say so before it has moved anything.
     let rsdp = find_rsdp(table).ok_or("the firmware's configuration table has no ACPI RSDP")?;
+
+    // --- 1b. The screen, which is milestone 243's whole reason for touching this file ---
+    //
+    // Asked here for the same reason the RSDP is: it is a read of something that already exists,
+    // nothing later can invalidate it, and the answer has to be in hand before the console this
+    // sentence would be printed on goes away. **A machine with no screen is not an error**: the
+    // OptiPlex with its serial module is that machine, and it boots exactly as it did before.
+    let screen = find_screen(services);
+    match screen {
+        Some(found) => {
+            say_span(
+                table,
+                "uefi_loader: screen at ",
+                found.base,
+                found.base + found.span().unwrap_or(0) as u64,
+            );
+            say(table, "uefi_loader:   ");
+            say_decimal(table, found.width);
+            say(table, "x");
+            say_decimal(table, found.height);
+            say(table, ", stride ");
+            say_decimal(table, found.stride);
+            say(table, ", ");
+            say(table, found.order.token());
+            say(table, "\r\n");
+        }
+        None => say(
+            table,
+            "uefi_loader: no linear framebuffer; the kernel will have only a UART\r\n",
+        ),
+    }
 
     // --- 2. Place the kernel at the physical addresses its linker script chose ---
     // `elf::Elf::parse` validates everything before this loader moves a byte: bounds, overlap,
@@ -313,6 +363,12 @@ fn load(handle: Handle, table: &SystemTable, services: &BootServices) -> Result<
     }
     let start_info_at = handoff_base;
     let module_list_at = handoff_base + START_INFO_LEN as u64;
+    // **The boot command line lives in the same page**, after the 56-byte structure and the 32-byte
+    // module list, which together end at 88. It is at most `Framebuffer::MAX_LEN` plus a NUL and
+    // there are four kilobytes here, so it costs no allocation and adds no failure path: one more
+    // `AllocatePages` for sixty bytes would be one more thing that can be refused on somebody's
+    // firmware, in the middle of the one sequence in this loader whose order is rigid.
+    let cmdline_at = handoff_base + CMDLINE_OFFSET;
     let memmap_at = handoff_base + PAGE;
     let raw_map_at = memmap_at + entries_bytes.next_multiple_of(PAGE);
 
@@ -395,12 +451,25 @@ fn load(handle: Handle, table: &SystemTable, services: &BootServices) -> Result<
         }
     }
 
+    // The command line, NUL-terminated, in the page reserved for it above. Written after
+    // `ExitBootServices` like everything else in this section: it names memory this loader already
+    // owns and needs no firmware call, so there is nothing here that could invalidate the map key.
+    let cmdline = screen.map_or(0, |found| {
+        let mut token = [0u8; Framebuffer::MAX_LEN + 1];
+        let n = found.encode(&mut token);
+        // SAFETY: `CMDLINE_OFFSET + MAX_LEN + 1` is inside page 0 of the handoff block, which was
+        // allocated above and whose first 88 bytes are the structure and the module list.
+        unsafe { ptr::copy_nonoverlapping(token.as_ptr(), cmdline_at as *mut u8, n + 1) };
+        cmdline_at
+    });
+
     let info = StartInfo {
         rsdp,
         modules: if module.is_some() { module_list_at } else { 0 },
         module_count: u32::from(module.is_some()),
         memmap: memmap_at,
         memmap_entries: written as u32,
+        cmdline,
     };
     if let Some((addr, size)) = module {
         let bytes = encode_module(addr, size);
@@ -495,6 +564,95 @@ fn find_rsdp(table: &SystemTable) -> Option<u64> {
         }
     }
     fallback
+}
+
+/// **Ask the firmware where the screen is** (milestone 243).
+///
+/// One `LocateProtocol` call and three field reads. It deliberately does **not** set a video mode:
+/// the firmware has already chosen one that works on this monitor, and a mode set here would be a
+/// mode the kernel has to be told about through the same channel anyway.
+///
+/// `None` on every unhappy answer, and they are all the same answer to the caller: no protocol, a
+/// null `mode` or `info`, a `PixelBltOnly` adapter (which has no linear framebuffer at all, only a
+/// boot-services `Blt` call that is gone by the time the kernel runs), a `PixelBitMask` adapter
+/// (whose channels are described by masks `machine_discovery::framebuffer` cannot express), or a
+/// geometry whose arithmetic does not close. A machine with no screen is the OptiPlex, and it is
+/// not an error.
+fn find_screen(services: &BootServices) -> Option<Framebuffer> {
+    let mut interface: *mut core::ffi::c_void = ptr::null_mut();
+    if (services.locate_protocol)(
+        &efi::GRAPHICS_OUTPUT_PROTOCOL_GUID,
+        ptr::null_mut(),
+        &mut interface,
+    ) != SUCCESS
+        || interface.is_null()
+    {
+        return None;
+    }
+    // SAFETY: `LocateProtocol` returned success, so the firmware asserts this is an
+    // `EFI_GRAPHICS_OUTPUT_PROTOCOL` and that it outlives boot services.
+    let gop = unsafe { &*interface.cast::<efi::GraphicsOutput>() };
+    if gop.mode.is_null() {
+        return None;
+    }
+    // SAFETY: as above; `Mode` is a required field of the protocol and non-null was just checked.
+    let mode = unsafe { &*gop.mode };
+    if mode.info.is_null() {
+        return None;
+    }
+    // SAFETY: as above. Read unaligned is not needed: the firmware allocates this structure and the
+    // specification gives it natural alignment.
+    let info = unsafe { &*mode.info };
+    let order = match info.pixel_format {
+        efi::pixel_format::BGRX => PixelOrder::Bgrx,
+        efi::pixel_format::RGBX => PixelOrder::Rgbx,
+        _ => return None,
+    };
+    let found = Framebuffer {
+        base: mode.framebuffer_base,
+        width: info.horizontal_resolution,
+        height: info.vertical_resolution,
+        // The firmware reports the stride in PIXELS and every consumer of it wants bytes. This is
+        // the one multiplication in the whole path and getting it wrong shears the picture.
+        stride: info.pixels_per_scan_line.checked_mul(4)?,
+        order,
+    };
+    // The kernel's console indexes this with a `usize` computed from the geometry, so a geometry
+    // whose span does not close is refused here rather than trusted there.
+    found.span()?;
+    // And the aperture the firmware reports has to actually hold what the geometry claims. A
+    // firmware that reported a stride larger than its own framebuffer would have this loader
+    // handing the kernel a licence to write past the end of a BAR.
+    if found.span()? > mode.framebuffer_size {
+        return None;
+    }
+    Some(found)
+}
+
+/// Print one unsigned value in decimal, without an allocator and without `core::fmt`.
+///
+/// Its own function for the same reason [`say_hex`] is: a screen's geometry is the one thing here a
+/// person reads as a number rather than as an address, and `800x600` in hex helps nobody.
+fn say_decimal(table: &SystemTable, value: u32) {
+    let mut buffer = [0u8; 10];
+    let mut n = 0;
+    let mut digits = [0u8; 10];
+    let mut left = value;
+    loop {
+        digits[n] = b'0' + (left % 10) as u8;
+        left /= 10;
+        n += 1;
+        if left == 0 {
+            break;
+        }
+    }
+    for i in 0..n {
+        buffer[i] = digits[n - 1 - i];
+    }
+    // SAFETY: every byte written above is an ASCII digit.
+    say(table, unsafe {
+        core::str::from_utf8_unchecked(&buffer[..n])
+    });
 }
 
 /// Print a `[start, end)` physical range after a caller-supplied phrase.

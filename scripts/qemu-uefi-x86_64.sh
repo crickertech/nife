@@ -124,6 +124,24 @@ fi
 # script matched its sibling, and that bug cost the APICs, the timer, PCI and VT-d on any machine
 # with real RAM. NIFE_MEM sets it back to 256M for a like-for-like memory-map comparison against
 # the PVH runner (notes/x86-uefi-boot.md's table was measured that way).
+# A QEMU monitor on a unix socket, when NIFE_SCREEN_MON names one (milestone 243). This is what
+# lets a GATE read a screen: `screendump` writes a PPM of the scanout and works with `-display none`
+# (the aarch64 runner has relied on that since milestone 29), and `board_console::screen` turns that
+# PPM back into the text nife's framebuffer console drew into it. Without the variable QEMU gets no
+# monitor, exactly as before.
+#
+# **This machine has a display adapter whether or not anyone looks at it**, which is the fact the
+# whole milestone rests on: `-display none` suppresses the host WINDOW, not the emulated VGA device,
+# so OVMF finds an `EFI_GRAPHICS_OUTPUT_PROTOCOL` here for the same reason a real machine's firmware
+# finds one. That is why this gate is worth anything at all.
+#
+# The path must stay under 104 bytes (the OS limit on a unix socket path), which is why xtask puts
+# the socket in /tmp rather than in a worktree's target/.
+MON=""
+if [ -n "$NIFE_SCREEN_MON" ]; then
+    MON="-monitor unix:$NIFE_SCREEN_MON,server,nowait"
+fi
+
 SMP="${NIFE_SMP:-1}"
 CPU="${NIFE_CPU:-max}"
 MEM="${NIFE_MEM:-2048}"
@@ -174,6 +192,7 @@ exec scripts/qemu-bounded.sh "$TIMEOUT" qemu-system-x86_64 \
     -no-reboot \
     -device isa-debug-exit,iobase=0xf4,iosize=0x04 \
     -device intel-iommu \
+    $MON \
     $DISK \
     $NVME \
     -drive "if=pflash,format=raw,unit=0,readonly=on,file=$NIFE_OVMF_CODE" \

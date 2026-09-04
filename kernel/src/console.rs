@@ -21,6 +21,9 @@ use crate::drivers::pl011::Pl011 as ConsoleUart;
 // register space rather than a third one; see drivers/ns16550.rs and arch/x86_64/port.rs.
 #[cfg(target_arch = "x86_64")]
 type ConsoleUart = crate::drivers::ns16550::Ns16550<crate::arch::PortIo>;
+use machine_discovery::framebuffer::Framebuffer;
+use screen_console::ScreenConsole;
+
 use crate::sync::{IrqSafeMutex, rank};
 
 /// The console UART's **physical** address on QEMU's `virt` machine.
@@ -74,7 +77,54 @@ const UART_BASE: usize = crate::arch::mmu::phys_to_virt(UART_PHYS) as usize;
 #[cfg(target_arch = "x86_64")]
 const UART_BASE: usize = UART_PORT;
 
-/// The console UART.
+/// **The screen half of the console** (milestone 243), when the machine has one.
+///
+/// A framebuffer this kernel was told about by whoever booted it, plus the cursor walking across
+/// it. Held here, inside [`KernelConsole`], rather than under a lock of its own, and that is the
+/// whole reason this struct exists: **the UART lock is what serialises the screen too.** A second
+/// mutex would need a rank below `rank::CONSOLE` and would be taken on every `print!` for no
+/// benefit, and `force_unlock` (the panic path) would then have two locks to break instead of one.
+struct Screen {
+    /// The cursor and the geometry. Holds no pixels; see the `screen_console` crate.
+    console: ScreenConsole,
+    /// The framebuffer's address **in the kernel's direct map**, and its length in bytes.
+    ///
+    /// A raw address rather than a `&'static mut [u8]`, because a slice would be a live mutable
+    /// borrow of device memory sitting in a `static` for the life of the machine. It is turned into
+    /// a slice for the duration of one write and no longer.
+    pixels: usize,
+    len: usize,
+}
+
+/// The kernel console: a UART, and since milestone 243 optionally a screen.
+///
+/// **Both, not either.** A machine with a serial port and a monitor should say the same thing on
+/// both, because the person at the bench and the gate reading the wire are looking for the same
+/// line, and a console that chose one of them would be a console somebody has to configure.
+struct KernelConsole {
+    uart: ConsoleUart,
+    screen: Option<Screen>,
+}
+
+impl core::fmt::Write for KernelConsole {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        self.uart.write_str(s)?;
+        if let Some(screen) = self.screen.as_mut() {
+            // SAFETY: `pixels` is the direct-map address of a framebuffer whose physical range was
+            // validated by `machine_discovery::framebuffer::Framebuffer::span` before it was
+            // recorded, and which `arch::mmu::map_everything` maps for the life of the kernel.
+            // `len` is that same span. Nothing else in the kernel writes to it: the display service
+            // hands *userspace* framebuffers out, and this one is not among them (see
+            // `attach_screen`).
+            let bytes =
+                unsafe { core::slice::from_raw_parts_mut(screen.pixels as *mut u8, screen.len) };
+            screen.console.write(bytes, s);
+        }
+        Ok(())
+    }
+}
+
+/// The console.
 ///
 /// It used to be lock-free: we minted a fresh handle per `print!`, since the handle is just a
 /// pointer and the real state lives in the hardware. That was fine with no interrupts. It stops
@@ -84,11 +134,57 @@ const UART_BASE: usize = UART_PORT;
 ///
 /// SAFETY: `UART_BASE` is the documented UART address on QEMU `virt`, and nothing else in the kernel
 /// touches it.
-static CONSOLE: IrqSafeMutex<ConsoleUart> =
-    IrqSafeMutex::new(rank::CONSOLE, unsafe { ConsoleUart::new(UART_BASE) });
+static CONSOLE: IrqSafeMutex<KernelConsole> = IrqSafeMutex::new(
+    rank::CONSOLE,
+    KernelConsole {
+        // SAFETY: `UART_BASE` is the documented console address on every machine this kernel is
+        // built for (see its own doc comment), and nothing else in the kernel touches it. This is
+        // the static's initializer; it moved inside a struct in milestone 243 and the reason it is
+        // `unsafe` did not change.
+        uart: unsafe { ConsoleUart::new(UART_BASE) },
+        screen: None,
+    },
+);
 
 pub fn init() {
-    CONSOLE.lock().init();
+    CONSOLE.lock().uart.init();
+}
+
+/// **Start printing to a screen as well as to the UART** (milestone 243).
+///
+/// `found` is what the boot stage before this kernel measured and wrote into the boot handoff;
+/// `virt` is where that physical framebuffer is readable, which on every caller so far is the
+/// direct map. Returns the grid it came up with, in character cells, or `None` when the geometry
+/// cannot hold one.
+///
+/// **It clears the screen**, which is the one visible side effect and is deliberate: whatever the
+/// firmware left there (a vendor logo, a boot menu, the loader's own four lines) is not this
+/// kernel's, and a boot tour written over a splash is a boot tour nobody can read. The cost is that
+/// the loader's lines are gone by the time the kernel's first line appears, so a machine that
+/// clears its screen and then says nothing has failed *between* the two, which is itself a reading.
+///
+/// # Safety
+///
+/// `virt` must name `found.span()` bytes of mapped, writable memory that is a framebuffer and not
+/// anything else, for the life of the kernel. Nothing here can check that: a physical address out
+/// of a boot handoff is an assertion by a previous stage, on the same footing as the memory map.
+// Dead on the other two architectures until milestone 157's U-Boot framebuffer handoff gives them a
+// caller. The console half is arch-neutral deliberately; what they are missing is the discovery.
+#[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
+pub unsafe fn attach_screen(found: Framebuffer, virt: u64) -> Option<(u32, u32)> {
+    let mut console = ScreenConsole::new(found)?;
+    let len = console.span();
+    let mut guard = CONSOLE.lock();
+    // SAFETY: this function's own contract, forwarded.
+    let pixels = unsafe { core::slice::from_raw_parts_mut(virt as *mut u8, len) };
+    console.clear(pixels);
+    let size = console.size();
+    guard.screen = Some(Screen {
+        console,
+        pixels: virt as usize,
+        len,
+    });
+    Some(size)
 }
 
 /// **Re-shape the console UART from the device tree** (RISC-V; the VisionFive 2 prep,
@@ -142,7 +238,7 @@ pub fn configure_from_dtb() {
         ),
     };
 
-    CONSOLE.lock().configure(shape);
+    CONSOLE.lock().uart.configure(shape);
 }
 
 /// Turn on the console UART's receive interrupt (RISC-V, milestone 20). After this the NS16550 raises
@@ -158,7 +254,7 @@ pub fn configure_from_dtb() {
 /// riscv-only: the aarch64 console stays polling, and its `ConsoleUart` (a PL011) has no such method.
 #[cfg(target_arch = "riscv64")]
 pub fn rx_enable() {
-    CONSOLE.lock().enable_rx_interrupt();
+    CONSOLE.lock().uart.enable_rx_interrupt();
 }
 
 /// **Has anyone typed at the console?** (Milestone 249.) True while a byte sits unread in the
@@ -175,7 +271,7 @@ pub fn rx_enable() {
 /// aarch64 console drives has no equivalent method here.
 #[cfg(all(target_arch = "riscv64", feature = "reboot_soak"))]
 pub fn rx_waiting() -> bool {
-    CONSOLE.lock().rx_waiting()
+    CONSOLE.lock().uart.rx_waiting()
 }
 
 /// Throw away whatever is already in the console UART's receive buffer, so that [`rx_waiting`]
@@ -183,7 +279,7 @@ pub fn rx_waiting() -> bool {
 /// `Ns16550::discard_rx` for why U-Boot's leftovers are the thing being cleared.
 #[cfg(all(target_arch = "riscv64", feature = "reboot_soak"))]
 pub fn discard_rx() {
-    CONSOLE.lock().discard_rx();
+    CONSOLE.lock().uart.discard_rx();
 }
 
 /// **Raise and lower the console UART's own interrupt line, for the RISC-V interrupt-delivery
@@ -204,13 +300,13 @@ pub fn discard_rx() {
 /// See `kernel::sched::tests` and notes/interrupts.md.
 #[cfg(all(test, target_arch = "riscv64"))]
 pub fn raise_uart_interrupt() {
-    CONSOLE.lock().enable_tx_interrupt();
+    CONSOLE.lock().uart.enable_tx_interrupt();
 }
 
 /// Quiet the line [`raise_uart_interrupt`] raised. Test builds only.
 #[cfg(all(test, target_arch = "riscv64"))]
 pub fn quiet_uart_interrupt() {
-    CONSOLE.lock().disable_interrupts();
+    CONSOLE.lock().uart.disable_interrupts();
 }
 
 /// Break the console lock open. **Panic and fault paths only.**
@@ -246,7 +342,7 @@ pub fn tx_bytes() -> u64 {
 }
 
 /// The counting shim between `write_fmt` and the driver: forwards each fragment, then counts it.
-struct CountedWrites<'a>(&'a mut ConsoleUart);
+struct CountedWrites<'a>(&'a mut KernelConsole);
 
 impl core::fmt::Write for CountedWrites<'_> {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {

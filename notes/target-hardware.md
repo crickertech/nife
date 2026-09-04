@@ -131,6 +131,18 @@ place where a decision of ours could foreclose a small target is the kernel mode
 DECISIONS §96's memory input is recorded there as closed **at this project's scale** rather than
 absolutely, for exactly this reason.
 
+**Requirement 3 is a *development* requirement, not a running one** (milestone 243, 2026-09-04), and
+the distinction was invisible for as long as nife had exactly one way to say anything. A system that
+boots, runs and serves needs no serial port; a system somebody is *bringing up* needs a way to watch
+it fail. The two lists looked identical because every word nife had ever said went down a UART.
+
+They do not any more, on one architecture. `notes/serial-less-output.md` records what changed: on a
+UEFI machine the loader asks the firmware where the linear framebuffer is and the kernel paints the
+boot tour into it, so requirement 3 is met by **a monitor** on those machines rather than by a cable.
+What that does *not* yet do is meet the half of requirement 3 an unattended gate needs, which still
+wants a serial line or a postmortem log. So: a screen is enough to bring a machine up by hand, and
+not yet enough to put one in a test loop.
+
 ## A fourth requirement, and this one filters silicon rather than firmware
 
 **At least 32 KB of L1 instruction cache**, and it is a requirement on the *claims* rather than on

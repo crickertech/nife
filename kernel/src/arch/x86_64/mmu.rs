@@ -688,6 +688,23 @@ where
         direct_map(m, base, base + PAGE_SIZE, Flags::device())?;
     }
 
+    // **The screen** (milestone 243), when the boot handoff described one. Device-typed like every
+    // other aperture here, and mapped for the same reason the VT-d window is: the kernel console
+    // has been writing to it through the coarse boot map since before the tour's first line, and
+    // the instant this fine map replaces that one an unmapped framebuffer would fault inside
+    // `println!`, whose fault handler prints. There is no diagnostic that survives that.
+    //
+    // It is the largest window in this function by three orders of magnitude: 1280x800 is 4 MiB,
+    // which is 1024 leaves. That is the price of a screen and it is paid once.
+    //
+    // **Device-typed means uncacheable, and uncacheable means slow**, which the `screen_console`
+    // crate's own BUGS records. Write-combining (a PAT entry) is the fix and is a milestone rather
+    // than a line: this kernel does not program the PAT at all today, and a framebuffer is the
+    // first thing in it that would care.
+    if let Some((base, size)) = memory::framebuffer() {
+        direct_map(m, base, base + size, Flags::device())?;
+    }
+
     Ok(())
 }
 

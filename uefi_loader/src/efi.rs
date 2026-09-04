@@ -4,10 +4,11 @@
 //!
 //! DECISIONS §46: a dependency is a decision, and the tree's shape is thin architectural
 //! primitives or whole subsystems nobody would write, with nothing in between. The `uefi` crate is
-//! squarely in between. What this loader needs is **six function pointers and two GUIDs**: allocate
-//! pages, get the memory map, exit boot services, print a line, and the two ACPI configuration-table
-//! identifiers. That is the whole of it, and it is written below in about two hundred lines that a
-//! reader can check against the specification without leaving the repository.
+//! squarely in between. What this loader needs is **seven function pointers and three GUIDs**:
+//! allocate pages, get the memory map, exit boot services, print a line, locate one protocol, and
+//! the two ACPI configuration-table identifiers plus the graphics one. That is the whole of it, and
+//! it is written below in a few hundred lines that a reader can check against the specification
+//! without leaving the repository. (Six and two until milestone 243 asked where the screen is.)
 //!
 //! The cost of getting it wrong is also unusually visible: a mis-numbered field in
 //! [`BootServices`] is a call to the wrong function pointer, which faults immediately and loudly at
@@ -25,7 +26,8 @@
 //! # BUGS
 //!
 //! - **The struct definitions stop where this loader's needs stop.** [`SystemTable`] ends after
-//!   `configuration_table` and [`BootServices`] ends after `exit_boot_services`; the real tables
+//!   `configuration_table`, [`BootServices`] ends after `locate_protocol`, and [`GraphicsOutput`]
+//!   ends after `mode`; the real tables
 //!   are longer. That is safe (the firmware's allocation is larger than ours, and we only read),
 //!   but a field added below the last one listed will not be found by name and has to be counted
 //!   in from the specification the same way these were.
@@ -243,6 +245,119 @@ pub struct BootServices {
     /// **The `map_key` must come from a `GetMemoryMap` with nothing allocated since**, which is
     /// what makes the call order in the loader binary (`src/main.rs`) rigid rather than stylistic.
     pub exit_boot_services: extern "efiapi" fn(Handle, usize) -> Status,
+
+    // --- Miscellaneous services (3) ---
+    get_next_monotonic_count: usize,
+    stall: usize,
+    set_watchdog_timer: usize,
+
+    // --- Driver support services (2) ---
+    connect_controller: usize,
+    disconnect_controller: usize,
+
+    // --- Open and close protocol services (3) ---
+    open_protocol: usize,
+    close_protocol: usize,
+    open_protocol_information: usize,
+
+    // --- Library services (2 before the one we want) ---
+    protocols_per_handle: usize,
+    locate_handle_buffer: usize,
+    /// `LocateProtocol(&guid, registration, &mut interface)`.
+    ///
+    /// The one call milestone 243 added, and it is the cheapest possible form of the question:
+    /// **is there a linear framebuffer on this machine, and where.** `registration` is always null
+    /// here, which asks for the first handle carrying the protocol rather than the next one since
+    /// some notification. On a machine with two display adapters that is the firmware's choice of
+    /// console rather than ours, and this loader has no basis for a better one.
+    pub locate_protocol: extern "efiapi" fn(*const Guid, *mut c_void, *mut *mut c_void) -> Status,
+}
+
+/// `EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID`.
+pub const GRAPHICS_OUTPUT_PROTOCOL_GUID: Guid = Guid {
+    a: 0x9042_a9de,
+    b: 0x23dc,
+    c: 0x4a38,
+    d: [0x96, 0xfb, 0x7a, 0xde, 0xd0, 0x80, 0x51, 0x6a],
+};
+
+/// `EFI_GRAPHICS_OUTPUT_MODE_INFORMATION`: what one video mode looks like.
+///
+/// **`pixels_per_scan_line` is not `horizontal_resolution`** and treating them as one is the
+/// classic framebuffer bug. Firmware is free to pad each row out to a convenient stride, so a
+/// writer that multiplies by the width paints a picture that shears progressively down the screen.
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct GraphicsModeInformation {
+    /// The structure's own version. 0 for everything this loader has met.
+    pub version: u32,
+    /// Width, in pixels.
+    pub horizontal_resolution: u32,
+    /// Height, in pixels.
+    pub vertical_resolution: u32,
+    /// One of [`pixel_format`]'s constants.
+    pub pixel_format: u32,
+    /// The channel masks, meaningful only for [`pixel_format::BIT_MASK`].
+    pub pixel_information: [u32; 4],
+    /// **The stride, in pixels**, which is the row pitch and not the width. See the note above.
+    pub pixels_per_scan_line: u32,
+}
+
+/// `EFI_GRAPHICS_PIXEL_FORMAT`.
+pub mod pixel_format {
+    /// Bytes in memory are R, G, B, unused. A little-endian `u32` is therefore `0xXXBBGGRR`.
+    pub const RGBX: u32 = 0;
+    /// Bytes in memory are B, G, R, unused. A little-endian `u32` is therefore `0xXXRRGGBB`, which
+    /// is the order every colour constant in this tree is already written in.
+    pub const BGRX: u32 = 1;
+    /// Channels described by masks rather than named. Not supported here; see `uefi_loader`'s BUGS.
+    pub const BIT_MASK: u32 = 2;
+    /// **There is no linear framebuffer at all**: this adapter can only be drawn on with `Blt`,
+    /// which is a boot-services call and therefore gone by the time the kernel runs.
+    pub const BLT_ONLY: u32 = 3;
+}
+
+/// `EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE`: the mode the adapter is *in*, and where its pixels live.
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct GraphicsOutputMode {
+    /// How many modes [`GraphicsOutput::query_mode`] would accept.
+    pub max_mode: u32,
+    /// Which one is current.
+    pub mode: u32,
+    /// The current mode's geometry.
+    pub info: *const GraphicsModeInformation,
+    /// How many bytes of [`Self::info`] the firmware filled in.
+    pub size_of_info: usize,
+    /// **The physical address of the linear framebuffer, and it survives `ExitBootServices`.**
+    ///
+    /// That is the whole reason milestone 243 can use this: it is a bar aperture on the display
+    /// adapter, not firmware memory, so nothing about ending the boot phase moves it or takes it
+    /// away. What ends is the firmware's *console*, not the display.
+    pub framebuffer_base: u64,
+    /// How many bytes of it there are.
+    pub framebuffer_size: usize,
+}
+
+/// `EFI_GRAPHICS_OUTPUT_PROTOCOL`, truncated after the one field this loader reads.
+///
+/// The three function pointers ahead of it are placeholders holding [`Self::mode`] at its specified
+/// offset, exactly as in [`BootServices`]. This loader never changes the video mode: it takes
+/// whatever the firmware left on the screen, because a mode set here is a mode the kernel would
+/// have to be told about through a channel that does not exist yet, and because the firmware has
+/// already picked one that works on this monitor.
+#[allow(
+    dead_code,
+    reason = "the three leading entries are the firmware's, present only to put `mode` at its \
+              specified offset"
+)]
+#[repr(C)]
+pub struct GraphicsOutput {
+    query_mode: usize,
+    set_mode: usize,
+    blt: usize,
+    /// The current mode, and the framebuffer's address.
+    pub mode: *const GraphicsOutputMode,
 }
 
 /// One entry of the UEFI configuration table: a GUID and a pointer.

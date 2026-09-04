@@ -23,3 +23,20 @@ license.workspace = true
 
 [lints]
 workspace = true
+
+[dependencies]
+# **The one dependency**, and the header above's "no dependencies, deliberately" now has an
+# exception worth stating rather than quietly breaking. `screen` (milestone 243) reads nife's
+# framebuffer console back out of a screendump, and the only way to do that without guessing is to
+# compare each 7x8 cell against the glyph table the console drew it from. A second copy of that
+# table in a host tool would be a gate that cannot disagree with the thing it gates, which is the
+# one property a gate has to have. It is ours, in this workspace, has no dependencies of its own,
+# and contains no `unsafe`; §46's concern is external code and this is none.
+bitmap_font = { version = "0.1.0", path = "../bitmap_font" }
+
+[dev-dependencies]
+# The *writer* the `screen` tests read back from, so that "what the kernel draws is what this
+# reads" is asserted against the crate the kernel actually links rather than against a second
+# painter written here. Same rule as `uefi_loader`'s handoff tests.
+machine_discovery = { version = "0.1.0", path = "../machine_discovery" }
+screen_console = { version = "0.1.0", path = "../screen_console" }

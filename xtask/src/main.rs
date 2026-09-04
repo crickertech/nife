@@ -3986,9 +3986,30 @@ fn uefi_boot() -> bool {
     eprintln!();
     eprintln!("--- boot under real firmware, x86_64 (QEMU q35 + OVMF) ---");
 
+    // **The screen half** (milestone 243). A QEMU monitor on a unix socket, a poller that asks it
+    // for a screendump until the tour's last line is *on the screen*, and `board_console::screen` to
+    // turn the picture back into text. Everything the framebuffer path can get wrong shows up here
+    // and nowhere else: the loader's `LocateProtocol`, the byte order, the stride, the mapping
+    // surviving `mmu::init`, and the glyphs. The serial transcript below would be identical if the
+    // screen were black.
+    //
+    // In /tmp rather than under target/, because a unix socket path is capped at 104 bytes by the
+    // OS and a worktree checkout plus `target/` gets close. Same reason `gpu_shot` does it.
+    let sock = format!("/tmp/nife-uefi-screen-{}.sock", std::process::id());
+    let shot =
+        std::path::PathBuf::from(format!("/tmp/nife-uefi-screen-{}.ppm", std::process::id()));
+    let _ = std::fs::remove_file(&sock);
+    let _ = std::fs::remove_file(&shot);
+    let seen = std::sync::Arc::new(std::sync::Mutex::new(None::<String>));
+    let watcher = {
+        let (sock, shot, seen) = (sock.clone(), shot.clone(), std::sync::Arc::clone(&seen));
+        std::thread::spawn(move || screen_watch(&sock, &shot, &seen))
+    };
+
     let output = match Command::new("scripts/qemu-uefi-x86_64.sh")
         .arg(esp_dir())
         .current_dir(workspace_root())
+        .env("NIFE_SCREEN_MON", &sock)
         // **Two cores** (milestone 195), where every other x86_64 boot in this tree takes one.
         // `arch::x86_64::ap_boot` copies its real-mode trampoline to physical 0x8000, a page no
         // loader had ever asked the firmware for, so secondary cores under firmware worked or did
@@ -4050,10 +4071,86 @@ fn uefi_boot() -> bool {
         );
         ok = false;
     }
+
+    // --- What was on the SCREEN, which is the whole of milestone 243 ---
+    let _ = watcher.join();
+    let _ = std::fs::remove_file(&sock);
+    let screen = seen.lock().ok().and_then(|s| s.clone());
+    match screen {
+        Some(text) => {
+            let rows = text.lines().filter(|l| !l.is_empty()).count();
+            eprintln!(
+                "uefi-boot: read {rows} non-blank row(s) of text back off the framebuffer, ending"
+            );
+            let tail: Vec<&str> = text.lines().filter(|l| !l.is_empty()).collect();
+            for line in tail.iter().rev().take(3).rev() {
+                eprintln!("uefi-boot:   | {line}");
+            }
+        }
+        None => {
+            eprintln!(
+                "uefi-boot: nothing readable was ever on the screen. The serial transcript above \
+                 says whether the kernel ran at all; if it did, the framebuffer path is what broke \
+                 (the loader's LocateProtocol, the pixel order, the stride, or the mapping \
+                 surviving mmu::init). Last dump: {}",
+                shot.display()
+            );
+            ok = false;
+        }
+    }
+
     if ok {
         eprintln!("uefi-boot: booted under OVMF from \\EFI\\BOOT\\BOOTX64.EFI");
     }
     ok
+}
+
+/// The line the screen has to be showing for milestone 243 to have worked.
+///
+/// The *last* line of the tour on purpose: a 1280x800 screen is 100 character rows and the tour is
+/// longer than that, so the early lines have scrolled off by the time anything reads the picture.
+/// Asserting on a line that is still there is the difference between a gate and a flaky one.
+const UEFI_SCREEN_MARKER: &str = "nife x86_64: boot complete, halting.";
+
+/// **Poll the QEMU monitor until the tour's last line is on the screen** (milestone 243).
+///
+/// Runs on its own thread beside the boot, because the kernel halts rather than exiting and the
+/// runner therefore does not return until its own timeout fires: by then QEMU is gone and there is
+/// nothing left to photograph. Stops on three conditions, and each is a different answer.
+///
+/// - The marker decoded: success, and the text is left in `seen`.
+/// - The monitor stopped answering after having answered once: QEMU is gone, and no later dump can
+///   be better than the last one.
+/// - The deadline: something is wrong that this loop cannot name.
+///
+/// A dump that fails to decode is never fatal here. `screendump` writes the file asynchronously, so
+/// a read that lands mid-write is short and ordinary; the retry is the answer, not a diagnosis.
+fn screen_watch(sock: &str, shot: &Path, seen: &std::sync::Mutex<Option<String>>) {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(180);
+    let mut answered = false;
+    while std::time::Instant::now() < deadline {
+        if !screendump(sock, shot) {
+            if answered {
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(500));
+            continue;
+        }
+        answered = true;
+        // A screen that decodes but does not hold the marker is deliberately NOT stored: an
+        // incomplete picture must not read as a pass. The dump file itself is the artefact, and
+        // the caller prints its path on failure.
+        if let Ok(bytes) = std::fs::read(shot)
+            && let Ok(text) = board_console::screen::read(&bytes)
+            && text.contains(UEFI_SCREEN_MARKER)
+        {
+            if let Ok(mut slot) = seen.lock() {
+                *slot = Some(text);
+            }
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(500));
+    }
 }
 
 /// **Run the kernel suite under real firmware** (milestone 195), rather than the tour

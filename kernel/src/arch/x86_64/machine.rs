@@ -19,6 +19,7 @@
 //!   `Option<(u64, u64, u64)>` shape has nowhere to put it. See notes/x86-port.md and
 //!   `kernel/src/arch/x86_64/port.rs`'s own doc comment.
 
+use machine_discovery::framebuffer::Framebuffer;
 use machine_discovery::x86_64::{
     BootInfo, MEMMAP_ENTRY_LEN, MODULE_ENTRY_LEN, MemoryEntry, Module, memory_entry, module,
 };
@@ -46,6 +47,56 @@ pub fn boot_info(at: usize) -> Option<BootInfo> {
     // of them, and refuses a truncated read.
     let bytes = unsafe { core::slice::from_raw_parts(phys_to_virt(at as u64) as *const u8, 56) };
     BootInfo::parse(bytes).ok()
+}
+
+/// **The longest boot command line this kernel will read**, in bytes.
+///
+/// A NUL-terminated string at a physical address a previous stage chose, so the terminator is a
+/// claim rather than a guarantee, and the loop below has to stop somewhere whether or not it finds
+/// one. `Framebuffer::MAX_LEN` is the only thing written there today and is well under this.
+const MAX_CMDLINE: usize = 256;
+
+/// **Put the boot tour on a screen, if the boot handoff described one** (milestone 243).
+///
+/// The whole of the x86 side of that milestone's kernel half, in one function, because it is one
+/// sentence: read the command line the loader wrote, find the framebuffer token in it, record the
+/// aperture so the fine map will carry it, and hand the console its address in the direct map.
+///
+/// Returns what was found and the grid it produced, for the caller's boot line. `None` means the
+/// machine said nothing about a screen, which is the ordinary case for every boot that is not
+/// `uefi_loader`'s: QEMU's PVH loader writes a zero command line, so `script/test --arch x86_64`
+/// takes this path and nothing about it changes.
+///
+/// **It must run before `arch::mmu::init`**, and it does, by a wide margin: it is the first thing
+/// the boot tour does. See `memory::record_framebuffer`.
+pub fn attach_screen(at: usize) -> Option<(Framebuffer, u32, u32)> {
+    let info = boot_info(at)?;
+    if info.cmdline == 0 {
+        return None;
+    }
+    // SAFETY: a physical address the loader wrote into its own handoff, reached through the direct
+    // map the boot page tables installed over the low 4 GiB. The length is capped rather than
+    // trusted, so an unterminated string reads `MAX_CMDLINE` bytes of the loader's own page and
+    // stops; the bytes are only ever compared against ASCII.
+    let bytes = unsafe {
+        core::slice::from_raw_parts(phys_to_virt(info.cmdline) as *const u8, MAX_CMDLINE)
+    };
+    let len = bytes.iter().position(|b| *b == 0).unwrap_or(MAX_CMDLINE);
+    let cmdline = core::str::from_utf8(&bytes[..len]).ok()?;
+    let found = Framebuffer::parse(cmdline)?;
+    let span = found.span()? as u64;
+
+    // Before the console is armed, not after: this is what makes the mapping survive `mmu::init`,
+    // and a console armed against a window nothing will map is a fault inside `println!`.
+    crate::memory::record_framebuffer(found.base, span);
+
+    // SAFETY: the aperture is `span` bytes at `found.base`, which the loader read out of the
+    // firmware's own `EFI_GRAPHICS_OUTPUT_PROTOCOL` and checked against the aperture size the
+    // firmware reported. It is mapped now by the boot tables (which cover the low 4 GiB) and after
+    // `mmu::init` by the entry the line above just arranged. Nothing else in the kernel writes
+    // there: the display service's framebuffers are virtio-gpu surfaces in RAM, not this.
+    let (cols, rows) = unsafe { crate::console::attach_screen(found, phys_to_virt(found.base))? };
+    Some((found, cols, rows))
 }
 
 /// Read memory-map entry `index` of the map `info` describes.

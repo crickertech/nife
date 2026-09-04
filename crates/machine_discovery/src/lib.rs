@@ -77,6 +77,11 @@
 pub mod aarch64;
 pub mod acpi;
 pub mod cpu_list;
+// Where the screen is (milestone 243), and it belongs to neither architecture for the same reason
+// `cpu_list` does not: the loader asks the firmware where the linear framebuffer is and tells the
+// kernel in one command-line token, and milestone 157's U-Boot handoff has the identical sentence
+// to say on aarch64. x86_64 is its first consumer, not its owner.
+pub mod framebuffer;
 pub mod interrupt_id;
 pub mod plic;
 pub mod riscv64;

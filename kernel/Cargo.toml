@@ -111,6 +111,11 @@ machine_discovery = { version = "0.1.0", path = "../crates/machine_discovery" }
 # serial terminal's clients and drivers do rather than a second one invented for a test.
 line_editor = { version = "0.1.0", path = "../crates/line_editor" }
 measured_boot = { version = "0.1.0", path = "../crates/measured_boot" }
+# **Text on a screen for a machine with no serial port** (milestone 243). The painter and the cursor
+# are pure logic over a `&mut [u8]`, so they are proved on the host in milliseconds rather than by
+# looking at a monitor, which is the one thing nobody in this project can do from a lane. The kernel
+# half is `console::attach_screen`: an address, a geometry and a lock it already holds.
+screen_console = { version = "0.1.0", path = "../crates/screen_console" }
 # The NTPv4 wire format (milestone 51). The kernel's NTP tests read the request the client actually
 # put on the wire, so the version, mode and port they assert on come from the same definition the
 # client serialised from rather than from three copies of RFC 5905 §7.3.

@@ -163,6 +163,19 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // table maps both). If this reads 0xffffffff801xxxxx, long mode is on and the kernel is in
         // the high half.
         let pc = kernel_main as *const () as usize;
+
+        // **The screen, before the first word** (milestone 243). On a commodity machine there is no
+        // serial port, so unless this runs here the entire tour below is written to a device that
+        // is not there. It is deliberately the first thing the x86 arm does: everything after it is
+        // visible on a monitor, and everything before it is not, so the earliest possible line is
+        // the one worth buying.
+        //
+        // It needs nothing brought up first. The screen's address arrives in the boot handoff and
+        // the boot page tables `boot.s` installed already cover the low 4 GiB, which is where a
+        // framebuffer aperture is; `arch::mmu::map_everything` later carries the mapping across to
+        // the fine map (`memory::record_framebuffer`, called inside).
+        let screen = arch::machine::attach_screen(boot_info_pointer);
+
         println!();
         println!("nife on x86_64 (long mode, ring 0, 4-level paging)");
         println!("  cpu 0 booted: high-half kernel, .bss, and the 16550 console are up.");
@@ -170,6 +183,20 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         println!(
             "  boot info   : {boot_info_pointer:#018x}  (PVH hvm_start_info, not a device tree)"
         );
+        // Said here rather than where it happens, because the line has to be printed by a console
+        // that already exists in order to be on the screen it is describing. A machine with no
+        // framebuffer says so and is not otherwise different, which is xenon: it has a serial port,
+        // which is why milestone 87 chose it.
+        match screen {
+            Some((found, cols, rows)) => println!(
+                "  screen      : {}x{} {} at {:#x}, {cols}x{rows} cells (boot cmdline)",
+                found.width,
+                found.height,
+                found.order.token(),
+                found.base,
+            ),
+            None => println!("  screen      : none in the boot cmdline; this console is the UART"),
+        }
 
         // What machine is this. CPUID needs nothing to be brought up first, which makes x86 the
         // only one of the three where this can run before anything else.

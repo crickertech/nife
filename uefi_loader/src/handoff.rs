@@ -124,6 +124,18 @@ pub struct StartInfo {
     pub memmap: u64,
     /// How many entries it has.
     pub memmap_entries: u32,
+    /// **Where the NUL-terminated boot command line is**, or 0 when there is nothing to say.
+    ///
+    /// PVH has always carried this field and until milestone 243 this loader wrote a zero into it,
+    /// which this module's own text called out as a gap: there was nowhere for a boot argument to
+    /// come from or go to. It carries one thing today, `machine_discovery::framebuffer`'s
+    /// description of the screen the firmware was drawing on, and it is the field that means a
+    /// machine with no serial port is not silent.
+    ///
+    /// **A command line rather than a new structure field**, deliberately: `hvm_start_info` is
+    /// Xen's format, versioned by Xen, and a field appended to it is a fork of somebody else's
+    /// layout that looks exactly like the real thing to whoever reads it next. See that module.
+    pub cmdline: u64,
 }
 
 impl StartInfo {
@@ -137,7 +149,7 @@ impl StartInfo {
         // otherwise would be a lie the kernel has no way to check.
         put_u32(&mut out, 12, self.module_count);
         put_u64(&mut out, 16, self.modules);
-        // offset 24: cmdline. Nothing here has a command line yet.
+        put_u64(&mut out, 24, self.cmdline);
         put_u64(&mut out, 32, self.rsdp);
         put_u64(&mut out, 40, self.memmap);
         put_u32(&mut out, 48, self.memmap_entries);
@@ -188,6 +200,7 @@ mod tests {
             module_count: 1,
             memmap: 0x0100_1000,
             memmap_entries: 42,
+            cmdline: 0x0100_2000,
         };
         let decoded =
             pvh::BootInfo::parse(&info.encode()).expect("the kernel's decoder accepts it");
@@ -201,6 +214,42 @@ mod tests {
         assert_eq!(decoded.module_count, 1);
         assert_eq!(decoded.memmap, 0x0100_1000);
         assert_eq!(decoded.memmap_entries, 42);
+        assert_eq!(
+            decoded.cmdline, 0x0100_2000,
+            "the field milestone 243 started writing, and offset 24 is the only place it can be"
+        );
+    }
+
+    /// **The whole of milestone 243's handoff, end to end, in one host test.** The loader describes
+    /// a screen, encodes it into the command line, writes the command line's address into the
+    /// structure, and the kernel's own decoder gets the pointer back out. Everything except the
+    /// physical memory the pointer names is exercised here, in milliseconds, on a machine with no
+    /// framebuffer at all.
+    #[test]
+    fn a_screen_survives_the_whole_handoff() {
+        use machine_discovery::framebuffer::{Framebuffer, PixelOrder};
+
+        let screen = Framebuffer {
+            base: 0x8000_0000,
+            width: 800,
+            height: 600,
+            stride: 3200,
+            order: PixelOrder::Bgrx,
+        };
+        // The loader's own buffer, at the address it would have allocated for it.
+        let mut line = [0u8; Framebuffer::MAX_LEN];
+        let written = screen.encode(&mut line);
+
+        let info = StartInfo {
+            cmdline: 0x0200_0000,
+            ..StartInfo::default()
+        };
+        let decoded = pvh::BootInfo::parse(&info.encode()).expect("a valid structure");
+        assert_eq!(decoded.cmdline, 0x0200_0000);
+
+        // What the kernel does once it has followed that pointer.
+        let text = core::str::from_utf8(&line[..written]).expect("ASCII");
+        assert_eq!(Framebuffer::parse(text), Some(screen));
     }
 
     /// The two crates agree on the structure's length, which is the fact that would silently break
