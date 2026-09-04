@@ -418,9 +418,22 @@ pub fn jh7110_crg_window() -> Option<jh7110_crg::Found> {
 }
 
 impl Wiring {
-    /// Take the startup report: `[READY, first_refill_ok, bytes_in_hand]`, or a `0xDEAD_..`
-    /// word whose low byte names the bring-up step that failed. `None` when this caller was not
-    /// the one that wired the service, since the report is sent once.
+    /// Take the startup report, or `None` when this caller was not the one that wired the service,
+    /// since the report is sent once.
+    ///
+    /// Three words, and the JH7110 backend's meanings changed in milestone 159:
+    ///
+    /// - `[0]` the readiness verdict: [`entropy_proto::READY`], or a `0xDEAD_..` word whose low
+    ///   byte names the bring-up step that failed.
+    /// - `[1]` `(STAT-after-init << 32) | bytes_in_hand`. The high half is what the device's
+    ///   status register read once the driver had programmed it, which is the only place
+    ///   `STAT.R256` can be checked; the low half is how many bytes the driver had in hand.
+    /// - `[2]` the bring-up diagnostic, `(STAT << 32) | ISTAT`, read at report time and **not
+    ///   conditional on `[0]`**. It used to be the byte count on a successful bring-up and a
+    ///   register snapshot otherwise, which made the number ambiguous in a bench transcript; see
+    ///   the boot tour's `hw entropy` arm for what that cost.
+    ///
+    /// The virtio-rng and instruction backends fill `[1]` and `[2]` with their own equivalents.
     pub fn wait_for_ready(&self) -> Option<[u64; 5]> {
         self.ready.map(crate::sched::ipc_recv)
     }
@@ -436,5 +449,28 @@ impl Wiring {
             Some(count) => entropy_proto::take(count, r[1], out),
             None => 0,
         }
+    }
+
+    /// **Fill `out` completely, however many round trips that takes**, and return how many bytes
+    /// landed. Stops early the moment a reply is short, because a service that answered with fewer
+    /// bytes than asked has told the caller it is out; asking again would spin on a dry device.
+    ///
+    /// This exists because [`get`](Wiring::get) is **one** exchange and `entropy_proto` carries
+    /// [`MAX_BYTES`](entropy_proto::MAX_BYTES) bytes per exchange, so `get(32, ..)` returns 8, not
+    /// 32. Every caller that wants more than one word's worth has to loop, and the boot tour did
+    /// not: it asked for 32, compared the answer against 32, and printed FAILED on a working
+    /// device for three days (milestone 159; radon, 2026-09-04). Naming the loop here means the
+    /// next caller that wants a bufferful cannot make the same mistake by writing the obvious
+    /// thing.
+    pub fn fill(&self, out: &mut [u8]) -> usize {
+        let mut got = 0;
+        while got < out.len() {
+            let n = self.get(entropy_proto::MAX_BYTES, &mut out[got..]);
+            got += n;
+            if n == 0 || (n as u64) < entropy_proto::MAX_BYTES {
+                break;
+            }
+        }
+        got
     }
 }

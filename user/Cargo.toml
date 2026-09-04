@@ -476,10 +476,10 @@ test = false
 bench = false
 
 # The JH7110 TRNG driver (milestone 159): an alternate entropy_proto backend for real riscv64
-# hardware (the VisionFive 2), beside "entropy"'s virtio-rng one. NOT packed into any initrd and
-# NOT wired to any spawner yet (see src/jh7110_trng.rs's own doc for why); it builds and
-# type-checks on every target this workspace builds for, same as any other program here, but
-# nothing currently spawns it. Name: PROVISIONAL, matching the crate it is the volatile shell over.
+# hardware (the VisionFive 2), beside "entropy"'s virtio-rng one. Wired since 2026-09-01: the
+# riscv64 boot tour spawns it through entropy_service's Jh7110 bus when this machine's device tree
+# describes the device, which on every machine CI boots it does not. It ran on radon for the first
+# time on 2026-09-04. Name: PROVISIONAL, matching the crate it is the volatile shell over.
 [[bin]]
 name = "jh7110_trng"
 path = "src/jh7110_trng.rs"
@@ -706,8 +706,8 @@ watch = { version = "0.1.0", path = "../crates/watch" }
 uptime = { version = "0.1.0", path = "../crates/uptime" }
 elf = { version = "0.1.0", path = "../crates/elf" }
 entropy_proto = { version = "0.1.0", path = "../crates/entropy_proto" }
-# The JH7110 TRNG's register logic and DTB discovery (milestone 159), host-tested in the crate
-# itself; jh7110_trng.rs is the volatile shell over it, unwired, per the crate's own doc.
+# The JH7110 TRNG's register logic, DTB discovery and byte pool (milestone 159), host-tested in
+# the crate itself; jh7110_trng.rs is the volatile shell of register writes over it.
 jh7110_trng = { version = "0.1.0", path = "../crates/jh7110_trng" }
 # login's own measured-boot consultation before it will build a caretaker from an archive entry
 # (milestone 49's BUGS, resolved): the same crate `crates/system_initializer` already depends on.

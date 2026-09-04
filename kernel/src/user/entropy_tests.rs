@@ -215,6 +215,39 @@ fn a_reply_never_delivers_more_bytes_than_it_says() {
     );
 }
 
+/// **More than one word's worth takes more than one round trip, and the loop that does it is
+/// checked here** (milestone 159).
+///
+/// `entropy_proto` carries [`entropy_proto::MAX_BYTES`] bytes per exchange, so a caller wanting a
+/// 32-byte buffer needs four. Nothing in this suite exercised that until now, and the gap had a
+/// cost: the riscv64 boot tour asked `get(32, ..)`, compared the 8 it got against 32, and printed
+/// FAILED on a working JH7110 for three days, on the one machine in the world that runs the
+/// branch. `Wiring::fill` is the loop, and this runs it against the backend CI actually has.
+///
+/// Two claims, and the second is the one the tour was really making. A full buffer comes back
+/// full, across round trips. And two consecutive fills differ, which for a 32-byte fill means the
+/// service crossed at least one internal refill boundary without repeating itself.
+#[test_case]
+fn a_fill_gathers_across_round_trips() {
+    let Some(w) = start(Bus::Mmio) else {
+        crate::testing::skip!("no virtio-rng device on the mmio bus (NIFE_RNG not set?)");
+    };
+
+    let mut a = [0u8; 32];
+    let mut b = [0u8; 32];
+    assert_eq!(
+        w.fill(&mut a),
+        32,
+        "a 32-byte fill should gather four replies, not stop at the first",
+    );
+    assert_eq!(w.fill(&mut b), 32, "the second fill came up short");
+    assert!(
+        a.iter().any(|&x| x != 0),
+        "a full fill of zeros is a dead source, not entropy",
+    );
+    assert_ne!(a, b, "two fills returned identical bytes");
+}
+
 /// **The instruction backend, milestone 162: RNDRRS on aarch64, no virtio device at all.**
 ///
 /// `Bus::Instruction` needs `ID_AA64ISAR0_EL1.RNDR` set, which the suite's default CPU

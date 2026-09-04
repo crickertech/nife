@@ -1287,8 +1287,24 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                             // because one proves only that *something* was returned: a stuck
                             // register file, a driver serving its buffer twice, and a device that
                             // never started all present as a repeat.
+                            //
+                            // **Each draw is four round trips, not one**, and that is the fix for
+                            // the failure radon printed on 2026-09-04. `Wiring::get` is a single
+                            // `entropy_proto` exchange, and that protocol carries `MAX_BYTES = 8`,
+                            // so `get(32, ..)` returns 8 and can never return 32: the success line
+                            // below was unreachable on any device, working or not. It went
+                            // unnoticed for three days because this branch runs on exactly one
+                            // machine in the world and QEMU takes the `skipped` arm.
+                            //
+                            // Filling all 32 bytes is also the stronger test, which is why the
+                            // count stays 32 rather than dropping to 8. The driver's pool holds
+                            // one 32-byte generation, so draw `a` empties it and draw `b` forces a
+                            // second trip to the hardware. Two 8-byte draws would both have come
+                            // out of the same buffer, and `a != b` would then prove only that the
+                            // cursor advanced. Now it compares two device generations, which is
+                            // what the line below claims.
                             let (mut a, mut b) = ([0u8; 32], [0u8; 32]);
-                            let (na, nb) = (w.get(32, &mut a), w.get(32, &mut b));
+                            let (na, nb) = (w.fill(&mut a), w.fill(&mut b));
                             // The service refuses to report ready on an all-zero first bufferful
                             // now, so this is a client checking a claim rather than the only thing
                             // standing between a boot and zeros served as randomness. It stays
@@ -1302,13 +1318,23 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                                 && a != b
                             {
                                 println!(
-                                    "  hw entropy  : JH7110 TRNG at {:#x} served 32+32 bytes to a client through a capability that names no device; first draw {:02x}{:02x}{:02x}{:02x}.., second differs",
-                                    device.reg_base, a[0], a[1], a[2], a[3],
+                                    "  hw entropy  : JH7110 TRNG at {:#x} served 32+32 bytes to a client through a capability that names no device; first draw {:02x}{:02x}{:02x}{:02x}.., second differs; STAT after init {:#010x} ({})",
+                                    device.reg_base,
+                                    a[0],
+                                    a[1],
+                                    a[2],
+                                    a[3],
+                                    (report[1] >> 32) as u32,
+                                    mode_note((report[1] >> 32) as u32),
                                 );
                             } else {
                                 // `report[2]` is the driver's bring-up diagnostic and it is the
-                                // number a bench session reads first: on any failed bring-up it
-                                // is the raw `(STAT << 32) | ISTAT`, and all zeros there means the
+                                // number a bench session reads first. It is **always** the raw
+                                // `(STAT << 32) | ISTAT` now, on success as well as on failure:
+                                // it used to be the byte count when the report word said READY,
+                                // and on 2026-09-04 that cost an hour, because the `0x20` printed
+                                // here was read as an undocumented `ISTAT` bit 5 when it was the
+                                // number 32 wearing a register's clothes. All zeros means the
                                 // register window read as nothing at all (a gated clock, an
                                 // undeasserted reset, or a base that is not the TRNG) rather than
                                 // a device that answered wrongly. See user/src/jh7110_trng.rs.
@@ -1319,7 +1345,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                                 // ungate (milestone 220's territory), while the same zeros on a
                                 // node it calls `okay` are a different problem entirely.
                                 println!(
-                                    "  hw entropy  : FAILED: JH7110 TRNG at {:#x} (tree says {}, status {}): report {:#x}, bring-up diagnostic {:#018x}, draws {na}/{nb} bytes, first-all-zero {zeros}, draws-differ {}",
+                                    "  hw entropy  : FAILED: JH7110 TRNG at {:#x} (tree says {}, status {}): report {:#x}, bring-up diagnostic {:#018x}, STAT after init {:#010x} ({}), draws {na}/{nb} bytes, first-all-zero {zeros}, draws-differ {}",
                                     device.reg_base,
                                     core::str::from_utf8(device.compatible).unwrap_or("?"),
                                     if device.status_okay {
@@ -1329,6 +1355,8 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                                     },
                                     report[0],
                                     report[2],
+                                    (report[1] >> 32) as u32,
+                                    mode_note((report[1] >> 32) as u32),
                                     a != b,
                                 );
                             }
@@ -1757,6 +1785,34 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
 /// This is the line the whole locking discipline was written for. From here, a timer interrupt
 /// can land between any two instructions in the kernel, and every `IrqSafeMutex` starts
 /// actually masking something. See DECISIONS.md §9 and notes/locking.md.
+/// **Say what the TRNG's `STAT` says about its output width** (milestone 159), for the boot tour's
+/// `hw entropy` line.
+///
+/// This is the one bit that decides whether the 32 bytes that line reports are 32 bytes of device
+/// output. In 128-bit mode only `RAND0..RAND3` carry a generation's answer, so a driver that
+/// assembles all eight words is serving 16 real bytes and 16 of whatever the upper registers hold.
+/// The driver writes `MODE.R256` during bring-up precisely because the width a given JH7110 resets
+/// to is a build-time parameter of the silicon; `STAT.R256` is the read-back that says it took, and
+/// nothing has ever read it on hardware.
+///
+/// An all-zero `STAT` is called out separately because it is not a mode report at all: it is the
+/// signature of a register window that answered with nothing, which milestone 220's clock line
+/// above is what explains.
+// riscv64-only because the JH7110 is; `allow(dead_code)` because the boot tour that calls it is
+// itself compiled out of the shell, initboot and bench builds, the same way `image_for_virtio`
+// below is.
+#[cfg(target_arch = "riscv64")]
+#[allow(dead_code)]
+fn mode_note(stat: u32) -> &'static str {
+    if stat == 0 {
+        "the whole status register read zero, so this says nothing about the mode"
+    } else if stat & jh7110_trng::STAT_R256 != 0 {
+        "256-bit: all eight RAND words are the answer"
+    } else {
+        "128-BIT: only RAND0..3 are the answer, so 16 of every 32 bytes are not device output"
+    }
+}
+
 /// The initrd image, for the virtio service. Panics if absent (the demo checked `initrd()` above).
 #[cfg(not(test))]
 // Tour-only: the shell, initboot, and bench boots all skip the milestone tour where it is used.
