@@ -575,6 +575,7 @@ besides, being built for dated release grouping; these are capability-shaped and
 | 251 | NOT-STARTED | [A `needs-architect` label outlives the question that earned it, so the queue lies](251-a-needs-architect-label-outlives-its-question.md) | nothing takes the label off, so the one query that says what is waiting on the architect can be false | |
 | 252 | BUILT | [A `PARTIAL` block claims work is remaining and nobody re-reads it](252-a-partial-block-is-the-one-nobody-re-reads.md) | All 22 `PARTIAL` blocks swept: 215 dispositions written, **56 of them recording a claim the tree disproved, and every one of the 22 blocks carried at least one** | 2026-09-03 |
 | 253 | NOT-STARTED | [A status that can only become wrong after the merge, so no gate can catch it in time](253-a-status-that-only-becomes-wrong-after-the-merge.md) | milestone 247 merged reading IN-PROGRESS on its own branch; the check that refuses it can only fire afterwards, on somebody else | |
+| 254 | NOT-STARTED | [A caller stranded by a server that died is stranded forever, and nothing records that as intended](254-a-caller-stranded-by-a-dead-server.md) | `Gone` reaches endpoint wait queues and not reply parks, so a dead server blocks its callers for the life of the machine | |
 
 The order §14 sets: **verify the core and make it verifiable first** (18 and 14, the thesis), then the
 road to running real workloads on real machines (15, 21, 16, 19; 25 extends 21 into cross-OS
