@@ -13,11 +13,11 @@ they were written, because the argument they record is what the decision was mad
 changed is only that it is no longer open.
 
 **Why A and not B, so it is not relitigated.** A's one live risk was that it would settle *what a
-spawner retains over a child after `START`* by accident. That was settled on its own terms the same
-day, on `maintainer/spawn-retention-field` (retention becomes a declared field in
-`crates/supervision_proto`, and it declares "retain nothing"); the decision owes a `DECISIONS`
-section that the integrator mints at merge, so it is cited here by branch rather than by a number
-this lane could not know. Settling it removed the accident and freed A to ship. **B stays open behind a customer that does not exist**: a terminate
+spawner retains over a child after `START`* by accident. `DECISIONS` §142, what a spawner retains
+over a child after `START`, settled that on its own terms the same day: retention becomes a declared
+field on `ChildEndowment`, and what it declares today is what the tree already does, which is retain
+nothing. Settling it removed the accident and freed A to ship, which that section says in as many
+words. **B stays open behind a customer that does not exist**: a terminate
 verb on a `ThreadControlBlock` capability widens a construction-time authority into a lifetime
 handle, and nobody has asked to end a thread without owning its region. C is milestone 254, minted
 separately. D is what the tree did until today.
@@ -147,9 +147,9 @@ case is the miss rather than the hit, because the kernel asks both queues on eve
 - **Refused.** Proposal B, a terminate verb on a `ThreadControlBlock` capability. It would widen a
   construction-time authority (every method on that capability refuses a thread that is not an
   `Embryo`) into a lifetime handle, and it answers a question nobody has asked: ending a thread
-  without owning its region. Settling the spawner-retention question on
-  `maintainer/spawn-retention-field` removed the reason A had to wait for it. It stays available
-  behind a customer that does not exist.
+  without owning its region. `DECISIONS` §142 removed the reason A had to wait for it, and is
+  explicit that nothing in it decides this milestone. It stays available behind a customer that does
+  not exist.
 - **Refused.** Proposal D, accept the leak and bound it with the `QuotaToken` machinery. Its case
   rested on a measurement of what the customer path needs, and the customer path is vacant
   (AGENTS.md, 2026-08-30), so the measurement cannot be taken. Its stronger half survives regardless:
