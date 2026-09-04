@@ -120,7 +120,7 @@ That is what makes a component's **peer** substitutable and not only the compone
 |---|---|
 | capabilities, by role name and direction, **in capability table slot order** | supervision: a component does not choose whether it is watched (§32) |
 | pages, by role name and the virtual address its own code reads | start arguments: which log entries this instance writes, which of `chatty`'s three roles it is |
-| how many pages of budget one instance is built out of | stack size, and everything else `ChildEndowment` defaults |
+| how many pages of budget one instance is built out of | stack size, and everything else `ChildEndowment` defaults (retention excepted: DECISIONS §142 gives it no default) |
 
 The line is that **a manifest declares what a component needs, not everything about how it is
 started**. Supervision is done *to* a component and is the supervisor's call. Start arguments are
@@ -246,8 +246,9 @@ both halves are slices of one plan:
 
 ```rust
 // Build with everything except what the revoke is about to take.
-let (tcb, aspace) = build_child_space(ROOT_UT, region, &elf, &ChildEndowment {
-    caps: plan.caps(), maps: plan.maps_without_devices(), ..
+let (child, aspace) = build_child_space(ROOT_UT, region, &elf, &ChildEndowment {
+    caps: plan.caps(), maps: plan.maps_without_devices(),
+    ..ChildEndowment::new(Retention::Nothing) // DECISIONS §142: what we keep, said out loud
 })?;
 // ... Frame::REVOKE ...
 for &(va, slot, mode) in plan.devices() {

@@ -630,6 +630,15 @@ pub fn memory_region_destroy(ut: u64) -> bool {
 /// # Ok(())
 /// # }
 /// ```
+///
+/// # BUGS
+///
+/// **The retaining branch has no caller and therefore no test.** Every spawn site in the tree
+/// declares [`Retention::Nothing`] (DECISIONS §142 chose R4 declaring R0), so the arm that keeps
+/// the capability is reached by nothing that runs, and this crate is excluded from `script/test`'s
+/// host pass anyway for its unconditional `user_rt` dependency. The arm is three lines and does
+/// nothing, which is the only reason that is tolerable; the first site that declares
+/// [`Retention::ThreadControlBlock`] is exercising it for the first time and should say so.
 pub fn start_child(child: Child, a0: u64, a1: u64, a2: u64) -> bool {
     // SAFETY: as above: the kernel validates the capability and the method.
     let started = unsafe { invoke(child.tcb, abi::thread_control_block::START, a0, a1, a2) == 0 };
