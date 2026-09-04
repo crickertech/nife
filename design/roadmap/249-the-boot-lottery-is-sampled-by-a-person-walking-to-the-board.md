@@ -1,7 +1,8 @@
 # 249. The boot lottery is sampled by a person walking to the board, so nine draws is a whole evening
 
-**Status: NOT-STARTED.** Minted 2026-09-03 by calef, who asked during the boot series whether the soak
-could reboot itself. *(Number provisional until the merge queue lands it.)*
+**Status: IN-PROGRESS** on `milestone/249-self-rebooting-soak`. Minted 2026-09-03 by calef, who asked
+during the boot series whether the soak could reboot itself. *(Number provisional until the merge queue
+lands it.)*
 
 **Gate: NONE.** The mechanism is already in the kernel and already proven on this board.
 
