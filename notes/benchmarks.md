@@ -146,7 +146,7 @@ mean, so the caveats are the substantive half of this section.
   factor of a tuned fastpath on this silicon", which is a statement about headroom, not about
   having matched them.
 - **Their round trip is two syscalls and ours is four.** seL4 fuses send-and-wait into `Call` and
-  reply-and-wait into `ReplyRecv`; our EL0 path issues `SEND`, `RECV`, `SEND`, `RECV`. At ~27 ns
+  reply-and-wait into `ReplyRecv`; our EL0 path issues `SEND`, `RECV`, `SEND`, `RECV` (see milestone 188's correction below: that is the `ipc_rtt_el0` benchmark, and a real service issues `CALL`, `RECV_CAP`, `REPLY`, which is three). At ~27 ns
   (~110 cycles) per trap, the two extra crossings are ~220 cycles, a sixth to a quarter of our
   round trip, and they are self-inflicted rather than structural. The kernel-side `call_reply` bench
   measures the fused shape, but **there is no EL0 twin of it**, so the structurally matched
@@ -1219,8 +1219,14 @@ question is answered below and the gate exists.
 **The mechanism.** `script/fastpath-footprint` walks the call graph out of the disassembly, exactly
 as `script/stack-depth-check` already does for stack chains, and reports two numbers per ISA:
 
-- **`ipc_fastpath`**, the transitive closure of non-cold calls from the IPC and switch roots
+- **`ipc_send_recv`**, the transitive closure of non-cold calls from the SEND/RECV roots
   (`ipc_send`, `ipc_recv`, `schedule`, `finish_switch`, `current_cap`).
+- **`ipc_call_reply`**, the same closure from the CALL/RECV_CAP/REPLY roots. **This is the shape
+  the system actually runs**, and it is 25 to 29% larger; see "the gate measured the wrong shape"
+  below.
+- **`ipc_fastpath`**, derived, the worse of those two, which is what one round trip costs. Kept
+  under its old name because a dozen places in the tree cite it. Not gated on its own; both shapes
+  are.
 - **`syscall_entry`**, the trap vector plus the exception dispatcher plus `syscall::dispatch`,
   summed **flat with no closure**. A syscall traverses one path through a decoder, so closing over
   `dispatch` would pull in every object and method in the ABI and measure the syscall surface rather
@@ -1229,7 +1235,17 @@ as `script/stack-depth-check` already does for stack chains, and reports two num
 
 Gated at **5% growth** against `bench/fastpath-<arch>.txt`, tighter than the icount tripwire's 10%
 because these numbers are static: icount drifts when the compiler remakes inlining decisions for
-unrelated reasons, where a symbol size moves only when the code moves.
+unrelated reasons, where a symbol size moves only when the code moves. DECISIONS §144 replaces that
+stored baseline with a delta against `main` plus an absolute 16 KiB ceiling per architecture; that
+decision is made and not yet built.
+
+**What "non-cold" means, since 2026-09-04 (milestone 188 phase 3).** Two families. The panic and
+formatting family is libcore's and is matched by a regex in the script, because it carries no
+attribute anyone can read. Everything else is **derived from `#[cold]` in this workspace's own
+source**: the script greps for the attribute and excludes exactly those functions. That matters
+because outlining a cold arm is otherwise invisible to a closure walk, which simply follows the new
+call and counts the same bytes under a new name. It also means the exclusion cannot be widened by
+editing the gate, only by writing a claim in the code that a reviewer sees in a diff.
 
 ### The numbers, on `main` at 2026-08-18
 
@@ -1276,11 +1292,9 @@ reasoning is in the script beside the `ENTRY` table, where the next person to ad
 Nothing here is a cache result on x86_64 any more than on the other two; the framing in "What cannot
 be measured yet" below applies to all three equally.
 
-**Against the target above, we are over it.** The target is a fastpath under 4 KiB, an eighth of the
-U74's 32 KB L1i; `ipc_fastpath` alone is 5.6 KiB and the total with entry is 9.7. That is the gap
-the gate now holds still while somebody decides whether to close it, and `syscall::dispatch` at
-2,024 bytes remains the largest single item and the obvious candidate, being exactly what seL4's
-hand-written fastpath exists to skip.
+**Against the target above, we are over it**, and milestone 188 moved every number in this
+paragraph. See "the gate measured the wrong shape" below for the current figures. `syscall::dispatch`
+is no longer the largest single item and has not been since milestone 156 took 864 bytes out of it.
 
 **One finding worth keeping, because it is what made the number honest.** Closing naively from
 `finish_switch` returned **11.2 KiB**, because that function's reap branch drags in
@@ -1288,6 +1302,70 @@ hand-written fastpath exists to skip.
 Those run when a thread *exits* and never during an IPC. Classifying the teardown family as cold
 took the figure to 5.6 KiB. A gate shipped at 11.2 would have been measuring thread death and
 calling it IPC, and would have been quiet about a doubling of the real path.
+
+### The gate measured the wrong shape, and the aarch64 entry figure counted a table it never fetched
+
+*Milestone 188 phases 1 to 3, 2026-09-04. `design/roadmap/188-ipc-fastpath.md` carries the full
+argument and the phase-4 recommendation.*
+
+**Phase 1: the roots were `ipc_send` and `ipc_recv`, which is the shape of `ipc_rtt_el0` and of
+essentially no service in this tree.** A service is a client `CALL` and a server `RECV_CAP` then
+`REPLY`, which `kernel/src/bench.rs`'s own `call_reply` doc already calls "the one-endpoint shape
+real services use". Measured on the same binaries, the shape userspace runs is larger everywhere,
+because `ipc_recv_cap` and `ipc_call` carry the one-shot Reply mint, the capability-table insert
+into the server and the `WaitRole::Reply` parking DECISIONS §12 requires, and none of that is on a
+bare `SEND` or `RECV`. The gate now reports and checks both shapes.
+
+**And the correction to the syscall count**, which the comparison section above used to get wrong:
+our round trip is **three syscalls to seL4's two** (client `CALL`, server `RECV_CAP`, server
+`REPLY`), not four to two. Four is `ipc_rtt_el0`'s count and no service issues it. The residual one
+is the `ReplyRecv` fusion this tree does not have, which is a syscall-surface question and calef's.
+
+**Phase 2: aarch64's `syscall_entry` counted all sixteen exception vector entries.**
+`exception_vectors` is 2,020 bytes of sixteen self-contained 128-byte slots, because the hardware
+requires that layout; an `svc` from EL0 lands in exactly one of them (index 8) and fetches at most
+128 bytes. The other 1,892 are page faults, IRQs, kernel-mode traps and the AArch32 entries this
+kernel will never support. `exception_restore` (92 bytes), which runs on the return leg of every
+syscall and is the twin of riscv64's `trap_return`, was in neither figure and is now in this one.
+riscv64 needs no equivalent fix (`stvec` is in direct mode, one handler, no table) and neither does
+x86_64 (no IDT entry at all). **Nothing got faster**: this is an accounting fix, and the old figure
+was gameable by 1,892 bytes without changing one fetched instruction.
+
+**Phase 3: outlining alone made the number bigger, which is the finding.** Milestone 156's
+`#[inline(never)]` method works on `syscall_entry` because that half is flat. On a closure it is a
+no-op: the walk follows the new call and counts the same bytes under a new name, and the first
+attempt moved aarch64's `ipc_send_recv` from 5,888 to 6,220. What made it work was teaching the
+walk to read `#[cold]` out of the source (above). Four arms went out of line: `finish_switch`'s
+reap, `schedule`'s killed-thread conversion and its self-pop heal, and `set_ipc_aborted`, whose four
+call sites are all on these closures.
+
+| | `ipc_send_recv` | `ipc_call_reply` | `syscall_entry` | total |
+|---|---|---|---|---|
+| aarch64, before 188 | 5,888 | (7,576) | 3,304 | 9,192 |
+| aarch64, after | **5,356** | **7,028** | **1,508** | **8,536 (8.34 KiB)** |
+| riscv64, before 188 | 5,122 | (6,390) | 1,828 | 6,950 |
+| riscv64, after | **4,632** | **5,936** | **1,828** | **7,764 (7.58 KiB)** |
+| x86_64, before 188 | 6,767 | (8,657) | 1,637 | 8,404 |
+| x86_64, after | **6,236** | **8,122** | **1,637** | **9,759 (9.53 KiB)** |
+
+Parenthesised figures were not measured before this milestone; they are what the same binary would
+have reported. The totals move in both directions because two effects run against each other:
+counting the shape the system runs adds 1,300 to 1,900 bytes, and aarch64's vector-table fix removes
+1,796.
+
+**`kmem::recycle` left the closure on every architecture**, which settles a question the milestone
+had listed as open. It was reached only through `finish_switch`'s reap arm, so a successful
+rendezvous cannot reach it, and phase 3 established that structurally rather than by assertion.
+
+**The cost of phase 3, measured rather than asserted**: +0.17% retired instructions on `ipc_rtt` and
++0.24% on `call_reply` (aarch64, icount, against the same tree without the extraction). That is the
+outlined calls. It buys 6 to 10% off the footprint, and **no cache effect anyone in this house can
+observe**, which is the same caveat the rest of this section carries.
+
+**Where that leaves the 4 KiB target.** `ipc_call_reply` is 5,936 to 8,122 bytes, so the shape the
+system runs is still **48% to 103% over**, after the cheap method has been applied. Milestone 188's
+own recommendation reads that as the case *for* eventually hearing phase 4 rather than against it,
+and the block says so with the numbers.
 
 ### BUGS
 
