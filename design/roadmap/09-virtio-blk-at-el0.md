@@ -18,3 +18,9 @@ Plan against outcome, honestly: the revised row (`491f23d`) promised "virtio-blk
 filesystem server." The driver landed; a separate filesystem server did not exist at this
 milestone. The driver parsed nifefs itself, and a filesystem behind its own capability server
 is milestone 32's work, eighteen days and a real filesystem later.
+
+## Follow-on
+
+- **Milestone 32.** The revised row promised "virtio-blk in userspace + a filesystem server" and the
+  server did not land here; the driver parsed nifefs itself. A filesystem behind its own capability
+  server is milestone 32, eighteen days and a real filesystem later, and this block already says so.

@@ -24,3 +24,8 @@ to, or a thread pool shares a reply path, the convention breaks.
 functional and safety triggers. It widens the §4 syscall surface (a `Call` method, a `Reply`
 object), so it is a real decision, not a speculative add. This milestone turns that entry into code
 and gives it its own numbered §.
+
+## Follow-on
+
+- **None.** The block is a proposal and its own build; the reply capability, the `Call` method and
+  the syscall-surface widening it named all landed, and it names nothing left over.

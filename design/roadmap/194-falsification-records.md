@@ -53,3 +53,21 @@ to a fraction, so it comes before any code.
 - **A diff rots against refactors**, which §134 argues is correct and which is still churn.
 - **The retroactive pass is judgement, not mechanism.** Falsifying somebody else's harness means
   understanding what it was for, and a wrong falsification is worse than none because it certifies.
+
+## Follow-on
+
+- **Recorded.** `notes/falsification.md` holds the worklist this milestone created rather than
+  finished: 141 harnesses landed at `unfalsified`, and `script/falsifications --unfalsified` prints
+  them biggest package first. Where to start is recorded too, at the chaff milestone 191 found, with
+  `capability::subset_is_reflexive` proving a tautology and twelve of `paging`'s 26 harnesses
+  restating six properties once per ISA.
+- **Recorded.** `design/roadmap/194-falsification-records.md`'s BUGS: nothing forces the ratio
+  upward. Every harness may sit at `unfalsified` for ever while the lint stays green, which is the
+  cost of making the convention shippable at all.
+- **Recorded.** `design/roadmap/194-falsification-records.md` records that a recorded diff rots
+  against refactors. §134 argues that
+  is correct, since a patch that no longer applies is a signal, and it is still churn somebody pays.
+- **Recorded.** `design/roadmap/194-falsification-records.md` records that the retroactive pass is
+  judgement and not mechanism.
+  Falsifying somebody else's harness means understanding what it was for, and a wrong falsification
+  is worse than none because it certifies.

@@ -134,3 +134,20 @@ un-padded build actually has before picking a number narrower than what the data
 
 None needed outside this tree: `LIST`'s own fix (milestone 126, `kernel/src/syscall.rs`'s
 `aspace_list`) is the pattern, already proven to work and already reviewed.
+
+## Follow-on
+
+- **Refused.** Extracting `DeviceFrame::REVOKE` and `Tcb::START`. Both were tried and reverted: the
+  byte delta was negligible and not worth carrying the diff, which is the judgment call the "what
+  this does not decide" section left to whoever built it.
+- **Refused.** Extracting `Endpoint::SEND`, `RECV` and `CALL` or `Reply::REPLY`. They are the IPC
+  round trip the footprint gate exists to protect, so pulling them out of `invoke` would improve the
+  measured number by moving the thing being measured.
+- **Refused.** A shrink-side tolerance narrower than growth's 5%. The symmetric check reuses the
+  same band, because nothing has measured the un-padded build's run-to-run variance and a number
+  tighter than the data supports produces a gate that nags rather than one that measures.
+- **Recorded.** `design/roadmap/156-syscall-entry-diet.md` records the correction found during
+  landing: a lane's own merge silently dropped `abi::aspace::LIST`'s match arm during conflict
+  resolution, so its `--save` measurement was taken on a build missing a shipped feature and looked
+  better than reality. The corrected numbers are in `bench/fastpath-aarch64.txt` and its riscv64
+  sibling.

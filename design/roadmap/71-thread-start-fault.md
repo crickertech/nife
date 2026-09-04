@@ -88,3 +88,16 @@ Do not "fix" this by widening a deadline or re-running. Three CI failures on 202
 three different tests on three different CPU models, and only one of them announced itself as this
 fault; the other two were a frame-leak wait and the lost-wakeup watchdog, which are what this bug
 looks like when the guard does not happen to catch it first.
+
+
+## Follow-on
+
+- **Milestone 72.** The hang on `reclaim_frees_a_started_then_exited_childs_regions` is not this
+  bug: that child takes the TCB path, which runs with interrupts masked and cannot take the clobber,
+  and the hang reproduced with this fix in the tree. 72 chased it and found one line of test code, a
+  `reclaim_region` probe whose refusal is destructive rather than passive.
+- **Recorded.** `design/roadmap/71-thread-start-fault.md` keeps the scope note and the correction to
+  it: this fault has a silent face, so a lost-wakeup hang with no guard message really can be it.
+  The `sepc == 0` guard fires only when `t5` happened to be zero, and otherwise the thread `sret`s
+  to a garbage PC and dies quietly, which is why the note also says not to answer such a hang by
+  widening a deadline or re-running.

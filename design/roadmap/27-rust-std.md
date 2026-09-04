@@ -45,3 +45,21 @@ avoid: an errno-shaped `sys` layer that makes `std` work by pretending the OS is
 **Sequencing.** After 19 (the ABI, done) and object revocation (done); independent of 16 and 22;
 feeds 23 directly. **Effort: unpriced** (it depends on another project's toolchain and API, which
 the history here cannot bound). Off the thesis path, like 20 was: a reach the demonstrator earns.
+
+## Follow-on
+
+- **Decision.** `design/decisions/105-thread-spawn-decline-for-now.md`. `thread::spawn` shipped
+  `Unsupported` in both phases here, and the block leaves the retype-a-TCB version as a phase that
+  never got scheduled. It was settled instead: declined until a customer needs it.
+- **Milestone 31.** Creating and truncating a file, listed here among the operations no contract
+  verb backed. Its phase 2 bound `File::create`, `OpenOptions::create_new` and `truncate` onto the
+  FS contract, so `std::fs::write` works.
+- **Milestone 122.** Directory iteration, the other named gap. `OPENDIR` reaches the PAL there, so a
+  `std` program can hold a directory handle instead of getting `Unsupported`.
+- **Milestone 64.** The claim this block makes about scope, "most of crates.io that stays off fs and
+  net", is a claim nothing here measured. 64 built the fifty-crate probe that measures it.
+- **Milestone 184.** The x86_64 leg. This block shipped and re-shipped on aarch64 and riscv64, which
+  were the only two architectures when it was written; the third has no `std` port.
+- **Recorded.** `notes/std.md`. The operations that stay `Unsupported` because no verb in the
+  contract backs them (`canonicalize`, `read_link`, symlinks, permissions) are listed there under
+  "Honest caveats", where a reader writing a `std` program meets them.

@@ -228,3 +228,36 @@ proven here is the handoff below: the suite does not run under real firmware, on
   the same way real firmware does.
 - **VT-d and PCI interrupt routing**, which this block owed and no longer does: milestone 161's item
   6 and milestone 215 respectively.
+
+## Follow-on
+
+- **Milestone 195.** Run the x86_64 suite under real firmware, not only the boot tour. This block
+  listed it as an unnumbered proposal on the day milestone 195 shipped it: `cargo xtask uefi-test`
+  runs the kernel suite under OVMF with the same 192 passes and 68 skips as under PVH.
+- **Milestone 161.** VT-d, which this block owed and could not touch. It is milestone 161's roadmap
+  item 6, and it is what a confined userspace NVMe driver on x86 (DECISIONS §86) is gated on.
+- **Milestone 215.** PCI interrupt routing, the other thing this block owed while it was PARTIAL.
+- **Refused.** Falling back to the legacy `0xcf8`/`0xcfc` mechanism when a machine presents no MCFG.
+  Those ports see only the first 256 bytes of a function's configuration space, so a fallback would
+  enumerate a different set of capabilities than the ECAM path does, with every extended capability
+  simply absent, and a driver that then failed would fail somewhere else entirely. No MCFG means no
+  PCI, said out loud.
+- **Refused.** Adjusting for an MCFG whose first bus is not 0. `kernel/src/pci.rs` addresses a
+  function with an absolute bus number, and subtracting `lo << 20` names a base below the window
+  `mmu::map_everything` maps, turning config reads into reads of whatever sits underneath it. Every
+  machine seen reports 0 and none is required to, so it is checked and refused rather than fixed up.
+- **Recorded.** In `design/roadmap/165-x86-64-pci-acpi-mcfg.md`: the `PCIEXBAR` writing arm is
+  unexercised on both paths this kernel boots, since QEMU's PVH path already reports the window
+  enabled and OVMF enables it too. It stays for the machine that genuinely arrives with the decode
+  off, and nothing has run it.
+- **Recorded.** In `design/roadmap/165-x86-64-pci-acpi-mcfg.md`: three things only xenon can
+  confirm, which are that `PCI_BAR_PHYS` is free on that machine, that its firmware presents an MCFG
+  with first bus 0 and a bus count `PCIEXBAR` can encode, and that its ACPI tables sit below 4 GiB.
+  `pci::bar_census` prints the first of them on the boot line, so it is the number to read first.
+- **Proposed.** `design/roadmap/proposals/a-bar-window-the-machine-agreed-to.md`, take the 32-bit
+  MMIO window that BARs are placed in from the machine rather than from the hardcoded
+  `arch::x86_64::mmu::PCI_BAR_PHYS`. `_CRS` is AML and stays refused, but the firmware memory map
+  already names the gaps and Intel's host bridge reports `TOLUD` in its own configuration space. The
+  measure is `pci::bar_census`'s second number reaching zero, or a window the machine agreed to.
+  Recording it is not enough: a machine whose RAM reaches above `0xc000_0000` would have this kernel
+  relocate most of its bus on top of memory.

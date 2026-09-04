@@ -55,3 +55,18 @@ blocks in the code that backs the verification claim. Other cfg-gated code in th
 one of `script/lint`'s thirteen configurations, and milestone 82's survey already found the
 fourteenth that is not (`-p user -p user_rt` for riscv64, which the gate builds for aarch64 only).
 That one is worth fixing and it is a different bug.
+
+## Follow-on
+
+- **Recorded.** `notes/unsafe-obligations.md` records the fourteenth configuration this block
+  points at and does not fix: `script/lint` compiles `-p user -p user_rt` for aarch64 only, so the
+  riscv64 build of those two packages is linted by nothing. The note says outright that the gap is
+  unrelated to this milestone and still open.
+- **Recorded.** `notes/unsafe-obligations.md` records what the shim does not promise. It is
+  deliberately looser than Kani (its `any` takes any `T` where the real one requires `Arbitrary`), a
+  clean pass is not a proof, and a harness reaching for Kani API the shim lacks breaks the lint pass
+  rather than the proof.
+- **Refused.** Widening this into a gate over every `cfg`. `cfg(kani)` is the case with evidence
+  behind it, thirteen undocumented blocks in the code that backs the verification claim; other
+  cfg-gated code is already compiled by one of `script/lint`'s existing configurations, so a general
+  rule would buy nothing and cost a configuration matrix nobody can read.

@@ -84,3 +84,23 @@ login would use `verify`; and anything later that signs.
   a later generalisation. A single-secret store would be discovered as wrong at the worst moment.
 
 **Effort: not estimated.** The service shape is small; persistence and the at-rest question are not.
+
+## Follow-on
+
+- **Milestone 55.** The consumer this service was built for, where SMB needs the NTLMv2 response
+  computed without ever holding the NT hash. Its premise was retired 2026-08-30 when the customer
+  moved to borg over SSH, so the operation exists and nothing calls it.
+- **Milestone 49.** The other named consumer, login's use of `verify`. Built, and it authenticates
+  against this service unmodified.
+- **Recorded.** Nothing survives a reboot: the store is memory only, provisioned at boot. Secrets at
+  rest is the open question behind it (encrypted under what key, held where), and `cred::Record`'s
+  versioned encoding is a starting point rather than a durability claim. `notes/credentials.md`.
+- **Recorded.** It does not protect against an attacker who holds the endpoint right now. They can
+  authenticate sessions for as long as they hold it; the claim is that compromise is bounded and
+  revocable, not that a live intruder is stopped. `design/roadmap/65-secrets-service.md`.
+- **Recorded.** MD4 and MD5 ship on purpose, as protocol compliance rather than a security choice,
+  and a stored `NTOWFv2` is password-equivalent. `notes/ntlm.md` says what crosses the boundary,
+  what never does, and what storing that key costs.
+- **Recorded.** The store holds six secrets, a compiled-in constant sized to three family members
+  with a share each, and revocation is per holder rather than per secret: rotating one means
+  restarting the service and reprovisioning every other. `notes/credentials.md`.

@@ -42,3 +42,17 @@ platform dependency at all.
 **The harness's twenty lines should go when the tool grows them**, or this milestone has added a
 second implementation instead of moving the first. `blank_check_after_run` calling the tool with a
 partition index is the acceptance evidence.
+
+## Follow-on
+
+- **Refused.** Repair. If no header in the ring is valid the tool says so and stops. A format-aware
+  salvage tool is a real thing to want and is a different program with a different risk profile:
+  this one is read-only by design, and a salvager that guesses at a broken superblock is the
+  opposite of that.
+- **Refused.** Opening a device read-write. The recovery path stays read-only, and `put`/`import`
+  keep their read-write open for building fixtures against an image. Taking a device does not change
+  that, because opening a *device* read-write by accident is a considerably worse mistake than
+  opening an image read-write.
+- **Refused.** Turning the Linux FUSE mount on. It stays behind its feature flag, because enabling
+  it would put a platform dependency into the one tool in this tree that has none, and the recovery
+  story this milestone is about is somebody at a Mac at 2am.

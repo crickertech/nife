@@ -37,3 +37,18 @@ Timing a command that holds no clock is the whole point, so the milestone includ
 the *shell* holds no clock either, and the refusal should be `date`'s, worded for the prefix
 position. Host tests cover the plan and the arithmetic; the QEMU test is one timed spawn asserting
 the duration is positive and sane, not a latency benchmark, which is `bench`'s job.
+
+
+## Follow-on
+
+- **Decision.** `design/decisions/72-time-command-clock.md` takes the question this block left open,
+  whether a duration needs a clock capability at all: counter-only `time`, on the boundary that
+  wall-clock identity is authority and a capability gates it while a duration is ambient, because
+  the ABI already opened the counter to EL0. Both clock refusals became unreachable rather than
+  tolerated.
+- **Refused.** CPU time. It is the scheduler's knowledge and nothing queries it today, and the
+  number this command reports is deliberately wall clock between spawn and the exit arriving on the
+  supervision endpoint. If CPU time ever arrives it is an extension of the same command rather than
+  a rival to it.
+- **Milestone 93.** The status row still said the work had not started after it merged, which is the
+  roadmap drift 93 turned into a cadence rather than a one-off correction.

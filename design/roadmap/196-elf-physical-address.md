@@ -74,3 +74,26 @@ comment, and milestone 200 makes the mistake unsayable everywhere at once.
   make the kernel image obey the W^X rule `crates/elf` and `paging::Flags` enforce everywhere else.
   It belongs to whoever owns `kernel/link-x86_64.ld` (milestone 87's lane held it while this ran),
   not to `crates/elf`.
+
+## Follow-on
+
+- **Milestone 200.** Making the virtual/physical confusion unrepresentable, deliberately not done
+  here. Typing `elf::Segment`'s two fields alone would claim a distinction the rest of the tree does
+  not make, and a newtype every consumer immediately unwraps is not a mechanism. So this milestone
+  adds the field with the hazard in its doc comment, which is rung three, and 200 makes the mistake
+  unsayable everywhere at once. The hazard is real: `paddr == vaddr` for every user program in this
+  tree, so a consumer reaching for the wrong one behaves correctly in testing and wrongly on the one
+  path that matters.
+- **Milestone 208.** The linker-script change this block identified as the actual blocker and
+  handed to whoever owns `kernel/link-x86_64.ld`. Widening `Segment` did not retire the UEFI
+  loader's reader, because `kernel/link-x86_64.ld` folds `.text.boot` and `.data.boot` into one
+  output section and `crates/elf` refuses the resulting `RWX` `PT_LOAD`. 208 split the sections, the
+  loader now calls `elf::Elf::parse`, and its own reader is gone.
+- **Recorded.** `notes/elf.md` carries the measured segment headers, after this block's own
+  addresses turned out backwards and stale: `.ap_trampoline` is `p_vaddr` `0x8000` against `p_paddr`
+  `0x12b000`, not the reverse, and `0x165000` was a number from an older build. The lane found it by
+  building the image rather than by reading anything.
+- **Refused.** Giving `Elf::parse` a `physical_span`. What survives in `uefi_loader/src/image.rs` is
+  not a reader, and it stays out of the shared crate on purpose: a program loader maps at `p_vaddr`
+  and a firmware loader places at `p_paddr`, and on this image they are unrelated, so the span is
+  the firmware loader's own question rather than the format's.

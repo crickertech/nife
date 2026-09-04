@@ -106,3 +106,21 @@ are bound before the first waiter; only the signalling is switched on last.
   target, and there is no baseline to compare a board against until a board has run one.
 - **The hook fires on a timer, which is the one thing the workload cannot starve.** That is why it
   works, and it is also why it is not evidence about what happens without it.
+
+## Follow-on
+
+- **Milestone 225.** Running the experiment. This milestone makes it runnable; the run itself needs
+  a bench evening on radon, argon or xenon, which is where fatal risk 5's answer means anything and
+  where the one recorded defect was produced.
+- **Decision.** A rebalancer, the only thing that would make the IPC workload itself migrate rather
+  than its waiters, is declined in `design/decisions/138-cross-core-handoff-under-load.md`, which is
+  also where option D (the tick-signalled rendezvous this milestone built) was approved.
+- **Recorded.** Nothing here says what a crossing rate should be. The QEMU numbers are a shape, not
+  a target, and there is no baseline to compare a board against until a board has run one.
+  `notes/soak.md`.
+- **Recorded.** A soak build is not a production build, and this widens the gap milestone 219
+  measured. Round-trip rate falls because the machine does more work per round trip, so a soak
+  number compares only with another soak number. `notes/soak.md`.
+- **Recorded.** The hook fires on a timer, which is the one thing a saturated workload cannot
+  starve. That is why it works and also why it is not evidence about what happens without it.
+  `design/roadmap/221-a-soak-that-crosses-cores.md`.

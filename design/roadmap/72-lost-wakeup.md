@@ -45,3 +45,18 @@ accumulates them equally on both ISAs. But 101 of `MAX_THREADS = 128` is 79% of 
 `create_tcb` failure, and `thread_leak_police` polices only **runnable** leaks, so a blocked leak is
 invisible to it by construction. Nothing would warn before the suite hit the wall. That wants its own
 entry, with the evidence recorded in notes/scheduler.md.
+
+## Follow-on
+
+- **Recorded.** `notes/scheduler.md`. The 101 threads and 109 endpoints this milestone started from,
+  which it proved were not the hang and then handed on as wanting an entry of their own. The note's
+  "The accumulation is not this bug" section carries the whole account, including its 2026-08-27
+  update: the suite did hit 128 of 128 with spawns refused and no diagnostic, `sched::MAX_THREADS`
+  is 256 on a measured peak of 130, and `sched::PEAK_THREADS` reports occupancy in the closing
+  summary so nobody has to instrument the kernel to see the table filling. A **blocked** leak is
+  still invisible to `thread_leak_police`, which polices runnable spinners on purpose, and 130 of
+  256 is 51%, so the same curve reaches the same place again.
+- **Recorded.** `kernel/src/sched.rs`. `reclaim_region` returning `Err` is destructive: the refusal
+  arms the kill on every live thread in the region, which is what §24's `^C` escalation needs and
+  what made a comment reading "the refusal leaves the region untouched" cost four days. The function
+  carries a `BUGS` section saying so where a caller meets it.

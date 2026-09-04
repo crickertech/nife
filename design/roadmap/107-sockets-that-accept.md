@@ -49,3 +49,13 @@ nothing can use.
 same reason `TcpStream` was before milestone 30; whether the PAL binding lands here or in 27's
 follow-on is a scoping question worth settling early, because the answer decides whether a
 gitoxide-style real workload (milestone 99) can serve anything.
+
+## Follow-on
+
+- **Milestone 64.** The `std::net` PAL binding this block flagged as a scoping question. It landed
+  in milestone 64 rather than here or in 27: `TcpListener::bind` and `accept` map onto `OP_LISTEN`
+  and `OP_ACCEPT`, and rank 21 of the crates.io gap list closed with it.
+- **Recorded.** In `notes/net.md`, beside the verbs: the concurrency model is still phase one.
+  `ACCEPT` re-arms, so a listener serves connections one after another indefinitely, but the backlog
+  is one connection deep and two connections cannot be served at once, because the client blocks in
+  one call at a time. Serving several at once wants userspace threads or a select-shaped wait.

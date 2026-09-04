@@ -129,3 +129,36 @@ milestone 47's `enumerate`/`open`/`create`/`remove` split is what expresses "thi
 backups but not delete them", which is a genuinely useful thing to be able to say to a backup client.
 
 **Effort: not estimated**, and it depends entirely on the protocol chosen.
+
+## Follow-on
+
+- **Milestone 56.** The demo boot still admits guests, because there is no way to tell a running
+  system a password: the only thing that provisions the credential store is a test program carrying
+  [MS-NLMP] §4.2.1's published fixture. What closes it is a provisioning path, which milestone 56
+  owns.
+- **Milestone 56.** The server challenge is the adapter's `now()`, a clock rather than entropy, so
+  two connections in the same tick repeat a challenge and a captured proof becomes replayable. The
+  fix is an entropy capability and one more slot, which is the same milestone's service.
+- **Milestone 55.** Apple's own surface, deliberately kept out of this milestone: the `AAPL` create
+  context, Time Machine flags, Apple metadata, `posix_rename` and durability. Milestone 55's premise
+  was retired with journey 2, and that block records it.
+- **Recorded.** In `notes/smb.md`'s BUGS section: sessions are not signed. Identity buys
+  authentication of the client at setup and no integrity of the stream afterwards, which is what
+  `SessionBaseKey` is for and why the credential service publishes one.
+- **Recorded.** In `notes/smb.md`, kept in full rather than trimmed with the code: what was
+  demonstrated and when, what never worked, the scale of what was deleted, and why. A future reader
+  deciding whether to build a Mac-mountable share here again starts from that note's BUGS section.
+- **Proposed.** `design/roadmap/proposals/a-credential-endpoint-per-resource.md`, replace the SMB
+  adapter's resource-name configuration with a narrower `cred_proto`
+  capability, so the endpoint is the credential for one resource and the name is implied and
+  unforgeable, which is DECISIONS §27's argument applied to `cred_proto`. It is calef's call,
+  because it changes a contract two programs agree on. `notes/smb.md` records the shape as a next
+  step rather than as an accepted limitation, so the extra authority is carried without anyone
+  having chosen it.
+- **Done.** The status word for "built, then removed" was minted: calef added `REMOVED` to the
+  vocabulary on 2026-08-30, the same day this code was deleted. `design/roadmap/README.md` carries
+  the token, why the six words then available could only lie about this milestone, and the extra
+  obligation it inherits from `IN-PROGRESS` (the block must say when the code went and why). This
+  block's own status line now reads `REMOVED 2026-08-30`, so the index no longer shows a reader a
+  working network file service that does not exist. The bullet above was written before that
+  landed.

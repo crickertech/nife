@@ -229,3 +229,54 @@ recorded as one caught mutant, and the other 1,200 in that shard would finish.
 This was not built here because each attempt costs a twenty-minute CI round trip and the failure
 mode of a bad cap is a build that breaks confusingly rather than loudly, which is the wrong thing to
 ship under a feedback loop that slow.
+
+## Follow-on
+
+- **Milestone 244.** `system_initializer`, the crate carrying most of the score's fall (0 caught and
+  25 missed in the sample, 0 of 191 in the slice run). Milestone 244 was minted from this
+  milestone's first published report, measured the crate, and closed RECORDED because the pure
+  fraction a mutation can reach is small.
+- **Recorded.** `design/roadmap/238-the-scheduled-checks-that-never-run.md` says in `BUGS` that a
+  green mutation run is not the same as a good one: the number has to be compared against
+  `.cargo/mutants-baseline.txt`, and a run that succeeds while the score falls is a different
+  finding that this milestone does not cover.
+- **Recorded.** `notes/mutation-testing.md` tabulates what the two partial runs did and did not
+  cover. Seven eighths of the corpus is still unmeasured since 2026-08-03, because four of eight
+  shards died on the run that finally published, and a full refresh needs a run where enough shards
+  survive.
+- **Recorded.** `AGENTS.md` already accepts the gap `script/cadence-check` inherits. It is delivered
+  through `scripts/trunk-health.sh`, which runs under `launchd` on one Mac, so a machine asleep is a
+  watcher not watching.
+- **Recorded.** `design/decisions/74-audit-cadence.md` holds the cadence and what it is for. `audit
+  cadence` is red because two audits are genuinely due, which is the signal working rather than a
+  defect, and nothing can tell a correct red from a broken one from outside.
+- **Recorded.** `design/roadmap/238-the-scheduled-checks-that-never-run.md` records the boundary
+  around the other seven scheduled workflows milestone 232 inventoried and did not run. Neither
+  repair here touches them; what changed is that `script/cadence-check` now names any of them whose
+  last successful scheduled run is more than 15 days old.
+- **Refused.** Excluding `compositor` from the Miri run to make it fit its budget. That was
+  considered and dropped: the crate has no `unsafe` today, which is what retired `xtask` and
+  `board_console`, but it is central system logic under active development, and an excluded crate is
+  one where a future `unsafe` block is silently uncovered.
+- **Proposed.** `design/roadmap/proposals/sampling-the-compositor-sweeps-under-miri.md`, Sample
+  `compositor`'s six full-screen per-pixel sweeps under `cfg(miri)`, the way `glob`, `ntp_proto`,
+  `calendar` and `gpt` already sample theirs. One was strided and fell from 44+ minutes to 57
+  seconds; the other five are untouched and are now the whole remaining cost of
+  `script/undefined-behavior-check`. The budget was raised to 240 minutes instead of tuned, so the
+  true end-to-end cost has never been measured.
+- **Proposed.** `design/roadmap/proposals/a-memory-bound-for-one-mutant.md`, Bound what one mutant
+  may allocate, so a runaway allocation kills the mutant instead of the machine. Three shapes are
+  priced in this block (a memory cgroup via `systemd-run --scope`, `ulimit -v` ahead of
+  `script/mutation`, or a `cargo` runner wrapper) and choosing between them is the work. Today one
+  mutant goes 1.4 GB to 15.8 GB in twenty seconds and takes the runner agent with it, inside the
+  28-to-51-second per-mutant timeout that therefore cannot catch it.
+- **Proposed.** `design/roadmap/proposals/fatal-risk-3-against-the-new-number.md`, Re-read fatal risk
+  3 against the new number, which is calef's call. `design/fatal-risks.md` still reads MEASURED and
+  green on 92.4% from 2026-08-03, while the first published mutation report says 83.4% on a uniform
+  one-eighth sample across all 60 crates. Until somebody decides whether the verdict holds, that
+  file carries a stale figure and tells a reader the refresh arrives on its own.
+- **Proposed.** `design/roadmap/proposals/the-two-unexplained-mutation-scores.md`, Measure and answer
+  for `uefi_loader` at 15% and `manual` at 52%, the two crates this block names beside
+  `system_initializer` as carrying nearly all of the fall from 92.4% to 83.4%. Milestone 244 took
+  `system_initializer` alone. Nothing tracks these two, and no `BUGS` entry anywhere accepts their
+  scores, so the published number has two unexplained holes in it.

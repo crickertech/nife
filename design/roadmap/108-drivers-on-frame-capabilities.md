@@ -53,3 +53,18 @@ recording, and it is a design fork rather than a quiet addition.
 *back*; this is about who holds it in the first place. A driver on frame capabilities is a driver
 whose buffer could be revoked with §13's existing machinery, which is a reason to sequence them
 in either order and not to merge them.
+
+## Follow-on
+
+- **Recorded.** `notes/frames.md`: the console did not migrate and is still handed its page by the
+  spawn-time static mapping. It comes up before most of the system exists, so a bootstrap that needs
+  a capability service to print cannot report its own failure, which is why the note says it is
+  deliberately last and this block calls it a separate decision with its own argument.
+- **Recorded.** `notes/frames.md`: the compositor path is not in this milestone at all, so
+  `display_terminal` still receives spawn-time mappings in `MODE_WINDOW`, and `date` keeps its
+  `Spawn::maps` clock page in the kernel's test wiring. It is the one spawn literal in the tree
+  where both mechanisms appear at once, and migrating it means touching the shell's spawn path and
+  §67's grant manifest.
+- **Recorded.** `notes/frames.md`: each migrated program costs one more untyped region held for the
+  life of the process, against a region table with a finite number of slots and a page frame pool
+  milestone 107 already found at the edge.

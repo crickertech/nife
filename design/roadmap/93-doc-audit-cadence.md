@@ -62,3 +62,10 @@ promised: a note whose cited code has changed substantially since the note's las
 highest-value candidate for the next sweep, and git can compute that; whether it becomes a signal
 or stays a sweep heuristic is a decision for whoever builds this. The index and the reports share
 92's home, `design/audit-reports/`, decided 2026-08-04.
+
+## Follow-on
+
+- **Recorded.** `notes/documentation-audit.md` answers the one question this block left open, which
+  staleness triggers to build beyond the cadence. `script/audits --worklist` derives a note's
+  candidacy from how much its cited code has moved since the note's last edit, and the reasoning
+  there says why that stayed a sweep heuristic instead of becoming a signal that fires.

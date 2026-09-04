@@ -123,3 +123,25 @@ diff.
   (DECISIONS §46 untouched: it imports `re` and nothing else) and no build step, but it is a third
   language in the tooling, and that was accepted rather than argued for at length because the
   alternative was a `cargo build` in front of three `script/` commands.
+
+## Follow-on
+
+- **Refused.** Folding the QEMU invocation fragments shared by `scripts/qemu-runner-aarch64.sh` and
+  `scripts/qemu-runner-riscv64.sh` into one place. They are shell rather than python, a machine
+  configuration rather than a measurement, and nothing yet says the two runners should be one.
+- **Refused.** Sharing the filename regex between `script/decisions` and `script/journeys`. Both
+  gate a filename convention, neither reports a number the other must match, and nothing downstream
+  restates either, so it is a convention spelled twice rather than a derivation that can drift apart
+  while both look authoritative.
+- **Recorded.** `design/roadmap/236-lift-the-copied-derivations.md`: the harness comparison is rung
+  two, not rung one. Two implementations are kept honest rather than removed, so somebody can still
+  change one definition; they just cannot do it quietly.
+- **Recorded.** `design/roadmap/236-lift-the-copied-derivations.md`: the comparison checks one
+  number rather than a breakdown, because a per-package comparison would fail on a scope difference
+  the three derivations deliberately have.
+- **Recorded.** `scripts/rust_source.py` is Python in a tree that is otherwise Rust and shell. It
+  adds no dependency and no build step, and the third tooling language was accepted rather than
+  argued for, because the alternative was a `cargo build` in front of three `script/` commands.
+- **Recorded.** `design/roadmap/236-lift-the-copied-derivations.md` carries the provisional name.
+  `scripts/rust_source.py` was minted by the lane, names are calef's, and what was refused and why
+  is written down beside it.

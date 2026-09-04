@@ -74,3 +74,28 @@ legs.
   on purpose, which is a new program and therefore a name calef decides, and milestone 233's
   no-thread-killed assertion in `script/shell-check` would have to learn to except it. Proposed as
   its own milestone rather than smuggled in here.
+
+## Follow-on
+
+- **Recorded.** `design/roadmap/235-a-faulted-job-should-reach-the-prompt.md` BUGS: a job that hangs
+  without faulting has the same symptom and no answer. A live thread blocked in a receive nobody
+  will answer is not dead, so there is no death message to route and none of the three couplings had
+  anything to say about it.
+- **Recorded.** `user/src/job_undertaker.rs` carries the mechanism in its own BUGS: a fault reported
+  while the shell is watching a screen-narrowed tail arrives one command late, because the report is
+  an ordinary rendezvous send and nobody is reading the result endpoint. The collect happens before
+  the report, so a parked report can never cost the reclamation the prompt's memory depends on.
+- **Refused.** The two couplings that lost. The shell asking needs a poll interval, because the ABI
+  has no non-blocking receive, and a poll interval cannot tell a slow job from a dead one. Flowing
+  the death down the fault endpoint works for the fault and breaks the ordinary path, since every
+  clean exit would leave a second message behind its answer and every job would leave init's
+  supervision domain, which is what `ps` and `pgrep` read.
+- **Proposed.** `design/roadmap/proposals/a-regression-gate-for-the-fault-path.md`, A regression gate
+  for the fault path. It needs a program that faults on purpose, which is a new name and therefore
+  calef's, and milestone 233's no-thread-killed assertion in `script/shell-check` has to learn to
+  except it. The scaffold that proved this milestone was a patch to `user/src/worker.rs` and was
+  removed afterwards, so nothing stops the lost prompt returning.
+- **Proposed.** `design/roadmap/proposals/how-many-programs-can-fault.md`, Count which of the tree's
+  68 programs can fault under a shell, so the exposure of this defect class is a number rather than
+  a guess. Every program that can fault hit this path and nobody has looked, so there is no way to
+  say whether the fix mattered to two programs or to forty.

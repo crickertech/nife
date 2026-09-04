@@ -53,3 +53,27 @@ reads a set or is handed one.
 **The name is provisional and calef's call**, like every program name in this tree. `xargs` is what
 milestone 47 and both notes call it, and it is a standard term a reader already knows from outside,
 which is the strongest argument any name gets here.
+
+
+## Follow-on
+
+- **Milestone 47.** `xargs <program>` still stops after planning batch one, because the shell cannot
+  yet ask init to mint a per-batch caretaker. That missing delegation chain is milestone 47's, and
+  47's own block claims it in those words.
+- **Refused.** Raising `MAX_NAMES` above eight. Eight is measured rather than chosen: a name set
+  travels by value through the expander, the `Expansion`, `designate`'s return and the `Endowment`,
+  and at sixteen the shell ran off the bottom of its stack planning a single grant, twice. Lifting
+  the number means giving the shell an allocator or the grant a different carrier, which is its own
+  decision with its own argument, and `xargs` is still wanted afterwards because the ceiling moves
+  rather than disappearing.
+- **Recorded.** `notes/glob-grant.md` states the bound first: a directory with nine matching files
+  cannot be handed to one invocation at all, and the answer is a refusal with nothing spawned. The
+  refusal is loud and total on purpose, because a glob that quietly granted a prefix of what it
+  matched would make the printed set and the granted set disagree.
+- **Recorded.** `notes/glob-grant.md` also records that only the first pattern on a line is
+  expanded, which interacts with this command: an `xargs` whose input is a second operand meets a
+  shell that has no second name slot.
+- **Recorded.** `design/roadmap/109-xargs-at-the-grant-bound.md` says the name is provisional and
+  calef's call, like every name a lane ships. It is what milestone 47 and both glob notes call it,
+  and it is a standard term a reader already knows from outside, which is the strongest argument any
+  name gets here.

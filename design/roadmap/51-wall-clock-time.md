@@ -195,3 +195,27 @@ could start any time; `date` follows the service; NTP follows `date` and wants t
 settled. The timed-wait fork is separable and should be decided on its own, since it serves more than
 this milestone. **Effort: 3 lanes estimated** (drivers plus service, `date` plus the calendar crate,
 NTP), noting estimates for unbuilt work are guesses on a history-calibrated scale.
+
+## Follow-on
+
+- **Milestone 106.** The timed-wait fork, which is bigger than this milestone and which the block
+  says is tracked separately: there is no timed wait anywhere in the kernel, so `thread::sleep` is a
+  yield-spin and `Endpoint::RECV` has the no-timeout limitation `sched.rs` complains about twice.
+- **Milestone 106.** The NTP client is a one-shot synchroniser rather than a polling service,
+  deliberately, because a poll interval is a yield-spin and adding a sleep syscall to get a real one
+  would settle the fork above by accident.
+- **Milestone 47.** `date` was reachable from a test and not from the prompt, because
+  `grant_plan::Prog` knew only four programs. Folded into the milestone 47 grammar lane, which owns
+  `grant_plan`.
+- **Milestone 30.** smoltcp, UDP and the NIC are unproven on this path, and nothing in slirp answers
+  UDP 123, so there is no offline real server to point a gate at. The client's network path is
+  substituted at the capability boundary instead.
+- **Recorded.** In `design/decisions/43-clock-authority.md`, as a limit rather than a win:
+  `SystemTime::now()` has no error channel, so an unknown clock is a panic and std gives a program
+  no way to ask before it asks. `date` has an error channel and prints the two causes apart.
+- **Recorded.** In `notes/ntp.md`: `crates/ntp_proto` is unauthenticated NTPv4 and says so in its
+  own documentation. NTS (RFC 8915) needs TLS, which needs certificate validation, which needs a
+  roughly correct clock; the crate deliberately does not implement half of it.
+- **Refused.** The IANA tzdata is out and a fixed UTC offset is in, recorded in `notes/calendar.md`:
+  zone rules are a data-distribution problem rather than a calendar one. There is no `strftime`
+  either, five named formats instead.

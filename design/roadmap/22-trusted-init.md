@@ -104,3 +104,24 @@ signed boot images). For the supervision half: seL4 fault endpoints (the kernel 
 a message a supervisor holds); MINIX 3's reincarnation server (a userspace process that restarts
 dead drivers, not the kernel); Erlang/OTP supervision trees and "let it crash" (decades of evidence
 that restart policy wants to be a rich userspace thing, not a kernel reflex).
+
+## Follow-on
+
+- **Milestone 23.** Restarting a **hung** child. `Endpoint::REAP` refuses a live thread on purpose,
+  so a child that is stuck rather than dead cannot be collected or restarted through this
+  milestone's mechanism. That is the watchdog case, and this block hands it to 23, which
+  demonstrated it on 2026-08-17.
+- **Recorded.** `notes/trusted-init.md`, under "The signature variant, recorded and not built": the
+  variant that would let init be updated without rebuilding the kernel, at the cost of Ed25519 in
+  the TCB and a key-custody question nobody has answered. DECISIONS §26's phase B block defers it
+  deliberately.
+- **Recorded.** `notes/supervision.md`: milestone 36's `c_confiner` still holds a full construction
+  budget after the reap moved to `Endpoint::REAP`, because it is also the builder. The bundling was
+  two things and only one of them was the reap.
+- **Decision.** `design/decisions/26-fault-endpoint.md`. The fault endpoint, the one kernel
+  primitive phase 3 adds, got the numbered decision this block asked for when 19d.2 and 22 made it
+  concrete: the kernel delivers a message and never runs restart policy, and policy lives in the
+  userspace supervision tree.
+- **Recorded.** `design/roadmap/22-trusted-init.md`, under "The reach tail": proving init's
+  *behaviour* as distinct from verifying its bytes is the direction and is explicitly not committed.
+  Proof buys safety, supervision buys availability, and init's failure mode is availability.

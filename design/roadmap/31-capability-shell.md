@@ -134,3 +134,28 @@ layer); sits behind 28's terminal contract. **Effort: 4 lanes built** (the grant
 phase 3's larger half landing free under milestone 50; then init building the caretaker per grant,
 2026-08-17). Gating the interactive boot, which this line long named as the remaining cost, turned
 out to be `script/shell-check` and already built.
+
+## Follow-on
+
+- **Milestone 47.** A grant of more than one name. This block could only build one subtree caretaker
+  per grant, so `caps rm globmany/m-*.txt` previewed an authority nothing could deliver. Milestone
+  47's globbing lane built `user/src/fs_nameset_caretaker.rs`, which takes its set in a frame rather
+  than in argument words; the reasoning is design/decisions/52-nameset-glob-grant.md.
+- **Recorded.** `notes/dir-capability.md` carries it beside the feature: a grant more than one level
+  down is still not delivered, because init builds one caretaker per grant and that shape is a chain
+  of them, so removing a file two levels down is a refusal at the prompt.
+- **Refused.** Badging endpoint capabilities so the FS server could receive over a set of endpoints
+  and serve the narrowed one itself, which is seL4's answer. A separate caretaker process was taken
+  instead, because it makes the claim checkable from outside: the confined program holds an endpoint
+  to the caretaker and nothing that names the FS server, so "it cannot reach a second file" is a
+  property of its cspace rather than of a branch it is trusted to take.
+- **Recorded.** `design/decisions/76-roadmap-status-versus-tree.md` is the standing record of the
+  defect class this block met: its own status sat wrong for twelve days because phase 3's larger
+  half landed under milestone 50 and nothing read the result. A milestone's status is maintained by
+  its own lane, and nothing maintains it when another lane finishes its work.
+- **Proposed.** `design/roadmap/proposals/a-grant-on-the-namespace-root.md`, narrowing a grant on
+  the **root** of the shell's namespace, so that `rm gate.txt`
+  at the top prompt stops being a refusal when `rm rmtree/rm-solo` works. Both permanent answers are
+  calef's: a narrowing verb on the `fs_proto` contract, small in the server and forever on a wire
+  two programs agree on, or an interactive boot rooted one component below the image root, which
+  puts nothing on the wire and changes what every other command at that prompt means.

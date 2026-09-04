@@ -59,3 +59,22 @@ verifies that a thing is well-formed and never that it is right. `script/decisio
 in prose resolves to a file that exists (milestone 69 fixed 49 stale ones by hand). Each is a few
 lines to add. None is written yet, and they are listed here rather than in a tracker so the next
 person to touch these scripts finds them.
+
+## Follow-on
+
+- **Recorded.** `crates/swish/src/lib.rs`'s own `BUGS` section and `notes/shell.md`: `builtin`,
+  `dispatch_one`, `run`, `spawn` and `pipeline` stay in `user/src/swish.rs` and are still reachable
+  only by booting QEMU. They are capability movement, and lifting them would need the shell's IO
+  restructured, which this milestone was scoped not to do.
+- **Milestone 76.** The gate blind spot this block found: a table row saying `NOT-STARTED` while the
+  block said `BUILT`, with `script/roadmap --check` validating the vocabulary and never the
+  agreement. The roadmap split made the filename the identity and added the check that the index and
+  the file's own status line must agree.
+- **Milestone 114.** `script/decisions --check` reporting "numbering clean" for a section filed in
+  the wrong place. Splitting `DECISIONS.md` into one file per decision retires the class the same
+  way 76 did for the roadmap: a section cannot be filed under the wrong essay when the filename is
+  the identity.
+- **Milestone 97.** Nothing checking that a path cited in prose resolves to a file that exists,
+  after milestone 69 fixed 49 stale ones by hand. `script/citations` now treats a repo path as an
+  exact citation rather than a gloss: it must exist, and a numbered record file must carry the
+  number citing it.

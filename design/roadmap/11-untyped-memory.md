@@ -20,3 +20,10 @@ attack class because a process cannot make the kernel allocate.
 This was the last of the eleven; the security audit (`d82a7ce`), the DMA-confinement work, and
 everything the roadmap now tracks came after, and milestone 14 finished what this one started by
 removing the kernel heap outright.
+
+## Follow-on
+
+- **Milestone 14.** Finishing what this one started: the kernel heap goes away outright and every
+  kernel object is retyped out of a process's own untyped, so the "the kernel stops allocating"
+  measurement here becomes a structural property rather than one path's result. This block names it
+  in its closing line.

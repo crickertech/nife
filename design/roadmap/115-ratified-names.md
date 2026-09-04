@@ -115,3 +115,23 @@ how much of the tree's vocabulary arrived unexamined.
 The lint's blind spot, stated up front: it can check that a name is *in* the table, never that the
 table's reason is still true. That is the same limit `script/decisions --check` records about
 citations, and milestone 97 is the neighbouring case.
+
+## Follow-on
+
+- **Refused.** Draining `script/names --unratified`, which stood at 74 of 148 when this landed. The
+  gate deliberately checks that a name carries provenance and never that its state is ratified,
+  because a gate keyed on ratification would hold every unrelated merge behind a review nobody can
+  hurry. Working back through the list is calef's, on his own clock, and was explicitly out of
+  scope.
+- **Refused.** A rename pass. Nothing in the tree changes name because of this milestone; the
+  backfill records what is already true, and a name whose history says nothing is entered as
+  unrecorded rather than given an invented ratification.
+- **Recorded.** `design/roadmap/115-ratified-names.md` states the lint's blind spot up front in its
+  scope note: it can check that a name carries a provenance line, never that the line's reason is
+  still true.
+- **Decision.** `design/decisions/89-provisional-versus-unrecorded.md` settled whether a name a lane
+  minted and nobody has ruled on is the same thing as a name whose history says nothing. It is not,
+  and `provisional` became a fourth state on 2026-08-16, implemented at `script/names:252`.
+- **Milestone 97.** The neighbouring case this block's scope note names: the same blind spot in the
+  decisions check, where a citation can be verified for naming something that exists and never for
+  naming the right thing.

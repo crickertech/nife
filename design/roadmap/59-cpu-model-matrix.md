@@ -63,3 +63,19 @@ portable to the board's ISA", recorded with the evidence.
 
 **Effort: small**, and it is the highest ratio of de-risking to work of anything before the board
 lands (~2026-08-21).
+
+## Follow-on
+
+- **Decision.** `design/decisions/53-parity-matrix.md`. This block argued that parity should stop
+  meaning two ISAs and start meaning the same suite across CPU profiles, and that is where the
+  reframing was settled: a model is a first-class axis beside the ISA, five of them, on its own CI
+  job rather than inside `script/test`.
+- **Milestone 60.** ISA discovery, which this block deliberately runs after itself so the matrix
+  names the facts worth discovering instead of somebody guessing them.
+- **Recorded.** `notes/cpu-models.md` holds the one thing the matrix did not de-risk: every model
+  reports 16 implemented `satp.ASID` bits, QEMU does not model a narrower width per CPU, and so
+  `the_hardware_has_at_least_the_asid_bits_the_allocator_assumes` still has no machine that can fail
+  it.
+- **Recorded.** `design/roadmap/59-cpu-model-matrix.md`'s own BUGS: `sifive-u54` under QEMU is still
+  QEMU and reproduces none of the JH7110's cache behaviour, memory map or errata, and a green matrix
+  is the absence of one class of failure rather than a portable kernel.

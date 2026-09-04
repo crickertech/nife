@@ -22,3 +22,9 @@ The same day's follow-on commits are part of the milestone's honest record: `ce5
 invalidation works rather than asserting it, `499be5e` added a slab allocator "because the
 measurement said to," and `2ea4c6a` fixed `halt()` to use `wfi` after an idle kernel burned a
 whole host core, the finding CLAUDE.md still carries.
+
+## Follow-on
+
+- **None.** Backfilled history. Everything it names either landed the same day (the TLB proof, the
+  slab allocator, the `wfi` fix) or was undone on purpose by milestone 14, and the block leaves no
+  hazard, phase or fork open.

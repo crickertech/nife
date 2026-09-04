@@ -72,3 +72,13 @@ would fail until the rename lands. Splitting them would mean writing documentati
 arrival, or a checker that is red on arrival.
 
 **Effort: 1 lane estimated**, almost entirely verification rather than editing.
+
+## Follow-on
+
+- **Milestone 63.** The word-separation split this milestone measured and did not settle. It found
+  two habits and no rule for multiword names; 63 wrote the rule, extended it to directories and
+  package names, and renamed what disagreed.
+- **Recorded.** `notes/naming.md` states two limits of the checks this milestone added: they read
+  the filesystem for names and `git grep` for the word, so an untracked file saying "daemon" is
+  invisible, and check 1 sees names rather than behaviour, so a component with a good name that acts
+  like a daemon is not its problem.

@@ -36,3 +36,17 @@ VMM), the PMU is not virtualized (cycle-exact counters wait for milestone 16's s
 inherits this harness and swaps the clock), and the first thing to validate is that QEMU's
 semihosting test-exit works under HVF at all; if not, the bench build reports over virtio
 instead.
+
+## Follow-on
+
+- **Milestone 74.** Cycle-exact counters. HVF passes no PMU through, so `--real` reports the
+  architected virtual counter and derives cycles by arithmetic. Milestone 74 is the SBI PMU half on
+  riscv64 and the `PMCCNTR_EL0` half on aarch64, raised from an audit of what milestone 16a needs,
+  and it is what swaps the clock this harness reads.
+- **Recorded.** In `design/roadmap/21-benchmarks.md`, where a reader meets the instrument:
+  device-touching paths carry virtualization overhead under HVF, because MMIO traps to the VMM. So
+  `--real` magnitudes for anything that touches a device are not the host's own numbers.
+- **Recorded.** In `notes/benchmarks.md`, beside the numbers it qualifies: the semihosting question
+  this block said to validate first was answered, and the answer was no. `hlt #0xf000` traps back to
+  the guest under HVF, so the bench kernel never exits and the leg takes its verdict from the
+  transcript instead.

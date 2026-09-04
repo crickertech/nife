@@ -63,3 +63,17 @@ audit lanes will read it, and SECURITY.md gaining a sentence that routine audits
 their reports live. What this cannot promise, said plainly: a mechanism guarantees audits happen
 and findings get dispositioned; it does not make any audit good. The lens list is a prompt, not a
 proof of coverage, which is the same honest limit the cpu matrix records about five models.
+
+## Follow-on
+
+- **Milestone 43.** The second security audit, which becomes the first run *under* this mechanism
+  and inherits its "different lens" mandate as lens rotation's first step.
+- **Milestone 93.** The same machine for documentation audits, which reuses the index, the tripwire
+  and the disposition rule by adding one row per kind. That is why the thresholds live in the index
+  as data rather than in the script as code.
+- **Decision.** `design/decisions/74-audit-cadence.md`, which settled the cadence this block could
+  only propose. The block shipped the tripwire computing overdue from those rules, and left the
+  numbers to calef.
+- **Recorded.** `design/roadmap/92-security-audit-cadence.md`'s scope note states the limit plainly:
+  a mechanism guarantees audits happen and findings get dispositioned, and it does not make any
+  audit good. The lens list is a prompt, not a proof of coverage.
