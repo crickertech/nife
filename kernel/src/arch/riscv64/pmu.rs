@@ -183,6 +183,12 @@ pub fn init() {
 /// these "may be variable frequency cycles, and are not counted when the CPU clock is halted", so a
 /// count is not a duration and does not become one by dividing by a nominal clock. That is the
 /// whole reason this exists beside the `time` CSR rather than instead of it.
+// The consumers are the bench probe (`bench::cycles_per_tick`, `--features bench`) and this
+// module's own tests. A production boot has nothing to measure, so it has no caller, and marking
+// that rather than manufacturing one is the same call `arch::timer::cycle_counter_grantable` makes
+// four files over. The counter is still configured and printed in every build, because *whether
+// this machine has one* is a fact about the machine and belongs on the boot line either way.
+#[cfg_attr(not(any(test, feature = "bench")), allow(dead_code))]
 pub fn cycles() -> Option<u64> {
     let csr = CYCLE_CSR.load(Ordering::Acquire);
     if csr == NO_CSR {

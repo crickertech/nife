@@ -982,7 +982,7 @@ impl CounterInfo {
 /// and because a reader with the specification open can check the two halves separately.
 ///
 /// The specification's own note on this event, which is the sentence that makes it the right one
-/// for a cycle-denominated benchmark: *"The SBI_PMU_HW_CPU_CYCLES event counts CPU clock cycles as
+/// for a cycle-denominated benchmark: *"The `SBI_PMU_HW_CPU_CYCLES` event counts CPU clock cycles as
 /// counted by the `cycle` CSR. These may be variable frequency cycles, and are not counted when the
 /// CPU clock is halted."* (SBI v3.0, `src/ext-pmu.adoc`, read 2026-09-03.)
 pub const EVENT_HW_CPU_CYCLES: usize = pmu_event(0, 1);

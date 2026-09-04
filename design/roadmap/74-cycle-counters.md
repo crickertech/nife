@@ -1,12 +1,23 @@
 # 74. Cycle counters: SBI PMU on RISC-V, `PMCCNTR_EL0` on aarch64
 
-**Status: NOT-STARTED.** Raised 2026-08-03, from an audit of what milestone 16a actually needs. Its
-deliverable includes "the benches on real cycles via the SBI PMU extension", and **nothing in the tree
-implements it.** `PMU` appears only in device-tree test fixtures and in this file.
+**Status: PARTIAL.** Raised 2026-08-03, from an audit of what milestone 16a actually needs. Its
+deliverable includes "the benches on real cycles via the SBI PMU extension", and until 2026-09-03
+**nothing in the tree implemented it**: `PMU` appeared only in device-tree test fixtures and in this
+file.
 
 **Gate: MILESTONE 75, HARDWARE.** The aarch64 half must not land until 75 answers whether EL0 may
-read the counter at all. The riscv64 half is buildable now and not verifiable until silicon,
-because QEMU-TCG models an instruction counter that has nothing to do with cycles.
+read the counter at all; `design/decisions/139-cycle-counter-authority.md` is that question's
+evidence and calef's answer, and 75 itself is still `NOT-STARTED`. The `HARDWARE` half is now the
+*second* sense of that gate rather than the first: the riscv64 code is written and gated, and what
+remains is a person at radon following notes/riscv-cycle-counters.md's procedure, because QEMU-TCG
+models an instruction counter that has nothing to do with cycles.
+
+**The riscv64 half is built** (2026-09-03): the SBI PMU extension is probed as an optional fifth
+row of `SBI_TABLE`, `kernel/src/arch/riscv64/pmu.rs` asks firmware to find and start a counter for
+`SBI_PMU_HW_CPU_CYCLES` and remembers which CSR reads it, the boot prints both facts, and
+`cargo xtask bench --riscv` prints one `cycles_per_tick` probe. **The aarch64 half is not**, by this
+file's own gate.
+
 
 ## What we read today, and why it is not cycles
 
@@ -83,8 +94,13 @@ comparison. Both sides are small and they are not symmetrical in shape:
   is ~160x finer than the one §10 already excepted, so it does not inherit that exception.
 - **riscv64**: the SBI PMU extension (EID `0x504D55`), which discovers counters, configures an event,
   and starts and stops it. The tree already makes SBI calls (`SBI_HSM_EID`, `SBI_IPI_EID`,
-  `SBI_RFENCE_EID`, SBI TIME), so the plumbing exists and this is a fourth extension rather than new
-  machinery.
+  `SBI_RFENCE_EID`, SBI TIME), so the plumbing exists and this is a fifth extension rather than new
+  machinery. **Built 2026-09-03**, and the one thing it forced was not the `ecall`: `SBI_REQUIRED`
+  was every row of `SBI_TABLE` by construction, because every extension the kernel had ever called
+  was one it could not boot without. PMU is the first that is an **instrument**, and a kernel that
+  refused to boot without an instrument would have confused the measurement with the thing measured.
+  So `SbiRow` grew the `required` field `Row` already carried one source over, and the existing
+  accumulation test failed on the first run, which is what it was for.
 
 ## What can be done before the board, and what cannot
 
@@ -96,9 +112,50 @@ open question notes/pmu.md raises).
 nothing to do with cycles, so a green test under emulation proves the plumbing and says nothing about
 the measurement. Say so in the note rather than publishing an emulated cycle count.
 
+**And the emulator was more misleading than that prediction allowed for**, which is the one finding
+worth carrying out of the riscv64 half. Under `-icount` the `cycle` CSR and the `time` CSR are driven
+off the same virtual clock, so the probe reads **`cycles_per_tick 100.00`**, exactly the ratio
+between the two declared rates, with a rounding wobble and nothing else. That is not a number that
+looks wrong. It looks like a clean measurement of a 1 GHz core, and a reader who did not know what
+TCG does to these two registers would have every reason to write it down. The defence is that the
+probe line prints its inputs (`10000029 cycles over 100000 ticks at cntfrq 10000000`) rather than
+only the ratio, so the arithmetic is visible, and that notes/riscv-cycle-counters.md's outcome table
+names an exact round ratio as the tell rather than as the answer.
+
 ## Scope note
 
 **Do not turn this into a profiling framework.** One counter, read before and after, on two ISAs. The
 PMU can count dozens of events and the temptation to expose them generically should wait for a second
 consumer, which is CLAUDE.md's rule against speculative trait-ification. `sel4bench` comparability is
 the requirement; anything beyond it is scope.
+
+## What the riscv64 half built, and what it deliberately did not
+
+**Built 2026-09-03**, lane `milestone/74-cycle-counters-riscv`.
+
+- `SBI_PMU` / `EID_PMU` as an **optional** row of `machine_discovery::riscv64::SBI_TABLE`, with
+  `SBI_REQUIRED` narrowed to the rows that ask for it. Probed by the existing `probe_sbi` loop with
+  no new code, and printed on the existing `firmware    :` boot line for the same reason.
+- `CounterInfo`, the host-tested decode of `sbi_pmu_counter_get_info`'s packed word, including the
+  `+ 1` on a width field the specification writes as one less than the width, and `None` for both
+  CSR and width on a firmware counter (the specification says they "should be ignored", so they are
+  not returned rather than returned as numbers a caller could use by accident).
+- `kernel/src/arch/riscv64/pmu.rs`: the four calls, the CSR-number dispatch, and one boot line.
+  Four kernel tests, each of which asserts plumbing and says in its own doc comment that it is not
+  asserting a measurement.
+- One `bench-probe: cycles_per_tick` line from `cargo xtask bench --riscv`. **A probe, not a row**:
+  it is a rate rather than a duration, so it never enters `bench/baseline-riscv64.txt` and `--check`
+  never polices it, which is the existing convention `map_new`'s shootdown probe established. One
+  measured ratio converts every existing tick-denominated row at once, which is why it is one line
+  at the top rather than a second number on every line.
+- notes/riscv-cycle-counters.md, the bench procedure, written in notes/x86-uefi-boot.md's shape:
+  in order, with real commands, and a table mapping each observable line to what it means. Step one
+  is whether radon's OpenSBI implements the extension at all, because that is a fact about somebody
+  else's firmware and every later step is conditional on it.
+
+**Deliberately not built**, and each is the scope note above rather than an oversight: no second
+event, no per-hart counter record (SBI PMU counters are per-hart and this configures the boot
+hart's; the one consumer is a single-hart probe), no user-facing read (the U-mode `rdcycle` path is
+milestone 229's grant and 237's measurement build, which already exist), and no firmware-counter
+support (reading one costs an `ecall` per read, and an `ecall` inside a cycle measurement measures
+the `ecall`).
