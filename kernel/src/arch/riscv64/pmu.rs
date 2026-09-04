@@ -65,7 +65,7 @@
 //!   the call works.
 
 use core::arch::asm;
-use core::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use core::sync::atomic::{AtomicU8, AtomicU32, AtomicU64, Ordering};
 
 use machine_discovery::riscv64::{
     CounterInfo, EID_PMU, EVENT_HW_CPU_CYCLES, PMU_CFG_AUTO_START, PMU_CFG_CLEAR_VALUE, SBI_PMU,
@@ -80,29 +80,71 @@ const FID_COUNTER_CONFIG_MATCHING: usize = 2;
 /// `sbi_pmu_counter_stop`.
 const FID_COUNTER_STOP: usize = 4;
 
+/// **Why there is or is not a cycle counter**, as one value, decided once by [`init`].
+///
+/// This exists because "no counter" has five distinguishable causes and they need different fixes,
+/// and the machine where that matters is one nobody here can attach a debugger to.
+/// notes/riscv-cycle-counters.md's bench procedure originally told a reader to *add* a print of the
+/// SBI error and the raw `counter_info` word when the answer was disappointing; building the answer
+/// in is rung two instead of rung four, and it costs one byte and one boot line.
+///
+/// Ordered so that the discriminant is the stored value and `Unknown` is zero, which is what an
+/// unreached [`init`] leaves behind.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[repr(u8)]
+pub enum CycleCounter {
+    /// [`init`] has not run.
+    Unknown = 0,
+    /// Firmware does not implement the SBI PMU extension. Nothing to ask.
+    NoPmuExtension,
+    /// It does, but no counter on this hart can count `SBI_PMU_HW_CPU_CYCLES`
+    /// (`SBI_ERR_NOT_SUPPORTED` from the match), or it has no counters at all.
+    NoMatchingCounter,
+    /// Firmware offered a counter it maintains itself. Refused: reading one costs an `ecall` per
+    /// read, and an `ecall` inside a cycle measurement measures the `ecall`.
+    FirmwareCounter,
+    /// The CSR firmware named is outside the unprivileged counter block, so this kernel cannot name
+    /// it in an instruction.
+    UnreadableCsr,
+    /// **The counter was accepted, read twice across a spin, and had not moved.** Observed on
+    /// QEMU's `rva23s64` model, where OpenSBI allocates `hpmcounter3` and TCG models it as a
+    /// constant zero. See [`init`].
+    Stuck,
+    /// A hardware counter, readable, and advancing.
+    Running,
+}
+
+/// [`CycleCounter`] as a byte. An atomic rather than a lock: written once by [`init`] on the boot
+/// hart before anything reads it, and read-only afterwards. Nothing here nests with another lock,
+/// so it earns no rank in `sync::rank`.
+static OUTCOME: AtomicU8 = AtomicU8::new(CycleCounter::Unknown as u8);
+
 /// The CSR that reads the counter firmware gave us, or [`NO_CSR`].
 ///
-/// An atomic rather than a lock: written once by [`init`] on the boot hart before anything reads
-/// it, and read-only afterwards. Nothing here nests with another lock, so it earns no rank in
-/// `sync::rank`.
+/// **Data, not the gate.** [`OUTCOME`] is the gate, and this is written as soon as firmware names
+/// it so that a boot line reporting a *refused* counter can still say which one it was, which is
+/// the whole diagnostic value on a board nobody can attach a debugger to.
 static CYCLE_CSR: AtomicU32 = AtomicU32::new(NO_CSR);
 
 /// "No counter", distinct from every legal CSR number (which are 12 bits).
 const NO_CSR: u32 = u32::MAX;
 
-/// The logical counter index firmware chose, for the boot line and for [`stop`]. Meaningless while
-/// [`CYCLE_CSR`] is [`NO_CSR`].
+/// The logical counter index firmware chose, for the boot line and for [`stop`]. Written as soon as
+/// firmware names it, for the reason [`CYCLE_CSR`] gives; meaningful only alongside [`outcome`].
 static CYCLE_COUNTER_IDX: AtomicU64 = AtomicU64::new(0);
 
 /// How wide the counter is, in bits, for the boot line. A narrow counter wraps, and a reader
 /// comparing two reads across a long interval needs to know where.
 static CYCLE_BITS: AtomicU32 = AtomicU32::new(0);
 
-/// **Find a hardware counter that counts CPU cycles, start it, and remember how to read it.**
+/// **Find a hardware counter that counts CPU cycles, start it, check it is counting, and remember
+/// how to read it.**
 ///
 /// Called once, from `kernel_main`, after [`super::isa::init`] has probed which SBI extensions
 /// firmware implements. Silent and harmless on a machine without the PMU extension: [`cycles`]
-/// then answers `None` forever, which is the honest answer and not an error.
+/// then answers `None` forever, which is the honest answer and not an error. Every way of failing
+/// is recorded in [`outcome`] and printed by [`print_summary`], because on the machine where this
+/// matters nobody can attach a debugger.
 ///
 /// # Why `SKIP_MATCH` is not passed
 ///
@@ -111,13 +153,31 @@ static CYCLE_BITS: AtomicU32 = AtomicU32::new(0);
 /// here by exactly the thing this module needs: we do not know which counter counts cycles on this
 /// platform, and asking firmware to match is the entire reason to make the call rather than write
 /// a CSR number down.
+///
+/// # Why the counter is checked before it is believed
+///
+/// **Because firmware can hand back a counter that does not count**, and this was measured rather
+/// than imagined. `script/cpu-matrix`'s `rva23s64` model: OpenSBI answers the match with counter 3
+/// (`hpmcounter3`) rather than `mcycle`, `counter_get_info` describes it as a 64-bit hardware
+/// counter, `csrr` on it is legal and returns **zero, every time**, because QEMU-TCG does not model
+/// the programmable counters. Four of the five models in the matrix answer `mcycle` and are fine.
+///
+/// A benchmark reading 0 cycles for everything is worse than one that says there is no cycle
+/// counter, so this reads the counter twice across a short timed spin and refuses it if it has not
+/// moved. A cycle counter cannot fail that check on a hart that is executing instructions. The
+/// counter is stopped on the way out, since nothing will read it.
 pub fn init() {
+    OUTCOME.store(CycleCounter::Unknown as u8, Ordering::Relaxed);
+    CYCLE_CSR.store(NO_CSR, Ordering::Relaxed);
+
     if !super::isa::get().sbi.extensions.contains(SBI_PMU) {
+        OUTCOME.store(CycleCounter::NoPmuExtension as u8, Ordering::Release);
         return;
     }
 
     let (err, count) = sbi_call(FID_NUM_COUNTERS, [0; 5]);
     if err != 0 || count == 0 {
+        OUTCOME.store(CycleCounter::NoMatchingCounter as u8, Ordering::Release);
         return;
     }
 
@@ -145,34 +205,73 @@ pub fn init() {
     );
     if err != 0 {
         // `SBI_ERR_NOT_SUPPORTED` (-2) here means no counter on this hart can count cycles, which
-        // is a legitimate machine and not a failure to report loudly. The boot line says so.
+        // is a legitimate machine and not a failure to report loudly.
+        OUTCOME.store(CycleCounter::NoMatchingCounter as u8, Ordering::Release);
         return;
     }
+    CYCLE_COUNTER_IDX.store(idx as u64, Ordering::Relaxed);
 
     let (err, raw) = sbi_call(FID_COUNTER_GET_INFO, [idx, 0, 0, 0, 0]);
     if err != 0 {
+        stop_counter(idx);
+        OUTCOME.store(CycleCounter::NoMatchingCounter as u8, Ordering::Release);
         return;
     }
     let info = CounterInfo::from_raw(raw as u64);
 
-    // A firmware counter is refused: see this module's BUGS. The counter firmware just started for
-    // us is left running rather than stopped, because stopping it is an `ecall` whose only purpose
-    // would be tidiness on a path that has already decided to report no counter.
+    // A firmware counter is refused: see this module's BUGS.
     let (Some(csr), Some(bits)) = (info.csr(), info.bits()) else {
+        stop_counter(idx);
+        OUTCOME.store(CycleCounter::FirmwareCounter as u8, Ordering::Release);
         return;
     };
+    CYCLE_CSR.store(csr as u32, Ordering::Relaxed);
+    CYCLE_BITS.store(bits, Ordering::Relaxed);
 
     // A CSR this kernel cannot name in an instruction is the same outcome as no counter, for the
     // same reason: the read must be one instruction or the measurement is measuring the read.
-    if read_csr(csr).is_none() {
+    let Some(first) = read_csr(csr) else {
+        stop_counter(idx);
+        OUTCOME.store(CycleCounter::UnreadableCsr as u8, Ordering::Release);
+        return;
+    };
+
+    // Does it count? A short window on the `time` CSR, which is running by now and is the one clock
+    // this kernel has that does not depend on the answer. Short enough not to be felt in a boot,
+    // long enough that any real cycle counter has moved by thousands.
+    const CHECK_TICKS: u64 = 100;
+    let t0 = super::timer::now();
+    while super::timer::now() - t0 < CHECK_TICKS {
+        core::hint::spin_loop();
+    }
+    if read_csr(csr) == Some(first) {
+        stop_counter(idx);
+        OUTCOME.store(CycleCounter::Stuck as u8, Ordering::Release);
         return;
     }
 
-    CYCLE_COUNTER_IDX.store(idx as u64, Ordering::Relaxed);
-    CYCLE_BITS.store(bits, Ordering::Relaxed);
-    // Last, and with Release: a reader that sees a CSR must see the index and width written before
-    // it. Every read is `Acquire` on this one location for the same reason.
-    CYCLE_CSR.store(csr as u32, Ordering::Release);
+    // Last, and with Release: a reader that sees `Running` must see the CSR, index and width
+    // written before it. Every read is `Acquire` on this one location for the same reason.
+    OUTCOME.store(CycleCounter::Running as u8, Ordering::Release);
+}
+
+/// **Why there is or is not a cycle counter on this hart.** See [`CycleCounter`].
+pub fn outcome() -> CycleCounter {
+    match OUTCOME.load(Ordering::Acquire) {
+        x if x == CycleCounter::NoPmuExtension as u8 => CycleCounter::NoPmuExtension,
+        x if x == CycleCounter::NoMatchingCounter as u8 => CycleCounter::NoMatchingCounter,
+        x if x == CycleCounter::FirmwareCounter as u8 => CycleCounter::FirmwareCounter,
+        x if x == CycleCounter::UnreadableCsr as u8 => CycleCounter::UnreadableCsr,
+        x if x == CycleCounter::Stuck as u8 => CycleCounter::Stuck,
+        x if x == CycleCounter::Running as u8 => CycleCounter::Running,
+        _ => CycleCounter::Unknown,
+    }
+}
+
+/// Stop one counter and discard the answer. Used only on the give-up paths in [`init`], where the
+/// counter has been started and nothing is going to read it; the error cannot change what we do.
+fn stop_counter(idx: usize) {
+    let _ = sbi_call(FID_COUNTER_STOP, [idx, 1, 0, 0, 0]);
 }
 
 /// **The cycle count on this hart**, or `None` when no hardware cycle counter was found.
@@ -190,17 +289,16 @@ pub fn init() {
 // this machine has one* is a fact about the machine and belongs on the boot line either way.
 #[cfg_attr(not(any(test, feature = "bench")), allow(dead_code))]
 pub fn cycles() -> Option<u64> {
-    let csr = CYCLE_CSR.load(Ordering::Acquire);
-    if csr == NO_CSR {
+    if outcome() != CycleCounter::Running {
         return None;
     }
-    read_csr(csr as u16)
+    read_csr(CYCLE_CSR.load(Ordering::Relaxed) as u16)
 }
 
 /// How wide the counter is, in bits, or `None` when there is none. For the boot line: a counter
 /// narrower than 64 bits wraps, and a reader differencing two reads needs to know where.
 pub fn cycle_counter_width() -> Option<u32> {
-    if CYCLE_CSR.load(Ordering::Acquire) == NO_CSR {
+    if outcome() != CycleCounter::Running {
         return None;
     }
     Some(CYCLE_BITS.load(Ordering::Relaxed))
@@ -217,7 +315,7 @@ pub fn cycle_counter_width() -> Option<u32> {
 /// earns).
 #[cfg_attr(not(test), allow(dead_code))]
 pub fn stop() -> isize {
-    if CYCLE_CSR.load(Ordering::Acquire) == NO_CSR {
+    if outcome() != CycleCounter::Running {
         return -3;
     }
     let idx = CYCLE_COUNTER_IDX.load(Ordering::Relaxed) as usize;
@@ -330,16 +428,31 @@ fn sbi_call(fid: usize, args: [usize; 5]) -> (isize, usize) {
 
 /// The boot line, printed beside the ISA summary.
 pub fn print_summary() {
-    if let Some(bits) = cycle_counter_width() {
-        crate::println!(
-            "  cycles      : SBI PMU counter {}, CSR {:#05x}, {bits} bits",
+    match outcome() {
+        CycleCounter::Running => crate::println!(
+            "  cycles      : SBI PMU counter {}, CSR {:#05x}, {} bits",
             CYCLE_COUNTER_IDX.load(Ordering::Relaxed),
             CYCLE_CSR.load(Ordering::Relaxed),
-        );
-    } else if super::isa::get().sbi.extensions.contains(SBI_PMU) {
-        crate::println!("  cycles      : SBI PMU present but no hardware cycle counter");
-    } else {
-        crate::println!("  cycles      : no SBI PMU extension; ticks only");
+            CYCLE_BITS.load(Ordering::Relaxed),
+        ),
+        CycleCounter::NoPmuExtension => {
+            crate::println!("  cycles      : no SBI PMU extension; ticks only")
+        }
+        CycleCounter::NoMatchingCounter => {
+            crate::println!("  cycles      : SBI PMU present, no counter can count CPU cycles")
+        }
+        CycleCounter::FirmwareCounter => crate::println!(
+            "  cycles      : SBI PMU offered a firmware counter; refused (an ecall per read)"
+        ),
+        CycleCounter::UnreadableCsr => {
+            crate::println!("  cycles      : SBI PMU named a CSR outside the counter block")
+        }
+        CycleCounter::Stuck => crate::println!(
+            "  cycles      : SBI PMU counter {} (CSR {:#05x}) did not advance; refused",
+            CYCLE_COUNTER_IDX.load(Ordering::Relaxed),
+            CYCLE_CSR.load(Ordering::Relaxed),
+        ),
+        CycleCounter::Unknown => crate::println!("  cycles      : arch::pmu::init has not run"),
     }
 }
 
@@ -356,31 +469,31 @@ mod tests {
 
     use super::*;
 
-    /// **The PMU probe and the counter agree about whether there is one.**
+    /// **The outcome, the counter and the width all tell the same story.**
     ///
-    /// Three states, and the test's job is that they are consistent rather than that any
-    /// particular one holds: no PMU extension means no counter; a PMU extension may still yield no
-    /// counter (a firmware counter, or a CSR this kernel cannot name); and a counter implies a
-    /// width. A machine reporting a counter with no width, or a width with no counter, would be
-    /// the atomics having been written out of order.
+    /// [`outcome`] is the single gate, so the failure this catches is the three atomics
+    /// disagreeing: a `Running` with no readable counter, or a counter surviving a refusal.
+    /// `Unknown` in particular must be impossible by the time any test runs, because `kernel_main`
+    /// calls [`init`] before the suite.
     #[test_case]
-    fn the_counter_and_the_probe_agree() {
-        let has_pmu = super::super::isa::get().sbi.extensions.contains(SBI_PMU);
-        let counter = cycles();
-
-        if !has_pmu {
-            assert!(
-                counter.is_none(),
-                "no PMU extension, so nothing can have configured a counter"
-            );
-            return;
-        }
-
-        assert_eq!(
-            counter.is_some(),
-            cycle_counter_width().is_some(),
-            "the counter and its width are written together or not at all"
+    fn the_outcome_and_the_counter_agree() {
+        let outcome = outcome();
+        assert_ne!(
+            outcome,
+            CycleCounter::Unknown,
+            "kernel_main calls arch::pmu::init before the suite"
         );
+
+        let running = outcome == CycleCounter::Running;
+        assert_eq!(cycles().is_some(), running);
+        assert_eq!(cycle_counter_width().is_some(), running);
+
+        if outcome == CycleCounter::NoPmuExtension {
+            assert!(
+                !super::super::isa::get().sbi.extensions.contains(SBI_PMU),
+                "the outcome says no PMU extension and the probe says there is one"
+            );
+        }
 
         if let Some(bits) = cycle_counter_width() {
             assert!(
@@ -390,43 +503,60 @@ mod tests {
         }
     }
 
-    /// **QEMU's OpenSBI implements the PMU extension, and it gave us the `cycle` CSR.**
+    /// **QEMU's OpenSBI implements the PMU extension, and this kernel reached a decided answer.**
     ///
-    /// Asserted rather than skipped because it is the machine every merge boots, and a
-    /// regression that silently lost the counter would otherwise pass the test above by taking
-    /// its "no counter" branch. `sbi_probe_extension` answering yes and `counter_config_matching`
-    /// then finding nothing would be a real defect on this machine.
+    /// # This test asserted `CSR == 0xc00` for about an hour, and `script/cpu-matrix` earned its
+    /// keep twice over
     ///
-    /// **On radon this assertion may legitimately fail**, which is the whole point of the bench
-    /// procedure. It is written against QEMU because QEMU is what runs it.
+    /// Four of the five models in the matrix answer **counter 0, CSR `0xc00`**: `mcycle`, read
+    /// through the `cycle` CSR. **`rva23s64` answers counter 3, CSR `0xc03`**, a programmable
+    /// `hpmcounter`, which `counter_get_info` describes as a 64-bit hardware counter and which
+    /// **reads zero forever**, because QEMU-TCG does not model the programmable counters. Both
+    /// measured 2026-09-03 from `target/cpu-matrix/*.log`.
+    ///
+    /// That is two lessons and the second is the one worth having. The counter a caller gets is
+    /// firmware's choice and not a constant, so pinning the number pins one emulator's allocation
+    /// policy. And **a counter firmware hands back can be a counter that does not count**, which is
+    /// why [`init`] checks before it believes and why the outcome vocabulary has a `Stuck` member
+    /// at all.
+    ///
+    /// So what is asserted here is the pair of outcomes actually observed, and that a `Running` one
+    /// names a plausible CSR. A `NoMatchingCounter` or `FirmwareCounter` on QEMU would be a real
+    /// regression and fails.
     #[test_case]
-    fn qemu_gives_us_the_cycle_csr() {
-        let isa = super::super::isa::get();
+    fn qemu_reaches_one_of_the_two_answers_it_has_ever_given() {
         assert!(
-            isa.sbi.extensions.contains(SBI_PMU),
+            super::super::isa::get().sbi.extensions.contains(SBI_PMU),
             "OpenSBI has implemented SBI PMU since 0.8"
         );
-        assert!(
-            cycles().is_some(),
-            "SBI PMU is present and no counter was configured for CPU_CYCLES"
-        );
-        assert_eq!(
-            CYCLE_CSR.load(Ordering::Acquire),
-            0xc00,
-            "OpenSBI maps CPU_CYCLES to mcycle, read through the `cycle` CSR"
-        );
+
+        match outcome() {
+            CycleCounter::Running => {
+                let csr = CYCLE_CSR.load(Ordering::Relaxed);
+                assert!(
+                    csr == 0xc00 || (0xc03..=0xc1f).contains(&csr),
+                    "CSR {csr:#05x} is neither `cycle` nor an `hpmcounter`; `time` (0xc01) in \
+                     particular would be the fixed tick wearing a cycle counter's name"
+                );
+                assert_eq!(cycle_counter_width(), Some(64));
+            }
+            // `rva23s64`: `hpmcounter3`, modelled by TCG as a constant zero.
+            CycleCounter::Stuck => {}
+            other => panic!(
+                "SBI PMU is present and the outcome is {other:?}; on QEMU that is a regression"
+            ),
+        }
     }
 
     /// **The counter moves forward.**
     ///
-    /// The weakest claim that would still catch the failure that matters: a CSR read that returns a
-    /// constant (the wrong CSR, an inhibited counter, a decode that landed on a reserved number)
-    /// looks exactly like a working counter to every other test here.
+    /// [`init`] already checked this once, so on a healthy boot this is a re-check rather than a
+    /// discovery, and it is worth running anyway: it is what would catch a counter that firmware
+    /// stops later, or an inhibit that arrives with the second hart.
     ///
-    /// **This is not a measurement.** Under TCG the delta is an instruction count. The loop is a
+    /// **This is not a measurement.** Under TCG the delta is an instruction count. The window is a
     /// `time` CSR spin rather than a fixed iteration count so that the two counters are read over
-    /// the same span, which is the shape the bench probe uses and the shape that would show a
-    /// counter running at an implausible rate on silicon.
+    /// the same span, which is the shape the bench probe uses.
     #[test_case]
     fn the_counter_advances() {
         let Some(first) = cycles() else {
@@ -447,13 +577,26 @@ mod tests {
 
     /// **Stop is a real call and firmware answers it.**
     ///
-    /// The one place `stop` is exercised, and it restarts the counter afterwards so no later test
-    /// or bench inherits a stopped one. `SBI_SUCCESS` (0) and `SBI_ERR_ALREADY_STOPPED` (-8) are
-    /// both correct answers; anything else means the counter index we are holding is not one
-    /// firmware recognises, which would make every other number here suspect.
+    /// The one place `stop` is exercised, and it re-runs [`init`] afterwards so the module is left
+    /// in a decided state rather than a stopped one. `SBI_SUCCESS` (0) and `SBI_ERR_ALREADY_STOPPED`
+    /// (-8) are both correct answers; anything else means the counter index we are holding is not
+    /// one firmware recognises, which would make every other number here suspect.
+    ///
+    /// # Why it does not assert the counter comes back the way it went away
+    ///
+    /// **Because on QEMU's `rva23s64` it does not**, measured 2026-09-03. That model's counter is
+    /// `hpmcounter3`, and it counts when it is first configured at boot and reads zero after a
+    /// `counter_stop` and a fresh `counter_config_matching`, so [`init`]'s did-it-move check
+    /// correctly refuses it the second time and the outcome goes `Running` to `Stuck`. That is an
+    /// emulator's event-mapping behaviour, not an invariant of the interface, and asserting the
+    /// round trip is idempotent would be encoding one emulator's bug as a property of SBI.
+    ///
+    /// So the assertion is what the interface does promise: the stop was accepted, and `init` left
+    /// the module somewhere other than `Unknown`. The transition itself is worth watching rather
+    /// than gating, which is what the boot line is for.
     #[test_case]
     fn stopping_the_counter_is_accepted() {
-        if cycles().is_none() {
+        if outcome() != CycleCounter::Running {
             return;
         }
         let err = stop();
@@ -462,9 +605,11 @@ mod tests {
             "sbi_pmu_counter_stop returned {err}, which is neither success nor already-stopped"
         );
 
-        // Put it back, through the same path that configured it, so the module is left as the rest
-        // of the boot expects to find it.
         init();
-        assert!(cycles().is_some(), "the counter did not come back");
+        assert_ne!(
+            outcome(),
+            CycleCounter::Unknown,
+            "init left the module undecided, which it cannot do: every path stores an outcome"
+        );
     }
 }

@@ -483,7 +483,12 @@ fn cycles_per_tick() {
     const WINDOW_TICKS: u64 = 100_000;
 
     let Some(c0) = crate::arch::pmu::cycles() else {
-        println!("bench-probe: cycles_per_tick unavailable (no SBI PMU cycle counter)");
+        // The outcome says *why*, and on a board that is the whole diagnostic: see
+        // `arch::riscv64::pmu::CycleCounter`.
+        println!(
+            "bench-probe: cycles_per_tick unavailable ({:?})",
+            crate::arch::pmu::outcome()
+        );
         return;
     };
 
