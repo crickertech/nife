@@ -500,18 +500,35 @@ mod verification {
         }
     }
 
-    /// **Taking a waiter back off a queue preserves the one-queue invariant**, for either queue
-    /// and whether or not the victim was ever there.
+    /// **Taking a waiter back off a queue preserves the one-queue invariant**, for either queue and
+    /// whether or not the victim was ever there.
     ///
     /// Milestone 133 needed [`remove_receiver`](Rendezvous::remove_receiver) and asks both removes
-    /// on every victim, because the kernel's recorded `WaitRole` and the queue that actually holds
+    /// on every victim, because the kernel's recorded wait role and the queue that actually holds
     /// the thread genuinely disagree for a `CALL` caller that met no server. So the interesting
     /// case is not the hit, it is the **miss**: a drain-and-repush over a queue the victim is not
     /// on rebuilds that queue from nothing and must put it back exactly as it was. A version that
-    /// dropped the survivors, or left `senders` and `receivers` both non-empty, would break the
-    /// invariant that every other proof in this module rests on.
+    /// dropped the survivors, or left both queues non-empty, would break the invariant every other
+    /// proof in this module rests on.
+    ///
+    /// **This one needs a loop bound, and the two facts behind that are worth the paragraph**,
+    /// because every other harness in this module is unbounded and finishes in a tenth of a
+    /// second. The first shape of it ran both removes twice each and CBMC was still working after
+    /// **seventeen minutes**; with `unwind(3)` and a single symbolic remove it takes 0.2 seconds.
+    ///
+    /// The bound is sound rather than a shortcut: Kani checks the unwinding assertion, so a loop
+    /// that needed a fourth iteration would **fail** this proof rather than pass it quietly, and
+    /// `seed` queues at most one waiter, so two is the most a drain-and-repush can take. What the
+    /// bound costs is exactly what `seed` already costs everywhere in this module: the proof is
+    /// over a rendezvous holding at most one waiter, and a queue of many is argued rather than
+    /// proved.
+    ///
+    /// **One remove per run, chosen symbolically, rather than the four the kernel makes**, and
+    /// nothing is lost by that: the removes share no state between calls, each reading one queue
+    /// and writing it back, so proving one over an arbitrary seeded rendezvous covers a sequence.
     /// Falsification: unfalsified
     #[kani::proof]
+    #[kani::unwind(3)]
     fn removing_a_waiter_preserves_the_invariant() {
         let (mut s, mut r, mut stranger) = (N::new(), N::new(), N::new());
         let (sender_ptr, receiver_ptr) = (NonNull::from(&mut s), NonNull::from(&mut r));
@@ -527,20 +544,19 @@ mod verification {
             1 => receiver_ptr,
             _ => NonNull::from(&mut stranger),
         };
-        // SAFETY: `victim` is compared by pointer and never dereferenced, and every other queued
-        // waiter is one of the same three live locals, each still on at most one queue.
-        unsafe {
-            e.remove_sender(victim);
-            e.remove_receiver(victim);
-        }
+        let found = if kani::any() {
+            // SAFETY: `victim` is compared by pointer and never dereferenced, and the only other
+            // node either queue can hold is one of the same three live locals, each still on at
+            // most one queue.
+            unsafe { e.remove_sender(victim) }
+        } else {
+            // SAFETY: as above; the twin removes over the other queue with the same contract.
+            unsafe { e.remove_receiver(victim) }
+        };
         assert!(e.one_queue_invariant());
-
-        // And a removal that found its victim really removed it: asking again reports nothing.
-        // SAFETY: as above.
-        unsafe {
-            assert!(!e.remove_sender(victim));
-            assert!(!e.remove_receiver(victim));
-        }
+        // A remove that reports a hit really emptied the queue it was given: `seed` queues at most
+        // one waiter, so a hit leaves both queues empty and the rendezvous idle.
+        assert!(!found || e.is_idle());
     }
 
     /// **A pending signal is taken before a queued sender.** A receive drains a counted signal
