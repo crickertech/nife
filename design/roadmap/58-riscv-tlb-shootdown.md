@@ -87,7 +87,8 @@ cost.
   nothing can check for it, the hart mask is a bitmap relative to base 0 so the shootdown reaches
   harts 0..63, and `share_kernel_half`'s one-time copy of the kernel's top-level entries would hide
   a later kernel mapping from every space created before it.
-- **Unclaimed.** Take the `ctx_switch` number on real RISC-V silicon, where the TLB is genuinely
+- **Proposed.** `design/roadmap/proposed/ctx-switch-on-riscv-silicon.md`, take the `ctx_switch`
+  number on real RISC-V silicon, where the TLB is genuinely
   ASID-tagged. QEMU charges the added gate and credits nothing for the removed flush, so the win
   this milestone exists for has never been measured, and the block's citation of milestone 24 is
   wrong (that is an aarch64 board). Somebody still has to say which board leg owns the measurement.

@@ -29,7 +29,7 @@ written is rung four: a lane report is read once, by one person, on the day it i
 **Every BUILT or REMOVED milestone block carries a `## Follow-on` section**, checked by
 `script/roadmap --check` and therefore by `script/lint`. The six dispositions are tabulated in
 design/roadmap/README.md, which is where a block author meets them. In short: `None.`,
-`Milestone N.`, `Done.`, `Recorded.`, `Refused.`, `Decision.`, `Unclaimed.`
+`Milestone N.`, `Done.`, `Recorded.`, `Refused.`, `Decision.`, `Proposed.`
 
 **Why it hangs on the status rather than on a marker in prose.** The moment a block turns BUILT is
 the last time anyone reads it on purpose, so it is exactly the moment the work gets buried. It is
@@ -53,22 +53,33 @@ upstream of this check and is not touched by it.
 **An explicit refusal is a success.** The defect this attacks is silence, not the absence of a
 milestone.
 
-## `Unclaimed.` is the disposition the sweep asked for, and it is the point
+## `Proposed.` is the disposition the sweep asked for, and it is the point
 
-Four of the seven words were designed before the sweep. `Unclaimed.` and `Done.` were not: **three
-lanes asked for the first and four for the second, independently, on the same afternoon**, having hit
-the same wall. A block that wrote its follow-on work down honestly, in the place a reader meets it,
-and had nobody pick it up, fits none of the original words. `Recorded.` lies about intent and
-`Refused.` lies about the decision, so a lane forced to choose writes the more comfortable one, and
-the lanes that would not lie **left the item out instead**. That is the silence this gate exists to
-stop, arriving through the gate itself.
+Four of the words were designed before the sweep. `Unclaimed.` and `Done.` were not: **three lanes
+asked for the first and four for the second, independently, on the same afternoon**, having hit the
+same wall. A block that wrote its follow-on work down honestly, in the place a reader meets it, and
+had nobody pick it up, fits none of the original words. `Recorded.` lies about intent and `Refused.`
+lies about the decision, so a lane forced to choose writes the more comfortable one, and the lanes
+that would not lie **left the item out instead**. That is the silence this gate exists to stop,
+arriving through the gate itself.
 
-**What stops `Unclaimed.` being silence with a heading over it is that it is queryable.**
-`script/roadmap --unclaimed` prints every one tree-wide, and `--check` prints the count on every run.
-That is the entire justification for the word: an unclaimed item is findable by command, which a
-handoff paragraph never was. **Read the count as a backlog.** It is the first time this roadmap has
-been able to answer "what work do we know about and nobody holds", and the answer on the day it was
-built was **42, named by 32 different finished milestones**.
+**Then the constraint that made `Unclaimed.` necessary was removed, the same day.** calef ratified
+`design/roadmap/proposed/<slug>.md`: a lane may add to the roadmap itself, with no number and no
+coordination, because *"on a human team, anybody should be able to add to the roadmap. That's
+different than prioritizing that roadmap."* The collision that barred lanes from minting was in the
+**number**, never in the authority, and separating the two makes the burial problem much cheaper to
+solve. A mechanism whose cost is "write one file" is one people will use.
+
+So `Unclaimed.` became `Proposed.`, and it now resolves to a file somebody actually wrote rather than
+to a sentence promising that work exists. That is strictly stronger, and it is why the count of
+proposals no longer has to be small: **the third bucket has somewhere to go.**
+
+**The economics this changes are the whole reason milestone 247 recurred three times.** Before, a
+lane that found work wrote it in a report, the maintainer read the report, and an item either became
+a milestone or became a chat message. On the day this landed, the maintainer buried three identified
+items that way, all by deferring rather than forgetting, and calef caught all three by asking. **The
+mechanism has to assume the maintainer is a failure point and not only the lanes**, and routing the
+work into the tree at the moment of discovery is what does that.
 
 ## The sweep, 2026-09-03
 
@@ -83,10 +94,10 @@ successors against the index rather than guessing.
 | `Recorded.` | 291 | The `BUGS` convention is working. Most follow-on prose is an honest limitation already sitting where a reader meets it |
 | `Milestone N.` | 136 | The successor usually exists, and the block usually already cited it by number |
 | `Refused.` | 105 | Refusals with reasons, which this convention counts as successes |
-| `Unclaimed.` | 42 | Work named, nobody holding it. The backlog nothing could see before |
+| `Proposed.` | 38 | Work named, nobody holding it, now a file in `design/roadmap/proposed/` |
 | `Decision.` | 24 | Forks already written up under `design/decisions/` |
 | `None.` | 7 | Almost all of them backfilled history blocks from milestones 1 to 11 |
-| `Done.` | 0 | The word exists because four lanes needed it; the sweep that asked for it had already worked around its absence |
+| `Done.` | 3 | And all three were `Proposed.` first. See below: the word paid for itself within the hour |
 
 **Two things the sweep found that were not in its brief.**
 
@@ -106,16 +117,34 @@ be parked. The sweep then reached every block, the list closed to zero, and an e
 permits parking is exactly the hiding place its own `BUGS` entry had called a foot gun. It is gone
 rather than kept at zero.
 
-## What the sweep could not settle, and what it recommends
+## What the sweep found, and which of it to promote first
 
-**Forty-two pieces of unclaimed work is far too many to mint**, and picking five is a judgment a lane
-should show rather than assert. The bar used: the work is concrete and bounded, nothing in the tree
-owns any part of it, and leaving it unminted costs more than tidiness, because **a claim this project
-makes rests on it or a record in the tree is now known to be wrong**. Everything else stays
-`Unclaimed.` and queryable, which is a real home rather than a holding pen.
+**38 pieces of unclaimed work are now proposal files** under `design/roadmap/proposed/`, one each,
+written by the lanes that understood them. That is the answer the morning's design could not give:
+with a proposal costing one file and no coordination, the count does not have to be small, and
+nothing has to be argued down to fit a budget.
 
-The five that clear that bar, offered as **proposed milestones with no numbers** (numbers are the
-integrator's, at merge):
+**Three of the 42 were already done, and finding that out is the sweep's sharpest result.** A lane
+told to write a proposal has to go and look at the tree, which nothing had made anyone do before:
+
+- Milestone 54 asked for a roadmap status word meaning "built, then removed". **calef minted
+  `REMOVED` on 2026-08-30**, the same day the code went, and the block's own status line reads it.
+- Milestone 57 wanted partitioning on the target. **`user/src/disk_partitioner.rs`**, commit
+  `4db2fd74`, holds a disk endpoint and an entropy endpoint, draws four v4 GUIDs and writes both
+  table copies.
+- Milestone 57 wanted `mkfs` on the target, and called the `vendor/redoxfs` divergence calef's to
+  take. **It was taken and documented**: `Header::new_with_uuid`, divergence 4 in `vendor/README.md`,
+  carried as `patches/redoxfs-no-std-create-uuid.patch`.
+
+**Two of those had sat stale for a month inside a `## Follow-on` section**, which is this milestone's
+own failure one layer in: the section says what happened to the work, and nothing checks that it is
+still true. They are `Done.` now, with what carried each. `Done.` was added that morning because four
+lanes said the word was missing, and it earned its place before the day was out.
+
+**Promotion is a different act from proposal**, and it is calef's. Five of the 42 are worth his
+attention first, on a stated bar: the work is concrete and bounded, nothing in the tree owns any part
+of it, and leaving it unpromoted costs more than tidiness, because **a claim this project makes rests
+on it or a record in the tree is now known to be wrong**.
 
 1. **The three instruments nothing runs.** `script/interleaving-check`, `script/crate-probes` and
    `script/rule-violations --check` are referenced by neither CI nor `script/gates`. `crate-probes`
@@ -127,8 +156,8 @@ integrator's, at merge):
 3. **Two address spaces drive one UART with nothing arbitrating.** The kernel prints its boot tour
    and its fault reports through its own driver while the userspace `console` server drives the same
    device, so output interleaves at byte granularity. It affects every bench session on argon, radon
-   and xenon, and milestone 243's `BUGS` already tells readers it "has its own home", which does not
-   exist. Named by milestone 230.
+   and xenon, and milestone 243's `BUGS` already tells readers it "has its own home", which did not
+   exist until today. Named by milestone 230.
 4. **Attach the rest of the x86_64 test fixtures.** The RedoxFS image, the GPT and blank disks, the
    NIC, the GPU, the keyboard and the RNG. Its measure is the 36 tests taking a "no RedoxFS disk
    attached" arm, and architectural parity is a gate in this tree rather than an aspiration. Named by
@@ -136,11 +165,11 @@ integrator's, at merge):
 5. **The records that went stale when the number under them moved.** `design/fatal-risks.md` risk 3
    still reads MEASURED green on 92.4% mutation score against a published 83.4%, and AGENTS.md still
    says `kernel/src` measures 40% comments against a measured 45.3%. Both are records this project
-   asks strangers to trust. Named by milestones 238 and 234.
+   asks strangers to trust.
 
-**The strongest of the rest, so the cut is visible**: milestone 238's bound on what one mutant may
-allocate. One mutant goes from 1.4 GB to 15.8 GB in twenty seconds and takes the machine with it, and
-the block prices three shapes for the fix. It stayed unclaimed only because nothing the project
+**The strongest of the rest, so the cut is visible**: bounding what one mutant may allocate. One
+mutant goes from 1.4 GB to 15.8 GB in twenty seconds and takes the machine with it, and milestone
+238's block prices three shapes for the fix. It is below the line only because nothing the project
 claims publicly depends on it.
 
 ## BUGS
@@ -149,10 +178,11 @@ claims publicly depends on it.
   not milestone 240 is the work the block meant, which is the same blind spot `script/decisions`
   records for `§N` citations and `script/roadmap` records for its own tree-wide citations. Check by
   content after any renumber.
-- **`Unclaimed.` and `Recorded.` are separated by judgment, not by anything checkable**, and lanes
+- **`Proposed.` and `Recorded.` are separated by judgment, not by anything checkable**, and lanes
   said so. A `BUGS` entry that is a permanent caveat and one that is deferred work read identically
   in prose, and the same text can defensibly take either word. Expect the backlog to be
-  under-counted rather than over-counted, because `Recorded.` is the more comfortable answer.
+  under-counted rather than over-counted, because `Recorded.` costs a sentence and `Proposed.` costs
+  a file.
 - **A well-written block generates more unclaimed items than a lazy one.** A block that named its
   follow-on work honestly has something for the sweep to find; one that named nothing looks clean.
   Do not read a block's bullet count as a quality signal, in either direction.
@@ -163,9 +193,15 @@ claims publicly depends on it.
   BUILT lands in a block nothing will re-check, because the section already exists and already
   passes. The `BUGS` convention and a `TODO(milestone N)` marker both still work there; this gate
   does not add to them.
-- **Nothing ages an `Unclaimed.` item.** An entry written today and an entry written a year ago look
-  the same in `--unclaimed`, and nothing escalates one that has sat. The count is a backlog, not a
-  queue.
+- **Nothing promotes a proposal, and nothing can.** A proposal nobody picks up is the same burial in
+  a new location. A gate on age ("no proposal older than N days") would be routed around by not
+  writing proposals, which costs more than the pile does, so what ships instead is visibility: the
+  status line carries its date, `script/roadmap --check` prints the count and the oldest on every
+  lint run, and `--proposed` lists them oldest first. That is a number somebody has to choose to
+  ignore, which is weaker than a gate and much stronger than a paragraph.
+- **A well-stocked `proposed/` directory can flatter the project.** Forty-two files look like a plan
+  and are not one. They are a list of things nobody is doing, and the honest way to read the count is
+  as debt.
 - **A `Recorded.` bullet cannot quote a path-shaped example.** The path check treats a backticked
   span beginning with a real top-level directory as a citation, so a bullet illustrating
   `script/foo --bar` as a command rather than as a file has to spell it without backticks. That is

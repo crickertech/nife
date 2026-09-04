@@ -139,8 +139,9 @@ shape, which is why it is named here rather than deferred.
 - **Refused.** More shards. Four buy nothing over two, because `glob`'s proofs are atomic at 15.0
   minutes and are half the suite's time on their own, so the floor is one harness rather than the
   runner count.
-- **Unclaimed.** Fix the three blind spots in `script/verify --affected-since`'s scope predicate:
-  `scripts/` is not `script/`, any `Cargo.lock` touch proves everything, and binary files count as
-  unattributable. They are nearly all of the prover tail still on the merge queue, and this block
-  prices fixing them above more shards, since one crate's proofs are atomic at half the suite's
-  time. Each is its own small lane.
+- **Proposed.** `design/roadmap/proposed/three-blind-spots-in-the-proof-scope.md`, fix the three
+  blind spots in `script/verify --affected-since`'s scope predicate: `scripts/` is not `script/`,
+  any `Cargo.lock` touch proves everything, and binary files count as unattributable. They are
+  nearly all of the prover tail still on the merge queue, and this block prices fixing them above
+  more shards, since one crate's proofs are atomic at half the suite's time. Each is its own small
+  lane.

@@ -166,7 +166,7 @@ pointing existing checks at new inputs, which is what the gate now does permanen
 - **Recorded.** In `design/roadmap/208-boot-section-wx.md`: the trampoline's `p_vaddr` `0x8000`
   against `p_paddr` `0x166000` is the strangest of the image's three vaddr/paddr relationships and
   is worth reading before editing, since its bytes ship high and it executes low.
-- **Unclaimed.** Make `script/image-permissions` a required check in the merge queue's ruleset. It
-  is one checkbox and it is calef's, because it is a repository setting rather than a file in this
-  tree. Until it is flipped, a red run is visible and merges anyway, so the gate reports rather
-  than gates.
+- **Proposed.** `design/roadmap/proposed/image-permissions-required-check.md`, Make
+  `script/image-permissions` a required check in the merge queue's ruleset. It is one checkbox and
+  it is calef's, because it is a repository setting rather than a file in this tree. Until it is
+  flipped, a red run is visible and merges anyway, so the gate reports rather than gates.

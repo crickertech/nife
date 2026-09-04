@@ -148,13 +148,17 @@ backups but not delete them", which is a genuinely useful thing to be able to sa
 - **Recorded.** In `notes/smb.md`, kept in full rather than trimmed with the code: what was
   demonstrated and when, what never worked, the scale of what was deleted, and why. A future reader
   deciding whether to build a Mac-mountable share here again starts from that note's BUGS section.
-- **Unclaimed.** Replace the SMB adapter's resource-name configuration with a narrower `cred_proto`
+- **Proposed.** `design/roadmap/proposed/a-credential-endpoint-per-resource.md`, replace the SMB
+  adapter's resource-name configuration with a narrower `cred_proto`
   capability, so the endpoint is the credential for one resource and the name is implied and
   unforgeable, which is DECISIONS §27's argument applied to `cred_proto`. It is calef's call,
   because it changes a contract two programs agree on. `notes/smb.md` records the shape as a next
   step rather than as an accepted limitation, so the extra authority is carried without anyone
   having chosen it.
-- **Unclaimed.** Mint a roadmap status word for "built, then removed", or decide the vocabulary does
-  without one. This block carries `REMOVED` in its prose and `BUILT` in its status line, and says so
-  rather than inventing a word, because a status name is global to the tree and calef's. A reader
-  scanning the index sees a working network file service that no longer exists.
+- **Done.** The status word for "built, then removed" was minted: calef added `REMOVED` to the
+  vocabulary on 2026-08-30, the same day this code was deleted. `design/roadmap/README.md` carries
+  the token, why the six words then available could only lie about this milestone, and the extra
+  obligation it inherits from `IN-PROGRESS` (the block must say when the code went and why). This
+  block's own status line now reads `REMOVED 2026-08-30`, so the index no longer shows a reader a
+  working network file service that does not exist. The bullet above was written before that
+  landed.

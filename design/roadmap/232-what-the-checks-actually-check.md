@@ -131,7 +131,8 @@ inventory to answer it with.
   instruments nothing runs: two of them are
   expensive (`crate-probes` builds fifty crates, `repeat-under-load` boots QEMU repeatedly), so "run
   it in CI" is not automatically the answer and the audit prices rather than assumes.
-- **Unclaimed.** Give the three instruments nothing runs a caller: `script/interleaving-check` (26
-  loom harnesses, 12.4 seconds, green), `script/crate-probes` (about 3 minutes, 43 of 50) and
-  `script/rule-violations --check`. Deciding which joins `script/gates`, which joins CI and which
-  gets a cadence is unowned, and fatal risk 1 stands GREEN on a hand-run instrument meanwhile.
+- **Proposed.** `design/roadmap/proposed/instruments-nothing-runs.md`, Give the three instruments
+  nothing runs a caller: `script/interleaving-check` (26 loom harnesses, 12.4 seconds, green),
+  `script/crate-probes` (about 3 minutes, 43 of 50) and `script/rule-violations --check`. Deciding
+  which joins `script/gates`, which joins CI and which gets a cadence is unowned, and fatal risk 1
+  stands GREEN on a hand-run instrument meanwhile.

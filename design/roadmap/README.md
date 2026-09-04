@@ -151,7 +151,7 @@ on one that does not. It is a bullet list, and each bullet opens with one of six
 | `**Recorded.**` | It is a limitation and it stays one. | Prose, and any path it cites must exist |
 | `**Refused.**` | Considered and deliberately not taken. | A reason, in prose |
 | `**Decision.**` | It is calef's call, written up as one. | A file under `design/decisions/` |
-| `**Unclaimed.**` | Named, nobody took it, not refused. | Prose saying concretely what the work is |
+| `**Proposed.**` | Named, nobody took it, so it is now a proposal. | A file under `design/roadmap/proposed/` |
 
 **An explicit refusal is a success here.** The defect being attacked is silence, not the absence of
 a milestone, and `**None.**` is meant to be the cheapest sentence in the roadmap.
@@ -162,12 +162,13 @@ observation had to resolve to a milestone, would make the honest thing expensive
 the `BUGS` sections out, which costs more than the burial does. Nothing here reads prose looking for
 intent: AGENTS.md priced that at `git grep -w TODO`'s 82% false-positive rate.
 
-**`Unclaimed.` is the one that carries this milestone's whole subject**, and it was added by the
-sweep rather than designed before it: three lanes asked for it independently on the same afternoon,
-because a block that wrote its follow-on work down honestly and had nobody pick it up fits none of
-the other words. What stops it being silence with a heading over it is that it is queryable.
-`script/roadmap --unclaimed` prints every one tree-wide and `--check` prints the count on every run,
-so the backlog is a number somebody can watch rather than a paragraph in a block nobody opens.
+**`Proposed.` is the one that carries this milestone's whole subject**, and it went through two
+shapes in a day. A block that wrote its follow-on work down honestly and had nobody pick it up fits
+none of the other words: `Recorded.` lies about intent and `Refused.` lies about the decision, so a
+lane forced to choose writes the more comfortable one. Three lanes that would not lie left the item
+out instead, which is the burial arriving through the gate. It was first spelled `Unclaimed.` and
+took only prose, because a lane could not mint a milestone number and had nothing to point at. That
+constraint went the same day, and the disposition now resolves to a file somebody wrote.
 
 **`Done.` came from the same afternoon and four lanes**, for work a block named that two ordinary
 commits then finished. Each of those lanes resolved it by leaving the item out, which is the silence
@@ -175,6 +176,51 @@ this gate exists to stop, arriving through the gate itself.
 
 **The whole vocabulary is provisional until calef ratifies it.** `REMOVED` was minted by him and
 these six words are a lane's, offered with the sweep that produced them.
+
+## Anybody may add to this roadmap: `design/roadmap/proposed/`
+
+Ratified by calef on 2026-09-03, and it dissolves a rule this tree had been treating as one thing.
+**A lane writes a proposal itself**, as `design/roadmap/proposed/<slug>.md`, with no number in the
+name. No coordination, no maintainer in the path, no waiting.
+
+*"On a human team, anybody should be able to add to the roadmap. That's different than prioritizing
+that roadmap."* Lanes were barred from minting because concurrent lanes cannot see each other and
+two reaching for the same number collide. **The collision is in the number, not in the authority**,
+and conflating them meant a lane that found work had to route it through a report, through the
+maintainer, into a decision that might be deferred. Every hop is a chance to lose it, and on the day
+this landed the maintainer had buried three items by deferring them into chat messages. Prioritising
+the roadmap is still calef's, and so is every number and every name.
+
+**Why a slug and not a GUID**, which was considered and rejected. Milestones are cited in prose
+constantly and a GUID cannot be said out loud. This tree already found bare numbers too opaque, which
+is why it cites a milestone by number *and* name; a GUID moves further along the axis that already
+needed correcting. The slug is the readable half of a filename this directory already uses, so
+nothing new has to be learned, and two lanes collide only by choosing the same words, which is
+visible rather than silent. Numbers stay for promoted blocks, where they also carry recency for free.
+
+**A proposal carries the same status and gate lines a numbered block does**, so promotion changes
+almost nothing:
+
+```markdown
+# <Title, the way a numbered block is titled>
+
+**Status: PROPOSED 2026-09-03.** Written by <who or what>, from milestone <N>'s block.
+
+**Gate: NONE.** <what stops a lane starting this>
+
+**In brief.** <what the work is>
+```
+
+**Promotion is the integrator's, at merge**, like every other global name: give the file its number,
+`git mv` it up a directory, add the index row. `script/roadmap --check` validates the rest.
+
+**The graveyard question, asked here rather than discovered later.** A proposal nobody promotes is
+the same burial in a new location. Nothing can force a promotion, and a gate that tried ("no proposal
+older than N days") would be routed around by not writing proposals, which is worse than the pile.
+What the gate does instead is make the pile impossible to miss: the status line carries the date it
+was written, `script/roadmap --check` prints the count and the oldest date on every lint run, and
+`--proposed` lists them oldest first. An unread number is still rung two, where a paragraph in a
+finished block was rung four.
 
 **Reading it.** `script/roadmap --ready` prints only what a lane could pick up now: gate `NONE`, and a
 status of `NOT-STARTED` or `PARTIAL`, because `IN-PROGRESS` has somebody on it and `OPTIONAL` and

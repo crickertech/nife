@@ -84,7 +84,8 @@ hand off across a live swap, the hardest handoff case yet named), 27 (`std::fs`)
 - **Recorded.** `notes/redoxfs-audit.md` holds item 5's known-and-accepted costs, both still true:
   `libc` is an unconditional manifest dependency used only by the host binaries, and aes, xts, argon2
   and lz4 ride along as binary size with encryption unused.
-- **Unclaimed.** Offer the two RedoxFS patches upstream. `patches/redoxfs-no-std-vec-import.patch`
+- **Proposed.** `design/roadmap/proposed/redoxfs-patches-upstream.md`, offer the two RedoxFS
+  patches upstream. `patches/redoxfs-no-std-vec-import.patch`
   and `patches/redoxfs-no-std-create-uuid.patch` are written and `patches/README.md` names the
   route, but no merge request exists on gitlab.redox-os.org. So the pin carries divergences that
   could have stopped existing, and every future bump re-applies them by hand.

@@ -86,6 +86,8 @@ root, mode = sys.argv[1], sys.argv[2]
 d = os.path.join(root, "design", "roadmap")
 index_path = os.path.join(d, "README.md")
 
+PROPOSED_DIR = "proposed"
+
 VOCAB = ["BUILT", "REMOVED", "PARTIAL", "IN-PROGRESS", "NOT-STARTED", "OPTIONAL", "RECORDED"]
 
 # REMOVED KEEPS its Built date where it had one, and that is half the reason it is a status rather
@@ -190,7 +192,7 @@ FNAME = re.compile(r"(\d+)([a-z]?)-[a-z0-9][a-z0-9-]*\.md")
 ids = {}
 gates = {}
 for fname in sorted(os.listdir(d)):
-    if fname == "README.md":
+    if fname == "README.md" or fname == PROPOSED_DIR:
         continue
     m = FNAME.fullmatch(fname)
     if not m:
@@ -328,6 +330,78 @@ for fname in sorted(os.listdir(d)):
 
 # A row whose file is missing is already reported by the row's link check above.
 
+# ---- unnumbered proposals (milestone 247, calef 2026-09-03) -------------------
+# **Anybody may add to the roadmap; prioritising it is a different act.** That is calef's
+# distinction and it dissolves a rule this tree had been treating as one thing. Lanes could not
+# mint milestone numbers because concurrent lanes cannot see each other and two reaching for the
+# same number collide. The collision is in the NUMBER, not in the authority, and conflating them
+# meant a lane that found work had to route it through a report, through the maintainer, into a
+# decision that might be deferred. Every hop is a chance to lose it, and on the day this landed the
+# maintainer had buried three items by deferring them into chat messages.
+#
+# So a proposal is a file with no number: `design/roadmap/proposed/<slug>.md`. The slug is the
+# readable half of a numbered block's name, so nothing new has to be learned, and it collides only
+# if two lanes pick the same words, which is visible rather than silent. **GUIDs were considered and
+# rejected by calef**: milestones are cited in prose constantly and a GUID cannot be said out loud,
+# where this tree already found bare numbers too opaque and cites by number AND name. Numbers also
+# carry recency for free, which is why they stay for promoted blocks.
+#
+# **Promotion** is the integrator's, at merge, like every other global name: give the file its
+# number, `git mv` it up a directory, add the index row. Nothing else changes, because a proposal
+# already carries the status and gate lines a numbered block carries.
+#
+# **The graveyard question, asked here rather than discovered later.** A proposal nobody promotes is
+# the same burial in a new location. Nothing here can force a promotion, and a gate that tried
+# ("no proposal older than N days") would be routed around by not writing proposals, which is worse.
+# What this does instead is make the pile impossible to not see: the status line carries the date it
+# was written, `--check` prints the count and the age of the oldest on every lint run, and
+# `--proposed` lists them oldest first. An unread number is still rung two; a paragraph in a
+# finished block was rung four.
+PROPOSED_STATUS = re.compile(r"\*\*Status: PROPOSED (\d{4}-\d{2}-\d{2})\.\*\*")
+proposals = []
+pdir = os.path.join(d, PROPOSED_DIR)
+for fname in sorted(os.listdir(pdir)) if os.path.isdir(pdir) else []:
+    rel = f"{PROPOSED_DIR}/{fname}"
+    if not fname.endswith(".md"):
+        problems.append(f"{rel}: only proposal files live here (<slug>.md)")
+        continue
+    if not re.fullmatch(r"[a-z][a-z0-9-]*\.md", fname):
+        problems.append(f"{rel}: a proposal filename is a lowercase hyphenated slug and carries "
+                        f"NO number. The number is assigned at promotion, which is what lets a "
+                        f"lane add to the roadmap without coordinating with any other lane")
+        continue
+    plines = open(os.path.join(pdir, fname)).read().split("\n")
+    if not plines or not re.match(r"# [^0-9]", plines[0]):
+        problems.append(f"{rel}: line 1 must be '# <title>', with no milestone number: an "
+                        f"unpromoted proposal has none (found {plines[0][:40]!r})")
+        continue
+    first = next((l for l in plines[1:] if l.strip()), "")
+    ps = PROPOSED_STATUS.match(first)
+    if not ps:
+        problems.append(f"{rel}: the line under the title must be "
+                        f"'**Status: PROPOSED <YYYY-MM-DD>.**'. The date is what makes the pile "
+                        f"measurable: a proposal nobody promotes is the same burial in a new "
+                        f"place, and age is the only tell a script has (found {first[:40]!r})")
+        continue
+    paras, cur = [], []
+    for l in plines:
+        if l.strip():
+            cur.append(l)
+        elif cur:
+            paras.append(cur)
+            cur = []
+    if cur:
+        paras.append(cur)
+    gate_para = " ".join(paras[2]) if len(paras) > 2 else ""
+    if not re.match(r"\*\*Gate: ([A-Z0-9, ]+)\.\*\* (\S)", gate_para):
+        problems.append(f"{rel}: the paragraph under the status must be "
+                        f"'**Gate: <spec>.** <why>', the same as any unbuilt milestone: a proposal "
+                        f"a lane cannot start is worth as little as a milestone a lane cannot "
+                        f"start (found {gate_para[:48]!r})")
+        continue
+    proposals.append((ps.group(1), rel, plines[0][2:]))
+
+
 # ---- the Follow-on section (milestone 247) ------------------------------------
 # A finished milestone is the last place anyone looks, and the work it named on the way out is what
 # this project keeps losing. Three recorded times: milestone 90 exists only because calef happened
@@ -359,8 +433,8 @@ for fname in sorted(os.listdir(d)):
 #   - **Refused.**           it was considered and deliberately not taken; carries the reason.
 #   - **Decision.**          it is calef's call and is written up as one; names the file under
 #                            design/decisions/ that holds it.
-#   - **Unclaimed.**         the block named work, nobody has taken it, and it has not been
-#                            refused. Says concretely what the work is.
+#   - **Proposed.**          the block named work nobody has taken, so it is now a proposal in
+#                            design/roadmap/proposed/, named here.
 #   - **Done.**              it was done, and not as a milestone. Says what carried it: a pull
 #                            request, a branch, a commit, or the file it now lives in.
 #
@@ -370,18 +444,18 @@ for fname in sorted(os.listdir(d)):
 # resolved it by leaving the item out, which is the silence this whole gate exists to stop, arriving
 # through the gate itself.
 #
-# **`Unclaimed.` was added by the sweep that this gate was built for, and three lanes asked for it
-# independently on the same afternoon.** The first four dispositions handle a limitation the block
-# accepts and a successor the block got. They handle badly the case that is this milestone's whole
-# subject: a block that wrote its follow-on work down honestly, in the place a reader meets it, and
-# nobody picked it up. `Recorded.` would lie about intent and `Refused.` would lie about the
-# decision, so a lane forced to choose between them writes the more comfortable one.
+# **`Proposed.` is this gate's whole subject and it went through two shapes in a day.** The other
+# dispositions handle a limitation the block accepts and a successor the block got. Neither handles
+# the case milestone 247 exists for: a block that wrote its follow-on work down honestly, in the
+# place a reader meets it, and nobody picked it up. `Recorded.` lies about intent and `Refused.`
+# lies about the decision, so a lane forced to choose writes the more comfortable one, and three
+# lanes that would not lie **left the item out**, which is the burial arriving through the gate.
 #
-# **What stops it being silence with a heading over it is that it is queryable.**
-# `script/roadmap --unclaimed` prints every one of them tree-wide and `--check` prints the count on
-# every run, so the backlog is a number somebody can watch rather than a paragraph in a block nobody
-# opens. That is the difference between rung four and rung two, and it is the entire justification
-# for the token: an unclaimed item is findable by command, which a handoff paragraph never was.
+# It was first spelled `Unclaimed.` and took only prose, because a lane could not mint a milestone
+# number and had nothing to point at. calef removed that constraint the same day
+# (design/roadmap/proposed/, above): **the collision was in the number, never in the authority.**
+# So the disposition now resolves to a file somebody wrote, which is strictly stronger than a
+# sentence promising that work exists, and it costs the author one file and no coordination.
 #
 # **`Decision.` is not a fifth tracked form**, it is the tree's existing second one. AGENTS.md:
 # "Open decisions live in a file, not in a conversation." Without this bullet a decision owed to
@@ -414,7 +488,7 @@ PATHISH = re.compile(r"(?:" + "|".join([
     "user", "vendor", "xtask", r"\.github",
 ]) + r")/\S+")
 DISPOSITION = re.compile(
-    r"^- \*\*(None|Recorded|Refused|Decision|Unclaimed|Done|Milestone (\d+))\.\*\*(.*)$")
+    r"^- \*\*(None|Recorded|Refused|Decision|Proposed|Done|Milestone (\d+))\.\*\*(.*)$")
 
 swept = 0
 unclaimed = []
@@ -470,7 +544,8 @@ for mid, fname in sorted(ids.items()):
         if not dm:
             problems.append(f"{fname}:{n}: {l[:60]!r} is not a disposition. Every bullet under "
                             f"'## Follow-on' opens '**None.**', '**Milestone N.**', "
-                            f"'**Recorded.**' or '**Refused.**'")
+                            f"'**Done.**', '**Recorded.**', '**Refused.**', '**Decision.**' or "
+                            f"'**Proposed.**' (see design/roadmap/README.md)")
             continue
         kind, rest = dm.group(1).split(" ")[0], dm.group(3).strip()
         if kind == "None":
@@ -523,12 +598,16 @@ for mid, fname in sorted(ids.items()):
                             f"that something happened is only useful if a reader can go and look: "
                             f"a pull request, a branch, a commit, or the file it lives in now "
                             f"(found {rest!r})")
-        elif kind == "Unclaimed":
-            if len(rest) < 40:
-                problems.append(f"{fname}:{n}: '**Unclaimed.**' says concretely what the work is, "
-                                f"because it is the one disposition a reader cannot resolve for "
-                                f"themselves. 'More work here' is the burial this gate exists to "
-                                f"stop (found {rest!r})")
+        elif kind == "Proposed":
+            named = [p for p in re.findall(r"`([^`]+)`", rest)
+                     if p.startswith(f"design/roadmap/{PROPOSED_DIR}/")]
+            real = [p for p in named if os.path.exists(os.path.join(root, p))]
+            if not real:
+                problems.append(
+                    f"{fname}:{n}: '**Proposed.**' names the proposal file that now holds this "
+                    f"work, in backticks, under design/roadmap/{PROPOSED_DIR}/, and that file has "
+                    f"to exist (found {named if named else 'no proposal'}). Writing one costs a "
+                    f"file and no coordination, which is why a promise in prose is not enough")
             else:
                 unclaimed.append((num, fname, n, rest))
         elif kind == "Refused" and len(rest) < 40:
@@ -595,15 +674,27 @@ if mode == "--check":
     print(f"roadmap: {len(gates)} of them classified by gate, {len(ready)} ready to start "
           f"(script/roadmap --ready)")
     print(f"roadmap: {swept} blocks answer '## Follow-on'")
-    print(f"roadmap: {len(unclaimed)} pieces of follow-on work are unclaimed "
-          f"(script/roadmap --unclaimed)")
+    print(f"roadmap: {len(unclaimed)} pieces of follow-on work were named by a finished "
+          f"milestone and became proposals (script/roadmap --unclaimed)")
+    if proposals:
+        print(f"roadmap: {len(proposals)} unnumbered proposals awaiting a number, oldest "
+              f"{min(p[0] for p in proposals)} (script/roadmap --proposed)")
     if lettered:
         print(f"roadmap: lettered addenda: {', '.join(lettered)}")
     sys.exit(0)
 
+if mode == "--proposed":
+    # Oldest first, because age is the only thing that distinguishes a proposal from a graveyard.
+    for when, rel, title in sorted(proposals):
+        print(f"  {when}  {title[:72]}")
+        print(f"              design/roadmap/{rel}")
+    print(f"\n{len(proposals)} proposals with no number. Promoting one is the integrator's: give "
+          f"it a number, git mv it up a directory, add the index row")
+    sys.exit(0)
+
 if mode == "--unclaimed":
-    # The backlog this roadmap could not see before milestone 247: work a finished block named and
-    # nobody took. Derived from the blocks, so it cannot go stale the way a separate list would.
+    # Work a finished block named, nobody took, and that now has a proposal file. Derived from the
+    # blocks, so it cannot go stale the way a separate list would.
     for num, fname, n, rest in sorted(unclaimed):
         print(f"  {num:>3}  {rest[:96]}")
         print(f"       {fname}:{n}")
@@ -619,7 +710,7 @@ if mode == "--ready":
     sys.exit(0)
 
 if mode:
-    print(f"roadmap: unknown argument {mode!r} (no argument, --ready, --unclaimed, or --check)",
+    print(f"roadmap: unknown argument {mode!r} (no argument, --ready, --unclaimed, --proposed, or --check)",
           file=sys.stderr)
     sys.exit(2)
 

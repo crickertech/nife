@@ -144,8 +144,9 @@ mechanism works before it ever has to be right about something.
   report which of the five carried over. Automating a rebase before anyone has performed one by hand
   is guessing at the shape of a job nobody has done; the cheap version raises the pin and lets
   `script/vendor-verify` go red, which makes the upgrade a visible object.
-- **Unclaimed.** Perform the first real RedoxFS pin bump. The watch's first run found upstream 37
-  non-merge commits ahead of the pinned sha, including `fix: do not hardcode # of sectors per
-  block`, with 0.9.1 still the newest published version. Bumping means re-applying five divergences,
-  regenerating with `script/vendor-verify --write-patch`, and re-running the suite plus milestone
-  37's crash injector. Nobody owns it, and this is the engine holding backups.
+- **Proposed.** `design/roadmap/proposed/redoxfs-first-pin-bump.md`, Perform the first real RedoxFS
+  pin bump. The watch's first run found upstream 37 non-merge commits ahead of the pinned sha,
+  including `fix: do not hardcode # of sectors per block`, with 0.9.1 still the newest published
+  version. Bumping means re-applying five divergences, regenerating with `script/vendor-verify
+  --write-patch`, and re-running the suite plus milestone 37's crash injector. Nobody owns it, and
+  this is the engine holding backups.

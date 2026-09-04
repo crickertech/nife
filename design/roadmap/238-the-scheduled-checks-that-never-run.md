@@ -258,24 +258,25 @@ ship under a feedback loop that slow.
   considered and dropped: the crate has no `unsafe` today, which is what retired `xtask` and
   `board_console`, but it is central system logic under active development, and an excluded crate is
   one where a future `unsafe` block is silently uncovered.
-- **Unclaimed.** Sample `compositor`'s six full-screen per-pixel sweeps under `cfg(miri)`, the way
-  `glob`, `ntp_proto`, `calendar` and `gpt` already sample theirs. One was strided and fell from 44+
-  minutes to 57 seconds; the other five are untouched and are now the whole remaining cost of
+- **Proposed.** `design/roadmap/proposed/sampling-the-compositor-sweeps-under-miri.md`, Sample
+  `compositor`'s six full-screen per-pixel sweeps under `cfg(miri)`, the way `glob`, `ntp_proto`,
+  `calendar` and `gpt` already sample theirs. One was strided and fell from 44+ minutes to 57
+  seconds; the other five are untouched and are now the whole remaining cost of
   `script/undefined-behavior-check`. The budget was raised to 240 minutes instead of tuned, so the
   true end-to-end cost has never been measured.
-- **Unclaimed.** Bound what one mutant may allocate, so a runaway allocation kills the mutant
-  instead of the machine. Three shapes are priced in this block (a memory cgroup via `systemd-run
-  --scope`, `ulimit -v` ahead of `script/mutation`, or a `cargo` runner wrapper) and choosing
-  between them is the work. Today one mutant goes 1.4 GB to 15.8 GB in twenty seconds and takes the
-  runner agent with it, inside the 28-to-51-second per-mutant timeout that therefore cannot catch
-  it.
-- **Unclaimed.** Re-read fatal risk 3 against the new number, which is calef's call.
-  `design/fatal-risks.md` still reads MEASURED and green on 92.4% from 2026-08-03, while the first
-  published mutation report says 83.4% on a uniform one-eighth sample across all 60 crates. Until
-  somebody decides whether the verdict holds, that file carries a stale figure and tells a reader
-  the refresh arrives on its own.
-- **Unclaimed.** Measure and answer for `uefi_loader` at 15% and `manual` at 52%, the two crates
-  this block names beside `system_initializer` as carrying nearly all of the fall from 92.4% to
-  83.4%.
-  Milestone 244 took `system_initializer` alone. Nothing tracks these two, and no `BUGS` entry
-  anywhere accepts their scores, so the published number has two unexplained holes in it.
+- **Proposed.** `design/roadmap/proposed/a-memory-bound-for-one-mutant.md`, Bound what one mutant
+  may allocate, so a runaway allocation kills the mutant instead of the machine. Three shapes are
+  priced in this block (a memory cgroup via `systemd-run --scope`, `ulimit -v` ahead of
+  `script/mutation`, or a `cargo` runner wrapper) and choosing between them is the work. Today one
+  mutant goes 1.4 GB to 15.8 GB in twenty seconds and takes the runner agent with it, inside the
+  28-to-51-second per-mutant timeout that therefore cannot catch it.
+- **Proposed.** `design/roadmap/proposed/fatal-risk-3-against-the-new-number.md`, Re-read fatal risk
+  3 against the new number, which is calef's call. `design/fatal-risks.md` still reads MEASURED and
+  green on 92.4% from 2026-08-03, while the first published mutation report says 83.4% on a uniform
+  one-eighth sample across all 60 crates. Until somebody decides whether the verdict holds, that
+  file carries a stale figure and tells a reader the refresh arrives on its own.
+- **Proposed.** `design/roadmap/proposed/the-two-unexplained-mutation-scores.md`, Measure and answer
+  for `uefi_loader` at 15% and `manual` at 52%, the two crates this block names beside
+  `system_initializer` as carrying nearly all of the fall from 92.4% to 83.4%. Milestone 244 took
+  `system_initializer` alone. Nothing tracks these two, and no `BUGS` entry anywhere accepts their
+  scores, so the published number has two unexplained holes in it.

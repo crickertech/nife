@@ -188,7 +188,8 @@ is §82's stated failure mode.
 - **Recorded.** In `design/decisions/84-how-we-port.md`: this does not make `cap-std` run, it builds
   the object `cap-std` would bind to. The backend work is separate and is unmeasured, including
   whether `cap-primitives` has a seam a third backend can use at all.
-- **Unclaimed.** Spawn a `std` program on an `fs_subtree_caretaker` endpoint and run the PAL against
-  it, so the rights discipline is exercised under a narrowed grant. Every std test today grants the
-  mount root, which means a walk that over-asks for rights passes all of them. The PAL has already
-  come close once: `readdir` nearly shipped asking for `dir::ALL`.
+- **Proposed.** `design/roadmap/proposed/std-under-a-narrowed-grant.md`, spawn a `std` program on an
+  `fs_subtree_caretaker` endpoint and run the PAL against it, so the rights discipline is exercised
+  under a narrowed grant. Every std test today grants the mount root, which means a walk that
+  over-asks for rights passes all of them. The PAL has already come close once: `readdir` nearly
+  shipped asking for `dir::ALL`.

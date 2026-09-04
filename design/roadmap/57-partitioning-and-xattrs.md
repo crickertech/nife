@@ -326,11 +326,17 @@ scale, and so did the block-device lane.
   GUID that is not random is not unique, the crate has no randomness, and inventing one from a
   counter would be worse than refusing. The same note carries the two fixture findings: macOS writes
   no GPT partition names, and the two tools disagree about the protective MBR's CHS fields.
-- **Unclaimed.** Partitioning on the target. `Gpt::create` is built and proved and only needs an
-  entropy endpoint plumbed into the program that does the partitioning, with no pin divergence to
-  take. Until someone writes that program a drive can only be partitioned from a Mac, so the
-  capability story stops at the host tool.
-- **Unclaimed.** `mkfs` on the target, which needs the entropy plumbing above plus
-  `Header::new_with_uuid` inside `vendor/redoxfs`: a new entry in the divergence patch and a new
-  file in `patches/` for upstream submission. §46 makes taking that divergence calef's call, and the
-  honest alternative is doing nothing, since `redoxfs_host` on a Mac formats the drive today.
+- **Done.** Partitioning on the target is built: `user/src/disk_partitioner.rs`, landed in commit
+  `4db2fd74` ("disk: partition and format a disk on the target, with the two capabilities that takes",
+  2026-08-03). It holds exactly a block-service endpoint for one disk and an entropy endpoint, draws
+  four version-4 GUIDs, lays out three partitions through `Gpt::create` and writes both copies of the
+  table; its `ROLE_VERIFY` role reads the result back from a process holding no entropy at all, and
+  the negative control (the same binary with no entropy endpoint) writes nothing. The bullet above
+  was written before that landed.
+- **Done.** `mkfs` on the target is built: `redoxfs_server/src/bin/mkfs.rs`, in the same commit
+  `4db2fd74`. The divergence it needed was taken and documented rather than left implicit:
+  `Header::new_with_uuid` and `FileSystem::create_reserved_with_uuid` are in `vendor/redoxfs`,
+  recorded as divergence 4 in `vendor/README.md`, and carried for upstream submission as
+  `patches/redoxfs-no-std-create-uuid.patch`. The engine takes the uuid as an argument the same way
+  `create` already takes `ctime`, so no randomness enters vendored code. The bullet above was
+  written before that landed.

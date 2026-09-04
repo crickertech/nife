@@ -95,7 +95,8 @@ the bus and places every BAR before nife exists:
   firmware twice, once for the tour and once for the suite, because they carry two different
   kernels and the tour is the one that goes on the stick. Gating the suite alone would leave the
   shipping image gated by nothing.
-- **Unclaimed.** Make the x86_64 kernel image physically relocatable instead of linked at one
-  address. `PHYS_START` moved from 1 MiB to 32 MiB to clear OVMF's low reservations, which buys a
-  larger gap rather than a fix, and `.boot`'s absolute self-references have to become
-  position-independent because a 32-bit instruction stream cannot name a 64-bit one.
+- **Proposed.** `design/roadmap/proposed/relocatable-x86-64-kernel-image.md`, Make the x86_64 kernel
+  image physically relocatable instead of linked at one address. `PHYS_START` moved from 1 MiB to 32
+  MiB to clear OVMF's low reservations, which buys a larger gap rather than a fix, and `.boot`'s
+  absolute self-references have to become position-independent because a 32-bit instruction stream
+  cannot name a 64-bit one.

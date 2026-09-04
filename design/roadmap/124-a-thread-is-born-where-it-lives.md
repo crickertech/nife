@@ -332,9 +332,10 @@ proofs and tests run in a configuration nobody checks is not demonstrating.
   the overflow stays illegible. Growing the stack moves the fault further away without restoring the
   mechanism that makes it a fault at all; shrinking the frames below 4096 restores it. Growing the
   stack remains an independent question on its own merits.
-- **Unclaimed.** Delete the window in which a thread is published `Dead` while it still executes on
-  its own kernel stack, instead of refusing inside it: mark it `Departing` in `depart()` and promote
-  it to `Dead` from `finish_switch`, which already holds `SCHED` and already runs at the instant the
-  stack goes free. No caller would then see the transient `NotPermitted` this block records as a
-  race. It touches the death protocol and `RunState` in `crates/wake_handshake`, where loom searches
-  the transitions, so it wants a lane rather than a hotfix.
+- **Proposed.** `design/roadmap/proposed/a-thread-that-departs-before-it-is-dead.md`, delete the
+  window in which a thread is published `Dead` while it still executes on its own kernel stack,
+  instead of refusing inside it: mark it `Departing` in `depart()` and promote it to `Dead` from
+  `finish_switch`, which already holds `SCHED` and already runs at the instant the stack goes free.
+  No caller would then see the transient `NotPermitted` this block records as a race. It touches the
+  death protocol and `RunState` in `crates/wake_handshake`, where loom searches the transitions, so
+  it wants a lane rather than a hotfix.

@@ -272,7 +272,8 @@ accounting move together and want a lane of their own.
 - **Recorded.** `design/roadmap/230-shell-check-is-red.md`'s BUGS is honest about the bisect. It
   runs over first-parent merges, so it names PR #556 rather than a commit inside it, and `d1c81062`
   was identified by reading that branch rather than by a boot at that commit.
-- **Unclaimed.** Decide where the kernel's own output goes once userspace owns the console. Today
-  the kernel and the `console` server drive the same UART from two address spaces with nothing
-  arbitrating, so the streams interleave at byte granularity. It corrupts every bench session on
-  argon, radon and xenon, and 243's BUGS points at a home that does not exist.
+- **Proposed.** `design/roadmap/proposed/kernel-console-arbitration.md`, Decide where the kernel's
+  own output goes once userspace owns the console. Today the kernel and the `console` server drive
+  the same UART from two address spaces with nothing arbitrating, so the streams interleave at byte
+  granularity. It corrupts every bench session on argon, radon and xenon, and 243's BUGS points at a
+  home that does not exist.

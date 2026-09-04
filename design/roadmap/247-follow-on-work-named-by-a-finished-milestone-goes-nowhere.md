@@ -84,12 +84,22 @@ to survive is stated instead:
 
 ## What was built, 2026-09-03
 
-**The mechanism.** A `## Follow-on` section on every BUILT or REMOVED block, gated by
+**The mechanism, in two halves.** A `## Follow-on` section on every BUILT or REMOVED block, gated by
 `script/roadmap --check` and therefore by `script/lint`. Seven dispositions, each resolving to
 something a script can check: `None.`, `Milestone N.` (the block must exist), `Done.` (what carried
 it), `Recorded.` (any path it cites must exist), `Refused.` (a reason), `Decision.` (a file under
-`design/decisions/`), `Unclaimed.` (what the work is). The vocabulary is tabulated in
-design/roadmap/README.md and argued in notes/follow-on-work.md.
+`design/decisions/`), `Proposed.` (a file under `design/roadmap/proposed/`). Tabulated in
+design/roadmap/README.md, argued in notes/follow-on-work.md, and put to calef for ratification in
+`design/decisions/140-follow-on-disposition-vocabulary.md`.
+
+**And the half that makes it cheap enough to use**, which is calef's rather than this lane's
+(2026-09-03): `design/roadmap/proposed/<slug>.md`, an unnumbered proposal any lane may write. The
+reason lanes could not add to the roadmap was stated as collision, and *"the collision is in the
+number, not in the authority"*. Separating them means work reaches the tree at the moment it is
+discovered, written by whoever understood it best, with no maintainer in the path. That matters here
+more than anywhere: on the day this landed the maintainer buried three identified items by deferring
+them into chat messages, and calef caught all three by asking. **A burial mechanism has to assume
+the maintainer is a failure point and not only the lanes.**
 
 It hangs on the **status** rather than on a marker in prose, which is what keeps it off the rung
 this block ruled out. A block turning BUILT is the moment the burial happens and it is a state a
@@ -108,13 +118,24 @@ that renames had moved out from under them.
 605 dispositions: 291 `Recorded.`, which is the `BUGS` convention working as designed, and 136
 `Milestone N.`, usually the successor the block had already cited by number.
 
-**And 42 pieces of work that were named and never taken, across 32 finished milestones**, which is the number this block existed to
-produce and which nothing in the tree could see before. Five are recommended for minting in
-notes/follow-on-work.md, on a stated bar: a claim this project makes rests on it, or a record is now
-known to be wrong. The rest stay `Unclaimed.` and queryable through `script/roadmap --unclaimed`.
+**And 42 pieces of work that were named and never taken, across 32 finished milestones.** That is
+the number this block existed to produce and that nothing in the tree could see before. **38 of them
+are now proposal files, and 3 turned out to be already built**, which is only possible because of the half above: the morning's
+design had them as prose, and would have forced them to be argued down to a handful that a
+maintainer could carry. Five are called out in notes/follow-on-work.md as worth promoting first, on
+a stated bar: a claim this project makes rests on it, or a record is now known to be wrong.
+
+**Writing a proposal is what caught the three that were already done**, because it made a lane go and
+look at the tree, which nothing had required before. Milestone 54's request for a status word meaning
+"built, then removed" was answered when calef minted `REMOVED` on 2026-08-30; milestone 57's
+partitioning and `mkfs` both shipped in commit `4db2fd74`. Two of the three had sat stale for a month
+inside a `## Follow-on` section, which is this milestone's own failure one layer in: the section says
+what happened to the work, and nothing checks that it is still true. That is the honest limit of what
+this gate buys and it is recorded below.
 
 **Two dispositions were added by the sweep rather than designed before it**, and that is the
-finding worth keeping. `Unclaimed.` and `Done.` were each asked for by several lanes independently,
+finding worth keeping. `Proposed.` (first spelled `Unclaimed.`) and `Done.` were each asked for by
+several lanes independently,
 on the same afternoon, having hit the same wall: work a block named honestly that nobody took, and
 work a block named that two ordinary commits then finished. Neither fits the four words the gate
 shipped with. The lanes that would not write a comfortable lie **left those items out**, which is
@@ -122,17 +143,20 @@ this milestone's own failure mode arriving through this milestone's own mechanis
 
 ## Follow-on
 
-- **Unclaimed.** The 42 items the sweep found are listed nowhere but in the blocks that name them,
-  which is deliberate (they are queryable through `script/roadmap --unclaimed`) and means nothing
-  ages them. An entry written today and one that has sat for a year look identical, and nothing
-  escalates either. Whether the backlog wants a staleness signal is open.
-- **Recorded.** In `notes/follow-on-work.md`: `Unclaimed.` and `Recorded.` are separated by
-  judgment rather than by anything checkable, so the backlog is under-counted rather than
-  over-counted. `Recorded.` is the more comfortable word and the same text can defensibly take
-  either.
-- **Recorded.** In `notes/follow-on-work.md`: the gate fires once, when a block finishes. Follow-on
-  work identified after that lands in a block nothing re-checks, because the section already exists
-  and already passes.
+- **Recorded.** In `notes/follow-on-work.md`: nothing promotes a proposal and nothing can. A gate on
+  age would be routed around by not writing proposals, which costs more than the pile does, so what
+  ships is visibility: `script/roadmap --check` prints the count and the oldest date on every lint
+  run. That is a number somebody has to choose to ignore, which is weaker than a gate and much
+  stronger than a paragraph in a finished block.
+- **Recorded.** In `notes/follow-on-work.md`: `Proposed.` and `Recorded.` are separated by judgment
+  rather than by anything checkable, so the backlog is under-counted rather than over-counted.
+  `Recorded.` costs a sentence where `Proposed.` costs a file, and the same text can defensibly take
+  either word.
+- **Recorded.** In `notes/follow-on-work.md`: the gate fires once, when a block finishes, and it
+  never re-reads a disposition. Three of the sweep's own items were already built when it wrote
+  them, two of them stale for a month, and only a lane going to look found that out. A `Proposed.`
+  or `Recorded.` bullet ages exactly as badly as the prose it replaced; what changed is that it now
+  has a shape somebody could sweep.
 - **Decision.** The seven disposition words are a lane's and calef names things. He minted `REMOVED`
   in the status vocabulary himself, so this one is the same shape one level down; the ratification
   ask is `design/decisions/140-follow-on-disposition-vocabulary.md`, which also points at the
