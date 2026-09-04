@@ -1635,6 +1635,15 @@ fn depart(event: u64, pc: u64, addr: u64) -> ! {
 
         let fault_ep = sched.threads.get(current).and_then(|t| t.fault_ep);
 
+        // **A thread that departs answers nobody again** (milestone 254). Whatever `CALL` it
+        // collected and never replied to is a caller parked on nothing, discoverable only through
+        // the reply capability that is about to be dropped with this table. Free those callers
+        // here, with the stale-reply sweep `strand_reply_caller` insists on, so they return
+        // `Error::Gone` rather than blocking for the life of the machine. This is QNX's headline
+        // behaviour and the case notes/blocked-thread-teardown.md's survey found this kernel alone
+        // in lacking.
+        strand_callers_of(sched, current);
+
         match fault_ep {
             None => {
                 if let Some(t) = sched.threads.get_mut(current) {
@@ -1816,6 +1825,10 @@ pub fn schedule() {
             && t.handshake.state == State::Running
         {
             t.handshake.state = State::Finished;
+            // A killed thread never reaches `depart`, so this is the one place its callers can be
+            // freed before its capability table goes (milestone 254). Guarded by `killed`, so the
+            // sixteen-slot scan never runs on an ordinary pass through the kernel's hottest path.
+            strand_callers_of(sched, current);
         }
         let state = sched.threads.get(current).map(|t| t.handshake.state);
 
@@ -2634,6 +2647,22 @@ pub fn ipc_recv_cap(ep: RendezvousId) -> [u64; 3] {
 /// If the server's capability table is full the reply cap is dropped (the server sees `NO_CAP`, exactly as a
 /// delegated cap would be) and, having no way to answer, the caller blocks until torn down: the same
 /// no-timeout limitation as a reply that never comes, and self-inflicted by the server.
+///
+/// # BUGS
+///
+/// **A server that is alive and simply never replies blocks its caller forever.** There is no
+/// deadline on a `CALL` (that is milestone 106's fork, and L4's answer), and no way to end the
+/// server's thread (milestone 133's). What milestone 254 fixed is narrower and is the case the
+/// kernel used to get wrong in a way nothing recorded as intended: a server that **stops being able
+/// to answer**, by exiting, faulting, being killed, being reaped with its region, or having the
+/// rendezvous torn down under it, now frees its callers with [`abi::Error::Gone`] rather than
+/// leaving them blocked for the life of the machine. See [`strand_reply_caller`].
+///
+/// **The reply capability names a thread, not a call**, so what stops a stale one answering a later,
+/// unrelated `CALL` is that [`strand_reply_caller`] deletes it, not that [`ipc_reply`]'s guard could
+/// tell the two conversations apart. A future path that reached `ipc_reply` without presenting a
+/// capability would reopen that. The structural fix is a call identity in the payload:
+/// `design/roadmap/proposals/a-reply-capability-that-names-a-call.md`.
 pub fn ipc_call(ep: RendezvousId, msg: [u64; 2]) -> [u64; 3] {
     {
         let mut guard = IPC_TABLES.lock();
@@ -2712,6 +2741,138 @@ pub fn ipc_reply(caller: ThreadId, msg: [u64; 2]) {
         t.handshake.serve(); // delivered: this wake passes the boot-8 gate
         trace::record(trace::Event::Served, caller, 6);
         wake(sched, caller);
+    }
+}
+
+/// **Free one caller a server can no longer answer** (milestone 254). `abi::Error::Gone` reaches a
+/// rendezvous's *wait queues*, and a `CALL` caller whose request was already taken left those queues
+/// at the rendezvous: it is linked on nothing, and [`ipc_reply`] is the only thing that wakes it. So
+/// a caller stranded by a server that merely died stayed blocked for the life of the machine, and
+/// was itself a region nobody could reclaim. QNX Neutrino has not permitted that since the 1990s
+/// ("if the server thread fails, exits, or disappears, the client thread becomes READY, with
+/// `MsgSend()` indicating an error"), and nothing in this tree recorded it as intended, which is what
+/// made it a defect rather than a fork. See notes/blocked-thread-teardown.md, proposal C.
+///
+/// **The capability sweep is the larger half, and it must come before the wake.** Waking a
+/// reply-parked caller is exactly the path that opens the stale reply capability: [`crate::cap::
+/// reply_cap`] mints `Object::Reply(tid)` carrying a generational *thread* name and no call
+/// identity, and [`ipc_reply`]'s guard checks the `WaitRole` while discarding the rendezvous. That
+/// guard is sound only while nothing can leave a reply park and enter a second `CALL` with an
+/// unconsumed `Reply` still naming it, and this function is precisely what creates that path. A hung
+/// server holding the stale capability would otherwise forge an answer to a later, unrelated
+/// conversation; `L4Re` documents the identical hazard as a consequence of its own finite receive
+/// timeouts. So every `Object::Reply(caller)` in the machine is deleted first, which is seL4's
+/// `cteDeleteOne(callerCap)` reached from `cancelIPC`. seL4's other answer (never wake the victim,
+/// `ThreadState_Inactive`) is not available here, because waking it is the whole point.
+///
+/// **Only a thread actually parked awaiting a reply is touched**, which is [`ipc_reply`]'s own
+/// guard and is what keeps this from clobbering an ordinary receiver's park. Returns whether it
+/// did anything, so a scan can use the abort flag as its own termination.
+/// **`#[cold]`, and that is a claim rather than a hint.** Every caller of this is a teardown: a
+/// thread departing, a kill landing, a region being reaped, a rendezvous going away. Saying so keeps
+/// it out of `script/fastpath-footprint`'s closure, which matters because one of the four call sites
+/// is the top of [`schedule`], the hottest path in the kernel; inlined there it cost 1,363 bytes of
+/// `x86_64` IPC fastpath, a 20% growth, for code that runs when something is being torn down.
+#[cold]
+#[inline(never)]
+fn strand_reply_caller(sched: &mut IpcTables, caller: ThreadId) -> bool {
+    let parked = sched
+        .threads
+        .get(caller)
+        .is_some_and(|t| matches!(t.handshake.wait_on, Some((_, WaitRole::Reply))));
+    if !parked {
+        return false;
+    }
+    // The sweep, before the wake. `outgoing_cap` goes too: a caller that met no server rides its
+    // own reply capability there awaiting a `RECV_CAP` that will now never collect it, and leaving
+    // a live `Reply` in a hand-off slot is the same forgery one step earlier.
+    let target = crate::cap::Object::Reply(caller);
+    for t in sched.threads.iter_mut() {
+        t.capability_table
+            .delete_matching(|object: &crate::cap::Object| *object == target);
+        if matches!(t.outgoing_cap, Some(c) if c.object == target) {
+            t.outgoing_cap = None;
+        }
+    }
+    set_ipc_aborted(sched, caller);
+    wake(sched, caller);
+    true
+}
+
+/// **Every caller `tid` was still holding a reply capability for is freed** (milestone 254): the
+/// server-side trigger, for a thread that can no longer answer anybody. Reached from three places
+/// where that becomes true and the capabilities are about to stop existing: [`depart`] (the thread
+/// exited or faulted, which is QNX's headline case), the forcible-teardown conversion at the top of
+/// [`schedule`] (DECISIONS §16's armed kill, which never reaches `depart`), and
+/// [`reap_region_objects`]'s removal phase (an `Embryo` or an already-reaped corpse).
+///
+/// **It reads the table once and then acts**, which is a measured shape rather than a stylistic
+/// one. The obvious loop re-resolves `tid` through the generational thread table on every slot,
+/// because [`strand_reply_caller`] takes `sched` mutably and deletes out of this very table as it
+/// goes; at 24 slots that is 24 generational lookups per departing thread, and `script/bench`
+/// priced it at about 830 icount ticks on every `spawn_reap` iteration. One lookup, a 192-byte
+/// array of victims in this function's own frame (it is `#[inline(never)]`, so the array is never
+/// on `reap_region_objects`'s), and the empty-table early-out cost nothing and gave it back.
+#[cold]
+#[inline(never)]
+fn strand_callers_of(sched: &mut IpcTables, tid: ThreadId) {
+    let mut victims = [0 as ThreadId; crate::cap::CAPABILITY_TABLE_SLOTS];
+    let mut found = 0;
+    {
+        let Some(t) = sched.threads.get(tid) else {
+            return;
+        };
+        // Overwhelmingly the common case on the `depart` path is a thread holding no reply
+        // capability at all; an empty table is the case worth not paying for at all.
+        if t.capability_table.used() == 0 {
+            return;
+        }
+        for slot in 0..t.capability_table.len() as u64 {
+            if let Ok(c) = t.capability_table.get(slot)
+                && let crate::cap::Object::Reply(caller) = c.object
+            {
+                victims[found] = caller;
+                found += 1;
+            }
+        }
+    }
+    for &caller in &victims[..found] {
+        strand_reply_caller(sched, caller);
+    }
+}
+
+/// **Every caller reply-parked on `ep` is freed** (milestone 254): the rendezvous-side trigger, for
+/// an rendezvous that is being torn down. This is the half `drain_waiters` structurally cannot do,
+/// and the reason is the whole defect: a reply park is linked on no queue, so the drain walks past
+/// it. `wait_on` records `(ep, WaitRole::Reply)`, so a scan over the thread table answers it, which
+/// is Zircon's answer (a closed channel fails the call in flight) reached without touching the
+/// server.
+///
+/// **Rescan rather than list**, which is the opposite choice from [`strand_callers_of`] above and
+/// the difference is the bound: that one lists because a capability table is 24 slots, 192 bytes,
+/// and this one cannot because the bound here is `MAX_THREADS`, a kilobyte that grows every time
+/// the thread ceiling does. Both functions sit on the call chain through
+/// [`reap_region_objects`], the deepest frame in the kernel, whose own comment spends a paragraph
+/// on this exact array (see also notes/stack-high-water.md). The abort flag
+/// [`strand_reply_caller`] sets is what makes the rescan terminate, and it has to be the flag rather
+/// than `wait_on`: a wake deferred behind `on_cpu` leaves the park in place until that core's
+/// `finish_switch`, so a predicate reading only `wait_on` would spin.
+#[cold]
+#[inline(never)]
+fn strand_callers_awaiting(sched: &mut IpcTables, ep: RendezvousId) {
+    loop {
+        let stranded = sched
+            .threads
+            .iter_mut()
+            .find(|t| {
+                matches!(t.handshake.wait_on, Some((on, WaitRole::Reply)) if on == ep)
+                    && !t.handshake.ipc_aborted
+            })
+            .map(|t| t.id);
+        let Some(caller) = stranded else { break };
+        if !strand_reply_caller(sched, caller) {
+            break;
+        }
     }
 }
 
@@ -3017,6 +3178,11 @@ fn reap_region_objects(base: u64, end: u64) -> Result<(), ()> {
             });
         }
         sched.rendezvous_table.remove(name);
+        // **And the callers the drain structurally cannot reach** (milestone 254). A `CALL` whose
+        // request was taken left the sender queue at the rendezvous, so `drain_waiters` above walks
+        // straight past it; only `wait_on` still records that it awaits a reply through this
+        // rendezvous, which no longer exists.
+        strand_callers_awaiting(sched, name);
     }
 
     // --- Refuse phase: no thread in the region may still be able to run. ---
@@ -3121,6 +3287,11 @@ fn reap_region_objects(base: u64, end: u64) -> Result<(), ()> {
                 unsafe { rendezvous.remove_sender(ptr) };
             }
         }
+        // **And the callers this thread will never answer** (milestone 254): a resident reaped
+        // here is an `Embryo` or a corpse whose table still holds the reply capabilities it
+        // collected, and freeing the TCB is what makes them unreachable. `depart` and the kill
+        // conversion in `schedule` cover the threads that ran; this covers the rest.
+        strand_callers_of(sched, tid);
         sched.threads.remove(tid);
     }
 
@@ -3145,6 +3316,14 @@ fn reap_region_objects(base: u64, end: u64) -> Result<(), ()> {
 /// answer. A caller that wants to know whether a region is busy without ending what is in it has no
 /// such call today. Milestone 72 traced an intermittent lost-wakeup hang to one line of test code
 /// that used the refusal as a probe; see `user::tests::reclaim_frees_a_started_then_exited_childs_regions`.
+///
+/// **It reaches outside the region, and since milestone 254 it reaches one step further.** Tearing
+/// down a rendezvous already drained its wait queues and aborted every waiter, wherever those
+/// waiters lived; it now also frees every caller reply-parked on that rendezvous, and every caller
+/// still named by a reply capability in a thread this reclaim reaps. Those callers observe
+/// [`abi::Error::Gone`] from a `CALL` they made to somebody else's rendezvous. That is the same
+/// commitment one object over (`reap_region_objects`'s own comment argues it for the wait queues),
+/// and it is written here because the surprise, if there is one, lands on a reader of this function.
 pub fn reclaim_region(region: u64) -> Result<(), ()> {
     // A region carved into children cannot be reclaimed: its child regions own part of its run and
     // free those pages themselves. The owner must destroy the children first. Refuse before any
@@ -4352,6 +4531,217 @@ mod tests {
         assert!(
             ABORTED.load(Ordering::SeqCst),
             "the woken waiter did not see its IPC aborted",
+        );
+    }
+
+    /// How many threads are parked awaiting a reply *through* `ep`. Test support for milestone
+    /// 254, and it cannot be asked of the rendezvous itself, which is the entire defect: a `CALL`
+    /// caller whose request was taken is linked on no queue, so `debug_counts` cannot see it and
+    /// only `wait_on` still records that it is waiting.
+    fn reply_parked_callers(ep: super::RendezvousId) -> usize {
+        let guard = super::IPC_TABLES.lock();
+        let Some(sched) = guard.as_ref() else {
+            return 0;
+        };
+        sched
+            .threads
+            .iter_from(0)
+            .filter(|(_, t)| {
+                matches!(t.handshake.wait_on, Some((on, super::WaitRole::Reply)) if on == ep)
+            })
+            .count()
+    }
+
+    /// How many live `Reply` capabilities anywhere in the machine still name `caller`: the sweep's
+    /// own assertion (milestone 254). `outgoing_cap` counts too, because a caller that met no
+    /// server rides its own reply capability there awaiting a `RECV_CAP` hand-off, and a live one
+    /// left in that slot is the same forgery one step earlier.
+    fn outstanding_reply_capabilities(caller: super::ThreadId) -> usize {
+        let guard = super::IPC_TABLES.lock();
+        let Some(sched) = guard.as_ref() else {
+            return 0;
+        };
+        let target = crate::cap::Object::Reply(caller);
+        let mut found = 0;
+        for (_, t) in sched.threads.iter_from(0) {
+            for slot in 0..t.capability_table.len() as u64 {
+                if t.capability_table
+                    .get(slot)
+                    .is_ok_and(|c| c.object == target)
+                {
+                    found += 1;
+                }
+            }
+            if matches!(t.outgoing_cap, Some(c) if c.object == target) {
+                found += 1;
+            }
+        }
+        found
+    }
+
+    /// **A caller whose rendezvous is torn down mid-`CALL` returns `Gone` rather than blocking for
+    /// the life of the machine** (milestone 254), and **the stale reply capability the server was
+    /// still holding is gone before the caller can run again.**
+    ///
+    /// This test hung before milestone 254. `Error::Gone` reached a rendezvous's *wait queues*, and
+    /// the server here has already collected the request, so the caller left those queues at the
+    /// rendezvous: `drain_waiters` walked straight past it and `ipc_reply` was the only thing left
+    /// that could wake it. `a_blocked_waiter_wakes_with_an_error_when_its_rendezvous_is_revoked`,
+    /// two tests up, is the case that always worked, and the difference between them is exactly one
+    /// collected message.
+    ///
+    /// **The second assertion is the one that matters**, and a version of this test carrying only
+    /// the first would pass while the kernel was strictly worse than before it. Waking a
+    /// reply-parked caller is what lets it enter a second `CALL` with an unconsumed `Reply` still
+    /// naming it, and `Object::Reply` carries a generational thread name with no call identity, so
+    /// the server's held capability would answer the *next* conversation. `current_cap` is the same
+    /// lookup `abi::reply::REPLY` does before it reaches `ipc_reply`, so a capability that is gone
+    /// here is a reply that cannot be sent at all.
+    #[test_case]
+    fn a_reply_parked_caller_wakes_with_an_error_when_its_rendezvous_is_reclaimed() {
+        static COLLECTED: AtomicBool = AtomicBool::new(false);
+        static RELEASE: AtomicBool = AtomicBool::new(false);
+        static HELD_BEFORE: AtomicBool = AtomicBool::new(false);
+        static HELD_AFTER: AtomicBool = AtomicBool::new(true);
+        static CHECKED: AtomicBool = AtomicBool::new(false);
+        static WOKE: AtomicBool = AtomicBool::new(false);
+        static ABORTED: AtomicBool = AtomicBool::new(false);
+        static CALLER: AtomicU64 = AtomicU64::new(0);
+
+        let region = crate::memory_region::create(2).expect("region");
+        let ep = crate::sched::create_rendezvous_from(region).expect("rendezvous from region");
+
+        // The server: collect the request, keep the one-shot Reply, and never answer. It stays
+        // alive on purpose, so the only thing that can free the caller is the rendezvous going
+        // away; a server that returned here would depart, which is the *other* trigger and the
+        // next test's subject.
+        crate::sched::spawn(move || {
+            let m = crate::sched::ipc_recv_cap(ep);
+            let slot = m[1];
+            HELD_BEFORE.store(crate::sched::current_cap(slot).is_ok(), Ordering::SeqCst);
+            COLLECTED.store(true, Ordering::SeqCst);
+            while !RELEASE.load(Ordering::SeqCst) {
+                crate::sched::yield_now();
+            }
+            HELD_AFTER.store(crate::sched::current_cap(slot).is_ok(), Ordering::SeqCst);
+            CHECKED.store(true, Ordering::SeqCst);
+        })
+        .expect("spawn a server");
+
+        crate::sched::spawn(move || {
+            CALLER.store(super::current_thread_id(), Ordering::SeqCst);
+            let _ = crate::sched::ipc_call(ep, [1, 2]);
+            ABORTED.store(crate::sched::take_ipc_aborted(), Ordering::SeqCst);
+            WOKE.store(true, Ordering::SeqCst);
+        })
+        .expect("spawn a caller");
+
+        // Clock-bounded, never yield-counted: since DECISIONS §28 both threads are on other cores.
+        // Both conditions matter. `COLLECTED` says the request was *taken*, which is what puts the
+        // caller off every wait queue and is the whole premise; `reply_parked_callers` says it is
+        // parked awaiting the reply that will never come.
+        assert!(
+            wait_for(|| COLLECTED.load(Ordering::SeqCst) && reply_parked_callers(ep) == 1),
+            "the server never collected a request from a reply-parked caller",
+        );
+        assert!(
+            HELD_BEFORE.load(Ordering::SeqCst),
+            "the server was never handed a reply capability, so this test proves nothing",
+        );
+
+        crate::sched::reclaim_region(region)
+            .expect("reclaim frees the reply-parked caller rather than refusing");
+
+        assert!(
+            wait_for(|| WOKE.load(Ordering::SeqCst)),
+            "the stranded caller never woke: this is the defect milestone 254 fixes",
+        );
+        assert!(
+            ABORTED.load(Ordering::SeqCst),
+            "the freed caller did not see its CALL aborted, so it returns a reply it never got",
+        );
+        assert_eq!(
+            outstanding_reply_capabilities(CALLER.load(Ordering::SeqCst)),
+            0,
+            "a Reply capability still names the freed caller: the next CALL can be forged",
+        );
+
+        RELEASE.store(true, Ordering::SeqCst);
+        assert!(
+            wait_for(|| CHECKED.load(Ordering::SeqCst)),
+            "the server never re-checked its reply capability",
+        );
+        assert!(
+            !HELD_AFTER.load(Ordering::SeqCst),
+            "the server kept a live reply capability naming a caller that has moved on",
+        );
+    }
+
+    /// **A server that dies frees the callers it will never answer** (milestone 254), which is
+    /// QNX Neutrino's headline behaviour: *"if the server thread fails, exits, or disappears, the
+    /// client thread becomes READY, with `MsgSend()` indicating an error"*. The trigger here is
+    /// `depart` rather than the rendezvous teardown above, and the rendezvous outlives the server,
+    /// so nothing else in the kernel is even looking at the caller.
+    ///
+    /// The reply capability dies with the table it lived in, so the sweep has nothing left to
+    /// delete by the time the thread is gone; `outstanding_reply_capabilities` asserts that
+    /// directly rather than assuming it, because the ordering (sweep, then wake) is what makes the
+    /// claim true and an ordering is exactly the sort of thing a refactor loses.
+    #[test_case]
+    fn a_server_that_exits_frees_the_caller_it_never_answered() {
+        static COLLECTED: AtomicBool = AtomicBool::new(false);
+        static HELD: AtomicBool = AtomicBool::new(false);
+        static WOKE: AtomicBool = AtomicBool::new(false);
+        static ABORTED: AtomicBool = AtomicBool::new(false);
+        static CALLER: AtomicU64 = AtomicU64::new(0);
+
+        let region = crate::memory_region::create(2).expect("region");
+        let ep = crate::sched::create_rendezvous_from(region).expect("rendezvous from region");
+
+        // Collect the request, confirm the reply capability is live, and then simply return: the
+        // server exits holding it, which is the case the survey found this kernel alone in
+        // stranding.
+        crate::sched::spawn(move || {
+            let m = crate::sched::ipc_recv_cap(ep);
+            HELD.store(crate::sched::current_cap(m[1]).is_ok(), Ordering::SeqCst);
+            COLLECTED.store(true, Ordering::SeqCst);
+        })
+        .expect("spawn a server");
+
+        crate::sched::spawn(move || {
+            CALLER.store(super::current_thread_id(), Ordering::SeqCst);
+            let _ = crate::sched::ipc_call(ep, [3, 4]);
+            ABORTED.store(crate::sched::take_ipc_aborted(), Ordering::SeqCst);
+            WOKE.store(true, Ordering::SeqCst);
+        })
+        .expect("spawn a caller");
+
+        assert!(
+            wait_for(|| COLLECTED.load(Ordering::SeqCst)),
+            "the server never collected the request",
+        );
+        assert!(
+            HELD.load(Ordering::SeqCst),
+            "the server was never handed a reply capability, so this test proves nothing",
+        );
+        assert!(
+            wait_for(|| WOKE.load(Ordering::SeqCst)),
+            "the caller was still parked after its server exited",
+        );
+        assert!(
+            ABORTED.load(Ordering::SeqCst),
+            "the freed caller did not see its CALL aborted",
+        );
+        assert_eq!(
+            outstanding_reply_capabilities(CALLER.load(Ordering::SeqCst)),
+            0,
+            "a Reply capability outlived the caller's CALL",
+        );
+
+        // The rendezvous outlived its server, which is the point of this case; put its region back.
+        assert!(
+            wait_for(|| crate::sched::reclaim_region(region).is_ok()),
+            "the rendezvous's region never came back",
         );
     }
 
