@@ -7,7 +7,7 @@
 //!
 //! # Why it rides the boot command line rather than a new field
 //!
-//! The x86_64 handoff is PVH's `hvm_start_info` (see [`crate::x86_64`]), and PVH **already carries
+//! The `x86_64` handoff is PVH's `hvm_start_info` (see [`crate::x86_64`]), and PVH **already carries
 //! a command line**: `cmdline_paddr` at offset 24, which [`crate::x86_64::BootInfo::cmdline`] has
 //! decoded since milestone 87 and which nothing has ever read. `uefi_loader`'s own `BUGS` recorded
 //! that as a gap: *"there is nowhere yet for a boot argument to come from or go to."*

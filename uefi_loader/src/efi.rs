@@ -4,10 +4,11 @@
 //!
 //! DECISIONS §46: a dependency is a decision, and the tree's shape is thin architectural
 //! primitives or whole subsystems nobody would write, with nothing in between. The `uefi` crate is
-//! squarely in between. What this loader needs is **six function pointers and two GUIDs**: allocate
-//! pages, get the memory map, exit boot services, print a line, and the two ACPI configuration-table
-//! identifiers. That is the whole of it, and it is written below in about two hundred lines that a
-//! reader can check against the specification without leaving the repository.
+//! squarely in between. What this loader needs is **seven function pointers and three GUIDs**:
+//! allocate pages, get the memory map, exit boot services, print a line, locate one protocol, and
+//! the two ACPI configuration-table identifiers plus the graphics one. That is the whole of it, and
+//! it is written below in a few hundred lines that a reader can check against the specification
+//! without leaving the repository. (Six and two until milestone 243 asked where the screen is.)
 //!
 //! The cost of getting it wrong is also unusually visible: a mis-numbered field in
 //! [`BootServices`] is a call to the wrong function pointer, which faults immediately and loudly at
@@ -25,7 +26,8 @@
 //! # BUGS
 //!
 //! - **The struct definitions stop where this loader's needs stop.** [`SystemTable`] ends after
-//!   `configuration_table` and [`BootServices`] ends after `exit_boot_services`; the real tables
+//!   `configuration_table`, [`BootServices`] ends after `locate_protocol`, and [`GraphicsOutput`]
+//!   ends after `mode`; the real tables
 //!   are longer. That is safe (the firmware's allocation is larger than ours, and we only read),
 //!   but a field added below the last one listed will not be found by name and has to be counted
 //!   in from the specification the same way these were.

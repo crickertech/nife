@@ -1,9 +1,41 @@
 # 243. A machine with no serial port has no way to say anything, and no gate can read it
 
-**Status: IN-PROGRESS** on `milestone/243-serial-less-output`. Minted 2026-09-03 by calef, from asking how nife reaches commodity hardware.
-*(Number provisional until the merge queue lands it.)*
+**Status: PARTIAL.** Minted 2026-09-03 by calef, from asking how nife reaches commodity hardware.
+Built 2026-09-04: **the human half is answered on x86_64/UEFI and the gate half is answered only
+under QEMU.** See `notes/serial-less-output.md`, and the `## Follow-on` section for what is left.
 
 **Gate: NONE.** Everything it needs is a design question rather than a dependency.
+
+## What was built, and what it does not cover
+
+**The mechanism chosen is the firmware's own linear framebuffer.** UEFI's
+`EFI_GRAPHICS_OUTPUT_PROTOCOL` reports one, and **its address survives `ExitBootServices`**, because
+the aperture is a BAR on the display adapter rather than firmware memory: what ends is the firmware's
+*console*, not the *display*. That single fact is why this milestone is a week rather than a quarter.
+
+| Piece | Where |
+|---|---|
+| The sentence one boot stage says to the next | `machine_discovery::framebuffer`, riding PVH's own `cmdline_paddr` (a field the format has always had and nothing ever read) |
+| Asking the firmware | `uefi_loader::find_screen`, one `LocateProtocol` call |
+| Painting text | `crates/screen_console` (**name provisional**), sharing `bitmap_font` with the graphical terminal and sharing nothing else with `video_terminal` |
+| The kernel seam | `console::attach_screen`, teed under the lock `print!` already takes; `arch::x86_64::mmu` carries the aperture into the fine map |
+| **A gate reading a screen** | `board_console::screen`: a screendump decoded back into text by exact glyph match, judged by `board_console::progress` unchanged |
+
+**Measured under OVMF, 2026-09-04:** 1280x800 bgrx at `0x80000000`, 182x100 cells, and
+`cargo xtask uefi-boot` reads **96 non-blank rows of the boot tour back off the framebuffer**. That
+assertion is the one the serial transcript could not make: the transcript would be identical if the
+screen were black.
+
+**Three things it does not cover**, and they map onto the block's own three problems:
+
+- **Problem 2 on real hardware.** A gate can read a *virtual* machine's screen. Nobody can ask
+  Graeme's laptop for a screendump, so the fleet's record is still a photograph and a person. The
+  answer is postmortem to the boot medium and it is blocked on USB mass storage; see `## Follow-on`.
+- **Problem 3 entirely.** The screen is armed by the first statement of the x86 boot tour, which is
+  as early as a kernel can manage, and everything before `kernel_main` still writes nothing anywhere.
+- **The other two architectures.** This is x86_64/UEFI only. The crate halves were written
+  arch-neutral on purpose: what milestone 157 needs to add on aarch64 is the *discovery*, not the
+  console.
 
 **In brief.** Every word nife has ever said, it said down a UART.
 
@@ -80,6 +112,13 @@ the firmware finds the stick, whether Secure Boot refuses it, and what the memor
 from OVMF. **A loader that prints and a kernel that then goes quiet is this milestone confirmed by
 evidence rather than by reasoning.**
 
+**That experiment is now worth more than it was when this was written**, and the procedure for it is
+`notes/serial-less-output.md`'s bench section. The kernel no longer goes quiet: it clears the screen
+and prints its whole tour there. So the same stick, on the same machine, now distinguishes four
+outcomes rather than two, and each is a different bug: the firmware not finding the stick, the loader
+refusing and saying why, the screen clearing and staying black (the kernel armed its console and died
+after), and the tour.
+
 ## Why it is worth one block rather than three
 
 Because the answer might be one mechanism. A kernel that can write its diagnostics somewhere other
@@ -92,10 +131,38 @@ the reason the machine is broken.** A network console needs a working stack; a f
 a working filesystem; the UART needed neither, which is why it was the right first answer and why
 replacing it is harder than it looks.
 
+## Follow-on
+
+- **Proposed.** A gate that can read a serial-less machine on real hardware, which is the half of
+  this block that QEMU answered and silicon did not.
+  `design/roadmap/proposals/a-gate-that-can-read-a-machine-with-no-serial-port.md`.
+- **Proposed.** One screendump decoder rather than two: milestone 177's graphical `shell-check` leg
+  carries `parse_ppm`/`decode_cell`/`scanout_rows` inside `xtask` and this milestone wrote a second,
+  more general one in `board_console::screen`.
+  `design/roadmap/proposals/one-screendump-decoder-not-two.md`.
+- **Outstanding.** Problem 3, early boot, is untouched: nothing before `kernel_main` can say
+  anything on a machine with no serial port, and a fault there is a black screen. Checked against
+  the tree: `kernel/src/arch/x86_64/boot.s` writes to no device, and the screen cannot be armed
+  before the boot handoff is readable.
+- **Outstanding.** aarch64 and riscv64 have no screen. `machine_discovery::framebuffer` and
+  `screen_console` are arch-neutral and unused there; milestone 157 (the U-Boot framebuffer handoff)
+  is the discovery half. Checked against the tree: `console::attach_screen` has one caller and it is
+  under `arch/x86_64/`.
+- **Recorded.** The aperture is mapped uncacheable and scrolling reads it back, which is slow on real
+  silicon and free under QEMU. Write-combining is a PAT entry this kernel does not program at all.
+  `crates/screen_console/src/lib.rs`'s `BUGS`, and `notes/serial-less-output.md`'s.
+- **Recorded.** Only ASCII reaches the screen, so `§` in the tour's last line is two blanks there and
+  correct on the UART. `notes/serial-less-output.md`'s `BUGS`.
+- **Refused.** A network console, on the block's own argument: it needs a driver per machine, says
+  nothing until the stack is up, and cannot report the failure of the thing carrying it.
+- **Refused.** Reading a *photograph* of a screen. `board_console::screen` works because a screendump
+  is pixel-aligned with exact glyph matches and no threshold; a camera has none of those properties
+  and making it work is optical character recognition, which is a different project.
+
 ## BUGS
 
-- **This block names no mechanism**, which is deliberate and also means it cannot be scheduled until
-  somebody does the choosing.
+- **The mechanism is chosen for x86_64/UEFI and nowhere else.** The block used to say it named no
+  mechanism; it names one now, and the scope of that claim is one architecture and one firmware.
 - **It does not cover the interleaving defect** milestone 230 found, where the kernel and the console
   server both drive one UART with nothing arbitrating. That is a live bug on the machines that *do*
   have a serial port and it has its own home.

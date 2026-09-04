@@ -1168,6 +1168,12 @@ in the code or the conversation doesn't make sense, it belongs here.
   code paths that had never executed until firmware ran them, the 54 MiB of RAM deliberately left
   reported as reserved and how to get it back, and **the bench procedure for the OptiPlex 7050**
   with its failure-triage table.
+- [A machine with no serial port](serial-less-output.md): milestone 243's answer to the fact that
+  every word nife had ever said went down a UART, and none of the six commodity machines a nife USB
+  stick can boot has one. What was chosen (the firmware's linear framebuffer, carried across the
+  handoff on PVH's own command line), what the alternatives cost against **both** halves of the
+  problem (a human watching a boot, and a gate reading a machine), what it does not solve, and the
+  bench procedure for a machine nobody in a lane can reach.
 - [The bench runbook: which machine, in what order, and what an evening buys](bench-runbook.md):
   which of the three machines an evening should be spent on and why radon comes first, what a
   result on each would mean for the fatal risks, and what can go wrong that is not the board. It

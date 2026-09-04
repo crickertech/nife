@@ -4130,18 +4130,17 @@ fn screen_watch(sock: &str, shot: &Path, seen: &std::sync::Mutex<Option<String>>
             continue;
         }
         answered = true;
+        // A screen that decodes but does not hold the marker is deliberately NOT stored: an
+        // incomplete picture must not read as a pass. The dump file itself is the artefact, and
+        // the caller prints its path on failure.
         if let Ok(bytes) = std::fs::read(shot)
             && let Ok(text) = board_console::screen::read(&bytes)
+            && text.contains(UEFI_SCREEN_MARKER)
         {
-            if text.contains(UEFI_SCREEN_MARKER) {
-                if let Ok(mut slot) = seen.lock() {
-                    *slot = Some(text);
-                }
-                return;
+            if let Ok(mut slot) = seen.lock() {
+                *slot = Some(text);
             }
-            // A screen that decoded but does not hold the marker is deliberately NOT stored: an
-            // incomplete picture must not read as a pass. The dump file itself is the artefact,
-            // and the caller prints its path on failure.
+            return;
         }
         std::thread::sleep(std::time::Duration::from_millis(500));
     }

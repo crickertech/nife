@@ -3,7 +3,7 @@
 //! Every word nife had ever said, it said down a UART: the boot tour on all three machines, the
 //! console server, the kernel's fault reports, and every automated gate that reads any of them.
 //! **A commodity machine does not have one.** The six machines in calef's house that milestone 87's
-//! USB stick could already boot (two desktops, a laptop, an Intel MacBook, cordoba) have between
+//! USB stick could already boot (two desktops, a laptop, an Intel `MacBook`, cordoba) have between
 //! them no serial port at all, and until this crate existed a nife stick booted on one of them
 //! would have printed the loader's four lines through the firmware's own console and then gone
 //! permanently silent at `ExitBootServices`.
@@ -14,7 +14,7 @@
 //!
 //! # Why this is not `video_terminal`
 //!
-//! [`video_terminal::Vt`] is the real terminal: a cell grid, a full escape-sequence parser, 300
+//! `video_terminal::Vt` is the real terminal: a cell grid, a full escape-sequence parser, 300
 //! rows of scrollback, damage rectangles. It is the right engine for the interactive terminal
 //! (milestone 177 wires it) and it is deliberately **not** used here, for three reasons that all
 //! point the same way.
@@ -84,6 +84,15 @@
 //!   cells. 1280 is not a multiple of 7, so a 1280-pixel-wide screen owns 182 columns and leaves
 //!   six pixels of whatever the firmware last drew. The same is true of `display_terminal`'s
 //!   scanout wiring and for the same reason.
+//!
+//! Name: provisional (milestone 243, this lane's coinage). A noun, `snake_case`, naming
+//! what the thing is rather than how it works: a console on a screen. Refused `framebuffer_console`,
+//! because "framebuffer" already names the thing this writes *into*
+//! (`machine_discovery::framebuffer`) and a reader meeting both would have to hold two senses of one
+//! word. Refused `pixel_console`, which names the unit rather than the surface. Refused
+//! `early_console`, which says when it runs rather than what it is, and is wrong about that too:
+//! nothing here is early-only. `video_terminal` is taken, by the crate this one deliberately is not.
+//! calef names crates (AGENTS.md); this expects to change.
 
 #![no_std]
 
@@ -155,7 +164,7 @@ impl ScreenConsole {
     /// this kernel's and text drawn over a logo is text nobody can read.
     pub fn clear(&mut self, pixels: &mut [u8]) {
         let paper = self.screen.order.store(Self::BACKGROUND).to_le_bytes();
-        for pixel in pixels.chunks_exact_mut(4) {
+        for pixel in pixels.as_chunks_mut::<4>().0 {
             pixel.copy_from_slice(&paper);
         }
         self.col = 0;
@@ -223,7 +232,7 @@ impl ScreenConsole {
         }
         pixels.copy_within(band..live, 0);
         let paper = self.screen.order.store(Self::BACKGROUND).to_le_bytes();
-        for pixel in pixels[live - band..live].chunks_exact_mut(4) {
+        for pixel in pixels[live - band..live].as_chunks_mut::<4>().0 {
             pixel.copy_from_slice(&paper);
         }
     }

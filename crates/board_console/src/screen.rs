@@ -163,8 +163,7 @@ fn cell(pixels: &[u8], width: usize, col: usize, row: usize) -> char {
 /// byte after the maximum value belongs to the header rather than to the pixels. Getting that one
 /// byte wrong shifts the whole image by a third of a pixel, which looks like a font bug.
 fn parse_pixmap(ppm: &[u8]) -> Result<(usize, usize, &[u8]), ReadError> {
-    let mut at = 0;
-    let mut token = |at: &mut usize| -> Option<usize> {
+    let token = |at: &mut usize| -> Option<usize> {
         loop {
             while ppm.get(*at).is_some_and(|b| b.is_ascii_whitespace()) {
                 *at += 1;
@@ -184,14 +183,15 @@ fn parse_pixmap(ppm: &[u8]) -> Result<(usize, usize, &[u8]), ReadError> {
         {
             *at += 1;
         }
-        (start != *at).then(|| start)?;
+        (start != *at).then_some(start)?;
         std::str::from_utf8(&ppm[start..*at]).ok()?.parse().ok()
     };
 
     if ppm.get(..2) != Some(b"P6") {
         return Err(ReadError::NotAPixmap);
     }
-    at = 2;
+    // Past the magic; the three header numbers follow, whitespace-separated.
+    let mut at = 2;
     let width = token(&mut at).ok_or(ReadError::NotAPixmap)?;
     let height = token(&mut at).ok_or(ReadError::NotAPixmap)?;
     let max = token(&mut at).ok_or(ReadError::NotAPixmap)?;

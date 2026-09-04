@@ -137,6 +137,10 @@ impl core::fmt::Write for KernelConsole {
 static CONSOLE: IrqSafeMutex<KernelConsole> = IrqSafeMutex::new(
     rank::CONSOLE,
     KernelConsole {
+        // SAFETY: `UART_BASE` is the documented console address on every machine this kernel is
+        // built for (see its own doc comment), and nothing else in the kernel touches it. This is
+        // the static's initializer; it moved inside a struct in milestone 243 and the reason it is
+        // `unsafe` did not change.
         uart: unsafe { ConsoleUart::new(UART_BASE) },
         screen: None,
     },
@@ -164,14 +168,9 @@ pub fn init() {
 /// `virt` must name `found.span()` bytes of mapped, writable memory that is a framebuffer and not
 /// anything else, for the life of the kernel. Nothing here can check that: a physical address out
 /// of a boot handoff is an assertion by a previous stage, on the same footing as the memory map.
-#[cfg_attr(
-    not(target_arch = "x86_64"),
-    allow(
-        dead_code,
-        reason = "milestone 157's U-Boot handoff is the aarch64 caller, and it does \
-                               not exist yet; the console half is deliberately arch-neutral"
-    )
-)]
+// Dead on the other two architectures until milestone 157's U-Boot framebuffer handoff gives them a
+// caller. The console half is arch-neutral deliberately; what they are missing is the discovery.
+#[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
 pub unsafe fn attach_screen(found: Framebuffer, virt: u64) -> Option<(u32, u32)> {
     let mut console = ScreenConsole::new(found)?;
     let len = console.span();

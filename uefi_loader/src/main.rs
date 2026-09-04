@@ -49,8 +49,19 @@
 //!   through OVMF and asserts both come online. What that does not establish is any *other*
 //!   firmware's low-memory habits: on a machine that refuses the page this loader says so and boots
 //!   one core, which is a report rather than a fix.
-//! - **The `hvm_start_info` command line is empty.** PVH carries one and the kernel ignores it, so
-//!   there is nowhere yet for a boot argument to come from or go to.
+//! - **The `hvm_start_info` command line carries exactly one thing** (milestone 243): where the
+//!   screen is (`machine_discovery::framebuffer`). It was empty until then, which is what that
+//!   milestone's block called a gap. There is still no way for a boot argument to arrive from
+//!   *outside* the build: nothing reads a configuration file off the stick, so anything on that line
+//!   is something this binary decided.
+//! - **The screen is taken as the firmware left it.** This loader never calls `SetMode`, so nife
+//!   gets whatever resolution the firmware chose, and a machine whose firmware picked a mode the
+//!   monitor is not showing produces a nife that appears silent. Setting a mode would mean choosing
+//!   one, which is a policy with no information behind it: the firmware has at least talked to the
+//!   monitor's EDID.
+//! - **A `PixelBitMask` or `PixelBltOnly` adapter gets no screen**, and the loader says so before it
+//!   hands over. The first is expressible with work; the second cannot be, because `Blt` is a
+//!   boot-services call and there is no linear framebuffer behind it at all.
 
 #![no_std]
 #![no_main]
