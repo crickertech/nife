@@ -54,7 +54,46 @@ If rate falls monotonically with the count, the mechanism is confirmed under con
 inferred from a lottery. If it does not, something else is going on and the two-boot reading was
 luck wearing a mechanism's clothes.
 
-**Each run can be short.** The rate is steady within a beat or two and held for three hours in the
+**Five drawn boots the same evening replaced the variable this milestone thought it was testing, and
+the replacement is the thing to build against.** The block above states the predictor as the number of
+IPC groups sharing a core with a grinder. **That is wrong**, and a fifth boot said so: a 2-of-4
+arrangement came in at **346,492/s**, faster than two separate 1-of-4 arrangements at 342,447/s and
+342,379/s. A count that runs the wrong way is not the predictor.
+
+Re-read against a different variable, all five boots fall into three tight levels. **Count the cores
+that are free of grinders and carrying an IPC group:**
+
+| grinder-free cores carrying a group | rate |
+|---|---|
+| **2** | 342,447/s, 342,379/s, 346,492/s |
+| **1** | 184,001/s |
+| **0** | 23,254/s |
+
+Within a level the spread is under 1.2%; between levels it is roughly proportional, with a different
+regime at zero. The group-level count was a proxy that tracked this until an arrangement separated
+them.
+
+**And it is a better mechanism rather than only a better fit.** The question is not whether a
+particular group drew a grinder; it is how much grinder-free CPU the IPC workload has to run on. Two
+clean cores serve four groups nearly as well as they serve three, because the groups block constantly
+and share a core willingly. One clean core is half the machine. Zero means every exchange waits behind
+something that never yields, which is why that row is a cliff rather than the next step of a trend.
+
+**What the experiment has to do differently, now that the variable has changed once already:**
+
+- **Sweep clean cores from 0 to 4**, which is the independent variable, rather than sweeping the
+  co-location count.
+- **Run several unlike arrangements at each level**, because the whole reason the first model survived
+  four boots is that no arrangement had yet separated it from the truth. Agreement across unlike
+  arrangements at one level is the evidence; a single run per level cannot produce it.
+- **The 3 and 4 clean-core rows have never been drawn at all.** The lottery has produced only 0, 1 and
+  2 in five boots, so the top of the curve is entirely unmeasured and only a constructed run can reach
+  it.
+
+**The honest reading of all this is that a drawn sample kept producing a plausible model and then
+overturning it**, twice in one evening: a crossing-rate correlate died when a second slow boot
+disagreed, and the co-location count died when a 2-of-4 outran a 1-of-4. That is the argument for this
+milestone, restated by events. notes/soak.md carries both corrections.
 2026-09-03 run, so this is minutes per arrangement rather than an evening each.
 
 ## The proof that this milestone worked
