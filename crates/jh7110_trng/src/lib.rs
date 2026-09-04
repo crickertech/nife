@@ -46,11 +46,65 @@
 //!   That is the entire section. **No NIST SP 800-90B, FIPS 140, or AIS-31 claim appears anywhere
 //!   in the datasheet the search above could reach.** See "Health testing" below.
 //!
+//! - **[trm]** `StarFive`, *JH7110 Technical Reference Manual*, Preliminary V2 (2023-04-24, Doc ID
+//!   `JH7110-TRMEN-001`), "TRNG > Control Registers",
+//!   `doc-en.rvspace.org/JH7110/TRM/JH7110_TRM/control_registers_trng.html`, fetched 2026-09-04.
+//!   **This is the register documentation the first two lanes did not have**, and it is what
+//!   settles three things they had to record as unknown: `ISTAT` is `R/W1C`, `AUTO_RQSTS` and
+//!   `AUTO_AGE` are disabled by writing zero, and `MODE.R256` decides whether the answer is four
+//!   words or eight. It also names two `ISTAT` bits no Linux driver defines (`AGE_ALARM`,
+//!   `RQST_ALARM`) and one `STAT` field worth knowing about, `LAST_RESEED`, whose value `0x7`
+//!   means "Unseeded (zeroized state)". The register map it gives is `CTRL` 0x00, `STAT` 0x04,
+//!   `MODE` 0x08, `SMODE` 0x0C, `IE` 0x10, `ISTAT` 0x14, `FEATURES` 0x1C, `RAND0..7` 0x20..0x3C,
+//!   `SEED0..7` 0x40..0x5C, `AUTO_RQSTS` 0x60, `AUTO_AGE` 0x64, `BUILD_CONFIG` 0x68, which agrees
+//!   with [driver] everywhere the two overlap. **Caveat, stated because it changes what can be
+//!   claimed**: the bit *positions* live in the page's figures, which are images, so the numbering
+//!   in this file comes from [driver] and [netbsd] and the TRM supplies the names and meanings.
+//! - **[netbsd]** `NetBSD`, `sys/arch/riscv/starfive/jh7110_trng.c`, `$NetBSD: jh7110_trng.c,v 1.2
+//!   2025/02/09 09:09:49 skrll Exp $`, fetched 2026-09-04 from
+//!   `raw.githubusercontent.com/NetBSD/src/trunk/sys/arch/riscv/starfive/jh7110_trng.c`. A third,
+//!   independent driver for the same block, and the most useful one here because **it is the only
+//!   one that polls**. It supplies the bit positions mainline omits
+//!   (`IENABLE`/`ISTATUS`: `RAND_RDY` 0, `SEED_DONE` 1, `AGE_ALARM` 2, `RQST_LOCKUP` 3,
+//!   `LFSR_LOCKUP` 4, `GLOBAL` 31) and it is the source of the `SEEDED` gate this crate now
+//!   applies: its poll path reads `STAT` and only trusts `ISTAT.RAND_RDY` when `STAT.SEEDED` is
+//!   set, issuing a random reseed when it is not.
+//!
 //! # The register file [driver]
 //!
 //! Eight registers wide, `CTRL` through `ISTAT`, then eight 32-bit output words. All offsets and
 //! bit positions are [regs] and the `*_` constants below, transcribed from `jh7110-trng.c`'s own
-//! `#define`s.
+//! `#define`s and cross-checked against [trm]'s register map and [netbsd]'s.
+//!
+//! # The bring-up order, and what each step is for
+//!
+//! **All three drivers agree on this sequence**, which is worth saying because the agreement is
+//! the evidence: [driver]'s `starfive_trng_init`, the vendor driver's function of the same name,
+//! and [netbsd]'s `jh7110_trng_init` were written by three sets of people against one IP block.
+//! A driver that skips a step is not being minimal, it is relying on a reset value nobody
+//! documented.
+//!
+//! 1. **Disable the reseed alarms**: write 0 to `AUTO_AGE` and `AUTO_RQSTS` ([regs]). [driver]
+//!    does this first, from module parameters that default to 0. Skipping it leaves whatever the
+//!    block reset to, and a nonzero counter raises [`ISTAT_AGE_ALARM`] or [`ISTAT_RQST_ALARM`]
+//!    later, in a register a driver may not be decoding.
+//! 2. **Clear `ISTAT`**, write-1-to-clear, [`ISTAT_ALL`]. This is the step whose absence is
+//!    invisible until the second generation: `RAND_RDY` is latched, so a driver that never
+//!    acknowledges it sees "ready" instantly on every request after the first, and reads the
+//!    `RAND` words without waiting for the device to refill them.
+//! 3. **Select the output width**: write [`MODE_R256`] into `MODE`. [netbsd] writes it
+//!    unconditionally; [driver] writes it and otherwise clamps its read to four words. A driver
+//!    that assembles eight words without having set this is claiming 32 bytes from a block that
+//!    may only have answered with 16.
+//! 4. **Interrupts, or deliberately not.** [driver] and [netbsd] enable the `IE` contributions
+//!    because they are interrupt-driven. A polling driver leaves `IE` at zero; see
+//!    [`IE_GLBL_EN`] for the measurement that says `ISTAT` latches anyway.
+//! 5. **Seed the core**: write [`CTRL_EXEC_RANDRESEED`] and wait for [`ISTAT_SEED_DONE`], then
+//!    acknowledge it. Until this completes, `STAT.SEEDED` is clear and [`interpret`] answers
+//!    [`Outcome::Unseeded`] to every poll.
+//!
+//! Then, per generation: acknowledge any stale [`ISTAT_RAND_RDY`], write [`CTRL_GENE_RANDNUM`],
+//! poll `(STAT, ISTAT)` through [`interpret`], and acknowledge `RAND_RDY` once the words are read.
 //!
 //! # Health testing: what the hardware gives you cheaply, and what it does not give you at all
 //!
@@ -82,22 +136,25 @@
 //! # Examples
 //!
 //! ```
-//! use jh7110_trng::{Outcome, interpret, ISTAT_RAND_RDY, ISTAT_LFSR_LOCKUP};
+//! use jh7110_trng::{Outcome, interpret, ISTAT_RAND_RDY, ISTAT_LFSR_LOCKUP, STAT_SEEDED};
 //!
-//! // Not ready: neither bit set.
-//! assert_eq!(interpret(0, [0; 8]), Outcome::NotReady);
+//! // Not ready: seeded, but the generation has not finished.
+//! assert_eq!(interpret(STAT_SEEDED, 0, [0; 8]), Outcome::NotReady);
 //!
 //! // Ready: the eight output words assemble little-endian, word 0 first.
 //! let rand = [0x0403_0201, 0x0807_0605, 0, 0, 0, 0, 0, 0];
-//! match interpret(ISTAT_RAND_RDY, rand) {
+//! match interpret(STAT_SEEDED, ISTAT_RAND_RDY, rand) {
 //!     Outcome::Ready(bytes) => assert_eq!(&bytes[..8], &[1, 2, 3, 4, 5, 6, 7, 8]),
 //!     other => panic!("expected Ready, got {other:?}"),
 //! }
 //!
+//! // A latched RAND_RDY on a core that says it was never seeded is not an answer.
+//! assert_eq!(interpret(0, ISTAT_RAND_RDY, rand), Outcome::Unseeded);
+//!
 //! // A hardware fault beats a stale RAND_RDY from the same snapshot: the driver must not read a
 //! // register file mid-reseed as if it were a fresh answer.
 //! assert_eq!(
-//!     interpret(ISTAT_RAND_RDY | ISTAT_LFSR_LOCKUP, [0; 8]),
+//!     interpret(STAT_SEEDED, ISTAT_RAND_RDY | ISTAT_LFSR_LOCKUP, [0; 8]),
 //!     Outcome::Lockup
 //! );
 //! ```
@@ -118,6 +175,8 @@
 //! [binding]: https://github.com/torvalds/linux/blob/master/Documentation/devicetree/bindings/rng/starfive%2Cjh7110-trng.yaml
 //! [driver]: https://github.com/torvalds/linux/blob/master/drivers/char/hw_random/jh7110-trng.c
 //! [ds]: https://doc-en.rvspace.org/JH7110/PDF/JH7110_DS.pdf
+//! [trm]: https://doc-en.rvspace.org/JH7110/TRM/JH7110_TRM/control_registers_trng.html
+//! [netbsd]: https://github.com/NetBSD/src/blob/trunk/sys/arch/riscv/starfive/jh7110_trng.c
 
 /// Register byte offsets from the device's base, transcribed from `jh7110-trng.c`'s `#define`s
 /// (\[driver\]). `RAND0..RAND7` are the eight 32-bit words a completed generation leaves behind;
@@ -127,19 +186,36 @@ pub mod regs {
     pub const CTRL: u64 = 0x00;
     /// Status register: read-only, [`super::STAT_SEEDED`] / `RAND_GENERATING` / `RAND_SEEDING`.
     pub const STAT: u64 = 0x04;
-    /// Output width mode (128-bit or 256-bit PRNG output in the vendor driver; this crate only
-    /// ever reads all eight `RAND` words regardless of what MODE claims, so it never needs to
-    /// write this register to get a full-width answer).
+    /// Output width mode: [`super::MODE_R256`] selects a 256-bit rather than a 128-bit `RAND`
+    /// answer.
+    ///
+    /// **A driver that never writes this register does not get 32 usable bytes**, and the earlier
+    /// version of this comment (that reading all eight words made the write unnecessary) had it
+    /// backwards. \[trm\]'s `FEATURES.MAX_RAND_LENGTH` and `BUILD_CONFIG.PRNG_LEN_AFTER_RST` are
+    /// build-time parameters, so the width this block resets to is a property of the silicon and
+    /// not something a reader can assume; `STAT.R256` ([`super::STAT_R256`]) reports what it
+    /// currently is. In 128-bit mode only `RAND0..RAND3` carry the answer, which is exactly why
+    /// \[driver\] clamps its read to four words when it has not selected `R256`, and why all
+    /// three drivers this crate cites write `MODE` during bring-up.
     pub const MODE: u64 = 0x08;
-    /// A second mode register the driver defines but whose exact bit meaning was not part of the
-    /// summarized source this crate was built from. Offset only; not otherwise used here.
+    /// Status-mode register: `MISSION_MODE`, `NONCE_MODE` and `MAX_REJECTS` per \[trm\]. None of
+    /// the three drivers cited here writes a value of its own into it (mainline leaves it alone
+    /// entirely and the vendor driver writes back what it read), so this crate names the offset
+    /// and [`super::SMODE_MISSION_MODE`] without proposing a write.
     pub const SMODE: u64 = 0x0C;
-    /// Interrupt enable: [`super::IE_GLBL_EN`] is the one bit this crate names.
+    /// Interrupt enable: the four `super::IE_*` contribution bits plus [`super::IE_GLBL_EN`].
+    /// **Enabling a contribution here is about the IRQ pin, not about whether [`ISTAT`] latches**;
+    /// see [`super::ISTAT_ALL`].
     pub const IE: u64 = 0x10;
-    /// Interrupt status: [`super::ISTAT_RAND_RDY`], `SEED_DONE`, `LFSR_LOCKUP`. [`super::interpret`]
-    /// reads this; a real driver must also clear it, and how (write-1-to-clear vs. write-back)
-    /// was not confirmed from the summarized driver source.
+    /// Interrupt status, and **\[trm\]'s register map marks it `R/W1C`**: a bit is acknowledged by
+    /// writing a one to it, which is what \[driver\] and \[netbsd\] both do and what this crate's
+    /// earlier "not confirmed from the summarized driver source" note could not say. A driver that
+    /// only ever reads this register sees `RAND_RDY` stay set forever after the first generation.
     pub const ISTAT: u64 = 0x14;
+    /// Build-time parameter enumerations, read-only: `MISSION_MODE_RESET_STATE`,
+    /// `RAND_SEED_AVAIL` and `MAX_RAND_LENGTH` \[trm\]. Offset named so a bench session can dump
+    /// it; nothing here reads it.
+    pub const FEATURES: u64 = 0x1C;
     /// The eight output words. Populated once `ISTAT.RAND_RDY` is set. See [`RAND1`]..[`RAND7`].
     pub const RAND0: u64 = 0x20;
     /// See [`RAND0`].
@@ -156,21 +232,66 @@ pub mod regs {
     pub const RAND6: u64 = 0x38;
     /// See [`RAND0`].
     pub const RAND7: u64 = 0x3C;
-    /// Auto-reseed request-count threshold. The vendor driver programs this during init; the
-    /// value it uses was not part of the summarized source, so this crate does not propose one.
+    /// The eight seed words, used to load a host-generated nonce seed and, per \[trm\], "in
+    /// several test modes to access internal data". This crate never seeds by nonce (it asks the
+    /// ring oscillator for a random reseed instead), so these are offsets only.
+    pub const SEED0: u64 = 0x40;
+    /// See [`SEED0`]. The set runs `SEED0`..`SEED7` at `0x40`..`0x5C`.
+    pub const SEED7: u64 = 0x5C;
+    /// Auto-reseed request-count threshold, and **zero is what disables it**: \[trm\] says a
+    /// `RQSTS` field of 0 means "disable the `AUTO_RQSTS` alarm feature", other values are a
+    /// reload value for the internal counter. \[driver\] writes its `autoreq` module parameter
+    /// here during init, which defaults to 0, so upstream's default bring-up disables the alarm
+    /// rather than leaving whatever the reset value is in place.
     pub const AUTO_RQSTS: u64 = 0x60;
-    /// Auto-reseed age (time) threshold. Same caveat as [`AUTO_RQSTS`].
+    /// Auto-reseed age (time) threshold. Same shape as [`AUTO_RQSTS`]: 0 disables the `AUTO_AGE`
+    /// alarm, and \[driver\] writes 0 there at init via its `autoage` parameter.
     pub const AUTO_AGE: u64 = 0x64;
+    /// Build-time configuration enumerations, read-only \[trm\]. The highest offset the register
+    /// map defines, which is why one 4 KiB page covers this device with room to spare.
+    pub const BUILD_CONFIG: u64 = 0x68;
 }
 
-/// `CTRL`: ask the device for a fresh 256-bit random number.
+/// `CTRL`: execute a NOP. \[trm\] lists it as one of the command encodings; the vendor driver
+/// issues it once between programming the mode registers and asking for a reseed. Named for
+/// completeness rather than used, since \[driver\] and \[netbsd\] both skip it.
+pub const CTRL_EXEC_NOP: u32 = 0x0;
+/// `CTRL`: ask the device for a fresh random number, 256-bit or 128-bit according to
+/// [`MODE_R256`].
 pub const CTRL_GENE_RANDNUM: u32 = 0x1;
-/// `CTRL`: force a reseed. The driver issues this once at init and again on every
-/// [`Outcome::Lockup`].
+/// `CTRL`: force a reseed from the ring oscillator. The driver issues this once at init and again
+/// on every [`Outcome::Lockup`].
 pub const CTRL_EXEC_RANDRESEED: u32 = 0x2;
+/// `CTRL`: reseed from the host-written `SEED0..SEED7` words instead of from the ring oscillator
+/// \[trm\]. **Named so it is visibly not used**: a nonce reseed makes the output a function of
+/// bytes the host chose, which is the opposite of what an entropy source is for, and nothing in
+/// this tree should reach for it.
+pub const CTRL_EXEC_NONCE_RESEED: u32 = 0x3;
 
+/// `MODE` bit 3: select a 256-bit `RAND0..RAND7` answer rather than a 128-bit `RAND0..RAND3` one.
+///
+/// **A bring-up that does not set this may be assembling 32 bytes out of a 16-byte answer.** The
+/// width after reset is a build-time parameter of the silicon (\[trm\]'s
+/// `BUILD_CONFIG.PRNG_LEN_AFTER_RST`), so it cannot be assumed either way from documentation;
+/// [`STAT_R256`] is how a driver finds out what it actually got.
+pub const MODE_R256: u32 = 1 << 3;
+
+/// `SMODE` bit 8: mission mode (1) rather than test mode (0). In test mode \[trm\] gives the host
+/// "access to internal state and test fields", which is not a mode an entropy source should serve
+/// from. None of the three drivers cited writes this bit, so this crate names it and leaves the
+/// reset value alone; [`STAT_MISSION_MODE`] reports which mode the block is in.
+pub const SMODE_MISSION_MODE: u32 = 1 << 8;
+
+/// `STAT` bit 2: nonce mode is enabled, reflecting `SMODE.NONCE_MODE`.
+pub const STAT_NONCE_MODE: u32 = 1 << 2;
+/// `STAT` bit 3: the `RAND` register set is currently 256 bits wide, reflecting [`MODE_R256`].
+pub const STAT_R256: u32 = 1 << 3;
+/// `STAT` bit 8: the block is in mission mode, reflecting [`SMODE_MISSION_MODE`].
+pub const STAT_MISSION_MODE: u32 = 1 << 8;
 /// `STAT` bit 9: the device has been seeded at least once and may be asked to generate.
 pub const STAT_SEEDED: u32 = 1 << 9;
+/// `STAT` bit 27: there is an unacknowledged service request \[trm\].
+pub const STAT_SRVC_RQST: u32 = 1 << 27;
 /// `STAT` bit 30: a generation is in flight. The driver's `wait_idle` polls this (and
 /// `RAND_SEEDING`) clear before issuing a new command, so two commands are never in flight at
 /// once.
@@ -178,16 +299,49 @@ pub const STAT_RAND_GENERATING: u32 = 1 << 30;
 /// `STAT` bit 31: a reseed is in flight.
 pub const STAT_RAND_SEEDING: u32 = 1 << 31;
 
-/// `IE` bit 31: the global interrupt enable. Named for completeness; this crate's own [`interpret`]
-/// is poll-shaped (it takes an `ISTAT` snapshot, not an interrupt), so nothing here requires IE to
-/// be set. A future driver that wants the completion interrupt rather than polling still needs
-/// this bit, at PLIC line 30 per \[binding\]'s `interrupts = <30>`.
+/// `IE` bit 0: include `RAND_RDY` in the interrupt the block drives.
+pub const IE_RAND_RDY_EN: u32 = 1 << 0;
+/// `IE` bit 1: include `SEED_DONE`.
+pub const IE_SEED_DONE_EN: u32 = 1 << 1;
+/// `IE` bit 2: include `AGE_ALARM`.
+pub const IE_AGE_ALARM_EN: u32 = 1 << 2;
+/// `IE` bit 3: include `RQST_ALARM`.
+pub const IE_RQST_ALARM_EN: u32 = 1 << 3;
+/// `IE` bit 4: include `LFSR_LOCKUP`.
+pub const IE_LFSR_LOCKUP_EN: u32 = 1 << 4;
+/// `IE` bit 31: the global interrupt enable.
+///
+/// **The `IE_*` bits gate the IRQ pin, not [`regs::ISTAT`]**, and that distinction is what lets a
+/// polling driver leave this register at zero. \[trm\] describes each `IE` bit as including or
+/// excluding an "interrupt contribution" and describes `ISTAT` as monitoring "the interrupt
+/// **and/or status** contributions", which reads as latch-regardless but is not decisive on its
+/// own. **The board settled it**: on 2026-09-04 radon completed a reseed and a generation, both
+/// detected by polling `ISTAT`, with this driver having never written `IE` at all
+/// (`target/board/radon-2026-09-04-clock-and-first-entropy.log`). So `ISTAT` latches with the
+/// interrupt disabled, measured rather than inferred.
+///
+/// A driver that wants the completion interrupt instead needs this bit plus the contribution bits,
+/// routed at PLIC line 30 per \[binding\]'s `interrupts = <30>`. `user/src/jh7110_trng.rs` says
+/// why it does not.
 pub const IE_GLBL_EN: u32 = 1 << 31;
 
 /// `ISTAT` bit 0: a generation completed and `RAND0..RAND7` hold a fresh answer.
 pub const ISTAT_RAND_RDY: u32 = 1 << 0;
 /// `ISTAT` bit 1: a reseed completed.
 pub const ISTAT_SEED_DONE: u32 = 1 << 1;
+/// `ISTAT` bit 2: the auto-reseed **age** alarm, a reminder that `AUTO_AGE` counted down to zero
+/// and the seed is stale \[trm\], \[netbsd\].
+///
+/// **Named here because it was missing, and missing bits are how a status word becomes
+/// unreadable.** Mainline's `jh7110-trng.c` does not define this bit at all, and this crate was
+/// transcribed from it, so a bench session that read a 2 or an 8 in `ISTAT` had nothing in this
+/// tree to decode it with. It is a reminder rather than a fault: [`interpret`] does not act on it,
+/// and a bring-up that writes 0 to [`regs::AUTO_AGE`] never raises it.
+pub const ISTAT_AGE_ALARM: u32 = 1 << 2;
+/// `ISTAT` bit 3: the auto-reseed **request-count** alarm, the `AUTO_RQSTS` counterpart of
+/// [`ISTAT_AGE_ALARM`] \[trm\], \[netbsd\]. Same status: named, not acted on, and disabled by a
+/// bring-up that writes 0 to [`regs::AUTO_RQSTS`].
+pub const ISTAT_RQST_ALARM: u32 = 1 << 3;
 /// `ISTAT` bit 4: the hardware's own fault signal, an SEU (single-event upset) in the LFSR-based
 /// post-processing stage. The Linux driver treats this as "reseed and try again", never as "trust
 /// the RAND registers anyway"; [`interpret`] gives it priority over `RAND_RDY` in the same
@@ -196,6 +350,18 @@ pub const ISTAT_SEED_DONE: u32 = 1 << 1;
 /// hardware self-check the datasheet documents, and it is not a substitute for a statistical
 /// health test over the bitstream, which the datasheet does not claim either.
 pub const ISTAT_LFSR_LOCKUP: u32 = 1 << 4;
+
+/// Every `ISTAT` bit this crate can name, for the write-1-to-clear that starts a bring-up.
+///
+/// A driver clears the whole register rather than the bits it cares about, because the point of
+/// the init clear is to discard whatever the block latched before this kernel existed: U-Boot, a
+/// previous boot of nife, or a reset that left a stale `RAND_RDY` standing. \[netbsd\] writes
+/// `~0` for exactly this and \[driver\] reads-then-writes-back, which reaches the same place for
+/// the bits that are set. This crate names the five documented bits instead of `!0` so the
+/// constant says what it is acknowledging, and so a future undocumented bit shows up as a residue
+/// a driver can report rather than being silently swallowed.
+pub const ISTAT_ALL: u32 =
+    ISTAT_RAND_RDY | ISTAT_SEED_DONE | ISTAT_AGE_ALARM | ISTAT_RQST_ALARM | ISTAT_LFSR_LOCKUP;
 
 /// The device tree `compatible` string \[binding\] defines. `starfive,jh8100-trng` also lists this
 /// as a fallback compatible (the JH8100 reuses the same TRNG IP), which is out of scope: this
@@ -370,21 +536,46 @@ pub enum Outcome {
     /// polls again, bounded by its own timeout (this crate does not impose one, because how long
     /// "too long" is is a fact about the real device's timing this crate cannot know without it).
     NotReady,
+    /// **`STAT.SEEDED` was clear**, so whatever the `RAND` words hold did not come from a seeded
+    /// PRNG core and must not be served as randomness.
+    ///
+    /// This is \[netbsd\]'s gate, and it is the one check the other two drivers leave implicit:
+    /// its poll path reads `STAT` and only looks at `RAND_RDY` when [`STAT_SEEDED`] is set,
+    /// issuing [`CTRL_EXEC_RANDRESEED`] when it is not, and its interrupt handler asserts
+    /// `STAT & SEEDED` whenever `RAND_RDY` fires. \[trm\] backs it: `STAT.LAST_RESEED` has an
+    /// enumerated value `0x7` meaning "Unseeded (zeroized state)", so an unseeded core is a state
+    /// the block can genuinely be in and report.
+    ///
+    /// A caller answers this by reseeding and retrying, bounded, not by reading the words anyway.
+    Unseeded,
 }
 
-/// Decide what one `ISTAT` snapshot means, given the `RAND` words alongside it.
+/// Decide what one `(STAT, ISTAT)` snapshot means, given the `RAND` words alongside it.
 ///
-/// `rand` is read every call regardless of `istat`, which costs nothing (it is already in hand,
-/// the same eight loads a real driver would do) and keeps this function a pure decode with no
-/// hidden state: the same `(istat, rand)` pair always decides the same [`Outcome`].
+/// `rand` is read every call regardless of the status words, which costs nothing (it is already in
+/// hand, the same eight loads a real driver would do) and keeps this function a pure decode with
+/// no hidden state: the same `(stat, istat, rand)` triple always decides the same [`Outcome`].
 ///
-/// **Lockup takes priority over ready**, even though the two bits live in unrelated positions and
-/// nothing in \[driver\] says they cannot both be set in one snapshot: a register file the hardware
-/// is actively re-seeding must not be read as if it had just answered cleanly, so a caller cannot
-/// be handed 32 bytes from underneath a fault.
-pub fn interpret(istat: u32, rand: [u32; 8]) -> Outcome {
+/// **The precedence is fault, then seeded, then ready**, and each step is refusing to hand back
+/// bytes for a different reason:
+///
+/// - **Lockup beats everything**, even though the bits live in unrelated positions and nothing in
+///   \[driver\] says they cannot both be set in one snapshot: a register file the hardware is
+///   actively re-seeding must not be read as if it had just answered cleanly, so a caller cannot
+///   be handed 32 bytes from underneath a fault.
+/// - **`SEEDED` beats `RAND_RDY`** (\[netbsd\]'s gate; see [`Outcome::Unseeded`]). `RAND_RDY` is
+///   a latched, write-1-to-clear bit, so it can be standing from a generation that happened before
+///   this driver ran or before the last reset, while `STAT.SEEDED` is live state. Trusting the
+///   latch alone is how a driver serves the contents of a register file nobody seeded.
+///
+/// **`stat` is a parameter because reading it is not optional** (milestone 159). An earlier version
+/// of this function took `istat` alone, which made "the device says it has never been seeded" a
+/// state this crate could not express and a driver could not check.
+pub fn interpret(stat: u32, istat: u32, rand: [u32; 8]) -> Outcome {
     if istat & ISTAT_LFSR_LOCKUP != 0 {
         Outcome::Lockup
+    } else if stat & STAT_SEEDED == 0 {
+        Outcome::Unseeded
     } else if istat & ISTAT_RAND_RDY != 0 {
         Outcome::Ready(assemble(rand))
     } else {
@@ -520,9 +711,9 @@ mod tests {
 
     #[test]
     fn not_ready_when_neither_bit_is_set() {
-        assert_eq!(interpret(0, [0; 8]), Outcome::NotReady);
+        assert_eq!(interpret(STAT_SEEDED, 0, [0; 8]), Outcome::NotReady);
         assert_eq!(
-            interpret(ISTAT_SEED_DONE, [0xffff_ffff; 8]),
+            interpret(STAT_SEEDED, ISTAT_SEED_DONE, [0xffff_ffff; 8]),
             Outcome::NotReady
         );
     }
@@ -539,7 +730,7 @@ mod tests {
             0x1c1b_1a19,
             0x201f_1e1d,
         ];
-        match interpret(ISTAT_RAND_RDY, rand) {
+        match interpret(STAT_SEEDED, ISTAT_RAND_RDY, rand) {
             Outcome::Ready(bytes) => {
                 let expected: [u8; 32] = core::array::from_fn(|i| (i + 1) as u8);
                 assert_eq!(bytes, expected);
@@ -549,23 +740,67 @@ mod tests {
     }
 
     #[test]
+    fn an_unseeded_core_is_not_read_as_an_answer() {
+        // The failure this prevents: `RAND_RDY` is latched and write-1-to-clear, so it can be
+        // standing from before this driver ran. Believing it on a core whose `STAT` says it was
+        // never seeded is how a driver serves a register file nobody put entropy into.
+        assert_eq!(
+            interpret(0, ISTAT_RAND_RDY, [0xffff_ffff; 8]),
+            Outcome::Unseeded
+        );
+        // ...and a fault still outranks it, because a reseeding register file is not a "just
+        // reseed it" situation, it is one already in progress.
+        assert_eq!(
+            interpret(0, ISTAT_RAND_RDY | ISTAT_LFSR_LOCKUP, [0; 8]),
+            Outcome::Lockup
+        );
+    }
+
+    #[test]
+    fn every_istat_bit_the_trm_names_is_in_the_acknowledge_mask() {
+        // `ISTAT_ALL` is what a bring-up writes to clear the register. A bit named in this crate
+        // but missing from the mask would be one the init clear silently leaves latched.
+        for bit in [
+            ISTAT_RAND_RDY,
+            ISTAT_SEED_DONE,
+            ISTAT_AGE_ALARM,
+            ISTAT_RQST_ALARM,
+            ISTAT_LFSR_LOCKUP,
+        ] {
+            assert_eq!(ISTAT_ALL & bit, bit, "{bit:#x} is not acknowledged");
+        }
+        // Bits 0..=4, which is every bit [trm] documents in this register.
+        assert_eq!(ISTAT_ALL, 0b1_1111);
+    }
+
+    #[test]
     fn lockup_beats_ready_in_the_same_snapshot() {
         assert_eq!(
-            interpret(ISTAT_RAND_RDY | ISTAT_LFSR_LOCKUP, [0xffff_ffff; 8]),
+            interpret(
+                STAT_SEEDED,
+                ISTAT_RAND_RDY | ISTAT_LFSR_LOCKUP,
+                [0xffff_ffff; 8]
+            ),
             Outcome::Lockup
         );
     }
 
     #[test]
     fn lockup_alone_is_reported_even_with_no_rand_rdy() {
-        assert_eq!(interpret(ISTAT_LFSR_LOCKUP, [0; 8]), Outcome::Lockup);
+        assert_eq!(
+            interpret(STAT_SEEDED, ISTAT_LFSR_LOCKUP, [0; 8]),
+            Outcome::Lockup
+        );
     }
 
     #[test]
     fn seed_done_alone_is_not_confused_with_rand_rdy() {
         // SEED_DONE (bit 1) and RAND_RDY (bit 0) are adjacent; a shift-by-one bug here would pass
         // every other test in this file and fail silently on real hardware after a reseed.
-        assert_eq!(interpret(ISTAT_SEED_DONE, [0; 8]), Outcome::NotReady);
+        assert_eq!(
+            interpret(STAT_SEEDED, ISTAT_SEED_DONE, [0; 8]),
+            Outcome::NotReady
+        );
     }
 
     const JH7110_TRNG_PRESENT: &[u8] = include_bytes!("../tests/fixtures/jh7110-trng-present.dtb");
@@ -754,10 +989,11 @@ mod verification {
     /// Falsification: unfalsified
     #[kani::proof]
     fn a_lockup_bit_is_never_overridden() {
+        let stat: u32 = kani::any();
         let istat: u32 = kani::any();
         kani::assume(istat & ISTAT_LFSR_LOCKUP != 0);
         let rand: [u32; 8] = kani::any();
-        assert_eq!(interpret(istat, rand), Outcome::Lockup);
+        assert_eq!(interpret(stat, istat, rand), Outcome::Lockup);
     }
 
     /// **`Ready` is returned exactly when the register file says so, and carries exactly those
@@ -767,10 +1003,12 @@ mod verification {
     /// Falsification: replayable `crates/jh7110_trng/falsifications/verification.ready_requires_rand_rdy_and_carries_the_words_untouched.patch`
     #[kani::proof]
     fn ready_requires_rand_rdy_and_carries_the_words_untouched() {
+        let stat: u32 = kani::any();
         let istat: u32 = kani::any();
         kani::assume(istat & ISTAT_LFSR_LOCKUP == 0 && istat & ISTAT_RAND_RDY != 0);
+        kani::assume(stat & STAT_SEEDED != 0);
         let rand: [u32; 8] = kani::any();
-        let Outcome::Ready(bytes) = interpret(istat, rand) else {
+        let Outcome::Ready(bytes) = interpret(stat, istat, rand) else {
             panic!("RAND_RDY set and LFSR_LOCKUP clear did not read as Ready");
         };
         // **The layout written out, not `assemble` compared with itself** (milestone 211).
@@ -796,9 +1034,27 @@ mod verification {
     /// Falsification: unfalsified
     #[kani::proof]
     fn neither_bit_set_is_always_not_ready() {
+        let stat: u32 = kani::any();
         let istat: u32 = kani::any();
         kani::assume(istat & ISTAT_LFSR_LOCKUP == 0 && istat & ISTAT_RAND_RDY == 0);
+        kani::assume(stat & STAT_SEEDED != 0);
         let rand: [u32; 8] = kani::any();
-        assert_eq!(interpret(istat, rand), Outcome::NotReady);
+        assert_eq!(interpret(stat, istat, rand), Outcome::NotReady);
+    }
+
+    /// **An unseeded core never yields bytes, whatever `ISTAT` claims** (milestone 159). For every
+    /// `istat` with `LFSR_LOCKUP` clear, if `STAT.SEEDED` is clear then `interpret` returns
+    /// `Unseeded` rather than `Ready`, so no path exists from a latched `RAND_RDY` on an unseeded
+    /// device to 32 bytes handed to a caller. This is the property `Outcome::Unseeded`'s doc
+    /// argues for in prose, over the full `2^64` space of the two status words.
+    /// Falsification: unfalsified
+    #[kani::proof]
+    fn an_unseeded_core_never_yields_bytes() {
+        let stat: u32 = kani::any();
+        let istat: u32 = kani::any();
+        kani::assume(istat & ISTAT_LFSR_LOCKUP == 0);
+        kani::assume(stat & STAT_SEEDED == 0);
+        let rand: [u32; 8] = kani::any();
+        assert_eq!(interpret(stat, istat, rand), Outcome::Unseeded);
     }
 }
