@@ -140,8 +140,9 @@ his desk the day a report named its finding, milestone 94 swept the tree for thi
 left its own inventory in a pull request body for twelve days, and milestone 244 named an
 unvouched-binary hazard and a design fork that surfaced only because calef asked for them by hand.
 
-A block whose status is `BUILT` or `REMOVED` carries the section, and `script/roadmap --check` fails
-on one that does not. It is a bullet list, and each bullet opens with one of six dispositions:
+A block whose status is `BUILT`, `REMOVED` or `PARTIAL` carries the section, and
+`script/roadmap --check` fails on one that does not. It is a bullet list, and each bullet opens with
+one of eight dispositions:
 
 | Bullet opens | Means | Must resolve to |
 |---|---|---|
@@ -152,6 +153,32 @@ on one that does not. It is a bullet list, and each bullet opens with one of six
 | `**Refused.**` | Considered and deliberately not taken. | A reason, in prose |
 | `**Decision.**` | It is calef's call, written up as one. | A file under `design/decisions/` |
 | `**Proposed.**` | Named, nobody took it, so it is now a proposal. | A file under `design/roadmap/proposals/` |
+| `**Outstanding.**` | Still this milestone's own remaining scope, checked against the tree and still true. `PARTIAL` blocks only. | What is left, and how you checked |
+
+**`PARTIAL` was added by milestone 252, and it is the harder half.** A finished block is written
+once and closed, so its section is a record. A `PARTIAL` block's is a **standing claim about the
+future**, edited as pieces land, and nothing re-reads what it still asserts. Its prose is also what a
+lane reads when deciding what to pick up, so a stale one does not merely misinform: it offers work
+that does not exist. Milestone 16 listed three things as remaining, two of them were finished, and
+the block said otherwise for weeks.
+
+**`Outstanding.` is the word a `PARTIAL` block needs that a finished one does not.** The other seven
+say where work *went*; a `PARTIAL` block's commonest honest answer is that it has not gone anywhere
+and is still this milestone's own scope. None of the seven can say that without lying, and a lane
+forced to choose would write the comfortable word or leave the item out, which is the silence this
+gate exists to stop arriving through the gate. It is refused on a `BUILT` or `REMOVED` block, where
+`Recorded.`, `Proposed.` and `Milestone N.` already cover the ground and a softer synonym would only
+give them somewhere to hide.
+
+**`None.` is refused on a `PARTIAL` block**, which is the one thing this gate can prove rather than
+merely enumerate. `PARTIAL` means work remains, so a block answering that nothing is outstanding has
+contradicted its own status word: either name what is left, or the status is stale and the row wants
+`BUILT` with a date. That is the milestone-69 defect (row and block disagreeing) one level in.
+
+**What the gate can and cannot do is unchanged.** It checks that the claims are enumerated and that
+each resolves to something that exists. **It cannot check that a claim is still true.** What catches
+staleness is a person writing the dispositions out, which is what both sweeps demonstrated: 247's
+found three items already built, and 252's found more.
 
 **An explicit refusal is a success here.** The defect being attacked is silence, not the absence of
 a milestone, and `**None.**` is meant to be the cheapest sentence in the roadmap.
@@ -541,12 +568,12 @@ besides, being built for dated release grouping; these are capability-shaped and
 | 244 | RECORDED | [The largest crate in the tree is proved by nothing a mutation can reach](244-the-largest-crate-in-the-tree-is-proved-by-nothing.md) | Measured: only 33 of 196 mutants are in pure logic, so nothing was lifted. The 0-of-191 score was a config gap (the crate was missing from `.cargo/mutants.toml`), now fixed and gated | |
 | 245 | NOT-STARTED | [A soak cannot tell a flat run from a productive one, so its duration is guesswork](245-a-soak-cannot-tell-a-flat-run-from-a-productive-one.md) | all eight soak counters are volumes; nothing counts distinct behaviour, so a saturated run and a productive one look identical | |
 | 246 | BUILT | [Measured boot's refusal path is tested by nothing, and one mutant turns it off](246-the-refusal-path-of-measured-boot-is-tested-by-nothing.md) | The decision is `measured_boot::verdict` now, with three host tests. Falsified by hand (`unvouched: false` turns one red) and then made a standing mutant rather than a one-off check | 2026-09-03 |
-| 247 | IN-PROGRESS | [Follow-on work named by a finished milestone goes nowhere, and this is the third time](247-follow-on-work-named-by-a-finished-milestone-goes-nowhere.md) | 151 BUILT blocks name work in `BUGS` sections and handoffs, and nothing can tell which of it became a milestone | |
+| 247 | BUILT | [Follow-on work named by a finished milestone goes nowhere, and this is the third time](247-follow-on-work-named-by-a-finished-milestone-goes-nowhere.md) | 151 BUILT blocks name work in `BUGS` sections and handoffs, and nothing can tell which of it became a milestone | 2026-09-03 |
 | 248 | NOT-STARTED | [A placement can only be drawn, never constructed, so the strongest finding on this machine rests on two boots](248-a-placement-cannot-be-constructed-only-drawn.md) | one card and one build gave a 15x spread explained by grinder co-location, and no arrangement can be built on purpose to test it | |
 | 249 | NOT-STARTED | [The boot lottery is sampled by a person walking to the board, so nine draws is a whole evening](249-the-boot-lottery-is-sampled-by-a-person-walking-to-the-board.md) | SBI SRST is already called with reset type 0; type 1 is a cold reboot, and 3 and 4 clean cores have never been drawn | |
 | 250 | NOT-STARTED | [An unviable mutant is a hole in the measurement that reads as a pass](250-an-unviable-mutant-is-a-hole-that-reads-as-a-pass.md) | `measured_boot` had nine, one of them hiding the crate's only security decision, and no published rate counts them | |
 | 251 | NOT-STARTED | [A `needs-architect` label outlives the question that earned it, so the queue lies](251-a-needs-architect-label-outlives-its-question.md) | nothing takes the label off, so the one query that says what is waiting on the architect can be false | |
-| 252 | NOT-STARTED | [A `PARTIAL` block claims work is remaining and nobody re-reads it](252-a-partial-block-is-the-one-nobody-re-reads.md) | milestone 247 gates BUILT and REMOVED blocks only, and milestone 16 listed two finished things as remaining for weeks | |
+| 252 | BUILT | [A `PARTIAL` block claims work is remaining and nobody re-reads it](252-a-partial-block-is-the-one-nobody-re-reads.md) | All 22 `PARTIAL` blocks swept: 215 dispositions written, **56 of them recording a claim the tree disproved, and every one of the 22 blocks carried at least one** | 2026-09-03 |
 
 The order §14 sets: **verify the core and make it verifiable first** (18 and 14, the thesis), then the
 road to running real workloads on real machines (15, 21, 16, 19; 25 extends 21 into cross-OS

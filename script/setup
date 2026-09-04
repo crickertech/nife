@@ -13,8 +13,9 @@ cd "$(dirname "$0")/.."
 
 script/bootstrap
 
-# There is deliberately no `rustup update` here. rust-toolchain.toml pins a DATED nightly
-# (`nightly-2026-08-22` as of writing), and script/bootstrap above installs exactly that channel with
+# There is deliberately no `rustup update` here. rust-toolchain.toml pins a DATED nightly (read the
+# date there; this comment used to repeat it and was two weeks stale by 2026-09-03, found by
+# milestone 252's sweep), and script/bootstrap above installs exactly that channel with
 # its components, so there is nothing for setup to advance. Bumping the pin is a deliberate act with
 # its own tool, `script/toolchain-bump`, which raises the date, rebuilds the std farm clean, runs the
 # gates and restores the old pin if they fail.

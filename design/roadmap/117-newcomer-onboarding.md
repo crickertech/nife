@@ -595,3 +595,40 @@ tells them what *this* system does with one.
 identical. It will not get bored, will not give up out of frustration, and will read further than a
 human would before asking. So the result is a **lower bound** on the friction a human would meet, and
 the milestone should say so wherever it reports a number.
+## Follow-on
+
+- **Outstanding.** Run 6 has not happened. `notes/stranger-test.md`'s newest heading is run 5 on
+  2026-08-18 and the 30-day cadence in that note puts the next one at roughly 2026-09-17, so
+  nothing owes one yet and nothing else can move this block to BUILT. Checked 2026-09-03.
+- **Outstanding.** Where `script/apropos` should be named is still unanswered and still costing what
+  it was measured to cost: `README.md`'s start-here order names eight things and none of them is
+  `apropos`, and `CONTRIBUTING.md` never mentions it either. Checked 2026-09-03.
+- **Outstanding.** Run 4's naming-worklist finding is unfixed: `script/names` still counts two
+  categories on the gate line and three on the default listing, and `notes/naming.md`'s `BUGS`
+  still carries the entry. Checked 2026-09-03.
+- **Done.** Run 4's placement finding about the two archives' `init` is fixed at the table rather
+  than 200 lines away: the `hello` entry in `xtask/src/main.rs` now carries the comment that
+  riscv's "init" is the `builder` demo, on the row that needs it.
+- **Milestone 150.** The eight hand-maintained lists, nominated by three successive strangers, have
+  a tracked home; the block already says so and it still holds.
+- **Recorded.** Removal still has no page. `notes/adding-a-program.md`'s `BUGS` says outright that
+  there is no removing-a-program page and that this one is the count reached from the other side.
+- **Recorded.** The argument-plus-input fork stays undecided and is recorded in three places rather
+  than one: the planner's own comment, `notes/adding-a-program.md`'s `BUGS`, and a passing host
+  test in `crates/grant_plan`. Whether such a program is wanted at all is calef's.
+- **Recorded.** The load-average diagnostic is built and still unexercised in anger. The host-load
+  sampler in `xtask/src/main.rs` runs on both kernel legs and `notes/load-sensitive-assertions.md`
+  carries its own `BUGS`, but no run has been recorded where it fired on a red leg.
+- **Done.** The duplicated-count class this block keeps re-finding is mechanical rather than
+  remembered now: `README.md`'s counts carry count-at-least markers and `script/lint` fires when a
+  floor goes down.
+- **Recorded.** `CONTRIBUTING.md` and `README.md`'s reading order are both still provisional, as
+  this block says, because a reading order is a claim about what matters and those are calef's.
+- **Recorded.** The farm-contamination assertion in `xtask/src/main.rs` has still not met a real
+  contaminated farm. It is verified by host coverage and a clean `script/test`, not by reproducing
+  run 5's race.
+- **Done.** Two of run 5's own handoffs had rotted again since they were fixed on 2026-08-22,
+  which is this block's subject happening to this block: `CONTRIBUTING.md` said `script/gates` runs
+  five stages where it runs seven, and `script/setup`'s comment named a toolchain pin two weeks
+  behind `rust-toolchain.toml`. Milestone 252's sweep found both and fixed them by deleting the
+  duplicated fact rather than by re-copying it, so neither sentence can rot a third time.

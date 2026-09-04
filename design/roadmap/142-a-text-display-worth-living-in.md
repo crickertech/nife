@@ -662,3 +662,43 @@ live**, rather than folded in here.
 - **"Rich text" is read here as terminal attributes**, not as a document model. If calef meant
   proportional type, embedded images, or anything a terminal is not, this block answers the wrong
   question and the right answer is rung three.
+## Follow-on
+
+- **Decision.** The font family that blocked increment three was chosen on 2026-08-20:
+  `design/decisions/104-the-font-and-the-palette.md` picks DejaVu Sans Mono, Menlo's own ancestor
+  and the last point in that chain where the outlines were given away.
+- **Decision.** The palette calef had to pick was chosen in the same call, canonical Solarized
+  Dark, in `design/decisions/104-the-font-and-the-palette.md`, after this block's finding that
+  "Higher Contrast" is a 2011 gist and a different palette rather than a contrast adjustment.
+- **Done.** DECISIONS §102 is built and consumed rather than "decided and nobody is building it":
+  the page-frame object in `kernel/src/cap.rs` carries a count that is the run's length in pages,
+  and `crates/graphics_proto` sizes the scanout at 924x344 over 311 frames.
+- **Done.** The screendump cost this block flagged as worth attacking was measured and settled: the
+  referee poll in `xtask/src/main.rs` records the 39x growth, that both suites still finish in
+  normal time, and calef's call to leave the 100 ms cadence alone until something is measurably
+  slow.
+- **Outstanding.** Scrollback is still not reachable from a keyboard. The scroll methods have no
+  callers outside `crates/video_terminal`, and `notes/glyphs.md`'s honest-limits section says the
+  same thing independently. Checked 2026-09-03.
+- **Outstanding.** Increment three has not started: nothing in `Cargo.lock` mentions a TrueType
+  parser or a glyph rasteriser, there is no generator under `tools/` or `xtask`, and no checked-in
+  coverage table or regenerate-and-compare gate exists. Checked 2026-09-03.
+- **Outstanding.** Increment five has not started either: the attribute byte in
+  `crates/video_terminal` is still one byte, four bits foreground, three background, one reverse,
+  so truecolour, real weights and underline styles are all unbuilt and "bold is bright" stands.
+  Checked 2026-09-03.
+- **Outstanding.** Whether the atlas ships one face or four is unanswered. §104 chose the family
+  and says nothing about faces, and no other file under `design/decisions/` names the question.
+  Checked 2026-09-03.
+- **Milestone 141.** The palette increment still waits on the property check that says which
+  palettes are admissible, and the one-unit nudge §104 flags is unimplemented and unlocated.
+- **Outstanding.** No rasteriser has been run on either target. The determinism numbers are all
+  host measurements and there is no rasteriser crate in the tree, so there is nothing to run on
+  aarch64 or riscv64, which is what §46's first rule would want before the dependency is taken.
+  Checked 2026-09-03.
+- **Outstanding.** The chosen face has not been re-measured. The cell that fixed the surface came
+  from Menlo, the surface is sized against the shipping 7x8 bitmap cell, and nobody has measured
+  DejaVu Sans Mono's advance to see what the atlas cell costs in columns. Checked 2026-09-03.
+- **Recorded.** A font transcribed into a Rust table stays invisible to `script/supply-chain`,
+  which reads the cargo graph, and `vendor/README.md` still carries no entry for the current font
+  or a future atlas.
