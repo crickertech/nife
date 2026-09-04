@@ -193,9 +193,16 @@
 //! | `hex_password`, `sentence` and its `push`, [`boot`]'s own second copy of that `push`, `opt_cap`, `archive_name`, `measured` | 33 | pure: bytes in, bytes out, no capability touched |
 //! | top-level `const` arithmetic | 6 | not movable; they are what the rest is written against |
 //!
+//! **One of those 33 has since been lifted, and it was the one that mattered** (milestone 246). The
+//! aggregate above is right and the per-function reading of it is not: a mutant in `hex_password` or
+//! `sentence` produces a wrong string, and the mutant in `measured` produced *a system that runs code
+//! nobody vouched for*. That one line is now `measured_boot::verdict`, tested on the host, and
+//! falsified: `unvouched: true` changed to `false` turns a test red. The rest of the table stands as
+//! measured, and the aggregate argument for not lifting the others stands with it.
+//!
 //! **A fifth of the mutants and a fiftieth of the lines**, and every pure one is a leaf helper of
-//! the sequence beside it: `measured` exists to fill a `Lookup` that only [`boot`] destructures,
-//! `opt_cap` reads one word out of one `recv_cap`, `archive_name` is `Some(p.name())`. Lifting them
+//! the sequence beside it: `measured` filled a `Lookup` that only [`boot`] destructured, `opt_cap`
+//! reads one word out of one `recv_cap`, `archive_name` is `Some(p.name())`. Lifting them
 //! buys 33 reachable mutants and costs a crate of fragments, a wider public surface, and a reader
 //! holding two files to follow one boot. `redoxfs_server` runs the split this would be modelled on
 //! and runs it the other way up: there the sans-IO core is most of the package and the EL0 binary
@@ -2573,43 +2580,18 @@ fn announce(term_ep: u64, text: &[u8]) {
 // The measurement (milestone 104): init measures what init loads.
 // -------------------------------------------------------------------------------------------
 
-/// What init found when it asked the archive for a program.
-///
-/// One rule produces both fields: **init loads nothing it cannot vouch for.** So `elf` is `None`
-/// whenever the entry is missing, refused, or not an ELF, and every caller below treats those the
-/// same way it always treated a missing entry. `unvouched` exists only for the sentence init prints:
-/// a build that did not pack a program and a program whose bytes are not the ones this system was
-/// measured against are the same decision and very different news.
-struct Lookup<'a> {
-    elf: Option<elf::Elf<'a>>,
-    /// The archive **had** this entry and the table would not vouch for it.
-    unvouched: bool,
-}
-
 /// Read a program out of the archive and measure it against the table, or refuse it.
 ///
-/// `Unmeasured` (the table says nothing about this name) and `Mismatch` (it says something else) are
-/// both refusals here, which is `measured_boot`'s own rule and the kernel's: a check that passes
-/// when there is nothing to check against is not a check. In particular a table that failed to
-/// generate refuses **everything**, and the boot stops at the console rather than coming up
-/// unmeasured.
-fn measured<'a>(fs: &nifefs::Fs<'a>, table: &str, name: &str) -> Lookup<'a> {
-    let Some(bytes) = fs.read(name) else {
-        return Lookup {
-            elf: None,
-            unvouched: false,
-        };
-    };
-    if measured_boot::verify_in_manifest(table, name, bytes).is_err() {
-        return Lookup {
-            elf: None,
-            unvouched: true,
-        };
-    }
-    Lookup {
-        elf: elf::Elf::parse(bytes).ok(),
-        unvouched: false,
-    }
+/// **The decision itself is [`measured_boot::verdict`], not this function** (milestone 246). It used
+/// to be eighteen lines here, and this crate cannot be reached by a host test, so the branch that
+/// sets `unvouched` on a substituted program was proved by nothing: changing its `true` to `false`
+/// started an unvouched binary and turned nothing in the tree red. Moving the three-way answer into
+/// `measured_boot` put it beside `verify_in_manifest`, which is where the rest of that rule already
+/// lives, and left this line: an archive read and a call. `script/shell-check` still proves that the
+/// boot *makes* the call, on both ISAs, with the table the kernel measured, and nothing about that
+/// changed.
+fn measured<'a>(fs: &nifefs::Fs<'a>, table: &str, name: &str) -> measured_boot::Verdict<'a> {
+    measured_boot::verdict(table, name, fs.read(name))
 }
 
 /// The buffer one printed sentence is composed in. A page would fit, but the sentences are one line
