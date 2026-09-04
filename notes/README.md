@@ -921,6 +921,14 @@ in the code or the conversation doesn't make sense, it belongs here.
 - [The PMU, and the two clocks in a core](pmu.md): the cycle counter (`PMCCNTR`) versus the
   generic timer (`CNTVCT`), and why the coarse, boring timer is the one that survives
   virtualization. The reason our bench runs on a laptop and `sel4bench` does not.
+- [Cycle counters on RISC-V, and why nothing here has measured one](riscv-cycle-counters.md):
+  milestone 74's riscv64 half. The hardware counters are M-mode state, so a supervisor kernel cannot
+  start one and has to ask the SBI PMU extension (EID `0x504D55`) to find a counter, configure it for
+  CPU cycles, start it, and say which CSR reads it. The read is then one instruction, which is the
+  whole point: an `ecall` inside a cycle measurement measures the `ecall`. QEMU answers all of it and
+  settles none of it (TCG's `cycle` CSR is an instruction count, and the probe comes out at an
+  implausibly exact 100.00 cycles per tick), so the note is mostly the bench procedure for radon,
+  written and untested, with a table mapping each line of output to what it means.
 - [ASIDs: tagged address spaces](asids.md): milestone 15: every user mapping is `nG`, each
   address space owns one ASID for life, the tag rides in TTBR0 with the root, and the context
   switch flushes nothing. Why a bitmap suffices where Linux needs generations (milestone 14
