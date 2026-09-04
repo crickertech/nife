@@ -2989,7 +2989,7 @@ fn region_reap_verdict(state: State, on_cpu: bool) -> RegionReap {
 /// discards the rendezvous. That is sound today only because nothing can leave a reply park and
 /// enter a second `CALL` while an unconsumed `Reply` still names it. Wake a reply-parked caller,
 /// hand it `Gone`, let it call a healthy server, and a hung server's stale `Reply` passes the role
-/// check and forges an answer to a different conversation. L4Re documents the identical hazard as
+/// check and forges an answer to a different conversation. `L4Re` documents the identical hazard as
 /// a consequence of its own finite receive timeouts, and Zircon documents it for
 /// `zx_channel_call`'s timeout. **A change that traded a permanent block for a forgeable reply
 /// would be a worse defect than the one it fixes.**

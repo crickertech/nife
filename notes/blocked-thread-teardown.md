@@ -1,10 +1,22 @@
 # Ending a permanently blocked thread
 
-*Research, not a decision. This note starts where notes/hung-component.md stopped: its case (c), a
-thread `Blocked` on an endpoint its supervisor cannot reach, which nothing in this kernel can end.
-Read that note first for the taxonomy and for why the supervisor's whole vocabulary is refused. This
-one surveys how seven other systems solve the same problem, maps each onto this kernel, and lays four
-proposals side by side. **calef takes this fork; nothing here is a recommendation of a winner.***
+*This note starts where notes/hung-component.md stopped: its case (c), a thread `Blocked` on an
+endpoint its supervisor cannot reach, which nothing in this kernel could end. Read that note first
+for the taxonomy and for why the supervisor's whole vocabulary is refused. This one surveys how
+seven other systems solve the same problem, maps each onto this kernel, and lays four proposals side
+by side.*
+
+**The fork is answered. calef chose proposal A on 2026-09-03, and milestone 133 built it**
+(design/roadmap/133-blocked-thread-teardown.md). Everything below is kept as it was written, because
+the argument is what the decision was made against and a note edited into agreement with its own
+outcome is worth nothing to the next reader. What changed against the text: the mechanism landed in
+`sched::finish_blocked_resident` and `RegionReap::FinishInPlace`; `Endpoint` is spelled
+`Rendezvous` in this tree and `remove_receiver` is now written; **and the claim below that
+`WaitRole` says which queue holds a thread is wrong**, which the implementation found and this note
+did not. `ipc_call`'s `Send::Blocked` arm records a caller as `WaitRole::Reply` while queueing it as
+a sender, so role and queue disagree on every call that meets no server, and the shipped code asks
+both queues rather than believing the role. See this note's own BUGS for what else was left
+untested.
 
 *The code this note reads: `kernel/src/sched.rs` (`schedule`, `ipc_call`, `ipc_reply`,
 `set_ipc_aborted`, `reap_region_objects`), `crates/ipc/src/lib.rs` (`drain_waiters`,
@@ -820,20 +832,25 @@ git show origin/milestone/23-hung-component:notes/hung-component.md
 
 ## BUGS
 
-**Nothing here is built, and nothing here should be built before calef rules.** This note is analysis.
-The proposals are sketches at the level of "which lines change", not designs; each would owe a
-`DECISIONS` section for its semantics before a lane took it, and B would owe one for a new method
-under §10's rule.
+**Proposal A is built (milestone 133); B, C's piece 2 and D are not, and C's piece 1 became
+milestone 254.** The remaining proposals are sketches at the level of "which lines change", not
+designs; B would still owe a `DECISIONS` section for a new method under §10's rule.
 
-**The stale-reply-capability hazard is unreachable today and is therefore untested.** I established it
-by reading `cap::reply_cap`, `slots`'s generational naming, and `ipc_reply`'s guard, and by
-enumerating the two exits from a reply park. It is an argument, not a proof, and the tree's own
-standard for arguments about the scheduler is that four CI panics have taught it to distrust them.
-**No test in this tree would catch a regression here**, because no path can currently produce a second
-`CALL` from a thread with an outstanding `Reply`.
+**The stale-reply-capability hazard is still unreachable, and the guard that makes it unreachable is
+still unproved.** I established it by reading `cap::reply_cap`, the generational naming, and
+`ipc_reply`'s guard, and by enumerating the exits from a reply park. It is an argument, not a proof,
+and the tree's own standard for arguments about the scheduler is that four CI panics have taught it
+to distrust them. Milestone 133 took **both** of seL4's fixes rather than choosing between them: its
+victim is never woken, so no second `CALL` can exist, *and* every outstanding `Reply` naming it is
+swept anyway, which
+`user::force_kill_tests::tearing_down_a_reply_parked_caller_sweeps_the_reply_capability` pins. What
+is still untested is the guard itself, because no path can produce a second `CALL` from a thread
+with an outstanding `Reply` for a test to point at. That is
+`design/roadmap/proposals/a-reply-that-names-a-thread-and-not-a-call.md`.
 
 **The claim that `WaitRole` enumerates every blocked thread depends on every block site calling
-`park`.** `wake_handshake`'s own `BUGS` says nothing enforces that: the fields are public because the
+`park`, and milestone 133 made that claim load-bearing rather than diagnostic**
+(`design/roadmap/proposals/a-block-site-that-writes-blocked-by-hand.md`). `wake_handshake`'s own `BUGS` says nothing enforces that: the fields are public because the
 kernel has legitimate out-of-protocol writers, so a future block site writing `state = Blocked`
 directly opts out silently and would leave `wait_on` stale. Proposals A, B and C all unlink using
 `wait_on`, so all three inherit that as their sharpest failure mode. I did not audit every write of
@@ -850,5 +867,5 @@ documentation's word and not verified.
 **No number in this note was measured.** The line counts ("about thirty lines") are estimates from
 reading, the sweep cost is arithmetic from `MAX_THREADS` and `CAPABILITY_TABLE_SLOTS`, and no benchmark was run.
 
-**The milestone number in the roadmap block this lane proposes is provisional** and belongs to the
-integrator to mint, per the rule that anything global to the tree is assigned at merge.
+**No number in the survey table was re-checked at build time.** The prior art was fetched and read on
+2026-08-17 and none of those systems was consulted again while milestone 133 was written.

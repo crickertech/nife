@@ -500,6 +500,49 @@ mod verification {
         }
     }
 
+    /// **Taking a waiter back off a queue preserves the one-queue invariant**, for either queue
+    /// and whether or not the victim was ever there.
+    ///
+    /// Milestone 133 needed [`remove_receiver`](Rendezvous::remove_receiver) and asks both removes
+    /// on every victim, because the kernel's recorded `WaitRole` and the queue that actually holds
+    /// the thread genuinely disagree for a `CALL` caller that met no server. So the interesting
+    /// case is not the hit, it is the **miss**: a drain-and-repush over a queue the victim is not
+    /// on rebuilds that queue from nothing and must put it back exactly as it was. A version that
+    /// dropped the survivors, or left `senders` and `receivers` both non-empty, would break the
+    /// invariant that every other proof in this module rests on.
+    /// Falsification: unfalsified
+    #[kani::proof]
+    fn removing_a_waiter_preserves_the_invariant() {
+        let (mut s, mut r, mut stranger) = (N::new(), N::new(), N::new());
+        let (sender_ptr, receiver_ptr) = (NonNull::from(&mut s), NonNull::from(&mut r));
+        let mut e: Rendezvous<N> = Rendezvous::new();
+        // SAFETY: `s` and `r` are distinct fresh nodes declared before `e`, so they are valid,
+        // unqueued and outlive it, which is `seed`'s contract.
+        unsafe { seed(&mut e, sender_ptr, receiver_ptr) };
+
+        // A symbolic victim: one of the two nodes `seed` may have queued, or a third that is on no
+        // queue at all, which is the miss the kernel takes on every call.
+        let victim = match kani::any::<u8>() {
+            0 => sender_ptr,
+            1 => receiver_ptr,
+            _ => NonNull::from(&mut stranger),
+        };
+        // SAFETY: `victim` is compared by pointer and never dereferenced, and every other queued
+        // waiter is one of the same three live locals, each still on at most one queue.
+        unsafe {
+            e.remove_sender(victim);
+            e.remove_receiver(victim);
+        }
+        assert!(e.one_queue_invariant());
+
+        // And a removal that found its victim really removed it: asking again reports nothing.
+        // SAFETY: as above.
+        unsafe {
+            assert!(!e.remove_sender(victim));
+            assert!(!e.remove_receiver(victim));
+        }
+    }
+
     /// **A pending signal is taken before a queued sender.** A receive drains a counted signal
     /// first, so an async signal delivered with nobody waiting is never lost behind a later
     /// synchronous sender.
@@ -814,10 +857,8 @@ mod tests {
         // SAFETY: `ap` is a live node on no queue of `e2`; nothing is dereferenced.
         assert_eq!(unsafe { e2.send(ap) }, Send::Blocked);
         // SAFETY: `ap` is compared by pointer, never dereferenced.
-        assert!(
-            !unsafe { e2.remove_receiver(ap) },
-            "a queued sender is not a receiver"
-        );
+        let found = unsafe { e2.remove_receiver(ap) };
+        assert!(!found, "a queued sender is not a receiver");
         assert_eq!(e2.debug_counts().0, 1, "the sender queue was left alone");
     }
 

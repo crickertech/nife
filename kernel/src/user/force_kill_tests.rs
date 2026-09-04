@@ -174,8 +174,8 @@ const CALL_STUB: &[u32] = &super::x86_programs::call();
 /// The rendezvous is deliberately **not** created from `region`: that is the difference between
 /// the case [`destroy_reclaims_a_region_whose_resident_is_blocked_in_recv`] already covered (the
 /// rendezvous sweep wakes the resident, so the armed kill becomes spendable) and the case that
-/// hung forever until milestone 133 (the rendezvous belongs to somebody else, so nothing wakes it
-/// and nothing ever will).
+/// hung forever until milestone 133, ending a permanently blocked thread: the rendezvous belongs to
+/// somebody else, so nothing wakes the resident and nothing ever will.
 fn child_blocked_on(
     ep: crate::sched::RendezvousId,
     rights: crate::cap::Rights,
@@ -375,10 +375,17 @@ fn destroy_reclaims_a_region_whose_resident_is_blocked_in_recv() {
 /// first assertion.
 #[test_case]
 fn destroy_reclaims_a_region_whose_resident_blocks_on_a_rendezvous_it_does_not_own() {
+    // **The rendezvous is created before the baseline**, the same order and for the same reason
+    // `user::tests::reclaim_frees_a_started_then_exited_childs_regions` states: it comes out of the
+    // kernel's own pinned rendezvous region, which this reclaim deliberately cannot reach, so it
+    // must not count against the frame accounting. Sampling first cost this test two runs, at a
+    // deterministic 32 frames.
+    //
+    // Somebody else's rendezvous is the whole point: it is not created from `region`, so the sweep
+    // that opens `reap_region_objects` never touches it and nothing ever wakes the child.
+    let ep = sched::create_rendezvous();
     let frames_before = crate::memory::free_page_frames();
 
-    // Somebody else's rendezvous: the kernel's own pinned region, which this reclaim cannot reach.
-    let ep = sched::create_rendezvous();
     let (region, tid) = child_blocked_on(ep, crate::cap::Rights::READ, RECV_STUB);
 
     // **Wait for it to be queued, not for "probably scheduled by now."** Reclaiming a child that
@@ -419,7 +426,7 @@ fn destroy_reclaims_a_region_whose_resident_blocks_on_a_rendezvous_it_does_not_o
 /// the rendezvous. That is sound only while nothing can leave a reply park and enter a second
 /// `CALL` with an unconsumed `Reply` still naming it. A design that freed a stranded caller by
 /// *waking* it would create exactly that path, and a hung server's stale `Reply` would then pass
-/// the role check and forge an answer to a later, unrelated conversation. L4Re documents the
+/// the role check and forge an answer to a later, unrelated conversation. `L4Re` documents the
 /// identical hazard as a consequence of its own finite receive timeouts and Zircon documents it
 /// for `zx_channel_call`'s timeout; see notes/blocked-thread-teardown.md.
 ///
@@ -439,9 +446,11 @@ fn destroy_reclaims_a_region_whose_resident_blocks_on_a_rendezvous_it_does_not_o
 /// the reclaim itself still succeeds.
 #[test_case]
 fn tearing_down_a_reply_parked_caller_sweeps_the_reply_capability() {
+    // Before the baseline: it comes out of the kernel's pinned rendezvous region and is never
+    // reclaimed here. See the test above.
+    let ep = sched::create_rendezvous();
     let frames_before = crate::memory::free_page_frames();
 
-    let ep = sched::create_rendezvous();
     // WRITE, because the child calls on it. This test is the server.
     let (region, tid) = child_blocked_on(ep, crate::cap::Rights::WRITE, CALL_STUB);
 

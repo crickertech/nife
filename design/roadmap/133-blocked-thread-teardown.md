@@ -1,19 +1,23 @@
 # 133. Ending a permanently blocked thread, and deciding who may
 
-**Status: IN-PROGRESS** on `milestone/133-blocked-thread-teardown`. Proposed 2026-08-17 by the
-research lane `roadmap/blocked-thread-teardown`, from the residual milestone 23's hung-component lane
-recorded and declined to open.
+**Status: BUILT** 2026-09-04. Proposed 2026-08-17 by the research lane
+`roadmap/blocked-thread-teardown`, from the residual milestone 23's hung-component lane recorded and
+declined to open.
 
-**Gate: NONE.** **The fork is answered: calef chose proposal A on 2026-09-03**, *`DESTROY` finishes
-what it starts*. The authority is the region capability, unchanged; nothing is added to the syscall
+**The fork was answered before the work: calef chose proposal A on 2026-09-03**, *`DESTROY`
+finishes what it starts*. Until then this block carried `Gate: DECISION`, because no lane could pick
+one of four proposals whose difference is which held capability expresses the right to end a
+thread. The authority is the region capability, unchanged; nothing is added to the syscall
 surface, no new right, and no new error is visible to userspace. The paragraphs below are kept as
 they were written, because the argument they record is what the decision was made against; what has
 changed is only that it is no longer open.
 
 **Why A and not B, so it is not relitigated.** A's one live risk was that it would settle *what a
-spawner retains over a child after `START`* by accident. DECISIONS §142 settled that on its own terms
-the same day (retention becomes a declared field, and it declares "retain nothing"), which removed
-the accident and freed A to ship. **B stays open behind a customer that does not exist**: a terminate
+spawner retains over a child after `START`* by accident. That was settled on its own terms the same
+day, on `maintainer/spawn-retention-field` (retention becomes a declared field in
+`crates/supervision_proto`, and it declares "retain nothing"); the decision owes a `DECISIONS`
+section that the integrator mints at merge, so it is cited here by branch rather than by a number
+this lane could not know. Settling it removed the accident and freed A to ship. **B stays open behind a customer that does not exist**: a terminate
 verb on a `ThreadControlBlock` capability widens a construction-time authority into a lifetime
 handle, and nobody has asked to end a thread without owning its region. C is milestone 254, minted
 separately. D is what the tree did until today.
@@ -82,3 +86,79 @@ holding something. **If this milestone ends as `RECORDED`, that is a result.**
 wait and is milestone 23's residual, not this one's; this milestone is about what can be done to a
 thread already known to be stuck, whether it is stuck because a peer hung, because a peer died, or
 because it was written wrong.
+
+## What was built
+
+`sched::region_reap_verdict` grows a fourth answer, `RegionReap::FinishInPlace`, and
+`reap_region_objects` grows a phase that acts on it: a resident that is `Blocked` and off its
+kernel stack is unlinked from whatever queue holds it, every outstanding `Object::Reply` naming it
+is deleted from every capability table, and its state is written straight to `Finished`. It is
+never woken and never runs another instruction. `crates/ipc` gains `Rendezvous::remove_receiver`,
+`remove_sender`'s twin.
+
+**The authority is unchanged**, which is why proposal A was the one that could ship without
+deciding anything else: the untyped holder could already end every `Ready` and `Running` resident,
+and could already leave every `Blocked` one killed-and-refused. It could not only *finish*. Nothing
+was added to the syscall surface, no right was added, and no new error is visible to userspace.
+
+**Both queues are asked, rather than the recorded `WaitRole`.** The research described the role as
+deciding which queue holds the thread, and it does not: `ipc_call`'s `Send::Blocked` arm records a
+caller as `WaitRole::Reply` while queueing it as a *sender*, so role and queue disagree on every
+call that meets no server. Each remove compares pointers and reports whether it found anything, so
+asking the wrong queue costs one drain-and-repush of a short queue and cannot be wrong.
+
+**A `Blocked` thread with `on_cpu` still set is refused, not finished**, and lands on
+`RegionReap::RefuseStanding`. It is mid-switch-out, so a core is standing on the stack that freeing
+its `Thread` would unmap; that is the bug four CI panics taught this path in 2026-08. The condition
+clears itself one context switch later and the owner's existing retry loop finds it.
+
+**The proof it works is two tests**, both in `kernel/src/user/force_kill_tests.rs`, and each was
+checked against the mutation it is meant to catch:
+
+- `destroy_reclaims_a_region_whose_resident_blocks_on_a_rendezvous_it_does_not_own` builds a child
+  parked in `RECV` on a rendezvous created outside its region, so no sweep can reach it, and
+  reclaims. **It hung before this milestone**, and reverting the `Blocked` arm of
+  `region_reap_verdict` makes it spend its two-second deadline and fail on its own assertion.
+- `tearing_down_a_reply_parked_caller_sweeps_the_reply_capability` stages the hardest shape: a
+  caller whose `CALL` was collected, so it sits on no queue at all, with the test itself holding the
+  one-shot `Reply`. Deleting the sweep from `sched::finish_blocked_resident` leaves the capability
+  in its slot and fails that test **and only that test**, which is the point of having it: a change
+  that traded a permanent block for a forgeable reply would pass every capacity assertion above it.
+
+`crates/ipc` gains a Kani harness, `removing_a_waiter_preserves_the_invariant`, whose interesting
+case is the miss rather than the hit, because the kernel asks both queues on every victim.
+
+## Follow-on
+
+- **Milestone 254.** The caller stranded by a server that merely *died*, which `abi::Error::Gone`
+  does not reach because the abort machinery walks a rendezvous's wait queues and a reply-parked
+  caller left them at the rendezvous. This milestone reclaims the hung component's own region; 254
+  frees its stranded callers, and the two are complementary rather than alternatives.
+- **Proposed.** `design/roadmap/proposals/a-block-site-that-writes-blocked-by-hand.md`. Nothing
+  forces a block site to call `Handshake::park`, so `wait_on` can in principle go stale, and
+  `finish_blocked_resident` now *acts* on it: a stale rendezvous name means a freed page still
+  linked into a live wait queue. This lane bought what a caller can buy alone (ask both queues, and
+  a `debug_assert!` pairing `Blocked` with a recorded wait) and left the name undefended.
+- **Proposed.** `design/roadmap/proposals/a-reply-that-names-a-thread-and-not-a-call.md`. The
+  soundness of `ipc_reply`'s role-and-not-call guard is an argument by exhaustion in a note rather
+  than a proved property, and the sweep this milestone added protects a rule nothing states. Lift
+  the guard the way `region_reap_verdict` was lifted, prove it, and only then ask whether the
+  capability should carry a call identity.
+- **Refused.** Proposal B, a terminate verb on a `ThreadControlBlock` capability. It would widen a
+  construction-time authority (every method on that capability refuses a thread that is not an
+  `Embryo`) into a lifetime handle, and it answers a question nobody has asked: ending a thread
+  without owning its region. Settling the spawner-retention question on
+  `maintainer/spawn-retention-field` removed the reason A had to wait for it. It stays available
+  behind a customer that does not exist.
+- **Refused.** Proposal D, accept the leak and bound it with the `QuotaToken` machinery. Its case
+  rested on a measurement of what the customer path needs, and the customer path is vacant
+  (AGENTS.md, 2026-08-30), so the measurement cannot be taken. Its stronger half survives regardless:
+  a per-supervisor bound does not compose across supervisors, and this milestone removes the leak it
+  was proposed to bound rather than competing with it.
+- **Recorded.** In `sched::reclaim_region`'s BUGS: an `Ok` is now destructive in one more way. A
+  resident that was `Blocked` is ended by the call that succeeded, without returning from its
+  syscall and without running a destructor, and a waiter it sat beside on somebody else's
+  rendezvous simply stops being there. The rendezvous's owner observes a peer that never arrived,
+  which it cannot tell from a client that never called. That is Zircon's RFC-0007 objection to
+  thread killing, and it lands; what makes it bearable here is that a `Blocked` thread holds no
+  kernel state in flight and its region is going away regardless.
