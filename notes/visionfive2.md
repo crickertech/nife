@@ -687,17 +687,57 @@ StarFive # fdt print /soc/rng@1600c000
 libfdt fdt_path_offset() returned FDT_ERR_NOTFOUND
 ```
 
-`fdt list /soc` returns **56 nodes** and none of them is a random number generator. The absence is
-specific rather than general: `crypto@16000000` and `sec_dma@16008000`, the TRNG's neighbours in the
-same security block, are both described. So the silicon has the device, U-Boot's control device tree
-does not mention it, and milestone 239 (radon's device tree does not describe the TRNG, so a working
-driver never runs) is where that goes.
+`fdt list /soc` returns **56 nodes** and none of them was read as a random number generator. The
+absence looked specific rather than general: `crypto@16000000` and `sec_dma@16008000`, the TRNG's
+neighbours in the same security block, are both described. That went to milestone 239 (radon's
+device tree does not describe the TRNG, so a working driver never runs).
+
+**Correction, 2026-09-03, and the conclusion above is the part that was wrong.** Milestone 239 went
+to the firmware's own source rather than re-reading the board, and the node is there. The tree
+radon hands us is built from `arch/riscv/dts/jh7110.dtsi` in StarFive's U-Boot fork, and that file
+spells it:
+
+```
+trng: trng@1600C000 {
+	compatible = "starfive,trng";
+	reg = <0x0 0x1600C000 0x0 0x4000>;
+	clocks = <&clkgen JH7110_SEC_HCLK>,
+		 <&clkgen JH7110_SEC_MISCAHB_CLK>;
+	clock-names = "hclk", "miscahb_clk";
+	resets = <&rstgen RSTN_U0_SEC_TOP_HRESETN>;
+	interrupts = <30>;
+	status = "disabled";
+};
+```
+
+(starfive-tech/u-boot, branch `JH7110_VisionFive2_devel`, commit `bfbdce9b86a2` of 2023-01-06, the
+last change to that file before this board's `Feb 12 2023` firmware build; unchanged at that
+branch's head. Read 2026-09-03.)
+
+So every observation above holds and none of them meant what they were read to mean. **`fdt print
+/soc/rng@1600c000` failed because the node is not called that**, twice over: it is `trng`, not
+`rng`, and its unit address carries an **upper-case C**, so even `/soc/trng@1600c000` misses. And
+the driver skipped because it matched mainline's `starfive,jh7110-trng` only, against a tree that
+says `starfive,trng`. The neighbours were visible for the same reason they are visible in that
+file: `crypto@16000000` and `sec_dma@16008000` are spelled the same way in both.
+
+The `status = "disabled"` is U-Boot's, not the board's: StarFive's own Linux enables the identical
+node from `jh7110-common.dtsi` (`&trng { status = "okay"; };`), and their kernel driver had
+already moved to `starfive,jh7110-trng` in December 2022, two months before that firmware was
+built. **U-Boot's control DTB is a stale fork of the vendor's own hardware description**, and
+nobody on their side noticed because Linux on this board reads its own DTB and never sees U-Boot's.
+
+Milestone 239 taught `crates/jh7110_trng`'s `discover` both spellings and made it carry the
+`status` it found, so the next boot answers this rather than inferring it. **None of that has run
+on the board**; the two commands that settle it are in that milestone's block.
 
 **And it explains a second number in the same boot.** The tour reported `capability slots: 4 of 24 at
 peak` where QEMU reports 21. That is not a different measurement: milestone 230 (`script/shell-check`
 is red on `main`, on both architectures, and nothing says so) established that init builds the login
 stack only when it has an entropy client. No TRNG node, no entropy, no login stack, a much smaller
-peak. **The 24-slot ceiling was sized against a QEMU boot richer than the real board's.**
+peak. **The 24-slot ceiling was sized against a QEMU boot richer than the real board's**, and the
+correction above does not change that until a boot proves the driver reaches bytes: a node found is
+not a device driven.
 
 ## To measure at the bench
 
@@ -727,9 +767,12 @@ Facts documentation could not settle, each an explicit measurement, none guessed
 7. **UART reality check**: that byte-wide access at unshifted offsets truly fails (predicted, not
    yet observed), and the DW busy quirk's visibility.
 8. **Boot-to-banner wall time**, once there is a banner, as the first real-hardware number.
-9. **Whether the board's own device tree carries the TRNG node** mainline's binding describes
-   (`starfive,jh7110-trng` at `0x1600_C000`), and whether its clocks and reset are left running by
-   U-Boot. Both are milestone 159's, and both are read off the `hw entropy` line the riscv64 boot
+9. **Whether the tree radon hands us carries the TRNG node under the vendor spelling**
+   (`trng@1600C000`, `compatible = "starfive,trng"`, `status = "disabled"`), which is what the
+   firmware's source says and what nobody has yet confirmed at the prompt, and whether its clocks
+   and reset are left running by U-Boot. The first is milestone 239's (radon's device tree does not
+   describe the TRNG, so a working driver never runs) and its block carries the two commands; the
+   second is milestone 159's, and both are read off the `hw entropy` line the riscv64 boot
    tour now prints last; `design/roadmap/159-jh7110-trng-driver.md` carries the ordered bench
    procedure and a table of what each of the five possible lines means. This is the first real,
    non-virtio device a confined userspace process on this project has been asked to drive, which

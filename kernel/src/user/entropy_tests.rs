@@ -107,8 +107,8 @@ fn a_client_obtains_unpredictable_bytes_from_a_virtio_rng_over_pcie() {
 fn the_jh7110_backend_refuses_to_wire_where_there_is_no_jh7110() {
     if entropy_service::jh7110_trng_device().is_some() {
         crate::testing::skip!(
-            "this machine describes a starfive,jh7110-trng: the boot tour's hw entropy line is \
-             the test that matters here, not this one"
+            "this machine's tree describes a JH7110 TRNG (under either spelling): the boot \
+             tour's hw entropy line is the test that matters here, not this one"
         );
     }
     let Some(image) = program("jh7110_trng") else {

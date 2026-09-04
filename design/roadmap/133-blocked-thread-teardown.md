@@ -131,19 +131,25 @@ case is the miss rather than the hit, because the kernel asks both queues on eve
 ## Follow-on
 
 - **Milestone 254.** The caller stranded by a server that merely *died*, which `abi::Error::Gone`
-  does not reach because the abort machinery walks a rendezvous's wait queues and a reply-parked
-  caller left them at the rendezvous. This milestone reclaims the hung component's own region; 254
-  frees its stranded callers, and the two are complementary rather than alternatives.
+  did not reach because the abort machinery walks a rendezvous's wait queues and a reply-parked
+  caller left them at the rendezvous. **It landed the same day as this one**, and the two are
+  complementary rather than alternatives: this milestone reclaims the hung component's own region,
+  254 frees its stranded callers. They also took one of seL4's two answers to the stale-reply hazard
+  each, and the merge folded their two copies of the sweep into one function,
+  `sched::delete_reply_caps_naming`, so the invariant they share (**no unconsumed reply capability
+  names a thread that has left its park**) has one implementation. 254's removal-phase
+  `strand_callers_of` also runs on the residents this milestone finishes, so a hung *server* ended
+  here frees its own clients for free.
 - **Proposed.** `design/roadmap/proposals/a-block-site-that-writes-blocked-by-hand.md`. Nothing
   forces a block site to call `Handshake::park`, so `wait_on` can in principle go stale, and
   `finish_blocked_resident` now *acts* on it: a stale rendezvous name means a freed page still
   linked into a live wait queue. This lane bought what a caller can buy alone (ask both queues, and
   a `debug_assert!` pairing `Blocked` with a recorded wait) and left the name undefended.
-- **Proposed.** `design/roadmap/proposals/a-reply-that-names-a-thread-and-not-a-call.md`. The
-  soundness of `ipc_reply`'s role-and-not-call guard is an argument by exhaustion in a note rather
-  than a proved property, and the sweep this milestone added protects a rule nothing states. Lift
-  the guard the way `region_reap_verdict` was lifted, prove it, and only then ask whether the
-  capability should carry a call identity.
+- **Recorded.** `design/roadmap/proposals/a-reply-capability-that-names-a-call.md`, milestone 254's,
+  which this lane had written a near-duplicate of and dropped at the merge in favour of the better
+  one. The soundness of `ipc_reply`'s role-and-not-call guard is an argument by exhaustion in a note
+  rather than a stated property, and both milestones' sweeps protect a rule nothing checks. A call
+  identity in the payload is rung one where a sweep is rung two.
 - **Proposed.** `design/roadmap/proposals/an-msi-x-completion-that-arrives-only-sometimes.md`. Not
   this milestone's subject at all: one `x86_64` leg of this lane's gate failed on
   `a_userspace_driver_reads_a_file_over_the_pcie_transport`'s interrupt assertion and passed alone

@@ -188,6 +188,35 @@ than `PARTIAL` for that reason: what remains is not a phase somebody could build
 session. `script/board-console --tally` is what turns that session's log into the row this section
 asks for, and it prints the caveats beside it so a count of draws is not quoted as a probability.
 
+## The bench answered it, 2026-09-04, and closed the route
+
+**radon's OpenSBI implements SRST reset type 1, and the board does not come back.** The `ecall`
+returns no error and the SoC resets; U-Boot SPL then cannot reach the PMIC over i2c, retries, and
+hangs. The transcript is `target/board/radon-2026-09-04-srst-reset-pmic.log` and notes/soak.md
+carries the line-numbered extract.
+
+**That is a third outcome, and neither this block nor the note predicted it.** Both priced a refusal
+(`sbiret.error == -2`) against silence at the `ecall`. What happens is that the firmware accepts, the
+reset occurs, and the firmware *on the way back* fails: something the PMIC needs is not reinitialised
+by a warm SoC reset the way it is by removing power.
+
+**The kernel half is sound and was verified the same evening.** The reboot fires when it says it
+will, prints what it is about to do, and the escape works: a byte sent mid-soak produced
+`soak-reboot: DISARMED at t=75s` and the soak carried on past the 120s mark it would otherwise have
+rebooted at. That is step 4 of the bench procedure, the one thing no mechanism in the kernel can
+prove for itself, done. The mechanism is not what failed.
+
+**What it retires.** This block refused a smart-plug series as *"a lane spent on a guess until the
+firmware has actually refused reset type 1"*. It has now effectively refused, so **milestone 224**
+(nothing can power-cycle radon, so a hung soak needs a person) is no longer a convenience: it is the
+only remaining route to an unattended series on this board, and the guess it was waiting on is spent.
+
+**And the escape's own limitation showed up in use.** `script/board-console` holds the port and
+cannot write, so the byte had to be sent by detaching it, which is exactly the proposal this lane
+filed (`design/roadmap/proposals/board-console-cannot-speak-to-the-board.md`). Sending it at the
+wrong moment also stopped U-Boot's autoboot countdown and cost a power cycle, which is the fallback
+this block names working as an obstacle.
+
 ## Follow-on
 
 - **Proposed.** *The watcher reads a board and never speaks to it, so stopping a reboot loop needs a

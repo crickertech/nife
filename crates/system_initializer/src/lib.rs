@@ -296,8 +296,8 @@ use line_editor::proto;
 // The loader, and the tree's only one since milestone 96. Named here rather than qualified at every
 // call, because the point of the crate is that there is one of these.
 use supervision_proto::{
-    ChildEndowment, build_child, retype_obj_from as retype_obj,
-    retype_page_frame_from as retype_page_frame, thread_control_block_start,
+    ChildEndowment, Retention, build_child, retype_obj_from as retype_obj,
+    retype_page_frame_from as retype_page_frame, start_child,
 };
 use user_rt::{call, cap_delete, granted, invoke, recv, recv_cap, send};
 
@@ -963,16 +963,10 @@ pub fn boot(
                         ],
                         maps: &[(RNG_DMA_VA, g.virtio_rng_dma, abi::address_space::MAP_RW)],
                         stack_pages: CHILD_STACK_PAGES,
-                        ..ChildEndowment::new()
+                        ..ChildEndowment::new(Retention::Nothing)
                     },
                 ));
-                must_ok(thread_control_block_start(
-                    entropy,
-                    RNG_MODE_VIRTIO,
-                    dma_phys,
-                    0,
-                ));
-                cap_delete(entropy);
+                must_ok(start_child(entropy, RNG_MODE_VIRTIO, dma_phys, 0));
                 cap_delete(g.virtio_rng_irq);
                 cap_delete(g.virtio_rng);
                 cap_delete(g.virtio_rng_dma);
@@ -1049,17 +1043,11 @@ pub fn boot(
                     (TERM_IN_VA, term_in, abi::address_space::MAP_RW),
                 ],
                 stack_pages: CHILD_STACK_PAGES,
-                ..ChildEndowment::new()
+                ..ChildEndowment::new(Retention::Nothing)
             },
         );
         let line_editor = must(r);
-        must_ok(thread_control_block_start(
-            line_editor,
-            LINE_EDITOR_MODE_DISPLAY,
-            0,
-            0,
-        ));
-        cap_delete(line_editor);
+        must_ok(start_child(line_editor, LINE_EDITOR_MODE_DISPLAY, 0, 0));
 
         // `g.disp_term_ep`/`g.disp_term_page` are ours no further: `line_editor` holds its own
         // narrowed copies, granting was a copy rather than a move (the same reason `con_shared`
@@ -1086,15 +1074,14 @@ pub fn boot(
                     (CON_UART_VA, g.uart_dev, abi::address_space::MAP_RO), // mode ignored for a DeviceFrame
                 ],
                 stack_pages: CHILD_STACK_PAGES,
-                ..ChildEndowment::new()
+                ..ChildEndowment::new(Retention::Nothing)
             },
         ));
-        must_ok(thread_control_block_start(con, 0, 0, 0));
-        cap_delete(con);
+        must_ok(start_child(con, 0, 0, 0));
 
         // 2. The line discipline: serves the terminal endpoint, prints through the console. It is
         // the console's only client; everyone else prints through it. `LINE_EDITOR_MODE_CONSOLE`
-        // (0) is `thread_control_block_start`'s own default, so this is unchanged from before
+        // (0) is `start_child`'s own default, so this is unchanged from before
         // milestone 177 gave `line_editor` a second mode.
         let line_editor = must(build_child(
             ut,
@@ -1112,16 +1099,10 @@ pub fn boot(
                     (TERM_IN_VA, term_in, abi::address_space::MAP_RW),
                 ],
                 stack_pages: CHILD_STACK_PAGES,
-                ..ChildEndowment::new()
+                ..ChildEndowment::new(Retention::Nothing)
             },
         ));
-        must_ok(thread_control_block_start(
-            line_editor,
-            LINE_EDITOR_MODE_CONSOLE,
-            0,
-            0,
-        ));
-        cap_delete(line_editor);
+        must_ok(start_child(line_editor, LINE_EDITOR_MODE_CONSOLE, 0, 0));
 
         // `request`/`reply`/`con_shared` are ours no further: the console and `line_editor` both
         // hold their own narrowed copies (the console's own doc, one screen down, gives the
@@ -1195,11 +1176,10 @@ pub fn boot(
                 ],
                 maps: &[(IN_UART_VA, g.uart_dev, abi::address_space::MAP_RO)],
                 stack_pages: CHILD_STACK_PAGES,
-                ..ChildEndowment::new()
+                ..ChildEndowment::new(Retention::Nothing)
             },
         ));
-        must_ok(thread_control_block_start(input, 0, 0, 0));
-        cap_delete(input);
+        must_ok(start_child(input, 0, 0, 0));
     }
 
     // **The console's capabilities go back now, before the shell is built**, and that is not
@@ -1373,7 +1353,7 @@ pub fn boot(
             caps: &sh_caps[..n_caps],
             maps: &sh_maps[..n_maps],
             stack_pages: CHILD_STACK_PAGES,
-            ..ChildEndowment::new()
+            ..ChildEndowment::new(Retention::Nothing)
         },
     ));
     cap_delete(sh_budget); // our copy; the shell holds its own now
@@ -1441,14 +1421,13 @@ pub fn boot(
                     (term_ep, abi::rights::WRITE),
                 ],
                 stack_pages: CHILD_STACK_PAGES,
-                ..ChildEndowment::new()
+                ..ChildEndowment::new(Retention::Nothing)
             },
         ));
         // Started here even though the shell deliberately is not: the adapter owns no page and
         // prints only what a client sends it, and it has no clients until the spawn service below
         // hands one its endpoint. It cannot write into the page the announcement below stages in.
-        must_ok(thread_control_block_start(adapter, 0, 0, 0));
-        cap_delete(adapter);
+        must_ok(start_child(adapter, 0, 0, 0));
     }
 
     // **Milestone 49's login stack**: `credentialer`, `identity_provisioner`, `login`,
@@ -1502,7 +1481,7 @@ pub fn boot(
             let verify_page = must(retype_page_frame(ut));
             let cred_budget = must(memory_region_split(ut, CRED_BUDGET_PAGES));
             let cred_program = cred_elf.as_ref().expect("have_login_stack checked this");
-            let cred_tcb = must(build_child(
+            let cred_child = must(build_child(
                 ut,
                 ut,
                 cred_program,
@@ -1519,11 +1498,10 @@ pub fn boot(
                         (CRED_SVC_VERIFY_VA, verify_page, abi::address_space::MAP_RW),
                     ],
                     stack_pages: CRED_STACK_PAGES,
-                    ..ChildEndowment::new()
+                    ..ChildEndowment::new(Retention::Nothing)
                 },
             ));
-            must_ok(thread_control_block_start(cred_tcb, 0, 0, 0));
-            cap_delete(cred_tcb);
+            must_ok(start_child(cred_child, 0, 0, 0));
             cap_delete(request); // credentialer holds its own copy now
             cap_delete(cred_budget); // ditto
 
@@ -1573,7 +1551,7 @@ pub fn boot(
 
                 let idp_report = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
                 let idp_program = idp_elf.as_ref().expect("have_login_stack checked this");
-                let idp_tcb = must(build_child(
+                let idp_child = must(build_child(
                     ut,
                     ut,
                     idp_program,
@@ -1589,16 +1567,15 @@ pub fn boot(
                             (IDP_FS_VA, g.fs_page, abi::address_space::MAP_RW),
                         ],
                         stack_pages: CHILD_STACK_PAGES,
-                        ..ChildEndowment::new()
+                        ..ChildEndowment::new(Retention::Nothing)
                     },
                 ));
-                must_ok(thread_control_block_start(
-                    idp_tcb,
+                must_ok(start_child(
+                    idp_child,
                     DEMO_IDENTITY.len() as u64,
                     login_password.len() as u64,
                     0,
                 ));
-                cap_delete(idp_tcb);
                 cap_delete(req_frame);
 
                 let (idp_code, _, _) = recv(idp_report);
@@ -1659,24 +1636,23 @@ pub fn boot(
                 // reach it (`user/src/audit_sink.rs`'s own doc on why this ordering matters).
                 let audit = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
                 let audit_program = audit_elf.as_ref().expect("have_login_stack checked this");
-                let audit_tcb = must(build_child(
+                let audit_child = must(build_child(
                     ut,
                     ut,
                     audit_program,
                     &ChildEndowment {
                         caps: &[(audit, abi::rights::READ)],
                         stack_pages: CHILD_STACK_PAGES,
-                        ..ChildEndowment::new()
+                        ..ChildEndowment::new(Retention::Nothing)
                     },
                 ));
-                must_ok(thread_control_block_start(audit_tcb, 0, 0, 0));
-                cap_delete(audit_tcb);
+                must_ok(start_child(audit_child, 0, 0, 0));
 
                 let login_request = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
                 let login_result = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
                 let login_ut = must(memory_region_split(ut, LOGIN_CONSTRUCTION_PAGES));
                 let login_program = login_elf.as_ref().expect("have_login_stack checked this");
-                let login_tcb = must(build_child(
+                let login_child = must(build_child(
                     ut,
                     ut,
                     login_program,
@@ -1716,18 +1692,17 @@ pub fn boot(
                             (login_proto::PROGRAM_MEASUREMENTS_VA, table.as_bytes()),
                         ],
                         stack_pages: LOGIN_STACK_PAGES,
-                        ..ChildEndowment::new()
+                        ..ChildEndowment::new(Retention::Nothing)
                     },
                 ));
                 // The two blob lengths, in `x0` and `x1`, which is the rest of that contract: a
                 // mapping with no length is a slice this process cannot bound.
-                must_ok(thread_control_block_start(
-                    login_tcb,
+                must_ok(start_child(
+                    login_child,
                     care_blob.len() as u64,
                     table.len() as u64,
                     0,
                 ));
-                cap_delete(login_tcb);
                 // login holds its own copies now; ours were only ever the means of wiring.
                 cap_delete(login_request);
                 cap_delete(login_result);
@@ -1881,23 +1856,16 @@ pub fn boot(
         &ChildEndowment {
             caps: &[(deaths, abi::rights::READ), (result_ep, abi::rights::WRITE)],
             stack_pages: CHILD_STACK_PAGES,
-            ..ChildEndowment::new()
+            ..ChildEndowment::new(Retention::Nothing)
         },
     ));
-    must_ok(thread_control_block_start(reaper, 0, 0, 0));
-    cap_delete(reaper);
+    must_ok(start_child(reaper, 0, 0, 0));
 
     // Role 0 (the prompt), and `arg1` is the rights its directory capability carries. A shell told 0
     // holds no directory and says so at every verb that would need one. `arg2` is the clock slot
     // (milestone 86), which moves with whether this boot had a disk, so it is told rather than
     // assumed.
-    must_ok(thread_control_block_start(
-        shell,
-        0,
-        fs_rights,
-        sh_clock_slot,
-    ));
-    cap_delete(shell);
+    must_ok(start_child(shell, 0, fs_rights, sh_clock_slot));
 
     spawn_service(
         Channels {
@@ -2101,15 +2069,15 @@ fn spawn_service(
                     &ChildEndowment {
                         maps: &[(CHILD_JOB_PAGE_FRAME_VA, fr, abi::address_space::MAP_RW)],
                         stack_pages: CHILD_STACK_PAGES,
-                        ..ChildEndowment::new()
+                        ..ChildEndowment::new(Retention::Nothing)
                     },
                 )
                 .ok(),
                 _ => None,
             };
             match built {
-                Some(tcb) => {
-                    let ok = thread_control_block_start(tcb, 0, arg, 0);
+                Some(child) => {
+                    let ok = start_child(child, 0, arg, 0);
                     send(
                         result_ep,
                         if ok {
@@ -2120,7 +2088,6 @@ fn spawn_service(
                         0,
                         0,
                     );
-                    cap_delete(tcb);
                 }
                 None => {
                     send(result_ep, spawnproto::SPAWN_FAILED, 0, 0);
@@ -2334,7 +2301,7 @@ fn spawn_service(
                             // BUGS.
                             fault: Some(screen.unwrap_or(deaths)),
                             stack_pages: CHILD_STACK_PAGES,
-                            ..ChildEndowment::new()
+                            ..ChildEndowment::new(Retention::Nothing)
                         },
                     )
                     .ok()
@@ -2342,7 +2309,7 @@ fn spawn_service(
                 _ => None,
             };
             let ok = match built {
-                Some(tcb) => {
+                Some(child) => {
                     // **A program behind a directory grant is started with the grant's own three
                     // words** rather than with an integer, which is `rm`'s shape: a spec carrying
                     // the options and two words of name (`filesystem_proto::grant`). init forwards what the
@@ -2351,9 +2318,7 @@ fn spawn_service(
                         Some((_, child)) => child,
                         None => (0, arg, 0),
                     };
-                    let started = thread_control_block_start(tcb, a0, a1, a2);
-                    cap_delete(tcb);
-                    started
+                    start_child(child, a0, a1, a2)
                 }
                 None => false,
             };
@@ -2478,7 +2443,7 @@ fn build_caretaker(
             ],
             maps: &[(FS_CLIENT_PAGE_VA, fs.page, abi::address_space::MAP_RW)],
             stack_pages: CARETAKER_STACK_PAGES,
-            ..ChildEndowment::new()
+            ..ChildEndowment::new(Retention::Nothing)
         },
     );
     // **Deliberately unsupervised** (`fault: None`). A caretaker built into the client's region is
@@ -2486,9 +2451,8 @@ fn build_caretaker(
     // second death message on that endpoint for a thread whose region the first reap had already
     // taken away: `job_undertaker` would then be asked to collect a tid the scheduler no longer
     // knows, which it reads as the kernel contradicting itself and traps on.
-    let tcb = built.ok()?;
-    let started = thread_control_block_start(tcb, care_words.0, care_words.1, care_words.2);
-    cap_delete(tcb);
+    let child = built.ok()?;
+    let started = start_child(child, care_words.0, care_words.1, care_words.2);
     if !started {
         cap_delete(ready);
         cap_delete(narrow_ep);
@@ -2631,8 +2595,10 @@ fn sentence<'b>(
     &buf[..n]
 }
 
-/// Unwrap a `Result<u64, ()>` or fault: a half-built system is not worth limping along.
-fn must(r: Result<u64, ()>) -> u64 {
+/// Unwrap a `Result<_, ()>` or fault: a half-built system is not worth limping along. Generic since
+/// DECISIONS §142, because `build_child` now returns a `Child` (a tcb plus what this builder keeps
+/// over it) where it used to return a bare slot.
+fn must<T>(r: Result<T, ()>) -> T {
     match r {
         Ok(v) => v,
         Err(()) => fail(),

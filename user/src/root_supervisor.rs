@@ -41,7 +41,9 @@
 
 // Each binary in the tree compiles the shared module but uses a different slice of it (the sub-server
 // builds nothing, the supervisor holds no memory), so the unused halves are expected, not dead.
-use supervision_proto::{ChildEndowment, REPORT_FAILED, REPORT_INIT_DROPPED, REPORT_SUP_SAW_DEATH};
+use supervision_proto::{
+    ChildEndowment, REPORT_FAILED, REPORT_INIT_DROPPED, REPORT_SUP_SAW_DEATH, Retention,
+};
 use user_rt::{cap_delete, recv, retype_object, retype_page_frame, send};
 
 /// What the kernel grants us, and nothing else.
@@ -101,7 +103,7 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
     //    lend it), the request pair, a grantable report endpoint so it can endow the children it
     //    builds, a grantable view of the child fault endpoint so children are born supervised, and
     //    the one program image. It cannot build anything else, because it has nothing else to build.
-    let Ok(tcb) = supervision_proto::build_child(
+    let Ok(child) = supervision_proto::build_child(
         ROOT_UT,
         ROOT_UT,
         &spawner,
@@ -116,20 +118,19 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
             maps: &[],
             blobs: &[(SPAWNER_IMAGE_VA, flaky)],
             fault: Some(rootfault),
-            ..ChildEndowment::new()
+            ..ChildEndowment::new(Retention::Nothing)
         },
     ) else {
         bail(10)
     };
-    if !supervision_proto::thread_control_block_start(tcb, 0, flaky.len() as u64, 0) {
+    if !supervision_proto::start_child(child, 0, flaky.len() as u64, 0) {
         bail(11)
     }
-    cap_delete(tcb);
 
     // 2. The supervisor. **It holds no memory at all**: a request channel, a death channel, and a way
     //    to report. Its restart policy is code, not authority, so a compromised sub_server_supervisor can ask for
     //    rebuilds of one program and nothing more.
-    let Ok(tcb) = supervision_proto::build_child(
+    let Ok(child) = supervision_proto::build_child(
         ROOT_UT,
         ROOT_UT,
         &sub_server_supervisor,
@@ -143,15 +144,14 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
             maps: &[],
             blobs: &[],
             fault: Some(rootfault),
-            ..ChildEndowment::new()
+            ..ChildEndowment::new(Retention::Nothing)
         },
     ) else {
         bail(12)
     };
-    if !supervision_proto::thread_control_block_start(tcb, 0, 0, 0) {
+    if !supervision_proto::start_child(child, 0, 0, 0) {
         bail(13)
     }
-    cap_delete(tcb);
 
     // 3. Give it all away. The wiring caps first (the servers hold their own narrowed copies), then
     //    the spawner's budget, then the construction budget itself. From here we cannot make a page,
