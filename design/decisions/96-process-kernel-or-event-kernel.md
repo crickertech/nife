@@ -77,6 +77,30 @@ resource-starved embedded systems, ours is a deliberate emulator setting rather 
 limit, and 5.81 MiB buys nothing if the performance case (input 3, the live one) does not hold. The
 memory argument is dead here because it is **not decisive**, not because it is **too small to see**.
 
+**And "here" is doing work in that sentence, which calef named on 2026-09-04**, asking whether
+today's decisions foreclose hardware this project cannot reach yet: *"These things change over time.
+I just want to ensure that because we cannot today we don't make decisions that block it in the
+future."*
+
+**This input is closed conditionally, on a scale, and the condition is not a detail.** The paragraph
+above already says the denominator is a deliberate emulator setting rather than a hardware limit and
+that Warton's result came from resource-starved embedded systems. Read together, those say the
+memory argument is dead *at the scale this project runs at* and would revive at a smaller one. At
+256 MiB the static kernel-stack reservation is 2.27%; the arithmetic is linear, so on a 64 MiB
+machine it is **9.1%**, and on 32 MiB it is **18%**, which nobody would wave away.
+
+**What would revive it, stated so a future reader does not have to re-derive it.** A target where
+`MAX_THREADS * STACK_SLOT_SPAN` is a material fraction of RAM. notes/target-hardware.md's
+requirements do not exclude such a machine: an application-class SoC with an MMU, 32 KB of L1i and a
+few tens of megabytes clears every one of them, and the form factors that shape belongs to (a watch,
+a sensor, an appliance) are exactly where an open MMU-class device does not exist **today**.
+
+**This is not an argument for changing kernel models.** It is a note that input 1 is answered for the
+machines this project owns and is *unanswered* for a class it has not excluded, so a future reader
+finding "the memory argument is dead" should not read it as "the memory argument cannot come back".
+Input 3, performance, remains the live one, and milestone 168's instrument was built on 2026-09-04
+to produce its number.
+
 **A larger reservation sits behind this one and is worth naming**, since a reader who checks the
 stacks will find it: `kmem::KERNEL_OBJ_PAGES` is 2048 pages, and its carve is eager
 (`memory_region::create` takes the whole thing on the first kernel-object need and never returns

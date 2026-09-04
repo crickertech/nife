@@ -37,8 +37,14 @@ together until 2026-09-04** (calef: *"nife should be able to run on hardware wit
 console"*). Some of these are properties a machine must have to run nife at all; one is a property
 *we* need to bring nife up on it, and confusing them makes the supported set look smaller than it is.
 
-**To run nife:**
+**To run nife**, and item 0 was missing from this list until 2026-09-04 although it excludes more
+than the rest put together:
 
+0. **Is there an MMU?** nife is a capability microkernel with per-process address spaces; every
+   driver and server is an EL0 process behind its own page tables. There is no configuration in
+   which it runs without one. **This is what excludes the whole microcontroller class** (Cortex-M,
+   Cortex-R, RISC-V E-series), and it excludes them for a reason that is the thesis rather than a
+   limitation anybody could lift.
 1. **Can you get code to execute at boot?** Unlocked bootloader, or no secure boot at all.
 2. **Are the peripherals documented?** You need an interrupt controller, a timer, and eventually
    storage. The CPU is standardized. The stuff bolted around it is not, and that's where the work is.
@@ -63,8 +69,31 @@ laptop and desktop, an Intel MacBook, cordoba and Clay's desktop as machines a U
 looks for). **Not one of them has a serial port.** Read as a running requirement, item 4 excludes the
 entire fleet; read correctly, it says only that we cannot yet watch them.
 
-A device can be aarch64 and still be completely useless to us by failing any of items 1 to 3, and
+A device can be aarch64 and still be completely useless to us by failing any of items 0 to 3, and
 useless *for development* by failing item 4.
+
+**Which item actually does the excluding, because the order is not what it looks like.** Written out,
+this list reads as though an unlocked bootloader were the wall. It is not:
+
+- **Item 0 excludes the most**, and silently, because a microcontroller never appears in a
+  conversation about operating systems in the first place.
+- **Item 2 is the real filter for everything else.** Phones with unlockable bootloaders are a genuine
+  class rather than an exception (Pixel, Fairphone, Sony's open-device programme, and the several
+  hundred devices postmarketOS supports), so item 1 is often satisfiable. What defeats a phone is
+  that its SoC is undocumented: no public reference for the interrupt controller, clocks, power
+  domains or display, a downstream device tree describing what the vendor's kernel happens to do
+  rather than what the hardware is, and firmware the application processor must cooperate with. That
+  is years per device, which is why postmarketOS is a years-per-device project.
+- **Item 3 excludes almost nothing that passes item 0.** Cortex-A53 and every x86 since about 2006
+  sit at 32 KB, phone big cores and server cores at 64 KB. The cache floor is a real requirement and
+  a nearly free one.
+
+**And a note for a future reader, from calef, 2026-09-04:** *"These things change over time. I just
+want to ensure that because we cannot today we don't make decisions that block it in the future."*
+Nothing on this list is a decision this project made; items 0 to 3 are properties of machines. The
+place where a decision of ours could foreclose a small target is the kernel model, and
+DECISIONS §96's memory input is recorded there as closed **at this project's scale** rather than
+absolutely, for exactly this reason.
 
 ## A fourth requirement, and this one filters silicon rather than firmware
 
