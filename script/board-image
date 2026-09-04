@@ -3,6 +3,7 @@
 #
 #   script/board-image
 #   script/board-image --soak                 # the sustained multicore workload instead of a halt (219)
+#   script/board-image --jobmix               # the multi-tasking workload sweep instead of a halt (168)
 #   script/board-image --soak --reboot        # ...and the board cold-reboots every two minutes (249)
 #   script/board-image --card /Volumes/NIFE   # and copy the matched set onto an already-formatted card
 #
@@ -54,16 +55,18 @@ cd "$(dirname "$0")/.."
 # before it does anything, below.
 FEATURES=board
 SOAK=no
+JOBMIX=no
 REBOOT=no
 CARD=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --soak) SOAK=yes; shift ;;
+        --jobmix) JOBMIX=yes; shift ;;
         --reboot) REBOOT=yes; shift ;;
         --card)
             [ $# -ge 2 ] || { echo "board-image: --card needs a path" >&2; exit 2; }
             CARD="$2"; shift 2 ;;
-        *) echo "board-image: unknown argument $1 (--soak, --reboot, --card <dir>)" >&2; exit 2 ;;
+        *) echo "board-image: unknown argument $1 (--soak, --jobmix, --reboot, --card <dir>)" >&2; exit 2 ;;
     esac
 done
 
@@ -75,7 +78,22 @@ if [ "$REBOOT" = yes ] && [ "$SOAK" = no ]; then
     echo "board-image: --reboot needs --soak (there is nothing to reboot between)" >&2
     exit 2
 fi
+# **The multi-tasking workload payload** (milestone 168): the same image, with the kernel feature
+# that replaces the halt at the end of the boot tour with a sweep of EL0 tasks through a
+# heterogeneous job mix, reported as jobs per minute against task count. It is the instrument
+# design/decisions/96-process-kernel-or-event-kernel.md is waiting on, and its gate is HARDWARE, so
+# a card is how the number is actually taken. A flag here rather than a second script for --soak's
+# reason: everything else about the payload is identical, and the archive/kernel ORDER below is the
+# thing that must not be re-derived by hand. See notes/job-mix.md.
+if [ "$SOAK" = yes ] && [ "$JOBMIX" = yes ]; then
+    # Both features replace the end of the boot tour, and the kernel would run the sweep and never
+    # soak. Refused here rather than silently preferring one, because a card built from an ambiguous
+    # command is a card nobody can reproduce.
+    echo "board-image: --soak and --jobmix both replace the end of the boot tour; pick one" >&2
+    exit 2
+fi
 if [ "$SOAK" = yes ]; then FEATURES="board,soak"; fi
+if [ "$JOBMIX" = yes ]; then FEATURES="board,jobmix"; fi
 if [ "$REBOOT" = yes ]; then
     FEATURES="board,soak,reboot_soak"
     cat >&2 <<'WARNING'

@@ -363,6 +363,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "job_mix"
+version = "0.1.0"
+
+[[package]]
 name = "kernel"
 version = "0.1.0"
 dependencies = [
@@ -391,6 +395,7 @@ dependencies = [
  "intrusive_fifo",
  "ipc",
  "jh7110_trng",
+ "job_mix",
  "line_editor",
  "login_proto",
  "machine_discovery",
@@ -936,6 +941,7 @@ dependencies = [
  "grant_plan",
  "graphics_proto",
  "jh7110_trng",
+ "job_mix",
  "line_editor",
  "login_proto",
  "manual",

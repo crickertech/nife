@@ -75,6 +75,27 @@
 //! assert_eq!(delivered(NO_ENTROPY), Some(0));
 //! ```
 //!
+//! # BUGS
+//!
+//! **A true all-zero first draw would be misread as a dead device, and this is the one place the
+//! contract knowingly gets an answer wrong.** [`readiness`] refuses a first bufferful of zeros, so
+//! a source that legitimately produced one at bring-up is condemned for the boot: 2^-64 for the
+//! instruction backend's eight bytes, 2^-256 for the JH7110's thirty-two, 2^-2048 for the
+//! virtio backend's bufferful. The trade is deliberate and is the right way round. **A false
+//! "the device is dead" costs one boot's entropy; a false "the device is alive" costs every secret
+//! derived from it**, and the second failure has no symptom, which is the whole reason
+//! [`NO_ENTROPY`] exists two paragraphs down from [`READY`].
+//!
+//! **The check is bring-up only, and so are its guarantees.** A source that answers correctly once
+//! and degrades afterwards, or one whose register file latches and repeats the same nonzero answer
+//! forever, passes [`readiness`] and is not caught anywhere in this crate. That is continuous
+//! health testing, it is a decision rather than an omission, and it is
+//! `design/decisions/137-trng-health-tests.md`'s to make: 137 has to answer what a *running*
+//! service does when a test fails, which is a denial-of-service question this readiness handshake
+//! does not have (nothing depends on the service yet at the moment it reports). Nothing here
+//! pre-empts that decision, and the only client-side check that exists today is the riscv64 boot
+//! tour's own two-draw comparison, which is a client looking rather than the service checking.
+//!
 //! # Nothing here transforms a byte
 //!
 //! The service passes the device's bytes through. It does not hash, mix, whiten, or stretch them,
@@ -127,8 +148,81 @@ pub const fn want(w0: u64) -> u64 {
 
 /// The word the entropy service SENDs on its readiness endpoint once the device is up and its
 /// first bytes are in hand. ASCII `RNGUP`, so a hex dump of a report reads. A bring-up failure
-/// reports `0xDEAD_0000_0000_0000 | step` instead, the same shape every driver here uses.
+/// reports [`DEAD`]` | step` instead, the same shape every driver here uses.
+///
+/// **"Its first bytes are in hand" is a claim about the bytes, not about the handshake**, and
+/// [`readiness`] is what makes it one. A service that finished its register sequence and holds
+/// nothing, or holds a bufferful of zeros, has not met this word's condition and must not send it.
+/// That was a defect rather than a subtlety: on 2026-09-04 the JH7110 backend sent this word on
+/// radon holding zeros off a block whose clock is gated, and only the boot tour's own second look
+/// at the draws caught it (`design/roadmap/159-jh7110-trng-driver.md`).
 pub const READY: u64 = 0x_52_4E_47_55_50;
+
+/// **The word a bring-up failure reports instead of [`READY`]**, with the step that failed in its
+/// low bits: `0xDEAD_0000_0000_0000 | step`. Named here rather than spelled in each driver because
+/// it is the other half of the readiness contract, and because a reader decoding a report word
+/// should not have to find the literal in three programs to know what it means.
+pub const DEAD: u64 = 0xDEAD_0000_0000_0000;
+
+/// **The service asked and got nothing at all**: the device never answered inside the driver's own
+/// bound. A dry source, an absent one, or a register window that reads as nothing.
+///
+/// Steps `0x01..=0x0f` are each backend's own (`user/src/entropy.rs` numbers its virtio sequence
+/// there), so the two steps every backend shares start at `0x10` and cannot collide with them.
+pub const STEP_NO_FIRST_BYTES: u64 = 0x10;
+
+/// **The service asked, was answered, and every byte of the answer was zero.** See [`readiness`]
+/// for why that is treated as a dead device rather than as randomness.
+pub const STEP_FIRST_ALL_ZERO: u64 = 0x11;
+
+/// Build a bring-up failure's report word from the step that failed.
+#[must_use]
+pub const fn bringup_failure(step: u64) -> u64 {
+    DEAD | step
+}
+
+/// **Decide what a service may say about itself, given the first bytes it drew.** [`READY`] only
+/// when at least one of them is nonzero; otherwise a [`bringup_failure`] naming which of the two
+/// shared steps failed. Every backend calls this rather than composing the word itself, which is
+/// the whole of the fix for the defect [`READY`]'s doc records.
+///
+/// `first` is an iterator rather than a slice because the three backends hold their first bufferful
+/// in three different places: an array from an instruction, an array from a register file, and a
+/// DMA page only volatile reads can see. An empty iterator is "the device gave us nothing", which
+/// is [`STEP_NO_FIRST_BYTES`]; it is not the same answer as a bufferful of zeros, and a bench
+/// session reading a report word needs to be able to tell them apart.
+///
+/// **Refusing an all-zero draw is a correctness claim about a random variable**, and it is made
+/// deliberately: see this crate's `BUGS`.
+///
+/// # Examples
+///
+/// ```
+/// use entropy_proto::{READY, STEP_FIRST_ALL_ZERO, STEP_NO_FIRST_BYTES, bringup_failure, readiness};
+///
+/// // A device that answered with real bytes.
+/// assert_eq!(readiness([0, 0, 0, 7, 0]), READY);
+///
+/// // A device that answered with nothing, and one that answered with zeros. Two different
+/// // failures, and the report word says which.
+/// assert_eq!(readiness([]), bringup_failure(STEP_NO_FIRST_BYTES));
+/// assert_eq!(readiness([0; 32]), bringup_failure(STEP_FIRST_ALL_ZERO));
+/// assert_ne!(readiness([0; 32]), READY);
+/// ```
+pub fn readiness(first: impl IntoIterator<Item = u8>) -> u64 {
+    let mut seen = false;
+    for byte in first {
+        if byte != 0 {
+            return READY;
+        }
+        seen = true;
+    }
+    if seen {
+        bringup_failure(STEP_FIRST_ALL_ZERO)
+    } else {
+        bringup_failure(STEP_NO_FIRST_BYTES)
+    }
+}
 
 /// **The reply's first word when the service has no entropy to give.** Zero bytes delivered, and
 /// the second word is meaningless. The service sends this rather than padding, repeating an
@@ -219,6 +313,70 @@ mod tests {
         let n = take(3, 0xFFFF_FFFF_FF03_0201, &mut out);
         assert_eq!(n, 3);
         assert_eq!(out, [0x01, 0x02, 0x03, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA]);
+    }
+
+    /// **The defect this function exists to prevent** (2026-09-04, radon): a service holding a
+    /// bufferful of zeros must not be able to report [`READY`]. Asserted against every width a
+    /// backend actually draws, because the predicate is "no nonzero byte anywhere" rather than
+    /// "the first word is zero", and a check written the second way would pass this test at 8
+    /// bytes and let a 256-byte DMA page through.
+    #[test]
+    fn an_all_zero_first_bufferful_is_never_ready() {
+        // The three widths a backend actually draws: the instruction's eight bytes, the JH7110's
+        // thirty-two, the virtio pool's bufferful. Spelled out rather than looped because the
+        // predicate is "no nonzero byte anywhere", and a check written as "the first word is zero"
+        // would pass at eight bytes and let a 256-byte DMA page through.
+        assert_ne!(readiness([0u8; 8]), READY, "8 zero bytes reported ready");
+        assert_ne!(readiness([0u8; 32]), READY, "32 zero bytes reported ready");
+        assert_ne!(
+            readiness([0u8; 256]),
+            READY,
+            "256 zero bytes reported ready"
+        );
+        assert_eq!(
+            readiness([0u8; 32]),
+            bringup_failure(STEP_FIRST_ALL_ZERO),
+            "a zero bufferful must name its own step, not just refuse to be ready",
+        );
+    }
+
+    /// **And a device that gave nothing is a different failure from one that gave zeros.** Both
+    /// refuse [`READY`]; a bench session reading the report word has to be able to tell a gated
+    /// clock from a source that answered wrongly, which is what the two steps are for.
+    #[test]
+    fn nothing_at_all_and_a_zero_bufferful_are_distinguishable() {
+        assert_eq!(readiness([]), bringup_failure(STEP_NO_FIRST_BYTES));
+        assert_ne!(
+            readiness([]),
+            readiness([0; 32]),
+            "a dry device and a zeroing device report the same step",
+        );
+        assert_eq!(DEAD & 0xff, 0, "a step has room in the low bits");
+    }
+
+    /// One nonzero byte anywhere is enough, including the last one. A predicate that stopped
+    /// looking early would condemn a working device whose first bytes happened to be zeros, which
+    /// is the false positive this trade is trying to keep rare rather than common.
+    #[test]
+    fn a_single_nonzero_byte_anywhere_is_ready() {
+        let mut buf = [0u8; 32];
+        buf[31] = 1;
+        assert_eq!(readiness(buf), READY);
+        buf = [0u8; 32];
+        buf[0] = 0x80;
+        assert_eq!(readiness(buf), READY);
+    }
+
+    /// No bring-up failure can be mistaken for the ready word or for a byte count, which is the
+    /// same non-overlap property [`delivered`] rests on, one message earlier in the handshake.
+    #[test]
+    fn a_bringup_failure_is_never_ready_and_never_a_count() {
+        for step in [STEP_NO_FIRST_BYTES, STEP_FIRST_ALL_ZERO, 0x01, 0xff] {
+            let word = bringup_failure(step);
+            assert_ne!(word, READY);
+            assert_eq!(delivered(word), None);
+            assert_eq!(word & 0xff, step);
+        }
     }
 
     /// A short buffer is the caller's business, not a panic: `take` fills what fits.

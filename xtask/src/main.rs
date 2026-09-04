@@ -182,6 +182,9 @@ fn main() -> ExitCode {
         // The sustained multicore run under QEMU (milestone 219), judged by the same recogniser
         // `board-console` points at a board. Returns its own exit code for the same reason.
         "soak" => return soak(),
+        // The multi-tasking workload sweep under QEMU (milestone 168). Returns its own exit code
+        // for `soak`'s reason: a rehearsal that cannot say *how* it failed is not a rehearsal.
+        "job-mix" => return job_mix_sweep(),
         // The card's U-Boot script (milestone 218): what makes the board boot without a person at
         // its prompt. `script/board-image` calls this; it is a separate verb so the script it
         // produces can be rebuilt and read on its own.
@@ -3447,6 +3450,10 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         // pool of, so that design/fatal-risks.md risk 5 has something to run. In every archive,
         // because the whole premise is that the same workload runs on QEMU and on all three boards.
         ("soaker", "soaker"),
+        // The multi-tasking workload's task (milestone 168): what `--features jobmix` sweeps. In
+        // every archive for the soaker's own reason, that the instrument develops under QEMU and
+        // the number is taken on a board.
+        ("job_mixer", "job_mixer"),
         // The authority-shrinking supervision tree (milestone 22 phase B.2): an init that hands its
         // construction authority to a spawner and its restart policy to a supervisor, then drops the
         // budget. Portable, so both archives carry all four.
@@ -4323,6 +4330,10 @@ fn initrd_aarch64() -> bool {
         // pool of, so that design/fatal-risks.md risk 5 has something to run. In every archive,
         // because the whole premise is that the same workload runs on QEMU and on all three boards.
         ("soaker", "soaker"),
+        // The multi-tasking workload's task (milestone 168): what `--features jobmix` sweeps. In
+        // every archive for the soaker's own reason, that the instrument develops under QEMU and
+        // the number is taken on a board.
+        ("job_mixer", "job_mixer"),
         // The authority-shrinking supervision tree (milestone 22 phase B.2): an init that hands its
         // construction authority to a spawner and its restart policy to a supervisor, then drops
         // the budget.
@@ -9319,6 +9330,169 @@ fn parse_stage(text: &str) -> Option<Option<board_console::progress::Stage>> {
         "soak" => Some(Some(Stage::Soak)),
         _ => None,
     }
+}
+
+/// **The QEMU rehearsal of milestone 168's multi-tasking workload sweep.** Boot a
+/// `--features jobmix` kernel, echo its lines, stop when it says it is done, and kill it.
+///
+/// **This is a rehearsal and not the measurement**, and the distinction is the milestone's whole
+/// gate. Under TCG the magnitudes are fiction (no caches are modelled) and under HVF the host
+/// scheduler is underneath every guest thread; the number DECISIONS §96 is waiting for is taken on
+/// radon, by `notes/job-mix.md`'s procedure. What this proves is that the workload runs, that the
+/// sweep completes, and that the output is the shape the bench evening will read.
+///
+/// The marker loop is `run_bench`'s, for `run_bench`'s reason: the kernel parks in `wfi` rather
+/// than exiting, so the host side owns the process and tears it down when it sees the done line.
+/// See `script/job-mix`.
+fn job_mix_sweep() -> ExitCode {
+    let args: Vec<String> = std::env::args().skip(2).collect();
+    let mut arch = "aarch64".to_string();
+    let mut smp: Option<String> = None;
+
+    let mut i = 0;
+    while i < args.len() {
+        let value = |i: usize| -> Result<&str, ExitCode> {
+            args.get(i + 1).map(String::as_str).ok_or_else(|| {
+                eprintln!("job-mix: {} wants a value", args[i]);
+                ExitCode::from(4)
+            })
+        };
+        match args[i].as_str() {
+            "--arch" => match value(i) {
+                Ok(v) => arch = v.to_string(),
+                Err(code) => return code,
+            },
+            "--smp" => match value(i) {
+                Ok(v) => smp = Some(v.to_string()),
+                Err(code) => return code,
+            },
+            other => {
+                eprintln!("job-mix: unknown argument {other}");
+                eprintln!("usage: cargo xtask job-mix [--arch aarch64|riscv64|x86_64] [--smp <n>]");
+                return ExitCode::from(4);
+            }
+        }
+        i += 2;
+    }
+
+    let (target, runner, initrd) = match arch.as_str() {
+        "aarch64" => {
+            if !(mkdisk() && user()) {
+                return ExitCode::from(4);
+            }
+            (TARGET, "scripts/qemu-runner-aarch64.sh", initrd_path())
+        }
+        "riscv64" => {
+            if !initrd_riscv() {
+                return ExitCode::from(4);
+            }
+            (
+                RISCV_TARGET,
+                "scripts/qemu-runner-riscv64.sh",
+                riscv_initrd_path(),
+            )
+        }
+        "x86_64" => {
+            if !initrd_x86() {
+                return ExitCode::from(4);
+            }
+            (
+                X86_TARGET,
+                "scripts/qemu-runner-x86_64.sh",
+                x86_initrd_path(),
+            )
+        }
+        other => {
+            eprintln!("job-mix: unknown architecture {other} (aarch64, riscv64 or x86_64)");
+            return ExitCode::from(4);
+        }
+    };
+
+    if !cargo_profiled(&[
+        "build",
+        "-p",
+        "kernel",
+        "--features",
+        "jobmix",
+        "--target",
+        target,
+    ]) {
+        return ExitCode::from(4);
+    }
+
+    let mut cmd = Command::new(runner);
+    cmd.arg(format!(
+        "{}/target/{target}/{}/kernel",
+        workspace_root().display(),
+        profile_dir()
+    ));
+    cmd.env("NIFE_INITRD", &initrd);
+    if let Some(n) = &smp {
+        cmd.env("NIFE_SMP", n);
+    }
+    cmd.stdout(std::process::Stdio::piped());
+    cmd.stderr(std::process::Stdio::inherit());
+
+    eprintln!(
+        "--- job-mix: {arch}, a rehearsal; the number is taken on radon (notes/job-mix.md) ---"
+    );
+    let mut child = match cmd.spawn() {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("job-mix: cannot start {runner}: {e}");
+            return ExitCode::from(4);
+        }
+    };
+    let runner_pid = child.id();
+    let Some(stdout) = child.stdout.take() else {
+        eprintln!("job-mix: the runner gave us no stdout to read");
+        let _ = child.kill();
+        return ExitCode::from(4);
+    };
+
+    use std::io::BufRead;
+    let mut done = false;
+    let mut points = 0usize;
+    let mut failed = false;
+    for line in std::io::BufReader::new(stdout).lines() {
+        let Ok(line) = line else { break };
+        if line.starts_with("jobmix") {
+            println!("{line}");
+        }
+        if line.contains("jobmix: FAILED") {
+            failed = true;
+        }
+        if line.starts_with("jobmix: tasks=") {
+            points += 1;
+        }
+        if line.trim_end() == "jobmix: done" {
+            done = true;
+            break;
+        }
+    }
+    // The children first and then the wrapper, `run_bench`'s order and for its reason: the x86
+    // runner does not `exec`, so killing the wrapper alone orphans the emulator.
+    let _ = Command::new("pkill")
+        .args(["-9", "-P", &runner_pid.to_string()])
+        .status();
+    let _ = child.kill();
+    let _ = child.wait();
+
+    if failed {
+        eprintln!("job-mix: the kernel refused to start the sweep; see the lines above");
+        return ExitCode::from(1);
+    }
+    if !done {
+        eprintln!("job-mix: QEMU ended before printing `jobmix: done`; {points} point(s) printed");
+        return ExitCode::from(3);
+    }
+    eprintln!();
+    eprintln!("job-mix: the sweep completed, {points} point(s).");
+    eprintln!(
+        "job-mix: these magnitudes are NOT the measurement. TCG models no cache and HVF puts a \
+         host scheduler under every guest thread; DECISIONS \u{a7}96's number is taken on radon."
+    );
+    ExitCode::SUCCESS
 }
 
 /// **The QEMU half of milestone 219's sustained run.** Boot a `--features soak` kernel, watch it

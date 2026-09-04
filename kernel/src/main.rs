@@ -61,6 +61,8 @@ mod sched;
 mod smp;
 // The sustained multicore workload (milestone 219). Behind its own feature because an ordinary boot
 // must still halt: this module is the thing that makes a boot never end.
+#[cfg(feature = "jobmix")]
+mod jobmix;
 #[cfg(feature = "soak")]
 mod soak;
 mod stack;
@@ -616,9 +618,16 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // **The tour ends and the soak begins** (milestone 219), before the halting line rather
         // than after it: a boot that says it is halting and then does not would be the tool's
         // problem and the reader's.
+        // **The sweep, when this build asked for one** (milestone 168). Before the soak arm and
+        // the halt for the same reason the soak sits before the halt: the tour has finished, so the
+        // whole boot is still evidence, and this run ends by halting rather than by beating
+        // forever. The two features are alternatives rather than a stack; `script/job-mix` builds
+        // only this one.
+        #[cfg(feature = "jobmix")]
+        jobmix::run();
         #[cfg(feature = "soak")]
         soak::run();
-        #[cfg(not(feature = "soak"))]
+        #[cfg(not(any(feature = "soak", feature = "jobmix")))]
         {
             println!("nife x86_64: boot complete, halting.");
             arch::halt();
@@ -1197,7 +1206,10 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                         ),
                         Some(w) => {
                             // The bring-up report first: `[READY, first_refill_ok, bytes_in_hand]`,
-                            // or a 0xDEAD_.. word. A device that never answered says so here.
+                            // or a 0xDEAD_.. word whose low byte names the step. A device that
+                            // never answered says so here, and since 2026-09-04 so does one that
+                            // answered with zeros: `entropy_proto::readiness` decides that word
+                            // from the bytes, which is what the boot below found it was not doing.
                             let report = w.wait_for_ready().unwrap_or([0; 5]);
                             // Then two draws through the request endpoint, as a client. Two,
                             // because one proves only that *something* was returned: a stuck
@@ -1205,6 +1217,11 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                             // never started all present as a repeat.
                             let (mut a, mut b) = ([0u8; 32], [0u8; 32]);
                             let (na, nb) = (w.get(32, &mut a), w.get(32, &mut b));
+                            // The service refuses to report ready on an all-zero first bufferful
+                            // now, so this is a client checking a claim rather than the only thing
+                            // standing between a boot and zeros served as randomness. It stays
+                            // because a tour that only repeated the service's own verdict would
+                            // have caught nothing on 2026-09-04.
                             let zeros = a.iter().all(|&x| x == 0);
                             if report[0] == entropy_proto::READY
                                 && na == 32
@@ -1218,7 +1235,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                                 );
                             } else {
                                 // `report[2]` is the driver's bring-up diagnostic and it is the
-                                // number a bench session reads first: on a failed first refill it
+                                // number a bench session reads first: on any failed bring-up it
                                 // is the raw `(STAT << 32) | ISTAT`, and all zeros there means the
                                 // register window read as nothing at all (a gated clock, an
                                 // undeasserted reset, or a base that is not the TRNG) rather than
@@ -1257,9 +1274,16 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // **The tour ends and the soak begins** (milestone 219). After the tour's last line, so a
         // soak boot is a superset of an ordinary one and the whole boot is still evidence; before
         // the halt, because the halt is the thing it replaces.
+        // **The sweep, when this build asked for one** (milestone 168). Before the soak arm and
+        // the halt for the same reason the soak sits before the halt: the tour has finished, so the
+        // whole boot is still evidence, and this run ends by halting rather than by beating
+        // forever. The two features are alternatives rather than a stack; `script/job-mix` builds
+        // only this one.
+        #[cfg(feature = "jobmix")]
+        jobmix::run();
         #[cfg(feature = "soak")]
         soak::run();
-        #[cfg(not(feature = "soak"))]
+        #[cfg(not(any(feature = "soak", feature = "jobmix")))]
         arch::halt();
     }
 
@@ -1631,10 +1655,17 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // the place of the init handoff rather than of the halt below it. A soak boot that also
         // brought up a console, a line discipline and a shell would be soaking those too, and the
         // point of this workload is that what it stresses is decided rather than incidental.
+        // **The sweep, when this build asked for one** (milestone 168). Before the soak arm and
+        // the halt for the same reason the soak sits before the halt: the tour has finished, so the
+        // whole boot is still evidence, and this run ends by halting rather than by beating
+        // forever. The two features are alternatives rather than a stack; `script/job-mix` builds
+        // only this one.
+        #[cfg(feature = "jobmix")]
+        jobmix::run();
         #[cfg(feature = "soak")]
         soak::run();
 
-        #[cfg(not(feature = "soak"))]
+        #[cfg(not(any(feature = "soak", feature = "jobmix")))]
         if let Some(image) = user::initrd() {
             println!();
             println!("nife: handing the system to userspace init.");
@@ -1645,7 +1676,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
 
     // bench::run diverged above, and so does soak::run (milestone 219); this is everyone else's
     // parking.
-    #[cfg(not(any(feature = "bench", feature = "soak")))]
+    #[cfg(not(any(feature = "bench", feature = "soak", feature = "jobmix")))]
     arch::halt()
 }
 
